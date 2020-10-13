@@ -46,6 +46,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
      */
     function getTotalElements()
         override
+        virtual
         public
         view
         returns (
@@ -190,11 +191,6 @@ contract OVM_BaseChain is iOVM_BaseChain {
         batches.deleteElementsAfter(uint32(_batchHeader.batchIndex - 1), bytes28(uint224(totalElements)));
     }
 
-
-    /*********************
-     * Private Functions *
-     *********************/
-
     /**
      * Calculates a hash for a given batch header.
      * @param _batchHeader Header to hash.
@@ -203,7 +199,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
     function _hashBatchHeader(
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader
     )
-        private
+        internal
         pure
         returns (
             bytes32 _hash

@@ -29,6 +29,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
 
     using Lib_TimeboundRingBuffer for TimeboundRingBuffer;
     TimeboundRingBuffer internal queue;
+    TimeboundRingBuffer internal chain;
 
     struct MultiBatchContext {
         uint numSequencedTransactions;
@@ -111,7 +112,8 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             i++; // TODO: Replace this dumb work with minting gas token. (not today)
         }
 
-        bytes32 batchRoot = keccak256(abi.encode(
+        bytes32 queueRoot = keccak256(abi.encode(
+            msg.sender,
             _target,
             _gasLimit,
             _data
@@ -119,28 +121,90 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
         // bytes is left aligned, uint is right aligned - use this to encode them together
         bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(block.number))) | bytes32(uint256(uint40(block.timestamp)));
         // bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(999))) | bytes32(uint256(uint40(777)));
-        queue.push2(batchRoot, timestampAndBlockNumber, bytes28(0));
+        queue.push2(queueRoot, timestampAndBlockNumber, bytes28(0));
     }
 
     function getQueueElement(uint queueIndex) public view returns(Lib_OVMCodec.QueueElement memory) {
         uint32 trueIndex = uint32(queueIndex * 2);
-        bytes32 batchRoot = queue.get(trueIndex);
+        bytes32 queueRoot = queue.get(trueIndex);
         bytes32 timestampAndBlockNumber = queue.get(trueIndex + 1);
         uint40 timestamp = uint40(uint256(timestampAndBlockNumber & 0x000000000000000000000000000000000000000000000000000000ffffffffff));
         uint32 blockNumber = uint32(bytes4(timestampAndBlockNumber & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000));
         return Lib_OVMCodec.QueueElement({
-            batchRoot: batchRoot,
+            queueRoot: queueRoot,
             timestamp: timestamp,
             blockNumber: blockNumber
         });
     }
 
+    function getLatestBatchContext() public view returns(uint40 totalElements, uint32 nextQueueIndex) {
+        bytes28 extraData = batches.getExtraData();
+        totalElements = uint40(uint256(uint224(extraData & 0x0000000000000000000000000000000000000000000000ffffffffff)));
+        nextQueueIndex = uint32(bytes4(extraData & 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000));
+        return (totalElements, nextQueueIndex);
+    }
+
+    function makeLatestBatchContext(uint40 totalElements, uint32 nextQueueIndex) public view returns(bytes28) {
+        bytes28 totalElementsAndNextQueueIndex = bytes28(bytes4(uint32(nextQueueIndex))) | bytes28(uint224(uint40(totalElements)));
+        return totalElementsAndNextQueueIndex;
+    }
 
     /****************************************
      * Public Functions: Batch Manipulation *
      ****************************************/
 
     // TODO: allow the sequencer/users to append queue batches independently
+    function appendQueueTransaction()
+        public
+    {
+        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
+        Lib_OVMCodec.QueueElement memory nextQueueElement = getQueueElement(nextQueueIndex);
+
+        require(
+            nextQueueElement.timestamp + forceInclusionPeriodSeconds <= block.timestamp || msg.sender == sequencerAddress,
+            "Message sender does not have permission to append this batch"
+        );
+        _appendQueueBatch();
+    }
+
+    function _appendQueueBatch()
+        internal
+    {
+        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
+        // TODO: Improve this require statement (the `nextQueueIndex*2` is ugly)
+        require(nextQueueIndex*2 != queue.getLength(), "No more queue elements to append!");
+
+        TransactionChainElement memory element = TransactionChainElement({
+            isSequenced: false,
+            queueIndex: nextQueueIndex,
+            timestamp: 0,
+            blocknumber: 0,
+            txData: hex""
+        });
+        bytes32 batchRoot = _hashTransactionChainElement(element);
+        bytes32 batchHeaderHash = _hashBatchHeader(Lib_OVMCodec.ChainBatchHeader({
+            batchIndex: batches.getLength(),
+            batchRoot: batchRoot,
+            batchSize: 1,
+            prevTotalElements: totalElements,
+            extraData: hex""
+        }));
+
+        bytes28 latestBatchContext = makeLatestBatchContext(totalElements + 1, nextQueueIndex + 1);
+        batches.push(batchHeaderHash, latestBatchContext);
+    }
+
+    function getTotalElements()
+        override
+        public
+        view
+        returns (
+            uint256 _totalElements
+        )
+    {
+        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
+        return uint256(totalElements);
+    }
 
 
     /**

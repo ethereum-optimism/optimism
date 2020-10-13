@@ -81,7 +81,7 @@ library Lib_OVMCodec {
     }
 
     struct QueueElement {
-        bytes32 batchRoot;
+        bytes32 queueRoot;
         uint40 timestamp;
         uint32 blockNumber;
     }

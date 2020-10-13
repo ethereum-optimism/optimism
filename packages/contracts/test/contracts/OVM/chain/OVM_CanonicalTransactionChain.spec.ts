@@ -10,8 +10,7 @@ import {
   makeAddressManager,
   setProxyTarget,
   FORCE_INCLUSION_PERIOD_SECONDS,
-  // getEthTime,
-  // setEthTime,
+  increaseEthTime,
   // NON_NULL_BYTES32,
   // ZERO_ADDRESS,
 } from '../../../helpers'
@@ -63,11 +62,22 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
   })
 
-  describe('enqueue', () => {
-    it.only('should store queued elements correctly', async () => {
+  describe.only('enqueue', () => {
+    it('should store queued elements correctly', async () => {
       await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
       const firstQueuedElement = await OVM_CanonicalTransactionChain.getQueueElement(0)
-      console.log(firstQueuedElement)
+      // Sanity check that the blockNumber is non-zero
+      expect(firstQueuedElement.blockNumber).to.not.equal(0)
+    })
+
+    it('should append queued elements correctly', async () => {
+      await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
+      const firstQueuedElement = await OVM_CanonicalTransactionChain.getQueueElement(0)
+      // Increase the time to ensure we can append the queued tx
+      await increaseEthTime(ethers.provider, 100000000)
+      await OVM_CanonicalTransactionChain.appendQueueTransaction()
+      // Sanity check that the batch was appended
+      expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(1)
     })
   })
 
