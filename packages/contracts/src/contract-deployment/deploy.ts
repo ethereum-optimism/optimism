@@ -57,7 +57,9 @@ export const deploy = async (
     }
   }
 
-  for (const [name, contractDeployParameters] of Object.entries(contractDeployConfig)) {
+  for (const [name, contractDeployParameters] of Object.entries(
+    contractDeployConfig
+  )) {
     if (config.dependencies && !config.dependencies.includes(name)) {
       continue
     }

@@ -67,9 +67,9 @@ const sanitizeStorageDump = (
     deadAddress: string
   }>
 ): StorageDump => {
-  for (let i = 0; i < accounts.length; i++) {
-    accounts[i].originalAddress = remove0x(accounts[i].originalAddress).toLowerCase()
-    accounts[i].deadAddress = remove0x(accounts[i].deadAddress).toLowerCase()
+  for (const account of accounts) {
+    account.originalAddress = remove0x(account.originalAddress).toLowerCase()
+    account.deadAddress = remove0x(account.deadAddress).toLowerCase()
   }
 
   for (const [key, value] of Object.entries(storageDump)) {
@@ -116,7 +116,7 @@ export const makeStateDump = async (): Promise<any> => {
       secondsPerEpoch: 600,
     },
     ovmGlobalContext: {
-      ovmCHAINID: 420
+      ovmCHAINID: 420,
     },
     transactionChainConfig: {
       sequencer: signer,
@@ -135,21 +135,24 @@ export const makeStateDump = async (): Promise<any> => {
       'OVM_SafetyChecker',
       'OVM_ExecutionManager',
       'OVM_StateManager',
-      'mockOVM_ECDSAContractAccount'
-    ]
+      'mockOVM_ECDSAContractAccount',
+    ],
   }
 
   const precompiles = {
     OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
     OVM_L1MessageSender: '0x4200000000000000000000000000000000000001',
-    OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002'
+    OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002',
   }
 
   const deploymentResult = await deploy(config)
-  deploymentResult.contracts['Lib_AddressManager'] = deploymentResult.AddressManager
+  deploymentResult.contracts['Lib_AddressManager'] =
+    deploymentResult.AddressManager
 
   if (deploymentResult.failedDeployments.length > 0) {
-    throw new Error(`Could not generate state dump, deploy failed for: ${deploymentResult.failedDeployments}`)
+    throw new Error(
+      `Could not generate state dump, deploy failed for: ${deploymentResult.failedDeployments}`
+    )
   }
 
   const pStateManager = ganache.engine.manager.state.blockchain.vm.pStateManager
@@ -163,24 +166,28 @@ export const makeStateDump = async (): Promise<any> => {
     const name = Object.keys(deploymentResult.contracts)[i]
     const contract = deploymentResult.contracts[name]
 
-    const codeBuf = await pStateManager.getContractCode(fromHexString(contract.address))
+    const codeBuf = await pStateManager.getContractCode(
+      fromHexString(contract.address)
+    )
     const code = toHexString(codeBuf)
 
-    const deadAddress = precompiles[name] || `0xdeaddeaddeaddeaddeaddeaddeaddeaddead${i.toString(16).padStart(4, '0')}`
+    const deadAddress =
+      precompiles[name] ||
+      `0xdeaddeaddeaddeaddeaddeaddeaddeaddead${i.toString(16).padStart(4, '0')}`
 
     dump.accounts[name] = {
       address: deadAddress,
       code,
       codeHash: keccak256(code),
       storage: await getStorageDump(cStateManager, contract.address),
-      abi: getContractDefinition(name.replace('Proxy__', '')).abi
+      abi: getContractDefinition(name.replace('Proxy__', '')).abi,
     }
   }
 
   const addressMap = Object.keys(dump.accounts).map((name) => {
     return {
       originalAddress: deploymentResult.contracts[name].address,
-      deadAddress: dump.accounts[name].address
+      deadAddress: dump.accounts[name].address,
     }
   })
 

@@ -106,6 +106,7 @@ describe('OVM_StateCommitmentChain', () => {
       batchRoot: keccak256(NON_NULL_BYTES32),
       batchSize: 1,
       prevTotalElements: 0,
+      timestamp: 0,
       extraData: '0x',
     }
 
@@ -114,7 +115,7 @@ describe('OVM_StateCommitmentChain', () => {
         batch.length
       )
       await OVM_StateCommitmentChain.appendStateBatch(batch)
-      batchHeader.extraData = toHexString32(await getEthTime(ethers.provider))
+      batchHeader.timestamp = await getEthTime(ethers.provider)
     })
 
     describe('when the sender is not the OVM_FraudVerifier', () => {

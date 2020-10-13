@@ -553,7 +553,7 @@ const test_ovmCREATE: TestDefinition = {
                     {
                       functionName: 'ovmCREATE',
                       functionParams: {
-                        bytecode: '0x'
+                        bytecode: '0x',
                       },
                       expectedReturnStatus: true,
                       expectedReturnValue: ZERO_ADDRESS,
@@ -561,12 +561,12 @@ const test_ovmCREATE: TestDefinition = {
                   ],
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: CREATED_CONTRACT_BY_2_1
-              }
-            ]
+                expectedReturnValue: CREATED_CONTRACT_BY_2_1,
+              },
+            ],
           },
-          expectedReturnStatus: true
-        }
+          expectedReturnStatus: true,
+        },
       ],
     },
     {
@@ -618,7 +618,7 @@ const test_ovmCREATE: TestDefinition = {
                   subSteps: [
                     {
                       functionName: 'ovmADDRESS',
-                      expectedReturnValue: NESTED_CREATED_CONTRACT
+                      expectedReturnValue: NESTED_CREATED_CONTRACT,
                     },
                   ],
                 },
@@ -630,7 +630,7 @@ const test_ovmCREATE: TestDefinition = {
                 revertData: DUMMY_REVERT_DATA,
                 expectedReturnStatus: true,
                 expectedReturnValue: '0x00',
-              }
+              },
             ],
           },
           expectedReturnStatus: true,
@@ -655,7 +655,7 @@ const test_ovmCREATE: TestDefinition = {
         },
       ],
     },
-  ]
+  ],
 }
 
 const runner = new ExecutionManagerTestRunner()
