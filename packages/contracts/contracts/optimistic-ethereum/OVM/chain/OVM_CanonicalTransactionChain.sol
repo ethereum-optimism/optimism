@@ -175,7 +175,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         (, uint32 nextQueueIndex) = _getLatestBatchContext();
         // TODO: Evaluate if we need timestamp
         emit TransactionEnqueued(
-            _l1TxOrigin,
+            msg.sender,
             _target,
             _gasLimit,
             _data,
