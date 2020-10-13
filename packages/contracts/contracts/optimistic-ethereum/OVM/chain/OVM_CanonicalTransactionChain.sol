@@ -343,6 +343,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
     }
 
     function _getRoot(bytes32[] memory leaves) internal returns(bytes32) {
+        // TODO: Require that leaves is even (if not this lib doesn't work maybe?)
         return Lib_MerkleRoot.getMerkleRoot(leaves);
     }
 }
