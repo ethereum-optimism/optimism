@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_MerkleUtils } from "../../libraries/utils/Lib_MerkleUtils.sol";
+import { Lib_MerkleRoot } from "../../libraries/utils/Lib_MerkleRoot.sol";
 import { TimeboundRingBuffer, Lib_TimeboundRingBuffer } from "../../libraries/utils/Lib_TimeboundRingBuffer.sol";
 import { console } from "@nomiclabs/buidler/console.sol";
 
@@ -342,6 +343,6 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
     }
 
     function _getRoot(bytes32[] memory leaves) internal returns(bytes32) {
-        return 0x0101010101010101010101010101010101010101010101010101010101010101;
+        return Lib_MerkleRoot.getMerkleRoot(leaves);
     }
 }
