@@ -8,6 +8,7 @@ import { iOVM_BaseChain } from "../../iOVM/chain/iOVM_BaseChain.sol";
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_MerkleUtils } from "../../libraries/utils/Lib_MerkleUtils.sol";
+import { TimeboundRingBuffer, Lib_TimeboundRingBuffer } from "../../libraries/utils/Lib_TimeboundRingBuffer.sol";
 
 /**
  * @title OVM_BaseChain
@@ -18,9 +19,21 @@ contract OVM_BaseChain is iOVM_BaseChain {
      * Contract Variables: Batches *
      *******************************/
 
-    bytes32[] internal batches;
+    using Lib_TimeboundRingBuffer for TimeboundRingBuffer;
+    TimeboundRingBuffer internal batches;
     uint256 internal totalBatches;
     uint256 internal totalElements;
+
+
+    /***************
+     * Constructor *
+     ***************/
+
+    constructor()
+    {
+        // TODO: Add propper customization
+        batches.init(4, 2, 100000);
+    }
 
 
     /*************************************
@@ -32,6 +45,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
      * @return _totalElements Total submitted elements.
      */
     function getTotalElements()
+        virtual
         override
         public
         view
@@ -39,7 +53,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
             uint256 _totalElements
         )
     {
-        return totalElements;
+        return uint256(uint224(batches.getExtraData()));
     }
 
     /**
@@ -54,7 +68,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
             uint256 _totalBatches
         )
     {
-        return totalBatches;
+        return uint256(batches.getLength());
     }
 
 
@@ -82,7 +96,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
         )
     {
         require(
-            _hashBatchHeader(_batchHeader) == batches[_batchHeader.batchIndex],
+            _hashBatchHeader(_batchHeader) == batches.get(uint32(_batchHeader.batchIndex)),
             "Invalid batch header."
         );
 
@@ -114,9 +128,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
         internal
     {
         bytes32 batchHeaderHash = _hashBatchHeader(_batchHeader);
-        batches.push(batchHeaderHash);
-        totalBatches += 1;
-        totalElements += _batchHeader.batchSize;
+        batches.push(batchHeaderHash, bytes28(uint224(getTotalElements() + _batchHeader.batchSize)));
     }
 
     /**
@@ -131,7 +143,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
         internal
     {
         Lib_OVMCodec.ChainBatchHeader memory batchHeader = Lib_OVMCodec.ChainBatchHeader({
-            batchIndex: batches.length,
+            batchIndex: uint(batches.getLength()),
             batchRoot: Lib_MerkleUtils.getMerkleRoot(_elements),
             batchSize: _elements.length,
             prevTotalElements: totalElements,
@@ -166,23 +178,18 @@ contract OVM_BaseChain is iOVM_BaseChain {
         internal
     {
         require(
-            _batchHeader.batchIndex < batches.length,
+            _batchHeader.batchIndex < batches.getLength(),
             "Invalid batch index."
         );
 
         require(
-            _hashBatchHeader(_batchHeader) == batches[_batchHeader.batchIndex],
+            _hashBatchHeader(_batchHeader) == batches.get(uint32(_batchHeader.batchIndex)),
             "Invalid batch header."
         );
 
-        totalBatches = _batchHeader.batchIndex;
         totalElements = _batchHeader.prevTotalElements;
+        batches.deleteElementsAfter(uint32(_batchHeader.batchIndex - 1), bytes28(uint224(totalElements)));
     }
-
-
-    /*********************
-     * Private Functions *
-     *********************/
 
     /**
      * Calculates a hash for a given batch header.
@@ -192,7 +199,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
     function _hashBatchHeader(
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader
     )
-        private
+        internal
         pure
         returns (
             bytes32 _hash

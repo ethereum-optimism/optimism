@@ -2,15 +2,12 @@
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
-  GAS_LIMIT,
+  OVM_TX_GAS_LIMIT,
   NON_NULL_BYTES32,
-  REVERT_FLAGS,
   ZERO_ADDRESS,
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 
-const DUMMY_REVERT_DATA =
-  '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
 const GAS_METADATA_ADDRESS = '0x06a506a506a506a506a506a506a506a506a506a5'
 
 enum GasMetadataKey {
@@ -32,7 +29,7 @@ const test_run: TestDefinition = {
       ovmStateManager: '$OVM_STATE_MANAGER',
       ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
+        nuisanceGasLeft: OVM_TX_GAS_LIMIT,
       },
     },
     StateManager: {
@@ -74,7 +71,6 @@ const test_run: TestDefinition = {
   parameters: [
     {
       name: 'run => ovmCALL(ADDRESS_1) => ovmADDRESS',
-      focus: true,
       steps: [
         {
           functionName: 'run',
@@ -84,12 +80,12 @@ const test_run: TestDefinition = {
             entrypoint: '$OVM_CALL_HELPER',
             origin: ZERO_ADDRESS,
             msgSender: ZERO_ADDRESS,
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             subSteps: [
               {
                 functionName: 'ovmCALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_1',
                   subSteps: [
                     {

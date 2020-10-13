@@ -24,7 +24,7 @@ library Lib_SecureMerkleTrie {
      * of a list of RLP-encoded nodes that make a path down to the target node.
      * @param _root Known root of the Merkle trie. Used to verify that the
      * included proof is correctly constructed.
-     * @return `true` if the k/v pair exists in the trie, `false` otherwise.
+     * @return _verified `true` if the k/v pair exists in the trie, `false` otherwise.
      */
     function verifyInclusionProof(
         bytes memory _key,
@@ -35,7 +35,7 @@ library Lib_SecureMerkleTrie {
         internal
         view
         returns (
-            bool
+            bool _verified
         )
     {
         bytes memory key = _getSecureKey(_key);
@@ -43,31 +43,28 @@ library Lib_SecureMerkleTrie {
     }
 
     /**
-     * @notice Verifies a proof that a given key/value pair is *not* present in
+     * @notice Verifies a proof that a given key is *not* present in
      * the Merkle trie.
      * @param _key Key of the node to search for, as a hex string.
-     * @param _value Value of the node to search for, as a hex string.
      * @param _proof Merkle trie inclusion proof for the node *nearest* the
-     * target node. We effectively need to show that either the key exists and
-     * its value differs, or the key does not exist at all.
+     * target node.
      * @param _root Known root of the Merkle trie. Used to verify that the
      * included proof is correctly constructed.
-     * @return `true` if the k/v pair is absent in the trie, `false` otherwise.
+     * @return _verified `true` if the key is not present in the trie, `false` otherwise.
      */
     function verifyExclusionProof(
         bytes memory _key,
-        bytes memory _value,
         bytes memory _proof,
         bytes32 _root
     )
         internal
         view
         returns (
-            bool
+            bool _verified
         )
     {
         bytes memory key = _getSecureKey(_key);
-        return Lib_MerkleTrie.verifyExclusionProof(key, _value, _proof, _root);
+        return Lib_MerkleTrie.verifyExclusionProof(key, _proof, _root);
     }
 
     /**
@@ -79,7 +76,7 @@ library Lib_SecureMerkleTrie {
      * Otherwise, we need to modify the trie to handle the new k/v pair.
      * @param _root Known root of the Merkle trie. Used to verify that the
      * included proof is correctly constructed.
-     * @return Root hash of the newly constructed trie.
+     * @return _updatedRoot Root hash of the newly constructed trie.
      */
     function update(
         bytes memory _key,
@@ -90,7 +87,7 @@ library Lib_SecureMerkleTrie {
         internal
         view
         returns (
-            bytes32
+            bytes32 _updatedRoot
         )
     {
         bytes memory key = _getSecureKey(_key);
@@ -102,7 +99,8 @@ library Lib_SecureMerkleTrie {
      * @param _key Key to search for, as hex bytes.
      * @param _proof Merkle trie inclusion proof for the key.
      * @param _root Known root of the Merkle trie.
-     * @return Whether the node exists, value associated with the key if so.
+     * @return _exists Whether or not the key exists.
+     * @return _value Value of the key if it exists.
      */
     function get(
         bytes memory _key,
@@ -112,8 +110,8 @@ library Lib_SecureMerkleTrie {
         internal
         view
         returns (
-            bool,
-            bytes memory
+            bool _exists,
+            bytes memory _value
         )
     {
         bytes memory key = _getSecureKey(_key);
@@ -124,7 +122,7 @@ library Lib_SecureMerkleTrie {
      * Computes the root hash for a trie with a single node.
      * @param _key Key for the single node.
      * @param _value Value for the single node.
-     * @return Hash of the trie.
+     * @return _updatedRoot Hash of the trie.
      */
     function getSingleNodeRootHash(
         bytes memory _key,
@@ -133,7 +131,7 @@ library Lib_SecureMerkleTrie {
         internal
         view
         returns (
-            bytes32
+            bytes32 _updatedRoot
         )
     {
         bytes memory key = _getSecureKey(_key);
@@ -145,13 +143,18 @@ library Lib_SecureMerkleTrie {
      * Private Functions *
      *********************/
 
+    /**
+     * Computes the secure counterpart to a key.
+     * @param _key Key to get a secure key from.
+     * @return _secureKey Secure version of the key.
+     */
     function _getSecureKey(
         bytes memory _key
     )
         private
         pure
         returns (
-            bytes memory
+            bytes memory _secureKey
         )
     {
         return abi.encodePacked(keccak256(_key));

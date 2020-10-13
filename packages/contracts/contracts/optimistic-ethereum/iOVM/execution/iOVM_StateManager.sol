@@ -25,7 +25,9 @@ interface iOVM_StateManager {
     /***************************
      * Public Functions: Setup *
      ***************************/
-    
+
+    function owner() external view returns (address _owner); 
+    function ovmExecutionManager() external view returns (address _ovmExecutionManager); 
     function setExecutionManager(address _ovmExecutionManager) external;
 
 
@@ -34,12 +36,14 @@ interface iOVM_StateManager {
      ************************************/
 
     function putAccount(address _address, Lib_OVMCodec.Account memory _account) external;
+    function putEmptyAccount(address _address) external;
     function getAccount(address _address) external view returns (Lib_OVMCodec.Account memory _account);
     function hasAccount(address _address) external view returns (bool _exists);
     function hasEmptyAccount(address _address) external view returns (bool _exists);
     function setAccountNonce(address _address, uint256 _nonce) external;
     function getAccountNonce(address _address) external view returns (uint256 _nonce);
     function getAccountEthAddress(address _address) external view returns (address _ethAddress);
+    function getAccountStorageRoot(address _address) external view returns (bytes32 _storageRoot);
     function initPendingAccount(address _address) external;
     function commitPendingAccount(address _address, address _ethAddress, bytes32 _codeHash) external;
     function testAndSetAccountLoaded(address _address) external returns (bool _wasAccountAlreadyLoaded);

@@ -2,11 +2,9 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-/* Proxy Imports */
-import { Proxy_Resolver } from "../../proxy/Proxy_Resolver.sol";
-
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
 import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.sol";
@@ -17,7 +15,7 @@ import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManager
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 
-contract OVM_FraudVerifier is iOVM_FraudVerifier, Proxy_Resolver {
+contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
 
     /*******************************************
      * Contract Variables: Contract References *
@@ -39,12 +37,12 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Proxy_Resolver {
      ***************/
 
     /**
-     * @param _proxyManager Address of the Proxy_Manager.
+     * @param _libAddressManager Address of the Address Manager.
      */
     constructor(
-        address _proxyManager
+        address _libAddressManager
     )
-        Proxy_Resolver(_proxyManager)
+        Lib_AddressResolver(_libAddressManager)
     {
         ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
         ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
@@ -123,7 +121,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Proxy_Resolver {
         transitioners[_preStateRoot] = iOVM_StateTransitionerFactory(
             resolve("OVM_StateTransitionerFactory")
         ).create(
-            address(proxyManager),
+            address(libAddressManager),
             _preStateRootProof.index,
             _preStateRoot,
             Lib_OVMCodec.hashTransaction(_transaction)

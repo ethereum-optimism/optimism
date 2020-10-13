@@ -5,7 +5,7 @@ import { ethers } from '@nomiclabs/buidler'
 import { Contract } from 'ethers'
 
 /* Internal Imports */
-import { SAFETY_CHECKER_TEST_JSON } from '../../../helpers'
+import { SAFETY_CHECKER_TEST_JSON } from '../../../data'
 
 describe('OVM_SafetyChecker', () => {
   let OVM_SafetyChecker: Contract

@@ -25,8 +25,8 @@ contract OVM_StateManager is iOVM_StateManager {
      * Contract Variables: Contract References *
      *******************************************/
 
-    address internal owner;
-    address internal ovmExecutionManager;
+    address override public owner;
+    address override public ovmExecutionManager;
 
 
     /****************************************
@@ -109,6 +109,20 @@ contract OVM_StateManager is iOVM_StateManager {
         authenticated
     {
         accounts[_address] = _account;
+    }
+
+    /**
+     * Marks an account as empty.
+     * @param _address Address of the account to mark.
+     */
+    function putEmptyAccount(
+        address _address
+    )
+        override
+        public
+        authenticated
+    {
+        accounts[_address].codeHash = EMPTY_ACCOUNT_CODE_HASH;
     }
 
     /**
@@ -216,6 +230,24 @@ contract OVM_StateManager is iOVM_StateManager {
     }
 
     /**
+     * Retrieves the storage root of an account.
+     * @param _address Address of the account to access.
+     * @return _storageRoot Corresponding storage root.
+     */
+    function getAccountStorageRoot(
+        address _address
+    )
+        override
+        public
+        view
+        returns (
+            bytes32 _storageRoot
+        )
+    {
+        return accounts[_address].storageRoot;
+    }
+
+    /**
      * Initializes a pending account (during CREATE or CREATE2) with the default values.
      * @param _address Address of the account to initialize.
      */
@@ -228,7 +260,7 @@ contract OVM_StateManager is iOVM_StateManager {
     {
         Lib_OVMCodec.Account storage account = accounts[_address];
         account.nonce = 1;
-        account.codeHash = keccak256(hex'80');
+        account.codeHash = keccak256(hex'');
         account.isFresh = true;
     }
 
@@ -376,10 +408,7 @@ contract OVM_StateManager is iOVM_StateManager {
         // storage because writing to zero when the actual value is nonzero causes a gas
         // discrepancy. Could be moved into a new `putVerifiedContractStorage` function, or
         // something along those lines.
-        if (
-            verifiedContractStorage[_contract][_key] == false
-            && accounts[_contract].isFresh == false
-        ) {
+        if (verifiedContractStorage[_contract][_key] == false) {
             verifiedContractStorage[_contract][_key] = true;
         }
     }
@@ -401,6 +430,15 @@ contract OVM_StateManager is iOVM_StateManager {
             bytes32 _value
         )
     {
+        // Storage XOR system doesn't work for newly created contracts that haven't set this
+        // storage slot value yet.
+        if (
+            verifiedContractStorage[_contract][_key] == false
+            && accounts[_contract].isFresh
+        ) {
+            return bytes32(0);
+        }
+
         // See `putContractStorage` for more information about the XOR here.
         return contractStorage[_contract][_key] ^ STORAGE_XOR_VALUE;
     }

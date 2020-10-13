@@ -15,6 +15,11 @@ library Lib_MerkleUtils {
             bytes32 _root
         )
     {
+        require(
+            _hashes.length > 0,
+            "Must provide at least one leaf hash."
+        );
+
         if (_hashes.length == 1) {
             return _hashes[0];
         }

@@ -1,22 +1,20 @@
 /* Internal Imports */
 import {
-  runExecutionManagerTest,
+  ExecutionManagerTestRunner,
   TestDefinition,
-  GAS_LIMIT,
-  NULL_BYTES32,
+  OVM_TX_GAS_LIMIT,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
-  DUMMY_BYTECODE,
 } from '../../../../helpers'
 
 const test_ovmREVERT: TestDefinition = {
-  name: 'basic ovmREVERT unit tests',
+  name: 'Basic tests for ovmREVERT',
   preState: {
     ExecutionManager: {
       ovmStateManager: '$OVM_STATE_MANAGER',
       ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
+        nuisanceGasLeft: OVM_TX_GAS_LIMIT,
       },
     },
     StateManager: {
@@ -31,33 +29,29 @@ const test_ovmREVERT: TestDefinition = {
   },
   parameters: [
     {
-      name: 'ovmREVERT inside ovmCALL should cause EM to revert',
-      parameters: [
+      name: 'ovmCALL => ovmREVERT',
+      steps: [
         {
-          steps: [
-            {
-              functionName: 'ovmCALL',
-              functionParams: [
-                GAS_LIMIT / 2,
-                '$DUMMY_OVM_ADDRESS_1',
-                [
-                  {
-                    functionName: 'ovmREVERT',
-                    functionParams: ['0xdeadbeef'],
-                    expectedReturnStatus: false,
-                    expectedReturnValues: [
-                      REVERT_FLAGS.INTENTIONAL_REVERT,
-                      '0xdeadbeef',
-                      GAS_LIMIT / 2,
-                      0,
-                    ],
-                  },
-                ],
-              ],
-              expectedReturnStatus: true,
-              expectedReturnValues: [],
-            },
-          ],
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT / 2,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmREVERT',
+                revertData: '0xdeadbeef',
+                expectedReturnStatus: false,
+                expectedReturnValue: {
+                  flag: REVERT_FLAGS.INTENTIONAL_REVERT,
+                  data: '0xdeadbeef',
+                  nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2,
+                  ovmGasRefund: 0,
+                },
+              },
+            ],
+          },
+          expectedReturnStatus: false,
+          expectedReturnValue: '0xdeadbeef',
         },
       ],
     },
@@ -103,4 +97,5 @@ const test_ovmREVERT: TestDefinition = {
   ],
 }
 
-runExecutionManagerTest(test_ovmREVERT)
+const runner = new ExecutionManagerTestRunner()
+runner.run(test_ovmREVERT)

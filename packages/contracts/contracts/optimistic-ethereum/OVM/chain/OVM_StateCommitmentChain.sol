@@ -2,11 +2,9 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-/* Proxy Imports */
-import { Proxy_Resolver } from "../../proxy/Proxy_Resolver.sol";
-
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
 import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.sol";
@@ -19,7 +17,14 @@ import { OVM_BaseChain } from "./OVM_BaseChain.sol";
 /**
  * @title OVM_StateCommitmentChain
  */
-contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, Proxy_Resolver {
+contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, Lib_AddressResolver {
+
+    /*************
+     * Constants *
+     *************/
+
+    uint256 constant public FRAUD_PROOF_WINDOW = 7 days;
+
     
     /*******************************************
      * Contract Variables: Contract References *
@@ -34,12 +39,12 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, P
      ***************/
 
     /**
-     * @param _proxyManager Address of the Proxy_Manager.
+     * @param _libAddressManager Address of the Address Manager.
      */
     constructor(
-        address _proxyManager
+        address _libAddressManager
     )
-        Proxy_Resolver(_proxyManager)
+        Lib_AddressResolver(_libAddressManager)
     {
         ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
         ovmFraudVerifier = iOVM_FraudVerifier(resolve("OVM_FraudVerifier"));
@@ -75,7 +80,12 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, P
             elements[i] = abi.encodePacked(_batch[i]);
         }
 
-        _appendBatch(elements);
+        _appendBatch(
+            elements,
+            abi.encode(
+                block.timestamp
+            )
+        );
     }
 
     /**
@@ -93,6 +103,39 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, P
             "State batches can only be deleted by the OVM_FraudVerifier."
         );
 
+        require(
+            insideFraudProofWindow(_batchHeader),
+            "State batches can only be deleted within the fraud proof window."
+        );
+
         _deleteBatch(_batchHeader);
+    }
+
+
+    /**********************************
+     * Public Functions: Batch Status *
+     **********************************/
+
+    function insideFraudProofWindow(
+        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
+    )
+        override
+        public
+        view
+        returns (
+            bool _inside
+        )
+    {
+        uint256 timestamp = abi.decode(
+            _batchHeader.extraData,
+            (uint256)
+        );
+
+        require(
+            timestamp != 0,
+            "Batch header timestamp cannot be zero"
+        );
+
+        return timestamp + FRAUD_PROOF_WINDOW > block.timestamp;
     }
 }

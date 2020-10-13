@@ -2,7 +2,7 @@
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
-  GAS_LIMIT,
+  OVM_TX_GAS_LIMIT,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
   VERIFIED_EMPTY_CONTRACT_HASH,
@@ -18,7 +18,7 @@ const test_ovmCALL: TestDefinition = {
       ovmStateManager: '$OVM_STATE_MANAGER',
       ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
+        nuisanceGasLeft: OVM_TX_GAS_LIMIT,
       },
     },
     StateManager: {
@@ -37,6 +37,11 @@ const test_ovmCALL: TestDefinition = {
           ethAddress: '0x' + '00'.repeat(20),
         },
       },
+      verifiedContractStorage: {
+        $DUMMY_OVM_ADDRESS_1: {
+          [NON_NULL_BYTES32]: true,
+        },
+      },
     },
   },
   parameters: [
@@ -46,7 +51,7 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
@@ -65,7 +70,7 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
@@ -89,7 +94,7 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
@@ -115,7 +120,7 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
@@ -139,13 +144,13 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmCALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
@@ -172,13 +177,13 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmCALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_3',
                   calldata: '0x',
                 },
@@ -197,7 +202,7 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
@@ -220,7 +225,7 @@ const test_ovmCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
