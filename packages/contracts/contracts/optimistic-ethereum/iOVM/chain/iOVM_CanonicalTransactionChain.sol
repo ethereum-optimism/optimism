@@ -18,7 +18,11 @@ interface iOVM_CanonicalTransactionChain is iOVM_BaseChain {
      **********/
 
     event TransactionEnqueued(
-        bytes _transaction,
+        address _l1TxOrigin,
+        address _target,
+        uint8 _gasLimit,
+        uint8 _gasLimit,
+        bytes _data,
         uint _queueIndex,
         uint _timestamp
     );
