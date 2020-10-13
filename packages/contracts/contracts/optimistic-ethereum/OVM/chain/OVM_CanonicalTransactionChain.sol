@@ -8,64 +8,42 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_MerkleUtils } from "../../libraries/utils/Lib_MerkleUtils.sol";
 import { Lib_MerkleRoot } from "../../libraries/utils/Lib_MerkleRoot.sol";
 import { TimeboundRingBuffer, Lib_TimeboundRingBuffer } from "../../libraries/utils/Lib_TimeboundRingBuffer.sol";
-import { console } from "@nomiclabs/buidler/console.sol";
 
 /* Interface Imports */
+import { iOVM_BaseChain } from "../../iOVM/chain/iOVM_BaseChain.sol";
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 
 /* Contract Imports */
 import { OVM_BaseChain } from "./OVM_BaseChain.sol";
 
+/* Logging Imports */
+import { console } from "@nomiclabs/buidler/console.sol";
+
 /**
  * @title OVM_CanonicalTransactionChain
  */
-contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { // TODO: re-add iOVM_CanonicalTransactionChain
+contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_BaseChain, Lib_AddressResolver {
 
-    /**********
-     * Events *
-     *********/
-    event queueTransactionAppended(bytes _queueTransaction, bytes32 timestampAndBlockNumber);
-    event chainBatchAppended(uint _startingQueueIndex, uint _numQueueElements);
+    /*************
+     * Constants *
+     *************/
+
+    uint256 constant public MIN_ROLLUP_TX_GAS = 20000;
+    uint256 constant public MAX_ROLLUP_TX_SIZE = 10000;
+    uint256 constant public L2_GAS_DISCOUNT_DIVISOR = 10;
 
 
-    /*************************************************
-     * Contract Variables: Transaction Restrinctions *
-     *************************************************/
+    /*************
+     * Variables *
+     *************/
 
-    uint constant MAX_ROLLUP_TX_SIZE = 10000;
-    uint constant L2_GAS_DISCOUNT_DIVISOR = 10;
+    uint256 internal forceInclusionPeriodSeconds;
+    uint256 internal lastOVMTimestamp;
+    address internal sequencer;
 
     using Lib_TimeboundRingBuffer for TimeboundRingBuffer;
     TimeboundRingBuffer internal queue;
     TimeboundRingBuffer internal chain;
-
-    struct BatchContext {
-        uint numSequencedTransactions;
-        uint numSubsequentQueueTransactions;
-        uint timestamp;
-        uint blockNumber;
-    }
-
-    struct TransactionChainElement {
-        bool isSequenced;
-        uint queueIndex;  // QUEUED TX ONLY
-        uint timestamp;   // SEQUENCER TX ONLY
-        uint blockNumber; // SEQUENCER TX ONLY
-        bytes txData;     // SEQUENCER TX ONLY
-    }
-
-    /*******************************************
-     * Contract Variables: Contract References *
-     *******************************************/
-    
-
-    /*******************************************
-     * Contract Variables: Internal Accounting *
-     *******************************************/
-
-    uint256 internal forceInclusionPeriodSeconds;
-    uint256 internal lastOVMTimestamp;
-    address internal sequencerAddress;
 
 
     /***************
@@ -82,281 +60,409 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
     )
         Lib_AddressResolver(_libAddressManager)
     {
-        sequencerAddress = resolve("OVM_Sequencer");
+        sequencer = resolve("OVM_Sequencer");
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
+
         queue.init(100, 50, 10000000000); // TODO: Update once we have arbitrary condition
         batches.init(100, 50, 10000000000); // TODO: Update once we have arbitrary condition
     }
 
 
-    /***************************************
-     * Public Functions: Transaction Queue *
-     **************************************/
-
-    /**
-     * Adds a transaction to the queue.
-     * @param _target Target contract to send the transaction to.
-     * @param _gasLimit Gas limit for the given transaction.
-     * @param _data Transaction data.
-     */
-    function enqueue(
-        address _target,
-        uint256 _gasLimit,
-        bytes memory _data
-    )
-        public
-    {
-        require(
-            _data.length <= MAX_ROLLUP_TX_SIZE,
-            "Transaction exceeds maximum rollup data size."
-        );
-        require(_gasLimit >= 20000, "Layer 2 gas limit too low to enqueue.");
-
-        // Consume l1 gas rate limit queued transactions
-        uint gasToConsume = _gasLimit/L2_GAS_DISCOUNT_DIVISOR;
-        uint startingGas = gasleft();
-        uint i;
-        while(startingGas - gasleft() > gasToConsume) {
-            i++; // TODO: Replace this dumb work with minting gas token. (not today)
-        }
-
-        bytes memory queueTx = abi.encode(
-            msg.sender,
-            _target,
-            _gasLimit,
-            _data
-        );
-        bytes32 queueRoot = keccak256(queueTx);
-        // bytes is left aligned, uint is right aligned - use this to encode them together
-        bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(block.number))) | bytes32(uint256(uint40(block.timestamp)));
-        // bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(999))) | bytes32(uint256(uint40(777)));
-        queue.push2(queueRoot, timestampAndBlockNumber, bytes28(0));
-
-        emit queueTransactionAppended(queueTx, timestampAndBlockNumber);
-    }
-
-    function getQueueElement(uint queueIndex) public view returns(Lib_OVMCodec.QueueElement memory) {
-        uint32 trueIndex = uint32(queueIndex * 2);
-        bytes32 queueRoot = queue.get(trueIndex);
-        bytes32 timestampAndBlockNumber = queue.get(trueIndex + 1);
-        uint40 timestamp = uint40(uint256(timestampAndBlockNumber & 0x000000000000000000000000000000000000000000000000000000ffffffffff));
-        uint32 blockNumber = uint32(bytes4(timestampAndBlockNumber & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000));
-        return Lib_OVMCodec.QueueElement({
-            queueRoot: queueRoot,
-            timestamp: timestamp,
-            blockNumber: blockNumber
-        });
-    }
-
-    function getLatestBatchContext() public view returns(uint40 totalElements, uint32 nextQueueIndex) {
-        bytes28 extraData = batches.getExtraData();
-        totalElements = uint40(uint256(uint224(extraData & 0x0000000000000000000000000000000000000000000000ffffffffff)));
-        nextQueueIndex = uint32(bytes4(extraData & 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000));
-        return (totalElements, nextQueueIndex);
-    }
-
-    function makeLatestBatchContext(uint40 totalElements, uint32 nextQueueIndex) public view returns(bytes28) {
-        bytes28 totalElementsAndNextQueueIndex = bytes28(bytes4(uint32(nextQueueIndex))) | bytes28(uint224(uint40(totalElements)));
-        return totalElementsAndNextQueueIndex;
-    }
-
-    /****************************************
-     * Public Functions: Batch Manipulation *
-     ****************************************/
-
-    /**
-     * Appends a sequencer batch.
-     */
-    function appendQueueBatch(uint numQueuedTransactions)
-        public
-    {
-        // Get all of the leaves
-        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
-        bytes32[] memory leaves = new bytes32[](numQueuedTransactions);
-        for (uint i = 0; i < numQueuedTransactions; i++) {
-            leaves[i] = _getQueueLeafHash(nextQueueIndex);
-            nextQueueIndex++;
-        }
-
-        bytes32 root = _getRoot(leaves);
-        _appendBatch(
-            root,
-            numQueuedTransactions,
-            numQueuedTransactions
-        );
-    }
-
-    function _getQueueLeafHash(
-        uint queueIndex
-    )
-        internal
-        view
-        returns(bytes32)
-    {
-        // TODO: Improve this require statement (the `queueIndex*2` is ugly)
-        require(queueIndex*2 != queue.getLength(), "Queue index too large.");
-
-        TransactionChainElement memory element = TransactionChainElement({
-            isSequenced: false,
-            queueIndex: queueIndex,
-            timestamp: 0,
-            blockNumber: 0,
-            txData: hex""
-        });
-        require(
-            msg.sender == sequencerAddress || element.timestamp + forceInclusionPeriodSeconds <= block.timestamp,
-            "Message sender does not have permission to append this batch"
-        );
-
-        return _hashTransactionChainElement(element);
-    }
-
-    function _appendBatch(
-        bytes32 transactionRoot,
-        uint batchSize,
-        uint numQueuedTransactions
-    )
-        internal
-    {
-        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
-
-        Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({
-            batchIndex: batches.getLength(),
-            batchRoot: transactionRoot,
-            batchSize: batchSize,
-            prevTotalElements: totalElements,
-            extraData: hex""
-        });
-        bytes32 batchHeaderHash = _hashBatchHeader(header);
-
-        bytes28 latestBatchContext = makeLatestBatchContext(
-            totalElements + uint40(header.batchSize),
-            nextQueueIndex + uint32(numQueuedTransactions)
-        );
-        batches.push(batchHeaderHash, latestBatchContext);
-    }
-
-    /**
-     * Appends a sequencer batch.
-     */
-    function appendSequencerBatch(
-        bytes[] memory _rawTransactions,                // 2 byte prefix for how many elements, per element 3 byte prefix.
-        BatchContext[] memory _batchContexts,           // 2 byte prefix for how many elements, fixed size elements
-        uint256 _shouldStartAtBatch,                    // 6 bytes
-        uint _totalElementsToAppend                     // 2 btyes
-    )
-        // override
-        public // TODO: can we make external?  Hopefully so
-    {
-        require(
-            _shouldStartAtBatch == getTotalBatches(),
-            "Batch submission failed: chain length has become larger than expected"
-        );
-        require(
-            msg.sender == sequencerAddress,
-            "Function can only be called by the Sequencer."
-        );
-
-        // Initialize an array which will contain the leaves of the merkle tree commitment
-        bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
-        uint32 transactionIndex = 0;
-        uint32 numSequencerTransactionsProcessed = 0;
-        (, uint32 nextQueueIndex) = getLatestBatchContext();
-        for (uint32 batchContextIndex = 0; batchContextIndex < _batchContexts.length; batchContextIndex++) {
-            //////////////////// Process Sequencer Transactions \\\\\\\\\\\\\\\\\\\\
-            BatchContext memory curContext = _batchContexts[batchContextIndex];
-            _validateBatchContext(curContext, nextQueueIndex);
-            uint numSequencedTransactions = curContext.numSequencedTransactions;
-            for (uint32 i = 0; i < numSequencedTransactions; i++) {
-                leaves[transactionIndex] = keccak256(abi.encode(
-                    false,
-                    0,
-                    curContext.timestamp,
-                    curContext.blockNumber,
-                    _rawTransactions[numSequencerTransactionsProcessed]
-                ));
-                numSequencerTransactionsProcessed++;
-                transactionIndex++;
-            }
-
-            //////////////////// Process Queue Transactions \\\\\\\\\\\\\\\\\\\\
-            uint numQueuedTransactions = curContext.numSubsequentQueueTransactions;
-            for (uint i = 0; i < numQueuedTransactions; i++) {
-                leaves[transactionIndex] = _getQueueLeafHash(nextQueueIndex);
-                nextQueueIndex++;
-                transactionIndex++;
-            }
-        }
-
-        // Make sure the correct number of leaves were calculated
-        require(transactionIndex == _totalElementsToAppend, "Not enough transactions supplied!");
-
-        bytes32 root = _getRoot(leaves);
-        uint numQueuedTransactions = _totalElementsToAppend - numSequencerTransactionsProcessed;
-        _appendBatch(
-            root,
-            _totalElementsToAppend,
-            numQueuedTransactions
-        );
-
-        emit chainBatchAppended(nextQueueIndex-numQueuedTransactions, numQueuedTransactions);
-    }
-
-    function _validateBatchContext(BatchContext memory context, uint32 nextQueueIndex) internal {
-        if (nextQueueIndex == 0) {
-            return;
-        }
-        Lib_OVMCodec.QueueElement memory nextQueueElement = getQueueElement(nextQueueIndex);
-        require(
-            block.timestamp < nextQueueElement.timestamp + forceInclusionPeriodSeconds,
-            "Older queue batches must be processed before a new sequencer batch."
-        );
-        require(
-            context.timestamp <= nextQueueElement.timestamp,
-            "Sequencer transactions timestamp too high"
-        );
-        require(
-            context.blockNumber <= nextQueueElement.blockNumber,
-            "Sequencer transactions blockNumber too high"
-        );
-    }
+    /********************
+     * Public Functions *
+     ********************/
 
     function getTotalElements()
-        override
+        override(OVM_BaseChain, iOVM_BaseChain) 
         public
         view
         returns (
             uint256 _totalElements
         )
     {
-        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
+        (uint40 totalElements,) = _getLatestBatchContext();
         return uint256(totalElements);
     }
 
+    /**
+     * @inheritdoc iOVM_CanonicalTransactionChain
+     */
+    function getQueueElement(
+        uint256 _index
+    )
+        override
+        public
+        view
+        returns (
+            Lib_OVMCodec.QueueElement memory _element
+        )
+    {
+        uint32 trueIndex = uint32(_index * 2);
+        bytes32 queueRoot = queue.get(trueIndex);
+        bytes32 timestampAndBlockNumber = queue.get(trueIndex + 1);
 
-    /******************************************
-     * Internal Functions: Batch Manipulation *
-     ******************************************/
+        uint40 elementTimestamp;
+        uint32 elementBlockNumber;
+        assembly {
+            elementTimestamp := and(timestampAndBlockNumber, 0x000000000000000000000000000000000000000000000000000000ffffffffff)
+            elementBlockNumber := shr(40, and(timestampAndBlockNumber, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000))
+        }
 
-    // TODO docstring
+        return Lib_OVMCodec.QueueElement({
+            queueRoot: queueRoot,
+            timestamp: elementTimestamp,
+            blockNumber: elementBlockNumber
+        });
+    }
+
+    /**
+     * @inheritdoc iOVM_CanonicalTransactionChain
+     */
+    function enqueue(
+        address _target,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        override
+        public
+    {
+        require(
+            _data.length <= MAX_ROLLUP_TX_SIZE,
+            "Transaction exceeds maximum rollup data size."
+        );
+
+        require(
+            _gasLimit >= MIN_ROLLUP_TX_GAS,
+            "Layer 2 gas limit too low to enqueue."
+        );
+
+        uint256 gasToConsume = _gasLimit/L2_GAS_DISCOUNT_DIVISOR;
+        uint256 startingGas = gasleft();
+
+        // Although this check is not necessary (burn below will run out of gas if not true), it
+        // gives the user an explicit reason as to why the enqueue attempt failed.
+        require(
+            startingGas > gasToConsume,
+            "Insufficient gas for L2 rate limiting burn."
+        );
+
+        // We need to consume some amount of L1 gas in order to rate limit transactions going into
+        // L2. However, L2 is cheaper than L1 so we only need to burn some small proportion of the
+        // provided L1 gas.
+        //
+        // Here we do some "dumb" work in order to burn gas, although we should probably replace
+        // this with something like minting gas token later on.
+        uint256 i;
+        while(startingGas - gasleft() < gasToConsume) {
+            i++;
+        }
+
+        bytes memory transaction = abi.encode(
+            msg.sender,
+            _target,
+            _gasLimit,
+            _data
+        );
+
+        bytes32 transactionHash = keccak256(transaction);
+        bytes32 timestampAndBlockNumber;
+        assembly {
+            timestampAndBlockNumber := or(timestamp(), shl(40, number()))
+        }
+
+        queue.push2(transactionHash, timestampAndBlockNumber, bytes28(0));
+
+        emit QueueTransactionAppended(transaction, timestampAndBlockNumber);
+    }
+
+    /**
+     * @inheritdoc iOVM_CanonicalTransactionChain
+     */
+    function appendQueueBatch(
+        uint _numQueuedTransactions
+    )
+        override
+        public
+    {
+        require(
+            _numQueuedTransactions > 0,
+            "Must append more than zero transactions."
+        );
+
+        (uint40 totalElements, uint32 nextQueueIndex) = _getLatestBatchContext();
+
+        bytes32[] memory leaves = new bytes32[](_numQueuedTransactions);
+        for (uint i = 0; i < _numQueuedTransactions; i++) {
+            leaves[i] = _getQueueLeafHash(nextQueueIndex);
+            nextQueueIndex++;
+        }
+
+        _appendBatch(
+            Lib_MerkleRoot.getMerkleRoot(leaves),
+            _numQueuedTransactions,
+            _numQueuedTransactions
+        );
+
+        emit ChainBatchAppended(
+            nextQueueIndex - _numQueuedTransactions,
+            _numQueuedTransactions
+        );
+    }
+
+    /**
+     * @inheritdoc iOVM_CanonicalTransactionChain
+     */
+    function appendSequencerBatch(
+        bytes[] memory _transactions,
+        BatchContext[] memory _contexts,
+        uint256 _shouldStartAtBatch,
+        uint _totalElementsToAppend
+    )
+        override
+        public
+    {
+        require(
+            _shouldStartAtBatch == getTotalBatches(),
+            "Actual batch start index does not match expected start index."
+        );
+
+        require(
+            msg.sender == sequencer,
+            "Function can only be called by the Sequencer."
+        );
+
+        require(
+            _contexts.length > 0,
+            "Must provide at least one batch context."
+        );
+
+        require(
+            _totalElementsToAppend > 0,
+            "Must append at least one element."
+        );
+
+        bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
+        uint32 transactionIndex = 0;
+        uint32 numSequencerTransactionsProcessed = 0;
+        (, uint32 nextQueueIndex) = _getLatestBatchContext();
+
+        for (uint32 i = 0; i < _contexts.length; i++) {
+            BatchContext memory context = _contexts[i];
+            _validateBatchContext(context, nextQueueIndex);
+
+            for (uint32 i = 0; i < context.numSequencedTransactions; i++) {
+                leaves[transactionIndex] = _hashTransactionChainElement(
+                    TransactionChainElement({
+                        isSequenced: true,
+                        queueIndex: 0,
+                        timestamp: context.timestamp,
+                        blockNumber: context.blockNumber,
+                        txData: _transactions[numSequencerTransactionsProcessed]
+                    })
+                );
+                numSequencerTransactionsProcessed++;
+                transactionIndex++;
+            }
+
+            for (uint32 i = 0; i < context.numSubsequentQueueTransactions; i++) {
+                leaves[transactionIndex] = _getQueueLeafHash(nextQueueIndex);
+                nextQueueIndex++;
+                transactionIndex++;
+            }
+        }
+
+        require(
+            transactionIndex == _totalElementsToAppend,
+            "Actual transaction index does not match expected total elements to append."
+        );
+
+        uint256 numQueuedTransactions = _totalElementsToAppend - numSequencerTransactionsProcessed;
+        _appendBatch(
+            Lib_MerkleRoot.getMerkleRoot(leaves),
+            _totalElementsToAppend,
+            numQueuedTransactions
+        );
+
+        emit ChainBatchAppended(
+            nextQueueIndex - numQueuedTransactions,
+            numQueuedTransactions
+        );
+    }
+
+
+    /**********************
+     * Internal Functions *
+     **********************/
+
+    /**
+     * Parses the batch context from the extra data.
+     * @return _totalElements Total number of elements submitted.
+     * @return _nextQueueIndex Index of the next queue element.
+     */
+    function _getLatestBatchContext()
+        internal
+        view
+        returns (
+            uint40 _totalElements,
+            uint32 _nextQueueIndex
+        )
+    {
+        bytes28 extraData = batches.getExtraData();
+
+        uint40 totalElements;
+        uint32 nextQueueIndex;
+        assembly {
+            totalElements := and(shr(32, extraData), 0x000000000000000000000000000000000000000000000000000000ffffffffff)
+            nextQueueIndex := shr(40, and(shr(32, extraData), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000))
+        }
+
+        return (totalElements, nextQueueIndex);
+    }
+
+    /**
+     * Encodes the batch context for the extra data.
+     * @param _totalElements Total number of elements submitted.
+     * @param _nextQueueIndex Index of the next queue element.
+     * @return _context Encoded batch context.
+     */
+    function _makeLatestBatchContext(
+        uint40 _totalElements,
+        uint32 _nextQueueIndex
+    )
+        internal
+        view
+        returns (
+            bytes28 _context
+        )
+    {
+        bytes28 totalElementsAndNextQueueIndex;
+        assembly {
+            totalElementsAndNextQueueIndex := shl(32, or(_totalElements, shl(40, _nextQueueIndex)))
+        }
+
+        return totalElementsAndNextQueueIndex;
+    }
+
+    /**
+     * Retrieves the hash of a queue element.
+     * @param _index Index of the queue element to retrieve a hash for.
+     * @return _queueLeafHash Hash of the queue element.
+     */
+    function _getQueueLeafHash(
+        uint _index
+    )
+        internal
+        view
+        returns (
+            bytes32 _queueLeafHash
+        )
+    {
+        Lib_OVMCodec.QueueElement memory element = getQueueElement(_index);
+
+        require(
+            msg.sender == sequencer
+            || element.timestamp + forceInclusionPeriodSeconds <= block.timestamp,
+            "Queue transactions cannot be submitted during the sequencer inclusion period."
+        );
+
+        return _hashTransactionChainElement(
+            TransactionChainElement({
+                isSequenced: false,
+                queueIndex: _index,
+                timestamp: 0,
+                blockNumber: 0,
+                txData: hex""
+            })
+        );
+    }
+
+    /**
+     * Inserts a batch into the chain of batches.
+     * @param _transactionRoot Root of the transaction tree for this batch.
+     * @param _batchSize Number of elements in the batch.
+     * @param _numQueuedTransactions Number of queue transactions in the batch.
+     */
+    function _appendBatch(
+        bytes32 _transactionRoot,
+        uint _batchSize,
+        uint _numQueuedTransactions
+    )
+        internal
+    {
+        (uint40 totalElements, uint32 nextQueueIndex) = _getLatestBatchContext();
+
+        Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({
+            batchIndex: batches.getLength(),
+            batchRoot: _transactionRoot,
+            batchSize: _batchSize,
+            prevTotalElements: totalElements,
+            extraData: hex""
+        });
+
+        bytes32 batchHeaderHash = _hashBatchHeader(header);
+        bytes28 latestBatchContext = _makeLatestBatchContext(
+            totalElements + uint40(header.batchSize),
+            nextQueueIndex + uint32(_numQueuedTransactions)
+        );
+
+        batches.push(batchHeaderHash, latestBatchContext);
+    }
+
+    /**
+     * Checks that a given batch context is valid.
+     * @param _context Batch context to validate.
+     * @param _nextQueueIndex Index of the next queue element to process.
+     */
+    function _validateBatchContext(
+        BatchContext memory _context,
+        uint32 _nextQueueIndex
+    )
+        internal
+    {
+        if (queue.getLength() == 0) {
+            return;
+        }
+
+        Lib_OVMCodec.QueueElement memory nextQueueElement = getQueueElement(_nextQueueIndex);
+
+        require(
+            block.timestamp < nextQueueElement.timestamp + forceInclusionPeriodSeconds,
+            "Older queue batches must be processed before a new sequencer batch."
+        );
+
+        require(
+            _context.timestamp <= nextQueueElement.timestamp,
+            "Sequencer transactions timestamp too high."
+        );
+
+        require(
+            _context.blockNumber <= nextQueueElement.blockNumber,
+            "Sequencer transactions blockNumber too high."
+        );
+    }
+
+    /**
+     * Hashes a transaction chain element.
+     * @param _element Chain element to hash.
+     * @return _hash Hash of the chain element.
+     */
     function _hashTransactionChainElement(
         TransactionChainElement memory _element
     )
         internal
         pure
-        returns(bytes32)
+        returns (
+            bytes32 _hash
+        )
     {
-        return keccak256(abi.encode(
-            _element.isSequenced,
-            _element.queueIndex,
-            _element.timestamp,
-            _element.blockNumber,
-            _element.txData
-        ));
-    }
-
-    function _getRoot(bytes32[] memory leaves) internal returns(bytes32) {
-        // TODO: Require that leaves is even (if not this lib doesn't work maybe?)
-        return Lib_MerkleRoot.getMerkleRoot(leaves);
+        return keccak256(
+            abi.encode(
+                _element.isSequenced,
+                _element.queueIndex,
+                _element.timestamp,
+                _element.blockNumber,
+                _element.txData
+            )
+        );
     }
 }

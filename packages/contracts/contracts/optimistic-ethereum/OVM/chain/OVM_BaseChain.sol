@@ -45,8 +45,8 @@ contract OVM_BaseChain is iOVM_BaseChain {
      * @return _totalElements Total submitted elements.
      */
     function getTotalElements()
-        override
         virtual
+        override
         public
         view
         returns (

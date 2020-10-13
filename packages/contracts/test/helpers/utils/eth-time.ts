@@ -24,3 +24,7 @@ export const getBlockTime = async (
   await provider.send('evm_mine', [])
   return (await provider.getBlock(block)).timestamp
 }
+
+export const getNextBlockNumber = async (provider: any): Promise<number> => {
+  return (await provider.getBlock('latest')).number + 1
+}
