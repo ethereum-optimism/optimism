@@ -304,6 +304,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
     )
         override
         public
+        onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
     {
         require(
             Lib_OVMCodec.hashTransaction(_transaction) == transactionHash,

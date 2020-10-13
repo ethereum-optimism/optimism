@@ -27,8 +27,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * External Contract References *
      ********************************/
 
-    iOVM_SafetyChecker public ovmSafetyChecker;
-    iOVM_StateManager public ovmStateManager;
+    iOVM_SafetyChecker internal ovmSafetyChecker;
+    iOVM_StateManager internal ovmStateManager;
 
 
     /*******************************
@@ -124,9 +124,17 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
     {
-        // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
-        // around in calldata).
+        // Store our OVM_StateManager instance (significantly easier than attempting to pass the
+        // address around in calldata).
         ovmStateManager = iOVM_StateManager(_ovmStateManager);
+
+        // Make sure this function can't be called by anyone except the owner of the
+        // OVM_StateManager (expected to be an OVM_StateTransitioner). We can revert here because
+        // this would make the `run` itself invalid.
+        require(
+            msg.sender == ovmStateManager.owner(),
+            "Only the owner of the ovmStateManager can call this function"
+        );
 
         // Check whether we need to start a new epoch, do so if necessary.
         _checkNeedsNewEpoch(_transaction.timestamp);
@@ -154,6 +162,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Wipe the execution context.
         _resetContext();
+
+        // Reset the ovmStateManager.
+        ovmStateManager = iOVM_StateManager(address(0));
     }
 
 
