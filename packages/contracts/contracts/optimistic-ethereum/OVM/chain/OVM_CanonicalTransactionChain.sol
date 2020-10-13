@@ -35,14 +35,14 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
         uint numSequencedTransactions;
         uint numSubsequentQueueTransactions;
         uint timestamp;
-        uint blocknumber;
+        uint blockNumber;
     }
 
     struct TransactionChainElement {
         bool isSequenced;
         uint queueIndex;  // QUEUED TX ONLY
         uint timestamp;   // SEQUENCER TX ONLY
-        uint blocknumber; // SEQUENCER TX ONLY
+        uint blockNumber; // SEQUENCER TX ONLY
         bytes txData;     // SEQUENCER TX ONLY
     }
 
@@ -189,7 +189,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             isSequenced: false,
             queueIndex: queueIndex,
             timestamp: 0,
-            blocknumber: 0,
+            blockNumber: 0,
             txData: hex""
         });
         require(
@@ -241,70 +241,70 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             _shouldStartAtBatch == getTotalBatches(),
             "Batch submission failed: chain length has become larger than expected"
         );
-
         require(
             msg.sender == sequencerAddress,
             "Function can only be called by the Sequencer."
         );
 
-        // TODO: Verify that there are no outstanding queue transactions which need to be processed
-        // require(
-        //     block.timestamp < queue.getQueueElement(lastQueueIndex).timestamp + forceInclusionPeriodSeconds,
-        //     "Older queue batches must be processed before a new sequencer batch."
-        // );
-
         // Initialize an array which will contain the leaves of the merkle tree commitment
         bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
-        uint numBatchContexts = _batchContexts.length;
-        uint transactionIndex = 0;
-        uint numSequencerTransactionsProcessed = 0;
-        for (uint batchContextIndex = 0; batchContextIndex < numBatchContexts; batchContextIndex++) {
-
-            // Process Sequencer Transactions
+        uint32 transactionIndex = 0;
+        uint32 numSequencerTransactionsProcessed = 0;
+        (, uint32 nextQueueIndex) = getLatestBatchContext();
+        for (uint32 batchContextIndex = 0; batchContextIndex < _batchContexts.length; batchContextIndex++) {
+            //////////////////// Process Sequencer Transactions \\\\\\\\\\\\\\\\\\\\
             BatchContext memory curContext = _batchContexts[batchContextIndex];
+            _validateBatchContext(curContext, nextQueueIndex);
             uint numSequencedTransactions = curContext.numSequencedTransactions;
-            for (uint txIndex = 0; txIndex < numSequencedTransactions; txIndex++) {
-                TransactionChainElement memory element = TransactionChainElement({
-                    isSequenced: true,
-                    queueIndex: 0,
-                    timestamp: curContext.timestamp,
-                    blocknumber: curContext.blocknumber,
-                    txData: _rawTransactions[numSequencerTransactionsProcessed]
-                });
-                leaves[transactionIndex] = _hashTransactionChainElement(element);
+            for (uint32 i = 0; i < numSequencedTransactions; i++) {
+                leaves[transactionIndex] = keccak256(abi.encode(
+                    false,
+                    0,
+                    curContext.timestamp,
+                    curContext.blockNumber,
+                    _rawTransactions[numSequencerTransactionsProcessed]
+                ));
                 numSequencerTransactionsProcessed++;
                 transactionIndex++;
-                console.log("Processed a sequencer transaction");
-                console.logBytes32(_hashTransactionChainElement(element));
             }
 
-            // Process Queue Transactions
+            //////////////////// Process Queue Transactions \\\\\\\\\\\\\\\\\\\\
             uint numQueuedTransactions = curContext.numSubsequentQueueTransactions;
-            for (uint queueTxIndex = 0; queueTxIndex < numQueuedTransactions; queueTxIndex++) {
-                TransactionChainElement memory element = TransactionChainElement({
-                    isSequenced: false,
-                    queueIndex: queue.getLength(),
-                    timestamp: 0,
-                    blocknumber: 0,
-                    txData: hex""
-                });
-                leaves[transactionIndex] = _hashTransactionChainElement(element);
+            for (uint i = 0; i < numQueuedTransactions; i++) {
+                leaves[transactionIndex] = _getQueueLeafHash(nextQueueIndex);
+                nextQueueIndex++;
                 transactionIndex++;
-                // TODO: Increment our lastQueueIndex
-                // lastQueueIndex++;
             }
         }
-
-        console.log("We reached the end!");
-
-        bytes32 root;
 
         // Make sure the correct number of leaves were calculated
         require(transactionIndex == _totalElementsToAppend, "Not enough transactions supplied!");
 
-        // TODO: get root from merkle utils on leaves
-        // merklize(leaves);
-        // _appendQueueTransaction(root, _batch.length);
+        bytes32 root = _getRoot(leaves);
+        _appendBatch(
+            root,
+            _totalElementsToAppend,
+            _totalElementsToAppend - numSequencerTransactionsProcessed
+        );
+    }
+
+    function _validateBatchContext(BatchContext memory context, uint32 nextQueueIndex) internal {
+        if (nextQueueIndex == 0) {
+            return;
+        }
+        Lib_OVMCodec.QueueElement memory nextQueueElement = getQueueElement(nextQueueIndex);
+        require(
+            block.timestamp < nextQueueElement.timestamp + forceInclusionPeriodSeconds,
+            "Older queue batches must be processed before a new sequencer batch."
+        );
+        require(
+            context.timestamp <= nextQueueElement.timestamp,
+            "Sequencer transactions timestamp too high"
+        );
+        require(
+            context.blockNumber <= nextQueueElement.blockNumber,
+            "Sequencer transactions blockNumber too high"
+        );
     }
 
     function getTotalElements()
@@ -324,7 +324,6 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
      * Internal Functions: Batch Manipulation *
      ******************************************/
 
-
     // TODO docstring
     function _hashTransactionChainElement(
         TransactionChainElement memory _element
@@ -337,7 +336,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             _element.isSequenced,
             _element.queueIndex,
             _element.timestamp,
-            _element.blocknumber,
+            _element.blockNumber,
             _element.txData
         ));
     }

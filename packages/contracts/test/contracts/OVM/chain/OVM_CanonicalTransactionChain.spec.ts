@@ -19,10 +19,10 @@ interface sequencerBatchContext {
   numSequencedTransactions: Number
   numSubsequentQueueTransactions: Number
   timestamp: Number
-  blocknumber: Number
+  blockNumber: Number
 }
 
-describe('OVM_CanonicalTransactionChain', () => {
+describe.only('OVM_CanonicalTransactionChain', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
@@ -62,7 +62,7 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
   })
 
-  describe.only('enqueue', () => {
+  describe('enqueue', () => {
     it('should store queued elements correctly', async () => {
       await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
       const firstQueuedElement = await OVM_CanonicalTransactionChain.getQueueElement(0)
@@ -90,22 +90,39 @@ describe('OVM_CanonicalTransactionChain', () => {
     })
   })
 
-  describe('appendSequencerMultiBatch', () => {
-    it('should append a multi-batch with just one batch', async () => {
+  describe('appendSequencerBatch', () => {
+    it('should append a batch with just one batch', async () => {
       // Try out appending 
       const testBatchContext: sequencerBatchContext = {
         numSequencedTransactions: 1,
         numSubsequentQueueTransactions: 0,
         timestamp: 0,
-        blocknumber: 0
+        blockNumber: 0
       }
 
-     await OVM_CanonicalTransactionChain.appendSequencerMultiBatch(
-        ['0x1212'],
-        [testBatchContext],
-        0,
-        1
-    )
+      await OVM_CanonicalTransactionChain.appendSequencerBatch(
+          ['0x1212'],
+          [testBatchContext],
+          0,
+          1
+      )
+      expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(1)
+    })
+    it('should append a batch with 1 sequencer tx and a queue tx', async () => {
+      const testBatchContext: sequencerBatchContext = {
+        numSequencedTransactions: 1,
+        numSubsequentQueueTransactions: 1,
+        timestamp: 3,
+        blockNumber: 3
+      }
+      await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
+      await OVM_CanonicalTransactionChain.appendSequencerBatch(
+          ['0x1212'],
+          [testBatchContext],
+          0,
+          2
+      )
+      expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(2)
     })
   })
 })
