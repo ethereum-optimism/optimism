@@ -21,6 +21,13 @@ import { OVM_BaseChain } from "./OVM_BaseChain.sol";
  */
 contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { // TODO: re-add iOVM_CanonicalTransactionChain
 
+    /**********
+     * Events *
+     *********/
+    event queueTransactionAppended(bytes _queueTransaction, bytes32 timestampAndBlockNumber);
+    event chainBatchAppended(uint _startingQueueIndex, uint _numQueueElements);
+
+
     /*************************************************
      * Contract Variables: Transaction Restrinctions *
      *************************************************/
@@ -113,16 +120,19 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             i++; // TODO: Replace this dumb work with minting gas token. (not today)
         }
 
-        bytes32 queueRoot = keccak256(abi.encode(
+        bytes memory queueTx = abi.encode(
             msg.sender,
             _target,
             _gasLimit,
             _data
-        ));
+        );
+        bytes32 queueRoot = keccak256(queueTx);
         // bytes is left aligned, uint is right aligned - use this to encode them together
         bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(block.number))) | bytes32(uint256(uint40(block.timestamp)));
         // bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(999))) | bytes32(uint256(uint40(777)));
         queue.push2(queueRoot, timestampAndBlockNumber, bytes28(0));
+
+        emit queueTransactionAppended(queueTx, timestampAndBlockNumber);
     }
 
     function getQueueElement(uint queueIndex) public view returns(Lib_OVMCodec.QueueElement memory) {
@@ -282,11 +292,14 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
         require(transactionIndex == _totalElementsToAppend, "Not enough transactions supplied!");
 
         bytes32 root = _getRoot(leaves);
+        uint numQueuedTransactions = _totalElementsToAppend - numSequencerTransactionsProcessed;
         _appendBatch(
             root,
             _totalElementsToAppend,
-            _totalElementsToAppend - numSequencerTransactionsProcessed
+            numQueuedTransactions
         );
+
+        emit chainBatchAppended(nextQueueIndex-numQueuedTransactions, numQueuedTransactions);
     }
 
     function _validateBatchContext(BatchContext memory context, uint32 nextQueueIndex) internal {
