@@ -4,7 +4,7 @@ import { expect } from '../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { Contract, BigNumber, ContractFactory } from 'ethers'
 import { cloneDeep, merge } from 'lodash'
-import { smoddit, ModifiableContract } from '@eth-optimism/smock'
+import { smoddit, smockit, ModifiableContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import {
@@ -148,9 +148,14 @@ export class ExecutionManagerTestRunner {
       await ethers.getContractFactory('Lib_AddressManager')
     ).deploy()
 
-    this.contracts.OVM_SafetyChecker = await (
+    const SafetyChecker = await (
       await ethers.getContractFactory('OVM_SafetyChecker')
     ).deploy()
+
+    const MockSafetyChecker = smockit(SafetyChecker)
+    MockSafetyChecker.smocked.isBytecodeSafe.will.return.with(true)
+
+    this.contracts.OVM_SafetyChecker = MockSafetyChecker
 
     await AddressManager.setAddress(
       'OVM_SafetyChecker',
@@ -159,11 +164,25 @@ export class ExecutionManagerTestRunner {
 
     this.contracts.OVM_ExecutionManager = await (
       await smoddit('OVM_ExecutionManager')
-    ).deploy(AddressManager.address)
+    ).deploy(
+      AddressManager.address,
+      {
+        minTransactionGasLimit: 0,
+        maxTransactionGasLimit: 1_000_000_000,
+        maxGasPerQueuePerEpoch: 1_000_000_000_000,
+        secondsPerEpoch: 600,
+      },
+      {
+        ovmCHAINID: 420,
+      }
+    )
 
     this.contracts.OVM_StateManager = await (
       await smoddit('OVM_StateManager')
-    ).deploy(this.contracts.OVM_ExecutionManager.address)
+    ).deploy(await this.contracts.OVM_ExecutionManager.signer.getAddress())
+    await this.contracts.OVM_StateManager.setExecutionManager(
+      this.contracts.OVM_ExecutionManager.address
+    )
 
     this.contracts.Helper_TestRunner = await (
       await ethers.getContractFactory('Helper_TestRunner')

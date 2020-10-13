@@ -20,8 +20,7 @@
       "node_modules/@types"
     ]
   },
-  "include": ["*.ts", "**/*.ts", "artifacts/*.json"],
-  "exclude": ["./build", "node_modules", "test"],
+  "include": ["src/**/*.ts", "artifacts/*.json"],
   "files": [
     "./buidler.config.ts",
     "./buidler-env.d.ts",

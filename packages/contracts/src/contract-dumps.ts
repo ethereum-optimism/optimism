@@ -2,55 +2,27 @@
 import * as path from 'path'
 import { ethers } from 'ethers'
 import * as Ganache from 'ganache-core'
+import { keccak256 } from 'ethers/lib/utils'
 
 /* Internal Imports */
 import { deploy, RollupDeployConfig } from './contract-deployment'
+import { fromHexString, toHexString, remove0x } from '../test/helpers/utils'
 import { getContractDefinition } from './contract-defs'
-import { keccak256 } from 'ethers/lib/utils'
-
-type Accounts = Array<{
-  originalAddress: string
-  address: string
-  code: string
-}>
 
 interface StorageDump {
   [key: string]: string
 }
 
 export interface StateDump {
-  contracts: {
-    ovmExecutionManager: string
-    ovmStateManager: string
-  }
   accounts: {
-    [address: string]: {
-      balance: number
-      nonce: number
+    [name: string]: {
+      address: string
       code: string
+      codeHash: string
       storage: StorageDump
+      abi: any
     }
   }
-}
-
-/**
- * Finds the addresses of all accounts changed in the state.
- * @param cStateManager Instance of the callback-based internal vm StateManager.
- * @returns Array of changed addresses.
- */
-const getChangedAccounts = async (cStateManager: any): Promise<string[]> => {
-  return new Promise<string[]>((resolve, reject) => {
-    const accounts: string[] = []
-    const stream = cStateManager._trie.createReadStream()
-
-    stream.on('data', (val: any) => {
-      accounts.push(val.key.toString('hex'))
-    })
-
-    stream.on('end', () => {
-      resolve(accounts)
-    })
-  })
 }
 
 /**
@@ -90,15 +62,23 @@ const getStorageDump = async (
  */
 const sanitizeStorageDump = (
   storageDump: StorageDump,
-  accounts: Accounts
+  accounts: Array<{
+    originalAddress: string
+    deadAddress: string
+  }>
 ): StorageDump => {
+  for (const account of accounts) {
+    account.originalAddress = remove0x(account.originalAddress).toLowerCase()
+    account.deadAddress = remove0x(account.deadAddress).toLowerCase()
+  }
+
   for (const [key, value] of Object.entries(storageDump)) {
     let parsedKey = key
     let parsedValue = value
     for (const account of accounts) {
       const re = new RegExp(`${account.originalAddress}`, 'g')
-      parsedValue = parsedValue.replace(re, account.address)
-      parsedKey = parsedKey.replace(re, account.address)
+      parsedValue = parsedValue.replace(re, account.deadAddress)
+      parsedKey = parsedKey.replace(re, account.deadAddress)
     }
 
     if (parsedKey !== key) {
@@ -135,6 +115,9 @@ export const makeStateDump = async (): Promise<any> => {
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 600,
     },
+    ovmGlobalContext: {
+      ovmCHAINID: 420,
+    },
     transactionChainConfig: {
       sequencer: signer,
       forceInclusionPeriodSeconds: 600,
@@ -143,94 +126,76 @@ export const makeStateDump = async (): Promise<any> => {
       owner: signer,
       allowArbitraryContractDeployment: true,
     },
+    dependencies: [
+      'Lib_AddressManager',
+      'OVM_DeployerWhitelist',
+      'OVM_L1MessageSender',
+      'OVM_L2ToL1MessagePasser',
+      'OVM_L2CrossDomainMessenger',
+      'OVM_SafetyChecker',
+      'OVM_ExecutionManager',
+      'OVM_StateManager',
+      'mockOVM_ECDSAContractAccount',
+    ],
+  }
+
+  const precompiles = {
+    OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
+    OVM_L1MessageSender: '0x4200000000000000000000000000000000000001',
+    OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002',
   }
 
   const deploymentResult = await deploy(config)
+  deploymentResult.contracts['Lib_AddressManager'] =
+    deploymentResult.AddressManager
+
+  if (deploymentResult.failedDeployments.length > 0) {
+    throw new Error(
+      `Could not generate state dump, deploy failed for: ${deploymentResult.failedDeployments}`
+    )
+  }
 
   const pStateManager = ganache.engine.manager.state.blockchain.vm.pStateManager
   const cStateManager = pStateManager._wrapped
 
-  const ovmExecutionManagerOriginalAddress = deploymentResult.contracts.OVM_ExecutionManager.address
-    .slice(2)
-    .toLowerCase()
-  const ovmExecutionManagerAddress = 'c0dec0dec0dec0dec0dec0dec0dec0dec0de0000'
-
-  const ovmStateManagerOriginalAddress = deploymentResult.contracts.OVM_StateManager.address
-    .slice(2)
-    .toLowerCase()
-  const ovmStateManagerAddress = 'c0dec0dec0dec0dec0dec0dec0dec0dec0de0001'
-
-  const l2ToL1MessagePasserDef = getContractDefinition(
-    'OVM_L2ToL1MessagePasser'
-  )
-  const l2ToL1MessagePasserHash = keccak256(
-    l2ToL1MessagePasserDef.deployedBytecode
-  )
-  const l2ToL1MessagePasserAddress = '4200000000000000000000000000000000000000'
-
-  const l1MessageSenderDef = getContractDefinition('OVM_L1MessageSender')
-  const l1MessageSenderHash = keccak256(l1MessageSenderDef.deployedBytecode)
-  const l1MessageSenderAddress = '4200000000000000000000000000000000000001'
-
-  const changedAccounts = await getChangedAccounts(cStateManager)
-
-  let deadAddressIndex = 0
-  const accounts: Accounts = []
-
-  for (const originalAddress of changedAccounts) {
-    const code = (
-      await pStateManager.getContractCode(originalAddress)
-    ).toString('hex')
-    const codeHash = keccak256('0x' + code)
-
-    if (code.length === 0) {
-      continue
-    }
-
-    // Sorry for this one!
-    let address = originalAddress
-    if (codeHash === l2ToL1MessagePasserHash) {
-      address = l2ToL1MessagePasserAddress
-    } else if (codeHash === l1MessageSenderHash) {
-      address = l1MessageSenderAddress
-    } else if (originalAddress === ovmExecutionManagerOriginalAddress) {
-      address = ovmExecutionManagerAddress
-    } else if (originalAddress === ovmStateManagerOriginalAddress) {
-      address = ovmStateManagerAddress
-    } else {
-      address = `deaddeaddeaddeaddeaddeaddeaddeaddead${deadAddressIndex
-        .toString(16)
-        .padStart(4, '0')}`
-      deadAddressIndex++
-    }
-
-    accounts.push({
-      originalAddress,
-      address,
-      code,
-    })
-  }
-
   const dump: StateDump = {
-    contracts: {
-      ovmExecutionManager: '0x' + ovmExecutionManagerAddress,
-      ovmStateManager: '0x' + ovmStateManagerAddress,
-    },
     accounts: {},
   }
 
-  for (const account of accounts) {
-    const storageDump = sanitizeStorageDump(
-      await getStorageDump(cStateManager, account.originalAddress),
-      accounts
-    )
+  for (let i = 0; i < Object.keys(deploymentResult.contracts).length; i++) {
+    const name = Object.keys(deploymentResult.contracts)[i]
+    const contract = deploymentResult.contracts[name]
 
-    dump.accounts[account.address] = {
-      balance: 0,
-      nonce: 0,
-      code: account.code,
-      storage: storageDump,
+    const codeBuf = await pStateManager.getContractCode(
+      fromHexString(contract.address)
+    )
+    const code = toHexString(codeBuf)
+
+    const deadAddress =
+      precompiles[name] ||
+      `0xdeaddeaddeaddeaddeaddeaddeaddeaddead${i.toString(16).padStart(4, '0')}`
+
+    dump.accounts[name] = {
+      address: deadAddress,
+      code,
+      codeHash: keccak256(code),
+      storage: await getStorageDump(cStateManager, contract.address),
+      abi: getContractDefinition(name.replace('Proxy__', '')).abi,
     }
+  }
+
+  const addressMap = Object.keys(dump.accounts).map((name) => {
+    return {
+      originalAddress: deploymentResult.contracts[name].address,
+      deadAddress: dump.accounts[name].address,
+    }
+  })
+
+  for (const name of Object.keys(dump.accounts)) {
+    dump.accounts[name].storage = sanitizeStorageDump(
+      dump.accounts[name].storage,
+      addressMap
+    )
   }
 
   return dump

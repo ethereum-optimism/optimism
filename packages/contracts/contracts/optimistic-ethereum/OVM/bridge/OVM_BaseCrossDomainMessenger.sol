@@ -16,7 +16,6 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
 
     mapping (bytes32 => bool) public receivedMessages;
     mapping (bytes32 => bool) public sentMessages;
-    address public targetMessengerAddress;
     uint256 public messageNonce;
     address public xDomainMessageSender;
 
@@ -24,22 +23,6 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
     /********************
      * Public Functions *
      ********************/
-
-    /**
-     * Sets the target messenger address.
-     * @dev Currently, this function is public and therefore allows anyone to modify the target
-     *      messenger for a given xdomain messenger contract. Obviously this shouldn't be allowed,
-     *      but we still need to determine an adequate mechanism for updating this address.
-     * @param _targetMessengerAddress New messenger address.
-     */
-    function setTargetMessengerAddress(
-        address _targetMessengerAddress
-    )
-        override
-        public
-    {
-        targetMessengerAddress = _targetMessengerAddress;
-    }
 
     /**
      * Sends a cross domain message to the target messenger.
@@ -92,8 +75,8 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
             bytes memory
         )
     {
-        return abi.encodeWithSelector(
-            bytes4(keccak256(bytes("relayMessage(address,address,bytes,uint256)"))),
+        return abi.encodeWithSignature(
+            "relayMessage(address,address,bytes,uint256)",
             _target,
             _sender,
             _message,

@@ -1,10 +1,16 @@
 {
-  "name": "optimism",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "@eth-optimism/contracts",
+  "version": "0.0.2-alpha.1",
+  "main": "build/src/index.js",
+  "files": [
+    "build/**/*.js",
+    "build/contracts/*",
+    "build/dumps/*json",
+    "build/artifacts/*json"
+  ],
   "license": "MIT",
   "scripts": {
-    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
+    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && yarn run build:dump",
     "build:typescript": "tsc -p .",
     "build:contracts": "buidler compile",
     "build:dump": "ts-node \"bin/take-dump.ts\"",
@@ -16,6 +22,9 @@
     "lint:fix": "yarn run lint:fix:typescript",
     "lint:fix:typescript": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./artifacts ./build ./cache"
+  },
+  "dependencies": {
+    "ethers": "5.0.0"
   },
   "devDependencies": {
     "@eth-optimism/smock": "^0.0.2",
@@ -31,11 +40,10 @@
     "chai": "^4.2.0",
     "copyfiles": "^2.3.0",
     "ethereum-waffle": "3.0.0",
-    "ethers": "5.0.0",
     "fs-extra": "^9.0.1",
     "ganache-core": "^2.12.1",
     "lodash": "^4.17.20",
-    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
+    "merkle-patricia-tree": "^4.0.0",
     "mkdirp": "^1.0.4",
     "mocha": "^8.1.1",
     "prettier": "^2.1.2",

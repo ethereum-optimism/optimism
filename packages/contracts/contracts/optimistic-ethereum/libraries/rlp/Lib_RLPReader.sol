@@ -389,6 +389,10 @@ library Lib_RLPReader {
             address
         )
     {
+        if (_in.length == 1) {
+            return address(0);
+        }
+
         require(
             _in.length == 21,
             "Invalid RLP address value."

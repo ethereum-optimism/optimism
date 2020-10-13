@@ -13,8 +13,9 @@ import {
   ZERO_ADDRESS,
   toHexString32,
   getEthTime,
+  NULL_BYTES32,
 } from '../../../helpers'
-import { keccak256 } from 'ethers/lib/utils'
+import { keccak256, defaultAbiCoder } from 'ethers/lib/utils'
 
 describe('OVM_StateCommitmentChain', () => {
   let signer: Signer
@@ -106,7 +107,7 @@ describe('OVM_StateCommitmentChain', () => {
       batchRoot: keccak256(NON_NULL_BYTES32),
       batchSize: 1,
       prevTotalElements: 0,
-      extraData: '0x',
+      extraData: NULL_BYTES32,
     }
 
     beforeEach(async () => {
@@ -114,7 +115,10 @@ describe('OVM_StateCommitmentChain', () => {
         batch.length
       )
       await OVM_StateCommitmentChain.appendStateBatch(batch)
-      batchHeader.extraData = toHexString32(await getEthTime(ethers.provider))
+      batchHeader.extraData = defaultAbiCoder.encode(
+        ['uint256'],
+        [await getEthTime(ethers.provider)]
+      )
     })
 
     describe('when the sender is not the OVM_FraudVerifier', () => {
@@ -156,7 +160,7 @@ describe('OVM_StateCommitmentChain', () => {
             await expect(
               OVM_StateCommitmentChain.deleteStateBatch({
                 ...batchHeader,
-                extraData: '0x1234',
+                extraData: '0x' + '22'.repeat(32),
               })
             ).to.be.revertedWith('Invalid batch header.')
           })

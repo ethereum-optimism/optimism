@@ -12,14 +12,6 @@ interface iOVM_BaseCrossDomainMessenger {
      ********************/
 
     /**
-     * Sets the target messenger address.
-     * @param _targetMessengerAddress New messenger address.
-     */
-    function setTargetMessengerAddress(
-        address _targetMessengerAddress
-    ) external;
-
-    /**
      * Sends a cross domain message to the target messenger.
      * @param _target Target contract address.
      * @param _message Message to send to the target.

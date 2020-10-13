@@ -11,9 +11,9 @@ import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
 import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 
 /**
- * @title OVM_ECDSAContractAccount
+ * @title mockOVM_ECDSAContractAccount
  */
-contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
+contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
     /********************
      * Public Functions *
@@ -45,28 +45,8 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     {
         address ovmExecutionManager = msg.sender;
 
-        // Address of this contract within the ovm (ovmADDRESS) should be the same as the
-        // recovered address of the user who signed this message. This is how we manage to shim
-        // account abstraction even though the user isn't a contract.
-        require(
-            Lib_ECDSAUtils.recover(
-                _transaction,
-                _signatureType == Lib_OVMCodec.EOASignatureType.ETH_SIGNED_MESSAGE,
-                _v,
-                _r,
-                _s,
-                Lib_SafeExecutionManagerWrapper.safeCHAINID(ovmExecutionManager)
-            ) == Lib_SafeExecutionManagerWrapper.safeADDRESS(ovmExecutionManager),
-            "Signature provided for EOA transaction execution is invalid."
-        );
-
+        // Skip signature validation in this mock.
         Lib_OVMCodec.EOATransaction memory decodedTx = Lib_OVMCodec.decodeEOATransaction(_transaction);
-
-        // Need to make sure that the transaction nonce is right and bump it if so.
-        require(
-            decodedTx.nonce == Lib_SafeExecutionManagerWrapper.safeGETNONCE(ovmExecutionManager) + 1,
-            "Transaction nonce does not match the expected nonce."
-        );
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.target == address(0)) {
@@ -80,11 +60,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // initialization. Always return `true` for our success value here.
             return (true, abi.encode(created));
         } else {
-            // We only want to bump the nonce for `ovmCALL` because `ovmCREATE` automatically bumps
-            // the nonce of the calling account. Normally an EOA would bump the nonce for both
-            // cases, but since this is a contract we'd end up bumping the nonce twice.
-            Lib_SafeExecutionManagerWrapper.safeSETNONCE(ovmExecutionManager, decodedTx.nonce);
-
             return Lib_SafeExecutionManagerWrapper.safeCALL(
                 ovmExecutionManager,
                 decodedTx.gasLimit,

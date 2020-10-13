@@ -16,6 +16,8 @@ import {
 
 const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
 const CREATED_CONTRACT_2 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
+const CREATED_CONTRACT_BY_2_1 = '0xe0d8be8101f36ebe6b01abacec884422c39a1f62'
+const CREATED_CONTRACT_BY_2_2 = '0x15ac629e1a3866b17179ee4ae86de5cbda744335'
 const NESTED_CREATED_CONTRACT = '0xcb964b3f4162a0d4f5c997b40e19da5a546bc36f'
 const DUMMY_REVERT_DATA =
   '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
@@ -47,6 +49,14 @@ const test_ovmCREATE: TestDefinition = {
         },
         [CREATED_CONTRACT_2]: {
           codeHash: VERIFIED_EMPTY_CONTRACT_HASH,
+          ethAddress: '0x' + '00'.repeat(20),
+        },
+        [CREATED_CONTRACT_BY_2_1]: {
+          codeHash: VERIFIED_EMPTY_CONTRACT_HASH,
+          ethAddress: '0x' + '00'.repeat(20),
+        },
+        [CREATED_CONTRACT_BY_2_2]: {
+          codeHash: '0x' + '01'.repeat(32),
           ethAddress: '0x' + '00'.repeat(20),
         },
         [NESTED_CREATED_CONTRACT]: {
@@ -529,6 +539,38 @@ const test_ovmCREATE: TestDefinition = {
     },
     {
       name: 'ovmCREATE => ovmCREATE => ovmCALL(ADDRESS_NONEXIST)',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_2',
+            subSteps: [
+              {
+                functionName: 'ovmCREATE',
+                functionParams: {
+                  subSteps: [
+                    {
+                      functionName: 'ovmCREATE',
+                      functionParams: {
+                        bytecode: '0x',
+                      },
+                      expectedReturnStatus: true,
+                      expectedReturnValue: ZERO_ADDRESS,
+                    },
+                  ],
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: CREATED_CONTRACT_BY_2_1,
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+        },
+      ],
+    },
+    {
+      name: 'ovmCREATE => ovmCREATE => ovmCALL(ADDRESS_NONEXIST)',
       expectInvalidStateAccess: true,
       steps: [
         {
@@ -560,6 +602,39 @@ const test_ovmCREATE: TestDefinition = {
           expectedReturnValue: {
             flag: REVERT_FLAGS.INVALID_STATE_ACCESS,
           },
+        },
+      ],
+    },
+    {
+      name: 'OZ-AUDIT: ovmCREATE => ((ovmCREATE => ovmADDRESS), ovmREVERT)',
+      steps: [
+        {
+          functionName: 'ovmCREATE',
+          functionParams: {
+            subSteps: [
+              {
+                functionName: 'ovmCREATE',
+                functionParams: {
+                  subSteps: [
+                    {
+                      functionName: 'ovmADDRESS',
+                      expectedReturnValue: NESTED_CREATED_CONTRACT,
+                    },
+                  ],
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: NESTED_CREATED_CONTRACT,
+              },
+              {
+                functionName: 'ovmREVERT',
+                revertData: DUMMY_REVERT_DATA,
+                expectedReturnStatus: true,
+                expectedReturnValue: '0x00',
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+          expectedReturnValue: ZERO_ADDRESS,
         },
       ],
     },

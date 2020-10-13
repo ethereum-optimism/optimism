@@ -29,6 +29,7 @@ contract mockOVM_CrossDomainMessenger is OVM_BaseCrossDomainMessenger {
      **********************/
 
     ReceivedMessage[] internal fullReceivedMessages;
+    address internal targetMessengerAddress;
     uint256 internal lastRelayedMessage;
     uint256 internal delay;
 
@@ -50,6 +51,21 @@ contract mockOVM_CrossDomainMessenger is OVM_BaseCrossDomainMessenger {
     /********************
      * Public Functions *
      ********************/
+
+    /**
+     * Sets the target messenger address.
+     * @dev Currently, this function is public and therefore allows anyone to modify the target
+     *      messenger for a given xdomain messenger contract. Obviously this shouldn't be allowed,
+     *      but we still need to determine an adequate mechanism for updating this address.
+     * @param _targetMessengerAddress New messenger address.
+     */
+    function setTargetMessengerAddress(
+        address _targetMessengerAddress
+    )
+        public
+    {
+        targetMessengerAddress = _targetMessengerAddress;
+    }
 
     /**
      * Sends a message to another mock xdomain messenger.

@@ -13,6 +13,9 @@ import { iOVM_L2ToL1MessagePasser } from "../../iOVM/precompiles/iOVM_L2ToL1Mess
 /* Contract Imports */
 import { OVM_BaseCrossDomainMessenger } from "./OVM_BaseCrossDomainMessenger.sol";
 
+/* Logging Imports */
+import { console } from "@nomiclabs/buidler/console.sol";
+
 /**
  * @title OVM_L2CrossDomainMessenger
  */
@@ -104,7 +107,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         )
     {
         return (
-            ovmL1MessageSender.getL1MessageSender() == targetMessengerAddress
+            ovmL1MessageSender.getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
         );
     }
 
