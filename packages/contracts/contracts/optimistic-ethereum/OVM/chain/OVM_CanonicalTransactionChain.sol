@@ -107,22 +107,31 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
         uint startingGas = gasleft();
         uint i;
         while(startingGas - gasleft() > gasToConsume) {
-            i++; // TODO: Replace this dumb work with minting gas token.
+            i++; // TODO: Replace this dumb work with minting gas token. (not today)
         }
 
-        Lib_OVMCodec.QueueElement memory element = Lib_OVMCodec.QueueElement({
-            timestamp: uint40(block.timestamp),
-            blockNumber: uint32(block.number),
-            batchRoot: keccak256(abi.encodePacked(
-                _target,
-                _gasLimit,
-                _data
-            ))
-        });
+        // This struct shows the form of the queueElement but isn't how we store it
+        // Lib_OVMCodec.QueueElement memory element = Lib_OVMCodec.QueueElement({
+        //     timestamp: uint40(block.timestamp),
+        //     blockNumber: uint32(block.number),
+        //     batchRoot: keccak256(abi.encodePacked(
+        //         _target,
+        //         _gasLimit,
+        //         _data
+        //     ))
+        // });
 
-        // bytes32 extraData = timestamp + blockNumber
-        // queue.push2(batchRoot, );
+        // bytes28 timestampBlockNumber = concat(timestamp, blockNumber)
+        // We need access to the timestamp and blocknumber for EVERY queue tx
+        // So we use push2 to push both the batchRoot and timestampAndBlocknumber
+        // This way we have all the info we need for calling appendSequencerMultiBatch
+        // queue.push2(batchRoot, timestampBlocknNumber);
     }
+
+    // function getQueueIndex(uint queueIndex) {
+    //     uint realIndex = queueIndex * 2;
+    //     uint timestampBlockNumber = queueIndex * 2 + 1;
+    // }
 
 
     /****************************************
@@ -130,7 +139,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
      ****************************************/
 
 
-    // TODO: allow the sequencer to append queue batches at any time
+    // TODO: allow the sequencer/users to append queue batches independently
 
 
     /**
@@ -157,7 +166,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
 
         // TODO: Verify that there are no outstanding queue transactions which need to be processed
         // require(
-        //     block.timestamp < queue.get(lastQueueIndex).timestamp + forceInclusionPeriodSeconds,
+        //     block.timestamp < queue.getQueueElement(lastQueueIndex).timestamp + forceInclusionPeriodSeconds,
         //     "Older queue batches must be processed before a new sequencer batch."
         // );
 
@@ -241,6 +250,9 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
 
         _appendBatch(batchHeader);
         // lastOVMTimestamp = _queueElement.timestamp;
+        // Put last timestamp & blockNumber into the extraData feild in push(...)
+        // bytes28 timestampBlockNumber = concat(timestamp, blockNumber)
+        // batches.push(batchHeader, timestampBlockNumber)
     }
 
     // TODO docstring
