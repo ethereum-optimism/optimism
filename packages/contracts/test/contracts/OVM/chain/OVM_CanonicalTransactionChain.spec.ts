@@ -168,28 +168,14 @@ describe('OVM_CanonicalTransactionChain', () => {
     })
 
     describe('with valid input parameters', () => {
-      it('should emit a QueueTransactionAppended event', async () => {
+      it('should emit a TransactionEnqueued event', async () => {
         const timestamp = (await getEthTime(ethers.provider)) + 100
-        const blockNumber = await getNextBlockNumber(ethers.provider)
         await setEthTime(ethers.provider, timestamp)
-
-        const encodedTimestampAndBlockNumber = encodeTimestampAndBlockNumber(
-          timestamp,
-          blockNumber
-        )
-
-        const encodedQueueTransaction = encodeQueueTransaction(
-          await signer.getAddress(),
-          target,
-          gasLimit,
-          data
-        )
 
         await expect(
           OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
         )
-          .to.emit(OVM_CanonicalTransactionChain, 'QueueTransactionAppended')
-          .withArgs(encodedQueueTransaction, encodedTimestampAndBlockNumber)
+          .to.emit(OVM_CanonicalTransactionChain, 'TransactionEnqueued')
       })
 
       describe('when enqueing multiple times', () => {
@@ -399,7 +385,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   sequencer
                 ).appendQueueBatch(1)
               )
-                .to.emit(OVM_CanonicalTransactionChain, 'ChainBatchAppended')
+                .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
                 .withArgs(0, 1)
             })
           })
@@ -414,13 +400,13 @@ describe('OVM_CanonicalTransactionChain', () => {
 
             it('should be able to append a single element', async () => {
               await expect(OVM_CanonicalTransactionChain.appendQueueBatch(1))
-                .to.emit(OVM_CanonicalTransactionChain, 'ChainBatchAppended')
+                .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
                 .withArgs(0, 1)
             })
 
             it(`should be able to append ${size} elements`, async () => {
               await expect(OVM_CanonicalTransactionChain.appendQueueBatch(size))
-                .to.emit(OVM_CanonicalTransactionChain, 'ChainBatchAppended')
+                .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
                 .withArgs(0, size)
             })
 
@@ -611,7 +597,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   size
                 )
               )
-                .to.emit(OVM_CanonicalTransactionChain, 'ChainBatchAppended')
+                .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, 0)
             })
           })
@@ -659,7 +645,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   size * 2
                 )
               )
-                .to.emit(OVM_CanonicalTransactionChain, 'ChainBatchAppended')
+                .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, size)
             })
           })
@@ -699,7 +685,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   size + spacing
                 )
               )
-                .to.emit(OVM_CanonicalTransactionChain, 'ChainBatchAppended')
+                .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, spacing)
             })
           })
