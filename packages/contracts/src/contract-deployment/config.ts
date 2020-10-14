@@ -104,10 +104,6 @@ export const makeContractDeployConfig = async (
     OVM_StateManagerFactory: {
       factory: getContractFactory('OVM_StateManagerFactory'),
     },
-    OVM_L1ToL2TransactionQueue: {
-      factory: getContractFactory('OVM_L1ToL2TransactionQueue'),
-      params: [AddressManager.address],
-    },
     OVM_FraudVerifier: {
       factory: getContractFactory('OVM_FraudVerifier'),
       params: [AddressManager.address],
