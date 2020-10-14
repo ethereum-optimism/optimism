@@ -172,7 +172,16 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
 
         queue.push2(transactionHash, timestampAndBlockNumber, bytes28(0));
 
-        emit QueueTransactionAppended(transaction, timestampAndBlockNumber);
+        (, uint32 nextQueueIndex) = _getLatestBatchContext();
+        // TODO: Evaluate if we need timestamp
+        emit TransactionEnqueued(
+            msg.sender,
+            _target,
+            _gasLimit,
+            _data,
+            nextQueueIndex - 1,
+            block.timestamp
+        );
     }
 
     /**
@@ -203,7 +212,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
             _numQueuedTransactions
         );
 
-        emit ChainBatchAppended(
+        emit QueueBatchAppended(
             nextQueueIndex - _numQueuedTransactions,
             _numQueuedTransactions
         );
@@ -272,6 +281,10 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         }
 
         require(
+            numSequencerTransactionsProcessed == _transactions.length,
+            "Not all sequencer transactions were processed."
+        );
+        require(
             transactionIndex == _totalElementsToAppend,
             "Actual transaction index does not match expected total elements to append."
         );
@@ -283,7 +296,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
             numQueuedTransactions
         );
 
-        emit ChainBatchAppended(
+        emit SequencerBatchAppended(
             nextQueueIndex - numQueuedTransactions,
             numQueuedTransactions
         );
