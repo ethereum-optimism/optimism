@@ -54,7 +54,7 @@ resource "google_compute_address" "vpn_address" {
  * Storage Bucket - https://www.terraform.io/docs/providers/google/r/storage_bucket.html
  * Bucket used for storing the OpenVPN client configuration file
  */
-resource "google_storage_bucket" "vpn-store" {
+resource "google_storage_bucket" "vpn" {
   name          = var.vpn_bucket_name
   location      = "US"
   force_destroy = true
@@ -107,7 +107,7 @@ resource "google_compute_instance" "vpn" {
         DNS=3 \
         PASS=1 \
         ./openvpn-install.sh
-    gsutil cp /root/config.ovpn gs://${var.vpn_bucket_name}/
+    gsutil cp /root/config.ovpn ${google_storage_bucket.vpn.url}
     EOT
 }
 

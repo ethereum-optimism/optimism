@@ -10,7 +10,6 @@ data "datadog_ip_ranges" "ips" {}
  * Egrees rule that allows traffic to be directed to Datadog's network
  */
 resource "google_compute_firewall" "datadog_logs_egress" {
-  count     = var.lockdown_egress ? 1 : 0
   name      = "datadog-log-egress"
   network   = google_compute_network.vpc.name
   direction = "EGRESS"
@@ -40,7 +39,6 @@ resource "google_compute_firewall" "datadog_logs_egress" {
 }
 
 resource "google_compute_firewall" "datadog_agent_1_egress" {
-  count     = var.lockdown_egress ? 1 : 0
   name      = "datadog-agent-1-egress"
   network   = google_compute_network.vpc.name
   direction = "EGRESS"
@@ -70,7 +68,6 @@ resource "google_compute_firewall" "datadog_agent_1_egress" {
 }
 
 resource "google_compute_firewall" "datadog_agent_2_egress" {
-  count     = var.lockdown_egress ? 1 : 0
   name      = "datadog-agent-2-egress"
   network   = google_compute_network.vpc.name
   direction = "EGRESS"
@@ -111,7 +108,6 @@ resource "google_compute_firewall" "infura_egress" {
     ports    = ["443"]
   }
 
-  # FIXME:
   destination_ranges = ["0.0.0.0/0"]
 }
 

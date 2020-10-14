@@ -4,7 +4,7 @@
  */
 resource "google_compute_network" "vpc" {
   name                    = "vault-net"
-  auto_create_subnetworks = true
+  auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
 }
 
@@ -14,7 +14,7 @@ resource "google_compute_network" "vpc" {
  */
 resource "google_compute_subnetwork" "subnet" {
   name          = "vault-subnet"
-  ip_cidr_range = var.subnet_cidr
+  ip_cidr_range = var.vault_subnet_cidr
   region        = var.gcp_region
   network       = google_compute_network.vpc.self_link
 
@@ -64,8 +64,8 @@ resource "google_compute_router_nat" "nat" {
  * Network Peering - https://www.terraform.io/docs/providers/google/r/compute_network_peering.html
  * Connecting OMGNetwork VPC
  */
-# resource "google_compute_network_peering" "peering" {
-#   name         = "peering-to-omgnetwork-vpc"
-#   network      = google_compute_network.vpc.self_link
-#   peer_network = var.omgnetwork_vpc_uri
-# }
+resource "google_compute_network_peering" "peering" {
+  name         = "peering-to-omgnetwork-vpc"
+  network      = google_compute_network.vpc.self_link
+  peer_network = var.omgnetwork_vpc_uri
+}

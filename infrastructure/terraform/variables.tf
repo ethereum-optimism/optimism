@@ -35,10 +35,14 @@ variable "gke_node_count" {
   type        = number
 }
 
-variable "lockdown_egress" {
-  description = "Boolean indicating if egress network access is lockdown to only Datadog IPs"
-  default     = false
-  type        = bool
+variable "gke_pod_cidr" {
+  description = "CIDR block for the Vault K8S pods to be in"
+  type        = string
+}
+
+variable "gke_service_cidr" {
+  description = "CIDR block for the Vault K8S service to be in"
+  type        = string
 }
 
 variable "omgnetwork_subnet_cidr" {
@@ -62,7 +66,7 @@ variable "ssh_user_email" {
   type        = string
 }
 
-variable "subnet_cidr" {
+variable "vault_subnet_cidr" {
   description = "The subnet that the Vault cluster should be deployed under in the VPC"
   type        = string
 }
