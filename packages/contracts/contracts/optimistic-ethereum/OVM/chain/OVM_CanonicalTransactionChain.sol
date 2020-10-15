@@ -69,7 +69,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
 
         queue.init(100, 50, 10000000000); // TODO: Update once we have arbitrary condition
-        batches.init(100, 50, 10000000000); // TODO: Update once we have arbitrary condition
+        batches.init(2, 50, 0); // TODO: Update once we have arbitrary condition
     }
 
 
@@ -230,7 +230,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         // uint40 _shouldStartAtBatch,
         // uint24 _totalElementsToAppend,
         // BatchContext[] _contexts,
-        // bytes[] _transactionDatas
+        // bytes[] _transactionDataFields
     )
         override
         public
@@ -277,7 +277,12 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
             BatchContext memory context = _getBatchContext(i);
             _validateBatchContext(context, nextQueueIndex);
 
-            for (uint32 i = 0; i < context.numSequencedTransactions; i++) {
+            for (uint32 j = 0; j < context.numSequencedTransactions; j++) {
+                console.log("Iterating...");
+                console.log(j);
+                console.log(context.numSequencedTransactions);
+                console.log("Num sequenced");
+                console.log(context.numSequencedTransactions);
                 bytes memory txData = _getTransactionData(nextSequencerTransactionPosition);
                 leaves[transactionIndex] = _hashTransactionChainElement(
                     TransactionChainElement({
@@ -288,12 +293,21 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
                         txData: txData
                     })
                 );
+                console.log("tx data & pos");
+                console.logBytes(txData);
+                console.log(nextSequencerTransactionPosition);
+                uint test;
                 nextSequencerTransactionPosition += uint32(TX_DATA_HEADER_SIZE + txData.length);
+                console.log("TX_DATA_HEADER_SIZE");
+                console.log(TX_DATA_HEADER_SIZE);
+                console.log(txData.length);
+                console.log(nextSequencerTransactionPosition);
+                console.log("~~~");
                 numSequencerTransactionsProcessed++;
                 transactionIndex++;
             }
 
-            for (uint32 i = 0; i < context.numSubsequentQueueTransactions; i++) {
+            for (uint32 j = 0; j < context.numSubsequentQueueTransactions; j++) {
                 leaves[transactionIndex] = _getQueueLeafHash(nextQueueIndex);
                 nextQueueIndex++;
                 transactionIndex++;

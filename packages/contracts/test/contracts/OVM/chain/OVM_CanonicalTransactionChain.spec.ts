@@ -150,7 +150,7 @@ const encodeBatchContext = (context: BatchContext): string => {
   )
 }
 
-describe('OVM_CanonicalTransactionChain', () => {
+describe.only('OVM_CanonicalTransactionChain', () => {
   let signer: Signer
   let sequencer: Signer
   before(async () => {
@@ -486,6 +486,61 @@ describe('OVM_CanonicalTransactionChain', () => {
       OVM_CanonicalTransactionChain = OVM_CanonicalTransactionChain.connect(
         sequencer
       )
+    })
+
+    it.only('should revert if expected start does not match current total batches', async () => {
+      const timestamp = (await getEthTime(ethers.provider)) - 100
+      const blockNumber = (await getNextBlockNumber(ethers.provider)) + 100
+
+      // do two batch appends for no reason
+      await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+        shouldStartAtBatch: 0,
+        totalElementsToAppend: 1,
+        contexts: [
+          {
+            numSequencedTransactions: 1,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: ['0x1234'],
+      })
+      await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+        shouldStartAtBatch: 1,
+        totalElementsToAppend: 1,
+        contexts: [
+          {
+            numSequencedTransactions: 1,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: ['0x1234'],
+      })
+
+      const transactions = []
+      const numTxs = 2
+      for (let i = 0; i < numTxs; i++) {
+        transactions.push('0x' + '1080111111111111111111111111111111111111111111111111111111111111')
+      }
+      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+        shouldStartAtBatch: 2,
+        totalElementsToAppend: numTxs,
+        contexts: [
+          {
+            numSequencedTransactions: numTxs,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions,
+      })
+      const receipt = await res.wait()
+      console.log(res)
+      console.log(receipt)
     })
 
     it('should revert if expected start does not match current total batches', async () => {
