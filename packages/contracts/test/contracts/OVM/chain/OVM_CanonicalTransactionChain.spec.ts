@@ -3,6 +3,8 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
+import { TransactionResponse } from "@ethersproject/abstract-provider";
+import { FunctionFragment } from "@ethersproject/abi";
 import { smockit, MockContract } from '@eth-optimism/smock'
 import _ from 'lodash'
 
@@ -87,6 +89,69 @@ const encodeTimestampAndBlockNumber = (
     '0x' +
     remove0x(BigNumber.from(blockNumber).toHexString()).padStart(54, '0') +
     remove0x(BigNumber.from(timestamp).toHexString()).padStart(10, '0')
+  )
+}
+
+interface BatchContext {
+  numSequencedTransactions: number
+  numSubsequentQueueTransactions: number
+  timestamp: number
+  blockNumber: number
+}
+
+interface AppendSequencerBatchParams {
+  shouldStartAtBatch: number,     // 5 bytes -- starts at batch
+  totalElementsToAppend: number,  // 3 bytes -- total_elements_to_append
+  contexts: BatchContext[],       // total_elements[fixed_size[]]
+  transactions: string[]          // total_size_bytes[],total_size_bytes[]
+}
+
+const encodeAppendSequencerBatch = (
+  b: AppendSequencerBatchParams
+): string => {
+  let encoding: string
+  const encodedShouldStartAtBatch = remove0x(BigNumber.from(b.shouldStartAtBatch).toHexString()).padStart(10, '0')
+  console.log('encodedShouldStartAtBatch', encodedShouldStartAtBatch)
+  const encodedTotalElementsToAppend = remove0x(BigNumber.from(b.totalElementsToAppend).toHexString()).padStart(6, '0')
+  console.log('encodedTotalElementsToAppend', encodedTotalElementsToAppend)
+
+  const encodedContextsHeader = remove0x(BigNumber.from(b.contexts.length).toHexString()).padStart(6, '0')
+  const encodedContexts = encodedContextsHeader + b.contexts.reduce((acc, cur) => acc + encodeBatchContext(cur), '')
+  console.log('encodedContexts', encodedContexts)
+
+  const encodedTransactionData = b.transactions.reduce((acc, cur) => {
+    if (cur.length % 2 !== 0) throw new Error('Unexpected uneven hex string value!')
+    const encodedTxDataHeader = remove0x(BigNumber.from(remove0x(cur).length/2).toHexString()).padStart(6, '0')
+    return acc + encodedTxDataHeader + remove0x(cur)
+  }, '')
+  console.log('encodedTransactionData', encodedTransactionData)
+  return (
+    encodedShouldStartAtBatch +
+    encodedTotalElementsToAppend +
+    encodedContexts +
+    encodedTransactionData 
+  )
+}
+
+const appendSequencerBatch = async (
+  OVM_CanonicalTransactionChain: Contract,
+  batch: AppendSequencerBatchParams
+): Promise<TransactionResponse> => {
+  const methodId = keccak256(Buffer.from('appendSequencerBatch()')).slice(2,10)
+  const calldata = encodeAppendSequencerBatch(batch)
+  console.log('Generated batch calldata:', calldata)
+  return OVM_CanonicalTransactionChain.signer.sendTransaction({
+    to: OVM_CanonicalTransactionChain.address,
+    data:'0x' + methodId + calldata,
+  })
+}
+
+const encodeBatchContext = (context: BatchContext): string => {
+  return (
+    remove0x(BigNumber.from(context.numSequencedTransactions).toHexString()).padStart(6, '0') + 
+    remove0x(BigNumber.from(context.numSubsequentQueueTransactions).toHexString()).padStart(6, '0') + 
+    remove0x(BigNumber.from(context.timestamp).toHexString()).padStart(10, '0') + 
+    remove0x(BigNumber.from(context.blockNumber).toHexString()).padStart(10, '0')
   )
 }
 
@@ -426,6 +491,25 @@ describe('OVM_CanonicalTransactionChain', () => {
       OVM_CanonicalTransactionChain = OVM_CanonicalTransactionChain.connect(
         sequencer
       )
+    })
+
+    it.only('should revert if expected start does not match current total batches', async () => {
+      const timestamp = (await getEthTime(ethers.provider)) - 100
+      const blockNumber = (await getNextBlockNumber(ethers.provider)) + 100
+      const batch: AppendSequencerBatchParams = {
+        shouldStartAtBatch: 99,
+        totalElementsToAppend: 88,
+        contexts: [
+          {
+            numSequencedTransactions: 69,
+            numSubsequentQueueTransactions: 42,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: ['0x1234'],
+      }
+      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, batch)
     })
 
     it('should revert if expected start does not match current total batches', async () => {

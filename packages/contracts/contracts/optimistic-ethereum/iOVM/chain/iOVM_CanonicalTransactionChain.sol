@@ -46,6 +46,7 @@ interface iOVM_CanonicalTransactionChain is iOVM_BaseChain {
         uint256 numSubsequentQueueTransactions;
         uint256 timestamp;
         uint256 blockNumber;
+        uint256 index;
     }
 
     struct TransactionChainElement {
@@ -95,17 +96,17 @@ interface iOVM_CanonicalTransactionChain is iOVM_BaseChain {
         uint256 _numQueuedTransactions
     ) external;
 
-    /**
-     * Allows the sequencer to append a batch of transactions.
-     * @param _transactions Array of raw transaction data.
-     * @param _contexts Array of batch contexts.
-     * @param _shouldStartAtBatch Specific batch we expect to start appending to.
-     * @param _totalElementsToAppend Total number of batch elements we expect to append.
-     */
+    // /**
+    //  * Allows the sequencer to append a batch of transactions.
+    //  * @param _transactions Array of raw transaction data.
+    //  * @param _contexts Array of batch contexts.
+    //  * @param _shouldStartAtBatch Specific batch we expect to start appending to.
+    //  * @param _totalElementsToAppend Total number of batch elements we expect to append.
+    //  */
     function appendSequencerBatch(
-        bytes[] memory _transactions,
-        BatchContext[] memory _contexts,
-        uint256 _shouldStartAtBatch,
-        uint _totalElementsToAppend
+        // uint256 _shouldStartAtBatch,
+        // uint _totalElementsToAppend,
+        // BatchContext[] memory _contexts,
+        // bytes[] memory _transactions
     ) external;
 }

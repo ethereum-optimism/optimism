@@ -31,6 +31,10 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
     uint256 constant public MIN_ROLLUP_TX_GAS = 20000;
     uint256 constant public MAX_ROLLUP_TX_SIZE = 10000;
     uint256 constant public L2_GAS_DISCOUNT_DIVISOR = 10;
+    // Encoding Constants
+    uint256 constant public BATCH_CONTEXT_SIZE = 16;
+    uint256 constant public BATCH_CONTEXT_LENGTH_POS = 12;
+    uint256 constant public BATCH_CONTEXT_START_POS = 15;
 
 
     /*************
@@ -221,91 +225,195 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
     /**
      * @inheritdoc iOVM_CanonicalTransactionChain
      */
-    function appendSequencerBatch(
-        bytes[] memory _transactions,
-        BatchContext[] memory _contexts,
-        uint256 _shouldStartAtBatch,
-        uint _totalElementsToAppend
+    function appendSequencerBatch( // USES CUSTOM ENCODING FOR EFFICIENCY PURPOSES
+        // uint40 _shouldStartAtBatch,
+        // uint24 _totalElementsToAppend,
+        // BatchContext[] _contexts,
+        // bytes[] _transactionDatas
     )
         override
         public
     {
-        require(
-            _shouldStartAtBatch == getTotalBatches(),
-            "Actual batch start index does not match expected start index."
-        );
-
-        require(
-            msg.sender == sequencer,
-            "Function can only be called by the Sequencer."
-        );
-
-        require(
-            _contexts.length > 0,
-            "Must provide at least one batch context."
-        );
-
-        require(
-            _totalElementsToAppend > 0,
-            "Must append at least one element."
-        );
-
-        bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
-        uint32 transactionIndex = 0;
-        uint32 numSequencerTransactionsProcessed = 0;
-        (, uint32 nextQueueIndex) = _getLatestBatchContext();
-
-        for (uint32 i = 0; i < _contexts.length; i++) {
-            BatchContext memory context = _contexts[i];
-            _validateBatchContext(context, nextQueueIndex);
-
-            for (uint32 i = 0; i < context.numSequencedTransactions; i++) {
-                leaves[transactionIndex] = _hashTransactionChainElement(
-                    TransactionChainElement({
-                        isSequenced: true,
-                        queueIndex: 0,
-                        timestamp: context.timestamp,
-                        blockNumber: context.blockNumber,
-                        txData: _transactions[numSequencerTransactionsProcessed]
-                    })
-                );
-                numSequencerTransactionsProcessed++;
-                transactionIndex++;
-            }
-
-            for (uint32 i = 0; i < context.numSubsequentQueueTransactions; i++) {
-                leaves[transactionIndex] = _getQueueLeafHash(nextQueueIndex);
-                nextQueueIndex++;
-                transactionIndex++;
-            }
+        bytes32 firstCalldataWord; 
+        uint40 _shouldStartAtBatch;
+        uint24 _totalElementsToAppend;
+        assembly {
+            // First 5 bytes after MethodId is _shouldStartAtBatch
+            _shouldStartAtBatch := shr(216, calldataload(4))
+            // Next 3 bytes is _totalElementsToAppend
+            _totalElementsToAppend := shr(232, calldataload(9))
         }
+        console.log("_shouldStartAtBatch");
+        console.log(_shouldStartAtBatch);
+        console.log("_totalElementsToAppend");
+        console.log(_totalElementsToAppend);
 
-        require(
-            numSequencerTransactionsProcessed == _transactions.length,
-            "Not all sequencer transactions were processed."
-        );
-        require(
-            transactionIndex == _totalElementsToAppend,
-            "Actual transaction index does not match expected total elements to append."
-        );
+        // numBatchContexts header always starts at byte 12
+        // 4[method_id] + 5[_shouldStartAtBatch] + 3[_totalElementsToAppend]
+        uint numBatchContexts;
+        assembly {
+            // 3 byte numSubsequentQueueTransactions
+            numBatchContexts := shr(232, calldataload(BATCH_CONTEXT_LENGTH_POS))
+        }
+        console.log("numBatchContexts");
 
-        uint256 numQueuedTransactions = _totalElementsToAppend - numSequencerTransactionsProcessed;
-        _appendBatch(
-            Lib_MerkleRoot.getMerkleRoot(leaves),
-            _totalElementsToAppend,
-            numQueuedTransactions
-        );
+        // Grab a batch context
+        BatchContext memory batchCtx = _getBatchContext(0);
 
-        emit SequencerBatchAppended(
-            nextQueueIndex - numQueuedTransactions,
-            numQueuedTransactions
-        );
+        // Grab transaction data
+        bytes memory transaction = _getTransactionData(0);
+        console.logBytes(transaction);
+
+        // require(
+        //     _shouldStartAtBatch == getTotalBatches(),
+        //     "Actual batch start index does not match expected start index."
+        // );
+
+        // require(
+        //     msg.sender == sequencer,
+        //     "Function can only be called by the Sequencer."
+        // );
+
+        // require(
+        //     _contexts.length > 0,
+        //     "Must provide at least one batch context."
+        // );
+
+        // require(
+        //     _totalElementsToAppend > 0,
+        //     "Must append at least one element."
+        // );
+
+        // bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
+        // uint32 transactionIndex = 0;
+        // uint32 numSequencerTransactionsProcessed = 0;
+        // (, uint32 nextQueueIndex) = _getLatestBatchContext();
+
+        // for (uint32 i = 0; i < _contexts.length; i++) {
+        //     BatchContext memory context = _contexts[i];
+        //     _validateBatchContext(context, nextQueueIndex);
+
+        //     for (uint32 i = 0; i < context.numSequencedTransactions; i++) {
+        //         leaves[transactionIndex] = _hashTransactionChainElement(
+        //             TransactionChainElement({
+        //                 isSequenced: true,
+        //                 queueIndex: 0,
+        //                 timestamp: context.timestamp,
+        //                 blockNumber: context.blockNumber,
+        //                 txData: _transactions[numSequencerTransactionsProcessed]
+        //             })
+        //         );
+        //         numSequencerTransactionsProcessed++;
+        //         transactionIndex++;
+        //     }
+
+        //     for (uint32 i = 0; i < context.numSubsequentQueueTransactions; i++) {
+        //         leaves[transactionIndex] = _getQueueLeafHash(nextQueueIndex);
+        //         nextQueueIndex++;
+        //         transactionIndex++;
+        //     }
+        // }
+
+        // require(
+        //     numSequencerTransactionsProcessed == _transactions.length,
+        //     "Not all sequencer transactions were processed."
+        // );
+        // require(
+        //     transactionIndex == _totalElementsToAppend,
+        //     "Actual transaction index does not match expected total elements to append."
+        // );
+
+        // uint256 numQueuedTransactions = _totalElementsToAppend - numSequencerTransactionsProcessed;
+        // _appendBatch(
+        //     Lib_MerkleRoot.getMerkleRoot(leaves),
+        //     _totalElementsToAppend,
+        //     numQueuedTransactions
+        // );
+
+        // emit SequencerBatchAppended(
+        //     nextQueueIndex - numQueuedTransactions,
+        //     numQueuedTransactions
+        // );
     }
 
 
     /**********************
      * Internal Functions *
      **********************/
+
+    function _getBatchContext(
+        uint _numProcessed
+    )
+        internal
+        view
+        returns (
+            BatchContext memory context
+        )
+    {
+        // Batch contexts always start at byte 12:
+        // 4[method_id] + 5[_shouldStartAtBatch] + 3[_totalElementsToAppend] + 3[numBatchContexts]
+        uint contextPosition = 15 + _numProcessed * BATCH_CONTEXT_SIZE;
+        uint numSequencedTransactions;
+        uint numSubsequentQueueTransactions;
+        uint ctxTimestamp;
+        uint ctxBlockNumber;
+        assembly {
+            // 3 byte numSequencedTransactions
+            numSequencedTransactions := shr(232, calldataload(contextPosition))
+            // 3 byte numSubsequentQueueTransactions
+            numSubsequentQueueTransactions := shr(232, calldataload(add(contextPosition, 3)))
+            // 5 byte timestamp
+            ctxTimestamp := shr(216, calldataload(add(contextPosition, 6)))
+            // 5 byte blockNumber
+            ctxBlockNumber := shr(216, calldataload(add(contextPosition, 11)))
+        }
+        console.log("RETURNING BATCH:");
+        console.log("numSequencedTransactions");
+        console.log(numSequencedTransactions);
+        console.log("numSubsequentQueueTransactions");
+        console.log(numSubsequentQueueTransactions);
+        console.log("timestamp");
+        console.log(ctxTimestamp);
+        console.log("blockNumber");
+        console.log(ctxBlockNumber);
+        return BatchContext({
+            numSequencedTransactions: numSequencedTransactions,
+            numSubsequentQueueTransactions: numSubsequentQueueTransactions,
+            timestamp: ctxTimestamp,
+            blockNumber: ctxBlockNumber,
+            index: _numProcessed
+        });
+    }
+
+    function _getTransactionData(
+        uint _numProcessed
+    )
+        internal
+        view
+        returns (
+            bytes memory transactionData
+        )
+    {
+        uint numBatchContexts;
+        assembly {
+            numBatchContexts := shr(232, calldataload(BATCH_CONTEXT_LENGTH_POS))
+        }
+        uint startPosition = BATCH_CONTEXT_START_POS + BATCH_CONTEXT_SIZE * numBatchContexts;
+
+        uint transactionSize;
+        assembly {
+            // 3 byte transactionSize
+            transactionSize := shr(232, calldataload(startPosition))
+
+            // Initialize transactionData at the free memory pointer 0x40
+            transactionData := mload(0x40)
+            // Store the length as the first word to conform with `bytes memory`
+            mstore(transactionData, transactionSize)
+            // Store the rest of the transaction
+            calldatacopy(add(transactionData, 32), add(startPosition, 3), transactionSize)
+        }
+        return transactionData;
+    }
 
     /**
      * Parses the batch context from the extra data.
