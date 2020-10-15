@@ -4,7 +4,6 @@ import { expect } from '../../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import { TransactionResponse } from "@ethersproject/abstract-provider";
-import { FunctionFragment } from "@ethersproject/abi";
 import { smockit, MockContract } from '@eth-optimism/smock'
 import _ from 'lodash'
 
@@ -19,8 +18,6 @@ import {
   getEthTime,
   getNextBlockNumber,
   increaseEthTime,
-  // NON_NULL_BYTES32,
-  // ZERO_ADDRESS,
 } from '../../../helpers'
 import { defaultAbiCoder, keccak256 } from 'ethers/lib/utils'
 
@@ -32,33 +29,6 @@ interface sequencerBatchContext {
 }
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
-
-const getQueueElementHash = (queueIndex: number): string => {
-  return getChainElementHash(false, queueIndex, 0, 0, '0x')
-}
-
-const getSequencerElementHash = (
-  timestamp: number,
-  blockNumber: number,
-  txData: string
-): string => {
-  return getChainElementHash(true, 0, timestamp, blockNumber, txData)
-}
-
-const getChainElementHash = (
-  isSequenced: boolean,
-  queueIndex: number,
-  timestamp: number,
-  blockNumber: number,
-  txData: string
-): string => {
-  return keccak256(
-    defaultAbiCoder.encode(
-      ['bool', 'uint256', 'uint256', 'uint256', 'bytes'],
-      [isSequenced, queueIndex, timestamp, blockNumber, txData]
-    )
-  )
-}
 
 const getTransactionHash = (
   sender: string,
@@ -78,17 +48,6 @@ const encodeQueueTransaction = (
   return defaultAbiCoder.encode(
     ['address', 'address', 'uint256', 'bytes'],
     [sender, target, gasLimit, data]
-  )
-}
-
-const encodeTimestampAndBlockNumber = (
-  timestamp: number,
-  blockNumber: number
-): string => {
-  return (
-    '0x' +
-    remove0x(BigNumber.from(blockNumber).toHexString()).padStart(54, '0') +
-    remove0x(BigNumber.from(timestamp).toHexString()).padStart(10, '0')
   )
 }
 
@@ -560,6 +519,26 @@ describe('OVM_CanonicalTransactionChain', () => {
         }
       )).to.be.revertedWith(
         'Actual batch start index does not match expected start index.'
+      )
+    })
+
+    it('should revert if not all sequencer transactions are processed', async () => {
+      await expect(
+        appendSequencerBatch(OVM_CanonicalTransactionChain, {
+          transactions: ['0x1234', '0x1234'],
+          contexts: [
+            {
+              numSequencedTransactions: 0,
+              numSubsequentQueueTransactions: 0,
+              timestamp: 0,
+              blockNumber: 0,
+            },
+          ],
+          shouldStartAtBatch: 0,
+          totalElementsToAppend: 1
+        }
+      )).to.be.revertedWith(
+        'Not all sequencer transactions were processed.'
       )
     })
 

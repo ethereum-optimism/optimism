@@ -323,6 +323,10 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         }
 
         require(
+            theCalldataSize == nextSequencerTransactionPosition,
+            "Not all sequencer transactions were processed."
+        );
+        require(
             transactionIndex == _totalElementsToAppend,
             "Actual transaction index does not match expected total elements to append."
         );
