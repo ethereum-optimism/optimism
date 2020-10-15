@@ -97,15 +97,15 @@ interface iOVM_CanonicalTransactionChain is iOVM_BaseChain {
 
     /**
      * Allows the sequencer to append a batch of transactions.
-     * @param _transactions Array of raw transaction data.
-     * @param _contexts Array of batch contexts.
-     * @param _shouldStartAtBatch Specific batch we expect to start appending to.
-     * @param _totalElementsToAppend Total number of batch elements we expect to append.
+     * param _shouldStartAtBatch Specific batch we expect to start appending to.
+     * param _totalElementsToAppend Total number of batch elements we expect to append.
+     * param _contexts Array of batch contexts.
+     * param _transactionDataFields Array of raw transaction data.
      */
-    function appendSequencerBatch(
-        bytes[] memory _transactions,
-        BatchContext[] memory _contexts,
-        uint256 _shouldStartAtBatch,
-        uint _totalElementsToAppend
+    function appendSequencerBatch( // USES CUSTOM ENCODING FOR EFFICIENCY PURPOSES
+        // uint40 _shouldStartAtBatch,
+        // uint24 _totalElementsToAppend,
+        // BatchContext[] _contexts,
+        // bytes[] _transactionDataFields
     ) external;
 }
