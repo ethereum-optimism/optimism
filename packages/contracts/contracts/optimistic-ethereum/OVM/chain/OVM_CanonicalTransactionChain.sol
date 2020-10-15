@@ -278,30 +278,13 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
             _validateBatchContext(context, nextQueueIndex);
 
             for (uint32 j = 0; j < context.numSequencedTransactions; j++) {
-                bytes memory txData = _getTransactionData(nextSequencerTransactionPosition);
-                bytes memory encodedChainElement = new bytes(12 + txData.length);
-                // assembly {
-                //     let chainElementStart := add(encodedChainElement, 0x20)
-                //     mstore(chainElementStart, 1)
-                //     mstore(add(chainElementStart, 0x20), 0)
-                //     mstore(add(chainElementStart, 0x40), context.timestamp)
-                //     mstore(add(chainElementStart, 0x40), context.blockNumber)
-                //     mstore(add(chainElementStart, 0x40), context.blockNumber)
-                // }
-                leaves[transactionIndex] = keccak256(
-                        txData
+                (bytes32 leafHash, uint txDataLength) = _getSequencerChainElementLeafHash(
+                    nextSequencerTransactionPosition,
+                    context.timestamp,
+                    context.blockNumber
                 );
-                // leaves[transactionIndex] = keccak256('hello world');
-                // leaves[transactionIndex] = _hashTransactionChainElement(
-                //     TransactionChainElement({
-                //         isSequenced: true,
-                //         queueIndex: 0,
-                //         timestamp: context.timestamp,
-                //         blockNumber: context.blockNumber,
-                //         txData: txData
-                //     })
-                // );
-                nextSequencerTransactionPosition += uint32(TX_DATA_HEADER_SIZE + txData.length);
+                leaves[transactionIndex] = leafHash;
+                nextSequencerTransactionPosition += uint32(TX_DATA_HEADER_SIZE + txDataLength);
                 numSequencerTransactionsProcessed++;
                 transactionIndex++;
             }
@@ -375,18 +358,22 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         });
     }
 
-    /**
-     * Returns the transaction data located at a particular start position in calldata.
-     * @param _startPosition Start position in calldata (represented in bytes).
-     * @return _transactionData The transaction data for this particular element.
-     */
-    function _getTransactionData(
-        uint256 _startPosition
+    // /**
+    //  * Returns the transaction data located at a particular start position in calldata.
+    //  * @param _startPosition Start position in calldata (represented in bytes).
+    //  * @return _transactionData The transaction data for this particular element.
+    //  */
+    uint constant BYTES_TILL_TX_DATA = 66;
+    function _getSequencerChainElementLeafHash(
+        uint256 _startPosition,
+        uint256 _timestamp,
+        uint256 _blockNumber
     )
         internal
         view
         returns (
-            bytes memory
+            bytes32 _leafHash,
+            uint _txDataLength
         )
     {
         uint256 transactionSize;
@@ -394,12 +381,32 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
             // 3 byte transactionSize
             transactionSize := shr(232, calldataload(_startPosition))
         }
-        bytes memory _transactionData = new bytes(transactionSize);
+        bytes memory _chainElement = new bytes(BYTES_TILL_TX_DATA + transactionSize);
         assembly {
+            let chainElementStart := add(_chainElement, 0x20)
+            mstore8(chainElementStart, 1)
+            mstore8(add(chainElementStart, 1), 0)
+            mstore(add(chainElementStart, 2), _timestamp)
+            mstore(add(chainElementStart, 34), _blockNumber)
+
             // Store the rest of the transaction
-            calldatacopy(add(_transactionData, 0x20), add(_startPosition, 3), transactionSize)
+            calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_startPosition, 3), transactionSize)
+
+            // Calculate the hash
+            _leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, transactionSize))
         }
-        return _transactionData;
+        // console.log("Verifying that this worked!");
+        // console.logBytes(_chainElement);
+        // console.log("Hash:");
+        // console.logBytes32(_leafHash);
+        // console.log("TxSize:");
+        // console.log("transactionSize");
+        // console.log("~~~~~~~~");
+
+        return (
+            _leafHash,
+            transactionSize
+        );
     }
 
     /**
