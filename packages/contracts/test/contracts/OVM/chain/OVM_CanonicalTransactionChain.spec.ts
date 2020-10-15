@@ -150,7 +150,7 @@ const encodeBatchContext = (context: BatchContext): string => {
   )
 }
 
-describe.only('OVM_CanonicalTransactionChain', () => {
+describe('OVM_CanonicalTransactionChain', () => {
   let signer: Signer
   let sequencer: Signer
   before(async () => {
@@ -488,7 +488,7 @@ describe.only('OVM_CanonicalTransactionChain', () => {
       )
     })
 
-    it.only('should revert if expected start does not match current total batches', async () => {
+    it.skip('should allow for a lower bound per-tx gas usage of <400 gas [GAS BENCHMARK]', async () => {
       const timestamp = (await getEthTime(ethers.provider)) - 100
       const blockNumber = (await getNextBlockNumber(ethers.provider)) + 100
 
@@ -523,10 +523,8 @@ describe.only('OVM_CanonicalTransactionChain', () => {
       console.log('\n~~~~ BEGINNGING TRASACTION IN QUESTION ~~~~')
       const transactions = []
       const numTxs = 200
-      // const numTxs = 20
       for (let i = 0; i < numTxs; i++) {
-        transactions.push('0x' + '1080111111111111111111111111111111111111111111111111111111111111')
-        // transactions.push('0x' + '10801111')
+        transactions.push('0x' + '1080111111111111111111111111111111111111111111'.repeat(20))
       }
       const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
         shouldStartAtBatch: 2,
@@ -542,8 +540,7 @@ describe.only('OVM_CanonicalTransactionChain', () => {
         transactions,
       })
       const receipt = await res.wait()
-      console.log(res)
-      console.log(receipt)
+      console.log("Benchmark complete. Gas used:", receipt.gasUsed)
     }).timeout(100000000)
 
     it('should revert if expected start does not match current total batches', async () => {
