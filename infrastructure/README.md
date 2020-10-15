@@ -73,6 +73,18 @@ This enables:
 
 Without doing this first, the deployment will not succeed.
 
+> NOTE:
+> <br />
+> There are three variables that are networking CIDR blocks that must be set properly for a successful apply: `gke_pod_cidr`, `gke_service_cidr`, and `vault_subnet_cidr`. All three of there blocks must be different, but can whatever you'd like.
+> <br />
+> 
+> - `vault_subnet_cidr`: the CIDR block for the VPC subnet that the GKE cluster nodes will be created and restricted to
+> - `gke_service_cidr`: the CIDR block for all Kubernetes services and load balancer to be created within
+> - `gke_pod_cidr`: the CIDR block for the Kubernetes pods to be restricted to (must be a `/21` or lower mask per GCP restrictions)
+> <br />
+> 
+> Once created, each of these CIDR blocks will be automatically attached to the Vault subnet in the VPC to allow VPC peering to all three of the CIDR blocks. 
+
 Now that you're authenticated locally to your GCP project, you can now deploy the scripts. Ensure that you have all of the necessary Terraform variables set in the `terraform.tfvars` file and run:
 
 ```bash
@@ -82,6 +94,24 @@ terraform apply
 ```
 
 The deployment could take some time because of spinning up a new GKE cluster, but once complete the two new service account credential key files (GCR and KMS service account) will be created within the `./terraform` directory.
+
+## OpenVPN
+
+The VPN must be used anytime you need to communicate or interact with the Kubernetes cluster. There are firewall rules that allow incoming traffic from whitelisted VPN CIDR blocks so that you can send traffic through to the VPC that the cluster resides in.
+
+### Configuration File
+
+Once the Terraform has completed successfully, there will be an instance of OpenVPN running in the project on a compute instance. In order to get onto the VPN to interact with Vault and the GKE cluster you must copy the `.ovpn` file from the storage bucket it was placed in.
+
+```bash
+gsutil cp gs://$VPN_BUCKET_NAME/config.ovpn .
+```
+
+This command will be rendered with the appropriate bucket name in your Terraform outputs as `bucket_ovpn_copy_command`. Once this file is successfully copied onto your local machine, you can optionally delete the `.ovpn` file from the storage bucket using the outputed command as `bucket_ovpn_delete_command`.
+
+### Connecting
+
+For connecting to the VPN with the copied configuration file, we use `TunnelBlick` as the tunneling application but you can use any application that supports the OpenVPN protocol and configuration files for connection profiles.
 
 ## Kubernetes
 

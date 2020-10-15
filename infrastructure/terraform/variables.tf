@@ -36,7 +36,7 @@ variable "gke_node_count" {
 }
 
 variable "gke_pod_cidr" {
-  description = "CIDR block for the Vault K8S pods to be in"
+  description = "CIDR block for the Vault K8S pods to be in (should be /21 or lower block)"
   type        = string
 }
 
