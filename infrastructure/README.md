@@ -2,10 +2,6 @@
 
 This directory holds the Terraform scripts and the Helm chart overrides to deploy the cloud infrastructure and Kubernetes resources into two Google Cloud projects.
 
-## Project Creation
-
-In the GCP Console, create _two_ projects: one to hold the VPN Networking VPC and one to hold the Vault VPC.
-
 ## GCloud Authentication
 
 You have to authenticate with the `gcloud` command line tool (download if not already installed). If you already have credentials locally for the project, you can simply set `GOOGLE_APPLICATION_CREDENTIALS` to the local file path, and Terraform will utilize those credentials.
@@ -30,7 +26,7 @@ $ gcloud auth revoke
 > $ gcloud auth activate-service-account --key-file <path_to_key_file>
 > ```
 
-## Terraform (Vault)
+## Terraform
 
 [Source](./terraform)
 
@@ -56,7 +52,7 @@ The Terraform scripts in this directory are used for standing up the cloud infra
 
 ### Deployment
 
-With both of the Google Cloud projects you created, you must enable the necessary Google API services in order to successfully run the Terraform scripts to deploy the resources. There is a script to enable (and disable for teardown) the APIs for you:
+You must enable the necessary Google API services, first, in order to successfully run the Terraform scripts to deploy the resources. There is a script to enable (and disable for teardown) the APIs for you:
 
 ```bash
 ./scripts/gcp_services.sh # [-d: disable]
@@ -90,6 +86,7 @@ Now that you're authenticated locally to your GCP project, you can now deploy th
 ```bash
 cd ./terraform
 terraform init
+terraform plan
 terraform apply
 ```
 
