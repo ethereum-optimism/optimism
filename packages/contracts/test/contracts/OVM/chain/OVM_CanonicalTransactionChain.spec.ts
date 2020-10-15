@@ -520,10 +520,12 @@ describe.only('OVM_CanonicalTransactionChain', () => {
         transactions: ['0x1234'],
       })
 
+      console.log('\n~~~~ BEGINNGING TRASACTION IN QUESTION ~~~~')
       const transactions = []
-      const numTxs = 2
+      const numTxs = 200
       for (let i = 0; i < numTxs; i++) {
-        transactions.push('0x' + '1080111111111111111111111111111111111111111111111111111111111111')
+        // transactions.push('0x' + '1080111111111111111111111111111111111111111111111111111111111111')
+        transactions.push('0x' + '10801111')
       }
       const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
         shouldStartAtBatch: 2,
@@ -541,7 +543,7 @@ describe.only('OVM_CanonicalTransactionChain', () => {
       const receipt = await res.wait()
       console.log(res)
       console.log(receipt)
-    })
+    }).timeout(100000000)
 
     it('should revert if expected start does not match current total batches', async () => {
       await expect(

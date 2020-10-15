@@ -35,7 +35,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
     uint256 constant public BATCH_CONTEXT_SIZE = 16;
     uint256 constant public BATCH_CONTEXT_LENGTH_POS = 12;
     uint256 constant public BATCH_CONTEXT_START_POS = 15;
-    uint256 constant public TX_DATA_HEADER_SIZE = 15;
+    uint256 constant public TX_DATA_HEADER_SIZE = 3;
 
 
     /*************
@@ -278,31 +278,30 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
             _validateBatchContext(context, nextQueueIndex);
 
             for (uint32 j = 0; j < context.numSequencedTransactions; j++) {
-                console.log("Iterating...");
-                console.log(j);
-                console.log(context.numSequencedTransactions);
-                console.log("Num sequenced");
-                console.log(context.numSequencedTransactions);
                 bytes memory txData = _getTransactionData(nextSequencerTransactionPosition);
-                leaves[transactionIndex] = _hashTransactionChainElement(
-                    TransactionChainElement({
-                        isSequenced: true,
-                        queueIndex: 0,
-                        timestamp: context.timestamp,
-                        blockNumber: context.blockNumber,
-                        txData: txData
-                    })
+                bytes memory encodedChainElement = new bytes(12 + txData.length);
+                // assembly {
+                //     let chainElementStart := add(encodedChainElement, 0x20)
+                //     mstore(chainElementStart, 1)
+                //     mstore(add(chainElementStart, 0x20), 0)
+                //     mstore(add(chainElementStart, 0x40), context.timestamp)
+                //     mstore(add(chainElementStart, 0x40), context.blockNumber)
+                //     mstore(add(chainElementStart, 0x40), context.blockNumber)
+                // }
+                leaves[transactionIndex] = keccak256(
+                        txData
                 );
-                console.log("tx data & pos");
-                console.logBytes(txData);
-                console.log(nextSequencerTransactionPosition);
-                uint test;
+                // leaves[transactionIndex] = keccak256('hello world');
+                // leaves[transactionIndex] = _hashTransactionChainElement(
+                //     TransactionChainElement({
+                //         isSequenced: true,
+                //         queueIndex: 0,
+                //         timestamp: context.timestamp,
+                //         blockNumber: context.blockNumber,
+                //         txData: txData
+                //     })
+                // );
                 nextSequencerTransactionPosition += uint32(TX_DATA_HEADER_SIZE + txData.length);
-                console.log("TX_DATA_HEADER_SIZE");
-                console.log(TX_DATA_HEADER_SIZE);
-                console.log(txData.length);
-                console.log(nextSequencerTransactionPosition);
-                console.log("~~~");
                 numSequencerTransactionsProcessed++;
                 transactionIndex++;
             }
@@ -382,25 +381,23 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
      * @return _transactionData The transaction data for this particular element.
      */
     function _getTransactionData(
-        uint _startPosition
+        uint256 _startPosition
     )
         internal
         view
         returns (
-            bytes memory _transactionData
+            bytes memory
         )
     {
-        uint transactionSize;
+        uint256 transactionSize;
         assembly {
             // 3 byte transactionSize
             transactionSize := shr(232, calldataload(_startPosition))
-
-            // Initialize _transactionData at the free memory pointer 0x40
-            _transactionData := mload(0x40)
-            // Store the length as the first word to conform with `bytes memory`
-            mstore(_transactionData, transactionSize)
+        }
+        bytes memory _transactionData = new bytes(transactionSize);
+        assembly {
             // Store the rest of the transaction
-            calldatacopy(add(_transactionData, 32), add(_startPosition, 3), transactionSize)
+            calldatacopy(add(_transactionData, 0x20), add(_startPosition, 3), transactionSize)
         }
         return _transactionData;
     }
