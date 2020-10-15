@@ -111,20 +111,16 @@ const encodeAppendSequencerBatch = (
 ): string => {
   let encoding: string
   const encodedShouldStartAtBatch = remove0x(BigNumber.from(b.shouldStartAtBatch).toHexString()).padStart(10, '0')
-  console.log('encodedShouldStartAtBatch', encodedShouldStartAtBatch)
   const encodedTotalElementsToAppend = remove0x(BigNumber.from(b.totalElementsToAppend).toHexString()).padStart(6, '0')
-  console.log('encodedTotalElementsToAppend', encodedTotalElementsToAppend)
 
   const encodedContextsHeader = remove0x(BigNumber.from(b.contexts.length).toHexString()).padStart(6, '0')
   const encodedContexts = encodedContextsHeader + b.contexts.reduce((acc, cur) => acc + encodeBatchContext(cur), '')
-  console.log('encodedContexts', encodedContexts)
 
   const encodedTransactionData = b.transactions.reduce((acc, cur) => {
     if (cur.length % 2 !== 0) throw new Error('Unexpected uneven hex string value!')
     const encodedTxDataHeader = remove0x(BigNumber.from(remove0x(cur).length/2).toHexString()).padStart(6, '0')
     return acc + encodedTxDataHeader + remove0x(cur)
   }, '')
-  console.log('encodedTransactionData', encodedTransactionData)
   return (
     encodedShouldStartAtBatch +
     encodedTotalElementsToAppend +
@@ -139,7 +135,6 @@ const appendSequencerBatch = async (
 ): Promise<TransactionResponse> => {
   const methodId = keccak256(Buffer.from('appendSequencerBatch()')).slice(2,10)
   const calldata = encodeAppendSequencerBatch(batch)
-  console.log('Generated batch calldata:', calldata)
   return OVM_CanonicalTransactionChain.signer.sendTransaction({
     to: OVM_CanonicalTransactionChain.address,
     data:'0x' + methodId + calldata,
@@ -493,30 +488,11 @@ describe('OVM_CanonicalTransactionChain', () => {
       )
     })
 
-    it.only('should revert if expected start does not match current total batches', async () => {
-      const timestamp = (await getEthTime(ethers.provider)) - 100
-      const blockNumber = (await getNextBlockNumber(ethers.provider)) + 100
-      const batch: AppendSequencerBatchParams = {
-        shouldStartAtBatch: 99,
-        totalElementsToAppend: 88,
-        contexts: [
-          {
-            numSequencedTransactions: 69,
-            numSubsequentQueueTransactions: 42,
-            timestamp,
-            blockNumber,
-          },
-        ],
-        transactions: ['0x1234'],
-      }
-      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, batch)
-    })
-
     it('should revert if expected start does not match current total batches', async () => {
       await expect(
-        OVM_CanonicalTransactionChain.appendSequencerBatch(
-          ['0x1234'],
-          [
+        appendSequencerBatch(OVM_CanonicalTransactionChain, {
+          transactions: ['0x1234'],
+          contexts: [
             {
               numSequencedTransactions: 0,
               numSubsequentQueueTransactions: 0,
@@ -524,19 +500,19 @@ describe('OVM_CanonicalTransactionChain', () => {
               blockNumber: 0,
             },
           ],
-          1234,
-          1
-        )
-      ).to.be.revertedWith(
+          shouldStartAtBatch: 1234,
+          totalElementsToAppend: 1
+        }
+      )).to.be.revertedWith(
         'Actual batch start index does not match expected start index.'
       )
     })
 
     it('should revert if not called by the sequencer', async () => {
       await expect(
-        OVM_CanonicalTransactionChain.connect(signer).appendSequencerBatch(
-          ['0x1234'],
-          [
+        appendSequencerBatch(OVM_CanonicalTransactionChain.connect(signer), {
+          transactions: ['0x1234'],
+          contexts: [
             {
               numSequencedTransactions: 0,
               numSubsequentQueueTransactions: 0,
@@ -544,34 +520,37 @@ describe('OVM_CanonicalTransactionChain', () => {
               blockNumber: 0,
             },
           ],
-          0,
-          1
-        )
-      ).to.be.revertedWith('Function can only be called by the Sequencer.')
+          shouldStartAtBatch: 0,
+          totalElementsToAppend: 1
+        }
+      )).to.be.revertedWith('Function can only be called by the Sequencer.')
     })
 
     it('should revert if no contexts are provided', async () => {
       await expect(
-        OVM_CanonicalTransactionChain.appendSequencerBatch(['0x1234'], [], 0, 1)
+        appendSequencerBatch(OVM_CanonicalTransactionChain, {
+          transactions: ['0x1234'],
+          contexts: [],
+          shouldStartAtBatch: 0,
+          totalElementsToAppend: 1
+        })
       ).to.be.revertedWith('Must provide at least one batch context.')
     })
 
     it('should revert if total elements to append is zero', async () => {
       await expect(
-        OVM_CanonicalTransactionChain.appendSequencerBatch(
-          ['0x1234'],
-          [
-            {
+        appendSequencerBatch(OVM_CanonicalTransactionChain, {
+          transactions: ['0x1234'],
+          contexts: [{
               numSequencedTransactions: 0,
               numSubsequentQueueTransactions: 0,
               timestamp: 0,
               blockNumber: 0,
-            },
-          ],
-          0,
-          0
-        )
-      ).to.be.revertedWith('Must append at least one element.')
+            }],
+          shouldStartAtBatch: 0,
+          totalElementsToAppend: 0
+        }
+      )).to.be.revertedWith('Must append at least one element.')
     })
 
     for (const size of ELEMENT_TEST_SIZES) {
@@ -590,9 +569,10 @@ describe('OVM_CanonicalTransactionChain', () => {
           )
 
           await expect(
-            OVM_CanonicalTransactionChain.appendSequencerBatch(
-              ['0x1234'],
-              [
+            appendSequencerBatch(OVM_CanonicalTransactionChain, {
+
+              transactions: ['0x1234'],
+              contexts: [
                 {
                   numSequencedTransactions: 0,
                   numSubsequentQueueTransactions: 0,
@@ -600,9 +580,9 @@ describe('OVM_CanonicalTransactionChain', () => {
                   blockNumber: 0,
                 },
               ],
-              0,
-              1
-            )
+              shouldStartAtBatch: 0,
+              totalElementsToAppend: 1
+            })
           ).to.be.revertedWith(
             'Older queue batches must be processed before a new sequencer batch.'
           )
@@ -612,9 +592,9 @@ describe('OVM_CanonicalTransactionChain', () => {
           const timestamp = (await getEthTime(ethers.provider)) + 1000
 
           await expect(
-            OVM_CanonicalTransactionChain.appendSequencerBatch(
-              ['0x1234'],
-              [
+            appendSequencerBatch(OVM_CanonicalTransactionChain, {
+              transactions: ['0x1234'],
+              contexts: [
                 {
                   numSequencedTransactions: 0,
                   numSubsequentQueueTransactions: 0,
@@ -622,8 +602,9 @@ describe('OVM_CanonicalTransactionChain', () => {
                   blockNumber: 0,
                 },
               ],
-              0,
-              1
+              shouldStartAtBatch: 0,
+              totalElementsToAppend: 1
+            }
             )
           ).to.be.revertedWith('Sequencer transactions timestamp too high.')
         })
@@ -633,9 +614,9 @@ describe('OVM_CanonicalTransactionChain', () => {
           const blockNumber = (await getNextBlockNumber(ethers.provider)) + 100
 
           await expect(
-            OVM_CanonicalTransactionChain.appendSequencerBatch(
-              ['0x1234'],
-              [
+            appendSequencerBatch(OVM_CanonicalTransactionChain, {
+              transactions: ['0x1234'],
+              contexts: [
                 {
                   numSequencedTransactions: 0,
                   numSubsequentQueueTransactions: 0,
@@ -643,8 +624,9 @@ describe('OVM_CanonicalTransactionChain', () => {
                   blockNumber: blockNumber,
                 },
               ],
-              0,
-              1
+              shouldStartAtBatch: 0,
+              totalElementsToAppend: 1
+            }
             )
           ).to.be.revertedWith('Sequencer transactions blockNumber too high.')
         })
@@ -674,12 +656,12 @@ describe('OVM_CanonicalTransactionChain', () => {
 
             it('should append the given number of transactions', async () => {
               await expect(
-                OVM_CanonicalTransactionChain.appendSequencerBatch(
+                appendSequencerBatch(OVM_CanonicalTransactionChain, {
                   transactions,
                   contexts,
-                  0,
-                  size
-                )
+                  shouldStartAtBatch: 0,
+                  totalElementsToAppend: size
+                })
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, 0)
@@ -722,11 +704,12 @@ describe('OVM_CanonicalTransactionChain', () => {
 
             it('should append the batch', async () => {
               await expect(
-                OVM_CanonicalTransactionChain.appendSequencerBatch(
+                appendSequencerBatch(OVM_CanonicalTransactionChain, {
                   transactions,
                   contexts,
-                  0,
-                  size * 2
+                  shouldStartAtBatch: 0,
+                  totalElementsToAppend: size * 2
+                }
                 )
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
@@ -762,12 +745,12 @@ describe('OVM_CanonicalTransactionChain', () => {
 
             it('should append the batch', async () => {
               await expect(
-                OVM_CanonicalTransactionChain.appendSequencerBatch(
+                appendSequencerBatch(OVM_CanonicalTransactionChain, {
                   transactions,
                   contexts,
-                  0,
-                  size + spacing
-                )
+                  shouldStartAtBatch: 0,
+                  totalElementsToAppend: size + spacing
+                })
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, spacing)
@@ -802,9 +785,14 @@ describe('OVM_CanonicalTransactionChain', () => {
             return '0x' + '12' + '34'.repeat(idx)
           })
 
-          await OVM_CanonicalTransactionChain.connect(
+          await appendSequencerBatch(OVM_CanonicalTransactionChain.connect(
             sequencer
-          ).appendSequencerBatch(transactions, contexts, 0, size)
+          ), {
+            transactions,
+            contexts,
+            shouldStartAtBatch: 0,
+            totalElementsToAppend: size
+          })
         })
 
         it(`should return ${size}`, async () => {
