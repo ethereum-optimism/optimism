@@ -1073,7 +1073,7 @@
             "out": false
         },
         "valid EM call": {
-            "in": "0x336000905af158601d0157586012013d600114573d6000803e3d6000fd5b60016000f35b",
+            "in": "0x336000905af158601d01573d60011458600c01573d6000803e3d6000FD5b60016000f35b",
             "out": true
         },
         "valid identity precompile call": {
@@ -1081,15 +1081,15 @@
             "out": true
         },
         "valid EM call, then valid identity precompile call": {
-            "in": "0x336000905af158601d0157586012013d600114573d6000803e3d6000fd5b60016000f35b3350600060045af1",
+            "in": "0x336000905af158601d01573d60011458600c01573d6000803e3d6000FD5b60016000f35b3350600060045af1",
             "out": true
         },
         "valid EM call, then invalid identity precompile call": {
-            "in": "0x336000905af158601d0157586012013d600114573d6000803e3d6000fd5b60016000f35b3350600060035af1",
+            "in": "0x336000905af158601d01573d60011458600c01573d6000803e3d6000FD5b60016000f35b3350600060035af1",
             "out": false
         },
         "valid EM call, then invalid opcode (SLOAD)": {
-            "in": "0x336000905af158601d0157586012013d600114573d6000803e3d6000fd5b60016000f35b54",
+            "in": "0x336000905af158601d01573d60011458600c01573d6000803e3d6000FD5b60016000f35b54",
             "out": false
         },
         "valid identity precompile call, then invalid opcode (SLOAD)": {
@@ -1097,7 +1097,7 @@
             "out": false
         },
         "invalid EM call (missing final byte)": {
-            "in": "0x336000905af158601d0157586012013d600114573d6000803e3d6000fd5b60016000f3",
+            "in": "0x336000905af158601d01573d60011458600c01573d6000803e3d6000FD5b60016000f3",
             "out": false
         },
         "invalid identity precompile call (missing final byte)": {

@@ -116,8 +116,8 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
                     if ((firstOps >> 192) == 0x3350600060045af1) {
                         _pc += 8;
                     // Call EM and abort execution if instructed
-                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x1d ADD EQ JUMPI RETURNDATASIZE PUSH1 0x00 DUP1 RETURNDATACOPY PUSH1 0x00 REVERT JUMPDEST PUSH1 0x01 PUSH1 0x00 RETURN JUMPDEST
-                    } else if (firstOps == 0x336000905af158601d0157586012013d600114573d6000803e3d6000fd5b6001 && secondOps == 0x6000f35b) {
+                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x1d ADD JUMPI RETURNDATASIZE PUSH1 0x01 EQ PC PUSH1 0x0c ADD JUMPI RETURNDATASIZE PUSH1 0x00 DUP1 RETURNDATACOPY RETURNDATASIZE PUSH1 0x00 REVERT JUMPDEST PUSH1 0x01 PUSH1 0x00 RETURN JUMPDEST 
+                    } else if (firstOps == 0x336000905af158601d01573d60011458600c01573d6000803e3d6000FD5b6001 && secondOps == 0x6000f35b) {
                         _pc += 36;
                     } else {
                         return false;
