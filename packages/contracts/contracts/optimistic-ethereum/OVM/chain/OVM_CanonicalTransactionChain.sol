@@ -220,7 +220,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
 
         emit QueueBatchAppended(
             nextQueueIndex - _numQueuedTransactions,
-            _numQueuedTransactions
+            _numQueuedTransactions,
+            getTotalElements()
         );
     }
 
@@ -340,7 +341,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
 
         emit SequencerBatchAppended(
             nextQueueIndex - numQueuedTransactions,
-            numQueuedTransactions
+            numQueuedTransactions,
+            getTotalElements()
         );
     }
 
