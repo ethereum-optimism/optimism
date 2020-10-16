@@ -6,7 +6,6 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.sol";
-import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../iOVM/bridge/iOVM_L1CrossDomainMessenger.sol";
@@ -83,19 +82,29 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         );
 
         require(
-            receivedMessages[keccak256(xDomainCalldata)] == false,
+            successfulMessages[keccak256(xDomainCalldata)] == false,
             "Provided message has already been received."
         );
 
         xDomainMessageSender = _sender;
-        _target.call(_message);
+        (bool success, ) = _target.call(_message);
 
-        // Messages are considered successfully executed if they complete
-        // without running out of gas (revert or not). As a result, we can
-        // ignore the result of the call and always mark the message as
-        // successfully executed because we won't get here unless we have
-        // enough gas left over.
-        receivedMessages[keccak256(xDomainCalldata)] = true;
+        // Mark the message as received if the call was successful. Ensures that a message can be
+        // relayed multiple times in the case that the call reverted.
+        if (success == true) {
+            successfulMessages[keccak256(xDomainCalldata)] = true;
+        }
+
+        // Store an identifier that can be used to prove that the given message was relayed by some
+        // user. Gives us an easy way to pay relayers for their work.
+        bytes32 relayId = keccak256(
+            abi.encodePacked(
+                xDomainCalldata,
+                msg.sender,
+                block.number
+            )
+        );
+        relayedMessages[relayId] = true;
     }
 
     /**
@@ -189,15 +198,20 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         L2MessageInclusionProof memory _proof
     )
         internal
-        pure
+        view
         returns (
             bool
         )
     {
         bytes32 storageKey = keccak256(
-            Lib_BytesUtils.concat(
-                abi.encodePacked(keccak256(_xDomainCalldata)),
-                abi.encodePacked(uint256(0))
+            abi.encodePacked(
+                keccak256(
+                    abi.encodePacked(
+                        _xDomainCalldata,
+                        resolve("OVM_L2CrossDomainMessenger")
+                    )
+                ),
+                uint256(0)
             )
         );
 

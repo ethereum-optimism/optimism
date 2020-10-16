@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.7.0;
+pragma solidity >0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
@@ -18,6 +18,7 @@ import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title OVM_L2CrossDomainMessenger
+ * @dev L2 CONTRACT (COMPILED)
  */
 contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCrossDomainMessenger, Lib_AddressResolver {
 
@@ -76,19 +77,29 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         );
 
         require(
-            receivedMessages[keccak256(xDomainCalldata)] == false,
+            successfulMessages[keccak256(xDomainCalldata)] == false,
             "Provided message has already been received."
         );
 
         xDomainMessageSender = _sender;
-        _target.call(_message);
+        (bool success, ) = _target.call(_message);
 
-        // Messages are considered successfully executed if they complete
-        // without running out of gas (revert or not). As a result, we can
-        // ignore the result of the call and always mark the message as
-        // successfully executed because we won't get here unless we have
-        // enough gas left over.
-        receivedMessages[keccak256(xDomainCalldata)] = true;
+        // Mark the message as received if the call was successful. Ensures that a message can be
+        // relayed multiple times in the case that the call reverted.
+        if (success == true) {
+            successfulMessages[keccak256(xDomainCalldata)] = true;
+        }
+
+        // Store an identifier that can be used to prove that the given message was relayed by some
+        // user. Gives us an easy way to pay relayers for their work.
+        bytes32 relayId = keccak256(
+            abi.encodePacked(
+                xDomainCalldata,
+                msg.sender,
+                block.number
+            )
+        );
+        relayedMessages[relayId] = true;
     }
 
 

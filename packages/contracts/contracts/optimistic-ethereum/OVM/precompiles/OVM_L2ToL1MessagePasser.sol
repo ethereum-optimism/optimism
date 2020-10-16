@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.7.0;
+pragma solidity >0.6.0 <0.8.0;
 
 /* Interface Imports */
 import { iOVM_L2ToL1MessagePasser } from "../../iOVM/precompiles/iOVM_L2ToL1MessagePasser.sol";
@@ -7,6 +7,7 @@ import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManage
 
 /**
  * @title OVM_L2ToL1MessagePasser
+ * @dev L2 CONTRACT (COMPILED)
  */
 contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
 
@@ -14,7 +15,7 @@ contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
      * Contract Variables *
      **********************/
 
-    uint256 internal nonce;
+    mapping (bytes32 => bool) public sentMessages;
 
 
     /********************
@@ -31,14 +32,11 @@ contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
         override
         public
     {
-        // For now, to be trustfully relayed by sequencer to L1, so just emit
-        // an event for the sequencer to pick up.
-        emit L2ToL1Message(
-            nonce,
-            iOVM_ExecutionManager(msg.sender).ovmCALLER(),
-            _message
-        );
-
-        nonce = nonce + 1;
+        sentMessages[keccak256(
+            abi.encodePacked(
+                _message,
+                msg.sender
+            )
+        )] = true;
     }
 }

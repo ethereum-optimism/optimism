@@ -10,6 +10,7 @@ import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManage
 
 /**
  * @title OVM_DeployerWhitelist
+ * @dev L2 CONTRACT (NOT COMPILED)
  */
 contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
 

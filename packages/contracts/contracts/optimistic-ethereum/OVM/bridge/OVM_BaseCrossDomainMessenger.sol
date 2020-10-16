@@ -14,7 +14,8 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
      * Contract Variables *
      **********************/
 
-    mapping (bytes32 => bool) public receivedMessages;
+    mapping (bytes32 => bool) public relayedMessages;
+    mapping (bytes32 => bool) public successfulMessages;
     mapping (bytes32 => bool) public sentMessages;
     uint256 public messageNonce;
     address public xDomainMessageSender;

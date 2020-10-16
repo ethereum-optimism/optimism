@@ -17,6 +17,8 @@ import {
   DUMMY_BATCH_PROOFS,
   TrieTestGenerator,
   toHexString,
+  getNextBlockNumber,
+  remove0x,
 } from '../../../helpers'
 import { getContractInterface } from '../../../../src'
 import { keccak256 } from 'ethers/lib/utils'
@@ -157,6 +159,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     let message: string
     let sender: string
     let proof: any
+    let calldata: string
     before(async () => {
       target = Mock__TargetContract.address
       message = Mock__TargetContract.interface.encodeFunctionData('setTarget', [
@@ -164,11 +167,15 @@ describe('OVM_L1CrossDomainMessenger', () => {
       ])
       sender = await signer.getAddress()
 
-      const calldata = getXDomainCalldata(sender, target, message, 0)
+      calldata = getXDomainCalldata(sender, target, message, 0)
 
       const precompile = '0x4200000000000000000000000000000000000000'
 
-      const storageKey = keccak256(keccak256(calldata) + '00'.repeat(32))
+      const storageKey = keccak256(
+        keccak256(
+          calldata + remove0x(Mock__OVM_L2CrossDomainMessenger.address)
+        ) + '00'.repeat(32)
+      )
       const storageGenerator = await TrieTestGenerator.fromNodes({
         nodes: [
           {
@@ -279,7 +286,9 @@ describe('OVM_L1CrossDomainMessenger', () => {
       ).to.be.reverted
     })
 
-    it('should send a call to the target contract', async () => {
+    it('should send a successful call to the target contract', async () => {
+      const blockNumber = await getNextBlockNumber(ethers.provider)
+
       await OVM_L1CrossDomainMessenger.relayMessage(
         target,
         sender,
@@ -288,9 +297,22 @@ describe('OVM_L1CrossDomainMessenger', () => {
         proof
       )
 
-      expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.deep.equal([
-        NON_ZERO_ADDRESS,
-      ])
+      expect(
+        await OVM_L1CrossDomainMessenger.successfulMessages(keccak256(calldata))
+      ).to.equal(true)
+
+      expect(
+        await OVM_L1CrossDomainMessenger.relayedMessages(
+          keccak256(
+            calldata +
+              remove0x(await signer.getAddress()) +
+              remove0x(BigNumber.from(blockNumber).toHexString()).padStart(
+                64,
+                '0'
+              )
+          )
+        )
+      ).to.equal(true)
     })
 
     it('should revert if trying to send the same message twice', async () => {

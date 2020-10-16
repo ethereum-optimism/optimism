@@ -5,6 +5,8 @@ import { ethers } from '@nomiclabs/buidler'
 import { ContractFactory, Contract } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { NON_ZERO_ADDRESS } from '../../../helpers/constants'
+import { keccak256 } from 'ethers/lib/utils'
+import { remove0x } from '../../../helpers'
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
 
@@ -61,16 +63,18 @@ describe('OVM_L2ToL1MessagePasser', () => {
         for (let i = 0; i < size; i++) {
           const message = '0x' + '12' + '34'.repeat(i)
 
-          await expect(
-            callPrecompile(
-              Helper_PrecompileCaller,
-              OVM_L2ToL1MessagePasser,
-              'passMessageToL1',
-              [message]
-            )
+          await callPrecompile(
+            Helper_PrecompileCaller,
+            OVM_L2ToL1MessagePasser,
+            'passMessageToL1',
+            [message]
           )
-            .to.emit(OVM_L2ToL1MessagePasser, 'L2ToL1Message')
-            .withArgs(i, NON_ZERO_ADDRESS, message)
+
+          expect(
+            await OVM_L2ToL1MessagePasser.sentMessages(
+              keccak256(message + remove0x(Helper_PrecompileCaller.address))
+            )
+          ).to.equal(true)
         }
       })
     }
