@@ -137,6 +137,7 @@ contract Helper_TestRunner {
         bytes memory _revertdata
     )
         internal
+        pure
         returns (
             uint256 _flag,
             uint256 _nuisanceGasLeft,

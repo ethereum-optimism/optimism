@@ -6,7 +6,7 @@ import { keccak256 } from 'ethers/lib/utils'
 
 /* Internal Imports */
 import { deploy, RollupDeployConfig } from './contract-deployment'
-import { fromHexString, toHexString, remove0x } from '../test/helpers/utils'
+import { fromHexString, toHexString, remove0x } from './utils'
 import { getContractDefinition } from './contract-defs'
 
 interface StorageDump {

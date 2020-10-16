@@ -332,12 +332,10 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
     /**
      * Allows a user to commit the final state of a contract.
      * @param _ovmContractAddress Address of the contract on the OVM.
-     * @param _account Claimed account state.
      * @param _stateTrieWitness Proof of the account state.
      */
     function commitContractState(
         address _ovmContractAddress,
-        Lib_OVMCodec.EVMAccount memory _account,
         bytes memory _stateTrieWitness
     )
         override
@@ -349,9 +347,13 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
             "Account was not changed or has already been committed."
         );
 
+        Lib_OVMCodec.Account memory account = ovmStateManager.getAccount(_ovmContractAddress);
+
         postStateRoot = Lib_SecureMerkleTrie.update(
             abi.encodePacked(_ovmContractAddress),
-            Lib_OVMCodec.encodeEVMAccount(_account),
+            Lib_OVMCodec.encodeEVMAccount(
+                Lib_OVMCodec.toEVMAccount(account)
+            ),
             _stateTrieWitness,
             postStateRoot
         );
@@ -361,14 +363,12 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
      * Allows a user to commit the final state of a contract storage slot.
      * @param _ovmContractAddress Address of the contract on the OVM.
      * @param _key Claimed account slot key.
-     * @param _value Claimed account slot value.
      * @param _stateTrieWitness Proof of the account state.
      * @param _storageTrieWitness Proof of the storage slot.
      */
     function commitStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
-        bytes32 _value,
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
     )
@@ -381,23 +381,26 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
             "Storage slot was not changed or has already been committed."
         );
 
-        Lib_OVMCodec.EVMAccount memory account = Lib_OVMCodec.toEVMAccount(
-            ovmStateManager.getAccount(_ovmContractAddress)
-        );
+        Lib_OVMCodec.Account memory account = ovmStateManager.getAccount(_ovmContractAddress);
+        bytes32 value = ovmStateManager.getContractStorage(_ovmContractAddress, _key);
 
         account.storageRoot = Lib_SecureMerkleTrie.update(
             abi.encodePacked(_key),
-            abi.encodePacked(_value),
+            abi.encodePacked(value),
             _storageTrieWitness,
             account.storageRoot
         );
 
         postStateRoot = Lib_SecureMerkleTrie.update(
             abi.encodePacked(_ovmContractAddress),
-            Lib_OVMCodec.encodeEVMAccount(account),
+            Lib_OVMCodec.encodeEVMAccount(
+                Lib_OVMCodec.toEVMAccount(account)
+            ),
             _stateTrieWitness,
             postStateRoot
         );
+
+        ovmStateManager.putAccount(_ovmContractAddress, account);
     }
 
 

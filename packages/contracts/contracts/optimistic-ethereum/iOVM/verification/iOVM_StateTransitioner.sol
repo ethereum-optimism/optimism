@@ -58,14 +58,12 @@ interface iOVM_StateTransitioner {
 
     function commitContractState(
         address _ovmContractAddress,
-        Lib_OVMCodec.EVMAccount calldata _account,
         bytes calldata _stateTrieWitness
     ) external;
 
     function commitStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
-        bytes32 _value,
         bytes calldata _stateTrieWitness,
         bytes calldata _storageTrieWitness
     ) external;

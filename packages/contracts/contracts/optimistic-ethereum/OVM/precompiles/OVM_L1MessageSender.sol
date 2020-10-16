@@ -20,6 +20,7 @@ contract OVM_L1MessageSender is iOVM_L1MessageSender {
     function getL1MessageSender()
         override
         public
+        view
         returns (
             address _l1MessageSender
         )

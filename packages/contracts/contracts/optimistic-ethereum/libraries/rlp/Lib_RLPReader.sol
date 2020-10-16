@@ -79,7 +79,7 @@ library Lib_RLPReader {
     {
         (
             uint256 listOffset,
-            uint256 listLength,
+            ,
             RLPItemType itemType
         ) = _decodeLength(_in);
 

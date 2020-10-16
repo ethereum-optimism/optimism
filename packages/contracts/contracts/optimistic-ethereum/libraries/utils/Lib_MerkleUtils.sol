@@ -10,7 +10,7 @@ library Lib_MerkleUtils {
         bytes32[] memory _hashes
     )
         internal
-        view
+        pure
         returns (
             bytes32 _root
         )

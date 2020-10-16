@@ -1319,6 +1319,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _data
     )
         internal
+        view
         returns (
             bytes memory _revertdata
         )
@@ -1362,6 +1363,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _revertdata
     )
         internal
+        pure
         returns (
             RevertFlag _flag,
             uint256 _nuisanceGasLeft,

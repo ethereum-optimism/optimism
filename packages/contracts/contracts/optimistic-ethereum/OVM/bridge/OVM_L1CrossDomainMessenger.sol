@@ -143,6 +143,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         L2MessageInclusionProof memory _proof
     )
         internal
+        view
         returns (
             bool
         )
@@ -162,6 +163,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         L2MessageInclusionProof memory _proof
     )
         internal
+        view
         returns (
             bool
         )
@@ -187,6 +189,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         L2MessageInclusionProof memory _proof
     )
         internal
+        pure
         returns (
             bool
         )

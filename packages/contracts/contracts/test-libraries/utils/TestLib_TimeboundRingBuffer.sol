@@ -17,9 +17,7 @@ contract TestLib_TimeboundRingBuffer {
         uint32 _startingSize,
         uint32 _maxSizeIncrementAmount,
         uint _timeout
-    )
-        public
-    {
+    ) {
         list.init(_startingSize, _maxSizeIncrementAmount, _timeout);
     }
 

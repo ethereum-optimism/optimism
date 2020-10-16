@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.7.0;
 
+import { console } from "@nomiclabs/buidler/console.sol";
+
 contract Helper_SimpleProxy {
-    address private owner;
-    address private target;
+    address internal owner;
+    address internal target;
 
     constructor() {
         owner = msg.sender;
@@ -31,7 +33,7 @@ contract Helper_SimpleProxy {
         address _target,
         bytes memory _calldata
     )
-        private
+        internal
     {
         (bool success, bytes memory returndata) = _target.call(_calldata);
 

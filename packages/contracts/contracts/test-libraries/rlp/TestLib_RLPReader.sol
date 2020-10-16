@@ -14,7 +14,7 @@ contract TestLib_RLPReader {
         bytes memory _in
     )
         public
-        view
+        pure
         returns (
             bytes[] memory
         )
@@ -31,7 +31,7 @@ contract TestLib_RLPReader {
         bytes memory _in
     )
         public
-        view
+        pure
         returns (
             string memory
         )
@@ -43,7 +43,7 @@ contract TestLib_RLPReader {
         bytes memory _in
     )
         public
-        view
+        pure
         returns (
             bytes memory
         )
@@ -55,7 +55,7 @@ contract TestLib_RLPReader {
         bytes memory _in
     )
         public
-        view
+        pure
         returns (
             bytes32
         )
@@ -67,7 +67,7 @@ contract TestLib_RLPReader {
         bytes memory _in
     )
         public
-        view
+        pure
         returns (
             uint256
         )
@@ -79,7 +79,7 @@ contract TestLib_RLPReader {
         bytes memory _in
     )
         public
-        view
+        pure
         returns (
             bool
         )
@@ -91,7 +91,7 @@ contract TestLib_RLPReader {
         bytes memory _in
     )
         public
-        view
+        pure
         returns (
             address
         )

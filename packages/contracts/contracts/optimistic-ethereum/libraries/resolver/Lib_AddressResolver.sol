@@ -25,9 +25,7 @@ contract Lib_AddressResolver {
      */
     constructor(
         address _libAddressManager
-    )
-        public
-    {
+    ) {
         libAddressManager = Lib_AddressManager(_libAddressManager);
     }
 

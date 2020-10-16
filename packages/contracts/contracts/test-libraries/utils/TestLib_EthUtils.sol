@@ -88,7 +88,7 @@ contract TestLib_EthUtils {
         uint256 _nonce
     )
         public
-        view
+        pure
         returns (
             address _address
         )
@@ -105,7 +105,7 @@ contract TestLib_EthUtils {
         bytes32 _salt
     )
         public
-        view
+        pure
         returns (address _address)
     {
         return Lib_EthUtils.getAddressForCREATE2(

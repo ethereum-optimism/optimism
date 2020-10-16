@@ -145,7 +145,7 @@ library Lib_EthUtils {
         uint256 _nonce
     )
         internal
-        view
+        pure
         returns (
             address _address
         )
@@ -171,7 +171,7 @@ library Lib_EthUtils {
         bytes32 _salt
     )
         internal
-        view
+        pure
         returns (address _address)
     {
         bytes32 hashedData = keccak256(abi.encodePacked(
