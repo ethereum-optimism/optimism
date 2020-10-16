@@ -405,7 +405,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                 ).appendQueueBatch(1)
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, 1)
+                .withArgs(0, 1, 1)
             })
           })
 
@@ -420,13 +420,13 @@ describe('OVM_CanonicalTransactionChain', () => {
             it('should be able to append a single element', async () => {
               await expect(OVM_CanonicalTransactionChain.appendQueueBatch(1))
                 .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, 1)
+                .withArgs(0, 1, 1)
             })
 
             it(`should be able to append ${size} elements`, async () => {
               await expect(OVM_CanonicalTransactionChain.appendQueueBatch(size))
                 .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, size)
+                .withArgs(0, size, size)
             })
 
             it(`should revert if appending ${size} + 1 elements`, async () => {
@@ -698,7 +698,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                 })
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
-                .withArgs(0, 0)
+                .withArgs(0, 0, size)
             })
           })
         })
@@ -747,7 +747,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                 )
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
-                .withArgs(0, size)
+                .withArgs(0, size, size * 2)
             })
           })
 
@@ -787,7 +787,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                 })
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'SequencerBatchAppended')
-                .withArgs(0, spacing)
+                .withArgs(0, spacing, size + spacing)
             })
           })
         })
