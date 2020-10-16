@@ -144,19 +144,6 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
   })
 
-  let Mock__OVM_L1ToL2TransactionQueue: MockContract
-  before(async () => {
-    Mock__OVM_L1ToL2TransactionQueue = smockit(
-      await ethers.getContractFactory('OVM_L1ToL2TransactionQueue')
-    )
-
-    await setProxyTarget(
-      AddressManager,
-      'OVM_L1ToL2TransactionQueue',
-      Mock__OVM_L1ToL2TransactionQueue
-    )
-  })
-
   let Factory__OVM_CanonicalTransactionChain: ContractFactory
   before(async () => {
     Factory__OVM_CanonicalTransactionChain = await ethers.getContractFactory(
