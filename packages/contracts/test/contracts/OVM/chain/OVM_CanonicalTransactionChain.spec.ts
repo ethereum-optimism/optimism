@@ -18,6 +18,7 @@ import {
   getEthTime,
   getNextBlockNumber,
   increaseEthTime,
+  ZERO_ADDRESS
 } from '../../../helpers'
 import { defaultAbiCoder, keccak256 } from 'ethers/lib/utils'
 
@@ -29,6 +30,8 @@ interface sequencerBatchContext {
 }
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
+const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
+const MAX_GAS_LIMIT = 8_000_000
 
 const getTransactionHash = (
   sender: string,
@@ -128,7 +131,7 @@ const encodeBatchContext = (context: BatchContext): string => {
   )
 }
 
-describe('OVM_CanonicalTransactionChain', () => {
+describe.only('OVM_CanonicalTransactionChain', () => {
   let signer: Signer
   let sequencer: Signer
   before(async () => {
@@ -136,11 +139,30 @@ describe('OVM_CanonicalTransactionChain', () => {
   })
 
   let AddressManager: Contract
+  let Mock__OVM_ExecutionManager: MockContract
   before(async () => {
     AddressManager = await makeAddressManager()
     await AddressManager.setAddress(
       'OVM_Sequencer',
       await sequencer.getAddress()
+    )
+    await AddressManager.setAddress(
+      'OVM_DecompressionPrecompileAddress',
+      DECOMPRESSION_ADDRESS
+    )
+
+    Mock__OVM_ExecutionManager = smockit(
+      await ethers.getContractFactory('OVM_ExecutionManager')
+    )
+
+    await setProxyTarget(
+      AddressManager,
+      'OVM_ExecutionManager',
+      Mock__OVM_ExecutionManager
+    )
+
+    Mock__OVM_ExecutionManager.smocked.getMaxTransactionGasLimit.will.return.with(
+      MAX_GAS_LIMIT
     )
   })
 
@@ -442,6 +464,86 @@ describe('OVM_CanonicalTransactionChain', () => {
           })
         })
       }
+    })
+  })
+
+  describe('verifyTransaction', () => {
+    it('should successfully verify against a valid queue transaction', async () => {
+      const entrypoint = NON_ZERO_ADDRESS
+      const gasLimit = 500_000
+      const data = '0x' + '12'.repeat(1234)
+
+      const timestamp = (await getEthTime(ethers.provider) + 100)
+      await setEthTime(ethers.provider, timestamp)
+      await OVM_CanonicalTransactionChain.enqueue(
+        entrypoint,
+        gasLimit,
+        data
+      )
+
+      const blockNumber = await ethers.provider.getBlockNumber()
+      await increaseEthTime(
+        ethers.provider,
+        FORCE_INCLUSION_PERIOD_SECONDS * 2
+      )
+
+      await OVM_CanonicalTransactionChain.appendQueueBatch(1)
+
+      expect(await OVM_CanonicalTransactionChain.verifyTransaction(
+        {
+          timestamp,
+          blockNumber,
+          l1QueueOrigin: 1,
+          l1TxOrigin: await OVM_CanonicalTransactionChain.signer.getAddress(),
+          entrypoint,
+          gasLimit,
+          data
+        },
+        {
+          isSequenced: false,
+          queueIndex: 0,
+          timestamp: 0,
+          blockNumber: 0,
+          txData: '0x00'
+        },
+        {
+          index: 0,
+          siblings: []
+        }
+      )).to.equal(true)
+    })
+
+    it('should successfully verify against a valid sequencer transaction', async () => {
+      const entrypoint = DECOMPRESSION_ADDRESS
+      const gasLimit = MAX_GAS_LIMIT
+      const data = '0x' + '12'.repeat(1234)
+      const timestamp = await getEthTime(ethers.provider) - 10
+      const blockNumber = await ethers.provider.getBlockNumber() - 1
+
+      // TODO: await OVM_CanonicalTransactionChain.appendQueueBatch(1)
+
+      expect(await OVM_CanonicalTransactionChain.verifyTransaction(
+        {
+          timestamp,
+          blockNumber,
+          l1QueueOrigin: 0,
+          l1TxOrigin: ZERO_ADDRESS,
+          entrypoint,
+          gasLimit,
+          data
+        },
+        {
+          isSequenced: true,
+          queueIndex: 0,
+          timestamp,
+          blockNumber,
+          txData: data
+        },
+        {
+          index: 0,
+          siblings: []
+        }
+      )).to.equal(true)
     })
   })
 

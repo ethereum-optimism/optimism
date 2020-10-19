@@ -802,6 +802,22 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         );
     }
 
+    /***************************************
+     * Public Functions: Execution Context *
+     ***************************************/
+
+    function getMaxTransactionGasLimit()
+        external
+        view
+        override
+        returns (
+            uint256 _maxTransactionGasLimit
+        )
+    {
+        return gasMeterConfig.maxTransactionGasLimit;
+    }
+
+
 
     /********************************************
      * Internal Functions: Contract Interaction *
@@ -1674,10 +1690,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         internal
     {
         transactionContext.ovmTIMESTAMP = _transaction.timestamp;
-        transactionContext.ovmNUMBER = _transaction.number;
+        transactionContext.ovmNUMBER = _transaction.blockNumber;
         transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
         transactionContext.ovmL1QUEUEORIGIN = _transaction.l1QueueOrigin;
-        transactionContext.ovmL1TXORIGIN = _transaction.l1Txorigin;
+        transactionContext.ovmL1TXORIGIN = _transaction.l1TxOrigin;
         transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
 
         messageRecord.nuisanceGasLeft = _getNuisanceGasLimit(_transaction.gasLimit);

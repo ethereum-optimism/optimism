@@ -155,4 +155,10 @@ interface iOVM_ExecutionManager {
      **************************************/
     
     function safeCREATE(address _address, bytes memory _bytecode) external;
+
+    /***************************************
+     * Public Functions: Execution Context *
+     ***************************************/
+
+    function getMaxTransactionGasLimit() external view returns (uint _maxTransactionGasLimit);
 }
