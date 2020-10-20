@@ -179,8 +179,8 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
     {
         return (
             ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) == false
-            && ovmStateCommitmentChain.verifyElement(
-                abi.encodePacked(_proof.stateRoot),
+            && ovmStateCommitmentChain.verifyStateCommitment(
+                _proof.stateRoot,
                 _proof.stateRootBatchHeader,
                 _proof.stateRootProof
             )

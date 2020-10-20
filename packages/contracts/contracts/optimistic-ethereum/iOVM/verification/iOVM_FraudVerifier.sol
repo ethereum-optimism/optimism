@@ -29,6 +29,7 @@ interface iOVM_FraudVerifier {
         Lib_OVMCodec.ChainBatchHeader calldata _preStateRootBatchHeader,
         Lib_OVMCodec.ChainInclusionProof calldata _preStateRootProof,
         Lib_OVMCodec.Transaction calldata _transaction,
+        Lib_OVMCodec.TransactionChainElement calldata _txChainElement,
         Lib_OVMCodec.ChainBatchHeader calldata _transactionBatchHeader,
         Lib_OVMCodec.ChainInclusionProof calldata _transactionProof
     ) external;

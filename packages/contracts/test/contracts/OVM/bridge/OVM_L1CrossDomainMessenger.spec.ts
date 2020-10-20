@@ -212,7 +212,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     })
 
     beforeEach(async () => {
-      Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+      Mock__OVM_StateCommitmentChain.smocked.verifyStateCommitment.will.return.with(
         true
       )
       Mock__OVM_StateCommitmentChain.smocked.insideFraudProofWindow.will.return.with(
@@ -245,7 +245,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     })
 
     it('should revert if provided an invalid state root proof', async () => {
-      Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+      Mock__OVM_StateCommitmentChain.smocked.verifyStateCommitment.will.return.with(
         false
       )
 

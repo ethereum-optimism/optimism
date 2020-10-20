@@ -82,6 +82,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
      * @param _preStateRootBatchHeader Batch header for the provided pre-state root.
      * @param _preStateRootProof Inclusion proof for the provided pre-state root.
      * @param _transaction OVM transaction claimed to be fraudulent.
+     * @param _txChainElement OVM transaction chain element.
      * @param _transactionBatchHeader Batch header for the provided transaction.
      * @param _transactionProof Inclusion proof for the provided transaction.
      */
@@ -90,6 +91,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
         Lib_OVMCodec.ChainBatchHeader memory _preStateRootBatchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _preStateRootProof,
         Lib_OVMCodec.Transaction memory _transaction,
+        Lib_OVMCodec.TransactionChainElement memory _txChainElement,
         Lib_OVMCodec.ChainBatchHeader memory _transactionBatchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _transactionProof
     )
@@ -101,7 +103,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
         }
 
         require(
-            _verifyStateRoot(
+            ovmStateCommitmentChain.verifyStateCommitment(
                 _preStateRoot,
                 _preStateRootBatchHeader,
                 _preStateRootProof
@@ -110,8 +112,9 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
         );
 
         require(
-            _verifyTransaction(
+            ovmCanonicalTransactionChain.verifyTransaction(
                 _transaction,
+                _txChainElement,
                 _transactionBatchHeader,
                 _transactionProof
             ),
@@ -161,7 +164,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
         );
 
         require(
-            _verifyStateRoot(
+            ovmStateCommitmentChain.verifyStateCommitment(
                 _preStateRoot,
                 _preStateRootBatchHeader,
                 _preStateRootProof
@@ -170,7 +173,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
         );
 
         require(
-            _verifyStateRoot(
+            ovmStateCommitmentChain.verifyStateCommitment(
                 _postStateRoot,
                 _postStateRootBatchHeader,
                 _postStateRootProof
@@ -208,55 +211,5 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Lib_AddressResolver {
         )
     {
         return address(transitioners[_preStateRoot]) != address(0);
-    }
-
-    /**
-     * Verifies inclusion of a state root.
-     * @param _stateRoot State root to verify
-     * @param _stateRootBatchHeader Batch header for the provided state root.
-     * @param _stateRootProof Inclusion proof for the provided state root.
-     * @return _verified Whether or not the root was included.
-     */
-    function _verifyStateRoot(
-        bytes32 _stateRoot,
-        Lib_OVMCodec.ChainBatchHeader memory _stateRootBatchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _stateRootProof
-    )
-        internal
-        view
-        returns (
-            bool _verified
-        )
-    {
-        return ovmStateCommitmentChain.verifyElement(
-            abi.encodePacked(_stateRoot),
-            _stateRootBatchHeader,
-            _stateRootProof
-        );
-    }
-
-    /**
-     * Verifies inclusion of a given transaction.
-     * @param _transaction OVM transaction to verify.
-     * @param _transactionBatchHeader Batch header for the provided transaction.
-     * @param _transactionProof Inclusion proof for the provided transaction.
-     * @return _verified Whether or not the transaction was included.
-     */
-    function _verifyTransaction(
-        Lib_OVMCodec.Transaction memory _transaction,
-        Lib_OVMCodec.ChainBatchHeader memory _transactionBatchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _transactionProof
-    )
-        internal
-        view
-        returns (
-            bool _verified
-        )
-    {
-        return ovmCanonicalTransactionChain.verifyElement(
-            Lib_OVMCodec.encodeTransaction(_transaction),
-            _transactionBatchHeader,
-            _transactionProof
-        );
     }
 }

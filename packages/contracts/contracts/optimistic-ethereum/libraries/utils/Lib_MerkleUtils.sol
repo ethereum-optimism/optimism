@@ -82,7 +82,7 @@ library Lib_MerkleUtils {
 
     function verify(
         bytes32 _root,
-        bytes memory _leaf,
+        bytes32 _leaf,
         uint256 _path,
         bytes32[] memory _siblings
     )
@@ -92,7 +92,7 @@ library Lib_MerkleUtils {
             bool _verified
         )
     {
-        bytes32 computedRoot = keccak256(_leaf);
+        bytes32 computedRoot = _leaf;
 
         for (uint256 i = 0; i < _siblings.length; i++) {
             bytes32 sibling = _siblings[i];
@@ -106,6 +106,26 @@ library Lib_MerkleUtils {
         }
 
         return computedRoot == _root;
+    }
+
+    function verify(
+        bytes32 _root,
+        bytes memory _leaf,
+        uint256 _path,
+        bytes32[] memory _siblings
+    )
+        internal
+        pure
+        returns (
+            bool _verified
+        )
+    {
+        return verify(
+            _root,
+            keccak256(_leaf),
+            _path,
+            _siblings
+        );
     }
 
     function _getDefaultHashes(

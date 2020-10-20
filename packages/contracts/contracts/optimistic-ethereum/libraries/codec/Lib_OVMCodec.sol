@@ -21,6 +21,11 @@ library Lib_OVMCodec {
     bytes32 constant internal KECCAK256_RLP_NULL_BYTES = keccak256(RLP_NULL_BYTES);
     bytes32 constant internal KECCAK256_NULL_BYTES = keccak256(NULL_BYTES);
 
+    // Ring buffer IDs
+    bytes32 constant internal RING_BUFFER_SCC_BATCHES = keccak256("RING_BUFFER_SCC_BATCHES");
+    bytes32 constant internal RING_BUFFER_CTC_BATCHES = keccak256("RING_BUFFER_CTC_BATCHES");
+    bytes32 constant internal RING_BUFFER_CTC_QUEUE = keccak256("RING_BUFFER_CTC_QUEUE");
+
 
     /*********
      * Enums *
@@ -80,10 +85,18 @@ library Lib_OVMCodec {
         bytes data;
     }
 
+    struct TransactionChainElement {
+        bool isSequenced;
+        uint256 queueIndex;  // QUEUED TX ONLY
+        uint256 timestamp;   // SEQUENCER TX ONLY
+        uint256 blockNumber; // SEQUENCER TX ONLY
+        bytes txData;        // SEQUENCER TX ONLY
+    }
+
     struct QueueElement {
         bytes32 queueRoot;
         uint40 timestamp;
-        uint32 blockNumber;
+        uint40 blockNumber;
     }
 
     struct EOATransaction {
@@ -235,5 +248,29 @@ library Lib_OVMCodec {
             storageRoot: Lib_RLPReader.readBytes32(accountState[2]),
             codeHash: Lib_RLPReader.readBytes32(accountState[3])
         });
+    }
+
+    /**
+     * Calculates a hash for a given batch header.
+     * @param _batchHeader Header to hash.
+     * @return _hash Hash of the header.
+     */
+    function hashBatchHeader(
+        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
+    )
+        internal
+        pure
+        returns (
+            bytes32 _hash
+        )
+    {
+        return keccak256(
+            abi.encode(
+                _batchHeader.batchRoot,
+                _batchHeader.batchSize,
+                _batchHeader.prevTotalElements,
+                _batchHeader.extraData
+            )
+        );
     }
 }
