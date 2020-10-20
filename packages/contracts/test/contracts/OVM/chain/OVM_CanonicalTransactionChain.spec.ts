@@ -41,7 +41,7 @@ const getSequencerLeafHash = (
   data: string
 ): string => {
   return keccak256(
-    '0x0100' +
+    '0x01' +
       remove0x(BigNumber.from(timestamp).toHexString()).padStart(64, '0') +
       remove0x(BigNumber.from(blockNumber).toHexString()).padStart(64, '0') +
       remove0x(data)

@@ -34,7 +34,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     uint256 constant internal BATCH_CONTEXT_LENGTH_POS = 12;
     uint256 constant internal BATCH_CONTEXT_START_POS = 15;
     uint256 constant internal TX_DATA_HEADER_SIZE = 3;
-    uint256 constant internal BYTES_TILL_TX_DATA = 66;
+    uint256 constant internal BYTES_TILL_TX_DATA = 65;
 
 
     /*************
@@ -548,10 +548,14 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         assembly {
             let chainElementStart := add(chainElement, 0x20)
 
+            // Set the first byte equal to `1` to indicate this is a sequencer chain element.
+            // This distinguishes sequencer ChainElements from queue ChainElements because
+            // all queue ChainElements are ABI encoded and the first byte of ABI encoded
+            // elements is always zero
             mstore8(chainElementStart, 1)
 
-            mstore(add(chainElementStart, 2), ctxTimestamp)
-            mstore(add(chainElementStart, 34), ctxBlockNumber)
+            mstore(add(chainElementStart, 1), ctxTimestamp)
+            mstore(add(chainElementStart, 33), ctxBlockNumber)
 
             calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_nextTransactionPtr, 3), _txDataLength)
             
@@ -586,12 +590,16 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         assembly {
             let chainElementStart := add(chainElement, 0x20)
 
+            // Set the first byte equal to `1` to indicate this is a sequencer chain element.
+            // This distinguishes sequencer ChainElements from queue ChainElements because
+            // all queue ChainElements are ABI encoded and the first byte of ABI encoded
+            // elements is always zero
             mstore8(chainElementStart, 1)
 
-            mstore(add(chainElementStart, 2), ctxTimestamp)
-            mstore(add(chainElementStart, 34), ctxBlockNumber)
+            mstore(add(chainElementStart, 1), ctxTimestamp)
+            mstore(add(chainElementStart, 33), ctxBlockNumber)
 
-            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, 66), txDataLength))
+            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, BYTES_TILL_TX_DATA), txDataLength))
 
             leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, txDataLength))
         }
