@@ -1,0 +1,43 @@
+{
+  "name": "@eth-optimism/batch-submitter",
+  "version": "0.0.1-alpha.1",
+  "description": "[Optimism] Batch submission for sequencer & aggregators",
+  "main": "build/index.js",
+  "files": [
+    "build/**/*.js"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
+    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' 'src/**/*.ts'",
+    "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "sequencer",
+    "aggregator"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/batch-submitter#readme",
+  "license": "MIT",
+  "author": "Optimism",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
+  },
+  "dependencies": {
+    "ethers": "^4.0.39",
+    "rimraf": "^2.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^12.0.7",
+    "@types/mocha": "^5.2.7",
+    "ts-node": "^8.2.0",
+    "mocha": "^6.1.4",
+    "typescript": "^3.5.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
