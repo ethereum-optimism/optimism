@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.7.0;
 
-import { console } from "@nomiclabs/buidler/console.sol";
-
 contract Helper_SimpleProxy {
     address internal owner;
     address internal target;

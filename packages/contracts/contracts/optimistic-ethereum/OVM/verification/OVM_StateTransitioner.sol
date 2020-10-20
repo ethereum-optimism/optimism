@@ -18,9 +18,6 @@ import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManager
 /* Contract Imports */
 import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
 
-/* Logging Imports */
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /**
  * @title OVM_StateTransitioner
  */

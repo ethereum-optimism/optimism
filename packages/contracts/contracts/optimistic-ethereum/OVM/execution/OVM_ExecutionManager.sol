@@ -15,9 +15,6 @@ import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol"
 /* Contract Imports */
 import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
 
-/* Logging */
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /**
  * @title OVM_ExecutionManager
  */

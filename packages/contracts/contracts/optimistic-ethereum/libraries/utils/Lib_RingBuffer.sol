@@ -1,8 +1,5 @@
 pragma solidity ^0.7.0;
 
-/* Logging Imports */
-import { console } from "@nomiclabs/buidler/console.sol";
-
 interface iRingBufferOverwriter {
     function canOverwrite(bytes32 _id, uint256 _index) external returns (bool);
 }

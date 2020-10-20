@@ -37,11 +37,24 @@ interface iOVM_StateCommitmentChain {
         );
 
     /**
+     * Retrieves the timestamp of the last batch submitted by the sequencer.
+     * @return _lastSequencerTimestamp Last sequencer batch timestamp.
+     */
+    function getLastSequencerTimestamp()
+        external
+        view
+        returns (
+            uint256 _lastSequencerTimestamp
+        );
+
+    /**
      * Appends a batch of state roots to the chain.
      * @param _batch Batch of state roots.
+     * @param _shouldStartAtElement Index of the element at which this batch should start.
      */
     function appendStateBatch(
-        bytes32[] calldata _batch
+        bytes32[] calldata _batch,
+        uint256 _shouldStartAtElement
     )
         external;
 
@@ -93,7 +106,7 @@ interface iOVM_StateCommitmentChain {
      * @param _txBatchHeader Header of the batch the transaction was included in.
      * @param _txInclusionProof Inclusion proof for the provided transaction chain element.
      */
-    function setLastDeletableIndex(
+    function setLastOverwritableIndex(
         Lib_OVMCodec.ChainBatchHeader memory _stateBatchHeader,
         Lib_OVMCodec.Transaction memory _transaction,
         Lib_OVMCodec.TransactionChainElement memory _txChainElement,

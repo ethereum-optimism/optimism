@@ -15,9 +15,6 @@ import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitment
 /* Contract Imports */
 import { OVM_BaseCrossDomainMessenger } from "./OVM_BaseCrossDomainMessenger.sol";
 
-/* Logging Imports */
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /**
  * @title OVM_L1CrossDomainMessenger
  */

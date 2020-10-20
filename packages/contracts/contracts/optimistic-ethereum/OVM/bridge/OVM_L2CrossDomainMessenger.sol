@@ -13,9 +13,6 @@ import { iOVM_L2ToL1MessagePasser } from "../../iOVM/precompiles/iOVM_L2ToL1Mess
 /* Contract Imports */
 import { OVM_BaseCrossDomainMessenger } from "./OVM_BaseCrossDomainMessenger.sol";
 
-/* Logging Imports */
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /**
  * @title OVM_L2CrossDomainMessenger
  * @dev L2 CONTRACT (COMPILED)
