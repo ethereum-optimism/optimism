@@ -39,36 +39,11 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
-"@eth-optimism/contracts@^0.0.2-alpha.1":
+"@eth-optimism/contracts@ethereum-optimism/contracts-v2":
   version "0.0.2-alpha.1"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.1.tgz#3b8219dd684929c977c301cc0de51ce11d5d7c65"
-  integrity sha512-JCOytXK2Iq86C//oo8LotagqaTtQZAXkTW7bxI4Dpnk97YrMhwkhFaDR+91jTqgkPX+6Wul+2xxvMtsca3sCtg==
+  resolved "https://codeload.github.com/ethereum-optimism/contracts-v2/tar.gz/3c207136aa02f7426deffc5efdc4cb2e861ff218"
   dependencies:
     ethers "5.0.0"
-
-"@eth-optimism/ethereumjs-vm@4.2.0-alpha.0":
-  version "4.2.0-alpha.0"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/ethereumjs-vm/-/ethereumjs-vm-4.2.0-alpha.0.tgz#58c8b84732568b73a7ba8105c30dc1513b331324"
-  integrity sha512-Ef6/WihVYJhrPMuL+ts3sC8ePWSU4AKG78j/3XITAVxhPBEJqetHdOeT8UMIDJPulCmvWbuJ0pz6KQ5Xztol/Q==
-  dependencies:
-    async "^2.1.2"
-    async-eventemitter "^0.2.2"
-    core-js-pure "^3.0.1"
-    debug "^4.2.0"
-    ethereumjs-account "^3.0.0"
-    ethereumjs-block "^2.2.2"
-    ethereumjs-blockchain "^4.0.3"
-    ethereumjs-common "^1.5.0"
-    ethereumjs-tx "^2.1.2"
-    ethereumjs-util "^6.2.0"
-    ethers "^5.0.14"
-    fake-merkle-patricia-tree "^1.0.1"
-    functional-red-black-tree "^1.0.1"
-    merkle-patricia-tree "^2.3.2"
-    rustbn.js "~0.2.0"
-    safe-buffer "^5.1.1"
-    util.promisify "^1.0.0"
-    uuid "^8.3.0"
 
 "@eth-optimism/ovm-toolchain@0.0.1-alpha.5":
   version "0.0.1-alpha.5"
