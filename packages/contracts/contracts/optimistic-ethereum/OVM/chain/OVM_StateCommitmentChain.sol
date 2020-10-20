@@ -12,6 +12,8 @@ import { Lib_RingBuffer, iRingBufferOverwriter } from "../../libraries/utils/Lib
 import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.sol";
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
+import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
+
 
 /**
  * @title OVM_StateCommitmentChain
@@ -36,7 +38,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
     Lib_RingBuffer.RingBuffer internal batches;
     iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
     iOVM_FraudVerifier internal ovmFraudVerifier;
-
+    iOVM_BondManager internal ovmBondManager;
 
     /***************
      * Constructor *
@@ -52,7 +54,8 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
     {
         ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
         ovmFraudVerifier = iOVM_FraudVerifier(resolve("OVM_FraudVerifier"));
-        
+        ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
+
         batches.init(
             16,
             Lib_OVMCodec.RING_BUFFER_SCC_BATCHES,
@@ -69,7 +72,6 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
      * @inheritdoc iOVM_StateCommitmentChain
      */
     function getTotalElements()
-        virtual
         override
         public
         view
@@ -103,6 +105,12 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
         override
         public
     {
+        // Proposers must have previously staked at the BondManager
+        require(
+            ovmBondManager.isCollateralized(msg.sender),
+            "Proposer does not have enough collateral posted"
+        );
+
         require(
             _batch.length > 0,
             "Cannot submit an empty state batch."
@@ -118,11 +126,11 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
             elements[i] = abi.encodePacked(_batch[i]);
         }
 
+        // Pass the block's timestamp and the publisher of the data
+        // to be used in the fraud proofs
         _appendBatch(
             elements,
-            abi.encode(
-                block.timestamp
-            )
+            abi.encode(block.timestamp, msg.sender)
         );
     }
 
@@ -138,6 +146,11 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
         require(
             msg.sender == address(ovmFraudVerifier),
             "State batches can only be deleted by the OVM_FraudVerifier."
+        );
+
+        require(
+            Lib_OVMCodec.hashBatchHeader(_batchHeader) == batches.get(uint32(_batchHeader.batchIndex)),
+            "Invalid batch header."
         );
 
         require(
@@ -194,9 +207,9 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
             bool _inside
         )
     {
-        uint256 timestamp = abi.decode(
+        (uint256 timestamp,) = abi.decode(
             _batchHeader.extraData,
-            (uint256)
+            (uint256, address)
         );
 
         require(

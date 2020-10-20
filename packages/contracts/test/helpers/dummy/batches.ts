@@ -1,4 +1,5 @@
-import { NULL_BYTES32 } from '../constants'
+import { NULL_BYTES32, NON_ZERO_ADDRESS } from '../constants'
+import { ethers } from '@nomiclabs/buidler'
 
 export const DUMMY_BATCH_HEADERS = [
   {
@@ -6,7 +7,10 @@ export const DUMMY_BATCH_HEADERS = [
     batchRoot: NULL_BYTES32,
     batchSize: 0,
     prevTotalElements: 0,
-    extraData: NULL_BYTES32,
+    extraData: ethers.utils.defaultAbiCoder.encode(
+      ['uint256', 'address'],
+      [NULL_BYTES32, NON_ZERO_ADDRESS]
+    ),
   },
 ]
 

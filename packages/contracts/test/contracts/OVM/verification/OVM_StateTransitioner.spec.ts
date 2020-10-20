@@ -33,6 +33,7 @@ describe('OVM_StateTransitioner', () => {
   let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_StateManagerFactory: MockContract
   let Mock__OVM_StateManager: MockContract
+  let Mock__OVM_BondManager: MockContract
   before(async () => {
     Mock__OVM_ExecutionManager = smockit(
       await ethers.getContractFactory('OVM_ExecutionManager')
@@ -43,6 +44,16 @@ describe('OVM_StateTransitioner', () => {
     Mock__OVM_StateManager = smockit(
       await ethers.getContractFactory('OVM_StateManager')
     )
+    Mock__OVM_BondManager = smockit(
+      await ethers.getContractFactory('OVM_BondManager')
+    )
+
+    await setProxyTarget(
+      AddressManager,
+      'OVM_BondManager',
+      Mock__OVM_BondManager
+    )
+    Mock__OVM_BondManager.smocked.recordGasSpent.will.return()
 
     await setProxyTarget(
       AddressManager,

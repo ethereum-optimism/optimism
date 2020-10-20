@@ -29,6 +29,7 @@ describe('OVM_StateCommitmentChain', () => {
   })
 
   let Mock__OVM_CanonicalTransactionChain: MockContract
+  let Mock__OVM_BondManager: MockContract
   before(async () => {
     Mock__OVM_CanonicalTransactionChain = smockit(
       await ethers.getContractFactory('OVM_CanonicalTransactionChain')
@@ -39,6 +40,18 @@ describe('OVM_StateCommitmentChain', () => {
       'OVM_CanonicalTransactionChain',
       Mock__OVM_CanonicalTransactionChain
     )
+
+    Mock__OVM_BondManager = smockit(
+      await ethers.getContractFactory('OVM_BondManager')
+    )
+
+    await setProxyTarget(
+      AddressManager,
+      'OVM_BondManager',
+      Mock__OVM_BondManager
+    )
+
+    Mock__OVM_BondManager.smocked.isCollateralized.will.return.with(true)
   })
 
   let Factory__OVM_StateCommitmentChain: ContractFactory
@@ -116,8 +129,8 @@ describe('OVM_StateCommitmentChain', () => {
       )
       await OVM_StateCommitmentChain.appendStateBatch(batch)
       batchHeader.extraData = defaultAbiCoder.encode(
-        ['uint256'],
-        [await getEthTime(ethers.provider)]
+        ['uint256', 'address'],
+        [await getEthTime(ethers.provider), await signer.getAddress()]
       )
     })
 
@@ -150,7 +163,7 @@ describe('OVM_StateCommitmentChain', () => {
               ...batchHeader,
               batchIndex: 1,
             })
-          ).to.be.revertedWith('Invalid batch index.')
+          ).to.be.revertedWith('Index out of bounds.')
         })
       })
 

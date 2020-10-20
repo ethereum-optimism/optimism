@@ -10,9 +10,13 @@ import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.
 
 /* Interface Imports */
 import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
+import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManagerFactory.sol";
+
+/* Contract Imports */
+import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
 
 /* Logging Imports */
 import { console } from "@nomiclabs/buidler/console.sol";
@@ -20,7 +24,7 @@ import { console } from "@nomiclabs/buidler/console.sol";
 /**
  * @title OVM_StateTransitioner
  */
-contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
+contract OVM_StateTransitioner is OVM_FraudContributor, iOVM_StateTransitioner, Lib_AddressResolver {
 
     /*******************
      * Data Structures *
@@ -77,6 +81,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
 
         ovmExecutionManager = iOVM_ExecutionManager(resolve("OVM_ExecutionManager"));
         ovmStateManager = iOVM_StateManagerFactory(resolve("OVM_StateManagerFactory")).create(address(this));
+        ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
     }
 
 
@@ -168,6 +173,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
+        contributesToFraudProof(preStateRoot)
     {
         // Exit quickly to avoid unnecessary work.
         require(
@@ -215,6 +221,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
+        contributesToFraudProof(preStateRoot)
     {
         // Exit quickly to avoid unnecessary work.
         require(
@@ -250,6 +257,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
+        contributesToFraudProof(preStateRoot)
     {
         // Exit quickly to avoid unnecessary work.
         require(
@@ -305,6 +313,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
+        contributesToFraudProof(preStateRoot)
     {
         require(
             Lib_OVMCodec.hashTransaction(_transaction) == transactionHash,
@@ -341,6 +350,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
         override
         public
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
+        contributesToFraudProof(preStateRoot)
     {
         require(
             ovmStateManager.commitAccount(_ovmContractAddress) == true,
@@ -375,6 +385,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
         override
         public
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
+        contributesToFraudProof(preStateRoot)
     {
         require(
             ovmStateManager.commitContractStorage(_ovmContractAddress, _key) == true,
