@@ -39,6 +39,12 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
+"@eth-optimism/contracts@ethereum-optimism/contracts-v2":
+  version "0.0.2-alpha.1"
+  resolved "https://codeload.github.com/ethereum-optimism/contracts-v2/tar.gz/3c207136aa02f7426deffc5efdc4cb2e861ff218"
+  dependencies:
+    ethers "5.0.0"
+
 "@eth-optimism/ovm-toolchain@0.0.1-alpha.5":
   version "0.0.1-alpha.5"
   resolved "https://registry.yarnpkg.com/@eth-optimism/ovm-toolchain/-/ovm-toolchain-0.0.1-alpha.5.tgz#abd961528e1d10eae523ce73547887d811df0aa2"
