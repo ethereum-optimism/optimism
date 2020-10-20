@@ -24,7 +24,6 @@ function createVMFromStateTrie(
     },
     self.options.hardfork
   )
-
   const vm = makeOVM({
     evmOpts: {
       state: state,
@@ -55,7 +54,7 @@ function createVMFromStateTrie(
       ? {
           initialized:
             ovm.contracts &&
-            ovm.contracts.ovmExecutionManager.address.length !== 0,
+            ovm.contracts.OVM_ExecutionManager.address.length !== 0,
           contracts: ovm.contracts,
         }
       : {},

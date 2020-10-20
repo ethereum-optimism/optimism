@@ -1,6 +1,6 @@
 // tslint:disable-next-line
 const VM = require('@eth-optimism/ethereumjs-vm').default
-import { StateDump, getLatestStateDump } from '@eth-optimism/rollup-contracts'
+import { StateDump, getLatestStateDump } from '@eth-optimism/contracts'
 
 interface OVMOpts {
   initialized: boolean
