@@ -552,7 +552,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             let chainElementStart := add(chainElement, 0x20)
 
             mstore8(chainElementStart, 1)
-            mstore8(add(chainElementStart, 1), 0)
 
             mstore(add(chainElementStart, 2), ctxTimestamp)
             mstore(add(chainElementStart, 34), ctxBlockNumber)
@@ -591,7 +590,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             let chainElementStart := add(chainElement, 0x20)
 
             mstore8(chainElementStart, 1)
-            mstore8(add(chainElementStart, 1), 0)
 
             mstore(add(chainElementStart, 2), ctxTimestamp)
             mstore(add(chainElementStart, 34), ctxBlockNumber)
