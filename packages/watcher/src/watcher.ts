@@ -42,13 +42,16 @@ export class Watcher {
   ): Promise<string[]> {
     const layer = isL1 ? this.l1 : this.l2
     const receipt = await layer.provider.getTransactionReceipt(txHash)
-    const filtered = receipt.logs.filter((log: any) => {
-      return (
+    const msgHashes = []
+    for (const log of receipt.logs) {
+      if (
         log.address === layer.messengerAddress &&
         log.topics[0] === ethers.utils.id('SentMessage(bytes32)')
-      )
-    })
-    return filtered.map((log: any) => log.data)
+      ) {
+        msgHashes.push(log.data)
+      }
+    }
+    return msgHashes
   }
 
   public async _getLXTransactionReceipt(
@@ -82,9 +85,14 @@ export class Watcher {
     return new Promise(async (resolve, reject) => {
       layer.provider.on(filter, async (log: any) => {
         if (log.data === msgHash) {
-          resolve(
-            await layer.provider.getTransactionReceipt(log.transactionHash)
-          )
+          try {
+            const txReceipt = await layer.provider.getTransactionReceipt(
+              log.transactionHash
+            )
+            resolve(txReceipt)
+          } catch (e) {
+            reject(e)
+          }
         }
       })
     })
