@@ -23,14 +23,14 @@ export interface AppendSequencerBatchParams {
   transactions: string[] // total_size_bytes[],total_size_bytes[]
 }
 
-type Bytes32 = string
-type Uint16 = number
-type Uint8 = number
-type Uint24 = number
-type Address = string
+export type Bytes32 = string
+export type Uint16 = number
+export type Uint8 = number
+export type Uint24 = number
+export type Address = string
 
 const TX_TYPE_POSITION = { start: 0, end: 1 }
-enum TxType {
+export enum TxType {
   EIP155 = 0,
   createEOA = 1,
 }
@@ -40,7 +40,7 @@ const SIGNATURE_FIELD_POSITIONS = {
   r: { start: 2, end: 34 }, // 32 bytes
   s: { start: 34, end: 66 }, // 32 bytes
 }
-interface Signature {
+export interface Signature {
   v: string
   r: string
   s: string
@@ -52,7 +52,7 @@ const CREATE_EOA_FIELD_POSITIONS = {
   sig: SIGNATURE_FIELD_POSITIONS, // 65 bytes
   messageHash: { start: 66, end: 98 }, // 32 bytes
 }
-interface CreateEOATxData {
+export interface CreateEOATxData {
   sig: Signature
   messageHash: Bytes32
 }
@@ -67,7 +67,7 @@ const EIP155_FIELD_POSITIONS = {
   target: { start: 72, end: 92 }, // 20 bytes
   data: { start: 92 }, // byte 92 onward
 }
-interface EIP155TxData {
+export interface EIP155TxData {
   sig: Signature
   gasLimit: Uint16
   gasPrice: Uint8
@@ -165,8 +165,7 @@ const eip155TxDataCoder: EIP155Coder = {
     if (txData.data.length % 2 !== 0) {
       throw new Error('Non-even hex string for tx data!')
     }
-
-    return (
+    const encoding = (
       '0x' +
       txType +
       v +
@@ -178,6 +177,7 @@ const eip155TxDataCoder: EIP155Coder = {
       target +
       remove0x(txData.data)
     )
+    return encoding
   },
 
   decode: (txData: string): EIP155TxData => {
@@ -245,7 +245,7 @@ const appendSequencerBatch = async (
   })
 }
 
-const encodeAppendSequencerBatch = (b: AppendSequencerBatchParams): string => {
+export const encodeAppendSequencerBatch = (b: AppendSequencerBatchParams): string => {
   const encodedShouldStartAtBatch = encodeHex(b.shouldStartAtBatch, 10)
   const encodedTotalElementsToAppend = encodeHex(b.totalElementsToAppend, 6)
 
@@ -285,7 +285,7 @@ const encodeBatchContext = (context: BatchContext): string => {
  * @param str Hex string to remove '0x' from.
  * @returns String without the '0x' prefix.
  */
-const remove0x = (str: string): string => {
+export const remove0x = (str: string): string => {
   if (str.startsWith('0x')) {
     return str.slice(2)
   } else {
