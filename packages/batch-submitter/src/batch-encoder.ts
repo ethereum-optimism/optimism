@@ -80,7 +80,7 @@ interface EIP155TxData {
 const getLen = (pos: { start; end }) => (pos.end - pos.start) * 2
 const encodeHex = (val: any, len: number) =>
   remove0x(BigNumber.from(val).toHexString()).padStart(len, '0')
-const toBytes = (val: string, len: number) => {
+const toVerifiedBytes = (val: string, len: number) => {
   val = remove0x(val)
   if (val.length !== len) {
     throw new Error('Invalid length!')
@@ -106,8 +106,8 @@ const createEOATxDataCoder: CreateEOACoder = {
     )
 
     const v = encodeHex(txData.sig.v, getLen(CREATE_EOA_FIELD_POSITIONS.sig.v))
-    const r = toBytes(txData.sig.r, getLen(CREATE_EOA_FIELD_POSITIONS.sig.r))
-    const s = toBytes(txData.sig.s, getLen(CREATE_EOA_FIELD_POSITIONS.sig.s))
+    const r = toVerifiedBytes(txData.sig.r, getLen(CREATE_EOA_FIELD_POSITIONS.sig.r))
+    const s = toVerifiedBytes(txData.sig.s, getLen(CREATE_EOA_FIELD_POSITIONS.sig.s))
 
     const messageHash = txData.messageHash
 
@@ -148,8 +148,8 @@ const eip155TxDataCoder: EIP155Coder = {
     )
 
     const v = encodeHex(txData.sig.v, getLen(EIP155_FIELD_POSITIONS.sig.v))
-    const r = toBytes(txData.sig.r, getLen(EIP155_FIELD_POSITIONS.sig.r))
-    const s = toBytes(txData.sig.s, getLen(EIP155_FIELD_POSITIONS.sig.s))
+    const r = toVerifiedBytes(txData.sig.r, getLen(EIP155_FIELD_POSITIONS.sig.r))
+    const s = toVerifiedBytes(txData.sig.s, getLen(EIP155_FIELD_POSITIONS.sig.s))
 
     const gasLimit = encodeHex(
       txData.gasLimit,
@@ -160,7 +160,7 @@ const eip155TxDataCoder: EIP155Coder = {
       getLen(EIP155_FIELD_POSITIONS.gasPrice)
     )
     const nonce = encodeHex(txData.nonce, getLen(EIP155_FIELD_POSITIONS.nonce))
-    const target = toBytes(txData.target, getLen(EIP155_FIELD_POSITIONS.target))
+    const target = toVerifiedBytes(txData.target, getLen(EIP155_FIELD_POSITIONS.target))
     // Make sure that the data is even
     if (txData.data.length % 2 !== 0) {
       throw new Error('Non-even hex string for tx data!')
