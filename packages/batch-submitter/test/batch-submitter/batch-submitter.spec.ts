@@ -90,7 +90,21 @@ describe('BatchSubmitter', () => {
 
   describe('Submit', () => {
     it('should print', async () => {
-      const batchSubmitter = new BatchSubmitter(OVM_CanonicalTransactionChain.address, sequencer)
+      // TODO: Enqueue some txs!
+      // for (let i = 0; i < 15; i++) {
+      //   console.log('enquing!')
+      //   await OVM_CanonicalTransactionChain.enqueue(
+      //     '0x' + '01'.repeat(20),
+      //     50_000,
+      //     '0x1234',
+      //     {
+      //       gasLimit: 1_000_000
+      //     }
+      //   )
+      //   console.log('done!')
+      // }
+
+      const batchSubmitter = new BatchSubmitter(OVM_CanonicalTransactionChain.address, sequencer, sequencer.provider)
       await batchSubmitter.submitNextBatch()
     })
   })
