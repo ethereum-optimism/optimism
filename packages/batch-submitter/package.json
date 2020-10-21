@@ -28,6 +28,8 @@
   },
   "dependencies": {
     "@eth-optimism/contracts": "ethereum-optimism/contracts-v2",
+    "@ethersproject/abstract-provider": "^5.0.5",
+    "chai": "^4.2.0",
     "ethers": "5.0.0",
     "rimraf": "^2.6.3"
   },
