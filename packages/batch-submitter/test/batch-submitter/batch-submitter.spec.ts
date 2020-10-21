@@ -90,9 +90,8 @@ describe('BatchSubmitter', () => {
 
   describe('Submit', () => {
     it('should print', async () => {
-      const test = new BatchSubmitter()
-      const t2 = await OVM_CanonicalTransactionChain.getTotalElements()
-      console.log(t2)
+      const batchSubmitter = new BatchSubmitter(OVM_CanonicalTransactionChain.address, sequencer)
+      await batchSubmitter.submitNextBatch()
     })
   })
 })
