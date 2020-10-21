@@ -1,10 +1,9 @@
 /* External Imports */
-import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
+import { Contract, BigNumber } from 'ethers'
 import { TransactionResponse, Block } from '@ethersproject/abstract-provider'
 import { keccak256 } from 'ethers/lib/utils'
 
 /* Internal Imports */
-
 
 /***********
  * Exports *
@@ -30,187 +29,201 @@ type Uint8 = number
 type Uint24 = number
 type Address = string
 
-const TX_TYPE_POSITION = {start: 0, end: 1}
+const TX_TYPE_POSITION = { start: 0, end: 1 }
 enum TxType {
-    EIP155 = 0,
-    createEOA = 1
+  EIP155 = 0,
+  createEOA = 1,
 }
 
 const SIGNATURE_FIELD_POSITIONS = {
-    v: {start: 1, end: 2},  // 1 byte
-    r: {start: 2, end: 34}, // 32 bytes
-    s: {start: 34, end: 66} // 32 bytes
+  v: { start: 1, end: 2 }, // 1 byte
+  r: { start: 2, end: 34 }, // 32 bytes
+  s: { start: 34, end: 66 }, // 32 bytes
 }
 interface Signature {
-    v: string
-    r: string
-    s: string
+  v: string
+  r: string
+  s: string
 }
 
 // CreateEOA TxData
 const CREATE_EOA_FIELD_POSITIONS = {
-    txType: TX_TYPE_POSITION,          // 1 byte
-    sig: SIGNATURE_FIELD_POSITIONS,    // 65 bytes
-    messageHash: {start: 66, end: 98}, // 32 bytes
+  txType: TX_TYPE_POSITION, // 1 byte
+  sig: SIGNATURE_FIELD_POSITIONS, // 65 bytes
+  messageHash: { start: 66, end: 98 }, // 32 bytes
 }
 interface CreateEOATxData {
-    sig: Signature
-    messageHash: Bytes32
+  sig: Signature
+  messageHash: Bytes32
 }
 
 // EIP155 TxData
 const EIP155_FIELD_POSITIONS = {
-    txType: TX_TYPE_POSITION,       // 1 byte
-    sig: SIGNATURE_FIELD_POSITIONS, // 65 bytes
-    gasLimit: {start: 66, end: 68}, // 2 bytes
-    gasPrice: {start: 68, end: 69}, // 1 byte
-    nonce: {start: 69, end: 72},    // 3 bytes
-    target: {start: 72, end: 92},   // 20 bytes
-    data: {start: 92}               // byte 92 onward
+  txType: TX_TYPE_POSITION, // 1 byte
+  sig: SIGNATURE_FIELD_POSITIONS, // 65 bytes
+  gasLimit: { start: 66, end: 68 }, // 2 bytes
+  gasPrice: { start: 68, end: 69 }, // 1 byte
+  nonce: { start: 69, end: 72 }, // 3 bytes
+  target: { start: 72, end: 92 }, // 20 bytes
+  data: { start: 92 }, // byte 92 onward
 }
 interface EIP155TxData {
-    sig: Signature 
-    gasLimit: Uint16
-    gasPrice: Uint8
-    nonce: Uint24
-    target: Address
-    data: string
+  sig: Signature
+  gasLimit: Uint16
+  gasPrice: Uint8
+  nonce: Uint24
+  target: Address
+  data: string
 }
 
 // Encoding helpers
-const getLen = (pos: {start, end}) => (pos.end - pos.start)*2
-const encodeHex = (val: any, len: number) => remove0x(
-  BigNumber.from(val).toHexString()
-).padStart(len, '0')
+const getLen = (pos: { start; end }) => (pos.end - pos.start) * 2
+const encodeHex = (val: any, len: number) =>
+  remove0x(BigNumber.from(val).toHexString()).padStart(len, '0')
+const toBytes = (val: string, len: number) => {
+  val = remove0x(val)
+  if (val.length !== len) {
+    throw new Error('Invalid length!')
+  }
+  return val
+}
 
 interface Coder {
-    encode: Function,
-    decode: Function
+  encode: Function
+  decode: Function
 }
 
 // Coder for CreateEOA; TODO: Write a library which can auto-encode & decode.
 interface CreateEOACoder extends Coder {
-    encode: (txData: CreateEOATxData)=>string
-    decode: (txData: string)=>CreateEOATxData
+  encode: (txData: CreateEOATxData) => string
+  decode: (txData: string) => CreateEOATxData
 }
 const createEOATxDataCoder: CreateEOACoder = {
-    encode: (txData: CreateEOATxData): string => {
-        const txType = encodeHex(TxType.createEOA, getLen(CREATE_EOA_FIELD_POSITIONS.txType))
+  encode: (txData: CreateEOATxData): string => {
+    const txType = encodeHex(
+      TxType.createEOA,
+      getLen(CREATE_EOA_FIELD_POSITIONS.txType)
+    )
 
-        const v = encodeHex(txData.sig.v, getLen(CREATE_EOA_FIELD_POSITIONS.sig.v))
-        const r = encodeHex(txData.sig.r, getLen(CREATE_EOA_FIELD_POSITIONS.sig.r))
-        const s = encodeHex(txData.sig.s, getLen(CREATE_EOA_FIELD_POSITIONS.sig.s))
+    const v = encodeHex(txData.sig.v, getLen(CREATE_EOA_FIELD_POSITIONS.sig.v))
+    const r = toBytes(txData.sig.r, getLen(CREATE_EOA_FIELD_POSITIONS.sig.r))
+    const s = toBytes(txData.sig.s, getLen(CREATE_EOA_FIELD_POSITIONS.sig.s))
 
-        const messageHash = encodeHex(txData.messageHash, getLen(CREATE_EOA_FIELD_POSITIONS.messageHash))
+    const messageHash = txData.messageHash
 
-        return (
-            '0x' +
-            txType +
-            v +
-            r +
-            s +
-            messageHash
-        )
-    },
+    return '0x' + txType + v + r + s + messageHash
+  },
 
-    decode: (txData: string): CreateEOATxData => {
-        txData = remove0x(txData)
-        const sliceBytes = (position: {start, end?}): string => txData.slice(position.start*2, position.end*2)
+  decode: (txData: string): CreateEOATxData => {
+    txData = remove0x(txData)
+    const sliceBytes = (position: { start; end? }): string =>
+      txData.slice(position.start * 2, position.end * 2)
 
-        const pos = CREATE_EOA_FIELD_POSITIONS
-        if (parseInt(sliceBytes(pos.txType), 16) !== TxType.createEOA) {
-            throw new Error('Invalid tx type')
-        }
-
-        return {
-            sig: {
-                v: sliceBytes(pos.sig.v),
-                r: sliceBytes(pos.sig.r),
-                s: sliceBytes(pos.sig.s),
-            },
-            messageHash: sliceBytes(pos.messageHash),
-        }
+    const pos = CREATE_EOA_FIELD_POSITIONS
+    if (parseInt(sliceBytes(pos.txType), 16) !== TxType.createEOA) {
+      throw new Error('Invalid tx type')
     }
+
+    return {
+      sig: {
+        v: sliceBytes(pos.sig.v),
+        r: sliceBytes(pos.sig.r),
+        s: sliceBytes(pos.sig.s),
+      },
+      messageHash: sliceBytes(pos.messageHash),
+    }
+  },
 }
 
 // Coder for eip155; TODO: Write a library which can auto-encode & decode.
 interface EIP155Coder extends Coder {
-    encode: (txData: EIP155TxData)=>string
-    decode: (txData: string)=>EIP155TxData
+  encode: (txData: EIP155TxData) => string
+  decode: (txData: string) => EIP155TxData
 }
 const eip155TxDataCoder: EIP155Coder = {
-    encode: (txData: EIP155TxData): string => {
-        const txType = encodeHex(TxType.EIP155, getLen(EIP155_FIELD_POSITIONS.txType))
+  encode: (txData: EIP155TxData): string => {
+    const txType = encodeHex(
+      TxType.EIP155,
+      getLen(EIP155_FIELD_POSITIONS.txType)
+    )
 
-        const v = encodeHex(txData.sig.v, getLen(EIP155_FIELD_POSITIONS.sig.v))
-        const r = encodeHex(txData.sig.r, getLen(EIP155_FIELD_POSITIONS.sig.r))
-        const s = encodeHex(txData.sig.s, getLen(EIP155_FIELD_POSITIONS.sig.s))
+    const v = encodeHex(txData.sig.v, getLen(EIP155_FIELD_POSITIONS.sig.v))
+    const r = toBytes(txData.sig.r, getLen(EIP155_FIELD_POSITIONS.sig.r))
+    const s = toBytes(txData.sig.s, getLen(EIP155_FIELD_POSITIONS.sig.s))
 
-        const gasLimit = encodeHex(txData.gasLimit, getLen(EIP155_FIELD_POSITIONS.gasLimit))
-        const gasPrice = encodeHex(txData.gasPrice, getLen(EIP155_FIELD_POSITIONS.gasPrice))
-        const nonce = encodeHex(txData.nonce, getLen(EIP155_FIELD_POSITIONS.nonce))
-        const target = encodeHex(txData.target, getLen(EIP155_FIELD_POSITIONS.target))
-        // Make sure that the data is even
-        if (txData.data.length % 2 !== 0) {
-            throw new Error('Non-even hex string for tx data!')
-        }
-
-        return (
-            '0x' +
-            txType +
-            v +
-            r +
-            s +
-            gasLimit +
-            gasPrice +
-            nonce +
-            target +
-            remove0x(txData.data)
-        )
-    },
-
-    decode: (txData: string): EIP155TxData => {
-        txData = remove0x(txData)
-        const sliceBytes = (position: {start, end?}): string => txData.slice(position.start*2, position.end*2)
-
-        const pos = EIP155_FIELD_POSITIONS
-        if (parseInt(sliceBytes(pos.txType), 16) !== TxType.EIP155) {
-            throw new Error('Invalid tx type')
-        }
-
-        return {
-            sig: {
-                v: sliceBytes(pos.sig.v),
-                r: sliceBytes(pos.sig.r),
-                s: sliceBytes(pos.sig.s),
-            },
-            gasLimit: parseInt(sliceBytes(pos.gasLimit), 16),
-            gasPrice: parseInt(sliceBytes(pos.gasPrice), 16),
-            nonce: parseInt(sliceBytes(pos.nonce), 16),
-            target: sliceBytes(pos.target),
-            data: txData.slice(pos.data.start*2),
-        }
+    const gasLimit = encodeHex(
+      txData.gasLimit,
+      getLen(EIP155_FIELD_POSITIONS.gasLimit)
+    )
+    const gasPrice = encodeHex(
+      txData.gasPrice,
+      getLen(EIP155_FIELD_POSITIONS.gasPrice)
+    )
+    const nonce = encodeHex(txData.nonce, getLen(EIP155_FIELD_POSITIONS.nonce))
+    const target = toBytes(txData.target, getLen(EIP155_FIELD_POSITIONS.target))
+    // Make sure that the data is even
+    if (txData.data.length % 2 !== 0) {
+      throw new Error('Non-even hex string for tx data!')
     }
+
+    return (
+      '0x' +
+      txType +
+      v +
+      r +
+      s +
+      gasLimit +
+      gasPrice +
+      nonce +
+      target +
+      remove0x(txData.data)
+    )
+  },
+
+  decode: (txData: string): EIP155TxData => {
+    txData = remove0x(txData)
+    const sliceBytes = (position: { start; end? }): string =>
+      txData.slice(position.start * 2, position.end * 2)
+
+    const pos = EIP155_FIELD_POSITIONS
+    if (parseInt(sliceBytes(pos.txType), 16) !== TxType.EIP155) {
+      throw new Error('Invalid tx type')
+    }
+
+    return {
+      sig: {
+        v: sliceBytes(pos.sig.v),
+        r: sliceBytes(pos.sig.r),
+        s: sliceBytes(pos.sig.s),
+      },
+      gasLimit: parseInt(sliceBytes(pos.gasLimit), 16),
+      gasPrice: parseInt(sliceBytes(pos.gasPrice), 16),
+      nonce: parseInt(sliceBytes(pos.nonce), 16),
+      target: sliceBytes(pos.target),
+      data: txData.slice(pos.data.start * 2),
+    }
+  },
 }
 
 /*
  * Encoding and decoding functions for all txData types.
  */
 export const ctcCoder = {
-    createEOATxData: createEOATxDataCoder,
-    eip155TxData: eip155TxDataCoder
+  createEOATxData: createEOATxDataCoder,
+  eip155TxData: eip155TxDataCoder,
 }
 
 /*
  * OVM_CanonicalTransactionChainContract is a wrapper around a normal Ethers contract
  * where the `appendSequencerBatch(...)` function uses a specialized encoding for improved efficiency.
  */
-export class OVM_CanonicalTransactionChainContract extends Contract {
-    async appendSequencerBatch(batch: AppendSequencerBatchParams): Promise<TransactionResponse> {
-        return appendSequencerBatch(this, batch)
-    }
+export class CanonicalTransactionChainContract extends Contract {
+  public async appendSequencerBatch(
+    batch: AppendSequencerBatchParams
+  ): Promise<TransactionResponse> {
+    return appendSequencerBatch(this, batch)
+  }
 }
-
 
 /**********************
  * Internal Functions *
@@ -222,7 +235,9 @@ const appendSequencerBatch = async (
   OVM_CanonicalTransactionChain: Contract,
   batch: AppendSequencerBatchParams
 ): Promise<TransactionResponse> => {
-  const methodId = keccak256(Buffer.from(APPEND_SEQUENCER_BATCH_METHOD_ID)).slice(2, 10)
+  const methodId = keccak256(
+    Buffer.from(APPEND_SEQUENCER_BATCH_METHOD_ID)
+  ).slice(2, 10)
   const calldata = encodeAppendSequencerBatch(batch)
   return OVM_CanonicalTransactionChain.signer.sendTransaction({
     to: OVM_CanonicalTransactionChain.address,
@@ -231,7 +246,6 @@ const appendSequencerBatch = async (
 }
 
 const encodeAppendSequencerBatch = (b: AppendSequencerBatchParams): string => {
-  let encoding: string
   const encodedShouldStartAtBatch = encodeHex(b.shouldStartAtBatch, 10)
   const encodedTotalElementsToAppend = encodeHex(b.totalElementsToAppend, 6)
 
@@ -241,8 +255,9 @@ const encodeAppendSequencerBatch = (b: AppendSequencerBatchParams): string => {
     b.contexts.reduce((acc, cur) => acc + encodeBatchContext(cur), '')
 
   const encodedTransactionData = b.transactions.reduce((acc, cur) => {
-    if (cur.length % 2 !== 0)
+    if (cur.length % 2 !== 0) {
       throw new Error('Unexpected uneven hex string value!')
+    }
     const encodedTxDataHeader = remove0x(
       BigNumber.from(remove0x(cur).length / 2).toHexString()
     ).padStart(6, '0')
