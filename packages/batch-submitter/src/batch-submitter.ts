@@ -79,6 +79,7 @@ export class BatchSubmitter {
         while (encoded.length / 2 > MAX_TX_SIZE) {
             blocks.splice(Math.ceil(blocks.length * 2 / 3)) // Delete 1/3rd of all of the blocks
             sequencerBatchParams = await this._getSequencerBatchParams(startBlock, blocks)
+            encoded = encodeAppendSequencerBatch(sequencerBatchParams)
         }
         return sequencerBatchParams
     }
@@ -188,6 +189,7 @@ export class BatchSubmitter {
 
     private _getCreateEOAL2Block(block: ExtendedBlock): L2Block {
         const tx: TransactionResponse = block.transactions[0]
+        // Call decode on the data field to get sig and messageHash
         const txData: CreateEOATxData = {
             sig: {
                 // TODO: Update v value to strip the chainID
@@ -195,7 +197,7 @@ export class BatchSubmitter {
                 r: tx.r,
                 s: tx.s
             },
-            messageHash: tx.data
+            messageHash: tx.data // TODO: Parse this more
         }
         return {
             stateRoot: block.stateRoot,

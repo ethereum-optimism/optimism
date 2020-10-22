@@ -25,7 +25,7 @@ import {
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
 
-describe('BatchSubmitter', () => {
+describe.only('BatchSubmitter', () => {
   let signer: Signer
   let sequencer: Signer
   before(async () => {
@@ -89,23 +89,28 @@ describe('BatchSubmitter', () => {
   })
 
   describe('Submit', () => {
-    it('should print', async () => {
-      // TODO: Enqueue some txs!
-      // for (let i = 0; i < 15; i++) {
-      //   console.log('enquing!')
-      //   await OVM_CanonicalTransactionChain.enqueue(
-      //     '0x' + '01'.repeat(20),
-      //     50_000,
-      //     '0x1234',
-      //     {
-      //       gasLimit: 1_000_000
-      //     }
-      //   )
-      //   console.log('done!')
-      // }
-
+    it('should execute without reverting', async () => {
       const batchSubmitter = new BatchSubmitter(OVM_CanonicalTransactionChain.address, sequencer, sequencer.provider)
       await batchSubmitter.submitNextBatch()
+    })
+
+    it('should allow me to query a bunch of blocks', async () => {
+      for (let i = 1; i < 10; i++) {
+        console.log('enquing!')
+        await OVM_CanonicalTransactionChain.enqueue(
+          '0x' + '01'.repeat(20),
+          50_000,
+          '0x' + i.toString().repeat(64),
+          {
+            gasLimit: 1_000_000
+          }
+        )
+        console.log('done!')
+      }
+      const totalBlocks = await (await signer.provider.getBlockNumber())
+      for (let i = 0; i < totalBlocks; i++) {
+        console.log(await signer.provider.getBlockWithTransactions(i))
+      }
     })
   })
 })
