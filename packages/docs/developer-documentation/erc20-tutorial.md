@@ -1,2 +1,0 @@
-# ERC20 Tutorial
-
