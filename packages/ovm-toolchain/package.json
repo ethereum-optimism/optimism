@@ -74,7 +74,7 @@
     "web3": "^1.2.11"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.0.2-alpha.1",
+    "@eth-optimism/contracts": "ethereum-optimism/contracts-v2",
     "@eth-optimism/core-utils": "^0.0.1-alpha.30",
     "@eth-optimism/ethereumjs-vm": "4.2.0-alpha.0",
     "@nomiclabs/buidler": "^1.4.4",
