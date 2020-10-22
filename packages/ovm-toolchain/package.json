@@ -69,7 +69,7 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.0.1-alpha.30",
-    "@eth-optimism/rollup-contracts": "^0.0.1-alpha.33",
+    "@eth-optimism/contracts": "^0.0.2-alpha.1",
     "@eth-optimism/ethereumjs-vm": "4.2.0-alpha.0",
     "@nomiclabs/buidler": "^1.4.4",
     "bn.js": "^5.1.3",
