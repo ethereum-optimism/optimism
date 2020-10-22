@@ -61,11 +61,11 @@ export interface CreateEOATxData {
 const EIP155_FIELD_POSITIONS = {
   txType: TX_TYPE_POSITION, // 1 byte
   sig: SIGNATURE_FIELD_POSITIONS, // 65 bytes
-  gasLimit: { start: 66, end: 68 }, // 2 bytes
-  gasPrice: { start: 68, end: 69 }, // 1 byte
-  nonce: { start: 69, end: 72 }, // 3 bytes
-  target: { start: 72, end: 92 }, // 20 bytes
-  data: { start: 92 }, // byte 92 onward
+  gasLimit: { start: 66, end: 69 }, // 3 bytes
+  gasPrice: { start: 69, end: 72 }, // 3 byte
+  nonce: { start: 72, end: 75 }, // 3 bytes
+  target: { start: 75, end: 95 }, // 20 bytes
+  data: { start: 95 }, // byte 95 onward
 }
 export interface EIP155TxData {
   sig: Signature

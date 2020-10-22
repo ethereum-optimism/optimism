@@ -4,7 +4,7 @@ import '../setup'
 import { ctcCoder } from '../../src'
 import { expect } from 'chai'
 
-describe('BatchSubmitter', () => {
+describe.only('BatchEncoder', () => {
   describe('eip155TxData', () => {
     it('should encode & then decode to the correct value', () => {
       const eip155TxData = {

@@ -25,7 +25,7 @@ import {
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
 
-describe.only('BatchSubmitter', () => {
+describe('BatchSubmitter', () => {
   let signer: Signer
   let sequencer: Signer
   before(async () => {
