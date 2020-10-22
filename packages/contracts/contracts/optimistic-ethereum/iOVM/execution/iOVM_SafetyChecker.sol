@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /**
  * @title iOVM_SafetyChecker
@@ -10,5 +10,5 @@ interface iOVM_SafetyChecker {
      * Public Functions *
      ********************/
 
-    function isBytecodeSafe(bytes memory _bytecode) external view returns (bool);
+    function isBytecodeSafe(bytes calldata _bytecode) external view returns (bool);
 }

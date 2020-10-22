@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /**
  * @title iOVM_L2ToL1MessagePasser
@@ -21,5 +21,5 @@ interface iOVM_L2ToL1MessagePasser {
      * Public Functions *
      ********************/
     
-    function passMessageToL1(bytes memory _message) external;
+    function passMessageToL1(bytes calldata _message) external;
 }
