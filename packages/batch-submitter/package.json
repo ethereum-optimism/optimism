@@ -13,6 +13,9 @@
     "lint": "tslint --format stylish --project .",
     "test": "buidler test --show-stack-traces"
   },
+  "engines": {
+    "node": "10"
+  },
   "keywords": [
     "optimism",
     "ethereum",

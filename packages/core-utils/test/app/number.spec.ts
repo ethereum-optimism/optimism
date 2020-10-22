@@ -1,6 +1,6 @@
 import '../setup'
 import { BigNumber, ZERO, ONE, TWO } from '../../src/app'
-import * as assert from 'assert'
+import assert from 'assert'
 
 describe('BigNumber', () => {
   describe('constructor', () => {
