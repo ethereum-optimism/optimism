@@ -33,7 +33,7 @@
     "@nomiclabs/buidler": "^1.4.4",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",
-    "@eth-optimism/contracts": "ethereum-optimism/contracts-v2",
+    "@eth-optimism/contracts": "^0.0.2-alpha.2",
     "@ethersproject/abstract-provider": "^5.0.5",
     "chai": "^4.2.0",
     "ethers": "5.0.0",
