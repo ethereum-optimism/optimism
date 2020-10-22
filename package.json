@@ -34,6 +34,9 @@
     "patch:waffle": "sed -ie 's!Ganache.GanacheOpts!any!g' node_modules/ethereum-waffle/dist/waffle.d.ts"
   },
   "repository": "git+https://github.com/ethereum-optimism/optimism-monorepo.git",
+  "engines": {
+    "node": "10"
+  },
   "keywords": [
     "plasma",
     "group",

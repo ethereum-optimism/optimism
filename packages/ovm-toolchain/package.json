@@ -34,6 +34,9 @@
     "test:buidler": "buidler test --ovm",
     "test:buidler:native": "buidler test --ovm --native"
   },
+  "engines": {
+    "node": "10"
+  },
   "keywords": [
     "optimistic",
     "rollup",

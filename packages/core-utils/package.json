@@ -14,6 +14,9 @@
     "lint": "tslint --format stylish --project .",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
   },
+  "engines": {
+    "node": "10"
+  },
   "keywords": [
     "plasma",
     "group",

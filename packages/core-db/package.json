@@ -15,6 +15,9 @@
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "test:db": "mocha --require ts-node/register 'test/**/*.dbspec.ts' --timeout 5000 --exit"
   },
+  "engines": {
+    "node": "10"
+  },
   "keywords": [
     "plasma",
     "group",
