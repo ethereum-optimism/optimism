@@ -36,14 +36,14 @@ export enum TxType {
 }
 
 const SIGNATURE_FIELD_POSITIONS = {
-  v: { start: 1, end: 2 }, // 1 byte
-  r: { start: 2, end: 34 }, // 32 bytes
-  s: { start: 34, end: 66 }, // 32 bytes
+  r: { start: 1, end: 33 }, // 32 bytes
+  s: { start: 33, end: 65 }, // 32 bytes
+  v: { start: 65, end: 66 }, // 1 byte
 }
 export interface Signature {
-  v: string
   r: string
   s: string
+  v: string
 }
 
 // CreateEOA TxData
@@ -111,7 +111,7 @@ const createEOATxDataCoder: CreateEOACoder = {
 
     const messageHash = txData.messageHash
 
-    return '0x' + txType + v + r + s + messageHash
+    return '0x' + txType + r + s + v + messageHash
   },
 
   decode: (txData: string): CreateEOATxData => {
@@ -126,9 +126,9 @@ const createEOATxDataCoder: CreateEOACoder = {
 
     return {
       sig: {
-        v: sliceBytes(pos.sig.v),
         r: sliceBytes(pos.sig.r),
         s: sliceBytes(pos.sig.s),
+        v: sliceBytes(pos.sig.v),
       },
       messageHash: sliceBytes(pos.messageHash),
     }
@@ -147,9 +147,9 @@ const eip155TxDataCoder: EIP155Coder = {
       getLen(EIP155_FIELD_POSITIONS.txType)
     )
 
-    const v = encodeHex(txData.sig.v, getLen(EIP155_FIELD_POSITIONS.sig.v))
     const r = toVerifiedBytes(txData.sig.r, getLen(EIP155_FIELD_POSITIONS.sig.r))
     const s = toVerifiedBytes(txData.sig.s, getLen(EIP155_FIELD_POSITIONS.sig.s))
+    const v = encodeHex(txData.sig.v, getLen(EIP155_FIELD_POSITIONS.sig.v))
 
     const gasLimit = encodeHex(
       txData.gasLimit,
@@ -168,9 +168,9 @@ const eip155TxDataCoder: EIP155Coder = {
     const encoding = (
       '0x' +
       txType +
-      v +
       r +
       s +
+      v +
       gasLimit +
       gasPrice +
       nonce +
@@ -192,9 +192,9 @@ const eip155TxDataCoder: EIP155Coder = {
 
     return {
       sig: {
-        v: sliceBytes(pos.sig.v),
         r: sliceBytes(pos.sig.r),
         s: sliceBytes(pos.sig.s),
+        v: sliceBytes(pos.sig.v),
       },
       gasLimit: parseInt(sliceBytes(pos.gasLimit), 16),
       gasPrice: parseInt(sliceBytes(pos.gasPrice), 16),
