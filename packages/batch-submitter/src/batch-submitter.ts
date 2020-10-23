@@ -1,7 +1,6 @@
 /* External Imports */
 import { BigNumber, Signer } from 'ethers'
 import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
-import { getContractInterface } from '@eth-optimism/contracts'
 import { getLogger } from '@eth-optimism/core-utils'
 
 const log = getLogger('oe:batch-submitter')
@@ -18,7 +17,6 @@ import {
     CreateEOATxData,
     TxType,
     ctcCoder,
-    Address,
 } from './coders'
 import {
     L2Block,
@@ -28,27 +26,19 @@ import {
 import { remove0x } from './utils'
 
 
-const MAX_TX_SIZE = 100_000
 
 export class BatchSubmitter {
-    txChain: CanonicalTransactionChainContract
-    signer: Signer
-    l2Provider: Provider
-    l2ChainId: number
     blockCache: {
         [blockNumber: number]: BatchElement
     } = {}
 
-    constructor(canonicalTransactionChainAddress: Address, signer: Signer, l2Provider: Provider, l2ChainId: number) {
-        this.txChain = new CanonicalTransactionChainContract(
-          canonicalTransactionChainAddress,
-          getContractInterface('OVM_CanonicalTransactionChain'),
-          signer
-        )
-        this.signer = signer
-        this.l2Provider = l2Provider
-        this.l2ChainId = l2ChainId
-    }
+    constructor(
+        readonly txChain: CanonicalTransactionChainContract,
+        readonly signer: Signer,
+        readonly l2Provider: Provider,
+        readonly l2ChainId: number,
+        readonly maxTxSize: number
+    ) {}
 
     async submitNextBatch():Promise<void> {
         const startBlock = parseInt((await this.txChain.getTotalElements()), 16) + 1
@@ -75,7 +65,7 @@ export class BatchSubmitter {
         }
         let sequencerBatchParams = await this._getSequencerBatchParams(startBlock, blocks)
         let encoded = encodeAppendSequencerBatch(sequencerBatchParams)
-        while (encoded.length / 2 > MAX_TX_SIZE) {
+        while (encoded.length / 2 > this.maxTxSize) {
             blocks.splice(Math.ceil(blocks.length * 2 / 3)) // Delete 1/3rd of all of the blocks
             sequencerBatchParams = await this._getSequencerBatchParams(startBlock, blocks)
             encoded = encodeAppendSequencerBatch(sequencerBatchParams)

@@ -3,6 +3,7 @@ import '../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { RollupDeployConfig, deploy } from '@eth-optimism/contracts'
+import { getContractInterface } from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 
@@ -22,9 +23,11 @@ import {
   ZERO_ADDRESS,
   getContractFactory
 } from '../helpers'
+import { CanonicalTransactionChainContract } from '../../src'
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
+const MAX_TX_SIZE = 100_000
 
 describe('BatchSubmitter', () => {
   let signer: Signer
@@ -83,17 +86,28 @@ describe('BatchSubmitter', () => {
     )
   })
 
-  let OVM_CanonicalTransactionChain: Contract
+  let OVM_CanonicalTransactionChain: CanonicalTransactionChainContract
   beforeEach(async () => {
-    OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
+    const unwrapped_OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
       AddressManager.address,
       FORCE_INCLUSION_PERIOD_SECONDS
+    )
+    OVM_CanonicalTransactionChain = new CanonicalTransactionChainContract(
+      unwrapped_OVM_CanonicalTransactionChain.address,
+      getContractInterface('OVM_CanonicalTransactionChain'),
+      sequencer
     )
   })
 
   describe('Submit', () => {
     it('should execute without reverting', async () => {
-      const batchSubmitter = new BatchSubmitter(OVM_CanonicalTransactionChain.address, sequencer, l2Provider, l2Provider.chainId())
+      const batchSubmitter = new BatchSubmitter(
+        OVM_CanonicalTransactionChain,
+        sequencer,
+        l2Provider,
+        l2Provider.chainId(),
+        MAX_TX_SIZE
+      )
       await batchSubmitter.submitNextBatch()
     })
 
