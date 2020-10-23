@@ -26,22 +26,13 @@ import {
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
 
-describe('MockchainProvider', () => {
-  it('should return the latest block number & increment each time', async () => {
-    const mockchainProvider = new MockchainProvider()
-    let bn
-    console.log(await mockchainProvider.getBlockNumber())
-    console.log(await mockchainProvider.getBlockNumber())
-    console.log(await mockchainProvider.getBlockNumber())
-    console.log(await mockchainProvider.getBlockNumber())
-  })
-})
-
-describe('BatchSubmitter', () => {
+describe.only('BatchSubmitter', () => {
   let signer: Signer
   let sequencer: Signer
+  let l2Provider: MockchainProvider
   before(async () => {
     ;[signer, sequencer] = await ethers.getSigners()
+    l2Provider = new MockchainProvider()
   })
 
 
@@ -101,8 +92,8 @@ describe('BatchSubmitter', () => {
   })
 
   describe('Submit', () => {
-    it('should execute without reverting', async () => {
-      const batchSubmitter = new BatchSubmitter(OVM_CanonicalTransactionChain.address, sequencer, sequencer.provider)
+    it.only('should execute without reverting', async () => {
+      const batchSubmitter = new BatchSubmitter(OVM_CanonicalTransactionChain.address, sequencer, l2Provider, l2Provider.chainId())
       await batchSubmitter.submitNextBatch()
     })
 

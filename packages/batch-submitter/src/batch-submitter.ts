@@ -41,11 +41,12 @@ export class BatchSubmitter {
     txChain: CanonicalTransactionChainContract
     signer: Signer
     l2Provider: Provider
+    l2ChainId: number
     blockCache: {
         [blockNumber: number]: L2Block
     } = {}
 
-    constructor(canonicalTransactionChainAddress: Address, signer: Signer, l2Provider: Provider) {
+    constructor(canonicalTransactionChainAddress: Address, signer: Signer, l2Provider: Provider, l2ChainId: number) {
         this.txChain = new CanonicalTransactionChainContract(
           canonicalTransactionChainAddress,
           getContractInterface('OVM_CanonicalTransactionChain'),
@@ -53,6 +54,7 @@ export class BatchSubmitter {
         )
         this.signer = signer
         this.l2Provider = l2Provider
+        this.l2ChainId = l2ChainId
     }
 
     async submitNextBatch():Promise<void> {
@@ -164,14 +166,12 @@ export class BatchSubmitter {
         const tx: TransactionResponse = block.transactions[0]
         const txData: EIP155TxData = {
             sig: {
-                // TODO: Update v value to strip the chainID
-                // v: remove0x(BigNumber.from(tx.v).toHexString()).padStart(2, '0'),
-                v: '01',
+                v: '0' + (tx.v - (this.l2ChainId * 2) - 8 - 27).toString(),
                 r: tx.r,
                 s: tx.s
             },
-            gasLimit: tx.gasLimit.toNumber(),
-            gasPrice: tx.gasPrice.toNumber(),
+            gasLimit: BigNumber.from(tx.gasLimit).toNumber(),
+            gasPrice: BigNumber.from(tx.gasPrice).toNumber(),
             nonce: tx.nonce,
             target: (tx.to) ? tx.to : '00'.repeat(20),
             data: tx.data,
