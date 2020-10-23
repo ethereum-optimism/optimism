@@ -113,6 +113,21 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     /**
      * @inheritdoc iOVM_CanonicalTransactionChain
      */
+    function getNextQueueIndex()
+        override
+        public
+        view
+        returns (
+            uint40
+        )
+    {
+        (, uint40 nextQueueIndex) = _getBatchExtraData();
+        return nextQueueIndex;
+    }
+
+    /**
+     * @inheritdoc iOVM_CanonicalTransactionChain
+     */
     function getQueueElement(
         uint256 _index
     )
@@ -227,7 +242,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             "Must append more than zero transactions."
         );
 
-        uint40 nextQueueIndex = _getNextQueueIndex();
+        uint40 nextQueueIndex = getNextQueueIndex();
         bytes32[] memory leaves = new bytes32[](_numQueuedTransactions);
         for (uint256 i = 0; i < _numQueuedTransactions; i++) {
             leaves[i] = _getQueueLeafHash(nextQueueIndex);
@@ -297,7 +312,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         bytes32[] memory leaves = new bytes32[](totalElementsToAppend);
         uint32 transactionIndex = 0;
         uint32 numSequencerTransactionsProcessed = 0;
-        uint40 nextQueueIndex = _getNextQueueIndex();
+        uint40 nextQueueIndex = getNextQueueIndex();
 
         for (uint32 i = 0; i < numContexts; i++) {
             BatchContext memory context = _getBatchContext(i);
@@ -416,21 +431,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             timestamp: ctxTimestamp,
             blockNumber: ctxBlockNumber
         });
-    }
-
-    /**
-     * Returns the index of the next element to be enqueued.
-     * @return Index for the next queue element.
-     */
-    function _getNextQueueIndex()
-        internal
-        view
-        returns (
-            uint40
-        )
-    {
-        (, uint40 nextQueueIndex) = _getBatchExtraData();
-        return nextQueueIndex;
     }
 
     /**
