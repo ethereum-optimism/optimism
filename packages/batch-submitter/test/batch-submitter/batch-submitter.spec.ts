@@ -8,6 +8,7 @@ import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 
 /* Internal Imports */
 import { BatchSubmitter } from '../../src/batch-submitter'
+import { MockchainProvider } from './mockchain-provider'
 import {
   makeAddressManager,
   setProxyTarget,
@@ -24,6 +25,17 @@ import {
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
+
+describe('MockchainProvider', () => {
+  it('should return the latest block number & increment each time', async () => {
+    const mockchainProvider = new MockchainProvider()
+    let bn
+    console.log(await mockchainProvider.getBlockNumber())
+    console.log(await mockchainProvider.getBlockNumber())
+    console.log(await mockchainProvider.getBlockNumber())
+    console.log(await mockchainProvider.getBlockNumber())
+  })
+})
 
 describe('BatchSubmitter', () => {
   let signer: Signer
@@ -94,8 +106,8 @@ describe('BatchSubmitter', () => {
       await batchSubmitter.submitNextBatch()
     })
 
-    it('should allow me to query a bunch of blocks', async () => {
-      for (let i = 1; i < 10; i++) {
+    it.skip('should allow me to console.log a bunch of blocks', async () => {
+      for (let i = 1; i < 7; i++) {
         console.log('enquing!')
         await OVM_CanonicalTransactionChain.enqueue(
           '0x' + '01'.repeat(20),
@@ -108,9 +120,11 @@ describe('BatchSubmitter', () => {
         console.log('done!')
       }
       const totalBlocks = await (await signer.provider.getBlockNumber())
+      const blocks = []
       for (let i = 0; i < totalBlocks; i++) {
-        console.log(await signer.provider.getBlockWithTransactions(i))
+        blocks.push(await signer.provider.getBlockWithTransactions(i))
       }
+      console.log(JSON.stringify(blocks))
     })
   })
 })

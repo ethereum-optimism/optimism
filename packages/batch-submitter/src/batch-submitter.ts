@@ -6,19 +6,18 @@ import { getContractInterface } from '@eth-optimism/contracts'
 /* Internal Imports */
 import {
     CanonicalTransactionChainContract,
+    encodeAppendSequencerBatch,
+    BatchContext,
+    AppendSequencerBatchParams
+} from './transaciton-chain-contract'
+import {
     EIP155TxData,
     CreateEOATxData,
     TxType,
     ctcCoder,
-    Signature,
     Address,
-    encodeAppendSequencerBatch,
-    Uint8,
-    Uint24,
-    remove0x,
-    BatchContext,
-    AppendSequencerBatchParams
-} from './batch-encoder'
+} from './coders'
+import { remove0x } from './utils'
 
 interface L2Block {
     stateRoot: string
