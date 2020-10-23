@@ -7,6 +7,7 @@
     "build/**/*.js"
   ],
   "scripts": {
+    "start": "node ./exec/run-batch-submitter.js",
     "build": "tsc -p .",
     "clean": "rimraf build/",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' 'src/**/*.ts'",

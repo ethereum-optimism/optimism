@@ -14,13 +14,6 @@ import {
   makeAddressManager,
   setProxyTarget,
   FORCE_INCLUSION_PERIOD_SECONDS,
-  setEthTime,
-  NON_ZERO_ADDRESS,
-  remove0x,
-  getEthTime,
-  getNextBlockNumber,
-  increaseEthTime,
-  ZERO_ADDRESS,
   getContractFactory
 } from '../helpers'
 import { CanonicalTransactionChainContract } from '../../src'

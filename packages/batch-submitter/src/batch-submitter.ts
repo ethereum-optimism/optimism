@@ -3,7 +3,7 @@ import { BigNumber, Signer } from 'ethers'
 import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
 import { getLogger } from '@eth-optimism/core-utils'
 
-const log = getLogger('oe:batch-submitter')
+const log = getLogger('oe:batch-submitter:core')
 
 /* Internal Imports */
 import {
