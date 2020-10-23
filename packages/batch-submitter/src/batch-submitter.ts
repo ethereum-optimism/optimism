@@ -1,6 +1,6 @@
 /* External Imports */
 import { BigNumber, Signer } from 'ethers'
-import { BlockWithTransactions, Provider, TransactionResponse } from '@ethersproject/abstract-provider'
+import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
 import { getContractInterface } from '@eth-optimism/contracts'
 
 /* Internal Imports */
@@ -17,23 +17,13 @@ import {
     ctcCoder,
     Address,
 } from './coders'
+import {
+    L2Block,
+    BatchElement,
+    Batch,
+} from '.'
 import { remove0x } from './utils'
 
-interface L2Block {
-    stateRoot: string
-    isSequencerTx: boolean
-    sequencerTxType: undefined | TxType
-    txData: undefined | EIP155TxData | CreateEOATxData
-    timestamp: number
-    blockNumber: number
-}
-
-interface ExtendedBlock extends BlockWithTransactions {
-    stateRoot: string
-    txType: number
-}
-
-type Batch = L2Block[]
 
 const MAX_TX_SIZE = 100_000
 
@@ -43,7 +33,7 @@ export class BatchSubmitter {
     l2Provider: Provider
     l2ChainId: number
     blockCache: {
-        [blockNumber: number]: L2Block
+        [blockNumber: number]: BatchElement
     } = {}
 
     constructor(canonicalTransactionChainAddress: Address, signer: Signer, l2Provider: Provider, l2ChainId: number) {
@@ -91,7 +81,7 @@ export class BatchSubmitter {
         // Generate contexts
         const contexts: BatchContext[] = []
         let lastBlockIsSequencerTx = false
-        const groupedBlocks: { sequenced: L2Block[], queued: L2Block[] }[] = []
+        const groupedBlocks: { sequenced: BatchElement[], queued: BatchElement[] }[] = []
         for (const block of blocks) {
             if ((lastBlockIsSequencerTx === false && block.isSequencerTx === true) || groupedBlocks.length === 0) {
                 groupedBlocks.push({
@@ -135,17 +125,14 @@ export class BatchSubmitter {
         }
     }
 
-    async _getL2Block(blockNumber: number): Promise<L2Block> {
-        const block = await this.l2Provider.getBlockWithTransactions(blockNumber) as ExtendedBlock
-        // TODO: Update this query to return the block with the state root!
-        block.stateRoot = '0x' + '98'.repeat(32)
-        // TODO: Actually pull the tx type from the tx
-        block.txType = TxType.EIP155
+    async _getL2Block(blockNumber: number): Promise<BatchElement> {
+        const block = await this.l2Provider.getBlockWithTransactions(blockNumber) as L2Block
+        const txType = block.transactions[0].meta.txType
 
         if (this._isSequencerTx(block)) {
-            if (block.txType === TxType.EIP155) {
+            if (txType === TxType.EIP155) {
                 return this._getEIP155L2Block(block)
-            } else if (block.txType === TxType.createEOA) {
+            } else if (txType === TxType.createEOA) {
                 return this._getCreateEOAL2Block(block)
             } else {
                 throw new Error('Unsupported Tx Type!')
@@ -162,7 +149,7 @@ export class BatchSubmitter {
         }
     }
 
-    private _getEIP155L2Block(block: ExtendedBlock): L2Block {
+    private _getEIP155L2Block(block: L2Block): BatchElement {
         const tx: TransactionResponse = block.transactions[0]
         const txData: EIP155TxData = {
             sig: {
@@ -179,14 +166,14 @@ export class BatchSubmitter {
         return {
             stateRoot: block.stateRoot,
             isSequencerTx: true,
-            sequencerTxType: block.txType,
+            sequencerTxType: block.transactions[0].meta.txType,
             txData,
             timestamp: block.timestamp,
             blockNumber: block.number
         }
     }
 
-    private _getCreateEOAL2Block(block: ExtendedBlock): L2Block {
+    private _getCreateEOAL2Block(block: L2Block): BatchElement {
         const tx: TransactionResponse = block.transactions[0]
         // Call decode on the data field to get sig and messageHash
         const txData: CreateEOATxData = {
@@ -201,14 +188,14 @@ export class BatchSubmitter {
         return {
             stateRoot: block.stateRoot,
             isSequencerTx: true,
-            sequencerTxType: block.txType,
+            sequencerTxType: block.transactions[0].meta.txType,
             txData,
             timestamp: block.timestamp,
             blockNumber: block.number
         }
     }
 
-    _isSequencerTx(block: ExtendedBlock): boolean {
+    _isSequencerTx(block: L2Block): boolean {
         // TODO: Actually check if it's a sequencer tx.
         return true
     }
