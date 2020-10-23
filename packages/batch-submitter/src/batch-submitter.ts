@@ -2,6 +2,9 @@
 import { BigNumber, Signer } from 'ethers'
 import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
 import { getContractInterface } from '@eth-optimism/contracts'
+import { getLogger } from '@eth-optimism/core-utils'
+
+const log = getLogger('oe:batch-submitter')
 
 /* Internal Imports */
 import {
@@ -50,10 +53,15 @@ export class BatchSubmitter {
     async submitNextBatch():Promise<void> {
         const startBlock = parseInt((await this.txChain.getTotalElements()), 16) + 1
         const endBlock = Math.min(startBlock + 100, await this.l2Provider.getBlockNumber())
+        log.info(`Attempting to submit next batch. Start l2 tx index: ${startBlock} - end index: ${endBlock}`)
+        if (startBlock === endBlock) {
+            log.info(`No txs to submit. Skipping...`)
+            return
+        }
 
         const batchParams = await this._generateSequencerBatchParams(startBlock, endBlock)
         const txRes = await this.txChain.appendSequencerBatch(batchParams)
-        console.log(txRes)
+        log.debug(txRes)
     }
 
     async _generateSequencerBatchParams(startBlock: number, endBlock: number):Promise<AppendSequencerBatchParams> {
