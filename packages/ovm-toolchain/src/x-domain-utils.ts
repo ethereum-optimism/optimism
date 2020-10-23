@@ -1,5 +1,5 @@
 /* External Imports */
-import { getContractDefinition } from '@eth-optimism/rollup-contracts'
+import { getContractDefinition } from '@eth-optimism/contracts'
 
 /**
  * Generates an ethers contract from a definition pulled from the optimism

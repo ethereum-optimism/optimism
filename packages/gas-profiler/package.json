@@ -15,6 +15,9 @@
     "clean": "rimraf build/",
     "deploy:rollup-chain": "yarn build && node ./build/deploy/rollup-chain.js"
   },
+  "engines": {
+    "node": "10"
+  },
   "keywords": [
     "optimistic",
     "rollup",

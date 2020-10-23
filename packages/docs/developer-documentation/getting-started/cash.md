@@ -1,2 +1,0 @@
-# Some other child page
-
