@@ -98,6 +98,7 @@ describe('BatchSubmitter', () => {
         l2Provider as any,
         l2Provider.chainId(),
         MAX_TX_SIZE,
+        10,
         1
       )
       await batchSubmitter.submitNextBatch()

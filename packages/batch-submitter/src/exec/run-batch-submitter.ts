@@ -24,6 +24,7 @@ interface RequiredEnvVars {
   L2_CHAIN_ID: 'L2_CHAIN_ID'
   MAX_TX_SIZE: 'MAX_TX_SIZE'
   POLL_INTERVAL: 'POLL_INTERVAL'
+  DEFAULT_BATCH_SIZE: 'DEFAULT_BATCH_SIZE'
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS'
 }
 const requiredEnvVars: RequiredEnvVars = {
@@ -35,6 +36,7 @@ const requiredEnvVars: RequiredEnvVars = {
   L2_CHAIN_ID: 'L2_CHAIN_ID',
   MAX_TX_SIZE: 'MAX_TX_SIZE',
   POLL_INTERVAL: 'POLL_INTERVAL',
+  DEFAULT_BATCH_SIZE: 'DEFAULT_BATCH_SIZE',
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS',
 }
 
@@ -80,6 +82,7 @@ export const run = async () => {
     l2Provider,
     parseInt(requiredEnvVars.L2_CHAIN_ID, 10),
     parseInt(requiredEnvVars.MAX_TX_SIZE, 10),
+    parseInt(requiredEnvVars.DEFAULT_BATCH_SIZE, 10),
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10)
   )
 

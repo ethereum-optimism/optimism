@@ -28,13 +28,14 @@ export class BatchSubmitter {
     readonly l2Provider: OptimismProvider,
     readonly l2ChainId: number,
     readonly maxTxSize: number,
+    readonly defaultBatchSize: number,
     readonly numConfirmations: number
   ) {}
 
   public async submitNextBatch(): Promise<void> {
     const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1
     const endBlock = Math.min(
-      startBlock + 100,
+      startBlock + this.defaultBatchSize,
       await this.l2Provider.getBlockNumber()
     )
     log.info(
