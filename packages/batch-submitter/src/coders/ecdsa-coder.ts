@@ -16,8 +16,8 @@ import {
 
 export enum TxType {
   EIP155 = 0,
-  createEOA = 1,
-  EthSign = 2,
+  EthSign = 1,
+  createEOA = 2,
 }
 
 export interface DefaultEcdsaTxData {

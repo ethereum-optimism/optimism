@@ -13,9 +13,14 @@ import {
   BatchContext,
   AppendSequencerBatchParams,
 } from './transaciton-chain-contract'
-import { EIP155TxData, CreateEOATxData, TxType, ctcCoder } from './coders'
+import {
+  EIP155TxData,
+  CreateEOATxData,
+  TxType,
+  ctcCoder,
+  EthSignTxData,
+} from './coders'
 import { L2Block, BatchElement, Batch, QueueOrigin } from '.'
-import { remove0x } from './utils'
 
 export class BatchSubmitter {
   public blockCache: {
@@ -139,6 +144,8 @@ export class BatchSubmitter {
       )
       if (block.sequencerTxType === TxType.EIP155) {
         encoding = ctcCoder.eip155TxData.encode(block.txData as EIP155TxData)
+      } else if (block.sequencerTxType === TxType.EthSign) {
+        encoding = ctcCoder.ethSignTxData.encode(block.txData as EthSignTxData)
       } else if (block.sequencerTxType === TxType.createEOA) {
         encoding = ctcCoder.createEOATxData.encode(
           block.txData as CreateEOATxData
