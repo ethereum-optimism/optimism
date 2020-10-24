@@ -8,6 +8,11 @@ import {
     TxType,
 } from './coders'
 
+export enum QueueOrigin {
+    Sequencer = 0,
+    L1ToL2 = 1,
+}
+
 /**
  * Transaction & Blocks. These are the true data-types we expect
  * from running a batch submitter.

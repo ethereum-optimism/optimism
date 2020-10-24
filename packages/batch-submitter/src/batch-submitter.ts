@@ -22,6 +22,7 @@ import {
     L2Block,
     BatchElement,
     Batch,
+    QueueOrigin,
 } from '.'
 import { remove0x } from './utils'
 
@@ -194,7 +195,6 @@ export class BatchSubmitter {
     }
 
     _isSequencerTx(block: L2Block): boolean {
-        // TODO: Actually check if it's a sequencer tx.
-        return true
+        return block.transactions[0].meta.queueOrigin === QueueOrigin.Sequencer
     }
 }
