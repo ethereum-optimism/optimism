@@ -50,7 +50,9 @@ const appendSequencerBatch = async (
   })
 }
 
-export const encodeAppendSequencerBatch = (b: AppendSequencerBatchParams): string => {
+export const encodeAppendSequencerBatch = (
+  b: AppendSequencerBatchParams
+): string => {
   const encodedShouldStartAtBatch = encodeHex(b.shouldStartAtBatch, 10)
   const encodedTotalElementsToAppend = encodeHex(b.totalElementsToAppend, 6)
 

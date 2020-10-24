@@ -2,7 +2,6 @@ import '../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { RollupDeployConfig, deploy } from '@eth-optimism/contracts'
 import { getContractInterface } from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
@@ -14,7 +13,7 @@ import {
   makeAddressManager,
   setProxyTarget,
   FORCE_INCLUSION_PERIOD_SECONDS,
-  getContractFactory
+  getContractFactory,
 } from '../helpers'
 import { CanonicalTransactionChainContract } from '../../src'
 
@@ -31,7 +30,6 @@ describe('BatchSubmitter', () => {
     l2Provider = new MockchainProvider()
   })
 
-
   let AddressManager: Contract
   let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_StateCommitmentChain: MockContract
@@ -47,11 +45,11 @@ describe('BatchSubmitter', () => {
     )
 
     Mock__OVM_ExecutionManager = smockit(
-      await getContractFactory('OVM_ExecutionManager') as any
+      (await getContractFactory('OVM_ExecutionManager')) as any
     )
 
     Mock__OVM_StateCommitmentChain = smockit(
-      await getContractFactory('OVM_StateCommitmentChain') as any
+      (await getContractFactory('OVM_StateCommitmentChain')) as any
     )
 
     await setProxyTarget(
@@ -106,23 +104,20 @@ describe('BatchSubmitter', () => {
 
     it.skip('should allow me to console.log a bunch of blocks', async () => {
       for (let i = 1; i < 7; i++) {
-        console.log('enquing!')
         await OVM_CanonicalTransactionChain.enqueue(
           '0x' + '01'.repeat(20),
           50_000,
           '0x' + i.toString().repeat(64),
           {
-            gasLimit: 1_000_000
+            gasLimit: 1_000_000,
           }
         )
-        console.log('done!')
       }
-      const totalBlocks = await (await signer.provider.getBlockNumber())
+      const totalBlocks = await await signer.provider.getBlockNumber()
       const blocks = []
       for (let i = 0; i < totalBlocks; i++) {
         blocks.push(await signer.provider.getBlockWithTransactions(i))
       }
-      console.log(JSON.stringify(blocks))
     })
   })
 })

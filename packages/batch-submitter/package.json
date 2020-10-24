@@ -35,6 +35,7 @@
     "@eth-optimism/core-utils": "^0.0.1-alpha.30",
     "@eth-optimism/provider": "^0.0.1-alpha.6",
     "@ethersproject/abstract-provider": "^5.0.5",
+    "@ethersproject/providers": "^5.0.14",
     "@nomiclabs/buidler": "^1.4.4",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",

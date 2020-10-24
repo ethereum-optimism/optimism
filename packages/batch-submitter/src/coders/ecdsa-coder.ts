@@ -1,18 +1,13 @@
 /* Internal Imports */
+import { remove0x, toVerifiedBytes, encodeHex, getLen } from '../utils'
 import {
-    remove0x,
-    toVerifiedBytes,
-    encodeHex,
-    getLen,
-} from '../utils'
-import {
-    Coder,
-    Signature,
-    Uint16,
-    Uint8,
-    Uint24,
-    Address,
-    Bytes32,
+  Coder,
+  Signature,
+  Uint16,
+  Uint8,
+  Uint24,
+  Address,
+  Bytes32,
 } from './types'
 
 /***********************
@@ -83,9 +78,7 @@ export const ETH_SIGN_TX_FIELD_POSITIONS = DEFAULT_ECDSA_TX_FIELD_POSITIONS
 
 // Coder for eip155; TODO: Write a library which can auto-encode & decode.
 class DefaultEcdsaTxCoder implements Coder {
-  constructor(
-    readonly txType: TxType
-  ){}
+  constructor(readonly txType: TxType) {}
 
   public encode(txData: DefaultEcdsaTxData): string {
     const txType = encodeHex(
@@ -93,9 +86,18 @@ class DefaultEcdsaTxCoder implements Coder {
       getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.txType)
     )
 
-    const r = toVerifiedBytes(txData.sig.r, getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.sig.r))
-    const s = toVerifiedBytes(txData.sig.s, getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.sig.s))
-    const v = encodeHex(txData.sig.v, getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.sig.v))
+    const r = toVerifiedBytes(
+      txData.sig.r,
+      getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.sig.r)
+    )
+    const s = toVerifiedBytes(
+      txData.sig.s,
+      getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.sig.s)
+    )
+    const v = encodeHex(
+      txData.sig.v,
+      getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.sig.v)
+    )
 
     const gasLimit = encodeHex(
       txData.gasLimit,
@@ -105,13 +107,19 @@ class DefaultEcdsaTxCoder implements Coder {
       txData.gasPrice,
       getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.gasPrice)
     )
-    const nonce = encodeHex(txData.nonce, getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.nonce))
-    const target = toVerifiedBytes(txData.target, getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.target))
+    const nonce = encodeHex(
+      txData.nonce,
+      getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.nonce)
+    )
+    const target = toVerifiedBytes(
+      txData.target,
+      getLen(DEFAULT_ECDSA_TX_FIELD_POSITIONS.target)
+    )
     // Make sure that the data is even
     if (txData.data.length % 2 !== 0) {
       throw new Error('Non-even hex string for tx data!')
     }
-    const encoding = (
+    const encoding =
       '0x' +
       txType +
       r +
@@ -122,7 +130,6 @@ class DefaultEcdsaTxCoder implements Coder {
       nonce +
       target +
       remove0x(txData.data)
-    )
     return encoding
   }
 
@@ -151,47 +158,50 @@ class DefaultEcdsaTxCoder implements Coder {
   }
 }
 
-
 class EthSignTxCoder extends DefaultEcdsaTxCoder {
-    constructor() {
-        super(TxType.EthSign)
-    }
+  constructor() {
+    super(TxType.EthSign)
+  }
 
-    public encode(txData: EthSignTxData): string {
-        return super.encode(txData)
-    }
+  public encode(txData: EthSignTxData): string {
+    return super.encode(txData)
+  }
 
-    public decode(txData: string): EthSignTxData {
-        return super.decode(txData)
-    }
+  public decode(txData: string): EthSignTxData {
+    return super.decode(txData)
+  }
 }
-
 
 class Eip155TxCoder extends DefaultEcdsaTxCoder {
-    constructor() {
-        super(TxType.EIP155)
-    }
+  constructor() {
+    super(TxType.EIP155)
+  }
 
-    public encode(txData: EIP155TxData): string {
-        return super.encode(txData)
-    }
+  public encode(txData: EIP155TxData): string {
+    return super.encode(txData)
+  }
 
-    public decode(txData: string): EIP155TxData {
-        return super.decode(txData)
-    }
+  public decode(txData: string): EIP155TxData {
+    return super.decode(txData)
+  }
 }
 
-
 class CreateEOATxDataCoder implements Coder {
-    public encode(txData: CreateEOATxData): string {
+  public encode(txData: CreateEOATxData): string {
     const txType = encodeHex(
       TxType.createEOA,
       getLen(CREATE_EOA_FIELD_POSITIONS.txType)
     )
 
     const v = encodeHex(txData.sig.v, getLen(CREATE_EOA_FIELD_POSITIONS.sig.v))
-    const r = toVerifiedBytes(txData.sig.r, getLen(CREATE_EOA_FIELD_POSITIONS.sig.r))
-    const s = toVerifiedBytes(txData.sig.s, getLen(CREATE_EOA_FIELD_POSITIONS.sig.s))
+    const r = toVerifiedBytes(
+      txData.sig.r,
+      getLen(CREATE_EOA_FIELD_POSITIONS.sig.r)
+    )
+    const s = toVerifiedBytes(
+      txData.sig.s,
+      getLen(CREATE_EOA_FIELD_POSITIONS.sig.s)
+    )
 
     const messageHash = txData.messageHash
 
@@ -218,7 +228,6 @@ class CreateEOATxDataCoder implements Coder {
     }
   }
 }
-
 
 /*************
  * ctcCoder  *

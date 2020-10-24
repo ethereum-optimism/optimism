@@ -1,13 +1,13 @@
 /* External Imports */
 import { OptimismProvider } from '@eth-optimism/provider'
-import { BlockWithTransactions, TransactionResponse } from '@ethersproject/abstract-provider'
+import {
+  BlockWithTransactions,
+  TransactionResponse,
+} from '@ethersproject/abstract-provider'
 import { JsonRpcProvider } from '@ethersproject/providers'
 
 /* Internal Imports */
-import {
-    L2Transaction,
-    L2Block,
-} from '../../src'
+import { L2Transaction, L2Block } from '../../src'
 
 /**
  * Unformatted Transaction & Blocks. This exists because Geth currently
@@ -15,90 +15,98 @@ import {
  * poorly named fields
  */
 interface UnformattedL2Transaction extends TransactionResponse {
-   meta: {
-      l1BlockNumber: string,
-      l1MessageSender: string,
-      signatureHashType: string,
-      queueOrigin: string
-   }
+  meta: {
+    l1BlockNumber: string
+    l1MessageSender: string
+    signatureHashType: string
+    queueOrigin: string
+  }
 }
 
 interface UnformattedL2Block extends BlockWithTransactions {
-    stateRoot: string
-    transactions: [UnformattedL2Transaction]
+  stateRoot: string
+  transactions: [UnformattedL2Transaction]
 }
-
 
 export class MockchainProvider extends OptimismProvider {
-    public mockBlockNumber: number = 0
-    public mockBlocks: L2Block[] = []
+  public mockBlockNumber: number = 0
+  public mockBlocks: L2Block[] = []
 
-    constructor() {
-        super('https://optimism.io')
-        for (const block of BLOCKS) {
-            const l2Block: L2Block = block
-            this.mockBlocks.push(this._toL2Block(block))
-        }
+  constructor() {
+    super('https://optimism.io')
+    for (const block of BLOCKS) {
+      const l2Block: L2Block = block
+      this.mockBlocks.push(this._toL2Block(block))
     }
+  }
 
-    async getBlockNumber(): Promise<number> {
-        // Increment our mock block number every time
-        if (this.mockBlockNumber < this.mockBlocks.length) {
-            this.mockBlockNumber += 2
-        } else {
-            return this.mockBlocks.length - 1
-        }
-        return this.mockBlockNumber
+  public async getBlockNumber(): Promise<number> {
+    // Increment our mock block number every time
+    if (this.mockBlockNumber < this.mockBlocks.length) {
+      this.mockBlockNumber += 2
+    } else {
+      return this.mockBlocks.length - 1
     }
+    return this.mockBlockNumber
+  }
 
-    public setTimestampsAndBlockNumbers(
-        timestamp: number,
-        blockNumber: number,
-        start: number = 0,
-        end: number = this.mockBlocks.length
-    ) {
-        for (let i = start; i < end; i++) {
-            this.mockBlocks[i].timestamp = timestamp
-            this.mockBlocks[i].transactions[0].meta.l1BlockNumber = blockNumber
-        }
+  public setTimestampsAndBlockNumbers(
+    timestamp: number,
+    blockNumber: number,
+    start: number = 0,
+    end: number = this.mockBlocks.length
+  ) {
+    for (let i = start; i < end; i++) {
+      this.mockBlocks[i].timestamp = timestamp
+      this.mockBlocks[i].transactions[0].meta.l1BlockNumber = blockNumber
     }
+  }
 
-    async getBlockWithTransactions(blockNumber: number): Promise<L2Block> {
-        return this.mockBlocks[blockNumber]
-    }
+  public async getBlockWithTransactions(blockNumber: number): Promise<L2Block> {
+    return this.mockBlocks[blockNumber]
+  }
 
-    chainId(): number {
-        return this.mockBlocks[0].transactions[0].chainId
-    }
+  public chainId(): number {
+    return this.mockBlocks[0].transactions[0].chainId
+  }
 
-    private _toL2Block(block: UnformattedL2Block): L2Block {
-       const txType: number = parseInt(block.transactions[0].meta.signatureHashType)
-       const l1BlockNumber: number = parseInt(block.transactions[0].meta.l1BlockNumber)
-       const queueOrigin: number = parseInt(block.transactions[0].meta.queueOrigin)
-       const l1TxOrigin: string = block.transactions[0].meta.l1MessageSender
-       const l2Transaction: L2Transaction = Object.assign(block.transactions[0], {
-         meta: {
-            // Rename the incorrectly named fields
-            l1TxOrigin,
-            txType,
-            queueOrigin,
-            l1BlockNumber,
-            l1MessageSender: undefined,
-            signatureHashType: undefined,
-         }
-       })
-       // Add an interface here to fix the type casing into L2Block during Object.assign
-       interface PartialL2Block {
-         transactions: [L2Transaction]
-       }
-       const partialBlock: PartialL2Block = {
-          transactions: [l2Transaction]
-       }
-       const l2Block: L2Block = Object.assign(block, partialBlock)
-       return l2Block
+  private _toL2Block(block: UnformattedL2Block): L2Block {
+    const txType: number = parseInt(
+      block.transactions[0].meta.signatureHashType,
+      10
+    )
+    const l1BlockNumber: number = parseInt(
+      block.transactions[0].meta.l1BlockNumber,
+      10
+    )
+    const queueOrigin: number = parseInt(
+      block.transactions[0].meta.queueOrigin,
+      10
+    )
+    const l1TxOrigin: string = block.transactions[0].meta.l1MessageSender
+    const l2Transaction: L2Transaction = {
+      ...block.transactions[0],
+      meta: {
+        // Rename the incorrectly named fields
+        l1TxOrigin,
+        txType,
+        queueOrigin,
+        l1BlockNumber,
+        l1MessageSender: undefined,
+        signatureHashType: undefined,
+      },
     }
+    // Add an interface here to fix the type casing into L2Block during Object.assign
+    interface PartialL2Block {
+      transactions: [L2Transaction]
+    }
+    const partialBlock: PartialL2Block = {
+      transactions: [l2Transaction],
+    }
+    const l2Block: L2Block = { ...block, ...partialBlock }
+    return l2Block
+  }
 }
-
 
 const BLOCKS = JSON.parse(`
 [

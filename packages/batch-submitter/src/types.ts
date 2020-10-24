@@ -1,16 +1,16 @@
 /* External Imports */
-import { BlockWithTransactions, Provider, TransactionResponse } from '@ethersproject/abstract-provider'
+import {
+  BlockWithTransactions,
+  Provider,
+  TransactionResponse,
+} from '@ethersproject/abstract-provider'
 
 /* Internal Imports */
-import {
-    EIP155TxData,
-    CreateEOATxData,
-    TxType,
-} from './coders'
+import { EIP155TxData, CreateEOATxData, TxType } from './coders'
 
 export enum QueueOrigin {
-    Sequencer = 0,
-    L1ToL2 = 1,
+  Sequencer = 0,
+  L1ToL2 = 1,
 }
 
 /**
@@ -18,17 +18,17 @@ export enum QueueOrigin {
  * from running a batch submitter.
  */
 export interface L2Transaction extends TransactionResponse {
-   meta: {
-      l1BlockNumber: number,
-      l1TxOrigin: string,
-      txType: number,
-      queueOrigin: number
-   }
+  meta: {
+    l1BlockNumber: number
+    l1TxOrigin: string
+    txType: number
+    queueOrigin: number
+  }
 }
 
 export interface L2Block extends BlockWithTransactions {
-    stateRoot: string
-    transactions: [L2Transaction]
+  stateRoot: string
+  transactions: [L2Transaction]
 }
 
 /**
@@ -36,12 +36,12 @@ export interface L2Block extends BlockWithTransactions {
  * block data we submit to L1.
  */
 export interface BatchElement {
-    stateRoot: string
-    isSequencerTx: boolean
-    sequencerTxType: undefined | TxType
-    txData: undefined | EIP155TxData | CreateEOATxData
-    timestamp: number
-    blockNumber: number
+  stateRoot: string
+  isSequencerTx: boolean
+  sequencerTxType: undefined | TxType
+  txData: undefined | EIP155TxData | CreateEOATxData
+  timestamp: number
+  blockNumber: number
 }
 
 export type Batch = BatchElement[]

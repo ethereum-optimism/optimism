@@ -1,7 +1,6 @@
 /* External Imports */
 import { BigNumber } from 'ethers'
 
-
 export const getLen = (pos: { start; end }) => (pos.end - pos.start) * 2
 
 export const encodeHex = (val: any, len: number) =>
