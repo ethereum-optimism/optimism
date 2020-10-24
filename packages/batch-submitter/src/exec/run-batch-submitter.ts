@@ -5,6 +5,7 @@ import { getContractFactory } from '@eth-optimism/contracts'
 import { getContractInterface } from '@eth-optimism/contracts'
 import { Signer, Wallet } from 'ethers'
 import { Provider, JsonRpcProvider } from '@ethersproject/providers'
+import { OptimismProvider } from '@eth-optimism/provider'
 
 /* Internal Imports */
 import { BatchSubmitter, CanonicalTransactionChainContract } from '..'
@@ -47,8 +48,7 @@ export const run = async () => {
     const l1Provider: Provider = new JsonRpcProvider(
         `https://${requiredEnvVars.INFURA_NETWORK}.infura.io/v3/${requiredEnvVars.INFURA_PROJECT_ID}`
     )
-    const l2Provider: Provider = new JsonRpcProvider(requiredEnvVars.L2_WEB3_URL)
-    log.info(requiredEnvVars.SEQUENCER_PRIVATE_KEY)
+    const l2Provider: OptimismProvider = new OptimismProvider(requiredEnvVars.L2_WEB3_URL)
     const sequencerSigner: Signer = new Wallet(requiredEnvVars.SEQUENCER_PRIVATE_KEY, l1Provider)
 
     const Factory__OVM_CanonicalTransactionChain = await getContractFactory(

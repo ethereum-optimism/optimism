@@ -1,4 +1,5 @@
 /* External Imports */
+import { OptimismProvider } from '@eth-optimism/provider'
 import { BlockWithTransactions, TransactionResponse } from '@ethersproject/abstract-provider'
 import { JsonRpcProvider } from '@ethersproject/providers'
 
@@ -28,12 +29,12 @@ interface UnformattedL2Block extends BlockWithTransactions {
 }
 
 
-export class MockchainProvider extends JsonRpcProvider {
+export class MockchainProvider extends OptimismProvider {
     public mockBlockNumber: number = 0
     public mockBlocks: L2Block[] = []
 
     constructor() {
-        super()
+        super('https://optimism.io')
         for (const block of BLOCKS) {
             const l2Block: L2Block = block
             this.mockBlocks.push(this._toL2Block(block))
@@ -147,7 +148,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA",
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -201,7 +202,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -255,7 +256,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -309,7 +310,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0x94BA4d5Ebb0e05A50e977FFbF6e1a1Ee3D89299c",
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -363,7 +364,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -417,7 +418,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -471,7 +472,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0x956dA338C1518a7FB213042b70c60c021aeBd554",
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -525,7 +526,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -579,7 +580,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -633,7 +634,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0x6454C9d69a4721feBA60e26A367bD4D56196Ee7c",
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -687,7 +688,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -741,7 +742,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -795,7 +796,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -849,7 +850,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },
@@ -903,7 +904,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "meta":{
                 "l1BlockNumber":"1",
-                "l1MessageSender":"0x3333333333333333333333333333333333333333",
+                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
                 "signatureHashType":"0",
                 "queueOrigin":"0"
              },

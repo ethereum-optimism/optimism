@@ -1,7 +1,8 @@
 /* External Imports */
 import { BigNumber, Signer } from 'ethers'
-import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
+import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { getLogger } from '@eth-optimism/core-utils'
+import { OptimismProvider } from '@eth-optimism/provider'
 
 const log = getLogger('oe:batch-submitter:core')
 
@@ -36,7 +37,7 @@ export class BatchSubmitter {
     constructor(
         readonly txChain: CanonicalTransactionChainContract,
         readonly signer: Signer,
-        readonly l2Provider: Provider,
+        readonly l2Provider: OptimismProvider,
         readonly l2ChainId: number,
         readonly maxTxSize: number
     ) {}
@@ -52,7 +53,9 @@ export class BatchSubmitter {
 
         const batchParams = await this._generateSequencerBatchParams(startBlock, endBlock)
         const txRes = await this.txChain.appendSequencerBatch(batchParams)
-        log.debug(txRes)
+        const receipt = await txRes.wait(4)
+        log.info('Submitted batch!')
+        log.debug('Tx receipt:', receipt)
     }
 
     async _generateSequencerBatchParams(startBlock: number, endBlock: number):Promise<AppendSequencerBatchParams> {
