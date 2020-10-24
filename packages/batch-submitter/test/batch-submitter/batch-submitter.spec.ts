@@ -95,9 +95,10 @@ describe('BatchSubmitter', () => {
       const batchSubmitter = new BatchSubmitter(
         OVM_CanonicalTransactionChain,
         sequencer,
-        l2Provider,
+        l2Provider as any,
         l2Provider.chainId(),
-        MAX_TX_SIZE
+        MAX_TX_SIZE,
+        1
       )
       await batchSubmitter.submitNextBatch()
     })

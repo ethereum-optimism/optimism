@@ -27,7 +27,8 @@ export class BatchSubmitter {
     readonly signer: Signer,
     readonly l2Provider: OptimismProvider,
     readonly l2ChainId: number,
-    readonly maxTxSize: number
+    readonly maxTxSize: number,
+    readonly numConfirmations: number,
   ) {}
 
   public async submitNextBatch(): Promise<void> {
@@ -49,7 +50,7 @@ export class BatchSubmitter {
       endBlock
     )
     const txRes = await this.txChain.appendSequencerBatch(batchParams)
-    const receipt = await txRes.wait(4)
+    const receipt = await txRes.wait(this.numConfirmations)
     log.info('Submitted batch!')
     log.debug('Tx receipt:', receipt)
   }

@@ -24,6 +24,7 @@ interface RequiredEnvVars {
   L2_CHAIN_ID: 'L2_CHAIN_ID'
   MAX_TX_SIZE: 'MAX_TX_SIZE'
   POLL_INTERVAL: 'POLL_INTERVAL'
+  NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS'
 }
 const requiredEnvVars: RequiredEnvVars = {
   ADDRESS_MANAGER_ADDRESS: 'ADDRESS_MANAGER_ADDRESS',
@@ -34,6 +35,7 @@ const requiredEnvVars: RequiredEnvVars = {
   L2_CHAIN_ID: 'L2_CHAIN_ID',
   MAX_TX_SIZE: 'MAX_TX_SIZE',
   POLL_INTERVAL: 'POLL_INTERVAL',
+  NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS',
 }
 
 export const run = async () => {
@@ -77,7 +79,8 @@ export const run = async () => {
     sequencerSigner,
     l2Provider,
     parseInt(requiredEnvVars.L2_CHAIN_ID, 10),
-    parseInt(requiredEnvVars.MAX_TX_SIZE, 10)
+    parseInt(requiredEnvVars.MAX_TX_SIZE, 10),
+    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
   )
 
   // Run batch submitter!

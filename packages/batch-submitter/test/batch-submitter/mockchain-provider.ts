@@ -4,7 +4,6 @@ import {
   BlockWithTransactions,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
-import { JsonRpcProvider } from '@ethersproject/providers'
 
 /* Internal Imports */
 import { L2Transaction, L2Block } from '../../src'
@@ -92,8 +91,6 @@ export class MockchainProvider extends OptimismProvider {
         txType,
         queueOrigin,
         l1BlockNumber,
-        l1MessageSender: undefined,
-        signatureHashType: undefined,
       },
     }
     // Add an interface here to fix the type casing into L2Block during Object.assign
