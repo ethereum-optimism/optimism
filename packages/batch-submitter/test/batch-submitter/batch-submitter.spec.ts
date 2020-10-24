@@ -1,4 +1,4 @@
-import {expect} from '../setup'
+import { expect } from '../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
@@ -8,8 +8,6 @@ import { smockit, MockContract } from '@eth-optimism/smock'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 
 /* Internal Imports */
-import { BatchSubmitter } from '../../src/batch-submitter'
-import { Signature } from '../../src'
 import { MockchainProvider } from './mockchain-provider'
 import {
   makeAddressManager,
@@ -17,7 +15,14 @@ import {
   FORCE_INCLUSION_PERIOD_SECONDS,
   getContractFactory,
 } from '../helpers'
-import { CanonicalTransactionChainContract, QueueOrigin, TxType, ctcCoder } from '../../src'
+import {
+  CanonicalTransactionChainContract,
+  QueueOrigin,
+  TxType,
+  ctcCoder,
+  BatchSubmitter,
+  Signature,
+} from '../../src'
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
@@ -29,7 +34,9 @@ interface QueueElement {
   timestamp: number
   blockNumber: number
 }
-const getNextQueueElement = async (ctcContract: Contract): Promise<QueueElement> => {
+const getNextQueueElement = async (
+  ctcContract: Contract
+): Promise<QueueElement> => {
   const nextQueueIndex = await ctcContract.getNextQueueIndex()
   const nextQueueElement = await ctcContract.getQueueElement(nextQueueIndex)
   return nextQueueElement
@@ -37,9 +44,8 @@ const getNextQueueElement = async (ctcContract: Contract): Promise<QueueElement>
 const DUMMY_SIG: Signature = {
   r: '11'.repeat(32),
   s: '22'.repeat(32),
-  v: '01'
+  v: '01',
 }
-
 
 describe('BatchSubmitter', () => {
   let signer: Signer
@@ -110,8 +116,11 @@ describe('BatchSubmitter', () => {
     )
   })
 
-  describe.only('Submit', () => {
-    let enqueuedElements: {blockNumber: number, timestamp: number}[] = []
+  describe('Submit', () => {
+    const enqueuedElements: Array<{
+      blockNumber: number
+      timestamp: number
+    }> = []
 
     beforeEach(async () => {
       for (let i = 1; i < 15; i++) {
@@ -120,7 +129,7 @@ describe('BatchSubmitter', () => {
           50_000,
           '0x' + i.toString().repeat(64),
           {
-            gasLimit: 1_000_000
+            gasLimit: 1_000_000,
           }
         )
       }
@@ -137,10 +146,12 @@ describe('BatchSubmitter', () => {
         1
       )
       l2Provider.setNumBlocksToReturn(5)
-      const nextQueueElement = await getNextQueueElement(OVM_CanonicalTransactionChain)
+      const nextQueueElement = await getNextQueueElement(
+        OVM_CanonicalTransactionChain
+      )
       const data = ctcCoder.createEOATxData.encode({
-            sig: DUMMY_SIG,
-            messageHash: '66'.repeat(32)
+        sig: DUMMY_SIG,
+        messageHash: '66'.repeat(32),
       })
       l2Provider.setL2BlockData(
         {
@@ -150,20 +161,20 @@ describe('BatchSubmitter', () => {
             txType: TxType.createEOA,
             queueOrigin: QueueOrigin.Sequencer,
             l1TxOrigin: '0x' + '12'.repeat(20),
-          }
+          },
         } as any,
-        nextQueueElement.timestamp - 1,
+        nextQueueElement.timestamp - 1
       )
       let receipt = await batchSubmitter.submitNextBatch()
       let logData = remove0x(receipt.logs[0].data)
-      expect(parseInt(logData.slice(64*0, 64*1))).to.equal(0) // _startingQueueIndex
-      expect(parseInt(logData.slice(64*1, 64*2))).to.equal(0) // _numQueueElements
-      expect(parseInt(logData.slice(64*2, 64*3))).to.equal(5) // _totalElements
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(5) // _totalElements
       receipt = await batchSubmitter.submitNextBatch()
       logData = remove0x(receipt.logs[0].data)
-      expect(parseInt(logData.slice(64*0, 64*1), 16)).to.equal(0) // _startingQueueIndex
-      expect(parseInt(logData.slice(64*1, 64*2), 16)).to.equal(0) // _numQueueElements
-      expect(parseInt(logData.slice(64*2, 64*3), 16)).to.equal(10) // _totalElements
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements
     })
   })
 })

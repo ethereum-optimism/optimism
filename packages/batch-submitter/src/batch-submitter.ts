@@ -1,6 +1,9 @@
 /* External Imports */
 import { BigNumber, Signer } from 'ethers'
-import { TransactionResponse, TransactionReceipt } from '@ethersproject/abstract-provider'
+import {
+  TransactionResponse,
+  TransactionReceipt,
+} from '@ethersproject/abstract-provider'
 import { getLogger } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '@eth-optimism/provider'
 
@@ -212,7 +215,9 @@ export class BatchSubmitter {
   }
 
   private _getCreateEoaBatchElement(block: L2Block): BatchElement {
-    const txData: CreateEOATxData = ctcCoder.createEOATxData.decode(block.transactions[0].data)
+    const txData: CreateEOATxData = ctcCoder.createEOATxData.decode(
+      block.transactions[0].data
+    )
     return {
       stateRoot: block.stateRoot,
       isSequencerTx: true,

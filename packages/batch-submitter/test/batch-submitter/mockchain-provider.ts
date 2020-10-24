@@ -42,7 +42,10 @@ export class MockchainProvider extends OptimismProvider {
 
   public async getBlockNumber(): Promise<number> {
     // Increment our mock block number every time
-    if (this.mockBlockNumber + this.numBlocksToReturn < this.mockBlocks.length) {
+    if (
+      this.mockBlockNumber + this.numBlocksToReturn <
+      this.mockBlocks.length
+    ) {
       this.mockBlockNumber += this.numBlocksToReturn
     } else {
       return this.mockBlocks.length - 1
@@ -51,7 +54,7 @@ export class MockchainProvider extends OptimismProvider {
   }
 
   public setNumBlocksToReturn(numBlocks: number): void {
-     this.numBlocksToReturn = numBlocks
+    this.numBlocksToReturn = numBlocks
   }
 
   public setL2BlockData(
@@ -62,7 +65,10 @@ export class MockchainProvider extends OptimismProvider {
   ) {
     for (let i = start; i < end; i++) {
       this.mockBlocks[i].timestamp = timestamp
-      this.mockBlocks[i].transactions[0] = Object.assign(this.mockBlocks[i].transactions[0], tx)
+      this.mockBlocks[i].transactions[0] = {
+        ...this.mockBlocks[i].transactions[0],
+        ...tx,
+      }
     }
   }
 
