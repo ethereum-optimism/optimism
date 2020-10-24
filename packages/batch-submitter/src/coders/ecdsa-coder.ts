@@ -18,6 +18,7 @@ export enum TxType {
   EIP155 = 0,
   EthSign = 1,
   createEOA = 2,
+  none = 3,
 }
 
 export interface DefaultEcdsaTxData {

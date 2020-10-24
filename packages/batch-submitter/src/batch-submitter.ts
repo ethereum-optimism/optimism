@@ -1,6 +1,6 @@
 /* External Imports */
 import { BigNumber, Signer } from 'ethers'
-import { TransactionResponse } from '@ethersproject/abstract-provider'
+import { TransactionResponse, TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getLogger } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '@eth-optimism/provider'
 
@@ -37,7 +37,7 @@ export class BatchSubmitter {
     readonly numConfirmations: number
   ) {}
 
-  public async submitNextBatch(): Promise<void> {
+  public async submitNextBatch(): Promise<TransactionReceipt> {
     const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1
     const endBlock = Math.min(
       startBlock + this.defaultBatchSize,
@@ -59,6 +59,7 @@ export class BatchSubmitter {
     const receipt = await txRes.wait(this.numConfirmations)
     log.info('Submitted batch!')
     log.debug('Tx receipt:', receipt)
+    return receipt
   }
 
   public async _generateSequencerBatchParams(
@@ -139,9 +140,7 @@ export class BatchSubmitter {
       if (!block.isSequencerTx) {
         continue
       }
-      let encoding: string = ctcCoder.eip155TxData.encode(
-        block.txData as EIP155TxData
-      )
+      let encoding: string
       if (block.sequencerTxType === TxType.EIP155) {
         encoding = ctcCoder.eip155TxData.encode(block.txData as EIP155TxData)
       } else if (block.sequencerTxType === TxType.EthSign) {
@@ -213,16 +212,7 @@ export class BatchSubmitter {
   }
 
   private _getCreateEoaBatchElement(block: L2Block): BatchElement {
-    const tx: TransactionResponse = block.transactions[0]
-    // Call decode on the data field to get sig and messageHash
-    const txData: CreateEOATxData = {
-      sig: {
-        v: '0' + (tx.v - this.l2ChainId * 2 - 8 - 27).toString(),
-        r: tx.r,
-        s: tx.s,
-      },
-      messageHash: tx.data,
-    }
+    const txData: CreateEOATxData = ctcCoder.createEOATxData.decode(block.transactions[0].data)
     return {
       stateRoot: block.stateRoot,
       isSequencerTx: true,

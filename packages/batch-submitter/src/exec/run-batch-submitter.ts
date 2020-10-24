@@ -88,7 +88,12 @@ export const run = async () => {
 
   // Run batch submitter!
   while (true) {
-    await batchSubmitter.submitNextBatch()
+    try {
+      await batchSubmitter.submitNextBatch()
+    } catch (err) {
+      log.error('Error submitting batch', err)
+      log.info('Retrying...')
+    }
     // Sleep
     await new Promise((r) =>
       setTimeout(r, parseInt(requiredEnvVars.POLL_INTERVAL, 10))

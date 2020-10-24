@@ -28,7 +28,8 @@ interface UnformattedL2Block extends BlockWithTransactions {
 }
 
 export class MockchainProvider extends OptimismProvider {
-  public mockBlockNumber: number = 0
+  public mockBlockNumber: number = 1
+  public numBlocksToReturn: number = 2
   public mockBlocks: L2Block[] = []
 
   constructor() {
@@ -41,23 +42,27 @@ export class MockchainProvider extends OptimismProvider {
 
   public async getBlockNumber(): Promise<number> {
     // Increment our mock block number every time
-    if (this.mockBlockNumber < this.mockBlocks.length) {
-      this.mockBlockNumber += 2
+    if (this.mockBlockNumber + this.numBlocksToReturn < this.mockBlocks.length) {
+      this.mockBlockNumber += this.numBlocksToReturn
     } else {
       return this.mockBlocks.length - 1
     }
     return this.mockBlockNumber
   }
 
-  public setTimestampsAndBlockNumbers(
+  public setNumBlocksToReturn(numBlocks: number): void {
+     this.numBlocksToReturn = numBlocks
+  }
+
+  public setL2BlockData(
+    tx: L2Transaction,
     timestamp: number,
-    blockNumber: number,
     start: number = 0,
     end: number = this.mockBlocks.length
   ) {
     for (let i = start; i < end; i++) {
       this.mockBlocks[i].timestamp = timestamp
-      this.mockBlocks[i].transactions[0].meta.l1BlockNumber = blockNumber
+      this.mockBlocks[i].transactions[0] = Object.assign(this.mockBlocks[i].transactions[0], tx)
     }
   }
 

@@ -1,13 +1,15 @@
-import '../setup'
+import {expect} from '../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { getContractInterface } from '@eth-optimism/contracts'
+import { remove0x } from '@eth-optimism/core-utils'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 
 /* Internal Imports */
 import { BatchSubmitter } from '../../src/batch-submitter'
+import { Signature } from '../../src'
 import { MockchainProvider } from './mockchain-provider'
 import {
   makeAddressManager,
@@ -15,11 +17,29 @@ import {
   FORCE_INCLUSION_PERIOD_SECONDS,
   getContractFactory,
 } from '../helpers'
-import { CanonicalTransactionChainContract } from '../../src'
+import { CanonicalTransactionChainContract, QueueOrigin, TxType, ctcCoder } from '../../src'
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
 const MAX_TX_SIZE = 100_000
+
+// Helper functions
+interface QueueElement {
+  queueRoot: string
+  timestamp: number
+  blockNumber: number
+}
+const getNextQueueElement = async (ctcContract: Contract): Promise<QueueElement> => {
+  const nextQueueIndex = await ctcContract.getNextQueueIndex()
+  const nextQueueElement = await ctcContract.getQueueElement(nextQueueIndex)
+  return nextQueueElement
+}
+const DUMMY_SIG: Signature = {
+  r: '11'.repeat(32),
+  s: '22'.repeat(32),
+  v: '01'
+}
+
 
 describe('BatchSubmitter', () => {
   let signer: Signer
@@ -90,7 +110,22 @@ describe('BatchSubmitter', () => {
     )
   })
 
-  describe('Submit', () => {
+  describe.only('Submit', () => {
+    let enqueuedElements: {blockNumber: number, timestamp: number}[] = []
+
+    beforeEach(async () => {
+      for (let i = 1; i < 15; i++) {
+        await OVM_CanonicalTransactionChain.enqueue(
+          '0x' + '01'.repeat(20),
+          50_000,
+          '0x' + i.toString().repeat(64),
+          {
+            gasLimit: 1_000_000
+          }
+        )
+      }
+    })
+
     it('should execute without reverting', async () => {
       const batchSubmitter = new BatchSubmitter(
         OVM_CanonicalTransactionChain,
@@ -101,7 +136,34 @@ describe('BatchSubmitter', () => {
         10,
         1
       )
-      await batchSubmitter.submitNextBatch()
+      l2Provider.setNumBlocksToReturn(5)
+      const nextQueueElement = await getNextQueueElement(OVM_CanonicalTransactionChain)
+      const data = ctcCoder.createEOATxData.encode({
+            sig: DUMMY_SIG,
+            messageHash: '66'.repeat(32)
+      })
+      l2Provider.setL2BlockData(
+        {
+          data,
+          meta: {
+            l1BlockNumber: nextQueueElement.blockNumber - 1,
+            txType: TxType.createEOA,
+            queueOrigin: QueueOrigin.Sequencer,
+            l1TxOrigin: '0x' + '12'.repeat(20),
+          }
+        } as any,
+        nextQueueElement.timestamp - 1,
+      )
+      let receipt = await batchSubmitter.submitNextBatch()
+      let logData = remove0x(receipt.logs[0].data)
+      expect(parseInt(logData.slice(64*0, 64*1))).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64*1, 64*2))).to.equal(0) // _numQueueElements
+      expect(parseInt(logData.slice(64*2, 64*3))).to.equal(5) // _totalElements
+      receipt = await batchSubmitter.submitNextBatch()
+      logData = remove0x(receipt.logs[0].data)
+      expect(parseInt(logData.slice(64*0, 64*1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64*1, 64*2), 16)).to.equal(0) // _numQueueElements
+      expect(parseInt(logData.slice(64*2, 64*3), 16)).to.equal(10) // _totalElements
     })
   })
 })
