@@ -102,23 +102,5 @@ describe('BatchSubmitter', () => {
       )
       await batchSubmitter.submitNextBatch()
     })
-
-    it.skip('should allow me to console.log a bunch of blocks', async () => {
-      for (let i = 1; i < 7; i++) {
-        await OVM_CanonicalTransactionChain.enqueue(
-          '0x' + '01'.repeat(20),
-          50_000,
-          '0x' + i.toString().repeat(64),
-          {
-            gasLimit: 1_000_000,
-          }
-        )
-      }
-      const totalBlocks = await await signer.provider.getBlockNumber()
-      const blocks = []
-      for (let i = 0; i < totalBlocks; i++) {
-        blocks.push(await signer.provider.getBlockWithTransactions(i))
-      }
-    })
   })
 })

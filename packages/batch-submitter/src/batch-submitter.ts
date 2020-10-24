@@ -28,7 +28,7 @@ export class BatchSubmitter {
     readonly l2Provider: OptimismProvider,
     readonly l2ChainId: number,
     readonly maxTxSize: number,
-    readonly numConfirmations: number,
+    readonly numConfirmations: number
   ) {}
 
   public async submitNextBatch(): Promise<void> {
@@ -63,7 +63,7 @@ export class BatchSubmitter {
     const blocks: Batch = []
     for (let i = startBlock; i < endBlock; i++) {
       if (!this.blockCache.hasOwnProperty(i)) {
-        this.blockCache[i] = await this._getL2Block(i)
+        this.blockCache[i] = await this._getL2BatchElement(i)
       }
       blocks.push(this.blockCache[i])
     }
@@ -154,17 +154,17 @@ export class BatchSubmitter {
     }
   }
 
-  public async _getL2Block(blockNumber: number): Promise<BatchElement> {
+  public async _getL2BatchElement(blockNumber: number): Promise<BatchElement> {
     const block = (await this.l2Provider.getBlockWithTransactions(
       blockNumber
     )) as L2Block
     const txType = block.transactions[0].meta.txType
 
     if (this._isSequencerTx(block)) {
-      if (txType === TxType.EIP155) {
-        return this._getEIP155L2Block(block)
+      if (txType === TxType.EIP155 || txType === TxType.EthSign) {
+        return this._getDefaultEcdsaTxBatchElement(block)
       } else if (txType === TxType.createEOA) {
-        return this._getCreateEOAL2Block(block)
+        return this._getCreateEoaBatchElement(block)
       } else {
         throw new Error('Unsupported Tx Type!')
       }
@@ -175,12 +175,12 @@ export class BatchSubmitter {
         sequencerTxType: undefined,
         txData: undefined,
         timestamp: block.timestamp,
-        blockNumber: block.number,
+        blockNumber: block.transactions[0].meta.l1BlockNumber,
       }
     }
   }
 
-  private _getEIP155L2Block(block: L2Block): BatchElement {
+  private _getDefaultEcdsaTxBatchElement(block: L2Block): BatchElement {
     const tx: TransactionResponse = block.transactions[0]
     const txData: EIP155TxData = {
       sig: {
@@ -200,21 +200,20 @@ export class BatchSubmitter {
       sequencerTxType: block.transactions[0].meta.txType,
       txData,
       timestamp: block.timestamp,
-      blockNumber: block.number,
+      blockNumber: block.transactions[0].meta.l1BlockNumber,
     }
   }
 
-  private _getCreateEOAL2Block(block: L2Block): BatchElement {
+  private _getCreateEoaBatchElement(block: L2Block): BatchElement {
     const tx: TransactionResponse = block.transactions[0]
     // Call decode on the data field to get sig and messageHash
     const txData: CreateEOATxData = {
       sig: {
-        // TODO: Update v value to strip the chainID
-        v: remove0x(BigNumber.from(tx.v).toHexString()).padStart(2, '0'),
+        v: '0' + (tx.v - this.l2ChainId * 2 - 8 - 27).toString(),
         r: tx.r,
         s: tx.s,
       },
-      messageHash: tx.data, // TODO: Parse this more
+      messageHash: tx.data,
     }
     return {
       stateRoot: block.stateRoot,
@@ -222,7 +221,7 @@ export class BatchSubmitter {
       sequencerTxType: block.transactions[0].meta.txType,
       txData,
       timestamp: block.timestamp,
-      blockNumber: block.number,
+      blockNumber: block.transactions[0].meta.l1BlockNumber,
     }
   }
 

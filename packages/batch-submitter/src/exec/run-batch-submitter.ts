@@ -80,7 +80,7 @@ export const run = async () => {
     l2Provider,
     parseInt(requiredEnvVars.L2_CHAIN_ID, 10),
     parseInt(requiredEnvVars.MAX_TX_SIZE, 10),
-    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
+    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10)
   )
 
   // Run batch submitter!
