@@ -31,7 +31,7 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.0.2-alpha.2",
+    "@eth-optimism/contracts": "^0.0.2-alpha.3",
     "@eth-optimism/core-utils": "^0.0.1-alpha.30",
     "@eth-optimism/provider": "^0.0.1-alpha.6",
     "@ethersproject/abstract-provider": "^5.0.5",
