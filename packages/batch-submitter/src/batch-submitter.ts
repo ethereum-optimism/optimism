@@ -46,6 +46,10 @@ export class BatchSubmitter {
       `Attempting to submit next batch. Start l2 tx index: ${startBlock} - end index: ${endBlock}`
     )
     if (startBlock >= endBlock) {
+      if (startBlock > endBlock) {
+        log.error(`More txs in CTC (${startBlock}) than in the L2 node (${endBlock}).
+                   This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
+      }
       log.info(`No txs to submit. Skipping...`)
       return
     }
