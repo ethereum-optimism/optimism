@@ -43,13 +43,13 @@ const requiredEnvVars: RequiredEnvVars = {
 export const run = async () => {
   log.info('Starting batch submitter...')
 
-  for (const val in requiredEnvVars) {
+  for (const [i, val] of Object.entries(requiredEnvVars)) {
     if (!process.env[val]) {
       log.error(`Missing enviornment variable: ${val}`)
       exit(1)
     }
+    requiredEnvVars[val] = process.env[val]
   }
-  Object.assign(requiredEnvVars, process.env)
 
   const l1Provider: Provider = new JsonRpcProvider(
     `https://${requiredEnvVars.INFURA_NETWORK}.infura.io/v3/${requiredEnvVars.INFURA_PROJECT_ID}`
