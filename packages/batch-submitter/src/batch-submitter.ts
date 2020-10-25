@@ -37,7 +37,7 @@ export class BatchSubmitter {
   ) {}
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
-    const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1
+    const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
     const endBlock = Math.min(
       startBlock + this.maxBatchSize,
       await this.l2Provider.getBlockNumber()
@@ -45,7 +45,11 @@ export class BatchSubmitter {
     log.info(
       `Attempting to submit next batch. Start l2 tx index: ${startBlock} - end index: ${endBlock}`
     )
-    if (startBlock === endBlock) {
+    if (startBlock >= endBlock) {
+      if (startBlock > endBlock) {
+        log.error(`More txs in CTC (${startBlock}) than in the L2 node (${endBlock}).
+                   This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
+      }
       log.info(`No txs to submit. Skipping...`)
       return
     }

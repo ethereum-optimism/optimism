@@ -35,7 +35,11 @@ export class MockchainProvider extends OptimismProvider {
   constructor() {
     super('https://optimism.io')
     for (const block of BLOCKS) {
-      const l2Block: L2Block = block
+      if (block.number === 0) {
+        // No need to convert genesis to an L2Block because it has no txs
+        this.mockBlocks.push(block)
+        continue
+      }
       this.mockBlocks.push(this._toL2Block(block))
     }
   }
@@ -60,7 +64,7 @@ export class MockchainProvider extends OptimismProvider {
   public setL2BlockData(
     tx: L2Transaction,
     timestamp?: number,
-    start: number = 0,
+    start: number = 1,
     end: number = this.mockBlocks.length
   ) {
     for (let i = start; i < end; i++) {
@@ -79,7 +83,8 @@ export class MockchainProvider extends OptimismProvider {
   }
 
   public chainId(): number {
-    return this.mockBlocks[0].transactions[0].chainId
+    // We know that mockBlocks will always have at least 1 value
+    return this.mockBlocks[1].transactions[0].chainId
   }
 
   private _toL2Block(block: UnformattedL2Block): L2Block {
@@ -120,6 +125,26 @@ export class MockchainProvider extends OptimismProvider {
 
 const BLOCKS = JSON.parse(`
 [
+    {
+       "hash":"0xbc27fdbd1fee6e001438709ef57210bb7b2b1b8c23b65acb2d79161f4dc3cf05",
+       "parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000",
+       "number":0,
+       "timestamp":1603651804,
+       "nonce":"0x0000000000000042",
+       "difficulty":1,
+       "gasLimit":{
+          "type":"BigNumber",
+          "hex":"0x02625a00"
+       },
+       "gasUsed":{
+          "type":"BigNumber",
+          "hex":"0x00"
+       },
+       "miner":"0x0000000000000000000000000000000000000000",
+       "extraData":"0x1234",
+       "transactions":[
+       ]
+    },
     {
        "hash":"0x05a7f5c5fce57346f59355184daa58822f97a32e4327fe6ef4a1c37dfd36f2f0",
        "parentHash":"0x64e89492b3ea72b9f9f0f4566e5198e19d7bfa583619c54c33872c7112aec9cd",
