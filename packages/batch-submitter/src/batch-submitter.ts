@@ -26,24 +26,20 @@ import {
 import { L2Block, BatchElement, Batch, QueueOrigin } from '.'
 
 export class BatchSubmitter {
-  public blockCache: {
-    [blockNumber: number]: BatchElement
-  } = {}
-
   constructor(
     readonly txChain: CanonicalTransactionChainContract,
     readonly signer: Signer,
     readonly l2Provider: OptimismProvider,
     readonly l2ChainId: number,
     readonly maxTxSize: number,
-    readonly defaultBatchSize: number,
+    readonly maxBatchSize: number,
     readonly numConfirmations: number
   ) {}
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
     const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1
     const endBlock = Math.min(
-      startBlock + this.defaultBatchSize,
+      startBlock + this.maxBatchSize,
       await this.l2Provider.getBlockNumber()
     )
     log.info(
@@ -61,7 +57,8 @@ export class BatchSubmitter {
     const txRes = await this.txChain.appendSequencerBatch(batchParams)
     const receipt = await txRes.wait(this.numConfirmations)
     log.info('Submitted batch!')
-    log.debug('Tx receipt:', receipt)
+    log.debug('Transaction Response:', txRes)
+    log.debug('Transaction receipt:', receipt)
     return receipt
   }
 
@@ -69,24 +66,21 @@ export class BatchSubmitter {
     startBlock: number,
     endBlock: number
   ): Promise<AppendSequencerBatchParams> {
-    // Get all L2Blocks between the given range
-    const blocks: Batch = []
+    // Get all L2 BatchElements for the given range
+    const batch: Batch = []
     for (let i = startBlock; i < endBlock; i++) {
-      if (!this.blockCache.hasOwnProperty(i)) {
-        this.blockCache[i] = await this._getL2BatchElement(i)
-      }
-      blocks.push(this.blockCache[i])
+      batch.push(await this._getL2BatchElement(i))
     }
     let sequencerBatchParams = await this._getSequencerBatchParams(
       startBlock,
-      blocks
+      batch
     )
     let encoded = encodeAppendSequencerBatch(sequencerBatchParams)
     while (encoded.length / 2 > this.maxTxSize) {
-      blocks.splice(Math.ceil((blocks.length * 2) / 3)) // Delete 1/3rd of all of the blocks
+      batch.splice(Math.ceil((batch.length * 2) / 3)) // Delete 1/3rd of all of the batch elements
       sequencerBatchParams = await this._getSequencerBatchParams(
         startBlock,
-        blocks
+        batch
       )
       encoded = encodeAppendSequencerBatch(sequencerBatchParams)
     }
