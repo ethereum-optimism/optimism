@@ -116,7 +116,7 @@ describe('BatchSubmitter', () => {
       getContractInterface('OVM_CanonicalTransactionChain'),
       sequencer
     )
-    l2Provider = new MockchainProvider()
+    l2Provider = new MockchainProvider(OVM_CanonicalTransactionChain.address)
   })
 
   describe('Submit', () => {
@@ -125,6 +125,7 @@ describe('BatchSubmitter', () => {
       timestamp: number
     }> = []
 
+    let batchSubmitter
     beforeEach(async () => {
       for (let i = 1; i < 15; i++) {
         await OVM_CanonicalTransactionChain.enqueue(
@@ -136,18 +137,16 @@ describe('BatchSubmitter', () => {
           }
         )
       }
-    })
-
-    it('should submit a sequencer batch correctly', async () => {
-      const batchSubmitter = new BatchSubmitter(
-        OVM_CanonicalTransactionChain,
+      batchSubmitter = new BatchSubmitter(
         sequencer,
         l2Provider as any,
-        l2Provider.chainId(),
         MAX_TX_SIZE,
         10,
         1
       )
+    })
+
+    it('should submit a sequencer batch correctly', async () => {
       l2Provider.setNumBlocksToReturn(5)
       const nextQueueElement = await getQueueElement(
         OVM_CanonicalTransactionChain
@@ -181,15 +180,6 @@ describe('BatchSubmitter', () => {
     })
 
     it('should submit a queue batch correctly', async () => {
-      const batchSubmitter = new BatchSubmitter(
-        OVM_CanonicalTransactionChain,
-        sequencer,
-        l2Provider as any,
-        l2Provider.chainId(),
-        MAX_TX_SIZE,
-        10,
-        1
-      )
       l2Provider.setNumBlocksToReturn(5)
       l2Provider.setL2BlockData({
         meta: {
@@ -209,15 +199,6 @@ describe('BatchSubmitter', () => {
     })
 
     it('should submit a batch with both queue and sequencer chain elements', async () => {
-      const batchSubmitter = new BatchSubmitter(
-        OVM_CanonicalTransactionChain,
-        sequencer,
-        l2Provider as any,
-        l2Provider.chainId(),
-        MAX_TX_SIZE,
-        10,
-        1
-      )
       l2Provider.setNumBlocksToReturn(10) // For this batch we'll return 10 elements!
       l2Provider.setL2BlockData({
         meta: {

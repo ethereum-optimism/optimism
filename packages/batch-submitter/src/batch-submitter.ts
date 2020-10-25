@@ -6,6 +6,10 @@ import {
 } from '@ethersproject/abstract-provider'
 import { getLogger } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '@eth-optimism/provider'
+import {
+  getContractInterface,
+  getContractFactory,
+} from '@eth-optimism/contracts'
 
 const log = getLogger('oe:batch-submitter:core')
 
@@ -22,21 +26,40 @@ import {
   TxType,
   ctcCoder,
   EthSignTxData,
+  Address,
+  Bytes32,
 } from './coders'
 import { L2Block, BatchElement, Batch, QueueOrigin } from '.'
 
+export interface RollupInfo {
+  signer: Address
+  mode: 'sequencer' | 'verifier'
+  syncing: boolean
+  l1BlockHash: Bytes32
+  l1BlockHeight: number
+  addresses: {
+    canonicalTransactionChain: Address
+    addressResolver: Address
+    l1ToL2TransactionQueue: Address
+    sequencerDecompression: Address
+  }
+}
+
 export class BatchSubmitter {
+  private txChain: CanonicalTransactionChainContract
+  private l2ChainId: number
+
   constructor(
-    readonly txChain: CanonicalTransactionChainContract,
     readonly signer: Signer,
     readonly l2Provider: OptimismProvider,
-    readonly l2ChainId: number,
     readonly maxTxSize: number,
     readonly maxBatchSize: number,
     readonly numConfirmations: number
   ) {}
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
+    await this._updateL2ChainInfo()
+
     const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
     const endBlock = Math.min(
       startBlock + this.maxBatchSize,
@@ -66,7 +89,34 @@ export class BatchSubmitter {
     return receipt
   }
 
-  public async _generateSequencerBatchParams(
+  private async _updateL2ChainInfo(): Promise<void> {
+    if (typeof this.l2ChainId === 'undefined') {
+      this.l2ChainId = await this._getL2ChainId()
+    }
+
+    const info: RollupInfo = await this._getRollupInfo()
+    const ctcAddress = info.addresses.canonicalTransactionChain
+
+    if (
+      typeof this.txChain !== 'undefined' &&
+      ctcAddress === this.txChain.address
+    ) {
+      return
+    }
+
+    const unwrapped_OVM_CanonicalTransactionChain = (
+      await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
+    ).attach(ctcAddress)
+
+    this.txChain = new CanonicalTransactionChainContract(
+      unwrapped_OVM_CanonicalTransactionChain.address,
+      getContractInterface('OVM_CanonicalTransactionChain'),
+      this.signer
+    )
+    log.info(`Initialized new CTC with address: ${this.txChain.address}`)
+  }
+
+  private async _generateSequencerBatchParams(
     startBlock: number,
     endBlock: number
   ): Promise<AppendSequencerBatchParams> {
@@ -91,7 +141,7 @@ export class BatchSubmitter {
     return sequencerBatchParams
   }
 
-  public async _getSequencerBatchParams(
+  private async _getSequencerBatchParams(
     shouldStartAtIndex: number,
     blocks: Batch
   ): Promise<AppendSequencerBatchParams> {
@@ -162,7 +212,7 @@ export class BatchSubmitter {
     }
   }
 
-  public async _getL2BatchElement(blockNumber: number): Promise<BatchElement> {
+  private async _getL2BatchElement(blockNumber: number): Promise<BatchElement> {
     const block = (await this.l2Provider.getBlockWithTransactions(
       blockNumber
     )) as L2Block
@@ -226,7 +276,15 @@ export class BatchSubmitter {
     }
   }
 
-  public _isSequencerTx(block: L2Block): boolean {
+  private _isSequencerTx(block: L2Block): boolean {
     return block.transactions[0].meta.queueOrigin === QueueOrigin.Sequencer
+  }
+
+  private async _getRollupInfo(): Promise<RollupInfo> {
+    return this.l2Provider.send('rollup_getInfo', [])
+  }
+
+  private async _getL2ChainId(): Promise<number> {
+    return this.l2Provider.send('eth_chainId', [])
   }
 }

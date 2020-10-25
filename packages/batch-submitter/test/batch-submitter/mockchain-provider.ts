@@ -6,7 +6,7 @@ import {
 } from '@ethersproject/abstract-provider'
 
 /* Internal Imports */
-import { L2Transaction, L2Block } from '../../src'
+import { L2Transaction, L2Block, RollupInfo } from '../../src'
 
 /**
  * Unformatted Transaction & Blocks. This exists because Geth currently
@@ -31,8 +31,9 @@ export class MockchainProvider extends OptimismProvider {
   public mockBlockNumber: number = 1
   public numBlocksToReturn: number = 2
   public mockBlocks: L2Block[] = []
+  public ctcAddr: string
 
-  constructor() {
+  constructor(ctcAddr: string) {
     super('https://optimism.io')
     for (const block of BLOCKS) {
       if (block.number === 0) {
@@ -41,6 +42,7 @@ export class MockchainProvider extends OptimismProvider {
         continue
       }
       this.mockBlocks.push(this._toL2Block(block))
+      this.ctcAddr = ctcAddr
     }
   }
 
@@ -55,6 +57,29 @@ export class MockchainProvider extends OptimismProvider {
       return this.mockBlocks.length - 1
     }
     return this.mockBlockNumber
+  }
+
+  public async send(endpoint: string, params: []): Promise<any> {
+    if (endpoint === 'eth_chainId') {
+      return this.chainId()
+    }
+    if (endpoint === 'rollup_getInfo') {
+      const info: RollupInfo = {
+        signer: '0x' + '99'.repeat(20),
+        mode: 'sequencer',
+        syncing: false,
+        l1BlockHash: '0x' + '99'.repeat(32),
+        l1BlockHeight: 1,
+        addresses: {
+          canonicalTransactionChain: this.ctcAddr,
+          addressResolver: '0x' + '99'.repeat(20),
+          l1ToL2TransactionQueue: '0x' + '99'.repeat(20),
+          sequencerDecompression: '0x' + '99'.repeat(20),
+        },
+      }
+      return info
+    }
+    throw new Error('Unsupported endpoint!')
   }
 
   public setNumBlocksToReturn(numBlocks: number): void {
