@@ -191,13 +191,11 @@ describe('BatchSubmitter', () => {
         1
       )
       l2Provider.setNumBlocksToReturn(5)
-      l2Provider.setL2BlockData(
-        {
-          meta: {
-            queueOrigin: QueueOrigin.L1ToL2,
-          }
-        } as any,
-      )
+      l2Provider.setL2BlockData({
+        meta: {
+          queueOrigin: QueueOrigin.L1ToL2,
+        },
+      } as any)
       let receipt = await batchSubmitter.submitNextBatch()
       let logData = remove0x(receipt.logs[0].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
@@ -221,13 +219,11 @@ describe('BatchSubmitter', () => {
         1
       )
       l2Provider.setNumBlocksToReturn(10) // For this batch we'll return 10 elements!
-      l2Provider.setL2BlockData(
-        {
-          meta: {
-            queueOrigin: QueueOrigin.L1ToL2,
-          }
-        } as any,
-      )
+      l2Provider.setL2BlockData({
+        meta: {
+          queueOrigin: QueueOrigin.L1ToL2,
+        },
+      } as any)
       // Turn blocks 3-5 into sequencer txs
       const nextQueueElement = await getQueueElement(
         OVM_CanonicalTransactionChain,
@@ -251,8 +247,8 @@ describe('BatchSubmitter', () => {
         3,
         6
       )
-      let receipt = await batchSubmitter.submitNextBatch()
-      let logData = remove0x(receipt.logs[0].data)
+      const receipt = await batchSubmitter.submitNextBatch()
+      const logData = remove0x(receipt.logs[0].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(7) // _numQueueElements
       expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements

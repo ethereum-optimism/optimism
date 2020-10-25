@@ -64,7 +64,9 @@ export class MockchainProvider extends OptimismProvider {
     end: number = this.mockBlocks.length
   ) {
     for (let i = start; i < end; i++) {
-      this.mockBlocks[i].timestamp = (timestamp) ? timestamp : this.mockBlocks[i].timestamp
+      this.mockBlocks[i].timestamp = timestamp
+        ? timestamp
+        : this.mockBlocks[i].timestamp
       this.mockBlocks[i].transactions[0] = {
         ...this.mockBlocks[i].transactions[0],
         ...tx,
