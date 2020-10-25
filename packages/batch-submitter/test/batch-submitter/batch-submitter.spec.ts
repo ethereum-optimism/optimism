@@ -34,10 +34,13 @@ interface QueueElement {
   timestamp: number
   blockNumber: number
 }
-const getNextQueueElement = async (
-  ctcContract: Contract
+const getQueueElement = async (
+  ctcContract: Contract,
+  nextQueueIndex?: number
 ): Promise<QueueElement> => {
-  const nextQueueIndex = await ctcContract.getNextQueueIndex()
+  if (!nextQueueIndex) {
+    nextQueueIndex = await ctcContract.getNextQueueIndex()
+  }
   const nextQueueElement = await ctcContract.getQueueElement(nextQueueIndex)
   return nextQueueElement
 }
@@ -50,10 +53,8 @@ const DUMMY_SIG: Signature = {
 describe('BatchSubmitter', () => {
   let signer: Signer
   let sequencer: Signer
-  let l2Provider: MockchainProvider
   before(async () => {
     ;[signer, sequencer] = await ethers.getSigners()
-    l2Provider = new MockchainProvider()
   })
 
   let AddressManager: Contract
@@ -104,6 +105,7 @@ describe('BatchSubmitter', () => {
   })
 
   let OVM_CanonicalTransactionChain: CanonicalTransactionChainContract
+  let l2Provider: MockchainProvider
   beforeEach(async () => {
     const unwrapped_OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
       AddressManager.address,
@@ -114,6 +116,7 @@ describe('BatchSubmitter', () => {
       getContractInterface('OVM_CanonicalTransactionChain'),
       sequencer
     )
+    l2Provider = new MockchainProvider()
   })
 
   describe('Submit', () => {
@@ -135,7 +138,7 @@ describe('BatchSubmitter', () => {
       }
     })
 
-    it('should execute without reverting', async () => {
+    it('should submit a sequencer batch correctly', async () => {
       const batchSubmitter = new BatchSubmitter(
         OVM_CanonicalTransactionChain,
         sequencer,
@@ -146,7 +149,7 @@ describe('BatchSubmitter', () => {
         1
       )
       l2Provider.setNumBlocksToReturn(5)
-      const nextQueueElement = await getNextQueueElement(
+      const nextQueueElement = await getQueueElement(
         OVM_CanonicalTransactionChain
       )
       const data = ctcCoder.createEOATxData.encode({
@@ -174,6 +177,84 @@ describe('BatchSubmitter', () => {
       logData = remove0x(receipt.logs[0].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements
+    })
+
+    it('should submit a queue batch correctly', async () => {
+      const batchSubmitter = new BatchSubmitter(
+        OVM_CanonicalTransactionChain,
+        sequencer,
+        l2Provider as any,
+        l2Provider.chainId(),
+        MAX_TX_SIZE,
+        10,
+        1
+      )
+      l2Provider.setNumBlocksToReturn(5)
+      l2Provider.setL2BlockData(
+        {
+          meta: {
+            queueOrigin: QueueOrigin.L1ToL2,
+          }
+        } as any,
+      )
+      let receipt = await batchSubmitter.submitNextBatch()
+      let logData = remove0x(receipt.logs[0].data)
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(5) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(5) // _totalElements
+      receipt = await batchSubmitter.submitNextBatch()
+      logData = remove0x(receipt.logs[0].data)
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(5) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(5) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements
+    })
+
+    it('should submit a batch with both queue and sequencer chain elements', async () => {
+      const batchSubmitter = new BatchSubmitter(
+        OVM_CanonicalTransactionChain,
+        sequencer,
+        l2Provider as any,
+        l2Provider.chainId(),
+        MAX_TX_SIZE,
+        10,
+        1
+      )
+      l2Provider.setNumBlocksToReturn(10) // For this batch we'll return 10 elements!
+      l2Provider.setL2BlockData(
+        {
+          meta: {
+            queueOrigin: QueueOrigin.L1ToL2,
+          }
+        } as any,
+      )
+      // Turn blocks 3-5 into sequencer txs
+      const nextQueueElement = await getQueueElement(
+        OVM_CanonicalTransactionChain,
+        2
+      )
+      const data = ctcCoder.createEOATxData.encode({
+        sig: DUMMY_SIG,
+        messageHash: '66'.repeat(32),
+      })
+      l2Provider.setL2BlockData(
+        {
+          data,
+          meta: {
+            l1BlockNumber: nextQueueElement.blockNumber - 1,
+            txType: TxType.createEOA,
+            queueOrigin: QueueOrigin.Sequencer,
+            l1TxOrigin: '0x' + '12'.repeat(20),
+          },
+        } as any,
+        nextQueueElement.timestamp - 1,
+        3,
+        6
+      )
+      let receipt = await batchSubmitter.submitNextBatch()
+      let logData = remove0x(receipt.logs[0].data)
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(7) // _numQueueElements
       expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements
     })
   })

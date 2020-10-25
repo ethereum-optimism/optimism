@@ -59,12 +59,12 @@ export class MockchainProvider extends OptimismProvider {
 
   public setL2BlockData(
     tx: L2Transaction,
-    timestamp: number,
+    timestamp?: number,
     start: number = 0,
     end: number = this.mockBlocks.length
   ) {
     for (let i = start; i < end; i++) {
-      this.mockBlocks[i].timestamp = timestamp
+      this.mockBlocks[i].timestamp = (timestamp) ? timestamp : this.mockBlocks[i].timestamp
       this.mockBlocks[i].transactions[0] = {
         ...this.mockBlocks[i].transactions[0],
         ...tx,
