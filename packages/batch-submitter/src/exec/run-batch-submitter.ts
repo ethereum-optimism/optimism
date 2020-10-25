@@ -40,6 +40,17 @@ const requiredEnvVars: RequiredEnvVars = {
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS',
 }
 
+const getAddressFromResolver = async (
+  addressResolverAddress: string,
+  contractToResolve: string,
+  signer: Signer
+): Promise<string> => {
+  const Lib_AddressResolver = (
+    await getContractFactory('Lib_AddressResolver', signer)
+  ).attach(addressResolverAddress)
+  return Lib_AddressResolver.resolve('OVM_CanonicalTransactionChain')
+}
+
 export const run = async () => {
   log.info('Starting batch submitter...')
 
@@ -62,14 +73,15 @@ export const run = async () => {
     l1Provider
   )
 
-  const Factory__OVM_CanonicalTransactionChain = await getContractFactory(
+  const ctcAddress = await getAddressFromResolver(
+    requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
     'OVM_CanonicalTransactionChain',
     sequencerSigner
   )
+  const unwrapped_OVM_CanonicalTransactionChain = (
+    await getContractFactory('OVM_CanonicalTransactionChain', sequencerSigner)
+  ).attach(ctcAddress)
 
-  const unwrapped_OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.attach(
-    requiredEnvVars.ADDRESS_MANAGER_ADDRESS
-  )
   const OVM_CanonicalTransactionChain = new CanonicalTransactionChainContract(
     unwrapped_OVM_CanonicalTransactionChain.address,
     getContractInterface('OVM_CanonicalTransactionChain'),
