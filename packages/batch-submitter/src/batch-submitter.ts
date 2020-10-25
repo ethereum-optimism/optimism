@@ -57,7 +57,8 @@ export class BatchSubmitter {
     const txRes = await this.txChain.appendSequencerBatch(batchParams)
     const receipt = await txRes.wait(this.numConfirmations)
     log.info('Submitted batch!')
-    log.debug('Tx receipt:', receipt)
+    log.debug('Transaction Response:', txRes)
+    log.debug('Transaction receipt:', receipt)
     return receipt
   }
 
