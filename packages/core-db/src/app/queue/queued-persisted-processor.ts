@@ -1,7 +1,7 @@
 /* External Imports */
 import { getLogger, logError, Logger, sleep } from '@eth-optimism/core-utils'
 
-import * as AsyncLock from 'async-lock'
+import AsyncLock from 'async-lock'
 
 /* Internal Imports */
 import {

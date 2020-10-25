@@ -1,7 +1,7 @@
 /* External Imports */
 import { getLogger, sleep, objectsEqual } from '@eth-optimism/core-utils'
 
-import * as assert from 'assert'
+import assert from 'assert'
 import { ethers } from 'ethers'
 
 /* Internal Imports */

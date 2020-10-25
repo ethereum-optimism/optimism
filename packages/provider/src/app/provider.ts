@@ -58,9 +58,10 @@ export class OptimismProvider extends JsonRpcProvider {
     )
     this.formatter.transactionResponse = (transaction) => {
       const tx = formatTxResponse(transaction) as any
-      tx.type = transaction.type
+      tx.txType = transaction.txType
       tx.queueOrigin = transaction.queueOrigin
-      tx.l1MessageSender = transaction.l1MessageSender
+      tx.l1BlockNumber = transaction.l1BlockNumber
+      tx.l1TxOrigin = transaction.l1TxOrigin
       return tx
     }
   }

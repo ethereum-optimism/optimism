@@ -13,6 +13,7 @@
     "lib": [
       "es7"
     ],
+    "esModuleInterop": true,
     "typeRoots": [
       "node_modules/@types"
     ]
