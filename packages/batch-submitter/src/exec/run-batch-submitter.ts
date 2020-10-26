@@ -13,9 +13,8 @@ const log = getLogger('oe:batch-submitter:init')
 
 interface RequiredEnvVars {
   SEQUENCER_PRIVATE_KEY: 'SEQUENCER_PRIVATE_KEY'
-  INFURA_NETWORK: 'INFURA_NETWORK'
-  INFURA_PROJECT_ID: 'INFURA_PROJECT_ID'
-  L2_WEB3_URL: 'L2_WEB3_URL'
+  L1_NODE_WEB3_URL: 'L1_NODE_WEB3_URL'
+  L2_NODE_WEB3_URL: 'L2_NODE_WEB3_URL'
   MAX_TX_SIZE: 'MAX_TX_SIZE'
   POLL_INTERVAL: 'POLL_INTERVAL'
   DEFAULT_BATCH_SIZE: 'DEFAULT_BATCH_SIZE'
@@ -23,9 +22,8 @@ interface RequiredEnvVars {
 }
 const requiredEnvVars: RequiredEnvVars = {
   SEQUENCER_PRIVATE_KEY: 'SEQUENCER_PRIVATE_KEY',
-  INFURA_NETWORK: 'INFURA_NETWORK',
-  INFURA_PROJECT_ID: 'INFURA_PROJECT_ID',
-  L2_WEB3_URL: 'L2_WEB3_URL',
+  L1_NODE_WEB3_URL: 'L1_NODE_WEB3_URL',
+  L2_NODE_WEB3_URL: 'L2_NODE_WEB3_URL',
   MAX_TX_SIZE: 'MAX_TX_SIZE',
   POLL_INTERVAL: 'POLL_INTERVAL',
   DEFAULT_BATCH_SIZE: 'DEFAULT_BATCH_SIZE',
@@ -44,10 +42,10 @@ export const run = async () => {
   }
 
   const l1Provider: Provider = new JsonRpcProvider(
-    `https://${requiredEnvVars.INFURA_NETWORK}.infura.io/v3/${requiredEnvVars.INFURA_PROJECT_ID}`
+    requiredEnvVars.L1_NODE_WEB3_URL
   )
   const l2Provider: OptimismProvider = new OptimismProvider(
-    requiredEnvVars.L2_WEB3_URL
+    requiredEnvVars.L2_NODE_WEB3_URL
   )
   const sequencerSigner: Signer = new Wallet(
     requiredEnvVars.SEQUENCER_PRIVATE_KEY,

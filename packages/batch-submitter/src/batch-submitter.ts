@@ -48,6 +48,7 @@ export interface RollupInfo {
 export class BatchSubmitter {
   private txChain: CanonicalTransactionChainContract
   private l2ChainId: number
+  private syncing: boolean
 
   constructor(
     readonly signer: Signer,
@@ -59,6 +60,14 @@ export class BatchSubmitter {
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
     await this._updateL2ChainInfo()
+
+    if (this.syncing === true) {
+      log.info(
+        'Syncing mode enabled! Skipping batch submission and clearing queue...'
+      )
+      this._clearQueue()
+      return
+    }
 
     const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
     const endBlock = Math.min(
@@ -73,7 +82,7 @@ export class BatchSubmitter {
         log.error(`More txs in CTC (${startBlock}) than in the L2 node (${endBlock}).
                    This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
       }
-      log.info(`No txs to submit. Skipping...`)
+      log.info(`No txs to submit. Skipping batch submission...`)
       return
     }
 
@@ -89,12 +98,22 @@ export class BatchSubmitter {
     return receipt
   }
 
+  private async _clearQueue(): Promise<void> {
+    log.error('Clearing queue not yet supported!')
+  }
+
   private async _updateL2ChainInfo(): Promise<void> {
     if (typeof this.l2ChainId === 'undefined') {
       this.l2ChainId = await this._getL2ChainId()
     }
 
     const info: RollupInfo = await this._getRollupInfo()
+    if (info.mode === 'verifier') {
+      throw new Error(
+        'Verifier mode enabled! Batch submitter only compatible with sequencer mode'
+      )
+    }
+    this.syncing = info.syncing
     const ctcAddress = info.addresses.canonicalTransactionChain
 
     if (
