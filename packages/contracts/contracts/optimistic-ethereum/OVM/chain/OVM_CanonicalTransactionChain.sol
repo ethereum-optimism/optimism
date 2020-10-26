@@ -14,6 +14,17 @@ import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalT
 /* Contract Imports */
 import { OVM_ExecutionManager } from "../execution/OVM_ExecutionManager.sol";
 
+
+library Math {
+    function min(uint x, uint y) internal pure returns (uint z) {
+        if (x < y) {
+            return x;
+        }
+        return y;
+    }
+}
+
+
 /**
  * @title OVM_CanonicalTransactionChain
  */
@@ -237,14 +248,24 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         override
         public
     {
+        uint40 nextQueueIndex = getNextQueueIndex();
+        uint40 queueLength = _getQueueLength();
+        _numQueuedTransactions = Math.min(_numQueuedTransactions, queueLength - nextQueueIndex);
         require(
             _numQueuedTransactions > 0,
             "Must append more than zero transactions."
         );
 
-        uint40 nextQueueIndex = getNextQueueIndex();
         bytes32[] memory leaves = new bytes32[](_numQueuedTransactions);
+
         for (uint256 i = 0; i < _numQueuedTransactions; i++) {
+            if (msg.sender != sequencer) {
+                Lib_OVMCodec.QueueElement memory el = getQueueElement(nextQueueIndex);
+                require(
+                    el.timestamp + forceInclusionPeriodSeconds < block.timestamp,
+                    "Queue transactions cannot be submitted during the sequencer inclusion period."
+                );
+            }
             leaves[i] = _getQueueLeafHash(nextQueueIndex);
             nextQueueIndex++;
         }
@@ -313,6 +334,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         uint32 transactionIndex = 0;
         uint32 numSequencerTransactionsProcessed = 0;
         uint40 nextQueueIndex = getNextQueueIndex();
+        uint40 queueLength = _getQueueLength();
 
         for (uint32 i = 0; i < numContexts; i++) {
             BatchContext memory context = _getBatchContext(i);
@@ -331,6 +353,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             }
 
             for (uint32 j = 0; j < context.numSubsequentQueueTransactions; j++) {
+                require(nextQueueIndex < queueLength, "Not enough queued transactions to append.");
                 leaves[transactionIndex] = _getQueueLeafHash(nextQueueIndex);
                 nextQueueIndex++;
                 transactionIndex++;
@@ -502,14 +525,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             bytes32
         )
     {
-        Lib_OVMCodec.QueueElement memory element = getQueueElement(_index);
-
-        require(
-            msg.sender == sequencer
-            || element.timestamp + forceInclusionPeriodSeconds <= block.timestamp,
-            "Queue transactions cannot be submitted during the sequencer inclusion period."
-        );
-
         return _hashTransactionChainElement(
             Lib_OVMCodec.TransactionChainElement({
                 isSequenced: false,
@@ -519,6 +534,23 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
                 txData: hex""
             })
         );
+    }
+
+    /**
+     * Retrieves the length of the queue.
+     * @return Length of the queue.
+     */
+    function _getQueueLength()
+        internal
+        view
+        returns (
+            uint40
+        )
+    {
+        // The underlying queue data structure stores 2 elements
+        // per insertion, so to get the real queue length we need
+        // to divide by 2. See the usage of `push2(..)`.
+        return queue.getLength() / 2;
     }
 
     /**
