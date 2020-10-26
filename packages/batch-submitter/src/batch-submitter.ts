@@ -89,12 +89,18 @@ export class BatchSubmitter {
       startBlock,
       endBlock
     )
-    return this._submitAndLogTx(this.txChain.appendSequencerBatch(batchParams), 'Submitted batch!')
+    return this._submitAndLogTx(
+      this.txChain.appendSequencerBatch(batchParams),
+      'Submitted batch!'
+    )
   }
 
   private async _clearQueue(): Promise<TransactionReceipt> {
     // Empty the queue with a huge `appendQueueBatch(..)` call
-    return await this._submitAndLogTx(this.txChain.appendQueueBatch(99999999), 'Cleared queue!')
+    return this._submitAndLogTx(
+      this.txChain.appendQueueBatch(99999999),
+      'Cleared queue!'
+    )
   }
 
   private async _updateL2ChainInfo(): Promise<void> {
@@ -302,7 +308,10 @@ export class BatchSubmitter {
     return this.l2Provider.send('eth_chainId', [])
   }
 
-  private async _submitAndLogTx(txPromise: Promise<TransactionResponse>, successMessage: string): Promise<TransactionReceipt> {
+  private async _submitAndLogTx(
+    txPromise: Promise<TransactionResponse>,
+    successMessage: string
+  ): Promise<TransactionReceipt> {
     const response = await txPromise
     const receipt = await response.wait(this.numConfirmations)
     log.info(successMessage)
