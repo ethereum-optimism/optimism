@@ -315,7 +315,7 @@ export class BatchSubmitter {
     const response = await txPromise
     const receipt = await response.wait(this.numConfirmations)
     log.info(successMessage)
-    log.debug('Transaction Response:', response)
+    log.debug('Transaction response:', response)
     log.debug('Transaction receipt:', receipt)
     return receipt
   }
