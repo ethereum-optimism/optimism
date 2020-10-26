@@ -65,8 +65,7 @@ export class BatchSubmitter {
       log.info(
         'Syncing mode enabled! Skipping batch submission and clearing queue...'
       )
-      this._clearQueue()
-      return
+      return this._clearQueue()
     }
 
     const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
@@ -90,16 +89,12 @@ export class BatchSubmitter {
       startBlock,
       endBlock
     )
-    const txRes = await this.txChain.appendSequencerBatch(batchParams)
-    const receipt = await txRes.wait(this.numConfirmations)
-    log.info('Submitted batch!')
-    log.debug('Transaction Response:', txRes)
-    log.debug('Transaction receipt:', receipt)
-    return receipt
+    return this._submitAndLogTx(this.txChain.appendSequencerBatch(batchParams), 'Submitted batch!')
   }
 
-  private async _clearQueue(): Promise<void> {
-    log.error('Clearing queue not yet supported!')
+  private async _clearQueue(): Promise<TransactionReceipt> {
+    // Empty the queue with a huge `appendQueueBatch(..)` call
+    return await this._submitAndLogTx(this.txChain.appendQueueBatch(99999999), 'Cleared queue!')
   }
 
   private async _updateL2ChainInfo(): Promise<void> {
@@ -305,5 +300,14 @@ export class BatchSubmitter {
 
   private async _getL2ChainId(): Promise<number> {
     return this.l2Provider.send('eth_chainId', [])
+  }
+
+  private async _submitAndLogTx(txPromise: Promise<TransactionResponse>, successMessage: string): Promise<TransactionReceipt> {
+    const response = await txPromise
+    const receipt = await response.wait(this.numConfirmations)
+    log.info(successMessage)
+    log.debug('Transaction Response:', response)
+    log.debug('Transaction receipt:', receipt)
+    return receipt
   }
 }
