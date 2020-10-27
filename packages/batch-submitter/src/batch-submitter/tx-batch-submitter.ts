@@ -4,7 +4,6 @@ import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
-import { getLogger } from '@eth-optimism/core-utils'
 import {
   getContractInterface,
   getContractFactory,
@@ -27,20 +26,16 @@ import {
 import { L2Block, BatchElement, Batch, QueueOrigin } from '..'
 import { RollupInfo, BatchSubmitter } from '.'
 
-/* Logging */
-const log = getLogger('oe:batch-submitter:tx-chain')
-
 export class TransactionBatchSubmitter extends BatchSubmitter {
   protected chainContract: CanonicalTransactionChainContract
   protected l2ChainId: number
   protected syncing: boolean
 
-
   /*****************************
    * Batch Submitter Overrides *
    ****************************/
 
-  async _updateChainInfo(): Promise<void>{
+  public async _updateChainInfo(): Promise<void> {
     const info: RollupInfo = await this._getRollupInfo()
     if (info.mode === 'verifier') {
       throw new Error(
@@ -66,22 +61,27 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       getContractInterface('OVM_CanonicalTransactionChain'),
       this.signer
     )
-    log.info(`Initialized new CTC with address: ${this.chainContract.address}`)
+    this.log.info(
+      `Initialized new CTC with address: ${this.chainContract.address}`
+    )
     return
   }
 
-  async _onSync(): Promise<TransactionReceipt>{
-      log.info(
-        'Syncing mode enabled! Skipping batch submission and clearing queue...'
-      )
-      // Empty the queue with a huge `appendQueueBatch(..)` call
-      return this._submitAndLogTx(
-        this.chainContract.appendQueueBatch(99999999),
-        'Cleared queue!'
-      )
+  public async _onSync(): Promise<TransactionReceipt> {
+    this.log.info(
+      'Syncing mode enabled! Skipping batch submission and clearing queue...'
+    )
+    // Empty the queue with a huge `appendQueueBatch(..)` call
+    return this._submitAndLogTx(
+      this.chainContract.appendQueueBatch(99999999),
+      'Cleared queue!'
+    )
   }
 
-  async _submitBatch(startBlock: number, endBlock: number): Promise<TransactionReceipt>{
+  public async _submitBatch(
+    startBlock: number,
+    endBlock: number
+  ): Promise<TransactionReceipt> {
     const batchParams = await this._generateSequencerBatchParams(
       startBlock,
       endBlock
@@ -91,7 +91,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       'Submitted batch!'
     )
   }
-
 
   /*********************
    * Private Functions *

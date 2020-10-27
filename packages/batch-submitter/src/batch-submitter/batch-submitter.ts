@@ -4,17 +4,11 @@ import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
-import { getLogger } from '@eth-optimism/core-utils'
+import { Logger } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '@eth-optimism/provider'
 
 /* Internal Imports */
-import {
-  Address,
-  Bytes32,
-} from '../coders'
-
-/* Logging */
-const log = getLogger('oe:batch-submitter:core')
+import { Address, Bytes32 } from '../coders'
 
 export interface RollupInfo {
   signer: Address
@@ -24,6 +18,7 @@ export interface RollupInfo {
   l1BlockHeight: number
   addresses: {
     canonicalTransactionChain: Address
+    stateCommitmentChain: Address
     addressResolver: Address
     l1ToL2TransactionQueue: Address
     sequencerDecompression: Address
@@ -39,14 +34,19 @@ export abstract class BatchSubmitter {
   constructor(
     readonly signer: Signer,
     readonly l2Provider: OptimismProvider,
+    readonly minTxSize: number,
     readonly maxTxSize: number,
     readonly maxBatchSize: number,
-    readonly numConfirmations: number
+    readonly numConfirmations: number,
+    readonly log: Logger
   ) {}
 
-  abstract async _submitBatch(startBlock: number, endBlock: number): Promise<TransactionReceipt>;
-  abstract async _onSync(): Promise<TransactionReceipt>;
-  abstract async _updateChainInfo(): Promise<void>;
+  public abstract async _submitBatch(
+    startBlock: number,
+    endBlock: number
+  ): Promise<TransactionReceipt>
+  public abstract async _onSync(): Promise<TransactionReceipt>
+  public abstract async _updateChainInfo(): Promise<void>
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
     if (typeof this.l2ChainId === 'undefined') {
@@ -55,23 +55,25 @@ export abstract class BatchSubmitter {
     await this._updateChainInfo()
 
     if (this.syncing === true) {
-      log.info(
+      this.log.info(
         'Syncing mode enabled! Skipping batch submission and clearing queue...'
       )
       return this._onSync()
     }
 
-    const startBlock = parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
+    const startBlock =
+      parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
     const endBlock = Math.min(
       startBlock + this.maxBatchSize,
       await this.l2Provider.getBlockNumber()
     )
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {
-        log.error(`More chain elements in L1 (${startBlock}) than in the L2 node (${endBlock}).
+        this.log
+          .error(`More chain elements in L1 (${startBlock}) than in the L2 node (${endBlock}).
                    This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
       }
-      log.info(`No txs to submit. Skipping batch submission...`)
+      this.log.info(`No txs to submit. Skipping batch submission...`)
       return
     }
     return this._submitBatch(startBlock, endBlock)
@@ -91,9 +93,9 @@ export abstract class BatchSubmitter {
   ): Promise<TransactionReceipt> {
     const response = await txPromise
     const receipt = await response.wait(this.numConfirmations)
-    log.info(successMessage)
-    log.debug('Transaction response:', response)
-    log.debug('Transaction receipt:', receipt)
+    this.log.info(successMessage)
+    this.log.debug('Transaction response:', response)
+    this.log.debug('Transaction receipt:', receipt)
     return receipt
   }
 }
