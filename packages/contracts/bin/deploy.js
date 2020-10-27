@@ -1,6 +1,6 @@
-#!/usr/bin/env -S node --require ts-node/register
+#!/usr/bin/env node
 
-const contracts = require('../src/index.ts');
+const contracts = require('../build/src/contract-deployment/deploy');
 const { providers, Wallet } = require('ethers');
 const { JsonRpcProvider } = providers;
 
@@ -59,7 +59,7 @@ const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (30
 
   const out = {};
   for (const [name, contract] of Object.entries(result.contracts)) {
-    out[name] = (contract as any).address;
+    out[name] = contract.address;
   }
   console.log(JSON.stringify(out, null, 2));
 })().catch(err => {
