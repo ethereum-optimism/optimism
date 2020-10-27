@@ -58,6 +58,7 @@ const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (30
     throw new Error(`Contract deployment failed: ${failedDeployments.join(',')}`);
 
   const out = {};
+  out.AddressManager = AddressManager.address;
   for (const [name, contract] of Object.entries(result.contracts)) {
     out[name] = contract.address;
   }
