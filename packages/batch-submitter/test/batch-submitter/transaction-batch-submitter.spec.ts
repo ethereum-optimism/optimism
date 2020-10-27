@@ -20,7 +20,7 @@ import {
   QueueOrigin,
   TxType,
   ctcCoder,
-  BatchSubmitter,
+  TransactionBatchSubmitter,
   Signature,
 } from '../../src'
 
@@ -50,7 +50,7 @@ const DUMMY_SIG: Signature = {
   v: '01',
 }
 
-describe('BatchSubmitter', () => {
+describe('TransactionBatchSubmitter', () => {
   let signer: Signer
   let sequencer: Signer
   before(async () => {
@@ -137,7 +137,7 @@ describe('BatchSubmitter', () => {
           }
         )
       }
-      batchSubmitter = new BatchSubmitter(
+      batchSubmitter = new TransactionBatchSubmitter(
         sequencer,
         l2Provider as any,
         MAX_TX_SIZE,

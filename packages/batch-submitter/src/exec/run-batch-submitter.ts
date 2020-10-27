@@ -6,7 +6,7 @@ import { Provider, JsonRpcProvider } from '@ethersproject/providers'
 import { OptimismProvider } from '@eth-optimism/provider'
 
 /* Internal Imports */
-import { BatchSubmitter, CanonicalTransactionChainContract } from '..'
+import { TransactionBatchSubmitter, CanonicalTransactionChainContract } from '..'
 
 /* Logger */
 const log = getLogger('oe:batch-submitter:init')
@@ -52,7 +52,7 @@ export const run = async () => {
     l1Provider
   )
 
-  const batchSubmitter = new BatchSubmitter(
+  const batchSubmitter = new TransactionBatchSubmitter(
     sequencerSigner,
     l2Provider,
     parseInt(requiredEnvVars.MAX_TX_SIZE, 10),

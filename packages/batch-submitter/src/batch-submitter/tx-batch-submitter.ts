@@ -5,13 +5,10 @@ import {
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
 import { getLogger } from '@eth-optimism/core-utils'
-import { OptimismProvider } from '@eth-optimism/provider'
 import {
   getContractInterface,
   getContractFactory,
 } from '@eth-optimism/contracts'
-
-const log = getLogger('oe:batch-submitter:core')
 
 /* Internal Imports */
 import {
@@ -19,95 +16,31 @@ import {
   encodeAppendSequencerBatch,
   BatchContext,
   AppendSequencerBatchParams,
-} from './transaciton-chain-contract'
+} from '../transaciton-chain-contract'
 import {
   EIP155TxData,
   CreateEOATxData,
   TxType,
   ctcCoder,
   EthSignTxData,
-  Address,
-  Bytes32,
-} from './coders'
-import { L2Block, BatchElement, Batch, QueueOrigin } from '.'
+} from '../coders'
+import { L2Block, BatchElement, Batch, QueueOrigin } from '..'
+import { RollupInfo, BatchSubmitter } from '.'
 
-export interface RollupInfo {
-  signer: Address
-  mode: 'sequencer' | 'verifier'
-  syncing: boolean
-  l1BlockHash: Bytes32
-  l1BlockHeight: number
-  addresses: {
-    canonicalTransactionChain: Address
-    addressResolver: Address
-    l1ToL2TransactionQueue: Address
-    sequencerDecompression: Address
-  }
-}
+/* Logging */
+const log = getLogger('oe:batch-submitter:tx-chain')
 
-export class BatchSubmitter {
-  private txChain: CanonicalTransactionChainContract
-  private l2ChainId: number
-  private syncing: boolean
+export class TransactionBatchSubmitter extends BatchSubmitter {
+  protected chainContract: CanonicalTransactionChainContract
+  protected l2ChainId: number
+  protected syncing: boolean
 
-  constructor(
-    readonly signer: Signer,
-    readonly l2Provider: OptimismProvider,
-    readonly maxTxSize: number,
-    readonly maxBatchSize: number,
-    readonly numConfirmations: number
-  ) {}
 
-  public async submitNextBatch(): Promise<TransactionReceipt> {
-    await this._updateL2ChainInfo()
+  /*****************************
+   * Batch Submitter Overrides *
+   ****************************/
 
-    if (this.syncing === true) {
-      log.info(
-        'Syncing mode enabled! Skipping batch submission and clearing queue...'
-      )
-      return this._clearQueue()
-    }
-
-    const startBlock = parseInt(await this.txChain.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
-    const endBlock = Math.min(
-      startBlock + this.maxBatchSize,
-      await this.l2Provider.getBlockNumber()
-    )
-    log.info(
-      `Attempting to submit next batch. Start l2 tx index: ${startBlock} - end index: ${endBlock}`
-    )
-    if (startBlock >= endBlock) {
-      if (startBlock > endBlock) {
-        log.error(`More txs in CTC (${startBlock}) than in the L2 node (${endBlock}).
-                   This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
-      }
-      log.info(`No txs to submit. Skipping batch submission...`)
-      return
-    }
-
-    const batchParams = await this._generateSequencerBatchParams(
-      startBlock,
-      endBlock
-    )
-    return this._submitAndLogTx(
-      this.txChain.appendSequencerBatch(batchParams),
-      'Submitted batch!'
-    )
-  }
-
-  private async _clearQueue(): Promise<TransactionReceipt> {
-    // Empty the queue with a huge `appendQueueBatch(..)` call
-    return this._submitAndLogTx(
-      this.txChain.appendQueueBatch(99999999),
-      'Cleared queue!'
-    )
-  }
-
-  private async _updateL2ChainInfo(): Promise<void> {
-    if (typeof this.l2ChainId === 'undefined') {
-      this.l2ChainId = await this._getL2ChainId()
-    }
-
+  async _updateChainInfo(): Promise<void>{
     const info: RollupInfo = await this._getRollupInfo()
     if (info.mode === 'verifier') {
       throw new Error(
@@ -118,8 +51,8 @@ export class BatchSubmitter {
     const ctcAddress = info.addresses.canonicalTransactionChain
 
     if (
-      typeof this.txChain !== 'undefined' &&
-      ctcAddress === this.txChain.address
+      typeof this.chainContract !== 'undefined' &&
+      ctcAddress === this.chainContract.address
     ) {
       return
     }
@@ -128,13 +61,41 @@ export class BatchSubmitter {
       await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
     ).attach(ctcAddress)
 
-    this.txChain = new CanonicalTransactionChainContract(
+    this.chainContract = new CanonicalTransactionChainContract(
       unwrapped_OVM_CanonicalTransactionChain.address,
       getContractInterface('OVM_CanonicalTransactionChain'),
       this.signer
     )
-    log.info(`Initialized new CTC with address: ${this.txChain.address}`)
+    log.info(`Initialized new CTC with address: ${this.chainContract.address}`)
+    return
   }
+
+  async _onSync(): Promise<TransactionReceipt>{
+      log.info(
+        'Syncing mode enabled! Skipping batch submission and clearing queue...'
+      )
+      // Empty the queue with a huge `appendQueueBatch(..)` call
+      return this._submitAndLogTx(
+        this.chainContract.appendQueueBatch(99999999),
+        'Cleared queue!'
+      )
+  }
+
+  async _submitBatch(startBlock: number, endBlock: number): Promise<TransactionReceipt>{
+    const batchParams = await this._generateSequencerBatchParams(
+      startBlock,
+      endBlock
+    )
+    return this._submitAndLogTx(
+      this.chainContract.appendSequencerBatch(batchParams),
+      'Submitted batch!'
+    )
+  }
+
+
+  /*********************
+   * Private Functions *
+   ********************/
 
   private async _generateSequencerBatchParams(
     startBlock: number,
@@ -298,25 +259,5 @@ export class BatchSubmitter {
 
   private _isSequencerTx(block: L2Block): boolean {
     return block.transactions[0].meta.queueOrigin === QueueOrigin.Sequencer
-  }
-
-  private async _getRollupInfo(): Promise<RollupInfo> {
-    return this.l2Provider.send('rollup_getInfo', [])
-  }
-
-  private async _getL2ChainId(): Promise<number> {
-    return this.l2Provider.send('eth_chainId', [])
-  }
-
-  private async _submitAndLogTx(
-    txPromise: Promise<TransactionResponse>,
-    successMessage: string
-  ): Promise<TransactionReceipt> {
-    const response = await txPromise
-    const receipt = await response.wait(this.numConfirmations)
-    log.info(successMessage)
-    log.debug('Transaction response:', response)
-    log.debug('Transaction receipt:', receipt)
-    return receipt
   }
 }
