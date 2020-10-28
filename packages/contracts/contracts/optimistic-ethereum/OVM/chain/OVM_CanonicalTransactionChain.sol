@@ -170,6 +170,20 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     /**
      * @inheritdoc iOVM_CanonicalTransactionChain
      */
+    function getNumPendingQueueElements()
+        override
+        public
+        view
+        returns (
+            uint40
+        )
+    {
+        return  _getQueueLength() - getNextQueueIndex();
+    }
+
+    /**
+     * @inheritdoc iOVM_CanonicalTransactionChain
+     */
     function enqueue(
         address _target,
         uint256 _gasLimit,
@@ -248,15 +262,14 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         override
         public
     {
-        uint40 nextQueueIndex = getNextQueueIndex();
-        uint40 queueLength = _getQueueLength();
-        _numQueuedTransactions = Math.min(_numQueuedTransactions, queueLength - nextQueueIndex);
+        _numQueuedTransactions = Math.min(_numQueuedTransactions, getNumPendingQueueElements());
         require(
             _numQueuedTransactions > 0,
             "Must append more than zero transactions."
         );
 
         bytes32[] memory leaves = new bytes32[](_numQueuedTransactions);
+        uint40 nextQueueIndex = getNextQueueIndex();
 
         for (uint256 i = 0; i < _numQueuedTransactions; i++) {
             if (msg.sender != sequencer) {
@@ -683,7 +696,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         internal
         view
     {
-        if (queue.getLength() == 0) {
+        if (getNumPendingQueueElements() == 0) {
             return;
         }
 

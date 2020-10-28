@@ -86,6 +86,17 @@ interface iOVM_CanonicalTransactionChain {
         );
 
     /**
+     * Get the number of queue elements which have not yet been included.
+     * @return Length of the queue.
+     */
+    function getNumPendingQueueElements()
+        external
+        view
+        returns (
+            uint40
+        );
+
+    /**
      * Gets the queue element at a particular index.
      * @param _index Index of the queue element to access.
      * @return _element Queue element at the given index.
