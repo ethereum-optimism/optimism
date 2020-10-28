@@ -6,6 +6,10 @@ pragma experimental ABIEncoderV2;
  * @title iOVM_BaseCrossDomainMessenger
  */
 interface iOVM_BaseCrossDomainMessenger {
+    /**********************
+     * Contract Variables *
+     **********************/
+    function xDomainMessageSender() external view returns (address);
 
     /********************
      * Public Functions *
