@@ -86,6 +86,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       startBlock,
       endBlock
     )
+    this.log.debug('Submitting batch. Tx calldata:', batchParams)
     return this._submitAndLogTx(
       this.chainContract.appendSequencerBatch(batchParams),
       'Submitted batch!'

@@ -7,6 +7,10 @@ import { L2Block, Bytes32 } from '..'
 import { RollupInfo, BatchSubmitter } from '.'
 
 export class StateBatchSubmitter extends BatchSubmitter {
+  // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!
+  // Not based on the length of the L2 chain -- that is only used in the batch submitter
+  // Note this means we've got to change the state / end calc logic
+
   protected l2ChainId: number
   protected syncing: boolean
 
