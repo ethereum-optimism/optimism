@@ -61,7 +61,7 @@ export const makeContractDeployConfig = async (
           typeof sequencer === 'string'
             ? sequencer
             : await sequencer.getAddress()
-        await AddressManager.setAddress('Sequencer', sequencerAddress)
+        await AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
       },
     },
     OVM_StateCommitmentChain: {
