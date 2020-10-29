@@ -59,6 +59,8 @@ const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (30
 
   const out = {};
   out.AddressManager = AddressManager.address;
+  out.OVM_Sequencer = await sequencer.getAddress()
+  out.Deployer = await signer.getAddress()
   for (const [name, contract] of Object.entries(result.contracts)) {
     out[name] = contract.address;
   }
