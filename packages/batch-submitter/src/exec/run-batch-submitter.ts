@@ -29,6 +29,8 @@ interface RequiredEnvVars {
   MAX_BATCH_SIZE: 'MAX_BATCH_SIZE'
   POLL_INTERVAL: 'POLL_INTERVAL'
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS'
+  RUN_TX_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_TX_BATCH_SUBMITTER'
+  RUN_STATE_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_STATE_BATCH_SUBMITTER'
 }
 const requiredEnvVars: RequiredEnvVars = {
   SEQUENCER_PRIVATE_KEY: 'SEQUENCER_PRIVATE_KEY',
@@ -39,6 +41,8 @@ const requiredEnvVars: RequiredEnvVars = {
   MAX_BATCH_SIZE: 'MAX_BATCH_SIZE',
   POLL_INTERVAL: 'POLL_INTERVAL',
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS',
+  RUN_TX_BATCH_SUBMITTER: 'RUN_TX_BATCH_SUBMITTER',
+  RUN_STATE_BATCH_SUBMITTER: 'RUN_STATE_BATCH_SUBMITTER'
 }
 
 export const run = async () => {
@@ -102,6 +106,10 @@ export const run = async () => {
   }
 
   // Run batch submitters in two seperate infinite loops!
-  loop(() => txBatchSubmitter.submitNextBatch())
-  loop(() => stateBatchSubmitter.submitNextBatch())
+  if (requiredEnvVars.RUN_TX_BATCH_SUBMITTER === 'true') {
+    loop(() => txBatchSubmitter.submitNextBatch())
+  }
+  if (requiredEnvVars.RUN_STATE_BATCH_SUBMITTER === 'true') {
+    loop(() => stateBatchSubmitter.submitNextBatch())
+  }
 }
