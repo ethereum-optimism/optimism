@@ -24,7 +24,7 @@ import {
   EthSignTxData,
 } from '../coders'
 import { L2Block, BatchElement, Batch, QueueOrigin } from '..'
-import { RollupInfo, BatchSubmitter } from '.'
+import { RollupInfo, Range, BatchSubmitter } from '.'
 
 export class TransactionBatchSubmitter extends BatchSubmitter {
   protected chainContract: CanonicalTransactionChainContract
@@ -77,6 +77,28 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       this.chainContract.appendQueueBatch(99999999),
       'Cleared queue!'
     )
+  }
+
+  public async _getBatchStartAndEnd(): Promise<Range> {
+    const startBlock =
+      parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
+    const endBlock = Math.min(
+      startBlock + this.maxBatchSize,
+      await this.l2Provider.getBlockNumber()
+    )
+    if (startBlock >= endBlock) {
+      if (startBlock > endBlock) {
+        this.log
+          .error(`More chain elements in L1 (${startBlock}) than in the L2 node (${endBlock}).
+                   This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
+      }
+      this.log.info(`No txs to submit. Skipping batch submission...`)
+      return
+    }
+    return {
+      start: startBlock,
+      end: endBlock,
+    }
   }
 
   public async _submitBatch(

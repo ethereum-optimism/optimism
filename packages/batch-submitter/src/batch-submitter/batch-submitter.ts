@@ -24,6 +24,10 @@ export interface RollupInfo {
     sequencerDecompression: Address
   }
 }
+export interface Range {
+  start: number
+  end: number
+}
 
 export abstract class BatchSubmitter {
   protected rollupInfo: RollupInfo
@@ -38,6 +42,7 @@ export abstract class BatchSubmitter {
     readonly maxTxSize: number,
     readonly maxBatchSize: number,
     readonly numConfirmations: number,
+    readonly finalityConfirmations: number,
     readonly log: Logger
   ) {}
 
@@ -46,6 +51,7 @@ export abstract class BatchSubmitter {
     endBlock: number
   ): Promise<TransactionReceipt>
   public abstract async _onSync(): Promise<TransactionReceipt>
+  public abstract async _getBatchStartAndEnd(): Promise<Range>
   public abstract async _updateChainInfo(): Promise<void>
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
@@ -60,23 +66,12 @@ export abstract class BatchSubmitter {
       )
       return this._onSync()
     }
-
-    const startBlock =
-      parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
-    const endBlock = Math.min(
-      startBlock + this.maxBatchSize,
-      await this.l2Provider.getBlockNumber()
-    )
-    if (startBlock >= endBlock) {
-      if (startBlock > endBlock) {
-        this.log
-          .error(`More chain elements in L1 (${startBlock}) than in the L2 node (${endBlock}).
-                   This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
-      }
-      this.log.info(`No txs to submit. Skipping batch submission...`)
+    const range = await this._getBatchStartAndEnd()
+    if (!range) {
       return
     }
-    return this._submitBatch(startBlock, endBlock)
+
+    return this._submitBatch(range.start, range.end)
   }
 
   protected async _getRollupInfo(): Promise<RollupInfo> {
@@ -92,10 +87,11 @@ export abstract class BatchSubmitter {
     successMessage: string
   ): Promise<TransactionReceipt> {
     const response = await txPromise
-    const receipt = await response.wait(this.numConfirmations)
-    this.log.info(successMessage)
     this.log.debug('Transaction response:', response)
+    this.log.debug('Waiting for receipt...')
+    const receipt = await response.wait(this.numConfirmations)
     this.log.debug('Transaction receipt:', receipt)
+    this.log.info(successMessage)
     return receipt
   }
 }

@@ -1,10 +1,11 @@
 /* External Imports */
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from '@eth-optimism/contracts'
+import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { L2Block, Bytes32 } from '..'
-import { RollupInfo, BatchSubmitter } from '.'
+import { RollupInfo, Range, BatchSubmitter } from '.'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!
@@ -13,6 +14,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
 
   protected l2ChainId: number
   protected syncing: boolean
+  protected ctcContract: Contract
 
   /*****************************
    * Batch Submitter Overrides *
@@ -28,10 +30,12 @@ export class StateBatchSubmitter extends BatchSubmitter {
     }
     this.syncing = info.syncing
     const sccAddress = info.addresses.stateCommitmentChain
+    const ctcAddress = info.addresses.canonicalTransactionChain
 
     if (
       typeof this.chainContract !== 'undefined' &&
-      sccAddress === this.chainContract.address
+      sccAddress === this.chainContract.address &&
+      ctcAddress === this.ctcContract.address
     ) {
       return
     }
@@ -39,9 +43,13 @@ export class StateBatchSubmitter extends BatchSubmitter {
     this.chainContract = (
       await getContractFactory('OVM_StateCommitmentChain', this.signer)
     ).attach(sccAddress)
+    this.ctcContract = (
+      await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
+    ).attach(ctcAddress)
 
     this.log.info(
-      `Initialized new State Commitment Chain with address: ${this.chainContract.address}`
+      `Initialized new State Commitment Chain with address: ${this.chainContract.address}
+       and new Transaction Chain with address: ${this.ctcContract.address}`
     )
     return
   }
@@ -49,6 +57,49 @@ export class StateBatchSubmitter extends BatchSubmitter {
   public async _onSync(): Promise<TransactionReceipt> {
     this.log.info('Syncing mode enabled! Skipping state batch submission...')
     return
+  }
+
+  public async _getBatchStartAndEnd(): Promise<Range> {
+    const startBlock: number = parseInt(
+      await this.chainContract.getTotalElements(),
+      16
+    )
+    // We will submit state roots for txs which have been in the tx chain for a while.
+    const callBlockNumber: number =
+      (await this.signer.provider.getBlockNumber()) - this.finalityConfirmations
+    const getTotalElementsTx: string = this.ctcContract.interface.encodeFunctionData(
+      'getTotalElements',
+      []
+    )
+    const totalElements: number = parseInt(
+      await this.signer.provider.call(
+        {
+          to: this.ctcContract.address,
+          data: getTotalElementsTx,
+        },
+        callBlockNumber
+      ),
+      16
+    )
+    const endBlock: number = Math.min(
+      startBlock + this.maxBatchSize,
+      totalElements
+    )
+    if (startBlock >= endBlock) {
+      if (startBlock > endBlock) {
+        this.log.error(
+          `State commitment chain is larger than transaction chain. This should never happen!`
+        )
+      }
+      this.log.info(
+        `No state commitments to submit. Skipping batch submission...`
+      )
+      return
+    }
+    return {
+      start: startBlock,
+      end: endBlock,
+    }
   }
 
   public async _submitBatch(
