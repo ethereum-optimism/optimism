@@ -3,9 +3,9 @@ import { expect } from '../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { getContractInterface } from '@eth-optimism/contracts'
-import { remove0x } from '@eth-optimism/core-utils'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
+import { remove0x, getLogger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { MockchainProvider } from './mockchain-provider'
@@ -20,13 +20,15 @@ import {
   QueueOrigin,
   TxType,
   ctcCoder,
-  BatchSubmitter,
+  TransactionBatchSubmitter,
   Signature,
+  TX_BATCH_SUBMITTER_LOG_TAG,
 } from '../../src'
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
 const MAX_TX_SIZE = 100_000
+const MIN_TX_SIZE = 1_000
 
 // Helper functions
 interface QueueElement {
@@ -50,7 +52,7 @@ const DUMMY_SIG: Signature = {
   v: '01',
 }
 
-describe('BatchSubmitter', () => {
+describe('TransactionBatchSubmitter', () => {
   let signer: Signer
   let sequencer: Signer
   before(async () => {
@@ -116,7 +118,10 @@ describe('BatchSubmitter', () => {
       getContractInterface('OVM_CanonicalTransactionChain'),
       sequencer
     )
-    l2Provider = new MockchainProvider(OVM_CanonicalTransactionChain.address)
+    l2Provider = new MockchainProvider(
+      OVM_CanonicalTransactionChain.address,
+      '0x' + '00'.repeat(20)
+    )
   })
 
   describe('Submit', () => {
@@ -137,12 +142,14 @@ describe('BatchSubmitter', () => {
           }
         )
       }
-      batchSubmitter = new BatchSubmitter(
+      batchSubmitter = new TransactionBatchSubmitter(
         sequencer,
         l2Provider as any,
+        MIN_TX_SIZE,
         MAX_TX_SIZE,
         10,
-        1
+        1,
+        getLogger(TX_BATCH_SUBMITTER_LOG_TAG)
       )
     })
 

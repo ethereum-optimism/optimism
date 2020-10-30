@@ -32,8 +32,9 @@ export class MockchainProvider extends OptimismProvider {
   public numBlocksToReturn: number = 2
   public mockBlocks: L2Block[] = []
   public ctcAddr: string
+  public sccAddr: string
 
-  constructor(ctcAddr: string) {
+  constructor(ctcAddr: string, sccAddr: string) {
     super('https://optimism.io')
     for (const block of BLOCKS) {
       if (block.number === 0) {
@@ -43,6 +44,7 @@ export class MockchainProvider extends OptimismProvider {
       }
       this.mockBlocks.push(this._toL2Block(block))
       this.ctcAddr = ctcAddr
+      this.sccAddr = sccAddr
     }
   }
 
@@ -72,6 +74,7 @@ export class MockchainProvider extends OptimismProvider {
         l1BlockHeight: 1,
         addresses: {
           canonicalTransactionChain: this.ctcAddr,
+          stateCommitmentChain: this.sccAddr,
           addressResolver: '0x' + '99'.repeat(20),
           l1ToL2TransactionQueue: '0x' + '99'.repeat(20),
           sequencerDecompression: '0x' + '99'.repeat(20),
