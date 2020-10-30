@@ -15,6 +15,7 @@ const SECONDS_PER_EPOCH = env.SECONDS_PER_EPOCH || 600;
 let WHITELIST_OWNER = env.WHITELIST_OWNER;
 const WHITELIST_ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT = env.WHITELIST_ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT || true;
 const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (30 * 60);
+const CHAIN_ID = env.CHAIN_ID || 420; // layer 2 chainid
 
 (async () => {
   if (typeof key === 'undefined')
@@ -27,8 +28,6 @@ const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (30
   const signer = new Wallet(key, provider);
   const sequencer = new Wallet(sequencerKey, provider);
 
-  const chainid = await provider.send('eth_chainId', []);
-
   if (typeof WHITELIST_OWNER === 'undefined')
     WHITELIST_OWNER = signer;
 
@@ -39,7 +38,7 @@ const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (30
       sequencer,
     },
     ovmGlobalContext: {
-      ovmCHAINID: chainid
+      ovmCHAINID: CHAIN_ID
     },
     ovmGasMeteringConfig: {
       minTransactionGasLimit: MIN_TRANSACTION_GAS_LIMIT,
