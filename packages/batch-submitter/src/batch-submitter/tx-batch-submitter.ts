@@ -69,14 +69,18 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   public async _onSync(): Promise<TransactionReceipt> {
-    this.log.info(
-      'Syncing mode enabled! Skipping batch submission and clearing queue...'
-    )
-    // Empty the queue with a huge `appendQueueBatch(..)` call
-    return this._submitAndLogTx(
-      this.chainContract.appendQueueBatch(99999999),
-      'Cleared queue!'
-    )
+    if (this.chainContract.getNumPendingQueueElements() !== 0) {
+      this.log.info(
+        'Syncing mode enabled! Skipping batch submission and clearing queue...'
+      )
+      // Empty the queue with a huge `appendQueueBatch(..)` call
+      return this._submitAndLogTx(
+        this.chainContract.appendQueueBatch(99999999),
+        'Cleared queue!'
+      )
+    }
+    this.log.info('Syncing mode enabled but queue is empty. Skipping...')
+    return
   }
 
   public async _getBatchStartAndEnd(): Promise<Range> {
