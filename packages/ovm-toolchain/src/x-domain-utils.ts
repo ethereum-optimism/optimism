@@ -40,18 +40,18 @@ export const initCrossDomainMessengers = async (
   l1CrossDomainMessenger: any
   l2CrossDomainMessenger: any
 }> => {
-  const l1CrossDomainMessenger = await getContractFromDefinition(
-    ethers,
-    signer,
-    'mockOVM_CrossDomainMessenger',
-    [l2ToL1MessageDelay]
-  )
-
   const l2CrossDomainMessenger = await getContractFromDefinition(
     ethers,
     signer,
     'mockOVM_CrossDomainMessenger',
     [l1ToL2MessageDelay]
+  )
+
+  const l1CrossDomainMessenger = await getContractFromDefinition(
+    ethers,
+    signer,
+    'mockOVM_CrossDomainMessenger',
+    [l2ToL1MessageDelay]
   )
 
   await l1CrossDomainMessenger.setTargetMessengerAddress(
