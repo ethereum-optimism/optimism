@@ -149,6 +149,7 @@ describe('TransactionBatchSubmitter', () => {
         MAX_TX_SIZE,
         10,
         1,
+        1,
         getLogger(TX_BATCH_SUBMITTER_LOG_TAG)
       )
     })

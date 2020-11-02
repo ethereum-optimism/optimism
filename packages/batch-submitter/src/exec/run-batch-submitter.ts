@@ -29,6 +29,7 @@ interface RequiredEnvVars {
   MAX_BATCH_SIZE: 'MAX_BATCH_SIZE'
   POLL_INTERVAL: 'POLL_INTERVAL'
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS'
+  FINALITY_CONFIRMATIONS: 'FINALITY_CONFIRMATIONS'
   RUN_TX_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_TX_BATCH_SUBMITTER'
   RUN_STATE_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_STATE_BATCH_SUBMITTER'
 }
@@ -41,6 +42,7 @@ const requiredEnvVars: RequiredEnvVars = {
   MAX_BATCH_SIZE: 'MAX_BATCH_SIZE',
   POLL_INTERVAL: 'POLL_INTERVAL',
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS',
+  FINALITY_CONFIRMATIONS: 'FINALITY_CONFIRMATIONS',
   RUN_TX_BATCH_SUBMITTER: 'RUN_TX_BATCH_SUBMITTER',
   RUN_STATE_BATCH_SUBMITTER: 'RUN_STATE_BATCH_SUBMITTER',
 }
@@ -74,6 +76,7 @@ export const run = async () => {
     parseInt(requiredEnvVars.MAX_TX_SIZE, 10),
     parseInt(requiredEnvVars.MAX_BATCH_SIZE, 10),
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
+    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
     getLogger(TX_BATCH_SUBMITTER_LOG_TAG)
   )
 
@@ -84,6 +87,7 @@ export const run = async () => {
     parseInt(requiredEnvVars.MAX_TX_SIZE, 10),
     parseInt(requiredEnvVars.MAX_BATCH_SIZE, 10),
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
+    parseInt(requiredEnvVars.FINALITY_CONFIRMATIONS, 10),
     getLogger(STATE_BATCH_SUBMITTER_LOG_TAG)
   )
 
