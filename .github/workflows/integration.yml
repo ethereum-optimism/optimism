@@ -26,10 +26,16 @@ jobs:
               $HOME/optimism-integration \
               --recurse-submodules
           cd $HOME/optimism-integration
+          if [ -z $GITHUB_HEAD_REF ]; then
+              GITHUB_HEAD_REF=${GITHUB_REF##*/}
+          fi
           GIT_COMMIT=$(git rev-parse HEAD | head -c 8)
           echo "optimism-integration $GIT_COMMIT"
           ./docker/build.sh -s batch-submitter -b $GITHUB_HEAD_REF
-          ./docker/build.sh
+          ./docker/build.sh -s hardhat
+          ./docker/build.sh -s deployer
+          ./docker/build.sh -s integration-tests
+          ./docker/build.sh -s go-ethereum
 
       - name: Test
         run: |
