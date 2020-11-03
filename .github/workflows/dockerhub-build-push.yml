@@ -14,8 +14,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Setup node
-        uses: actions/setup-node@v1
 
       - name: Login to DockerHub Registry
         run: echo ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }} | docker login -u ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME}} --password-stdin
@@ -30,7 +28,7 @@ jobs:
           if [ $BRANCH == 'master' ]; then
               docker push ethereumoptimism/batch-submitter:latest
           elif [[ $BRANCH == 'uat' || $BRANCH == 'testnet' ]]; then
-            docker push ethereumoptimism/batch-submitter:$BRANCH
+              docker push ethereumoptimism/batch-submitter:$BRANCH
           fi
 
       - name: Logout of DockerHub
