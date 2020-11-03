@@ -16,10 +16,6 @@ export interface DeployResult {
 export const deploy = async (
   config: RollupDeployConfig
 ): Promise<DeployResult> => {
-  const Factory__SimpleProxy: ContractFactory = getContractFactory(
-    'Helper_SimpleProxy',
-    config.deploymentSigner
-  )
   const AddressManager: Contract = await getContractFactory(
     'Lib_AddressManager',
     config.deploymentSigner
@@ -42,16 +38,11 @@ export const deploy = async (
       continue
     }
 
-    const SimpleProxy = await Factory__SimpleProxy.deploy()
-    await AddressManager.setAddress(name, SimpleProxy.address)
-
-    contracts[`Proxy__${name}`] = SimpleProxy
-
     try {
       contracts[name] = await contractDeployParameters.factory
         .connect(config.deploymentSigner)
         .deploy(...(contractDeployParameters.params || []))
-      await SimpleProxy.setTarget(contracts[name].address)
+      await AddressManager.setAddress(name, contracts[name].address)
     } catch (err) {
       failedDeployments.push(name)
     }

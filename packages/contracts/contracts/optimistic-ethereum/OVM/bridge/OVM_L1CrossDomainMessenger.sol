@@ -19,14 +19,6 @@ import { OVM_BaseCrossDomainMessenger } from "./OVM_BaseCrossDomainMessenger.sol
  * @title OVM_L1CrossDomainMessenger
  */
 contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCrossDomainMessenger, Lib_AddressResolver {
-    
-    /*******************************************
-     * Contract Variables: Contract References *
-     *******************************************/
-    
-    iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
-    iOVM_StateCommitmentChain internal ovmStateCommitmentChain;
-
 
     /***************
      * Constructor *
@@ -37,12 +29,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
      */
     constructor(
         address _libAddressManager
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {
-        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
-        ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
-    }
+    ) Lib_AddressResolver(_libAddressManager) {}
 
 
     /********************
@@ -174,6 +161,8 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
             bool
         )
     {
+        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+
         return (
             ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) == false
             && ovmStateCommitmentChain.verifyStateCommitment(
@@ -250,7 +239,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         override
         internal
     {
-        ovmCanonicalTransactionChain.enqueue(
+        iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).enqueue(
             resolve("OVM_L2CrossDomainMessenger"),
             _gasLimit,
             _message

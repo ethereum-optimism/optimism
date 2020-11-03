@@ -19,16 +19,8 @@ import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalT
 /* Contract Imports */
 import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
 
-contract OVM_FraudVerifier is OVM_FraudContributor, iOVM_FraudVerifier, Lib_AddressResolver {
+contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_FraudVerifier {
 
-    /*******************************************
-     * Contract Variables: Contract References *
-     *******************************************/
-
-    iOVM_StateCommitmentChain internal ovmStateCommitmentChain;
-    iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
-
-    
     /*******************************************
      * Contract Variables: Internal Accounting *
      *******************************************/
@@ -47,11 +39,7 @@ contract OVM_FraudVerifier is OVM_FraudContributor, iOVM_FraudVerifier, Lib_Addr
         address _libAddressManager
     )
         Lib_AddressResolver(_libAddressManager)
-    {
-        ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
-        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
-        ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
-    }
+    {}
 
 
     /***************************************
@@ -107,6 +95,9 @@ contract OVM_FraudVerifier is OVM_FraudContributor, iOVM_FraudVerifier, Lib_Addr
         if (_hasStateTransitioner(_preStateRoot)) {
             return;
         }
+        
+        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_CanonicalTransactionChain ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
 
         require(
             ovmStateCommitmentChain.verifyStateCommitment(
@@ -159,6 +150,8 @@ contract OVM_FraudVerifier is OVM_FraudContributor, iOVM_FraudVerifier, Lib_Addr
         contributesToFraudProof(_preStateRoot)
     {
         iOVM_StateTransitioner transitioner = transitioners[_preStateRoot];
+        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_BondManager ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
 
         require(
             transitioner.isComplete() == true,

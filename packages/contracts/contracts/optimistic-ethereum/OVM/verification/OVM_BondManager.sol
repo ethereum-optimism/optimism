@@ -64,7 +64,6 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     {
         owner = msg.sender;
         token = _token;
-        ovmFraudVerifier = resolve("OVM_FraudVerifier");
     }
 
 
@@ -75,7 +74,7 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     /// Adds `who` to the list of witnessProviders for the provided `preStateRoot`.
     function recordGasSpent(bytes32 _preStateRoot, address who, uint256 gasSpent) override public {
         // The sender must be the transitioner that corresponds to the claimed pre-state root
-        address transitioner = address(iOVM_FraudVerifier(ovmFraudVerifier).getStateTransitioner(_preStateRoot));
+        address transitioner = address(iOVM_FraudVerifier(resolve("OVM_FraudVerifier")).getStateTransitioner(_preStateRoot));
         require(transitioner == msg.sender, Errors.ONLY_TRANSITIONER);
 
         witnessProviders[_preStateRoot].total += gasSpent;
@@ -85,7 +84,7 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     /// Slashes + distributes rewards or frees up the sequencer's bond, only called by
     /// `FraudVerifier.finalizeFraudVerification`
     function finalize(bytes32 _preStateRoot, uint256 batchIndex, address publisher, uint256 timestamp) override public {
-        require(msg.sender == ovmFraudVerifier, Errors.ONLY_FRAUD_VERIFIER);
+        require(msg.sender == resolve("OVM_FraudVerifier"), Errors.ONLY_FRAUD_VERIFIER);
         require(witnessProviders[_preStateRoot].canClaim == false, Errors.ALREADY_FINALIZED);
 
         // allow users to claim from that state root's

@@ -55,18 +55,23 @@ export const makeContractDeployConfig = async (
         AddressManager.address,
         config.transactionChainConfig.forceInclusionPeriodSeconds,
       ],
-      afterDeploy: async (): Promise<void> => {
+      afterDeploy: async (contracts): Promise<void> => {
         const sequencer = config.transactionChainConfig.sequencer
         const sequencerAddress =
           typeof sequencer === 'string'
             ? sequencer
             : await sequencer.getAddress()
         await AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
+        await AddressManager.setAddress('Sequencer', sequencerAddress)
+        await contracts.OVM_CanonicalTransactionChain.init()
       },
     },
     OVM_StateCommitmentChain: {
       factory: getContractFactory('OVM_StateCommitmentChain'),
       params: [AddressManager.address],
+      afterDeploy: async (contracts): Promise<void> => {
+        await contracts.OVM_StateCommitmentChain.init()
+      },
     },
     OVM_DeployerWhitelist: {
       factory: getContractFactory('OVM_DeployerWhitelist'),

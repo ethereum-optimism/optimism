@@ -73,6 +73,7 @@ describe('OVM_StateCommitmentChain', () => {
     OVM_StateCommitmentChain = await Factory__OVM_StateCommitmentChain.deploy(
       AddressManager.address
     )
+    await OVM_StateCommitmentChain.init()
   })
 
   describe('appendStateBatch', () => {

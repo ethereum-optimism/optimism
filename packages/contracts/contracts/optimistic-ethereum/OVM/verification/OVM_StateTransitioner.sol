@@ -21,7 +21,7 @@ import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
 /**
  * @title OVM_StateTransitioner
  */
-contract OVM_StateTransitioner is OVM_FraudContributor, iOVM_StateTransitioner, Lib_AddressResolver {
+contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOVM_StateTransitioner {
 
     /*******************
      * Data Structures *
@@ -38,7 +38,6 @@ contract OVM_StateTransitioner is OVM_FraudContributor, iOVM_StateTransitioner, 
      * Contract Variables: Contract References *
      *******************************************/
 
-    iOVM_ExecutionManager internal ovmExecutionManager;
     iOVM_StateManager internal ovmStateManager;
 
 
@@ -76,9 +75,7 @@ contract OVM_StateTransitioner is OVM_FraudContributor, iOVM_StateTransitioner, 
         postStateRoot = _preStateRoot;
         transactionHash = _transactionHash;
 
-        ovmExecutionManager = iOVM_ExecutionManager(resolve("OVM_ExecutionManager"));
         ovmStateManager = iOVM_StateManagerFactory(resolve("OVM_StateManagerFactory")).create(address(this));
-        ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
     }
 
 
@@ -100,7 +97,7 @@ contract OVM_StateTransitioner is OVM_FraudContributor, iOVM_StateTransitioner, 
         _;
     }
 
-    
+
     /**********************************
      * Public Functions: State Access *
      **********************************/
@@ -317,10 +314,12 @@ contract OVM_StateTransitioner is OVM_FraudContributor, iOVM_StateTransitioner, 
             "Invalid transaction provided."
         );
 
+        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(resolve("OVM_ExecutionManager"));
+
         // We call `setExecutionManager` right before `run` (and not earlier) just in case the
         // OVM_ExecutionManager address was updated between the time when this contract was created
         // and when `applyTransaction` was called.
-        ovmStateManager.setExecutionManager(resolve("OVM_ExecutionManager"));
+        ovmStateManager.setExecutionManager(address(ovmExecutionManager));
 
         // `run` always succeeds *unless* the user hasn't provided enough gas to `applyTransaction`
         // or an INVALID_STATE_ACCESS flag was triggered. Either way, we won't get beyond this line

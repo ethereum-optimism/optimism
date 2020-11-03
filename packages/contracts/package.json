@@ -13,7 +13,7 @@
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && yarn run build:dump && yarn run build:typechain",
     "build:typescript": "tsc -p tsconfig.prod.json",
-    "build:contracts": "buidler compile",
+    "build:contracts": "buidler compile --show-stack-traces",
     "build:dump": "ts-node \"bin/take-dump.ts\"",
     "build:copy": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
     "build:typechain": "buidler typechain",

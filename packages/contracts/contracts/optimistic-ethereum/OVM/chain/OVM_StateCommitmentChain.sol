@@ -36,9 +36,6 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
     uint256 internal lastDeletableIndex;
     uint256 internal lastDeletableTimestamp;
     Lib_RingBuffer.RingBuffer internal batches;
-    iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
-    iOVM_FraudVerifier internal ovmFraudVerifier;
-    iOVM_BondManager internal ovmBondManager;
 
 
     /***************
@@ -50,24 +47,26 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
      */
     constructor(
         address _libAddressManager
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {
-        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
-        ovmFraudVerifier = iOVM_FraudVerifier(resolve("OVM_FraudVerifier"));
-        ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
+    ) Lib_AddressResolver(_libAddressManager) {}
 
+
+    /********************
+     * Public Functions *
+     ********************/
+
+    /**
+     * @inheritdoc iOVM_StateCommitmentChain
+     */
+    function init()
+        override
+        public
+    {
         batches.init(
             16,
             Lib_OVMCodec.RING_BUFFER_SCC_BATCHES,
             iRingBufferOverwriter(address(this))
         );
     }
-
-
-    /********************
-     * Public Functions *
-     ********************/
 
     /**
      * @inheritdoc iOVM_StateCommitmentChain
@@ -132,7 +131,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
 
         // Proposers must have previously staked at the BondManager
         require(
-            ovmBondManager.isCollateralized(msg.sender),
+            iOVM_BondManager(resolve("OVM_BondManager")).isCollateralized(msg.sender),
             "Proposer does not have enough collateral posted"
         );
 
@@ -142,7 +141,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
         );
 
         require(
-            getTotalElements() + _batch.length <= ovmCanonicalTransactionChain.getTotalElements(),
+            getTotalElements() + _batch.length <= iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getTotalElements(),
             "Number of state roots cannot exceed the number of canonical transactions."
         );
 
@@ -164,7 +163,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
         public
     {
         require(
-            msg.sender == address(ovmFraudVerifier),
+            msg.sender == resolve("OVM_FraudVerifier"),
             "State batches can only be deleted by the OVM_FraudVerifier."
         );
 
@@ -269,7 +268,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
         );
 
         require(
-            ovmCanonicalTransactionChain.verifyTransaction(
+            iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).verifyTransaction(
                 _transaction,
                 _txChainElement,
                 _txBatchHeader,
@@ -297,7 +296,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
         )
     {
         if (_id == Lib_OVMCodec.RING_BUFFER_CTC_QUEUE) {
-            return ovmCanonicalTransactionChain.getQueueElement(_index / 2).timestamp < lastDeletableTimestamp;
+            return iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueElement(_index / 2).timestamp < lastDeletableTimestamp;
         } else {
             return _index < lastDeletableIndex;
         }

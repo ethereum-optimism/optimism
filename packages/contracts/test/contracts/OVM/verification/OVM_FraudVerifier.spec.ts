@@ -53,6 +53,7 @@ describe('OVM_FraudVerifier', () => {
     Mock__OVM_StateTransitionerFactory = smockit(
       await ethers.getContractFactory('OVM_StateTransitionerFactory')
     )
+
     Mock__OVM_BondManager = smockit(
       await ethers.getContractFactory('OVM_BondManager')
     )

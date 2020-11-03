@@ -206,6 +206,7 @@ describe('OVM_CanonicalTransactionChain', () => {
       AddressManager.address,
       FORCE_INCLUSION_PERIOD_SECONDS
     )
+    await OVM_CanonicalTransactionChain.init()
   })
 
   describe('enqueue', () => {

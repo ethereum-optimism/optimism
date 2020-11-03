@@ -19,14 +19,6 @@ import { OVM_BaseCrossDomainMessenger } from "./OVM_BaseCrossDomainMessenger.sol
  */
 contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCrossDomainMessenger, Lib_AddressResolver {
 
-    /*******************************************
-     * Contract Variables: Contract References *
-     *******************************************/
-
-    iOVM_L1MessageSender internal ovmL1MessageSender;
-    iOVM_L2ToL1MessagePasser internal ovmL2ToL1MessagePasser;
-
-
     /***************
      * Constructor *
      ***************/
@@ -36,12 +28,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
      */
     constructor(
         address _libAddressManager
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {
-        ovmL1MessageSender = iOVM_L1MessageSender(resolve("OVM_L1MessageSender"));
-        ovmL2ToL1MessagePasser = iOVM_L2ToL1MessagePasser(resolve("OVM_L2ToL1MessagePasser"));
-    }
+    ) Lib_AddressResolver(_libAddressManager) {}
 
 
     /********************
@@ -115,7 +102,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         )
     {
         return (
-            ovmL1MessageSender.getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
+            iOVM_L1MessageSender(resolve("OVM_L1MessageSender")).getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
         );
     }
 
@@ -131,6 +118,6 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         override
         internal
     {
-        ovmL2ToL1MessagePasser.passMessageToL1(_message);
+        iOVM_L2ToL1MessagePasser(resolve("OVM_L2ToL1MessagePasser")).passMessageToL1(_message);
     }
 }

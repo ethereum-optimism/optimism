@@ -15,6 +15,11 @@ interface iOVM_StateCommitmentChain {
      ********************/
 
     /**
+     * Initializes this contract.
+     */
+    function init() external;
+
+    /**
      * Retrieves the total number of elements submitted.
      * @return _totalElements Total submitted elements.
      */
