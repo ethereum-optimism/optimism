@@ -26,12 +26,10 @@ jobs:
               $HOME/optimism-integration \
               --recurse-submodules
           cd $HOME/optimism-integration
-          BRANCH=${GITHUB_REF##*/}
-          ./docker/build.sh -s batch-submitter -b $BRANCH
+          ./docker/build.sh -s batch-submitter -b ${{ .github.head_ref }}
           ./docker/build.sh
 
       - name: Test
         run: |
           cd $HOME/optimism-integration
-          BRANCH=${GITHUB_REF##*/}
-          BATCH_SUBMITTER_TAG=$BRANCH ./test.sh
+          BATCH_SUBMITTER_TAG=${{ .github.head_ref }} ./test.sh
