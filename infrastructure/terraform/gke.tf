@@ -3,24 +3,24 @@
  * Creates the GKE cluster that will be running the Vault and Consul pods
  */
 resource "google_container_cluster" "cluster" {
+  provider = google-beta
+
   name     = var.gke_cluster_name
   location = var.gcp_region
 
   remove_default_node_pool = true
   initial_node_count       = 1
 
-  network    = google_compute_network.vpc.self_link
-  subnetwork = google_compute_subnetwork.subnet.self_link
+  networking_mode = "VPC_NATIVE"
+  network         = google_compute_network.vpc.self_link
+  subnetwork      = google_compute_subnetwork.subnet.self_link
 
   ip_allocation_policy {
-    cluster_ipv4_cidr_block = var.gke_pod_cidr
+    cluster_ipv4_cidr_block  = var.gke_pod_cidr
     services_ipv4_cidr_block = var.gke_service_cidr
   }
 
   master_auth {
-    username = ""
-    password = ""
-
     client_certificate_config {
       issue_client_certificate = false
     }
@@ -49,6 +49,8 @@ resource "google_container_node_pool" "pool" {
     metadata = {
       disable-legacy-endpoints = true
     }
+
+    tags = ["vault"]
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",

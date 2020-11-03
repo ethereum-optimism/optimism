@@ -132,8 +132,7 @@ resource "google_compute_firewall" "omgnetwork_vpc_access" {
     ports    = ["8200"]
   }
 
-  source_ranges = [var.omgnetwork_subnet_cidr]
-  target_tags   = ["vault"]
+  source_ranges = var.omgnetwork_cidrs
 }
 
 /*

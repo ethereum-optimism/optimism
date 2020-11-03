@@ -45,9 +45,9 @@ variable "gke_service_cidr" {
   type        = string
 }
 
-variable "omgnetwork_subnet_cidr" {
-  description = "CIDR block of subnet used when allowing ingress access in Vault VPC firewall"
-  type        = string
+variable "omgnetwork_cidrs" {
+  description = "List of CIDR blocks used when allowing ingress access in Vault VPC firewall"
+  type        = list(string)
 }
 
 variable "omgnetwork_vpc_uri" {
