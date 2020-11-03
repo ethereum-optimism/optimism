@@ -27,11 +27,12 @@ jobs:
           git clone https://github.com/ethereum-optimism/docker.git \
               $HOME/docker
           cd $HOME/docker
-          ./build.sh -s batch-submitter -b $GITHUB_HEAD_REF
-          if [ $GITHUB_HEAD_REF == 'master' ]; then
+          BRANCH=${GITHUB_REF##*/}
+          ./build.sh -s batch-submitter -b $BRANCH
+          if [ $BRANCH == 'master' ]; then
               docker push ethereumoptimism/batch-submitter:latest
-          elif [[ $GITHUB_HEAD_REF == 'uat' || $GITHUB_HEAD_REF == 'testnet' ]]; then
-              docker push ethereumoptimism/batch-submitter:$GITHUB_HEAD_REF
+          elif [[ $BRANCH == 'uat' || $BRANCH == 'testnet' ]]; then
+              docker push ethereumoptimism/batch-submitter:$BRANCH
           fi
 
       - name: Logout of DockerHub
