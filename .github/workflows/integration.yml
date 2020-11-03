@@ -20,9 +20,6 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_READ }}
 
-      - name: Setup node
-        uses: actions/setup-node@v1
-
       - name: Build
         run: |
           git clone https://github.com/ethereum-optimism/optimism-integration.git \
