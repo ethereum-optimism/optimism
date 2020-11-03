@@ -32,10 +32,6 @@ jobs:
           GIT_COMMIT=$(git rev-parse HEAD | head -c 8)
           echo "optimism-integration $GIT_COMMIT"
           ./docker/build.sh -s batch-submitter -b $GITHUB_HEAD_REF
-          ./docker/build.sh -s hardhat
-          ./docker/build.sh -s deployer
-          ./docker/build.sh -s integration-tests
-          ./docker/build.sh -s go-ethereum
 
       - name: Test
         run: |
