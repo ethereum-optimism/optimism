@@ -76,9 +76,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   public async _onSync(): Promise<TransactionReceipt> {
-    if (this.chainContract.getNumPendingQueueElements() !== 0) {
+    const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+    if (pendingQueueElements !== 0) {
       this.log.info(
-        'Syncing mode enabled! Skipping batch submission and clearing queue...'
+        `Syncing mode enabled! Skipping batch submission and clearing ${pendingQueueElements} queue elements`
       )
       // Empty the queue with a huge `appendQueueBatch(..)` call
       return this._submitAndLogTx(
