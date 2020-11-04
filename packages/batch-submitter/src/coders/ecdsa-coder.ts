@@ -22,6 +22,10 @@ export enum TxType {
 }
 
 export const txTypePlainText = {
+  0: TxType.EIP155,
+  1: TxType.EthSign,
+  2: TxType.createEOA,
+  3: TxType.none,
   EIP155: TxType.EIP155,
   EthSign: TxType.EthSign,
   CreateEOA: TxType.createEOA,

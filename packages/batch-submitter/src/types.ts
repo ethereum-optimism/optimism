@@ -14,6 +14,8 @@ export enum QueueOrigin {
 }
 
 export const queueOriginPlainText = {
+  0: QueueOrigin.Sequencer,
+  1: QueueOrigin.L1ToL2,
   sequencer: QueueOrigin.Sequencer,
   l1ToL2: QueueOrigin.L1ToL2,
 }

@@ -24,7 +24,13 @@ import {
   EthSignTxData,
   txTypePlainText,
 } from '../coders'
-import { L2Block, BatchElement, Batch, QueueOrigin, queueOriginPlainText } from '..'
+import {
+  L2Block,
+  BatchElement,
+  Batch,
+  QueueOrigin,
+  queueOriginPlainText,
+} from '..'
 import { RollupInfo, Range, BatchSubmitter } from '.'
 
 export class TransactionBatchSubmitter extends BatchSubmitter {
@@ -250,14 +256,18 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       blockNumber
     )) as L2Block
     // Convert the tx type to a number
-    block.transactions[0].meta.txType = txTypePlainText[block.transactions[0].meta.txType]
-    block.transactions[0].meta.queueOrigin = queueOriginPlainText[block.transactions[0].meta.queueOrigin]
+    block.transactions[0].meta.txType =
+      txTypePlainText[block.transactions[0].meta.txType]
+    block.transactions[0].meta.queueOrigin =
+      queueOriginPlainText[block.transactions[0].meta.queueOrigin]
     // For now just set the l1BlockNumber based on the current l1 block number
     const _getMockedL1BlockNumber = async (): Promise<number> => {
       const curBlockNum = await this.chainContract.signer.provider.getBlockNumber()
       return curBlockNum - 1
     }
-    block.transactions[0].meta.l1BlockNumber = await _getMockedL1BlockNumber()
+    if (!block.transactions[0].meta.l1BlockNumber) {
+      block.transactions[0].meta.l1BlockNumber = await _getMockedL1BlockNumber()
+    }
     return block
   }
 

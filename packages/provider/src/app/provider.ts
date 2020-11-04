@@ -59,7 +59,9 @@ export class OptimismProvider extends JsonRpcProvider {
       return b
     }
 
-    const blockWithTransactions = this.formatter.blockWithTransactions.bind(this.formatter)
+    const blockWithTransactions = this.formatter.blockWithTransactions.bind(
+      this.formatter
+    )
     this.formatter.blockWithTransactions = (block) => {
       const b = blockWithTransactions(block)
       b.stateRoot = block.stateRoot
@@ -73,7 +75,6 @@ export class OptimismProvider extends JsonRpcProvider {
       }
       return b
     }
-
 
     // Handle additional data sent from RPC
     const formatTxResponse = this.formatter.transactionResponse.bind(
