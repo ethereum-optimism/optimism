@@ -256,8 +256,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       blockNumber
     )) as L2Block
     // Convert the tx type to a number
-    block.transactions[0].txType =
-      txTypePlainText[block.transactions[0].txType]
+    block.transactions[0].txType = txTypePlainText[block.transactions[0].txType]
     block.transactions[0].queueOrigin =
       queueOriginPlainText[block.transactions[0].queueOrigin]
     // For now just set the l1BlockNumber based on the current l1 block number

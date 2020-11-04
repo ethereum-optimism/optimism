@@ -114,18 +114,12 @@ export class MockchainProvider extends OptimismProvider {
   }
 
   private _toL2Block(block: UnformattedL2Block): L2Block {
-    const txType: number = parseInt(
-      block.transactions[0].signatureHashType,
-      10
-    )
+    const txType: number = parseInt(block.transactions[0].signatureHashType, 10)
     const l1BlockNumber: number = parseInt(
       block.transactions[0].l1BlockNumber,
       10
     )
-    const queueOrigin: number = parseInt(
-      block.transactions[0].queueOrigin,
-      10
-    )
+    const queueOrigin: number = parseInt(block.transactions[0].queueOrigin, 10)
     const l1TxOrigin: string = block.transactions[0].l1MessageSender
     const l2Transaction: L2Transaction = {
       ...block.transactions[0],
