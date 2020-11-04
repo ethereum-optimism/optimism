@@ -229,7 +229,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   private async _getL2BatchElement(blockNumber: number): Promise<BatchElement> {
     const block = await this._getBlock(blockNumber)
-    const txType = block.transactions[0].meta.txType
+    const txType = block.transactions[0].txType
 
     if (this._isSequencerTx(block)) {
       if (txType === TxType.EIP155 || txType === TxType.EthSign) {
@@ -246,7 +246,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         sequencerTxType: undefined,
         txData: undefined,
         timestamp: block.timestamp,
-        blockNumber: block.transactions[0].meta.l1BlockNumber,
+        blockNumber: block.transactions[0].l1BlockNumber,
       }
     }
   }
@@ -256,17 +256,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       blockNumber
     )) as L2Block
     // Convert the tx type to a number
-    block.transactions[0].meta.txType =
-      txTypePlainText[block.transactions[0].meta.txType]
-    block.transactions[0].meta.queueOrigin =
-      queueOriginPlainText[block.transactions[0].meta.queueOrigin]
+    block.transactions[0].txType =
+      txTypePlainText[block.transactions[0].txType]
+    block.transactions[0].queueOrigin =
+      queueOriginPlainText[block.transactions[0].queueOrigin]
     // For now just set the l1BlockNumber based on the current l1 block number
     const _getMockedL1BlockNumber = async (): Promise<number> => {
       const curBlockNum = await this.chainContract.signer.provider.getBlockNumber()
       return curBlockNum - 1
     }
-    if (!block.transactions[0].meta.l1BlockNumber) {
-      block.transactions[0].meta.l1BlockNumber = await _getMockedL1BlockNumber()
+    if (!block.transactions[0].l1BlockNumber) {
+      block.transactions[0].l1BlockNumber = await _getMockedL1BlockNumber()
     }
     return block
   }
@@ -288,10 +288,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return {
       stateRoot: block.stateRoot,
       isSequencerTx: true,
-      sequencerTxType: block.transactions[0].meta.txType,
+      sequencerTxType: block.transactions[0].txType,
       txData,
       timestamp: block.timestamp,
-      blockNumber: block.transactions[0].meta.l1BlockNumber,
+      blockNumber: block.transactions[0].l1BlockNumber,
     }
   }
 
@@ -302,14 +302,14 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return {
       stateRoot: block.stateRoot,
       isSequencerTx: true,
-      sequencerTxType: block.transactions[0].meta.txType,
+      sequencerTxType: block.transactions[0].txType,
       txData,
       timestamp: block.timestamp,
-      blockNumber: block.transactions[0].meta.l1BlockNumber,
+      blockNumber: block.transactions[0].l1BlockNumber,
     }
   }
 
   private _isSequencerTx(block: L2Block): boolean {
-    return block.transactions[0].meta.queueOrigin === QueueOrigin.Sequencer
+    return block.transactions[0].queueOrigin === QueueOrigin.Sequencer
   }
 }

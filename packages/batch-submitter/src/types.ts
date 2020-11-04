@@ -25,12 +25,10 @@ export const queueOriginPlainText = {
  * from running a batch submitter.
  */
 export interface L2Transaction extends TransactionResponse {
-  meta: {
-    l1BlockNumber: number
-    l1TxOrigin: string
-    txType: number
-    queueOrigin: number
-  }
+  l1BlockNumber: number
+  l1TxOrigin: string
+  txType: number
+  queueOrigin: number
 }
 
 export interface L2Block extends BlockWithTransactions {
