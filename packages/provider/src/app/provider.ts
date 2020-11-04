@@ -69,6 +69,9 @@ export class OptimismProvider extends JsonRpcProvider {
       b.stateRoot = block.stateRoot
       for (let i = 0; i < b.transactions.length; i++) {
         b.transactions[i].l1BlockNumber = block.transactions[i].l1BlockNumber
+        if (b.transactions[i].l1BlockNumber != null) {
+          b.transactions[i].l1BlockNumber = parseInt(b.transactions[i].l1BlockNumber, 16)
+        }
         b.transactions[i].l1TxOrigin = block.transactions[i].l1TxOrigin
         b.transactions[i].txType = block.transactions[i].txType
         b.transactions[i].queueOrigin = block.transactions[i].queueOrigin
