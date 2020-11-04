@@ -166,12 +166,10 @@ describe('TransactionBatchSubmitter', () => {
       l2Provider.setL2BlockData(
         {
           data,
-          meta: {
-            l1BlockNumber: nextQueueElement.blockNumber - 1,
-            txType: TxType.createEOA,
-            queueOrigin: QueueOrigin.Sequencer,
-            l1TxOrigin: '0x' + '12'.repeat(20),
-          },
+          l1BlockNumber: nextQueueElement.blockNumber - 1,
+          txType: TxType.createEOA,
+          queueOrigin: QueueOrigin.Sequencer,
+          l1TxOrigin: '0x' + '12'.repeat(20),
         } as any,
         nextQueueElement.timestamp - 1
       )
@@ -190,9 +188,7 @@ describe('TransactionBatchSubmitter', () => {
     it('should submit a queue batch correctly', async () => {
       l2Provider.setNumBlocksToReturn(5)
       l2Provider.setL2BlockData({
-        meta: {
-          queueOrigin: QueueOrigin.L1ToL2,
-        },
+        queueOrigin: QueueOrigin.L1ToL2,
       } as any)
       let receipt = await batchSubmitter.submitNextBatch()
       let logData = remove0x(receipt.logs[0].data)
@@ -209,9 +205,7 @@ describe('TransactionBatchSubmitter', () => {
     it('should submit a batch with both queue and sequencer chain elements', async () => {
       l2Provider.setNumBlocksToReturn(10) // For this batch we'll return 10 elements!
       l2Provider.setL2BlockData({
-        meta: {
-          queueOrigin: QueueOrigin.L1ToL2,
-        },
+        queueOrigin: QueueOrigin.L1ToL2,
       } as any)
       // Turn blocks 3-5 into sequencer txs
       const nextQueueElement = await getQueueElement(
@@ -225,12 +219,10 @@ describe('TransactionBatchSubmitter', () => {
       l2Provider.setL2BlockData(
         {
           data,
-          meta: {
-            l1BlockNumber: nextQueueElement.blockNumber - 1,
-            txType: TxType.createEOA,
-            queueOrigin: QueueOrigin.Sequencer,
-            l1TxOrigin: '0x' + '12'.repeat(20),
-          },
+          l1BlockNumber: nextQueueElement.blockNumber - 1,
+          txType: TxType.createEOA,
+          queueOrigin: QueueOrigin.Sequencer,
+          l1TxOrigin: '0x' + '12'.repeat(20),
         } as any,
         nextQueueElement.timestamp - 1,
         3,

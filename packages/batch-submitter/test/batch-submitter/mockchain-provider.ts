@@ -14,12 +14,10 @@ import { L2Transaction, L2Block, RollupInfo } from '../../src'
  * poorly named fields
  */
 interface UnformattedL2Transaction extends TransactionResponse {
-  meta: {
-    l1BlockNumber: string
-    l1MessageSender: string
-    signatureHashType: string
-    queueOrigin: string
-  }
+  l1BlockNumber: string
+  l1MessageSender: string
+  signatureHashType: string
+  queueOrigin: string
 }
 
 interface UnformattedL2Block extends BlockWithTransactions {
@@ -116,28 +114,20 @@ export class MockchainProvider extends OptimismProvider {
   }
 
   private _toL2Block(block: UnformattedL2Block): L2Block {
-    const txType: number = parseInt(
-      block.transactions[0].meta.signatureHashType,
-      10
-    )
+    const txType: number = parseInt(block.transactions[0].signatureHashType, 10)
     const l1BlockNumber: number = parseInt(
-      block.transactions[0].meta.l1BlockNumber,
+      block.transactions[0].l1BlockNumber,
       10
     )
-    const queueOrigin: number = parseInt(
-      block.transactions[0].meta.queueOrigin,
-      10
-    )
-    const l1TxOrigin: string = block.transactions[0].meta.l1MessageSender
+    const queueOrigin: number = parseInt(block.transactions[0].queueOrigin, 10)
+    const l1TxOrigin: string = block.transactions[0].l1MessageSender
     const l2Transaction: L2Transaction = {
       ...block.transactions[0],
-      meta: {
-        // Rename the incorrectly named fields
-        l1TxOrigin,
-        txType,
-        queueOrigin,
-        l1BlockNumber,
-      },
+      // Rename the incorrectly named fields
+      l1TxOrigin,
+      txType,
+      queueOrigin,
+      l1BlockNumber,
     }
     // Add an interface here to fix the type casing into L2Block during Object.assign
     interface PartialL2Block {
@@ -217,12 +207,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x213ab994b50ed4a38e2de390f851d88cb66dd238a27d89246616b34eb8e859df",
              "v":62710,
              "creates":"0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA",
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -271,12 +259,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x5954b17cd0f6299ee54f20853bcfdfc870f2fc271f0433fd592b8b0fc0329aa4",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -325,12 +311,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x6ad11366b26fa59ce73bc73fa320560f46ffb6df3142adbd16ebce0bcc3ba9f5",
              "v":62710,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -379,12 +363,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x5e00184c9b50ed54e714231af904caed92cf47ee309fc3604793d7d32a9f4988",
              "v":62709,
              "creates":"0x94BA4d5Ebb0e05A50e977FFbF6e1a1Ee3D89299c",
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -433,12 +415,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x4e813ae50bc7705fb023d79429ed6cc92367cb5209460e6ea3904c014b06cd4d",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -487,12 +467,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x99b52df93bddbd15393ec9b6649c569ec9f65b1e7dda62b7a81baf32bd951a36",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -541,12 +519,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x3a2873207cbcba218ff71bb7e3916ea809c393c2407c03a70bbf4e393cbebfcb",
              "v":62709,
              "creates":"0x956dA338C1518a7FB213042b70c60c021aeBd554",
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -595,12 +571,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x74b9f344513fa2881cfcec5a4c20027bb905de5c52a8e584da6767d946cd465d",
              "v":62710,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -649,12 +623,10 @@ const BLOCKS = JSON.parse(`
              "s":"0xfe4d90d895f4b18b89309d768a383334bf5d622d367051079ac0e401b23960e0",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -703,12 +675,10 @@ const BLOCKS = JSON.parse(`
              "s":"0xfabd07fab3f36816397917ae8c048a4675d34d4ca3f7b06ca6595796a159d359",
              "v":62710,
              "creates":"0x6454C9d69a4721feBA60e26A367bD4D56196Ee7c",
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -757,12 +727,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x3dc3a219d164b159ad61f874ccb5c75766cb1d73954196eaba142d890b299d0e",
              "v":62710,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -811,12 +779,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x11dac6b6c1e1d66a89d833ddd230120e6ecdedf49ae9fb38496f4385cb80057d",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -865,12 +831,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x03de7779650526057629e842c45017cfd2dc19137d309cd99f244c0ce9b13186",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -919,12 +883,10 @@ const BLOCKS = JSON.parse(`
              "s":"0x8b6c62b492ea8cf8e7dc8e8236ce7283a24e18370ce7950bda5f450fb7993547",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]
@@ -973,12 +935,10 @@ const BLOCKS = JSON.parse(`
              "s":"0xdf4fd847db5d5a246f4cedd2dee14e15e70ff469a7d88cdc86efa7c6d61d7cad",
              "v":62709,
              "creates":null,
-             "meta":{
-                "l1BlockNumber":"1",
-                "l1TxOrigin":"0x3333333333333333333333333333333333333333",
-                "signatureHashType":"0",
-                "queueOrigin":"0"
-             },
+             "l1BlockNumber":"1",
+             "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "signatureHashType":"0",
+             "queueOrigin":"0",
              "chainId":31337
           }
        ]

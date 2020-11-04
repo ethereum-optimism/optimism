@@ -52,7 +52,31 @@ export class OptimismProvider extends JsonRpcProvider {
       return tx
     }
 
-    // Handle additional data sent from RPC
+    // Pass through the state root
+    const blockFormat = this.formatter.block.bind(this.formatter)
+    this.formatter.block = (block) => {
+      const b = blockFormat(block)
+      b.stateRoot = block.stateRoot
+      return b
+    }
+
+    // Pass through the state root and additional tx data
+    const blockWithTransactions = this.formatter.blockWithTransactions.bind(
+      this.formatter
+    )
+    this.formatter.blockWithTransactions = (block) => {
+      const b = blockWithTransactions(block)
+      b.stateRoot = block.stateRoot
+      for (let i = 0; i < b.transactions.length; i++) {
+        b.transactions[i].l1BlockNumber = block.transactions[i].l1BlockNumber
+        b.transactions[i].l1TxOrigin = block.transactions[i].l1TxOrigin
+        b.transactions[i].txType = block.transactions[i].txType
+        b.transactions[i].queueOrigin = block.transactions[i].queueOrigin
+      }
+      return b
+    }
+
+    // Handle additional tx data
     const formatTxResponse = this.formatter.transactionResponse.bind(
       this.formatter
     )
