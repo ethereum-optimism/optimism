@@ -13,6 +13,11 @@ export enum QueueOrigin {
   L1ToL2 = 1,
 }
 
+export const queueOriginPlainText = {
+  sequencer: QueueOrigin.Sequencer,
+  l1ToL2: QueueOrigin.L1ToL2,
+}
+
 /**
  * Transaction & Blocks. These are the true data-types we expect
  * from running a batch submitter.

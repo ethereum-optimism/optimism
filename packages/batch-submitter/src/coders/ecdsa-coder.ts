@@ -21,6 +21,13 @@ export enum TxType {
   none = 3,
 }
 
+export const txTypePlainText = {
+  EIP155: TxType.EIP155,
+  EthSign: TxType.EthSign,
+  CreateEOA: TxType.createEOA,
+  None: TxType.none,
+}
+
 export interface DefaultEcdsaTxData {
   sig: Signature
   gasLimit: Uint16
