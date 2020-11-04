@@ -85,6 +85,9 @@ export class OptimismProvider extends JsonRpcProvider {
       tx.txType = transaction.txType
       tx.queueOrigin = transaction.queueOrigin
       tx.l1BlockNumber = transaction.l1BlockNumber
+      if (tx.l1BlockNumber != null) {
+        tx.l1BlockNumber = parseInt(tx.l1BlockNumber, 16)
+      }
       tx.l1TxOrigin = transaction.l1TxOrigin
       return tx
     }
