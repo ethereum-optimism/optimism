@@ -27,7 +27,7 @@
     "build:waffle": "waffle \"test/config/waffle-config.json\"",
     "build:typescript": "tsc -p .",
     "clean": "rimraf build/",
-    "test": "echo \"Skipping tests for ovm-toolchain\" # yarn run test:truffle && yarn run test:waffle-v2 && yarn run test:buidler",
+    "test": "yarn run test:truffle && yarn run test:waffle-v2 && yarn run test:buidler",
     "test:old": "yarn run test:truffle && yarn run test:waffle-v2 && yarn run test:buidler",
     "test:truffle": "truffle test \"test/test-truffle/erc20.spec.js\" --config \"test/config/truffle-config.js\"",
     "test:waffle-v2": "waffle \"test/config/waffle-config.json\" && mocha --require source-map-support/register --require ts-node/register \"test/test-waffle-v2/**/*.spec.ts\" --timeout 10000",
@@ -74,7 +74,7 @@
     "web3": "^1.2.11"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.0.2-alpha.1",
+    "@eth-optimism/contracts": "^0.0.2-alpha.7",
     "@eth-optimism/core-utils": "^0.0.1-alpha.30",
     "@eth-optimism/ethereumjs-vm": "4.2.0-alpha.0",
     "@nomiclabs/buidler": "^1.4.4",
