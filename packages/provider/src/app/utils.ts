@@ -8,6 +8,7 @@ import { Networkish } from '@ethersproject/networks'
 import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
 import { arrayify, Bytes, zeroPad } from '@ethersproject/bytes'
 import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
+import { AbiCoder } from '@ethersproject/abi'
 import { Deferrable, deepCopy } from '@ethersproject/properties'
 import { TransactionRequest } from '@ethersproject/abstract-provider'
 import { keccak256 } from '@ethersproject/keccak256'
@@ -76,21 +77,20 @@ export const allowedTransactionKeys: { [key: string]: boolean } = {
 }
 
 export function serializeEthSignTransaction(transaction): Bytes {
-  const nonce = zeroPad(transaction.nonce, 32)
-  const gasLimit = zeroPad(transaction.gasLimit, 32)
-  const gasPrice = zeroPad(transaction.gasPrice, 32)
-  const chainId = zeroPad(transaction.chainId, 32)
-  const to = hexStrToBuf(transaction.to)
-  const data = toBuffer(transaction.data)
+  const abi = new AbiCoder()
+  const encoded = abi.encode(
+    ['uint256', 'uint256', 'uint256', 'uint256', 'address', 'bytes'],
+    [
+      transaction.nonce,
+      transaction.gasLimit,
+      transaction.gasPrice,
+      transaction.chainId,
+      transaction.to,
+      transaction.data,
+    ]
+  )
 
-  return Buffer.concat([
-    Buffer.from(nonce),
-    Buffer.from(gasLimit),
-    Buffer.from(gasPrice),
-    Buffer.from(chainId),
-    to,
-    data,
-  ])
+  return Buffer.from(encoded.slice(2), 'hex')
 }
 
 // Use this function as input to `eth_sign`. It does not
@@ -99,6 +99,7 @@ export function serializeEthSignTransaction(transaction): Bytes {
 // transaction.
 export function sighashEthSign(transaction): Buffer {
   const serialized = serializeEthSignTransaction(transaction)
+
   const hash = remove0x(keccak256(serialized))
   return Buffer.from(hash, 'hex')
 }
