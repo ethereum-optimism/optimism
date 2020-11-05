@@ -39,13 +39,6 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
-"@eth-optimism/contracts@^0.0.2-alpha.1":
-  version "0.0.2-alpha.2"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.2.tgz#3b69c4d4055d508f13c7c30c930a514a36215ce4"
-  integrity sha512-5L+owINbxyDIQUCZo+TSFriD4MjXNI6aniUS3TV2PkE4svPesCdKJiz2cV0P28+AIrMxQ+wa+KofTywyo+ZihA==
-  dependencies:
-    ethers "5.0.0"
-
 "@eth-optimism/contracts@^0.0.2-alpha.7":
   version "0.0.2-alpha.7"
   resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.7.tgz#1d77b59f504ee94d9f2f46e0d4c01889ba8f9fd5"
