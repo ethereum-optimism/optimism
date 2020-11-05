@@ -99,7 +99,6 @@ export function serializeEthSignTransaction(transaction): Bytes {
 // transaction.
 export function sighashEthSign(transaction): Buffer {
   const serialized = serializeEthSignTransaction(transaction)
-
   const hash = remove0x(keccak256(serialized))
   return Buffer.from(hash, 'hex')
 }
