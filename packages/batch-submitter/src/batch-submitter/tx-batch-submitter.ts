@@ -107,10 +107,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         // Set the block number to the current l1BlockNumber
         this.lastL1BlockNumber = curBlockNum
       } else {
-        this.lastL1BlockNumber =
-          curBlockNum - this.lastL1BlockNumber > 30
-            ? curBlockNum - 10
-            : this.lastL1BlockNumber
+        if (curBlockNum - this.lastL1BlockNumber > 30) {
+          // If the lastL1BlockNumber is too old, then set it to a recent
+          // block number. (10 blocks ago to prevent reorgs)
+          this.lastL1BlockNumber = curBlockNum - 10
+        }
       }
     }
   }
