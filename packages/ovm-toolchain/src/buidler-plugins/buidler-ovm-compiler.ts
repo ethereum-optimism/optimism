@@ -27,6 +27,7 @@ internalTask(TASK_COMPILE_RUN_COMPILER).setAction(
       console.log(`Using native solidity compiler`)
       const output = execSync(`solc --standard-json`, {
         input: JSON.stringify(input, undefined, 2),
+        maxBuffer: 4 * 1024 * 1024
       })
       return JSON.parse(output.toString('utf8'))
     } else {
