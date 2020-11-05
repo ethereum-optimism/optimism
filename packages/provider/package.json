@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/provider",
-  "version": "0.0.1-alpha.6",
+  "version": "0.0.1-alpha.9",
   "description": "Web3 provider for Optimism",
   "main": "build/index.js",
   "files": [
@@ -14,6 +14,9 @@
     "lint": "tslint --format stylish --project .",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000",
     "test:debug": "mocha debug --require ts-node/register 'test/**/*.spec.ts' --timeout 5000"
+  },
+  "engines": {
+    "node": "10"
   },
   "keywords": [],
   "author": "Optimism",

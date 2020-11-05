@@ -1,7 +1,7 @@
 // Thanks to the etherereumjs-vm team for this Bloom Filter implementation! ❤️
 // https://github.com/ethereumjs/ethereumjs-vm/blob/master/packages/vm/lib/bloom/index.ts
 //
-import * as assert from 'assert'
+import assert from 'assert'
 import { zeros, keccak256 } from 'ethereumjs-util'
 
 const BYTE_SIZE = 256

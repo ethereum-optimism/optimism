@@ -1,5 +1,5 @@
 /* External Imports */
-import { getContractDefinition } from '@eth-optimism/rollup-contracts'
+import { getContractDefinition } from '@eth-optimism/contracts'
 
 /**
  * Generates an ethers contract from a definition pulled from the optimism
@@ -16,7 +16,6 @@ const getContractFromDefinition = (
   args: any[] = []
 ): any => {
   const contractDefinition = getContractDefinition(name)
-
   const contractFactory = new ethers.ContractFactory(
     contractDefinition.abi,
     contractDefinition.bytecode,
@@ -44,14 +43,14 @@ export const initCrossDomainMessengers = async (
   const l1CrossDomainMessenger = await getContractFromDefinition(
     ethers,
     signer,
-    'MockCrossDomainMessenger',
+    'MockL1CrossDomainMessenger',
     [l2ToL1MessageDelay]
   )
 
   const l2CrossDomainMessenger = await getContractFromDefinition(
     ethers,
     signer,
-    'MockCrossDomainMessenger',
+    'MockL2CrossDomainMessenger',
     [l1ToL2MessageDelay]
   )
 

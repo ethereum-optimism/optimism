@@ -1,4 +1,3 @@
-export * from './block-production'
 export * from './ethereum'
 export * from './key/key'
 export * from './keystore'

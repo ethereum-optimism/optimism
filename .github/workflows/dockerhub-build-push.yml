@@ -1,0 +1,39 @@
+name: Build & Push to DockerHub
+
+on:
+  push:
+    branches:
+      - master
+      - testnet
+      - uat
+
+jobs:
+  build:
+    name: Build & Push to DockerHub
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: webfactory/ssh-agent@v0.4.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_READ }}
+
+      - name: Login to DockerHub Registry
+        run: echo ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }} | docker login -u ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME}} --password-stdin
+
+      - name: Build and push Rollup Services image to DockerHub
+        run: |
+          git clone https://github.com/ethereum-optimism/docker.git \
+              $HOME/docker
+          cd $HOME/docker
+          BRANCH=${GITHUB_REF##*/}
+          ./build.sh -s batch-submitter -b $BRANCH
+          if [ $BRANCH == 'master' ]; then
+              docker push ethereumoptimism/batch-submitter:latest
+          elif [[ $BRANCH == 'uat' || $BRANCH == 'testnet' ]]; then
+              docker push ethereumoptimism/batch-submitter:$BRANCH
+          fi
+
+      - name: Logout of DockerHub
+        run: docker logout

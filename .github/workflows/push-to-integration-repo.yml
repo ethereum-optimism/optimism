@@ -1,0 +1,38 @@
+name: Update submodules in integration repo
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  run:
+    name: Update submodules
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: webfactory/ssh-agent@v0.4.0
+        with:
+          ssh-private-key: ${{ secrets.INTEGRATION_PUSH_ACTION }}
+
+      - name: Clone repo
+        run: |
+          git clone git@github.com:ethereum-optimism/optimism-integration.git $HOME/optimism-integration
+          cd $HOME/optimism-integration
+          git submodule init && git submodule update
+          REPO=$(echo $GITHUB_REPOSITORY | cut -d '/' -f2)
+          cd $HOME/optimism-integration/$REPO
+          git pull origin master
+
+      - name: Commit
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          cd $HOME/optimism-integration
+          REPO=$(echo $GITHUB_REPOSITORY | cut -d '/' -f2)
+          SHORT=$(echo $GITHUB_SHA | head -c 8)
+          git add $REPO
+          git commit -m "submodule bump: $REPO $SHORT"
+          git push origin master

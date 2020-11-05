@@ -1,0 +1,315 @@
+/* External Imports */
+import { BigNumber, Signer } from 'ethers'
+import {
+  TransactionResponse,
+  TransactionReceipt,
+} from '@ethersproject/abstract-provider'
+import {
+  getContractInterface,
+  getContractFactory,
+} from '@eth-optimism/contracts'
+
+/* Internal Imports */
+import {
+  CanonicalTransactionChainContract,
+  encodeAppendSequencerBatch,
+  BatchContext,
+  AppendSequencerBatchParams,
+} from '../transaciton-chain-contract'
+import {
+  EIP155TxData,
+  CreateEOATxData,
+  TxType,
+  ctcCoder,
+  EthSignTxData,
+  txTypePlainText,
+} from '../coders'
+import {
+  L2Block,
+  BatchElement,
+  Batch,
+  QueueOrigin,
+  queueOriginPlainText,
+} from '..'
+import { RollupInfo, Range, BatchSubmitter } from '.'
+
+export class TransactionBatchSubmitter extends BatchSubmitter {
+  protected chainContract: CanonicalTransactionChainContract
+  protected l2ChainId: number
+  protected syncing: boolean
+
+  /*****************************
+   * Batch Submitter Overrides *
+   ****************************/
+
+  public async _updateChainInfo(): Promise<void> {
+    const info: RollupInfo = await this._getRollupInfo()
+    if (info.mode === 'verifier') {
+      this.log.error(
+        'Verifier mode enabled! Batch submitter only compatible with sequencer mode'
+      )
+      process.exit(1)
+    }
+    this.syncing = info.syncing
+    const ctcAddress = info.addresses.canonicalTransactionChain
+
+    if (
+      typeof this.chainContract !== 'undefined' &&
+      ctcAddress === this.chainContract.address
+    ) {
+      return
+    }
+
+    const unwrapped_OVM_CanonicalTransactionChain = (
+      await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
+    ).attach(ctcAddress)
+
+    this.chainContract = new CanonicalTransactionChainContract(
+      unwrapped_OVM_CanonicalTransactionChain.address,
+      getContractInterface('OVM_CanonicalTransactionChain'),
+      this.signer
+    )
+    this.log.info(
+      `Initialized new CTC with address: ${this.chainContract.address}`
+    )
+    return
+  }
+
+  public async _onSync(): Promise<TransactionReceipt> {
+    const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+    if (pendingQueueElements !== 0) {
+      this.log.info(
+        `Syncing mode enabled! Skipping batch submission and clearing ${pendingQueueElements} queue elements`
+      )
+      // Empty the queue with a huge `appendQueueBatch(..)` call
+      return this._submitAndLogTx(
+        this.chainContract.appendQueueBatch(99999999),
+        'Cleared queue!'
+      )
+    }
+    this.log.info('Syncing mode enabled but queue is empty. Skipping...')
+    return
+  }
+
+  public async _getBatchStartAndEnd(): Promise<Range> {
+    const startBlock =
+      parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
+    const endBlock = Math.min(
+      startBlock + this.maxBatchSize,
+      await this.l2Provider.getBlockNumber()
+    )
+    if (startBlock >= endBlock) {
+      if (startBlock > endBlock) {
+        this.log
+          .error(`More chain elements in L1 (${startBlock}) than in the L2 node (${endBlock}).
+                   This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
+      }
+      this.log.info(`No txs to submit. Skipping batch submission...`)
+      return
+    }
+    return {
+      start: startBlock,
+      end: endBlock,
+    }
+  }
+
+  public async _submitBatch(
+    startBlock: number,
+    endBlock: number
+  ): Promise<TransactionReceipt> {
+    const batchParams = await this._generateSequencerBatchParams(
+      startBlock,
+      endBlock
+    )
+    this.log.debug('Submitting batch. Tx calldata:', batchParams)
+    return this._submitAndLogTx(
+      this.chainContract.appendSequencerBatch(batchParams),
+      'Submitted batch!'
+    )
+  }
+
+  /*********************
+   * Private Functions *
+   ********************/
+
+  private async _generateSequencerBatchParams(
+    startBlock: number,
+    endBlock: number
+  ): Promise<AppendSequencerBatchParams> {
+    // Get all L2 BatchElements for the given range
+    const batch: Batch = []
+    for (let i = startBlock; i < endBlock; i++) {
+      batch.push(await this._getL2BatchElement(i))
+    }
+    let sequencerBatchParams = await this._getSequencerBatchParams(
+      startBlock,
+      batch
+    )
+    let encoded = encodeAppendSequencerBatch(sequencerBatchParams)
+    while (encoded.length / 2 > this.maxTxSize) {
+      batch.splice(Math.ceil((batch.length * 2) / 3)) // Delete 1/3rd of all of the batch elements
+      sequencerBatchParams = await this._getSequencerBatchParams(
+        startBlock,
+        batch
+      )
+      encoded = encodeAppendSequencerBatch(sequencerBatchParams)
+    }
+    return sequencerBatchParams
+  }
+
+  private async _getSequencerBatchParams(
+    shouldStartAtIndex: number,
+    blocks: Batch
+  ): Promise<AppendSequencerBatchParams> {
+    const totalElementsToAppend = blocks.length
+
+    // Generate contexts
+    const contexts: BatchContext[] = []
+    let lastBlockIsSequencerTx = false
+    const groupedBlocks: Array<{
+      sequenced: BatchElement[]
+      queued: BatchElement[]
+    }> = []
+    for (const block of blocks) {
+      if (
+        (lastBlockIsSequencerTx === false && block.isSequencerTx === true) ||
+        groupedBlocks.length === 0
+      ) {
+        groupedBlocks.push({
+          sequenced: [],
+          queued: [],
+        })
+      }
+      const cur = groupedBlocks.length - 1
+      block.isSequencerTx
+        ? groupedBlocks[cur].sequenced.push(block)
+        : groupedBlocks[cur].queued.push(block)
+      lastBlockIsSequencerTx = block.isSequencerTx
+    }
+    for (const groupedBlock of groupedBlocks) {
+      contexts.push({
+        numSequencedTransactions: groupedBlock.sequenced.length,
+        numSubsequentQueueTransactions: groupedBlock.queued.length,
+        timestamp:
+          groupedBlock.sequenced.length > 0
+            ? groupedBlock.sequenced[0].timestamp
+            : 0,
+        blockNumber:
+          groupedBlock.sequenced.length > 0
+            ? groupedBlock.sequenced[0].blockNumber
+            : 0,
+      })
+    }
+
+    // Generate sequencer transactions
+    const transactions: string[] = []
+    for (const block of blocks) {
+      if (!block.isSequencerTx) {
+        continue
+      }
+      let encoding: string
+      if (block.sequencerTxType === TxType.EIP155) {
+        encoding = ctcCoder.eip155TxData.encode(block.txData as EIP155TxData)
+      } else if (block.sequencerTxType === TxType.EthSign) {
+        encoding = ctcCoder.ethSignTxData.encode(block.txData as EthSignTxData)
+      } else if (block.sequencerTxType === TxType.createEOA) {
+        encoding = ctcCoder.createEOATxData.encode(
+          block.txData as CreateEOATxData
+        )
+      }
+      transactions.push(encoding)
+    }
+
+    return {
+      shouldStartAtBatch: shouldStartAtIndex - 1,
+      totalElementsToAppend,
+      contexts,
+      transactions,
+    }
+  }
+
+  private async _getL2BatchElement(blockNumber: number): Promise<BatchElement> {
+    const block = await this._getBlock(blockNumber)
+    const txType = block.transactions[0].txType
+
+    if (this._isSequencerTx(block)) {
+      if (txType === TxType.EIP155 || txType === TxType.EthSign) {
+        return this._getDefaultEcdsaTxBatchElement(block)
+      } else if (txType === TxType.createEOA) {
+        return this._getCreateEoaBatchElement(block)
+      } else {
+        throw new Error('Unsupported Tx Type!')
+      }
+    } else {
+      return {
+        stateRoot: block.stateRoot,
+        isSequencerTx: false,
+        sequencerTxType: undefined,
+        txData: undefined,
+        timestamp: block.timestamp,
+        blockNumber: block.transactions[0].l1BlockNumber,
+      }
+    }
+  }
+
+  private async _getBlock(blockNumber: number): Promise<L2Block> {
+    const block = (await this.l2Provider.getBlockWithTransactions(
+      blockNumber
+    )) as L2Block
+    // Convert the tx type to a number
+    block.transactions[0].txType = txTypePlainText[block.transactions[0].txType]
+    block.transactions[0].queueOrigin =
+      queueOriginPlainText[block.transactions[0].queueOrigin]
+    // For now just set the l1BlockNumber based on the current l1 block number
+    const _getMockedL1BlockNumber = async (): Promise<number> => {
+      const curBlockNum = await this.chainContract.signer.provider.getBlockNumber()
+      return curBlockNum - 1
+    }
+    if (!block.transactions[0].l1BlockNumber) {
+      block.transactions[0].l1BlockNumber = await _getMockedL1BlockNumber()
+    }
+    return block
+  }
+
+  private _getDefaultEcdsaTxBatchElement(block: L2Block): BatchElement {
+    const tx: TransactionResponse = block.transactions[0]
+    const txData: EIP155TxData = {
+      sig: {
+        v: '0' + (tx.v - this.l2ChainId * 2 - 8 - 27).toString(),
+        r: tx.r,
+        s: tx.s,
+      },
+      gasLimit: BigNumber.from(tx.gasLimit).toNumber(),
+      gasPrice: BigNumber.from(tx.gasPrice).toNumber(),
+      nonce: tx.nonce,
+      target: tx.to ? tx.to : '00'.repeat(20),
+      data: tx.data,
+    }
+    return {
+      stateRoot: block.stateRoot,
+      isSequencerTx: true,
+      sequencerTxType: block.transactions[0].txType,
+      txData,
+      timestamp: block.timestamp,
+      blockNumber: block.transactions[0].l1BlockNumber,
+    }
+  }
+
+  private _getCreateEoaBatchElement(block: L2Block): BatchElement {
+    const txData: CreateEOATxData = ctcCoder.createEOATxData.decode(
+      block.transactions[0].data
+    )
+    return {
+      stateRoot: block.stateRoot,
+      isSequencerTx: true,
+      sequencerTxType: block.transactions[0].txType,
+      txData,
+      timestamp: block.timestamp,
+      blockNumber: block.transactions[0].l1BlockNumber,
+    }
+  }
+
+  private _isSequencerTx(block: L2Block): boolean {
+    return block.transactions[0].queueOrigin === QueueOrigin.Sequencer
+  }
+}

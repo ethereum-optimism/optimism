@@ -1,5 +1,5 @@
 import BigNum = require('bn.js')
-import * as assert from 'assert'
+import assert from 'assert'
 
 export type Endianness = 'B' | 'L'
 export const BIG_ENDIAN: Endianness = 'B'
