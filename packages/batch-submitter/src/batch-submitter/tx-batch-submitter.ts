@@ -22,14 +22,22 @@ import {
   TxType,
   ctcCoder,
   EthSignTxData,
+  txTypePlainText,
 } from '../coders'
-import { L2Block, BatchElement, Batch, QueueOrigin } from '..'
+import {
+  L2Block,
+  BatchElement,
+  Batch,
+  QueueOrigin,
+  queueOriginPlainText,
+} from '..'
 import { RollupInfo, Range, BatchSubmitter } from '.'
 
 export class TransactionBatchSubmitter extends BatchSubmitter {
   protected chainContract: CanonicalTransactionChainContract
   protected l2ChainId: number
   protected syncing: boolean
+  protected lastL1BlockNumber: number
 
   /*****************************
    * Batch Submitter Overrides *
@@ -69,9 +77,12 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   public async _onSync(): Promise<TransactionReceipt> {
-    if (this.chainContract.getNumPendingQueueElements() !== 0) {
+    const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+    this._updateLastL1BlockNumber(pendingQueueElements)
+
+    if (pendingQueueElements !== 0) {
       this.log.info(
-        'Syncing mode enabled! Skipping batch submission and clearing queue...'
+        `Syncing mode enabled! Skipping batch submission and clearing ${pendingQueueElements} queue elements`
       )
       // Empty the queue with a huge `appendQueueBatch(..)` call
       return this._submitAndLogTx(
@@ -83,13 +94,36 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return
   }
 
+  // TODO: Remove this function and use geth for lastL1BlockNumber!
+  private async _updateLastL1BlockNumber(pendingQueueElements: number) {
+    if (pendingQueueElements !== 0) {
+      const nextQueueIndex = await this.chainContract.getNextQueueIndex()
+      this.lastL1BlockNumber = await this.chainContract.getQueueElement(
+        nextQueueIndex
+      ).blockNumber
+    } else {
+      const curBlockNum = await this.chainContract.provider.getBlockNumber()
+      if (!this.lastL1BlockNumber) {
+        // Set the block number to the current l1BlockNumber
+        this.lastL1BlockNumber = curBlockNum
+      } else {
+        if (curBlockNum - this.lastL1BlockNumber > 30) {
+          // If the lastL1BlockNumber is too old, then set it to a recent
+          // block number. (10 blocks ago to prevent reorgs)
+          this.lastL1BlockNumber = curBlockNum - 10
+        }
+      }
+    }
+  }
+
   public async _getBatchStartAndEnd(): Promise<Range> {
     const startBlock =
       parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
-    const endBlock = Math.min(
-      startBlock + this.maxBatchSize,
-      await this.l2Provider.getBlockNumber()
-    )
+    const endBlock =
+      Math.min(
+        startBlock + this.maxBatchSize,
+        await this.l2Provider.getBlockNumber()
+      ) + 1 // +1 because the `endBlock` is *exclusive*
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {
         this.log
@@ -221,10 +255,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   private async _getL2BatchElement(blockNumber: number): Promise<BatchElement> {
-    const block = (await this.l2Provider.getBlockWithTransactions(
-      blockNumber
-    )) as L2Block
-    const txType = block.transactions[0].meta.txType
+    const block = await this._getBlock(blockNumber)
+    const txType = block.transactions[0].txType
 
     if (this._isSequencerTx(block)) {
       if (txType === TxType.EIP155 || txType === TxType.EthSign) {
@@ -241,9 +273,24 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         sequencerTxType: undefined,
         txData: undefined,
         timestamp: block.timestamp,
-        blockNumber: block.transactions[0].meta.l1BlockNumber,
+        blockNumber: block.transactions[0].l1BlockNumber,
       }
     }
+  }
+
+  private async _getBlock(blockNumber: number): Promise<L2Block> {
+    const block = (await this.l2Provider.getBlockWithTransactions(
+      blockNumber
+    )) as L2Block
+    // Convert the tx type to a number
+    block.transactions[0].txType = txTypePlainText[block.transactions[0].txType]
+    block.transactions[0].queueOrigin =
+      queueOriginPlainText[block.transactions[0].queueOrigin]
+    // For now just set the l1BlockNumber based on the current l1 block number
+    if (!block.transactions[0].l1BlockNumber) {
+      block.transactions[0].l1BlockNumber = this.lastL1BlockNumber
+    }
+    return block
   }
 
   private _getDefaultEcdsaTxBatchElement(block: L2Block): BatchElement {
@@ -263,10 +310,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return {
       stateRoot: block.stateRoot,
       isSequencerTx: true,
-      sequencerTxType: block.transactions[0].meta.txType,
+      sequencerTxType: block.transactions[0].txType,
       txData,
       timestamp: block.timestamp,
-      blockNumber: block.transactions[0].meta.l1BlockNumber,
+      blockNumber: block.transactions[0].l1BlockNumber,
     }
   }
 
@@ -277,14 +324,14 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return {
       stateRoot: block.stateRoot,
       isSequencerTx: true,
-      sequencerTxType: block.transactions[0].meta.txType,
+      sequencerTxType: block.transactions[0].txType,
       txData,
       timestamp: block.timestamp,
-      blockNumber: block.transactions[0].meta.l1BlockNumber,
+      blockNumber: block.transactions[0].l1BlockNumber,
     }
   }
 
   private _isSequencerTx(block: L2Block): boolean {
-    return block.transactions[0].meta.queueOrigin === QueueOrigin.Sequencer
+    return block.transactions[0].queueOrigin === QueueOrigin.Sequencer
   }
 }

@@ -166,12 +166,10 @@ describe('TransactionBatchSubmitter', () => {
       l2Provider.setL2BlockData(
         {
           data,
-          meta: {
-            l1BlockNumber: nextQueueElement.blockNumber - 1,
-            txType: TxType.createEOA,
-            queueOrigin: QueueOrigin.Sequencer,
-            l1TxOrigin: '0x' + '12'.repeat(20),
-          },
+          l1BlockNumber: nextQueueElement.blockNumber - 1,
+          txType: TxType.createEOA,
+          queueOrigin: QueueOrigin.Sequencer,
+          l1TxOrigin: '0x' + '12'.repeat(20),
         } as any,
         nextQueueElement.timestamp - 1
       )
@@ -179,39 +177,35 @@ describe('TransactionBatchSubmitter', () => {
       let logData = remove0x(receipt.logs[0].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
-      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(5) // _totalElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
       receipt = await batchSubmitter.submitNextBatch()
       logData = remove0x(receipt.logs[0].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
-      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
     })
 
     it('should submit a queue batch correctly', async () => {
       l2Provider.setNumBlocksToReturn(5)
       l2Provider.setL2BlockData({
-        meta: {
-          queueOrigin: QueueOrigin.L1ToL2,
-        },
+        queueOrigin: QueueOrigin.L1ToL2,
       } as any)
       let receipt = await batchSubmitter.submitNextBatch()
       let logData = remove0x(receipt.logs[0].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
-      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(5) // _numQueueElements
-      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(5) // _totalElements
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(6) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
       receipt = await batchSubmitter.submitNextBatch()
       logData = remove0x(receipt.logs[0].data)
-      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(5) // _startingQueueIndex
+      expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(6) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(5) // _numQueueElements
-      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
     })
 
     it('should submit a batch with both queue and sequencer chain elements', async () => {
       l2Provider.setNumBlocksToReturn(10) // For this batch we'll return 10 elements!
       l2Provider.setL2BlockData({
-        meta: {
-          queueOrigin: QueueOrigin.L1ToL2,
-        },
+        queueOrigin: QueueOrigin.L1ToL2,
       } as any)
       // Turn blocks 3-5 into sequencer txs
       const nextQueueElement = await getQueueElement(
@@ -225,12 +219,10 @@ describe('TransactionBatchSubmitter', () => {
       l2Provider.setL2BlockData(
         {
           data,
-          meta: {
-            l1BlockNumber: nextQueueElement.blockNumber - 1,
-            txType: TxType.createEOA,
-            queueOrigin: QueueOrigin.Sequencer,
-            l1TxOrigin: '0x' + '12'.repeat(20),
-          },
+          l1BlockNumber: nextQueueElement.blockNumber - 1,
+          txType: TxType.createEOA,
+          queueOrigin: QueueOrigin.Sequencer,
+          l1TxOrigin: '0x' + '12'.repeat(20),
         } as any,
         nextQueueElement.timestamp - 1,
         3,
@@ -239,8 +231,8 @@ describe('TransactionBatchSubmitter', () => {
       const receipt = await batchSubmitter.submitNextBatch()
       const logData = remove0x(receipt.logs[0].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
-      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(7) // _numQueueElements
-      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(10) // _totalElements
+      expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(8) // _numQueueElements
+      expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
     })
   })
 })
