@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/provider",
-  "version": "0.0.1-alpha.9",
+  "version": "0.0.1-alpha.11",
   "description": "Web3 provider for Optimism",
   "main": "build/index.js",
   "files": [
@@ -23,6 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@eth-optimism/core-utils": "0.0.1-alpha.30",
+    "@ethersproject/abi": "^5.0.7",
     "@ethersproject/abstract-provider": "^5.0.3",
     "@ethersproject/abstract-signer": "^5.0.3",
     "@ethersproject/bignumber": "^5.0.6",
