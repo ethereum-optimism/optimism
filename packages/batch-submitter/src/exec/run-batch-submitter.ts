@@ -2,11 +2,20 @@
 import { getLogger } from '@eth-optimism/core-utils'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
-import { Provider, JsonRpcProvider } from '@ethersproject/providers'
+import {
+  Provider,
+  JsonRpcProvider,
+  TransactionReceipt,
+} from '@ethersproject/providers'
 import { OptimismProvider } from '@eth-optimism/provider'
 
 /* Internal Imports */
-import { BatchSubmitter, CanonicalTransactionChainContract } from '..'
+import {
+  TransactionBatchSubmitter,
+  StateBatchSubmitter,
+  STATE_BATCH_SUBMITTER_LOG_TAG,
+  TX_BATCH_SUBMITTER_LOG_TAG,
+} from '..'
 
 /* Logger */
 const log = getLogger('oe:batch-submitter:init')
@@ -15,19 +24,27 @@ interface RequiredEnvVars {
   SEQUENCER_PRIVATE_KEY: 'SEQUENCER_PRIVATE_KEY'
   L1_NODE_WEB3_URL: 'L1_NODE_WEB3_URL'
   L2_NODE_WEB3_URL: 'L2_NODE_WEB3_URL'
+  MIN_TX_SIZE: 'MIN_TX_SIZE'
   MAX_TX_SIZE: 'MAX_TX_SIZE'
+  MAX_BATCH_SIZE: 'MAX_BATCH_SIZE'
   POLL_INTERVAL: 'POLL_INTERVAL'
-  DEFAULT_BATCH_SIZE: 'DEFAULT_BATCH_SIZE'
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS'
+  FINALITY_CONFIRMATIONS: 'FINALITY_CONFIRMATIONS'
+  RUN_TX_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_TX_BATCH_SUBMITTER'
+  RUN_STATE_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_STATE_BATCH_SUBMITTER'
 }
 const requiredEnvVars: RequiredEnvVars = {
   SEQUENCER_PRIVATE_KEY: 'SEQUENCER_PRIVATE_KEY',
   L1_NODE_WEB3_URL: 'L1_NODE_WEB3_URL',
   L2_NODE_WEB3_URL: 'L2_NODE_WEB3_URL',
+  MIN_TX_SIZE: 'MIN_TX_SIZE',
   MAX_TX_SIZE: 'MAX_TX_SIZE',
+  MAX_BATCH_SIZE: 'MAX_BATCH_SIZE',
   POLL_INTERVAL: 'POLL_INTERVAL',
-  DEFAULT_BATCH_SIZE: 'DEFAULT_BATCH_SIZE',
   NUM_CONFIRMATIONS: 'NUM_CONFIRMATIONS',
+  FINALITY_CONFIRMATIONS: 'FINALITY_CONFIRMATIONS',
+  RUN_TX_BATCH_SUBMITTER: 'RUN_TX_BATCH_SUBMITTER',
+  RUN_STATE_BATCH_SUBMITTER: 'RUN_STATE_BATCH_SUBMITTER',
 }
 
 export const run = async () => {
@@ -52,25 +69,51 @@ export const run = async () => {
     l1Provider
   )
 
-  const batchSubmitter = new BatchSubmitter(
+  const txBatchSubmitter = new TransactionBatchSubmitter(
     sequencerSigner,
     l2Provider,
+    parseInt(requiredEnvVars.MIN_TX_SIZE, 10),
     parseInt(requiredEnvVars.MAX_TX_SIZE, 10),
-    parseInt(requiredEnvVars.DEFAULT_BATCH_SIZE, 10),
-    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10)
+    parseInt(requiredEnvVars.MAX_BATCH_SIZE, 10),
+    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
+    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
+    getLogger(TX_BATCH_SUBMITTER_LOG_TAG)
   )
 
-  // Run batch submitter!
-  while (true) {
-    try {
-      await batchSubmitter.submitNextBatch()
-    } catch (err) {
-      log.error('Error submitting batch', err)
-      log.info('Retrying...')
+  const stateBatchSubmitter = new StateBatchSubmitter(
+    sequencerSigner,
+    l2Provider,
+    parseInt(requiredEnvVars.MIN_TX_SIZE, 10),
+    parseInt(requiredEnvVars.MAX_TX_SIZE, 10),
+    parseInt(requiredEnvVars.MAX_BATCH_SIZE, 10),
+    parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
+    parseInt(requiredEnvVars.FINALITY_CONFIRMATIONS, 10),
+    getLogger(STATE_BATCH_SUBMITTER_LOG_TAG)
+  )
+
+  // Loops infinitely!
+  const loop = async (
+    func: () => Promise<TransactionReceipt>
+  ): Promise<void> => {
+    while (true) {
+      try {
+        await func()
+      } catch (err) {
+        log.error('Error submitting batch', err)
+        log.info('Retrying...')
+      }
+      // Sleep
+      await new Promise((r) =>
+        setTimeout(r, parseInt(requiredEnvVars.POLL_INTERVAL, 10))
+      )
     }
-    // Sleep
-    await new Promise((r) =>
-      setTimeout(r, parseInt(requiredEnvVars.POLL_INTERVAL, 10))
-    )
+  }
+
+  // Run batch submitters in two seperate infinite loops!
+  if (requiredEnvVars.RUN_TX_BATCH_SUBMITTER === 'true') {
+    loop(() => txBatchSubmitter.submitNextBatch())
+  }
+  if (requiredEnvVars.RUN_STATE_BATCH_SUBMITTER === 'true') {
+    loop(() => stateBatchSubmitter.submitNextBatch())
   }
 }
