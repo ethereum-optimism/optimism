@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity >0.5.0 <0.8.0;
+pragma solidity >=0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /**
@@ -24,6 +24,6 @@ interface iOVM_BaseCrossDomainMessenger {
     function sendMessage(
         address _target,
         bytes calldata _message,
-        uint256 _gasLimit
+        uint32 _gasLimit
     ) external;
 }

@@ -34,7 +34,7 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
     function sendMessage(
         address _target,
         bytes memory _message,
-        uint256 _gasLimit
+        uint32 _gasLimit
     )
         override
         public
