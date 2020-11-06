@@ -93,26 +93,6 @@
     ethers-v4 "npm:ethers@4"
     ethers-v5 "npm:ethers@5.0.7"
 
-"@eth-optimism/provider@^0.0.1-alpha.8":
-  version "0.0.1-alpha.8"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/provider/-/provider-0.0.1-alpha.8.tgz#ce9eb56098947e5b04450f035bec4d3a9aed50a8"
-  integrity sha512-HTorbC5/VlO02eBBr0Iom3Dc/BxaFVGJ7m9PwW4xAxLQ2J1FtKAYH+DK7YsnYne2FlGrvZlN/q9zWwFTKrWmtQ==
-  dependencies:
-    "@eth-optimism/core-utils" "0.0.1-alpha.30"
-    "@ethersproject/abstract-provider" "^5.0.3"
-    "@ethersproject/abstract-signer" "^5.0.3"
-    "@ethersproject/bignumber" "^5.0.6"
-    "@ethersproject/bytes" "^5.0.4"
-    "@ethersproject/keccak256" "^5.0.3"
-    "@ethersproject/logger" "^5.0.5"
-    "@ethersproject/networks" "^5.0.3"
-    "@ethersproject/properties" "^5.0.3"
-    "@ethersproject/providers" "^5.0.7"
-    "@ethersproject/transactions" "^5.0.4"
-    "@ethersproject/wallet" "^5.0.3"
-    "@ethersproject/web" "^5.0.5"
-    bn.js "^5.1.3"
-
 "@eth-optimism/rollup-contracts@^0.0.1-alpha.32":
   version "0.0.1-alpha.37"
   resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-contracts/-/rollup-contracts-0.0.1-alpha.37.tgz#770403aebcfd6c1bb1e1940150617808186134e4"
