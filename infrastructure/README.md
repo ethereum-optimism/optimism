@@ -285,7 +285,7 @@ In another terminal, execute:
 
 ```bash
 export VAULT_ADDR=https://<load-balancer>:8200
-export VAULT_CACERT=$K8S/certs/ca-chain.cert.pem
+export VAULT_CACERT=$K8S/certs/ca.crt
 
 vault status
 ```
