@@ -37,6 +37,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   protected chainContract: CanonicalTransactionChainContract
   protected l2ChainId: number
   protected syncing: boolean
+  protected lastL1BlockNumber: number
 
   /*****************************
    * Batch Submitter Overrides *
@@ -77,6 +78,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   public async _onSync(): Promise<TransactionReceipt> {
     const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+    this._updateLastL1BlockNumber(pendingQueueElements)
+
     if (pendingQueueElements !== 0) {
       this.log.info(
         `Syncing mode enabled! Skipping batch submission and clearing ${pendingQueueElements} queue elements`
@@ -91,13 +94,36 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return
   }
 
+  // TODO: Remove this function and use geth for lastL1BlockNumber!
+  private async _updateLastL1BlockNumber(pendingQueueElements: number) {
+    if (pendingQueueElements !== 0) {
+      const nextQueueIndex = await this.chainContract.getNextQueueIndex()
+      this.lastL1BlockNumber = await this.chainContract.getQueueElement(
+        nextQueueIndex
+      ).blockNumber
+    } else {
+      const curBlockNum = await this.chainContract.provider.getBlockNumber()
+      if (!this.lastL1BlockNumber) {
+        // Set the block number to the current l1BlockNumber
+        this.lastL1BlockNumber = curBlockNum
+      } else {
+        if (curBlockNum - this.lastL1BlockNumber > 30) {
+          // If the lastL1BlockNumber is too old, then set it to a recent
+          // block number. (10 blocks ago to prevent reorgs)
+          this.lastL1BlockNumber = curBlockNum - 10
+        }
+      }
+    }
+  }
+
   public async _getBatchStartAndEnd(): Promise<Range> {
     const startBlock =
       parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
-    const endBlock = Math.min(
-      startBlock + this.maxBatchSize,
-      await this.l2Provider.getBlockNumber()
-    )
+    const endBlock =
+      Math.min(
+        startBlock + this.maxBatchSize,
+        await this.l2Provider.getBlockNumber()
+      ) + 1 // +1 because the `endBlock` is *exclusive*
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {
         this.log
@@ -261,12 +287,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     block.transactions[0].queueOrigin =
       queueOriginPlainText[block.transactions[0].queueOrigin]
     // For now just set the l1BlockNumber based on the current l1 block number
-    const _getMockedL1BlockNumber = async (): Promise<number> => {
-      const curBlockNum = await this.chainContract.signer.provider.getBlockNumber()
-      return curBlockNum - 1
-    }
     if (!block.transactions[0].l1BlockNumber) {
-      block.transactions[0].l1BlockNumber = await _getMockedL1BlockNumber()
+      block.transactions[0].l1BlockNumber = this.lastL1BlockNumber
     }
     return block
   }
