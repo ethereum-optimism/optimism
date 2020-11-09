@@ -56,16 +56,24 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                 decodedTx.data
             );
 
-            // EVM doesn't tell us whether a contract creation failed, even if it reverted during
-            // initialization. Always return `true` for our success value here.
-            return (true, abi.encode(created));
+            // If the created address is the ZERO_ADDRESS then we know the deployment failed, though not why
+            return (created != address(0), abi.encode(created));
         } else {
-            return Lib_SafeExecutionManagerWrapper.safeCALL(
+            _incrementNonce();
+            (_success, _returndata) =  Lib_SafeExecutionManagerWrapper.safeCALL(
                 ovmExecutionManager,
                 decodedTx.gasLimit,
                 decodedTx.target,
                 decodedTx.data
             );
         }
+    }
+
+    function _incrementNonce()
+        internal
+    {
+        address ovmExecutionManager = msg.sender;
+        uint nonce = Lib_SafeExecutionManagerWrapper.safeGETNONCE(ovmExecutionManager) + 1;
+        Lib_SafeExecutionManagerWrapper.safeSETNONCE(ovmExecutionManager, nonce);
     }
 }

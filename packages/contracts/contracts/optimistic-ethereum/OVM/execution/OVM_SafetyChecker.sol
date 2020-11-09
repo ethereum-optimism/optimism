@@ -106,8 +106,8 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
 
                     assembly {
                         firstOps := mload(_pc)
-                        // 32 - 4 bytes = 28 bytes = 224 bits
-                        secondOps := shr(224, mload(add(_pc, 0x20)))
+                        // 37 bytes total, 5 left over --> 32 - 5 bytes = 27 bytes = 216 bits
+                        secondOps := shr(216, mload(add(_pc, 0x20)))
                     }
 
                     // Call identity precompile
@@ -116,9 +116,9 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
                     if ((firstOps >> 192) == 0x3350600060045af1) {
                         _pc += 8;
                     // Call EM and abort execution if instructed
-                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x1d ADD JUMPI RETURNDATASIZE PUSH1 0x01 EQ PC PUSH1 0x0c ADD JUMPI RETURNDATASIZE PUSH1 0x00 DUP1 RETURNDATACOPY RETURNDATASIZE PUSH1 0x00 REVERT JUMPDEST PUSH1 0x01 PUSH1 0x00 RETURN JUMPDEST 
-                    } else if (firstOps == 0x336000905af158601d01573d60011458600c01573d6000803e3d6000FD5b6001 && secondOps == 0x6000f35b) {
-                        _pc += 36;
+                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x0E ADD JUMPI RETURNDATASIZE PUSH1 0x00 DUP1 RETURNDATACOPY RETURNDATASIZE PUSH1 0x00 REVERT JUMPDEST RETURNDATASIZE PUSH1 0x01 EQ ISZERO PC PUSH1 0x0a ADD JUMPI PUSH1 0x01 PUSH1 0x00 RETURN JUMPDEST 
+                    } else if (firstOps == 0x336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760 && secondOps == 0x016000f35b) {
+                        _pc += 37;
                     } else {
                         return false;
                     }

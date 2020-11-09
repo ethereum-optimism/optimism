@@ -44,7 +44,7 @@ const getStorageDump = async (
       const stream = trie.createReadStream()
 
       stream.on('data', (val: any) => {
-        storage[val.key.toString('hex')] = val.value.toString('hex')
+        storage[val.key.toString('hex')] = val.value.toString('hex').slice(2)
       })
 
       stream.on('end', () => {
@@ -113,7 +113,7 @@ export const makeStateDump = async (): Promise<any> => {
       minTransactionGasLimit: 0,
       maxTransactionGasLimit: 1_000_000_000,
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
-      secondsPerEpoch: 600,
+      secondsPerEpoch: 0,
     },
     ovmGlobalContext: {
       ovmCHAINID: 420,
