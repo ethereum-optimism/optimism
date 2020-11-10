@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_AddressManager } from "../../libraries/resolver/Lib_AddressManager.sol";
 import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /* Interface Imports */
@@ -25,11 +26,23 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
      ***************/
 
     /**
+     * Pass a default zero address to the address resolver. This will be updated when initialized.
+     */
+    constructor()
+        Lib_AddressResolver(address(0))
+    {}
+
+    /**
      * @param _libAddressManager Address of the Address Manager.
      */
-    constructor(
+    function initialize(
         address _libAddressManager
-    ) Lib_AddressResolver(_libAddressManager) {}
+    )
+        public
+    {
+        require(address(libAddressManager) == address(0), "L1CrossDomainMessenger already intialized.");
+        libAddressManager = Lib_AddressManager(_libAddressManager);
+    }
 
 
     /********************

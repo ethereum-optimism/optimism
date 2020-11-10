@@ -7,7 +7,7 @@ import { Contract } from 'ethers'
 /* Internal Imports */
 import { TrieTestGenerator } from '../../../helpers'
 
-const NODE_COUNTS = [1, 2, 128, 256, 512, 1024, 2048, 4096]
+const NODE_COUNTS = [1, 2, 128]
 
 describe('Lib_MerkleTrie', () => {
   let Lib_MerkleTrie: Contract
