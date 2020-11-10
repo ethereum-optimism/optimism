@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/ovm-toolchain",
-  "version": "0.0.1-alpha.12",
+  "version": "0.0.1-alpha.14",
   "description": "Wrappers for Ethereum dev tools",
   "main": "build/index.js",
   "private": true,
@@ -73,7 +73,7 @@
     "web3": "^1.2.11"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.0.2-alpha.9",
+    "@eth-optimism/contracts": "^0.0.2-alpha.10",
     "@eth-optimism/core-utils": "^0.0.1-alpha.30",
     "@eth-optimism/ethereumjs-vm": "4.2.0-alpha.1",
     "@nomiclabs/buidler": "^1.4.4",
