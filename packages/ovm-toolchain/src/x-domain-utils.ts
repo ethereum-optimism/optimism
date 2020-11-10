@@ -40,18 +40,18 @@ export const initCrossDomainMessengers = async (
   l1CrossDomainMessenger: any
   l2CrossDomainMessenger: any
 }> => {
-  const l1CrossDomainMessenger = await getContractFromDefinition(
-    ethers,
-    signer,
-    'MockL1CrossDomainMessenger',
-    [l2ToL1MessageDelay]
-  )
-
   const l2CrossDomainMessenger = await getContractFromDefinition(
     ethers,
     signer,
-    'MockL2CrossDomainMessenger',
+    'mockOVM_CrossDomainMessenger',
     [l1ToL2MessageDelay]
+  )
+
+  const l1CrossDomainMessenger = await getContractFromDefinition(
+    ethers,
+    signer,
+    'mockOVM_CrossDomainMessenger',
+    [l2ToL1MessageDelay]
   )
 
   await l1CrossDomainMessenger.setTargetMessengerAddress(
@@ -71,26 +71,35 @@ export const initCrossDomainMessengers = async (
 }
 
 /**
- * Relays all messages to their respective targets.
+ * Relays all L2 to L1 messages to their respective L1 targets.
  * @param provider Ethers provider with attached messengers.
  */
-export const waitForCrossDomainMessages = async (
+export const relayL2ToL1Messages = async (signer: any): Promise<void> => {
+  return relayXDomainMessages(true, signer)
+}
+
+/**
+ * Relays all L1 to L2 messages to their respective L2 targets.
+ * @param provider Ethers provider with attached messengers.
+ */
+export const relayL1ToL2Messages = async (signer: any): Promise<void> => {
+  return relayXDomainMessages(false, signer)
+}
+
+const relayXDomainMessages = async (
+  isL1: boolean,
   signer: any
 ): Promise<void> => {
-  const l1CrossDomainMessenger = signer.provider.__l1CrossDomainMessenger
-  const l2CrossDomainMessenger = signer.provider.__l2CrossDomainMessenger
-
-  if (!l1CrossDomainMessenger || !l2CrossDomainMessenger) {
+  const messenger = isL1
+    ? signer.provider.__l1CrossDomainMessenger
+    : signer.provider.__l2CrossDomainMessenger
+  if (!messenger) {
     throw new Error(
       'Messengers are not initialized. Please make sure to call initCrossDomainMessengers!'
     )
   }
 
-  while (await l1CrossDomainMessenger.hasNextMessage()) {
-    await l1CrossDomainMessenger.relayNextMessage()
-  }
-
-  while (await l2CrossDomainMessenger.hasNextMessage()) {
-    await l2CrossDomainMessenger.relayNextMessage()
-  }
+  do {
+    await messenger.relayNextMessage()
+  } while (await messenger.hasNextMessage())
 }
