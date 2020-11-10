@@ -1,9 +1,3 @@
-variable "allow_ssh" {
-  description = "Flag to either allow or deny SSH access to the VPN instance"
-  default     = false
-  type        = bool
-}
-
 variable "datadog_api_key" {
   description = "Datadog account API key"
   type        = string
@@ -61,17 +55,7 @@ variable "router_asn" {
   type        = number
 }
 
-variable "ssh_user_email" {
-  description = "Email address of the user with access to SSH into VPN instance"
-  type        = string
-}
-
 variable "vault_subnet_cidr" {
   description = "The subnet that the Vault cluster should be deployed under in the VPC"
-  type        = string
-}
-
-variable "vpn_bucket_name" {
-  description = "Name of the storage bucket to hold the OVPN file for access"
   type        = string
 }

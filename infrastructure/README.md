@@ -34,7 +34,6 @@ The Terraform scripts in this directory are used for standing up the cloud infra
 
 ### Resources
 
-- [OpenVPN](./terraform/vpn.tf)
 - [VPC](./terraform/vpc.tf)
 - [Firewall Rules](./terraform/firewall.tf)
   - Allows:
@@ -91,24 +90,6 @@ terraform apply
 ```
 
 The deployment could take some time because of spinning up a new GKE cluster, but once complete the two new service account credential key files (GCR and KMS service account) will be created within the `./terraform` directory.
-
-## OpenVPN
-
-The VPN must be used anytime you need to communicate or interact with the Kubernetes cluster. There are firewall rules that allow incoming traffic from whitelisted VPN CIDR blocks so that you can send traffic through to the VPC that the cluster resides in.
-
-### Configuration File
-
-Once the Terraform has completed successfully, there will be an instance of OpenVPN running in the project on a compute instance. In order to get onto the VPN to interact with Vault and the GKE cluster you must copy the `.ovpn` file from the storage bucket it was placed in.
-
-```bash
-gsutil cp gs://$VPN_BUCKET_NAME/config.ovpn .
-```
-
-This command will be rendered with the appropriate bucket name in your Terraform outputs as `bucket_ovpn_copy_command`. Once this file is successfully copied onto your local machine, you can optionally delete the `.ovpn` file from the storage bucket using the outputed command as `bucket_ovpn_delete_command`.
-
-### Connecting
-
-For connecting to the VPN with the copied configuration file, we use `TunnelBlick` as the tunneling application but you can use any application that supports the OpenVPN protocol and configuration files for connection profiles.
 
 ## Kubernetes
 
