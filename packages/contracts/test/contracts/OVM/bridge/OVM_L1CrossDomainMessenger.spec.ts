@@ -42,9 +42,9 @@ const deployProxyXDomainMessenger = async (
     'OVM_L1CrossDomainMessenger',
     l1XDomainMessenger.address
   )
-  const proxy = await (await ethers.getContractFactory(
-      'Lib_ResolvedDelegateProxy'
-  )).deploy(addressManager.address, 'OVM_L1CrossDomainMessenger')
+  const proxy = await (
+    await ethers.getContractFactory('Lib_ResolvedDelegateProxy')
+  ).deploy(addressManager.address, 'OVM_L1CrossDomainMessenger')
   return l1XDomainMessenger.attach(proxy.address)
 }
 
@@ -105,7 +105,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
   beforeEach(async () => {
     const xDomainMessenerImpl = await Factory__OVM_L1CrossDomainMessenger.deploy()
     // We use an upgradable proxy for the XDomainMessenger--deploy & set up the proxy.
-    OVM_L1CrossDomainMessenger = await deployProxyXDomainMessenger(AddressManager, xDomainMessenerImpl)
+    OVM_L1CrossDomainMessenger = await deployProxyXDomainMessenger(
+      AddressManager,
+      xDomainMessenerImpl
+    )
     await OVM_L1CrossDomainMessenger.initialize(AddressManager.address)
   })
 

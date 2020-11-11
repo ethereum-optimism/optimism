@@ -21,6 +21,11 @@ interface iOVM_StateManager {
         ITEM_COMMITTED
     }
 
+    /***************************
+     * Public Functions: Misc *
+     ***************************/
+
+    function isAuthenticated(address _address) external view returns (bool);
 
     /***************************
      * Public Functions: Setup *

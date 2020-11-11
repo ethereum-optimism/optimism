@@ -44,7 +44,8 @@ const getStorageDump = async (
       const stream = trie.createReadStream()
 
       stream.on('data', (val: any) => {
-        storage[val.key.toString('hex')] = val.value.toString('hex').slice(2)
+        storage['0x' + val.key.toString('hex')] =
+          '0x' + val.value.toString('hex').slice(2)
       })
 
       stream.on('end', () => {
@@ -131,6 +132,10 @@ export const makeStateDump = async (): Promise<any> => {
       'OVM_DeployerWhitelist',
       'OVM_L1MessageSender',
       'OVM_L2ToL1MessagePasser',
+      'OVM_ProxyEOA',
+      'OVM_ECDSAContractAccount',
+      'OVM_ProxySequencerEntrypoint',
+      'OVM_SequencerEntrypoint',
       'OVM_L2CrossDomainMessenger',
       'OVM_SafetyChecker',
       'OVM_ExecutionManager',
@@ -143,6 +148,9 @@ export const makeStateDump = async (): Promise<any> => {
     OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
     OVM_L1MessageSender: '0x4200000000000000000000000000000000000001',
     OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002',
+    OVM_ECDSAContractAccount: '0x4200000000000000000000000000000000000003',
+    OVM_ProxySequencerEntrypoint: '0x4200000000000000000000000000000000000004',
+    OVM_SequencerEntrypoint: '0x4200000000000000000000000000000000000005',
   }
 
   const deploymentResult = await deploy(config)

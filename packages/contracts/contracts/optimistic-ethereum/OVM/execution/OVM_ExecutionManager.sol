@@ -14,6 +14,7 @@ import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol"
 
 /* Contract Imports */
 import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
+import { OVM_ProxyEOA } from "../accounts/OVM_ProxyEOA.sol";
 
 /**
  * @title OVM_ExecutionManager
@@ -71,7 +72,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         globalContext = _globalContext;
     }
 
-    
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -129,8 +130,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // OVM_StateManager (expected to be an OVM_StateTransitioner). We can revert here because
         // this would make the `run` itself invalid.
         require(
-            msg.sender == ovmStateManager.owner(),
-            "Only the owner of the ovmStateManager can call this function"
+            ovmStateManager.isAuthenticated(msg.sender),
+            "Only authenticated addresses in ovmStateManager can call this function"
         );
 
         // Check whether we need to start a new epoch, do so if necessary.
@@ -444,7 +445,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // actually execute the transaction).
         address eoa = ecrecover(
             _messageHash,
-            (_v - uint8(ovmCHAINID()) * 2) - 8,
+            _v + 27,
             _r,
             _s
         );
@@ -463,16 +464,22 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // We always need to initialize the contract with the default account values.
         _initPendingAccount(eoa);
 
+        // Temporarily set the current address so it's easier to access on L2.
+        address prevADDRESS = messageContext.ovmADDRESS;
+        messageContext.ovmADDRESS = eoa;
+
         // Now actually create the account and get its bytecode. We're not worried about reverts
         // (other than out of gas, which we can't capture anyway) because this contract is trusted.
-        OVM_ECDSAContractAccount eoaContractAccount = new OVM_ECDSAContractAccount();
-        bytes memory deployedCode = Lib_EthUtils.getCode(address(eoaContractAccount));
+        OVM_ProxyEOA proxyEOA = new OVM_ProxyEOA(0x4200000000000000000000000000000000000003);
+
+        // Reset the address now that we're done deploying.
+        messageContext.ovmADDRESS = prevADDRESS;
 
         // Commit the account with its final values.
         _commitPendingAccount(
             eoa,
-            address(eoaContractAccount),
-            keccak256(deployedCode)
+            address(proxyEOA),
+            keccak256(Lib_EthUtils.getCode(address(proxyEOA)))
         );
     }
 

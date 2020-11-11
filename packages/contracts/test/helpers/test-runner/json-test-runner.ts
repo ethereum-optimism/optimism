@@ -4,6 +4,18 @@ import { expect } from '../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { Contract, BigNumber } from 'ethers'
 
+const bigNumberify = (arr) => {
+  return arr.map((el: any) => {
+    if (typeof el === 'number') {
+      return BigNumber.from(el)
+    } else if (Array.isArray(el)) {
+      return bigNumberify(el)
+    } else {
+      return el
+    }
+  })
+}
+
 export const runJsonTest = (contractName: string, json: any): void => {
   let contract: Contract
   before(async () => {
@@ -20,15 +32,7 @@ export const runJsonTest = (contractName: string, json: any): void => {
           } else {
             expect(
               await contract.functions[functionName](...test.in)
-            ).to.deep.equal(
-              test.out.map((out: any) => {
-                if (typeof out === 'number') {
-                  return BigNumber.from(out)
-                } else {
-                  return out
-                }
-              })
-            )
+            ).to.deep.equal(bigNumberify(test.out))
           }
         })
       }

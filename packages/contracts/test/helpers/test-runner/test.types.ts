@@ -10,6 +10,7 @@ export type ContextOpcode =
   | 'ovmTIMESTAMP'
   | 'ovmGASLIMIT'
   | 'ovmCHAINID'
+  | 'ovmGETNONCE'
 
 type CallOpcode = 'ovmCALL' | 'ovmSTATICCALL' | 'ovmDELEGATECALL'
 
@@ -85,6 +86,15 @@ interface TestStep_SLOAD {
   expectedReturnValue: string | RevertFlagError
 }
 
+interface TestStep_SETNONCE {
+  functionName: 'ovmSETNONCE'
+  functionParams: {
+    _nonce: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue?: RevertFlagError
+}
+
 export interface TestStep_CALL {
   functionName: CallOpcode
   functionParams: {
@@ -121,6 +131,18 @@ interface TestStep_CREATE2 {
   expectedReturnValue: string | RevertFlagError
 }
 
+interface TestStep_CREATEEOA {
+  functionName: 'ovmCREATEEOA'
+  functionParams: {
+    _messageHash: string
+    _v: number
+    _r: string
+    _s: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue: string | RevertFlagError
+}
+
 export interface TestStep_Run {
   functionName: 'run'
   functionParams: {
@@ -139,9 +161,11 @@ export type TestStep =
   | TestStep_Context
   | TestStep_SSTORE
   | TestStep_SLOAD
+  | TestStep_SETNONCE
   | TestStep_CALL
   | TestStep_CREATE
   | TestStep_CREATE2
+  | TestStep_CREATEEOA
   | TestStep_EXTCODESIZE
   | TestStep_EXTCODEHASH
   | TestStep_EXTCODECOPY
@@ -182,6 +206,7 @@ export const isTestStep_Context = (
     'ovmGASLIMIT',
     'ovmCHAINID',
     'ovmL1QUEUEORIGIN',
+    'ovmGETNONCE',
   ].includes(step.functionName)
 }
 
@@ -191,6 +216,12 @@ export const isTestStep_SSTORE = (step: TestStep): step is TestStep_SSTORE => {
 
 export const isTestStep_SLOAD = (step: TestStep): step is TestStep_SLOAD => {
   return step.functionName === 'ovmSLOAD'
+}
+
+export const isTestStep_SETNONCE = (
+  step: TestStep
+): step is TestStep_SETNONCE => {
+  return step.functionName === 'ovmSETNONCE'
 }
 
 export const isTestStep_EXTCODESIZE = (
@@ -223,6 +254,12 @@ export const isTestStep_CALL = (step: TestStep): step is TestStep_CALL => {
 
 export const isTestStep_CREATE = (step: TestStep): step is TestStep_CREATE => {
   return step.functionName === 'ovmCREATE'
+}
+
+export const isTestStep_CREATEEOA = (
+  step: TestStep
+): step is TestStep_CREATEEOA => {
+  return step.functionName === 'ovmCREATEEOA'
 }
 
 export const isTestStep_CREATE2 = (

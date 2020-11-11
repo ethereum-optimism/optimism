@@ -17,7 +17,6 @@ library Lib_ECDSAUtils {
      * @param _v Signature `v` parameter.
      * @param _r Signature `r` parameter.
      * @param _s Signature `s` parameter.
-     * @param _chainId Chain ID parameter.
      * @return _sender Signer address.
      */
     function recover(
@@ -25,8 +24,7 @@ library Lib_ECDSAUtils {
         bool _isEthSignedMessage,
         uint8 _v,
         bytes32 _r,
-        bytes32 _s,
-        uint256 _chainId
+        bytes32 _s
     )
         internal
         pure
@@ -34,22 +32,27 @@ library Lib_ECDSAUtils {
             address _sender
         )
     {
-        bytes32 messageHash;
-        uint8 v;
-        if (_isEthSignedMessage) {
-            messageHash = getEthSignedMessageHash(_message);
-            v = _v;
-        } else {
-            messageHash = getNativeMessageHash(_message);
-            v = (_v - uint8(_chainId) * 2) - 8;
-        }
+        bytes32 messageHash = getMessageHash(_message, _isEthSignedMessage);
 
         return ecrecover(
             messageHash,
-            v,
+            _v + 27,
             _r,
             _s
         );
+    }
+
+    function getMessageHash(
+        bytes memory _message,
+        bool _isEthSignedMessage
+    )
+        internal
+        pure
+        returns (bytes32) {
+        if (_isEthSignedMessage) {
+            return getEthSignedMessageHash(_message);
+        }
+        return getNativeMessageHash(_message);
     }
 
 

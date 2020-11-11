@@ -1,18 +1,12 @@
 /* tslint:disable:no-empty */
 import { expect } from '../../../setup'
 
+/* Internal Imports */
+import { Lib_OVMCodec_TEST_JSON } from '../../../data'
+import { runJsonTest, toHexString } from '../../../helpers'
+
 describe('Lib_OVMCodec', () => {
-  describe('decodeEOATransaction', () => {
-    describe('when given a valid RLP-encoded transaction', () => {
-      it('should return the decoded transaction struct', async () => {})
-    })
-  })
-
-  describe('encodeTransaction', () => {
-    it('should ABI encode (packed) the given transaction', async () => {})
-  })
-
-  describe('hashTransaction', () => {
-    it('should return the hash of the encoded transaction', async () => {})
+  describe('JSON tests', () => {
+    runJsonTest('TestLib_OVMCodec', Lib_OVMCodec_TEST_JSON)
   })
 })

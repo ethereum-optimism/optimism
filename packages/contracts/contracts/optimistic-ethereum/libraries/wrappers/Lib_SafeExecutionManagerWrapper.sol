@@ -45,6 +45,40 @@ library Lib_SafeExecutionManagerWrapper {
     }
 
     /**
+     * Makes an ovmCALL and performs all the necessary safety checks.
+     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
+     * @param _gasLimit Gas limit for the call.
+     * @param _target Address to call.
+     * @param _calldata Data to send to the call.
+     * @return _success Whether or not the call reverted.
+     * @return _returndata Data returned by the call.
+     */
+    function safeDELEGATECALL(
+        address _ovmExecutionManager,
+        uint256 _gasLimit,
+        address _target,
+        bytes memory _calldata
+    )
+        internal
+        returns (
+            bool _success,
+            bytes memory _returndata
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            _ovmExecutionManager,
+            abi.encodeWithSignature(
+                "ovmDELEGATECALL(uint256,address,bytes)",
+                _gasLimit,
+                _target,
+                _calldata
+            )
+        );
+
+        return abi.decode(returndata, (bool, bytes));
+    }
+
+    /**
      * Performs an ovmCREATE and the necessary safety checks.
      * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
      * @param _gasLimit Gas limit for the creation.
@@ -74,6 +108,32 @@ library Lib_SafeExecutionManagerWrapper {
     }
 
     /**
+     * Performs an ovmEXTCODESIZE and the necessary safety checks.
+     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
+     * @param _contract Address of the contract to query the size of.
+     * @return _EXTCODESIZE Size of the requested contract in bytes.
+     */
+    function safeEXTCODESIZE(
+        address _ovmExecutionManager,
+        address _contract
+    )
+        internal
+        returns (
+            uint256 _EXTCODESIZE
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            _ovmExecutionManager,
+            abi.encodeWithSignature(
+                "ovmEXTCODESIZE(address)",
+                _contract
+            )
+        );
+
+        return abi.decode(returndata, (uint256));
+    }
+
+    /**
      * Performs a safe ovmCHAINID call.
      * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
      * @return _CHAINID Result of calling ovmCHAINID.
@@ -94,6 +154,29 @@ library Lib_SafeExecutionManagerWrapper {
         );
 
         return abi.decode(returndata, (uint256));
+    }
+
+    /**
+     * Performs a safe ovmCALLER call.
+     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
+     * @return _CALLER Result of calling ovmCALLER.
+     */
+    function safeCALLER(
+        address _ovmExecutionManager
+    )
+        internal
+        returns (
+            address _CALLER
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            _ovmExecutionManager,
+            abi.encodeWithSignature(
+                "ovmCALLER()"
+            )
+        );
+
+        return abi.decode(returndata, (address));
     }
 
     /**
@@ -162,6 +245,118 @@ library Lib_SafeExecutionManagerWrapper {
         );
     }
 
+    /**
+     * Performs a safe ovmCREATEEOA call.
+     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
+     * @param _messageHash Message hash which was signed by EOA
+     * @param _v v value of signature (0 or 1)
+     * @param _r r value of signature
+     * @param _s s value of signature
+     */
+    function safeCREATEEOA(
+        address _ovmExecutionManager,
+        bytes32 _messageHash,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    )
+        internal
+    {
+        _safeExecutionManagerInteraction(
+            _ovmExecutionManager,
+            abi.encodeWithSignature(
+                "ovmCREATEEOA(bytes32,uint8,bytes32,bytes32)",
+                _messageHash,
+                _v,
+                _r,
+                _s
+            )
+        );
+    }
+
+    /**
+     * Performs a safe REVERT.
+     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
+     * @param _reason String revert reason to pass along with the REVERT.
+     */
+    function safeREVERT(
+        address _ovmExecutionManager,
+        string memory _reason
+    )
+        internal
+    {
+        _safeExecutionManagerInteraction(
+            _ovmExecutionManager,
+            abi.encodeWithSignature(
+                "ovmREVERT(bytes)",
+                bytes(_reason)
+            )
+        );
+    }
+
+    /**
+     * Performs a safe "require".
+     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
+     * @param _condition Boolean condition that must be true or will revert.
+     * @param _reason String revert reason to pass along with the REVERT.
+     */
+    function safeREQUIRE(
+        address _ovmExecutionManager,
+        bool _condition,
+        string memory _reason
+    )
+        internal
+    {
+        if (!_condition) {
+            safeREVERT(
+                _ovmExecutionManager,
+                _reason
+            );
+        }
+    }
+
+    /**
+     * Performs a safe ovmSLOAD call.
+     */
+    function safeSLOAD(
+        address _ovmExecutionManager,
+        bytes32 _key
+    )
+        internal
+        returns (
+            bytes32
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            _ovmExecutionManager,
+            abi.encodeWithSignature(
+                "ovmSLOAD(bytes32)",
+                _key
+            )
+        );
+
+        return abi.decode(returndata, (bytes32));
+    }
+
+    /**
+     * Performs a safe ovmSSTORE call.
+     */
+    function safeSSTORE(
+        address _ovmExecutionManager,
+        bytes32 _key,
+        bytes32 _value
+    )
+        internal
+    {
+        _safeExecutionManagerInteraction(
+            _ovmExecutionManager,
+            abi.encodeWithSignature(
+                "ovmSSTORE(bytes32,bytes32)",
+                _key,
+                _value
+            )
+        );
+    }
 
     /*********************
      * Private Functions *

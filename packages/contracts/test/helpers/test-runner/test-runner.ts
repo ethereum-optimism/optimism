@@ -20,6 +20,7 @@ import {
   isTestStep_CALL,
   isTestStep_CREATE,
   isTestStep_CREATE2,
+  isTestStep_CREATEEOA,
   isTestStep_Context,
   isTestStep_evm,
   isTestStep_Run,
@@ -27,6 +28,7 @@ import {
   isTestStep_EXTCODEHASH,
   isTestStep_EXTCODECOPY,
   isTestStep_REVERT,
+  isTestStep_SETNONCE,
 } from './test.types'
 import { encodeRevertData, REVERT_FLAGS } from '../codec'
 import {
@@ -333,9 +335,11 @@ export class ExecutionManagerTestRunner {
     if (
       isTestStep_SSTORE(step) ||
       isTestStep_SLOAD(step) ||
+      isTestStep_SETNONCE(step) ||
       isTestStep_EXTCODESIZE(step) ||
       isTestStep_EXTCODEHASH(step) ||
-      isTestStep_EXTCODECOPY(step)
+      isTestStep_EXTCODECOPY(step) ||
+      isTestStep_CREATEEOA(step)
     ) {
       functionParams = Object.values(step.functionParams)
     } else if (isTestStep_CALL(step)) {
