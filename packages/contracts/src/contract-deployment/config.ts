@@ -51,7 +51,9 @@ export const makeContractDeployConfig = async (
       afterDeploy: async (contracts): Promise<void> => {
         const xDomainMessenger = getContractFactory(
           'OVM_L1CrossDomainMessenger'
-        ).attach(contracts.Proxy__Proxy__OVM_L1CrossDomainMessenger.address)
+        )
+          .connect(config.deploymentSigner)
+          .attach(contracts.Proxy__OVM_L1CrossDomainMessenger.address)
         await xDomainMessenger.initialize(AddressManager.address)
       },
     },
