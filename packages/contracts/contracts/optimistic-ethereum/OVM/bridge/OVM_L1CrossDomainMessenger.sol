@@ -78,8 +78,10 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
             "Provided message could not be verified."
         );
 
+        bytes32 xDomainCalldataHash = keccak256(xDomainCalldata);
+
         require(
-            successfulMessages[keccak256(xDomainCalldata)] == false,
+            successfulMessages[xDomainCalldataHash] == false,
             "Provided message has already been received."
         );
 
@@ -89,7 +91,8 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         // Mark the message as received if the call was successful. Ensures that a message can be
         // relayed multiple times in the case that the call reverted.
         if (success == true) {
-            successfulMessages[keccak256(xDomainCalldata)] = true;
+            successfulMessages[xDomainCalldataHash] = true;
+            emit RelayedMessage(xDomainCalldataHash);
         }
 
         // Store an identifier that can be used to prove that the given message was relayed by some

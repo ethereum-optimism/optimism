@@ -6,6 +6,13 @@ pragma experimental ABIEncoderV2;
  * @title iOVM_BaseCrossDomainMessenger
  */
 interface iOVM_BaseCrossDomainMessenger {
+
+    /**********
+     * Events *
+     **********/
+    event SentMessage(bytes message);
+    event RelayedMessage(bytes32 msgHash);
+
     /**********************
      * Contract Variables *
      **********************/
