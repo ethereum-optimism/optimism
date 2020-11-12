@@ -20,6 +20,8 @@ const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (30
 const CHAIN_ID = env.CHAIN_ID || 420; // layer 2 chainid
 const USE_LEDGER = env.USE_LEDGER || false;
 const HD_PATH = env.HD_PATH || utils.defaultPath;
+const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
+  env.L2_CROSS_DOMAIN_MESSENGER_ADDRESS || '0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000';
 
 (async () => {
   const provider = new JsonRpcProvider(web3Url);
@@ -53,7 +55,8 @@ const HD_PATH = env.HD_PATH || utils.defaultPath;
       sequencer: SEQUENCER_ADDRESS,
     },
     ovmGlobalContext: {
-      ovmCHAINID: CHAIN_ID
+      ovmCHAINID: CHAIN_ID,
+      L2CrossDomainMessengerAddress: L2_CROSS_DOMAIN_MESSENGER_ADDRESS
     },
     ovmGasMeteringConfig: {
       minTransactionGasLimit: MIN_TRANSACTION_GAS_LIMIT,

@@ -1,5 +1,6 @@
 /* External Imports */
 import { Signer, ContractFactory, Contract } from 'ethers'
+import { Overrides } from '@ethersproject/contracts'
 
 /* Internal Imports */
 import { getContractFactory } from '../contract-defs'
@@ -14,6 +15,7 @@ export interface RollupDeployConfig {
   }
   ovmGlobalContext: {
     ovmCHAINID: number
+    L2CrossDomainMessengerAddress: string
   }
   transactionChainConfig: {
     sequencer: string | Signer
@@ -23,6 +25,7 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
+  deployOverrides?: Overrides
   dependencies?: string[]
 }
 
@@ -55,11 +58,11 @@ export const makeContractDeployConfig = async (
           .connect(config.deploymentSigner)
           .attach(contracts.Proxy__OVM_L1CrossDomainMessenger.address)
         await xDomainMessenger.initialize(AddressManager.address)
+        await AddressManager.setAddress(
+          'OVM_L2CrossDomainMessenger',
+          config.ovmGlobalContext.L2CrossDomainMessengerAddress
+        )
       },
-    },
-    OVM_L2CrossDomainMessenger: {
-      factory: getContractFactory('OVM_L2CrossDomainMessenger'),
-      params: [AddressManager.address],
     },
     OVM_CanonicalTransactionChain: {
       factory: getContractFactory('OVM_CanonicalTransactionChain'),

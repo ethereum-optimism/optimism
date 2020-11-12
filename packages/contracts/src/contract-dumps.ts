@@ -118,6 +118,8 @@ export const makeStateDump = async (): Promise<any> => {
     },
     ovmGlobalContext: {
       ovmCHAINID: 420,
+      L2CrossDomainMessengerAddress:
+        '0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000',
     },
     transactionChainConfig: {
       sequencer: signer,

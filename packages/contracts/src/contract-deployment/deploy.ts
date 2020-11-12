@@ -41,7 +41,10 @@ export const deploy = async (
     try {
       contracts[name] = await contractDeployParameters.factory
         .connect(config.deploymentSigner)
-        .deploy(...(contractDeployParameters.params || []))
+        .deploy(
+          ...(contractDeployParameters.params || []),
+          config.deployOverrides || {}
+        )
       await AddressManager.setAddress(name, contracts[name].address)
     } catch (err) {
       failedDeployments.push(name)
