@@ -247,7 +247,7 @@ Submits the Merkle root of a Plasma block
 ### EXAMPLE
 
 ```sh
-curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"1234qweradgf1234qweradgf","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e", "gas_price: "20000000000", nonce: "0""}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/submitBlock
+curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"KW7c+YhqaeXzUSARcnOh0sBSWhAU7l144fF6ls0Y5Vw=","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e", "gas_price: "20000000000", nonce: "0""}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/submitBlock
 
 {
   "request_id": "00a614f3-9bd3-60f4-25be-384a8d3cc5ff",

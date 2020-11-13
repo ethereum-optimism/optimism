@@ -9,7 +9,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-
+	b64 "encoding/base64"
+	
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -107,7 +108,11 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 
 	inputBlockRoot, ok := data.GetOk("block_root")
 	if ok {
-		copy(blockRoot[:], []byte(inputBlockRoot.(string)))
+		blockRoot, err := b64.StdEncoding.DecodeString(inputBlockRoot.(string))
+		if err != nil {
+			return nil, err
+		}
+		copy(blockRoot[:], blockRoot)
 	} else {
 		return nil, fmt.Errorf("invalid block root")
 	}

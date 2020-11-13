@@ -39,14 +39,6 @@ banner
 vault write -f -output-curl-string immutability-eth-plugin/wallets/temp-wallet
 
 banner
-echo "DELETE TEMPORARY WALLET"
-echo "vault delete immutability-eth-plugin/wallets/temp-wallet"
-vault delete immutability-eth-plugin/wallets/temp-wallet
-banner
-vault delete -output-curl-string immutability-eth-plugin/wallets/temp-wallet
-
-
-banner
 echo "LIST WALLETS"
 echo "vault list immutability-eth-plugin/wallets"
 vault list immutability-eth-plugin/wallets
@@ -94,11 +86,3 @@ echo "vault write -format=json immutability-eth-plugin/wallets/test-wallet-2/acc
 TEMP_ACCOUNT=$(vault write -f -field=address immutability-eth-plugin/wallets/test-wallet-2/accounts)
 banner
 vault write  -output-curl-string -f immutability-eth-plugin/wallets/test-wallet-2/accounts
-
-banner
-echo "DELETE TEMPORARY ACCOUNT IN WALLET"
-echo "vault delete immutability-eth-plugin/wallets/test-wallet-2/accounts/$TEMP_ACCOUNT"
-vault delete immutability-eth-plugin/wallets/test-wallet-2/accounts/$TEMP_ACCOUNT
-banner
-vault delete -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$TEMP_ACCOUNT
-
