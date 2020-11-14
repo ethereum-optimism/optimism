@@ -10,7 +10,6 @@ data "datadog_ip_ranges" "ips" {}
  * Egrees rule that allows traffic to be directed to Datadog's network
  */
 resource "google_compute_firewall" "datadog_logs_egress" {
-  count     = var.lockdown_egress ? 1 : 0
   name      = "datadog-log-egress"
   network   = google_compute_network.vpc.name
   direction = "EGRESS"
@@ -40,7 +39,6 @@ resource "google_compute_firewall" "datadog_logs_egress" {
 }
 
 resource "google_compute_firewall" "datadog_agent_1_egress" {
-  count     = var.lockdown_egress ? 1 : 0
   name      = "datadog-agent-1-egress"
   network   = google_compute_network.vpc.name
   direction = "EGRESS"
@@ -70,7 +68,6 @@ resource "google_compute_firewall" "datadog_agent_1_egress" {
 }
 
 resource "google_compute_firewall" "datadog_agent_2_egress" {
-  count     = var.lockdown_egress ? 1 : 0
   name      = "datadog-agent-2-egress"
   network   = google_compute_network.vpc.name
   direction = "EGRESS"
@@ -111,7 +108,6 @@ resource "google_compute_firewall" "infura_egress" {
     ports    = ["443"]
   }
 
-  # FIXME:
   destination_ranges = ["0.0.0.0/0"]
 }
 
@@ -136,8 +132,7 @@ resource "google_compute_firewall" "omgnetwork_vpc_access" {
     ports    = ["8200"]
   }
 
-  source_ranges = [var.omgnetwork_subnet_cidr, var.subnet_cidr]
-  target_tags   = ["vault"]
+  source_ranges = var.omgnetwork_cidrs
 }
 
 /*
@@ -159,4 +154,44 @@ resource "google_compute_firewall" "ssh_iap" {
   }
 
   source_tags = ["ssh-access"]
+}
+
+/*	
+ * This firewall rules for VPN ingress access	
+ */
+resource "google_compute_firewall" "vpn_internet" {
+  name          = "vpn-internet"
+  network       = google_compute_network.vpc.name
+  direction     = "INGRESS"
+  priority      = "1200"
+  source_ranges = ["0.0.0.0/0"]
+
+  allow {
+    protocol = "udp"
+    ports    = ["1194"]
+  }
+
+  target_tags = ["vpn"]
+}
+
+resource "google_compute_firewall" "vpn_outbound" {
+  name      = "vpn-access"
+  network   = google_compute_network.vpc.name
+  direction = "INGRESS"
+  priority  = "1300"
+
+  allow {
+    protocol = "udp"
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+
+  allow {
+    protocol = "tcp"
+  }
+
+  source_tags = ["vault"]
+  target_tags = ["vpn"]
 }

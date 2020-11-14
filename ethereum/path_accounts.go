@@ -86,8 +86,6 @@ The generator produces a high-entropy passphrase with the provided length and re
 			ExistenceCheck: pathExistenceCheck,
 			Callbacks: map[logical.Operation]framework.OperationFunc{
 				logical.ReadOperation:   b.pathAccountsRead,
-				logical.UpdateOperation: b.pathAccountsUpdate,
-				logical.DeleteOperation: b.pathAccountsDelete,
 			},
 		},
 		{
@@ -178,23 +176,6 @@ func (b *PluginBackend) pathAccountsRead(ctx context.Context, req *logical.Reque
 	}, nil
 }
 
-func (b *PluginBackend) pathAccountsDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	_, err := b.configured(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	name := data.Get("name").(string)
-	address := data.Get("address").(string)
-	accountJSON, err := readAccount(ctx, req, name, address)
-	if err != nil || accountJSON == nil {
-		return nil, fmt.Errorf("error reading address")
-	}
-	if err := req.Storage.Delete(ctx, req.Path); err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
 func (b *PluginBackend) pathAccountsCreate(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	_, err := b.configured(ctx, req)
 	if err != nil {
@@ -224,65 +205,6 @@ func (b *PluginBackend) pathAccountsCreate(ctx context.Context, req *logical.Req
 
 	walletJSON.Index = walletJSON.Index + 1
 	b.updateWallet(ctx, req, name, walletJSON)
-	path := QualifiedPath("wallets/" + name + "/accounts/" + account.Address.Hex())
-	entry, err := logical.StorageEntryJSON(path, accountJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	err = req.Storage.Put(ctx, entry)
-	if err != nil {
-		return nil, err
-	}
-
-	return &logical.Response{
-		Data: map[string]interface{}{
-			"address":   account.Address.Hex(),
-			"whitelist": accountJSON.Whitelist,
-			"blacklist": accountJSON.Blacklist,
-			"index":     accountJSON.Index,
-		},
-	}, nil
-}
-
-func (b *PluginBackend) pathAccountsUpdate(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	_, err := b.configured(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	name := data.Get("name").(string)
-
-	address := data.Get("address").(string)
-	accountJSON, err := readAccount(ctx, req, name, address)
-	if err != nil || accountJSON == nil {
-		return nil, fmt.Errorf("error reading address")
-	}
-
-	walletJSON, err := readWallet(ctx, req, name)
-	_, account, err := getWalletAndAccount(*walletJSON, accountJSON.Index)
-	if err != nil {
-		return nil, err
-	}
-
-	var whiteList []string
-	if whiteListRaw, ok := data.GetOk("whitelist"); ok {
-		whiteList = whiteListRaw.([]string)
-	} else {
-		whiteList = accountJSON.Whitelist
-	}
-	var blackList []string
-	if blackListRaw, ok := data.GetOk("blacklist"); ok {
-		blackList = blackListRaw.([]string)
-	} else {
-		blackList = accountJSON.Blacklist
-	}
-
-	accountJSON = &AccountJSON{
-		Index:     accountJSON.Index,
-		Whitelist: whiteList,
-		Blacklist: blackList,
-	}
-
 	path := QualifiedPath("wallets/" + name + "/accounts/" + account.Address.Hex())
 	entry, err := logical.StorageEntryJSON(path, accountJSON)
 	if err != nil {

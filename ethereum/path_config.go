@@ -97,11 +97,9 @@ func ConfigPaths(b *PluginBackend) []*framework.Path {
 					61 - Ethereum Classic mainnet
 					62 - Ethereum Classic testnet
 					1337 - Geth private chains (default)`,
-					Default: Rinkeby,
 				},
 				"rpc_url": {
 					Type:        framework.TypeString,
-					Default:     InfuraRinkeby,
 					Description: `The RPC address of the Ethereum network.`,
 				},
 				"whitelist": {
@@ -128,7 +126,13 @@ func (config *ConfigJSON) getRPCURL() string {
 
 func (b *PluginBackend) pathWriteConfig(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	rpcURL := data.Get("rpc_url").(string)
+	if rpcURL == "" {
+		return nil, fmt.Errorf("invalid rpc_url")
+	}
 	chainID := data.Get("chain_id").(string)
+	if chainID == "" {
+		return nil, fmt.Errorf("invalid chain_id")
+	}
 	var boundCIDRList []string
 	if boundCIDRListRaw, ok := data.GetOk("bound_cidr_list"); ok {
 		boundCIDRList = boundCIDRListRaw.([]string)

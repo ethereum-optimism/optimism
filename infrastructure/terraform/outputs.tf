@@ -17,3 +17,8 @@ output "registry_uri" {
   value       = google_container_registry.registry.bucket_self_link
   description = "The self-link URI for the private container registry in GCR"
 }
+
+output "gke_services_cidr" {
+  value       = google_container_cluster.cluster.services_ipv4_cidr
+  description = "CIDR designated for Kubernetes service endpoints"
+}

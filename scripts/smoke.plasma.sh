@@ -7,7 +7,7 @@ function banner {
 
 source /home/vault/scripts/smoke.env.sh
 
-BLOCK_ROOT="1234qweradgf1234qweradgf"
+BLOCK_ROOT="KW7c+YhqaeXzUSARcnOh0sBSWhAU7l144fF6ls0Y5Vw="
 
 banner
 echo "CONFIGURE MOUNT"

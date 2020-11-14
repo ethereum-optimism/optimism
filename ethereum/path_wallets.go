@@ -105,8 +105,6 @@ The generator produces a high-entropy passphrase with the provided length and re
 			Callbacks: map[logical.Operation]framework.OperationFunc{
 				logical.ReadOperation:   b.pathWalletsRead,
 				logical.CreateOperation: b.pathWalletsCreate,
-				logical.UpdateOperation: b.pathWalletUpdate,
-				logical.DeleteOperation: b.pathWalletsDelete,
 			},
 		},
 	}
@@ -157,22 +155,6 @@ func (b *PluginBackend) pathWalletsRead(ctx context.Context, req *logical.Reques
 			"blacklist": walletJSON.Blacklist,
 		},
 	}, nil
-}
-
-func (b *PluginBackend) pathWalletsDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	_, err := b.configured(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	name := data.Get("name").(string)
-	_, err = readWallet(ctx, req, name)
-	if err != nil {
-		return nil, err
-	}
-	if err := req.Storage.Delete(ctx, req.Path); err != nil {
-		return nil, err
-	}
-	return nil, nil
 }
 
 func getWalletAndAccount(walletJSON WalletJSON, index int) (*hdwallet.Wallet, *accounts.Account, error) {
@@ -250,43 +232,6 @@ func (b *PluginBackend) updateWallet(ctx context.Context, req *logical.Request, 
 		return err
 	}
 	return nil
-}
-
-func (b *PluginBackend) pathWalletUpdate(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	_, err := b.configured(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	name := data.Get("name").(string)
-	walletJSON, err := readWallet(ctx, req, name)
-	if err != nil {
-		return nil, err
-	}
-	var whiteList []string
-	if whiteListRaw, ok := data.GetOk("whitelist"); ok {
-		whiteList = whiteListRaw.([]string)
-	}
-	var blackList []string
-	if blackListRaw, ok := data.GetOk("blacklist"); ok {
-		blackList = blackListRaw.([]string)
-	}
-	walletJSON.Whitelist = whiteList
-	walletJSON.Blacklist = blackList
-
-	err = b.updateWallet(ctx, req, name, walletJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	return &logical.Response{
-		Data: map[string]interface{}{
-			"index":     walletJSON.Index,
-			"whitelist": walletJSON.Whitelist,
-			"blacklist": walletJSON.Blacklist,
-		},
-	}, nil
-
 }
 
 func pathExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {

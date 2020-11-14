@@ -1,4 +1,4 @@
-## 0.0.7 (xx yy, 2020)
+## 0.0.7 (October 6, 2020)
 
 NEW FEATURES:
 

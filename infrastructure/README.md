@@ -1,6 +1,6 @@
 # GCP and Vault Infrastructure
 
-This directory holds the Terraform scripts and the Helm chart overrides to deploy the cloud infrastructure and Kubernetes resources into a Google Cloud project.
+This directory holds the Terraform scripts and the Helm chart overrides to deploy the cloud infrastructure and Kubernetes resources into two Google Cloud projects.
 
 ## GCloud Authentication
 
@@ -51,7 +51,7 @@ The Terraform scripts in this directory are used for standing up the cloud infra
 
 ### Deployment
 
-With a Google Cloud project already created, first you must enable the necessary Google API services in order to successfully run the Terraform scripts to deploy the resources. There is a script to enable (and disable for teardown) the APIs for you:
+You must enable the necessary Google API services, first, in order to successfully run the Terraform scripts to deploy the resources. There is a script to enable (and disable for teardown) the APIs for you:
 
 ```bash
 ./scripts/gcp_services.sh # [-d: disable]
@@ -67,6 +67,18 @@ This enables:
 - `container.googleapis.com`
 
 Without doing this first, the deployment will not succeed.
+
+> NOTE:
+> <br />
+> There are three variables that are networking CIDR blocks that must be set properly for a successful apply: `gke_pod_cidr`, `gke_service_cidr`, and `vault_subnet_cidr`. All three of there blocks must be different, but can whatever you'd like.
+> <br />
+> 
+> - `vault_subnet_cidr`: the CIDR block for the VPC subnet that the GKE cluster nodes will be created and restricted to
+> - `gke_service_cidr`: the CIDR block for all Kubernetes services and load balancer to be created within
+> - `gke_pod_cidr`: the CIDR block for the Kubernetes pods to be restricted to (must be a `/21` or lower mask per GCP restrictions)
+> <br />
+> 
+> Once created, each of these CIDR blocks will be automatically attached to the Vault subnet in the VPC to allow VPC peering to all three of the CIDR blocks. 
 
 Now that you're authenticated locally to your GCP project, you can now deploy the scripts. Ensure that you have all of the necessary Terraform variables set in the `terraform.tfvars` file and run:
 
@@ -254,7 +266,7 @@ In another terminal, execute:
 
 ```bash
 export VAULT_ADDR=https://<load-balancer>:8200
-export VAULT_CACERT=$K8S/certs/ca-chain.cert.pem
+export VAULT_CACERT=$K8S/certs/ca.crt
 
 vault status
 ```

@@ -56,7 +56,6 @@ genconfig() {
 	echo "> Create Config" >&2
 
 	cat > "$CONFIG" << EOF
-
 [req]
 default_bits = 2048
 encrypt_key  = no
@@ -90,6 +89,9 @@ subjectAltName       = @alt_names
 # Alternative names are specified as IP.# and DNS.# for IPs and
 # DNS accordingly.
 [alt_names]
+IP.1  = 127.0.0.1
+IP.2  = 10.8.0.2
+IP.3  = 192.168.64.1
 DNS.1 = localhost
 DNS.2 = ${DOMAIN}
 DNS.3 = *.${DOMAIN}
