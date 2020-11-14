@@ -55,6 +55,11 @@ variable "router_asn" {
   type        = number
 }
 
+variable "vault_dns" {
+  description = "The DNS of the Vault service load balancer that is in the SANS for the certificates"
+  type        = string
+}
+
 variable "vault_subnet_cidr" {
   description = "The subnet that the Vault cluster should be deployed under in the VPC"
   type        = string
