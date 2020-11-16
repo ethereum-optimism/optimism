@@ -78,7 +78,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   public async _onSync(): Promise<TransactionReceipt> {
     const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
-    this._updateLastL1BlockNumber(pendingQueueElements)
 
     if (pendingQueueElements !== 0) {
       this.log.info(
@@ -95,7 +94,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   // TODO: Remove this function and use geth for lastL1BlockNumber!
-  private async _updateLastL1BlockNumber(pendingQueueElements: number) {
+  private async _updateLastL1BlockNumber() {
+    const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+
     if (pendingQueueElements !== 0) {
       const nextQueueIndex = await this.chainContract.getNextQueueIndex()
       this.lastL1BlockNumber = await this.chainContract.getQueueElement(
@@ -163,6 +164,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     endBlock: number
   ): Promise<AppendSequencerBatchParams> {
     // Get all L2 BatchElements for the given range
+    // For now we need to update our internal `lastL1BlockNumber` value
+    // which is used when submitting batches.
+    this._updateLastL1BlockNumber() // TODO: Remove this
     const batch: Batch = []
     for (let i = startBlock; i < endBlock; i++) {
       batch.push(await this._getL2BatchElement(i))
