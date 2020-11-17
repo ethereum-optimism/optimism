@@ -63,10 +63,10 @@ contract OVM_SequencerEntrypoint {
             s
         );
 
-        if (Lib_SafeExecutionManagerWrapper.safeEXTCODESIZE(msg.sender, target) == 0) {
+        if (Lib_SafeExecutionManagerWrapper.safeEXTCODESIZE(target) == 0) {
             // ProxyEOA has not yet been deployed for this EOA.
             bytes32 messageHash = Lib_ECDSAUtils.getMessageHash(encodedTx, isEthSignedMessage);
-            Lib_SafeExecutionManagerWrapper.safeCREATEEOA(msg.sender, messageHash, uint8(v), r, s);
+            Lib_SafeExecutionManagerWrapper.safeCREATEEOA(messageHash, uint8(v), r, s);
         }
 
         // ProxyEOA has been deployed for this EOA, continue to CALL.
@@ -80,7 +80,6 @@ contract OVM_SequencerEntrypoint {
         );
 
         Lib_SafeExecutionManagerWrapper.safeCALL(
-            msg.sender,
             gasleft(),
             target,
             callbytes
@@ -111,7 +110,6 @@ contract OVM_SequencerEntrypoint {
             return TransactionType.ETH_SIGNED_MESSAGE;
         } else {
             Lib_SafeExecutionManagerWrapper.safeREVERT(
-                msg.sender,
                 "Transaction type must be 0 or 2"
             );
         }

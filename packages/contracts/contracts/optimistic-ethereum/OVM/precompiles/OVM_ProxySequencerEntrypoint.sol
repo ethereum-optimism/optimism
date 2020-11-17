@@ -16,7 +16,6 @@ contract OVM_ProxySequencerEntrypoint {
         external
     {
         Lib_SafeExecutionManagerWrapper.safeDELEGATECALL(
-            msg.sender,
             gasleft(),
             _getImplementation(),
             msg.data
@@ -35,7 +34,6 @@ contract OVM_ProxySequencerEntrypoint {
         external
     {
         Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            msg.sender,
             _getOwner() == address(0),
             "ProxySequencerEntrypoint has already been inited"
         );
@@ -49,8 +47,7 @@ contract OVM_ProxySequencerEntrypoint {
         external
     {
         Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            msg.sender,
-            _getOwner() == Lib_SafeExecutionManagerWrapper.safeCALLER(msg.sender),
+            _getOwner() == Lib_SafeExecutionManagerWrapper.safeCALLER(),
             "Only owner can upgrade the Entrypoint"
         );
 
@@ -68,7 +65,6 @@ contract OVM_ProxySequencerEntrypoint {
         internal
     {
         Lib_SafeExecutionManagerWrapper.safeSSTORE(
-            msg.sender,
             bytes32(uint256(0)),
             bytes32(uint256(uint160(_implementation)))
         );
@@ -82,7 +78,6 @@ contract OVM_ProxySequencerEntrypoint {
     {
         return address(uint160(uint256(
             Lib_SafeExecutionManagerWrapper.safeSLOAD(
-                msg.sender,
                 bytes32(uint256(0))
             )
         )));
@@ -94,7 +89,6 @@ contract OVM_ProxySequencerEntrypoint {
         internal
     {
         Lib_SafeExecutionManagerWrapper.safeSSTORE(
-            msg.sender,
             bytes32(uint256(1)),
             bytes32(uint256(uint160(_owner)))
         );
@@ -108,7 +102,6 @@ contract OVM_ProxySequencerEntrypoint {
     {
         return address(uint160(uint256(
             Lib_SafeExecutionManagerWrapper.safeSLOAD(
-                msg.sender,
                 bytes32(uint256(1))
             )
         )));

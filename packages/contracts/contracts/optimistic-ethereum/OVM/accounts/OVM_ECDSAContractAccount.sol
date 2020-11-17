@@ -45,7 +45,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             bytes memory _returndata
         )
     {
-        address ovmExecutionManager = msg.sender;
         bool isEthSign = _signatureType == Lib_OVMCodec.EOASignatureType.ETH_SIGNED_MESSAGE;
 
         // Address of this contract within the ovm (ovmADDRESS) should be the same as the
@@ -53,14 +52,13 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         // account abstraction even though the user isn't a contract.
         // Need to make sure that the transaction nonce is right and bump it if so.
         Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            msg.sender,
             Lib_ECDSAUtils.recover(
                 _transaction,
                 isEthSign,
                 _v,
                 _r,
                 _s
-            ) == Lib_SafeExecutionManagerWrapper.safeADDRESS(ovmExecutionManager),
+            ) == Lib_SafeExecutionManagerWrapper.safeADDRESS(),
             "Signature provided for EOA transaction execution is invalid."
         );
 
@@ -68,16 +66,14 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Need to make sure that the transaction nonce is right.
         Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            msg.sender,
-            decodedTx.nonce == Lib_SafeExecutionManagerWrapper.safeGETNONCE(ovmExecutionManager),
+            decodedTx.nonce == Lib_SafeExecutionManagerWrapper.safeGETNONCE(),
             "Transaction nonce does not match the expected nonce."
         );
 
         // Transfer fee to relayer.
-        address relayer = Lib_SafeExecutionManagerWrapper.safeCALLER(ovmExecutionManager);
+        address relayer = Lib_SafeExecutionManagerWrapper.safeCALLER();
         uint256 fee = decodedTx.gasLimit * decodedTx.gasPrice;
         Lib_SafeExecutionManagerWrapper.safeCALL(
-            ovmExecutionManager,
             gasleft(),
             ETH_ERC20_ADDRESS,
             abi.encodeWithSignature("transfer(address,uint256)", relayer, fee)
@@ -86,7 +82,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.to == address(0)) {
             address created = Lib_SafeExecutionManagerWrapper.safeCREATE(
-                ovmExecutionManager,
                 decodedTx.gasLimit - 2000,
                 decodedTx.data
             );
@@ -98,10 +93,9 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // We only want to bump the nonce for `ovmCALL` because `ovmCREATE` automatically bumps
             // the nonce of the calling account. Normally an EOA would bump the nonce for both
             // cases, but since this is a contract we'd end up bumping the nonce twice.
-            Lib_SafeExecutionManagerWrapper.safeSETNONCE(ovmExecutionManager, decodedTx.nonce + 1);
+            Lib_SafeExecutionManagerWrapper.safeSETNONCE(decodedTx.nonce + 1);
 
             return Lib_SafeExecutionManagerWrapper.safeCALL(
-                ovmExecutionManager,
                 decodedTx.gasLimit,
                 decodedTx.to,
                 decodedTx.data

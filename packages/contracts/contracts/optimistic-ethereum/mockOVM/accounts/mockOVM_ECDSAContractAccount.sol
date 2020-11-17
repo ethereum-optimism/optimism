@@ -43,21 +43,18 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             bytes memory _returndata
         )
     {
-        address ovmExecutionManager = msg.sender;
         bool isEthSign = _signatureType == Lib_OVMCodec.EOASignatureType.ETH_SIGNED_MESSAGE;
         Lib_OVMCodec.EIP155Transaction memory decodedTx = Lib_OVMCodec.decodeEIP155Transaction(_transaction, isEthSign);
 
         // Need to make sure that the transaction nonce is right.
         Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            msg.sender,
-            decodedTx.nonce == Lib_SafeExecutionManagerWrapper.safeGETNONCE(ovmExecutionManager),
+            decodedTx.nonce == Lib_SafeExecutionManagerWrapper.safeGETNONCE(),
             "Transaction nonce does not match the expected nonce."
         );
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.to == address(0)) {
             address created = Lib_SafeExecutionManagerWrapper.safeCREATE(
-                ovmExecutionManager,
                 decodedTx.gasLimit,
                 decodedTx.data
             );
@@ -68,10 +65,9 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // We only want to bump the nonce for `ovmCALL` because `ovmCREATE` automatically bumps
             // the nonce of the calling account. Normally an EOA would bump the nonce for both
             // cases, but since this is a contract we'd end up bumping the nonce twice.
-            Lib_SafeExecutionManagerWrapper.safeSETNONCE(ovmExecutionManager, decodedTx.nonce + 1);
+            Lib_SafeExecutionManagerWrapper.safeSETNONCE(decodedTx.nonce + 1);
 
             return Lib_SafeExecutionManagerWrapper.safeCALL(
-                ovmExecutionManager,
                 decodedTx.gasLimit,
                 decodedTx.to,
                 decodedTx.data
@@ -91,7 +87,6 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         )
     {
         return Lib_SafeExecutionManagerWrapper.safeCALL(
-            msg.sender,
             _gasLimit,
             _to,
             _data

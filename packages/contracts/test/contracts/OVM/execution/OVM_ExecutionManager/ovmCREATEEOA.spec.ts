@@ -65,7 +65,7 @@ const test_ovmCREATEEOA: TestDefinition = {
             address: '0x17ec8597ff92C3F44523bDc65BF0f1bE632917ff',
           },
           expectedReturnStatus: true,
-          expectedReturnValue: 1638,
+          expectedReturnValue: 1619,
         },
       ],
     },
