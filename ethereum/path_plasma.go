@@ -8,8 +8,8 @@ package ethereum
 import (
 	"bytes"
 	"context"
-	b64 "encoding/base64"
 	"fmt"
+	b64 "encoding/base64"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -111,6 +111,9 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 	blockRoot, err := b64.StdEncoding.DecodeString(inputBlockRoot.(string))
 	if err != nil {
 		return nil, fmt.Errorf("invalid block root - not base64")
+	}
+	if (len(blockRoot) != 32) {
+		return nil, fmt.Errorf("invalid block root - not the right size")
 	}
 	blockRootSB := [32]byte{}
 	copy(blockRootSB[:], blockRoot[0:32])
