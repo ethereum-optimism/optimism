@@ -78,7 +78,7 @@ echo "AUTHORIZED SUBMISSION OF BLOCK BY $ORIGINAL_AUTHORITY"
 echo "vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock nonce=1 gas_price=$GAS_PRICE_HIGH block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT"
 vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock nonce=1 gas_price=$GAS_PRICE_HIGH block_root=$BAD_BLOCK_ROOT contract=$PLASMA_CONTRACT
 banner
-vault write  -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock nonce=! gas_price=$GAS_PRICE_HIGH block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT
+vault write  -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock nonce=1 gas_price=$GAS_PRICE_HIGH block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT
 
 banner
 echo "*** SHOULD SUCCEED ***" 
