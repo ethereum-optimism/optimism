@@ -22,3 +22,13 @@ output "gke_services_cidr" {
   value       = google_container_cluster.cluster.services_ipv4_cidr
   description = "CIDR designated for Kubernetes service endpoints"
 }
+
+output "dns_managed_zone_id" {
+  value = google_dns_managed_zone.vault.id
+  description = "DNS Managed Zone ID"
+}
+
+output "dns_managed_zone_name_servers" {
+  value = google_dns_managed_zone.vault.name_servers
+  description = "DNS Managed Zone Name Servers"
+}
