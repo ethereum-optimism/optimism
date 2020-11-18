@@ -1,16 +1,16 @@
 import { JsonRpcProvider } from '@ethersproject/providers'
-import { Contract, Wallet } from 'ethers'
+import { Contract, Signer } from 'ethers'
 import { getContractInterface } from '@eth-optimism/contracts'
 
 interface MessageRelayerOptions {
-  l1RpcEndpoint: string
-  l2RpcEndpoint: string
+  l1RpcProvider: JsonRpcProvider
+  l2RpcProvider: JsonRpcProvider
   stateCommitmentChainAddress: string
   l1CrossDomainMessengerAddress: string
   l2CrossDomainMessengerAddress: string
   l2ChainStartingHeight: number
   pollingInterval: number
-  relayerPrivateKey: string
+  relaySigner: Signer
 }
 
 export const main = async (options: MessageRelayerOptions) => {
@@ -23,12 +23,12 @@ export const main = async (options: MessageRelayerOptions) => {
   // L2CrossDomainMessenger contract.
   // Relaying account from private key.
 
-  const l1RpcProvider = new JsonRpcProvider(options.l1RpcEndpoint)
-  const l2RpcProvider = new JsonRpcProvider(options.l2RpcEndpoint)
+  const l1RpcProvider = options.l1RpcProvider
+  const l2RpcProvider = options.l2RpcProvider
   const stateCommitmentChain = new Contract(options.stateCommitmentChainAddress, getContractInterface('OVM_StateCommitmentChain'), l1RpcProvider)
   const l1CrossDomainMessenger = new Contract(options.l1CrossDomainMessengerAddress, getContractInterface('OVM_L1CrossDomainMessenger'), l1RpcProvider)
   const l2CrossDomainMessenger = new Contract(options.l2CrossDomainMessengerAddress, getContractInterface('OVM_L2CrossDomainMessenger'), l2RpcProvider)
-  const relayerWallet = new Wallet(options.relayerPrivateKey, l1RpcProvider)
+  const relaySigner = options.relaySigner
 
 
   // Sanity checks.
