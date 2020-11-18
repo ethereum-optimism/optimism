@@ -100,6 +100,7 @@ describe('OVM_ProxyEOA', () => {
     })
   })
   describe('upgrade()', () => {
+    const implSlotKey = '0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead'
     it(`should upgrade the proxy implementation`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
       const newImplBytes32 = addrToBytes32(newImpl)
@@ -108,7 +109,7 @@ describe('OVM_ProxyEOA', () => {
       ])
       const ovmSSTORE: any =
         Mock__OVM_ExecutionManager.smocked.ovmSSTORE.calls[0]
-      expect(ovmSSTORE._key).to.equal(`0x${'00'.repeat(32)}`)
+      expect(ovmSSTORE._key).to.equal(implSlotKey)
       expect(ovmSSTORE._value).to.equal(newImplBytes32)
     })
     it(`should not allow upgrade of the proxy implementation by another account`, async () => {

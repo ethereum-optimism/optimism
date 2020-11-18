@@ -11,6 +11,8 @@ import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Sa
  */
 contract OVM_ProxyEOA {
 
+    bytes32 constant IMPLEMENTATION_KEY = 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead;
+
     /***************
      * Constructor *
      ***************/
@@ -72,7 +74,7 @@ contract OVM_ProxyEOA {
     {
         return address(uint160(uint256(
             Lib_SafeExecutionManagerWrapper.safeSLOAD(
-                bytes32(uint256(0))
+                IMPLEMENTATION_KEY
             )
         )));
     }
@@ -87,7 +89,7 @@ contract OVM_ProxyEOA {
         internal
     {
         Lib_SafeExecutionManagerWrapper.safeSSTORE(
-            bytes32(uint256(0)),
+            IMPLEMENTATION_KEY,
             bytes32(uint256(uint160(_implementation)))
         );
     }
