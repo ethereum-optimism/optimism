@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.7.0;
 
 import { OVM_BondManager } from "./../optimistic-ethereum/OVM/verification/OVM_BondManager.sol";
