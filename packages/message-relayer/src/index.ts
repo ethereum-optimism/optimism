@@ -9,7 +9,7 @@ interface MessageRelayerOptions {
   l1CrossDomainMessengerAddress: string
   l2CrossDomainMessengerAddress: string
   l2ChainStartingHeight: number
-  pollingInterval: number
+  pollingInterval: number  // milliseconds
   relayerPrivateKey: string
 }
 
@@ -41,20 +41,60 @@ export const main = async (options: MessageRelayerOptions) => {
   // Check the starting height.
   // Check the polling interval.
 
+  let currentFinalizedTransactionHeight = options.l2ChainStartingHeight
+  let nextUnfinalizedTransactionHeight = options.l2ChainStartingHeight+1
+  while(true) {
 
-  // Primary loop.
+    await sleep(pollingInterval)
+    // Check that transaction N has been finalized.
+    if ( !(await isTransactionFinalized(stateCommitmentChain, nextUnfinalizedTransactionHeight)) ) {
+      continue
+    } else {
+      currentFinalizedTransactionHeight = nextUnfinalizedTransactionHeight
+      while(await isTransactionFinalized(stateCommitmentChain, nextUnfinalizedTransactionHeight)) {
+        nextUnfinalizedTransactionHeight++
+      }
+    }
 
-  let nextUnfinalizedTransactionHeight = options.l2ChainStartingHeight
+    // Find all sent message events on Layer 2 within the range.
+    const messages = await getSentMessages(l2CrossDomainMessenger, currentFinalizedTransactionHeight, nextUnfinalizedTransactionHeight)
 
-  // Check that transaction N has been finalized.
-    // If no:
-      // Do nothing, wait until next loop.
-    // If yes:
-      // Iteratively find the next unfinalized transaction (becomes transaction N).
-      // Gives us a range of newly finalized transactions.
-  // Find all sent message events on Layer 2 within the range.
-    // For each event:
-      // Check that the message has not been relayed (call the L1CrossDomainMessenger).
+    for (const message of messages) {
+
+      //Check L1CrossDomainMessenger that the message has not been relayed
+      if ( await wasMessageRelayed(l1CrossDomainMessenger, message) ) {
+        continue
+      }
       // Get proof for the message from Layer 2.
-      // Send the message and proof to the L1CrossDomainMessenger.
+      let proof = await getMessageProof(l2RpcProvider, message)
+          // Send the message and proof to the L1CrossDomainMessenger.
+          await relayMessageToL1(l1CrossDomainMessenger, message, proof, relayerWallet)
+
+    }
+
+  }
+}
+
+const wasMessageRelayed = async (l1CrossDomainMessenger:Contract, message:any): Promise<boolean> => {
+  return (l1CrossDomainMessenger.successfulMessages(message.hash))
+}
+
+const getMessageProof = async(l2RpcProvider:JsonRpcProvider, message:any): Promise<any> => {
+  return false
+}
+
+const relayMessageToL1 = async(l1CrossDomainMessenger:Contract, message:any, proof:any, relayerWallet:Wallet): Promise<void> => {
+  return (l1CrossDomainMessenger.relayMessage(message.target, message.sender, message.data, message.nonce, proof, {from:relayerWallet, gasLimit:message.gasLimit}))
+}
+
+//const getSentMessages =
+
+//const isTransactionFinalized =
+
+
+
+const sleep = async (ms: number): Promise<void> => {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }
