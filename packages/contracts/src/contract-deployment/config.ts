@@ -44,6 +44,10 @@ export const makeContractDeployConfig = async (
   AddressManager: Contract
 ): Promise<ContractDeployConfig> => {
   return {
+    OVM_L2CrossDomainMessenger: {
+      factory: getContractFactory('OVM_L2CrossDomainMessenger'),
+      params: [AddressManager.address],
+    },
     OVM_L1CrossDomainMessenger: {
       factory: getContractFactory('OVM_L1CrossDomainMessenger'),
       params: [],
