@@ -12,13 +12,14 @@ export const wallets = defaultAccounts.map((account) => {
 const getEthTrieProof = async (
   vm: any,
   address: Buffer | string,
-  slots: Array<Buffer | string> = [],
+  slots: Array<Buffer | string> = []
 ): Promise<EthTrieProof> => {
-  const addressBuf = typeof address === 'string' ? fromHexString(address) : address
+  const addressBuf =
+    typeof address === 'string' ? fromHexString(address) : address
   const slotsBuf: Buffer[] = slots.map(
     (slot): Buffer => {
       return typeof slot === 'string' ? fromHexString(slot) : slot
-    },
+    }
   )
 
   return getEthTrieProofInternal(vm, addressBuf, slotsBuf)
