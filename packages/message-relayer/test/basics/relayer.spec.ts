@@ -184,6 +184,10 @@ describe('Message Relayer: basic tests', () => {
       'OVM_BondManager',
       OVM_BondManager.address
     )
+    await Lib_AddressManager_L1.setAddress(
+      'OVM_L2ToL1MessagePasser',
+      OVM_L2ToL1MessagePasser.address
+    )
 
     // L2 address manager initializations.
     await Lib_AddressManager_L2.setAddress(
@@ -201,18 +205,17 @@ describe('Message Relayer: basic tests', () => {
   })
 
   before(async () => {
-    /*
     main({
       l1RpcProvider: l1RpcProvider,
       l2RpcProvider: l2RpcProvider,
       stateCommitmentChainAddress: OVM_StateCommitmentChain.address,
       l1CrossDomainMessengerAddress: OVM_L1CrossDomainMessenger.address,
       l2CrossDomainMessengerAddress: OVM_L2CrossDomainMessenger.address,
+      l2ToL1MessagePasserAddress: OVM_L2ToL1MessagePasser.address,
       l2ChainStartingHeight: 0,
-      pollingInterval: 15,
-      relaySigner: relaySigner,
+      pollingInterval: 2000,
+      relaySigner: l1RelayWallet,
     })
-    */
   })
 
   describe('basic complete tests', () => {
@@ -232,12 +235,12 @@ describe('Message Relayer: basic tests', () => {
       )
 
       const root1 = await getStateRoot(l2RpcProvider)
-
       await OVM_StateCommitmentChain.appendStateBatch([root1], 1)
 
-      await l2RpcProvider.send('evm_increaseTime', [864000])
+      await l1RpcProvider.send('evm_increaseTime', [864000])
+      await l1RpcProvider.send('evm_mine', [])
 
-      await sleep(10)
+      await sleep(5000)
 
       expect(
         await OVM_L1CrossDomainMessenger.successfulMessages(

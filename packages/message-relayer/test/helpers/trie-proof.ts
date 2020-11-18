@@ -20,9 +20,7 @@ const getTrieProofCb = (trie: any, key: Buffer, cb: any): void => {
     }
 
     if (remaining.length > 0) {
-      return cb(
-        new Error(`Node does not contain the key: ${key.toString('hex')}`)
-      )
+      return cb(new Error(`Node does not contain the key: ${key.toString('hex')}`))
     }
 
     nodes = stack
@@ -112,7 +110,7 @@ export interface EthTrieProof {
 export const getEthTrieProofInternal = async (
   vm: any,
   address: Buffer,
-  slots: Buffer[] = []
+  slots: Buffer[] = [],
 ): Promise<EthTrieProof> => {
   // Generate the account proof using the state trie.
   const stateTrie = vm.stateManager._trie
