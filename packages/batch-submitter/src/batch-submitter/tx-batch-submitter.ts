@@ -99,9 +99,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
     if (pendingQueueElements !== 0) {
       const nextQueueIndex = await this.chainContract.getNextQueueIndex()
-      this.lastL1BlockNumber = await this.chainContract.getQueueElement(
+      const queueElement = await this.chainContract.getQueueElement(
         nextQueueIndex
-      ).blockNumber
+      )
+      this.lastL1BlockNumber = queueElement[2]  // The block number is the 3rd element returned in the array....
     } else {
       const curBlockNum = await this.chainContract.provider.getBlockNumber()
       if (!this.lastL1BlockNumber) {
@@ -119,7 +120,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   public async _getBatchStartAndEnd(): Promise<Range> {
     const startBlock =
-      parseInt(await this.chainContract.getTotalElements(), 16) + 1 // +1 to skip L2 genesis block
+      (await this.chainContract.getTotalElements()).toNumber() + 1  // TODO: Remove `+1` by removing Geth's genesis block
     const endBlock =
       Math.min(
         startBlock + this.maxBatchSize,
@@ -251,7 +252,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     return {
-      shouldStartAtBatch: shouldStartAtIndex - 1,
+      shouldStartAtBatch: shouldStartAtIndex - 1,  // TODO: Remove `-1` by removing Geth's genesis block
       totalElementsToAppend,
       contexts,
       transactions,
