@@ -7,7 +7,7 @@ import {
   getContractInterface,
 } from '@eth-optimism/contracts'
 
-import { main } from '../../src'
+import { MessageRelayerService } from '../../src'
 import { ganache, wallets } from '../helpers/ganache'
 
 const getStateRoot = async (provider: JsonRpcProvider): Promise<string> => {
@@ -204,18 +204,25 @@ describe('Message Relayer: basic tests', () => {
     )
   })
 
+  let service: MessageRelayerService
   before(async () => {
-    main({
+    service = new MessageRelayerService({
       l1RpcProvider: l1RpcProvider,
       l2RpcProvider: l2RpcProvider,
       stateCommitmentChainAddress: OVM_StateCommitmentChain.address,
       l1CrossDomainMessengerAddress: OVM_L1CrossDomainMessenger.address,
       l2CrossDomainMessengerAddress: OVM_L2CrossDomainMessenger.address,
       l2ToL1MessagePasserAddress: OVM_L2ToL1MessagePasser.address,
-      l2ChainStartingHeight: 0,
       pollingInterval: 2000,
       relaySigner: l1RelayWallet,
+      blockOffset: 8,
     })
+
+    await service.start()
+  })
+
+  after(async () => {
+    await service.stop()
   })
 
   describe('basic complete tests', () => {
