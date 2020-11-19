@@ -5,7 +5,7 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { L2Block, Bytes32 } from '..'
-import { RollupInfo, Range, BatchSubmitter } from '.'
+import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!
@@ -60,27 +60,14 @@ export class StateBatchSubmitter extends BatchSubmitter {
   }
 
   public async _getBatchStartAndEnd(): Promise<Range> {
-    const startBlock: number = parseInt(
-      await this.chainContract.getTotalElements(),
-      16
-    )
+    const startBlock: number =
+      (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
     // We will submit state roots for txs which have been in the tx chain for a while.
     const callBlockNumber: number =
       (await this.signer.provider.getBlockNumber()) - this.finalityConfirmations
-    const getTotalElementsTx: string = this.ctcContract.interface.encodeFunctionData(
-      'getTotalElements',
-      []
-    )
-    const totalElements: number = parseInt(
-      await this.signer.provider.call(
-        {
-          to: this.ctcContract.address,
-          data: getTotalElementsTx,
-        },
-        callBlockNumber
-      ),
-      16
-    )
+    const totalElements: number = (
+      await this.ctcContract.getTotalElements()
+    ).toNumber()
     const endBlock: number = Math.min(
       startBlock + this.maxBatchSize,
       totalElements
@@ -115,8 +102,9 @@ export class StateBatchSubmitter extends BatchSubmitter {
       this.log.info('State batch too small. Skipping batch submission...')
       return
     }
+    const offsetStartsAtIndex = startBlock - BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
     return this._submitAndLogTx(
-      this.chainContract.appendStateBatch(batch, startBlock),
+      this.chainContract.appendStateBatch(batch, offsetStartsAtIndex),
       'Submitted state root batch!'
     )
   }
