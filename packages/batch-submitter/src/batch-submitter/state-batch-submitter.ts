@@ -5,7 +5,7 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { L2Block, Bytes32 } from '..'
-import { RollupInfo, Range, BatchSubmitter } from '.'
+import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!
@@ -61,7 +61,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
 
   public async _getBatchStartAndEnd(): Promise<Range> {
     const startBlock: number =
-      (await this.chainContract.getTotalElements()).toNumber() + 1 // TODO: Remove `+1` by removing Geth's genesis block
+      (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by removing Geth's genesis block
     // We will submit state roots for txs which have been in the tx chain for a while.
     const callBlockNumber: number =
       (await this.signer.provider.getBlockNumber()) - this.finalityConfirmations
@@ -102,7 +102,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       this.log.info('State batch too small. Skipping batch submission...')
       return
     }
-    const offsetStartsAtIndex = startBlock - 1 // TODO: Remove `-1` by removing Geth's genesis block
+    const offsetStartsAtIndex = startBlock - BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by removing Geth's genesis block
     return this._submitAndLogTx(
       this.chainContract.appendStateBatch(batch, offsetStartsAtIndex),
       'Submitted state root batch!'

@@ -31,7 +31,7 @@ import {
   QueueOrigin,
   queueOriginPlainText,
 } from '..'
-import { RollupInfo, Range, BatchSubmitter } from '.'
+import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 
 export class TransactionBatchSubmitter extends BatchSubmitter {
   protected chainContract: CanonicalTransactionChainContract
@@ -120,7 +120,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   public async _getBatchStartAndEnd(): Promise<Range> {
     const startBlock =
-      (await this.chainContract.getTotalElements()).toNumber() + 1 // TODO: Remove `+1` by removing Geth's genesis block
+      (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by removing Geth's genesis block
     const endBlock =
       Math.min(
         startBlock + this.maxBatchSize,
@@ -252,7 +252,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     return {
-      shouldStartAtBatch: shouldStartAtIndex - 1, // TODO: Remove `-1` by removing Geth's genesis block
+      shouldStartAtBatch: shouldStartAtIndex - BLOCK_OFFSET, // TODO: Remove BLOCK_OFFSET by removing Geth's genesis block
       totalElementsToAppend,
       contexts,
       transactions,
