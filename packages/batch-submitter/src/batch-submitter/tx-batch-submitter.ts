@@ -120,7 +120,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   public async _getBatchStartAndEnd(): Promise<Range> {
     const startBlock =
-      (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by removing Geth's genesis block
+      (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
     const endBlock =
       Math.min(
         startBlock + this.maxBatchSize,
@@ -252,7 +252,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     return {
-      shouldStartAtBatch: shouldStartAtIndex - BLOCK_OFFSET, // TODO: Remove BLOCK_OFFSET by removing Geth's genesis block
+      shouldStartAtBatch: shouldStartAtIndex - BLOCK_OFFSET, // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
       totalElementsToAppend,
       contexts,
       transactions,
