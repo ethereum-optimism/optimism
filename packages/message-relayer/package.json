@@ -45,6 +45,9 @@
   },
   "dependencies": {
     "@eth-optimism/contracts": "^0.0.2-alpha.10",
+    "@types/debug": "^4.1.5",
+    "colors": "^1.4.0",
+    "debug": "^4.3.1",
     "ethers": "^5.0.19",
     "merkletreejs": "^0.2.10",
     "rlp": "^2.2.6"

@@ -40,11 +40,13 @@ const getMessageHash = (
 }
 
 describe('Message Relayer: basic tests', () => {
+  let l1Server: any
+  let l2Server: any
   let l1RpcProvider: JsonRpcProvider
   let l2RpcProvider: JsonRpcProvider
-  before(async () => {
-    const l1Server = ganache.server()
-    const l2Server = ganache.server()
+  beforeEach(async () => {
+    l1Server = ganache.server()
+    l2Server = ganache.server()
 
     await new Promise<void>((resolve) => {
       l1Server.listen(8545, null, null, () => {
@@ -62,10 +64,24 @@ describe('Message Relayer: basic tests', () => {
     l2RpcProvider = new JsonRpcProvider('http://localhost:8546')
   })
 
+  afterEach(async () => {
+    await new Promise<void>((resolve) => {
+      l1Server.close(() => {
+        resolve()
+      })
+    })
+
+    await new Promise<void>((resolve) => {
+      l2Server.close(() => {
+        resolve()
+      })
+    })
+  })
+
   let l1DeployWallet: Wallet
   let l2DeployWallet: Wallet
   let l1RelayWallet: Wallet
-  before(async () => {
+  beforeEach(async () => {
     // L1 wallets.
     l1DeployWallet = wallets[0].connect(l1RpcProvider)
     l1RelayWallet = wallets[1].connect(l1RpcProvider)
@@ -83,7 +99,7 @@ describe('Message Relayer: basic tests', () => {
   let Factory__OVM_L2CrossDomainMessenger: ContractFactory
   let Factory__OVM_L2ToL1MessagePasser: ContractFactory
   let Factory__OVM_L1MessageSender: ContractFactory
-  before(async () => {
+  beforeEach(async () => {
     // L1 factories.
     Factory__Lib_AddressManager_L1 = getContractFactory(
       'Lib_AddressManager',
@@ -134,7 +150,7 @@ describe('Message Relayer: basic tests', () => {
   let OVM_L2CrossDomainMessenger: Contract
   let OVM_L2ToL1MessagePasser: Contract
   let OVM_L1MessageSender: Contract
-  before(async () => {
+  beforeEach(async () => {
     // L1 contract deployments.
     Lib_AddressManager_L1 = await Factory__Lib_AddressManager_L1.deploy()
     OVM_BondManager = await Factory__OVM_BondManager.deploy()
@@ -162,7 +178,7 @@ describe('Message Relayer: basic tests', () => {
     )
   })
 
-  before(async () => {
+  beforeEach(async () => {
     // L1 address manager initializations.
     await Lib_AddressManager_L1.setAddress(
       'OVM_CanonicalTransactionChain',
@@ -205,7 +221,7 @@ describe('Message Relayer: basic tests', () => {
   })
 
   let service: MessageRelayerService
-  before(async () => {
+  beforeEach(async () => {
     service = new MessageRelayerService({
       l1RpcProvider: l1RpcProvider,
       l2RpcProvider: l2RpcProvider,
@@ -221,12 +237,12 @@ describe('Message Relayer: basic tests', () => {
     await service.start()
   })
 
-  after(async () => {
+  afterEach(async () => {
     await service.stop()
   })
 
-  describe('basic complete tests', () => {
-    it('should detect a single finalized transaction', async () => {
+  describe('basic test cases', () => {
+    it('should not detect a message before the fraud window expires', async () => {
       await OVM_L2CrossDomainMessenger.sendMessage(
         '0x0000000000000000000000000000000000000004',
         '0x1234123412341234',
@@ -239,9 +255,39 @@ describe('Message Relayer: basic tests', () => {
       const root1 = await getStateRoot(l2RpcProvider)
       await OVM_StateCommitmentChain.appendStateBatch([root1, root1, root1], 0)
 
+      // Enough time for the relaying service to catch the message.
+      await sleep(5000)
+
+      expect(
+        await OVM_L1CrossDomainMessenger.successfulMessages(
+          getMessageHash(
+            '0x0000000000000000000000000000000000000004',
+            l2DeployWallet.address,
+            '0x1234123412341234',
+            0
+          )
+        )
+      ).to.be.false
+    })
+
+    it('should be able to detect a message when only a single transaction exists', async () => {
+      await OVM_L2CrossDomainMessenger.sendMessage(
+        '0x0000000000000000000000000000000000000004',
+        '0x1234123412341234',
+        2000000,
+        {
+          from: l2DeployWallet.address,
+        }
+      )
+
+      const root1 = await getStateRoot(l2RpcProvider)
+      await OVM_StateCommitmentChain.appendStateBatch([root1, root1, root1], 0)
+
+      // Increase time beyond the fraud proof window.
       await l1RpcProvider.send('evm_increaseTime', [864000])
       await l1RpcProvider.send('evm_mine', [])
 
+      // Enough time for the relaying service to catch the message.
       await sleep(5000)
 
       expect(
@@ -254,6 +300,46 @@ describe('Message Relayer: basic tests', () => {
           )
         )
       ).to.be.true
+    })
+
+    it('should be able to detect multiple messages in multiple transactions', async () => {
+      for (let i = 0; i < 10; i++) {
+        await OVM_L2CrossDomainMessenger.sendMessage(
+          '0x0000000000000000000000000000000000000004',
+          '0x1234123412341234',
+          2000000,
+          {
+            from: l2DeployWallet.address,
+          }
+        )
+
+        const root1 = await getStateRoot(l2RpcProvider)
+        await OVM_StateCommitmentChain.appendStateBatch([root1], i)
+      }
+
+      // Increase time beyond the fraud proof window.
+      await l1RpcProvider.send('evm_increaseTime', [864000])
+      await l1RpcProvider.send('evm_mine', [])
+
+      // Enough time for the relaying service to catch the message.
+      await sleep(5000)
+
+      for (let i = 0; i < 10; i++) {
+        expect(
+          await OVM_L1CrossDomainMessenger.successfulMessages(
+            getMessageHash(
+              '0x0000000000000000000000000000000000000004',
+              l2DeployWallet.address,
+              '0x1234123412341234',
+              i
+            )
+          )
+        ).to.be.true
+      }
+    })
+
+    it('should be able to detect a single message among multiple transactions', async () => {
+
     })
   })
 })

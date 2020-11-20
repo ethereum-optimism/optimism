@@ -8,6 +8,7 @@ import { MerkleTree } from 'merkletreejs'
 /* Imports: Internal */
 import { BaseService } from './base.service'
 import { sleep } from '../utils/common'
+import { Logger } from '../utils/logger'
 import { StateBatchHeader, SentMessage, MessageProof } from '../types/ovm.types'
 
 interface MessageRelayerOptions {
@@ -31,6 +32,8 @@ interface MessageRelayerOptions {
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
+  private logger = new Logger('Message Relayer')
+
   private stateCommitmentChain: Contract
   private l1CrossDomainMessenger: Contract
   private l2CrossDomainMessenger: Contract
@@ -72,6 +75,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   }
 
   protected async _start(): Promise<void> {
+    this.logger.status('Service has started.')
+
     while (this.running) {
       await sleep(this.pollingInterval)
 
@@ -81,6 +86,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
       this.lastFinalizedTxHeight = this.nextUnfinalizedTxHeight
       while (await this._isTransactionFinalized(this.nextUnfinalizedTxHeight)) {
+        this.logger.info(`Found a new finalized transaction: ${this.nextUnfinalizedTxHeight}`)
         this.nextUnfinalizedTxHeight += 1
       }
 
@@ -90,14 +96,28 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       )
 
       for (const message of messages) {
+        this.logger.interesting(`Found a message sent during transaction: ${message.height}`)
         if (await this._wasMessageRelayed(message)) {
+          this.logger.interesting(`Message has already been relayed, skipping.`)
           continue
         }
 
+        this.logger.interesting(`Message not yet relayed. Attempting to generate a proof...`)
         const proof = await this._getMessageProof(message)
-        await this._relayMessageToL1(message, proof)
+        this.logger.interesting(`Successfully generated a proof. Attempting to relay to Layer 1...`)
+  
+        try {
+          await this._relayMessageToL1(message, proof)
+          this.logger.success(`Message successfully relayed to Layer 1!`)
+        } catch (err) {
+          this.logger.error(`Could not relay message to Layer 1, see error log below:\n\n${err}\n`)
+        }
       }
     }
+  }
+
+  protected async _stop(): Promise<void> {
+    this.logger.status('Service has stopped.')
   }
 
   private async _getStateBatchHeader(
@@ -185,6 +205,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const proof = await this.options.l2RpcProvider.send('eth_getProof', [
       this.l2ToL1MessagePasser.address,
       [messageSlot],
+      BigNumber.from(message.height + this.blockOffset + 1).toHexString(),
     ])
 
     // TODO: Complain if the batch doesn't exist.
@@ -240,6 +261,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     // TODO: Figure out how to set these.
     transaction.gasLimit = BigNumber.from(1000000)
     transaction.gasPrice = BigNumber.from(0)
+    transaction.nonce = await this.options.l1RpcProvider.getTransactionCount(this.options.relaySigner.address)
 
     const signed = await this.options.relaySigner.signTransaction(transaction)
 
