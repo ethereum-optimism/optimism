@@ -101,22 +101,32 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
   private async _getStateBatchHeader(
     height: number
-  ): Promise<StateBatchHeader | undefined> {
-    const filter = this.stateCommitmentChain.filters.StateBatchAppended(height)
-    const events = await this.stateCommitmentChain.queryFilter(filter)
+  ): Promise< any | undefined> {
 
-    if (events.length === 0) {
-      return
+    const filter = this.stateCommitmentChain.filters.StateBatchAppended()
+    const events = await this.stateCommitmentChain.queryFilter(
+      filter,
+      //height + this.blockOffset, // ?
+    )
+    var event
+    for (event of events) {  // need the blockOffset for heights?
+      if (event.args.prevTotalElements < height && event.args.prevTotalElements + event.args.batchSize >= height) {
+        break
+      }
     }
 
-    const args = events[0].args
+    const transaction = _getTransaction(event.args.transactionHash) // dummy
+    const stateRoots = _getStateRoots(transaction.callData) // dummy
+
     return {
-      batchIndex: args._batchIndex,
-      batchRoot: args._batchRoot,
-      batchSize: args._batchSize,
-      prevTotalElements: args._prevTotalElements,
-      extraData: args._extraData,
+      batchIndex: event._batchIndex,
+      batchRoot: event._batchRoot,
+      batchSize: event._batchSize,
+      prevTotalElements: event._prevTotalElements,
+      extraData: event._extraData,
+      stateRoots: stateRoots
     }
+
   }
 
   private async _isTransactionFinalized(height: number): Promise<boolean> {
