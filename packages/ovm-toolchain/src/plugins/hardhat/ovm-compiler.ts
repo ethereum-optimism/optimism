@@ -59,7 +59,7 @@ subtask(
       input: ovmInput,
       solcJsPath: ovmSolcPath,
     })
-    const evmOutput = await runSuper({ input: evmInput, solcPath: solcPath })
+    const evmOutput = await runSuper({ input: evmInput, solcPath })
 
     // Filter out any "No input sources specified" errors, but only if one of the two compilations
     // threw the error.
@@ -77,7 +77,7 @@ subtask(
         ...ovmOutput.contracts,
         ...evmOutput.contracts,
       },
-      errors: errors,
+      errors,
       sources: {
         ...ovmOutput.sources,
         ...evmOutput.sources,

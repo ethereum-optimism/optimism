@@ -19,7 +19,7 @@ const config: any = {
   solidity: {
     version: '0.5.16',
     settings: {},
-  }
+  },
 }
 
 export default config
