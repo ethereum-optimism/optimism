@@ -19,9 +19,9 @@
     "build:typechain": "buidler typechain",
     "test": "yarn run test:contracts",
     "test:contracts": "buidler test --show-stack-traces",
+    "test:gas": "buidler test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
-    "lint:fix": "yarn run lint:fix:typescript",
     "lint:fix:typescript": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./artifacts ./build ./cache",
     "deploy": "./bin/deploy.js"
