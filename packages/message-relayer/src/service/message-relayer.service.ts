@@ -86,7 +86,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
       this.lastFinalizedTxHeight = this.nextUnfinalizedTxHeight
       while (await this._isTransactionFinalized(this.nextUnfinalizedTxHeight)) {
-        this.logger.info(`Found a new finalized transaction: ${this.nextUnfinalizedTxHeight}`)
+        this.logger.info(
+          `Found a new finalized transaction: ${this.nextUnfinalizedTxHeight}`
+        )
         this.nextUnfinalizedTxHeight += 1
       }
 
@@ -96,21 +98,29 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       )
 
       for (const message of messages) {
-        this.logger.interesting(`Found a message sent during transaction: ${message.height}`)
+        this.logger.interesting(
+          `Found a message sent during transaction: ${message.height}`
+        )
         if (await this._wasMessageRelayed(message)) {
           this.logger.interesting(`Message has already been relayed, skipping.`)
           continue
         }
 
-        this.logger.interesting(`Message not yet relayed. Attempting to generate a proof...`)
+        this.logger.interesting(
+          `Message not yet relayed. Attempting to generate a proof...`
+        )
         const proof = await this._getMessageProof(message)
-        this.logger.interesting(`Successfully generated a proof. Attempting to relay to Layer 1...`)
-  
+        this.logger.interesting(
+          `Successfully generated a proof. Attempting to relay to Layer 1...`
+        )
+
         try {
           await this._relayMessageToL1(message, proof)
           this.logger.success(`Message successfully relayed to Layer 1!`)
         } catch (err) {
-          this.logger.error(`Could not relay message to Layer 1, see error log below:\n\n${err}\n`)
+          this.logger.error(
+            `Could not relay message to Layer 1, see error log below:\n\n${err}\n`
+          )
         }
       }
     }
@@ -128,8 +138,10 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
     const event = events.find((event) => {
       return (
-        event.args._prevTotalElements.toNumber() <= height
-        && event.args._prevTotalElements.toNumber() + event.args._batchSize.toNumber() > height
+        event.args._prevTotalElements.toNumber() <= height &&
+        event.args._prevTotalElements.toNumber() +
+          event.args._batchSize.toNumber() >
+          height
       )
     })
 
@@ -137,8 +149,13 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       return
     }
 
-    const transaction = await this.options.l1RpcProvider.getTransaction(event.transactionHash)
-    const [stateRoots] = this.stateCommitmentChain.interface.decodeFunctionData('appendStateBatch', transaction.data)
+    const transaction = await this.options.l1RpcProvider.getTransaction(
+      event.transactionHash
+    )
+    const [stateRoots] = this.stateCommitmentChain.interface.decodeFunctionData(
+      'appendStateBatch',
+      transaction.data
+    )
 
     return {
       batchIndex: event.args._batchIndex,
@@ -146,7 +163,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       batchSize: event.args._batchSize,
       prevTotalElements: event.args._prevTotalElements,
       extraData: event.args._extraData,
-      stateRoots: stateRoots
+      stateRoots: stateRoots,
     }
   }
 
@@ -212,7 +229,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const batch = await this._getStateBatchHeader(message.height)
 
     const elements = []
-    for (let i = 0; i < Math.pow(2, Math.ceil(Math.log2(batch.stateRoots.length))); i++) {
+    for (
+      let i = 0;
+      i < Math.pow(2, Math.ceil(Math.log2(batch.stateRoots.length)));
+      i++
+    ) {
       if (i < batch.stateRoots.length) {
         elements.push(batch.stateRoots[i])
       } else {
@@ -261,7 +282,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     // TODO: Figure out how to set these.
     transaction.gasLimit = BigNumber.from(1000000)
     transaction.gasPrice = BigNumber.from(0)
-    transaction.nonce = await this.options.l1RpcProvider.getTransactionCount(this.options.relaySigner.address)
+    transaction.nonce = await this.options.l1RpcProvider.getTransactionCount(
+      this.options.relaySigner.address
+    )
 
     const signed = await this.options.relaySigner.signTransaction(transaction)
 

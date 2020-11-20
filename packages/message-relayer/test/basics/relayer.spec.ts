@@ -338,8 +338,6 @@ describe('Message Relayer: basic tests', () => {
       }
     })
 
-    it('should be able to detect a single message among multiple transactions', async () => {
-
-    })
+    it('should be able to detect a single message among multiple transactions', async () => {})
   })
 })
