@@ -29,8 +29,9 @@
     "release:rc": "yarn clean && yarn build && lerna version prerelease --yes && lerna publish from-package --yes --force-publish --npm-tag=rc -m \"chore(@ethereum-optimism) publish %s release\"",
     "release:alpha": "yarn clean && yarn build && lerna version prerelease --yes && lerna publish from-package --yes --force-publish --dist-tag=alpha -m \"chore(@ethereum-optimism) publish %s release\"",
     "release:beta": "yarn clean && yarn build && lerna version prerelease --yes && lerna publish from-package --yes --force-publish --dist-tag=beta -m \"chore(@ethereum-optimism) publish %s release\"",
-    "patch": "yarn run patch:ganache && yarn run patch:waffle",
+    "patch": "yarn run patch:ganache && yarn run patch:ganache:trie && yarn run patch:waffle",
     "patch:ganache": "rm node_modules/ganache-core/typings/index.d.ts ||:",
+    "patch:ganache:trie": "sed -ie 's!merkle-patricia-tree\"!merkle-patricia-tree/secure\"!g' node_modules/ganache-core/lib/blockchain_double.js ||:",
     "patch:waffle": "sed -ie 's!Ganache.GanacheOpts!any!g' node_modules/ethereum-waffle/dist/waffle.d.ts ||:"
   },
   "repository": "git+https://github.com/ethereum-optimism/optimism-monorepo.git",
