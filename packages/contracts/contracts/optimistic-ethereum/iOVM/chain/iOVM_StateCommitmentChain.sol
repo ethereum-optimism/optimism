@@ -10,6 +10,18 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
  */
 interface iOVM_StateCommitmentChain {
 
+    /**********
+     * Events *
+     **********/
+
+    event StateBatchAppended(
+        uint256 indexed _batchIndex,
+        bytes32 _batchRoot,
+        uint256 _batchSize,
+        uint256 _prevTotalElements,
+        bytes _extraData
+    );
+
     /********************
      * Public Functions *
      ********************/

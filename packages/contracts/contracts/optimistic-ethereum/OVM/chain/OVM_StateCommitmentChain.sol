@@ -25,8 +25,8 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
      * Constants *
      *************/
 
-    uint256 constant public FRAUD_PROOF_WINDOW = 7 days;
-    uint256 constant public SEQUENCER_PUBLISH_WINDOW = 30 minutes;
+    uint256 public FRAUD_PROOF_WINDOW;
+    uint256 public SEQUENCER_PUBLISH_WINDOW;
 
 
     /*************
@@ -46,8 +46,13 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
      * @param _libAddressManager Address of the Address Manager.
      */
     constructor(
-        address _libAddressManager
-    ) Lib_AddressResolver(_libAddressManager) {}
+        address _libAddressManager,
+        uint256 _fraudProofWindow,
+        uint256 _sequencerPublishWindow
+    ) Lib_AddressResolver(_libAddressManager) {
+        FRAUD_PROOF_WINDOW = _fraudProofWindow;
+        SEQUENCER_PUBLISH_WINDOW = _sequencerPublishWindow;
+    }
 
 
     /********************
@@ -203,7 +208,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
         require(
             Lib_MerkleUtils.verify(
                 _batchHeader.batchRoot,
-                _element,
+                abi.encodePacked(_element),
                 _proof.index,
                 _proof.siblings
             ),
@@ -401,6 +406,14 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
             prevTotalElements: totalElements,
             extraData: _extraData
         });
+
+        emit StateBatchAppended(
+            batchHeader.batchIndex,
+            batchHeader.batchRoot,
+            batchHeader.batchSize,
+            batchHeader.prevTotalElements,
+            batchHeader.extraData
+        );
 
         batches.push(
             Lib_OVMCodec.hashBatchHeader(batchHeader),

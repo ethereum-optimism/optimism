@@ -21,6 +21,10 @@ export interface RollupDeployConfig {
     sequencer: string | Signer
     forceInclusionPeriodSeconds: number
   }
+  stateChainConfig: {
+    fraudProofWindowSeconds: number
+    sequencerPublishWindowSeconds: number
+  }
   whitelistConfig: {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
@@ -87,7 +91,11 @@ export const makeContractDeployConfig = async (
     },
     OVM_StateCommitmentChain: {
       factory: getContractFactory('OVM_StateCommitmentChain'),
-      params: [AddressManager.address],
+      params: [
+        AddressManager.address,
+        config.stateChainConfig.fraudProofWindowSeconds,
+        config.stateChainConfig.sequencerPublishWindowSeconds,
+      ],
       afterDeploy: async (contracts): Promise<void> => {
         await contracts.OVM_StateCommitmentChain.init()
       },

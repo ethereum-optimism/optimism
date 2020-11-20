@@ -71,7 +71,9 @@ describe('OVM_StateCommitmentChain', () => {
   let OVM_StateCommitmentChain: Contract
   beforeEach(async () => {
     OVM_StateCommitmentChain = await Factory__OVM_StateCommitmentChain.deploy(
-      AddressManager.address
+      AddressManager.address,
+      60 * 60 * 24 * 7, // 1 week fraud proof window
+      60 * 30 // 30 minute sequencer publish window
     )
     await OVM_StateCommitmentChain.init()
   })

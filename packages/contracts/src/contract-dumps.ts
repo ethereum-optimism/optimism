@@ -125,6 +125,10 @@ export const makeStateDump = async (): Promise<any> => {
       sequencer: signer,
       forceInclusionPeriodSeconds: 600,
     },
+    stateChainConfig: {
+      fraudProofWindowSeconds: 600,
+      sequencerPublishWindowSeconds: 60_000,
+    },
     whitelistConfig: {
       owner: signer,
       allowArbitraryContractDeployment: true,
