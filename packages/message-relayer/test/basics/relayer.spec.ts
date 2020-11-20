@@ -227,11 +227,6 @@ describe('Message Relayer: basic tests', () => {
 
   describe('basic complete tests', () => {
     it('should detect a single finalized transaction', async () => {
-      await OVM_StateCommitmentChain.appendStateBatch(
-        ['0x0000000000000000000000000000000000000000000000000000000000000000'],
-        0
-      )
-
       await OVM_L2CrossDomainMessenger.sendMessage(
         '0x0000000000000000000000000000000000000004',
         '0x1234123412341234',
@@ -242,7 +237,7 @@ describe('Message Relayer: basic tests', () => {
       )
 
       const root1 = await getStateRoot(l2RpcProvider)
-      await OVM_StateCommitmentChain.appendStateBatch([root1], 1)
+      await OVM_StateCommitmentChain.appendStateBatch([root1, root1, root1], 0)
 
       await l1RpcProvider.send('evm_increaseTime', [864000])
       await l1RpcProvider.send('evm_mine', [])

@@ -3,6 +3,7 @@ import { Contract, ethers, Wallet, BigNumber } from 'ethers'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { getContractInterface } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
+import { MerkleTree } from 'merkletreejs'
 
 /* Imports: Internal */
 import { BaseService } from './base.service'
@@ -101,32 +102,32 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
   private async _getStateBatchHeader(
     height: number
-  ): Promise< any | undefined> {
-
+  ): Promise<StateBatchHeader | undefined> {
     const filter = this.stateCommitmentChain.filters.StateBatchAppended()
-    const events = await this.stateCommitmentChain.queryFilter(
-      filter,
-      //height + this.blockOffset, // ?
-    )
-    var event
-    for (event of events) {  // need the blockOffset for heights?
-      if (event.args.prevTotalElements < height && event.args.prevTotalElements + event.args.batchSize >= height) {
-        break
-      }
+    const events = await this.stateCommitmentChain.queryFilter(filter)
+
+    const event = events.find((event) => {
+      return (
+        event.args._prevTotalElements.toNumber() <= height
+        && event.args._prevTotalElements.toNumber() + event.args._batchSize.toNumber() > height
+      )
+    })
+
+    if (!event) {
+      return
     }
 
-    const transaction = _getTransaction(event.args.transactionHash) // dummy
-    const stateRoots = _getStateRoots(transaction.callData) // dummy
+    const transaction = await this.options.l1RpcProvider.getTransaction(event.transactionHash)
+    const [stateRoots] = this.stateCommitmentChain.interface.decodeFunctionData('appendStateBatch', transaction.data)
 
     return {
-      batchIndex: event._batchIndex,
-      batchRoot: event._batchRoot,
-      batchSize: event._batchSize,
-      prevTotalElements: event._prevTotalElements,
-      extraData: event._extraData,
+      batchIndex: event.args._batchIndex,
+      batchRoot: event.args._batchRoot,
+      batchSize: event.args._batchSize,
+      prevTotalElements: event.args._prevTotalElements,
+      extraData: event.args._extraData,
       stateRoots: stateRoots
     }
-
   }
 
   private async _isTransactionFinalized(height: number): Promise<boolean> {
@@ -164,7 +165,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         nonce: decoded._messageNonce,
         calldata: message,
         hash: ethers.utils.keccak256(message),
-        height: event.blockNumber - this.blockOffset,
+        height: event.blockNumber - this.blockOffset - 1,
       }
     })
   }
@@ -189,12 +190,35 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     // TODO: Complain if the batch doesn't exist.
     const batch = await this._getStateBatchHeader(message.height)
 
+    const elements = []
+    for (let i = 0; i < Math.pow(2, Math.ceil(Math.log2(batch.stateRoots.length))); i++) {
+      if (i < batch.stateRoots.length) {
+        elements.push(batch.stateRoots[i])
+      } else {
+        elements.push('0x' + '00'.repeat(32))
+      }
+    }
+
+    const hash = (el: Buffer | string): Buffer => {
+      return Buffer.from(ethers.utils.keccak256(el).slice(2), 'hex')
+    }
+
+    const leaves = elements.map((element) => {
+      return hash(element)
+    })
+
+    const tree = new MerkleTree(leaves, hash)
+    const index = message.height - batch.prevTotalElements.toNumber()
+    const treeProof = tree.getProof(leaves[index], index).map((element) => {
+      return element.data
+    })
+
     return {
       stateRoot: proof.stateRoot,
       stateRootBatchHeader: batch,
       stateRootProof: {
-        index: 0,
-        siblings: [],
+        index: index,
+        siblings: treeProof,
       },
       stateTrieWitness: rlp.encode(proof.accountProof),
       storageTrieWitness: rlp.encode(proof.storageProof[0].proof),
