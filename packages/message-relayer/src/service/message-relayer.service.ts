@@ -80,22 +80,37 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     while (this.running) {
       await sleep(this.pollingInterval)
 
+      this.logger.info('Checking for newly finalized transactions...')
       if (!(await this._isTransactionFinalized(this.nextUnfinalizedTxHeight))) {
+        this.logger.info(
+          `Didn't find any newly finalized transactions. Trying again in ${Math.floor(
+            this.pollingInterval / 1000
+          )} seconds...`
+        )
         continue
       }
 
       this.lastFinalizedTxHeight = this.nextUnfinalizedTxHeight
       while (await this._isTransactionFinalized(this.nextUnfinalizedTxHeight)) {
+        const size = (await this._getStateBatchHeader(this.nextUnfinalizedTxHeight)).batchSize.toNumber()
         this.logger.info(
-          `Found a new finalized transaction: ${this.nextUnfinalizedTxHeight}`
+          `Found a batch with ${size} finalized transaction(s), checking for more...`
         )
-        this.nextUnfinalizedTxHeight += 1
+        this.nextUnfinalizedTxHeight += size
       }
+
+      this.logger.interesting(
+        `Found a total of ${this.nextUnfinalizedTxHeight - this.lastFinalizedTxHeight} finalized transaction(s).`
+      )
 
       const messages = await this._getSentMessages(
         this.lastFinalizedTxHeight,
         this.nextUnfinalizedTxHeight
       )
+
+      if (messages.length === 0) {
+        this.logger.interesting(`Didn't find any L2->L1 messages. Trying again in ${Math.floor(this.pollingInterval / 1000)} seconds...`)
+      }
 
       for (const message of messages) {
         this.logger.interesting(

@@ -7,7 +7,7 @@
     "build/**/*.js"
   ],
   "scripts": {
-    "start": "node ./exec/run-batch-submitter.js",
+    "start": "ts-node ./bin/run.ts",
     "build": "tsc -p .",
     "clean": "rimraf build/",
     "lint": "yarn run lint:typescript",
