@@ -1,5 +1,10 @@
 # Optimism Provider
 
+Note: It is recommended to use a normal Web3 provider for now unless you
+need to access the additional properties that the Optimism Node attaches
+to RPC responses. The full geth RPC is supported, and most users will
+not need these additional fields.
+
 The `OptimismProvider` extends the ethers.js `JsonRpcProvider` and
 implements all of the same methods. It will submit transactions
 to the Optimism Sequencer and needs a `Web3Provider` based provider
