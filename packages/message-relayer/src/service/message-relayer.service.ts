@@ -217,7 +217,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         nonce: decoded._messageNonce,
         calldata: message,
         hash: ethers.utils.keccak256(message),
-        height: event.blockNumber - this.blockOffset - 1,
+        height: event.blockNumber - this.blockOffset,
       }
     })
   }
@@ -237,7 +237,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const proof = await this.options.l2RpcProvider.send('eth_getProof', [
       this.l2ToL1MessagePasser.address,
       [messageSlot],
-      BigNumber.from(message.height + this.blockOffset + 1).toHexString(),
+      BigNumber.from(message.height + this.blockOffset).toHexString(),
     ])
 
     // TODO: Complain if the batch doesn't exist.
@@ -271,7 +271,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     })
 
     return {
-      stateRoot: proof.stateRoot,
+      stateRoot: batch.stateRoots[index],
       stateRootBatchHeader: batch,
       stateRootProof: {
         index: index,
@@ -286,23 +286,17 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     message: SentMessage,
     proof: MessageProof
   ): Promise<void> {
-    const transaction = await this.l1CrossDomainMessenger.populateTransaction.relayMessage(
+    const result = await this.l1CrossDomainMessenger.connect(this.options.relaySigner).relayMessage(
       message.target,
       message.sender,
       message.data,
       message.nonce,
-      proof
+      proof,
+      {
+        gasLimit: 2_000_000
+      }
     )
 
-    // TODO: Figure out how to set these.
-    transaction.gasLimit = BigNumber.from(1000000)
-    transaction.gasPrice = BigNumber.from(0)
-    transaction.nonce = await this.options.l1RpcProvider.getTransactionCount(
-      this.options.relaySigner.address
-    )
-
-    const signed = await this.options.relaySigner.signTransaction(transaction)
-
-    await this.options.l1RpcProvider.sendTransaction(signed)
+    return result.wait()
   }
 }
