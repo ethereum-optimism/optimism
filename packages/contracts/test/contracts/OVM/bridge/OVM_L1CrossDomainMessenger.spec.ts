@@ -198,7 +198,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
         nodes: [
           {
             key: storageKey,
-            val: '0x' + '01'.padStart(64, '0'),
+            val: '0x' + '01'.padStart(2, '0'),
           },
         ],
         secure: true,
