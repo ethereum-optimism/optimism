@@ -152,6 +152,8 @@ storage "raft" {
     leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
     }
 }
+
+service_registration "kubernetes" {}
 EOF
 
   cd k8s
