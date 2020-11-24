@@ -167,6 +167,7 @@ EOF
 	yq w -i vault-overrides.yaml server.resources.requests.cpu 250m
 	yq w -i vault-overrides.yaml server.resources.limits.memory 256Mi
 	yq w -i vault-overrides.yaml server.resources.limits.cpu 250m
+	yq w -i vault-overrides.yaml ui.enabled ${VAULT_UI_ENABLED}
 
   cd ..
 }

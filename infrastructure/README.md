@@ -361,6 +361,8 @@ When generating certs for Minikube, use: `-d vault-internal`
 
 ---
 
+If you want to enable the Vault UI, pass the `--ui` flag to `gen_overrides.sh`.
+
 ```bash
 ./scripts/gen_certs.sh -d <dns-domain>
 ./scripts/gen_overrides.sh
