@@ -41,7 +41,7 @@ function getlb {
 		exit 255
 	fi
 
-	vault=$(echo "${output}" | egrep "^vault ")
+	vault=$(echo "${output}" | egrep "^vault-active ")
 	if [[ "${vault}" == "" ]]; then
 		echo "Not Found"
 		exit 0
