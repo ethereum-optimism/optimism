@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 	b64 "encoding/base64"
-	
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -104,44 +104,45 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 	}
 	callOpts := &bind.CallOpts{}
 
-	blockRoot := [32]byte{}
-
 	inputBlockRoot, ok := data.GetOk("block_root")
-	if ok {
-		blockRoot, err := b64.StdEncoding.DecodeString(inputBlockRoot.(string))
-		if err != nil {
-			return nil, err
-		}
-		copy(blockRoot[:], blockRoot)
-	} else {
+	if !ok {
 		return nil, fmt.Errorf("invalid block root")
 	}
+	blockRoot, err := b64.StdEncoding.DecodeString(inputBlockRoot.(string))
+	if err != nil {
+		return nil, fmt.Errorf("invalid block root - not base64")
+	}
+	if (len(blockRoot) != 32) {
+		return nil, fmt.Errorf("invalid block root - not the right size")
+	}
+	blockRootSB := [32]byte{}
+	copy(blockRootSB[:], blockRoot[0:32])
 
 	transactOpts, err := b.NewWalletTransactor(chainID, wallet, account)
 	if err != nil {
 		return nil, err
 	}
-	//transactOpts needs gas etc. Use supplied gas_price 
+	//transactOpts needs gas etc. Use supplied gas_price
 	gasPriceRaw := data.Get("gas_price").(string)
 	if gasPriceRaw == "" {
 		return nil, fmt.Errorf("invalid gas_price")
 	}
 	transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
-	
+
 	//transactOpts needs nonce. Use supplied nonce
 	nonceRaw := data.Get("nonce").(string)
 	if nonceRaw == "" {
 		return nil, fmt.Errorf("invalid nonce")
 	}
 	transactOpts.Nonce = util.ValidNumber(nonceRaw)
-	
+
 	plasmaSession := &plasma.PlasmaSession{
 		Contract:     instance,  // Generic contract caller binding to set the session for
 		CallOpts:     *callOpts, // Call options to use throughout this session
 		TransactOpts: *transactOpts,
 	}
 
-	tx, err := plasmaSession.SubmitBlock(blockRoot)
+	tx, err := plasmaSession.SubmitBlock(blockRootSB)
 	if err != nil {
 		return nil, err
 	}
