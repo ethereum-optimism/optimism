@@ -1,10 +1,9 @@
-# Batch Submitter
+# Message Relayer
 
-Contains an executable batch submitter service which watches L1 and a local L2 node and submits batches to the
-`CanonicalTransactionChain` & `StateCommitmentChain` based on its local information.
+Contains an executable message relayer service which watches the `StateCommitmentChain`, looking for unfinalized transactions on L2 to send to L1.
 
 ## Configuration
-All configuration is done via environment variables.
+All configuration is done via input variables.
 
 ## Building & Running
 1. Make sure dependencies are installed just run `yarn` in the base directory
