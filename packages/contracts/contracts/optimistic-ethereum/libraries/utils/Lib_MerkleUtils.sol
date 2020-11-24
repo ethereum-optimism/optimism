@@ -141,7 +141,10 @@ library Lib_MerkleUtils {
 
         defaultHashes[0] = keccak256(abi.encodePacked(uint256(0)));
         for (uint256 i = 1; i < defaultHashes.length; i++) {
-            defaultHashes[i] = keccak256(abi.encodePacked(defaultHashes[i-1]));
+            defaultHashes[i] = keccak256(abi.encodePacked(
+                defaultHashes[i-1],
+                defaultHashes[i-1]
+            ));
         }
 
         return defaultHashes;
