@@ -39,7 +39,7 @@ REGION=${GCP_REGION:-}
 PROJECT=${GCP_PROJECT:-}
 CLUSTER=${GKE_CLUSTER_NAME:-}
 
-VAULT_SERVER_VERSION="1.5.4"
+VAULT_SERVER_VERSION="1.5.5"
 VAULT_UI_ENABLED="false"
 VAULT_LOG_LEVEL="info"
 VAULT_REPLICAS="5"
@@ -169,6 +169,7 @@ EOF
 	yq w -i vault-overrides.yaml server.resources.requests.cpu 250m
 	yq w -i vault-overrides.yaml server.resources.limits.memory 256Mi
 	yq w -i vault-overrides.yaml server.resources.limits.cpu 250m
+	yq w -i vault-overrides.yaml ui.enabled ${VAULT_UI_ENABLED}
 
   cd ..
 }

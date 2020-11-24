@@ -240,7 +240,35 @@ In `k8s`, execute:
 Execute:
 
 ```bash
-helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault --version 0.7.0
+helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault --version 0.8.0
+```
+
+##### Find the Load Balancer
+
+Once vault has started and is stable (you can check this with `kubectl get pods` and make sure all 5 instances are "running"), you need to find the IP Address of the Vault Load Balancer. 
+
+In `infrastructure`, execute:
+
+Execute:
+
+```bash
+./scripts get_loadbalancer.sh
+```
+
+If you receive an IP Address, all is well. If you do not, you'll need to troubleshoot why (e.g., by running `kubectl get services`). From here you have two choices:
+
+1. Add an entry like this to the `/etc/hosts` file on the instance you're interacting with vault from:
+
+```bash
+{ip-address} vault.vault-internal.default.svc.cluster.local.
+```
+
+2. Add an A Record to your DNS zone pointing {ip-address} to `vault.vault-internal.default.svc.cluster.local.`. Depending on which DNS you're using, the instructions will vary and are beyond the scope of this document.
+
+Once you have set one of these up, execute:
+
+```bash
+export VAULT_ADDR=https://vault.vault-internal.default.svc.cluster.local:8200
 ```
 
 ### Interact with Vault
@@ -265,7 +293,7 @@ Before you initialize vault, you'll see errors like this:
 In another terminal, execute:
 
 ```bash
-export VAULT_ADDR=https://<load-balancer>:8200
+export VAULT_ADDR=https://vault.vault-internal.default.svc.cluster.local:8200
 export VAULT_CACERT=$K8S/certs/ca.crt
 
 vault status
@@ -332,6 +360,8 @@ When generating certs for GKE clusters, use: `-d vault-internal.default.svc.clus
 When generating certs for Minikube, use: `-d vault-internal`
 
 ---
+
+If you want to enable the Vault UI, pass the `--ui` flag to `gen_overrides.sh`.
 
 ```bash
 ./scripts/gen_certs.sh -d <dns-domain>

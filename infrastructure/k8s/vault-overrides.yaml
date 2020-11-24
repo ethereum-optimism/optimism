@@ -1,7 +1,7 @@
 global:
   enabled: true
   tlsDisable: false
-  certSecretName: omgnetwork-certs-7m645dg5k5
+  certSecretName: omgnetwork-certs-d4h792hbhg
 injector:
   enabled: false
 server:
@@ -17,6 +17,7 @@ server:
     accessMode: ReadWriteOnce
   service:
     enabled: true
+    port: 8200
     type: LoadBalancer
     annotations:
       cloud.google.com/load-balancer-type: Internal
@@ -29,7 +30,7 @@ server:
       config: |-
         ui = false
         log_level = "info"
-        cluster_name = "omgnetwork-vault-1008"
+        cluster_name = "omgnetwork-cluster-1113"
 
         listener "tcp" {
             tls_disable = {{ .Values.global.tlsDisable }}
@@ -42,7 +43,7 @@ server:
 
         seal "gcpckms" {
             region      = "us-west1"
-            project     = "omgnetwork-vault-1008"
+            project     = "omgnetwork-vault-1113"
             key_ring    = "omgnetwork-vault-keyring"
             crypto_key  = "omgnetwork-vault-unseal-key"
         }
@@ -85,21 +86,22 @@ server:
             leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
             }
         }
-
         service_registration "kubernetes" {}
   image:
     repository: vault # TODO: will change to the omgnetwork/vault image
-    tag: 1.5.4
+    tag: 1.5.5
     pullPolicy: IfNotPresent
     updateStrategyType: RollingUpdate
+  ingress:
+    enabled: false
   extraEnvironmentVars:
     GOOGLE_REGION: us-west1
-    GOOGLE_PROJECT: omgnetwork-vault-1008
+    GOOGLE_PROJECT: omgnetwork-vault-1113
     GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/kms_account.key.json
   extraVolumes:
     - name: kms-creds
       type: secret
-    - name: omgnetwork-certs-7m645dg5k5
+    - name: omgnetwork-certs-d4h792hbhg
       type: secret
   affinity: null
   dev:
@@ -114,4 +116,9 @@ server:
       memory: 256Mi
       cpu: 250m
 ui:
-  enabled: true
+  enabled: false
+  publishNotReadyAddresses: true
+  serviceType: "LoadBalancer"
+  externalPort: 8200
+  loadBalancerSourceRanges:
+    - 10.1.0.0/16
