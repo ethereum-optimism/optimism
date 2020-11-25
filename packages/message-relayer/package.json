@@ -1,7 +1,7 @@
 {
-  "name": "@eth-optimism/message-relayer",
+  "name": "@eth-optimism/fraud-prover",
   "version": "0.0.1-alpha.1",
-  "description": "[Optimism] Message relaying service",
+  "description": "[Optimism] Fraud proving service",
   "main": "build/index.js",
   "files": [
     "build/**/*.js"
@@ -25,7 +25,7 @@
     "sequencer",
     "aggregator"
   ],
-  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/batch-submitter#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/fraud-prover#readme",
   "license": "MIT",
   "author": "Optimism",
   "repository": {

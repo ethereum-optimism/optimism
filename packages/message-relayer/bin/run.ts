@@ -11,12 +11,13 @@ const main = async () => {
   const service = new MessageRelayerService({
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
-    stateCommitmentChainAddress: '0xF43e2dD2804F1DaF2E3F47b5C735F70a0469234F',
+    stateCommitmentChainAddress: '0xcdf217480D0802DE475Bd531093c53033F2CDCfE',
     l1CrossDomainMessengerAddress: '0x1e3aa06079fDa5F395E663474ec5f7207A131bD2',
-    l2CrossDomainMessengerAddress: '0x7ca1542A4E012F2F43Ec19fEca611760Fd7AA627',
+    l2CrossDomainMessengerAddress: '0x39405fcB4fcc295DcFD16b08bD6f0bAd9D34E438',
     l2ToL1MessagePasserAddress: '0x4200000000000000000000000000000000000000',
     pollingInterval: 5000,
     relaySigner: wallet,
+    l2ChainStartingHeight: 63,
     blockOffset: 1,
   })
 

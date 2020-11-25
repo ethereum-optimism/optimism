@@ -1,4 +1,9 @@
+/* Imports: Internal */
+import { Logger } from '../utils/logger'
+
 export class BaseService<TServiceOptions> {
+  protected name: string
+  protected logger: Logger
   protected initialized: boolean = false
   protected running: boolean = false
 
@@ -10,6 +15,7 @@ export class BaseService<TServiceOptions> {
     }
 
     this.initialized = true
+    this.logger = new Logger(this.name)
 
     try {
       await this._init()

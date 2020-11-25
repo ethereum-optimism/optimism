@@ -8,7 +8,6 @@ import { MerkleTree } from 'merkletreejs'
 /* Imports: Internal */
 import { BaseService } from './base.service'
 import { sleep } from '../utils/common'
-import { Logger } from '../utils/logger'
 import { StateBatchHeader, SentMessage, MessageProof } from '../types/ovm.types'
 
 interface MessageRelayerOptions {
@@ -32,7 +31,7 @@ interface MessageRelayerOptions {
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
-  private logger = new Logger('Message Relayer')
+  protected name = 'Message Relayer'
 
   private stateCommitmentChain: Contract
   private l1CrossDomainMessenger: Contract
@@ -80,63 +79,69 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     while (this.running) {
       await sleep(this.pollingInterval)
 
-      this.logger.info('Checking for newly finalized transactions...')
-      if (!(await this._isTransactionFinalized(this.nextUnfinalizedTxHeight))) {
-        this.logger.info(
-          `Didn't find any newly finalized transactions. Trying again in ${Math.floor(
-            this.pollingInterval / 1000
-          )} seconds...`
-        )
-        continue
-      }
-
-      this.lastFinalizedTxHeight = this.nextUnfinalizedTxHeight
-      while (await this._isTransactionFinalized(this.nextUnfinalizedTxHeight)) {
-        const size = (await this._getStateBatchHeader(this.nextUnfinalizedTxHeight)).batchSize.toNumber()
-        this.logger.info(
-          `Found a batch with ${size} finalized transaction(s), checking for more...`
-        )
-        this.nextUnfinalizedTxHeight += size
-      }
-
-      this.logger.interesting(
-        `Found a total of ${this.nextUnfinalizedTxHeight - this.lastFinalizedTxHeight} finalized transaction(s).`
-      )
-
-      const messages = await this._getSentMessages(
-        this.lastFinalizedTxHeight,
-        this.nextUnfinalizedTxHeight
-      )
-
-      if (messages.length === 0) {
-        this.logger.interesting(`Didn't find any L2->L1 messages. Trying again in ${Math.floor(this.pollingInterval / 1000)} seconds...`)
-      }
-
-      for (const message of messages) {
-        this.logger.interesting(
-          `Found a message sent during transaction: ${message.height}`
-        )
-        if (await this._wasMessageRelayed(message)) {
-          this.logger.interesting(`Message has already been relayed, skipping.`)
+      try {
+        this.logger.info('Checking for newly finalized transactions...')
+        if (!(await this._isTransactionFinalized(this.nextUnfinalizedTxHeight))) {
+          this.logger.info(
+            `Didn't find any newly finalized transactions. Trying again in ${Math.floor(
+              this.pollingInterval / 1000
+            )} seconds...`
+          )
           continue
         }
 
+        this.lastFinalizedTxHeight = this.nextUnfinalizedTxHeight
+        while (await this._isTransactionFinalized(this.nextUnfinalizedTxHeight)) {
+          const size = (await this._getStateBatchHeader(this.nextUnfinalizedTxHeight)).batchSize.toNumber()
+          this.logger.info(
+            `Found a batch with ${size} finalized transaction(s), checking for more...`
+          )
+          this.nextUnfinalizedTxHeight += size
+        }
+
         this.logger.interesting(
-          `Message not yet relayed. Attempting to generate a proof...`
-        )
-        const proof = await this._getMessageProof(message)
-        this.logger.interesting(
-          `Successfully generated a proof. Attempting to relay to Layer 1...`
+          `Found a total of ${this.nextUnfinalizedTxHeight - this.lastFinalizedTxHeight} finalized transaction(s).`
         )
 
-        try {
-          await this._relayMessageToL1(message, proof)
-          this.logger.success(`Message successfully relayed to Layer 1!`)
-        } catch (err) {
-          this.logger.error(
-            `Could not relay message to Layer 1, see error log below:\n\n${err}\n`
-          )
+        const messages = await this._getSentMessages(
+          this.lastFinalizedTxHeight,
+          this.nextUnfinalizedTxHeight
+        )
+
+        if (messages.length === 0) {
+          this.logger.interesting(`Didn't find any L2->L1 messages. Trying again in ${Math.floor(this.pollingInterval / 1000)} seconds...`)
         }
+
+        for (const message of messages) {
+          this.logger.interesting(
+            `Found a message sent during transaction: ${message.height}`
+          )
+          if (await this._wasMessageRelayed(message)) {
+            this.logger.interesting(`Message has already been relayed, skipping.`)
+            continue
+          }
+
+          this.logger.interesting(
+            `Message not yet relayed. Attempting to generate a proof...`
+          )
+          const proof = await this._getMessageProof(message)
+          this.logger.interesting(
+            `Successfully generated a proof. Attempting to relay to Layer 1...`
+          )
+
+          try {
+            await this._relayMessageToL1(message, proof)
+            this.logger.success(`Message successfully relayed to Layer 1!`)
+          } catch (err) {
+            this.logger.error(
+              `Could not relay message to Layer 1, see error log below:\n\n${err}\n`
+            )
+          }
+        }
+      } catch (err) {
+        this.logger.error(
+          `Caught an unhandled error, see error log below:\n\n${err}\n`
+        )
       }
     }
   }
@@ -150,6 +155,10 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   ): Promise<StateBatchHeader | undefined> {
     const filter = this.stateCommitmentChain.filters.StateBatchAppended()
     const events = await this.stateCommitmentChain.queryFilter(filter)
+
+    if (events.length === 0) {
+      return
+    }
 
     const event = events.find((event) => {
       return (
@@ -200,7 +209,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const events = await this.l2CrossDomainMessenger.queryFilter(
       filter,
       startHeight + this.blockOffset,
-      endHeight + this.blockOffset
+      endHeight + this.blockOffset - 1
     )
 
     return events.map((event) => {
@@ -237,7 +246,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const proof = await this.options.l2RpcProvider.send('eth_getProof', [
       this.l2ToL1MessagePasser.address,
       [messageSlot],
-      BigNumber.from(message.height + this.blockOffset).toHexString(),
+      '0x' + BigNumber.from(message.height + this.blockOffset).toHexString().slice(2).replace(/^0+/, ''),
     ])
 
     // TODO: Complain if the batch doesn't exist.
@@ -293,10 +302,12 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       message.nonce,
       proof,
       {
-        gasLimit: 2_000_000
+        gasLimit: 4_000_000
       }
     )
 
-    return result.wait()
+    const receipt = await result.wait()
+
+    this.logger.interesting(`Relay message transaction sent, hash is: ${receipt.transactionHash}`)
   }
 }
