@@ -40,7 +40,7 @@ const main = async () => {
     l2ToL1MessagePasserAddress: L2_TO_L1_MESSAGE_PASSER_ADDRESS,
     pollingInterval: parseInt(POLLING_INTERVAL, 10),
     relaySigner: wallet,
-    l2ChainStartingHeight: L2_CHAIN_START_HEIGHT,
+    l2ChainStartingHeight: parseInt(L2_CHAIN_START_HEIGHT, 10),
     blockOffset: parseInt(BLOCK_OFFSET, 10)
   })
 
