@@ -81,7 +81,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
       try {
         this.logger.info('Checking for newly finalized transactions...')
-        if (!(await this._isTransactionFinalized(this.nextUnfinalizedTxHeight))) {
+        if (
+          !(await this._isTransactionFinalized(this.nextUnfinalizedTxHeight))
+        ) {
           this.logger.info(
             `Didn't find any newly finalized transactions. Trying again in ${Math.floor(
               this.pollingInterval / 1000
@@ -91,8 +93,12 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         }
 
         this.lastFinalizedTxHeight = this.nextUnfinalizedTxHeight
-        while (await this._isTransactionFinalized(this.nextUnfinalizedTxHeight)) {
-          const size = (await this._getStateBatchHeader(this.nextUnfinalizedTxHeight)).batchSize.toNumber()
+        while (
+          await this._isTransactionFinalized(this.nextUnfinalizedTxHeight)
+        ) {
+          const size = (
+            await this._getStateBatchHeader(this.nextUnfinalizedTxHeight)
+          ).batchSize.toNumber()
           this.logger.info(
             `Found a batch with ${size} finalized transaction(s), checking for more...`
           )
@@ -100,7 +106,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         }
 
         this.logger.interesting(
-          `Found a total of ${this.nextUnfinalizedTxHeight - this.lastFinalizedTxHeight} finalized transaction(s).`
+          `Found a total of ${this.nextUnfinalizedTxHeight -
+            this.lastFinalizedTxHeight} finalized transaction(s).`
         )
 
         const messages = await this._getSentMessages(
@@ -109,7 +116,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         )
 
         if (messages.length === 0) {
-          this.logger.interesting(`Didn't find any L2->L1 messages. Trying again in ${Math.floor(this.pollingInterval / 1000)} seconds...`)
+          this.logger.interesting(
+            `Didn't find any L2->L1 messages. Trying again in ${Math.floor(
+              this.pollingInterval / 1000
+            )} seconds...`
+          )
         }
 
         for (const message of messages) {
@@ -117,7 +128,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
             `Found a message sent during transaction: ${message.height}`
           )
           if (await this._wasMessageRelayed(message)) {
-            this.logger.interesting(`Message has already been relayed, skipping.`)
+            this.logger.interesting(
+              `Message has already been relayed, skipping.`
+            )
             continue
           }
 
@@ -246,7 +259,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const proof = await this.options.l2RpcProvider.send('eth_getProof', [
       this.l2ToL1MessagePasser.address,
       [messageSlot],
-      '0x' + BigNumber.from(message.height + this.blockOffset).toHexString().slice(2).replace(/^0+/, ''),
+      '0x' +
+        BigNumber.from(message.height + this.blockOffset)
+          .toHexString()
+          .slice(2)
+          .replace(/^0+/, ''),
     ])
 
     // TODO: Complain if the batch doesn't exist.
@@ -295,19 +312,23 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     message: SentMessage,
     proof: MessageProof
   ): Promise<void> {
-    const result = await this.l1CrossDomainMessenger.connect(this.options.relaySigner).relayMessage(
-      message.target,
-      message.sender,
-      message.data,
-      message.nonce,
-      proof,
-      {
-        gasLimit: 4_000_000
-      }
-    )
+    const result = await this.l1CrossDomainMessenger
+      .connect(this.options.relaySigner)
+      .relayMessage(
+        message.target,
+        message.sender,
+        message.data,
+        message.nonce,
+        proof,
+        {
+          gasLimit: 4_000_000,
+        }
+      )
 
     const receipt = await result.wait()
 
-    this.logger.interesting(`Relay message transaction sent, hash is: ${receipt.transactionHash}`)
+    this.logger.interesting(
+      `Relay message transaction sent, hash is: ${receipt.transactionHash}`
+    )
   }
 }
