@@ -26,7 +26,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
      *******************************************/
 
     mapping (bytes32 => iOVM_StateTransitioner) internal transitioners;
-    
+
 
     /***************
      * Constructor *
@@ -95,7 +95,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
         if (_hasStateTransitioner(_preStateRoot)) {
             return;
         }
-        
+
         iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
         iOVM_CanonicalTransactionChain ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
 
@@ -116,6 +116,11 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
                 _transactionProof
             ),
             "Invalid transaction inclusion proof."
+        );
+
+        require (
+            _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index == _transactionBatchHeader.prevTotalElements + _transactionProof.index,
+            "Pre-state root global index must equal to the transaction root global index."
         );
 
         transitioners[_preStateRoot] = iOVM_StateTransitionerFactory(

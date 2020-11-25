@@ -26,6 +26,13 @@ const DUMMY_TX_CHAIN_ELEMENTS = [...Array(10)].map(() => {
   }
 })
 
+const DUMMY_BATCH_PROOFS_WITH_INDEX = [
+  {
+    index: 11,
+    siblings: [NULL_BYTES32],
+  },
+]
+
 describe('OVM_FraudVerifier', () => {
   let AddressManager: Contract
   before(async () => {
@@ -176,6 +183,20 @@ describe('OVM_FraudVerifier', () => {
           expect(
             await OVM_FraudVerifier.getStateTransitioner(NULL_BYTES32)
           ).to.equal(Mock__OVM_StateTransitioner.address)
+        })
+
+        it('should revert when provided with a incorrect transaction root global index', async () => {
+          await expect (
+            OVM_FraudVerifier.initializeFraudVerification(
+              NULL_BYTES32,
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0],
+              DUMMY_OVM_TRANSACTIONS[0],
+              DUMMY_TX_CHAIN_ELEMENTS[0],
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS_WITH_INDEX[0]
+            )
+          ).to.be.revertedWith('Pre-state root global index must equal to the transaction root global index.')
         })
       })
     })
