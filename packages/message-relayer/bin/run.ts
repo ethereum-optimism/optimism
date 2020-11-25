@@ -13,6 +13,7 @@ const L2_TO_L1_MESSAGE_PASSER_ADDRESS =
 const POLLING_INTERVAL = env.POLLING_INTERVAL || '5000'
 const RELAY_SIGNER = env.RELAY_SIGNER
 const BLOCK_OFFSET = env.BLOCK_OFFSET || '1'
+const L2_CHAIN_START_HEIGHT = env.L2_CHAIN_START_HEIGHT || '0'
 
 const main = async () => {
   if (!STATE_COMMITMENT_CHAIN_ADDRESS) {
@@ -39,7 +40,8 @@ const main = async () => {
     l2ToL1MessagePasserAddress: L2_TO_L1_MESSAGE_PASSER_ADDRESS,
     pollingInterval: parseInt(POLLING_INTERVAL, 10),
     relaySigner: wallet,
-    blockOffset: parseInt(BLOCK_OFFSET, 10),
+    l2ChainStartingHeight: L2_CHAIN_START_HEIGHT,
+    blockOffset: parseInt(BLOCK_OFFSET, 10)
   })
 
   await service.start()
