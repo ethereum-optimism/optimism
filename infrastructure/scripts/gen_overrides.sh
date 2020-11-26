@@ -192,6 +192,10 @@ while [[ $# -gt 0 ]]; do
 		PROJECT=$2
 		shift
 	;;
+  -c | --cluster-name)
+    CLUSTER=$2
+    shift
+  ;;
 	-v | --server-version) 
 		VAULT_SERVER_VERSION=$2
 		shift
