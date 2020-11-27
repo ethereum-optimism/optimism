@@ -101,8 +101,8 @@ cluster_name = "${CLUSTER}"
 
 listener "tcp" {
     tls_disable = {{ .Values.global.tlsDisable }}
-    tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
-    tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+    tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+    tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
 
     address = "[::]:8200"
     cluster_address = "[::]:8201"
