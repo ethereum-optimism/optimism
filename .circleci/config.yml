@@ -15,7 +15,6 @@ jobs:
           name: Infra standup
           working_directory: /home/circleci/project/docker
           command: docker-compose up ganache truffle
-          background: true
       - run:
           name: Test
           working_directory: /home/circleci/project/docker
