@@ -52,7 +52,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       process.exit(1)
     }
     this.syncing = info.syncing
-    const ctcAddress = info.addresses.canonicalTransactionChain
+    const addrs = await this._getChainAddresses(info)
+    const ctcAddress = addrs.ctcAddress
 
     if (
       typeof this.chainContract !== 'undefined' &&
