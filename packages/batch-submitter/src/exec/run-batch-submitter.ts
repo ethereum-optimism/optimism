@@ -77,6 +77,7 @@ export const run = async () => {
     parseInt(requiredEnvVars.MAX_BATCH_SIZE, 10),
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
+    true,
     getLogger(TX_BATCH_SUBMITTER_LOG_TAG)
   )
 
@@ -88,6 +89,7 @@ export const run = async () => {
     parseInt(requiredEnvVars.MAX_BATCH_SIZE, 10),
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
     parseInt(requiredEnvVars.FINALITY_CONFIRMATIONS, 10),
+    true,
     getLogger(STATE_BATCH_SUBMITTER_LOG_TAG)
   )
 

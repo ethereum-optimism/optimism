@@ -29,16 +29,9 @@ export class StateBatchSubmitter extends BatchSubmitter {
       process.exit(1)
     }
     this.syncing = info.syncing
-
-    const addressManager = (
-      await getContractFactory('Lib_AddressManager', this.signer)
-    ).attach(info.addresses.addressResolver)
-    const sccAddress = await addressManager.getAddress(
-      'OVM_StateCommitmentChain'
-    )
-    const ctcAddress = await addressManager.getAddress(
-      'OVM_CanonicalTransactionChain'
-    )
+    const addrs = await this._getChainAddresses(info)
+    const sccAddress = addrs.sccAddress
+    const ctcAddress = addrs.ctcAddress
 
     if (
       typeof this.chainContract !== 'undefined' &&

@@ -6,6 +6,7 @@ import {
 } from '@ethersproject/abstract-provider'
 import { Logger } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '@eth-optimism/provider'
+import { getContractFactory } from '@eth-optimism/contracts'
 
 /* Internal Imports */
 import { Address, Bytes32 } from '../coders'
@@ -43,6 +44,7 @@ export abstract class BatchSubmitter {
     readonly maxBatchSize: number,
     readonly numConfirmations: number,
     readonly finalityConfirmations: number,
+    readonly pullFromAddressManager: boolean,
     readonly log: Logger
   ) {}
 
@@ -80,6 +82,30 @@ export abstract class BatchSubmitter {
 
   protected async _getL2ChainId(): Promise<number> {
     return this.l2Provider.send('eth_chainId', [])
+  }
+
+  protected async _getChainAddresses(
+    info: RollupInfo
+  ): Promise<{ ctcAddress: string; sccAddress: string }> {
+    if (!this.pullFromAddressManager) {
+      return {
+        ctcAddress: info.addresses.canonicalTransactionChain,
+        sccAddress: info.addresses.stateCommitmentChain,
+      }
+    }
+    const addressManager = (
+      await getContractFactory('Lib_AddressManager', this.signer)
+    ).attach(info.addresses.addressResolver)
+    const sccAddress = await addressManager.getAddress(
+      'OVM_StateCommitmentChain'
+    )
+    const ctcAddress = await addressManager.getAddress(
+      'OVM_CanonicalTransactionChain'
+    )
+    return {
+      ctcAddress,
+      sccAddress,
+    }
   }
 
   protected async _submitAndLogTx(
