@@ -16,6 +16,8 @@ jobs:
           working_directory: /home/circleci/project/docker
           command: docker-compose up ganache truffle
           background: true
+      # prevent docker network creation race condition
+      - run: sleep 5 
       - run:
           name: Test
           working_directory: /home/circleci/project/docker
