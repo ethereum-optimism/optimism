@@ -180,44 +180,17 @@ With the existing overrides (in addition to your API and app keys), this Helm ch
 
 #### Vault
 
-##### Generate Self-Signed Certs
+##### Install cert-manager
 
-In `./infrastructure`, execute:
-
-```bash
-./scripts/gen_certs.sh -d <dns-domain>
-```
-
-For GKE clusters, use: `-d vault-internal.default.svc.cluster.local`
-For Minikube, use: `-d vault-internal`
-
----
-
-**NOTE**: The Root CA Certificate uses a 20 year TTL
-
-**NOTE**: The TLS Key Material should be generated each time the Vault Cluster is upgraded. We currently suggest an upgrade cycle of 2-4 months, so the TLS Key Material should have a TTL of 6 months.
-
----
-
-##### Create a kubernetes secret with the cert
-
-The `gen-certs.sh` script updates `k8s/vault-overrides.yaml` with the name of the secret that was generated with the new certs material. To see the created secret, execute:
+To install cert-manager to generate SSL certificates for Vault:
 
 ```bash
-kubectl get secrets
+helm dep up ./k8s/cert-manager
+helm install cert-manager ./k8s/cert-manager
+helm install cert-manager-issuers ./k8s/cert-manager-issuers
 ```
 
-and look for "omgnetwork-certs-"
-
-##### Generate Storage Classes
-
-In `infrastructure`, execute:
-
-```bash
-./scripts/gen_storage.sh
-```
-
-##### Update Value Overrides
+##### Configuring the vault chart
 
 In `infrastructure`, execute:
 
@@ -233,6 +206,8 @@ $GCP_PROJECT
 $GKE_CLUSTER_NAME
 ```
 
+This updates the values.yaml file to correspond to your cluster.
+
 ##### Start the Pods using the Helm Chart
 
 In `k8s`, execute:
@@ -240,7 +215,9 @@ In `k8s`, execute:
 Execute:
 
 ```bash
-helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault --version 0.8.0
+
+helm dep up ./k8s/vault
+helm install vault ./k8s/vault
 ```
 
 ##### Find the Load Balancer

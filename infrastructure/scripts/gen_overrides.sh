@@ -4,7 +4,7 @@ set -u
 set -o pipefail
 
 ###
-### gen_overrides.sh - generate or update the vault_overrides.yaml file
+### gen_overrides.sh - generate or update the vault values.yaml overrides file
 ###
 ### Usage:
 ###   gen_overrides.sh [options]
@@ -33,6 +33,8 @@ set -o pipefail
 ###
 ###   The number of Vault Server replicas should be either 3 or 5
 ###
+
+OVERRIDES_FILE="./k8s/vault/values.yaml"
 
 DOMAIN="vault-internal.default.svc.cluster.local"
 REGION=${GCP_REGION:-}
@@ -89,7 +91,6 @@ validate_config() {
     fi
 }
 
-# gen_overrides updates the vault-overrides.json file
 gen_overrides() {
 	echo "> Generate Overrides" >&2
 
@@ -100,8 +101,8 @@ cluster_name = "${CLUSTER}"
 
 listener "tcp" {
     tls_disable = {{ .Values.global.tlsDisable }}
-    tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
-    tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+    tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+    tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
 
     address = "[::]:8200"
     cluster_address = "[::]:8201"
@@ -119,36 +120,36 @@ storage "raft" {
 
     retry_join {
     leader_api_addr = "https://vault-0.${DOMAIN}:8200"
-    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
-    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
     leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
     }
 
     retry_join {
     leader_api_addr = "https://vault-1.${DOMAIN}:8200"
-    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
-    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
     leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
     }
 
     retry_join {
     leader_api_addr = "https://vault-2.${DOMAIN}:8200"
-    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
-    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
     leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
     }
 
     retry_join {
     leader_api_addr = "https://vault-3.${DOMAIN}:8200"
-    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
-    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
     leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
     }
 
     retry_join {
     leader_api_addr = "https://vault-4.${DOMAIN}:8200"
-    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
-    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+    leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+    leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
     leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
     }
 }
@@ -156,22 +157,18 @@ storage "raft" {
 service_registration "kubernetes" {}
 EOF
 
-  cd k8s
-
-	yq w -i vault-overrides.yaml server.image.tag ${VAULT_SERVER_VERSION}
-	yq w -i vault-overrides.yaml server.auditStorage.size ${VAULT_AUDIT_SIZE}
-	yq w -i vault-overrides.yaml server.dataStorage.size ${VAULT_DATA_SIZE}
-	yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_REGION ${REGION}
-	yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_PROJECT ${PROJECT}
-	yq w -i vault-overrides.yaml server.ha.raft.config "${CONFIG}"
-	yq w -i vault-overrides.yaml server.ha.replicas ${VAULT_REPLICAS}
-	yq w -i vault-overrides.yaml server.resources.requests.memory 256Mi
-	yq w -i vault-overrides.yaml server.resources.requests.cpu 250m
-	yq w -i vault-overrides.yaml server.resources.limits.memory 256Mi
-	yq w -i vault-overrides.yaml server.resources.limits.cpu 250m
-	yq w -i vault-overrides.yaml ui.enabled ${VAULT_UI_ENABLED}
-
-  cd ..
+	yq w -i "$OVERRIDES_FILE" vault.server.image.tag ${VAULT_SERVER_VERSION}
+	yq w -i "$OVERRIDES_FILE" vault.server.auditStorage.size ${VAULT_AUDIT_SIZE}
+	yq w -i "$OVERRIDES_FILE" vault.server.dataStorage.size ${VAULT_DATA_SIZE}
+	yq w -i "$OVERRIDES_FILE" vault.server.extraEnvironmentVars.GOOGLE_REGION ${REGION}
+	yq w -i "$OVERRIDES_FILE" vault.server.extraEnvironmentVars.GOOGLE_PROJECT ${PROJECT}
+	yq w -i "$OVERRIDES_FILE" vault.server.ha.raft.config "${CONFIG}"
+	yq w -i "$OVERRIDES_FILE" vault.server.ha.replicas ${VAULT_REPLICAS}
+	yq w -i "$OVERRIDES_FILE" vault.server.resources.requests.memory 256Mi
+	yq w -i "$OVERRIDES_FILE" vault.server.resources.requests.cpu 250m
+	yq w -i "$OVERRIDES_FILE" vault.server.resources.limits.memory 256Mi
+	yq w -i "$OVERRIDES_FILE" vault.server.resources.limits.cpu 250m
+	yq w -i "$OVERRIDES_FILE" vault.ui.enabled ${VAULT_UI_ENABLED}
 }
 
 ##
@@ -192,6 +189,10 @@ while [[ $# -gt 0 ]]; do
 		PROJECT=$2
 		shift
 	;;
+  -c | --cluster-name)
+    CLUSTER=$2
+    shift
+  ;;
 	-v | --server-version) 
 		VAULT_SERVER_VERSION=$2
 		shift
