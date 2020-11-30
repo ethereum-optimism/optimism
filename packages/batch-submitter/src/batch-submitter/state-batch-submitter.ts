@@ -66,9 +66,8 @@ export class StateBatchSubmitter extends BatchSubmitter {
     // We will submit state roots for txs which have been in the tx chain for a while.
     const callBlockNumber: number =
       (await this.signer.provider.getBlockNumber()) - this.finalityConfirmations
-    const totalElements: number = (
-      await this.ctcContract.getTotalElements()
-    ).toNumber() + BLOCK_OFFSET
+    const totalElements: number =
+      (await this.ctcContract.getTotalElements()).toNumber() + BLOCK_OFFSET
     const endBlock: number = Math.min(
       startBlock + this.maxBatchSize,
       totalElements
