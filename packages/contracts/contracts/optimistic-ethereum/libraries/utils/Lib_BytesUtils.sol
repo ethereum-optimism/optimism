@@ -97,7 +97,9 @@ library Lib_BytesUtils {
         pure
         returns (bytes memory)
     {
-        require(_bytes.length >= (_start + _length), "Read out of bounds");
+        require(_length + 31 >= _length, "slice_overflow");
+        require(_start + _length >= _start, "slice_overflow");
+        require(_bytes.length >= _start + _length, "slice_outOfBounds");
 
         bytes memory tempBytes;
 
