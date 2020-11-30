@@ -68,7 +68,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       (await this.signer.provider.getBlockNumber()) - this.finalityConfirmations
     const totalElements: number = (
       await this.ctcContract.getTotalElements()
-    ).toNumber()
+    ).toNumber() + BLOCK_OFFSET
     const endBlock: number = Math.min(
       startBlock + this.maxBatchSize,
       totalElements
