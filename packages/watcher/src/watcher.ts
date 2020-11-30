@@ -48,7 +48,11 @@ export class Watcher {
         log.address === layer.messengerAddress &&
         log.topics[0] === ethers.utils.id('SentMessage(bytes)')
       ) {
-        msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [log.data]))
+        const [message] = ethers.utils.defaultAbiCoder.decode(
+          ['bytes'],
+          log.data
+        )
+        msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [message]))
       }
     }
     return msgHashes
