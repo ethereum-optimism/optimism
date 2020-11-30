@@ -121,7 +121,7 @@ export const signNativeTransaction = async (
   let [v, r, s] = getSignedComponents(transactionSignature).map((component) => {
     return remove0x(component)
   })
-  v = '0' + (parseInt(v, 16) - 420 * 2 - 8 - 27)
+  v = '0' + (parseInt(v, 16) - transaction.chainId * 2 - 8 - 27)
   return {
     messageHash,
     v,

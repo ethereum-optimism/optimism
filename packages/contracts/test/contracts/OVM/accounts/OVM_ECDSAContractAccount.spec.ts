@@ -200,5 +200,32 @@ describe('OVM_ECDSAContractAccount', () => {
         'Transaction nonce does not match the expected nonce.'
       )
     })
+
+    it(`should revert on incorrect chainId`, async () => {
+      const alteredChainIdTx = {
+        ...DEFAULT_EIP155_TX,
+        chainId : 421
+      }
+      const message = serializeNativeTransaction(alteredChainIdTx)
+      const sig = await signNativeTransaction(wallet, alteredChainIdTx)
+
+      await callPrecompile(
+        Helper_PrecompileCaller,
+        OVM_ECDSAContractAccount,
+        'execute',
+        [
+          message,
+          0, //isEthSignedMessage
+          `0x${sig.v}`, //v
+          `0x${sig.r}`, //r
+          `0x${sig.s}`, //s
+        ]
+      )
+      const ovmREVERT: any =
+        Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
+      expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+        'Transaction chainId does not match expected OVM chainId.'
+      )
+    })
   })
 })
