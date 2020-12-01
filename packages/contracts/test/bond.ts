@@ -16,6 +16,7 @@ describe('BondManager', () => {
   let manager: Contract
   let fraudVerifier: Contract
 
+  const publisher = wallets[0].address
   const stateTransitioner = wallets[3]
   const witnessProvider = wallets[4]
   const witnessProvider2 = wallets[5]
@@ -172,22 +173,32 @@ describe('BondManager', () => {
     })
 
     it('cannot claim before canClaim is set', async () => {
-      await expect(bondManager.claim(preStateRoot)).to.be.revertedWith(
+      await expect(bondManager.claim(publisher)).to.be.revertedWith(
         Errors.CANNOT_CLAIM
       )
     })
 
     describe('claims', () => {
+      let timestamp: number
+      // prepare by setting the claim flag and linking the publisher to the state root
       beforeEach(async () => {
         // deposit the collateral to be distributed
         await token.approve(bondManager.address, ethers.constants.MaxUint256)
         await bondManager.deposit()
 
         // smodify the canClaim value to true to test claiming
+        const block = await provider.getBlock('latest')
+        timestamp = block.timestamp
         bondManager.smodify.set({
           witnessProviders: {
             [preStateRoot]: {
               canClaim: true,
+            },
+          },
+          bonds: {
+            [publisher]: {
+              earliestDisputedStateRoot: preStateRoot,
+              firstDisputeAt: timestamp,
             },
           },
         })
@@ -195,13 +206,21 @@ describe('BondManager', () => {
         expect(reward.canClaim).to.be.true
       })
 
+      it('cannot claim before time for other disputes has passed', async () => {
+        await expect(
+          bondManager.connect(witnessProvider).claim(publisher)
+        ).to.be.revertedWith(Errors.WAIT_FOR_DISPUTES)
+      })
+
       it('rewards get paid out proportionally', async () => {
+        await mineBlock(deployer.provider, timestamp + ONE_WEEK)
+
         // One will get 2/3rds of the bond, the other will get 1/3rd
         const balanceBefore1 = await token.balanceOf(witnessProvider.address)
         const balanceBefore2 = await token.balanceOf(witnessProvider2.address)
 
-        await bondManager.connect(witnessProvider).claim(preStateRoot)
-        await bondManager.connect(witnessProvider2).claim(preStateRoot)
+        await bondManager.connect(witnessProvider).claim(publisher)
+        await bondManager.connect(witnessProvider2).claim(publisher)
 
         const balanceAfter1 = await token.balanceOf(witnessProvider.address)
         const balanceAfter2 = await token.balanceOf(witnessProvider2.address)
@@ -215,15 +234,16 @@ describe('BondManager', () => {
       })
 
       it('cannot double claim', async () => {
+        await mineBlock(deployer.provider, timestamp + ONE_WEEK)
         const balance1 = await token.balanceOf(witnessProvider.address)
-        await bondManager.connect(witnessProvider).claim(preStateRoot)
+        await bondManager.connect(witnessProvider).claim(publisher)
         const balance2 = await token.balanceOf(witnessProvider.address)
         expect(balance2).to.be.eq(
           balance1.add(half.mul(totalUser1Gas).div(totalGas))
         )
 
         // re-claiming does not give the user any extra funds
-        await bondManager.connect(witnessProvider).claim(preStateRoot)
+        await bondManager.connect(witnessProvider).claim(publisher)
         const balance3 = await token.balanceOf(witnessProvider.address)
         expect(balance3).to.be.eq(balance2)
       })
@@ -296,6 +316,54 @@ describe('BondManager', () => {
           Errors.WRONG_STATE
         )
       })
+
+      describe('same publisher commits fraud multiple times', async () => {
+        let timestamp: number
+        let root1 =
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        let ts1 = 100
+        let root2 =
+          '0x0000000000000000000000000000000000000000000000000000000000000001'
+        let ts2 = 110
+
+        beforeEach(async () => {
+          await fraudVerifier.finalize(root2, sender, ts2)
+          const block = await provider.getBlock('latest')
+          timestamp = block.timestamp
+        })
+
+        it('initial dispute data is stored', async () => {
+          const bond = await bondManager.bonds(sender)
+          expect(bond.firstDisputeAt).to.be.equal(timestamp)
+          expect(bond.earliestTimestamp).to.be.equal(ts2)
+          expect(bond.earliestDisputedStateRoot).to.be.equal(root2)
+        })
+
+        it('earlier dispute replaces initial data', async () => {
+          await fraudVerifier.finalize(root1, sender, ts1)
+          const bond = await bondManager.bonds(sender)
+          expect(bond.firstDisputeAt).to.be.equal(timestamp)
+          expect(bond.earliestTimestamp).to.be.equal(ts1)
+          expect(bond.earliestDisputedStateRoot).to.be.equal(root1)
+        })
+
+        it('earlier dispute does not replace initial data if not in time', async () => {
+          await mineBlock(deployer.provider, timestamp + ONE_WEEK)
+          await fraudVerifier.finalize(root1, sender, ts1)
+          const bond = await bondManager.bonds(sender)
+          expect(bond.firstDisputeAt).to.be.equal(timestamp)
+          expect(bond.earliestTimestamp).to.be.equal(ts2)
+          expect(bond.earliestDisputedStateRoot).to.be.equal(root2)
+        })
+
+        it('later dispute does not replace initial data', async () => {
+          await fraudVerifier.finalize(root1, sender, ts2 + 1)
+          const bond = await bondManager.bonds(sender)
+          expect(bond.firstDisputeAt).to.be.equal(timestamp)
+          expect(bond.earliestTimestamp).to.be.equal(ts2)
+          expect(bond.earliestDisputedStateRoot).to.be.equal(root2)
+        })
+      })
     })
   })
 })
@@ -323,4 +391,5 @@ enum Errors {
   ONLY_TRANSITIONER = 'BondManager: Only the transitioner for this pre-state root may call this function',
   ONLY_FRAUD_VERIFIER = 'BondManager: Only the fraud verifier may call this function',
   ONLY_STATE_COMMITMENT_CHAIN = 'BondManager: Only the state commitment chain may call this function',
+  WAIT_FOR_DISPUTES = 'BondManager: Wait for other potential disputes',
 }

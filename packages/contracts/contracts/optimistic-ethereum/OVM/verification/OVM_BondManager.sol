@@ -17,6 +17,9 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
      * Constants and Parameters *
      ****************************/
 
+    /// The period to find the earliest fraud proof for a publisher
+    uint256 public constant multiFraudProofPeriod = 7 days;
+
     /// The dispute period
     uint256 public constant disputePeriodSeconds = 7 days;
 
@@ -82,6 +85,19 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
         witnessProviders[_preStateRoot].canClaim = true;
 
         Bond storage bond = bonds[publisher];
+        if (bond.firstDisputeAt == 0) {
+            bond.firstDisputeAt = block.timestamp;
+            bond.earliestDisputedStateRoot = _preStateRoot;
+            bond.earliestTimestamp = timestamp;
+        } else if (
+            // only update the disputed state root for the publisher if it's within
+            // the dispute period _and_ if it's before the previous one
+            block.timestamp < bond.firstDisputeAt + multiFraudProofPeriod &&
+            timestamp < bond.earliestTimestamp
+        ) {
+            bond.earliestDisputedStateRoot = _preStateRoot;
+            bond.earliestTimestamp = timestamp;
+        }
 
         // if the fraud proof's dispute period does not intersect with the 
         // withdrawal's timestamp, then the user should not be slashed
@@ -143,8 +159,17 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
         );
     }
 
-    /// Claims the user's reward for the witnesses they provided
-    function claim(bytes32 _preStateRoot) override public {
+    /// Claims the user's reward for the witnesses they provided for the earliest
+    /// disputed state root of the designated publisher
+    function claim(address who) override public {
+        Bond storage bond = bonds[who];
+        require(
+            block.timestamp >= bond.firstDisputeAt + multiFraudProofPeriod,
+            Errors.WAIT_FOR_DISPUTES
+        );
+
+        // reward the earliest state root for this publisher
+        bytes32 _preStateRoot = bond.earliestDisputedStateRoot;
         Rewards storage rewards = witnessProviders[_preStateRoot];
 
         // only allow claiming if fraud was proven in `finalize`
