@@ -93,7 +93,7 @@ interface iOVM_BondManager {
     function finalizeWithdrawal() external;
 
     function claim(
-        address who
+        address _who
     ) external;
 
     function isCollateralized(

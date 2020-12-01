@@ -35,6 +35,14 @@ interface iOVM_CanonicalTransactionChain {
         uint256 _totalElements
     );
 
+    event TransactionBatchAppended(
+        uint256 indexed _batchIndex,
+        bytes32 _batchRoot,
+        uint256 _batchSize,
+        uint256 _prevTotalElements,
+        bytes _extraData
+    );
+
 
     /***********
      * Structs *
