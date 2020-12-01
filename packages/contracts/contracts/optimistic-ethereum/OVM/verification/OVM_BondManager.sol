@@ -21,13 +21,7 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     uint256 public constant disputePeriodSeconds = 7 days;
 
     /// The minimum collateral a sequencer must post
-    uint256 public requiredCollateral = 1 ether;
-
-    /// The maximum multiplier for updating the `requiredCollateral`
-    uint256 public constant MAX = 5;
-
-    /// Owner used to bump the security bond size
-    address immutable public owner;
+    uint256 public constant requiredCollateral = 1 ether;
 
 
     /*******************************************
@@ -36,9 +30,6 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
 
     /// The bond token
     ERC20 immutable public token;
-
-    /// The fraud verifier contract, used to get data about transitioners for a pre-state root
-    address public ovmFraudVerifier;
 
 
     /********************************************
@@ -62,7 +53,6 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     constructor(ERC20 _token, address _libAddressManager)
         Lib_AddressResolver(_libAddressManager)
     {
-        owner = msg.sender;
         token = _token;
     }
 
@@ -83,7 +73,7 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
 
     /// Slashes + distributes rewards or frees up the sequencer's bond, only called by
     /// `FraudVerifier.finalizeFraudVerification`
-    function finalize(bytes32 _preStateRoot, uint256 batchIndex, address publisher, uint256 timestamp) override public {
+    function finalize(bytes32 _preStateRoot, address publisher, uint256 timestamp) override public {
         require(msg.sender == resolve("OVM_FraudVerifier"), Errors.ONLY_FRAUD_VERIFIER);
         require(witnessProviders[_preStateRoot].canClaim == false, Errors.ALREADY_FINALIZED);
 
@@ -113,9 +103,9 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
 
     /// Sequencers call this function to post collateral which will be used for
     /// the `appendBatch` call
-    function deposit(uint256 amount) override public {
+    function deposit() override public {
         require(
-            token.transferFrom(msg.sender, address(this), amount),
+            token.transferFrom(msg.sender, address(this), requiredCollateral),
             Errors.ERC20_ERR
         );
 
@@ -171,16 +161,7 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
         require(token.transfer(msg.sender, amount), Errors.ERC20_ERR);
     }
 
-    /// Sets the required collateral for posting a state root
-    /// Callable only by the contract's deployer.
-    function setRequiredCollateral(uint256 newValue) override public {
-        require(newValue > requiredCollateral, Errors.LOW_VALUE);
-        require(newValue < MAX * requiredCollateral, Errors.HIGH_VALUE);
-        require(msg.sender == owner, Errors.ONLY_OWNER);
-        requiredCollateral = newValue;
-    }
-
-    /// Checks if the user is collateralized for the batchIndex
+    /// Checks if the user is collateralized
     function isCollateralized(address who) override public view returns (bool) {
         return bonds[who].state == State.COLLATERALIZED;
     }

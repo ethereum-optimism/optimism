@@ -71,39 +71,13 @@ describe('BondManager', () => {
     await fraudVerifier.setBondManager(bondManager.address)
   })
 
-  describe('required collateral adjustment', () => {
-    it('bumps required collateral', async () => {
-      // sets collateral to 2 eth, which is more than what we have deposited
-      await bondManager.setRequiredCollateral(ethers.utils.parseEther('2'))
-      expect(await bondManager.isCollateralized(sender)).to.be.false
-    })
-
-    it('cannot lower collateral reqs', async () => {
-      await expect(
-        bondManager.setRequiredCollateral(ethers.utils.parseEther('0.99'))
-      ).to.be.revertedWith(Errors.LOW_VALUE)
-    })
-
-    it('cannot increase collateral reqs to more than 5x of current value', async () => {
-      await expect(
-        bondManager.setRequiredCollateral(ethers.utils.parseEther('10.1'))
-      ).to.be.revertedWith(Errors.HIGH_VALUE)
-    })
-
-    it('only owner can adjust collateral', async () => {
-      await expect(
-        bondManager.connect(wallets[2]).setRequiredCollateral(amount.add(1))
-      ).to.be.revertedWith(Errors.ONLY_OWNER)
-    })
-  })
-
   describe('collateral management', () => {
     let balanceBefore: BigNumber
 
     beforeEach(async () => {
       await token.approve(bondManager.address, ethers.constants.MaxUint256)
       balanceBefore = await token.balanceOf(sender)
-      await bondManager.deposit(amount)
+      await bondManager.deposit()
     })
 
     it('can deposit', async () => {
@@ -207,7 +181,7 @@ describe('BondManager', () => {
       beforeEach(async () => {
         // deposit the collateral to be distributed
         await token.approve(bondManager.address, ethers.constants.MaxUint256)
-        await bondManager.deposit(amount)
+        await bondManager.deposit()
 
         // smodify the canClaim value to true to test claiming
         bondManager.smodify.set({
@@ -256,28 +230,26 @@ describe('BondManager', () => {
     })
 
     describe('finalize', () => {
-      const batchIdx = 1
-
       beforeEach(async () => {
         await token.approve(bondManager.address, ethers.constants.MaxUint256)
-        await bondManager.deposit(amount)
+        await bondManager.deposit()
       })
 
       it('only fraud verifier can finalize', async () => {
         await expect(
-          bondManager.finalize(preStateRoot, batchIdx, sender, 0)
+          bondManager.finalize(preStateRoot, sender, 0)
         ).to.be.revertedWith(Errors.ONLY_FRAUD_VERIFIER)
       })
 
       it('proving fraud allows claiming', async () => {
-        await fraudVerifier.finalize(preStateRoot, batchIdx, sender, 0)
+        await fraudVerifier.finalize(preStateRoot, sender, 0)
 
         expect((await bondManager.witnessProviders(preStateRoot)).canClaim).to
           .be.true
 
         // cannot double finalize
         await expect(
-          fraudVerifier.finalize(preStateRoot, batchIdx, sender, 0)
+          fraudVerifier.finalize(preStateRoot, sender, 0)
         ).to.be.revertedWith(Errors.ALREADY_FINALIZED)
       })
 
@@ -290,7 +262,6 @@ describe('BondManager', () => {
         const disputeTimestamp = withdrawalTimestamp - 100
         await fraudVerifier.finalize(
           preStateRoot,
-          batchIdx,
           sender,
           disputeTimestamp
         )
@@ -310,7 +281,6 @@ describe('BondManager', () => {
         const disputeTimestamp = withdrawalTimestamp - ONE_WEEK - 1
         await fraudVerifier.finalize(
           preStateRoot,
-          batchIdx,
           sender,
           disputeTimestamp
         )
@@ -321,7 +291,7 @@ describe('BondManager', () => {
       })
 
       it('proving fraud prevents starting a withdrawal due to slashing', async () => {
-        await fraudVerifier.finalize(preStateRoot, batchIdx, sender, 0)
+        await fraudVerifier.finalize(preStateRoot, sender, 0)
         await expect(bondManager.startWithdrawal()).to.be.revertedWith(
           Errors.WRONG_STATE
         )
@@ -342,8 +312,6 @@ enum State {
 // Errors from the bond manager smart contract
 enum Errors {
   ERC20_ERR = 'BondManager: Could not post bond',
-  LOW_VALUE = 'BondManager: New collateral value must be greater than the previous one',
-  HIGH_VALUE = 'BondManager: New collateral value cannot be more than 5x of the previous one',
   ALREADY_FINALIZED = 'BondManager: Fraud proof for this pre-state root has already been finalized',
   SLASHED = 'BondManager: Cannot finalize withdrawal, you probably got slashed',
   WRONG_STATE = 'BondManager: Wrong bond state for proposer',
@@ -352,7 +320,6 @@ enum Errors {
   WITHDRAWAL_PENDING = 'BondManager: Withdrawal already pending',
   TOO_EARLY = 'BondManager: Too early to finalize your withdrawal',
 
-  ONLY_OWNER = "BondManager: Only the contract's owner can call this function",
   ONLY_TRANSITIONER = 'BondManager: Only the transitioner for this pre-state root may call this function',
   ONLY_FRAUD_VERIFIER = 'BondManager: Only the fraud verifier may call this function',
   ONLY_STATE_COMMITMENT_CHAIN = 'BondManager: Only the state commitment chain may call this function',

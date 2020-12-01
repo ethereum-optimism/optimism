@@ -203,7 +203,6 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
         // slash the bonds at the bond manager
         ovmBondManager.finalize(
             _preStateRoot,
-            _postStateRootBatchHeader.batchIndex,
             publisher,
             timestamp
         );

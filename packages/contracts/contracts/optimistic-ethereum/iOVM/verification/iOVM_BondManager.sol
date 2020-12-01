@@ -9,8 +9,6 @@ interface ERC20 {
 /// All the errors which may be encountered on the bond manager
 library Errors {
     string constant ERC20_ERR = "BondManager: Could not post bond";
-    string constant LOW_VALUE = "BondManager: New collateral value must be greater than the previous one";
-    string constant HIGH_VALUE = "BondManager: New collateral value cannot be more than 5x of the previous one";
     string constant ALREADY_FINALIZED = "BondManager: Fraud proof for this pre-state root has already been finalized";
     string constant SLASHED = "BondManager: Cannot finalize withdrawal, you probably got slashed";
     string constant WRONG_STATE = "BondManager: Wrong bond state for proposer";
@@ -19,7 +17,6 @@ library Errors {
     string constant WITHDRAWAL_PENDING = "BondManager: Withdrawal already pending";
     string constant TOO_EARLY = "BondManager: Too early to finalize your withdrawal";
 
-    string constant ONLY_OWNER = "BondManager: Only the contract's owner can call this function";
     string constant ONLY_TRANSITIONER = "BondManager: Only the transitioner for this pre-state root may call this function";
     string constant ONLY_FRAUD_VERIFIER = "BondManager: Only the fraud verifier may call this function";
     string constant ONLY_STATE_COMMITMENT_CHAIN = "BondManager: Only the state commitment chain may call this function";
@@ -78,14 +75,11 @@ interface iOVM_BondManager {
 
     function finalize(
         bytes32 _preStateRoot,
-        uint256 _batchIndex,
         address _publisher,
         uint256 _timestamp
     ) external;
 
-    function deposit(
-        uint256 _amount
-    ) external;
+    function deposit() external;
 
     function startWithdrawal() external;
 
@@ -93,10 +87,6 @@ interface iOVM_BondManager {
 
     function claim(
         bytes32 _preStateRoot
-    ) external;
-
-    function setRequiredCollateral(
-        uint256 _newValue
     ) external;
 
     function isCollateralized(
