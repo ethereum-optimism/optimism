@@ -155,5 +155,8 @@ export const makeContractDeployConfig = async (
     mockOVM_ECDSAContractAccount: {
       factory: getContractFactory('mockOVM_ECDSAContractAccount'),
     },
+    OVM_BondManager: {
+      factory: getContractFactory('mockOVM_BondManager'),
+    },
   }
 }
