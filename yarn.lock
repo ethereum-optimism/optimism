@@ -39,19 +39,19 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
+"@eth-optimism/contracts@^0.0.2-alpha.10":
+  version "0.0.2-alpha.10"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.10.tgz#45356257f67a362d351779354130b7cacbfd674f"
+  integrity sha512-0Z0Jmga0Aqt6tUG9Lux9ubPpyrD8XrHN15nF+IJdRBc34Nk6hdtXiNW65rAdQcBlS+ubfNDC72J4LWNulTZiAg==
+  dependencies:
+    "@ethersproject/hardware-wallets" "^5.0.8"
+    ethers "5.0.0"
+
 "@eth-optimism/contracts@^0.0.2-alpha.7":
   version "0.0.2-alpha.7"
   resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.7.tgz#1d77b59f504ee94d9f2f46e0d4c01889ba8f9fd5"
   integrity sha512-nl+UsKPTPEyKS6p5E5g4U5SAqOK8Cj24o0GXtxERuVW/+eaBqbc5IEM50/wL5e/XiW4DjUOAMZl01GYiE8mIfA==
   dependencies:
-    ethers "5.0.0"
-
-"@eth-optimism/contracts@^0.0.2-alpha.9":
-  version "0.0.2-alpha.9"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.9.tgz#d6187d2ad15e181f50e091198ea9b714271762e4"
-  integrity sha512-CI7lwWRZu53b757htgBHCfBo+Y4GqkHRCUDltFN3FFubED6R03sslOe+sV6I12/GuErnbax8AihEZ7/x61hImw==
-  dependencies:
-    "@ethersproject/hardware-wallets" "^5.0.8"
     ethers "5.0.0"
 
 "@eth-optimism/ethereumjs-vm@4.2.0-alpha.1":
