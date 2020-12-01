@@ -100,7 +100,8 @@ describe('OVM_ProxyEOA', () => {
     })
   })
   describe('upgrade()', () => {
-    const implSlotKey = '0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead'
+    const implSlotKey =
+      '0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead'
     it(`should upgrade the proxy implementation`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
       const newImplBytes32 = addrToBytes32(newImpl)

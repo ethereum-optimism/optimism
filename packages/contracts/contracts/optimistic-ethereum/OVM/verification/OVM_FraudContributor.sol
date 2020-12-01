@@ -9,10 +9,10 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 abstract contract OVM_FraudContributor is Lib_AddressResolver {
     /// Decorate your functions with this modifier to store how much total gas was
     /// consumed by the sender, to reward users fairly
-    modifier contributesToFraudProof(bytes32 preStateRoot) {
+    modifier contributesToFraudProof(bytes32 preStateRoot, bytes32 txHash) {
         uint startGas = gasleft();
         _;
         uint gasSpent = startGas - gasleft();
-        iOVM_BondManager(resolve('OVM_BondManager')).recordGasSpent(preStateRoot, msg.sender, gasSpent);
+        iOVM_BondManager(resolve('OVM_BondManager')).recordGasSpent(preStateRoot, txHash, msg.sender, gasSpent);
     }
 }

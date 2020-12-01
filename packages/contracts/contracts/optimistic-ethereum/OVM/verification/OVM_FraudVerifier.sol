@@ -52,7 +52,8 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
      * @return _transitioner Corresponding state transitioner contract.
      */
     function getStateTransitioner(
-        bytes32 _preStateRoot
+        bytes32 _preStateRoot,
+        bytes32 _txHash
     )
         override
         public
@@ -61,7 +62,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             iOVM_StateTransitioner _transitioner
         )
     {
-        return transitioners[_preStateRoot];
+        return transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))];
     }
 
 
@@ -90,9 +91,11 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
     )
         override
         public
-        contributesToFraudProof(_preStateRoot)
+        contributesToFraudProof(_preStateRoot, Lib_OVMCodec.hashTransaction(_transaction))
     {
-        if (_hasStateTransitioner(_preStateRoot)) {
+        bytes32 _txHash = Lib_OVMCodec.hashTransaction(_transaction);
+
+        if (_hasStateTransitioner(_preStateRoot, _txHash)) {
             return;
         }
 
@@ -122,14 +125,19 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index == _transactionBatchHeader.prevTotalElements + _transactionProof.index,
             "Pre-state root global index must equal to the transaction root global index."
         );
+        
+        deployTransitioner(_preStateRoot, _txHash, _preStateRootProof.index);
+    }
 
-        transitioners[_preStateRoot] = iOVM_StateTransitionerFactory(
+    // NB: Stack too deep :/
+    function deployTransitioner(bytes32 _preStateRoot, bytes32 _txHash, uint256 _stateTransitionIndex) private {
+        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitionerFactory(
             resolve("OVM_StateTransitionerFactory")
         ).create(
             address(libAddressManager),
-            _preStateRootProof.index,
+            _stateTransitionIndex,
             _preStateRoot,
-            Lib_OVMCodec.hashTransaction(_transaction)
+            _txHash
         );
     }
 
@@ -138,6 +146,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
      * @param _preStateRoot State root before the fraudulent transaction.
      * @param _preStateRootBatchHeader Batch header for the provided pre-state root.
      * @param _preStateRootProof Inclusion proof for the provided pre-state root.
+     * @param _txHash The transaction for the state root
      * @param _postStateRoot State root after the fraudulent transaction.
      * @param _postStateRootBatchHeader Batch header for the provided post-state root.
      * @param _postStateRootProof Inclusion proof for the provided post-state root.
@@ -146,15 +155,16 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
         bytes32 _preStateRoot,
         Lib_OVMCodec.ChainBatchHeader memory _preStateRootBatchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _preStateRootProof,
+        bytes32 _txHash,
         bytes32 _postStateRoot,
         Lib_OVMCodec.ChainBatchHeader memory _postStateRootBatchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _postStateRootProof
     )
         override
         public
-        contributesToFraudProof(_preStateRoot)
+        contributesToFraudProof(_preStateRoot, _txHash)
     {
-        iOVM_StateTransitioner transitioner = transitioners[_preStateRoot];
+        iOVM_StateTransitioner transitioner = getStateTransitioner(_preStateRoot, _txHash);
         iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
         iOVM_BondManager ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
 
@@ -191,7 +201,17 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             _postStateRoot != transitioner.getPostStateRoot(),
             "State transition has not been proven fraudulent."
         );
+        
+        cancelStateTransition(_postStateRootBatchHeader, _preStateRoot);
+    }
 
+    // NB: Stack too deep :/
+    function cancelStateTransition(
+        Lib_OVMCodec.ChainBatchHeader memory _postStateRootBatchHeader,
+        bytes32 _preStateRoot
+    ) private {
+        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_BondManager ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
         // delete the state batch
         ovmStateCommitmentChain.deleteStateBatch(
             _postStateRootBatchHeader
@@ -219,7 +239,8 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
      * @return _exists Whether or not we already have a transitioner for the root.
      */
     function _hasStateTransitioner(
-        bytes32 _preStateRoot
+        bytes32 _preStateRoot,
+        bytes32 _txHash
     )
         internal
         view
@@ -227,6 +248,6 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             bool _exists
         )
     {
-        return address(transitioners[_preStateRoot]) != address(0);
+        return address(getStateTransitioner(_preStateRoot, _txHash)) != address(0);
     }
 }

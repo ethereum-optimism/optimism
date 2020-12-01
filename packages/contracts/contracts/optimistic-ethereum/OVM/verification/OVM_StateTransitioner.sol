@@ -167,7 +167,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
-        contributesToFraudProof(preStateRoot)
+        contributesToFraudProof(preStateRoot, transactionHash)
     {
         // Exit quickly to avoid unnecessary work.
         require(
@@ -215,7 +215,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
-        contributesToFraudProof(preStateRoot)
+        contributesToFraudProof(preStateRoot, transactionHash)
     {
         // Exit quickly to avoid unnecessary work.
         require(
@@ -251,7 +251,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
-        contributesToFraudProof(preStateRoot)
+        contributesToFraudProof(preStateRoot, transactionHash)
     {
         // Exit quickly to avoid unnecessary work.
         require(
@@ -307,7 +307,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
-        contributesToFraudProof(preStateRoot)
+        contributesToFraudProof(preStateRoot, transactionHash)
     {
         require(
             Lib_OVMCodec.hashTransaction(_transaction) == transactionHash,
@@ -346,7 +346,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
         override
         public
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
-        contributesToFraudProof(preStateRoot)
+        contributesToFraudProof(preStateRoot, transactionHash)
     {
         require(
             ovmStateManager.commitAccount(_ovmContractAddress) == true,
@@ -381,7 +381,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
         override
         public
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
-        contributesToFraudProof(preStateRoot)
+        contributesToFraudProof(preStateRoot, transactionHash)
     {
         require(
             ovmStateManager.commitContractStorage(_ovmContractAddress, _key) == true,

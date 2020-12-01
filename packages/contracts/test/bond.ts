@@ -22,6 +22,7 @@ describe('BondManager', () => {
   const witnessProvider2 = wallets[5]
 
   const sender = wallets[0].address
+  const txHash = ethers.constants.HashZero
 
   const ONE_WEEK = 3600 * 24 * 7
 
@@ -56,6 +57,7 @@ describe('BondManager', () => {
     ).deploy()
     await fraudVerifier.setStateTransitioner(
       preStateRoot,
+      txHash,
       stateTransitioner.address
     )
     await manager.setAddress('OVM_FraudVerifier', fraudVerifier.address)
@@ -143,13 +145,28 @@ describe('BondManager', () => {
     beforeEach(async () => {
       await bondManager
         .connect(stateTransitioner)
-        .recordGasSpent(preStateRoot, witnessProvider.address, user1Gas[0])
+        .recordGasSpent(
+          preStateRoot,
+          txHash,
+          witnessProvider.address,
+          user1Gas[0]
+        )
       await bondManager
         .connect(stateTransitioner)
-        .recordGasSpent(preStateRoot, witnessProvider.address, user1Gas[1])
+        .recordGasSpent(
+          preStateRoot,
+          txHash,
+          witnessProvider.address,
+          user1Gas[1]
+        )
       await bondManager
         .connect(stateTransitioner)
-        .recordGasSpent(preStateRoot, witnessProvider2.address, user2Gas)
+        .recordGasSpent(
+          preStateRoot,
+          txHash,
+          witnessProvider2.address,
+          user2Gas
+        )
     })
 
     describe('post witnesses', () => {
@@ -167,7 +184,12 @@ describe('BondManager', () => {
 
       it('cannot post witnesses from non-transitioners for that state root', async () => {
         await expect(
-          bondManager.recordGasSpent(preStateRoot, witnessProvider.address, 100)
+          bondManager.recordGasSpent(
+            preStateRoot,
+            txHash,
+            witnessProvider.address,
+            100
+          )
         ).to.be.revertedWith(Errors.ONLY_TRANSITIONER)
       })
     })

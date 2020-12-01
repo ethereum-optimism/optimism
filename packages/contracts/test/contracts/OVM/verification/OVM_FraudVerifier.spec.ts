@@ -14,17 +14,20 @@ import {
   DUMMY_OVM_TRANSACTIONS,
   NON_NULL_BYTES32,
   NULL_BYTES32,
+  hashTransaction,
 } from '../../../helpers'
 
-const DUMMY_TX_CHAIN_ELEMENTS = [...Array(10)].map(() => {
+const DUMMY_TX_CHAIN_ELEMENTS = [...Array(10).keys()].map((i) => {
   return {
     isSequenced: false,
     queueIndex: BigNumber.from(0),
-    timestamp: BigNumber.from(0),
+    timestamp: BigNumber.from(i),
     blockNumber: BigNumber.from(0),
     txData: NULL_BYTES32,
   }
 })
+
+const DUMMY_HASH = hashTransaction(DUMMY_OVM_TRANSACTIONS[0])
 
 const DUMMY_BATCH_PROOFS_WITH_INDEX = [
   {
@@ -181,7 +184,10 @@ describe('OVM_FraudVerifier', () => {
           ).to.not.be.reverted
 
           expect(
-            await OVM_FraudVerifier.getStateTransitioner(NULL_BYTES32)
+            await OVM_FraudVerifier.getStateTransitioner(
+              NULL_BYTES32,
+              DUMMY_HASH
+            )
           ).to.equal(Mock__OVM_StateTransitioner.address)
         })
 
@@ -233,6 +239,7 @@ describe('OVM_FraudVerifier', () => {
             NULL_BYTES32,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
+            DUMMY_HASH,
             NON_NULL_BYTES32,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0]
@@ -260,6 +267,7 @@ describe('OVM_FraudVerifier', () => {
               NULL_BYTES32,
               DUMMY_BATCH_HEADERS[0],
               DUMMY_BATCH_PROOFS[0],
+              DUMMY_HASH,
               NON_NULL_BYTES32,
               DUMMY_BATCH_HEADERS[0],
               batchProof
@@ -287,6 +295,7 @@ describe('OVM_FraudVerifier', () => {
                 NULL_BYTES32,
                 DUMMY_BATCH_HEADERS[0],
                 DUMMY_BATCH_PROOFS[0],
+                DUMMY_HASH,
                 NON_NULL_BYTES32,
                 DUMMY_BATCH_HEADERS[0],
                 batchProof
@@ -317,6 +326,7 @@ describe('OVM_FraudVerifier', () => {
                   NULL_BYTES32,
                   DUMMY_BATCH_HEADERS[0],
                   DUMMY_BATCH_PROOFS[0],
+                  DUMMY_HASH,
                   NON_NULL_BYTES32,
                   DUMMY_BATCH_HEADERS[0],
                   batchProof
@@ -345,6 +355,7 @@ describe('OVM_FraudVerifier', () => {
                     NULL_BYTES32,
                     DUMMY_BATCH_HEADERS[0],
                     DUMMY_BATCH_PROOFS[0],
+                    DUMMY_HASH,
                     NON_NULL_BYTES32,
                     DUMMY_BATCH_HEADERS[0],
                     batchProof
@@ -367,6 +378,7 @@ describe('OVM_FraudVerifier', () => {
                   NULL_BYTES32,
                   DUMMY_BATCH_HEADERS[0],
                   DUMMY_BATCH_PROOFS[0],
+                  DUMMY_HASH,
                   NON_NULL_BYTES32,
                   DUMMY_BATCH_HEADERS[0],
                   batchProof
@@ -385,6 +397,155 @@ describe('OVM_FraudVerifier', () => {
               })
             })
           })
+        })
+      })
+
+      describe('multiple fraud proofs for the same pre-execution state', () => {
+        let state2: any
+        let DUMMY_HASH_2 = hashTransaction(DUMMY_OVM_TRANSACTIONS[1])
+        beforeEach(async () => {
+          state2 = smockit(
+            await ethers.getContractFactory('OVM_StateTransitioner')
+          )
+
+          Mock__OVM_StateTransitionerFactory.smocked.create.will.return.with(
+            state2.address
+          )
+
+          Mock__OVM_StateTransitioner.smocked.getPostStateRoot.will.return.with(
+            NULL_BYTES32
+          )
+
+          state2.smocked.getPostStateRoot.will.return.with(NULL_BYTES32)
+        })
+
+        it('creates multiple state transitioners per tx hash', async () => {
+          await expect(
+            OVM_FraudVerifier.initializeFraudVerification(
+              NULL_BYTES32,
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0],
+              DUMMY_OVM_TRANSACTIONS[1],
+              DUMMY_TX_CHAIN_ELEMENTS[0],
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0]
+            )
+          ).to.not.be.reverted
+
+          expect(
+            await OVM_FraudVerifier.getStateTransitioner(
+              NULL_BYTES32,
+              DUMMY_HASH
+            )
+          ).to.equal(Mock__OVM_StateTransitioner.address)
+          expect(
+            await OVM_FraudVerifier.getStateTransitioner(
+              NULL_BYTES32,
+              DUMMY_HASH_2
+            )
+          ).to.equal(state2.address)
+        })
+
+        const batchProof = {
+          ...DUMMY_BATCH_PROOFS[0],
+          index: DUMMY_BATCH_PROOFS[0].index + 1,
+        }
+
+        it('Case 1: allows proving fraud on the same pre-state root twice', async () => {
+          // finalize previous fraud
+          await OVM_FraudVerifier.finalizeFraudVerification(
+            NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
+            DUMMY_HASH,
+            NON_NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            batchProof
+          )
+
+          // start new fraud
+          await OVM_FraudVerifier.initializeFraudVerification(
+            NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
+            DUMMY_OVM_TRANSACTIONS[1],
+            DUMMY_TX_CHAIN_ELEMENTS[1],
+            DUMMY_BATCH_HEADERS[1],
+            DUMMY_BATCH_PROOFS[0]
+          )
+
+          // finalize it as well
+          await OVM_FraudVerifier.finalizeFraudVerification(
+            NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
+            DUMMY_HASH_2,
+            NON_NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[1],
+            batchProof
+          )
+
+          // the new batch was deleted
+          expect(
+            Mock__OVM_StateCommitmentChain.smocked.deleteStateBatch.calls[0]
+          ).to.deep.equal([
+            Object.values(DUMMY_BATCH_HEADERS[1]).map((value) => {
+              return Number.isInteger(value) ? BigNumber.from(value) : value
+            }),
+          ])
+        })
+
+        it('Case 2: does not get blocked by the first transitioner', async () => {
+          // start new fraud
+          await OVM_FraudVerifier.initializeFraudVerification(
+            NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
+            DUMMY_OVM_TRANSACTIONS[1],
+            DUMMY_TX_CHAIN_ELEMENTS[1],
+            DUMMY_BATCH_HEADERS[1],
+            DUMMY_BATCH_PROOFS[0]
+          )
+
+          // finalize the new fraud first
+          await OVM_FraudVerifier.finalizeFraudVerification(
+            NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
+            DUMMY_HASH_2,
+            NON_NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[1],
+            batchProof
+          )
+
+          // the new fraud's batch was deleted
+          expect(
+            Mock__OVM_StateCommitmentChain.smocked.deleteStateBatch.calls[0]
+          ).to.deep.equal([
+            Object.values(DUMMY_BATCH_HEADERS[1]).map((value) => {
+              return Number.isInteger(value) ? BigNumber.from(value) : value
+            }),
+          ])
+
+          // finalize previous fraud
+          await OVM_FraudVerifier.finalizeFraudVerification(
+            NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
+            DUMMY_HASH,
+            NON_NULL_BYTES32,
+            DUMMY_BATCH_HEADERS[0],
+            batchProof
+          )
+
+          // the old fraud's batch was deleted
+          expect(
+            Mock__OVM_StateCommitmentChain.smocked.deleteStateBatch.calls[0]
+          ).to.deep.equal([
+            Object.values(DUMMY_BATCH_HEADERS[0]).map((value) => {
+              return Number.isInteger(value) ? BigNumber.from(value) : value
+            }),
+          ])
         })
       })
     })

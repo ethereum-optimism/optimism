@@ -12,12 +12,21 @@ contract Mock_FraudVerifier {
         bondManager = _bondManager;
     }
 
-    function setStateTransitioner(bytes32 preStateRoot, address addr) public {
-        transitioners[preStateRoot] = addr;
+    function setStateTransitioner(bytes32 preStateRoot, bytes32 txHash, address addr) public {
+        transitioners[keccak256(abi.encodePacked(preStateRoot, txHash))] = addr;
     }
 
-    function getStateTransitioner(bytes32 preStateRoot) public view returns (address) {
-        return transitioners[preStateRoot];
+    function getStateTransitioner(
+        bytes32 _preStateRoot,
+        bytes32 _txHash
+    )
+        public
+        view
+        returns (
+            address
+        )
+    {
+        return transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))];
     }
 
     function finalize(bytes32 _preStateRoot, address publisher, uint256 timestamp) public {
