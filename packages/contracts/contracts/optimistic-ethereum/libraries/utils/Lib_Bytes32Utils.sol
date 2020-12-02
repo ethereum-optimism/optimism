@@ -55,6 +55,6 @@ library Lib_Bytes32Utils {
             bytes32 _out
         )
     {
-        return bytes32(bytes20(_in));
+        return bytes32(uint256(_in));
     }
 }
