@@ -5,7 +5,7 @@ function banner {
     echo "------------------------------------------------------------------------------------------------------------------------------------"
 }
 
-source /home/vault/scripts/smoke.env.sh
+source /vault/scripts/smoke.env.sh
 
 BLOCK_ROOT="KW7c+YhqaeXzUSARcnOh0sBSWhAU7l144fF6ls0Y5Vw="
 BAD_BLOCK_ROOT="KW7c+YhqaeXzUSARcnOh0sBSWhAU7l144fF6ls0Y"

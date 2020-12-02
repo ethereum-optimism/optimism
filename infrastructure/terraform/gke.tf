@@ -15,6 +15,11 @@ resource "google_container_cluster" "cluster" {
   network         = google_compute_network.vpc.self_link
   subnetwork      = google_compute_subnetwork.subnet.self_link
 
+  private_cluster_config {
+    enable_private_nodes = true
+    enable_private_endpoint = false
+  }
+
   ip_allocation_policy {
     cluster_ipv4_cidr_block  = var.gke_pod_cidr
     services_ipv4_cidr_block = var.gke_service_cidr

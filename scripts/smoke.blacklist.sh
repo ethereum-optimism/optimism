@@ -23,7 +23,7 @@ function test_blacklist {
 
 }
 
-source /home/vault/scripts/smoke.env.sh
+source /vault/scripts/smoke.env.sh
 
 EMPTY=""
 FUNDING_AMOUNT=100000000000000000

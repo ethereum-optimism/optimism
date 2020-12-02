@@ -22,7 +22,7 @@ function test_whitelist {
     vault write  -output-curl-string immutability-eth-plugin/wallets/whitelist-wallet/accounts/$ACCOUNT0/debit to=$UNLISTED amount=$FUNDING_AMOUNT
 
 }
-source /home/vault/scripts/smoke.env.sh
+source /vault/scripts/smoke.env.sh
 
 EMPTY=""
 FUNDING_AMOUNT=100000000000000000
