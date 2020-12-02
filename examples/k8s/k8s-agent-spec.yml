@@ -36,10 +36,10 @@ spec:
           mountPath: /etc/vault
 
         - name: cacerts
-          mountPath: /home/certs
+          mountPath: /certs
 
         - name: vault-token
-          mountPath: /home/vault
+          mountPath: /vault
 
       # This assumes Vault running on local host and K8s running in Minikube using VirtualBox
       env:
@@ -50,6 +50,6 @@ spec:
       args:
         [
           "agent",
-          "-ca-cert=/home/certs/vault-cacert",
+          "-ca-cert=/certs/vault-cacert",
           "-config=/etc/vault/vault-agent-config.hcl",
         ]

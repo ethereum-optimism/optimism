@@ -4,7 +4,7 @@ function banner {
     echo "------------------------------------------------------------------------------------------------------------------------------------"
 }
 
-source /home/vault/scripts/smoke.env.sh
+source /vault/scripts/smoke.env.sh
 
 PASSPHRASE="passion bauble hypnotic hanky kiwi effective overcast roman staleness"
 FUNDING_AMOUNT=100000000000000000

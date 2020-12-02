@@ -34,7 +34,7 @@ REFACTOR:
 * use golang 1.14 as the builder
 * stopped using `-dev` mode - use file backend to support snapshotting
   - [x] `unseal.json` holds the keys
-  - [x] the Vault data is at `/home/vault/config/data` 
+  - [x] the Vault data is at `/vault/config/data` 
 * Update to github.com/ethereum/go-ethereum v1.9.16
 * Removed redundant types from array, slice or map composite literals.
   - [x] `&framework.Path`

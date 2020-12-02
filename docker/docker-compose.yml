@@ -49,9 +49,9 @@ services:
     environment:
       - TEST=true
     volumes:
-      - "./config:/home/vault/config:rw"
-      - "../contracts:/home/vault/contracts:ro"
-      - "../scripts:/home/vault/scripts:ro"
+      - "./config:/vault/config:rw"
+      - "../contracts:/vault/contracts:ro"
+      - "../scripts:/vault/scripts:ro"
       - "./truffle:/truffleshuffle:rw"
     entrypoint: >
       /bin/sh -c "
@@ -60,7 +60,7 @@ services:
           echo Waiting on the truffle shuffle.  This will take some time as plasma framework is recompiled...
           sleep 3
         done;
-        /home/vault/config/entrypoint.sh
+        /vault/config/entrypoint.sh
       "
 networks:
   testnet:

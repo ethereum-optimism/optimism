@@ -8,10 +8,10 @@ services:
     ports:
       - "8200:8900"
     volumes:
-      - "./config:/home/vault/config:rw"
-      - "../contracts:/home/vault/contracts:ro"
-      - "../scripts:/home/vault/scripts:ro"
-    entrypoint: /home/vault/config/entrypoint.sh
+      - "./config:/vault/config:rw"
+      - "../contracts:/vault/contracts:ro"
+      - "../scripts:/vault/scripts:ro"
+    entrypoint: /vault/config/entrypoint.sh
 networks:
   testnet:
     driver: bridge
