@@ -861,8 +861,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 "safeCREATE(address,bytes)",
                 _contractAddress,
                 _bytecode
-            ),
-            false
+            )
         );
 
         // Need to make sure that this flag is reset so that it isn't propagated to creations in
@@ -906,8 +905,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             _nextMessageContext,
             _gasLimit,
             codeContractAddress,
-            _calldata,
-            _isStaticEntrypoint
+            _calldata
         );
     }
 
@@ -917,7 +915,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _target Address of the contract to call.
      * @param _data Data to send along with the call.
-     * @param _isStaticEntrypoint Whether or not this is coming from ovmSTATICCALL.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
      */
@@ -925,8 +922,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory _nextMessageContext,
         uint256 _gasLimit,
         address _target,
-        bytes memory _data,
-        bool _isStaticEntrypoint
+        bytes memory _data
     )
         internal
         returns (
@@ -977,21 +973,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 _revertWithFlag(flag);
             }
 
-            // STATIC_VIOLATION should be passed all the way back up to the previous ovmSTATICCALL
-            // in the call stack.
-            if (
-                flag == RevertFlag.STATIC_VIOLATION
-                && _isStaticEntrypoint == false
-            ) {
-                _revertWithFlag(flag);
-            }
-
-            // INTENTIONAL_REVERT and UNSAFE_BYTECODE aren't dependent on the input state, so we
-            // can just handle them like standard reverts. Our only change here is to record the
-            // gas refund reported by the call (enforced by safety checking).
+            // INTENTIONAL_REVERT, UNSAFE_BYTECODE, and STATIC_VIOLATION aren't dependent on the 
+            // input state, so we can just handle them like standard reverts. Our only change here 
+            // is to record the gas refund reported by the call (enforced by safety checking).
             if (
                 flag == RevertFlag.INTENTIONAL_REVERT
                 || flag == RevertFlag.UNSAFE_BYTECODE
+                || flag == RevertFlag.STATIC_VIOLATION
             ) {
                 transactionRecord.ovmGasRefund = ovmGasRefund;
             }
