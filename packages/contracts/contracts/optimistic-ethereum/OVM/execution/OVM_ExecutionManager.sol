@@ -78,9 +78,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      **********************/
 
     /**
-     * Applies a net gas cost refund to a transaction to account for the difference in execution
-     * between L1 and L2.
-     * @param _cost Gas cost for the function after the refund.
+     * Applies dynamically-sized refund to a transaction to account for the difference in execution
+     * between L1 and L2, so that the overall cost of the ovmOPCODE is fixed.
+     * @param _cost Desired gas cost for the function after the refund.
      */
     modifier netGasCost(
         uint256 _cost
@@ -92,6 +92,27 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // We want to refund everything *except* the specified cost.
         if (_cost < gasUsed) {
             transactionRecord.ovmGasRefund += gasUsed - _cost;
+        }
+    }
+
+    /**
+     * Applies a fixed-size gas refund to a transaction to account for the difference in execution
+     * between L1 and L2, so that the overall cost of an ovmOPCODE can be lowered.
+     * @param _discount Amount of gas cost to refund for the ovmOPCODE.
+     */
+    modifier fixedGasDiscount(
+        uint256 _discount
+    ) {
+        uint256 gasProvided = gasleft();
+        _;
+        uint256 gasUsed = gasProvided - gasleft();
+
+        // We want to refund the specified _discount, unless this risks underflow.
+        if (_discount < gasUsed) {
+            transactionRecord.ovmGasRefund += _discount;
+        } else {
+            // refund all we can without risking underflow.
+            transactionRecord.ovmGasRefund += gasUsed;
         }
     }
 
@@ -327,7 +348,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
         notStatic
-        netGasCost(40000 + _bytecode.length * 100)
+        fixedGasDiscount(40000)
         returns (
             address _contract
         )
@@ -360,7 +381,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
         notStatic
-        netGasCost(40000 + _bytecode.length * 100)
+        fixedGasDiscount(40000)
         returns (
             address _contract
         )
@@ -499,7 +520,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         public
-        netGasCost(100000)
+        fixedGasDiscount(100000)
         returns (
             bool _success,
             bytes memory _returndata
@@ -535,7 +556,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         public
-        netGasCost(80000)
+        fixedGasDiscount(80000)
         returns (
             bool _success,
             bytes memory _returndata
@@ -572,7 +593,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         public
-        netGasCost(40000)
+        fixedGasDiscount(40000)
         returns (
             bool _success,
             bytes memory _returndata
