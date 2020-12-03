@@ -28,12 +28,12 @@ export class Watcher {
     return this._getMessageHashesFromTx(false, l2TxHash)
   }
 
-  public async getL1TransactionReceipt(l2ToL1MsgHash: string): Promise<any> {
-    return this._getLXTransactionReceipt(true, l2ToL1MsgHash)
+  public async getL1TransactionReceipt(l2ToL1MsgHash: string, pollForPending: boolean = true): Promise<any> {
+    return this._getLXTransactionReceipt(true, l2ToL1MsgHash, pollForPending)
   }
 
-  public async getL2TransactionReceipt(l1ToL2MsgHash: string): Promise<any> {
-    return this._getLXTransactionReceipt(false, l1ToL2MsgHash)
+  public async getL2TransactionReceipt(l1ToL2MsgHash: string, pollForPending: boolean = true): Promise<any> {
+    return this._getLXTransactionReceipt(false, l1ToL2MsgHash, pollForPending)
   }
 
   private async _getMessageHashesFromTx(
@@ -60,7 +60,8 @@ export class Watcher {
 
   public async _getLXTransactionReceipt(
     isL1: boolean,
-    msgHash: string
+    msgHash: string,
+    pollForPending: boolean
   ): Promise<any> {
     const layer = isL1 ? this.l1 : this.l2
     const blockNumber = await layer.provider.getBlockNumber()
@@ -82,8 +83,10 @@ export class Watcher {
       }
       return layer.provider.getTransactionReceipt(matches[0].transactionHash)
     }
-
-    // Message has yet to be relayed
+    if (!pollForPending) {
+      return Promise.resolve(undefined)
+    }
+    // Message has yet to be relayed, poll until it is found
     return new Promise(async (resolve, reject) => {
       layer.provider.on(filter, async (log: any) => {
         if (log.data === msgHash) {
