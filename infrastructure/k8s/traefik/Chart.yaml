@@ -1,0 +1,13 @@
+apiVersion: v2
+name: traefik
+description: OMG's Traefik installation
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+version: 0.0.7
+
+dependencies:
+- name: traefik
+  version: 9.10.1
+  repository: https://helm.traefik.io/traefik
