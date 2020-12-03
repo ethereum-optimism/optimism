@@ -410,10 +410,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
     {
-        if (_nonce <= ovmGETNONCE()) {
-            return;
-        }
-
         _setAccountNonce(ovmADDRESS(), _nonce);
     }
 
@@ -745,7 +741,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         public
-    {   
+    {
         // Since this function is public, anyone can attempt to directly call it. We need to make
         // sure that the OVM_ExecutionManager itself is the only party that can actually try to
         // call this function.
@@ -896,7 +892,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         )
     {
         // EVM precompiles have the same address on L1 and L2 --> no trie lookup neededgit s.
-        address codeContractAddress = 
+        address codeContractAddress =
             uint(_contract) < 100
             ? _contract
             : _getAccountEthAddress(_contract);
@@ -1009,7 +1005,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         );
     }
 
-    
+
     /******************************************
      * Internal Functions: State Manipulation *
      ******************************************/
@@ -1154,7 +1150,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         _checkContractStorageLoad(_contract, _key);
         return ovmStateManager.getContractStorage(_contract, _key);
     }
-  
+
     /**
      * Sets the value of a storage slot.
      * @param _contract Address of the contract to modify.
@@ -1431,7 +1427,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         assembly {
             revert(add(revertdata, 0x20), mload(revertdata))
-        } 
+        }
     }
 
     /**
@@ -1493,7 +1489,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     /************************************
      * Internal Functions: Gas Metering *
      ************************************/
-    
+
     /**
      * Checks whether a transaction needs to start a new epoch and does so if necessary.
      * @param _timestamp Transaction timestamp.
