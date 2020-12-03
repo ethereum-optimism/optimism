@@ -192,7 +192,7 @@ describe('OVM_FraudVerifier', () => {
         })
 
         it('should revert when provided with a incorrect transaction root global index', async () => {
-          await expect (
+          await expect(
             OVM_FraudVerifier.initializeFraudVerification(
               NULL_BYTES32,
               DUMMY_BATCH_HEADERS[0],
@@ -202,7 +202,9 @@ describe('OVM_FraudVerifier', () => {
               DUMMY_BATCH_HEADERS[0],
               DUMMY_BATCH_PROOFS_WITH_INDEX[0]
             )
-          ).to.be.revertedWith('Pre-state root global index must equal to the transaction root global index.')
+          ).to.be.revertedWith(
+            'Pre-state root global index must equal to the transaction root global index.'
+          )
         })
       })
     })

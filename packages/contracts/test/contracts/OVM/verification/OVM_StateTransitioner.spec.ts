@@ -4,6 +4,7 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { BigNumber, Contract, ContractFactory } from 'ethers'
+import * as rlp from 'rlp'
 
 /* Internal Imports */
 import {
@@ -234,7 +235,7 @@ describe('OVM_StateTransitioner', () => {
             nodes: [
               {
                 key,
-                val,
+                val: '0x' + rlp.encode(val).toString('hex'),
               },
             ],
             secure: true,
@@ -268,7 +269,7 @@ describe('OVM_StateTransitioner', () => {
             nodes: [
               {
                 key,
-                val,
+                val: '0x' + rlp.encode(val).toString('hex'),
               },
             ],
             secure: true,
@@ -452,7 +453,7 @@ describe('OVM_StateTransitioner', () => {
             nodes: [
               {
                 key,
-                val,
+                val: '0x' + rlp.encode(val).toString('hex'),
               },
             ],
             secure: true,
@@ -460,7 +461,7 @@ describe('OVM_StateTransitioner', () => {
 
           const storageTest = await storageGenerator.makeNodeUpdateTest(
             key,
-            newVal
+            '0x' + rlp.encode(newVal).toString('hex')
           )
 
           const generator = await TrieTestGenerator.fromAccounts({

@@ -214,7 +214,7 @@ describe('OVM_ECDSAContractAccount', () => {
     it(`should revert on incorrect chainId`, async () => {
       const alteredChainIdTx = {
         ...DEFAULT_EIP155_TX,
-        chainId : 421
+        chainId: 421,
       }
       const message = serializeNativeTransaction(alteredChainIdTx)
       const sig = await signNativeTransaction(wallet, alteredChainIdTx)

@@ -7,6 +7,8 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.sol";
+import { Lib_RLPWriter } from "../../libraries/rlp/Lib_RLPWriter.sol";
+import { Lib_RLPReader } from "../../libraries/rlp/Lib_RLPReader.sol";
 
 /* Interface Imports */
 import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
@@ -266,12 +268,14 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
 
         (
             bool exists,
-            bytes memory value
+            bytes memory encodedValue
         ) = Lib_SecureMerkleTrie.get(
             abi.encodePacked(_key),
             _storageTrieWitness,
             ovmStateManager.getAccountStorageRoot(_ovmContractAddress)
         );
+
+        bytes memory value = Lib_RLPReader.readBytes(encodedValue);
 
         if (exists == true) {
             require(
@@ -393,7 +397,9 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
 
         account.storageRoot = Lib_SecureMerkleTrie.update(
             abi.encodePacked(_key),
-            abi.encodePacked(value),
+            Lib_RLPWriter.writeBytes(
+                abi.encodePacked(value)
+            ),
             _storageTrieWitness,
             account.storageRoot
         );

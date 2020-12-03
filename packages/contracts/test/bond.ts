@@ -302,11 +302,7 @@ describe('BondManager', () => {
 
         // a dispute is created about a block that intersects
         const disputeTimestamp = withdrawalTimestamp - 100
-        await fraudVerifier.finalize(
-          preStateRoot,
-          sender,
-          disputeTimestamp
-        )
+        await fraudVerifier.finalize(preStateRoot, sender, disputeTimestamp)
 
         await mineBlock(deployer.provider, timestamp)
         await expect(bondManager.finalizeWithdrawal()).to.be.revertedWith(
@@ -321,11 +317,7 @@ describe('BondManager', () => {
         // a dispute is created, but since the fraud period is already over
         // it doesn't matter
         const disputeTimestamp = withdrawalTimestamp - ONE_WEEK - 1
-        await fraudVerifier.finalize(
-          preStateRoot,
-          sender,
-          disputeTimestamp
-        )
+        await fraudVerifier.finalize(preStateRoot, sender, disputeTimestamp)
 
         const finalizeWithdrawalTimestamp = withdrawalTimestamp + ONE_WEEK
         await mineBlock(deployer.provider, finalizeWithdrawalTimestamp)
