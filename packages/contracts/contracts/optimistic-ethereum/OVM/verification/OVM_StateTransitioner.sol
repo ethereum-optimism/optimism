@@ -275,9 +275,8 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
             ovmStateManager.getAccountStorageRoot(_ovmContractAddress)
         );
 
-        bytes memory value = Lib_RLPReader.readBytes(encodedValue);
-
         if (exists == true) {
+            bytes memory value = Lib_RLPReader.readBytes(encodedValue);
             require(
                 keccak256(value) == keccak256(abi.encodePacked(_value)),
                 "Provided storage slot value is invalid."
