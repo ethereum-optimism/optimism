@@ -1,0 +1,4 @@
+# If enabled, create an issuer for a public certificate via Cloudflare ACME DNS challenge.
+letsencrypt:
+  enabled: true
+  email: ""

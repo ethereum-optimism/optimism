@@ -48,6 +48,10 @@ The Terraform scripts in this directory are used for standing up the cloud infra
   - Creates a new service account for KMS read/write permissions
   - Dumps the service account credential file into `./terraform/kms_account.key.json`
   - Creates a new key ring and crypto key used for auto-unsealing Vault nodes
+- [DNS](./terraform/dns.tf)
+  - Creates a DNS zone for Vault
+  - Adds an A record for the chosen ingress IP
+  - Gives the cluster DNS admin permissions and dumps the service account credential file to `./terraform/dns_account.key.json`
 
 ### Deployment
 
@@ -141,6 +145,18 @@ Assuming you have already run the Terraform and have the `kms_account.key.json` 
 
 This script will activate the KMS service account in the `gcloud` tool using the generate credential file path provided and create a new KMS key ring and symmetric unsealing key within that ring for you (if one or both already exist, these steps will be skipped). Once the key ring and unsealer key have been created within your GCP project, the script [injects the service account credential file into cluster secrets to be mounted into the nodes for unsealing](https://www.vaultproject.io/docs/platform/k8s/helm/run#google-kms-auto-unseal) before revoke your `gcloud` authentication session.
 
+### DNS
+
+Run:
+
+```bash
+./scripts/dns.sh -c ./terraform/dns_account.key.json
+```
+
+This will grant the cluster permissions to write to DNS for certificate verification.
+
+If DNS for the domain is managed by another provider than Google's Cloud DNS (e.g. Cloudflare), an NS record can be added so that queries for a Vault subdomain are delegated to Google's nameservers.
+
 ### Helm / Deployment
 
 Deploying services to a Kubernetes cluster typically require the use of [helm](https://helm.sh) to manage the cluster configuration and dependencies. This guide shows how to use the official [Hashicorp](https://www.hashicorp.com) _helm chart_ to deploy a Vault cluster.
@@ -182,6 +198,8 @@ With the existing overrides (in addition to your API and app keys), this Helm ch
 
 ##### Install cert-manager
 
+If using ingress and an external certificate to access the Vault cluster, define this in k8s/cert-manager-issuers/values.yaml
+
 To install cert-manager to generate SSL certificates for Vault:
 
 ```bash
@@ -189,6 +207,16 @@ helm dep up ./k8s/cert-manager
 helm install cert-manager ./k8s/cert-manager
 helm install cert-manager-issuers ./k8s/cert-manager-issuers
 ```
+
+##### Install traefik
+
+To install traefik for HTTPS ingress
+
+```bash
+helm dep up ./k8s/traefik
+helm install traefik ./k8s/traefik
+```
+
 
 ##### Configuring the vault chart
 
@@ -220,35 +248,69 @@ helm dep up ./k8s/vault
 helm install vault ./k8s/vault
 ```
 
-##### Find the Load Balancer
+#### Sanity check
 
-Once vault has started and is stable (you can check this with `kubectl get pods` and make sure all 5 instances are "running"), you need to find the IP Address of the Vault Load Balancer. 
+At this point, you should see the following:
 
-In `infrastructure`, execute:
-
-Execute:
-
-```bash
-./scripts get_loadbalancer.sh
+```
+% k get pods                               (vault-dev/default)
+NAME                                       READY   STATUS    RESTARTS   AGE
+cert-manager-56d6bbcb86-cnp96              1/1     Running   0          42m
+cert-manager-cainjector-6dd56cf757-2927c   1/1     Running   0          42m
+cert-manager-webhook-658654fddb-99nzp      1/1     Running   0          42m
+datadog-57n6w                              2/2     Running   0          10m
+datadog-695cp                              2/2     Running   0          10m
+datadog-7vntp                              2/2     Running   0          10m
+datadog-9wp8j                              2/2     Running   0          10m
+datadog-lcdbc                              2/2     Running   0          10m
+datadog-rgfhg                              2/2     Running   0          10m
+datadog-vnz99                              2/2     Running   0          10m
+datadog-wnfb6                              2/2     Running   0          10m
+datadog-xnqr2                              2/2     Running   0          10m
+traefik-84b6c7b79b-djkp9                   1/1     Running   0          7m48s
+traefik-84b6c7b79b-t556r                   1/1     Running   0          7m48s
+traefik-84b6c7b79b-wbdm2                   1/1     Running   0          7m48s
+vault-0                                    0/1     Running   0          3m15s
+vault-1                                    0/1     Running   0          3m15s
+vault-2                                    0/1     Running   0          3m15s
+vault-3                                    0/1     Running   0          3m15s
+vault-4                                    0/1     Running   0          3m15s
 ```
 
-If you receive an IP Address, all is well. If you do not, you'll need to troubleshoot why (e.g., by running `kubectl get services`). From here you have two choices:
-
-1. Add an entry like this to the `/etc/hosts` file on the instance you're interacting with vault from:
-
-```bash
-{ip-address} vault.vault-internal.default.svc.cluster.local.
+```
+% k get svc                                (vault-dev/default)
+NAME                   TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
+cert-manager           ClusterIP      10.4.173.28    <none>        9402/TCP                     42m
+cert-manager-webhook   ClusterIP      10.4.205.180   <none>        443/TCP                      42m
+kubernetes             ClusterIP      10.4.0.1       <none>        443/TCP                      105m
+traefik                LoadBalancer   10.4.155.10    10.5.0.100    80:30110/TCP,443:31466/TCP   8m17s
+vault                  ClusterIP      None           <none>        8200/TCP,8201/TCP            3m45s
+vault-active           ClusterIP      None           <none>        8200/TCP,8201/TCP            3m45s
+vault-internal         ClusterIP      None           <none>        8200/TCP,8201/TCP            3m45s
+vault-standby          ClusterIP      None           <none>        8200/TCP,8201/TCP            3m45s
 ```
 
-2. Add an A Record to your DNS zone pointing {ip-address} to `vault.vault-internal.default.svc.cluster.local.`. Depending on which DNS you're using, the instructions will vary and are beyond the scope of this document.
+```
+% k get ing                                (vault-dev/default)
+NAME    HOSTS                       ADDRESS      PORTS     AGE
+vault   dev.vault-dev.omg.network   10.5.0.100   80, 443   4m18s
+```
 
-Once you have set one of these up, execute:
-
-```bash
-export VAULT_ADDR=https://vault.vault-internal.default.svc.cluster.local:8200
+```
+% k get certificate                        (vault-dev/default)
+NAME                         READY   SECRET                       AGE
+vault-ingress-certificate    True    vault-ingress-certificate    4m32s
+vault-internal-certificate   True    vault-internal-certificate   4m32s
 ```
 
 ### Interact with Vault
+
+The easiest way to interact with Vault is to install Vault locally and use port forwarding:
+
+```
+kubectl port-forward service/vault 8200:8200
+export VAULT_ADDR=https://127.0.0.1:8200
+```
 
 #### Logs
 
@@ -270,10 +332,7 @@ Before you initialize vault, you'll see errors like this:
 In another terminal, execute:
 
 ```bash
-export VAULT_ADDR=https://vault.vault-internal.default.svc.cluster.local:8200
-export VAULT_CACERT=$K8S/certs/ca.crt
-
-vault status
+vault status -tls-skip-verify
 ```
 
 The status command may not work yet if the Vault Server isn't initialized.
@@ -281,8 +340,34 @@ The status command may not work yet if the Vault Server isn't initialized.
 #### Initialize Vault
 
 ```bash
-vault operator init -format=json > cluster-keys.json
-vault status
+vault operator init -format=json > cluster-keys.json -tls-skip-verify
+vault status -tls-skip-verify
+```
+
+At this point, Vault should be up and the vault-active service should have a backend. From now on, use:
+
+```kubectl port-forward service/vault-active 8200:8200```
+
+#### Load the Immutability plugin
+
+```
+PLUGIN_NAME="immutability-eth-plugin"
+INTERNAL_CERT_DIR="/vault/userconfig/vault-internal-certificate"
+CA_CERT="$INTERNAL_CERT_DIR/ca.crt"
+TLS_CERT="$INTERNAL_CERT_DIR/tls.crt"
+TLS_KEY="$INTERNAL_CERT_DIR/tls.key"
+SHA256SUM=$(kubectl exec vault-0 -- cat /vault/plugins/SHA256SUMS | cut -d' ' -f1)
+
+vault write -tls-skip-verify "sys/plugins/catalog/secret/$PLUGIN_NAME" \
+    sha_256="$SHA256SUM" \
+    command="$PLUGIN_NAME --ca-cert=$CA_CERT --client-cert=$TLS_CERT --client-key=$TLS_KEY"
+
+
+vault write "sys/plugins/catalog/secret/$PLUGIN_NAME" -tls-skip-verify \
+    sha_256="$SHA256SUM" \
+    command="$PLUGIN_NAME -tls-skip-verify"
+
+vault secrets enable -tls-skip-verify -path="$PLUGIN_NAME" -plugin-name="$PLUGIN_NAME" plugin
 ```
 
 #### Enable Auditing
@@ -323,32 +408,7 @@ In `infrastructure`, execute:
 
 ```bash
 ./scripts/vault_restore.sh -s <src-dir> [-p <file-prefix>] [-b <backup-number>] [--help]
-``
-
-#### Generating New Certificates
-
-When you need to issue a new set of certificates to the pods, you need to follow this process:
-
-In `infrastructure`, execute:
-
----
-
-When generating certs for GKE clusters, use: `-d vault-internal.default.svc.cluster.local`
-When generating certs for Minikube, use: `-d vault-internal`
-
----
-
-If you want to enable the Vault UI, pass the `--ui` flag to `gen_overrides.sh`.
-
-```bash
-./scripts/gen_certs.sh -d <dns-domain>
-./scripts/gen_overrides.sh
-helm upgrade --recreate-pods --atomic --cleanup-on-fail --install --values ./k8s/datadog-overrides.yaml datadog datadog/datadog
 ```
-
----
-
-If you are port-forwarding, you'll need to stop and restart the port-forwarder.
 
 ---
 

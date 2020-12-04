@@ -4,7 +4,6 @@ kind: Certificate
 metadata:
   name: vault-internal-certificate
 spec:
-  # Secret names are always required.
   secretName: vault-internal-certificate
   duration: 2160h # 90d
   subject:
@@ -26,7 +25,7 @@ spec:
     - "vault-internal.default.svc.cluster.local"
     - "*.vault-internal.default.svc.cluster.local"
   ipAddresses:
-    - "127.0.0.1" # in order to allow port forwarding to work
+    - "127.0.0.1"
   issuerRef:
     name: selfsigned
     kind: ClusterIssuer

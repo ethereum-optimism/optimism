@@ -1,5 +1,8 @@
 # Setting up Minikube
 
+N.B. What follows doesn't work while storage classes come from GCP.
+TODO: fix.
+
 ## Start Minikube
 
 Execute:

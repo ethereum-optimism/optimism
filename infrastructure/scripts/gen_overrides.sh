@@ -14,6 +14,7 @@ set -o pipefail
 ###   -r | --region-name <name>   The GCP Region that the resources are operating in
 ###   -p | --project-name <name>  The GCP Project that the resources are operating in
 ###   -c | --cluster-name <name>  The GKE Cluster Name
+###   -i | --ingress-name <name>  The DNS name of ingress to the cluster
 ###   -v | --server-version <ver> The Vault Server version to install
 ###   -h | --help                 Show help / usage
 ###
@@ -40,8 +41,9 @@ DOMAIN="vault-internal.default.svc.cluster.local"
 REGION=${GCP_REGION:-}
 PROJECT=${GCP_PROJECT:-}
 CLUSTER=${GKE_CLUSTER_NAME:-}
+INGRESS=""
 
-VAULT_SERVER_VERSION="1.5.5"
+OMG_IMAGE_VERSION="0.0.7"
 VAULT_UI_ENABLED="false"
 VAULT_LOG_LEVEL="info"
 VAULT_REPLICAS="5"
@@ -98,6 +100,7 @@ gen_overrides() {
     ui = ${VAULT_UI_ENABLED}
 log_level = "${VAULT_LOG_LEVEL}"
 cluster_name = "${CLUSTER}"
+plugin_directory = "/vault/plugins"
 
 listener "tcp" {
     tls_disable = {{ .Values.global.tlsDisable }}
@@ -157,7 +160,7 @@ storage "raft" {
 service_registration "kubernetes" {}
 EOF
 
-	yq w -i "$OVERRIDES_FILE" vault.server.image.tag ${VAULT_SERVER_VERSION}
+	yq w -i "$OVERRIDES_FILE" vault.server.image.tag ${OMG_IMAGE_VERSION}
 	yq w -i "$OVERRIDES_FILE" vault.server.auditStorage.size ${VAULT_AUDIT_SIZE}
 	yq w -i "$OVERRIDES_FILE" vault.server.dataStorage.size ${VAULT_DATA_SIZE}
 	yq w -i "$OVERRIDES_FILE" vault.server.extraEnvironmentVars.GOOGLE_REGION ${REGION}
@@ -169,6 +172,14 @@ EOF
 	yq w -i "$OVERRIDES_FILE" vault.server.resources.limits.memory 256Mi
 	yq w -i "$OVERRIDES_FILE" vault.server.resources.limits.cpu 250m
 	yq w -i "$OVERRIDES_FILE" vault.ui.enabled ${VAULT_UI_ENABLED}
+
+	if [[ -z "$INGRESS" ]]; then
+	  yq w -i "$OVERRIDES_FILE" vault.server.ingress.enabled false
+	else
+    yq w -i "$OVERRIDES_FILE" vault.server.ingress.enabled true
+    yq w -i "$OVERRIDES_FILE" vault.server.ingress.hosts[0].host "$INGRESS"
+    yq w -i "$OVERRIDES_FILE" vault.server.ingress.tls[0].hosts[0] "$INGRESS"
+	fi
 }
 
 ##
@@ -193,8 +204,12 @@ while [[ $# -gt 0 ]]; do
     CLUSTER=$2
     shift
   ;;
+  -i | --ingress-name)
+		INGRESS=$2
+		shift
+	;;
 	-v | --server-version) 
-		VAULT_SERVER_VERSION=$2
+		OMG_IMAGE_VERSION=$2
 		shift
 	;;
 	--ui) 

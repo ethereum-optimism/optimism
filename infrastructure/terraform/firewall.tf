@@ -96,9 +96,8 @@ resource "google_compute_firewall" "datadog_agent_2_egress" {
   destination_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 1)
 }
 
-
-resource "google_compute_firewall" "infura_egress" {
-  name      = "infura-egress"
+resource "google_compute_firewall" "https_egress" {
+  name      = "https-egress"
   network   = google_compute_network.vpc.name
   direction = "EGRESS"
   priority  = "64300"
@@ -108,6 +107,8 @@ resource "google_compute_firewall" "infura_egress" {
     ports    = ["443"]
   }
 
+  # Infura and LetsEncrypt egress.
+  # Covers all IP addresses as no IP range can be given for these services.
   destination_ranges = ["0.0.0.0/0"]
 }
 

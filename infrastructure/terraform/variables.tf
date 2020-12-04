@@ -55,12 +55,25 @@ variable "router_asn" {
   type        = number
 }
 
-variable "vault_dns" {
-  description = "The DNS of the Vault service load balancer that is in the SANS for the certificates"
+variable "vault_dns_zone" {
+  description = "The DNS domain for Vault's ingress"
+  type        = string
+  default     = "vault.omg.network"
+}
+
+variable "vault_ingress_fqdn" {
+  description = "FQDN of ingress to Vault. Should be <dev-cluster-name>.<vault_dns_zone>"
   type        = string
 }
 
-variable "vault_subnet_cidr" {
-  description = "The subnet that the Vault cluster should be deployed under in the VPC"
+variable "vault_ingress_ip" {
+  description = "IP address for ingress in the Vault cluster. Should lie in vault_subnet_cidr."
   type        = string
+  default     = "10.5.0.100"
+}
+
+variable "vault_subnet_cidr" {
+  description = "Subnet for node IPs in the Vault cluster"
+  type        = string
+  default     = "10.5.0.0/16"
 }
