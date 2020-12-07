@@ -16,7 +16,7 @@
     "test:debug": "mocha debug --require ts-node/register 'test/**/*.spec.ts' --timeout 5000"
   },
   "engines": {
-    "node": "10"
+    "node": ">=10"
   },
   "keywords": [],
   "author": "Optimism",

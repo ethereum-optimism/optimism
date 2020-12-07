@@ -15,7 +15,7 @@
     "test": "buidler test --show-stack-traces"
   },
   "engines": {
-    "node": "10"
+    "node": ">=10"
   },
   "keywords": [
     "optimism",
