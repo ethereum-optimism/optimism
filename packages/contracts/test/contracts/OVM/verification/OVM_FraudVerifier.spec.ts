@@ -274,7 +274,7 @@ describe('OVM_FraudVerifier', () => {
               DUMMY_BATCH_HEADERS[0],
               batchProof
             )
-          ).to.be.revertedWith('Invalid post-state root index.')
+          ).to.be.revertedWith('Post-state root global index must equal to the pre state root global index plus one.')
         })
       })
 

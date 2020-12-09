@@ -125,7 +125,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index == _transactionBatchHeader.prevTotalElements + _transactionProof.index,
             "Pre-state root global index must equal to the transaction root global index."
         );
-        
+
         deployTransitioner(_preStateRoot, _txHash, _preStateRootProof.index);
     }
 
@@ -173,9 +173,9 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             "State transition process must be completed prior to finalization."
         );
 
-        require(
-            _postStateRootProof.index == _preStateRootProof.index + 1,
-            "Invalid post-state root index."
+        require (
+            _postStateRootBatchHeader.prevTotalElements + _postStateRootProof.index == _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index + 1,
+            "Post-state root global index must equal to the pre state root global index plus one."
         );
 
         require(
@@ -201,7 +201,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             _postStateRoot != transitioner.getPostStateRoot(),
             "State transition has not been proven fraudulent."
         );
-        
+
         cancelStateTransition(_postStateRootBatchHeader, _preStateRoot);
     }
 
