@@ -42,7 +42,7 @@ describe('Lib_RLPWriter', () => {
     }
   })
 
-  describe.only('Use of library with other memory-modifying operations', () => {
+  describe('Use of library with other memory-modifying operations', () => {
     it('should allow creation of a contract beforehand and still work', async () => {
       const randomAddress = '0x1234123412341234123412341234123412341234'
       const rlpEncodedRandomAddress = '0x941234123412341234123412341234123412341234'

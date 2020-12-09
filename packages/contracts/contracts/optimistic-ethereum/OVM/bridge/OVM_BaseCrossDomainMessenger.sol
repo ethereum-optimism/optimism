@@ -4,11 +4,12 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_BaseCrossDomainMessenger } from "../../iOVM/bridge/iOVM_BaseCrossDomainMessenger.sol";
+import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 
 /**
  * @title OVM_BaseCrossDomainMessenger
  */
-contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
+contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger, ReentrancyGuard {
 
     /**********************
      * Contract Variables *
@@ -20,10 +21,11 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
     uint256 public messageNonce;
     address override public xDomainMessageSender;
 
-
     /********************
      * Public Functions *
      ********************/
+
+    constructor() ReentrancyGuard() public {}
 
     /**
      * Sends a cross domain message to the target messenger.
@@ -35,7 +37,7 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
         address _target,
         bytes memory _message,
         uint32 _gasLimit
-    )
+    ) nonReentrant
         override
         public
     {
@@ -46,11 +48,10 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
             messageNonce
         );
 
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-
         messageNonce += 1;
         sentMessages[keccak256(xDomainCalldata)] = true;
 
+        _sendXDomainMessage(xDomainCalldata, _gasLimit);
         emit SentMessage(xDomainCalldata);
     }
 

@@ -29,6 +29,7 @@
   "dependencies": {
     "@ethersproject/contracts": "^5.0.5",
     "@ethersproject/hardware-wallets": "^5.0.8",
+    "@openzeppelin/contracts": "^3.3.0",
     "ethers": "5.0.0"
   },
   "devDependencies": {
