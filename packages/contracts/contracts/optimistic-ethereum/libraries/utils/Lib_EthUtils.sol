@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
+import { Lib_Bytes32Utils } from "./Lib_Bytes32Utils.sol";
 
 /**
  * @title Lib_EthUtils
@@ -155,7 +156,7 @@ library Lib_EthUtils {
         encoded[1] = Lib_RLPWriter.writeUint(_nonce);
 
         bytes memory encodedList = Lib_RLPWriter.writeList(encoded);
-        return getAddressFromHash(keccak256(encodedList));
+        return Lib_Bytes32Utils.toAddress(keccak256(encodedList));
     }
 
     /**
@@ -181,30 +182,6 @@ library Lib_EthUtils {
             keccak256(_bytecode)
         ));
 
-        return getAddressFromHash(hashedData);
-    }
-
-
-    /****************************************
-     * Private Functions: Contract Creation *
-     ****************************************/
-
-    /**
-     * Determines an address from a 32 byte hash. Since addresses are only
-     * 20 bytes, we need to retrieve the last 20 bytes from the original
-     * hash. Converting to uint256 and then uint160 gives us these bytes.
-     * @param _hash Hash to convert to an address.
-     * @return _address Hash converted to an address.
-     */
-    function getAddressFromHash(
-        bytes32 _hash
-    )
-        private
-        pure
-        returns (
-            address _address
-        )
-    {
-        return address(bytes20(uint160(uint256(_hash))));
+        return Lib_Bytes32Utils.toAddress(hashedData);
     }
 }
