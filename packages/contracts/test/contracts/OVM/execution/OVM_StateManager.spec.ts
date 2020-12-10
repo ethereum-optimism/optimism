@@ -188,7 +188,6 @@ describe('OVM_StateManager', () => {
       beforeEach(async () => {
         await OVM_StateManager.putAccount(DUMMY_ACCOUNTS[0].address, {
           ...DUMMY_ACCOUNTS[0].data,
-          nonce: 0,
           codeHash: EMPTY_ACCOUNT_CODE_HASH,
         })
       })

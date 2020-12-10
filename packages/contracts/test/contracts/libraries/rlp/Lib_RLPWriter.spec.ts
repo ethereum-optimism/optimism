@@ -45,11 +45,8 @@ describe('Lib_RLPWriter', () => {
   describe('Use of library with other memory-modifying operations', () => {
     it('should allow creation of a contract beforehand and still work', async () => {
       const randomAddress = '0x1234123412341234123412341234123412341234'
-      const rlpEncodedRandomAddress =
-        '0x941234123412341234123412341234123412341234'
-      const encoded = await Lib_RLPWriter.callStatic.writeAddressWithOtherMemory(
-        randomAddress
-      )
+      const rlpEncodedRandomAddress = '0x941234123412341234123412341234123412341234'
+      const encoded = await Lib_RLPWriter.callStatic.writeAddressWithOtherMemory(randomAddress)
       expect(encoded).to.eq(rlpEncodedRandomAddress)
     })
   })

@@ -56,8 +56,6 @@ interface iOVM_StateManager {
     function commitAccount(address _address) external returns (bool _wasAccountCommitted);
     function incrementTotalUncommittedAccounts() external;
     function getTotalUncommittedAccounts() external view returns (uint256 _total);
-    function wasAccountChanged(address _address) external view returns (bool);
-    function wasAccountCommitted(address _address) external view returns (bool);
 
     
     /************************************
@@ -72,6 +70,4 @@ interface iOVM_StateManager {
     function commitContractStorage(address _contract, bytes32 _key) external returns (bool _wasContractStorageCommitted);
     function incrementTotalUncommittedContractStorage() external;
     function getTotalUncommittedContractStorage() external view returns (uint256 _total);
-    function wasContractStorageChanged(address _contract, bytes32 _key) external view returns (bool);
-    function wasContractStorageCommitted(address _contract, bytes32 _key) external view returns (bool);
 }

@@ -17,9 +17,8 @@ contract OVM_StateManager is iOVM_StateManager {
      * Contract Constants *
      **********************/
     
-    bytes32 constant internal EMPTY_ACCOUNT_STORAGE_ROOT = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
-    bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH =    0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
-    bytes32 constant internal STORAGE_XOR_VALUE =          0xFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEF;
+    bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH = 0x00004B1DC0DE000000004B1DC0DE000000004B1DC0DE000000004B1DC0DE0000;
+    bytes32 constant internal STORAGE_XOR_VALUE =       0xFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEF;
 
 
     /*******************************************
@@ -138,9 +137,7 @@ contract OVM_StateManager is iOVM_StateManager {
         public
         authenticated
     {
-        Lib_OVMCodec.Account storage account = accounts[_address];
-        account.storageRoot = EMPTY_ACCOUNT_STORAGE_ROOT;
-        account.codeHash = EMPTY_ACCOUNT_CODE_HASH;
+        accounts[_address].codeHash = EMPTY_ACCOUNT_CODE_HASH;
     }
 
     /**
@@ -192,10 +189,7 @@ contract OVM_StateManager is iOVM_StateManager {
             bool _exists
         )
     {
-        return (
-            accounts[_address].codeHash == EMPTY_ACCOUNT_CODE_HASH
-            && accounts[_address].nonce == 0
-        );
+        return accounts[_address].codeHash == EMPTY_ACCOUNT_CODE_HASH;
     }
 
     /**
@@ -281,8 +275,7 @@ contract OVM_StateManager is iOVM_StateManager {
     {
         Lib_OVMCodec.Account storage account = accounts[_address];
         account.nonce = 1;
-        account.storageRoot = EMPTY_ACCOUNT_STORAGE_ROOT;
-        account.codeHash = EMPTY_ACCOUNT_CODE_HASH;
+        account.codeHash = keccak256(hex'');
         account.isFresh = true;
     }
 
@@ -322,7 +315,7 @@ contract OVM_StateManager is iOVM_StateManager {
         )
     {
         return _testAndSetItemState(
-            _getItemHash(_address),
+            keccak256(abi.encodePacked(_address)),
             ItemState.ITEM_LOADED
         );
     }
@@ -343,7 +336,7 @@ contract OVM_StateManager is iOVM_StateManager {
         )
     {
         return _testAndSetItemState(
-            _getItemHash(_address),
+            keccak256(abi.encodePacked(_address)),
             ItemState.ITEM_CHANGED
         );
     }
@@ -363,7 +356,7 @@ contract OVM_StateManager is iOVM_StateManager {
             bool _wasAccountCommitted
         )
     {
-        bytes32 item = _getItemHash(_address);
+        bytes32 item = keccak256(abi.encodePacked(_address));
         if (itemStates[item] != ItemState.ITEM_CHANGED) {
             return false;
         }
@@ -399,45 +392,7 @@ contract OVM_StateManager is iOVM_StateManager {
     {
         return totalUncommittedAccounts;
     }
-
-    /**
-     * Checks whether a given account was changed during execution.
-     * @param _address Address to check.
-     * @return Whether or not the account was changed.
-     */
-    function wasAccountChanged(
-        address _address
-    )
-        override
-        public
-        view
-        returns (
-            bool
-        )
-    {
-        bytes32 item = _getItemHash(_address);
-        return itemStates[item] >= ItemState.ITEM_CHANGED;
-    }
-
-    /**
-     * Checks whether a given account was committed after execution.
-     * @param _address Address to check.
-     * @return Whether or not the account was committed.
-     */
-    function wasAccountCommitted(
-        address _address
-    )
-        override
-        public
-        view
-        returns (
-            bool
-        )
-    {
-        bytes32 item = _getItemHash(_address);
-        return itemStates[item] >= ItemState.ITEM_COMMITTED;
-    }
-
+    
 
     /************************************
      * Public Functions: Storage Access *
@@ -541,7 +496,7 @@ contract OVM_StateManager is iOVM_StateManager {
         )
     {
         return _testAndSetItemState(
-            _getItemHash(_contract, _key),
+            keccak256(abi.encodePacked(_contract, _key)),
             ItemState.ITEM_LOADED
         );
     }
@@ -564,7 +519,7 @@ contract OVM_StateManager is iOVM_StateManager {
         )
     {
         return _testAndSetItemState(
-            _getItemHash(_contract, _key),
+            keccak256(abi.encodePacked(_contract, _key)),
             ItemState.ITEM_CHANGED
         );
     }
@@ -586,7 +541,7 @@ contract OVM_StateManager is iOVM_StateManager {
             bool _wasContractStorageCommitted
         )
     {
-        bytes32 item = _getItemHash(_contract, _key);
+        bytes32 item = keccak256(abi.encodePacked(_contract, _key));
         if (itemStates[item] != ItemState.ITEM_CHANGED) {
             return false;
         }
@@ -623,91 +578,10 @@ contract OVM_StateManager is iOVM_StateManager {
         return totalUncommittedContractStorage;
     }
 
-    /**
-     * Checks whether a given storage slot was changed during execution.
-     * @param _contract Address to check.
-     * @param _key Key of the storage slot to check.
-     * @return Whether or not the storage slot was changed.
-     */
-    function wasContractStorageChanged(
-        address _contract,
-        bytes32 _key
-    )
-        override
-        public
-        view
-        returns (
-            bool
-        )
-    {
-        bytes32 item = _getItemHash(_contract, _key);
-        return itemStates[item] >= ItemState.ITEM_CHANGED;
-    }
-
-    /**
-     * Checks whether a given storage slot was committed after execution.
-     * @param _contract Address to check.
-     * @param _key Key of the storage slot to check.
-     * @return Whether or not the storage slot was committed.
-     */
-    function wasContractStorageCommitted(
-        address _contract,
-        bytes32 _key
-    )
-        override
-        public
-        view
-        returns (
-            bool
-        )
-    {
-        bytes32 item = _getItemHash(_contract, _key);
-        return itemStates[item] >= ItemState.ITEM_COMMITTED;
-    }
-
 
     /**********************
      * Internal Functions *
      **********************/
-
-    /**
-     * Generates a unique hash for an address.
-     * @param _address Address to generate a hash for.
-     * @return Unique hash for the given address.
-     */
-    function _getItemHash(
-        address _address
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        return keccak256(abi.encodePacked(_address));
-    }
-
-    /**
-     * Generates a unique hash for an address/key pair.
-     * @param _contract Address to generate a hash for.
-     * @param _key Key to generate a hash for.
-     * @return Unique hash for the given pair.
-     */
-    function _getItemHash(
-        address _contract,
-        bytes32 _key
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        return keccak256(abi.encodePacked(
-            _contract,
-            _key
-        ));
-    }
 
     /**
      * Checks whether an item is in a particular state (ITEM_LOADED or ITEM_CHANGED) and sets the

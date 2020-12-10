@@ -10,20 +10,6 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
  */
 interface iOVM_StateTransitioner {
 
-    /**********
-     * Events *
-     **********/
-    
-    event AccountCommitted(
-        address _address
-    );
-
-    event ContractStorageCommitted(
-        address _address,
-        bytes32 _key
-    );
-
-
     /**********************************
      * Public Functions: State Access *
      **********************************/
@@ -40,12 +26,19 @@ interface iOVM_StateTransitioner {
     function proveContractState(
         address _ovmContractAddress,
         address _ethContractAddress,
+        Lib_OVMCodec.EVMAccount calldata _account,
+        bytes calldata _stateTrieWitness
+    ) external;
+
+    function proveEmptyContractState(
+        address _ovmContractAddress,
         bytes calldata _stateTrieWitness
     ) external;
 
     function proveStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
+        bytes32 _value,
         bytes calldata _storageTrieWitness
     ) external;
 
@@ -71,6 +64,7 @@ interface iOVM_StateTransitioner {
     function commitStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
+        bytes calldata _stateTrieWitness,
         bytes calldata _storageTrieWitness
     ) external;
 

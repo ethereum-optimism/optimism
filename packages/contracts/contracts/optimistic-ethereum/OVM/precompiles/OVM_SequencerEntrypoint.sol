@@ -44,7 +44,7 @@ contract OVM_SequencerEntrypoint {
         bytes32 r = Lib_BytesUtils.toBytes32(Lib_BytesUtils.slice(msg.data, 1, 32));
         bytes32 s = Lib_BytesUtils.toBytes32(Lib_BytesUtils.slice(msg.data, 33, 32));
         uint8 v = Lib_BytesUtils.toUint8(msg.data, 65);
-
+        
         // Remainder is the transaction to execute.
         bytes memory compressedTx = Lib_BytesUtils.slice(msg.data, 66);
         bool isEthSignedMessage = transactionType == TransactionType.ETH_SIGNED_MESSAGE;
