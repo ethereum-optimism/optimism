@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
 import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
+import { Lib_Bytes32Utils } from "../utils/Lib_Bytes32Utils.sol";
 
 /**
  * @title Lib_OVMCodec
@@ -315,8 +316,16 @@ library Lib_OVMCodec {
         // Unfortunately we can't create this array outright because
         // RLPWriter.encodeList will reject fixed-size arrays. Assigning
         // index-by-index circumvents this issue.
-        raw[0] = Lib_RLPWriter.writeUint(_account.nonce);
-        raw[1] = Lib_RLPWriter.writeUint(_account.balance);
+        raw[0] = Lib_RLPWriter.writeBytes(
+            Lib_Bytes32Utils.removeLeadingZeros(
+                bytes32(_account.nonce)
+            )
+        );
+        raw[1] = Lib_RLPWriter.writeBytes(
+            Lib_Bytes32Utils.removeLeadingZeros(
+                bytes32(_account.balance)
+            )
+        );
         raw[2] = Lib_RLPWriter.writeBytes(abi.encodePacked(_account.storageRoot));
         raw[3] = Lib_RLPWriter.writeBytes(abi.encodePacked(_account.codeHash));
 

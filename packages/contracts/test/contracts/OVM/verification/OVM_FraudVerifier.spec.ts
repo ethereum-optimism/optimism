@@ -179,7 +179,10 @@ describe('OVM_FraudVerifier', () => {
               DUMMY_OVM_TRANSACTIONS[0],
               DUMMY_TX_CHAIN_ELEMENTS[0],
               DUMMY_BATCH_HEADERS[0],
-              DUMMY_BATCH_PROOFS[0]
+              {
+                ...DUMMY_BATCH_PROOFS[0],
+                index: DUMMY_BATCH_PROOFS[0].index + 1,
+              }
             )
           ).to.not.be.reverted
 
@@ -226,7 +229,10 @@ describe('OVM_FraudVerifier', () => {
         DUMMY_OVM_TRANSACTIONS[0],
         DUMMY_TX_CHAIN_ELEMENTS[0],
         DUMMY_BATCH_HEADERS[0],
-        DUMMY_BATCH_PROOFS[0]
+        {
+          ...DUMMY_BATCH_PROOFS[0],
+          index: DUMMY_BATCH_PROOFS[0].index + 1,
+        }
       )
     })
 
@@ -430,7 +436,10 @@ describe('OVM_FraudVerifier', () => {
               DUMMY_OVM_TRANSACTIONS[1],
               DUMMY_TX_CHAIN_ELEMENTS[0],
               DUMMY_BATCH_HEADERS[0],
-              DUMMY_BATCH_PROOFS[0]
+              {
+                ...DUMMY_BATCH_PROOFS[0],
+                index: DUMMY_BATCH_PROOFS[0].index + 1,
+              }
             )
           ).to.not.be.reverted
 
@@ -473,7 +482,10 @@ describe('OVM_FraudVerifier', () => {
             DUMMY_OVM_TRANSACTIONS[1],
             DUMMY_TX_CHAIN_ELEMENTS[1],
             DUMMY_BATCH_HEADERS[1],
-            DUMMY_BATCH_PROOFS[0]
+            {
+              ...DUMMY_BATCH_PROOFS[0],
+              index: DUMMY_BATCH_PROOFS[0].index + 1,
+            }
           )
 
           // finalize it as well
@@ -506,7 +518,10 @@ describe('OVM_FraudVerifier', () => {
             DUMMY_OVM_TRANSACTIONS[1],
             DUMMY_TX_CHAIN_ELEMENTS[1],
             DUMMY_BATCH_HEADERS[1],
-            DUMMY_BATCH_PROOFS[0]
+            {
+              ...DUMMY_BATCH_PROOFS[0],
+              index: DUMMY_BATCH_PROOFS[0].index + 1,
+            }
           )
 
           // finalize the new fraud first

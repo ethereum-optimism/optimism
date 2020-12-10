@@ -96,29 +96,13 @@ describe('OVM_StateTransitioner', () => {
     let account: any
     beforeEach(() => {
       Mock__OVM_StateManager.smocked.hasAccount.will.return.with(false)
+      Mock__OVM_StateManager.smocked.hasEmptyAccount.will.return.with(false)
       account = {
         nonce: 0,
         balance: 0,
         storageRoot: NULL_BYTES32,
         codeHash: NULL_BYTES32,
       }
-    })
-
-    describe('when provided an invalid code hash', () => {
-      beforeEach(() => {
-        account.codeHash = NON_NULL_BYTES32
-      })
-
-      it('should revert', async () => {
-        await expect(
-          OVM_StateTransitioner.proveContractState(
-            ovmContractAddress,
-            ethContractAddress,
-            account,
-            '0x'
-          )
-        ).to.be.revertedWith('Invalid code hash provided.')
-      })
     })
 
     describe('when provided a valid code hash', () => {
@@ -137,7 +121,6 @@ describe('OVM_StateTransitioner', () => {
             OVM_StateTransitioner.proveContractState(
               ovmContractAddress,
               ethContractAddress,
-              account,
               proof
             )
           ).to.be.reverted
@@ -170,14 +153,11 @@ describe('OVM_StateTransitioner', () => {
         })
 
         it('should put the account in the state manager', async () => {
-          await expect(
-            OVM_StateTransitioner.proveContractState(
-              ovmContractAddress,
-              ethContractAddress,
-              account,
-              proof
-            )
-          ).to.not.be.reverted
+          await OVM_StateTransitioner.proveContractState(
+            ovmContractAddress,
+            ethContractAddress,
+            proof
+          )
 
           expect(
             Mock__OVM_StateManager.smocked.putAccount.calls[0]
@@ -211,7 +191,6 @@ describe('OVM_StateTransitioner', () => {
         await expect(
           OVM_StateTransitioner.proveStorageSlot(
             NON_ZERO_ADDRESS,
-            NON_NULL_BYTES32,
             NON_NULL_BYTES32,
             '0x'
           )
@@ -250,12 +229,7 @@ describe('OVM_StateTransitioner', () => {
 
         it('should revert', async () => {
           await expect(
-            OVM_StateTransitioner.proveStorageSlot(
-              ZERO_ADDRESS,
-              key,
-              val,
-              proof
-            )
+            OVM_StateTransitioner.proveStorageSlot(ZERO_ADDRESS, key, proof)
           ).to.be.reverted
         })
       })
@@ -285,12 +259,7 @@ describe('OVM_StateTransitioner', () => {
 
         it('should insert the storage slot', async () => {
           await expect(
-            OVM_StateTransitioner.proveStorageSlot(
-              ZERO_ADDRESS,
-              key,
-              val,
-              proof
-            )
+            OVM_StateTransitioner.proveStorageSlot(ZERO_ADDRESS, key, proof)
           ).to.not.be.reverted
 
           expect(
@@ -329,6 +298,9 @@ describe('OVM_StateTransitioner', () => {
 
     describe('when the account was not changed or has already been committed', () => {
       before(() => {
+        Mock__OVM_StateManager.smocked.getTotalUncommittedContractStorage.will.return.with(
+          0
+        )
         Mock__OVM_StateManager.smocked.commitAccount.will.return.with(false)
       })
 
@@ -336,7 +308,7 @@ describe('OVM_StateTransitioner', () => {
         await expect(
           OVM_StateTransitioner.commitContractState(ovmContractAddress, '0x')
         ).to.be.revertedWith(
-          'Account was not changed or has already been committed.'
+          `Account state wasn't changed or has already been committed`
         )
       })
     })
@@ -425,14 +397,9 @@ describe('OVM_StateTransitioner', () => {
 
       it('should revert', async () => {
         await expect(
-          OVM_StateTransitioner.commitStorageSlot(
-            ovmContractAddress,
-            key,
-            '0x',
-            '0x'
-          )
+          OVM_StateTransitioner.commitStorageSlot(ovmContractAddress, key, '0x')
         ).to.be.revertedWith(
-          'Storage slot was not changed or has already been committed.'
+          `Storage slot value wasn't changed or has already been committed.`
         )
       })
     })
@@ -505,7 +472,6 @@ describe('OVM_StateTransitioner', () => {
             OVM_StateTransitioner.commitStorageSlot(
               ovmContractAddress,
               key,
-              accountTrieProof,
               storageTrieProof
             )
           ).to.not.be.reverted

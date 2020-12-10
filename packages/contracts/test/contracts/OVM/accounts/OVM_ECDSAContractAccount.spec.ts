@@ -25,8 +25,11 @@ const callPrecompile = async (
   if (gasLimit) {
     return Helper_PrecompileCaller.callPrecompile(
       precompile.address,
-      precompile.interface.encodeFunctionData(functionName, functionParams || []),
-      {gasLimit}
+      precompile.interface.encodeFunctionData(
+        functionName,
+        functionParams || []
+      ),
+      { gasLimit }
     )
   }
   return Helper_PrecompileCaller.callPrecompile(
@@ -187,7 +190,7 @@ describe('OVM_ECDSAContractAccount', () => {
     it(`should revert on incorrect nonce`, async () => {
       const alteredNonceTx = {
         ...DEFAULT_EIP155_TX,
-        nonce : 99
+        nonce: 99,
       }
       const message = serializeNativeTransaction(alteredNonceTx)
       const sig = await signNativeTransaction(wallet, alteredNonceTx)
@@ -241,7 +244,7 @@ describe('OVM_ECDSAContractAccount', () => {
     it(`should revert on insufficient gas`, async () => {
       const alteredInsufficientGasTx = {
         ...DEFAULT_EIP155_TX,
-        gasLimit : 200000000
+        gasLimit: 200000000,
       }
       const message = serializeNativeTransaction(alteredInsufficientGasTx)
       const sig = await signNativeTransaction(wallet, alteredInsufficientGasTx)
@@ -257,7 +260,7 @@ describe('OVM_ECDSAContractAccount', () => {
           `0x${sig.r}`, //r
           `0x${sig.s}`, //s
         ],
-        40000000,
+        40000000
       )
 
       const ovmREVERT: any =

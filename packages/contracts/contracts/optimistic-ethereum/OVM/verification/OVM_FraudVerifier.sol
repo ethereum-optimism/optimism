@@ -122,23 +122,11 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
         );
 
         require (
-            _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index == _transactionBatchHeader.prevTotalElements + _transactionProof.index,
+            _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index + 1 == _transactionBatchHeader.prevTotalElements + _transactionProof.index,
             "Pre-state root global index must equal to the transaction root global index."
         );
 
-        deployTransitioner(_preStateRoot, _txHash, _preStateRootProof.index);
-    }
-
-    // NB: Stack too deep :/
-    function deployTransitioner(bytes32 _preStateRoot, bytes32 _txHash, uint256 _stateTransitionIndex) private {
-        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitionerFactory(
-            resolve("OVM_StateTransitionerFactory")
-        ).create(
-            address(libAddressManager),
-            _stateTransitionIndex,
-            _preStateRoot,
-            _txHash
-        );
+        _deployTransitioner(_preStateRoot, _txHash, _preStateRootProof.index);
     }
 
     /**
@@ -201,31 +189,11 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
             _postStateRoot != transitioner.getPostStateRoot(),
             "State transition has not been proven fraudulent."
         );
+        
+        _cancelStateTransition(_postStateRootBatchHeader, _preStateRoot);
 
-        cancelStateTransition(_postStateRootBatchHeader, _preStateRoot);
-    }
-
-    // NB: Stack too deep :/
-    function cancelStateTransition(
-        Lib_OVMCodec.ChainBatchHeader memory _postStateRootBatchHeader,
-        bytes32 _preStateRoot
-    ) private {
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
-        iOVM_BondManager ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
-        // delete the state batch
-        ovmStateCommitmentChain.deleteStateBatch(
-            _postStateRootBatchHeader
-        );
-
-        // Get the timestamp and publisher for that block
-        (uint256 timestamp, address publisher) = abi.decode(_postStateRootBatchHeader.extraData, (uint256, address));
-
-        // slash the bonds at the bond manager
-        ovmBondManager.finalize(
-            _preStateRoot,
-            publisher,
-            timestamp
-        );
+        // TEMPORARY: Remove the transitioner; for minnet.
+        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitioner(0x0000000000000000000000000000000000000000);
     }
 
 
@@ -249,5 +217,58 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
         )
     {
         return address(getStateTransitioner(_preStateRoot, _txHash)) != address(0);
+    }
+
+    /**
+     * Deploys a new state transitioner.
+     * @param _preStateRoot Pre-state root to initialize the transitioner with.
+     * @param _txHash Hash of the transaction this transitioner will execute.
+     * @param _stateTransitionIndex Index of the transaction in the chain.
+     */
+    function _deployTransitioner(
+        bytes32 _preStateRoot,
+        bytes32 _txHash,
+        uint256 _stateTransitionIndex
+    )
+        internal
+    {
+        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitionerFactory(
+            resolve("OVM_StateTransitionerFactory")
+        ).create(
+            address(libAddressManager),
+            _stateTransitionIndex,
+            _preStateRoot,
+            _txHash
+        );
+    }
+
+    /**
+     * Removes a state transition from the state commitment chain.
+     * @param _postStateRootBatchHeader Header for the post-state root.
+     * @param _preStateRoot Pre-state root hash.
+     */
+    function _cancelStateTransition(
+        Lib_OVMCodec.ChainBatchHeader memory _postStateRootBatchHeader,
+        bytes32 _preStateRoot
+    )
+        internal
+    {
+        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_BondManager ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
+
+        // Delete the state batch.
+        ovmStateCommitmentChain.deleteStateBatch(
+            _postStateRootBatchHeader
+        );
+
+        // Get the timestamp and publisher for that block.
+        (uint256 timestamp, address publisher) = abi.decode(_postStateRootBatchHeader.extraData, (uint256, address));
+
+        // Slash the bonds at the bond manager.
+        ovmBondManager.finalize(
+            _preStateRoot,
+            publisher,
+            timestamp
+        );
     }
 }

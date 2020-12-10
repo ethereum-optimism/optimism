@@ -3,3 +3,4 @@ artifacts/
 cache/
 yarn-error.log
 build/
+.DS_STORE
