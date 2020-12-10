@@ -498,6 +498,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             address(proxyEOA),
             keccak256(Lib_EthUtils.getCode(address(proxyEOA)))
         );
+        
+        _setAccountNonce(eoa, 0);
     }
 
 
@@ -990,8 +992,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 _revertWithFlag(flag);
             }
 
-            // INTENTIONAL_REVERT, UNSAFE_BYTECODE, and STATIC_VIOLATION aren't dependent on the 
-            // input state, so we can just handle them like standard reverts. Our only change here 
+            // INTENTIONAL_REVERT, UNSAFE_BYTECODE, and STATIC_VIOLATION aren't dependent on the
+            // input state, so we can just handle them like standard reverts. Our only change here
             // is to record the gas refund reported by the call (enforced by safety checking).
             if (
                 flag == RevertFlag.INTENTIONAL_REVERT

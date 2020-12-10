@@ -60,6 +60,10 @@ const test_ovmCREATEEOA: TestDefinition = {
           expectedReturnValue: undefined,
         },
         {
+          functionName: 'ovmGETNONCE',
+          expectedReturnValue: 0,
+        },
+        {
           functionName: 'ovmEXTCODESIZE',
           functionParams: {
             address: '0x17ec8597ff92C3F44523bDc65BF0f1bE632917ff',
