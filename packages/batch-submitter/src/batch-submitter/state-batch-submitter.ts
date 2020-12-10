@@ -98,7 +98,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       'appendStateBatch',
       [batch, startBlock]
     )
-    if (tx.length < this.minTxSize) {
+    if (tx.length < this.minTxSize * 2) {
       this.log.info('State batch too small. Skipping batch submission...')
       return
     }
