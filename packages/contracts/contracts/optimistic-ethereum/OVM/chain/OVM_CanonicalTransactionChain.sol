@@ -355,7 +355,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
 
         for (uint32 i = 0; i < numContexts; i++) {
             BatchContext memory context = _getBatchContext(i);
-            _validateBatchContext(context, nextQueueIndex);
 
             for (uint32 j = 0; j < context.numSequencedTransactions; j++) {
                 uint256 txDataLength;

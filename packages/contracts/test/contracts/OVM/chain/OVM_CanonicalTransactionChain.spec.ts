@@ -605,72 +605,69 @@ describe('OVM_CanonicalTransactionChain', () => {
     })
   })
 
-  describe('appendSequencerBatch', () => {
+  describe.skip('appendSequencerBatch', () => {
     beforeEach(() => {
       OVM_CanonicalTransactionChain = OVM_CanonicalTransactionChain.connect(
         sequencer
       )
     })
 
-    it.skip(
-      'should allow for a lower bound per-tx gas usage of <400 gas [GAS BENCHMARK]',
-      async () => {
-        const timestamp = (await getEthTime(ethers.provider)) - 100
-        const blockNumber = (await getNextBlockNumber(ethers.provider)) + 100
+    it('should allow for a lower bound per-tx gas usage of <400 gas [GAS BENCHMARK]', async () => {
+      const timestamp = (await getEthTime(ethers.provider)) - 100
+      const blockNumber = (await getNextBlockNumber(ethers.provider)) + 100
 
-        // do two batch appends for no reason
-        await appendSequencerBatch(OVM_CanonicalTransactionChain, {
-          shouldStartAtBatch: 0,
-          totalElementsToAppend: 1,
-          contexts: [
-            {
-              numSequencedTransactions: 1,
-              numSubsequentQueueTransactions: 0,
-              timestamp,
-              blockNumber,
-            },
-          ],
-          transactions: ['0x1234'],
-        })
-        await appendSequencerBatch(OVM_CanonicalTransactionChain, {
-          shouldStartAtBatch: 1,
-          totalElementsToAppend: 1,
-          contexts: [
-            {
-              numSequencedTransactions: 1,
-              numSubsequentQueueTransactions: 0,
-              timestamp,
-              blockNumber,
-            },
-          ],
-          transactions: ['0x1234'],
-        })
+      // do two batch appends for no reason
+      await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+        shouldStartAtBatch: 0,
+        totalElementsToAppend: 1,
+        contexts: [
+          {
+            numSequencedTransactions: 1,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: ['0x1234'],
+      })
+      await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+        shouldStartAtBatch: 1,
+        totalElementsToAppend: 1,
+        contexts: [
+          {
+            numSequencedTransactions: 1,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: ['0x1234'],
+      })
 
-        console.log('\n~~~~ BEGINNGING TRASACTION IN QUESTION ~~~~')
-        const transactions = []
-        const numTxs = 200
-        for (let i = 0; i < numTxs; i++) {
-          transactions.push(
-            '0x' + '1080111111111111111111111111111111111111111111'.repeat(20)
-          )
-        }
-        const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
-          shouldStartAtBatch: 2,
-          totalElementsToAppend: numTxs,
-          contexts: [
-            {
-              numSequencedTransactions: numTxs,
-              numSubsequentQueueTransactions: 0,
-              timestamp,
-              blockNumber,
-            },
-          ],
-          transactions,
-        })
-        const receipt = await res.wait()
-        console.log('Benchmark complete. Gas used:', receipt.gasUsed)
+      console.log('\n~~~~ BEGINNGING TRASACTION IN QUESTION ~~~~')
+      const transactions = []
+      const numTxs = 200
+      for (let i = 0; i < numTxs; i++) {
+        transactions.push(
+          '0x' + '1080111111111111111111111111111111111111111111'.repeat(20)
+        )
       }
-    ).timeout(100000000)
+      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+        shouldStartAtBatch: 2,
+        totalElementsToAppend: numTxs,
+        contexts: [
+          {
+            numSequencedTransactions: numTxs,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions,
+      })
+      const receipt = await res.wait()
+      console.log('Benchmark complete. Gas used:', receipt.gasUsed)
+    }).timeout(100000000)
 
     it('should revert if expected start does not match current total batches', async () => {
       await expect(
