@@ -215,6 +215,14 @@ export const makeStateDump = async (): Promise<any> => {
     )
   }
 
+  dump.accounts['OVM_GasMetadata'] = {
+    address: '0x06a506a506a506a506a506a506a506a506a506a5',
+    code: '0x00',
+    codeHash: keccak256('0x00'),
+    storage: {},
+    abi: [],
+  }
+
   return dump
 }
 

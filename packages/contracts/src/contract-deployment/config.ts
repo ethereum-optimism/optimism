@@ -84,6 +84,10 @@ export const makeContractDeployConfig = async (
           typeof sequencer === 'string'
             ? sequencer
             : await sequencer.getAddress()
+        await AddressManager.setAddress(
+          'OVM_DecompressionPrecompileAddress',
+          '0x4200000000000000000000000000000000000005'
+        )
         await AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
         await AddressManager.setAddress('Sequencer', sequencerAddress)
         await contracts.OVM_CanonicalTransactionChain.init()
