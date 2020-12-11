@@ -425,7 +425,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
     }
 
     /**
-     * Removes a batch from the chain.
+     * Removes a batch and all subsequent batches from the chain.
      * @param _batchHeader Header of the batch to remove.
      */
     function _deleteBatch(

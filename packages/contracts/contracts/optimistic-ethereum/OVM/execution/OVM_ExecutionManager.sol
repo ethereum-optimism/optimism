@@ -287,7 +287,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     /**
      * @notice Specifies from which L1 rollup queue this transaction originated from.
-     * @return _queueOrigin Address of the CALLER within the current message context.
+     * @return _queueOrigin Address of the ovmL1QUEUEORIGIN within the current message context.
      */
     function ovmL1QUEUEORIGIN()
         override
@@ -726,7 +726,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     /**
      * @notice Overrides EXTCODEHASH.
      * @param _contract Address of the contract to query the hash of.
-     * @return _EXTCODEHASH Size of the requested contract in bytes.
+     * @return _EXTCODEHASH Hash of the requested contract.
      */
     function ovmEXTCODEHASH(
         address _contract
