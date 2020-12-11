@@ -152,7 +152,9 @@ export class StateBatchSubmitter extends BatchSubmitter {
         i
       )) as L2Block
       if (block.transactions[0].from === this.fraudSubmissionAddress) {
-        batch.push(ethers.utils.keccak256(Date.now().toString(16)))
+        batch.push(
+          '0xbad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1'
+        )
       } else {
         batch.push(block.stateRoot)
       }
