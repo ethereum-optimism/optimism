@@ -18,9 +18,6 @@ library Lib_OVMCodec {
 
     bytes constant internal RLP_NULL_BYTES = hex'80';
     bytes constant internal NULL_BYTES = bytes('');
-    bytes32 constant internal NULL_BYTES32 = bytes32('');
-    bytes32 constant internal KECCAK256_RLP_NULL_BYTES = keccak256(RLP_NULL_BYTES);
-    bytes32 constant internal KECCAK256_NULL_BYTES = keccak256(NULL_BYTES);
 
     // Ring buffer IDs
     bytes32 constant internal RING_BUFFER_SCC_BATCHES = keccak256("RING_BUFFER_SCC_BATCHES");
@@ -31,7 +28,7 @@ library Lib_OVMCodec {
     /*********
      * Enums *
      *********/
-    
+
     enum EOASignatureType {
         EIP155_TRANSACTON,
         ETH_SIGNED_MESSAGE

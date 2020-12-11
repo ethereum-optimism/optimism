@@ -119,23 +119,6 @@ library Lib_RLPWriter {
     }
 
     /**
-     * RLP encodes an int.
-     * @param _in The int to encode.
-     * @return _out The RLP encoded int in bytes.
-     */
-    function writeInt(
-        int _in
-    )
-        internal
-        pure
-        returns (
-            bytes memory _out
-        )
-    {
-        return writeUint(uint(_in));
-    }
-
-    /**
      * RLP encodes a bool.
      * @param _in The bool to encode.
      * @return _out The RLP encoded bool in bytes.

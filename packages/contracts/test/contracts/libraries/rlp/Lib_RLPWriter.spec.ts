@@ -19,8 +19,6 @@ const encode = async (Lib_RLPWriter: Contract, input: any): Promise<void> => {
     return Lib_RLPWriter.writeList(elements)
   } else if (Number.isInteger(input)) {
     return Lib_RLPWriter.writeUint(input)
-  } else if (input[0] === '#') {
-    return Lib_RLPWriter.writeInt(input.slice(1))
   } else {
     return Lib_RLPWriter.writeString(input)
   }
