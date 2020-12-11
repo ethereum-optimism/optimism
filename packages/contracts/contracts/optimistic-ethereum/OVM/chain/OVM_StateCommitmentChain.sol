@@ -13,6 +13,7 @@ import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.s
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
+import '@openzeppelin/contracts/math/SafeMath.sol';
 
 /**
  * @title OVM_StateCommitmentChain
@@ -240,8 +241,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, iRingBufferOverw
             timestamp != 0,
             "Batch header timestamp cannot be zero"
         );
-
-        return timestamp + FRAUD_PROOF_WINDOW > block.timestamp;
+        return SafeMath.add(timestamp, FRAUD_PROOF_WINDOW) > block.timestamp;
     }
 
     /**
