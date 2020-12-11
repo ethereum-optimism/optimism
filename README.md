@@ -44,7 +44,7 @@ cd optimism-monorepo
 #### Node.js
 Most of the projects in `optimism-monorepo` are [`Node.js`](https://nodejs.org/en/) projects.
 You'll need to install `Node.js` for your system before continuing.
-All code is only confirmed to work on `Node.js v11.6`, and there are known issues on more recent versions. Please [set your Node.js version to 11.6](https://stackoverflow.com/a/23569481). 
+All code is only confirmed to work on `Node.js v10.16.0`, and there are known issues on more recent versions. Please [set your Node.js version to 10.16.0](https://stackoverflow.com/a/23569481). 
 
 #### Yarn
 We're using a package manager called [Yarn](https://yarnpkg.com/en/).
