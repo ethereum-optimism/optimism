@@ -25,6 +25,9 @@ export interface RollupDeployConfig {
     fraudProofWindowSeconds: number
     sequencerPublishWindowSeconds: number
   }
+  ethConfig: {
+    initialAmount: number
+  }
   whitelistConfig: {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
@@ -161,6 +164,10 @@ export const makeContractDeployConfig = async (
     },
     OVM_BondManager: {
       factory: getContractFactory('mockOVM_BondManager'),
+    },
+    OVM_ETH: {
+      factory: getContractFactory('OVM_ETH'),
+      params: [config.ethConfig.initialAmount, 'Ether', 18, 'ETH'],
     },
   }
 }

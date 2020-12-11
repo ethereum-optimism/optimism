@@ -133,6 +133,9 @@ export const makeStateDump = async (): Promise<any> => {
       owner: signer,
       allowArbitraryContractDeployment: true,
     },
+    ethConfig: {
+      initialAmount: 0,
+    },
     dependencies: [
       'Lib_AddressManager',
       'OVM_DeployerWhitelist',
@@ -146,6 +149,7 @@ export const makeStateDump = async (): Promise<any> => {
       'OVM_SafetyChecker',
       'OVM_ExecutionManager',
       'OVM_StateManager',
+      'OVM_ETH',
       'mockOVM_ECDSAContractAccount',
     ],
   }
@@ -157,10 +161,17 @@ export const makeStateDump = async (): Promise<any> => {
     OVM_ECDSAContractAccount: '0x4200000000000000000000000000000000000003',
     OVM_ProxySequencerEntrypoint: '0x4200000000000000000000000000000000000004',
     OVM_SequencerEntrypoint: '0x4200000000000000000000000000000000000005',
-    //L2 ETH at 0x4200000000000000000000000000000000000006
+    OVM_ETH: '0x4200000000000000000000000000000000000006',
     OVM_L2CrossDomainMessenger: '0x4200000000000000000000000000000000000007',
     Lib_AddressManager: '0x4200000000000000000000000000000000000008',
   }
+
+  const ovmCompiled = [
+    'OVM_L2ToL1MessagePasser',
+    'OVM_L2CrossDomainMessenger',
+    'Lib_AddressManager',
+    'OVM_ETH',
+  ]
 
   const deploymentResult = await deploy(config)
   deploymentResult.contracts['Lib_AddressManager'] =
@@ -182,11 +193,24 @@ export const makeStateDump = async (): Promise<any> => {
   for (let i = 0; i < Object.keys(deploymentResult.contracts).length; i++) {
     const name = Object.keys(deploymentResult.contracts)[i]
     const contract = deploymentResult.contracts[name]
-
-    const codeBuf = await pStateManager.getContractCode(
-      fromHexString(contract.address)
-    )
-    const code = toHexString(codeBuf)
+    let code
+    if (ovmCompiled.includes(name)) {
+      const ovmDeployedBytecode = getContractDefinition(name, true)
+        .deployedBytecode
+      // TODO remove: deployedBytecode is missing the find and replace in solidity
+      code = ovmDeployedBytecode
+        .split(
+          '336000905af158601d01573d60011458600c01573d6000803e3d621234565260ea61109c52'
+        )
+        .join(
+          '336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b'
+        )
+    } else {
+      const codeBuf = await pStateManager.getContractCode(
+        fromHexString(contract.address)
+      )
+      code = toHexString(codeBuf)
+    }
 
     const deadAddress =
       precompiles[name] ||
