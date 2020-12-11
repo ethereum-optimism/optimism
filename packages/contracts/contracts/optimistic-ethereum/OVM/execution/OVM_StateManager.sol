@@ -16,7 +16,7 @@ contract OVM_StateManager is iOVM_StateManager {
     /**********************
      * Contract Constants *
      **********************/
-    
+
     bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH = 0x00004B1DC0DE000000004B1DC0DE000000004B1DC0DE000000004B1DC0DE0000;
     bytes32 constant internal STORAGE_XOR_VALUE =       0xFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEF;
 
@@ -392,7 +392,7 @@ contract OVM_StateManager is iOVM_StateManager {
     {
         return totalUncommittedAccounts;
     }
-    
+
 
     /************************************
      * Public Functions: Storage Access *
@@ -587,7 +587,7 @@ contract OVM_StateManager is iOVM_StateManager {
      * Checks whether an item is in a particular state (ITEM_LOADED or ITEM_CHANGED) and sets the
      * item to the provided state if not.
      * @param _item 32 byte item ID to check.
-     * @param _minItemState Minumum state that must be satisfied by the item.
+     * @param _minItemState Minimum state that must be satisfied by the item.
      * @return _wasItemState Whether or not the item was already in the state.
      */
     function _testAndSetItemState(
