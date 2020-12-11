@@ -76,6 +76,9 @@ const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
       owner: WHITELIST_OWNER,
       allowArbitraryContractDeployment: WHITELIST_ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT
     },
+    ethConfig: {
+      initialAmount: 0,
+    },
   });
 
   const { failedDeployments, AddressManager } = result;
