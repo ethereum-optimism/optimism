@@ -22,6 +22,7 @@
   },
   "include": [
     "src/**/*.ts",
+    "plugins/**/*.ts",
     "artifacts/*.json",
     "./buidler.config.ts",
     "./buidler-env.d.ts",

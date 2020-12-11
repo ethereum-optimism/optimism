@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+// +build ovm
+pragma solidity >0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_BaseCrossDomainMessenger } from "../../iOVM/bridge/iOVM_BaseCrossDomainMessenger.sol";
-import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+
+/* Library Imports */
+import { Lib_ReentrancyGuard } from "../../libraries/utils/Lib_ReentrancyGuard.sol";
 
 /**
  * @title OVM_BaseCrossDomainMessenger
  */
-contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger, ReentrancyGuard {
+contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger, Lib_ReentrancyGuard {
 
     /**********************
      * Contract Variables *
@@ -25,7 +28,7 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger, Reentran
      * Public Functions *
      ********************/
 
-    constructor() ReentrancyGuard() public {}
+    constructor() Lib_ReentrancyGuard() public {}
 
     /**
      * Sends a cross domain message to the target messenger.

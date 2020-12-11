@@ -22,11 +22,12 @@
     "test:gas": "buidler test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
-    "lint:fix:typescript": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
+    "lint:fix:typescript": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test,plugins}/**/*.ts\"",
     "clean": "rm -rf ./artifacts ./build ./cache",
     "deploy": "./bin/deploy.js"
   },
   "dependencies": {
+    "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/contracts": "^5.0.5",
     "@ethersproject/hardware-wallets": "^5.0.8",
     "@openzeppelin/contracts": "^3.3.0",

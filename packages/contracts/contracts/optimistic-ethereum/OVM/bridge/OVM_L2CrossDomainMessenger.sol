@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// +build ovm
 pragma solidity >0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
@@ -28,7 +29,10 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
      */
     constructor(
         address _libAddressManager
-    ) Lib_AddressResolver(_libAddressManager) {}
+    )
+        public
+        Lib_AddressResolver(_libAddressManager)
+    {}
 
 
     /********************
