@@ -241,7 +241,8 @@ describe('OVM_ECDSAContractAccount', () => {
       )
     })
 
-    it(`should revert on insufficient gas`, async () => {
+    // TEMPORARY: Skip gas checks for minnet.
+    it.skip(`should revert on insufficient gas`, async () => {
       const alteredInsufficientGasTx = {
         ...DEFAULT_EIP155_TX,
         gasLimit: 200000000,
