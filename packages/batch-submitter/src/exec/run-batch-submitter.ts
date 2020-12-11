@@ -46,7 +46,7 @@ const requiredEnvVars: RequiredEnvVars = {
   RUN_TX_BATCH_SUBMITTER: 'RUN_TX_BATCH_SUBMITTER',
   RUN_STATE_BATCH_SUBMITTER: 'RUN_STATE_BATCH_SUBMITTER',
 }
-/** Optional Env Vars
+/* Optional Env Vars
  * FRAUD_SUBMISSION_ADDRESS
  */
 
