@@ -32,7 +32,6 @@ interface RequiredEnvVars {
   FINALITY_CONFIRMATIONS: 'FINALITY_CONFIRMATIONS'
   RUN_TX_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_TX_BATCH_SUBMITTER'
   RUN_STATE_BATCH_SUBMITTER: 'true' | 'false' | 'RUN_STATE_BATCH_SUBMITTER'
-  FRAUD_SUBMISSION_ADDRESS: 'FRAUD_SUBMISSION_ADDRESS'
 }
 const requiredEnvVars: RequiredEnvVars = {
   SEQUENCER_PRIVATE_KEY: 'SEQUENCER_PRIVATE_KEY',
@@ -46,8 +45,10 @@ const requiredEnvVars: RequiredEnvVars = {
   FINALITY_CONFIRMATIONS: 'FINALITY_CONFIRMATIONS',
   RUN_TX_BATCH_SUBMITTER: 'RUN_TX_BATCH_SUBMITTER',
   RUN_STATE_BATCH_SUBMITTER: 'RUN_STATE_BATCH_SUBMITTER',
-  FRAUD_SUBMISSION_ADDRESS: 'FRAUD_SUBMISSION_ADDRESS',
 }
+/** Optional Env Vars
+ * FRAUD_SUBMISSION_ADDRESS
+ */
 
 export const run = async () => {
   log.info('Starting batch submitter...')
@@ -93,7 +94,7 @@ export const run = async () => {
     parseInt(requiredEnvVars.FINALITY_CONFIRMATIONS, 10),
     true,
     getLogger(STATE_BATCH_SUBMITTER_LOG_TAG),
-    requiredEnvVars.FRAUD_SUBMISSION_ADDRESS
+    process.env.FRAUD_SUBMISSION_ADDRESS || 'no fraud'
   )
 
   // Loops infinitely!
