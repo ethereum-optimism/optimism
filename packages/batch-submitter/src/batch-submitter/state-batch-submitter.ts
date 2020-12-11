@@ -1,7 +1,9 @@
 /* External Imports */
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from '@eth-optimism/contracts'
-import { Contract } from 'ethers'
+import { Contract, Signer, ethers } from 'ethers'
+import { Logger } from '@eth-optimism/core-utils'
+import { OptimismProvider } from '@eth-optimism/provider'
 
 /* Internal Imports */
 import { L2Block, Bytes32 } from '..'
@@ -15,6 +17,33 @@ export class StateBatchSubmitter extends BatchSubmitter {
   protected l2ChainId: number
   protected syncing: boolean
   protected ctcContract: Contract
+  private fraudSubmissionAddress: string
+
+  constructor(
+    signer: Signer,
+    l2Provider: OptimismProvider,
+    minTxSize: number,
+    maxTxSize: number,
+    maxBatchSize: number,
+    numConfirmations: number,
+    finalityConfirmations: number,
+    pullFromAddressManager: boolean,
+    log: Logger,
+    fraudSubmissionAddress: string
+  ) {
+    super(
+      signer,
+      l2Provider,
+      minTxSize,
+      maxTxSize,
+      maxBatchSize,
+      numConfirmations,
+      finalityConfirmations,
+      pullFromAddressManager,
+      log
+    )
+    this.fraudSubmissionAddress = fraudSubmissionAddress
+  }
 
   /*****************************
    * Batch Submitter Overrides *
@@ -122,7 +151,11 @@ export class StateBatchSubmitter extends BatchSubmitter {
       const block = (await this.l2Provider.getBlockWithTransactions(
         i
       )) as L2Block
-      batch.push(block.stateRoot)
+      if (block.transactions[0].from === this.fraudSubmissionAddress) {
+        batch.push(ethers.utils.keccak256(Date.now().toString(16)))
+      } else {
+        batch.push(block.stateRoot)
+      }
     }
     let tx = this.chainContract.interface.encodeFunctionData(
       'appendStateBatch',
