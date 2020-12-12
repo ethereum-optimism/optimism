@@ -46,6 +46,9 @@ const requiredEnvVars: RequiredEnvVars = {
   RUN_TX_BATCH_SUBMITTER: 'RUN_TX_BATCH_SUBMITTER',
   RUN_STATE_BATCH_SUBMITTER: 'RUN_STATE_BATCH_SUBMITTER',
 }
+/* Optional Env Vars
+ * FRAUD_SUBMISSION_ADDRESS
+ */
 
 export const run = async () => {
   log.info('Starting batch submitter...')
@@ -90,7 +93,8 @@ export const run = async () => {
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
     parseInt(requiredEnvVars.FINALITY_CONFIRMATIONS, 10),
     true,
-    getLogger(STATE_BATCH_SUBMITTER_LOG_TAG)
+    getLogger(STATE_BATCH_SUBMITTER_LOG_TAG),
+    process.env.FRAUD_SUBMISSION_ADDRESS || 'no fraud'
   )
 
   // Loops infinitely!
