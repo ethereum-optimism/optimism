@@ -31,7 +31,8 @@
     "@ethersproject/contracts": "^5.0.5",
     "@ethersproject/hardware-wallets": "^5.0.8",
     "@openzeppelin/contracts": "^3.3.0",
-    "ethers": "5.0.0"
+    "ethers": "5.0.0",
+    "ganache-core": "^2.12.1"
   },
   "devDependencies": {
     "@eth-optimism/smock": "^0.0.2",
@@ -50,7 +51,6 @@
     "copyfiles": "^2.3.0",
     "ethereum-waffle": "3.0.0",
     "fs-extra": "^9.0.1",
-    "ganache-core": "^2.12.1",
     "lodash": "^4.17.20",
     "merkle-patricia-tree": "^4.0.0",
     "mkdirp": "^1.0.4",
