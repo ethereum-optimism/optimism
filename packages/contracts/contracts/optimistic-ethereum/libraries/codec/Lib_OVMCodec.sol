@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
 import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
+import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 
 /**
  * @title Lib_OVMCodec
@@ -167,7 +168,6 @@ library Lib_OVMCodec {
         bytes memory _transaction
     )
         internal
-        pure
         returns (
             EIP155Transaction memory _decompressed
         )
@@ -178,7 +178,7 @@ library Lib_OVMCodec {
             nonce: Lib_BytesUtils.toUint24(_transaction, 6),
             to: Lib_BytesUtils.toAddress(_transaction, 9),
             data: Lib_BytesUtils.slice(_transaction, 29),
-            chainId: 420,
+            chainId: Lib_SafeExecutionManagerWrapper.safeCHAINID(),
             value: 0
         });
     }
