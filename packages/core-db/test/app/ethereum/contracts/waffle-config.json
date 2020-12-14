@@ -1,5 +1,0 @@
-{
-  "sourcesPath": "./",
-  "targetPath": "./test/app/ethereum/contracts/build/",
-  "npmPath": "../../../../../../node_modules"
-}

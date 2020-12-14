@@ -2,9 +2,9 @@ import { expect } from '../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
+import { Signer, ContractFactory, Contract } from 'ethers'
 import { getContractInterface } from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
-import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import { remove0x, getLogger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -113,6 +113,8 @@ describe('TransactionBatchSubmitter', () => {
       AddressManager.address,
       FORCE_INCLUSION_PERIOD_SECONDS
     )
+    await unwrapped_OVM_CanonicalTransactionChain.init()
+
     OVM_CanonicalTransactionChain = new CanonicalTransactionChainContract(
       unwrapped_OVM_CanonicalTransactionChain.address,
       getContractInterface('OVM_CanonicalTransactionChain'),
@@ -175,12 +177,12 @@ describe('TransactionBatchSubmitter', () => {
         nextQueueElement.timestamp - 1
       )
       let receipt = await batchSubmitter.submitNextBatch()
-      let logData = remove0x(receipt.logs[0].data)
+      let logData = remove0x(receipt.logs[1].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
       expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
       receipt = await batchSubmitter.submitNextBatch()
-      logData = remove0x(receipt.logs[0].data)
+      logData = remove0x(receipt.logs[1].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(0) // _numQueueElements
       expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
@@ -192,12 +194,12 @@ describe('TransactionBatchSubmitter', () => {
         queueOrigin: QueueOrigin.L1ToL2,
       } as any)
       let receipt = await batchSubmitter.submitNextBatch()
-      let logData = remove0x(receipt.logs[0].data)
+      let logData = remove0x(receipt.logs[1].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(6) // _numQueueElements
       expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(6) // _totalElements
       receipt = await batchSubmitter.submitNextBatch()
-      logData = remove0x(receipt.logs[0].data)
+      logData = remove0x(receipt.logs[1].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(6) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(5) // _numQueueElements
       expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements
@@ -230,7 +232,7 @@ describe('TransactionBatchSubmitter', () => {
         6
       )
       const receipt = await batchSubmitter.submitNextBatch()
-      const logData = remove0x(receipt.logs[0].data)
+      const logData = remove0x(receipt.logs[1].data)
       expect(parseInt(logData.slice(64 * 0, 64 * 1), 16)).to.equal(0) // _startingQueueIndex
       expect(parseInt(logData.slice(64 * 1, 64 * 2), 16)).to.equal(8) // _numQueueElements
       expect(parseInt(logData.slice(64 * 2, 64 * 3), 16)).to.equal(11) // _totalElements

@@ -4,21 +4,19 @@
  * https://github.com/ethereum-optimism
  */
 
+import './setup'
+
+/* Imports: External */
 import { JsonRpcServer } from '@eth-optimism/core-utils'
 import { Web3Provider } from '@ethersproject/providers'
-import chai = require('chai')
-import chaiAsPromised = require('chai-as-promised')
 import { ganache } from '@eth-optimism/ovm-toolchain'
-import BigNumber = require('bn.js')
-import { OptimismProvider, sighashEthSign } from '../src/index'
 import { verifyMessage } from '@ethersproject/wallet'
 import { parse } from '@ethersproject/transactions'
 import { SignatureLike, joinSignature } from '@ethersproject/bytes'
 
+/* Imports: Internal */
+import { OptimismProvider, sighashEthSign } from '../src/index'
 import { mnemonic } from './common'
-
-chai.use(chaiAsPromised)
-const should = chai.should()
 
 describe('sendTransaction', () => {
   let provider

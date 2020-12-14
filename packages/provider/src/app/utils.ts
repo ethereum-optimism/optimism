@@ -4,13 +4,9 @@
  * https://github.com/ethereum-optimism
  */
 
-import { Networkish } from '@ethersproject/networks'
-import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
-import { arrayify, Bytes, zeroPad } from '@ethersproject/bytes'
-import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
+import { remove0x } from '@eth-optimism/core-utils'
+import { Bytes } from '@ethersproject/bytes'
 import { AbiCoder } from '@ethersproject/abi'
-import { Deferrable, deepCopy } from '@ethersproject/properties'
-import { TransactionRequest } from '@ethersproject/abstract-provider'
 import { keccak256 } from '@ethersproject/keccak256'
 
 const blacklist = new Set([
@@ -101,13 +97,4 @@ export function sighashEthSign(transaction): Buffer {
   const serialized = serializeEthSignTransaction(transaction)
   const hash = remove0x(keccak256(serialized))
   return Buffer.from(hash, 'hex')
-}
-
-function toBuffer(n: BigNumberish): Buffer {
-  if (typeof n === 'string' && isHexString(n as string)) {
-    return hexStrToBuf(n as string)
-  }
-
-  const uint8array = arrayify(n)
-  return Buffer.from(uint8array)
 }

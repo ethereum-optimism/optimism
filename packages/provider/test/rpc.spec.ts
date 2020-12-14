@@ -4,24 +4,23 @@
  * https://github.com/ethereum-optimism
  */
 
-import { SimpleServer, isHexString } from '@eth-optimism/core-utils'
-import { OptimismProvider } from '../src/index'
-import chai = require('chai')
-import assert = require('assert')
-import chaiAsPromised = require('chai-as-promised')
+import { assert } from './setup'
+
+/* Imports: External */
+import { isHexString } from '@eth-optimism/core-utils'
 import { ganache } from '@eth-optimism/ovm-toolchain'
 
-chai.use(chaiAsPromised)
-const should = chai.should()
+/* Imports: Internal */
+import { OptimismProvider } from '../src/index'
 
 describe('RPC', () => {
   const server = ganache.server({})
-  let provider
 
   const addr = '0x8fd00f170fdf3772c5ebdcd90bf257316c69ba45'
   const contract = '0xdac17f958d2ee523a2206206994597c13d831ec7'
 
   // Set up the provider and the RPC server
+  let provider: OptimismProvider
   before(async () => {
     provider = new OptimismProvider('http://localhost:3001')
     await server.listen(3001)

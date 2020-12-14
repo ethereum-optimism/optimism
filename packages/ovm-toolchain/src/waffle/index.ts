@@ -1,2 +1,1 @@
-export { waffleV2 } from './waffle-v2'
-export { waffleV3 } from './waffle-v3'
+export { waffleV3, waffle } from './waffle-v3'

@@ -5,17 +5,9 @@
  */
 
 import { Logger } from '@ethersproject/logger'
-import { Network, Networkish } from '@ethersproject/networks'
-import {
-  UrlJsonRpcProvider,
-  JsonRpcSigner,
-  JsonRpcProvider,
-  Web3Provider,
-} from '@ethersproject/providers'
-import { defineReadOnly, getStatic } from '@ethersproject/properties'
-import { ConnectionInfo } from '@ethersproject/web'
+import { Networkish } from '@ethersproject/networks'
+import { JsonRpcProvider, Web3Provider } from '@ethersproject/providers'
 import { verifyMessage } from '@ethersproject/wallet'
-import { Provider } from '@ethersproject/abstract-provider'
 import { joinSignature, SignatureLike } from '@ethersproject/bytes'
 import { OptimismSigner } from './signer'
 import * as utils from './utils'
@@ -103,9 +95,9 @@ export class OptimismProvider extends JsonRpcProvider {
     return this._ethereum
   }
 
-  public getSigner(address?: string): OptimismSigner {
+  public getSigner(addressOrIndex?: string | number): OptimismSigner {
     if (this.ethereum) {
-      return new OptimismSigner(this.ethereum, this, address)
+      return new OptimismSigner(this.ethereum, this, addressOrIndex)
     }
 
     logger.throwError(
