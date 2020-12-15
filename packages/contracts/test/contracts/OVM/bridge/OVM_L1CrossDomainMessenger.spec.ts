@@ -368,7 +368,9 @@ describe('OVM_L1CrossDomainMessenger', () => {
           0,
           proof
         )
-      ).to.be.revertedWith('Only OVM_L2MessageRelayer can relay L2-to-L1 messages.')
+      ).to.be.revertedWith(
+        'Only OVM_L2MessageRelayer can relay L2-to-L1 messages.'
+      )
     })
   })
 })

@@ -145,9 +145,7 @@ library Lib_MerkleTrie {
     {
         // Special case when inserting the very first node.
         if (_root == KECCAK256_RLP_NULL_BYTES) {
-            return keccak256(
-                _makeLeafNode(_key, _value).encoded
-            );
+            return getSingleNodeRootHash(_key, _value);
         }
 
         TrieNode[] memory proof = _parseProof(_proof);
@@ -212,7 +210,7 @@ library Lib_MerkleTrie {
         )
     {
         return keccak256(_makeLeafNode(
-            _key,
+            Lib_BytesUtils.toNibbles(_key),
             _value
         ).encoded);
     }
