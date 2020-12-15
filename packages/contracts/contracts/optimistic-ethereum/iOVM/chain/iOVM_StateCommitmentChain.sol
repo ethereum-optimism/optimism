@@ -22,6 +22,11 @@ interface iOVM_StateCommitmentChain {
         bytes _extraData
     );
 
+    event StateBatchDeleted(
+        uint256 indexed _batchIndex,
+        bytes32 _batchRoot
+    );
+
     /********************
      * Public Functions *
      ********************/
