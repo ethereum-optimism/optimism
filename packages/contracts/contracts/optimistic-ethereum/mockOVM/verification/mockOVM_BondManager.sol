@@ -4,10 +4,19 @@ pragma solidity ^0.7.0;
 /* Interface Imports */
 import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
 
+/* Contract Imports */
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+
 /**
  * @title mockOVM_BondManager
  */
-contract mockOVM_BondManager is iOVM_BondManager {
+contract mockOVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
+    constructor(
+        address _libAddressManager
+    )
+        Lib_AddressResolver(_libAddressManager)
+    {}
+
     function recordGasSpent(
         bytes32 _preStateRoot,
         bytes32 _txHash,
@@ -59,7 +68,8 @@ contract mockOVM_BondManager is iOVM_BondManager {
             bool
         )
     {
-        return true;
+        // Only authenticate sequencer to submit state root batches.
+        return _who == resolve("OVM_Sequencer");
     }
 
     function getGasSpent(
