@@ -894,7 +894,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * Calls the deployed contract associated with a given address.
      * @param _nextMessageContext Message context to be used for the call.
      * @param _gasLimit Amount of gas to be passed into this call.
-     * @param _contract Address used to resolve the deployed contract.
+     * @param _contract OVM address to be called.
      * @param _calldata Data to send along with the call.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
@@ -911,6 +911,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
+        // We reserve addresses of the form 0xdeaddeaddead...NNNN for the container contracts in L2 geth.
+        // So, we block calls to these addresses since they are not safe to run as an OVM contract itself.
+        if (
+            (uint256(_contract) & uint256(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000)) 
+            == uint256(0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000)
+        ) {
+            return (true, hex'');
+        }
 
         // Both 0x0000... and the EVM precompiles have the same address on L1 and L2 --> no trie lookup needed.
         address codeContractAddress =

@@ -11,6 +11,8 @@ import {
 const DUMMY_REVERT_DATA =
   '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
 
+const DEAD_ADDRESS = '0xdeaddeaddeaddeaddeaddeaddeaddeaddead1234'
+
 const test_ovmCALL: TestDefinition = {
   name: 'Basic tests for ovmCALL',
   preState: {
@@ -238,6 +240,24 @@ const test_ovmCALL: TestDefinition = {
           },
           expectedReturnStatus: false,
           expectedReturnValue: '0x',
+        },
+      ],
+    },
+    {
+      name: 'ovmCALL(0xdeaddeaddead...) returns (true, 0x)',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: DEAD_ADDRESS,
+            subSteps: []
+          },
+          expectedReturnStatus: true,
+          expectedReturnValue: {
+            ovmSuccess: true,
+            returnData: '0x'
+          },
         },
       ],
     },
