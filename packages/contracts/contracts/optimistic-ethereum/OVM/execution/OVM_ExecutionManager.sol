@@ -911,7 +911,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
-        // EVM precompiles have the same address on L1 and L2 --> no trie lookup needed.
+
+        // Both 0x0000... and the EVM precompiles have the same address on L1 and L2 --> no trie lookup needed.
         address codeContractAddress =
             uint(_contract) < 100
             ? _contract
