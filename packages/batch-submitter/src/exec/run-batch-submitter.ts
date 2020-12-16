@@ -8,6 +8,8 @@ import {
   TransactionReceipt,
 } from '@ethersproject/providers'
 import { OptimismProvider } from '@eth-optimism/provider'
+import { config } from 'dotenv'
+config()
 
 /* Internal Imports */
 import {

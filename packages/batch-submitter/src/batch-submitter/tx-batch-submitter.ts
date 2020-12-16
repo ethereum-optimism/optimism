@@ -198,6 +198,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // Generate contexts
     const contexts: BatchContext[] = []
     let lastBlockIsSequencerTx = false
+    let lastTimestamp = 0
+    let lastBlockNumber = 0
     const groupedBlocks: Array<{
       sequenced: BatchElement[]
       queued: BatchElement[]
@@ -205,7 +207,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     for (const block of blocks) {
       if (
         (lastBlockIsSequencerTx === false && block.isSequencerTx === true) ||
-        groupedBlocks.length === 0
+        groupedBlocks.length === 0 ||
+        (block.timestamp !== lastTimestamp && block.isSequencerTx === true) ||
+        (block.blockNumber !== lastBlockNumber && block.isSequencerTx === true)
       ) {
         groupedBlocks.push({
           sequenced: [],
@@ -217,6 +221,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         ? groupedBlocks[cur].sequenced.push(block)
         : groupedBlocks[cur].queued.push(block)
       lastBlockIsSequencerTx = block.isSequencerTx
+      lastTimestamp = block.timestamp
+      lastBlockNumber = block.blockNumber
     }
     for (const groupedBlock of groupedBlocks) {
       contexts.push({
