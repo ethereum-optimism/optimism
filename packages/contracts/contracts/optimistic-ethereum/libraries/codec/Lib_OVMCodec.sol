@@ -131,15 +131,15 @@ library Lib_OVMCodec {
     {
         if (_isEthSignedMessage) {
             (
-                uint _nonce,
-                uint _gasLimit,
-                uint _gasPrice,
-                uint _chainId,
+                uint256 _nonce,
+                uint256 _gasLimit,
+                uint256 _gasPrice,
+                uint256 _chainId,
                 address _to,
                 bytes memory _data
             ) = abi.decode(
                 _transaction,
-                (uint, uint, uint, uint, address ,bytes)
+                (uint256, uint256, uint256, uint256, address ,bytes)
             );
             return EIP155Transaction({
                 nonce: _nonce,

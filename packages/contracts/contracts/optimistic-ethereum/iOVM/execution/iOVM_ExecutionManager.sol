@@ -29,7 +29,7 @@ interface iOVM_ExecutionManager {
         PREV_EPOCH_SEQUENCER_QUEUE_GAS,
         PREV_EPOCH_L1TOL2_QUEUE_GAS
     }
-    
+
     /***********
      * Structs *
      ***********/
@@ -91,7 +91,7 @@ interface iOVM_ExecutionManager {
     function ovmGASLIMIT() external view returns (uint256 _gasLimit);
     function ovmCHAINID() external view returns (uint256 _chainId);
 
-    
+
     /**********************
      * L2 Context Opcodes *
      **********************/
@@ -99,11 +99,11 @@ interface iOVM_ExecutionManager {
     function ovmL1QUEUEORIGIN() external view returns (Lib_OVMCodec.QueueOrigin _queueOrigin);
     function ovmL1TXORIGIN() external view returns (address _l1TxOrigin);
 
-    
+
     /*******************
      * Halting Opcodes *
      *******************/
-    
+
     function ovmREVERT(bytes memory _data) external;
 
 
@@ -118,7 +118,7 @@ interface iOVM_ExecutionManager {
     /*******************************
      * Account Abstraction Opcodes *
      ******************************/
-    
+
     function ovmGETNONCE() external returns (uint256 _nonce);
     function ovmSETNONCE(uint256 _nonce) external;
     function ovmCREATEEOA(bytes32 _messageHash, uint8 _v, bytes32 _r, bytes32 _s) external;
@@ -153,7 +153,7 @@ interface iOVM_ExecutionManager {
     /**************************************
      * Public Functions: Execution Safety *
      **************************************/
-    
+
     function safeCREATE(address _address, bytes memory _bytecode) external;
 
     /***************************************

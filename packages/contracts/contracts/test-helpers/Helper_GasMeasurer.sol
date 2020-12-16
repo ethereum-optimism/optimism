@@ -7,13 +7,13 @@ contract Helper_GasMeasurer {
         bytes memory _data
     )
         public
-        returns ( uint )
+        returns ( uint256 )
     {
-        uint gasBefore;
-        uint gasAfter;
+        uint256 gasBefore;
+        uint256 gasAfter;
 
-        uint calldataStart;
-        uint calldataLength;
+        uint256 calldataStart;
+        uint256 calldataLength;
         assembly {
             calldataStart := add(_data,0x20)
             calldataLength := mload(_data)
