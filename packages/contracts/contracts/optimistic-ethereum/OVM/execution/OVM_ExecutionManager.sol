@@ -535,14 +535,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
-        bool isStaticEntrypoint = false;
 
         return _callContract(
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata,
-            isStaticEntrypoint
+            _calldata
         );
     }
 
@@ -572,14 +570,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
         nextMessageContext.isStatic = true;
-        bool isStaticEntrypoint = true;
 
         return _callContract(
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata,
-            isStaticEntrypoint
+            _calldata
         );
     }
 
@@ -612,8 +608,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata,
-            isStaticEntrypoint
+            _calldata
         );
     }
 
@@ -901,7 +896,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _contract Address used to resolve the deployed contract.
      * @param _calldata Data to send along with the call.
-     * @param _isStaticEntrypoint Whether or not this is coming from ovmSTATICCALL.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
      */
@@ -909,8 +903,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory _nextMessageContext,
         uint256 _gasLimit,
         address _contract,
-        bytes memory _calldata,
-        bool _isStaticEntrypoint
+        bytes memory _calldata
     )
         internal
         returns (
