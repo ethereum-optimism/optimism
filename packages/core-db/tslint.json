@@ -1,7 +1,0 @@
-{
-  "extends": ["./../../tslint.json"],
-  "rules": {
-    "prettier": [true, "../../prettier-config.json"],
-    "no-var-requires": false
-  }
-}

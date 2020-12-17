@@ -1,6 +1,6 @@
 /* External Imports */
-import { ethers, providers, Wallet, Contract } from 'ethers-v5'
-import { defaultAccounts } from 'ethereum-waffle-v3'
+import { providers, Wallet } from 'ethers'
+import { defaultAccounts } from 'ethereum-waffle'
 import Ganache from 'ganache-core'
 
 /* Internal Imports */
@@ -35,5 +35,9 @@ export class MockProvider extends providers.Web3Provider {
 }
 
 export const waffleV3 = {
+  MockProvider,
+}
+
+export const waffle = {
   MockProvider,
 }

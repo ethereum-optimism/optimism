@@ -1,40 +1,24 @@
 {
   "name": "@eth-optimism/ovm-toolchain",
-  "version": "0.0.1-alpha.14",
+  "version": "0.0.2-alpha.2",
   "description": "Wrappers for Ethereum dev tools",
   "main": "build/index.js",
-  "private": true,
   "files": [
     "build/**/*.js"
   ],
-  "workspaces": {
-    "nohoist": [
-      "**/ethereum-waffle",
-      "**/ethereum-waffle/**",
-      "**/@nomiclabs",
-      "**/@nomiclabs/**",
-      "**/typescript",
-      "**/typescript/**",
-      "**/ts-node",
-      "**/ts-node/**"
-    ]
-  },
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ../../prettier-config.json --write \"index.ts\" \"{deploy,test,src,bin}/**/*.ts\"",
-    "build": "yarn run build:waffle && yarn run build:typescript",
+    "lint:fix": "prettier --config ../../prettier-config.json --write \"index.ts\" \"{deploy,test,src,bin}/**/*.ts\"",
+    "build": "yarn run build:typescript",
     "build:waffle": "waffle \"test/config/waffle-config.json\"",
     "build:typescript": "tsc -p .",
     "clean": "rimraf build/ && rimraf test/temp/",
-    "test": "yarn run test:truffle && yarn run test:waffle-v2 && yarn run test:buidler",
+    "test": "yarn run test:truffle && yarn run test:waffle && yarn run test:buidler",
     "test:truffle": "truffle test \"test/test-truffle/erc20.spec.js\" --config \"test/config/truffle-config.js\"",
-    "test:waffle-v2": "waffle \"test/config/waffle-config.json\" && mocha --require source-map-support/register --require ts-node/register \"test/test-waffle-v2/**/*.spec.ts\" --timeout 10000",
+    "test:waffle": "yarn run build:waffle && waffle \"test/config/waffle-config.json\" && mocha --require source-map-support/register --require ts-node/register \"test/test-waffle/**/*.spec.ts\" --timeout 10000",
     "test:buidler": "buidler test --ovm",
     "test:buidler:native": "buidler test --ovm --native"
-  },
-  "engines": {
-    "node": "10"
   },
   "keywords": [
     "optimistic",
@@ -73,17 +57,14 @@
     "web3": "^1.2.11"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.0.2-alpha.10",
+    "@eth-optimism/contracts": "^0.0.2-alpha.14",
     "@eth-optimism/core-utils": "^0.0.1-alpha.30",
-    "@eth-optimism/ethereumjs-vm": "4.2.0-alpha.1",
+    "@eth-optimism/ethereumjs-vm": "4.2.0-alpha.2",
     "@nomiclabs/buidler": "^1.4.4",
     "bn.js": "^5.1.3",
     "child_process": "^1.0.2",
-    "ethereum-waffle": "3",
-    "ethereum-waffle-v2": "npm:ethereum-waffle@2",
-    "ethereum-waffle-v3": "npm:ethereum-waffle@3",
-    "ethers-v4": "npm:ethers@4",
-    "ethers-v5": "npm:ethers@5.0.7",
+    "ethereum-waffle": "^3.2.1",
+    "ethers": "^5.0.24",
     "ethjs-common-v1": "npm:ethereumjs-common@1.5.0",
     "ethjs-util-v6": "npm:ethereumjs-util@6.2.1"
   }

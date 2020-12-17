@@ -1,6 +1,7 @@
 {
   "extends": ["./../../tslint.json"],
   "rules": {
-    "prettier": [true, "../../prettier-config.json"]
+    "prettier": [true, "../../prettier-config.json"],
+    "no-implicit-dependencies": false
   }
 }

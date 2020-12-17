@@ -1,13 +1,10 @@
 {
   "version": "independent",
   "packages": [
-    "packages/contracts/*",
-    "packages/core-db/*",
     "packages/core-utils/*",
     "packages/ovm-toolchain/*",
     "packages/provider/*",
-    "packages/rollup-core/*",
-    "packages/rollup-services/*"
+    "packages/batch-submitter/*"
   ],
   "command": {
     "publish": {

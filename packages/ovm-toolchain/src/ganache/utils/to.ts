@@ -1,5 +1,5 @@
 import * as utils from 'ethjs-util-v6'
-import { BigNumber } from 'ethers-v5'
+import { BigNumber } from 'ethers'
 
 export const to = {
   hex: (val: any) => {

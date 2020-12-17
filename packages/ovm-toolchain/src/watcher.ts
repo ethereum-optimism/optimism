@@ -1,5 +1,5 @@
 /* External Imports */
-import { ethers } from 'ethers-v4'
+import { ethers } from 'ethers'
 
 interface Layer {
   provider: any

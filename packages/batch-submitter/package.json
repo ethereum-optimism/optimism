@@ -10,12 +10,9 @@
     "start": "node ./exec/run-batch-submitter.js",
     "build": "tsc -p .",
     "clean": "rimraf build/",
-    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' 'src/**/*.ts'",
     "lint": "tslint --format stylish --project .",
+    "lint:fix": "prettier --config ../../prettier-config.json --write 'index.ts' 'src/**/*.ts'",
     "test": "buidler test --show-stack-traces"
-  },
-  "engines": {
-    "node": "10"
   },
   "keywords": [
     "optimism",

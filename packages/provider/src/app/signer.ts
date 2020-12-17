@@ -9,11 +9,7 @@
  * https://github.com/ethers-io/ethers.js
  */
 
-import {
-  JsonRpcSigner,
-  JsonRpcProvider,
-  Web3Provider,
-} from '@ethersproject/providers'
+import { JsonRpcSigner, Web3Provider } from '@ethersproject/providers'
 import { Logger } from '@ethersproject/logger'
 import {
   BlockTag,
@@ -22,28 +18,17 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
-import { Bytes, splitSignature } from '@ethersproject/bytes'
+import { BigNumber } from '@ethersproject/bignumber'
+import { Bytes } from '@ethersproject/bytes'
 import { serialize, UnsignedTransaction } from '@ethersproject/transactions'
-import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
-import { ConnectionInfo, fetchJson, poll } from '@ethersproject/web'
-import { keccak256 } from '@ethersproject/keccak256'
 
 import {
-  checkProperties,
-  deepCopy,
   Deferrable,
-  defineReadOnly,
-  getStatic,
   resolveProperties,
   shallowCopy,
 } from '@ethersproject/properties'
 
-import {
-  allowedTransactionKeys,
-  serializeEthSignTransaction,
-  sighashEthSign,
-} from './utils'
+import { allowedTransactionKeys, sighashEthSign } from './utils'
 
 import { OptimismProvider } from './provider'
 const logger = new Logger('')
@@ -264,6 +249,10 @@ export class OptimismSigner implements JsonRpcSigner {
         }
       )
     }
+  }
+
+  public _signTypedData(args: any): any {
+    throw new Error('NOT IMPLEMENTED')
   }
 
   public static isSigner(value: any): value is Signer {

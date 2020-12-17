@@ -1,15 +1,22 @@
 import { expect } from '../common/setup'
 
 /* External Imports */
-// tslint:disable-next-line
-import { ethers } from '@nomiclabs/buidler'
-import { Contract, Signer } from 'ethers'
+import { deployContract } from 'ethereum-waffle'
+import { Wallet, Contract } from 'ethers'
+
+/* Internal Imports */
+import { waffle } from '../../src/waffle'
+
+/* Contract Imports */
+import * as ERC20 from '../temp/build/waffle/ERC20.json'
 
 describe('ERC20 smart contract', () => {
-  let wallet1: Signer
-  let wallet2: Signer
+  let provider: any
+  let wallet1: Wallet
+  let wallet2: Wallet
   before(async () => {
-    ;[wallet1, wallet2] = await ethers.getSigners()
+    provider = new waffle.MockProvider()
+    ;[wallet1, wallet2] = provider.getWallets()
   })
 
   // parameters to use for our test coin
@@ -20,17 +27,16 @@ describe('ERC20 smart contract', () => {
   /* Deploy a new ERC20 Token before each test */
   let ERC20Token: Contract
   beforeEach(async () => {
-    const ERC20TokenFactory = await ethers.getContractFactory('ERC20')
-    ERC20Token = await ERC20TokenFactory.deploy(
+    ERC20Token = await deployContract(wallet1, ERC20, [
       10000,
       COIN_NAME,
       NUM_DECIMALS,
-      TICKER
-    )
+      TICKER,
+    ])
   })
 
   it('creation: should create an initial balance of 10000 for the creator', async () => {
-    const balance = await ERC20Token.balanceOf(await wallet1.getAddress())
+    const balance = await ERC20Token.balanceOf(wallet1.address)
     expect(balance.toNumber()).to.equal(10000)
   })
 
@@ -46,13 +52,9 @@ describe('ERC20 smart contract', () => {
   })
 
   it('transfers: should transfer 10000 to walletTo with wallet having 10000', async () => {
-    await ERC20Token.transfer(await wallet2.getAddress(), 10000)
-    const walletToBalance = await ERC20Token.balanceOf(
-      await wallet2.getAddress()
-    )
-    const walletFromBalance = await ERC20Token.balanceOf(
-      await wallet1.getAddress()
-    )
+    await ERC20Token.transfer(wallet2.address, 10000)
+    const walletToBalance = await ERC20Token.balanceOf(wallet2.address)
+    const walletFromBalance = await ERC20Token.balanceOf(wallet1.address)
     expect(walletToBalance.toNumber()).to.equal(10000)
     expect(walletFromBalance.toNumber()).to.equal(0)
   })
