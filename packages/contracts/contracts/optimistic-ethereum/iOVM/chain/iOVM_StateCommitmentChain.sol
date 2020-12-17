@@ -119,7 +119,7 @@ interface iOVM_StateCommitmentChain {
         returns (
             bool _inside
         );
-    
+
     /**
      * Sets the last batch index that can be deleted.
      * @param _stateBatchHeader Proposed batch header that can be deleted.

@@ -22,7 +22,7 @@ const config: BuidlerConfig = {
     timeout: 50000,
   },
   solc: {
-    version: '0.7.4',
+    version: '0.7.6',
     optimizer: { enabled: true, runs: 200 },
   },
   typechain: {

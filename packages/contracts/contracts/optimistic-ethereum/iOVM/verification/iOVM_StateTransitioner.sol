@@ -13,7 +13,7 @@ interface iOVM_StateTransitioner {
     /**********
      * Events *
      **********/
-    
+
     event AccountCommitted(
         address _address
     );
@@ -32,7 +32,7 @@ interface iOVM_StateTransitioner {
     function getPostStateRoot() external view returns (bytes32 _postStateRoot);
     function isComplete() external view returns (bool _complete);
 
-    
+
     /***********************************
      * Public Functions: Pre-Execution *
      ***********************************/

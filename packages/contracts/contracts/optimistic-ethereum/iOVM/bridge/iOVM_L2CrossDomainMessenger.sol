@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // +build ovm
-pragma solidity >0.6.0 <0.8.0;
+pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
@@ -12,7 +12,7 @@ import { iOVM_BaseCrossDomainMessenger } from "./iOVM_BaseCrossDomainMessenger.s
 interface iOVM_L2CrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
 
     /********************
-     * Public Functions * 
+     * Public Functions *
      ********************/
 
     /**

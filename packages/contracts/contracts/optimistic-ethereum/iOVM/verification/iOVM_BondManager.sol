@@ -64,7 +64,7 @@ interface iOVM_BondManager {
         bool canClaim;
         // Total number of `recordGasSpent` calls made
         uint256 total;
-        // The gas spent by each user to provide witness data. The sum of all 
+        // The gas spent by each user to provide witness data. The sum of all
         // values inside this map MUST be equal to the value of `total`
         mapping(address => uint256) gasSpent;
     }
@@ -73,7 +73,7 @@ interface iOVM_BondManager {
     /********************
      * Public Functions *
      ********************/
-    
+
     function recordGasSpent(
         bytes32 _preStateRoot,
         bytes32 _txHash,

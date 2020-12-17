@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // +build ovm
-pragma solidity >0.6.0 <0.8.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_AddressManager } from "./Lib_AddressManager.sol";

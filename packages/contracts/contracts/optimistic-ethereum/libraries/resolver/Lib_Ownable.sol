@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // +build ovm
-pragma solidity >0.6.0 <0.8.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /**
  * @title Ownable
@@ -55,7 +55,7 @@ abstract contract Ownable {
     function renounceOwnership()
         public
         virtual
-        onlyOwner 
+        onlyOwner
     {
         emit OwnershipTransferred(owner, address(0));
         owner = address(0);

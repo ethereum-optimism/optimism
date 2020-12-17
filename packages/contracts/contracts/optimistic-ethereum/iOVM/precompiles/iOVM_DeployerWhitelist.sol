@@ -5,11 +5,11 @@ pragma solidity >0.5.0 <0.8.0;
  * @title iOVM_DeployerWhitelist
  */
 interface iOVM_DeployerWhitelist {
-    
+
     /********************
      * Public Functions *
      ********************/
-    
+
     function initialize(address _owner, bool _allowArbitraryDeployment) external;
     function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) external;
     function setOwner(address _newOwner) external;

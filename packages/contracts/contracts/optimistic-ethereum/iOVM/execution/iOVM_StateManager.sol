@@ -31,8 +31,8 @@ interface iOVM_StateManager {
      * Public Functions: Setup *
      ***************************/
 
-    function owner() external view returns (address _owner); 
-    function ovmExecutionManager() external view returns (address _ovmExecutionManager); 
+    function owner() external view returns (address _owner);
+    function ovmExecutionManager() external view returns (address _ovmExecutionManager);
     function setExecutionManager(address _ovmExecutionManager) external;
 
 
@@ -59,7 +59,7 @@ interface iOVM_StateManager {
     function wasAccountChanged(address _address) external view returns (bool);
     function wasAccountCommitted(address _address) external view returns (bool);
 
-    
+
     /************************************
      * Public Functions: Storage Access *
      ************************************/

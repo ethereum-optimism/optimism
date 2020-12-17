@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // +build ovm
-pragma solidity >0.6.0 <0.8.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /**
  * @title iOVM_L2ToL1MessagePasser
