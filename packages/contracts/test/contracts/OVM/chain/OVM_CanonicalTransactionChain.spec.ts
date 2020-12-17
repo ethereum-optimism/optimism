@@ -414,7 +414,15 @@ describe('OVM_CanonicalTransactionChain', () => {
     })
   })
 
-  describe('appendQueueBatch', () => {
+  describe('appendQueueBatch disabled', () => {
+    it('should revert', async () => {
+      await expect(
+        OVM_CanonicalTransactionChain.appendQueueBatch(0)
+      ).to.be.revertedWith('appendQueueBatch is currently disabled.')
+    })
+  })
+
+  describe.skip('appendQueueBatch', () => {
     it('should revert if trying to append zero transactions', async () => {
       await expect(
         OVM_CanonicalTransactionChain.appendQueueBatch(0)
@@ -500,7 +508,66 @@ describe('OVM_CanonicalTransactionChain', () => {
   })
 
   describe('verifyTransaction', () => {
-    it('should successfully verify against a valid queue transaction', async () => {
+    it('should successfully verify against a valid queue transaction appended by the sequencer', async () => {
+      const entrypoint = NON_ZERO_ADDRESS
+      const gasLimit = 500_000
+      const data = '0x' + '12'.repeat(1234)
+
+      const timestamp = (await getEthTime(ethers.provider)) + 100
+      await setEthTime(ethers.provider, timestamp)
+      await OVM_CanonicalTransactionChain.enqueue(entrypoint, gasLimit, data)
+
+      const blockNumber = await ethers.provider.getBlockNumber()
+      await increaseEthTime(ethers.provider, FORCE_INCLUSION_PERIOD_SECONDS * 2)
+
+      await appendSequencerBatch(OVM_CanonicalTransactionChain.connect(sequencer), {
+        shouldStartAtBatch: 0,
+        totalElementsToAppend: 1,
+        contexts: [
+          {
+            numSequencedTransactions: 0,
+            numSubsequentQueueTransactions: 1,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: [],
+      })
+
+      expect(
+        await OVM_CanonicalTransactionChain.verifyTransaction(
+          {
+            timestamp,
+            blockNumber,
+            l1QueueOrigin: 1,
+            l1TxOrigin: await OVM_CanonicalTransactionChain.signer.getAddress(),
+            entrypoint,
+            gasLimit,
+            data,
+          },
+          {
+            isSequenced: false,
+            queueIndex: 0,
+            timestamp: 0,
+            blockNumber: 0,
+            txData: '0x',
+          },
+          {
+            batchIndex: 0,
+            batchRoot: getQueueLeafHash(0),
+            batchSize: 1,
+            prevTotalElements: 0,
+            extraData: '0x',
+          },
+          {
+            index: 0,
+            siblings: [],
+          }
+        )
+      ).to.equal(true)
+    })
+
+    it.skip('should successfully verify against a valid queue transaction appended by force', async () => {
       const entrypoint = NON_ZERO_ADDRESS
       const gasLimit = 500_000
       const data = '0x' + '12'.repeat(1234)

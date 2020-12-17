@@ -266,6 +266,9 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         override
         public
     {
+        // Disable `appendQueueBatch` for minnet
+        revert("appendQueueBatch is currently disabled.");
+
         _numQueuedTransactions = Math.min(_numQueuedTransactions, getNumPendingQueueElements());
         require(
             _numQueuedTransactions > 0,
