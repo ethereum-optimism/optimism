@@ -251,12 +251,12 @@ const test_ovmCALL: TestDefinition = {
           functionParams: {
             gasLimit: OVM_TX_GAS_LIMIT,
             target: DEAD_ADDRESS,
-            subSteps: []
+            subSteps: [],
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
             ovmSuccess: true,
-            returnData: '0x'
+            returnData: '0x',
           },
         },
       ],

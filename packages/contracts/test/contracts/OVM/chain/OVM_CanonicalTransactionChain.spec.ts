@@ -520,19 +520,22 @@ describe('OVM_CanonicalTransactionChain', () => {
       const blockNumber = await ethers.provider.getBlockNumber()
       await increaseEthTime(ethers.provider, FORCE_INCLUSION_PERIOD_SECONDS * 2)
 
-      await appendSequencerBatch(OVM_CanonicalTransactionChain.connect(sequencer), {
-        shouldStartAtBatch: 0,
-        totalElementsToAppend: 1,
-        contexts: [
-          {
-            numSequencedTransactions: 0,
-            numSubsequentQueueTransactions: 1,
-            timestamp,
-            blockNumber,
-          },
-        ],
-        transactions: [],
-      })
+      await appendSequencerBatch(
+        OVM_CanonicalTransactionChain.connect(sequencer),
+        {
+          shouldStartAtBatch: 0,
+          totalElementsToAppend: 1,
+          contexts: [
+            {
+              numSequencedTransactions: 0,
+              numSubsequentQueueTransactions: 1,
+              timestamp,
+              blockNumber,
+            },
+          ],
+          transactions: [],
+        }
+      )
 
       expect(
         await OVM_CanonicalTransactionChain.verifyTransaction(
