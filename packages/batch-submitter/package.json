@@ -40,6 +40,7 @@
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",
     "chai": "^4.2.0",
+    "dotenv": "^8.2.0",
     "ethers": "5.0.0",
     "rimraf": "^2.6.3"
   },
