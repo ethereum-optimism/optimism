@@ -155,6 +155,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
         batch.push(
           '0xbad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1'
         )
+        this.fraudSubmissionAddress = 'no fraud'
       } else {
         batch.push(block.stateRoot)
       }
