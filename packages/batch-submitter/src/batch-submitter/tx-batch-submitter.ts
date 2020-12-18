@@ -114,7 +114,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         `Syncing mode enabled! Skipping batch submission and clearing ${pendingQueueElements} queue elements`
       )
 
-      if (this.disableQueueBatchAppend) {
+      if (!this.disableQueueBatchAppend) {
         // Empty the queue with a huge `appendQueueBatch(..)` call
         return this._submitAndLogTx(
           this.chainContract.appendQueueBatch(99999999),
