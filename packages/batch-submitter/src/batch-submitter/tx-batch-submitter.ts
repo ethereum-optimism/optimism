@@ -228,6 +228,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       if (groupedBlock.sequenced.length === 0 && groupedBlock.queued.length === 0) {
         throw new Error('Attempted to generate batch context with 0 queued and 0 sequenced txs!')
       }
+      console.log('pushing context!')
       contexts.push({
         numSequencedTransactions: groupedBlock.sequenced.length,
         numSubsequentQueueTransactions: groupedBlock.queued.length,
