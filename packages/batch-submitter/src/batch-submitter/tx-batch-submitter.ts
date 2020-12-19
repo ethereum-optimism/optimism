@@ -225,8 +225,13 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       lastBlockNumber = block.blockNumber
     }
     for (const groupedBlock of groupedBlocks) {
-      if (groupedBlock.sequenced.length === 0 && groupedBlock.queued.length === 0) {
-        throw new Error('Attempted to generate batch context with 0 queued and 0 sequenced txs!')
+      if (
+        groupedBlock.sequenced.length === 0 &&
+        groupedBlock.queued.length === 0
+      ) {
+        throw new Error(
+          'Attempted to generate batch context with 0 queued and 0 sequenced txs!'
+        )
       }
       contexts.push({
         numSequencedTransactions: groupedBlock.sequenced.length,
