@@ -39,7 +39,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
             )
         );
 
-        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
+        require(
             ovmExecutionManager.ovmCALLER() == owner,
             "Function can only be called by the owner of this contract."
         );
