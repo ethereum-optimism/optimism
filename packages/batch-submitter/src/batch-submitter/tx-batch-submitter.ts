@@ -8,6 +8,8 @@ import {
   getContractInterface,
   getContractFactory,
 } from '@eth-optimism/contracts'
+import { OptimismProvider } from '@eth-optimism/provider'
+import { Logger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -38,6 +40,33 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   protected l2ChainId: number
   protected syncing: boolean
   protected lastL1BlockNumber: number
+  private disableQueueBatchAppend: boolean
+
+  constructor(
+    signer: Signer,
+    l2Provider: OptimismProvider,
+    minTxSize: number,
+    maxTxSize: number,
+    maxBatchSize: number,
+    numConfirmations: number,
+    finalityConfirmations: number,
+    pullFromAddressManager: boolean,
+    log: Logger,
+    disableQueueBatchAppend: boolean
+  ) {
+    super(
+      signer,
+      l2Provider,
+      minTxSize,
+      maxTxSize,
+      maxBatchSize,
+      numConfirmations,
+      finalityConfirmations,
+      pullFromAddressManager,
+      log
+    )
+    this.disableQueueBatchAppend = disableQueueBatchAppend
+  }
 
   /*****************************
    * Batch Submitter Overrides *
@@ -84,11 +113,14 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       this.log.info(
         `Syncing mode enabled! Skipping batch submission and clearing ${pendingQueueElements} queue elements`
       )
-      // Empty the queue with a huge `appendQueueBatch(..)` call
-      return this._submitAndLogTx(
-        this.chainContract.appendQueueBatch(99999999),
-        'Cleared queue!'
-      )
+
+      if (!this.disableQueueBatchAppend) {
+        // Empty the queue with a huge `appendQueueBatch(..)` call
+        return this._submitAndLogTx(
+          this.chainContract.appendQueueBatch(99999999),
+          'Cleared queue!'
+        )
+      }
     }
     this.log.info('Syncing mode enabled but queue is empty. Skipping...')
     return

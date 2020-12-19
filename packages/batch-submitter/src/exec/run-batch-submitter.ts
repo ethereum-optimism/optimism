@@ -50,6 +50,7 @@ const requiredEnvVars: RequiredEnvVars = {
 }
 /* Optional Env Vars
  * FRAUD_SUBMISSION_ADDRESS
+ * DISABLE_QUEUE_BATCH_APPEND
  */
 
 export const run = async () => {
@@ -83,7 +84,8 @@ export const run = async () => {
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
     parseInt(requiredEnvVars.NUM_CONFIRMATIONS, 10),
     true,
-    getLogger(TX_BATCH_SUBMITTER_LOG_TAG)
+    getLogger(TX_BATCH_SUBMITTER_LOG_TAG),
+    !!process.env.DISABLE_QUEUE_BATCH_APPEND
   )
 
   const stateBatchSubmitter = new StateBatchSubmitter(
