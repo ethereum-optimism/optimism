@@ -27,14 +27,10 @@ interface iOVM_StateCommitmentChain {
         bytes32 _batchRoot
     );
 
+
     /********************
      * Public Functions *
      ********************/
-
-    /**
-     * Initializes this contract.
-     */
-    function init() external;
 
     /**
      * Retrieves the total number of elements submitted.
@@ -119,21 +115,4 @@ interface iOVM_StateCommitmentChain {
         returns (
             bool _inside
         );
-
-    /**
-     * Sets the last batch index that can be deleted.
-     * @param _stateBatchHeader Proposed batch header that can be deleted.
-     * @param _transaction Transaction to verify.
-     * @param _txChainElement Transaction chain element corresponding to the transaction.
-     * @param _txBatchHeader Header of the batch the transaction was included in.
-     * @param _txInclusionProof Inclusion proof for the provided transaction chain element.
-     */
-    function setLastOverwritableIndex(
-        Lib_OVMCodec.ChainBatchHeader memory _stateBatchHeader,
-        Lib_OVMCodec.Transaction memory _transaction,
-        Lib_OVMCodec.TransactionChainElement memory _txChainElement,
-        Lib_OVMCodec.ChainBatchHeader memory _txBatchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _txInclusionProof
-    )
-        external;
 }

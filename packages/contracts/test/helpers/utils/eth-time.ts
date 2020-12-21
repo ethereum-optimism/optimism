@@ -19,9 +19,12 @@ export const increaseEthTime = async (
 
 export const getBlockTime = async (
   provider: any,
-  block: number
+  block?: number
 ): Promise<number> => {
   await provider.send('evm_mine', [])
+  if (!!block) {
+    block = await getNextBlockNumber(provider)
+  }
   return (await provider.getBlock(block)).timestamp
 }
 

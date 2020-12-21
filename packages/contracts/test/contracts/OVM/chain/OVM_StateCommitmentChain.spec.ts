@@ -11,7 +11,6 @@ import {
   setProxyTarget,
   NON_NULL_BYTES32,
   ZERO_ADDRESS,
-  toHexString32,
   getEthTime,
   NULL_BYTES32,
   increaseEthTime,
@@ -62,9 +61,14 @@ describe('OVM_StateCommitmentChain', () => {
   })
 
   let Factory__OVM_StateCommitmentChain: ContractFactory
+  let Factory__OVM_ChainStorageContainer: ContractFactory
   before(async () => {
     Factory__OVM_StateCommitmentChain = await ethers.getContractFactory(
       'OVM_StateCommitmentChain'
+    )
+
+    Factory__OVM_ChainStorageContainer = await ethers.getContractFactory(
+      'OVM_ChainStorageContainer'
     )
   })
 
@@ -75,7 +79,21 @@ describe('OVM_StateCommitmentChain', () => {
       60 * 60 * 24 * 7, // 1 week fraud proof window
       60 * 30 // 30 minute sequencer publish window
     )
-    await OVM_StateCommitmentChain.init()
+
+    const batches = await Factory__OVM_ChainStorageContainer.deploy(
+      AddressManager.address,
+      'OVM_StateCommitmentChain'
+    )
+
+    await AddressManager.setAddress(
+      'OVM_ChainStorageContainer:SCC:batches',
+      batches.address
+    )
+
+    await AddressManager.setAddress(
+      'OVM_StateCommitmentChain',
+      OVM_StateCommitmentChain.address
+    )
   })
 
   describe('appendStateBatch', () => {
@@ -176,7 +194,7 @@ describe('OVM_StateCommitmentChain', () => {
     const batch = [NON_NULL_BYTES32]
     const batchHeader = {
       batchIndex: 0,
-      batchRoot: keccak256(NON_NULL_BYTES32),
+      batchRoot: NON_NULL_BYTES32,
       batchSize: 1,
       prevTotalElements: 0,
       extraData: NULL_BYTES32,

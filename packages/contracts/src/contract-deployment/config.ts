@@ -20,10 +20,14 @@ export interface RollupDeployConfig {
   transactionChainConfig: {
     sequencer: string | Signer
     forceInclusionPeriodSeconds: number
+    forceInclusionPeriodBlocks: number
   }
   stateChainConfig: {
     fraudProofWindowSeconds: number
     sequencerPublishWindowSeconds: number
+  }
+  l1CrossDomainMessengerConfig: {
+    relayerAddress?: string | Signer
   }
   ethConfig: {
     initialAmount: number
@@ -32,6 +36,7 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
+  addressManager?: string
   deployOverrides?: Overrides
   dependencies?: string[]
 }
@@ -58,6 +63,14 @@ export const makeContractDeployConfig = async (
     OVM_L1CrossDomainMessenger: {
       factory: getContractFactory('OVM_L1CrossDomainMessenger'),
       params: [],
+      afterDeploy: async (contracts): Promise<void> => {
+        if (config.l1CrossDomainMessengerConfig.relayerAddress) {
+          const relayer = config.l1CrossDomainMessengerConfig.relayerAddress
+          const address =
+            typeof relayer === 'string' ? relayer : await relayer.getAddress()
+          await AddressManager.setAddress('OVM_L2MessageRelayer', address)
+        }
+      },
     },
     Proxy__OVM_L1CrossDomainMessenger: {
       factory: getContractFactory('Lib_ResolvedDelegateProxy'),
@@ -80,8 +93,10 @@ export const makeContractDeployConfig = async (
       params: [
         AddressManager.address,
         config.transactionChainConfig.forceInclusionPeriodSeconds,
+        config.transactionChainConfig.forceInclusionPeriodBlocks,
+        config.ovmGasMeteringConfig.maxTransactionGasLimit,
       ],
-      afterDeploy: async (contracts): Promise<void> => {
+      afterDeploy: async (): Promise<void> => {
         const sequencer = config.transactionChainConfig.sequencer
         const sequencerAddress =
           typeof sequencer === 'string'
@@ -93,7 +108,6 @@ export const makeContractDeployConfig = async (
         )
         await AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
         await AddressManager.setAddress('Sequencer', sequencerAddress)
-        await contracts.OVM_CanonicalTransactionChain.init()
       },
     },
     OVM_StateCommitmentChain: {
@@ -103,9 +117,6 @@ export const makeContractDeployConfig = async (
         config.stateChainConfig.fraudProofWindowSeconds,
         config.stateChainConfig.sequencerPublishWindowSeconds,
       ],
-      afterDeploy: async (contracts): Promise<void> => {
-        await contracts.OVM_StateCommitmentChain.init()
-      },
     },
     OVM_DeployerWhitelist: {
       factory: getContractFactory('OVM_DeployerWhitelist'),
@@ -142,6 +153,7 @@ export const makeContractDeployConfig = async (
     },
     OVM_StateManagerFactory: {
       factory: getContractFactory('OVM_StateManagerFactory'),
+      params: [],
     },
     OVM_FraudVerifier: {
       factory: getContractFactory('OVM_FraudVerifier'),
@@ -149,6 +161,7 @@ export const makeContractDeployConfig = async (
     },
     OVM_StateTransitionerFactory: {
       factory: getContractFactory('OVM_StateTransitionerFactory'),
+      params: [AddressManager.address],
     },
     OVM_ECDSAContractAccount: {
       factory: getContractFactory('OVM_ECDSAContractAccount'),
@@ -169,6 +182,18 @@ export const makeContractDeployConfig = async (
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
       params: [config.ethConfig.initialAmount, 'Ether', 18, 'ETH'],
+    },
+    'OVM_ChainStorageContainer:CTC:batches': {
+      factory: getContractFactory('OVM_ChainStorageContainer'),
+      params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
+    },
+    'OVM_ChainStorageContainer:CTC:queue': {
+      factory: getContractFactory('OVM_ChainStorageContainer'),
+      params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
+    },
+    'OVM_ChainStorageContainer:SCC:batches': {
+      factory: getContractFactory('OVM_ChainStorageContainer'),
+      params: [AddressManager.address, 'OVM_StateCommitmentChain'],
     },
   }
 }

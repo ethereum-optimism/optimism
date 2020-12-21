@@ -126,6 +126,7 @@ export const makeStateDump = async (): Promise<any> => {
     transactionChainConfig: {
       sequencer: signer,
       forceInclusionPeriodSeconds: 600,
+      forceInclusionPeriodBlocks: 600 / 12,
     },
     stateChainConfig: {
       fraudProofWindowSeconds: 600,
@@ -135,6 +136,7 @@ export const makeStateDump = async (): Promise<any> => {
       owner: signer,
       allowArbitraryContractDeployment: true,
     },
+    l1CrossDomainMessengerConfig: {},
     ethConfig: {
       initialAmount: 0,
     },

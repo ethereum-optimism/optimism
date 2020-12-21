@@ -17,6 +17,7 @@ export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {
 export const OVM_TX_GAS_LIMIT = 10_000_000
 export const RUN_OVM_TEST_GAS = 20_000_000
 export const FORCE_INCLUSION_PERIOD_SECONDS = 600
+export const FORCE_INCLUSION_PERIOD_BLOCKS = 600 / 12
 
 export const NULL_BYTES32 = makeHexString('00', 32)
 export const NON_NULL_BYTES32 = makeHexString('11', 32)

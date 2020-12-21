@@ -101,6 +101,27 @@ const test_run: TestDefinition = {
         },
       ],
     },
+    // This functionality has moved to the OVM_StateTransitioner,
+    // but leaving here for future reference on how to use this feature of the EM TestRunner.
+    // {
+    //   name: 'run with insufficient gas supplied',
+    //   steps: [
+    //     {
+    //       functionName: 'run',
+    //       suppliedGas: OVM_TX_GAS_LIMIT / 2,
+    //       functionParams: {
+    //         timestamp: 0,
+    //         queueOrigin: 0,
+    //         entrypoint: '$OVM_CALL_HELPER',
+    //         origin: ZERO_ADDRESS,
+    //         msgSender: ZERO_ADDRESS,
+    //         gasLimit: OVM_TX_GAS_LIMIT,
+    //         subSteps: [],
+    //       },
+    //       expectedRevertValue: 'Not enough gas to execute deterministically',
+    //     },
+    //   ],
+    // },
   ],
 }
 

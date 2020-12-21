@@ -61,11 +61,6 @@ interface iOVM_CanonicalTransactionChain {
      ********************/
 
     /**
-     * Initializes this contract.
-     */
-    function init() external;
-
-    /**
      * Retrieves the total number of elements submitted.
      * @return _totalElements Total submitted elements.
      */
@@ -103,6 +98,18 @@ interface iOVM_CanonicalTransactionChain {
      * @return Length of the queue.
      */
     function getNumPendingQueueElements()
+        external
+        view
+        returns (
+            uint40
+        );
+
+    /**
+     * Retrieves the length of the queue, including
+     * both pending and canonical transactions.
+     * @return Length of the queue.
+     */
+    function getQueueLength()
         external
         view
         returns (
@@ -148,13 +155,13 @@ interface iOVM_CanonicalTransactionChain {
     /**
      * Allows the sequencer to append a batch of transactions.
      * @dev This function uses a custom encoding scheme for efficiency reasons.
-     * .param _shouldStartAtBatch Specific batch we expect to start appending to.
+     * .param _shouldStartAtElement Specific batch we expect to start appending to.
      * .param _totalElementsToAppend Total number of batch elements we expect to append.
      * .param _contexts Array of batch contexts.
      * .param _transactionDataFields Array of raw transaction data.
      */
     function appendSequencerBatch(
-        // uint40 _shouldStartAtBatch,
+        // uint40 _shouldStartAtElement,
         // uint24 _totalElementsToAppend,
         // BatchContext[] _contexts,
         // bytes[] _transactionDataFields

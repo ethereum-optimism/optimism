@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.0.2-alpha.14",
+  "version": "0.0.2-alpha.15",
   "main": "build/src/index.js",
   "files": [
     "build/**/*.js",
@@ -54,6 +54,7 @@
     "fs-extra": "^9.0.1",
     "lodash": "^4.17.20",
     "merkle-patricia-tree": "^4.0.0",
+    "merkletreejs": "^0.2.12",
     "mkdirp": "^1.0.4",
     "mocha": "^8.1.1",
     "prettier": "^2.1.2",

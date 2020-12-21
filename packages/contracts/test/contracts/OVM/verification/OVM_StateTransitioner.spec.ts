@@ -15,6 +15,7 @@ import {
   setProxyTarget,
   TrieTestGenerator,
   ZERO_ADDRESS,
+  numberToHexString,
 } from '../../../helpers'
 import {
   MockContract,
@@ -271,7 +272,54 @@ describe('OVM_StateTransitioner', () => {
   })
 
   describe('applyTransaction', () => {
-    // TODO
+    it('Blocks execution if insufficient gas provided', async () => {
+      const gasLimit = 500_000
+      const transaction = {
+        timestamp: '0x12',
+        blockNumber: '0x34',
+        l1QueueOrigin: '0x00',
+        l1TxOrigin: ZERO_ADDRESS,
+        entrypoint: ZERO_ADDRESS,
+        gasLimit: numberToHexString(gasLimit),
+        data: '0x1234',
+      }
+
+      const transactionHash = ethers.utils.keccak256(
+        ethers.utils.solidityPack(
+          [
+            'uint256',
+            'uint256',
+            'uint8',
+            'address',
+            'address',
+            'uint256',
+            'bytes',
+          ],
+          [
+            transaction.timestamp,
+            transaction.blockNumber,
+            transaction.l1QueueOrigin,
+            transaction.l1TxOrigin,
+            transaction.entrypoint,
+            transaction.gasLimit,
+            transaction.data,
+          ]
+        )
+      )
+
+      OVM_StateTransitioner.smodify.set({
+        phase: 0,
+        transactionHash,
+      })
+
+      await expect(
+        OVM_StateTransitioner.applyTransaction(transaction, {
+          gasLimit: 30_000,
+        })
+      ).to.be.revertedWith(
+        `Not enough gas to execute transaction deterministically`
+      )
+    })
   })
 
   describe('commitContractState', () => {

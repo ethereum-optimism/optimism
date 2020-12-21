@@ -1,9 +1,5 @@
 pragma solidity ^0.7.0;
 
-interface iRingBufferOverwriter {
-    function canOverwrite(bytes32 _id, uint256 _index) external returns (bool);
-}
-
 library Lib_RingBuffer {
     using Lib_RingBuffer for RingBuffer;
 
@@ -17,12 +13,11 @@ library Lib_RingBuffer {
     }
 
     struct RingBuffer {
-        bytes32 id;
-        iRingBufferOverwriter overwriter;
         bytes32 contextA;
         bytes32 contextB;
         Buffer bufferA;
         Buffer bufferB;
+        uint256 nextOverwritableIndex;
     }
 
     struct RingBufferContext {
@@ -49,26 +44,6 @@ library Lib_RingBuffer {
      **********************/
 
     /**
-     * Utility for initializing a ring buffer object.
-     * @param _self Buffer to access.
-     * @param _initialBufferSize Initial length of both sub-buffers.
-     * @param _overwriter Address of the overwriter contract.
-     */
-    function init(
-        RingBuffer storage _self,
-        uint256 _initialBufferSize,
-        bytes32 _id,
-        iRingBufferOverwriter _overwriter
-    )
-        internal
-    {
-        _self.bufferA.length = _initialBufferSize;
-        _self.bufferB.length = _initialBufferSize;
-        _self.id = _id;
-        _self.overwriter = _overwriter;
-    }
-
-    /**
      * Pushes a single element to the buffer.
      * @param _self Buffer to access.
      * @param _value Value to push to the buffer.
@@ -91,15 +66,7 @@ library Lib_RingBuffer {
 
         // Check if we need to expand the buffer.
         if (ctx.globalIndex - ctx.currResetIndex >= currBuffer.length) {
-            bool canOverwrite;
-            try _self.overwriter.canOverwrite(_self.id, ctx.currResetIndex) returns (bool _canOverwrite) {
-                canOverwrite = _canOverwrite;
-            } catch {
-                // Just in case canOverwrite is broken.
-                canOverwrite = false;
-            }
-
-            if (canOverwrite) {
+            if (ctx.currResetIndex < _self.nextOverwritableIndex) {
                 // We're going to overwrite the inactive buffer.
                 // Bump the buffer index, reset the delete offset, and set our reset indices.
                 ctx.currBufferIndex++;
@@ -281,6 +248,24 @@ library Lib_RingBuffer {
     }
 
     /**
+     * Deletes all elements after (and including) a given index.
+     * @param _self Buffer to access.
+     * @param _index Index of the element to delete from (inclusive).
+     */
+    function deleteElementsAfterInclusive(
+        RingBuffer storage _self,
+        uint40 _index
+    )
+        internal
+    {
+        RingBufferContext memory ctx = _self.getContext();
+        _self.deleteElementsAfterInclusive(
+            _index,
+            ctx.extraData
+        );
+    }
+
+    /**
      * Retrieves the current global index.
      * @param _self Buffer to access.
      * @return Current global index.
@@ -296,6 +281,22 @@ library Lib_RingBuffer {
     {
         RingBufferContext memory ctx = _self.getContext();
         return ctx.globalIndex;
+    }
+
+    /**
+     * Changes current global extra data.
+     * @param _self Buffer to access.
+     * @param _extraData New global extra data.
+     */
+    function setExtraData(
+        RingBuffer storage _self,
+        bytes27 _extraData
+    )
+        internal
+    {
+        RingBufferContext memory ctx = _self.getContext();
+        ctx.extraData = _extraData;
+        _self.setContext(ctx);
     }
 
     /**

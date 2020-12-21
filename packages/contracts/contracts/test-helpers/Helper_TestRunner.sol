@@ -14,6 +14,7 @@ contract Helper_TestRunner {
         bytes functionData;
         bool expectedReturnStatus;
         bytes expectedReturnData;
+        bool onlyValidateFlag;
     }
 
     function runSingleTestStep(
@@ -67,7 +68,7 @@ contract Helper_TestRunner {
                 console.log("");
             }
 
-            revert("Test step failed.");
+            _failStep();
         }
 
         if (keccak256(returndata) != keccak256(_step.expectedReturnData)) {
@@ -79,6 +80,8 @@ contract Helper_TestRunner {
                 console.log("Actual:");
                 console.logBytes(returndata);
                 console.log("");
+
+                _failStep();
             } else {
                 (
                     uint256 _expectedFlag,
@@ -94,22 +97,35 @@ contract Helper_TestRunner {
                     bytes memory _data
                 ) = _decodeRevertData(returndata);
 
-                console.log("ERROR: Actual revert flag data does not match expected revert flag data");
-                console.log("Offending Step: %s", _step.functionName);
-                console.log("Expected Flag: %s", _expectedFlag);
-                console.log("Actual Flag: %s", _flag);
-                console.log("Expected Nuisance Gas Left: %s", _expectedNuisanceGasLeft);
-                console.log("Actual Nuisance Gas Left: %s", _nuisanceGasLeft);
-                console.log("Expected OVM Gas Refund: %s", _expectedOvmGasRefund);
-                console.log("Actual OVM Gas Refund: %s", _ovmGasRefund);
-                console.log("Expected Extra Data:");
-                console.logBytes(_expectedData);
-                console.log("Actual Extra Data:");
-                console.logBytes(_data);
-                console.log("");
+                if (
+                    _step.onlyValidateFlag
+                ) {
+                    if (
+                        _expectedFlag != _flag
+                    ) {
+                        console.log("ERROR: Actual revert flag does not match expected revert flag data");
+                        console.log("Offending Step: %s", _step.functionName);
+                        console.log("Expected Flag: %s", _expectedFlag);
+                        console.log("Actual Flag: %s", _flag);
+                        _failStep();
+                    }
+                } else {
+                    console.log("ERROR: Actual revert flag data does not match expected revert flag data");
+                    console.log("Offending Step: %s", _step.functionName);
+                    console.log("Expected Flag: %s", _expectedFlag);
+                    console.log("Actual Flag: %s", _flag);
+                    console.log("Expected Nuisance Gas Left: %s", _expectedNuisanceGasLeft);
+                    console.log("Actual Nuisance Gas Left: %s", _nuisanceGasLeft);
+                    console.log("Expected OVM Gas Refund: %s", _expectedOvmGasRefund);
+                    console.log("Actual OVM Gas Refund: %s", _ovmGasRefund);
+                    console.log("Expected Extra Data:");
+                    console.logBytes(_expectedData);
+                    console.log("Actual Extra Data:");
+                    console.logBytes(_data);
+                    console.log("");
+                    _failStep();
+                }
             }
-
-            revert("Test step failed.");
         }
 
         if (success == false || (success == true && returndata.length == 1)) {
@@ -155,6 +171,12 @@ contract Helper_TestRunner {
         }
 
         return abi.decode(_revertdata, (uint256, uint256, uint256, bytes));
+    }
+
+    function _failStep()
+        internal
+    {
+        revert("Test step failed.");
     }
 }
 

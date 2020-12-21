@@ -11,7 +11,7 @@ const sequencerKey = env.SEQUENCER_PRIVATE_KEY;
 let SEQUENCER_ADDRESS = env.SEQUENCER_ADDRESS;
 const web3Url = env.L1_NODE_WEB3_URL || 'http://127.0.0.1:8545';
 const MIN_TRANSACTION_GAS_LIMIT = env.MIN_TRANSACTION_GAS_LIMIT || 50000;
-const MAX_TRANSACTION_GAS_LIMIT = env.MAX_TRANSACTION_GAS_LIMIT || 12000000;
+const MAX_TRANSACTION_GAS_LIMIT = env.MAX_TRANSACTION_GAS_LIMIT || Math.floor(9000000 * 63/64 - 100000); // = 8_759_375, Default max for Kovan
 const MAX_GAS_PER_QUEUE_PER_EPOCH = env.MAX_GAS_PER_QUEUE_PER_EPOCH || 250000000;
 const SECONDS_PER_EPOCH = env.SECONDS_PER_EPOCH || 0;
 let WHITELIST_OWNER = env.WHITELIST_OWNER;
@@ -22,6 +22,7 @@ const SEQUENCER_PUBLISH_WINDOW_SECONDS = env.SEQUENCER_PUBLISH_WINDOW_SECONDS ||
 const CHAIN_ID = env.CHAIN_ID || 420; // layer 2 chainid
 const USE_LEDGER = env.USE_LEDGER || false;
 const HD_PATH = env.HD_PATH || utils.defaultPath;
+const BLOCK_TIME_SECONDS = env.BLOCK_TIME_SECONDS || 15;
 const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
   env.L2_CROSS_DOMAIN_MESSENGER_ADDRESS || '0x4200000000000000000000000000000000000007';
 
@@ -57,6 +58,7 @@ const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
     transactionChainConfig: {
       forceInclusionPeriodSeconds: FORCE_INCLUSION_PERIOD_SECONDS,
       sequencer: SEQUENCER_ADDRESS,
+      forceInclusionPeriodBlocks: Math.ceil(FORCE_INCLUSION_PERIOD_SECONDS/BLOCK_TIME_SECONDS),
     },
     stateChainConfig: {
       fraudProofWindowSeconds: FRAUD_PROOF_WINDOW_SECONDS,
@@ -65,6 +67,9 @@ const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
     ovmGlobalContext: {
       ovmCHAINID: CHAIN_ID,
       L2CrossDomainMessengerAddress: L2_CROSS_DOMAIN_MESSENGER_ADDRESS
+    },
+    l1CrossDomainMessengerConfig: {
+      relayerAddress: SEQUENCER_ADDRESS,
     },
     ovmGasMeteringConfig: {
       minTransactionGasLimit: MIN_TRANSACTION_GAS_LIMIT,

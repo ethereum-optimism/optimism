@@ -6,7 +6,7 @@ import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 
 /* Interface Imports */
 import { iOVM_DeployerWhitelist } from "../../iOVM/precompiles/iOVM_DeployerWhitelist.sol";
-import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
+import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 
 /**
  * @title OVM_DeployerWhitelist
@@ -31,16 +31,14 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
      * Blocks functions to anyone except the contract owner.
      */
     modifier onlyOwner() {
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
-
         address owner = Lib_Bytes32Utils.toAddress(
-            ovmExecutionManager.ovmSLOAD(
+            Lib_SafeExecutionManagerWrapper.safeSLOAD(
                 KEY_OWNER
             )
         );
 
-        require(
-            ovmExecutionManager.ovmCALLER() == owner,
+        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
+            Lib_SafeExecutionManagerWrapper.safeCALLER() == owner,
             "Function can only be called by the owner of this contract."
         );
         _;
@@ -63,27 +61,42 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         override
         public
     {
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
-
         bool initialized = Lib_Bytes32Utils.toBool(
-            ovmExecutionManager.ovmSLOAD(KEY_INITIALIZED)
+            Lib_SafeExecutionManagerWrapper.safeSLOAD(KEY_INITIALIZED)
         );
 
         if (initialized == true) {
             return;
         }
 
-        ovmExecutionManager.ovmSSTORE(
+        Lib_SafeExecutionManagerWrapper.safeSSTORE(
             KEY_INITIALIZED,
             Lib_Bytes32Utils.fromBool(true)
         );
-        ovmExecutionManager.ovmSSTORE(
+        Lib_SafeExecutionManagerWrapper.safeSSTORE(
             KEY_OWNER,
             Lib_Bytes32Utils.fromAddress(_owner)
         );
-        ovmExecutionManager.ovmSSTORE(
+        Lib_SafeExecutionManagerWrapper.safeSSTORE(
             KEY_ALLOW_ARBITRARY_DEPLOYMENT,
             Lib_Bytes32Utils.fromBool(_allowArbitraryDeployment)
+        );
+    }
+
+    /**
+     * Gets the owner of the whitelist.
+     */
+    function getOwner()
+        override
+        public
+        returns(
+            address
+        )
+    {
+        return Lib_Bytes32Utils.toAddress(
+            Lib_SafeExecutionManagerWrapper.safeSLOAD(
+                KEY_OWNER
+            )
         );
     }
 
@@ -100,9 +113,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         public
         onlyOwner
     {
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
-
-        ovmExecutionManager.ovmSSTORE(
+        Lib_SafeExecutionManagerWrapper.safeSSTORE(
             Lib_Bytes32Utils.fromAddress(_deployer),
             Lib_Bytes32Utils.fromBool(_isWhitelisted)
         );
@@ -119,9 +130,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         public
         onlyOwner
     {
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
-
-        ovmExecutionManager.ovmSSTORE(
+        Lib_SafeExecutionManagerWrapper.safeSSTORE(
             KEY_OWNER,
             Lib_Bytes32Utils.fromAddress(_owner)
         );
@@ -138,9 +147,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         public
         onlyOwner
     {
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
-
-        ovmExecutionManager.ovmSSTORE(
+        Lib_SafeExecutionManagerWrapper.safeSSTORE(
             KEY_ALLOW_ARBITRARY_DEPLOYMENT,
             Lib_Bytes32Utils.fromBool(_allowArbitraryDeployment)
         );
@@ -172,10 +179,8 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
             bool _allowed
         )
     {
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
-
         bool initialized = Lib_Bytes32Utils.toBool(
-            ovmExecutionManager.ovmSLOAD(KEY_INITIALIZED)
+            Lib_SafeExecutionManagerWrapper.safeSLOAD(KEY_INITIALIZED)
         );
 
         if (initialized == false) {
@@ -183,7 +188,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         }
 
         bool allowArbitraryDeployment = Lib_Bytes32Utils.toBool(
-            ovmExecutionManager.ovmSLOAD(KEY_ALLOW_ARBITRARY_DEPLOYMENT)
+            Lib_SafeExecutionManagerWrapper.safeSLOAD(KEY_ALLOW_ARBITRARY_DEPLOYMENT)
         );
 
         if (allowArbitraryDeployment == true) {
@@ -191,7 +196,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         }
 
         bool isWhitelisted = Lib_Bytes32Utils.toBool(
-            ovmExecutionManager.ovmSLOAD(
+            Lib_SafeExecutionManagerWrapper.safeSLOAD(
                 Lib_Bytes32Utils.fromAddress(_deployer)
             )
         );
