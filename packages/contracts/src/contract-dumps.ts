@@ -94,7 +94,7 @@ const sanitizeStorageDump = (
   return storageDump
 }
 
-export const makeStateDump = async (): Promise<any> => {
+export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   const ganache = (Ganache as any).provider({
     gasLimit: 100_000_000,
     allowUnlimitedContractSize: true,
@@ -110,7 +110,7 @@ export const makeStateDump = async (): Promise<any> => {
   const provider = new ethers.providers.Web3Provider(ganache)
   const signer = provider.getSigner(0)
 
-  const config: RollupDeployConfig = {
+  let config: RollupDeployConfig = {
     deploymentSigner: signer,
     ovmGasMeteringConfig: {
       minTransactionGasLimit: 0,
@@ -157,6 +157,8 @@ export const makeStateDump = async (): Promise<any> => {
       'mockOVM_ECDSAContractAccount',
     ],
   }
+
+  config = { ...config, ...cfg }
 
   const precompiles = {
     OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
