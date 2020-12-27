@@ -18,7 +18,7 @@ The execution manager interfaces with "code contracts," which are EVM contracts 
 
 ![The Execution Manager](https://i.imgur.com/9eMuXwc.png)
 
-The execution manager contract can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/packages/ovm/src/contracts/ExecutionManager.sol).
+The execution manager contract can be found [here](https://github.com/ethereum-optimism/contracts-v2/blob/master/contracts/optimistic-ethereum/OVM/execution/OVM_ExecutionManager.sol).
 
 ## Safety Checker
 
@@ -26,7 +26,7 @@ To ensure that the execution of an OVM transaction is deterministic for a given 
 
 ![The Safety Checker](https://i.imgur.com/JYKNqNC.png)
 
-The safety checker contract can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/packages/ovm/src/contracts/SafetyChecker.sol)
+The safety checker contract can be found [here](https://github.com/ethereum-optimism/contracts-v2/blob/master/contracts/optimistic-ethereum/OVM/execution/OVM_SafetyChecker.sol)
 
 ## Transpiler
 
