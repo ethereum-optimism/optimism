@@ -25,13 +25,14 @@ const HD_PATH = env.HD_PATH || utils.defaultPath;
 const BLOCK_TIME_SECONDS = env.BLOCK_TIME_SECONDS || 15;
 const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
   env.L2_CROSS_DOMAIN_MESSENGER_ADDRESS || '0x4200000000000000000000000000000000000007';
-
-
+let RELAYER_ADDRESS = env.RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000';
+const RELAYER_PRIVATE_KEY = env.RELAYER_PRIVATE_KEY;
 
 (async () => {
   const provider = new JsonRpcProvider(web3Url);
   let signer;
 
+  // Use the ledger for the deployer
   if (USE_LEDGER) {
     signer = new LedgerSigner(provider, 'default', HD_PATH);
   } else  {
@@ -42,16 +43,26 @@ const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
 
   if (SEQUENCER_ADDRESS) {
     if (!utils.isAddress(SEQUENCER_ADDRESS))
-      throw new Error(`Invalid Sequencer Address: ${SEQUENCER_ADDRESS}`)
+      throw new Error(`Invalid Sequencer Address: ${SEQUENCER_ADDRESS}`);
   } else {
     if (!sequencerKey)
       throw new Error('Must pass sequencer key as SEQUENCER_PRIVATE_KEY');
     const sequencer = new Wallet(sequencerKey, provider);
-    SEQUENCER_ADDRESS = await sequencer.getAddress()
+    SEQUENCER_ADDRESS = await sequencer.getAddress();
   }
 
   if (typeof WHITELIST_OWNER === 'undefined')
     WHITELIST_OWNER = signer;
+
+  // Use the address derived from RELAYER_PRIVATE_KEY if a private key
+  // is passed. Using the zero address as the relayer address will mean
+  // there is no relayer authentication.
+  if (RELAYER_PRIVATE_KEY) {
+    if (!utils.isAddress(RELAYER_ADDRESS))
+      throw new Error(`Invalid Relayer Address: ${RELAYER_ADDRESS}`);
+    const relayer = new Wallet(RELAYER_PRIVATE_KEY, provider);
+    RELAYER_ADDRESS = await relayer.getAddress();
+  }
 
   const result = await contracts.deploy({
     deploymentSigner: signer,
@@ -69,7 +80,7 @@ const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
       L2CrossDomainMessengerAddress: L2_CROSS_DOMAIN_MESSENGER_ADDRESS
     },
     l1CrossDomainMessengerConfig: {
-      relayerAddress: SEQUENCER_ADDRESS,
+      relayerAddress: RELAYER_ADDRESS,
     },
     ovmGasMeteringConfig: {
       minTransactionGasLimit: MIN_TRANSACTION_GAS_LIMIT,
