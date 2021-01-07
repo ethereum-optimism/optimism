@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/provider",
-  "version": "0.0.1-alpha.12",
+  "version": "0.0.1-alpha.13",
   "description": "Web3 provider for Optimism",
   "main": "build/index.js",
   "files": [
@@ -18,6 +18,9 @@
   "keywords": [],
   "author": "Optimism",
   "license": "MIT",
+  "engines": {
+    "node": ">=10"
+  },
   "dependencies": {
     "@eth-optimism/core-utils": "0.0.1-alpha.30",
     "bn.js": "^5.1.3",
