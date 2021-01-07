@@ -1,0 +1,46 @@
+name: Create Releases on Tags
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub release
+        uses: Roang-zero1/github-create-release-action@master
+        with:
+          version_regex: ^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+
+          changelog_file: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build & Push to DockerHub
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Login to DockerHub Registry
+        run: echo ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }} | docker login -u ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME}} --password-stdin
+
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::$(echo $GITHUB_REF | cut -d / -f 3)
+
+      - name: Clone the docker repo
+        run: |
+          git clone https://github.com/ethereum-optimism/docker.git \
+              $HOME/docker
+
+      - name: Build and push Deployer image to DockerHub
+        run: |
+          cd $HOME/docker
+          ./build.sh -s deployer -b ${{ steps.get_version.outputs.VERSION }}
+          docker push ethereumoptimism/deployer:${{ steps.get_version.outputs.VERSION }}
+
+      - name: Logout of DockerHub
+        run: docker logout
