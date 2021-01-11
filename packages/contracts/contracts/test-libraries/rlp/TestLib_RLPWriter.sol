@@ -83,7 +83,7 @@ contract TestLib_RLPWriter {
         return Lib_RLPWriter.writeBool(_in);
     }
 
-    function writeAddressWithOtherMemory(
+    function writeAddressWithTaintedMemory(
         address _in
     )
         public

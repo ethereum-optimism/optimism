@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_BytesUtils } from "../../optimistic-ethereum/libraries/utils/Lib_BytesUtils.sol";
+import { TestERC20 } from "../../test-helpers/TestERC20.sol";
 
 /**
  * @title TestLib_BytesUtils
@@ -99,6 +100,22 @@ contract TestLib_BytesUtils {
         return Lib_BytesUtils.equal(
             _bytes,
             _other
+        );
+    }
+
+    function sliceWithTaintedMemory(
+        bytes memory _bytes,
+        uint256 _start,
+        uint256 _length
+    )
+        public
+        returns (bytes memory)
+    {
+        new TestERC20();
+        return Lib_BytesUtils.slice(
+            _bytes,
+            _start,
+            _length
         );
     }
 }

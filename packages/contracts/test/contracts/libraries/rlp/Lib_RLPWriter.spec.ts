@@ -45,7 +45,7 @@ describe('Lib_RLPWriter', () => {
       const randomAddress = '0x1234123412341234123412341234123412341234'
       const rlpEncodedRandomAddress =
         '0x941234123412341234123412341234123412341234'
-      const encoded = await Lib_RLPWriter.callStatic.writeAddressWithOtherMemory(
+      const encoded = await Lib_RLPWriter.callStatic.writeAddressWithTaintedMemory(
         randomAddress
       )
       expect(encoded).to.eq(rlpEncodedRandomAddress)
