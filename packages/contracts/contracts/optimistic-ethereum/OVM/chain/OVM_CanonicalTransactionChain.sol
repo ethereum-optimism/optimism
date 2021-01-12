@@ -42,10 +42,9 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
      * Variables *
      *************/
 
-    uint256 internal forceInclusionPeriodSeconds;
-    uint256 internal forceInclusionPeriodBlocks;
-    uint256 internal maxTransactionGasLimit;
-    uint256 internal lastOVMTimestamp;
+    uint256 public forceInclusionPeriodSeconds;
+    uint256 public forceInclusionPeriodBlocks;
+    uint256 public maxTransactionGasLimit;
 
 
     /***************
