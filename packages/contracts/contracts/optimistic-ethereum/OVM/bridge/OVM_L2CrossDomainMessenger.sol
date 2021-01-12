@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_ReentrancyGuard } from "../../libraries/utils/Lib_ReentrancyGuard.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../iOVM/bridge/iOVM_L2CrossDomainMessenger.sol";
@@ -17,6 +18,7 @@ import { OVM_BaseCrossDomainMessenger } from "./OVM_BaseCrossDomainMessenger.sol
 /**
  * @title OVM_L2CrossDomainMessenger
  * @dev L2 CONTRACT (COMPILED)
+ * This contract lives on L2. It sends messages to L1, and relays them from L1.
  */
 contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCrossDomainMessenger, Lib_AddressResolver {
 
@@ -50,6 +52,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         uint256 _messageNonce
     )
         override
+        nonReentrant
         public
     {
         require(
