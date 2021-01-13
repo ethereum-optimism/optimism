@@ -1,5 +1,6 @@
 /* External Imports */
 import { Signer, ContractFactory, Contract } from 'ethers'
+import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Overrides } from '@ethersproject/contracts'
 
 /* Internal Imports */
@@ -37,8 +38,9 @@ export interface RollupDeployConfig {
     allowArbitraryContractDeployment: boolean
   }
   addressManager?: string
-  deployOverrides?: Overrides
   dependencies?: string[]
+  deployOverrides: Overrides
+  waitForReceipts: boolean
 }
 
 export interface ContractDeployParameters {
@@ -55,6 +57,16 @@ export const makeContractDeployConfig = async (
   config: RollupDeployConfig,
   AddressManager: Contract
 ): Promise<ContractDeployConfig> => {
+  const _sendTx = async (
+    txPromise: Promise<TransactionResponse>
+  ): Promise<TransactionResponse> => {
+    const res = await txPromise
+    if (config.waitForReceipts) {
+      await res.wait()
+    }
+    return res
+  }
+
   return {
     OVM_L2CrossDomainMessenger: {
       factory: getContractFactory('OVM_L2CrossDomainMessenger'),
@@ -68,7 +80,9 @@ export const makeContractDeployConfig = async (
           const relayer = config.l1CrossDomainMessengerConfig.relayerAddress
           const address =
             typeof relayer === 'string' ? relayer : await relayer.getAddress()
-          await AddressManager.setAddress('OVM_L2MessageRelayer', address)
+          await _sendTx(
+            AddressManager.setAddress('OVM_L2MessageRelayer', address)
+          )
         }
       },
     },
@@ -81,10 +95,18 @@ export const makeContractDeployConfig = async (
         )
           .connect(config.deploymentSigner)
           .attach(contracts.Proxy__OVM_L1CrossDomainMessenger.address)
-        await xDomainMessenger.initialize(AddressManager.address)
-        await AddressManager.setAddress(
-          'OVM_L2CrossDomainMessenger',
-          config.ovmGlobalContext.L2CrossDomainMessengerAddress
+        await _sendTx(
+          xDomainMessenger.initialize(
+            AddressManager.address,
+            config.deployOverrides
+          )
+        )
+        await _sendTx(
+          AddressManager.setAddress(
+            'OVM_L2CrossDomainMessenger',
+            config.ovmGlobalContext.L2CrossDomainMessengerAddress,
+            config.deployOverrides
+          )
         )
       },
     },
@@ -102,12 +124,16 @@ export const makeContractDeployConfig = async (
           typeof sequencer === 'string'
             ? sequencer
             : await sequencer.getAddress()
-        await AddressManager.setAddress(
-          'OVM_DecompressionPrecompileAddress',
-          '0x4200000000000000000000000000000000000005'
+        await _sendTx(
+          AddressManager.setAddress(
+            'OVM_DecompressionPrecompileAddress',
+            '0x4200000000000000000000000000000000000005'
+          )
         )
-        await AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
-        await AddressManager.setAddress('Sequencer', sequencerAddress)
+        await _sendTx(
+          AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
+        )
+        await _sendTx(AddressManager.setAddress('Sequencer', sequencerAddress))
       },
     },
     OVM_StateCommitmentChain: {
@@ -146,8 +172,11 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_StateManager'),
       params: [await config.deploymentSigner.getAddress()],
       afterDeploy: async (contracts): Promise<void> => {
-        await contracts.OVM_StateManager.setExecutionManager(
-          contracts.OVM_ExecutionManager.address
+        await _sendTx(
+          contracts.OVM_StateManager.setExecutionManager(
+            contracts.OVM_ExecutionManager.address,
+            config.deployOverrides
+          )
         )
       },
     },
