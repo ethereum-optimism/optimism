@@ -445,6 +445,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         public
+        notStatic
     {
         _setAccountNonce(ovmADDRESS(), _nonce);
     }
