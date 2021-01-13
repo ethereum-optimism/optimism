@@ -13,6 +13,7 @@
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && yarn run build:dump && yarn run build:typechain",
     "build:kovan": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=69 yarn run build:dump && yarn run build:typechain",
+    "build:mainnet": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=422 yarn run build:dump && yarn run build:typechain",
     "build:typescript": "tsc -p tsconfig.prod.json",
     "build:contracts": "buidler compile --show-stack-traces",
     "build:dump": "ts-node \"bin/take-dump.ts\"",
