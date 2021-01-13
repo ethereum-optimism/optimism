@@ -210,7 +210,13 @@ export const makeContractDeployConfig = async (
     },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
-      params: [config.ethConfig.initialAmount, 'Ether', 18, 'ETH'],
+      params: [
+        AddressManager.address,
+        config.ethConfig.initialAmount,
+        'Ether',
+        18,
+        'ETH',
+      ],
     },
     'OVM_ChainStorageContainer:CTC:batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
