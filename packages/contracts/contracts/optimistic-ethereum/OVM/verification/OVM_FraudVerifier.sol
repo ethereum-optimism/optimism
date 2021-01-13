@@ -125,6 +125,13 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
         );
 
         _deployTransitioner(_preStateRoot, _txHash, _preStateRootProof.index);
+
+        emit FraudProofInitialized(
+            _preStateRoot,
+            _preStateRootProof.index,
+            _txHash,
+            msg.sender
+        );
     }
 
     /**
@@ -192,6 +199,13 @@ contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_Fr
 
         // TEMPORARY: Remove the transitioner; for minnet.
         transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitioner(0x0000000000000000000000000000000000000000);
+
+        emit FraudProofFinalized(
+            _preStateRoot,
+            _preStateRootProof.index,
+            _txHash,
+            msg.sender
+        );
     }
 
 

@@ -13,6 +13,25 @@ import { iOVM_StateTransitioner } from "./iOVM_StateTransitioner.sol";
  */
 interface iOVM_FraudVerifier {
 
+    /**********
+     * Events *
+     **********/
+
+    event FraudProofInitialized(
+        bytes32 _preStateRoot,
+        uint256 _preStateRootIndex,
+        bytes32 _transactionHash,
+        address _who
+    );
+
+    event FraudProofFinalized(
+        bytes32 _preStateRoot,
+        uint256 _preStateRootIndex,
+        bytes32 _transactionHash,
+        address _who
+    );
+
+
     /***************************************
      * Public Functions: Transition Status *
      ***************************************/
