@@ -10,6 +10,15 @@ import { Ownable } from "./Lib_Ownable.sol";
  */
 contract Lib_AddressManager is Ownable {
 
+    /**********
+     * Events *
+     **********/
+
+    event AddressSet(
+        string _name,
+        address _newAddress
+    );
+
     /*******************************************
      * Contract Variables: Internal Accounting *
      *******************************************/
@@ -28,6 +37,7 @@ contract Lib_AddressManager is Ownable {
         public
         onlyOwner
     {
+        emit AddressSet(_name, _address);
         addresses[_getNameHash(_name)] = _address;
     }
 
