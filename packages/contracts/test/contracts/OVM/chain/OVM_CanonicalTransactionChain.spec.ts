@@ -282,7 +282,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
       await expect(
         OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data, {
-          gasLimit: gasLimit / L2_GAS_DISCOUNT_DIVISOR - 1,
+          gasLimit: gasLimit / L2_GAS_DISCOUNT_DIVISOR + 30_000, // offset constant overhead
         })
       ).to.be.revertedWith('Insufficient gas for L2 rate limiting burn.')
     })

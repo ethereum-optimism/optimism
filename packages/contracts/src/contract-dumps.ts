@@ -114,12 +114,12 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     deploymentSigner: signer,
     ovmGasMeteringConfig: {
       minTransactionGasLimit: 0,
-      maxTransactionGasLimit: 1_000_000_000,
+      maxTransactionGasLimit: 9_000_000,
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 0,
     },
     ovmGlobalContext: {
-      ovmCHAINID: 420,
+      ovmCHAINID: 422,
       L2CrossDomainMessengerAddress:
         '0x4200000000000000000000000000000000000007',
     },

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const contracts = require('../build/src/contract-deployment/deploy');
-const { providers, Wallet, utils } = require('ethers');
+const { providers, Wallet, utils, ethers } = require('ethers');
 const { LedgerSigner } = require('@ethersproject/hardware-wallets');
 const { JsonRpcProvider } = providers;
 
@@ -11,15 +11,15 @@ const sequencerKey = env.SEQUENCER_PRIVATE_KEY;
 let SEQUENCER_ADDRESS = env.SEQUENCER_ADDRESS;
 const web3Url = env.L1_NODE_WEB3_URL || 'http://127.0.0.1:8545';
 const MIN_TRANSACTION_GAS_LIMIT = env.MIN_TRANSACTION_GAS_LIMIT || 50000;
-const MAX_TRANSACTION_GAS_LIMIT = env.MAX_TRANSACTION_GAS_LIMIT || Math.floor(9000000 * 63/64 - 100000); // = 8_759_375, Default max for Kovan
+const MAX_TRANSACTION_GAS_LIMIT = env.MAX_TRANSACTION_GAS_LIMIT || 9000000;
 const MAX_GAS_PER_QUEUE_PER_EPOCH = env.MAX_GAS_PER_QUEUE_PER_EPOCH || 250000000;
 const SECONDS_PER_EPOCH = env.SECONDS_PER_EPOCH || 0;
 let WHITELIST_OWNER = env.WHITELIST_OWNER;
 const WHITELIST_ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT = env.WHITELIST_ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT || true;
-const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || (60 * 300000); // 30 min
+const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || 2592000; // 30 days
 const FRAUD_PROOF_WINDOW_SECONDS = env.FRAUD_PROOF_WINDOW_SECONDS || (60 * 60 * 24 * 7); // 7 days
 const SEQUENCER_PUBLISH_WINDOW_SECONDS = env.SEQUENCER_PUBLISH_WINDOW_SECONDS || (60 * 30); // 30 min
-const CHAIN_ID = env.CHAIN_ID || 420; // layer 2 chainid
+const CHAIN_ID = env.CHAIN_ID || 422; // layer 2 chainid
 const USE_LEDGER = env.USE_LEDGER || false;
 const HD_PATH = env.HD_PATH || utils.defaultPath;
 const BLOCK_TIME_SECONDS = env.BLOCK_TIME_SECONDS || 15;
