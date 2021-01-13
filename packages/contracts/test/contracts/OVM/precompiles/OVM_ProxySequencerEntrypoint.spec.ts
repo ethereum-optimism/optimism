@@ -53,7 +53,7 @@ describe('OVM_ProxySequencerEntrypoint', () => {
     )
 
     Mock__OVM_ExecutionManager.smocked.ovmEXTCODESIZE.will.return.with(0)
-    Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(422)
+    Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
 
     Helper_PrecompileCaller = await (
       await ethers.getContractFactory('Helper_PrecompileCaller')

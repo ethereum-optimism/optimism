@@ -32,7 +32,7 @@ describe('OVM_SequencerEntrypoint', () => {
       await ethers.getContractFactory('OVM_ExecutionManager')
     )
 
-    Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(422)
+    Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
     Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with([true, '0x'])
 
     Helper_PrecompileCaller = await (

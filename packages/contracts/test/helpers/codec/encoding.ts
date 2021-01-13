@@ -32,7 +32,7 @@ export const DEFAULT_EIP155_TX: EIP155Transaction = {
   gasLimit: 1000000,
   gasPrice: 100000000,
   data: `0x${'99'.repeat(10)}`,
-  chainId: 422,
+  chainId: 420,
 }
 
 export const getRawSignedComponents = (signed: string): any[] => {

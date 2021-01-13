@@ -5,7 +5,7 @@ import * as mkdirp from 'mkdirp'
 
 
 const env = process.env
-const CHAIN_ID = env.CHAIN_ID || '422'
+const CHAIN_ID = env.CHAIN_ID || '420'
 
 /* Internal Imports */
 import { makeStateDump } from '../src/contract-dumps'

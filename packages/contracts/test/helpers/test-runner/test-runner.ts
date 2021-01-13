@@ -213,7 +213,7 @@ export class ExecutionManagerTestRunner {
         secondsPerEpoch: 600,
       },
       {
-        ovmCHAINID: 422,
+        ovmCHAINID: 420,
       }
     )
 

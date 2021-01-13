@@ -73,7 +73,7 @@ describe('OVM_ECDSAContractAccount', () => {
     Mock__OVM_ExecutionManager.smocked.ovmADDRESS.will.return.with(
       await wallet.getAddress()
     )
-    Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(422)
+    Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
     Mock__OVM_ExecutionManager.smocked.ovmGETNONCE.will.return.with(100)
     Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with([true, '0x'])
     Mock__OVM_ExecutionManager.smocked.ovmCREATE.will.return.with(

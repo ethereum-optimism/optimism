@@ -119,7 +119,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       secondsPerEpoch: 0,
     },
     ovmGlobalContext: {
-      ovmCHAINID: 422,
+      ovmCHAINID: 420,
       L2CrossDomainMessengerAddress:
         '0x4200000000000000000000000000000000000007',
     },
