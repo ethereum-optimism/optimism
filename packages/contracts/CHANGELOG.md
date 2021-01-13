@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.2
+
+Npm publish integrity.
+
 ## v0.1.1
 
 Audit fixes, deployment fixes & final parameterization.
