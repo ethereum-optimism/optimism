@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.3
+
+Add events to fraud proof initialization and finalization.
+
 ## v0.1.2
 
 Npm publish integrity.
