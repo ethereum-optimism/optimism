@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "main": "build/src/index.js",
   "files": [
     "build/**/*.js",

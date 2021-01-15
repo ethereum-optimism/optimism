@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.4
+
+Fix single contract redeployment & state dump script for
+mainnet.
+
 ## v0.1.3
 
 Add events to fraud proof initialization and finalization.
