@@ -23,6 +23,7 @@ const FRAUD_PROOF_WINDOW_SECONDS = env.FRAUD_PROOF_WINDOW_SECONDS || (60 * 60 * 
 const SEQUENCER_PUBLISH_WINDOW_SECONDS = env.SEQUENCER_PUBLISH_WINDOW_SECONDS || (60 * 30); // 30 min
 const CHAIN_ID = env.CHAIN_ID || 420; // layer 2 chainid
 const USE_LEDGER = env.USE_LEDGER || false;
+const ADDRESS_MANAGER_ADDRESS = env.ADDRESS_MANAGER_ADDRESS || undefined;
 const HD_PATH = env.HD_PATH || utils.defaultPath;
 const BLOCK_TIME_SECONDS = env.BLOCK_TIME_SECONDS || 15;
 const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
@@ -101,6 +102,7 @@ const RELAYER_PRIVATE_KEY = env.RELAYER_PRIVATE_KEY;
       gasLimit: DEPLOY_TX_GAS_LIMIT
     },
     waitForReceipts: WAIT_FOR_RECEIPTS,
+    addressManager: ADDRESS_MANAGER_ADDRESS,
   });
 
   const { failedDeployments, AddressManager } = result;

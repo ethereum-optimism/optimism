@@ -32,9 +32,9 @@ export const deploy = async (
       'Lib_AddressManager',
       config.deploymentSigner
     ).deploy()
-  }
-  if (config.waitForReceipts) {
-    await AddressManager.deployTransaction.wait()
+    if (config.waitForReceipts) {
+      await AddressManager.deployTransaction.wait()
+    }
   }
 
   const contractDeployConfig = await makeContractDeployConfig(
