@@ -13,10 +13,15 @@ contract Lib_ResolvedDelegateProxy {
      * Variables *
      *************/
 
+
     // Using mappings to store fields to avoid overwriting storage slots in the
     // implementation contract. For example, instead of storing these fields at
-    // storage slot `0` & `1`, they are stored at `hash(${FIELD_NAME} + address(this))`
+    // storage slot `0` & `1`, they are stored at `keccak256(key + slot)`.
     // See: https://solidity.readthedocs.io/en/v0.7.0/internals/layout_in_storage.html
+    // NOTE: Do not use this code in your own contract system. 
+    //      There is a known flaw in this contract, and we will remove it from the repository
+    //      in the near future. Due to the very limited way that we are using it, this flaw is
+    //      not an issue in our system. 
     mapping(address=>string) private implementationName;
     mapping(address=>Lib_AddressManager) private addressManager;
 

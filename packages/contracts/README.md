@@ -6,6 +6,6 @@ This package contains the various Ethereum smart contracts that make up the Laye
 
 This package requires that `yarn` be installed on your machine!  Once it is, run `yarn test` to build and run tests.
 
-## Disclaimer
+## Security
 
-The contracts in this package have **not** been audited. We **do not recommend** deploying these contracts in a production capacity.
+See our [Security Policy](https://github.com/ethereum-optimism/.github/security/policy).
