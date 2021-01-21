@@ -44,6 +44,9 @@
   "bugs": {
     "url": "https://github.com/ethereum-optimism/optimism-monorepo/issues"
   },
+  "engines": {
+   "node": ">=10"
+  },
   "homepage": "https://github.com/ethereum-optimism/optimism-monorepo#readme",
   "devDependencies": {
     "@types/chai": "^4.1.7",
