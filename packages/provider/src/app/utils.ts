@@ -70,6 +70,7 @@ export const allowedTransactionKeys: { [key: string]: boolean } = {
   nonce: true,
   to: true,
   value: true,
+  from: true,
 }
 
 export function serializeEthSignTransaction(transaction): Bytes {
