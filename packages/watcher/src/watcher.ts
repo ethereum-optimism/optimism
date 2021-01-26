@@ -42,6 +42,10 @@ export class Watcher {
   ): Promise<string[]> {
     const layer = isL1 ? this.l1 : this.l2
     const receipt = await layer.provider.getTransactionReceipt(txHash)
+    if (!receipt) {
+      return []
+    }
+
     const msgHashes = []
     for (const log of receipt.logs) {
       if (
