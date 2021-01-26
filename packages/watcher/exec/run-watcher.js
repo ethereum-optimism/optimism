@@ -6,10 +6,8 @@ const {
 } = require('ethers');
 
 const env = process.env
-// const L1_WEB3_URL = env.L1_WEB3_URL || 'http://localhost:9545'
-// const L2_WEB3_URL = env.L2_WEB3_URL || 'http://localhost:8545'
-const L1_WEB3_URL = env.L1_WEB3_URL || 'http://192.168.1.112:8545'
-const L2_WEB3_URL = env.L2_WEB3_URL || 'http://mainnet.optimism.io:8545'
+const L1_WEB3_URL = env.L1_WEB3_URL || 'http://localhost:9545'
+const L2_WEB3_URL = env.L2_WEB3_URL || 'http://localhost:8545'
 
 // Note: be sure to use the proxy for the L1xdomain
 // messenger, not the implementation
