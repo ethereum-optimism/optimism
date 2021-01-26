@@ -28,11 +28,17 @@ export class Watcher {
     return this._getMessageHashesFromTx(false, l2TxHash)
   }
 
-  public async getL1TransactionReceipt(l2ToL1MsgHash: string, pollForPending: boolean = true): Promise<any> {
+  public async getL1TransactionReceipt(
+    l2ToL1MsgHash: string,
+    pollForPending: boolean = true
+  ): Promise<any> {
     return this._getLXTransactionReceipt(true, l2ToL1MsgHash, pollForPending)
   }
 
-  public async getL2TransactionReceipt(l1ToL2MsgHash: string, pollForPending: boolean = true): Promise<any> {
+  public async getL2TransactionReceipt(
+    l1ToL2MsgHash: string,
+    pollForPending: boolean = true
+  ): Promise<any> {
     return this._getLXTransactionReceipt(false, l1ToL2MsgHash, pollForPending)
   }
 
