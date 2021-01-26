@@ -1,0 +1,12 @@
+{
+  "extends": "./../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./build",
+    "baseUrl": "./",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowJs": true
+  },
+  "include": ["*.ts", "**/*.ts", "artifacts/*.json"],
+  "exclude": ["./build", "node_modules"]
+}
