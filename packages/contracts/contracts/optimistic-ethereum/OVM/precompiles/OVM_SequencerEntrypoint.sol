@@ -30,6 +30,7 @@ contract OVM_SequencerEntrypoint {
      * calldata[00:01]: transaction type (0 == EIP 155, 2 == Eth Sign Message)
      * calldata[01:33]: signature "r" parameter
      * calldata[33:65]: signature "s" parameter
+     * calldata[65:66]: signature "v" parameter
      * calldata[66:69]: transaction gas limit
      * calldata[69:72]: transaction gas price
      * calldata[72:75]: transaction nonce
