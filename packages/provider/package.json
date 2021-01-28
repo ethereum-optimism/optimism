@@ -3,6 +3,7 @@
   "version": "0.0.1-alpha.14",
   "description": "Web3 provider for Optimism",
   "main": "build/index.js",
+  "types": "build/index.d.ts",
   "files": [
     "build/**/*.js"
   ],

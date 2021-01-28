@@ -3,6 +3,7 @@
   "version": "0.0.1-alpha.6",
   "description": "Watcher for cross domain messages",
   "main": "build/index.js",
+  "types": "build/index.d.ts",
   "files": [
     "build/**/*.js"
   ],
