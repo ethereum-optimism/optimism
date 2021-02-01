@@ -13,9 +13,9 @@ All of the core Optimism projects are hosted inside of the [packages](https://gi
 
 | Package                                                        | Version                                                                                                                                 | Description                                                 |
 |----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
-| [`@eth-optimism/ovm`](/packages/ovm)                           | [![npm](https://img.shields.io/npm/v/@eth-optimism/ovm.svg)](https://www.npmjs.com/package/@eth-optimism/ovm)                           | Optimistic Virtual Machine                                  |
-| [`@eth-optimism/rollup-full-node`](/packages/rollup-full-node) | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-full-node.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-full-node) | Fullnode RPC server for the OVM                             |
-| [`@eth-optimism/rollup-dev-tools`](/packages/rollup-dev-tools) | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-dev-tools.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-dev-tools) | Optimistic Rollup development tooling (includes Transpiler) |                                                       |
+| [`@eth-optimism/core-utils`](/packages/core-utils)                           | [![npm](https://img.shields.io/npm/v/@eth-optimism/core-utils.svg)](https://www.npmjs.com/package/@eth-optimism/core-utils)                           | Optimistic Virtual Machine Core Utilities                                  |
+| [`@eth-optimism/provider`](/packages/provider) | [![npm](https://img.shields.io/npm/v/@eth-optimism/provider.svg)](https://www.npmjs.com/package/@eth-optimism/provider) | Optional RPC Client for Optimism |
+| [`@eth-optimism/watcher`](/packages/watcher) | [![npm](https://img.shields.io/npm/v/@eth-optimism/watcher.svg)](https://www.npmjs.com/package/@eth-optimism/watcher) | Optimistic Ethereum Cross Domain Watcher |                                                       |
 
 ## Repo Status
 ![CI - Build, Test, Lint](https://github.com/ethereum-optimism/optimism-monorepo/workflows/CI%20-%20Build,%20Test,%20Lint/badge.svg?branch=master) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/05852734abaf4567a864cdd19169d70b)](https://www.codacy.com/gh/ethereum-optimism/optimism-monorepo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=ethereum-optimism/optimism-monorepo&amp;utm_campaign=Badge_Grade)
@@ -42,9 +42,9 @@ cd optimism-monorepo
 ```
 
 #### Node.js
-Most of the projects in `optimism-monorepo` are [`Node.js`](https://nodejs.org/en/) projects.
-You'll need to install `Node.js` for your system before continuing.
-All code is only confirmed to work on `Node.js v11.6`, and there are known issues on more recent versions. Please [set your Node.js version to 11.6](https://stackoverflow.com/a/23569481). 
+All of the projects in `optimism-monorepo` are [`Node.js`](https://nodejs.org/en/) projects.
+You'll need to install `Node.js` for your system before continuing. Code works
+with Node.js 10 or greater.
 
 #### Yarn
 We're using a package manager called [Yarn](https://yarnpkg.com/en/).
@@ -118,21 +118,6 @@ Run tests for a specific package or set of packages:
 
 ```sh
 PKGS=your,packages,here yarn test
-```
-
-### Running the fullnode in Docker
-Running the fullnode in [Docker](https://www.docker.com/) allows us launch our entire stack with a single command. 
-
-To run the fullnode in Docker in production run:
-
-`docker-compose up`
-
-To run it in development run:
-
-```sh
-  rm -rf node_modules
-  docker-compose -f docker-compose.yml -f docker-compose.dev.yml run rollup-full-node yarn
-  docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
 **Contributors: remember to run tests and lint before submitting a pull request!**
