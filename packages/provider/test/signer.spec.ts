@@ -8,7 +8,7 @@ import './setup'
 
 /* Imports: External */
 import { Web3Provider } from '@ethersproject/providers'
-import { ganache } from '@eth-optimism/ovm-toolchain'
+import ganache from 'ganache-core'
 import { verifyMessage } from '@ethersproject/wallet'
 
 /* Imports: Internal */

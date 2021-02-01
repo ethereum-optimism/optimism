@@ -1,4 +1,4 @@
-name: CI - ovm-toolchain
+name: CI - provider
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-test-lint:
-    name: Run ovm-toolchain Test Suite on Node ${{matrix.node}}
+    name: Run provider Test Suite on Node ${{matrix.node}}
     runs-on: ubuntu-latest
 
     strategy:
@@ -33,12 +33,12 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('package.json') }}
 
-      - name: Cache ovm toolchain deps
+      - name: Cache provider deps
         uses: actions/cache@v1
-        id: cache_ovm-toolchain
+        id: cache_core-utils
         with:
-          path: packages/ovm-toolchain/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/ovm-toolchain/package.json') }}
+          path: packages/provider/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/core-utils/package.json') }}
 
       # END DEPENDENCY CACHING
 
@@ -48,16 +48,16 @@ jobs:
       - name: Lint
         run: yarn lint
         env:
-          PKGS: "ovm-toolchain"
+          PKGS: "provider"
 
       - name: Build
         run: |
           yarn clean
           yarn build
         env:
-          PKGS: "ovm-toolchain"
+          PKGS: "provider"
 
       - name: Test
         run: yarn test
         env:
-          PKGS: "ovm-toolchain"
+          PKGS: "provider"

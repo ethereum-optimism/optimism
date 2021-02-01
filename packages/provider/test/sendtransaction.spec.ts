@@ -9,7 +9,7 @@ import './setup'
 /* Imports: External */
 import { JsonRpcServer } from '@eth-optimism/core-utils'
 import { Web3Provider } from '@ethersproject/providers'
-import { ganache } from '@eth-optimism/ovm-toolchain'
+import ganache from 'ganache-core'
 import { verifyMessage } from '@ethersproject/wallet'
 import { parse } from '@ethersproject/transactions'
 import { SignatureLike, joinSignature } from '@ethersproject/bytes'
