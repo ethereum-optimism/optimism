@@ -8,7 +8,7 @@ import { assert } from './setup'
 
 /* Imports: External */
 import { isHexString } from '@eth-optimism/core-utils'
-import { ganache } from '@eth-optimism/ovm-toolchain'
+import ganache from 'ganache-core'
 
 /* Imports: Internal */
 import { OptimismProvider } from '../src/index'
