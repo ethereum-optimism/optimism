@@ -74,7 +74,9 @@ const encodeBatchContext = (context: BatchContext): string => {
   )
 }
 
-export const decodeAppendSequencerBatch = (b: string): AppendSequencerBatchParams => {
+export const decodeAppendSequencerBatch = (
+  b: string
+): AppendSequencerBatchParams => {
   b = remove0x(b)
 
   const shouldStartAtBatch = b.slice(0, 10)
@@ -95,7 +97,10 @@ export const decodeAppendSequencerBatch = (b: string): AppendSequencerBatchParam
     offset += 10
     contexts.push({
       numSequencedTransactions: parseInt(numSequencedTransactions, 16),
-      numSubsequentQueueTransactions: parseInt(numSubsequentQueueTransactions, 16),
+      numSubsequentQueueTransactions: parseInt(
+        numSubsequentQueueTransactions,
+        16
+      ),
       timestamp: parseInt(timestamp, 16),
       blockNumber: parseInt(blockNumber, 16),
     })
@@ -106,7 +111,7 @@ export const decodeAppendSequencerBatch = (b: string): AppendSequencerBatchParam
     for (let i = 0; i < context.numSequencedTransactions; i++) {
       const size = b.slice(offset, offset + 6)
       offset += 6
-      const raw = b.slice(offset, offset + (parseInt(size, 16) * 2))
+      const raw = b.slice(offset, offset + parseInt(size, 16) * 2)
       transactions.push(add0x(raw))
       offset += raw.length
     }
@@ -116,6 +121,6 @@ export const decodeAppendSequencerBatch = (b: string): AppendSequencerBatchParam
     shouldStartAtBatch: parseInt(shouldStartAtBatch, 16),
     totalElementsToAppend: parseInt(totalElementsToAppend, 16),
     contexts,
-    transactions
+    transactions,
   }
 }
