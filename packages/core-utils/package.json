@@ -12,7 +12,8 @@
     "build": "tsc -p .",
     "clean": "rimraf build/",
     "lint": "tslint --format stylish --project .",
-    "lint:fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'"
+    "lint:fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
+    "test": "ts-mocha test/*"
   },
   "keywords": [
     "plasma",
@@ -49,6 +50,7 @@
     "ethereum-waffle": "^3.2.1",
     "mocha": "^6.1.4",
     "rimraf": "^2.6.3",
+    "ts-mocha": "^8.0.0",
     "ts-node": "^8.2.0",
     "typescript": "^3.5.1"
   },
