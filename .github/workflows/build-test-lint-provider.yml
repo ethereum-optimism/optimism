@@ -1,4 +1,4 @@
-name: CI - core-utils
+name: CI - provider
 
 on:
   push:
