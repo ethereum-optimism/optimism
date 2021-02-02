@@ -29,22 +29,6 @@ describe('BatchEncoder', () => {
     })
   })
 
-  describe('createEOATxData', () => {
-    it('should encode & then decode to the correct value', () => {
-      const createEOATxData = {
-        sig: {
-          v: '01',
-          r: '11'.repeat(32),
-          s: '22'.repeat(32),
-        },
-        messageHash: '89'.repeat(32),
-      }
-      const encoded = ctcCoder.createEOATxData.encode(createEOATxData)
-      const decoded = ctcCoder.createEOATxData.decode(encoded)
-      expect(createEOATxData).to.deep.equal(decoded)
-    })
-  })
-
   describe('appendSequencerBatch', () => {
     it('should work with the simple case', () => {
       const batch = {

@@ -17,18 +17,15 @@ import {
 export enum TxType {
   EIP155 = 0,
   EthSign = 1,
-  createEOA = 2,
   none = 3,
 }
 
 export const txTypePlainText = {
   0: TxType.EIP155,
   1: TxType.EthSign,
-  2: TxType.createEOA,
   3: TxType.none,
   EIP155: TxType.EIP155,
   EthSign: TxType.EthSign,
-  CreateEOA: TxType.createEOA,
   None: TxType.none,
 }
 
@@ -43,11 +40,6 @@ export interface DefaultEcdsaTxData {
 
 export interface EIP155TxData extends DefaultEcdsaTxData {}
 export interface EthSignTxData extends DefaultEcdsaTxData {}
-
-export interface CreateEOATxData {
-  sig: Signature
-  messageHash: Bytes32
-}
 
 /***********************
  * Encoding Positions  *
@@ -151,7 +143,7 @@ class DefaultEcdsaTxCoder implements Coder {
       txData.slice(position.start * 2, position.end * 2)
 
     const pos = DEFAULT_ECDSA_TX_FIELD_POSITIONS
-    if (parseInt(sliceBytes(pos.txType), 16) !== TxType.EIP155) {
+    if (parseInt(sliceBytes(pos.txType), 16) !== this.txType) {
       throw new Error('Invalid tx type')
     }
 
@@ -198,49 +190,6 @@ class Eip155TxCoder extends DefaultEcdsaTxCoder {
   }
 }
 
-class CreateEOATxDataCoder implements Coder {
-  public encode(txData: CreateEOATxData): string {
-    const txType = encodeHex(
-      TxType.createEOA,
-      getLen(CREATE_EOA_FIELD_POSITIONS.txType)
-    )
-
-    const v = encodeHex(txData.sig.v, getLen(CREATE_EOA_FIELD_POSITIONS.sig.v))
-    const r = toVerifiedBytes(
-      txData.sig.r,
-      getLen(CREATE_EOA_FIELD_POSITIONS.sig.r)
-    )
-    const s = toVerifiedBytes(
-      txData.sig.s,
-      getLen(CREATE_EOA_FIELD_POSITIONS.sig.s)
-    )
-
-    const messageHash = txData.messageHash
-
-    return '0x' + txType + r + s + v + messageHash
-  }
-
-  public decode(txData: string): CreateEOATxData {
-    txData = remove0x(txData)
-    const sliceBytes = (position: { start; end? }): string =>
-      txData.slice(position.start * 2, position.end * 2)
-
-    const pos = CREATE_EOA_FIELD_POSITIONS
-    if (parseInt(sliceBytes(pos.txType), 16) !== TxType.createEOA) {
-      throw new Error('Invalid tx type')
-    }
-
-    return {
-      sig: {
-        r: sliceBytes(pos.sig.r),
-        s: sliceBytes(pos.sig.s),
-        v: sliceBytes(pos.sig.v),
-      },
-      messageHash: sliceBytes(pos.messageHash),
-    }
-  }
-}
-
 /*************
  * ctcCoder  *
  ************/
@@ -249,7 +198,6 @@ class CreateEOATxDataCoder implements Coder {
  * Encoding and decoding functions for all txData types.
  */
 export const ctcCoder = {
-  createEOATxData: new CreateEOATxDataCoder(),
   eip155TxData: new Eip155TxCoder(),
   ethSignTxData: new EthSignTxCoder(),
 }
