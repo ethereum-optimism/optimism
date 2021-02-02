@@ -1,7 +1,7 @@
 export interface Signature {
   r: string
   s: string
-  v: string
+  v: number
 }
 export type Bytes32 = string
 export type Uint16 = number

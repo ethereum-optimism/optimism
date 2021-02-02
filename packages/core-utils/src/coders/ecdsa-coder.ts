@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { remove0x, toVerifiedBytes, encodeHex, getLen } from '../utils'
+import { add0x, remove0x, toVerifiedBytes, encodeHex, getLen } from '../utils'
 import {
   Coder,
   Signature,
@@ -149,15 +149,15 @@ class DefaultEcdsaTxCoder implements Coder {
 
     return {
       sig: {
-        r: sliceBytes(pos.sig.r),
-        s: sliceBytes(pos.sig.s),
-        v: sliceBytes(pos.sig.v),
+        r: add0x(sliceBytes(pos.sig.r)),
+        s: add0x(sliceBytes(pos.sig.s)),
+        v: parseInt(sliceBytes(pos.sig.v), 16),
       },
       gasLimit: parseInt(sliceBytes(pos.gasLimit), 16),
       gasPrice: parseInt(sliceBytes(pos.gasPrice), 16),
       nonce: parseInt(sliceBytes(pos.nonce), 16),
-      target: sliceBytes(pos.target),
-      data: txData.slice(pos.data.start * 2),
+      target: add0x(sliceBytes(pos.target)),
+      data: add0x(txData.slice(pos.data.start * 2)),
     }
   }
 }
