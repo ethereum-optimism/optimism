@@ -151,7 +151,7 @@ class DefaultEcdsaTxCoder implements Coder {
       txData.slice(position.start * 2, position.end * 2)
 
     const pos = DEFAULT_ECDSA_TX_FIELD_POSITIONS
-    if (parseInt(sliceBytes(pos.txType), 16) !== TxType.EIP155) {
+    if (parseInt(sliceBytes(pos.txType), 16) !== this.txType) {
       throw new Error('Invalid tx type')
     }
 
