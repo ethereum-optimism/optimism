@@ -2,7 +2,7 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { BigNumber, Contract, ContractFactory } from 'ethers'
 import * as rlp from 'rlp'
 
@@ -37,16 +37,16 @@ describe('OVM_StateTransitioner', () => {
   let Mock__OVM_StateManager: MockContract
   let Mock__OVM_BondManager: MockContract
   before(async () => {
-    Mock__OVM_ExecutionManager = smockit(
+    Mock__OVM_ExecutionManager = await smockit(
       await ethers.getContractFactory('OVM_ExecutionManager')
     )
-    Mock__OVM_StateManagerFactory = smockit(
+    Mock__OVM_StateManagerFactory = await smockit(
       await ethers.getContractFactory('OVM_StateManagerFactory')
     )
-    Mock__OVM_StateManager = smockit(
+    Mock__OVM_StateManager = await smockit(
       await ethers.getContractFactory('OVM_StateManager')
     )
-    Mock__OVM_BondManager = smockit(
+    Mock__OVM_BondManager = await smockit(
       await ethers.getContractFactory('OVM_BondManager')
     )
 

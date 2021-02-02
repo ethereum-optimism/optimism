@@ -1,4 +1,4 @@
-import { waffle, ethers as deployer } from '@nomiclabs/buidler'
+import { waffle, ethers as deployer } from 'hardhat'
 import { smoddit, smockit } from '@eth-optimism/smock'
 import { expect } from 'chai'
 import { ethers, Contract, BigNumber } from 'ethers'
@@ -38,7 +38,7 @@ describe('BondManager', () => {
     ).deploy()
 
     // deploy the state manager and mock it for the state transitioner
-    const stateManagerFactory = smockit(
+    const stateManagerFactory = await smockit(
       await (
         await deployer.getContractFactory('OVM_StateManagerFactory')
       ).deploy()

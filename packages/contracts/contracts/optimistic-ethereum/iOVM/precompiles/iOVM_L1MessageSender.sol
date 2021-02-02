@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// +build ovm
 pragma solidity >0.5.0 <0.8.0;
 
 /**
@@ -11,5 +10,5 @@ interface iOVM_L1MessageSender {
      * Public Functions *
      ********************/
 
-    function getL1MessageSender() external returns (address _l1MessageSender);
+    function getL1MessageSender() external view returns (address _l1MessageSender);
 }

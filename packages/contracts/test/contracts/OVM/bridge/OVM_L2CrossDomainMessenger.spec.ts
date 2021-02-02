@@ -1,7 +1,7 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
@@ -42,16 +42,16 @@ describe('OVM_L2CrossDomainMessenger', () => {
   let Mock__OVM_L1MessageSender: MockContract
   let Mock__OVM_L2ToL1MessagePasser: MockContract
   before(async () => {
-    Mock__TargetContract = smockit(
+    Mock__TargetContract = await smockit(
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
-    Mock__OVM_L1CrossDomainMessenger = smockit(
+    Mock__OVM_L1CrossDomainMessenger = await smockit(
       await ethers.getContractFactory('OVM_L1CrossDomainMessenger')
     )
-    Mock__OVM_L1MessageSender = smockit(
+    Mock__OVM_L1MessageSender = await smockit(
       await ethers.getContractFactory('OVM_L1MessageSender')
     )
-    Mock__OVM_L2ToL1MessagePasser = smockit(
+    Mock__OVM_L2ToL1MessagePasser = await smockit(
       await ethers.getContractFactory('OVM_L2ToL1MessagePasser')
     )
 

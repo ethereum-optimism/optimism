@@ -1,7 +1,7 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
@@ -32,7 +32,7 @@ describe('OVM_StateCommitmentChain', () => {
   let Mock__OVM_CanonicalTransactionChain: MockContract
   let Mock__OVM_BondManager: MockContract
   before(async () => {
-    Mock__OVM_CanonicalTransactionChain = smockit(
+    Mock__OVM_CanonicalTransactionChain = await smockit(
       await ethers.getContractFactory('OVM_CanonicalTransactionChain')
     )
 
@@ -42,7 +42,7 @@ describe('OVM_StateCommitmentChain', () => {
       Mock__OVM_CanonicalTransactionChain
     )
 
-    Mock__OVM_BondManager = smockit(
+    Mock__OVM_BondManager = await smockit(
       await ethers.getContractFactory('OVM_BondManager')
     )
 

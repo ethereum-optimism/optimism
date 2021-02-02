@@ -1,4 +1,5 @@
-pragma solidity ^0.7.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_RingBuffer } from "../../libraries/utils/Lib_RingBuffer.sol";
@@ -39,6 +40,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         address _libAddressManager,
         string memory _owner
     )
+        public
         Lib_AddressResolver(_libAddressManager)
     {
         owner = _owner;

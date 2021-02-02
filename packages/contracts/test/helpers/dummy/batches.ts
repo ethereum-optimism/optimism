@@ -1,5 +1,5 @@
 import { NULL_BYTES32, NON_ZERO_ADDRESS } from '../constants'
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 
 export const DUMMY_BATCH_HEADERS = [
   {

@@ -7,7 +7,7 @@ import xor from 'buffer-xor'
 import { makeHexString, makeAddress, fromHexString, toHexString } from './utils'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
-export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {
+export const DEFAULT_ACCOUNTS_HARDHAT = defaultAccounts.map((account) => {
   return {
     balance: ethers.BigNumber.from(account.balance).toHexString(),
     privateKey: account.secretKey,

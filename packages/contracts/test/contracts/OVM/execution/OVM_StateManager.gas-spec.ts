@@ -1,7 +1,7 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import _ from 'lodash'
 

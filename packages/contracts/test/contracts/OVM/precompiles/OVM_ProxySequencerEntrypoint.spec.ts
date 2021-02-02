@@ -1,7 +1,7 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers, waffle } from '@nomiclabs/buidler'
+import { ethers, waffle } from 'hardhat'
 import { ContractFactory, Contract, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import {
@@ -44,7 +44,7 @@ describe('OVM_ProxySequencerEntrypoint', () => {
   let Helper_PrecompileCaller: Contract
   let OVM_SequencerEntrypoint: Contract
   before(async () => {
-    Mock__OVM_ExecutionManager = smockit(
+    Mock__OVM_ExecutionManager = await smockit(
       await ethers.getContractFactory('OVM_ExecutionManager')
     )
 

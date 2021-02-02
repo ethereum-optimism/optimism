@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
@@ -42,6 +42,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
         uint256 _fraudProofWindow,
         uint256 _sequencerPublishWindow
     )
+        public
         Lib_AddressResolver(_libAddressManager)
     {
         FRAUD_PROOF_WINDOW = _fraudProofWindow;

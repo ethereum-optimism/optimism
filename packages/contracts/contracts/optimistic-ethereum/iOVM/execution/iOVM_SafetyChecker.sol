@@ -10,5 +10,5 @@ interface iOVM_SafetyChecker {
      * Public Functions *
      ********************/
 
-    function isBytecodeSafe(bytes calldata _bytecode) external view returns (bool);
+    function isBytecodeSafe(bytes calldata _bytecode) external pure returns (bool);
 }

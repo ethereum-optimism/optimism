@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+// @unsupported: ovm
+pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
@@ -80,6 +81,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOV
         bytes32 _preStateRoot,
         bytes32 _transactionHash
     )
+        public
         Lib_AddressResolver(_libAddressManager)
     {
         stateTransitionIndex = _stateTransitionIndex;

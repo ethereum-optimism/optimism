@@ -32,7 +32,8 @@
   "linterOptions": {
     "exclude": [
       "**/node_modules/**/*",
-      "bin/**/*"
+      "bin/**/*",
+      "test/**/*"
     ]
   } 
 }

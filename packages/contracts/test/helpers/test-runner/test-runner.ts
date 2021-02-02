@@ -1,7 +1,7 @@
 import { expect } from '../../setup'
 
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { Contract, BigNumber, ContractFactory } from 'ethers'
 import { cloneDeep, merge } from 'lodash'
 import { smoddit, smockit, ModifiableContract } from '@eth-optimism/smock'
@@ -151,7 +151,13 @@ export class ExecutionManagerTestRunner {
           ).to.equal(true)
         })
 
-        const itfn = parameter.focus ? it.only : it
+        let itfn: any = it
+        if (parameter.focus) {
+          itfn = it.only
+        } else if (parameter.skip) {
+          itfn = it.skip
+        }
+
         itfn(`should execute: ${parameter.name}`, async () => {
           try {
             for (const step of replacedParameter.steps) {
@@ -186,7 +192,7 @@ export class ExecutionManagerTestRunner {
       await ethers.getContractFactory('OVM_SafetyChecker')
     ).deploy()
 
-    const MockSafetyChecker = smockit(SafetyChecker)
+    const MockSafetyChecker = await smockit(SafetyChecker)
     MockSafetyChecker.smocked.isBytecodeSafe.will.return.with(true)
 
     this.contracts.OVM_SafetyChecker = MockSafetyChecker

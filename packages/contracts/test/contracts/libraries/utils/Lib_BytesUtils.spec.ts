@@ -3,7 +3,7 @@ import { Lib_BytesUtils_TEST_JSON } from '../../../data'
 import { runJsonTest } from '../../../helpers'
 
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
 import { expect } from '../../../setup'
 

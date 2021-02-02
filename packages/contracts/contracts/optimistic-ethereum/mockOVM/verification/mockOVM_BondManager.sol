@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
 import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
@@ -14,6 +14,7 @@ contract mockOVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     constructor(
         address _libAddressManager
     )
+        public
         Lib_AddressResolver(_libAddressManager)
     {}
 

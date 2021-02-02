@@ -288,6 +288,7 @@ export interface TestParameter {
   steps: Array<TestStep | TestStep_Run>
   expectInvalidStateAccess?: boolean
   focus?: boolean
+  skip?: boolean
 }
 
 export interface TestDefinition {

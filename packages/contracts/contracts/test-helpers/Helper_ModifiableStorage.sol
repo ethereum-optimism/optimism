@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 
 contract Helper_ModifiableStorage {
     mapping (address => address) private target;
 
     constructor(
         address _target
-    ) {
+    )
+        public
+    {
         target[address(this)] = _target;
     }
 

@@ -31,6 +31,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
      * Pass a default zero address to the address resolver. This will be updated when initialized.
      */
     constructor()
+        public
         Lib_AddressResolver(address(0))
     {}
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Pulled from @openzeppelin/contracts/math/SafeMath.sol
-pragma solidity ^0.7.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_SafeExecutionManagerWrapper } from "./Lib_SafeExecutionManagerWrapper.sol";

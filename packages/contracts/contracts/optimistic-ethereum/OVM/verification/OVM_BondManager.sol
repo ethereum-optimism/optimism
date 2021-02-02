@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
@@ -53,7 +53,11 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
 
     /// Initializes with a ERC20 token to be used for the fidelity bonds
     /// and with the Address Manager
-    constructor(ERC20 _token, address _libAddressManager)
+    constructor(
+        ERC20 _token,
+        address _libAddressManager
+    )
+        public
         Lib_AddressResolver(_libAddressManager)
     {
         token = _token;

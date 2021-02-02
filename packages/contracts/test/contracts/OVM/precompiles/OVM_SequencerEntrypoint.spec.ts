@@ -1,7 +1,7 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { waffle, ethers } from '@nomiclabs/buidler'
+import { waffle, ethers } from 'hardhat'
 import { ContractFactory, Wallet, Contract } from 'ethers'
 import { zeroPad } from '@ethersproject/bytes'
 import { getContractInterface } from '../../../../src'
@@ -28,7 +28,7 @@ describe('OVM_SequencerEntrypoint', () => {
   let Mock__OVM_ExecutionManager: MockContract
   let Helper_PrecompileCaller: Contract
   before(async () => {
-    Mock__OVM_ExecutionManager = smockit(
+    Mock__OVM_ExecutionManager = await smockit(
       await ethers.getContractFactory('OVM_ExecutionManager')
     )
 

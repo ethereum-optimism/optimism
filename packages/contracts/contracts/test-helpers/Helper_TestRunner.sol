@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Logging */
-import { console } from "@nomiclabs/buidler/console.sol";
+import { console } from "hardhat/console.sol";
 
 /**
  * @title Helper_TestRunner
@@ -184,7 +184,9 @@ contract Helper_TestRunner_CREATE is Helper_TestRunner {
     constructor(
         bytes memory _bytecode,
         TestStep[] memory _steps
-    ) {
+    )
+        public
+    {
         if (_steps.length > 0) {
             runMultipleTestSteps(_steps);
         } else {

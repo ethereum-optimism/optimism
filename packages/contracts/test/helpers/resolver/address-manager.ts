@@ -1,5 +1,5 @@
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
 
 export const setProxyTarget = async (

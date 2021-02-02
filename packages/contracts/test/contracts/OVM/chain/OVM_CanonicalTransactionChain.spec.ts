@@ -1,7 +1,7 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, BigNumber, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { smockit, MockContract } from '@eth-optimism/smock'
@@ -171,11 +171,11 @@ describe('OVM_CanonicalTransactionChain', () => {
       DECOMPRESSION_ADDRESS
     )
 
-    Mock__OVM_ExecutionManager = smockit(
+    Mock__OVM_ExecutionManager = await smockit(
       await ethers.getContractFactory('OVM_ExecutionManager')
     )
 
-    Mock__OVM_StateCommitmentChain = smockit(
+    Mock__OVM_StateCommitmentChain = await smockit(
       await ethers.getContractFactory('OVM_StateCommitmentChain')
     )
 

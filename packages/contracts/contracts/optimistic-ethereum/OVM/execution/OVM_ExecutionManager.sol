@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+// @unsupported: ovm
+pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
@@ -66,6 +67,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         GasMeterConfig memory _gasMeterConfig,
         GlobalContext memory _globalContext
     )
+        public
         Lib_AddressResolver(_libAddressManager)
     {
         ovmSafetyChecker = iOVM_SafetyChecker(resolve("OVM_SafetyChecker"));

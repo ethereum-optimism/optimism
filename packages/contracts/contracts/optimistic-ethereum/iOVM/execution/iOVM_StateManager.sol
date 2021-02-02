@@ -66,7 +66,7 @@ interface iOVM_StateManager {
 
     function putContractStorage(address _contract, bytes32 _key, bytes32 _value) external;
     function getContractStorage(address _contract, bytes32 _key) external view returns (bytes32 _value);
-    function hasContractStorage(address _contract, bytes32 _key) external returns (bool _exists);
+    function hasContractStorage(address _contract, bytes32 _key) external view returns (bool _exists);
     function testAndSetContractStorageLoaded(address _contract, bytes32 _key) external returns (bool _wasContractStorageAlreadyLoaded);
     function testAndSetContractStorageChanged(address _contract, bytes32 _key) external returns (bool _wasContractStorageAlreadyChanged);
     function commitContractStorage(address _contract, bytes32 _key) external returns (bool _wasContractStorageCommitted);

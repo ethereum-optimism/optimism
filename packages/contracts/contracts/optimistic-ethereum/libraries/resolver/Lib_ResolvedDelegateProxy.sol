@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_AddressManager } from "./Lib_AddressManager.sol";
@@ -38,6 +38,7 @@ contract Lib_ResolvedDelegateProxy {
         address _libAddressManager,
         string memory _implementationName
     )
+        public
     {
         addressManager[address(this)] = Lib_AddressManager(_libAddressManager);
         implementationName[address(this)] = _implementationName;

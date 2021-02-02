@@ -1,5 +1,5 @@
 /* External Imports */
-import { ethers } from '@nomiclabs/buidler'
+import { ethers } from 'hardhat'
 import { zeroPad } from '@ethersproject/bytes'
 import { Wallet } from 'ethers'
 import {
