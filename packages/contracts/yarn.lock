@@ -75,10 +75,10 @@
     util.promisify "^1.0.0"
     uuid "^8.3.0"
 
-"@eth-optimism/plugins@0.0.9-alpha.2":
-  version "0.0.9-alpha.2"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/plugins/-/plugins-0.0.9-alpha.2.tgz#4ae897be156d6168efc1594d07fbc3180af735ee"
-  integrity sha512-sKJ7MSb1wSMoH9GaXVsGfZuDGwV1E6uWjjyr8JcFP+HLOkboPolN/XpNsGs1OfvJOSZCa4/Y7MGKECKdZNz38w==
+"@eth-optimism/plugins@^0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/plugins/-/plugins-0.0.10.tgz#c9cc24b484d64b4adfad8dc21d883b71ba563dde"
+  integrity sha512-OCJStdrTVLVlHHFLP+7WXyKt/dWyzxXzivIuf9V1xAGDavxCg8Y4CFzUq70pf3GpjBw230uFhn8vjq26cBppkA==
   dependencies:
     "@eth-optimism/contracts" "^0.0.2-alpha.14"
     "@eth-optimism/ethereumjs-vm" "^4.2.0-alpha.2"
@@ -90,6 +90,7 @@
     ethereumjs-account "^3.0.0"
     ethjs-common-v1 "npm:ethereumjs-common@1.5.0"
     ethjs-util-v6 "npm:ethereumjs-util@6.2.1"
+    node-fetch "^2.6.1"
 
 "@eth-optimism/smock@0.2.1-alpha.0":
   version "0.2.1-alpha.0"
@@ -6696,7 +6697,7 @@ node-fetch@2.1.2:
   resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.1.2.tgz#ab884e8e7e57e38a944753cec706f788d1768bb5"
   integrity sha1-q4hOjn5X44qUR1POxwb3iNF2i7U=
 
-node-fetch@^2.6.0:
+node-fetch@^2.6.0, node-fetch@^2.6.1:
   version "2.6.1"
   resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.1.tgz#045bd323631f76ed2e2b55573394416b639a0052"
   integrity sha512-V4aYg89jEoVRxRb2fJdAg8FHvI7cEyYdVAh94HH0UIK8oJxUfkjlDQN9RbMx+bEjP7+ggMiFRprSti032Oipxw==
