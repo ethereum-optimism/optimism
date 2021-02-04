@@ -17,6 +17,17 @@ import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalT
 /* Contract Imports */
 import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
 
+
+
+/**
+ * @title OVM_FraudVerifier
+ * @dev The Fraud Verifier contract coordinates the entire fraud proof verification process. 
+ * If the fraud proof was successful it prunes any state batches from State Commitment Chain
+ * which were published after the fraudulent state root.
+ * 
+ * Compiler used: solc
+ * Runtime target: EVM
+ */
 contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_FraudVerifier {
 
     /*******************************************

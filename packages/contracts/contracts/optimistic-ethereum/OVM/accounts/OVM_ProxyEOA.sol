@@ -9,6 +9,12 @@ import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Sa
 
 /**
  * @title OVM_ProxyEOA
+ * @dev The Proxy EOA contract uses a delegate call to execute the logic in an implementation contract.
+ * In combination with the logic implemented in the ECDSA Contract Account, this enables a form of upgradable 
+ * 'account abstraction' on layer 2. 
+ * 
+ * Compiler used: solc
+ * Runtime target: OVM
  */
 contract OVM_ProxyEOA {
 

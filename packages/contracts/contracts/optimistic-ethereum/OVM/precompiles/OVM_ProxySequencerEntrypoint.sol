@@ -5,7 +5,13 @@ pragma solidity >0.5.0 <0.8.0;
 import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 
 /**
- * @title OVM_ProxySequencerEntrypoint
+ * @title OVM_ProxySequencerEntrypoint 
+ * @dev The Proxy Sequencer Entrypoint is a predeployed proxy to the implementation of the 
+ * Sequencer Entrypoint. This will enable the Optimism team to upgrade the Sequencer Entrypoint 
+ * contract.
+ * 
+ * Compiler used: solc
+ * Runtime target: OVM
  */
 contract OVM_ProxySequencerEntrypoint {
 

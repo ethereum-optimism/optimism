@@ -20,6 +20,18 @@ import { OVM_DeployerWhitelist } from "../precompiles/OVM_DeployerWhitelist.sol"
 
 /**
  * @title OVM_ExecutionManager
+ * @dev The Execution Manager (EM) is the core of our OVM implementation, and provides a sandboxed 
+ * environment allowing us to execute OVM transactions deterministically on either Layer 1 or 
+ * Layer 2. 
+ * The EM's run() function is the first function called during the execution of any
+ * transaction on L2. 
+ * For each context-dependent EVM operation the EM has a function which implements a corresponding 
+ * OVM operation, which will read state from the State Manager contract.
+ * The EM relies on the Safety Checker to verify that code deployed to Layer 2 does not contain any 
+ * context-dependent operations.
+ * 
+ * Compiler used: solc
+ * Runtime target: EVM
  */
 contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
@@ -155,6 +167,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // OVM_StateManager (expected to be an OVM_StateTransitioner). We can revert here because
         // this would make the `run` itself invalid.
         require(
+            // This method may return false during fraud proofs, but always returns true in L2 nodes' State Manager precompile.
             ovmStateManager.isAuthenticated(msg.sender),
             "Only authenticated addresses in ovmStateManager can call this function"
         );
@@ -310,8 +323,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
-     * @notice Specifies what L1 EOA, if any, sent this transaction.
-     * @return _l1TxOrigin Address of the EOA which send the tx into L2 from L1.
+     * @notice Specifies which L1 account, if any, sent this transaction by calling enqueue().
+     * @return _l1TxOrigin Address of the account which sent the tx into L2 from L1.
      */
     function ovmL1TXORIGIN()
         override

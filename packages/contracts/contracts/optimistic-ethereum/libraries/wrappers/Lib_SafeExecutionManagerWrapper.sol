@@ -3,6 +3,12 @@ pragma solidity >0.5.0 <0.8.0;
 
 /**
  * @title Lib_SafeExecutionManagerWrapper
+ * @dev The Safe Execution Manager Wrapper provides functions which facilitate writing OVM safe 
+ * code using the standard solidity compiler, by routing all its operations through the Execution 
+ * Manager.
+ * 
+ * Compiler used: solc
+ * Runtime target: OVM
  */
 library Lib_SafeExecutionManagerWrapper {
 
@@ -11,7 +17,7 @@ library Lib_SafeExecutionManagerWrapper {
      **********************/
 
     /**
-     * Makes an ovmCALL and performs all the necessary safety checks.
+     * Performs a safe ovmCALL.
      * @param _gasLimit Gas limit for the call.
      * @param _target Address to call.
      * @param _calldata Data to send to the call.
@@ -42,7 +48,7 @@ library Lib_SafeExecutionManagerWrapper {
     }
 
     /**
-     * Makes an ovmCALL and performs all the necessary safety checks.
+     * Performs a safe ovmDELEGATECALL.
      * @param _gasLimit Gas limit for the call.
      * @param _target Address to call.
      * @param _calldata Data to send to the call.
@@ -73,7 +79,7 @@ library Lib_SafeExecutionManagerWrapper {
     }
 
     /**
-     * Performs an ovmCREATE and the necessary safety checks.
+     * Performs a safe ovmCREATE call.
      * @param _gasLimit Gas limit for the creation.
      * @param _bytecode Code for the new contract.
      * @return _contract Address of the created contract.
@@ -99,7 +105,7 @@ library Lib_SafeExecutionManagerWrapper {
     }
 
     /**
-     * Performs an ovmEXTCODESIZE and the necessary safety checks.
+     * Performs a safe ovmEXTCODESIZE call.
      * @param _contract Address of the contract to query the size of.
      * @return _EXTCODESIZE Size of the requested contract in bytes.
      */

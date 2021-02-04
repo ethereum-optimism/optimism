@@ -10,6 +10,12 @@ import { Lib_ReentrancyGuard } from "../../libraries/utils/Lib_ReentrancyGuard.s
 
 /**
  * @title OVM_BaseCrossDomainMessenger
+ * @dev The Base Cross Domain Messenger is an abstract contract providing the interface and common functionality used in the
+ * L1 and L2 Cross Domain Messengers. It can also serve as a template for developers wishing to implement a custom bridge 
+ * contract to suit their needs.
+ *
+ * Compiler used: defined by child contract
+ * Runtime target: defined by child contract
  */
 abstract contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger, Lib_ReentrancyGuard {
 

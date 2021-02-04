@@ -25,6 +25,17 @@ import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
 
 /**
  * @title OVM_StateTransitioner
+ * @dev The State Transitioner coordinates the execution of a state transition during the evaluation of a 
+ * fraud proof. It feeds verified input to the Execution Manager's run(), and controls a State Manager (which is 
+ * uniquely created for each fraud proof).
+ * Once a fraud proof has been initialized, this contract is provided with the pre-state root and verifies
+ * that the OVM storage slots committed to the State Mangager are contained in that state
+ * This contract controls the State Manager and Execution Manager, and uses them to calculate the
+ * post-state root by applying the transaction. The Fraud Verifier can then check for fraud by comparing
+ * the calculated post-state root with the proposed post-state root.
+ * 
+ * Compiler used: solc
+ * Runtime target: EVM
  */
 contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOVM_StateTransitioner {
 

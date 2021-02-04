@@ -10,6 +10,13 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 
 /**
  * @title OVM_StateManager
+ * @dev The State Manager contract holds all storage values for contracts in the OVM. It can only be written to by the 
+ * the Execution Manager and State Transitioner. It runs on L1 during the setup and execution of a fraud proof.
+ * The same logic runs on L2, but has been implemented as a precompile in the L2 go-ethereum client 
+ * (see https://github.com/ethereum-optimism/go-ethereum/blob/master/core/vm/ovm_state_manager.go)
+ * 
+ * Compiler used: solc
+ * Runtime target: EVM
  */
 contract OVM_StateManager is iOVM_StateManager {
 
@@ -63,10 +70,11 @@ contract OVM_StateManager is iOVM_StateManager {
      **********************/
 
     /**
-     * Simple authentication, this contract should only be accessible to the owner or to the
-     * OVM_ExecutionManager during the transaction execution process.
+     * Simple authentication, this contract should only be accessible to the owner (which is expected to be the State Transitioner during `PRE_EXECUTION` 
+     * or the OVM_ExecutionManager during transaction execution.
      */
     modifier authenticated() {
+        // owner is the State Transitioner
         require(
             msg.sender == owner || msg.sender == ovmExecutionManager,
             "Function can only be called by authenticated addresses"

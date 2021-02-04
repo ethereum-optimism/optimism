@@ -19,6 +19,16 @@ import { OVM_ExecutionManager } from "../execution/OVM_ExecutionManager.sol";
 
 /**
  * @title OVM_CanonicalTransactionChain
+ * @dev The Canonical Transaction Chain (CTC) contract is an append-only log of transactions
+ * which must be applied to the rollup state. It defines the ordering of rollup transactions by
+ * writing them to the 'CTC:batches' instance of the Chain Storage Container.
+ * The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the Sequencer
+ * will eventually append it to the rollup state.
+ * If the Sequencer does not include an enqueued transaction within the 'force inclusion period',
+ * then any account may force it to be included by calling appendQueueBatch().
+ *
+ * Compiler used: solc
+ * Runtime target: EVM
  */
 contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_AddressResolver {
 
