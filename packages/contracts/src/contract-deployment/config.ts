@@ -110,6 +110,10 @@ export const makeContractDeployConfig = async (
         )
       },
     },
+    OVM_L1MultiMessageRelayer: {
+      factory: getContractFactory('OVM_L1MultiMessageRelayer'),
+      params: [AddressManager.address],
+    },
     OVM_CanonicalTransactionChain: {
       factory: getContractFactory('OVM_CanonicalTransactionChain'),
       params: [
