@@ -104,6 +104,7 @@ export class Watcher {
             const txReceipt = await layer.provider.getTransactionReceipt(
               log.transactionHash
             )
+            layer.provider.off(filter)
             resolve(txReceipt)
           } catch (e) {
             reject(e)
