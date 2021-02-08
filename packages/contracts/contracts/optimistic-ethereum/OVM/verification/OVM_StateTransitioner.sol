@@ -21,12 +21,12 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManagerFactory.sol";
 
 /* Contract Imports */
-import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
+import { Abs_FraudContributor } from "./Abs_FraudContributor.sol";
 
 /**
  * @title OVM_StateTransitioner
- * @dev The State Transitioner coordinates the execution of a state transition during the evaluation of a 
- * fraud proof. It feeds verified input to the Execution Manager's run(), and controls a State Manager (which is 
+ * @dev The State Transitioner coordinates the execution of a state transition during the evaluation of a
+ * fraud proof. It feeds verified input to the Execution Manager's run(), and controls a State Manager (which is
  * uniquely created for each fraud proof).
  * Once a fraud proof has been initialized, this contract is provided with the pre-state root and verifies
  * that the OVM storage slots committed to the State Mangager are contained in that state
@@ -37,7 +37,7 @@ import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_StateTransitioner is Lib_AddressResolver, OVM_FraudContributor, iOVM_StateTransitioner {
+contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOVM_StateTransitioner {
 
     /*******************
      * Data Structures *

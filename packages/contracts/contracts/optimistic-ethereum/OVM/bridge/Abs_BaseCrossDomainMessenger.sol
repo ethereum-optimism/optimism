@@ -3,13 +3,13 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_BaseCrossDomainMessenger } from "../../iOVM/bridge/iOVM_BaseCrossDomainMessenger.sol";
+import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/iAbs_BaseCrossDomainMessenger.sol";
 
 /* Library Imports */
 import { Lib_ReentrancyGuard } from "../../libraries/utils/Lib_ReentrancyGuard.sol";
 
 /**
- * @title OVM_BaseCrossDomainMessenger
+ * @title Abs_BaseCrossDomainMessenger
  * @dev The Base Cross Domain Messenger is an abstract contract providing the interface and common functionality used in the
  * L1 and L2 Cross Domain Messengers. It can also serve as a template for developers wishing to implement a custom bridge 
  * contract to suit their needs.
@@ -17,7 +17,7 @@ import { Lib_ReentrancyGuard } from "../../libraries/utils/Lib_ReentrancyGuard.s
  * Compiler used: defined by child contract
  * Runtime target: defined by child contract
  */
-abstract contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger, Lib_ReentrancyGuard {
+abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger, Lib_ReentrancyGuard {
 
     /**********************
      * Contract Variables *

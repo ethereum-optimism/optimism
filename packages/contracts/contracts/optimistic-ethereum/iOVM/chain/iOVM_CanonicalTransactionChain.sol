@@ -5,6 +5,9 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
+/* Interface Imports */
+import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
+
 /**
  * @title iOVM_CanonicalTransactionChain
  */
@@ -60,6 +63,29 @@ interface iOVM_CanonicalTransactionChain {
      * Public Functions *
      ********************/
 
+
+    /**
+     * Accesses the batch storage container.
+     * @return Reference to the batch storage container.
+     */
+    function batches()
+        external
+        view
+        returns (
+            iOVM_ChainStorageContainer
+        );
+
+    /**
+     * Accesses the queue storage container.
+     * @return Reference to the queue storage container.
+     */
+    function queue()
+        external
+        view
+        returns (
+            iOVM_ChainStorageContainer
+        );
+
     /**
      * Retrieves the total number of elements submitted.
      * @return _totalElements Total submitted elements.
@@ -94,8 +120,22 @@ interface iOVM_CanonicalTransactionChain {
         );
 
     /**
+     * Gets the queue element at a particular index.
+     * @param _index Index of the queue element to access.
+     * @return _element Queue element at the given index.
+     */
+    function getQueueElement(
+        uint256 _index
+    )
+        external
+        view
+        returns (
+            Lib_OVMCodec.QueueElement memory _element
+        );
+
+    /**
      * Get the number of queue elements which have not yet been included.
-     * @return Length of the queue.
+     * @return Number of pending queue elements.
      */
     function getNumPendingQueueElements()
         external
@@ -116,19 +156,6 @@ interface iOVM_CanonicalTransactionChain {
             uint40
         );
 
-    /**
-     * Gets the queue element at a particular index.
-     * @param _index Index of the queue element to access.
-     * @return _element Queue element at the given index.
-     */
-    function getQueueElement(
-        uint256 _index
-    )
-        external
-        view
-        returns (
-            Lib_OVMCodec.QueueElement memory _element
-        );
 
     /**
      * Adds a transaction to the queue.

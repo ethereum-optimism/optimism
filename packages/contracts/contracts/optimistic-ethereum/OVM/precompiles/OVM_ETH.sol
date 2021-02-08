@@ -6,7 +6,6 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 
 /* Interface Imports */
 import { iOVM_ERC20 } from "../../iOVM/precompiles/iOVM_ERC20.sol";
-import { iOVM_BaseCrossDomainMessenger } from "../../iOVM/bridge/iOVM_BaseCrossDomainMessenger.sol";
 
 /**
  * @title OVM_ETH

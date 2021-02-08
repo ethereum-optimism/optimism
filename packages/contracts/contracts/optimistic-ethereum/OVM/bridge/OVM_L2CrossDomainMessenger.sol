@@ -12,16 +12,17 @@ import { iOVM_L1MessageSender } from "../../iOVM/precompiles/iOVM_L1MessageSende
 import { iOVM_L2ToL1MessagePasser } from "../../iOVM/precompiles/iOVM_L2ToL1MessagePasser.sol";
 
 /* Contract Imports */
-import { OVM_BaseCrossDomainMessenger } from "./OVM_BaseCrossDomainMessenger.sol";
+import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol";
 
 /**
  * @title OVM_L2CrossDomainMessenger
- * @dev The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point for L2 messages sent via the L1 Cross Domain Messenger.
+ * @dev The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point
+ * for L2 messages sent via the L1 Cross Domain Messenger.
  * 
  * Compiler used: optimistic-solc
  * Runtime target: OVM
   */
-contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
 
     /***************
      * Constructor *

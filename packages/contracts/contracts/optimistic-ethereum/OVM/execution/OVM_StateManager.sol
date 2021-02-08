@@ -10,10 +10,10 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 
 /**
  * @title OVM_StateManager
- * @dev The State Manager contract holds all storage values for contracts in the OVM. It can only be written to by the 
+ * @dev The State Manager contract holds all storage values for contracts in the OVM. It can only be written to by the
  * the Execution Manager and State Transitioner. It runs on L1 during the setup and execution of a fraud proof.
- * The same logic runs on L2, but has been implemented as a precompile in the L2 go-ethereum client 
- * (see https://github.com/ethereum-optimism/go-ethereum/blob/master/core/vm/ovm_state_manager.go)
+ * The same logic runs on L2, but has been implemented as a precompile in the L2 go-ethereum client
+ * (see https://github.com/ethereum-optimism/go-ethereum/blob/master/core/vm/ovm_state_manager.go).
  * 
  * Compiler used: solc
  * Runtime target: EVM

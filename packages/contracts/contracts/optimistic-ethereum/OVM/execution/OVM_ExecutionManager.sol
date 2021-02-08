@@ -20,16 +20,16 @@ import { OVM_DeployerWhitelist } from "../precompiles/OVM_DeployerWhitelist.sol"
 
 /**
  * @title OVM_ExecutionManager
- * @dev The Execution Manager (EM) is the core of our OVM implementation, and provides a sandboxed 
- * environment allowing us to execute OVM transactions deterministically on either Layer 1 or 
- * Layer 2. 
+ * @dev The Execution Manager (EM) is the core of our OVM implementation, and provides a sandboxed
+ * environment allowing us to execute OVM transactions deterministically on either Layer 1 or
+ * Layer 2.
  * The EM's run() function is the first function called during the execution of any
- * transaction on L2. 
- * For each context-dependent EVM operation the EM has a function which implements a corresponding 
+ * transaction on L2.
+ * For each context-dependent EVM operation the EM has a function which implements a corresponding
  * OVM operation, which will read state from the State Manager contract.
- * The EM relies on the Safety Checker to verify that code deployed to Layer 2 does not contain any 
+ * The EM relies on the Safety Checker to verify that code deployed to Layer 2 does not contain any
  * context-dependent operations.
- * 
+  * 
  * Compiler used: solc
  * Runtime target: EVM
  */

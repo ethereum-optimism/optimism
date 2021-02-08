@@ -15,7 +15,7 @@ import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitment
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 
 /* Contract Imports */
-import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
+import { Abs_FraudContributor } from "./Abs_FraudContributor.sol";
 
 
 
@@ -28,7 +28,7 @@ import { OVM_FraudContributor } from "./OVM_FraudContributor.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_FraudVerifier is Lib_AddressResolver, OVM_FraudContributor, iOVM_FraudVerifier {
+contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_FraudVerifier {
 
     /*******************************************
      * Contract Variables: Internal Accounting *
