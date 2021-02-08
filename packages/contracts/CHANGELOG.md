@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.5
+
+Various cleanup and maintenance tasks.
+
+- Improving comments and some names (#211)
+- Add descriptive comments above the contract declaration for all 'non-abstract contracts' (#200)
+- Add generic mock xdomain messenger (#209)
+- Move everything over to hardhat (#208)
+- Add comment to document v argument (#199)
+- Add security related comments (#191)
+
 ## v0.1.4
 
 Fix single contract redeployment & state dump script for
