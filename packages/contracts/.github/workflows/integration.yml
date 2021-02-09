@@ -16,16 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: webfactory/ssh-agent@v0.4.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_READ }}
-
       - name: Build
         run: |
           git clone https://github.com/ethereum-optimism/optimism-integration.git \
-              $HOME/optimism-integration \
-              --recurse-submodules
+              $HOME/optimism-integration
           cd $HOME/optimism-integration
+          sed -i -Ee's#git@github.com:([^/]*)/(.*).git#https://github.com/\1/\2.git#' .gitmodules
+          git submodule init
+          git submodule update
           if [ -z $GITHUB_HEAD_REF ]; then
               GITHUB_HEAD_REF=${GITHUB_REF##*/}
           fi
