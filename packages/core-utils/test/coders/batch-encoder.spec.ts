@@ -1,11 +1,11 @@
-import './setup'
+import '../setup'
 
 /* Internal Imports */
 import {
   ctcCoder,
   encodeAppendSequencerBatch,
   decodeAppendSequencerBatch,
-} from '../src'
+} from '../../src'
 import { expect } from 'chai'
 
 describe('BatchEncoder', () => {

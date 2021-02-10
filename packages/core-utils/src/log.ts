@@ -1,10 +1,14 @@
 /* Imports: External */
 import debug from 'debug'
 
-/* Imports: Internal */
-import { Logger } from './types'
-
 export const LOG_NEWLINE_STRING = process.env.LOG_NEW_LINES ? '\n' : ' <\\n> '
+
+export interface Logger {
+  debug: (...args: any[]) => any
+  info: (...args: any[]) => any
+  warn: (...args: any[]) => any
+  error: (...args: any[]) => any
+}
 
 /**
  * Gets a logger specific to the provided identifier.

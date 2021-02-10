@@ -1,14 +1,6 @@
 /* Internal Imports */
 import { add0x, remove0x, toVerifiedBytes, encodeHex, getLen } from '../utils'
-import {
-  Coder,
-  Signature,
-  Uint16,
-  Uint8,
-  Uint24,
-  Address,
-  Bytes32,
-} from './types'
+import { Coder, Signature, Uint16, Uint8, Uint24, Address } from '../types'
 
 /***********************
  * TxTypes and TxData  *

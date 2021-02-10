@@ -14,7 +14,7 @@
     "clean": "rimraf build/",
     "lint": "tslint --format stylish --project .",
     "lint:fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
-    "test": "ts-mocha test/*"
+    "test": "ts-mocha test/**/*.spec.ts"
   },
   "keywords": [
     "plasma",

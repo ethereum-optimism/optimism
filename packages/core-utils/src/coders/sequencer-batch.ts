@@ -1,7 +1,8 @@
-import { add0x, remove0x, encodeHex } from '../utils'
 import { Contract, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/lib/utils'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
+import { add0x, remove0x, encodeHex } from '../utils'
+import { Coder } from '../types'
 
 export interface BatchContext {
   numSequencedTransactions: number
@@ -123,4 +124,9 @@ export const decodeAppendSequencerBatch = (
     contexts,
     transactions,
   }
+}
+
+export const sequencerBatchAppendCoder: Coder = {
+  encode: encodeAppendSequencerBatch,
+  decode: decodeAppendSequencerBatch,
 }
