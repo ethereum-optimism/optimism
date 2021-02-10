@@ -6,7 +6,7 @@
     "build/**/*.js",
     "build/contracts/*",
     "build/dumps/*json",
-    "build/artifacts/*json"
+    "build/artifacts/**/*.json"
   ],
   "license": "MIT",
   "scripts": {
