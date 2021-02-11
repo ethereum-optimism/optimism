@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Optimism Core Utils",
   "main": "build/src/index.js",
   "types": "build/src/index.d.ts",
