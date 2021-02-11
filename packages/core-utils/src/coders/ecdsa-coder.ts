@@ -194,10 +194,31 @@ class Eip155TxCoder extends DefaultEcdsaTxCoder {
  * ctcCoder  *
  ************/
 
+function encode(data) {
+  // TODO: return the correct thing
+}
+
+function decode(data: string | Buffer) {
+  if (Buffer.isBuffer(data)) {
+    data = data.toString()
+  }
+  data = remove0x(data)
+  const type = parseInt(data.slice(0, 2), 16)
+  if (type === TxType.EIP155) {
+    return new Eip155TxCoder().decode(data)
+  }
+  if (type === TxType.EthSign) {
+    return new EthSignTxCoder().decode(data)
+  }
+  return null
+}
+
 /*
  * Encoding and decoding functions for all txData types.
  */
 export const ctcCoder = {
   eip155TxData: new Eip155TxCoder(),
   ethSignTxData: new EthSignTxCoder(),
+  encode,
+  decode
 }
