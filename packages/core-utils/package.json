@@ -31,7 +31,9 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
+    "@ethersproject/abi": "^5.0.12",
     "@ethersproject/abstract-provider": "^5.0.9",
+    "@ethersproject/keccak256": "^5.0.8",
     "axios": "^0.21.1",
     "body-parser": "^1.19.0",
     "debug": "^4.1.1",
