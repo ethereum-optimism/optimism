@@ -39,9 +39,9 @@ describe('OVM_L1MultiMessageRelayer', () => {
 
     // set the address of the mock contract to target
     await AddressManager.setAddress(
-      // 'Proxy__OVM_L1CrossDomainMessenger' is the string used by the contract under test to lookup 
+      // 'Proxy__OVM_L1CrossDomainMessenger' is the string used by the contract under test to lookup
       // the target contract. On mainnet the target is a proxy which points to the implementation of
-      // the L1CrossDomainMessenger. 
+      // the L1CrossDomainMessenger.
       // In order to keep the tests simple, we skip the proxy here, and point directly to the impl.
       'Proxy__OVM_L1CrossDomainMessenger',
       Mock__OVM_L1CrossDomainMessenger.address
@@ -102,7 +102,7 @@ describe('OVM_L1MultiMessageRelayer', () => {
     // check in its onlyRelayer modifier.
     // The string currently used in the AddressManager is 'OVM_L2MessageRelayer'
     await AddressManager.setAddress(
-      'OVM_L2MessageRelayer', 
+      'OVM_L2MessageRelayer',
       OVM_L1MultiMessageRelayer.address
     )
     // set the mock return value
