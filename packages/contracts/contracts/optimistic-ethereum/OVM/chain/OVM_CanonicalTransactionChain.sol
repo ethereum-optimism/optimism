@@ -177,9 +177,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             Lib_OVMCodec.QueueElement memory _element
         )
     {
+        iOVM_ChainStorageContainer queue = queue();
+
         uint40 trueIndex = uint40(_index * 2);
-        bytes32 queueRoot = queue().get(trueIndex);
-        bytes32 timestampAndBlockNumber = queue().get(trueIndex + 1);
+        bytes32 queueRoot = queue.get(trueIndex);
+        bytes32 timestampAndBlockNumber = queue.get(trueIndex + 1);
 
         uint40 elementTimestamp;
         uint40 elementBlockNumber;
@@ -293,12 +295,14 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             timestampAndBlockNumber := or(timestampAndBlockNumber, shl(40, number()))
         }
 
-        queue().push2(
+        iOVM_ChainStorageContainer queue = queue();
+
+        queue.push2(
             transactionHash,
             timestampAndBlockNumber
         );
 
-        uint256 queueIndex = queue().length() / 2;
+        uint256 queueIndex = queue.length() / 2;
         emit TransactionEnqueued(
             msg.sender,
             _target,
@@ -886,7 +890,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
                 _nextContext.blockNumber <= nextQueueElement.blockNumber,
                 "Sequencer transaction blockNumber exceeds that of next queue element."
             );
-        }   
+        }
     }
 
     /**
