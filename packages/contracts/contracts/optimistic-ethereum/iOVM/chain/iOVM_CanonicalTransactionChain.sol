@@ -134,6 +134,28 @@ interface iOVM_CanonicalTransactionChain {
         );
 
     /**
+     * Returns the timestamp of the last transaction.
+     * @return Timestamp for the last transaction.
+     */
+    function getLastTimestamp()
+        external
+        view
+        returns (
+            uint40
+        );
+
+    /**
+     * Returns the blocknumber of the last transaction.
+     * @return Blocknumber for the last transaction.
+     */
+    function getLastBlockNumber()
+        external
+        view
+        returns (
+            uint40
+        );
+
+    /**
      * Get the number of queue elements which have not yet been included.
      * @return Number of pending queue elements.
      */

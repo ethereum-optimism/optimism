@@ -158,8 +158,40 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             uint40
         )
     {
-        (, uint40 nextQueueIndex,,) = _getBatchExtraData();
+        (,uint40 nextQueueIndex,,) = _getBatchExtraData();
         return nextQueueIndex;
+    }
+
+    /**
+     * Returns the timestamp of the last transaction.
+     * @return Timestamp for the last transaction.
+     */
+    function getLastTimestamp()
+        override
+        public
+        view
+        returns (
+            uint40
+        )
+    {
+        (,,uint40 lastTimestamp,) = _getBatchExtraData();
+        return lastTimestamp;
+    }
+
+    /**
+     * Returns the blocknumber of the last transaction.
+     * @return Blocknumber for the last transaction.
+     */
+    function getLastBlockNumber()
+        override
+        public
+        view
+        returns (
+            uint40
+        )
+    {
+        (,,,uint40 lastBlockNumber) = _getBatchExtraData();
+        return lastBlockNumber;
     }
 
     /**
