@@ -32,12 +32,10 @@
     "deploy": "./bin/deploy.js"
   },
   "dependencies": {
-    "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
     "@ethersproject/hardware-wallets": "^5.0.8",
     "@openzeppelin/contracts": "^3.3.0",
-    "ethers": "5.0.0",
     "ganache-core": "^2.12.1",
     "glob": "^7.1.6"
   },
@@ -57,6 +55,7 @@
     "chai": "^4.2.0",
     "copyfiles": "^2.3.0",
     "ethereum-waffle": "3.0.0",
+    "ethers": "^5.0.31",
     "fs-extra": "^9.0.1",
     "hardhat": "^2.0.8",
     "hardhat-typechain": "^0.3.4",
@@ -77,5 +76,8 @@
     "tslint-plugin-prettier": "^2.3.0",
     "typechain": "2.0.0",
     "typescript": "^4.0.2"
+  },
+  "peerDependencies": {
+    "ethers": "^5.0.0"
   }
 }
