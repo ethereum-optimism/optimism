@@ -93,7 +93,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Transfer fee to relayer.
         address relayer = Lib_SafeExecutionManagerWrapper.safeCALLER();
-        uint256 fee = decodedTx.gasLimit * decodedTx.gasPrice;
+        uint256 fee = Lib_SafeMathWrapper.mul(decodedTx.gasLimit, decodedTx.gasPrice);
         (bool success, ) = Lib_SafeExecutionManagerWrapper.safeCALL(
             gasleft(),
             ETH_ERC20_ADDRESS,

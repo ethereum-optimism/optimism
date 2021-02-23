@@ -1,4 +1,4 @@
-import { expect } from '../../../setup'
+import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
@@ -13,7 +13,7 @@ import {
   DUMMY_BATCH_HEADERS,
   DUMMY_BATCH_PROOFS,
   toHexString,
-} from '../../../helpers'
+} from '../../../../helpers'
 import { sign } from 'crypto'
 
 describe('OVM_L1MultiMessageRelayer', () => {

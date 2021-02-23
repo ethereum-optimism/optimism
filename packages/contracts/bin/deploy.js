@@ -95,9 +95,6 @@ const RELAYER_PRIVATE_KEY = env.RELAYER_PRIVATE_KEY;
       owner: WHITELIST_OWNER,
       allowArbitraryContractDeployment: WHITELIST_ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT
     },
-    ethConfig: {
-      initialAmount: 0,
-    },
     deployOverrides: {
       gasLimit: DEPLOY_TX_GAS_LIMIT
     },

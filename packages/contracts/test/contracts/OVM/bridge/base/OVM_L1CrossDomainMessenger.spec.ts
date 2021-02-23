@@ -1,4 +1,4 @@
-import { expect } from '../../../setup'
+import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
@@ -19,20 +19,9 @@ import {
   toHexString,
   getNextBlockNumber,
   remove0x,
-} from '../../../helpers'
-import { getContractInterface } from '../../../../src'
+  getXDomainCalldata,
+} from '../../../../helpers'
 import { keccak256 } from 'ethers/lib/utils'
-
-const getXDomainCalldata = (
-  sender: string,
-  target: string,
-  message: string,
-  messageNonce: number
-): string => {
-  return getContractInterface(
-    'OVM_L2CrossDomainMessenger'
-  ).encodeFunctionData('relayMessage', [target, sender, message, messageNonce])
-}
 
 const deployProxyXDomainMessenger = async (
   addressManager: Contract,

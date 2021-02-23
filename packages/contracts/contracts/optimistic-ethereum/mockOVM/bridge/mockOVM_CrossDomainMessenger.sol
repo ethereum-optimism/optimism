@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Contract Imports */
-import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/iAbs_BaseCrossDomainMessenger.sol";
+import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/messenging/iAbs_BaseCrossDomainMessenger.sol";
 
 /**
  * @title mockOVM_CrossDomainMessenger
