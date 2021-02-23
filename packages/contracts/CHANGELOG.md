@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.9
+
+Standardized ETH and ERC20 Gateways.
+
+- Add ETH deposit contract.
+- Add standard deposit/withdrawal interfaces.
+
 ## v0.1.5
 
 Various cleanup and maintenance tasks.
