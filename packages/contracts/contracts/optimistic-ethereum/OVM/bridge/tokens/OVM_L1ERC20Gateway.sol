@@ -27,7 +27,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1ERC20Gateway, OVM_CrossDomainEnabled {
      ********************************/
     
     iOVM_ERC20 public l1ERC20;
-    address public l2ERC20Gateway;
+    address public l2DepositedERC20;
 
     /***************
      * Constructor *
@@ -35,18 +35,18 @@ contract OVM_L1ERC20Gateway is iOVM_L1ERC20Gateway, OVM_CrossDomainEnabled {
 
     /**
      * @param _l1ERC20 L1 ERC20 address this contract stores deposits for
-     * @param _l2ERC20Gateway L2 Gateway address on the chain being deposited into
+     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      */
     constructor(
         iOVM_ERC20 _l1ERC20,
-        address _l2ERC20Gateway,
+        address _l2DepositedERC20,
         address _l1messenger 
     )
         OVM_CrossDomainEnabled(_l1messenger)
     {
         l1ERC20 = _l1ERC20;
-        l2ERC20Gateway = _l2ERC20Gateway;
+        l2DepositedERC20 = _l2DepositedERC20;
     }
 
     /**************
@@ -82,7 +82,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1ERC20Gateway, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @dev Performs the logic for deposits by storing the ERC20 and informing the L2 ERC20 Gateway of the deposit.
+     * @dev Performs the logic for deposits by storing the ERC20 and informing the L2 Deposited ERC20 contract of the deposit.
      *
      * @param _from Account to pull the deposit from on L1
      * @param _to Account to give the deposit to on L2
@@ -102,7 +102,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1ERC20Gateway, OVM_CrossDomainEnabled {
             _amount
         );
 
-        // Construct calldata for l2ERC20Gateway.finalizeDeposit(_to, _amount)
+        // Construct calldata for l2DepositedERC20.finalizeDeposit(_to, _amount)
         bytes memory data = abi.encodeWithSelector(
             iOVM_L2DepositedERC20.finalizeDeposit.selector,
             _to,
@@ -111,7 +111,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1ERC20Gateway, OVM_CrossDomainEnabled {
 
         // Send calldata into L2
         sendCrossDomainMessage(
-            l2ERC20Gateway,
+            l2DepositedERC20,
             data,
             DEFAULT_FINALIZE_DEPOSIT_L2_GAS
         );
@@ -137,7 +137,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1ERC20Gateway, OVM_CrossDomainEnabled {
     )
         external
         override 
-        onlyFromCrossDomainAccount(l2ERC20Gateway) 
+        onlyFromCrossDomainAccount(l2DepositedERC20)
     {
         l1ERC20.transfer(_to, _amount);
 
