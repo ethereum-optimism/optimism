@@ -30,7 +30,11 @@ jobs:
           GIT_COMMIT=$(git rev-parse HEAD | head -c 8)
           REMOTE=${{ github.event.pull_request.head.repo.html_url }}
           echo "optimism-integration $GIT_COMMIT"
-          ./docker/build.sh -s deployer -b $GITHUB_HEAD_REF -r $REMOTE
+          if [ -z $REMOTE ]; then
+            ./docker/build.sh -s deployer -b $GITHUB_HEAD_REF
+          else
+            ./docker/build.sh -s deployer -b $GITHUB_HEAD_REF -r $REMOTE
+          fi
 
       - name: Test
         run: |
