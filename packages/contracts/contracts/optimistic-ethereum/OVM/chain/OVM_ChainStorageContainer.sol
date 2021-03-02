@@ -14,7 +14,7 @@ import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageCo
  * This provides gas efficiency gains by enabling it to overwrite storage slots which can no longer be used
  * in a fraud proof due to the fraud window having passed, and the associated chain state or
  * transactions being finalized.
- * Three disctint Chain Storage Containers will be deployed on Layer 1:
+ * Three distinct Chain Storage Containers will be deployed on Layer 1:
  * 1. Stores transaction batches for the Canonical Transaction Chain
  * 2. Stores queued transactions for the Canonical Transaction Chain
  * 3. Stores chain state batches for the State Commitment Chain
