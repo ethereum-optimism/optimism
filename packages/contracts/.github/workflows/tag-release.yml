@@ -42,5 +42,40 @@ jobs:
           ./build.sh -s deployer -b ${{ steps.get_version.outputs.VERSION }}
           docker push ethereumoptimism/deployer:${{ steps.get_version.outputs.VERSION }}
 
+      - name: Extract State Dump from Deployer Image
+        run: docker run --rm --entrypoint cat ethereumoptimism/deployer:${{ steps.get_version.outputs.VERSION }} /opt/contracts/build/dumps/state-dump.latest.json > ${{ steps.get_version.outputs.VERSION }}.json
+
+      - name: Store state dump artifact for git job
+        uses: actions/upload-artifact@v2
+        with:
+          name: state-dump-artifact
+          path: ${{ steps.get_version.outputs.VERSION }}.json
+
       - name: Logout of DockerHub
         run: docker logout
+
+  git:
+    name: Commit State Dump
+    needs: docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: ethereum-optimism/regenesis
+          ssh-key: ${{ secrets.REGENESIS_DEPLOY_KEY }}
+
+      - name: Download State Dump Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: state-dump-artifact
+          path: ./tags
+
+      - name: Commit to Repository
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          branch: master
+          commit_message: Add tagged state dump artfiact
+          commit_user_name: GitHub Action
+          commit_user_email: action@github.com
+          commit_author: Github Action <action@github.com>
