@@ -84,7 +84,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             "Transaction nonce does not match the expected nonce."
         );
 
-        // TEMPORARY: Disable gas checks for minnet.
+        // TEMPORARY: Disable gas checks for mainnet.
         // // Need to make sure that the gas is sufficient to execute the transaction.
         // Lib_SafeExecutionManagerWrapper.safeREQUIRE(
         //    gasleft() >= Lib_SafeMathWrapper.add(decodedTx.gasLimit, EXECUTION_VALIDATION_GAS_OVERHEAD),
