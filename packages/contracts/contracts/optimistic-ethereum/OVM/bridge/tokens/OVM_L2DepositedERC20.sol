@@ -59,7 +59,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedERC20, UniswapV2ERC20, OVM_Cros
     /**
      * @dev Initialize this gateway with the L1 gateway address
      * The assumed flow is that this contract is deployed on L2, then the L1 
-     * gateway is dpeloyed, and its address passed here to init.
+     * gateway is deployed, and its address passed here to init.
      *
      * @param _l1ERC20Gateway Address of the corresponding L1 gateway deployed to the main chain
      */
