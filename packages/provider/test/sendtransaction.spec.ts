@@ -7,7 +7,6 @@
 import './setup'
 
 /* Imports: External */
-import { JsonRpcServer } from '@eth-optimism/core-utils'
 import { Web3Provider } from '@ethersproject/providers'
 import ganache from 'ganache-core'
 import { verifyMessage } from '@ethersproject/wallet'
@@ -20,7 +19,6 @@ import { mnemonic } from './common'
 
 describe('sendTransaction', () => {
   let provider
-  let server
 
   const handlers = {
     eth_chainId: () => '0x1',
@@ -33,12 +31,6 @@ describe('sendTransaction', () => {
       })
     )
     provider = new OptimismProvider('http://127.0.0.1:3002', web3)
-    server = new JsonRpcServer(handlers, 'localhost', 3002)
-    await server.listen()
-  })
-
-  after(async () => {
-    await server.close()
   })
 
   it('should sign transaction', async () => {
