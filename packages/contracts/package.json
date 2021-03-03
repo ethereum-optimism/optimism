@@ -33,6 +33,7 @@
     "serve": "./bin/serve_dump.sh"
   },
   "dependencies": {
+    "@eth-optimism/dev": "^1.1.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
     "@ethersproject/hardware-wallets": "^5.0.8",
@@ -46,13 +47,10 @@
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "1.0.0",
-    "@types/chai": "^4.2.12",
     "@types/glob": "^7.1.3",
     "@types/lodash": "^4.14.161",
-    "@types/mocha": "^8.0.3",
-    "@types/node": "^14.6.0",
     "buffer-xor": "^2.0.2",
-    "chai": "^4.2.0",
+    "chai": "^4.3.1",
     "copyfiles": "^2.3.0",
     "ethereum-waffle": "3.0.0",
     "ethers": "^5.0.31",
@@ -62,18 +60,11 @@
     "merkle-patricia-tree": "^4.0.0",
     "merkletreejs": "^0.2.12",
     "mkdirp": "^1.0.4",
-    "mocha": "^8.1.1",
-    "prettier": "^2.1.2",
+    "mocha": "^8.3.0",
     "random-bytes-seed": "^1.0.3",
     "rlp": "^2.2.6",
     "ts-generator": "0.0.8",
-    "ts-node": "^9.0.0",
-    "tslint": "^6.1.3",
-    "tslint-config-prettier": "^1.18.0",
-    "tslint-no-focused-test": "^0.5.0",
-    "tslint-plugin-prettier": "^2.3.0",
-    "typechain": "2.0.0",
-    "typescript": "^4.0.2"
+    "typechain": "2.0.0"
   },
   "peerDependencies": {
     "ethers": "^5.0.0"
