@@ -1,13 +1,14 @@
+import { expect } from '../../../setup'
+
+/* External Imports */
 import { waffle, ethers as deployer } from 'hardhat'
 import { smoddit, smockit } from '@eth-optimism/smock'
-import { expect } from 'chai'
 import { ethers, Contract, BigNumber } from 'ethers'
 
-async function mineBlock(provider: any, timestamp: number): Promise<void> {
-  await provider.send('evm_mine', [timestamp])
-}
+/* Internal Imports */
+import { mineBlock } from '../../../helpers'
 
-describe('BondManager', () => {
+describe('OVM_BondManager', () => {
   const provider = waffle.provider
   const wallets = provider.getWallets()
 
