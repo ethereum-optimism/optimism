@@ -8,7 +8,7 @@ contract UniswapV2ERC20 is IUniswapV2ERC20 {
 
     string public override name;
     string public override symbol;
-    uint8 public override immutable decimals;
+    uint8 public constant override decimals = 18;
     uint public override totalSupply;
     mapping(address => uint) public override balanceOf;
     mapping(address => mapping(address => uint)) public override allowance;
@@ -19,11 +19,9 @@ contract UniswapV2ERC20 is IUniswapV2ERC20 {
     mapping(address => uint) public override nonces;
 
     constructor(
-        uint8 _decimals,
-        string memory _name,
+    string memory _name,
         string memory _symbol
     ) public {
-        decimals = _decimals;
         name = _name;
         symbol = _symbol;
 

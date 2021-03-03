@@ -3,8 +3,8 @@
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 /* Interface Imports */
-import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messenging/iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_L1MultiMessageRelayer } from "../../../iOVM/bridge/messenging/iOVM_L1MultiMessageRelayer.sol";
+import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
+import { iOVM_L1MultiMessageRelayer } from "../../../iOVM/bridge/messaging/iOVM_L1MultiMessageRelayer.sol";
 
 /* Contract Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";

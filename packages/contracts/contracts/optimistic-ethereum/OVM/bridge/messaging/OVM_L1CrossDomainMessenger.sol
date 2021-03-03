@@ -10,7 +10,7 @@ import { Lib_SecureMerkleTrie } from "../../../libraries/trie/Lib_SecureMerkleTr
 import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuard.sol";
 
 /* Interface Imports */
-import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messenging/iOVM_L1CrossDomainMessenger.sol";
+import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
 import { iOVM_CanonicalTransactionChain } from "../../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 import { iOVM_StateCommitmentChain } from "../../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 

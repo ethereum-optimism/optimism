@@ -22,7 +22,6 @@ interface iOVM_L1ETHGateway {
         uint256 _amount
     );
 
-
     /********************
      * Public Functions *
      ********************/
@@ -46,4 +45,11 @@ interface iOVM_L1ETHGateway {
         uint _amount
     )
         external;
+
+    function getFinalizeDepositL2Gas()
+        external
+        view
+        returns(
+            uint32
+        );
 }

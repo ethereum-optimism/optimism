@@ -39,7 +39,7 @@ describe('OVM_L1ERC20Gateway', () => {
     // deploy an ERC20 contract on L1
     Factory__L1ERC20 = await smoddit('UniswapV2ERC20')
 
-    L1ERC20 = await Factory__L1ERC20.deploy(18, 'L1ERC20', 'ERC')
+    L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
 
     const aliceAddress = await alice.getAddress()
     L1ERC20.smodify.put({
@@ -128,13 +128,11 @@ describe('OVM_L1ERC20Gateway', () => {
         await OVM_L1ERC20Gateway.provider.getTransactionReceipt(res.hash)
       ).gasUsed
 
-      await expect(
-        gasUsed.gt(
-          ((await OVM_L1ERC20Gateway.DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS()) *
-            11) /
-            10
-        )
-      )
+      const OVM_L2DepositedERC20 = await (
+        await ethers.getContractFactory('OVM_L2DepositedERC20')
+      ).deploy(ZERO_ADDRESS, '', '')
+      const defaultFinalizeWithdrawalGas = await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
+      await expect(gasUsed.gt((defaultFinalizeWithdrawalGas * 11) / 10))
     })
 
     it.skip('finalizeWithdrawalAndCall(): should should credit funds to the withdrawer, and forward from and data', async () => {
@@ -151,7 +149,7 @@ describe('OVM_L1ERC20Gateway', () => {
 
     beforeEach(async () => {
       // Deploy the L1 ERC20 token, Alice will receive the full initialSupply
-      L1ERC20 = await Factory__L1ERC20.deploy(18, 'L1ERC20', 'ERC')
+      L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
 
       // get a new mock L1 messenger
       Mock__OVM_L1CrossDomainMessenger = await smockit(

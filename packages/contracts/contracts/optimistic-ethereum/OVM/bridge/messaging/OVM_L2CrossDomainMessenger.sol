@@ -7,7 +7,7 @@ import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressReso
 import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuard.sol";
 
 /* Interface Imports */
-import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messenging/iOVM_L2CrossDomainMessenger.sol";
+import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
 import { iOVM_L1MessageSender } from "../../../iOVM/precompiles/iOVM_L1MessageSender.sol";
 import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/precompiles/iOVM_L2ToL1MessagePasser.sol";
 

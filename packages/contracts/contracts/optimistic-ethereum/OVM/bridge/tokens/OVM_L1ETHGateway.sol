@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_L1ETHGateway } from "../../../iOVM/bridge/tokens/iOVM_L1ETHGateway.sol";
-import { iOVM_L2DepositedERC20 } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedERC20.sol";
+import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
 import { iOVM_ERC20 } from "../../../iOVM/precompiles/iOVM_ERC20.sol";
 
 /* Library Imports */
@@ -20,11 +20,18 @@ import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressReso
  * Runtime target: EVM
  */
 contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_AddressResolver {
+
+    /********************
+     * Public Constants *
+     ********************/
+
+    uint32 public constant override getFinalizeDepositL2Gas = 1200000;
+
     /********************************
      * External Contract References *
      ********************************/
 
-    address public l2ERC20Gateway;
+    address public ovmEth;
 
     /***************
      * Constructor *
@@ -32,15 +39,16 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
 
     /**
      * @param _libAddressManager Address manager for this OE deployment
+     * @param _ovmEth L2 OVM_ETH implementation of iOVM_DepositedToken
      */
     constructor(
         address _libAddressManager,
-        address _l2ERC20Gateway
+        address _ovmEth
     )
         OVM_CrossDomainEnabled(address(0)) // overridden in constructor code
         Lib_AddressResolver(_libAddressManager)
     {
-        l2ERC20Gateway = _l2ERC20Gateway;
+        ovmEth = _ovmEth;
         messenger = resolve("Proxy__OVM_L1CrossDomainMessenger"); // overrides OVM_CrossDomainEnabled constructor setting because resolve() is not yet accessible
     }
 
@@ -88,16 +96,16 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         // Construct calldata for l2ERC20Gateway.finalizeDeposit(_to, _amount)
         bytes memory data =
             abi.encodeWithSelector(
-                iOVM_L2DepositedERC20.finalizeDeposit.selector,
+                iOVM_L2DepositedToken.finalizeDeposit.selector,
                 _to,
                 msg.value
             );
 
         // Send calldata into L2
         sendCrossDomainMessage(
-            l2ERC20Gateway,
+            ovmEth,
             data,
-            DEFAULT_FINALIZE_DEPOSIT_L2_GAS
+            getFinalizeDepositL2Gas
         );
 
         emit DepositInitiated(_from, _to, msg.value);
@@ -121,7 +129,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     )
         external
         override
-        onlyFromCrossDomainAccount(l2ERC20Gateway)
+        onlyFromCrossDomainAccount(ovmEth)
     {
         _safeTransferETH(_to, _amount);
 

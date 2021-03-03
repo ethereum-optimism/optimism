@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 /* Interface Imports */
-import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/messenging/iAbs_BaseCrossDomainMessenger.sol";
+import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/messaging/iAbs_BaseCrossDomainMessenger.sol";
 
 /**
  * @title OVM_CrossDomainEnabled
@@ -13,9 +13,6 @@ import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/messenging/iAbs
 contract OVM_CrossDomainEnabled {
     // Messenger contract used to send and recieve messages from the other domain.
     address public messenger;
-
-    uint32 public constant DEFAULT_FINALIZE_DEPOSIT_L2_GAS = 1200000;
-    uint32 public constant DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS = 100000;
 
     /***************
      * Constructor *
