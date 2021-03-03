@@ -82,7 +82,7 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
 
     /**
      * @dev When a withdrawal is finalized on L1, the L1 Gateway
-     * transfers the funds to the withdraer.
+     * transfers the funds to the withdrawer.
      *
      * @param _to L1 address that the ERC20 is being withdrawn to
      * @param _amount Amount of ERC20 to send
