@@ -14,6 +14,7 @@ import {
   NON_ZERO_ADDRESS,
   NON_NULL_BYTES32,
   STORAGE_XOR_VALUE,
+  GasMeasurement,
 } from '../../../helpers'
 
 const DUMMY_ACCOUNT = DUMMY_ACCOUNTS[0]
@@ -29,15 +30,15 @@ describe('OVM_StateManager gas consumption', () => {
 
   let Factory__OVM_StateManager: ContractFactory
   let Helper_GasMeasurer: Contract
+  let gasMeasurement: GasMeasurement
   before(async () => {
     Factory__OVM_StateManager = await ethers.getContractFactory(
       'OVM_StateManager'
     )
-
-    Helper_GasMeasurer = await (
-      await (await ethers.getContractFactory('Helper_GasMeasurer')).deploy()
-    ).connect(owner)
+    gasMeasurement = new GasMeasurement()
+    await gasMeasurement.init(owner)
   })
+
 
   let OVM_StateManager: Contract
   beforeEach(async () => {
@@ -45,7 +46,7 @@ describe('OVM_StateManager gas consumption', () => {
       await Factory__OVM_StateManager.deploy(await owner.getAddress())
     ).connect(owner)
 
-    await OVM_StateManager.setExecutionManager(Helper_GasMeasurer.address)
+    await OVM_StateManager.setExecutionManager(gasMeasurement.GasMeasurementContract.address)
   })
 
   const measure = (
@@ -57,21 +58,9 @@ describe('OVM_StateManager gas consumption', () => {
   ) => {
     it('measured consumption!', async () => {
       await doFirst()
-      await getSMGasCost(methodName, methodArgs)
+      let gasCost = await gasMeasurement.getGasCost(OVM_StateManager, methodName, methodArgs)
+      console.log(`          calculated gas cost of ${gasCost}`)
     })
-  }
-
-  const getSMGasCost = async (
-    methodName: string,
-    methodArgs: Array<any> = []
-  ): Promise<number> => {
-    const gasCost: number = await Helper_GasMeasurer.callStatic.measureCallGas(
-      OVM_StateManager.address,
-      OVM_StateManager.interface.encodeFunctionData(methodName, methodArgs)
-    )
-    console.log(`          calculated gas cost of ${gasCost}`)
-
-    return gasCost
   }
 
   const setupFreshAccount = async () => {
