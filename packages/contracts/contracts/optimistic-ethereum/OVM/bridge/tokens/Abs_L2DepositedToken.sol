@@ -51,7 +51,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     /**
      * @dev Initialize this contract with the L1 token gateway address.
      * The flow: 1) this contract gets deployed on L2, 2) the L1
-     * gateway is dpeloyed with addr from (1), 3) L1 gatweway address passed here.
+     * gateway is deployed with addr from (1), 3) L1 gateway address passed here.
      *
      * @param _l1TokenGateway Address of the corresponding L1 gateway deployed to the main chain
      */
