@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.1.10
+Adds extensible ERC20Gateway and Improve CI.
+
+- dev: Apply linting to all test files
+- Test gas consumption of EM.run()
+- Extensible deposit withdraw
+- Update OVM_L2DepositedERC20.sol
+- Commit state dumps to regenesis repo for new tags
+- Update OVM_ChainStorageContainer.sol
+- Update OVM_ECDSAContractAccount.sol
+- Update OVM_CanonicalTransactionChain.sol
+- Reset Context on invalid gaslimit
+- [Fix] CI on merge
+- [Fix] Run integration tests in forked context
+
 ## v0.1.9
 
 Standardized ETH and ERC20 Gateways.
