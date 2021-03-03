@@ -4,12 +4,9 @@ import { expect } from '../../../setup'
 import { ethers, waffle } from 'hardhat'
 import { ContractFactory, Contract, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
-import {
-  encodeSequencerCalldata,
-  DEFAULT_EIP155_TX,
-  ZERO_ADDRESS,
-  remove0x,
-} from '../../../helpers'
+
+/* Internal Imports */
+import { ZERO_ADDRESS, remove0x } from '../../../helpers'
 
 const callPrecompile = async (
   Helper_PrecompileCaller: Contract,

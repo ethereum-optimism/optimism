@@ -412,7 +412,7 @@ describe('OVM_FraudVerifier', () => {
 
       describe('multiple fraud proofs for the same pre-execution state', () => {
         let state2: any
-        let DUMMY_HASH_2 = hashTransaction(DUMMY_OVM_TRANSACTIONS[1])
+        const DUMMY_HASH_2 = hashTransaction(DUMMY_OVM_TRANSACTIONS[1])
         beforeEach(async () => {
           state2 = await smockit(
             await ethers.getContractFactory('OVM_StateTransitioner')

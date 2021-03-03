@@ -3,20 +3,18 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { waffle, ethers } from 'hardhat'
 import { ContractFactory, Wallet, Contract } from 'ethers'
-import { zeroPad } from '@ethersproject/bytes'
+import { smockit, MockContract } from '@eth-optimism/smock'
+
+/* Internal Imports */
 import { getContractInterface } from '../../../../src'
 import {
   encodeSequencerCalldata,
-  EIP155Transaction,
   signNativeTransaction,
   signEthSignMessage,
   DEFAULT_EIP155_TX,
   serializeNativeTransaction,
   serializeEthSignTransaction,
-  ZERO_ADDRESS,
 } from '../../../helpers'
-import { smockit, MockContract } from '@eth-optimism/smock'
-import { create } from 'lodash'
 
 describe('OVM_SequencerEntrypoint', () => {
   let wallet: Wallet

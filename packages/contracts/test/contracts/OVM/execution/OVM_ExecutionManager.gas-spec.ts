@@ -6,7 +6,6 @@ import { ethers } from 'hardhat'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
-
 /* Internal Imports */
 import {
   makeAddressManager,
@@ -28,17 +27,17 @@ const DUMMY_GLOBALCONTEXT = {
 
 const QUEUE_ORIGIN = {
   SEQUENCER_QUEUE: 0,
-  L1TOL2_QUEUE: 1
+  L1TOL2_QUEUE: 1,
 }
 
-let DUMMY_TRANSACTION = {
+const DUMMY_TRANSACTION = {
   timestamp: 111111111111,
   blockNumber: 20,
   l1QueueOrigin: QUEUE_ORIGIN.SEQUENCER_QUEUE,
   l1TxOrigin: NON_ZERO_ADDRESS,
   entrypoint: NON_ZERO_ADDRESS, // update this below
   gasLimit: 10_000_000,
-  data: 0
+  data: 0,
 }
 
 describe('OVM_ExecutionManager gas consumption', () => {
@@ -56,26 +55,32 @@ describe('OVM_ExecutionManager gas consumption', () => {
     Factory__OVM_ExecutionManager = await ethers.getContractFactory(
       'OVM_ExecutionManager'
     )
-    
+
     // Deploy a simple contract that just returns successfully with no data
-    targetContractAddress = await deployContractCode('60206001f3', wallet, 10_000_000)
+    targetContractAddress = await deployContractCode(
+      '60206001f3',
+      wallet,
+      10_000_000
+    )
     DUMMY_TRANSACTION.entrypoint = targetContractAddress
 
     AddressManager = await makeAddressManager()
 
     // deploy the state manager and mock it for the state transitioner
     MOCK__STATE_MANAGER = await smockit(
-      await (
-        await ethers.getContractFactory('OVM_StateManager')
-      ).deploy(NON_ZERO_ADDRESS)
+      await (await ethers.getContractFactory('OVM_StateManager')).deploy(
+        NON_ZERO_ADDRESS
+      )
     )
-    
+
     // Setup the SM to satisfy all the checks executed during EM.run()
     MOCK__STATE_MANAGER.smocked.isAuthenticated.will.return.with(true)
-    MOCK__STATE_MANAGER.smocked.getAccountEthAddress.will.return.with(targetContractAddress)
+    MOCK__STATE_MANAGER.smocked.getAccountEthAddress.will.return.with(
+      targetContractAddress
+    )
     MOCK__STATE_MANAGER.smocked.hasAccount.will.return.with(true)
     MOCK__STATE_MANAGER.smocked.testAndSetAccountLoaded.will.return.with(true)
-    
+
     await AddressManager.setAddress(
       'OVM_StateManagerFactory',
       MOCK__STATE_MANAGER.address
@@ -84,7 +89,6 @@ describe('OVM_ExecutionManager gas consumption', () => {
     gasMeasurement = new GasMeasurement()
     await gasMeasurement.init(wallet)
   })
-
 
   let OVM_ExecutionManager: Contract
   beforeEach(async () => {
@@ -99,17 +103,18 @@ describe('OVM_ExecutionManager gas consumption', () => {
 
   describe('Measure cost of a very simple contract', async () => {
     it('Gas cost of run', async () => {
-      let gasCost = await gasMeasurement.getGasCost(
-        OVM_ExecutionManager, 'run', 
+      const gasCost = await gasMeasurement.getGasCost(
+        OVM_ExecutionManager,
+        'run',
         [DUMMY_TRANSACTION, MOCK__STATE_MANAGER.address]
       )
       console.log(`calculated gas cost of ${gasCost}`)
-      
-      let benchmark:number = 226_516
+
+      const benchmark: number = 226_516
       expect(gasCost).to.be.lte(benchmark)
       expect(gasCost).to.be.gte(
         benchmark - 1_000,
-        "Gas cost has significantly decreased, consider updating the benchmark to reflect the change"
+        'Gas cost has significantly decreased, consider updating the benchmark to reflect the change'
       )
     })
   })

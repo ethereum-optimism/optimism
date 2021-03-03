@@ -4,7 +4,7 @@ import { Contract, Signer } from 'ethers'
 export class GasMeasurement {
   GasMeasurementContract: Contract
 
-  public async init(wallet: Signer){
+  public async init(wallet: Signer) {
     this.GasMeasurementContract = await (
       await (await ethers.getContractFactory('Helper_GasMeasurer')).deploy()
     ).connect(wallet)
@@ -14,8 +14,7 @@ export class GasMeasurement {
     targetContract: Contract,
     methodName: string,
     methodArgs: Array<any> = []
-  ): Promise<number> 
-  {
+  ): Promise<number> {
     const gasCost: number = await this.GasMeasurementContract.callStatic.measureCallGas(
       targetContract.address,
       targetContract.interface.encodeFunctionData(methodName, methodArgs)

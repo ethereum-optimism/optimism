@@ -1,9 +1,6 @@
-/* External Imports */
-import * as rlp from 'rlp'
-
 /* Internal Imports */
 import { Lib_RLPReader_TEST_JSON } from '../../../data'
-import { runJsonTest, toHexString } from '../../../helpers'
+import { runJsonTest } from '../../../helpers'
 
 describe('Lib_RLPReader', () => {
   describe('JSON tests', () => {

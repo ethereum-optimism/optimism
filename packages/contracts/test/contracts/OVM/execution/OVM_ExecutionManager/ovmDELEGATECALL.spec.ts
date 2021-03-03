@@ -3,9 +3,7 @@ import {
   ExecutionManagerTestRunner,
   TestDefinition,
   OVM_TX_GAS_LIMIT,
-  NULL_BYTES32,
   NON_NULL_BYTES32,
-  REVERT_FLAGS,
   DUMMY_BYTECODE,
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'

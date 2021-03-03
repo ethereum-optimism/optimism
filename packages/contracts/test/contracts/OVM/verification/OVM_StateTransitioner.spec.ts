@@ -3,7 +3,7 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { BigNumber, Contract, ContractFactory } from 'ethers'
+import { BigNumber, Contract } from 'ethers'
 import * as rlp from 'rlp'
 
 /* Internal Imports */
@@ -24,7 +24,6 @@ import {
   smoddit,
   ModifiableContractFactory,
 } from '@eth-optimism/smock'
-import { keccak256 } from 'ethers/lib/utils'
 
 describe('OVM_StateTransitioner', () => {
   let AddressManager: Contract
@@ -92,7 +91,7 @@ describe('OVM_StateTransitioner', () => {
   })
 
   describe('proveContractState', () => {
-    let ovmContractAddress = NON_ZERO_ADDRESS
+    const ovmContractAddress = NON_ZERO_ADDRESS
     let ethContractAddress = ZERO_ADDRESS
     let account: any
     beforeEach(() => {
@@ -109,7 +108,7 @@ describe('OVM_StateTransitioner', () => {
     describe('when provided a valid code hash', () => {
       beforeEach(async () => {
         ethContractAddress = OVM_StateTransitioner.address
-        account.codeHash = keccak256(
+        account.codeHash = ethers.utils.keccak256(
           await ethers.provider.getCode(OVM_StateTransitioner.address)
         )
       })
@@ -207,9 +206,9 @@ describe('OVM_StateTransitioner', () => {
       })
 
       describe('when provided an invalid slot inclusion proof', () => {
-        let key = keccak256('0x1234')
-        let val = keccak256('0x5678')
-        let proof = '0x'
+        const key = ethers.utils.keccak256('0x1234')
+        const val = ethers.utils.keccak256('0x5678')
+        const proof = '0x'
         beforeEach(async () => {
           const generator = await TrieTestGenerator.fromNodes({
             nodes: [
@@ -236,8 +235,8 @@ describe('OVM_StateTransitioner', () => {
       })
 
       describe('when provided a valid slot inclusion proof', () => {
-        let key = keccak256('0x1234')
-        let val = keccak256('0x5678')
+        const key = ethers.utils.keccak256('0x1234')
+        const val = ethers.utils.keccak256('0x5678')
         let proof: string
         beforeEach(async () => {
           const generator = await TrieTestGenerator.fromNodes({
@@ -329,7 +328,7 @@ describe('OVM_StateTransitioner', () => {
       })
     })
 
-    let ovmContractAddress = NON_ZERO_ADDRESS
+    const ovmContractAddress = NON_ZERO_ADDRESS
     let account: any
     beforeEach(() => {
       account = {
@@ -414,11 +413,11 @@ describe('OVM_StateTransitioner', () => {
       })
     })
 
-    let ovmContractAddress = NON_ZERO_ADDRESS
+    const ovmContractAddress = NON_ZERO_ADDRESS
     let account: any
-    let key = keccak256('0x1234')
-    let val = keccak256('0x5678')
-    let newVal = keccak256('0x4321')
+    const key = ethers.utils.keccak256('0x1234')
+    const val = ethers.utils.keccak256('0x5678')
+    const newVal = ethers.utils.keccak256('0x4321')
     beforeEach(() => {
       account = {
         nonce: 0,
@@ -460,9 +459,7 @@ describe('OVM_StateTransitioner', () => {
       })
 
       describe('with a valid proof', () => {
-        let accountTrieProof: string
         let storageTrieProof: string
-        let postStateRoot: string
         beforeEach(async () => {
           const storageGenerator = await TrieTestGenerator.fromNodes({
             nodes: [
@@ -505,10 +502,7 @@ describe('OVM_StateTransitioner', () => {
             isFresh: false,
           })
 
-          accountTrieProof = test.accountTrieWitness
           storageTrieProof = storageTest.proof
-
-          postStateRoot = test.newAccountTrieRoot
 
           OVM_StateTransitioner.smodify.put({
             postStateRoot: test.accountTrieRoot,

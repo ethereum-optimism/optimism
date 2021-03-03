@@ -1,8 +1,8 @@
-import { expect } from '../../../setup'
+import '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
+import { Contract, ContractFactory, Signer } from 'ethers'
 import _ from 'lodash'
 
 /* Internal Imports */
@@ -29,7 +29,6 @@ describe('OVM_StateManager gas consumption', () => {
   })
 
   let Factory__OVM_StateManager: ContractFactory
-  let Helper_GasMeasurer: Contract
   let gasMeasurement: GasMeasurement
   before(async () => {
     Factory__OVM_StateManager = await ethers.getContractFactory(
@@ -39,14 +38,15 @@ describe('OVM_StateManager gas consumption', () => {
     await gasMeasurement.init(owner)
   })
 
-
   let OVM_StateManager: Contract
   beforeEach(async () => {
     OVM_StateManager = (
       await Factory__OVM_StateManager.deploy(await owner.getAddress())
     ).connect(owner)
 
-    await OVM_StateManager.setExecutionManager(gasMeasurement.GasMeasurementContract.address)
+    await OVM_StateManager.setExecutionManager(
+      gasMeasurement.GasMeasurementContract.address
+    )
   })
 
   const measure = (
@@ -58,7 +58,11 @@ describe('OVM_StateManager gas consumption', () => {
   ) => {
     it('measured consumption!', async () => {
       await doFirst()
-      let gasCost = await gasMeasurement.getGasCost(OVM_StateManager, methodName, methodArgs)
+      const gasCost = await gasMeasurement.getGasCost(
+        OVM_StateManager,
+        methodName,
+        methodArgs
+      )
       console.log(`          calculated gas cost of ${gasCost}`)
     })
   }
@@ -378,8 +382,8 @@ describe('OVM_StateManager gas consumption', () => {
 
   describe('putContractStorage', () => {
     const relevantValues = [DUMMY_VALUE_1, DUMMY_VALUE_2, STORAGE_XOR_VALUE]
-    for (let preValue of relevantValues) {
-      for (let postValue of relevantValues) {
+    for (const preValue of relevantValues) {
+      for (const postValue of relevantValues) {
         describe(`when overwriting ${preValue} with ${postValue}`, () => {
           measure(
             'putContractStorage',

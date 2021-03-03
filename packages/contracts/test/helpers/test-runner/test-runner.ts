@@ -83,6 +83,7 @@ export class ExecutionManagerTestRunner {
   }
 
   public run(test: TestDefinition) {
+    // tslint:disable-next-line:ban-comma-operator
     ;(test.preState = merge(
       cloneDeep(this.defaultPreState),
       cloneDeep(test.preState)
@@ -255,7 +256,7 @@ export class ExecutionManagerTestRunner {
         return this.contracts.OVM_SafetyChecker.address
       } else if (kv === '$OVM_CALL_HELPER') {
         return this.contracts.Helper_TestRunner.address
-      } else if (kv == '$OVM_DEPLOYER_WHITELIST') {
+      } else if (kv === '$OVM_DEPLOYER_WHITELIST') {
         return this.contracts.OVM_DeployerWhitelist.address
       } else if (kv.startsWith('$DUMMY_OVM_ADDRESS_')) {
         return ExecutionManagerTestRunner.getDummyAddress(kv)

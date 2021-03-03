@@ -4,15 +4,11 @@ import {
   TestDefinition,
   OVM_TX_GAS_LIMIT,
   NON_NULL_BYTES32,
-  REVERT_FLAGS,
   VERIFIED_EMPTY_CONTRACT_HASH,
   NUISANCE_GAS_COSTS,
   Helper_TestRunner_BYTELEN,
   ZERO_ADDRESS,
 } from '../../../../helpers'
-
-const DUMMY_REVERT_DATA =
-  '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
 
 const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
 

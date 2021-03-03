@@ -2,7 +2,7 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { ContractFactory, Contract, BigNumber } from 'ethers'
+import { ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
 import {

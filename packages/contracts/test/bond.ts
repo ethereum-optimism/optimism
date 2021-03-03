@@ -9,7 +9,7 @@ async function mineBlock(provider: any, timestamp: number): Promise<void> {
 
 describe('BondManager', () => {
   const provider = waffle.provider
-  let wallets = provider.getWallets()
+  const wallets = provider.getWallets()
 
   let bondManager: Contract
   let token: Contract
@@ -117,7 +117,7 @@ describe('BondManager', () => {
       const timestamp = withdrawalTimestamp + ONE_WEEK
       await mineBlock(deployer.provider, timestamp)
 
-      const balanceBefore = await token.balanceOf(sender)
+      balanceBefore = await token.balanceOf(sender)
       await bondManager.finalizeWithdrawal()
       const bond = await bondManager.bonds(sender)
       expect(bond.state).to.eq(State.NOT_COLLATERALIZED)
@@ -333,12 +333,12 @@ describe('BondManager', () => {
 
       describe('same publisher commits fraud multiple times', async () => {
         let timestamp: number
-        let root1 =
+        const root1 =
           '0x0000000000000000000000000000000000000000000000000000000000000000'
-        let ts1 = 100
-        let root2 =
+        const ts1 = 100
+        const root2 =
           '0x0000000000000000000000000000000000000000000000000000000000000001'
-        let ts2 = 110
+        const ts2 = 110
 
         beforeEach(async () => {
           await fraudVerifier.finalize(root2, sender, ts2)

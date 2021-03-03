@@ -1,13 +1,9 @@
 /* External Imports */
 import { ethers } from 'hardhat'
-import { zeroPad } from '@ethersproject/bytes'
 import { Wallet } from 'ethers'
-import {
-  remove0x,
-  numberToHexString,
-  hexStrToBuf,
-  makeAddressManager,
-} from '../'
+
+/* Internal Imports */
+import { remove0x, hexStrToBuf } from '../'
 import { ZERO_ADDRESS } from '../constants'
 
 export interface EIP155Transaction {
@@ -44,12 +40,12 @@ export const getSignedComponents = (signed: string): any[] => {
 }
 
 export const encodeCompactTransaction = (transaction: any): string => {
-  const nonce = zeroPad(transaction.nonce, 3)
-  const gasLimit = zeroPad(transaction.gasLimit, 3)
+  const nonce = ethers.utils.zeroPad(transaction.nonce, 3)
+  const gasLimit = ethers.utils.zeroPad(transaction.gasLimit, 3)
   if (transaction.gasPrice % 1000000 !== 0)
     throw Error('gas price must be a multiple of 1000000')
   const compressedGasPrice: any = transaction.gasPrice / 1000000
-  const gasPrice = zeroPad(compressedGasPrice, 3)
+  const gasPrice = ethers.utils.zeroPad(compressedGasPrice, 3)
   const to = !transaction.to.length
     ? hexStrToBuf(ZERO_ADDRESS)
     : hexStrToBuf(transaction.to)
@@ -96,15 +92,14 @@ export const signEthSignMessage = async (
   const transactionSignature = await wallet.signMessage(transactionHashBytes)
 
   const messageHash = ethers.utils.hashMessage(transactionHashBytes)
-  let [v, r, s] = getRawSignedComponents(transactionSignature).map(
+  const [v, r, s] = getRawSignedComponents(transactionSignature).map(
     (component) => {
       return remove0x(component)
     }
   )
-  v = '0' + (parseInt(v, 16) - 27)
   return {
     messageHash,
-    v,
+    v: '0' + (parseInt(v, 16) - 27),
     r,
     s,
   }
@@ -118,13 +113,14 @@ export const signNativeTransaction = async (
   const transactionSignature = await wallet.signTransaction(transaction)
 
   const messageHash = ethers.utils.keccak256(serializedTransaction)
-  let [v, r, s] = getSignedComponents(transactionSignature).map((component) => {
-    return remove0x(component)
-  })
-  v = '0' + (parseInt(v, 16) - transaction.chainId * 2 - 8 - 27)
+  const [v, r, s] = getSignedComponents(transactionSignature).map(
+    (component) => {
+      return remove0x(component)
+    }
+  )
   return {
     messageHash,
-    v,
+    v: '0' + (parseInt(v, 16) - transaction.chainId * 2 - 8 - 27),
     r,
     s,
   }

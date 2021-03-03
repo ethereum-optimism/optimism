@@ -1,5 +1,5 @@
 /* External Imports */
-import { Signer, Contract, ContractFactory } from 'ethers'
+import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { RollupDeployConfig, makeContractDeployConfig } from './config'

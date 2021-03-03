@@ -2,13 +2,8 @@ import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, BigNumber, providers } from 'ethers'
-import {
-  smockit,
-  MockContract,
-  smoddit,
-  ModifiableContract,
-} from '@eth-optimism/smock'
+import { Signer, Contract } from 'ethers'
+import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import {

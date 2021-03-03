@@ -14,7 +14,6 @@ import {
   DUMMY_BATCH_PROOFS,
   toHexString,
 } from '../../../../helpers'
-import { sign } from 'crypto'
 
 describe('OVM_L1MultiMessageRelayer', () => {
   let signer: Signer
@@ -54,7 +53,7 @@ describe('OVM_L1MultiMessageRelayer', () => {
     )
 
     // define a dummy proof to satisfy the abi
-    let dummyProof = {
+    const dummyProof = {
       stateRoot: NON_NULL_BYTES32,
       stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
       stateRootProof: DUMMY_BATCH_PROOFS[0],
@@ -63,27 +62,30 @@ describe('OVM_L1MultiMessageRelayer', () => {
     }
 
     // create a few dummy messages to relay
-    let m1 = {
+    const m1 = {
       target: '0x1100000000000000000000000000000000000000',
       message: NON_NULL_BYTES32,
       sender: '0x2200000000000000000000000000000000000000',
       messageNonce: 1,
       proof: dummyProof,
     }
-    let m2 = {
+
+    const m2 = {
       target: '0x1100000000000000000000000000000000000000',
       message: NON_NULL_BYTES32,
       sender: '0x2200000000000000000000000000000000000000',
       messageNonce: 2,
       proof: dummyProof,
     }
-    let m3 = {
+
+    const m3 = {
       target: '0x1100000000000000000000000000000000000000',
       message: NON_NULL_BYTES32,
       sender: '0x2200000000000000000000000000000000000000',
       messageNonce: 2,
       proof: dummyProof,
     }
+
     messages = [m1, m2, m3]
   })
 

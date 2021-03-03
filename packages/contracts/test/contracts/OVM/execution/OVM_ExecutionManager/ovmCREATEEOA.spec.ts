@@ -4,7 +4,6 @@ import {
   TestDefinition,
   OVM_TX_GAS_LIMIT,
   NON_NULL_BYTES32,
-  REVERT_FLAGS,
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 

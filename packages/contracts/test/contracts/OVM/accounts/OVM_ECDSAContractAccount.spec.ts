@@ -4,16 +4,16 @@ import { expect } from '../../../setup'
 import { ethers, waffle } from 'hardhat'
 import { ContractFactory, Contract, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
-import { NON_ZERO_ADDRESS, ZERO_ADDRESS } from '../../../helpers/constants'
+
+/* Internal Imports */
+import { NON_ZERO_ADDRESS } from '../../../helpers/constants'
 import {
   serializeNativeTransaction,
   signNativeTransaction,
   DEFAULT_EIP155_TX,
   serializeEthSignTransaction,
   signEthSignMessage,
-  EIP155Transaction,
 } from '../../../helpers'
-import { defaultAbiCoder } from 'ethers/lib/utils'
 
 const callPrecompile = async (
   Helper_PrecompileCaller: Contract,

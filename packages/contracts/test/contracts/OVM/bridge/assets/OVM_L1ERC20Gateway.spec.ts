@@ -2,13 +2,8 @@ import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
-import {
-  smockit,
-  MockContract,
-  smoddit,
-  ModifiableContract,
-} from '@eth-optimism/smock'
+import { Signer, ContractFactory, Contract } from 'ethers'
+import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import { NON_ZERO_ADDRESS, ZERO_ADDRESS } from '../../../../helpers'
@@ -28,7 +23,6 @@ describe('OVM_L1ERC20Gateway', () => {
   let Mock__OVM_L2DepositedERC20: MockContract
   let Factory__L1ERC20: ContractFactory
   let L1ERC20: Contract
-  const initialSupply = 1_000
   before(async () => {
     ;[alice, bob] = await ethers.getSigners()
 
@@ -145,7 +139,6 @@ describe('OVM_L1ERC20Gateway', () => {
     const INITIAL_DEPOSITER_BALANCE = 100_000
     let depositer: string
     const depositAmount = 1_000
-    let L1ERC20: Contract
 
     beforeEach(async () => {
       // Deploy the L1 ERC20 token, Alice will receive the full initialSupply

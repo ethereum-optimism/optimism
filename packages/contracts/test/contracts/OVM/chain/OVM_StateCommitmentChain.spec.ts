@@ -15,7 +15,6 @@ import {
   NULL_BYTES32,
   increaseEthTime,
 } from '../../../helpers'
-import { keccak256, defaultAbiCoder } from 'ethers/lib/utils'
 
 describe('OVM_StateCommitmentChain', () => {
   let sequencer: Signer
@@ -205,7 +204,7 @@ describe('OVM_StateCommitmentChain', () => {
         batch.length
       )
       await OVM_StateCommitmentChain.appendStateBatch(batch, 0)
-      batchHeader.extraData = defaultAbiCoder.encode(
+      batchHeader.extraData = ethers.utils.defaultAbiCoder.encode(
         ['uint256', 'address'],
         [await getEthTime(ethers.provider), await sequencer.getAddress()]
       )
