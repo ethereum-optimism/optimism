@@ -14,19 +14,6 @@ import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Sa
  */
 library Lib_OVMCodec {
 
-    /*************
-     * Constants *
-     *************/
-
-    bytes constant internal RLP_NULL_BYTES = hex'80';
-    bytes constant internal NULL_BYTES = bytes('');
-
-    // Ring buffer IDs
-    bytes32 constant internal RING_BUFFER_SCC_BATCHES = keccak256("RING_BUFFER_SCC_BATCHES");
-    bytes32 constant internal RING_BUFFER_CTC_BATCHES = keccak256("RING_BUFFER_CTC_BATCHES");
-    bytes32 constant internal RING_BUFFER_CTC_QUEUE = keccak256("RING_BUFFER_CTC_QUEUE");
-
-
     /*********
      * Enums *
      *********/
@@ -110,14 +97,14 @@ library Lib_OVMCodec {
     }
 
 
-    /*********************************************
-     * Internal Functions: Encoding and Decoding *
-     *********************************************/
+    /**********************
+     * Internal Functions *
+     **********************/
 
     /**
      * Decodes an EOA transaction (i.e., native Ethereum RLP encoding).
      * @param _transaction Encoded EOA transaction.
-     * @return _decoded Transaction decoded into a struct.
+     * @return Transaction decoded into a struct.
      */
     function decodeEIP155Transaction(
         bytes memory _transaction,
@@ -126,7 +113,7 @@ library Lib_OVMCodec {
         internal
         pure
         returns (
-            EIP155Transaction memory _decoded
+            EIP155Transaction memory
         )
     {
         if (_isEthSignedMessage) {
@@ -165,12 +152,17 @@ library Lib_OVMCodec {
         }
     }
 
+    /**
+     * Decompresses a compressed EIP155 transaction.
+     * @param _transaction Compressed EIP155 transaction bytes.
+     * @return Transaction parsed into a struct.
+     */
     function decompressEIP155Transaction(
         bytes memory _transaction
     )
         internal
         returns (
-            EIP155Transaction memory _decompressed
+            EIP155Transaction memory
         )
     {
         return EIP155Transaction({
@@ -233,7 +225,7 @@ library Lib_OVMCodec {
     /**
      * Encodes a standard OVM transaction.
      * @param _transaction OVM transaction to encode.
-     * @return _encoded Encoded transaction bytes.
+     * @return Encoded transaction bytes.
      */
     function encodeTransaction(
         Transaction memory _transaction
@@ -241,7 +233,7 @@ library Lib_OVMCodec {
         internal
         pure
         returns (
-            bytes memory _encoded
+            bytes memory
         )
     {
         return abi.encodePacked(
@@ -258,7 +250,7 @@ library Lib_OVMCodec {
     /**
      * Hashes a standard OVM transaction.
      * @param _transaction OVM transaction to encode.
-     * @return _hash Hashed transaction
+     * @return Hashed transaction
      */
     function hashTransaction(
         Transaction memory _transaction
@@ -266,7 +258,7 @@ library Lib_OVMCodec {
         internal
         pure
         returns (
-            bytes32 _hash
+            bytes32
         )
     {
         return keccak256(encodeTransaction(_transaction));
@@ -275,7 +267,7 @@ library Lib_OVMCodec {
     /**
      * Converts an OVM account to an EVM account.
      * @param _in OVM account to convert.
-     * @return _out Converted EVM account.
+     * @return Converted EVM account.
      */
     function toEVMAccount(
         Account memory _in
@@ -283,7 +275,7 @@ library Lib_OVMCodec {
         internal
         pure
         returns (
-            EVMAccount memory _out
+            EVMAccount memory
         )
     {
         return EVMAccount({
@@ -297,7 +289,7 @@ library Lib_OVMCodec {
     /**
      * @notice RLP-encodes an account state struct.
      * @param _account Account state struct.
-     * @return _encoded RLP-encoded account state.
+     * @return RLP-encoded account state.
      */
     function encodeEVMAccount(
         EVMAccount memory _account
@@ -305,7 +297,7 @@ library Lib_OVMCodec {
         internal
         pure
         returns (
-            bytes memory _encoded
+            bytes memory
         )
     {
         bytes[] memory raw = new bytes[](4);
@@ -332,7 +324,7 @@ library Lib_OVMCodec {
     /**
      * @notice Decodes an RLP-encoded account state into a useful struct.
      * @param _encoded RLP-encoded account state.
-     * @return _account Account state struct.
+     * @return Account state struct.
      */
     function decodeEVMAccount(
         bytes memory _encoded
@@ -340,7 +332,7 @@ library Lib_OVMCodec {
         internal
         pure
         returns (
-            EVMAccount memory _account
+            EVMAccount memory
         )
     {
         Lib_RLPReader.RLPItem[] memory accountState = Lib_RLPReader.readList(_encoded);
@@ -356,7 +348,7 @@ library Lib_OVMCodec {
     /**
      * Calculates a hash for a given batch header.
      * @param _batchHeader Header to hash.
-     * @return _hash Hash of the header.
+     * @return Hash of the header.
      */
     function hashBatchHeader(
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader
@@ -364,7 +356,7 @@ library Lib_OVMCodec {
         internal
         pure
         returns (
-            bytes32 _hash
+            bytes32
         )
     {
         return keccak256(
