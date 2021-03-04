@@ -6,7 +6,7 @@ import { ContractFactory, Contract, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { ZERO_ADDRESS, remove0x } from '../../../helpers'
+import { decodeSolidityError, ZERO_ADDRESS, remove0x } from '../../../helpers'
 
 const callPrecompile = async (
   Helper_PrecompileCaller: Contract,
@@ -105,7 +105,7 @@ describe('OVM_ProxySequencerEntrypoint', () => {
     )
 
     const ovmREVERT: any = Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-    expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+    expect(decodeSolidityError(ovmREVERT._data)).to.equal(
       'ProxySequencerEntrypoint has already been inited'
     )
   })
@@ -137,7 +137,7 @@ describe('OVM_ProxySequencerEntrypoint', () => {
       [`0x${'12'.repeat(20)}`]
     )
     const ovmREVERT: any = Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-    expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+    expect(decodeSolidityError(ovmREVERT._data)).to.equal(
       'Only owner can upgrade the Entrypoint'
     )
   })

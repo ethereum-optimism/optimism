@@ -13,6 +13,7 @@ import {
   DEFAULT_EIP155_TX,
   serializeEthSignTransaction,
   signEthSignMessage,
+  decodeSolidityError,
 } from '../../../helpers'
 
 const callPrecompile = async (
@@ -182,7 +183,7 @@ describe('OVM_ECDSAContractAccount', () => {
       )
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-      expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
         'Signature provided for EOA transaction execution is invalid.'
       )
     })
@@ -209,7 +210,7 @@ describe('OVM_ECDSAContractAccount', () => {
       )
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-      expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
         'Transaction nonce does not match the expected nonce.'
       )
     })
@@ -236,7 +237,7 @@ describe('OVM_ECDSAContractAccount', () => {
       )
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-      expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
         'Transaction chainId does not match expected OVM chainId.'
       )
     })
@@ -266,7 +267,7 @@ describe('OVM_ECDSAContractAccount', () => {
 
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-      expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
         'Gas is not sufficient to execute the transaction.'
       )
     })
@@ -292,7 +293,7 @@ describe('OVM_ECDSAContractAccount', () => {
 
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-      expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
         'Fee was not transferred to relayer.'
       )
     })

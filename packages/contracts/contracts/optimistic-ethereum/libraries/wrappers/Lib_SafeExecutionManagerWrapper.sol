@@ -258,7 +258,10 @@ library Lib_SafeExecutionManagerWrapper {
         _safeExecutionManagerInteraction(
             abi.encodeWithSignature(
                 "ovmREVERT(bytes)",
-                bytes(_reason)
+                abi.encodeWithSignature(
+                    "Error(string)",
+                    _reason
+                )
             )
         );
     }

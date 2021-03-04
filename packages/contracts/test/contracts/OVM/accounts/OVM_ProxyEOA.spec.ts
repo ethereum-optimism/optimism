@@ -6,7 +6,7 @@ import { ContractFactory, Contract, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { remove0x } from '../../../helpers'
+import { remove0x, decodeSolidityError } from '../../../helpers'
 
 const callPrecompile = async (
   Helper_PrecompileCaller: Contract,
@@ -117,7 +117,7 @@ describe('OVM_ProxyEOA', () => {
       ])
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
-      expect(ethers.utils.toUtf8String(ovmREVERT._data)).to.equal(
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
         'EOAs can only upgrade their own EOA implementation'
       )
     })
