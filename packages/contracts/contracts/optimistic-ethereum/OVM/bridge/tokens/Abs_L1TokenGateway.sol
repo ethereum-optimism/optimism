@@ -100,7 +100,6 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     function getFinalizeDepositL2Gas()
         public
         view
-        override
         returns(
             uint32
         )

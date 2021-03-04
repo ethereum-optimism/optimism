@@ -48,11 +48,4 @@ interface iOVM_L2DepositedToken {
         uint _amount
     )
         external;
-
-    function getFinalizeWithdrawalL1Gas()
-        external
-        view
-        returns(
-            uint32
-        );
 }

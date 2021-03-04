@@ -48,11 +48,4 @@ interface iOVM_L1TokenGateway {
         uint _amount
     )
         external;
-
-    function getFinalizeDepositL2Gas()
-        external
-        view
-        returns(
-            uint32
-        );
 }
