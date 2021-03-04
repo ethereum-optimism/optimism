@@ -2,9 +2,9 @@
 import * as rlp from 'rlp'
 import { default as seedbytes } from 'random-bytes-seed'
 import { SecureTrie, BaseTrie } from 'merkle-patricia-tree'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { fromHexString, toHexString } from '../utils'
 import { NULL_BYTES32 } from '../constants'
 
 export interface TrieNode {

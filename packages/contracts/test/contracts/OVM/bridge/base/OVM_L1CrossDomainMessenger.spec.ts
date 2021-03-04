@@ -4,6 +4,7 @@ import { expect } from '../../../../setup'
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
+import { remove0x, toHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -15,9 +16,7 @@ import {
   DUMMY_BATCH_HEADERS,
   DUMMY_BATCH_PROOFS,
   TrieTestGenerator,
-  toHexString,
   getNextBlockNumber,
-  remove0x,
   getXDomainCalldata,
 } from '../../../../helpers'
 import { keccak256 } from 'ethers/lib/utils'

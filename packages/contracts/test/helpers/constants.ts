@@ -1,10 +1,8 @@
 /* External Imports */
 import { ethers } from 'ethers'
 import { defaultAccounts } from 'ethereum-waffle'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import xor from 'buffer-xor'
-
-/* Internal Imports */
-import { makeHexString, makeAddress, fromHexString, toHexString } from './utils'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_HARDHAT = defaultAccounts.map((account) => {
@@ -19,10 +17,12 @@ export const RUN_OVM_TEST_GAS = 20_000_000
 export const FORCE_INCLUSION_PERIOD_SECONDS = 600
 export const FORCE_INCLUSION_PERIOD_BLOCKS = 600 / 12
 
-export const NULL_BYTES32 = makeHexString('00', 32)
-export const NON_NULL_BYTES32 = makeHexString('11', 32)
-export const ZERO_ADDRESS = makeAddress('00')
-export const NON_ZERO_ADDRESS = makeAddress('11')
+export const NULL_BYTES32 =
+  '0x0000000000000000000000000000000000000000000000000000000000000000'
+export const NON_NULL_BYTES32 =
+  '0x1111111111111111111111111111111111111111111111111111111111111111'
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+export const NON_ZERO_ADDRESS = '0x1111111111111111111111111111111111111111'
 
 export const VERIFIED_EMPTY_CONTRACT_HASH =
   '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'

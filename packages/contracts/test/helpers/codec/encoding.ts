@@ -3,7 +3,7 @@ import { ethers } from 'hardhat'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { remove0x, hexStrToBuf } from '../'
+import { remove0x, fromHexString } from '@eth-optimism/core-utils'
 import { ZERO_ADDRESS } from '../constants'
 
 export interface EIP155Transaction {
@@ -47,9 +47,9 @@ export const encodeCompactTransaction = (transaction: any): string => {
   const compressedGasPrice: any = transaction.gasPrice / 1000000
   const gasPrice = ethers.utils.zeroPad(compressedGasPrice, 3)
   const to = !transaction.to.length
-    ? hexStrToBuf(ZERO_ADDRESS)
-    : hexStrToBuf(transaction.to)
-  const data = hexStrToBuf(transaction.data)
+    ? fromHexString(ZERO_ADDRESS)
+    : fromHexString(transaction.to)
+  const data = fromHexString(transaction.data)
 
   return Buffer.concat([
     Buffer.from(gasLimit),

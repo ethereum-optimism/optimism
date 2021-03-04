@@ -3,10 +3,10 @@ import * as path from 'path'
 import { ethers } from 'ethers'
 import * as Ganache from 'ganache-core'
 import { keccak256 } from 'ethers/lib/utils'
+import { fromHexString, toHexString, remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { deploy, RollupDeployConfig } from './contract-deployment'
-import { fromHexString, toHexString, remove0x } from './utils'
 import { getContractDefinition } from './contract-defs'
 
 interface StorageDump {

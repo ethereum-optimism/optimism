@@ -4,9 +4,10 @@ import { expect } from '../../../setup'
 import * as rlp from 'rlp'
 import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
+import { toHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { toHexString, TrieTestGenerator } from '../../../helpers'
+import { TrieTestGenerator } from '../../../helpers'
 
 const NODE_COUNTS = [1, 2, 128]
 

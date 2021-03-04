@@ -15,7 +15,6 @@ import {
   setProxyTarget,
   TrieTestGenerator,
   ZERO_ADDRESS,
-  numberToHexString,
 } from '../../../helpers'
 import {
   MockContract,
@@ -24,6 +23,7 @@ import {
   smoddit,
   ModifiableContractFactory,
 } from '@eth-optimism/smock'
+import { toHexString } from '@eth-optimism/core-utils'
 
 describe('OVM_StateTransitioner', () => {
   let AddressManager: Contract
@@ -279,7 +279,7 @@ describe('OVM_StateTransitioner', () => {
         l1QueueOrigin: '0x00',
         l1TxOrigin: ZERO_ADDRESS,
         entrypoint: ZERO_ADDRESS,
-        gasLimit: numberToHexString(gasLimit),
+        gasLimit: toHexString(gasLimit),
         data: '0x1234',
       }
 

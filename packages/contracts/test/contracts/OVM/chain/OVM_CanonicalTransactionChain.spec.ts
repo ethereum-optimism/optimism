@@ -5,6 +5,7 @@ import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { smockit, MockContract } from '@eth-optimism/smock'
+import { remove0x } from '@eth-optimism/core-utils'
 import _ from 'lodash'
 
 /* Internal Imports */
@@ -15,7 +16,6 @@ import {
   FORCE_INCLUSION_PERIOD_BLOCKS,
   setEthTime,
   NON_ZERO_ADDRESS,
-  remove0x,
   getEthTime,
   getNextBlockNumber,
   increaseEthTime,

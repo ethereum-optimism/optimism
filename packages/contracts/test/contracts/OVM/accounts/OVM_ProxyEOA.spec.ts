@@ -4,9 +4,10 @@ import { expect } from '../../../setup'
 import { ethers, waffle } from 'hardhat'
 import { ContractFactory, Contract, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
+import { remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { remove0x, decodeSolidityError } from '../../../helpers'
+import { decodeSolidityError } from '../../../helpers'
 
 const callPrecompile = async (
   Helper_PrecompileCaller: Contract,
