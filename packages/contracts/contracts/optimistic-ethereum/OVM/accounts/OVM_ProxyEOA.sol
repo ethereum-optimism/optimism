@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
-import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
+import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
 import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
@@ -18,12 +18,20 @@ import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Sa
  */
 contract OVM_ProxyEOA {
 
+    /*************
+     * Constants *
+     *************/
+
     bytes32 constant IMPLEMENTATION_KEY = 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead;
+
 
     /***************
      * Constructor *
      ***************/
 
+    /**
+     * @param _implementation Address of the initial implementation contract.
+     */
     constructor(
         address _implementation
     )
@@ -62,6 +70,10 @@ contract OVM_ProxyEOA {
      * Public Functions *
      ********************/
 
+    /**
+     * Changes the implementation address.
+     * @param _implementation New implementation address.
+     */
     function upgrade(
         address _implementation
     )
@@ -75,18 +87,23 @@ contract OVM_ProxyEOA {
         _setImplementation(_implementation);
     }
 
+    /**
+     * Gets the address of the current implementation.
+     * @return Current implementation address.
+     */
     function getImplementation()
         public
         returns (
-            address _implementation
+            address
         )
     {
-        return address(uint160(uint256(
+        return Lib_Bytes32Utils.toAddress(
             Lib_SafeExecutionManagerWrapper.safeSLOAD(
                 IMPLEMENTATION_KEY
             )
-        )));
+        );
     }
+
 
     /**********************
      * Internal Functions *
@@ -99,7 +116,7 @@ contract OVM_ProxyEOA {
     {
         Lib_SafeExecutionManagerWrapper.safeSSTORE(
             IMPLEMENTATION_KEY,
-            bytes32(uint256(uint160(_implementation)))
+            Lib_Bytes32Utils.fromAddress(_implementation)
         );
     }
 }
