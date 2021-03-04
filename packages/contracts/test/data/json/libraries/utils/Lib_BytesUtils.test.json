@@ -1,23 +1,5 @@
 {
     "tests": {
-        "concat": {
-            "two non-empty inputs": {
-                "in": ["0x1234", "0x5678"],
-                "out": ["0x12345678"]
-            },
-            "two empty inputs": {
-                "in": ["0x", "0x"],
-                "out": ["0x"]
-            },
-            "first empty, second non-empty": {
-                "in": ["0x1234", "0x"],
-                "out": ["0x1234"]
-            },
-            "first non-empty, second empty": {
-                "in": ["0x", "0x5678"],
-                "out": ["0x5678"]
-            }
-        },
         "slice": {
             "start zero, length = 0": {
                 "in": ["0x12345678", 0, 0],

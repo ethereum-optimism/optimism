@@ -897,7 +897,7 @@ library Lib_MerkleTrie {
         uint8 offset = uint8(_key.length % 2);
         bytes memory prefixed = new bytes(2 - offset);
         prefixed[0] = bytes1(prefix + offset);
-        return Lib_BytesUtils.concat(prefixed, _key);
+        return abi.encodePacked(prefixed, _key);
     }
 
     /**

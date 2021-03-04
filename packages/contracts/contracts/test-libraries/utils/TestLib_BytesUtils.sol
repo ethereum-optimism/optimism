@@ -19,7 +19,7 @@ contract TestLib_BytesUtils {
         pure
         returns (bytes memory)
     {
-        return Lib_BytesUtils.concat(
+        return abi.encodePacked(
             _preBytes,
             _postBytes
         );
