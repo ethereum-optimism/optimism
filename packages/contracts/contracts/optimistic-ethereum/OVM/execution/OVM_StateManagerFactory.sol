@@ -10,7 +10,7 @@ import { OVM_StateManager } from "./OVM_StateManager.sol";
 
 /**
  * @title OVM_StateManagerFactory
- * @dev The State Manager Factory is called by a State Transitioner's init code, to create a new 
+ * @dev The State Manager Factory is called by a State Transitioner's init code, to create a new
  * State Manager for use in the Fraud Verification process.
  * 
  * Compiler used: solc
@@ -18,14 +18,14 @@ import { OVM_StateManager } from "./OVM_StateManager.sol";
  */
 contract OVM_StateManagerFactory is iOVM_StateManagerFactory {
 
-    /***************************************
-     * Public Functions: Contract Creation *
-     ***************************************/
+    /********************
+     * Public Functions *
+     ********************/
 
     /**
      * Creates a new OVM_StateManager
      * @param _owner Owner of the created contract.
-     * @return _ovmStateManager New OVM_StateManager instance.
+     * @return New OVM_StateManager instance.
      */
     function create(
         address _owner
@@ -33,7 +33,7 @@ contract OVM_StateManagerFactory is iOVM_StateManagerFactory {
         override
         public
         returns (
-            iOVM_StateManager _ovmStateManager
+            iOVM_StateManager
         )
     {
         return new OVM_StateManager(_owner);
