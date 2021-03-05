@@ -88,9 +88,8 @@ jobs:
 
   git:
     name: Commit State Dump
-    needs: docker
+    needs: [docker, tag]
     runs-on: ubuntu-latest
-    needs: tag
     if: needs.tag.outputs.tag_name
 
     steps:
