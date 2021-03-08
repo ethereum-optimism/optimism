@@ -93,6 +93,23 @@ library Lib_RLPWriter {
     }
 
     /**
+     * RLP encodes a bytes32 value.
+     * @param _in The bytes32 to encode.
+     * @return _out The RLP encoded bytes32 in bytes.
+     */
+    function writeBytes32(
+        bytes32 _in
+    )
+        internal
+        pure
+        returns (
+            bytes memory _out
+        )
+    {
+        return writeBytes(abi.encodePacked(_in));
+    }
+
+    /**
      * RLP encodes a uint.
      * @param _in The uint256 to encode.
      * @return _out The RLP encoded uint256 in bytes.
