@@ -6,21 +6,22 @@ pragma experimental ABIEncoderV2;
 import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
 
 /* Library Imports */
-import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
-import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
+import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 import { Lib_SafeMathWrapper } from "../../libraries/wrappers/Lib_SafeMathWrapper.sol";
 
 /**
  * @title OVM_ECDSAContractAccount
  * @dev The ECDSA Contract Account can be used as the implementation for a ProxyEOA deployed by the
- * ovmCREATEEOA operation. It enables backwards compatibility with Ethereum's Layer 1, by 
+ * ovmCREATEEOA operation. It enables backwards compatibility with Ethereum's Layer 1, by
  * providing eth_sign and EIP155 formatted transaction encodings.
  *
  * Compiler used: solc
  * Runtime target: OVM
  */
 contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
+    using Lib_EIP155Tx for Lib_EIP155Tx.EIP155Tx;
+
 
     /*************
      * Constants *
@@ -38,20 +39,12 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
     /**
      * Executes a signed transaction.
-     * @param _transaction Signed EOA transaction.
-     * @param _signatureType Hashing scheme used for the transaction (e.g., ETH signed message).
-     * @param _v Signature `v` parameter.
-     * @param _r Signature `r` parameter.
-     * @param _s Signature `s` parameter.
+     * @param _encodedTransaction Signed EIP155 transaction.
      * @return Whether or not the call returned (rather than reverted).
      * @return Data returned by the call.
      */
     function execute(
-        bytes memory _transaction,
-        Lib_OVMCodec.EOASignatureType _signatureType,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
+        bytes memory _encodedTransaction
     )
         override
         public
@@ -60,29 +53,27 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             bytes memory
         )
     {
-        bool isEthSign = _signatureType == Lib_OVMCodec.EOASignatureType.ETH_SIGNED_MESSAGE;
+        Lib_EIP155Tx.EIP155Tx memory decodedTx = Lib_EIP155Tx.decode(
+            _encodedTransaction,
+            Lib_SafeExecutionManagerWrapper.safeCHAINID()
+        );
+
+        // Recovery parameter being something other than 0 or 1 indicates that this transaction was
+        // signed using the wrong chain ID. We really should have this logic inside of Lib_EIP155Tx
+        // but I'd prefer not to add the "safeREQUIRE" logic into that library. So it'll live here
+        // for now.
+        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
+            decodedTx.recoveryParam < 2,
+            "OVM_ECDSAContractAccount: Transaction was signed with the wrong chain ID."
+        );
 
         // Address of this contract within the ovm (ovmADDRESS) should be the same as the
         // recovered address of the user who signed this message. This is how we manage to shim
         // account abstraction even though the user isn't a contract.
         // Need to make sure that the transaction nonce is right and bump it if so.
         Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            Lib_ECDSAUtils.recover(
-                _transaction,
-                isEthSign,
-                _v,
-                _r,
-                _s
-            ) == Lib_SafeExecutionManagerWrapper.safeADDRESS(),
+            decodedTx.sender() == Lib_SafeExecutionManagerWrapper.safeADDRESS(),
             "Signature provided for EOA transaction execution is invalid."
-        );
-
-        Lib_OVMCodec.EIP155Transaction memory decodedTx = Lib_OVMCodec.decodeEIP155Transaction(_transaction, isEthSign);
-
-        // Need to make sure that the transaction chainId is correct.
-        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            decodedTx.chainId == Lib_SafeExecutionManagerWrapper.safeCHAINID(),
-            "Transaction chainId does not match expected OVM chainId."
         );
 
         // Need to make sure that the transaction nonce is right.
@@ -98,7 +89,8 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         //    "Gas is not sufficient to execute the transaction."
         // );
 
-        // Transfer fee to relayer.
+        // Transfer fee to relayer. We assume that whoever called this function is the relayer,
+        // hence the usage of CALLER. Fee is computed as gasLimit * gasPrice.
         address relayer = Lib_SafeExecutionManagerWrapper.safeCALLER();
         uint256 fee = Lib_SafeMathWrapper.mul(decodedTx.gasLimit, decodedTx.gasPrice);
         (bool success, ) = Lib_SafeExecutionManagerWrapper.safeCALL(

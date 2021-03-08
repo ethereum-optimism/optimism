@@ -7,14 +7,7 @@ import { MockContract, smockit } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import { NON_ZERO_ADDRESS } from '../../../helpers/constants'
-import {
-  serializeNativeTransaction,
-  signNativeTransaction,
-  DEFAULT_EIP155_TX,
-  serializeEthSignTransaction,
-  signEthSignMessage,
-  decodeSolidityError,
-} from '../../../helpers'
+import { DEFAULT_EIP155_TX, decodeSolidityError } from '../../../helpers'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -41,10 +34,9 @@ const callPredeploy = async (
 
 describe('OVM_ECDSAContractAccount', () => {
   let wallet: Wallet
-  let badWallet: Wallet
   before(async () => {
     const provider = waffle.provider
-    ;[wallet, badWallet] = provider.getWallets()
+    ;[wallet] = provider.getWallets()
   })
 
   let Mock__OVM_ExecutionManager: MockContract
@@ -88,43 +80,14 @@ describe('OVM_ECDSAContractAccount', () => {
 
   describe('fallback()', () => {
     it(`should successfully execute an EIP155Transaction`, async () => {
-      const message = serializeNativeTransaction(DEFAULT_EIP155_TX)
-      const sig = await signNativeTransaction(wallet, DEFAULT_EIP155_TX)
+      const transaction = DEFAULT_EIP155_TX
+      const encodedTransaction = await wallet.signTransaction(transaction)
 
       await callPredeploy(
         Helper_PredeployCaller,
         OVM_ECDSAContractAccount,
         'execute',
-        [
-          message,
-          0, // isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ]
-      )
-
-      // The ovmCALL is the 2nd call because the first call transfers the fee.
-      const ovmCALL: any = Mock__OVM_ExecutionManager.smocked.ovmCALL.calls[1]
-      expect(ovmCALL._address).to.equal(DEFAULT_EIP155_TX.to)
-      expect(ovmCALL._calldata).to.equal(DEFAULT_EIP155_TX.data)
-    })
-
-    it(`should successfully execute an ETHSignedTransaction`, async () => {
-      const message = serializeEthSignTransaction(DEFAULT_EIP155_TX)
-      const sig = await signEthSignMessage(wallet, DEFAULT_EIP155_TX)
-
-      await callPredeploy(
-        Helper_PredeployCaller,
-        OVM_ECDSAContractAccount,
-        'execute',
-        [
-          message,
-          1, //isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ]
+        [encodedTransaction]
       )
 
       // The ovmCALL is the 2nd call because the first call transfers the fee.
@@ -134,43 +97,33 @@ describe('OVM_ECDSAContractAccount', () => {
     })
 
     it(`should ovmCREATE if EIP155Transaction.to is zero address`, async () => {
-      const createTx = { ...DEFAULT_EIP155_TX, to: '' }
-      const message = serializeNativeTransaction(createTx)
-      const sig = await signNativeTransaction(wallet, createTx)
+      const transaction = { ...DEFAULT_EIP155_TX, to: '' }
+      const encodedTransaction = await wallet.signTransaction(transaction)
 
       await callPredeploy(
         Helper_PredeployCaller,
         OVM_ECDSAContractAccount,
         'execute',
-        [
-          message,
-          0, //isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ]
+        [encodedTransaction]
       )
 
       const ovmCREATE: any =
         Mock__OVM_ExecutionManager.smocked.ovmCREATE.calls[0]
-      expect(ovmCREATE._bytecode).to.equal(createTx.data)
+      expect(ovmCREATE._bytecode).to.equal(transaction.data)
     })
 
     it(`should revert on invalid signature`, async () => {
-      const message = serializeNativeTransaction(DEFAULT_EIP155_TX)
-      const sig = await signNativeTransaction(badWallet, DEFAULT_EIP155_TX)
+      const transaction = DEFAULT_EIP155_TX
+      const encodedTransaction = ethers.utils.serializeTransaction(
+        transaction,
+        '0x' + '00'.repeat(65)
+      )
 
       await callPredeploy(
         Helper_PredeployCaller,
         OVM_ECDSAContractAccount,
         'execute',
-        [
-          message,
-          0, //isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ]
+        [encodedTransaction]
       )
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
@@ -180,24 +133,14 @@ describe('OVM_ECDSAContractAccount', () => {
     })
 
     it(`should revert on incorrect nonce`, async () => {
-      const alteredNonceTx = {
-        ...DEFAULT_EIP155_TX,
-        nonce: 99,
-      }
-      const message = serializeNativeTransaction(alteredNonceTx)
-      const sig = await signNativeTransaction(wallet, alteredNonceTx)
+      const transaction = { ...DEFAULT_EIP155_TX, nonce: 99 }
+      const encodedTransaction = await wallet.signTransaction(transaction)
 
       await callPredeploy(
         Helper_PredeployCaller,
         OVM_ECDSAContractAccount,
         'execute',
-        [
-          message,
-          0, //isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ]
+        [encodedTransaction]
       )
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
@@ -207,52 +150,32 @@ describe('OVM_ECDSAContractAccount', () => {
     })
 
     it(`should revert on incorrect chainId`, async () => {
-      const alteredChainIdTx = {
-        ...DEFAULT_EIP155_TX,
-        chainId: 421,
-      }
-      const message = serializeNativeTransaction(alteredChainIdTx)
-      const sig = await signNativeTransaction(wallet, alteredChainIdTx)
+      const transaction = { ...DEFAULT_EIP155_TX, chainId: 421 }
+      const encodedTransaction = await wallet.signTransaction(transaction)
 
       await callPredeploy(
         Helper_PredeployCaller,
         OVM_ECDSAContractAccount,
         'execute',
-        [
-          message,
-          0, //isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ]
+        [encodedTransaction]
       )
       const ovmREVERT: any =
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
       expect(decodeSolidityError(ovmREVERT._data)).to.equal(
-        'Transaction chainId does not match expected OVM chainId.'
+        'OVM_ECDSAContractAccount: Transaction was signed with the wrong chain ID.'
       )
     })
 
     // TEMPORARY: Skip gas checks for minnet.
     it.skip(`should revert on insufficient gas`, async () => {
-      const alteredInsufficientGasTx = {
-        ...DEFAULT_EIP155_TX,
-        gasLimit: 200000000,
-      }
-      const message = serializeNativeTransaction(alteredInsufficientGasTx)
-      const sig = await signNativeTransaction(wallet, alteredInsufficientGasTx)
+      const transaction = { ...DEFAULT_EIP155_TX, gasLimit: 200000000 }
+      const encodedTransaction = await wallet.signTransaction(transaction)
 
       await callPredeploy(
         Helper_PredeployCaller,
         OVM_ECDSAContractAccount,
         'execute',
-        [
-          message,
-          0, //isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ],
+        [encodedTransaction],
         40000000
       )
 
@@ -264,21 +187,16 @@ describe('OVM_ECDSAContractAccount', () => {
     })
 
     it(`should revert if fee is not transferred to the relayer`, async () => {
-      const message = serializeNativeTransaction(DEFAULT_EIP155_TX)
-      const sig = await signNativeTransaction(wallet, DEFAULT_EIP155_TX)
+      const transaction = DEFAULT_EIP155_TX
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
       Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with([false, '0x'])
 
       await callPredeploy(
         Helper_PredeployCaller,
         OVM_ECDSAContractAccount,
         'execute',
-        [
-          message,
-          0, //isEthSignedMessage
-          `0x${sig.v}`, //v
-          `0x${sig.r}`, //r
-          `0x${sig.s}`, //s
-        ],
+        [encodedTransaction],
         40000000
       )
 
