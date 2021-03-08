@@ -64,7 +64,6 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
         ERC20 _token,
         address _libAddressManager
     )
-        public
         Lib_AddressResolver(_libAddressManager)
     {
         token = _token;

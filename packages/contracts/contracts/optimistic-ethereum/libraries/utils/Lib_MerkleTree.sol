@@ -23,7 +23,7 @@ library Lib_MerkleTree {
         bytes32[] memory _elements
     )
         internal
-        view
+        pure
         returns (
             bytes32
         )

@@ -51,7 +51,6 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         address _libAddressManager,
         string memory _owner
     )
-        public
         Lib_AddressResolver(_libAddressManager)
     {
         owner = _owner;

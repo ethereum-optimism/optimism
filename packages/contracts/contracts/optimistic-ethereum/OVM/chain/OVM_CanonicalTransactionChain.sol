@@ -68,7 +68,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         uint256 _forceInclusionPeriodBlocks,
         uint256 _maxTransactionGasLimit
     )
-        public
         Lib_AddressResolver(_libAddressManager)
     {
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
@@ -209,11 +208,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             Lib_OVMCodec.QueueElement memory _element
         )
     {
-        iOVM_ChainStorageContainer queue = queue();
+        iOVM_ChainStorageContainer ctcQueue = queue();
 
         uint40 trueIndex = uint40(_index * 2);
-        bytes32 queueRoot = queue.get(trueIndex);
-        bytes32 timestampAndBlockNumber = queue.get(trueIndex + 1);
+        bytes32 queueRoot = ctcQueue.get(trueIndex);
+        bytes32 timestampAndBlockNumber = ctcQueue.get(trueIndex + 1);
 
         uint40 elementTimestamp;
         uint40 elementBlockNumber;
@@ -327,14 +326,14 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             timestampAndBlockNumber := or(timestampAndBlockNumber, shl(40, number()))
         }
 
-        iOVM_ChainStorageContainer queue = queue();
+        iOVM_ChainStorageContainer ctcQueue = queue();
 
-        queue.push2(
+        ctcQueue.push2(
             transactionHash,
             timestampAndBlockNumber
         );
 
-        uint256 queueIndex = queue.length() / 2;
+        uint256 queueIndex = ctcQueue.length() / 2;
         emit TransactionEnqueued(
             msg.sender,
             _target,
@@ -506,16 +505,16 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
 
         // Generate the required metadata that we need to append this batch
         uint40 numQueuedTransactions = totalElementsToAppend - numSequencerTransactions;
-        uint40 timestamp;
+        uint40 blockTimestamp;
         uint40 blockNumber;
         if (curContext.numSubsequentQueueTransactions == 0) {
             // The last element is a sequencer tx, therefore pull timestamp and block number from the last context.
-            timestamp = uint40(curContext.timestamp);
+            blockTimestamp = uint40(curContext.timestamp);
             blockNumber = uint40(curContext.blockNumber);
         } else {
             // The last element is a queue tx, therefore pull timestamp and block number from the queue element.
             Lib_OVMCodec.QueueElement memory lastElement = getQueueElement(nextQueueIndex - 1);
-            timestamp = lastElement.timestamp;
+            blockTimestamp = lastElement.timestamp;
             blockNumber = lastElement.blockNumber;
         }
 
@@ -523,7 +522,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             Lib_MerkleTree.getMerkleRoot(leaves),
             totalElementsToAppend,
             numQueuedTransactions,
-            timestamp,
+            blockTimestamp,
             blockNumber
         );
 
@@ -690,7 +689,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         uint256 _index
     )
         internal
-        view
+       pure 
         returns (
             bytes32
         )
@@ -826,7 +825,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     )
         internal
     {
-        (uint40 totalElements, uint40 nextQueueIndex, uint40 lastTimestamp, uint40 lastBlockNumber) = _getBatchExtraData();
+        (uint40 totalElements, uint40 nextQueueIndex,,) = _getBatchExtraData();
 
         Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({
             batchIndex: batches().length(),

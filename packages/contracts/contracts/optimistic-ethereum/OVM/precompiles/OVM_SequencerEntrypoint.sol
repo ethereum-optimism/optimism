@@ -104,14 +104,14 @@ contract OVM_SequencerEntrypoint {
     /**
      * Converts a uint256 into a TransactionType enum.
      * @param _transactionType Transaction type index.
-     * @return Transaction type enum value.
+     * @return _txType Transaction type enum value.
      */
     function _getTransactionType(
         uint8 _transactionType
     )
         internal
         returns (
-            TransactionType
+            TransactionType _txType
         )
     {
         if (_transactionType == 0) {

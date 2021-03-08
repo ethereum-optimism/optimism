@@ -46,7 +46,6 @@ contract mockOVM_CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
     constructor(
         uint256 _delay
     )
-        public
     {
         delay = _delay;
     }

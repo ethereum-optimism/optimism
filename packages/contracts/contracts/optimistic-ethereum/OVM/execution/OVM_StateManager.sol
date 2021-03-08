@@ -53,7 +53,6 @@ contract OVM_StateManager is iOVM_StateManager {
     constructor(
         address _owner
     )
-        public
     {
         owner = _owner;
     }

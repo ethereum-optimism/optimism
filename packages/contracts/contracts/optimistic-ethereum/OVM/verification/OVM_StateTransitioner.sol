@@ -92,7 +92,6 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         bytes32 _preStateRoot,
         bytes32 _transactionHash
     )
-        public
         Lib_AddressResolver(_libAddressManager)
     {
         stateTransitionIndex = _stateTransitionIndex;

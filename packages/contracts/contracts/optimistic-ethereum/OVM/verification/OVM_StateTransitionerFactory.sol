@@ -26,7 +26,6 @@ contract OVM_StateTransitionerFactory is iOVM_StateTransitionerFactory, Lib_Addr
     constructor(
         address _libAddressManager
     )
-        public
         Lib_AddressResolver(_libAddressManager)
     {}
 

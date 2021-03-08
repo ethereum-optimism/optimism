@@ -33,7 +33,7 @@ abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger,
      * Public Functions *
      ********************/
 
-    constructor() Lib_ReentrancyGuard() internal {}
+    constructor() Lib_ReentrancyGuard() {}
 
     /**
      * Sends a cross domain message to the target messenger.

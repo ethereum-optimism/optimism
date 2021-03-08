@@ -7,7 +7,7 @@ import { Lib_AddressManager } from "./Lib_AddressManager.sol";
 /**
  * @title Lib_AddressResolver
  */
-contract Lib_AddressResolver {
+abstract contract Lib_AddressResolver {
 
     /*******************************************
      * Contract Variables: Contract References *
@@ -25,7 +25,7 @@ contract Lib_AddressResolver {
      */
     constructor(
         address _libAddressManager
-    ) public {
+    )  {
         libAddressManager = Lib_AddressManager(_libAddressManager);
     }
 

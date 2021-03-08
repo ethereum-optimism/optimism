@@ -28,7 +28,6 @@ contract OVM_ETH is OVM_L2DepositedERC20 {
             "ovmWETH",
             "oWETH"
         )
-        public 
     {
         init(iOVM_L1TokenGateway(_l1ETHGateway));
     }

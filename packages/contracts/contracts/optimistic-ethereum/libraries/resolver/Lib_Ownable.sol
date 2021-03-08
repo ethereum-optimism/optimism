@@ -28,7 +28,7 @@ abstract contract Ownable {
      * Constructor *
      ***************/
 
-    constructor() internal {
+    constructor() {
         owner = msg.sender;
         emit OwnershipTransferred(address(0), owner);
     }

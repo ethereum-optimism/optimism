@@ -14,7 +14,7 @@ contract TestLib_MerkleTree {
         bytes32[] memory _elements
     )
         public
-        view
+       pure 
         returns (
             bytes32
         )

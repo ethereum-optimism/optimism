@@ -39,7 +39,6 @@ contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
         string memory _name,
         string memory _symbol
     )
-        public
         Abs_L2DepositedToken(_l2CrossDomainMessenger)
         UniswapV2ERC20(_name, _symbol)
     {}

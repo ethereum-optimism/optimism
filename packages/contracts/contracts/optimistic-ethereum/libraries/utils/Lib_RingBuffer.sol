@@ -231,9 +231,6 @@ library Lib_RingBuffer {
             "Index out of bounds."
         );
 
-        Buffer storage currBuffer = _self.getBuffer(ctx.currBufferIndex);
-        Buffer storage prevBuffer = _self.getBuffer(ctx.currBufferIndex + 1);
-
         if (_index < ctx.currResetIndex) {
             // We're switching back to the previous buffer.
             // Reduce the buffer index, set the current reset index back to match the previous one.

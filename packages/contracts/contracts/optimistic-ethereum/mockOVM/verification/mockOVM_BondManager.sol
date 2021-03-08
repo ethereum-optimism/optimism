@@ -14,7 +14,6 @@ contract mockOVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     constructor(
         address _libAddressManager
     )
-        public
         Lib_AddressResolver(_libAddressManager)
     {}
 
@@ -79,7 +78,7 @@ contract mockOVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     )
         override
         public
-        view
+        pure 
         returns (
             uint256
         )
