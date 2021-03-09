@@ -36,6 +36,8 @@
   "dependencies": {
     "@eth-optimism/core-utils": "^0.1.8",
     "@eth-optimism/dev": "^1.1.1",
+    "@eth-optimism/core-utils": "^0.1.5",
+    "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
     "@ethersproject/hardware-wallets": "^5.0.8",

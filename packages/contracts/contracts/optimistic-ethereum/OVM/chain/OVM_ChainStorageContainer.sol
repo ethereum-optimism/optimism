@@ -190,6 +190,23 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     /**
      * @inheritdoc iOVM_ChainStorageContainer
      */
+    function get2(
+        uint256 _index
+    )
+        override
+        public
+        view
+        returns (
+            bytes32,
+            bytes32
+        )
+    {
+        return buffer.get2(uint40(_index));
+    }
+    
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
     function deleteElementsAfterInclusive(
         uint256 _index
     )

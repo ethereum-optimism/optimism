@@ -212,6 +212,30 @@ library Lib_RingBuffer {
     }
 
     /**
+     * Retrieves two consecutive elements from the buffer.
+     * @param _self Buffer to access.
+     * @param _index Element index to retrieve.
+     * @return Value of the element at index `_index`.
+     * @return Value of the element at index `_index + 1`.
+     */
+    function get2(
+        RingBuffer storage _self,
+        uint256 _index
+    )
+        internal
+        view
+        returns (
+            bytes32,
+            bytes32
+        )
+    {
+        return (
+            _self.get(_index),
+            _self.get(_index + 1)
+        );
+    }
+
+    /**
      * Deletes all elements after (and including) a given index.
      * @param _self Buffer to access.
      * @param _index Index of the element to delete from (inclusive).
