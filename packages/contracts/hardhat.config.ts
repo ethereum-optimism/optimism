@@ -8,7 +8,7 @@ import {
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
-import 'hardhat-typechain'
+import '@typechain/hardhat'
 import '@eth-optimism/plugins/hardhat/compiler'
 import '@eth-optimism/smock/build/src/plugins/hardhat-storagelayout'
 
