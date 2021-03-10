@@ -82,6 +82,7 @@ export class OptimismProvider extends JsonRpcProvider {
       const tx = formatTxResponse(transaction) as any
       tx.txType = transaction.txType
       tx.queueOrigin = transaction.queueOrigin
+      tx.rawTransaction = transaction.rawTransaction
       tx.l1BlockNumber = transaction.l1BlockNumber
       if (tx.l1BlockNumber != null) {
         tx.l1BlockNumber = parseInt(tx.l1BlockNumber, 16)
