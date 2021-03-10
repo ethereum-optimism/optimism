@@ -141,6 +141,9 @@ export const makeContractDeployConfig = async (
         await _sendTx(
           AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
         )
+        await _sendTx(
+          AddressManager.setAddress('OVM_Proposer', sequencerAddress)
+        )
         await _sendTx(AddressManager.setAddress('Sequencer', sequencerAddress))
       },
     },

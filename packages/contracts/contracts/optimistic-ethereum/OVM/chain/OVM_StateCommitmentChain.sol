@@ -318,7 +318,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     )
         internal
     {
-        address sequencer = resolve("OVM_Sequencer");
+        address sequencer = resolve("OVM_Proposer");
         (uint40 totalElements, uint40 lastSequencerTimestamp) = _getBatchExtraData();
 
         if (msg.sender == sequencer) {

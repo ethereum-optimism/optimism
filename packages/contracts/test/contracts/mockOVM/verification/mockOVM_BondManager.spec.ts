@@ -25,11 +25,11 @@ describe('mockOVM_BondManager', () => {
       await ethers.getContractFactory('mockOVM_BondManager')
     ).deploy(AddressManager.address)
 
-    AddressManager.setAddress('OVM_Sequencer', await sequencer.getAddress())
+    AddressManager.setAddress('OVM_Proposer', await sequencer.getAddress())
   })
 
   describe('isCollateralized', () => {
-    it('should return true for OVM_Sequencer', async () => {
+    it('should return true for OVM_Proposer', async () => {
       expect(
         await mockOVM_BondManager.isCollateralized(await sequencer.getAddress())
       ).to.equal(true)

@@ -69,7 +69,7 @@ contract mockOVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
         )
     {
         // Only authenticate sequencer to submit state root batches.
-        return _who == resolve("OVM_Sequencer");
+        return _who == resolve("OVM_Proposer");
     }
 
     function getGasSpent(
