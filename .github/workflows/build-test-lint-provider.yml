@@ -35,7 +35,7 @@ jobs:
 
       - name: Cache provider deps
         uses: actions/cache@v1
-        id: cache_core-utils
+        id: cache_provider
         with:
           path: packages/provider/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/core-utils/package.json') }}

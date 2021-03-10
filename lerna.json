@@ -1,10 +1,7 @@
 {
   "version": "independent",
   "packages": [
-    "packages/core-utils/*",
-    "packages/ovm-toolchain/*",
-    "packages/provider/*",
-    "packages/batch-submitter/*"
+    "packages/provider/*"
   ],
   "command": {
     "publish": {
