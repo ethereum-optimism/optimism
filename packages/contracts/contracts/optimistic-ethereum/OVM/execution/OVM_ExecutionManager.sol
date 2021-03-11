@@ -1837,9 +1837,23 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         _initContext(_transaction);
 
         messageRecord.nuisanceGasLeft = uint(-1);
-        messageContext.ovmADDRESS = _transaction.entrypoint;
-        messageContext.ovmCALLER = _from;
 
-        return _transaction.entrypoint.call{gas: _transaction.gasLimit}(_transaction.data);
+        messageContext.ovmADDRESS = _from;
+
+        bool isCreate = _transaction.entrypoint == address(0);
+        if (isCreate) {
+            address created = ovmCREATE(_transaction.data);
+            if (created == address(0)) {
+                return (false, hex"");
+            } else {
+                return (true, Lib_EthUtils.getCode(created));
+            }
+        } else {
+            return ovmCALL(
+                _transaction.gasLimit,
+                _transaction.entrypoint,
+                _transaction.data
+            );
+        }
     }
 }
