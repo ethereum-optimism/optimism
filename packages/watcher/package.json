@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/watcher",
-  "version": "0.0.1-alpha.6",
+  "version": "0.0.1-alpha.9",
   "description": "Watcher for cross domain messages",
   "main": "build/index.js",
   "types": "build/index.d.ts",

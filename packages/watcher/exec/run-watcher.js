@@ -46,5 +46,4 @@ if (!L2_TX_HASH) {
     const receipt = await watcher.getL1TransactionReceipt(msgHashes[0])
     console.log(receipt)
   }
-  process.exit(0)
 })()
