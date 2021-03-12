@@ -25,14 +25,14 @@ contract TestLib_RingBuffer {
         );
     }
 
-    function push2(
+    function pushTwo(
         bytes32 _valueA,
         bytes32 _valueB,
         bytes27 _extraData
     )
         public
     {
-        buf.push2(
+        buf.pushTwo(
             _valueA,
             _valueB,
             _extraData

@@ -118,7 +118,7 @@ library Lib_RingBuffer {
      * @param _valueA Second value to push to the buffer.
      * @param _extraData Optional global extra data.
      */
-    function push2(
+    function pushTwo(
         RingBuffer storage _self,
         bytes32 _valueA,
         bytes32 _valueB,
@@ -136,7 +136,7 @@ library Lib_RingBuffer {
      * @param _valueA First value to push to the buffer.
      * @param _valueA Second value to push to the buffer.
      */
-    function push2(
+    function pushTwo(
         RingBuffer storage _self,
         bytes32 _valueA,
         bytes32 _valueB
@@ -145,7 +145,7 @@ library Lib_RingBuffer {
     {
         RingBufferContext memory ctx = _self.getContext();
 
-        _self.push2(
+        _self.pushTwo(
             _valueA,
             _valueB,
             ctx.extraData
@@ -218,7 +218,7 @@ library Lib_RingBuffer {
      * @return Value of the element at index `_index`.
      * @return Value of the element at index `_index + 1`.
      */
-    function get2(
+    function getTwo(
         RingBuffer storage _self,
         uint256 _index
     )
