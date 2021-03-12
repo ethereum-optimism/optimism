@@ -1,6 +1,8 @@
 {
   "version": "independent",
-  "packages": [],
+  "packages": [
+    "packages/watcher/*"
+  ],
   "command": {
     "publish": {
       "ignoreChanges": [
