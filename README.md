@@ -13,7 +13,6 @@ All of the core Optimism projects are hosted inside of the [packages](https://gi
 
 | Package                                                        | Version                                                                                                                                 | Description                                                 |
 |----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
-| [`@eth-optimism/provider`](/packages/provider) | [![npm](https://img.shields.io/npm/v/@eth-optimism/provider.svg)](https://www.npmjs.com/package/@eth-optimism/provider) | Optional RPC Client for Optimism |
 | [`@eth-optimism/watcher`](/packages/watcher) | [![npm](https://img.shields.io/npm/v/@eth-optimism/watcher.svg)](https://www.npmjs.com/package/@eth-optimism/watcher) | Optimistic Ethereum Cross Domain Watcher |                                                       |
 
 ## Repo Status

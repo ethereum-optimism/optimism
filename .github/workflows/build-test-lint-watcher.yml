@@ -1,4 +1,4 @@
-name: CI - provider
+name: CI - watcher
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-test-lint:
-    name: Run provider Test Suite on Node ${{matrix.node}}
+    name: Run watcher Test Suite on Node ${{matrix.node}}
     runs-on: ubuntu-latest
 
     strategy:
@@ -33,11 +33,11 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('package.json') }}
 
-      - name: Cache provider deps
+      - name: Cache watcher deps
         uses: actions/cache@v1
-        id: cache_provider
+        id: cache_watcher
         with:
-          path: packages/provider/node_modules
+          path: packages/watcher/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/core-utils/package.json') }}
 
       # END DEPENDENCY CACHING
@@ -48,16 +48,16 @@ jobs:
       - name: Lint
         run: yarn lint
         env:
-          PKGS: "provider"
+          PKGS: "watcher"
 
       - name: Build
         run: |
           yarn clean
           yarn build
         env:
-          PKGS: "provider"
+          PKGS: "watcher"
 
       - name: Test
         run: yarn test
         env:
-          PKGS: "provider"
+          PKGS: "watcher"
