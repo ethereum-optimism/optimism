@@ -56,6 +56,13 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * Depositing *
      **************/
 
+    receive()
+        external
+        payable
+    {
+        _initiateDeposit(msg.sender, msg.sender);
+    }
+
     /**
      * @dev deposit an amount of the ERC20 to the caller's balance on L2
      */
@@ -154,15 +161,5 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     {
         (bool success, ) = _to.call{value: _value}(new bytes(0));
         require(success, 'TransferHelper::safeTransferETH: ETH transfer failed');
-    }
-
-    /**
-     * @dev Prevent users from sending ETH directly to this contract without calling deposit
-     */
-    receive()
-        external
-        payable
-    {
-        revert("Deposits must be initiated via deposit() or depositTo()");
     }
 }
