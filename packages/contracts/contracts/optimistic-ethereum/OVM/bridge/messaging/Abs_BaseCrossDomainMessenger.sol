@@ -41,7 +41,7 @@ abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger,
      * Public Functions *
      ********************/
 
-    constructor() Lib_ReentrancyGuard() internal {}
+    constructor() Lib_ReentrancyGuard() {}
 
     function xDomainMessageSender() public override view returns (address) {
         require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
@@ -111,12 +111,12 @@ abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger,
 
     /**
      * Sends a cross domain message.
-     * @param _message Message to send.
-     * @param _gasLimit Gas limit for the provided message.
+     * param // Message to send.
+     * param // Gas limit for the provided message.
      */
     function _sendXDomainMessage(
-        bytes memory _message,
-        uint256 _gasLimit
+        bytes memory, // _message,
+        uint256 // _gasLimit
     )
         virtual
         internal

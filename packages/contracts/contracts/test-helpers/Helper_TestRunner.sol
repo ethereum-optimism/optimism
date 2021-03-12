@@ -24,15 +24,15 @@ contract Helper_TestRunner {
     {
         bytes32 namehash = keccak256(abi.encodePacked(_step.functionName));
         if (namehash == keccak256("evmRETURN")) {
-            bytes memory returndata = _step.functionData;
+            bytes memory functionData = _step.functionData;
             assembly {
-                return(add(returndata, 0x20), mload(returndata))
+                return(add(functionData, 0x20), mload(functionData))
             }
         }
         if (namehash == keccak256("evmREVERT")) {
-            bytes memory returndata = _step.functionData;
+            bytes memory functionData = _step.functionData;
             assembly {
-                revert(add(returndata, 0x20), mload(returndata))
+                revert(add(functionData, 0x20), mload(functionData))
             }
         }
         if (namehash == keccak256("evmINVALID")) {
@@ -175,6 +175,7 @@ contract Helper_TestRunner {
 
     function _failStep()
         internal
+        pure
     {
         revert("Test step failed.");
     }
@@ -185,7 +186,6 @@ contract Helper_TestRunner_CREATE is Helper_TestRunner {
         bytes memory _bytecode,
         TestStep[] memory _steps
     )
-        public
     {
         if (_steps.length > 0) {
             runMultipleTestSteps(_steps);

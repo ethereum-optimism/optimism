@@ -349,9 +349,6 @@ library Lib_RingBuffer {
         RingBufferContext memory _ctx
     )
         internal
-        returns (
-            bytes32
-        )
     {
         bytes32 contextA;
         bytes32 contextB;

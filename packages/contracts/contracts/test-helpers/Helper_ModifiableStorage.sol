@@ -7,7 +7,6 @@ contract Helper_ModifiableStorage {
     constructor(
         address _target
     )
-        public
     {
         target[address(this)] = _target;
     }

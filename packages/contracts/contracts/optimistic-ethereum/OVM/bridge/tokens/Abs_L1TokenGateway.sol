@@ -59,12 +59,12 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @dev Core logic to be performed when a withdrawal is finalized on L1.
      * In most cases, this will simply send locked funds to the withdrawer.
      *
-     * @param _to Address being withdrawn to.
-     * @param _amount Amount being withdrawn.
+     * param _to Address being withdrawn to.
+     * param _amount Amount being withdrawn.
      */
     function _handleFinalizeWithdrawal(
-        address _to,
-        uint256 _amount
+        address, // _to,
+        uint256 // _amount
     )
         internal
         virtual
@@ -76,14 +76,14 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @dev Core logic to be performed when a deposit is initiated on L1.
      * In most cases, this will simply send locked funds to the withdrawer.
      *
-     * @param _from Address being deposited from on L1.
-     * @param _to Address being deposited into on L2.
-     * @param _amount Amount being deposited.
+     * param _from Address being deposited from on L1.
+     * param _to Address being deposited into on L2.
+     * param _amount Amount being deposited.
      */
     function _handleInitiateDeposit(
-        address _from,
-        address _to,
-        uint256 _amount
+        address, // _from,
+        address, // _to,
+        uint256 // _amount
     )
         internal
         virtual

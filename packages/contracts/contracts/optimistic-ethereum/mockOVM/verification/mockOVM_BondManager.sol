@@ -73,8 +73,8 @@ contract mockOVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     }
 
     function getGasSpent(
-        bytes32 _preStateRoot,
-        address _who
+        bytes32, // _preStateRoot,
+        address // _who
     )
         override
         public

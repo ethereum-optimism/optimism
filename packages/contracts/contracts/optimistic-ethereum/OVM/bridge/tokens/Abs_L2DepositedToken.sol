@@ -88,13 +88,13 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @dev Core logic to be performed when a withdrawal from L2 is initialized.
      * In most cases, this will simply burn the withdrawn L2 funds.
      *
-     * @param _to Address being withdrawn to
-     * @param _amount Amount being withdrawn
+     * param _to Address being withdrawn to
+     * param _amount Amount being withdrawn
      */
 
     function _handleInitiateWithdrawal(
-        address _to,
-        uint _amount
+        address, // _to,
+        uint // _amount
     )
         internal
         virtual
@@ -106,12 +106,12 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @dev Core logic to be performed when a deposit from L2 is finalized on L2.
      * In most cases, this will simply _mint() to credit L2 funds to the recipient.
      *
-     * @param _to Address being deposited to on L2
-     * @param _amount Amount which was deposited on L1
+     * param _to Address being deposited to on L2
+     * param _amount Amount which was deposited on L1
      */
     function _handleFinalizeDeposit(
-        address _to,
-        uint _amount
+        address, // _to
+        uint // _amount
     )
         internal
         virtual

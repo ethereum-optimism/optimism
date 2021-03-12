@@ -22,7 +22,7 @@ contract UniswapV2ERC20 is IUniswapV2ERC20 {
     constructor(
     string memory _name,
         string memory _symbol
-    ) public {
+    ) {
         name = _name;
         symbol = _symbol;
 

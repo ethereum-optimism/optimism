@@ -122,11 +122,11 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
     /**
      * Sends a cross domain message.
      * @param _message Message to send.
-     * @param _gasLimit Gas limit for the provided message.
+     * param _gasLimit Gas limit for the provided message.
      */
     function _sendXDomainMessage(
         bytes memory _message,
-        uint256 _gasLimit
+        uint256 // _gasLimit
     )
         override
         internal
