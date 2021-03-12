@@ -137,6 +137,16 @@ describe('OVM_L2CrossDomainMessenger', () => {
       ])
     })
 
+    it('the xDomainMessageSender is reset to the original value', async () => {
+      await expect(
+        OVM_L2CrossDomainMessenger.xDomainMessageSender()
+      ).to.be.revertedWith('xDomainMessageSender is not set')
+      await OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+      await expect(
+        OVM_L2CrossDomainMessenger.xDomainMessageSender()
+      ).to.be.revertedWith('xDomainMessageSender is not set')
+    })
+
     it('should revert if trying to send the same message twice', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
         Mock__OVM_L1CrossDomainMessenger.address

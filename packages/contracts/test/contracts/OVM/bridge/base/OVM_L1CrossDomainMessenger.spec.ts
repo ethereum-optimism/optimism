@@ -320,6 +320,22 @@ describe('OVM_L1CrossDomainMessenger', () => {
       ).to.equal(true)
     })
 
+    it('the xDomainMessageSender is reset to the original value', async () => {
+      await expect(
+        OVM_L1CrossDomainMessenger.xDomainMessageSender()
+      ).to.be.revertedWith('xDomainMessageSender is not set')
+      await OVM_L1CrossDomainMessenger.relayMessage(
+        target,
+        sender,
+        message,
+        0,
+        proof
+      )
+      await expect(
+        OVM_L1CrossDomainMessenger.xDomainMessageSender()
+      ).to.be.revertedWith('xDomainMessageSender is not set')
+    })
+
     it('should revert if trying to send the same message twice', async () => {
       await OVM_L1CrossDomainMessenger.relayMessage(
         target,

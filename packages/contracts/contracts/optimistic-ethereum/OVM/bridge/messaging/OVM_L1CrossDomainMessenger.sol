@@ -49,6 +49,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
     {
         require(address(libAddressManager) == address(0), "L1CrossDomainMessenger already intialized.");
         libAddressManager = Lib_AddressManager(_libAddressManager);
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
     }
 
 
@@ -113,8 +114,9 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
             "Provided message has already been received."
         );
 
-        xDomainMessageSender = _sender;
+        xDomainMsgSender = _sender;
         (bool success, ) = _target.call(_message);
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
         // Mark the message as received if the call was successful. Ensures that a message can be
         // relayed multiple times in the case that the call reverted.
