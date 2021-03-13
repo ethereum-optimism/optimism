@@ -6,7 +6,6 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { iOVM_L1ETHGateway } from "../../../iOVM/bridge/tokens/iOVM_L1ETHGateway.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
-import { iOVM_ERC20 } from "../../../iOVM/precompiles/iOVM_ERC20.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
@@ -64,7 +63,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     }
 
     /**
-     * @dev deposit an amount of the ERC20 to the caller's balance on L2
+     * @dev deposit an amount of the ETH to the caller's balance on L2
      */
     function deposit() 
         external
@@ -75,7 +74,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     }
 
     /**
-     * @dev deposit an amount of ERC20 to a recipients's balance on L2
+     * @dev deposit an amount of ETH to a recipients's balance on L2
      * @param _to L2 address to credit the withdrawal to
      */
     function depositTo(
@@ -89,7 +88,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     }
 
     /**
-     * @dev Performs the logic for deposits by storing the ERC20 and informing the L2 ERC20 Gateway of the deposit.
+     * @dev Performs the logic for deposits by storing the ETH and informing the L2 ETH Gateway of the deposit.
      *
      * @param _from Account to pull the deposit from on L1
      * @param _to Account to give the deposit to on L2
@@ -100,7 +99,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     )
         internal
     {
-        // Construct calldata for l2ERC20Gateway.finalizeDeposit(_to, _amount)
+        // Construct calldata for l2ETHGateway.finalizeDeposit(_to, _amount)
         bytes memory data =
             abi.encodeWithSelector(
                 iOVM_L2DepositedToken.finalizeDeposit.selector,
@@ -124,11 +123,11 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
 
     /**
      * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
-     * L1 ERC20 token.
+     * L1 ETH token.
      * This call will fail if the initialized withdrawal from L2 has not been finalized.
      *
      * @param _to L1 address to credit the withdrawal to
-     * @param _amount Amount of the ERC20 to withdraw
+     * @param _amount Amount of the ETH to withdraw
      */
     function finalizeWithdrawal(
         address _to,
