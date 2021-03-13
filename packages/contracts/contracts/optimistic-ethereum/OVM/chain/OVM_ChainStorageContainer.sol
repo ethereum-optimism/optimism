@@ -145,35 +145,6 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     /**
      * @inheritdoc iOVM_ChainStorageContainer
      */
-    function pushTwo(
-        bytes32 _objectA,
-        bytes32 _objectB
-    )
-        override
-        public
-        onlyOwner
-    {
-        buffer.pushTwo(_objectA, _objectB);
-    }
-
-    /**
-     * @inheritdoc iOVM_ChainStorageContainer
-     */
-    function pushTwo(
-        bytes32 _objectA,
-        bytes32 _objectB,
-        bytes27 _globalMetadata
-    )
-        override
-        public
-        onlyOwner
-    {
-        buffer.pushTwo(_objectA, _objectB, _globalMetadata);
-    }
-
-    /**
-     * @inheritdoc iOVM_ChainStorageContainer
-     */
     function get(
         uint256 _index
     )
@@ -185,23 +156,6 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         )
     {
         return buffer.get(uint40(_index));
-    }
-
-    /**
-     * @inheritdoc iOVM_ChainStorageContainer
-     */
-    function getTwo(
-        uint256 _index
-    )
-        override
-        public
-        view
-        returns (
-            bytes32,
-            bytes32
-        )
-    {
-        return buffer.getTwo(uint40(_index));
     }
     
     /**

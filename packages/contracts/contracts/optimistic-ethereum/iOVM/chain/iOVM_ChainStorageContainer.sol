@@ -66,31 +66,6 @@ interface iOVM_ChainStorageContainer {
         external;
 
     /**
-     * Pushes two objects into the container at the same time. A useful optimization.
-     * @param _objectA First 32 byte value to insert into the container.
-     * @param _objectB Second 32 byte value to insert into the container.
-     */
-    function pushTwo(
-        bytes32 _objectA,
-        bytes32 _objectB
-    )
-        external;
-
-    /**
-     * Pushes two objects into the container at the same time. Also allows setting the global
-     * metadata field.
-     * @param _objectA First 32 byte value to insert into the container.
-     * @param _objectB Second 32 byte value to insert into the container.
-     * @param _globalMetadata New global metadata for the container.
-     */
-    function pushTwo(
-        bytes32 _objectA,
-        bytes32 _objectB,
-        bytes27 _globalMetadata
-    )
-        external;
-
-    /**
      * Retrieves an object from the container.
      * @param _index Index of the particular object to access.
      * @return 32 byte object value.
@@ -101,22 +76,6 @@ interface iOVM_ChainStorageContainer {
         external
         view
         returns (
-            bytes32
-        );
-
-    /**
-     * Retrieves two consecutive objects from the container.
-     * @param _index Index of the particular objects to access.
-     * @return 32 byte object value at index `_index`.
-     * @return 32 byte object value at index `_index + 1`.
-     */
-    function getTwo(
-        uint256 _index
-    )
-        external
-        view
-        returns (
-            bytes32,
             bytes32
         );
 
