@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
+/* Library Imports */
+import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
+
 /**
  * @title Lib_SafeExecutionManagerWrapper
  * @dev The Safe Execution Manager Wrapper provides functions which facilitate writing OVM safe 
@@ -90,7 +93,8 @@ library Lib_SafeExecutionManagerWrapper {
     )
         internal
         returns (
-            address _contract
+            address,
+            bytes memory
         )
     {
         bytes memory returndata = _safeExecutionManagerInteraction(
@@ -101,7 +105,7 @@ library Lib_SafeExecutionManagerWrapper {
             )
         );
 
-        return abi.decode(returndata, (address));
+        return abi.decode(returndata, (address, bytes));
     }
 
     /**
@@ -258,8 +262,7 @@ library Lib_SafeExecutionManagerWrapper {
         _safeExecutionManagerInteraction(
             abi.encodeWithSignature(
                 "ovmREVERT(bytes)",
-                abi.encodeWithSignature(
-                    "Error(string)",
+                Lib_ErrorUtils.encodeRevertString(
                     _reason
                 )
             )

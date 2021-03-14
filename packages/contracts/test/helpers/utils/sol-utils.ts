@@ -16,3 +16,7 @@ const errorABI = new ethers.utils.Interface([
 export const decodeSolidityError = (err: string): string => {
   return errorABI.decodeFunctionData('Error', err)[0]
 }
+
+export const encodeSolidityError = (message: string): string => {
+  return errorABI.encodeFunctionData('Error', [message])
+}

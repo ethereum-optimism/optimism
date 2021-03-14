@@ -128,12 +128,8 @@ contract Helper_TestRunner {
             }
         }
 
-        if (success == false || (success == true && returndata.length == 1)) {
+        if (success == false) {
             assembly {
-                if eq(extcodesize(address()), 0) {
-                    return(0, 1)
-                }
-
                 revert(add(returndata, 0x20), mload(returndata))
             }
         }

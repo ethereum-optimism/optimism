@@ -54,7 +54,7 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.to == address(0)) {
-            address created = Lib_SafeExecutionManagerWrapper.safeCREATE(
+            (address created, ) = Lib_SafeExecutionManagerWrapper.safeCREATE(
                 decodedTx.gasLimit,
                 decodedTx.data
             );

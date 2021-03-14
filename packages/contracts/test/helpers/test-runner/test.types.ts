@@ -118,7 +118,13 @@ interface TestStep_CREATE {
     subSteps?: TestStep[]
   }
   expectedReturnStatus: boolean
-  expectedReturnValue: string | RevertFlagError
+  expectedReturnValue:
+    | string
+    | {
+        address: string
+        revertData: string
+      }
+    | RevertFlagError
 }
 
 interface TestStep_CREATE2 {
@@ -129,7 +135,13 @@ interface TestStep_CREATE2 {
     subSteps?: TestStep[]
   }
   expectedReturnStatus: boolean
-  expectedReturnValue: string | RevertFlagError
+  expectedReturnValue:
+    | string
+    | {
+        address: string
+        revertData: string
+      }
+    | RevertFlagError
 }
 
 interface TestStep_CREATEEOA {

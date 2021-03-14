@@ -11,7 +11,6 @@ interface iOVM_ExecutionManager {
      *********/
 
     enum RevertFlag {
-        DID_NOT_REVERT,
         OUT_OF_GAS,
         INTENTIONAL_REVERT,
         EXCEEDS_NUISANCE_GAS,
@@ -19,7 +18,6 @@ interface iOVM_ExecutionManager {
         UNSAFE_BYTECODE,
         CREATE_COLLISION,
         STATIC_VIOLATION,
-        CREATE_EXCEPTION,
         CREATOR_NOT_ALLOWED
     }
 
@@ -67,7 +65,6 @@ interface iOVM_ExecutionManager {
 
     struct MessageRecord {
         uint256 nuisanceGasLeft;
-        RevertFlag revertFlag;
     }
 
 
@@ -112,8 +109,8 @@ interface iOVM_ExecutionManager {
      * Contract Creation Opcodes *
      *****************************/
 
-    function ovmCREATE(bytes memory _bytecode) external returns (address _contract);
-    function ovmCREATE2(bytes memory _bytecode, bytes32 _salt) external returns (address _contract);
+    function ovmCREATE(bytes memory _bytecode) external returns (address _contract, bytes memory _revertdata);
+    function ovmCREATE2(bytes memory _bytecode, bytes32 _salt) external returns (address _contract, bytes memory _revertdata);
 
 
     /*******************************
@@ -150,12 +147,6 @@ interface iOVM_ExecutionManager {
     function ovmEXTCODESIZE(address _contract) external returns (uint256 _size);
     function ovmEXTCODEHASH(address _contract) external returns (bytes32 _hash);
 
-
-    /**************************************
-     * Public Functions: Execution Safety *
-     **************************************/
-
-    function safeCREATE(address _address, bytes memory _bytecode) external;
 
     /***************************************
      * Public Functions: Execution Context *

@@ -113,14 +113,17 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.to == address(0)) {
-            address created = Lib_SafeExecutionManagerWrapper.safeCREATE(
+            (address created, bytes memory revertData) = Lib_SafeExecutionManagerWrapper.safeCREATE(
                 decodedTx.gasLimit,
                 decodedTx.data
             );
 
-            // EVM doesn't tell us whether a contract creation failed, even if it reverted during
-            // initialization. Always return `true` for our success value here.
-            return (true, abi.encode(created));
+            // Return true if the contract creation succeeded, false w/ revertData otherwise.
+            if (created != address(0)) {
+                return (true, abi.encode(created));
+            } else {
+                return (false, revertData);
+            }
         } else {
             // We only want to bump the nonce for `ovmCALL` because `ovmCREATE` automatically bumps
             // the nonce of the calling account. Normally an EOA would bump the nonce for both
