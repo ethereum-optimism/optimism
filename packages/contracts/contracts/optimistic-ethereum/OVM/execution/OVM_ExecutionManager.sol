@@ -790,7 +790,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /********************************************
-     * Public Functions: Deployment Witelisting *
+     * Public Functions: Deployment Whitelisting *
      ********************************************/
 
     /**
