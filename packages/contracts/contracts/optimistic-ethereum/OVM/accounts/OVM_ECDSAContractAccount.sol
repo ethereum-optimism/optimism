@@ -101,13 +101,10 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         // Transfer fee to relayer.
         address relayer = Lib_SafeExecutionManagerWrapper.safeCALLER();
         uint256 fee = Lib_SafeMathWrapper.mul(decodedTx.gasLimit, decodedTx.gasPrice);
-        (bool success, ) = Lib_SafeExecutionManagerWrapper.safeCALL(
-            gasleft(),
-            ETH_ERC20_ADDRESS,
-            abi.encodeWithSignature("transfer(address,uint256)", relayer, fee)
-        );
         Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            success == true,
+            _attemptETHTransfer(
+                relayer, fee
+            ),
             "Fee was not transferred to relayer."
         );
 
@@ -130,11 +127,50 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_SafeExecutionManagerWrapper.safeINCREMENTNONCE();
 
-            return Lib_SafeExecutionManagerWrapper.safeCALL(
-                gasleft(),
-                decodedTx.to,
-                decodedTx.data
-            );
+            if (transaction.value > 0) {
+                Lib_SafeExecutionManagerWrapper.safeREQUIRE(
+                    transaction.data.length == 0,
+                    "Sending ETH with data is currently unsupported."
+                );
+
+                return (
+                    _attemptETHTransfer(transaction.to, transaction.value),
+                    bytes('')
+                );
+            } else {
+                return Lib_SafeExecutionManagerWrapper.safeCALL(
+                    gasleft(),
+                    decodedTx.to,
+                    decodedTx.data
+                );
+            }
         }
+    }
+
+    /**
+     * Attempts to tansfer OVM_ETH.
+     * @param _to Address to send the L2 ETH to.
+     * @param _value Amount of L2 ETH to send.
+     * @return Whether the transfer was successful.
+     */
+    function _attemptETHTransfer(
+        address _to,
+        uint256 _value
+    )
+        internal
+        returns(
+            bool
+        )
+    {
+        (bool success, ) = Lib_SafeExecutionManagerWrapper.safeCALL(
+            gasleft(),
+            ETH_ERC20_ADDRESS,
+            abi.encodeWithSignature(
+                "transfer(address,uint256)",
+                _to,
+                _value
+            )
+        );
+        return success;
     }
 }
