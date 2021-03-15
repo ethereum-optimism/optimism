@@ -127,14 +127,14 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_SafeExecutionManagerWrapper.safeINCREMENTNONCE();
 
-            if (transaction.value > 0) {
+            if (decodedTx.value > 0) {
                 Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-                    transaction.data.length == 0,
+                    decodedTx.data.length == 0,
                     "Sending ETH with data is currently unsupported."
                 );
 
                 return (
-                    _attemptETHTransfer(transaction.to, transaction.value),
+                    _attemptETHTransfer(decodedTx.to, decodedTx.value),
                     bytes('')
                 );
             } else {

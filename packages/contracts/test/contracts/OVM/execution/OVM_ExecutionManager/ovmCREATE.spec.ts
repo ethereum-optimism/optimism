@@ -744,6 +744,24 @@ const test_ovmCREATE: TestDefinition = {
         },
       ],
     },
+    {
+      name: 'ovmCREATE(UNSAFE_CODE)',
+      steps: [
+        {
+          functionName: 'ovmCREATE',
+          functionParams: {
+            bytecode: UNSAFE_BYTECODE,
+          },
+          expectedReturnStatus: true,
+          expectedReturnValue: {
+            address: constants.AddressZero,
+            revertData: encodeSolidityError(
+              'Constructor attempted to deploy unsafe bytecode.'
+            ),
+          },
+        },
+      ],
+    },
   ],
   subTests: [
     {

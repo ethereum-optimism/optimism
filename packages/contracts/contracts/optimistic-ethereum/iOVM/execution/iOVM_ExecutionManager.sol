@@ -117,7 +117,7 @@ interface iOVM_ExecutionManager {
      * Account Abstraction Opcodes *
      ******************************/
 
-    function ovmGETNONCE() external returns (uint256 _nonce);
+    function ovmGETNONCE() external returns (uint64 _nonce);
     function ovmINCREMENTNONCE() external;
     function ovmCREATEEOA(bytes32 _messageHash, uint8 _v, bytes32 _r, bytes32 _s) external;
 

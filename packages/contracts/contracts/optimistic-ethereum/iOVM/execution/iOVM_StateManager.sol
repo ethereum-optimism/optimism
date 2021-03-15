@@ -45,8 +45,8 @@ interface iOVM_StateManager {
     function getAccount(address _address) external view returns (Lib_OVMCodec.Account memory _account);
     function hasAccount(address _address) external view returns (bool _exists);
     function hasEmptyAccount(address _address) external view returns (bool _exists);
-    function setAccountNonce(address _address, uint256 _nonce) external;
-    function getAccountNonce(address _address) external view returns (uint256 _nonce);
+    function setAccountNonce(address _address, uint64 _nonce) external;
+    function getAccountNonce(address _address) external view returns (uint64 _nonce);
     function getAccountEthAddress(address _address) external view returns (address _ethAddress);
     function getAccountStorageRoot(address _address) external view returns (bytes32 _storageRoot);
     function initPendingAccount(address _address) external;

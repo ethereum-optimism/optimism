@@ -34,7 +34,7 @@ library Lib_OVMCodec {
      ***********/
 
     struct Account {
-        uint256 nonce;
+        uint64 nonce;
         uint256 balance;
         bytes32 storageRoot;
         bytes32 codeHash;
@@ -43,7 +43,7 @@ library Lib_OVMCodec {
     }
 
     struct EVMAccount {
-        uint256 nonce;
+        uint64 nonce;
         uint256 balance;
         bytes32 storageRoot;
         bytes32 codeHash;
@@ -307,7 +307,7 @@ library Lib_OVMCodec {
         // index-by-index circumvents this issue.
         raw[0] = Lib_RLPWriter.writeBytes(
             Lib_Bytes32Utils.removeLeadingZeros(
-                bytes32(_account.nonce)
+                bytes32(uint256(_account.nonce))
             )
         );
         raw[1] = Lib_RLPWriter.writeBytes(
@@ -338,7 +338,7 @@ library Lib_OVMCodec {
         Lib_RLPReader.RLPItem[] memory accountState = Lib_RLPReader.readList(_encoded);
 
         return EVMAccount({
-            nonce: Lib_RLPReader.readUint256(accountState[0]),
+            nonce: uint64(Lib_RLPReader.readUint256(accountState[0])),
             balance: Lib_RLPReader.readUint256(accountState[1]),
             storageRoot: Lib_RLPReader.readBytes32(accountState[2]),
             codeHash: Lib_RLPReader.readBytes32(accountState[3])

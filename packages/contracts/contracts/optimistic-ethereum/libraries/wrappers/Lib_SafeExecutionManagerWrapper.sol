@@ -6,10 +6,10 @@ import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
 
 /**
  * @title Lib_SafeExecutionManagerWrapper
- * @dev The Safe Execution Manager Wrapper provides functions which facilitate writing OVM safe 
- * code using the standard solidity compiler, by routing all its operations through the Execution 
+ * @dev The Safe Execution Manager Wrapper provides functions which facilitate writing OVM safe
+ * code using the standard solidity compiler, by routing all its operations through the Execution
  * Manager.
- * 
+ *
  * Compiler used: solc
  * Runtime target: OVM
  */
@@ -195,7 +195,7 @@ library Lib_SafeExecutionManagerWrapper {
     function safeGETNONCE()
         internal
         returns (
-            uint256 _nonce
+            uint64 _nonce
         )
     {
         bytes memory returndata = _safeExecutionManagerInteraction(
@@ -204,7 +204,7 @@ library Lib_SafeExecutionManagerWrapper {
             )
         );
 
-        return abi.decode(returndata, (uint256));
+        return abi.decode(returndata, (uint64));
     }
 
     /**

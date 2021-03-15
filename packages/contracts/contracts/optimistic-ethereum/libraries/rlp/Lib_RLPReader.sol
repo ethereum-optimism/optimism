@@ -426,6 +426,28 @@ library Lib_RLPReader {
     }
 
     /**
+     * Reads an RLP Uint64 value into a uint64.
+     * @param _in RLP uint64 value.
+     * @return Decoded uint64.
+     */
+    function readUint64(
+        RLPItem memory _in
+    )
+        internal
+        pure
+        returns (
+            uint64
+        )
+    {
+        require(
+            _in.length <= 9,
+            "Invalid RLP uint64 value."
+        );
+
+        return uint64(readUint256(_in));
+    }
+
+    /**
      * Reads the raw bytes of an RLP item.
      * @param _in RLP item to read.
      * @return Raw RLP bytes.
