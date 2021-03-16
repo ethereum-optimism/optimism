@@ -152,7 +152,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
         (transactionTemplate.slice(2).length / 2) * 16 * numTxs
 
       const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
-        shouldStartAtBatch: 0,
+        shouldStartAtElement: 0,
         totalElementsToAppend: numTxs,
         contexts: [
           {
@@ -192,7 +192,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
         (transactionTemplate.slice(2).length / 2) * 16 * numTxs
 
       const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
-        shouldStartAtBatch: 0,
+        shouldStartAtElement: 0,
         totalElementsToAppend: numTxs,
         contexts: [...Array(numTxs)].map(() => {
           return {
