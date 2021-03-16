@@ -2,14 +2,13 @@ import '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Contract, ContractFactory, Signer } from 'ethers'
+import { constants, Contract, ContractFactory, Signer } from 'ethers'
 import _ from 'lodash'
 
 /* Internal Imports */
 import {
   DUMMY_ACCOUNTS,
   DUMMY_BYTES32,
-  ZERO_ADDRESS,
   EMPTY_ACCOUNT_CODE_HASH,
   NON_ZERO_ADDRESS,
   NON_NULL_BYTES32,
@@ -301,7 +300,7 @@ describe('OVM_StateManager gas consumption', () => {
       measure('getAccountEthAddress', [DUMMY_ACCOUNT.address], async () => {
         await OVM_StateManager.putAccount(DUMMY_ACCOUNT.address, {
           ...DUMMY_ACCOUNT.data,
-          ethAddress: ZERO_ADDRESS,
+          ethAddress: constants.AddressZero,
         })
       })
     })

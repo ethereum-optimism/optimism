@@ -2,15 +2,11 @@ import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, Contract } from 'ethers'
+import { Signer, Contract, constants } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import {
-  NON_ZERO_ADDRESS,
-  ZERO_ADDRESS,
-  makeAddressManager,
-} from '../../../../helpers'
+import { NON_ZERO_ADDRESS, makeAddressManager } from '../../../../helpers'
 
 const L1_ETH_GATEWAY_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
 
@@ -61,7 +57,10 @@ describe('OVM_L1ETHGateway', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L1 account', async () => {
       // Deploy new gateway, initialize with random messenger
       await expect(
-        OVM_L1ETHGateway.connect(alice).finalizeWithdrawal(ZERO_ADDRESS, 1)
+        OVM_L1ETHGateway.connect(alice).finalizeWithdrawal(
+          constants.AddressZero,
+          1
+        )
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
 
@@ -80,7 +79,7 @@ describe('OVM_L1ETHGateway', () => {
       )
 
       await expect(
-        OVM_L1ETHGateway.finalizeWithdrawal(ZERO_ADDRESS, 1)
+        OVM_L1ETHGateway.finalizeWithdrawal(constants.AddressZero, 1)
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
 
@@ -118,7 +117,7 @@ describe('OVM_L1ETHGateway', () => {
       // Deploy this just for the getter
       const OVM_L2DepositedERC20 = await (
         await ethers.getContractFactory('OVM_L2DepositedERC20')
-      ).deploy(ZERO_ADDRESS, '', '')
+      ).deploy(constants.AddressZero, '', '')
 
       await expect(
         gasUsed.gt(

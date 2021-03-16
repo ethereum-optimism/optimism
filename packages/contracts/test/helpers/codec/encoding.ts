@@ -1,10 +1,9 @@
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Wallet } from 'ethers'
+import { constants, Wallet } from 'ethers'
 
 /* Internal Imports */
 import { remove0x, fromHexString } from '@eth-optimism/core-utils'
-import { ZERO_ADDRESS } from '../constants'
 
 export interface EIP155Transaction {
   nonce: number
@@ -47,7 +46,7 @@ export const encodeCompactTransaction = (transaction: any): string => {
   const compressedGasPrice: any = transaction.gasPrice / 1000000
   const gasPrice = ethers.utils.zeroPad(compressedGasPrice, 3)
   const to = !transaction.to.length
-    ? fromHexString(ZERO_ADDRESS)
+    ? fromHexString(constants.AddressZero)
     : fromHexString(transaction.to)
   const data = fromHexString(transaction.data)
 

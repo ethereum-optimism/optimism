@@ -1,10 +1,10 @@
 /* Internal Imports */
+import { constants } from 'ethers'
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
   OVM_TX_GAS_LIMIT,
   NON_NULL_BYTES32,
-  ZERO_ADDRESS,
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 
@@ -80,8 +80,8 @@ const test_run: TestDefinition = {
             timestamp: 0,
             queueOrigin: 0,
             entrypoint: '$OVM_CALL_HELPER',
-            origin: ZERO_ADDRESS,
-            msgSender: ZERO_ADDRESS,
+            origin: constants.AddressZero,
+            msgSender: constants.AddressZero,
             gasLimit: OVM_TX_GAS_LIMIT,
             subSteps: [
               {
@@ -115,8 +115,8 @@ const test_run: TestDefinition = {
     //         timestamp: 0,
     //         queueOrigin: 0,
     //         entrypoint: '$OVM_CALL_HELPER',
-    //         origin: ZERO_ADDRESS,
-    //         msgSender: ZERO_ADDRESS,
+    //         origin: constants.AddressZero,
+    //         msgSender: constants.AddressZero,
     //         gasLimit: OVM_TX_GAS_LIMIT,
     //         subSteps: [],
     //       },

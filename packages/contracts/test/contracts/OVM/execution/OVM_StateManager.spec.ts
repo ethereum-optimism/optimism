@@ -2,14 +2,13 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
+import { Contract, ContractFactory, Signer, BigNumber, constants } from 'ethers'
 import _ from 'lodash'
 
 /* Internal Imports */
 import {
   DUMMY_ACCOUNTS,
   DUMMY_BYTES32,
-  ZERO_ADDRESS,
   EMPTY_ACCOUNT_CODE_HASH,
   KECCAK_256_NULL,
 } from '../../../helpers'
@@ -304,7 +303,7 @@ describe('OVM_StateManager', () => {
       it('should return the zero address', async () => {
         expect(
           await OVM_StateManager.getAccountEthAddress(DUMMY_ACCOUNTS[0].address)
-        ).to.equal(ZERO_ADDRESS)
+        ).to.equal(constants.AddressZero)
       })
     })
   })

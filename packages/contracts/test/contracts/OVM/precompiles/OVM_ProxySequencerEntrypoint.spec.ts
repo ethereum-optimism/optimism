@@ -2,9 +2,9 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers, waffle } from 'hardhat'
-import { ContractFactory, Contract, Wallet } from 'ethers'
+import { ContractFactory, Contract, Wallet, constants } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
-import { ZERO_ADDRESS, remove0x } from '@eth-optimism/core-utils'
+import { remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { decodeSolidityError } from '../../../helpers'
@@ -102,7 +102,7 @@ describe('OVM_ProxySequencerEntrypoint', () => {
       Helper_PrecompileCaller,
       OVM_ProxySequencerEntrypoint,
       'init',
-      [ZERO_ADDRESS, ZERO_ADDRESS]
+      [constants.AddressZero, constants.AddressZero]
     )
 
     const ovmREVERT: any = Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]

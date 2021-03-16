@@ -2,7 +2,7 @@ import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
@@ -10,7 +10,6 @@ import {
   makeAddressManager,
   setProxyTarget,
   NON_NULL_BYTES32,
-  ZERO_ADDRESS,
   NON_ZERO_ADDRESS,
   getXDomainCalldata,
 } from '../../../../helpers'
@@ -121,7 +120,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
 
     it('should revert if the L1 message sender is not the OVM_L1CrossDomainMessenger', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        ZERO_ADDRESS
+        constants.AddressZero
       )
 
       await expect(

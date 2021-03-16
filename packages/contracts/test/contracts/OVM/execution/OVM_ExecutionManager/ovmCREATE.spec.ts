@@ -1,4 +1,5 @@
 /* Internal Imports */
+import { constants } from 'ethers'
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
@@ -8,7 +9,6 @@ import {
   REVERT_FLAGS,
   DUMMY_BYTECODE,
   UNSAFE_BYTECODE,
-  ZERO_ADDRESS,
   VERIFIED_EMPTY_CONTRACT_HASH,
   DUMMY_BYTECODE_BYTELEN,
   DUMMY_BYTECODE_HASH,
@@ -181,7 +181,7 @@ const test_ovmCREATE: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
-            address: ZERO_ADDRESS,
+            address: constants.AddressZero,
             revertData: DUMMY_REVERT_DATA,
           },
         },
@@ -207,7 +207,7 @@ const test_ovmCREATE: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
-            address: ZERO_ADDRESS,
+            address: constants.AddressZero,
             revertData: DUMMY_REVERT_DATA,
           },
         },
@@ -241,7 +241,7 @@ const test_ovmCREATE: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
-            address: ZERO_ADDRESS,
+            address: constants.AddressZero,
             revertData: DUMMY_REVERT_DATA,
           },
         },
@@ -275,7 +275,7 @@ const test_ovmCREATE: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
-            address: ZERO_ADDRESS,
+            address: constants.AddressZero,
             revertData: DUMMY_REVERT_DATA,
           },
         },
@@ -542,7 +542,7 @@ const test_ovmCREATE: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
-            address: ZERO_ADDRESS,
+            address: constants.AddressZero,
             revertData: DUMMY_REVERT_DATA,
           },
         },
@@ -704,7 +704,7 @@ const test_ovmCREATE: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
-            address: ZERO_ADDRESS,
+            address: constants.AddressZero,
             revertData: DUMMY_REVERT_DATA,
           },
         },
@@ -723,7 +723,7 @@ const test_ovmCREATE: TestDefinition = {
             ],
           },
           expectedReturnStatus: true,
-          expectedReturnValue: ZERO_ADDRESS,
+          expectedReturnValue: constants.AddressZero,
         },
       ],
     },
@@ -737,7 +737,7 @@ const test_ovmCREATE: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: {
-            address: ZERO_ADDRESS,
+            address: constants.AddressZero,
             revertData: encodeSolidityError(
               'Constructor attempted to deploy unsafe bytecode.'
             ),

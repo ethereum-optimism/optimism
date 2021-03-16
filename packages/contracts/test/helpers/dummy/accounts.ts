@@ -1,9 +1,9 @@
 /* External Imports */
-import { BigNumber } from 'ethers'
+import { BigNumber, constants } from 'ethers'
 
 /* Internal Imports */
 import { DUMMY_BYTES32 } from './bytes32'
-import { ZERO_ADDRESS, NON_ZERO_ADDRESS } from '../constants'
+import { NON_ZERO_ADDRESS } from '../constants'
 import { OVMAccount } from '../types/ovm-types'
 
 export const DUMMY_ACCOUNTS: Array<{
@@ -17,7 +17,7 @@ export const DUMMY_ACCOUNTS: Array<{
       balance: BigNumber.from(456),
       storageRoot: DUMMY_BYTES32[0],
       codeHash: DUMMY_BYTES32[1],
-      ethAddress: ZERO_ADDRESS,
+      ethAddress: constants.AddressZero,
     },
   },
   {
