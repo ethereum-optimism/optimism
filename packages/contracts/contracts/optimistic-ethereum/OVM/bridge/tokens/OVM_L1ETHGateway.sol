@@ -124,7 +124,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     /**
      * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
      * L1 ETH token.
-     * This call will fail if the initialized withdrawal from L2 has not been finalized.
+     * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized. 
      *
      * @param _to L1 address to credit the withdrawal to
      * @param _amount Amount of the ETH to withdraw
