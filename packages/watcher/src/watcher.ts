@@ -1,8 +1,9 @@
 /* External Imports */
 import { ethers } from 'ethers'
+import { Provider } from '@ethersproject/abstract-provider'
 
 interface Layer {
-  provider: any
+  provider: Provider
   messengerAddress: string
 }
 

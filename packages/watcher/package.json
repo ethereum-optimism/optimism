@@ -55,6 +55,7 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
+    "@ethersproject/abstract-provider": "^5.0.10",
     "ethers": "5.0.0"
   }
 }
