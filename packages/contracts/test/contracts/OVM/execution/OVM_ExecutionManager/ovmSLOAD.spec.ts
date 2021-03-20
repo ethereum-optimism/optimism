@@ -1,9 +1,11 @@
+/* External Imports */
+import { ethers } from 'ethers'
+
 /* Internal Imports */
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
   OVM_TX_GAS_LIMIT,
-  NULL_BYTES32,
   NON_NULL_BYTES32,
   getStorageXOR,
 } from '../../../../helpers'
@@ -32,7 +34,7 @@ const test_ovmSLOAD: TestDefinition = {
       },
       contractStorage: {
         $DUMMY_OVM_ADDRESS_1: {
-          [NON_NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+          [NON_NULL_BYTES32]: getStorageXOR(ethers.constants.HashZero),
         },
       },
       verifiedContractStorage: {
@@ -58,7 +60,7 @@ const test_ovmSLOAD: TestDefinition = {
                   key: NON_NULL_BYTES32,
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: NULL_BYTES32,
+                expectedReturnValue: ethers.constants.HashZero,
               },
             ],
           },

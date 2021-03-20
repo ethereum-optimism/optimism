@@ -1,4 +1,3 @@
-import { NULL_BYTES32 } from '../constants'
 import { constants, ethers } from 'ethers'
 
 export interface Transaction {
@@ -21,7 +20,7 @@ export const DUMMY_OVM_TRANSACTIONS: Array<Transaction> = [
     l1TxOrigin: constants.AddressZero,
     entrypoint: constants.AddressZero,
     gasLimit: 0,
-    data: NULL_BYTES32,
+    data: ethers.constants.HashZero,
   }
 })
 

@@ -1,9 +1,11 @@
+/* External Imports */
+import { ethers } from 'ethers'
+
 /* Internal Imports */
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
   OVM_TX_GAS_LIMIT,
-  NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
   DUMMY_BYTECODE,
@@ -38,10 +40,10 @@ const test_ovmSTATICCALL: TestDefinition = {
       },
       contractStorage: {
         $DUMMY_OVM_ADDRESS_1: {
-          [NON_NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+          [NON_NULL_BYTES32]: getStorageXOR(ethers.constants.HashZero),
         },
         $DUMMY_OVM_ADDRESS_3: {
-          [NON_NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+          [NON_NULL_BYTES32]: getStorageXOR(ethers.constants.HashZero),
         },
       },
       verifiedContractStorage: {
@@ -67,8 +69,8 @@ const test_ovmSTATICCALL: TestDefinition = {
               {
                 functionName: 'ovmSSTORE',
                 functionParams: {
-                  key: NULL_BYTES32,
-                  value: NULL_BYTES32,
+                  key: ethers.constants.HashZero,
+                  value: ethers.constants.HashZero,
                 },
                 expectedReturnStatus: false,
                 expectedReturnValue: {
@@ -97,7 +99,7 @@ const test_ovmSTATICCALL: TestDefinition = {
                   key: NON_NULL_BYTES32,
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: NULL_BYTES32,
+                expectedReturnValue: ethers.constants.HashZero,
               },
             ],
           },
@@ -214,8 +216,8 @@ const test_ovmSTATICCALL: TestDefinition = {
                           {
                             functionName: 'ovmSSTORE',
                             functionParams: {
-                              key: NULL_BYTES32,
-                              value: NULL_BYTES32,
+                              key: ethers.constants.HashZero,
+                              value: ethers.constants.HashZero,
                             },
                             expectedReturnStatus: false,
                             expectedReturnValue: {
@@ -265,7 +267,7 @@ const test_ovmSTATICCALL: TestDefinition = {
                               key: NON_NULL_BYTES32,
                             },
                             expectedReturnStatus: true,
-                            expectedReturnValue: NULL_BYTES32,
+                            expectedReturnValue: ethers.constants.HashZero,
                           },
                         ],
                       },

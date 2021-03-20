@@ -11,7 +11,6 @@ import {
   makeAddressManager,
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
-  NULL_BYTES32,
   setProxyTarget,
   TrieTestGenerator,
 } from '../../../helpers'
@@ -84,8 +83,8 @@ describe('OVM_StateTransitioner', () => {
     OVM_StateTransitioner = await Factory__OVM_StateTransitioner.deploy(
       AddressManager.address,
       0,
-      NULL_BYTES32,
-      NULL_BYTES32
+      ethers.constants.HashZero,
+      ethers.constants.HashZero
     )
   })
 
@@ -99,8 +98,8 @@ describe('OVM_StateTransitioner', () => {
       account = {
         nonce: 0,
         balance: 0,
-        storageRoot: NULL_BYTES32,
-        codeHash: NULL_BYTES32,
+        storageRoot: ethers.constants.HashZero,
+        codeHash: ethers.constants.HashZero,
       }
     })
 
@@ -147,7 +146,7 @@ describe('OVM_StateTransitioner', () => {
             AddressManager.address,
             0,
             test.accountTrieRoot,
-            NULL_BYTES32
+            ethers.constants.HashZero
           )
         })
 
@@ -341,8 +340,8 @@ describe('OVM_StateTransitioner', () => {
       account = {
         nonce: 0,
         balance: 0,
-        storageRoot: NULL_BYTES32,
-        codeHash: NULL_BYTES32,
+        storageRoot: ethers.constants.HashZero,
+        codeHash: ethers.constants.HashZero,
         ethAddress: constants.AddressZero,
         isFresh: false,
       }
@@ -429,8 +428,8 @@ describe('OVM_StateTransitioner', () => {
       account = {
         nonce: 0,
         balance: 0,
-        storageRoot: NULL_BYTES32,
-        codeHash: NULL_BYTES32,
+        storageRoot: ethers.constants.HashZero,
+        codeHash: ethers.constants.HashZero,
       }
 
       Mock__OVM_StateManager.smocked.getAccount.will.return.with({

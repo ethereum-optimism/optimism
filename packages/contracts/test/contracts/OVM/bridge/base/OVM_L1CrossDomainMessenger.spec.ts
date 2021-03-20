@@ -12,7 +12,6 @@ import {
   setProxyTarget,
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
-  NULL_BYTES32,
   DUMMY_BATCH_HEADERS,
   DUMMY_BATCH_PROOFS,
   TrieTestGenerator,
@@ -231,7 +230,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       )
 
       const proof1 = {
-        stateRoot: NULL_BYTES32,
+        stateRoot: ethers.constants.HashZero,
         stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
         stateRootProof: DUMMY_BATCH_PROOFS[0],
         stateTrieWitness: '0x',
@@ -255,7 +254,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       )
 
       const proof1 = {
-        stateRoot: NULL_BYTES32,
+        stateRoot: ethers.constants.HashZero,
         stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
         stateRootProof: DUMMY_BATCH_PROOFS[0],
         stateTrieWitness: '0x',

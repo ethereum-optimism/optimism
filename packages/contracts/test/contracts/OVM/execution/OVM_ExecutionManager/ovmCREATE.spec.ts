@@ -1,10 +1,9 @@
 /* Internal Imports */
-import { constants } from 'ethers'
+import { constants, ethers } from 'ethers'
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
   OVM_TX_GAS_LIMIT,
-  NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
   DUMMY_BYTECODE,
@@ -80,8 +79,8 @@ const test_ovmCREATE: TestDefinition = {
       },
       contractStorage: {
         $DUMMY_OVM_ADDRESS_2: {
-          [NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
-          [NON_NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+          [ethers.constants.HashZero]: getStorageXOR(ethers.constants.HashZero),
+          [NON_NULL_BYTES32]: getStorageXOR(ethers.constants.HashZero),
         },
       },
       verifiedContractStorage: {
@@ -89,7 +88,7 @@ const test_ovmCREATE: TestDefinition = {
           [NON_NULL_BYTES32]: true,
         },
         $DUMMY_OVM_ADDRESS_2: {
-          [NULL_BYTES32]: true,
+          [ethers.constants.HashZero]: true,
           [NON_NULL_BYTES32]: true,
         },
       },
@@ -251,7 +250,7 @@ const test_ovmCREATE: TestDefinition = {
             address: CREATED_CONTRACT_1,
           },
           expectedReturnStatus: true,
-          expectedReturnValue: NULL_BYTES32,
+          expectedReturnValue: ethers.constants.HashZero,
         },
       ],
     },
@@ -322,7 +321,7 @@ const test_ovmCREATE: TestDefinition = {
                   key: NON_NULL_BYTES32,
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: NULL_BYTES32,
+                expectedReturnValue: ethers.constants.HashZero,
               },
             ],
           },
@@ -350,7 +349,7 @@ const test_ovmCREATE: TestDefinition = {
                         key: NON_NULL_BYTES32,
                       },
                       expectedReturnStatus: true,
-                      expectedReturnValue: NULL_BYTES32,
+                      expectedReturnValue: ethers.constants.HashZero,
                     },
                   ],
                 },
@@ -431,10 +430,10 @@ const test_ovmCREATE: TestDefinition = {
               {
                 functionName: 'ovmSLOAD',
                 functionParams: {
-                  key: NULL_BYTES32,
+                  key: ethers.constants.HashZero,
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: NULL_BYTES32,
+                expectedReturnValue: ethers.constants.HashZero,
               },
             ],
           },
@@ -773,10 +772,12 @@ const test_ovmCREATE: TestDefinition = {
               ),
               // allowArbitraryDeployment? false
               '0x0000000000000000000000000000000000000000000000000000000000000012': getStorageXOR(
-                NULL_BYTES32
+                ethers.constants.HashZero
               ),
               // non-whitelisted deployer is whitelisted? false
-              [NON_WHITELISTED_DEPLOYER_KEY]: getStorageXOR(NULL_BYTES32),
+              [NON_WHITELISTED_DEPLOYER_KEY]: getStorageXOR(
+                ethers.constants.HashZero
+              ),
               // whitelisted deployer is whitelisted? true
               [WHITELISTED_DEPLOYER_KEY]: getStorageXOR(
                 '0x' + '00'.repeat(31) + '01'
@@ -859,7 +860,7 @@ const test_ovmCREATE: TestDefinition = {
                   {
                     functionName: 'ovmCREATE2',
                     functionParams: {
-                      salt: NULL_BYTES32,
+                      salt: ethers.constants.HashZero,
                       bytecode: '0x',
                     },
                     expectedReturnStatus: false,
@@ -909,7 +910,9 @@ const test_ovmCREATE: TestDefinition = {
                 '0x' + '00'.repeat(31) + '01'
               ),
               // non-whitelisted deployer is whitelisted? false
-              [NON_WHITELISTED_DEPLOYER_KEY]: getStorageXOR(NULL_BYTES32),
+              [NON_WHITELISTED_DEPLOYER_KEY]: getStorageXOR(
+                ethers.constants.HashZero
+              ),
               // whitelisted deployer is whitelisted? true
               [WHITELISTED_DEPLOYER_KEY]: getStorageXOR(
                 '0x' + '00'.repeat(31) + '01'

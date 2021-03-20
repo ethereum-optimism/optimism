@@ -13,7 +13,6 @@ import {
   DUMMY_BATCH_PROOFS,
   DUMMY_OVM_TRANSACTIONS,
   NON_NULL_BYTES32,
-  NULL_BYTES32,
   hashTransaction,
 } from '../../../helpers'
 
@@ -23,7 +22,7 @@ const DUMMY_TX_CHAIN_ELEMENTS = [...Array(10).keys()].map((i) => {
     queueIndex: BigNumber.from(0),
     timestamp: BigNumber.from(i),
     blockNumber: BigNumber.from(0),
-    txData: NULL_BYTES32,
+    txData: ethers.constants.HashZero,
   }
 })
 
@@ -32,7 +31,7 @@ const DUMMY_HASH = hashTransaction(DUMMY_OVM_TRANSACTIONS[0])
 const DUMMY_BATCH_PROOFS_WITH_INDEX = [
   {
     index: 11,
-    siblings: [NULL_BYTES32],
+    siblings: [ethers.constants.HashZero],
   },
 ]
 
@@ -122,7 +121,7 @@ describe('OVM_FraudVerifier', () => {
       it('should revert', async () => {
         await expect(
           OVM_FraudVerifier.initializeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_OVM_TRANSACTIONS[0],
@@ -151,7 +150,7 @@ describe('OVM_FraudVerifier', () => {
         it('should revert', async () => {
           await expect(
             OVM_FraudVerifier.initializeFraudVerification(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_BATCH_HEADERS[0],
               DUMMY_BATCH_PROOFS[0],
               DUMMY_OVM_TRANSACTIONS[0],
@@ -173,7 +172,7 @@ describe('OVM_FraudVerifier', () => {
         it('should deploy a new state transitioner', async () => {
           await expect(
             OVM_FraudVerifier.initializeFraudVerification(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_BATCH_HEADERS[0],
               DUMMY_BATCH_PROOFS[0],
               DUMMY_OVM_TRANSACTIONS[0],
@@ -188,7 +187,7 @@ describe('OVM_FraudVerifier', () => {
 
           expect(
             await OVM_FraudVerifier.getStateTransitioner(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_HASH
             )
           ).to.equal(Mock__OVM_StateTransitioner.address)
@@ -197,7 +196,7 @@ describe('OVM_FraudVerifier', () => {
         it('should revert when provided with a incorrect transaction root global index', async () => {
           await expect(
             OVM_FraudVerifier.initializeFraudVerification(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_BATCH_HEADERS[0],
               DUMMY_BATCH_PROOFS[0],
               DUMMY_OVM_TRANSACTIONS[0],
@@ -223,7 +222,7 @@ describe('OVM_FraudVerifier', () => {
       )
 
       await OVM_FraudVerifier.initializeFraudVerification(
-        NULL_BYTES32,
+        ethers.constants.HashZero,
         DUMMY_BATCH_HEADERS[0],
         DUMMY_BATCH_PROOFS[0],
         DUMMY_OVM_TRANSACTIONS[0],
@@ -244,7 +243,7 @@ describe('OVM_FraudVerifier', () => {
       it('should revert', async () => {
         await expect(
           OVM_FraudVerifier.finalizeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_HASH,
@@ -272,7 +271,7 @@ describe('OVM_FraudVerifier', () => {
         it('should revert', async () => {
           await expect(
             OVM_FraudVerifier.finalizeFraudVerification(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_BATCH_HEADERS[0],
               DUMMY_BATCH_PROOFS[0],
               DUMMY_HASH,
@@ -302,7 +301,7 @@ describe('OVM_FraudVerifier', () => {
           it('should revert', async () => {
             await expect(
               OVM_FraudVerifier.finalizeFraudVerification(
-                NULL_BYTES32,
+                ethers.constants.HashZero,
                 DUMMY_BATCH_HEADERS[0],
                 DUMMY_BATCH_PROOFS[0],
                 DUMMY_HASH,
@@ -333,7 +332,7 @@ describe('OVM_FraudVerifier', () => {
             it('should revert', async () => {
               await expect(
                 OVM_FraudVerifier.finalizeFraudVerification(
-                  NULL_BYTES32,
+                  ethers.constants.HashZero,
                   DUMMY_BATCH_HEADERS[0],
                   DUMMY_BATCH_PROOFS[0],
                   DUMMY_HASH,
@@ -362,7 +361,7 @@ describe('OVM_FraudVerifier', () => {
               it('should revert', async () => {
                 await expect(
                   OVM_FraudVerifier.finalizeFraudVerification(
-                    NULL_BYTES32,
+                    ethers.constants.HashZero,
                     DUMMY_BATCH_HEADERS[0],
                     DUMMY_BATCH_PROOFS[0],
                     DUMMY_HASH,
@@ -379,13 +378,13 @@ describe('OVM_FraudVerifier', () => {
             describe('when the provided post-state root differs from the computed one', () => {
               before(() => {
                 Mock__OVM_StateTransitioner.smocked.getPostStateRoot.will.return.with(
-                  NULL_BYTES32
+                  ethers.constants.HashZero
                 )
               })
 
               it('should succeed and attempt to delete a state batch', async () => {
                 await OVM_FraudVerifier.finalizeFraudVerification(
-                  NULL_BYTES32,
+                  ethers.constants.HashZero,
                   DUMMY_BATCH_HEADERS[0],
                   DUMMY_BATCH_PROOFS[0],
                   DUMMY_HASH,
@@ -423,16 +422,18 @@ describe('OVM_FraudVerifier', () => {
           )
 
           Mock__OVM_StateTransitioner.smocked.getPostStateRoot.will.return.with(
-            NULL_BYTES32
+            ethers.constants.HashZero
           )
 
-          state2.smocked.getPostStateRoot.will.return.with(NULL_BYTES32)
+          state2.smocked.getPostStateRoot.will.return.with(
+            ethers.constants.HashZero
+          )
         })
 
         it('creates multiple state transitioners per tx hash', async () => {
           await expect(
             OVM_FraudVerifier.initializeFraudVerification(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_BATCH_HEADERS[0],
               DUMMY_BATCH_PROOFS[0],
               DUMMY_OVM_TRANSACTIONS[1],
@@ -447,13 +448,13 @@ describe('OVM_FraudVerifier', () => {
 
           expect(
             await OVM_FraudVerifier.getStateTransitioner(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_HASH
             )
           ).to.equal(Mock__OVM_StateTransitioner.address)
           expect(
             await OVM_FraudVerifier.getStateTransitioner(
-              NULL_BYTES32,
+              ethers.constants.HashZero,
               DUMMY_HASH_2
             )
           ).to.equal(state2.address)
@@ -468,7 +469,7 @@ describe('OVM_FraudVerifier', () => {
         it.skip('Case 1: allows proving fraud on the same pre-state root twice', async () => {
           // finalize previous fraud
           await OVM_FraudVerifier.finalizeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_HASH,
@@ -479,7 +480,7 @@ describe('OVM_FraudVerifier', () => {
 
           // start new fraud
           await OVM_FraudVerifier.initializeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_OVM_TRANSACTIONS[1],
@@ -493,7 +494,7 @@ describe('OVM_FraudVerifier', () => {
 
           // finalize it as well
           await OVM_FraudVerifier.finalizeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_HASH_2,
@@ -516,7 +517,7 @@ describe('OVM_FraudVerifier', () => {
         it.skip('Case 2: does not get blocked by the first transitioner', async () => {
           // start new fraud
           await OVM_FraudVerifier.initializeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_OVM_TRANSACTIONS[1],
@@ -530,7 +531,7 @@ describe('OVM_FraudVerifier', () => {
 
           // finalize the new fraud first
           await OVM_FraudVerifier.finalizeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_HASH_2,
@@ -550,7 +551,7 @@ describe('OVM_FraudVerifier', () => {
 
           // finalize previous fraud
           await OVM_FraudVerifier.finalizeFraudVerification(
-            NULL_BYTES32,
+            ethers.constants.HashZero,
             DUMMY_BATCH_HEADERS[0],
             DUMMY_BATCH_PROOFS[0],
             DUMMY_HASH,

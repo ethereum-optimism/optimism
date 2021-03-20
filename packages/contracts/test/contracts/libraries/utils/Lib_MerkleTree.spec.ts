@@ -7,7 +7,7 @@ import { MerkleTree } from 'merkletreejs'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { NON_NULL_BYTES32, NULL_BYTES32 } from '../../../helpers'
+import { NON_NULL_BYTES32 } from '../../../helpers'
 
 const NODE_COUNTS = [
   2,
@@ -100,7 +100,13 @@ describe('Lib_MerkleTree', () => {
 
       it('should revert', async () => {
         await expect(
-          Lib_MerkleTree.verify(NULL_BYTES32, NULL_BYTES32, 0, [], totalLeaves)
+          Lib_MerkleTree.verify(
+            ethers.constants.HashZero,
+            ethers.constants.HashZero,
+            0,
+            [],
+            totalLeaves
+          )
         ).to.be.revertedWith(
           'Lib_MerkleTree: Total leaves must be greater than zero.'
         )
@@ -114,8 +120,8 @@ describe('Lib_MerkleTree', () => {
       it('should revert', async () => {
         await expect(
           Lib_MerkleTree.verify(
-            NULL_BYTES32,
-            NULL_BYTES32,
+            ethers.constants.HashZero,
+            ethers.constants.HashZero,
             index,
             [],
             totalLeaves
@@ -126,13 +132,13 @@ describe('Lib_MerkleTree', () => {
 
     describe('when total siblings does not match provided total leaves', () => {
       const totalLeaves = 8
-      const siblings = [NULL_BYTES32, NULL_BYTES32]
+      const siblings = [ethers.constants.HashZero, ethers.constants.HashZero]
 
       it('should revert', async () => {
         await expect(
           Lib_MerkleTree.verify(
-            NULL_BYTES32,
-            NULL_BYTES32,
+            ethers.constants.HashZero,
+            ethers.constants.HashZero,
             0,
             siblings,
             totalLeaves

@@ -11,7 +11,6 @@ import {
   setProxyTarget,
   NON_NULL_BYTES32,
   getEthTime,
-  NULL_BYTES32,
   increaseEthTime,
 } from '../../../helpers'
 
@@ -195,7 +194,7 @@ describe('OVM_StateCommitmentChain', () => {
       batchRoot: NON_NULL_BYTES32,
       batchSize: 1,
       prevTotalElements: 0,
-      extraData: NULL_BYTES32,
+      extraData: ethers.constants.HashZero,
     }
 
     beforeEach(async () => {

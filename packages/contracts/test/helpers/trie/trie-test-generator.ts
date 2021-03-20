@@ -3,9 +3,7 @@ import * as rlp from 'rlp'
 import { default as seedbytes } from 'random-bytes-seed'
 import { SecureTrie, BaseTrie } from 'merkle-patricia-tree'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
-
-/* Internal Imports */
-import { NULL_BYTES32 } from '../constants'
+import { ethers } from 'ethers'
 
 export interface TrieNode {
   key: string
@@ -48,8 +46,8 @@ const rlpEncodeAccount = (account: EthereumAccount): string => {
     rlp.encode([
       account.nonce,
       account.balance,
-      account.storageRoot || NULL_BYTES32,
-      account.codeHash || NULL_BYTES32,
+      account.storageRoot || ethers.constants.HashZero,
+      account.codeHash || ethers.constants.HashZero,
     ])
   )
 }
@@ -59,8 +57,12 @@ const rlpDecodeAccount = (encoded: string): EthereumAccount => {
   return {
     nonce: decoded[0].length ? parseInt(decoded[0], 16) : 0,
     balance: decoded[1].length ? parseInt(decoded[1], 16) : 0,
-    storageRoot: decoded[2].length ? toHexString(decoded[2]) : NULL_BYTES32,
-    codeHash: decoded[3].length ? toHexString(decoded[3]) : NULL_BYTES32,
+    storageRoot: decoded[2].length
+      ? toHexString(decoded[2])
+      : ethers.constants.HashZero,
+    codeHash: decoded[3].length
+      ? toHexString(decoded[3])
+      : ethers.constants.HashZero,
   }
 }
 

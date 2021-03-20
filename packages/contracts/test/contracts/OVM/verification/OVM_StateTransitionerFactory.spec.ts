@@ -8,7 +8,6 @@ import { ContractFactory, Contract, constants } from 'ethers'
 import {
   makeAddressManager,
   DUMMY_OVM_TRANSACTIONS,
-  NULL_BYTES32,
   hashTransaction,
 } from '../../../helpers'
 
@@ -47,8 +46,8 @@ describe('OVM_StateTransitionerFactory', () => {
         await expect(
           OVM_StateTransitionerFactory.create(
             AddressManager.address,
-            NULL_BYTES32,
-            NULL_BYTES32,
+            ethers.constants.HashZero,
+            ethers.constants.HashZero,
             DUMMY_HASH
           )
         ).to.be.revertedWith(
