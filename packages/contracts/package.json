@@ -35,7 +35,6 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.1.8",
-    "@eth-optimism/dev": "^1.1.1",
     "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
@@ -46,6 +45,7 @@
     "glob": "^7.1.6"
   },
   "devDependencies": {
+    "@eth-optimism/dev": "^1.1.1",
     "@eth-optimism/plugins": "^0.0.17",
     "@eth-optimism/smock": "0.2.1-alpha.0",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
