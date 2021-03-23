@@ -16,6 +16,7 @@ library Lib_MerkleTree {
      * of leaves passed in is not a power of two, it pads out the tree with zero hashes.
      * If you do not know the original length of elements for the tree you are verifying,
      * then this may allow empty leaves past _elements.length to pass a verification check down the line.
+     * Note that the _elements argument is modified, therefore it must not be used again afterwards
      * @param _elements Array of hashes from which to generate a merkle root.
      * @return Merkle root of the leaves, with zero hashes for non-powers-of-two (see above).
      */
@@ -108,12 +109,12 @@ library Lib_MerkleTree {
 
     /**
      * Verifies a merkle branch for the given leaf hash.  Assumes the original length
-     * of leaves generated is a known, correct input, and does not return true for indices 
+     * of leaves generated is a known, correct input, and does not return true for indices
      * extending past that index (even if _siblings would be otherwise valid.)
      * @param _root The Merkle root to verify against.
      * @param _leaf The leaf hash to verify inclusion of.
      * @param _index The index in the tree of this leaf.
-     * @param _siblings Array of sibline nodes in the inclusion proof, starting from depth 0 (bottom of the tree). 
+     * @param _siblings Array of sibline nodes in the inclusion proof, starting from depth 0 (bottom of the tree).
      * @param _totalLeaves The total number of leaves originally passed into.
      * @return Whether or not the merkle branch and leaf passes verification.
      */
@@ -188,7 +189,7 @@ library Lib_MerkleTree {
         returns (
             uint256
         )
-    {   
+    {
         require(
             _in > 0,
             "Lib_MerkleTree: Cannot compute ceil(log_2) of 0."
