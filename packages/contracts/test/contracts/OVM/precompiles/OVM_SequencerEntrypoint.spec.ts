@@ -24,7 +24,7 @@ describe('OVM_SequencerEntrypoint', () => {
   })
 
   let Mock__OVM_ExecutionManager: MockContract
-  let Helper_PrecompileCaller: Contract
+  let Helper_PredeployCaller: Contract
   before(async () => {
     Mock__OVM_ExecutionManager = await smockit(
       await ethers.getContractFactory('OVM_ExecutionManager')
@@ -33,11 +33,11 @@ describe('OVM_SequencerEntrypoint', () => {
     Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
     Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with([true, '0x'])
 
-    Helper_PrecompileCaller = await (
-      await ethers.getContractFactory('Helper_PrecompileCaller')
+    Helper_PredeployCaller = await (
+      await ethers.getContractFactory('Helper_PredeployCaller')
     ).deploy()
 
-    Helper_PrecompileCaller.setTarget(Mock__OVM_ExecutionManager.address)
+    Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
   })
 
   let OVM_SequencerEntrypointFactory: ContractFactory
@@ -61,7 +61,7 @@ describe('OVM_SequencerEntrypoint', () => {
         DEFAULT_EIP155_TX,
         0
       )
-      await Helper_PrecompileCaller.callPrecompile(
+      await Helper_PredeployCaller.callPredeploy(
         OVM_SequencerEntrypoint.address,
         calldata
       )
@@ -86,7 +86,7 @@ describe('OVM_SequencerEntrypoint', () => {
     it('should send correct calldata if tx is a create and the transaction type is 0', async () => {
       const createTx = { ...DEFAULT_EIP155_TX, to: '' }
       const calldata = await encodeSequencerCalldata(wallet, createTx, 0)
-      await Helper_PrecompileCaller.callPrecompile(
+      await Helper_PredeployCaller.callPredeploy(
         OVM_SequencerEntrypoint.address,
         calldata
       )
@@ -116,7 +116,7 @@ describe('OVM_SequencerEntrypoint', () => {
           DEFAULT_EIP155_TX,
           i
         )
-        await Helper_PrecompileCaller.callPrecompile(
+        await Helper_PredeployCaller.callPredeploy(
           OVM_SequencerEntrypoint.address,
           calldata
         )
@@ -137,7 +137,7 @@ describe('OVM_SequencerEntrypoint', () => {
         DEFAULT_EIP155_TX,
         2
       )
-      await Helper_PrecompileCaller.callPrecompile(
+      await Helper_PredeployCaller.callPredeploy(
         OVM_SequencerEntrypoint.address,
         calldata
       )
@@ -162,7 +162,7 @@ describe('OVM_SequencerEntrypoint', () => {
     it('should revert if TransactionType is >2', async () => {
       const calldata = '0x03'
       await expect(
-        Helper_PrecompileCaller.callPrecompile(
+        Helper_PredeployCaller.callPredeploy(
           OVM_SequencerEntrypoint.address,
           calldata
         )
@@ -172,7 +172,7 @@ describe('OVM_SequencerEntrypoint', () => {
     it('should revert if TransactionType is 1', async () => {
       const calldata = '0x01'
       await expect(
-        Helper_PrecompileCaller.callPrecompile(
+        Helper_PredeployCaller.callPredeploy(
           OVM_SequencerEntrypoint.address,
           calldata
         )

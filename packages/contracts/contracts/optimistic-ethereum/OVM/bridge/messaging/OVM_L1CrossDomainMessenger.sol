@@ -258,7 +258,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
 
         require(
             exists == true,
-            "Message passing precompile has not been initialized or invalid proof provided."
+            "Message passing predeploy has not been initialized or invalid proof provided."
         );
 
         Lib_OVMCodec.EVMAccount memory account = Lib_OVMCodec.decodeEVMAccount(

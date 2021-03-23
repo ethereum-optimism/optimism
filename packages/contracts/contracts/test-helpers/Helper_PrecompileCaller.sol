@@ -3,22 +3,22 @@ pragma solidity >0.5.0 <0.8.0;
 
 import { Helper_SimpleProxy } from "./Helper_SimpleProxy.sol";
 
-contract Helper_PrecompileCaller is Helper_SimpleProxy {
-    function callPrecompile(
-        address _precompile,
+contract Helper_PredeployCaller is Helper_SimpleProxy {
+    function callPredeploy(
+        address _predeploy,
         bytes memory _data
     )
         public
     {
         if (msg.sender == owner) {
-            makeExternalCall(_precompile, _data);
+            makeExternalCall(_predeploy, _data);
         } else {
             makeExternalCall(target, msg.data);
         }
     }
 
-    function callPrecompileAbi(
-        address _precompile,
+    function callPredeployAbi(
+        address _predeploy,
         bytes memory _data
     )
         public
@@ -30,16 +30,16 @@ contract Helper_PrecompileCaller is Helper_SimpleProxy {
         bool success;
         bytes memory returndata;
         if (msg.sender == owner) {
-            (success, returndata) = _precompile.call(_data);
+            (success, returndata) = _predeploy.call(_data);
         } else {
             (success, returndata) = target.call(msg.data);
         }
-        require(success, "Precompile call reverted");
+        require(success, "Predeploy call reverted");
         return returndata;
     }
 
     function getL1MessageSender(
-        address _precompile,
+        address _predeploy,
         bytes memory _data
     )
         public
@@ -47,7 +47,7 @@ contract Helper_PrecompileCaller is Helper_SimpleProxy {
             address
         )
     {
-        callPrecompile(_precompile, _data);
+        callPredeploy(_predeploy, _data);
         return address(0); // unused: silence compiler
     }
 }

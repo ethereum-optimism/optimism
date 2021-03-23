@@ -6,15 +6,15 @@ import { ContractFactory, Contract } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { NON_ZERO_ADDRESS } from '../../../helpers/constants'
 
-const callPrecompileStatic = async (
-  Helper_PrecompileCaller: Contract,
-  precompile: Contract,
+const callPredeployStatic = async (
+  Helper_PredeployCaller: Contract,
+  predeploy: Contract,
   functionName: string,
   functionParams?: any[]
 ): Promise<any> => {
-  return Helper_PrecompileCaller.callStatic[functionName](
-    precompile.address,
-    precompile.interface.encodeFunctionData(functionName, functionParams || [])
+  return Helper_PredeployCaller.callStatic[functionName](
+    predeploy.address,
+    predeploy.interface.encodeFunctionData(functionName, functionParams || [])
   )
 }
 
@@ -26,13 +26,13 @@ describe('OVM_L1MessageSender', () => {
     )
   })
 
-  let Helper_PrecompileCaller: Contract
+  let Helper_PredeployCaller: Contract
   before(async () => {
-    Helper_PrecompileCaller = await (
-      await ethers.getContractFactory('Helper_PrecompileCaller')
+    Helper_PredeployCaller = await (
+      await ethers.getContractFactory('Helper_PredeployCaller')
     ).deploy()
 
-    Helper_PrecompileCaller.setTarget(Mock__OVM_ExecutionManager.address)
+    Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
   })
 
   let Factory__OVM_L1MessageSender: ContractFactory
@@ -56,8 +56,8 @@ describe('OVM_L1MessageSender', () => {
 
     it('should return the L1 message sender', async () => {
       expect(
-        await callPrecompileStatic(
-          Helper_PrecompileCaller,
+        await callPredeployStatic(
+          Helper_PredeployCaller,
           OVM_L1MessageSender,
           'getL1MessageSender'
         )

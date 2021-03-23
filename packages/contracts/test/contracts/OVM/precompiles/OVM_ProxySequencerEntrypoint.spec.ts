@@ -9,15 +9,15 @@ import { remove0x } from '@eth-optimism/core-utils'
 /* Internal Imports */
 import { decodeSolidityError } from '../../../helpers'
 
-const callPrecompile = async (
-  Helper_PrecompileCaller: Contract,
-  precompile: Contract,
+const callPredeploy = async (
+  Helper_PredeployCaller: Contract,
+  predeploy: Contract,
   functionName: string,
   functionParams?: any[]
 ): Promise<any> => {
-  return Helper_PrecompileCaller.callPrecompile(
-    precompile.address,
-    precompile.interface.encodeFunctionData(functionName, functionParams || [])
+  return Helper_PredeployCaller.callPredeploy(
+    predeploy.address,
+    predeploy.interface.encodeFunctionData(functionName, functionParams || [])
   )
 }
 
@@ -39,7 +39,7 @@ describe('OVM_ProxySequencerEntrypoint', () => {
   })
 
   let Mock__OVM_ExecutionManager: MockContract
-  let Helper_PrecompileCaller: Contract
+  let Helper_PredeployCaller: Contract
   let OVM_SequencerEntrypoint: Contract
   before(async () => {
     Mock__OVM_ExecutionManager = await smockit(
@@ -53,11 +53,11 @@ describe('OVM_ProxySequencerEntrypoint', () => {
     Mock__OVM_ExecutionManager.smocked.ovmEXTCODESIZE.will.return.with(0)
     Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
 
-    Helper_PrecompileCaller = await (
-      await ethers.getContractFactory('Helper_PrecompileCaller')
+    Helper_PredeployCaller = await (
+      await ethers.getContractFactory('Helper_PredeployCaller')
     ).deploy()
 
-    Helper_PrecompileCaller.setTarget(Mock__OVM_ExecutionManager.address)
+    Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
 
     OVM_SequencerEntrypoint = await (
       await ethers.getContractFactory('OVM_SequencerEntrypoint')
@@ -72,8 +72,8 @@ describe('OVM_ProxySequencerEntrypoint', () => {
     Mock__OVM_ExecutionManager.smocked.ovmSLOAD.will.return.with(
       `0x${'00'.repeat(32)}`
     )
-    await callPrecompile(
-      Helper_PrecompileCaller,
+    await callPredeploy(
+      Helper_PredeployCaller,
       OVM_ProxySequencerEntrypoint,
       'init',
       [OVM_SequencerEntrypoint.address, await wallet.getAddress()]
@@ -98,8 +98,8 @@ describe('OVM_ProxySequencerEntrypoint', () => {
     Mock__OVM_ExecutionManager.smocked.ovmSLOAD.will.return.with(
       addrToBytes32(await wallet.getAddress())
     )
-    await callPrecompile(
-      Helper_PrecompileCaller,
+    await callPredeploy(
+      Helper_PredeployCaller,
       OVM_ProxySequencerEntrypoint,
       'init',
       [constants.AddressZero, constants.AddressZero]
@@ -115,8 +115,8 @@ describe('OVM_ProxySequencerEntrypoint', () => {
     Mock__OVM_ExecutionManager.smocked.ovmSLOAD.will.return.with(
       addrToBytes32(await wallet.getAddress())
     )
-    await callPrecompile(
-      Helper_PrecompileCaller,
+    await callPredeploy(
+      Helper_PredeployCaller,
       OVM_ProxySequencerEntrypoint,
       'upgrade',
       [`0x${'12'.repeat(20)}`]
@@ -131,8 +131,8 @@ describe('OVM_ProxySequencerEntrypoint', () => {
     Mock__OVM_ExecutionManager.smocked.ovmSLOAD.will.return.with(
       `0x${'00'.repeat(32)}`
     )
-    await callPrecompile(
-      Helper_PrecompileCaller,
+    await callPredeploy(
+      Helper_PredeployCaller,
       OVM_ProxySequencerEntrypoint,
       'upgrade',
       [`0x${'12'.repeat(20)}`]
@@ -152,7 +152,7 @@ describe('OVM_ProxySequencerEntrypoint', () => {
       '0x',
     ])
     const calldata = '0xdeadbeef'
-    await Helper_PrecompileCaller.callPrecompile(
+    await Helper_PredeployCaller.callPredeploy(
       OVM_ProxySequencerEntrypoint.address,
       calldata
     )

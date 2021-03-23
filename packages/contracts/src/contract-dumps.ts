@@ -160,7 +160,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
 
   config = { ...config, ...cfg }
 
-  const precompiles = {
+  const predeploys = {
     OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
     OVM_L1MessageSender: '0x4200000000000000000000000000000000000001',
     OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002',
@@ -220,7 +220,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     }
 
     const deadAddress =
-      precompiles[name] ||
+      predeploys[name] ||
       `0xdeaddeaddeaddeaddeaddeaddeaddeaddead${i.toString(16).padStart(4, '0')}`
 
     dump.accounts[name] = {

@@ -8,8 +8,8 @@ import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuar
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
-import { iOVM_L1MessageSender } from "../../../iOVM/precompiles/iOVM_L1MessageSender.sol";
-import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/precompiles/iOVM_L2ToL1MessagePasser.sol";
+import { iOVM_L1MessageSender } from "../../../iOVM/predeploys/iOVM_L1MessageSender.sol";
+import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/predeploys/iOVM_L2ToL1MessagePasser.sol";
 
 /* Contract Imports */
 import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol";

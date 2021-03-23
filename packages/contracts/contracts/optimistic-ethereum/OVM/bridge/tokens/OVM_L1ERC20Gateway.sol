@@ -6,7 +6,7 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
 import { Abs_L1TokenGateway } from "./Abs_L1TokenGateway.sol";
-import { iOVM_ERC20 } from "../../../iOVM/precompiles/iOVM_ERC20.sol";
+import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
 
 /**
  * @title OVM_L1ERC20Gateway

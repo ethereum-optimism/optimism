@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
-import { iOVM_L1MessageSender } from "../../iOVM/precompiles/iOVM_L1MessageSender.sol";
+import { iOVM_L1MessageSender } from "../../iOVM/predeploys/iOVM_L1MessageSender.sol";
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 
 /**

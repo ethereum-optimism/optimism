@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
-import { iOVM_L2ToL1MessagePasser } from "../../iOVM/precompiles/iOVM_L2ToL1MessagePasser.sol";
+import { iOVM_L2ToL1MessagePasser } from "../../iOVM/predeploys/iOVM_L2ToL1MessagePasser.sol";
 
 /**
  * @title OVM_L2ToL1MessagePasser
