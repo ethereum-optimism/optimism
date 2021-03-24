@@ -12,6 +12,7 @@ cache-ovm
 
 l2geth/build/bin
 packages/contracts/deployments/custom
+packages/contracts/coverage*
 
 packages/data-transport-layer/db
 

@@ -18,6 +18,7 @@
     "build": "yarn lerna run build",
     "test": "yarn lerna run test --parallel",
     "test:ci": "yarn lerna run test --parallel --since origin/master",
+    "test:coverage": "yarn lerna run test:coverage --parallel --since origin/master",
     "lint": "yarn lerna run lint",
     "lint:ci": "yarn lerna run lint  --parallel --since origin/master",
     "lint:fix": "yarn lerna run lint:fix",
