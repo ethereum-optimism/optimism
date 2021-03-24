@@ -19,7 +19,7 @@ library Lib_OVMCodec {
      *********/
 
     enum EOASignatureType {
-        EIP155_TRANSACTON,
+        EIP155_TRANSACTION,
         ETH_SIGNED_MESSAGE
     }
 
