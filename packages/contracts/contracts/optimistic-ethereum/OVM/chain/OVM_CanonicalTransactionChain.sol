@@ -937,7 +937,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         internal
         view
     {
-        // If there are existing elements, this batch must come later.
+        // If there are existing elements, this batch must have the same context 
+        // or a later timestamp and block number.
         if (getTotalElements() > 0) {
             (,, uint40 lastTimestamp, uint40 lastBlockNumber) = _getBatchExtraData();
 
@@ -1018,7 +1019,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         internal
         view
     {
-        // All sequencer transactions' times must increase from the previous ones.
+        // All sequencer transactions' times must be greater than or equal to the previous ones.
         require(
             _nextContext.timestamp >= _prevContext.timestamp,
             "Context timestamp values must monotonically increase."
