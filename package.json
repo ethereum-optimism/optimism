@@ -18,6 +18,7 @@
     "clean": "yarn lerna run clean",
     "build": "yarn lerna run build",
     "test": "yarn lerna run test --parallel",
+    "test:coverage": "yarn lerna run test:coverage --parallel",
     "lint": "yarn lerna run lint",
     "lint:fix": "yarn lerna run lint:fix",
     "postinstall": "patch-package",

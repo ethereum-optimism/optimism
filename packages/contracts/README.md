@@ -56,7 +56,7 @@ yarn test ./test/path/to/my/test.spec.ts
 
 ### Measuring test coverage:
 ```shell
-yarn test-coverage
+yarn test:coverage
 ```
 
 The output is most easily viewable by opening the html file in your browser:
