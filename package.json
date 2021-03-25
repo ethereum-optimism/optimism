@@ -11,6 +11,7 @@
     "lerna": "^4.0.0"
   },
   "scripts": {
-      "test": "yarn workspaces run test"
+      "test": "yarn workspaces run test",
+      "lint": "yarn workspaces run lint"
   }
 }
