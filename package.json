@@ -11,6 +11,6 @@
     "lerna": "^4.0.0"
   },
   "scripts": {
-      "postinstall": "lerna bootstrap --hoist"
+      "test": "yarn workspaces run test"
   }
 }
