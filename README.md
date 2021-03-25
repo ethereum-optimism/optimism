@@ -1,5 +1,15 @@
 # Optimism Monorepo (VERY WIP)
 
+## Quickstart
+
+```
+git clone git@github.com:ethereum-optimism/optimism.git
+cd optimism
+yarn
+yarn lint
+yarn test
+```
+
 ## Taming the Monorepo
 
 1. You solely use yarn workspaces for the Mono-Repo workflow.
