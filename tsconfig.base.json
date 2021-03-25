@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "module": "commonjs",
+        "target": "es2017",
+        "declaration": true,
+        "noImplicitAny": false,
+        "removeComments": true,
+        "noLib": false,
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "sourceMap": true,
+        "outDir": "./build",
+        "lib": [
+            "es7"
+        ],
+        "esModuleInterop": true,
+        "typeRoots": [
+            "node_modules/@types"
+      ]
+    }
+}

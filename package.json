@@ -1,0 +1,16 @@
+{
+  "name": "optimism",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "private": true,
+  "devDependencies": {
+    "lerna": "^4.0.0"
+  },
+  "scripts": {
+      "postinstall": "lerna bootstrap --hoist"
+  }
+}
