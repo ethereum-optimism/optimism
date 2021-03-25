@@ -16,6 +16,12 @@
                 "out": [
                     false
                 ]
+            },
+            "something other than 0 or 1 (should revert)": {
+                "in": [
+                    "0x02"
+                ],
+                "revert": true
             }
         },
         "readAddress": {

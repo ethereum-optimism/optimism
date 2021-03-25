@@ -353,6 +353,11 @@ library Lib_RLPReader {
             out := byte(0, mload(ptr))
         }
 
+        require(
+            out == 0 || out == 1,
+            "Lib_RLPReader: Invalid RLP boolean value, must be 0 or 1"
+        );
+
         return out != 0;
     }
 
