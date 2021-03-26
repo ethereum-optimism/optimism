@@ -1,9 +1,9 @@
 {
   "name": "@eth-optimism/core-utils",
   "version": "0.1.10",
-  "main": "build/src/index.js",
+  "main": "dist/index",
   "files": [
-    "build/src/**/*"
+    "dist/index"
   ],
   "types": "build/src/index.d.ts",
   "repository": "git@github.com:ethereum-optimism/core-utils.git",
@@ -11,8 +11,8 @@
   "license": "MIT",
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
-    "build": "tsc -p .",
-    "clean": "rimraf build/",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf dist/",
     "lint": "tslint --format stylish --project .",
     "lint:fix": "prettier --config prettier-config.json --write '{src,test}/**/*.ts'",
     "test": "ts-mocha test/**/*.spec.ts"
@@ -31,8 +31,6 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.0.9",
-    "colors": "^1.4.0",
-    "debug": "^4.3.1",
     "ethers": "^5.0.31",
     "pino": "^6.11.1"
   }

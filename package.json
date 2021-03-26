@@ -1,7 +1,6 @@
 {
   "name": "optimism",
   "version": "1.0.0",
-  "main": "index.js",
   "license": "MIT",
   "workspaces": [
     "packages/*"
@@ -11,7 +10,10 @@
     "lerna": "^4.0.0"
   },
   "scripts": {
+      "clean": "yarn workspaces run clean",
+      "build": "yarn workspaces run build",
       "test": "yarn workspaces run test",
-      "lint": "yarn workspaces run lint"
+      "lint": "yarn workspaces run lint",
+      "lint:fix": "yarn workspaces run lint:fix"
   }
 }

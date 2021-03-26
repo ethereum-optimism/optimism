@@ -1,12 +1,12 @@
-name: optimism - lint, test
+name: smock - lint, build, test
 
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   build-test-lint:
@@ -38,11 +38,13 @@ jobs:
       - name: Install Dependencies
         run: yarn install
 
-      - name: Build
-        run: yarn build
-
       - name: Lint
         run: yarn lint
+
+      - name: Build
+        run: |
+          yarn clean
+          yarn build
 
       - name: Test
         run: yarn test

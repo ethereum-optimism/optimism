@@ -6,9 +6,11 @@
 git clone git@github.com:ethereum-optimism/optimism.git
 cd optimism
 yarn
-yarn lint
+yarn build # this is needed to generate the dist files locally
 yarn test
 ```
+
+If you get dependency errors: `git clean -fx && yarn clean && rm -rf node_modules/@eth-optimism/* && yarn install --force`
 
 ## Taming the Monorepo
 

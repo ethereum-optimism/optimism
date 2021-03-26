@@ -1,0 +1,44 @@
+{
+  "name": "@eth-optimism/smock",
+  "version": "1.0.0-alpha.3",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "hardhat test --show-stack-traces",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:check": "tslint --format stylish --project .",
+    "lint:fix": "prettier --config ./prettier-config.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
+    "clean": "rimraf ./artifacts ./cache ./dist"
+  },
+  "peerDependencies": {
+    "@nomiclabs/ethereumjs-vm": "^4",
+    "@nomiclabs/hardhat-ethers": "^2",
+    "ethers": "^5",
+    "hardhat": "^2"
+  },
+  "dependencies": {
+    "@eth-optimism/core-utils": "0.1.10",
+    "@ethersproject/abi": "^5.0.13",
+    "@ethersproject/abstract-provider": "^5.0.10",
+    "bn.js": "^5.2.0"
+  },
+  "devDependencies": {
+    "@nomiclabs/ethereumjs-vm": "4.2.2",
+    "@eth-optimism/dev": "^1.1.1",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@types/lodash": "^4.14.161",
+    "chai": "^4.3.0",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.0.32",
+    "glob": "^7.1.6",
+    "hardhat": "^2.1.1",
+    "lodash": "^4.17.20",
+    "prettier": "^2.2.1"
+  }
+}
