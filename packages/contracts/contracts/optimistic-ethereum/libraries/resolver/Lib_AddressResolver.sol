@@ -13,7 +13,7 @@ abstract contract Lib_AddressResolver {
      * Contract Variables: Contract References *
      *******************************************/
 
-    Lib_AddressManager internal libAddressManager;
+    Lib_AddressManager public libAddressManager;
 
 
     /***************
