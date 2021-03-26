@@ -87,11 +87,8 @@ interface TestStep_SLOAD {
   expectedReturnValue: string | RevertFlagError
 }
 
-interface TestStep_SETNONCE {
-  functionName: 'ovmSETNONCE'
-  functionParams: {
-    _nonce: string
-  }
+interface TestStep_INCREMENTNONCE {
+  functionName: 'ovmINCREMENTNONCE'
   expectedReturnStatus: boolean
   expectedReturnValue?: RevertFlagError
 }
@@ -176,7 +173,7 @@ export type TestStep =
   | TestStep_Context
   | TestStep_SSTORE
   | TestStep_SLOAD
-  | TestStep_SETNONCE
+  | TestStep_INCREMENTNONCE
   | TestStep_CALL
   | TestStep_CREATE
   | TestStep_CREATE2
@@ -234,10 +231,10 @@ export const isTestStep_SLOAD = (step: TestStep): step is TestStep_SLOAD => {
   return step.functionName === 'ovmSLOAD'
 }
 
-export const isTestStep_SETNONCE = (
+export const isTestStep_INCREMENTNONCE = (
   step: TestStep
-): step is TestStep_SETNONCE => {
-  return step.functionName === 'ovmSETNONCE'
+): step is TestStep_INCREMENTNONCE => {
+  return step.functionName === 'ovmINCREMENTNONCE'
 }
 
 export const isTestStep_EXTCODESIZE = (

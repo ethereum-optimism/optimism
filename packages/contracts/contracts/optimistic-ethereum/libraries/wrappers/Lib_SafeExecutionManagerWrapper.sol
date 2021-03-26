@@ -208,18 +208,14 @@ library Lib_SafeExecutionManagerWrapper {
     }
 
     /**
-     * Performs a safe ovmSETNONCE call.
-     * @param _nonce New account nonce.
+     * Performs a safe ovmINCREMENTNONCE call.
      */
-    function safeSETNONCE(
-        uint256 _nonce
-    )
+    function safeINCREMENTNONCE()
         internal
     {
         _safeExecutionManagerInteraction(
             abi.encodeWithSignature(
-                "ovmSETNONCE(uint256)",
-                _nonce
+                "ovmINCREMENTNONCE()"
             )
         );
     }

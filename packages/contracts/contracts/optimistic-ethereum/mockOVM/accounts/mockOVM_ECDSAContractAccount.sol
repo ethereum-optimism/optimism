@@ -65,7 +65,7 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // We only want to bump the nonce for `ovmCALL` because `ovmCREATE` automatically bumps
             // the nonce of the calling account. Normally an EOA would bump the nonce for both
             // cases, but since this is a contract we'd end up bumping the nonce twice.
-            Lib_SafeExecutionManagerWrapper.safeSETNONCE(decodedTx.nonce + 1);
+            Lib_SafeExecutionManagerWrapper.safeINCREMENTNONCE();
 
             return Lib_SafeExecutionManagerWrapper.safeCALL(
                 decodedTx.gasLimit,

@@ -98,7 +98,7 @@ const test_ovmCREATEEOA: TestDefinition = {
       ],
     },
     {
-      name: 'ovmCALL(ADDRESS_1) => ovmSETNONCE(3) => ovmGETNONCE',
+      name: 'ovmCALL(ADDRESS_1) => ovmINCREMENTNONCEx3 => ovmGETNONCE',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -107,10 +107,15 @@ const test_ovmCREATEEOA: TestDefinition = {
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
-                functionName: 'ovmSETNONCE',
-                functionParams: {
-                  _nonce: '0x03',
-                },
+                functionName: 'ovmINCREMENTNONCE',
+                expectedReturnStatus: true,
+              },
+              {
+                functionName: 'ovmINCREMENTNONCE',
+                expectedReturnStatus: true,
+              },
+              {
+                functionName: 'ovmINCREMENTNONCE',
                 expectedReturnStatus: true,
               },
               {

@@ -28,7 +28,6 @@ import {
   isTestStep_EXTCODEHASH,
   isTestStep_EXTCODECOPY,
   isTestStep_REVERT,
-  isTestStep_SETNONCE,
 } from './test.types'
 import { encodeRevertData, REVERT_FLAGS } from '../codec'
 import {
@@ -402,7 +401,6 @@ export class ExecutionManagerTestRunner {
     if (
       isTestStep_SSTORE(step) ||
       isTestStep_SLOAD(step) ||
-      isTestStep_SETNONCE(step) ||
       isTestStep_EXTCODESIZE(step) ||
       isTestStep_EXTCODEHASH(step) ||
       isTestStep_EXTCODECOPY(step) ||
