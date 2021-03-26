@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "@nomiclabs/ethereumjs-vm": "4.2.2",
-    "@eth-optimism/dev": "^1.1.1",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@types/lodash": "^4.14.161",

@@ -1,0 +1,30 @@
+{
+  "name": "@eth-optimism/plugins",
+  "version": "1.0.0-alpha.2",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "hardhat/",
+    "*.d.ts",
+    "*.d.ts.map",
+    "*.js",
+    "*.js.map",
+    "LICENSE.txt",
+    "README.md"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "clean": "rimraf hardhat *.d.ts *.map *.js tsconfig.tsbuildinfo",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "yarn run lint:fix && yarn run lint:check",
+    "lint:check": "tslint --format stylish --project .",
+    "lint:fix": "prettier --config prettier-config.json --write \"{src,test}/**/*.ts\""
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^8.2.2",
+    "hardhat": "^2.1.2"
+  }
+}
