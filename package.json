@@ -12,7 +12,7 @@
   "scripts": {
       "clean": "yarn workspaces run clean",
       "build": "yarn workspaces run build",
-      "test": "yarn workspaces run test",
+      "test": "yarn lerna run test --parallel",
       "lint": "yarn workspaces run lint",
       "lint:fix": "yarn workspaces run lint:fix"
   }
