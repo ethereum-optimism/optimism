@@ -13,7 +13,7 @@
       "clean": "yarn workspaces run clean",
       "build": "yarn workspaces run build",
       "test": "yarn lerna run test --parallel",
-      "lint": "yarn workspaces run lint",
+      "lint": "yarn lerna run lint  --parallel",
       "lint:fix": "yarn workspaces run lint:fix"
   }
 }
