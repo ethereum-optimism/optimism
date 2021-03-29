@@ -4,7 +4,7 @@
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "dist"
+    "dist/index"
   ],
   "license": "MIT",
   "scripts": {
@@ -13,7 +13,7 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "tslint --format stylish --project .",
     "lint:fix": "prettier --config ./prettier-config.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
-    "clean": "rimraf ./artifacts ./cache ./dist"
+    "clean": "rimraf ./artifacts ./cache ./dist ./tsconfig.build.tsbuildinfo"
   },
   "peerDependencies": {
     "@nomiclabs/ethereumjs-vm": "^4",

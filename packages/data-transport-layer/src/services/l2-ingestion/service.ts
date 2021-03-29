@@ -1,7 +1,6 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/service-base'
+import { BaseService } from '@eth-optimism/core-utils'
 import { JsonRpcProvider } from '@ethersproject/providers'
-import colors from 'colors/safe'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 
@@ -16,41 +15,43 @@ export interface L2IngestionServiceOptions
   db: LevelUp
 }
 
-export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
-  protected name = 'L2 Ingestion Service'
+const optionSettings = {
+  db: {
+    validate: validators.isLevelUP,
+  },
+  l2RpcProvider: {
+    validate: (val: any) => {
+      return validators.isUrl(val) || validators.isJsonRpcProvider(val)
+    },
+  },
+  l2ChainId: {
+    validate: validators.isInteger,
+  },
+  pollingInterval: {
+    default: 5000,
+    validate: validators.isInteger,
+  },
+  transactionsPerPollingInterval: {
+    default: 1000,
+    validate: validators.isInteger,
+  },
+  dangerouslyCatchAllErrors: {
+    default: false,
+    validate: validators.isBoolean,
+  },
+  legacySequencerCompatibility: {
+    default: false,
+    validate: validators.isBoolean,
+  },
+  stopL2SyncAtBlock: {
+    default: Infinity,
+    validate: validators.isInteger,
+  },
+}
 
-  protected optionSettings = {
-    db: {
-      validate: validators.isLevelUP,
-    },
-    l2RpcProvider: {
-      validate: (val: any) => {
-        return validators.isUrl(val) || validators.isJsonRpcProvider(val)
-      },
-    },
-    l2ChainId: {
-      validate: validators.isInteger,
-    },
-    pollingInterval: {
-      default: 5000,
-      validate: validators.isInteger,
-    },
-    transactionsPerPollingInterval: {
-      default: 1000,
-      validate: validators.isInteger,
-    },
-    dangerouslyCatchAllErrors: {
-      default: false,
-      validate: validators.isBoolean,
-    },
-    legacySequencerCompatibility: {
-      default: false,
-      validate: validators.isBoolean,
-    },
-    stopL2SyncAtBlock: {
-      default: Infinity,
-      validate: validators.isInteger,
-    },
+export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
+  constructor(options: L2IngestionServiceOptions) {
+    super('L2 Ingestion Service', options, optionSettings)
   }
 
   private state: {

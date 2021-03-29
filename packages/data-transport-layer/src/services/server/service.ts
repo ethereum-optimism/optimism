@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/service-base'
+import { BaseService } from '@eth-optimism/core-utils'
 import express, { Request, Response } from 'express'
 import cors from 'cors'
 import { BigNumber } from 'ethers'
@@ -26,31 +26,34 @@ export interface L1TransportServerOptions
   db: LevelUp
 }
 
+const optionSettings = {
+  db: {
+    validate: validators.isLevelUP,
+  },
+  port: {
+    default: 7878,
+    validate: validators.isInteger,
+  },
+  hostname: {
+    default: 'localhost',
+    validate: validators.isString,
+  },
+  confirmations: {
+    validate: validators.isInteger,
+  },
+  l1RpcProvider: {
+    validate: (val: any) => {
+      return validators.isUrl(val) || validators.isJsonRpcProvider(val)
+    },
+  },
+  showUnconfirmedTransactions: {
+    validate: validators.isBoolean,
+  },
+}
+
 export class L1TransportServer extends BaseService<L1TransportServerOptions> {
-  protected name = 'L1 Transport Server'
-  protected optionSettings = {
-    db: {
-      validate: validators.isLevelUP,
-    },
-    port: {
-      default: 7878,
-      validate: validators.isInteger,
-    },
-    hostname: {
-      default: 'localhost',
-      validate: validators.isString,
-    },
-    confirmations: {
-      validate: validators.isInteger,
-    },
-    l1RpcProvider: {
-      validate: (val: any) => {
-        return validators.isUrl(val) || validators.isJsonRpcProvider(val)
-      },
-    },
-    showUnconfirmedTransactions: {
-      validate: validators.isBoolean,
-    },
+  constructor(options: L1TransportServerOptions) {
+    super('L1 Transport Server', options, optionSettings)
   }
 
   private state: {

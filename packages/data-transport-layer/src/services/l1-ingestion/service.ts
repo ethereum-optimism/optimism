@@ -1,8 +1,6 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/service-base'
-import { fromHexString } from '@eth-optimism/core-utils'
+import { fromHexString, BaseService } from '@eth-optimism/core-utils'
 import { JsonRpcProvider } from '@ethersproject/providers'
-import colors from 'colors/safe'
 import { LevelUp } from 'levelup'
 
 /* Imports: Internal */
@@ -30,37 +28,39 @@ export interface L1IngestionServiceOptions
   db: LevelUp
 }
 
-export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
-  protected name = 'L1 Ingestion Service'
+const optionSettings = {
+  db: {
+    validate: validators.isLevelUP,
+  },
+  addressManager: {
+    validate: validators.isAddress,
+  },
+  confirmations: {
+    default: 35,
+    validate: validators.isInteger,
+  },
+  pollingInterval: {
+    default: 5000,
+    validate: validators.isInteger,
+  },
+  logsPerPollingInterval: {
+    default: 2000,
+    validate: validators.isInteger,
+  },
+  dangerouslyCatchAllErrors: {
+    default: false,
+    validate: validators.isBoolean,
+  },
+  l1RpcProvider: {
+    validate: (val: any) => {
+      return validators.isUrl(val) || validators.isJsonRpcProvider(val)
+    },
+  },
+}
 
-  protected optionSettings = {
-    db: {
-      validate: validators.isLevelUP,
-    },
-    addressManager: {
-      validate: validators.isAddress,
-    },
-    confirmations: {
-      default: 35,
-      validate: validators.isInteger,
-    },
-    pollingInterval: {
-      default: 5000,
-      validate: validators.isInteger,
-    },
-    logsPerPollingInterval: {
-      default: 2000,
-      validate: validators.isInteger,
-    },
-    dangerouslyCatchAllErrors: {
-      default: false,
-      validate: validators.isBoolean,
-    },
-    l1RpcProvider: {
-      validate: (val: any) => {
-        return validators.isUrl(val) || validators.isJsonRpcProvider(val)
-      },
-    },
+export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
+  constructor(options: L1IngestionServiceOptions) {
+    super('L1 Ingestion Service', options, optionSettings)
   }
 
   private state: {

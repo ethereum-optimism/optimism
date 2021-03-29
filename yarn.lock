@@ -53,18 +53,6 @@
     ganache-core "^2.12.1"
     glob "^7.1.6"
 
-"@eth-optimism/core-utils@0.1.9":
-  version "0.1.9"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.1.9.tgz#b63d8dc417b1a27977bdb19d4ca435232f88f944"
-  integrity sha512-esTG0Fi98pWut9EH+7NKPIJvGY+aTtNvcqtffd/p9oXJjj7Z719zrmqwdvhv3oyymxGIqiZSE38HMPTxVDPVrw==
-  dependencies:
-    "@ethersproject/abstract-provider" "^5.0.9"
-    colors "^1.4.0"
-    debug "^4.3.1"
-    ethers "^5.0.31"
-    pino "^6.11.1"
-    pino-pretty "^4.7.1"
-
 "@eth-optimism/dev@^1.1.1":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@eth-optimism/dev/-/dev-1.1.1.tgz#7bae95b975c1d6641b4ae550cb3ec631c667a56b"
@@ -85,14 +73,6 @@
     tslint-no-focused-test "^0.5.0"
     tslint-plugin-prettier "^2.3.0"
     typescript "^4.1.5"
-
-"@eth-optimism/service-base@^1.1.5":
-  version "1.1.5"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/service-base/-/service-base-1.1.5.tgz#fddb8f51f2d082a106fced0826a8e45eabf0a16c"
-  integrity sha512-0xNwZv5aZknj1LKLiob4VXcGDOUKDLc3YKbW1Cub6j9t0bwIZ8/Y5t2sVJ3/d15wBW/LrSSmGkZRL+tR56ZoNA==
-  dependencies:
-    "@eth-optimism/core-utils" "0.1.9"
-    colors "^1.4.0"
 
 "@ethereum-waffle/chai@^3.3.0":
   version "3.3.1"
@@ -3575,11 +3555,6 @@ color-name@~1.1.4:
   resolved "https://registry.yarnpkg.com/color-name/-/color-name-1.1.4.tgz#c2a09a87acbde69543de6f63fa3995c826c536a2"
   integrity sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==
 
-colors@^1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/colors/-/colors-1.4.0.tgz#c50491479d4c1bdaed2c9ced32cf7c7dc2360f78"
-  integrity sha512-a+UqTh4kgZg/SlGvfbzDHpgRu7AAQOmmqRHJnxhRZICKFUT91brVhNNt58CMWU9PsBbv3PDCZUHbVxuDiH2mtA==
-
 columnify@^1.5.4:
   version "1.5.4"
   resolved "https://registry.yarnpkg.com/columnify/-/columnify-1.5.4.tgz#4737ddf1c7b69a8a7c340570782e947eec8e78bb"
@@ -3974,7 +3949,7 @@ debug@3.2.6:
   dependencies:
     ms "^2.1.1"
 
-debug@4, debug@4.3.1, debug@^4.1.0, debug@^4.1.1, debug@^4.3.1:
+debug@4, debug@4.3.1, debug@^4.1.0, debug@^4.1.1:
   version "4.3.1"
   resolved "https://registry.yarnpkg.com/debug/-/debug-4.3.1.tgz#f0d229c505e0c6d8c49ac553d1b13dc183f6b2ee"
   integrity sha512-doEwdvm4PCeK4K3RQN2ZC2BYUBaxwLARCqZmMjtF8a51J2Rb0xpVloFRnCODwqjpwnAoao4pelN8l3RJdv3gRQ==

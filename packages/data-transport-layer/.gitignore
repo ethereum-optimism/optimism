@@ -1,6 +1,0 @@
-/db/
-node_modules/
-yarn-error.log
-.env
-test/temp/
-build/

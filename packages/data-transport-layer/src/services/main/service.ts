@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/service-base'
+import { BaseService } from '@eth-optimism/core-utils'
 import { LevelUp } from 'levelup'
 import level from 'level'
 
@@ -29,18 +29,20 @@ export interface L1DataTransportServiceOptions {
   stopL2SyncAtBlock?: number
 }
 
-export class L1DataTransportService extends BaseService<L1DataTransportServiceOptions> {
-  protected name = 'L1 Data Transport Service'
+const optionSettings = {
+  syncFromL1: {
+    default: true,
+    validate: validators.isBoolean,
+  },
+  syncFromL2: {
+    default: false,
+    validate: validators.isBoolean,
+  },
+}
 
-  protected optionSettings = {
-    syncFromL1: {
-      default: true,
-      validate: validators.isBoolean,
-    },
-    syncFromL2: {
-      default: false,
-      validate: validators.isBoolean,
-    },
+export class L1DataTransportService extends BaseService<L1DataTransportServiceOptions> {
+  constructor(options: L1DataTransportServiceOptions) {
+    super('L1 Data Transport Service', options, optionSettings)
   }
 
   private state: {
