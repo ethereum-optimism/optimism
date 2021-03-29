@@ -40,6 +40,7 @@ const optionSettings = {
   },
 }
 
+// prettier-ignore
 export class L1DataTransportService extends BaseService<L1DataTransportServiceOptions> {
   constructor(options: L1DataTransportServiceOptions) {
     super('L1 Data Transport Service', options, optionSettings)

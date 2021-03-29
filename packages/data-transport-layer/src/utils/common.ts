@@ -24,6 +24,7 @@ export const toRpcHexString = (n: number): string => {
   if (n === 0) {
     return '0x0'
   } else {
+    // prettier-ignore
     return '0x' + toHexString(n).slice(2).replace(/^0+/, '')
   }
 }

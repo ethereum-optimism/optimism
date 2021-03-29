@@ -26,6 +26,7 @@
         "semicolon": false,
         "variable-name": false,
         "no-focused-test": true,
+        "array-type": false,
         "prettier": [true, "./prettier-config.json"]
     },
     "linterOptions": {

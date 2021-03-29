@@ -65,6 +65,7 @@ export class SimpleDB {
   }
 
   private _makeKey(key: string, index: number): string {
+    // prettier-ignore
     return `${key}:${BigNumber.from(index).toString().padStart(32, '0')}`
   }
 }

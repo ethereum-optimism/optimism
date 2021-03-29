@@ -10,10 +10,10 @@
     "lerna": "^4.0.0"
   },
   "scripts": {
-      "clean": "yarn workspaces run clean",
-      "build": "yarn workspaces run build",
-      "test": "yarn lerna run test --parallel",
-      "lint": "yarn lerna run lint  --parallel",
-      "lint:fix": "yarn workspaces run lint:fix"
+      "clean": "yarn lerna run clean",
+      "build": "yarn lerna run build",
+      "test": "yarn lerna run test --parallel --since origin/master",
+      "lint": "yarn lerna run lint  --parallel --since origin/master",
+      "lint:fix": "yarn lerna run lint:fix"
   }
 }
