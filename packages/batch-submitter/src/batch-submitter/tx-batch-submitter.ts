@@ -8,8 +8,8 @@ import {
 import {
   getContractInterface,
   getContractFactory,
-} from '@eth-optimism/contracts'
-import { getContractInterface as getNewContractInterface } from 'new-contracts'
+} from 'old-contracts'
+import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
 import { OptimismProvider } from '@eth-optimism/provider'
 import {
   Logger,

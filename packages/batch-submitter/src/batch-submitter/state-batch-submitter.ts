@@ -2,7 +2,7 @@
 import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
-import { getContractFactory } from '@eth-optimism/contracts'
+import { getContractFactory } from 'old-contracts'
 import { Logger, Bytes32, remove0x } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '@eth-optimism/provider'
 

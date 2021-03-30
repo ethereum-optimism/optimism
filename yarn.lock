@@ -230,12 +230,13 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
-"@eth-optimism/contracts@^0.0.2-alpha.7":
-  version "0.0.2-alpha.15"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.15.tgz#d602bdb6f1186d111ce9f7c282fc80e023086892"
-  integrity sha512-upJfYHDWQY7nM0AYT9MKQiuOus2uMUhvqS962qiBq3Ly/9GUq5mS0UALynsrZBGbzT6pflOMKFFEv7jQEORGmA==
+"@eth-optimism/contracts@0.1.4":
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.1.4.tgz#a918bffcdfa0ce22c1af3b091a81af732f58a294"
+  integrity sha512-JlbhPkYDgurQwlar1L90XTAG0QK8Sd2WCU8Zaa6BXn+Bg1mVe3g80samE0YaOFNHmSscjtvjXqy3B/d0tzIH7w==
   dependencies:
     "@eth-optimism/solc" "^0.6.12-alpha.1"
+    "@ethersproject/abstract-provider" "^5.0.8"
     "@ethersproject/contracts" "^5.0.5"
     "@ethersproject/hardware-wallets" "^5.0.8"
     "@openzeppelin/contracts" "^3.3.0"
@@ -9000,19 +9001,6 @@ neo-async@^2.6.0:
   resolved "https://registry.yarnpkg.com/neo-async/-/neo-async-2.6.2.tgz#b4aafb93e3aeb2d8174ca53cf163ab7d7308305f"
   integrity sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==
 
-"new-contracts@npm:@eth-optimism/contracts@0.1.4":
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.1.4.tgz#a918bffcdfa0ce22c1af3b091a81af732f58a294"
-  integrity sha512-JlbhPkYDgurQwlar1L90XTAG0QK8Sd2WCU8Zaa6BXn+Bg1mVe3g80samE0YaOFNHmSscjtvjXqy3B/d0tzIH7w==
-  dependencies:
-    "@eth-optimism/solc" "^0.6.12-alpha.1"
-    "@ethersproject/abstract-provider" "^5.0.8"
-    "@ethersproject/contracts" "^5.0.5"
-    "@ethersproject/hardware-wallets" "^5.0.8"
-    "@openzeppelin/contracts" "^3.3.0"
-    ethers "5.0.0"
-    ganache-core "^2.12.1"
-
 next-tick@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/next-tick/-/next-tick-1.0.0.tgz#ca86d1fe8828169b0120208e3dc8424b9db8342c"
@@ -9443,6 +9431,18 @@ oboe@2.1.4:
   integrity sha1-IMiM2wwVNxuwQRklfU/dNLCqSfY=
   dependencies:
     http-https "^1.0.0"
+
+"old-contracts@npm:@eth-optimism/contracts@^0.0.2-alpha.7":
+  version "0.0.2-alpha.15"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.15.tgz#d602bdb6f1186d111ce9f7c282fc80e023086892"
+  integrity sha512-upJfYHDWQY7nM0AYT9MKQiuOus2uMUhvqS962qiBq3Ly/9GUq5mS0UALynsrZBGbzT6pflOMKFFEv7jQEORGmA==
+  dependencies:
+    "@eth-optimism/solc" "^0.6.12-alpha.1"
+    "@ethersproject/contracts" "^5.0.5"
+    "@ethersproject/hardware-wallets" "^5.0.8"
+    "@openzeppelin/contracts" "^3.3.0"
+    ethers "5.0.0"
+    ganache-core "^2.12.1"
 
 on-finished@~2.3.0:
   version "2.3.0"
