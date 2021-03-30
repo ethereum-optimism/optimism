@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - master
+    paths:
+        - 'packages/**'
   pull_request:
     branches:
       - master
+    paths:
+        - 'packages/**'
 
 jobs:
   build-test-lint:

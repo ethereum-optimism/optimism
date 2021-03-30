@@ -1,10 +1,15 @@
 name: geth unit tests
 
+
 on:
   push:
+    paths:
+        - 'l2geth/**'
     branches:
       - master
   pull_request:
+    paths:
+        - 'l2geth/**'
     branches:
       - master
 
