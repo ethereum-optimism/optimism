@@ -1,20 +1,14 @@
 {
-  "name": "@eth-optimism/plugins",
-  "version": "1.0.0-alpha.2",
+  "name": "@eth-optimism/hardhat-ovm",
+  "version": "0.0.1",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "hardhat/",
-    "*.d.ts",
-    "*.d.ts.map",
-    "*.js",
-    "*.js.map",
-    "LICENSE.txt",
-    "README.md"
+      "dist/index"
   ],
   "license": "MIT",
   "scripts": {
-    "clean": "rimraf hardhat *.d.ts *.map *.js tsconfig.tsbuildinfo dist",
+    "clean": "rimraf tsconfig.build.tsbuildinfo dist",
     "build": "tsc -p tsconfig.build.json",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "lint:check": "tslint --format stylish --project .",

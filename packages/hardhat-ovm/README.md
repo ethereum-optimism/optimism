@@ -1,22 +1,11 @@
-# @eth-optimism/plugins/hardhat/compiler
+# @eth-optimism/hardhat-ovm
 
 A plugin that brings OVM compiler support to Hardhat projects.
 
 ## Installation
 
-Installation is super simple. 
-
-First, grab the package.
-Via `npm`: 
-
 ```
-npm install @eth-optimism/plugins
-```
-
-Via `yarn`:
-
-```
-yarn add @eth-optimism/plugins
+yarn add --dev @eth-optimism/plugins
 ```
 
 Next, import the plugin inside your `hardhat.config.js`:
@@ -24,7 +13,7 @@ Next, import the plugin inside your `hardhat.config.js`:
 ```js
 // hardhat.config.js
 
-require("@eth-optimism/plugins/hardhat/compiler")
+require("@eth-optimism/hardhat-ovm")
 ```
 
 Or if using TypeScript:
@@ -32,7 +21,7 @@ Or if using TypeScript:
 ```ts
 // hardhat.config.ts
 
-import "@eth-optimism/plugins/hardhat/compiler"
+import "@eth-optimism/hardhat-ovm"
 ```
 
 ## Configuration
@@ -43,7 +32,7 @@ Configure this plugin by adding an `ovm` field to your Hardhat config:
 ```js
 // hardhat.config.js
 
-require("@eth-optimism/plugins/hardhat/compiler")
+require("@eth-optimism/hardhat-ovm")
 
 module.exports = {
     ovm: {
@@ -53,4 +42,4 @@ module.exports = {
 
 ```
 
-Has typings so it won't break your Hardhat config if you're using TypeScript.
+This package also has typings so it won't break your Hardhat config if you're using TypeScript.
