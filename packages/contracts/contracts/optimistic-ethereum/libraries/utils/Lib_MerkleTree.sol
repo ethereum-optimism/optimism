@@ -34,7 +34,7 @@ library Lib_MerkleTree {
             "Lib_MerkleTree: Must provide at least one leaf hash."
         );
 
-        if (_elements.length == 0) {
+        if (_elements.length == 1) {
             return _elements[0];
         }
 
