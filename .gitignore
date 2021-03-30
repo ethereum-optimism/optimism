@@ -1,6 +1,14 @@
 node_modules
-**/dist
 results
 temp
 .nyc_output
 *.tsbuildinfo
+
+build
+dist
+
+artifacts
+artifacts-ovm
+cache
+cache-ovm
+

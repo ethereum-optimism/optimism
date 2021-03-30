@@ -1,0 +1,73 @@
+{
+  "name": "@eth-optimism/contracts",
+  "version": "0.1.11",
+  "main": "dist/index",
+  "files": [
+    "dist/index"
+  ],
+  "types": "dist/index",
+  "license": "MIT",
+  "scripts": {
+    "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
+    "build": "yarn run build:contracts && yarn run build:contracts:ovm && yarn run build:typescript && yarn run build:copy && yarn run build:dump && yarn run build:typechain",
+    "build:kovan": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=69 yarn run build:dump && yarn run build:typechain",
+    "build:mainnet": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=10 yarn run build:dump && yarn run build:typechain",
+    "build:typescript": "tsc -p ./tsconfig.build.json",
+    "build:contracts": "hardhat compile --show-stack-traces",
+    "build:contracts:ovm": "TARGET=ovm hardhat compile --show-stack-traces",
+    "build:dump": "ts-node \"bin/take-dump.ts\"",
+    "build:copy": "yarn run build:copy:artifacts && yarn build:copy:artifacts:ovm && yarn run build:copy:contracts",
+    "build:copy:artifacts": "copyfiles -u 1 \"artifacts/**/*.json\" \"dist/artifacts\"",
+    "build:copy:artifacts:ovm": "copyfiles -u 1 \"artifacts-ovm/**/*.json\" \"dist/artifacts-ovm\"",
+    "build:copy:contracts": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"dist/contracts\"",
+    "build:typechain": "hardhat typechain",
+    "test": "yarn run test:contracts",
+    "test:contracts": "hardhat test --show-stack-traces",
+    "test:gas": "hardhat test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
+    "lint": "yarn run lint:typescript",
+    "lint:typescript": "tslint --format stylish --project .",
+    "lint:fix": "yarn run lint:fix:typescript",
+    "lint:fix:typescript": "prettier --config prettier-config.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
+    "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm",
+    "deploy": "./bin/deploy.js",
+    "serve": "./bin/serve_dump.sh"
+  },
+  "dependencies": {
+    "@eth-optimism/core-utils": "^0.1.10",
+    "@eth-optimism/solc": "^0.6.12-alpha.1",
+    "@ethersproject/abstract-provider": "^5.0.8",
+    "@ethersproject/contracts": "^5.0.5",
+    "@ethersproject/hardware-wallets": "^5.0.8",
+    "@openzeppelin/contracts": "^3.3.0",
+    "@typechain/hardhat": "^1.0.1",
+    "ganache-core": "^2.13.2",
+    "glob": "^7.1.6"
+  },
+  "devDependencies": {
+    "@eth-optimism/hardhat-ovm": "^0.0.1",
+    "@eth-optimism/smock": "^1.0.0-alpha.3",
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@typechain/ethers-v5": "1.0.0",
+    "@types/glob": "^7.1.3",
+    "@types/lodash": "^4.14.161",
+    "buffer-xor": "^2.0.2",
+    "chai": "^4.3.1",
+    "copyfiles": "^2.3.0",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.0.31",
+    "hardhat": "^2.0.8",
+    "lodash": "^4.17.20",
+    "merkle-patricia-tree": "^4.0.0",
+    "merkletreejs": "^0.2.12",
+    "mkdirp": "^1.0.4",
+    "mocha": "^8.3.0",
+    "random-bytes-seed": "^1.0.3",
+    "rlp": "^2.2.6",
+    "ts-generator": "0.0.8",
+    "typechain": "2.0.0"
+  },
+  "peerDependencies": {
+    "ethers": "^5.0.0"
+  }
+}
