@@ -4,11 +4,11 @@ temp
 .nyc_output
 *.tsbuildinfo
 
-build
 dist
-
 artifacts
 artifacts-ovm
 cache
 cache-ovm
+
+l2geth/build/bin
 
