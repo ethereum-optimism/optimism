@@ -203,7 +203,7 @@ library Lib_MerkleTree {
         // Borrowed with <3 from https://github.com/ethereum/solidity-examples
         uint256 val = _in;
         uint256 highest = 0;
-        for (uint8 i = 128; i >= 1; i >>= 1) {
+        for (uint256 i = 128; i >= 1; i >>= 1) {
             if (val & (uint(1) << i) - 1 << i != 0) {
                 highest += i;
                 val >>= i;
