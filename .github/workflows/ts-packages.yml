@@ -1,16 +1,18 @@
-name: optimism - lint, test
+name: typescript / contracts
 
 on:
   push:
     branches:
       - master
     paths:
-        - 'packages/**'
+        - 'packages/**/*.sol'
+        - 'packages/**/*.ts'
   pull_request:
     branches:
       - master
     paths:
-        - 'packages/**'
+        - 'packages/**/*.sol'
+        - 'packages/**/*.ts'
 
 jobs:
   build-test-lint:
