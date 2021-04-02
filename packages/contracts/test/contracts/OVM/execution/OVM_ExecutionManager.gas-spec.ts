@@ -101,7 +101,7 @@ describe('OVM_ExecutionManager gas consumption', () => {
     ).connect(wallet)
   })
 
-  describe('Measure cost of a very simple contract', async () => {
+  describe('Measure cost of a very simple contract  [ @skip-on-coverage ]', async () => {
     it('Gas cost of run', async () => {
       const gasCost = await gasMeasurement.getGasCost(
         OVM_ExecutionManager,

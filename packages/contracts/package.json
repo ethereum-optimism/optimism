@@ -28,6 +28,7 @@
     "test": "yarn run test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
     "test:gas": "hardhat test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
+    "test-coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage",
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
     "lint:fix": "yarn run lint:fix:typescript",
@@ -46,7 +47,8 @@
     "@openzeppelin/contracts": "^3.3.0",
     "@typechain/hardhat": "^1.0.1",
     "ganache-core": "^2.13.2",
-    "glob": "^7.1.6"
+    "glob": "^7.1.6",
+    "solidity-coverage": "^0.7.16"
   },
   "devDependencies": {
     "@eth-optimism/plugins": "^1.0.0-alpha.2",
