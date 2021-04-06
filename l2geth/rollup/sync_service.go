@@ -19,8 +19,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
 // OVMContext represents the blocknumber and timestamp
@@ -44,7 +42,6 @@ type SyncService struct {
 	eth1ChainId               uint64
 	bc                        *core.BlockChain
 	txpool                    *core.TxPool
-	L1gpo                     *gasprice.L1Oracle
 	client                    RollupClient
 	syncing                   atomic.Value
 	OVMContext                OVMContext
@@ -360,14 +357,6 @@ func (s *SyncService) SequencerLoop() {
 }
 
 func (s *SyncService) sequence() error {
-	// Update to the latest L1 gas price
-	l1GasPrice, err := s.client.GetL1GasPrice()
-	if err != nil {
-		return err
-	}
-	s.L1gpo.SetL1GasPrice(l1GasPrice)
-	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
-
 	// Only the sequencer needs to poll for enqueue transactions
 	// and then can choose when to apply them. We choose to apply
 	// transactions such that it makes for efficient batch submitting.
@@ -452,7 +441,6 @@ func (s *SyncService) updateContext() error {
 	if err != nil {
 		return err
 	}
-
 	current := time.Unix(int64(s.GetLatestL1Timestamp()), 0)
 	next := time.Unix(int64(context.Timestamp), 0)
 	if next.Sub(current) > s.timestampRefreshThreshold {

@@ -63,9 +63,10 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 	return &PublicEthereumAPI{b}
 }
 
-// GasPrice always returns 1 gwei. See `DoEstimateGas` below for context.
+// GasPrice returns a suggestion for a gas price.
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	return (*hexutil.Big)(big.NewInt(defaultGasPrice)), nil
+	price, err := s.b.SuggestPrice(ctx)
+	return (*hexutil.Big)(price), err
 }
 
 // ProtocolVersion returns the current Ethereum protocol version this node supports
@@ -995,120 +996,74 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	return (hexutil.Bytes)(result), err
 }
 
-// Optimism note: The gasPrice in Optimism is modified to always return 1 gwei. We
-// use the gasLimit field to communicate the entire user fee. This is done for
-// for compatibility reasons with the existing Ethereum toolchain, so that the user
-// fees can compensate for the additional costs the sequencer pays for publishing the
-// transaction calldata
 func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
-	if args.Data == nil {
-		return 0, errors.New("transaction data cannot be nil")
-	}
+	// // Binary search the gas requirement, as it may be higher than the amount used
+	// var (
+	// 	lo  uint64 = params.TxGas - 1
+	// 	hi  uint64
+	// 	cap uint64
+	// )
+	// if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
+	// 	hi = uint64(*args.Gas)
+	// } else {
+	// 	// Retrieve the block to act as the gas ceiling
+	// 	block, err := b.BlockByNumberOrHash(ctx, blockNrOrHash)
+	// 	if err != nil {
+	// 		return 0, err
+	// 	}
+	// 	hi = block.GasLimit()
+	// }
+	// if gasCap != nil && hi > gasCap.Uint64() {
+	// 	log.Warn("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)
+	// 	hi = gasCap.Uint64()
+	// }
+	// cap = hi
 
-	// 1. get the gas that would be used by the transaction
-	gasUsed, err := legacyDoEstimateGas(ctx, b, args, blockNrOrHash, gasCap)
+	// // Set sender address or use a default if none specified
+	// if args.From == nil {
+	// 	if wallets := b.AccountManager().Wallets(); len(wallets) > 0 {
+	// 		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+	// 			args.From = &accounts[0].Address
+	// 		}
+	// 	}
+	// }
+	// // Use zero-address if none other is available
+	// if args.From == nil {
+	// 	args.From = &common.Address{}
+	// }
+	// // Create a helper to check if a gas allowance results in an executable transaction
+	// executable := func(gas uint64) bool {
+	// 	args.Gas = (*hexutil.Uint64)(&gas)
+
+	// 	_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
+	// 	if err != nil || failed {
+	// 		return false
+	// 	}
+	// 	return true
+	// }
+	// // Execute the binary search and hone in on an executable gas limit
+	// for lo+1 < hi {
+	// 	mid := (hi + lo) / 2
+	// 	if !executable(mid) {
+	// 		lo = mid
+	// 	} else {
+	// 		hi = mid
+	// 	}
+	// }
+
+	// // Reject the transaction as invalid if it still fails at the highest allowance
+	// if hi == cap {
+	// 	if !executable(hi) {
+	// 		return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
+	// 	}
+	// }
+	// return hexutil.Uint64(hi), nil
+
+	block, err := b.BlockByNumberOrHash(ctx, blockNrOrHash)
 	if err != nil {
 		return 0, err
 	}
-
-	// 2a. fetch the data price, depends on how the sequencer has chosen to update their values based on the
-	// l1 gas prices
-	dataPrice, err := b.SuggestDataPrice(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	// 2b. fetch the execution gas price, by the typical mempool dynamics
-	executionPrice, err := b.SuggestPrice(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	// 3. calculate the fee and normalize by the default gas price
-	fee := core.CalculateRollupFee(*args.Data, uint64(gasUsed), dataPrice, executionPrice).Uint64() / defaultGasPrice
-	return (hexutil.Uint64)(fee), nil
-}
-
-func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
-	// Binary search the gas requirement, as it may be higher than the amount used
-	var (
-		lo  uint64 = params.TxGas - 1
-		hi  uint64
-		cap uint64
-	)
-	if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
-		hi = uint64(*args.Gas)
-	} else {
-		// Retrieve the block to act as the gas ceiling
-		block, err := b.BlockByNumberOrHash(ctx, blockNrOrHash)
-		if err != nil {
-			return 0, err
-		}
-		hi = block.GasLimit()
-	}
-	if gasCap != nil && hi > gasCap.Uint64() {
-		log.Warn("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)
-		hi = gasCap.Uint64()
-	}
-	cap = hi
-
-	// Set sender address or use a default if none specified
-	if args.From == nil {
-		if wallets := b.AccountManager().Wallets(); len(wallets) > 0 {
-			if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-				args.From = &accounts[0].Address
-			}
-		}
-	}
-	// Use zero-address if none other is available
-	if args.From == nil {
-		args.From = &common.Address{}
-	}
-	// Create a helper to check if a gas allowance results in an executable transaction
-	executable := func(gas uint64) bool {
-		args.Gas = (*hexutil.Uint64)(&gas)
-
-		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
-		if err != nil || failed {
-			return false
-		}
-		return true
-	}
-	// Execute the binary search and hone in on an executable gas limit
-	for lo+1 < hi {
-		mid := (hi + lo) / 2
-		if !executable(mid) {
-			lo = mid
-		} else {
-			hi = mid
-		}
-	}
-
-	// Fudging to account for gas required to verify signatures + pass around data.
-	// Specifically, this line accounts for the fact that there's a bit of computation performed in
-	// a "real" transaction that won't be covered by an eth_call:
-	//  1. Going into the OVM_SequencerEntrypoint.
-	//  2. Going into the OVM_ProxyEOA + OVM_ECDSAContractAccount.
-	//  3. Verify signatures in various places.
-	// eth_call skips all of this and therefore won't correctly estimate gas by default. We need to
-	// tweak the gas estimate to account for this discrepancy. Cost is quite high here because of
-	// the EVM limitation that CALL can only pass 63/64 of total gas available -- so most of this
-	// gas isn't actually spent during execution but needs to be provided to avoid a revert.
-	hi += 1000000
-	if args.Data != nil {
-		hi += uint64(len([]byte(*args.Data))) * 128
-	}
-	if hi > cap {
-		hi = cap
-	}
-
-	// Reject the transaction as invalid if it still fails at the highest allowance
-	if hi == cap {
-		if !executable(hi) {
-			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
-		}
-	}
-	return hexutil.Uint64(hi), nil
+	return hexutil.Uint64(block.GasLimit() - 1), nil
 }
 
 // EstimateGas returns an estimate of the amount of gas needed to execute the
@@ -1965,24 +1920,6 @@ func (api *PublicRollupAPI) GetInfo(ctx context.Context) rollupInfo {
 			QueueIndex: queueIndex,
 		},
 	}
-}
-
-// PrivatelRollupAPI provides private RPC methods to control the sequencer.
-// These methods can be abused by external users and must be considered insecure for use by untrusted users.
-type PrivateRollupAPI struct {
-	b Backend
-}
-
-// NewPrivateRollupAPI creates a new API definition for the rollup methods of the
-// Ethereum service.
-func NewPrivateRollupAPI(b Backend) *PrivateRollupAPI {
-	return &PrivateRollupAPI{b: b}
-}
-
-// SetGasPrice sets the gas price to be used when quoting calldata publishing costs
-// to users
-func (api *PrivateRollupAPI) SetL1GasPrice(ctx context.Context, gasPrice hexutil.Big) {
-	api.b.SetL1GasPrice(ctx, (*big.Int)(&gasPrice))
 }
 
 // PublicDebugAPI is the collection of Ethereum APIs exposed over the public
