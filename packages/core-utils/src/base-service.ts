@@ -49,9 +49,11 @@ export class BaseService<T> {
     }
     this.logger.info('Service is starting...')
     await this.init()
+
+    // set the service to running
+    this.running = true
     await this._start()
     this.logger.info('Service has started')
-    this.running = true
   }
 
   /**
