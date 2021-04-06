@@ -1,0 +1,34 @@
+name: integration
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+defaults:
+  run:
+    working-directory: ./ops
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    env:
+        DOCKER_BUILDKIT: 1
+        COMPOSE_DOCKER_CLI_BUILD: 1
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build the base layer dependencies
+        run: docker-compose build --parallel -- builder l2geth l1_chain
+
+      - name: Build the other services
+        run: docker-compose build --parallel -- deployer dtl batch_submitter
+
+      - name: Bring the stack up and wait for the sequencer to be ready
+        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
+
+      - name: Run the integration tests
+        run: echo "Integration tests will be run here"

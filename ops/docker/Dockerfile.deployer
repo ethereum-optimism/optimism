@@ -1,0 +1,26 @@
+FROM ethereumoptimism:builder AS builder
+
+FROM node:14-alpine
+
+RUN apk add --no-cache git curl python bash
+
+WORKDIR /opt/optimism/
+
+COPY --from=builder /optimism/*.json /optimism/yarn.lock ./
+COPY --from=builder /optimism/node_modules ./node_modules
+
+# copy deps (would have been nice if docker followed the symlinks required)
+COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
+COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
+
+# get the items
+WORKDIR /opt/optimism/packages/contracts
+COPY --from=builder /optimism/packages/contracts/dist ./dist
+COPY --from=builder /optimism/packages/contracts/bin ./bin
+COPY --from=builder /optimism/packages/contracts/package.json ./
+COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
+COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
+COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
+
+COPY ./ops/scripts/deployer.sh .
+ENTRYPOINT yarn run deploy

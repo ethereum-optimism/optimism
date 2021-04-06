@@ -37,7 +37,6 @@
     "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
-    "@ethersproject/hardware-wallets": "^5.0.8",
     "@openzeppelin/contracts": "^3.3.0",
     "@typechain/hardhat": "^1.0.1",
     "ganache-core": "^2.13.2",

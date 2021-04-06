@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-const contracts = require('../dist/src/contract-deployment/deploy');
+const contracts = require('../dist/contract-deployment/deploy');
 const { providers, Wallet, utils, ethers } = require('ethers');
-const { LedgerSigner } = require('@ethersproject/hardware-wallets');
 const { JsonRpcProvider } = providers;
+const fs = require('fs')
 
 const env = process.env;
 const key = env.DEPLOYER_PRIVATE_KEY;
@@ -22,9 +22,7 @@ const FORCE_INCLUSION_PERIOD_SECONDS = env.FORCE_INCLUSION_PERIOD_SECONDS || 259
 const FRAUD_PROOF_WINDOW_SECONDS = env.FRAUD_PROOF_WINDOW_SECONDS || (60 * 60 * 24 * 7); // 7 days
 const SEQUENCER_PUBLISH_WINDOW_SECONDS = env.SEQUENCER_PUBLISH_WINDOW_SECONDS || (60 * 30); // 30 min
 const CHAIN_ID = env.CHAIN_ID || 420; // layer 2 chainid
-const USE_LEDGER = env.USE_LEDGER || false;
 const ADDRESS_MANAGER_ADDRESS = env.ADDRESS_MANAGER_ADDRESS || undefined;
-const HD_PATH = env.HD_PATH || utils.defaultPath;
 const BLOCK_TIME_SECONDS = env.BLOCK_TIME_SECONDS || 15;
 const L2_CROSS_DOMAIN_MESSENGER_ADDRESS =
   env.L2_CROSS_DOMAIN_MESSENGER_ADDRESS || '0x4200000000000000000000000000000000000007';
@@ -33,16 +31,10 @@ const RELAYER_PRIVATE_KEY = env.RELAYER_PRIVATE_KEY;
 
 (async () => {
   const provider = new JsonRpcProvider(web3Url);
-  let signer;
-
-  // Use the ledger for the deployer
-  if (USE_LEDGER) {
-    signer = new LedgerSigner(provider, 'default', HD_PATH);
-  } else  {
-    if (typeof key === 'undefined')
-      throw new Error('Must pass deployer key as DEPLOYER_PRIVATE_KEY');
-    signer = new Wallet(key, provider);
+  if (typeof key === 'undefined') {
+    throw new Error('Must pass deployer key as DEPLOYER_PRIVATE_KEY');
   }
+  const signer = new Wallet(key, provider);
 
   if (SEQUENCER_ADDRESS) {
     if (!utils.isAddress(SEQUENCER_ADDRESS))
@@ -113,6 +105,8 @@ const RELAYER_PRIVATE_KEY = env.RELAYER_PRIVATE_KEY;
   for (const [name, contract] of Object.entries(result.contracts)) {
     out[name] = contract.address;
   }
+  const addresses = JSON.stringify(out, null, 2)
+  fs.writeFileSync(__dirname + "/addresses.json", addresses)
   console.log(JSON.stringify(out, null, 2));
 })().catch(err => {
   console.log(JSON.stringify({error: err.message, stack: err.stack}, null, 2));

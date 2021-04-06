@@ -1,0 +1,11 @@
+{
+  "name": "@eth-optimism/hardhat-node",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "hardhat node"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "hardhat": "^2.1.2"
+  }
+}

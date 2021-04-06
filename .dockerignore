@@ -1,0 +1,14 @@
+.git
+.github
+
+node_modules
+
+test
+**/*_test.go
+build/_workspace
+build/bin
+build/_bin
+tests/testdata
+l2geth/signer/fourbyte
+l2geth/cmd/puppeth
+l2geth/cmd/clef
