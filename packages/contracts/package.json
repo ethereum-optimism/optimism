@@ -10,52 +10,53 @@
     "build/artifacts-ovm/**/*.json",
     "build/types/**/*.ts"
   ],
+  "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
-    "build": "yarn run build:contracts && yarn run build:contracts:ovm && yarn run build:typescript && yarn run build:copy && yarn run build:dump && yarn run build:typechain",
-    "build:kovan": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=69 yarn run build:dump && yarn run build:typechain",
-    "build:mainnet": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=10 yarn run build:dump && yarn run build:typechain",
+    "build": "yarn build:contracts && yarn build:contracts:ovm && yarn build:typescript && yarn build:copy && yarn build:dump && yarn build:typechain",
+    "build:kovan": "yarn build:contracts && yarn build:typescript && yarn build:copy && CHAIN_ID=69 yarn build:dump && yarn build:typechain",
+    "build:mainnet": "yarn build:contracts && yarn build:typescript && yarn build:copy && CHAIN_ID=10 yarn build:dump && yarn build:typechain",
     "build:typescript": "tsc -p .",
     "build:contracts": "hardhat compile --show-stack-traces",
     "build:contracts:ovm": "TARGET=ovm hardhat compile --show-stack-traces",
     "build:dump": "ts-node \"bin/take-dump.ts\"",
-    "build:copy": "yarn run build:copy:artifacts && yarn build:copy:artifacts:ovm && yarn run build:copy:contracts",
+    "build:copy": "yarn build:copy:artifacts && yarn build:copy:artifacts:ovm && yarn build:copy:contracts",
     "build:copy:artifacts": "copyfiles -u 1 \"artifacts/**/*.json\" \"build/artifacts\"",
     "build:copy:artifacts:ovm": "copyfiles -u 1 \"artifacts-ovm/**/*.json\" \"build/artifacts-ovm\"",
     "build:copy:contracts": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
     "build:typechain": "hardhat typechain",
-    "test": "yarn run test:contracts",
+    "test": "yarn test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
     "test:gas": "hardhat test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
-    "test-coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage",
-    "lint": "yarn run lint:typescript",
-    "lint:typescript": "tslint --format stylish --project .",
-    "lint:fix": "yarn run lint:fix:typescript",
-    "lint:fix:typescript": "prettier --config prettier-config.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
+    "test:coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:check": "tslint --format stylish --project .",
+    "lint:fix": "prettier --config prettier-config.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./build ./artifacts ./artifacts-ovm ./cache ./cache-ovm",
     "deploy": "./bin/deploy.js",
     "serve": "./bin/serve_dump.sh"
   },
+  "peerDependencies": {
+    "ethers": "^5.0.0"
+  },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.1.10",
-    "@eth-optimism/dev": "^1.1.1",
-    "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
     "@ethersproject/hardware-wallets": "^5.0.8",
     "@openzeppelin/contracts": "^3.3.0",
-    "@typechain/hardhat": "^1.0.1",
     "ganache-core": "^2.13.2",
-    "glob": "^7.1.6",
-    "solidity-coverage": "^0.7.16"
+    "glob": "^7.1.6"
   },
   "devDependencies": {
+    "@eth-optimism/dev": "^1.1.1",
     "@eth-optimism/plugins": "^1.0.0-alpha.2",
     "@eth-optimism/smock": "^1.0.0-alpha.3",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "1.0.0",
+    "@typechain/hardhat": "^1.0.1",
     "@types/glob": "^7.1.3",
     "@types/lodash": "^4.14.161",
     "buffer-xor": "^2.0.2",
@@ -71,10 +72,8 @@
     "mocha": "^8.3.0",
     "random-bytes-seed": "^1.0.3",
     "rlp": "^2.2.6",
+    "solidity-coverage": "^0.7.16",
     "ts-generator": "0.0.8",
     "typechain": "2.0.0"
-  },
-  "peerDependencies": {
-    "ethers": "^5.0.0"
   }
 }
