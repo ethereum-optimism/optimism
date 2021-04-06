@@ -1,0 +1,26 @@
+{
+  "name": "@eth-optimism/sequencer-interactions",
+  "version": "0.0.1",
+  "description": "[Optimism] Integration Tests: Sequencer Interactions",
+  "author": "Optimism PBC",
+  "license": "MIT",
+  "scripts": {
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:check": "tslint --format stylish --project .",
+    "lint:fix": "prettier --config ./prettier-config.json --write 'test/**/*.ts'",
+    "test:integration": "TARGET=ovm hardhat test"
+  },
+  "devDependencies": {
+    "@eth-optimism/contracts": "^0.1.11",
+    "@eth-optimism/core-utils": "^0.1.10",
+    "@eth-optimism/hardhat-ovm": "^0.0.1",
+    "@ethersproject/providers": "^5.0.24",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "chai": "^4.3.3",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.0.32",
+    "hardhat": "^2.1.2",
+    "lodash": "^4.17.21",
+    "mocha": "^8.3.1"
+  }
+}

@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@eth-optimism/*": ["packages/*/src"]
+      "@eth-optimism/*": ["packages/*/src", "integration-tests/*/test"]
     },
     "skipLibCheck": true
   }

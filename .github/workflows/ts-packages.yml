@@ -34,17 +34,21 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      # START DEPENDENCY CACHING
-      - name: Cache root deps
-        uses: actions/cache@v1
-        id: cache_base
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('package.json') }}
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
 
-      # END DEPENDENCY CACHING
+      - uses: actions/cache@v2
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
 
       - name: Install Dependencies
+        # only install dependencies if there was a change in the deps
+        if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
       - name: Build
