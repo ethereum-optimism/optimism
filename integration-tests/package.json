@@ -1,14 +1,18 @@
 {
-  "name": "@eth-optimism/sequencer-interactions",
+  "name": "@eth-optimism/integration-tests",
   "version": "0.0.1",
-  "description": "[Optimism] Integration Tests: Sequencer Interactions",
+  "description": "[Optimism] Integration Tests",
   "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "tslint --format stylish --project .",
     "lint:fix": "prettier --config ./prettier-config.json --write 'test/**/*.ts'",
-    "test:integration": "hardhat --network optimism test"
+    "build:integration": "./scripts/build.sh",
+    "build:contracts": "hardhat compile",
+    "build:contracts:ovm": "hardhat compile --network optimism",
+    "test:integration": "hardhat --network optimism test",
+    "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
     "@eth-optimism/contracts": "^0.1.11",
@@ -21,6 +25,7 @@
     "ethers": "^5.0.32",
     "hardhat": "^2.1.2",
     "lodash": "^4.17.21",
-    "mocha": "^8.3.1"
+    "mocha": "^8.3.1",
+    "rimraf": "^3.0.2"
   }
 }

@@ -1,0 +1,39 @@
+{
+  "name": "@eth-optimism/message-relayer",
+  "version": "0.0.1",
+  "description": "[Optimism] Cross Domain Message Relayer service",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist/index"
+  ],
+  "scripts": {
+    "start": "node ./exec/run-message-relayer.js",
+    "build": "tsc -p ./tsconfig.build.json",
+    "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:check": "tslint --format stylish --project .",
+    "lint:fix": "prettier --config prettier-config.json --write \"{src,exec,test}/**/*.ts\""
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "relayer"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/batch-submitter#readme",
+  "license": "MIT",
+  "author": "Optimism",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
+  },
+  "dependencies": {
+    "@eth-optimism/core-utils": "^0.1.10",
+    "@eth-optimism/contracts": "^0.1.11",
+    "dotenv": "^8.2.0",
+    "ethers": "^5.1.0",
+    "google-spreadsheet": "^3.1.15",
+    "merkletreejs": "^0.2.18",
+    "rlp": "^2.2.6"
+  }
+}

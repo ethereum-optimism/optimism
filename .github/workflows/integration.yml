@@ -15,18 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Build the base layer dependencies
-        working-directory: ./ops
-        run: docker-compose build --parallel -- builder l2geth l1_chain
-
-      - name: Build the other services
-        working-directory: ./ops
-        run: docker-compose build --parallel -- deployer dtl batch_submitter
-
-      - name: Bring the stack up and wait for the sequencer to be ready
-        working-directory: ./ops
-        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
-
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
@@ -39,14 +27,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
-      - name: Install integration test dependencies
-        working-directory: ./integration-tests
-        # if: steps.yarn-cache.outputs.cache-hit != 'true'
-        run: yarn install
+      - name: Build the services
+        working-directory: ./ops
+        run: ./scripts/build-ci.sh
 
-      - name: Build deps for the integration tests
-        run: yarn build
+      - name: Bring the stack up and wait for the sequencer to be ready
+        working-directory: ./ops
+        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
 
       - name: Run the integration tests
         working-directory: ./integration-tests
-        run: yarn test:integration
+        run: |
+            yarn build:contracts
+            yarn build:contracts:ovm
+            yarn test:integration
