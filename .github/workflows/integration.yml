@@ -41,8 +41,7 @@ jobs:
 
       - name: Install integration test dependencies
         working-directory: ./integration-tests
-        # only install dependencies if the cache was invalidated
-        if: steps.yarn-cache.outputs.cache-hit != 'true'
+        # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
       - name: Build deps for the integration tests

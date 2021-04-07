@@ -109,10 +109,23 @@ export const makeContractDeployConfig = async (
     },
     OVM_L1ETHGateway: {
       factory: getContractFactory('OVM_L1ETHGateway'),
-      params: [
-        AddressManager.address,
-        '0x4200000000000000000000000000000000000006',
-      ],
+      params: [],
+    },
+    Proxy__OVM_L1ETHGateway: {
+      factory: getContractFactory('Lib_ResolvedDelegateProxy'),
+      params: [AddressManager.address, 'OVM_L1ETHGateway'],
+      afterDeploy: async (contracts): Promise<void> => {
+        const l1EthGateway = getContractFactory('OVM_L1ETHGateway')
+          .connect(config.deploymentSigner)
+          .attach(contracts.Proxy__OVM_L1ETHGateway.address)
+        await _sendTx(
+          l1EthGateway.initialize(
+            AddressManager.address,
+            '0x4200000000000000000000000000000000000006',
+            config.deployOverrides
+          )
+        )
+      },
     },
     OVM_L1MultiMessageRelayer: {
       factory: getContractFactory('OVM_L1MultiMessageRelayer'),

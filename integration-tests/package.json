@@ -8,7 +8,7 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "tslint --format stylish --project .",
     "lint:fix": "prettier --config ./prettier-config.json --write 'test/**/*.ts'",
-    "test:integration": "TARGET=ovm hardhat test"
+    "test:integration": "hardhat --network optimism test"
   },
   "devDependencies": {
     "@eth-optimism/contracts": "^0.1.11",

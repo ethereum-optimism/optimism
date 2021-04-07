@@ -54,6 +54,16 @@ Run specific tests by giving a path to the file you want to run:
 yarn test ./test/path/to/my/test.spec.ts
 ```
 
+### Measuring test coverage:
+```shell
+yarn test-coverage
+```
+
+The output is most easily viewable by opening the html file in your browser:
+```shell
+open ./coverage/index.html
+```
+
 ### Compiling and Building
 Easiest way is to run the primary build script:
 ```shell

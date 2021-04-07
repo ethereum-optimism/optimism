@@ -50,6 +50,7 @@ contract Lib_ResolvedDelegateProxy {
 
     fallback()
         external
+        payable
     {
         address target = addressManager[address(this)].getAddress((implementationName[address(this)]));
         require(

@@ -1,6 +1,14 @@
 import { JsonRpcProvider } from '@ethersproject/providers'
+import { BigNumber } from 'ethers'
+
 import { TransportDB } from '../db/transport-db'
 import { TypedEthersEvent } from './event-types'
+import {
+  TransactionBatchEntry,
+  TransactionEntry,
+  StateRootBatchEntry,
+  StateRootEntry,
+} from './database-types'
 
 export type GetExtraDataHandler<TEventArgs, TExtraData> = (
   event?: TypedEthersEvent<TEventArgs>,
@@ -21,4 +29,38 @@ export interface EventHandlerSet<TEventArgs, TExtraData, TParsedEvent> {
   getExtraData: GetExtraDataHandler<TEventArgs, TExtraData>
   parseEvent: ParseEventHandler<TEventArgs, TExtraData, TParsedEvent>
   storeEvent: StoreEventHandler<TParsedEvent>
+}
+
+export interface SequencerBatchAppendedExtraData {
+  timestamp: number
+  blockNumber: number
+  submitter: string
+  l1TransactionData: string
+  l1TransactionHash: string
+  gasLimit: number
+
+  // Stuff from TransactionBatchAppended.
+  prevTotalElements: BigNumber
+  batchIndex: BigNumber
+  batchSize: BigNumber
+  batchRoot: string
+  batchExtraData: string
+}
+
+export interface SequencerBatchAppendedParsedEvent {
+  transactionBatchEntry: TransactionBatchEntry
+  transactionEntries: TransactionEntry[]
+}
+
+export interface StateBatchAppendedExtraData {
+  timestamp: number
+  blockNumber: number
+  submitter: string
+  l1TransactionHash: string
+  l1TransactionData: string
+}
+
+export interface StateBatchAppendedParsedEvent {
+  stateRootBatchEntry: StateRootBatchEntry
+  stateRootEntries: StateRootEntry[]
 }

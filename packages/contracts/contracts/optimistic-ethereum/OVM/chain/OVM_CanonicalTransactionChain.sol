@@ -480,6 +480,10 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
                 assembly {
                     txDataLength := shr(232, calldataload(nextTransactionPtr))
                 }
+                require(
+                    txDataLength <= MAX_ROLLUP_TX_SIZE,
+                    "Transaction data size exceeds maximum for rollup transaction."
+                );
 
                 leaves[leafIndex] = _getSequencerLeafHash(
                     curContext,
@@ -937,7 +941,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         internal
         view
     {
-        // If there are existing elements, this batch must have the same context 
+        // If there are existing elements, this batch must have the same context
         // or a later timestamp and block number.
         if (getTotalElements() > 0) {
             (,, uint40 lastTimestamp, uint40 lastBlockNumber) = _getBatchExtraData();

@@ -1,6 +1,8 @@
 yarn run build:typescript &
-yarn run build:contracts:ovm &
 yarn run build:contracts &
+# avoid race condition between the 2 concurrent hardhat instances
+sleep 2
+yarn run build:contracts:ovm &
 
 wait
 

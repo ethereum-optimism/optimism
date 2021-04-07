@@ -21,7 +21,7 @@ const DUMMY_KEY = DUMMY_BYTES32[0]
 const DUMMY_VALUE_1 = DUMMY_BYTES32[1]
 const DUMMY_VALUE_2 = DUMMY_BYTES32[2]
 
-describe('OVM_StateManager gas consumption', () => {
+describe('OVM_StateManager gas consumption [ @skip-on-coverage ]', () => {
   let owner: Signer
   before(async () => {
     ;[owner] = await ethers.getSigners()

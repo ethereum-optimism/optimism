@@ -33,7 +33,7 @@ import { Abs_FraudContributor } from "./Abs_FraudContributor.sol";
  * This contract controls the State Manager and Execution Manager, and uses them to calculate the
  * post-state root by applying the transaction. The Fraud Verifier can then check for fraud by comparing
  * the calculated post-state root with the proposed post-state root.
- * 
+ *
  * Compiler used: solc
  * Runtime target: EVM
  */
@@ -170,7 +170,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
     {
         return phase == TransitionPhase.COMPLETE;
     }
-    
+
 
     /***********************************
      * Public Functions: Pre-Execution *
@@ -335,7 +335,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
 
         // We require gas to complete the logic here in run() before/after execution,
         // But must ensure the full _tx.gasLimit can be given to the ovmCALL (determinism)
-        // This includes 1/64 of the gas getting lost because of EIP-150 (lost twice--first 
+        // This includes 1/64 of the gas getting lost because of EIP-150 (lost twice--first
         // going into EM, then going into the code contract).
         require(
             gasleft() >= 100000 + _transaction.gasLimit * 1032 / 1000, // 1032/1000 = 1.032 = (64/63)^2 rounded up
@@ -354,6 +354,8 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         // if that's the case.
         ovmExecutionManager.run(_transaction, address(ovmStateManager));
 
+        // Prevent the Execution Manager from calling this SM again.
+        ovmStateManager.setExecutionManager(address(0));
         phase = TransitionPhase.POST_EXECUTION;
     }
 

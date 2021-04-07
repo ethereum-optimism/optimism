@@ -12,6 +12,8 @@ import {
 import {
   DecodedSequencerBatchTransaction,
   EventArgsSequencerBatchAppended,
+  SequencerBatchAppendedExtraData,
+  SequencerBatchAppendedParsedEvent,
   TransactionBatchEntry,
   TransactionEntry,
   EventHandlerSet,
@@ -20,27 +22,6 @@ import {
   SEQUENCER_ENTRYPOINT_ADDRESS,
   SEQUENCER_GAS_LIMIT,
 } from '../../../utils'
-
-export interface SequencerBatchAppendedExtraData {
-  timestamp: number
-  blockNumber: number
-  submitter: string
-  l1TransactionData: string
-  l1TransactionHash: string
-  gasLimit: number
-
-  // Stuff from TransactionBatchAppended.
-  prevTotalElements: BigNumber
-  batchIndex: BigNumber
-  batchSize: BigNumber
-  batchRoot: string
-  batchExtraData: string
-}
-
-export interface SequencerBatchAppendedParsedEvent {
-  transactionBatchEntry: TransactionBatchEntry
-  transactionEntries: TransactionEntry[]
-}
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<
   EventArgsSequencerBatchAppended,

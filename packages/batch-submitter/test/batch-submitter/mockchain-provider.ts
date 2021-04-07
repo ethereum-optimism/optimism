@@ -88,6 +88,7 @@ export class MockchainProvider extends OptimismProvider {
   public setL2BlockData(
     tx: L2Transaction,
     timestamp?: number,
+    stateRoot?: string,
     start: number = 1,
     end: number = this.mockBlocks.length
   ) {
@@ -99,6 +100,7 @@ export class MockchainProvider extends OptimismProvider {
         ...this.mockBlocks[i].transactions[0],
         ...tx,
       }
+      this.mockBlocks[i].stateRoot = stateRoot
     }
   }
 

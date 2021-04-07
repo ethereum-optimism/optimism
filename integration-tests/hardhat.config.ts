@@ -8,6 +8,12 @@ const config: HardhatUserConfig = {
   mocha: {
     timeout: 100000,
   },
+  networks: {
+    optimism: {
+      url: 'http://localhost:8545',
+      ovm: true,
+    },
+  },
 }
 
 export default config

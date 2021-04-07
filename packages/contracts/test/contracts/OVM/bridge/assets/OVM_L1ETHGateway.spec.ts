@@ -13,6 +13,7 @@ const L1_ETH_GATEWAY_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
+const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
 
 describe('OVM_L1ETHGateway', () => {
   // init signers
@@ -45,12 +46,27 @@ describe('OVM_L1ETHGateway', () => {
       { address: await l1MessengerImpersonator.getAddress() } // This allows us to use an ethers override {from: Mock__OVM_L2CrossDomainMessenger.address} to mock calls
     )
 
-    // Deploy the contract under test
+    // Deploy the contract under test and initialize
     OVM_L1ETHGateway = await (
       await ethers.getContractFactory('OVM_L1ETHGateway')
-    ).deploy(AddressManager.address, Mock__OVM_L2DepositedERC20.address)
+    ).deploy()
+    await OVM_L1ETHGateway.initialize(
+      AddressManager.address,
+      Mock__OVM_L2DepositedERC20.address
+    )
 
     finalizeDepositGasLimit = await OVM_L1ETHGateway.getFinalizeDepositL2Gas()
+  })
+
+  describe('initialize', () => {
+    it('Should only be callable once', async () => {
+      await expect(
+        OVM_L1ETHGateway.initialize(
+          ethers.constants.AddressZero,
+          ethers.constants.AddressZero
+        )
+      ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
+    })
   })
 
   describe('finalizeWithdrawal', () => {
@@ -72,7 +88,11 @@ describe('OVM_L1ETHGateway', () => {
 
       OVM_L1ETHGateway = await (
         await ethers.getContractFactory('OVM_L1ETHGateway')
-      ).deploy(AddressManager.address, Mock__OVM_L2DepositedERC20.address)
+      ).deploy()
+      await OVM_L1ETHGateway.initialize(
+        AddressManager.address,
+        Mock__OVM_L2DepositedERC20.address
+      )
 
       Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         NON_ZERO_ADDRESS
@@ -147,10 +167,14 @@ describe('OVM_L1ETHGateway', () => {
         Mock__OVM_L1CrossDomainMessenger.address
       )
 
-      // Deploy the contract under test:
+      // Deploy the contract under test and initialize
       OVM_L1ETHGateway = await (
         await ethers.getContractFactory('OVM_L1ETHGateway')
-      ).deploy(AddressManager.address, Mock__OVM_L2DepositedERC20.address)
+      ).deploy()
+      await OVM_L1ETHGateway.initialize(
+        AddressManager.address,
+        Mock__OVM_L2DepositedERC20.address
+      )
     })
 
     it('deposit() escrows the deposit amount and sends the correct deposit message', async () => {

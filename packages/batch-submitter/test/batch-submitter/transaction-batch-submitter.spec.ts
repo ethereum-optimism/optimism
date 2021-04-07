@@ -274,6 +274,7 @@ describe('TransactionBatchSubmitter', () => {
           l1TxOrigin: null,
         } as any,
         nextQueueElement.timestamp - 1,
+        '', // blank state root
         3,
         6
       )

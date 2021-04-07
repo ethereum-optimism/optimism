@@ -1,4 +1,5 @@
 /* External Imports */
+import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from '@eth-optimism/contracts'
@@ -108,14 +109,13 @@ export class StateBatchSubmitter extends BatchSubmitter {
     const startBlock: number =
       (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET
     // We will submit state roots for txs which have been in the tx chain for a while.
-    const callBlockNumber: number =
-      (await this.signer.provider.getBlockNumber()) - this.finalityConfirmations
     const totalElements: number =
       (await this.ctcContract.getTotalElements()).toNumber() + BLOCK_OFFSET
     const endBlock: number = Math.min(
       startBlock + this.maxBatchSize,
       totalElements
     )
+
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {
         this.log.error(
@@ -142,7 +142,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       'appendStateBatch',
       [batch, startBlock]
     )
-    if (!this._shouldSubmitBatch(tx.length * 2)) {
+    if (!this._shouldSubmitBatch(tx.length / 2)) {
       return
     }
 
@@ -172,21 +172,22 @@ export class StateBatchSubmitter extends BatchSubmitter {
     startBlock: number,
     endBlock: number
   ): Promise<Bytes32[]> {
-    const batch: Bytes32[] = []
-
-    for (let i = startBlock; i < endBlock; i++) {
-      const block = (await this.l2Provider.getBlockWithTransactions(
-        i
-      )) as L2Block
-      if (block.transactions[0].from === this.fraudSubmissionAddress) {
-        batch.push(
-          '0xbad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1'
-        )
-        this.fraudSubmissionAddress = 'no fraud'
-      } else {
-        batch.push(block.stateRoot)
-      }
-    }
+    const blockRange = endBlock - startBlock
+    const batch: Bytes32[] = await bPromise.map(
+      [...Array(blockRange).keys()],
+      async (i: number) => {
+        this.log.debug('Fetching L2BatchElement', { blockNo: startBlock + i })
+        const block = (await this.l2Provider.getBlockWithTransactions(
+          startBlock + i
+        )) as L2Block
+        if (block.transactions[0].from === this.fraudSubmissionAddress) {
+          this.fraudSubmissionAddress = 'no fraud'
+          return '0xbad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1'
+        }
+        return block.stateRoot
+      },
+      { concurrency: 100 }
+    )
 
     let tx = this.chainContract.interface.encodeFunctionData(
       'appendStateBatch',
@@ -199,6 +200,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
         startBlock,
       ])
     }
+
     return batch
   }
 }

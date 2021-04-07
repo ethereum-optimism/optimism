@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/batch-submitter",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "[Optimism] Batch submission for sequencer & aggregators",
   "main": "dist/index",
   "types": "dist/index",
@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node ./exec/run-batch-submitter.js",
     "build": "tsc -p ./tsconfig.build.json",
-    "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
+    "clean": "rimraf cache/ dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "tslint --format stylish --project .",
     "lint:fix": "prettier --config prettier-config.json --write \"hardhat.config.ts\" \"{src,exec,test}/**/*.ts\"",

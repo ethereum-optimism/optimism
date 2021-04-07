@@ -75,7 +75,7 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
 subtask(
   TASK_COMPILE_SOLIDITY_RUN_SOLC,
   async (args: { input: any; solcPath: string }, hre, runSuper) => {
-    if ((hre.network as any).ovm !== true) {
+    if (hre.network.ovm !== true) {
       return runSuper(args)
     }
 
@@ -127,9 +127,9 @@ subtask(
 )
 
 extendEnvironment((hre) => {
-  if (process.env.TARGET === 'ovm') {
-    ;(hre.network as any).ovm = true
-    // Quick check to make sure we don't accidentally perform this transform multiple times.
+  if (hre.network.config.ovm) {
+    hre.network.ovm = hre.network.config.ovm
+
     let artifactsPath = hre.config.paths.artifacts
     if (!artifactsPath.endsWith('-ovm')) {
       artifactsPath = artifactsPath + '-ovm'
@@ -144,6 +144,5 @@ extendEnvironment((hre) => {
     hre.config.paths.artifacts = artifactsPath
     hre.config.paths.cache = cachePath
     ;(hre as any).artifacts = new Artifacts(artifactsPath)
-    ;(hre.network as any).ovm = true
   }
 })

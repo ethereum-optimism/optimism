@@ -754,6 +754,32 @@ describe('OVM_CanonicalTransactionChain', () => {
       ).to.be.revertedWith('Must append at least one element.')
     })
 
+    it('should revert when trying to input more data than the max data size', async () => {
+      const MAX_ROLLUP_TX_SIZE = await OVM_CanonicalTransactionChain.MAX_ROLLUP_TX_SIZE()
+      const data = '0x' + '12'.repeat(MAX_ROLLUP_TX_SIZE + 1)
+
+      const timestamp = await getEthTime(ethers.provider)
+      const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
+
+      await expect(
+        appendSequencerBatch(OVM_CanonicalTransactionChain, {
+          transactions: [data],
+          contexts: [
+            {
+              numSequencedTransactions: 1,
+              numSubsequentQueueTransactions: 0,
+              timestamp,
+              blockNumber,
+            },
+          ],
+          shouldStartAtElement: 0,
+          totalElementsToAppend: 1,
+        })
+      ).to.be.revertedWith(
+        'Transaction data size exceeds maximum for rollup transaction.'
+      )
+    })
+
     describe('Sad path cases', () => {
       const target = NON_ZERO_ADDRESS
       const gasLimit = 500_000

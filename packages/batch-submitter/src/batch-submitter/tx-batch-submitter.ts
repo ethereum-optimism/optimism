@@ -237,7 +237,12 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       batchParams,
       wasBatchTruncated,
     ] = await this._generateSequencerBatchParams(startBlock, endBlock)
-    const batchSizeInBytes = encodeAppendSequencerBatch(batchParams).length * 2
+    const batchSizeInBytes = encodeAppendSequencerBatch(batchParams).length / 2
+
+    // Only submit batch if one of the following is true:
+    // 1. it was truncated
+    // 2. it is large enough
+    // 3. enough time has passed since last submission
     if (!wasBatchTruncated && !this._shouldSubmitBatch(batchSizeInBytes)) {
       return
     }
@@ -278,7 +283,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         this.log.debug('Fetching L2BatchElement', { blockNo: startBlock + i })
         return this._getL2BatchElement(startBlock + i)
       },
-      { concurrency: 50 }
+      { concurrency: 100 }
     )
 
     // Fix our batches if we are configured to. TODO: Remove this.

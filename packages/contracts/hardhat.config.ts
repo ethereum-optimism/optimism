@@ -1,4 +1,5 @@
 import { HardhatUserConfig } from 'hardhat/types'
+import 'solidity-coverage'
 
 import {
   DEFAULT_ACCOUNTS_HARDHAT,
@@ -16,6 +17,11 @@ const config: HardhatUserConfig = {
     hardhat: {
       accounts: DEFAULT_ACCOUNTS_HARDHAT,
       blockGasLimit: RUN_OVM_TEST_GAS * 2,
+    },
+    // Add this network to your config!
+    optimism: {
+      url: 'http://127.0.0.1:8545',
+      ovm: true,
     },
   },
   mocha: {
