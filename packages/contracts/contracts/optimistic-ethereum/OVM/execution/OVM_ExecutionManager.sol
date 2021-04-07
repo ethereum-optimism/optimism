@@ -159,7 +159,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
     {
-        require(transactionContext.ovmNUMBER == 0, "Only be callable at the start of a transaction");
+        require(transactionContext.ovmNUMBER == 0, "Only callable at the start of a transaction");
         // Store our OVM_StateManager instance (significantly easier than attempting to pass the
         // address around in calldata).
         ovmStateManager = iOVM_StateManager(_ovmStateManager);

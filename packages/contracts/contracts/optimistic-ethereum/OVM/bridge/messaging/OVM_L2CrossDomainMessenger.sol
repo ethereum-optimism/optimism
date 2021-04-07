@@ -18,7 +18,7 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
  * @title OVM_L2CrossDomainMessenger
  * @dev The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point
  * for L2 messages sent via the L1 Cross Domain Messenger.
- * 
+ *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
   */
@@ -74,6 +74,15 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
             successfulMessages[xDomainCalldataHash] == false,
             "Provided message has already been received."
         );
+
+        // Prevent calls to OVM_L2ToL1MessagePasser, which would enable
+        // an attacker to maliciously craft the _message to spoof
+        // a call from any L2 account.
+        if(_target == resolve("OVM_L2ToL1MessagePasser")){
+            // Write to the successfulMessages mapping and return immediately.
+            successfulMessages[xDomainCalldataHash] = true;
+            return;
+        }
 
         xDomainMsgSender = _sender;
         (bool success, ) = _target.call(_message);

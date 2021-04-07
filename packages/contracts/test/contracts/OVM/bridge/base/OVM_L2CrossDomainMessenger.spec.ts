@@ -13,6 +13,7 @@ import {
   NON_ZERO_ADDRESS,
   getXDomainCalldata,
 } from '../../../../helpers'
+import { solidityKeccak256 } from 'ethers/lib/utils'
 
 describe('OVM_L2CrossDomainMessenger', () => {
   let signer: Signer
@@ -156,6 +157,45 @@ describe('OVM_L2CrossDomainMessenger', () => {
       await expect(
         OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
       ).to.be.revertedWith('Provided message has already been received.')
+    })
+
+    it('should not make a call if the target is the L2 MessagePasser', async () => {
+      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
+        Mock__OVM_L1CrossDomainMessenger.address
+      )
+      target = await AddressManager.getAddress('OVM_L2ToL1MessagePasser')
+      message = Mock__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
+        'passMessageToL1(bytes)',
+        [NON_NULL_BYTES32]
+      )
+
+      const resProm = OVM_L2CrossDomainMessenger.relayMessage(
+        target,
+        sender,
+        message,
+        0
+      )
+
+      // The call to relayMessage() should succeed.
+      await expect(resProm).to.not.be.reverted
+
+      // There should be no 'relayedMessage' event logged in the receipt.
+      const logs = (
+        await Mock__OVM_L2ToL1MessagePasser.provider.getTransactionReceipt(
+          (await resProm).hash
+        )
+      ).logs
+      expect(logs).to.deep.equal([])
+
+      // The message should be registered as successful.
+      expect(
+        await OVM_L2CrossDomainMessenger.successfulMessages(
+          solidityKeccak256(
+            ['bytes'],
+            [getXDomainCalldata(await signer.getAddress(), target, message, 0)]
+          )
+        )
+      ).to.be.true
     })
   })
 })
