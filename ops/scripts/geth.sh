@@ -11,7 +11,12 @@ function envSet() {
 # set all the necessary env vars
 envSet ETH1_ADDRESS_RESOLVER_ADDRESS  AddressManager
 envSet ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS Proxy__OVM_L1CrossDomainMessenger
-envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
 envSet ROLLUP_ADDRESS_MANAGER_OWNER_ADDRESS Deployer
+
+# set the address to the proxy gateway if possible
+envSet ETH1_L1_ETH_GATEWAY_ADDRESS Proxy__OVM_L1ETHGateway
+if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
+    envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
+fi
 
 geth --verbosity=6

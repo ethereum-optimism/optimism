@@ -14,6 +14,10 @@ const config: HardhatUserConfig = {
       ovm: true,
     },
   },
+  solidity: '0.7.6',
+  ovm: {
+    solcVersion: '0.7.6',
+  },
 }
 
 export default config
