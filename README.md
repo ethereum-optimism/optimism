@@ -2,9 +2,9 @@
 
 **Monorepo implementing the Optimistic Ethereum protocol**
 
-![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/typescript%20/%20contracts/badge.svg)
-![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/integration/badge.svg)
-![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/geth%20unit%20tests/badge.svg)
+[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/typescript%20/%20contracts/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/ts-packages.yml?query=branch%3Amaster)
+[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/integration/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/integration.yml?query=branch%3Amaster)
+[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/geth%20unit%20tests/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/geth.yml?query=branch%3Amaster)
 
 ## Documentation
 
