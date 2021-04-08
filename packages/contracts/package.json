@@ -52,7 +52,7 @@
   "devDependencies": {
     "@eth-optimism/dev": "^1.1.1",
     "@eth-optimism/plugins": "^1.0.0-alpha.2",
-    "@eth-optimism/smock": "^1.0.0-alpha.3",
+    "@eth-optimism/smock": "1.0.0-alpha.3",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "1.0.0",
