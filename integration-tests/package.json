@@ -21,6 +21,7 @@
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "chai": "^4.3.3",
+    "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.32",
     "hardhat": "^2.1.2",

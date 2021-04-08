@@ -1,14 +1,11 @@
 /* Imports: Internal */
 import { getContractFactory } from '@eth-optimism/contracts'
-import { injectL2Context } from './utils'
+import { injectL2Context } from './shared/l2provider'
 
 /* Imports: External */
 import { Contract, Signer, Wallet, providers } from 'ethers'
 import { expect } from 'chai'
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+import { sleep } from './shared/utils'
 
 // This test ensures that the transactions which get `enqueue`d get
 // added to the L2 blocks by the Sync Service (which queries the DTL)

@@ -1,6 +1,6 @@
 /* External Imports */
 import { ethers } from 'ethers'
-import { Provider } from '@ethersproject/abstract-provider'
+import { Provider, TransactionReceipt } from '@ethersproject/abstract-provider'
 
 export interface Layer {
   provider: Provider
@@ -23,31 +23,30 @@ export class Watcher {
   }
 
   public async getMessageHashesFromL1Tx(l1TxHash: string): Promise<string[]> {
-    return this._getMessageHashesFromTx(true, l1TxHash)
+    return this.getMessageHashesFromTx(this.l1, l1TxHash)
   }
   public async getMessageHashesFromL2Tx(l2TxHash: string): Promise<string[]> {
-    return this._getMessageHashesFromTx(false, l2TxHash)
+    return this.getMessageHashesFromTx(this.l2, l2TxHash)
   }
 
   public async getL1TransactionReceipt(
     l2ToL1MsgHash: string,
     pollForPending: boolean = true
-  ): Promise<any> {
-    return this._getLXTransactionReceipt(true, l2ToL1MsgHash, pollForPending)
+  ): Promise<TransactionReceipt> {
+    return this.getTransactionReceipt(this.l2, l2ToL1MsgHash, pollForPending)
   }
 
   public async getL2TransactionReceipt(
     l1ToL2MsgHash: string,
     pollForPending: boolean = true
-  ): Promise<any> {
-    return this._getLXTransactionReceipt(false, l1ToL2MsgHash, pollForPending)
+  ): Promise<TransactionReceipt> {
+    return this.getTransactionReceipt(this.l2, l1ToL2MsgHash, pollForPending)
   }
 
-  private async _getMessageHashesFromTx(
-    isL1: boolean,
+  public async getMessageHashesFromTx(
+    layer: Layer,
     txHash: string
   ): Promise<string[]> {
-    const layer = isL1 ? this.l1 : this.l2
     const receipt = await layer.provider.getTransactionReceipt(txHash)
     if (!receipt) {
       return []
@@ -69,12 +68,11 @@ export class Watcher {
     return msgHashes
   }
 
-  public async _getLXTransactionReceipt(
-    isL1: boolean,
+  public async getTransactionReceipt(
+    layer: Layer,
     msgHash: string,
-    pollForPending: boolean
-  ): Promise<any> {
-    const layer = isL1 ? this.l1 : this.l2
+    pollForPending: boolean = true
+  ): Promise<TransactionReceipt> {
     const blockNumber = await layer.provider.getBlockNumber()
     const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
     const filter = {

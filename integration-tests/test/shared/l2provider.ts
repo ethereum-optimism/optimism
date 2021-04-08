@@ -1,22 +1,12 @@
-import { remove0x } from '@eth-optimism/core-utils'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import cloneDeep from 'lodash/cloneDeep'
-
-import { utils, providers, Transaction } from 'ethers'
+import { providers } from 'ethers'
 
 /**
  * Helper for adding additional L2 context to transactions
  */
 export const injectL2Context = (l1Provider: providers.JsonRpcProvider) => {
   const provider = cloneDeep(l1Provider)
-  const format = provider.formatter.transaction.bind(provider.formatter)
-  provider.formatter.transaction = (transaction) => {
-    const tx = format(transaction)
-    const sig = utils.joinSignature(tx)
-    const hash = sighashEthSign(tx)
-    tx.from = utils.verifyMessage(hash, sig)
-    return tx
-  }
 
   // Pass through the state root
   const blockFormat = provider.formatter.block.bind(provider.formatter)
@@ -66,30 +56,4 @@ export const injectL2Context = (l1Provider: providers.JsonRpcProvider) => {
   }
 
   return provider
-}
-
-function serializeEthSignTransaction(transaction: Transaction): any {
-  const encoded = utils.defaultAbiCoder.encode(
-    ['uint256', 'uint256', 'uint256', 'uint256', 'address', 'bytes'],
-    [
-      transaction.nonce,
-      transaction.gasLimit,
-      transaction.gasPrice,
-      transaction.chainId,
-      transaction.to,
-      transaction.data,
-    ]
-  )
-
-  return Buffer.from(encoded.slice(2), 'hex')
-}
-
-// Use this function as input to `eth_sign`. It does not
-// add the prefix because `eth_sign` does that. It does
-// serialize the transaction and hash the serialized
-// transaction.
-function sighashEthSign(transaction: any): Buffer {
-  const serialized = serializeEthSignTransaction(transaction)
-  const hash = remove0x(utils.keccak256(serialized))
-  return Buffer.from(hash, 'hex')
 }

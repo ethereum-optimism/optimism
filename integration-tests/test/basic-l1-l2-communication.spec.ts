@@ -3,6 +3,11 @@ import { expect } from 'chai'
 /* Imports: External */
 import { Contract, ContractFactory, Wallet, providers } from 'ethers'
 import { Watcher } from '@eth-optimism/core-utils'
+import {
+  initWatcher,
+  waitForXDomainTransaction,
+  Direction,
+} from './shared/watcher-utils'
 import { getContractFactory } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
@@ -53,31 +58,13 @@ describe('Basic L1<>L2 Communication', async () => {
       l2Wallet
     )
 
-    const l1MessengerAddress = await AddressManager.getAddress(
-      'Proxy__OVM_L1CrossDomainMessenger'
-    )
-    const l2MessengerAddress = await AddressManager.getAddress(
-      'OVM_L2CrossDomainMessenger'
-    )
-
+    watcher = await initWatcher(l1Provider, l2Provider, AddressManager)
     L1CrossDomainMessenger = getContractFactory('iOVM_L1CrossDomainMessenger')
       .connect(l1Wallet)
-      .attach(l1MessengerAddress)
-
+      .attach(watcher.l1.messengerAddress)
     L2CrossDomainMessenger = getContractFactory('iOVM_L2CrossDomainMessenger')
       .connect(l2Wallet)
-      .attach(l2MessengerAddress)
-
-    watcher = new Watcher({
-      l1: {
-        provider: l1Provider,
-        messengerAddress: L1CrossDomainMessenger.address,
-      },
-      l2: {
-        provider: l2Provider,
-        messengerAddress: L2CrossDomainMessenger.address,
-      },
-    })
+      .attach(watcher.l2.messengerAddress)
   })
 
   beforeEach(async () => {
@@ -98,14 +85,7 @@ describe('Basic L1<>L2 Communication', async () => {
       { gasLimit: 7000000 }
     )
 
-    // Wait for the L2 transaction to be mined.
-    await transaction.wait()
-
-    // Wait for the transaction to be relayed on L1.
-    const messageHashes = await watcher.getMessageHashesFromL2Tx(
-      transaction.hash
-    )
-    await watcher.getL1TransactionReceipt(messageHashes[0])
+    await waitForXDomainTransaction(watcher, transaction, Direction.L2ToL1)
 
     expect(await L1SimpleStorage.msgSender()).to.equal(
       L1CrossDomainMessenger.address
@@ -126,14 +106,7 @@ describe('Basic L1<>L2 Communication', async () => {
       { gasLimit: 7000000 }
     )
 
-    // Wait for the L1 transaction to be mined.
-    await transaction.wait()
-
-    // Wait for the transaction to be included on L2.
-    const messageHashes = await watcher.getMessageHashesFromL1Tx(
-      transaction.hash
-    )
-    await watcher.getL2TransactionReceipt(messageHashes[0])
+    await waitForXDomainTransaction(watcher, transaction, Direction.L1ToL2)
 
     expect(await L2SimpleStorage.msgSender()).to.equal(
       L2CrossDomainMessenger.address
