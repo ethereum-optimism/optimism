@@ -2,6 +2,7 @@
   "extends": "@eth-optimism/dev/tslint.json",
   "rules": {
     "array-type": false,
-    "class-name": false
+    "class-name": false,
+    "prefer-conditional-expression": false
   }
 }

@@ -10,3 +10,6 @@ build/
 # Coverage output
 coverage/
 coverage.json
+
+# Environment variables
+.env

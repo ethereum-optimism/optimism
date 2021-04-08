@@ -8,6 +8,7 @@ import { fromHexString, toHexString, remove0x } from '@eth-optimism/core-utils'
 /* Internal Imports */
 import { deploy, RollupDeployConfig } from './contract-deployment'
 import { getContractDefinition } from './contract-defs'
+import { predeploys } from './predeploys'
 
 interface StorageDump {
   [key: string]: string
@@ -159,19 +160,6 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   }
 
   config = { ...config, ...cfg }
-
-  const predeploys = {
-    OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
-    OVM_L1MessageSender: '0x4200000000000000000000000000000000000001',
-    OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002',
-    OVM_ECDSAContractAccount: '0x4200000000000000000000000000000000000003',
-    OVM_ProxySequencerEntrypoint: '0x4200000000000000000000000000000000000004',
-    OVM_SequencerEntrypoint: '0x4200000000000000000000000000000000000005',
-    OVM_ETH: '0x4200000000000000000000000000000000000006',
-    OVM_L2CrossDomainMessenger: '0x4200000000000000000000000000000000000007',
-    Lib_AddressManager: '0x4200000000000000000000000000000000000008',
-    ERC1820Registry: '0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24',
-  }
 
   const ovmCompiled = [
     'OVM_L2ToL1MessagePasser',
