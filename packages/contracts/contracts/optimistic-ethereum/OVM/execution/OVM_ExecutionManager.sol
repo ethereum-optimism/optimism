@@ -963,10 +963,24 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // revert data as to retrieve execution metadata that would normally be reverted out of
         // existence.
 
-        (bool success, bytes memory returndata) =
-            _isCreate
-            ? _handleContractCreation(_gasLimit, _data, _contract)
-            : _contract.call{gas: _gasLimit}(_data);
+        bool success; 
+        bytes memory returndata;
+
+        if (_isCreate) {
+            // safeCREATE() is a function which replicates a CREATE message, but uses return values
+            // Which match that of CALL (i.e. bool, bytes).  This allows many security checks to be
+            // to be shared between untrusted call and create call frames.
+            (success, returndata) = address(this).call(
+                abi.encodeWithSelector(
+                    this.safeCREATE.selector,
+                    _gasLimit,
+                    _data,
+                    _contract
+                )
+            );
+        } else {
+            (success, returndata) = _contract.call{gas: _gasLimit}(_data);
+        }
 
         // Switch back to the original message context now that we're out of the call.
         _switchMessageContext(_nextMessageContext, prevMessageContext);
@@ -1034,83 +1048,69 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     /**
      * Handles the creation-specific safety measures required for OVM contract deployment.
-     * This function sanitizes the return types for creation messages to match calls (bool, bytes).
+     * This function sanitizes the return types for creation messages to match calls (bool, bytes),
+     * by being an external function which the EM can call, that mimics the success/fail case of the CREATE.
      * This allows for consistent handling of both types of messages in _handleExternalMessage().
-     *
+     * Having this step occur as a separate call frame also allows us to easily revert the 
+     * contract deployment in the event that the code is unsafe.
+     * 
      * @param _gasLimit Amount of gas to be passed into this creation.
      * @param _creationCode Code to pass into CREATE for deployment.
      * @param _address OVM address being deployed to.
-     * @return Whether or not the call succeeded.
-     * @return If creation fails: revert data. Otherwise: empty.
      */
-    function _handleContractCreation(
+    function safeCREATE(
         uint _gasLimit,
         bytes memory _creationCode,
         address _address
     )
-        internal
-        returns(
-            bool,
-            bytes memory
-        )
+        external
     {
+        // The only way this should callable is from within _createContract(),
+        // and it should DEFINITELY not be callable by a non-EM code contract.
+        if (msg.sender != address(this)) {
+            return;
+        }
         // Check that there is not already code at this address.
         if (_hasEmptyAccount(_address) == false) {
             // Note: in the EVM, this case burns all allotted gas.  For improved
-            // developer experience, we do return the remaining ones.
-            return (
-                false,
-                _encodeRevertData(
-                    RevertFlag.CREATE_COLLISION,
-                    Lib_ErrorUtils.encodeRevertString("A contract has already been deployed to this address")
-                )
+            // developer experience, we do return the remaining gas.
+            _revertWithFlag(
+                RevertFlag.CREATE_COLLISION,
+                Lib_ErrorUtils.encodeRevertString("A contract has already been deployed to this address")
             );
         }
 
         // Check the creation bytecode against the OVM_SafetyChecker.
         if (ovmSafetyChecker.isBytecodeSafe(_creationCode) == false) {
-            return (
-                false,
-                _encodeRevertData(
-                    RevertFlag.UNSAFE_BYTECODE,
-                    Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?")
-                )
+            _revertWithFlag(
+                RevertFlag.UNSAFE_BYTECODE,
+                Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?")
             );
         }
 
         // We always need to initialize the contract with the default account values.
         _initPendingAccount(_address);
 
-        // Actually execute the EVM create message,
+        // Actually execute the EVM create message.
+        // NOTE: The inline assembly below means we can NOT make any evm calls between here and then.
         address ethAddress = Lib_EthUtils.createContract(_creationCode);
 
         if (ethAddress == address(0)) {
             // If the creation fails, the EVM lets us grab its revert data. This may contain a revert flag
-            // to be used above in _handleExternalMessage.
-            uint256 revertDataSize;
-            assembly { revertDataSize := returndatasize() }
-            bytes memory revertdata = new bytes(revertDataSize);
-            assembly {
-                returndatacopy(
-                    add(revertdata, 0x20),
-                    0,
-                    revertDataSize
-                )
+            // to be used above in _handleExternalMessage, so we pass the revert data back up unmodified.
+            assembly { 
+                returndatacopy(0,0,returndatasize())
+                revert(0, returndatasize())
             }
-            // Return that the creation failed, and the data it reverted with.
-            return (false, revertdata);
         }
 
         // Again simply checking that the deployed code is safe too. Contracts can generate
         // arbitrary deployment code, so there's no easy way to analyze this beforehand.
         bytes memory deployedCode = Lib_EthUtils.getCode(ethAddress);
         if (ovmSafetyChecker.isBytecodeSafe(deployedCode) == false) {
-            return (
-                false,
-                _encodeRevertData(
-                    RevertFlag.UNSAFE_BYTECODE,
-                    Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.")
-                )
+            _revertWithFlag(
+                RevertFlag.UNSAFE_BYTECODE,
+                Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.")
             );
         }
 
@@ -1121,9 +1121,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             ethAddress,
             Lib_EthUtils.getCodeHash(ethAddress)
         );
-
-        // Successful deployments will not give access to returndata, in both the EVM and the OVM.
-        return (true, hex'');
     }
 
     /******************************************

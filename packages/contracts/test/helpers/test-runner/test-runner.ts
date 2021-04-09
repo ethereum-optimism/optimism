@@ -121,8 +121,8 @@ export class ExecutionManagerTestRunner {
           replacedParameter = this.setPlaceholderStrings(parameter)
         })
 
-        beforeEach(() => {
-          this.contracts.OVM_StateManager.smodify.set({
+        beforeEach(async () => {
+          await this.contracts.OVM_StateManager.smodify.put({
             accounts: {
               [this.contracts.Helper_TestRunner.address]: {
                 nonce: 0,
@@ -133,11 +133,11 @@ export class ExecutionManagerTestRunner {
           })
         })
 
-        beforeEach(() => {
-          this.contracts.OVM_ExecutionManager.smodify.set(
+        beforeEach(async () => {
+          await this.contracts.OVM_ExecutionManager.smodify.put(
             replacedTest.preState.ExecutionManager
           )
-          this.contracts.OVM_StateManager.smodify.set(
+          await this.contracts.OVM_StateManager.smodify.put(
             replacedTest.preState.StateManager
           )
         })

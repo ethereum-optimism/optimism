@@ -212,7 +212,7 @@ describe('OVM_BondManager', () => {
         // smodify the canClaim value to true to test claiming
         const block = await provider.getBlock('latest')
         timestamp = block.timestamp
-        bondManager.smodify.set({
+        await bondManager.smodify.put({
           witnessProviders: {
             [preStateRoot]: {
               canClaim: true,
