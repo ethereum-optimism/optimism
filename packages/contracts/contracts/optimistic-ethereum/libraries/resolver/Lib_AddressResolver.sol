@@ -9,9 +9,9 @@ import { Lib_AddressManager } from "./Lib_AddressManager.sol";
  */
 abstract contract Lib_AddressResolver {
 
-    /*******************************************
-     * Contract Variables: Contract References *
-     *******************************************/
+    /*************
+     * Variables *
+     *************/
 
     Lib_AddressManager public libAddressManager;
 
@@ -25,7 +25,7 @@ abstract contract Lib_AddressResolver {
      */
     constructor(
         address _libAddressManager
-    )  {
+    ) {
         libAddressManager = Lib_AddressManager(_libAddressManager);
     }
 
@@ -34,13 +34,18 @@ abstract contract Lib_AddressResolver {
      * Public Functions *
      ********************/
 
+    /**
+     * Resolves the address associated with a given name.
+     * @param _name Name to resolve an address for.
+     * @return Address associated with the given name.
+     */
     function resolve(
         string memory _name
     )
         public
         view
         returns (
-            address _contract
+            address
         )
     {
         return libAddressManager.getAddress(_name);
