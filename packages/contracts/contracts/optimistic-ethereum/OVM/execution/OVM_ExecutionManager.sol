@@ -67,6 +67,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     uint256 constant NUISANCE_GAS_PER_CONTRACT_BYTE = 100;
     uint256 constant MIN_GAS_FOR_INVALID_STATE_ACCESS = 30000;
 
+    /**************************
+     * Default Context Values *
+     **************************/
+
+    uint256 constant DEFAULT_UINT256 = 0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
+    address constant DEFAULT_ADDRESS = 0xdEfa017defA017DeFA017DEfa017DeFA017DeFa0;
 
     /***************
      * Constructor *
@@ -159,7 +165,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
     {
-        require(transactionContext.ovmNUMBER == 0, "Only callable at the start of a transaction");
+        // Make sure that run() is not re-enterable.  This condition should awlways be satisfied
+        // Once run has been called once, due to the behvaior of _isValidInput().
+        if (transactionContext.ovmNUMBER != DEFAULT_UINT256) {
+            return;
+        }
+
         // Store our OVM_StateManager instance (significantly easier than attempting to pass the
         // address around in calldata).
         ovmStateManager = iOVM_StateManager(_ovmStateManager);
@@ -183,7 +194,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Make sure the transaction's gas limit is valid. We don't revert here because we reserve
         // reverts for INVALID_STATE_ACCESS.
-        if (_isValidGasLimit(_transaction.gasLimit, _transaction.l1QueueOrigin) == false) {
+        if (_isValidInput(_transaction) == false) {
             _resetContext();
             return;
         }
@@ -1627,6 +1638,37 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
+     * Validates the input values of a transaction.
+     * @return _valid Whether or not the transaction data is valid.
+     */
+    function _isValidInput(
+        Lib_OVMCodec.Transaction memory _transaction
+    )
+        view
+        internal
+        returns (
+            bool
+        )
+    {
+        // Prevent reentrancy to run():
+        // This check prevents calling run with the default ovmNumber.
+        // Combined with the first check in run():
+        //      if (transactionContext.ovmNUMBER != DEFAULT_UINT256) { return; }
+        // It should be impossible to re-enter since run() returns before any other call frames are created.
+        // Since this value is already being written to storage, we save much gas compared to
+        // using the standard nonReentrant pattern.
+        if (_transaction.blockNumber == DEFAULT_UINT256)  {
+            return false;
+        }
+
+        if (_isValidGasLimit(_transaction.gasLimit, _transaction.l1QueueOrigin) == false) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Validates the gas limit for a given transaction.
      * @param _gasLimit Gas limit provided by the transaction.
      * param _queueOrigin Queue from which the transaction originated.
@@ -1796,20 +1838,20 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     function _resetContext()
         internal
     {
-        transactionContext.ovmL1TXORIGIN = address(0);
-        transactionContext.ovmTIMESTAMP = 0;
-        transactionContext.ovmNUMBER = 0;
-        transactionContext.ovmGASLIMIT = 0;
-        transactionContext.ovmTXGASLIMIT = 0;
+        transactionContext.ovmL1TXORIGIN = DEFAULT_ADDRESS;
+        transactionContext.ovmTIMESTAMP = DEFAULT_UINT256;
+        transactionContext.ovmNUMBER = DEFAULT_UINT256;
+        transactionContext.ovmGASLIMIT = DEFAULT_UINT256;
+        transactionContext.ovmTXGASLIMIT = DEFAULT_UINT256;
         transactionContext.ovmL1QUEUEORIGIN = Lib_OVMCodec.QueueOrigin.SEQUENCER_QUEUE;
 
-        transactionRecord.ovmGasRefund = 0;
+        transactionRecord.ovmGasRefund = DEFAULT_UINT256;
 
-        messageContext.ovmCALLER = address(0);
-        messageContext.ovmADDRESS = address(0);
+        messageContext.ovmCALLER = DEFAULT_ADDRESS;
+        messageContext.ovmADDRESS = DEFAULT_ADDRESS;
         messageContext.isStatic = false;
 
-        messageRecord.nuisanceGasLeft = 0;
+        messageRecord.nuisanceGasLeft = DEFAULT_UINT256;
 
         // Reset the ovmStateManager.
         ovmStateManager = iOVM_StateManager(address(0));
