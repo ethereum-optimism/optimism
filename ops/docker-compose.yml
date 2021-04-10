@@ -106,3 +106,5 @@ services:
         # a funded hardhat account
         L1_WALLET_KEY: "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97"
         RETRIES: 60
+        POLLING_INTERVAL: 500
+        GET_LOGS_INTERVAL: 500

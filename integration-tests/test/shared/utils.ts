@@ -20,11 +20,13 @@ const l1HttpPort = 9545
 export const l1Provider = new providers.JsonRpcProvider(
   `http://localhost:${l1HttpPort}`
 )
+l1Provider.pollingInterval = 10
 
 const httpPort = 8545
 export const l2Provider = new providers.JsonRpcProvider(
   `http://localhost:${httpPort}`
 )
+l2Provider.pollingInterval = 10
 
 // The sequencer private key which is funded on L1
 export const l1Wallet = new Wallet(
