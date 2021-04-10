@@ -1,7 +1,6 @@
-import { ethers } from 'hardhat'
 import { Wallet, BigNumber } from 'ethers'
 import chai, { expect } from 'chai'
-import { sleep } from './shared/utils'
+import { sleep, l1Provider, l2Provider, GWEI } from './shared/utils'
 import { injectL2Context } from './shared/l2provider'
 import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
@@ -15,7 +14,7 @@ describe('Basic RPC tests', () => {
     value: 0,
   }
 
-  const provider = injectL2Context(ethers.provider)
+  const provider = injectL2Context(l2Provider)
   const wallet = Wallet.createRandom().connect(provider)
 
   describe('eth_sendRawTransaction', () => {
@@ -115,25 +114,25 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_gasPrice', () => {
-    it('gas price should be 0', async () => {
-      const expected = 0
-      const price = await provider.getGasPrice()
-
-      expect(price.toNumber()).to.equal(expected)
+    it('gas price should be 1 gwei', async () => {
+      expect(await provider.getGasPrice()).to.be.deep.equal(GWEI)
     })
   })
 
-  describe('eth_estimateGas', () => {
-    it('should return a gas estimate', async () => {
+  describe('eth_estimateGas (returns the fee)', () => {
+    it('should return a gas estimate that grows with the size of data', async () => {
+      const dataLen = [0, 2, 8, 64, 256]
+
+      let last = BigNumber.from(0)
       // Repeat this test for a series of possible transaction sizes.
-      for (const size of [0, 2, 8, 64, 256]) {
-        const estimate = await provider.estimateGas({
+      for (const len of dataLen) {
+        const estimate = await l2Provider.estimateGas({
           ...DEFAULT_TRANSACTION,
-          data: '0x' + '00'.repeat(size),
+          data: '0x' + '00'.repeat(len),
         })
 
-        // Ths gas estimation is set to always be the max gas limit - 1.
-        expect(estimate.toNumber()).to.be.eq(8999999)
+        expect(estimate.gt(last)).to.be.true
+        last = estimate
       }
     })
   })

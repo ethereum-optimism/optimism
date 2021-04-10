@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -147,6 +148,37 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 
 	if !reflect.DeepEqual(tx, confirmed) {
 		t.Fatal("different txs")
+	}
+}
+
+func TestSyncServiceL1GasPrice(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	setupMockClient(service, map[string]interface{}{})
+	service.L1gpo = gasprice.NewL1Oracle(big.NewInt(0))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gasBefore, err := service.L1gpo.SuggestDataPrice(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gasBefore.Cmp(big.NewInt(0)) != 0 {
+		t.Fatal("expected 0 gas price, got", gasBefore)
+	}
+
+	// run 1 iteration of the eloop
+	service.sequence()
+
+	gasAfter, err := service.L1gpo.SuggestDataPrice(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gasAfter.Cmp(big.NewInt(100*int64(params.GWei))) != 0 {
+		t.Fatal("expected 100 gas price, got", gasAfter)
 	}
 }
 
@@ -314,6 +346,7 @@ type mockClient struct {
 func setupMockClient(service *SyncService, responses map[string]interface{}) {
 	client := newMockClient(responses)
 	service.client = client
+	service.L1gpo = gasprice.NewL1Oracle(big.NewInt(0))
 }
 
 func newMockClient(responses map[string]interface{}) *mockClient {
@@ -399,4 +432,8 @@ func (m *mockClient) SyncStatus() (*SyncStatus, error) {
 	return &SyncStatus{
 		Syncing: false,
 	}, nil
+}
+
+func (m *mockClient) GetL1GasPrice() (*big.Int, error) {
+	return big.NewInt(100 * int64(params.GWei)), nil
 }

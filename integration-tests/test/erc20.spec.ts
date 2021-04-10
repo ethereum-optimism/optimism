@@ -1,6 +1,8 @@
 import { Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { expect } from 'chai'
+import { GWEI } from './shared/utils'
+import { OptimismEnv } from './shared/env'
 
 describe('Basic ERC20 interactions', async () => {
   const initialAmount = 1000
@@ -14,7 +16,8 @@ describe('Basic ERC20 interactions', async () => {
   let ERC20: Contract
 
   before(async () => {
-    wallet = Wallet.createRandom().connect(ethers.provider)
+    const env = await OptimismEnv.new()
+    wallet = env.l2Wallet
     other = Wallet.createRandom().connect(ethers.provider)
     Factory__ERC20 = await ethers.getContractFactory('ERC20', wallet)
   })
@@ -57,10 +60,16 @@ describe('Basic ERC20 interactions', async () => {
     const transfer = await ERC20.transfer(other.address, 100)
     const receipt = await transfer.wait()
 
+    // The expected fee paid is the value returned by eth_estimateGas gas multiplied
+    // by 1 gwei, since that's the value eth_gasPrice always returns
+    const expectedFeePaid = (
+      await ERC20.estimateGas.transfer(other.address, 100)
+    ).mul(GWEI)
+
     // There are two events from the transfer with the first being
-    // the fee of value 0 and the second of the value transfered (100)
+    // the ETH fee paid and the second of the value transfered (100)
     expect(receipt.events.length).to.equal(2)
-    expect(receipt.events[0].args._value.toNumber()).to.equal(0)
+    expect(receipt.events[0].args._value).to.deep.equal(expectedFeePaid)
     expect(receipt.events[1].args._from).to.equal(wallet.address)
     expect(receipt.events[1].args._value.toNumber()).to.equal(100)
 

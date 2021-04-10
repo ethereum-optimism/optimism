@@ -809,7 +809,7 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		if !vm.UsingOVM {
 			msg, _ = tx.AsMessage(signer)
 		} else {
-			msg, err = core.AsOvmMessage(tx, signer, common.HexToAddress("0x4200000000000000000000000000000000000005"))
+			msg, err = core.AsOvmMessage(tx, signer, common.HexToAddress("0x4200000000000000000000000000000000000005"), block.Header().GasLimit)
 			if err != nil {
 				return nil, vm.Context{}, nil, err
 			}

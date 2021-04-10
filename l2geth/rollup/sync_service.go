@@ -19,6 +19,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
 // OVMContext represents the blocknumber and timestamp
@@ -42,6 +44,7 @@ type SyncService struct {
 	eth1ChainId               uint64
 	bc                        *core.BlockChain
 	txpool                    *core.TxPool
+	L1gpo                     *gasprice.L1Oracle
 	client                    RollupClient
 	syncing                   atomic.Value
 	OVMContext                OVMContext
@@ -357,6 +360,14 @@ func (s *SyncService) SequencerLoop() {
 }
 
 func (s *SyncService) sequence() error {
+	// Update to the latest L1 gas price
+	l1GasPrice, err := s.client.GetL1GasPrice()
+	if err != nil {
+		return err
+	}
+	s.L1gpo.SetL1GasPrice(l1GasPrice)
+	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
+
 	// Only the sequencer needs to poll for enqueue transactions
 	// and then can choose when to apply them. We choose to apply
 	// transactions such that it makes for efficient batch submitting.
@@ -441,6 +452,7 @@ func (s *SyncService) updateContext() error {
 	if err != nil {
 		return err
 	}
+
 	current := time.Unix(int64(s.GetLatestL1Timestamp()), 0)
 	next := time.Unix(int64(context.Timestamp), 0)
 	if next.Sub(current) > s.timestampRefreshThreshold {
@@ -598,6 +610,10 @@ func (s *SyncService) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Sub
 // inspecting the local database. This is mean to prevent transactions from
 // being replayed.
 func (s *SyncService) maybeApplyTransaction(tx *types.Transaction) error {
+	if tx == nil {
+		return fmt.Errorf("nil transaction passed to maybeApplyTransaction")
+	}
+
 	log.Debug("Maybe applying transaction", "hash", tx.Hash().Hex())
 	index := tx.GetMeta().Index
 	if index == nil {
@@ -642,6 +658,10 @@ func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 // queue origin sequencer transactions, as the contracts on L1 manage the same
 // validity checks that are done here.
 func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
+	if tx == nil {
+		return fmt.Errorf("nil transaction passed to ApplyTransaction")
+	}
+
 	log.Debug("Sending transaction to sync service", "hash", tx.Hash().Hex())
 	s.txLock.Lock()
 	defer s.txLock.Unlock()
@@ -658,6 +678,13 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 	err := s.txpool.ValidateTx(tx)
 	if err != nil {
 		return fmt.Errorf("invalid transaction: %w", err)
+	}
+
+	if tx.L1Timestamp() == 0 {
+		ts := s.GetLatestL1Timestamp()
+		bn := s.GetLatestL1BlockNumber()
+		tx.SetL1Timestamp(ts)
+		tx.SetL1BlockNumber(bn)
 	}
 
 	// Set the raw transaction data in the meta

@@ -1,11 +1,11 @@
 /* Imports: Internal */
-import { getContractFactory } from '@eth-optimism/contracts'
 import { injectL2Context } from './shared/l2provider'
+import { sleep } from './shared/utils'
+import { OptimismEnv } from './shared/env'
 
 /* Imports: External */
-import { Contract, Signer, Wallet, providers } from 'ethers'
+import { providers } from 'ethers'
 import { expect } from 'chai'
-import { sleep } from './shared/utils'
 
 // This test ensures that the transactions which get `enqueue`d get
 // added to the L2 blocks by the Sync Service (which queries the DTL)
@@ -14,36 +14,13 @@ describe('Queue Ingestion', () => {
   const numTxs = 5
   let startBlock: number
   let endBlock: number
-
-  let l1Signer: Signer
+  let env: OptimismEnv
   let l2Provider: providers.JsonRpcProvider
-
-  let addressResolver: Contract
-  let canonicalTransactionChain: Contract
-
   const receipts = []
+
   before(async () => {
-    const httpPort = 8545
-    const l1HttpPort = 9545
-    l2Provider = injectL2Context(
-      new providers.JsonRpcProvider(`http://localhost:${httpPort}`)
-    )
-    l1Signer = new Wallet(
-      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
-      new providers.JsonRpcProvider(`http://localhost:${l1HttpPort}`)
-    )
-
-    const addressResolverAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
-    addressResolver = getContractFactory('Lib_AddressManager')
-      .connect(l1Signer)
-      .attach(addressResolverAddress)
-
-    const ctcAddress = await addressResolver.getAddress(
-      'OVM_CanonicalTransactionChain'
-    )
-    canonicalTransactionChain = getContractFactory(
-      'OVM_CanonicalTransactionChain'
-    ).attach(ctcAddress)
+    env = await OptimismEnv.new()
+    l2Provider = injectL2Context(env.l2Wallet.provider as any)
   })
 
   // The transactions are enqueue'd with a `to` address of i.repeat(40)
@@ -61,14 +38,11 @@ describe('Queue Ingestion', () => {
     // the transaction to Layer 1
     for (let i = 0; i < numTxs; i++) {
       const input = ['0x' + `${i}`.repeat(40), 500_000, `0x0${i}`]
-      const calldata = canonicalTransactionChain.interface.encodeFunctionData(
-        'enqueue',
-        input
-      )
+      const calldata = env.ctc.interface.encodeFunctionData('enqueue', input)
 
-      const txResponse = await l1Signer.sendTransaction({
+      const txResponse = await env.l1Wallet.sendTransaction({
         data: calldata,
-        to: canonicalTransactionChain.address,
+        to: env.ctc.address,
       })
 
       const receipt = await txResponse.wait()
@@ -97,7 +71,7 @@ describe('Queue Ingestion', () => {
       )
     }
 
-    const from = await l1Signer.getAddress()
+    const from = await env.l1Wallet.getAddress()
     // Keep track of an index into the receipts list and
     // increment it for each block fetched.
     let receiptIndex = 0

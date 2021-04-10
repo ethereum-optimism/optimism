@@ -2,15 +2,14 @@ import { expect } from 'chai'
 import { ethers } from 'hardhat'
 
 /* Imports: External */
-import { Contract, Wallet, providers } from 'ethers'
+import { Contract, Wallet } from 'ethers'
+import { OptimismEnv } from './shared/env'
 
 describe('Reading events from proxy contracts', () => {
-  let l2Provider: providers.JsonRpcProvider
   let l2Wallet: Wallet
   before(async () => {
-    const httpPort = 8545
-    l2Provider = new providers.JsonRpcProvider(`http://localhost:${httpPort}`)
-    l2Wallet = Wallet.createRandom().connect(l2Provider)
+    const env = await OptimismEnv.new()
+    l2Wallet = env.l2Wallet
   })
 
   // helper to query the transfers

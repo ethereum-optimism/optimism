@@ -1,52 +1,27 @@
 import { expect } from 'chai'
-import { BigNumber, Contract, Wallet, constants, providers } from 'ethers'
-import {
-  getContractInterface,
-  getContractFactory,
-} from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
+import { Wallet, utils, BigNumber } from 'ethers'
+import { Direction } from './shared/watcher-utils'
 
-import {
-  Direction,
-  initWatcher,
-  waitForXDomainTransaction,
-} from './shared/watcher-utils'
-
-import {
-  l1Provider,
-  l2Provider,
-  l1Wallet,
-  l2Wallet,
-  getGateway,
-  getAddressManager,
-  getOvmEth,
-  PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
-} from './shared/utils'
+import { PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
+import { OptimismEnv } from './shared/env'
 
 describe('Native ETH Integration Tests', async () => {
-  let OVM_L1ETHGateway: Contract
-  let OVM_ETH: Contract
+  let env: OptimismEnv
+  let l1Bob: Wallet
+  let l2Bob: Wallet
 
-  let AddressManager: Contract
-  let watcher: Watcher
+  const getBalances = async (_env: OptimismEnv) => {
+    const l1UserBalance = await _env.l1Wallet.getBalance()
+    const l2UserBalance = await _env.l2Wallet.getBalance()
 
-  const BOB_PRIV_KEY =
-    '0x1234123412341234123412341234123412341234123412341234123412341234'
-  const l1bob = new Wallet(BOB_PRIV_KEY, l1Provider)
-  const l2bob = new Wallet(BOB_PRIV_KEY, l2Provider)
+    const l1BobBalance = await l1Bob.getBalance()
+    const l2BobBalance = await l2Bob.getBalance()
 
-  const getBalances = async () => {
-    const l1UserBalance = await l1Wallet.getBalance()
-    const l2UserBalance = await l2Wallet.getBalance()
-
-    const l1BobBalance = await l1bob.getBalance()
-    const l2BobBalance = await l2bob.getBalance()
-
-    const sequencerBalance = await OVM_ETH.balanceOf(
+    const sequencerBalance = await _env.ovmEth.balanceOf(
       PROXY_SEQUENCER_ENTRYPOINT_ADDRESS
     )
-    const l1GatewayBalance = await l1Provider.getBalance(
-      OVM_L1ETHGateway.address
+    const l1GatewayBalance = await _env.l1Wallet.provider.getBalance(
+      _env.gateway.address
     )
 
     return {
@@ -60,25 +35,21 @@ describe('Native ETH Integration Tests', async () => {
   }
 
   before(async () => {
-    AddressManager = getAddressManager(l1Wallet)
-    OVM_L1ETHGateway = await getGateway(l1Wallet, AddressManager)
-    OVM_ETH = getOvmEth(l2Wallet)
-    watcher = await initWatcher(l1Provider, l2Provider, AddressManager)
+    env = await OptimismEnv.new()
+    l1Bob = Wallet.createRandom().connect(env.l1Wallet.provider)
+    l2Bob = l1Bob.connect(env.l2Wallet.provider)
   })
 
   it('deposit', async () => {
     const depositAmount = 10
-    const preBalances = await getBalances()
-    const { tx, receipt } = await waitForXDomainTransaction(
-      watcher,
-      OVM_L1ETHGateway.deposit({
-        value: depositAmount,
-      }),
+    const preBalances = await getBalances(env)
+    const { tx, receipt } = await env.waitForXDomainTransaction(
+      env.gateway.deposit({ value: depositAmount }),
       Direction.L1ToL2
     )
 
     const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
-    const postBalances = await getBalances()
+    const postBalances = await getBalances(env)
 
     expect(postBalances.l1GatewayBalance).to.deep.eq(
       preBalances.l1GatewayBalance.add(depositAmount)
@@ -93,10 +64,9 @@ describe('Native ETH Integration Tests', async () => {
 
   it('depositTo', async () => {
     const depositAmount = 10
-    const preBalances = await getBalances()
-    const depositReceipts = await waitForXDomainTransaction(
-      watcher,
-      OVM_L1ETHGateway.depositTo(l2bob.address, {
+    const preBalances = await getBalances(env)
+    const depositReceipts = await env.waitForXDomainTransaction(
+      env.gateway.depositTo(l2Bob.address, {
         value: depositAmount,
       }),
       Direction.L1ToL2
@@ -105,7 +75,7 @@ describe('Native ETH Integration Tests', async () => {
     const l1FeePaid = depositReceipts.receipt.gasUsed.mul(
       depositReceipts.tx.gasPrice
     )
-    const postBalances = await getBalances()
+    const postBalances = await getBalances(env)
     expect(postBalances.l1GatewayBalance).to.deep.eq(
       preBalances.l1GatewayBalance.add(depositAmount)
     )
@@ -118,26 +88,26 @@ describe('Native ETH Integration Tests', async () => {
   })
 
   it('withdraw', async () => {
-    const withdrawAmount = 3
-    const preBalances = await getBalances()
+    const withdrawAmount = BigNumber.from(3)
+    const preBalances = await getBalances(env)
     expect(
       preBalances.l2UserBalance.gt(0),
       'Cannot run withdrawal test before any deposits...'
     )
 
-    await waitForXDomainTransaction(
-      watcher,
-      OVM_ETH.withdraw(withdrawAmount),
+    const receipts = await env.waitForXDomainTransaction(
+      env.ovmEth.withdraw(withdrawAmount),
       Direction.L2ToL1
     )
+    const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
 
-    const postBalances = await getBalances()
+    const postBalances = await getBalances(env)
 
     expect(postBalances.l1GatewayBalance).to.deep.eq(
       preBalances.l1GatewayBalance.sub(withdrawAmount)
     )
     expect(postBalances.l2UserBalance).to.deep.eq(
-      preBalances.l2UserBalance.sub(withdrawAmount)
+      preBalances.l2UserBalance.sub(withdrawAmount.add(fee))
     )
     expect(postBalances.l1UserBalance).to.deep.eq(
       preBalances.l1UserBalance.add(withdrawAmount)
@@ -145,28 +115,28 @@ describe('Native ETH Integration Tests', async () => {
   })
 
   it('withdrawTo', async () => {
-    const withdrawAmount = 3
+    const withdrawAmount = BigNumber.from(3)
 
-    const preBalances = await getBalances()
+    const preBalances = await getBalances(env)
 
     expect(
       preBalances.l2UserBalance.gt(0),
       'Cannot run withdrawal test before any deposits...'
     )
 
-    await waitForXDomainTransaction(
-      watcher,
-      OVM_ETH.withdrawTo(l1bob.address, withdrawAmount),
+    const receipts = await env.waitForXDomainTransaction(
+      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount),
       Direction.L2ToL1
     )
+    const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
 
-    const postBalances = await getBalances()
+    const postBalances = await getBalances(env)
 
     expect(postBalances.l1GatewayBalance).to.deep.eq(
       preBalances.l1GatewayBalance.sub(withdrawAmount)
     )
     expect(postBalances.l2UserBalance).to.deep.eq(
-      preBalances.l2UserBalance.sub(withdrawAmount)
+      preBalances.l2UserBalance.sub(withdrawAmount.add(fee))
     )
     expect(postBalances.l1BobBalance).to.deep.eq(
       preBalances.l1BobBalance.add(withdrawAmount)
@@ -174,29 +144,38 @@ describe('Native ETH Integration Tests', async () => {
   })
 
   it('deposit, transfer, withdraw', async () => {
-    const roundTripAmount = 3
-    const preBalances = await getBalances()
-
-    await waitForXDomainTransaction(
-      watcher,
-      OVM_L1ETHGateway.deposit({
-        value: roundTripAmount,
+    // 1. deposit
+    const amount = utils.parseEther('1')
+    await env.waitForXDomainTransaction(
+      env.gateway.deposit({
+        value: amount,
       }),
       Direction.L1ToL2
     )
 
-    await OVM_ETH.transfer(l2bob.address, roundTripAmount)
+    // 2. trnsfer to another address
+    const other = Wallet.createRandom().connect(env.l2Wallet.provider)
+    const tx = await env.ovmEth.transfer(other.address, amount)
+    await tx.wait()
 
-    await waitForXDomainTransaction(
-      watcher,
-      OVM_ETH.connect(l2bob).withdraw(roundTripAmount),
+    const l1BalanceBefore = await other
+      .connect(env.l1Wallet.provider)
+      .getBalance()
+
+    // 3. do withdrawal
+    const withdrawnAmount = utils.parseEther('0.95')
+    const receipts = await env.waitForXDomainTransaction(
+      env.ovmEth.connect(other).withdraw(withdrawnAmount),
       Direction.L2ToL1
     )
 
-    const postBalances = await getBalances()
-
-    expect(postBalances.l1BobBalance).to.deep.eq(
-      preBalances.l1BobBalance.add(roundTripAmount)
-    )
+    // check that correct amount was withdrawn and that fee was charged
+    const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
+    const l1BalanceAfter = await other
+      .connect(env.l1Wallet.provider)
+      .getBalance()
+    const l2BalanceAfter = await other.getBalance()
+    expect(l1BalanceAfter).to.deep.eq(l1BalanceBefore.add(withdrawnAmount))
+    expect(l2BalanceAfter).to.deep.eq(amount.sub(withdrawnAmount).sub(fee))
   })
 })

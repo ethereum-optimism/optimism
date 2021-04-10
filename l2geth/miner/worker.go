@@ -863,22 +863,25 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	tstart := time.Now()
 
 	parent := w.chain.CurrentBlock()
-	// The L1Timestamp will always be set for a transaction
-	// coming from a batch submission because the transaction
-	// has been included in the canonical transaction chain.
-	// The only time that L1Timestamp is zero is for queue
-	// origin sequencer transactions that have yet to be included
-	// in the canonical transaction chain, meaning this code
-	// path is only relevant for the sequencer.
-	if tx.L1Timestamp() == 0 {
-		ts := w.eth.SyncService().GetLatestL1Timestamp()
-		bn := w.eth.SyncService().GetLatestL1BlockNumber()
-		tx.SetL1Timestamp(ts)
-		tx.SetL1BlockNumber(bn)
-	}
 	timestamp := tx.L1Timestamp()
-
 	num := parent.Number()
+
+	// Preserve liveliness as best as possible. Must panic on L1 to L2
+	// transactions as the timestamp cannot be malleated
+	if parent.Time() > timestamp {
+		log.Error("Monotonicity violation", "index", num)
+		if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginSequencer) {
+			tx.SetL1Timestamp(parent.Time())
+			prev := parent.Transactions()
+			if len(prev) != 1 {
+				panic("Cannot recover L1BlockNumber")
+			}
+			tx.SetL1BlockNumber(prev[0].L1BlockNumber().Uint64())
+		} else {
+			panic("Monotonicity violation")
+		}
+	}
+
 	// Fill in the index field in the tx meta if it is `nil`.
 	// This should only ever happen in the case of the sequencer
 	// receiving a queue origin sequencer transaction. The verifier

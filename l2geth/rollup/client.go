@@ -42,6 +42,10 @@ type SyncStatus struct {
 	CurrentTransactionIndex      uint64 `json:"currentTransactionIndex"`
 }
 
+type L1GasPrice struct {
+	GasPrice string `json:"gasPrice"`
+}
+
 type transaction struct {
 	Index       uint64          `json:"index"`
 	BatchIndex  uint64          `json:"batchIndex"`
@@ -92,6 +96,7 @@ type RollupClient interface {
 	GetLatestEthContext() (*EthContext, error)
 	GetLastConfirmedEnqueue() (*types.Transaction, error)
 	SyncStatus() (*SyncStatus, error)
+	GetL1GasPrice() (*big.Int, error)
 }
 
 type Client struct {
@@ -438,4 +443,26 @@ func (c *Client) SyncStatus() (*SyncStatus, error) {
 	}
 
 	return status, nil
+}
+
+func (c *Client) GetL1GasPrice() (*big.Int, error) {
+	response, err := c.client.R().
+		SetResult(&L1GasPrice{}).
+		Get("/eth/gasprice")
+
+	if err != nil {
+		return nil, fmt.Errorf("Cannot fetch L1 gas price: %w", err)
+	}
+
+	gasPriceResp, ok := response.Result().(*L1GasPrice)
+	if !ok {
+		return nil, fmt.Errorf("Cannot parse L1 gas price response")
+	}
+
+	gasPrice, ok := new(big.Int).SetString(gasPriceResp.GasPrice, 10)
+	if !ok {
+		return nil, fmt.Errorf("Cannot parse response as big number")
+	}
+
+	return gasPrice, nil
 }

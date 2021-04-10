@@ -879,6 +879,12 @@ var (
 		Value:  eth.DefaultConfig.Rollup.MaxCallDataSize,
 		EnvVar: "ROLLUP_MAX_CALLDATA_SIZE",
 	}
+	RollupL1GasPriceFlag = BigFlag{
+		Name:   "rollup.l1gasprice",
+		Usage:  "The L1 gas price to use for the sequencer fees",
+		Value:  eth.DefaultConfig.Rollup.L1GasPrice,
+		EnvVar: "ROLLUP_L1_GASPRICE",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1151,6 +1157,9 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupTimstampRefreshFlag.Name) {
 		cfg.TimestampRefreshThreshold = ctx.GlobalDuration(RollupTimstampRefreshFlag.Name)
+	}
+	if ctx.GlobalIsSet(RollupL1GasPriceFlag.Name) {
+		cfg.L1GasPrice = GlobalBig(ctx, RollupL1GasPriceFlag.Name)
 	}
 }
 

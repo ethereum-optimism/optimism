@@ -13,6 +13,8 @@ import {
 } from 'ethers'
 import { Direction, waitForXDomainTransaction } from './watcher-utils'
 
+export const GWEI = BigNumber.from(1e9)
+
 // The hardhat instance
 const l1HttpPort = 9545
 export const l1Provider = new providers.JsonRpcProvider(
