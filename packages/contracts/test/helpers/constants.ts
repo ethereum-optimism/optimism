@@ -4,6 +4,9 @@ import { defaultAccounts } from 'ethereum-waffle'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import xor from 'buffer-xor'
 
+/* Internal Imports */
+import { getContractDefinition } from '../../src'
+
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_HARDHAT = defaultAccounts.map((account) => {
   return {
@@ -35,8 +38,17 @@ export const NUISANCE_GAS_COSTS = {
   MIN_GAS_FOR_INVALID_STATE_ACCESS: 30000,
 }
 
-// TODO: get this exported/imported somehow in a way that we can do math on it.  unfortunately using require('.....artifacts/contract.json') is erroring...
-export const Helper_TestRunner_BYTELEN = 3654
+let len
+// This is hacky, but `hardhat compile` evaluates this file for some reason.
+// Feels better to have something hacky then a constant we have to keep re-hardcoding.
+try {
+  len = fromHexString(
+    getContractDefinition('Helper_TestRunner').deployedBytecode
+  ).byteLength
+  /* tslint:disable:no-empty */
+} catch {}
+
+export const Helper_TestRunner_BYTELEN = len
 
 export const STORAGE_XOR =
   '0xfeedfacecafebeeffeedfacecafebeeffeedfacecafebeeffeedfacecafebeef'

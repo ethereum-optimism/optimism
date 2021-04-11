@@ -3,9 +3,8 @@ import hre from 'hardhat'
 import { fromHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { ModifiableContract, ModifiableContractFactory, Smodify } from './types'
+import { ModifiableContract, ModifiableContractFactory } from './types'
 import { getStorageLayout, getStorageSlots } from './storage'
-import { bindSmod } from './binding'
 import { toHexString32 } from '../utils'
 import { findBaseHardhatProvider } from '../common'
 
@@ -43,24 +42,19 @@ export const smoddit = async (
     const contract: ModifiableContract = await originalDeployFn(...args)
     contract._smodded = {}
 
-    const put = (storage: any) => {
+    const put = async (storage: any) => {
       if (!storage) {
         return
       }
 
       const slots = getStorageSlots(layout, storage)
       for (const slot of slots) {
-        contract._smodded[slot.hash.toLowerCase()] = slot.value
+        await pStateManager.putContractStorage(
+          fromHexString(contract.address),
+          fromHexString(slot.hash.toLowerCase()),
+          fromHexString(slot.value)
+        )
       }
-    }
-
-    const reset = () => {
-      contract._smodded = {}
-    }
-
-    const set = (storage: any) => {
-      contract.smodify.reset()
-      contract.smodify.put(storage)
     }
 
     const check = async (storage: any) => {
@@ -69,26 +63,27 @@ export const smoddit = async (
       }
 
       const slots = getStorageSlots(layout, storage)
-      return slots.every(async (slot) => {
-        return (
+      for (const slot of slots) {
+        if (
           toHexString32(
             await pStateManager.getContractStorage(
               fromHexString(contract.address),
               fromHexString(slot.hash.toLowerCase())
             )
-          ) === slot.value
-        )
-      })
+          ) !== slot.value
+        ) {
+          return false
+        }
+      }
+
+      return true
     }
 
     contract.smodify = {
       put,
-      reset,
-      set,
       check,
     }
 
-    bindSmod(contract, provider)
     return contract
   }
 

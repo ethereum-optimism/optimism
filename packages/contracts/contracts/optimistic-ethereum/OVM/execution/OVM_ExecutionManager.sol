@@ -67,6 +67,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     uint256 constant NUISANCE_GAS_PER_CONTRACT_BYTE = 100;
     uint256 constant MIN_GAS_FOR_INVALID_STATE_ACCESS = 30000;
 
+    /**************************
+     * Default Context Values *
+     **************************/
+
+    uint256 constant DEFAULT_UINT256 = 0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
+    address constant DEFAULT_ADDRESS = 0xdEfa017defA017DeFA017DEfa017DeFA017DeFa0;
 
     /***************
      * Constructor *
@@ -159,7 +165,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
     {
-        require(transactionContext.ovmNUMBER == 0, "Only callable at the start of a transaction");
+        // Make sure that run() is not re-enterable.  This condition should always be satisfied
+        // Once run has been called once, due to the behavior of _isValidInput().
+        if (transactionContext.ovmNUMBER != DEFAULT_UINT256) {
+            return;
+        }
+
         // Store our OVM_StateManager instance (significantly easier than attempting to pass the
         // address around in calldata).
         ovmStateManager = iOVM_StateManager(_ovmStateManager);
@@ -183,7 +194,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Make sure the transaction's gas limit is valid. We don't revert here because we reserve
         // reverts for INVALID_STATE_ACCESS.
-        if (_isValidGasLimit(_transaction.gasLimit, _transaction.l1QueueOrigin) == false) {
+        if (_isValidInput(_transaction) == false) {
             _resetContext();
             return;
         }
@@ -952,10 +963,23 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // revert data as to retrieve execution metadata that would normally be reverted out of
         // existence.
 
-        (bool success, bytes memory returndata) =
-            _isCreate
-            ? _handleContractCreation(_gasLimit, _data, _contract)
-            : _contract.call{gas: _gasLimit}(_data);
+        bool success;
+        bytes memory returndata;
+        if (_isCreate) {
+            // safeCREATE() is a function which replicates a CREATE message, but uses return values
+            // Which match that of CALL (i.e. bool, bytes).  This allows many security checks to be
+            // to be shared between untrusted call and create call frames.
+            (success, returndata) = address(this).call(
+                abi.encodeWithSelector(
+                    this.safeCREATE.selector,
+                    _gasLimit,
+                    _data,
+                    _contract
+                )
+            );
+        } else {
+            (success, returndata) = _contract.call{gas: _gasLimit}(_data);
+        }
 
         // Switch back to the original message context now that we're out of the call.
         _switchMessageContext(_nextMessageContext, prevMessageContext);
@@ -1023,83 +1047,69 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     /**
      * Handles the creation-specific safety measures required for OVM contract deployment.
-     * This function sanitizes the return types for creation messages to match calls (bool, bytes).
+     * This function sanitizes the return types for creation messages to match calls (bool, bytes),
+     * by being an external function which the EM can call, that mimics the success/fail case of the CREATE.
      * This allows for consistent handling of both types of messages in _handleExternalMessage().
-     *
+     * Having this step occur as a separate call frame also allows us to easily revert the 
+     * contract deployment in the event that the code is unsafe.
+     * 
      * @param _gasLimit Amount of gas to be passed into this creation.
      * @param _creationCode Code to pass into CREATE for deployment.
      * @param _address OVM address being deployed to.
-     * @return Whether or not the call succeeded.
-     * @return If creation fails: revert data. Otherwise: empty.
      */
-    function _handleContractCreation(
+    function safeCREATE(
         uint _gasLimit,
         bytes memory _creationCode,
         address _address
     )
-        internal
-        returns(
-            bool,
-            bytes memory
-        )
+        external
     {
+        // The only way this should callable is from within _createContract(),
+        // and it should DEFINITELY not be callable by a non-EM code contract.
+        if (msg.sender != address(this)) {
+            return;
+        }
         // Check that there is not already code at this address.
         if (_hasEmptyAccount(_address) == false) {
             // Note: in the EVM, this case burns all allotted gas.  For improved
-            // developer experience, we do return the remaining ones.
-            return (
-                false,
-                _encodeRevertData(
-                    RevertFlag.CREATE_COLLISION,
-                    Lib_ErrorUtils.encodeRevertString("A contract has already been deployed to this address")
-                )
+            // developer experience, we do return the remaining gas.
+            _revertWithFlag(
+                RevertFlag.CREATE_COLLISION,
+                Lib_ErrorUtils.encodeRevertString("A contract has already been deployed to this address")
             );
         }
 
         // Check the creation bytecode against the OVM_SafetyChecker.
         if (ovmSafetyChecker.isBytecodeSafe(_creationCode) == false) {
-            return (
-                false,
-                _encodeRevertData(
-                    RevertFlag.UNSAFE_BYTECODE,
-                    Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?")
-                )
+            _revertWithFlag(
+                RevertFlag.UNSAFE_BYTECODE,
+                Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?")
             );
         }
 
         // We always need to initialize the contract with the default account values.
         _initPendingAccount(_address);
 
-        // Actually execute the EVM create message,
+        // Actually execute the EVM create message.
+        // NOTE: The inline assembly below means we can NOT make any evm calls between here and then.
         address ethAddress = Lib_EthUtils.createContract(_creationCode);
 
         if (ethAddress == address(0)) {
             // If the creation fails, the EVM lets us grab its revert data. This may contain a revert flag
-            // to be used above in _handleExternalMessage.
-            uint256 revertDataSize;
-            assembly { revertDataSize := returndatasize() }
-            bytes memory revertdata = new bytes(revertDataSize);
-            assembly {
-                returndatacopy(
-                    add(revertdata, 0x20),
-                    0,
-                    revertDataSize
-                )
+            // to be used above in _handleExternalMessage, so we pass the revert data back up unmodified.
+            assembly { 
+                returndatacopy(0,0,returndatasize())
+                revert(0, returndatasize())
             }
-            // Return that the creation failed, and the data it reverted with.
-            return (false, revertdata);
         }
 
         // Again simply checking that the deployed code is safe too. Contracts can generate
         // arbitrary deployment code, so there's no easy way to analyze this beforehand.
         bytes memory deployedCode = Lib_EthUtils.getCode(ethAddress);
         if (ovmSafetyChecker.isBytecodeSafe(deployedCode) == false) {
-            return (
-                false,
-                _encodeRevertData(
-                    RevertFlag.UNSAFE_BYTECODE,
-                    Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.")
-                )
+            _revertWithFlag(
+                RevertFlag.UNSAFE_BYTECODE,
+                Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.")
             );
         }
 
@@ -1110,9 +1120,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             ethAddress,
             Lib_EthUtils.getCodeHash(ethAddress)
         );
-
-        // Successful deployments will not give access to returndata, in both the EVM and the OVM.
-        return (true, hex'');
     }
 
     /******************************************
@@ -1627,6 +1634,37 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
+     * Validates the input values of a transaction.
+     * @return _valid Whether or not the transaction data is valid.
+     */
+    function _isValidInput(
+        Lib_OVMCodec.Transaction memory _transaction
+    )
+        view
+        internal
+        returns (
+            bool
+        )
+    {
+        // Prevent reentrancy to run():
+        // This check prevents calling run with the default ovmNumber.
+        // Combined with the first check in run():
+        //      if (transactionContext.ovmNUMBER != DEFAULT_UINT256) { return; }
+        // It should be impossible to re-enter since run() returns before any other call frames are created.
+        // Since this value is already being written to storage, we save much gas compared to
+        // using the standard nonReentrant pattern.
+        if (_transaction.blockNumber == DEFAULT_UINT256)  {
+            return false;
+        }
+
+        if (_isValidGasLimit(_transaction.gasLimit, _transaction.l1QueueOrigin) == false) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Validates the gas limit for a given transaction.
      * @param _gasLimit Gas limit provided by the transaction.
      * param _queueOrigin Queue from which the transaction originated.
@@ -1796,20 +1834,20 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     function _resetContext()
         internal
     {
-        transactionContext.ovmL1TXORIGIN = address(0);
-        transactionContext.ovmTIMESTAMP = 0;
-        transactionContext.ovmNUMBER = 0;
-        transactionContext.ovmGASLIMIT = 0;
-        transactionContext.ovmTXGASLIMIT = 0;
+        transactionContext.ovmL1TXORIGIN = DEFAULT_ADDRESS;
+        transactionContext.ovmTIMESTAMP = DEFAULT_UINT256;
+        transactionContext.ovmNUMBER = DEFAULT_UINT256;
+        transactionContext.ovmGASLIMIT = DEFAULT_UINT256;
+        transactionContext.ovmTXGASLIMIT = DEFAULT_UINT256;
         transactionContext.ovmL1QUEUEORIGIN = Lib_OVMCodec.QueueOrigin.SEQUENCER_QUEUE;
 
-        transactionRecord.ovmGasRefund = 0;
+        transactionRecord.ovmGasRefund = DEFAULT_UINT256;
 
-        messageContext.ovmCALLER = address(0);
-        messageContext.ovmADDRESS = address(0);
+        messageContext.ovmCALLER = DEFAULT_ADDRESS;
+        messageContext.ovmADDRESS = DEFAULT_ADDRESS;
         messageContext.isStatic = false;
 
-        messageRecord.nuisanceGasLeft = 0;
+        messageRecord.nuisanceGasLeft = DEFAULT_UINT256;
 
         // Reset the ovmStateManager.
         ovmStateManager = iOVM_StateManager(address(0));

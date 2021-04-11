@@ -51,6 +51,10 @@ abstract contract Ownable {
      * Public Functions *
      ********************/
 
+    /**
+     * Sets the owner of this contract to the zero address, effectively renouncing ownership
+     * completely. Can only be called by the current owner of this contract.
+     */
     function renounceOwnership()
         public
         virtual
@@ -60,7 +64,14 @@ abstract contract Ownable {
         owner = address(0);
     }
 
-    function transferOwnership(address _newOwner)
+    /**
+     * Transfers ownership of this contract to a new address. Can only be called by the current
+     * owner of this contract.
+     * @param _newOwner Address of the new contract owner.
+     */
+    function transferOwnership(
+        address _newOwner
+    )
         public
         virtual
         onlyOwner

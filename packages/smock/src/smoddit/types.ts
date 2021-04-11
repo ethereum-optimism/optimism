@@ -2,10 +2,8 @@
 import { Contract, ContractFactory } from 'ethers'
 
 export interface Smodify {
-  put: (storage: any) => void
-  set: (storage: any) => void
+  put: (storage: any) => Promise<void>
   check: (storage: any) => Promise<boolean>
-  reset: () => void
 }
 
 export interface Smodded {

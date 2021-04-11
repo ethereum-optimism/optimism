@@ -22,7 +22,7 @@
     "hardhat": "^2"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "0.1.10",
+    "@eth-optimism/core-utils": "^0.1.10",
     "@ethersproject/abi": "^5.0.13",
     "@ethersproject/abstract-provider": "^5.0.10",
     "bn.js": "^5.2.0"

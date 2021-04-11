@@ -36,7 +36,7 @@ describe('OVM_L1ERC20Gateway', () => {
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
 
     const aliceAddress = await alice.getAddress()
-    L1ERC20.smodify.put({
+    await L1ERC20.smodify.put({
       totalSupply: INITIAL_TOTAL_L1_SUPPLY,
       balanceOf: {
         [aliceAddress]: INITIAL_TOTAL_L1_SUPPLY,

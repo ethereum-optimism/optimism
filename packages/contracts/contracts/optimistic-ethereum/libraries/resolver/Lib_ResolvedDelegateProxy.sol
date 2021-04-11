@@ -13,7 +13,6 @@ contract Lib_ResolvedDelegateProxy {
      * Variables *
      *************/
 
-
     // Using mappings to store fields to avoid overwriting storage slots in the
     // implementation contract. For example, instead of storing these fields at
     // storage slot `0` & `1`, they are stored at `keccak256(key + slot)`.
@@ -22,8 +21,8 @@ contract Lib_ResolvedDelegateProxy {
     //      There is a known flaw in this contract, and we will remove it from the repository
     //      in the near future. Due to the very limited way that we are using it, this flaw is
     //      not an issue in our system. 
-    mapping(address=>string) private implementationName;
-    mapping(address=>Lib_AddressManager) private addressManager;
+    mapping (address => string) private implementationName;
+    mapping (address => Lib_AddressManager) private addressManager;
 
 
     /***************
@@ -52,7 +51,10 @@ contract Lib_ResolvedDelegateProxy {
         external
         payable
     {
-        address target = addressManager[address(this)].getAddress((implementationName[address(this)]));
+        address target = addressManager[address(this)].getAddress(
+            (implementationName[address(this)])
+        );
+
         require(
             target != address(0),
             "Target address must be initialized."

@@ -188,7 +188,9 @@ describe('OVM_CanonicalTransactionChain', () => {
       const data = '0x' + '12'.repeat(MAX_ROLLUP_TX_SIZE + 1)
 
       await expect(
-        OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+        OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data, {
+          gasLimit: 40000000,
+        })
       ).to.be.revertedWith(
         'Transaction data size exceeds maximum for rollup transaction.'
       )

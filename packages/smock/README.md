@@ -168,9 +168,7 @@ interface ModifiableContractFactory extends ContractFactory {
 ```typescript
 interface ModifiableContract extends Contract {
   smodify: {
-    put: (storage: any) => void
-    set: (storage: any) => void
-    reset: () => void
+    put: (storage: any) => Promise<void>
   }
 }
 ```
@@ -362,7 +360,7 @@ import { smoddit } from '@eth-optimism/smock'
 const MyModifiableContractFactory = await smoddit('MyContract')
 const MyModifiableContract = await MyModifiableContractFactory.deploy(...)
 
-MyModifiableContract.smodify.put({
+await MyModifiableContract.smodify.put({
   myInternalUint256: 1234
 })
 
@@ -378,7 +376,7 @@ import { smoddit } from '@eth-optimism/smock'
 const MyModifiableContractFactory = await smoddit('MyContract')
 const MyModifiableContract = await MyModifiableContractFactory.deploy(...)
 
-MyModifiableContract.smodify.put({
+await MyModifiableContract.smodify.put({
   myInternalStruct: {
     valueA: 1234,
     valueB: true
@@ -397,7 +395,7 @@ import { smoddit } from '@eth-optimism/smock'
 const MyModifiableContractFactory = await smoddit('MyContract')
 const MyModifiableContract = await MyModifiableContractFactory.deploy(...)
 
-MyModifiableContract.smodify.put({
+await MyModifiableContract.smodify.put({
   myInternalMapping: {
     1234: 5678
   }
@@ -415,7 +413,7 @@ import { smoddit } from '@eth-optimism/smock'
 const MyModifiableContractFactory = await smoddit('MyContract')
 const MyModifiableContract = await MyModifiableContractFactory.deploy(...)
 
-MyModifiableContract.smodify.put({
+await MyModifiableContract.smodify.put({
   myInternalNestedMapping: {
     1234: {
       4321: 5678

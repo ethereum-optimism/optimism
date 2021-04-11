@@ -63,7 +63,7 @@ const smockifyFunction = (
       return
     },
     get calls() {
-      return vm._smockState.calls[contract.address.toLowerCase()]
+      return (vm._smockState.calls[contract.address.toLowerCase()] || [])
         .map((calldataBuf: Buffer) => {
           const sighash = toHexString(calldataBuf.slice(0, 4))
           const fragment = contract.interface.getFunction(sighash)
