@@ -57,6 +57,8 @@ you can run `yarn lerna run test --parallel --since master`
 
 ### Integration Tests
 
+#### Running the integration tests
+
 The integration tests first require bringing up the Optimism stack. This is done via
 a Docker Compose network. For better performance, we also recommend enabling Docker 
 BuildKit
@@ -66,5 +68,31 @@ cd ops
 export COMPOSE_DOCKER_CLI_BUILD=1
 export DOCKER_BUILDKIT=1
 docker-compose build
-docker-compose up
+docker-compose up -d
+cd ../integration-tests
+yarn test:integration
+```
+
+#### Locally testing and re-building specific services
+
+If you want to make changes to any of the containers, you'll have to bring one down,
+rebuild it, and then bring it back up.
+
+For example, if you make a change in l2geth:
+
+```bash
+cd ops
+docker-compose stop -- l2geth
+docker-compose build -- l2geth
+docker-compose start l2geth
+```
+
+For the typescript services, you'll need to rebuild the `builder` so that the compiled
+files are re-generated, and then your service, e.g. for the batch submitter
+
+```bash
+cd ops
+docker-compose stop -- batch_submitter
+docker-compose build -- builder batch_submitter
+docker-compose start batch_submitter
 ```
