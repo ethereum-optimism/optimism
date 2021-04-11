@@ -13,6 +13,7 @@ import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
 import '@typechain/hardhat'
 import '@eth-optimism/hardhat-ovm'
+import './tasks/deploy'
 
 // Load environment variables from .env
 dotenv.config()
@@ -30,6 +31,7 @@ const config: HardhatUserConfig = {
     optimism: {
       url: 'http://127.0.0.1:8545',
       ovm: true,
+      saveDeployments: false,
     },
   },
   mocha: {
