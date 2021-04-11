@@ -69,6 +69,10 @@ export abstract class BatchSubmitter {
     }
     await this._updateChainInfo()
     await this._checkBalance()
+    this.log.info('Readying to submit next batch...', {
+      l2ChainId: this.l2ChainId,
+      batchSubmitterAddress: await this.signer.getAddress(),
+    })
 
     if (this.syncing === true) {
       this.log.info(
@@ -225,7 +229,7 @@ export abstract class BatchSubmitter {
       this.log
     )
 
-    this.log.debug('Transaction receipt:', { receipt })
+    this.log.info('Received transaction receipt', { receipt })
     this.log.info(successMessage)
     return receipt
   }

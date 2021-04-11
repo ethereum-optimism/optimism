@@ -3,7 +3,7 @@ import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from '@eth-optimism/contracts'
-import { Logger, Bytes32 } from '@eth-optimism/core-utils'
+import { Logger, Bytes32, remove0x } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '@eth-optimism/provider'
 
 /* Internal Imports */
@@ -82,6 +82,10 @@ export class StateBatchSubmitter extends BatchSubmitter {
       sccAddress === this.chainContract.address &&
       ctcAddress === this.ctcContract.address
     ) {
+      this.log.debug('Chain contract already initialized', {
+        sccAddress,
+        ctcAddress,
+      })
       return
     }
 
@@ -105,12 +109,21 @@ export class StateBatchSubmitter extends BatchSubmitter {
   }
 
   public async _getBatchStartAndEnd(): Promise<Range> {
+    this.log.info('Getting batch start and end for state batch submitter...')
     // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
     const startBlock: number =
       (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET
+    this.log.info('Retrieved start block number from SCC', {
+      startBlock,
+    })
+
     // We will submit state roots for txs which have been in the tx chain for a while.
     const totalElements: number =
       (await this.ctcContract.getTotalElements()).toNumber() + BLOCK_OFFSET
+    this.log.info('Retrieved total elements from CTC', {
+      totalElements,
+    })
+
     const endBlock: number = Math.min(
       startBlock + this.maxBatchSize,
       totalElements
@@ -142,7 +155,13 @@ export class StateBatchSubmitter extends BatchSubmitter {
       'appendStateBatch',
       [batch, startBlock]
     )
-    if (!this._shouldSubmitBatch(tx.length / 2)) {
+    const batchSizeInBytes = remove0x(tx).length / 2
+    this.log.debug('State batch generated', {
+      batchSizeInBytes,
+      tx,
+    })
+
+    if (!this._shouldSubmitBatch(batchSizeInBytes)) {
       return
     }
 
@@ -156,6 +175,13 @@ export class StateBatchSubmitter extends BatchSubmitter {
         offsetStartsAtIndex,
         { nonce, gasPrice }
       )
+      this.log.info('Submitted appendStateBatch transaction', {
+        nonce,
+        txHash: contractTx.hash,
+        contractAddr: this.chainContract.address,
+        from: contractTx.from,
+        data: contractTx.data,
+      })
       return this.signer.provider.waitForTransaction(
         contractTx.hash,
         this.numConfirmations
@@ -180,7 +206,12 @@ export class StateBatchSubmitter extends BatchSubmitter {
         const block = (await this.l2Provider.getBlockWithTransactions(
           startBlock + i
         )) as L2Block
-        if (block.transactions[0].from === this.fraudSubmissionAddress) {
+        const blockTx = block.transactions[0]
+        if (blockTx.from === this.fraudSubmissionAddress) {
+          this.log.warn('Found transaction from fraud submission address', {
+            txHash: blockTx.hash,
+            fraudSubmissionAddress: this.fraudSubmissionAddress,
+          })
           this.fraudSubmissionAddress = 'no fraud'
           return '0xbad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1bad1'
         }
@@ -193,14 +224,20 @@ export class StateBatchSubmitter extends BatchSubmitter {
       'appendStateBatch',
       [batch, startBlock]
     )
-    while (tx.length > this.maxTxSize) {
+    while (remove0x(tx).length / 2 > this.maxTxSize) {
       batch.splice(Math.ceil((batch.length * 2) / 3)) // Delete 1/3rd of all of the batch elements
+      this.log.debug('Splicing batch...', {
+        batchSizeInBytes: tx.length / 2,
+      })
       tx = this.chainContract.interface.encodeFunctionData('appendStateBatch', [
         batch,
         startBlock,
       ])
     }
 
+    this.log.info('Generated state commitment batch', {
+      batch, // list of stateRoots
+    })
     return batch
   }
 }

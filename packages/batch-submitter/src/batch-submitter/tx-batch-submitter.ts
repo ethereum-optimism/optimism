@@ -114,6 +114,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       typeof this.chainContract !== 'undefined' &&
       ctcAddress === this.chainContract.address
     ) {
+      this.log.debug('Chain contract already initialized', {
+        ctcAddress,
+      })
       return
     }
 
@@ -134,6 +137,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   public async _onSync(): Promise<TransactionReceipt> {
     const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+    this.log.debug('Got number of pending queue elements', {
+      pendingQueueElements,
+    })
 
     if (pendingQueueElements !== 0) {
       this.log.info(
@@ -149,6 +155,13 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           const tx = await this.chainContract.appendQueueBatch(99999999, {
             nonce,
             gasPrice,
+          })
+          this.log.info('Submitted appendQueueBatch transaction', {
+            nonce,
+            txHash: tx.hash,
+            contractAddr: this.chainContract.address,
+            from: tx.from,
+            data: tx.data,
           })
           return this.signer.provider.waitForTransaction(
             tx.hash,
@@ -166,6 +179,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   // TODO: Remove this function and use geth for lastL1BlockNumber!
   private async _updateLastL1BlockNumber() {
+    this.log.warn('Calling _updateLastL1BlockNumber...')
     const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
 
     if (pendingQueueElements !== 0) {
@@ -187,17 +201,32 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         }
       }
     }
+
+    this.log.debug('Set lastL1BlockNumber', {
+      lastL1BlockNumber: this.lastL1BlockNumber,
+    })
   }
 
   public async _getBatchStartAndEnd(): Promise<Range> {
+    this.log.info(
+      'Getting batch start and end for transaction batch submitter...'
+    )
     // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
     const startBlock =
       (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET
+    this.log.info('Retrieved start block number from CTC', {
+      startBlock,
+    })
+
     const endBlock =
       Math.min(
         startBlock + this.maxBatchSize,
         await this.l2Provider.getBlockNumber()
       ) + 1 // +1 because the `endBlock` is *exclusive*
+    this.log.info('Retrieved end block number from L2 sequencer', {
+      endBlock,
+    })
+
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {
         this.log
@@ -224,7 +253,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     )
     if (gasPriceInGwei > this.gasThresholdInGwei) {
       this.log.warn(
-        'Gas price is higher than gras price threshold; aborting batch submission',
+        'Gas price is higher than gas price threshold; aborting batch submission',
         {
           gasPriceInGwei,
           gasThresholdInGwei: this.gasThresholdInGwei,
@@ -238,6 +267,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       wasBatchTruncated,
     ] = await this._generateSequencerBatchParams(startBlock, endBlock)
     const batchSizeInBytes = encodeAppendSequencerBatch(batchParams).length / 2
+    this.log.debug('Sequencer batch generated', {
+      batchSizeInBytes,
+    })
 
     // Only submit batch if one of the following is true:
     // 1. it was truncated
@@ -255,6 +287,13 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       const tx = await this.chainContract.appendSequencerBatch(batchParams, {
         nonce,
         gasPrice,
+      })
+      this.log.info('Submitted appendSequencerBatch transaction', {
+        nonce,
+        txHash: tx.hash,
+        contractAddr: this.chainContract.address,
+        from: tx.from,
+        data: tx.data,
       })
       return this.signer.provider.waitForTransaction(
         tx.hash,
@@ -299,6 +338,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     let wasBatchTruncated = false
     let encoded = encodeAppendSequencerBatch(sequencerBatchParams)
     while (encoded.length / 2 > this.maxTxSize) {
+      this.log.debug('Splicing batch...', {
+        batchSizeInBytes: encoded.length / 2,
+      })
       batch.splice(Math.ceil((batch.length * 2) / 3)) // Delete 1/3rd of all of the batch elements
       sequencerBatchParams = await this._getSequencerBatchParams(
         startBlock,
@@ -310,6 +352,12 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       //  In this case, we want to submit regardless of the batch's size.
       wasBatchTruncated = true
     }
+
+    this.log.info('Generated sequencer batch params', {
+      contexts: sequencerBatchParams.contexts,
+      transactions: sequencerBatchParams.transactions,
+      wasBatchTruncated,
+    })
     return [sequencerBatchParams, wasBatchTruncated]
   }
 
@@ -421,6 +469,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
     // TODO: Remove this super complex logic and rely on Geth to actually supply correct block data.
     const fixMonotonicity = async (b: Batch): Promise<Batch> => {
+      this.log.debug('Fixing monotonicity...')
       // The earliest allowed timestamp/blockNumber is the last timestamp submitted on chain.
       const {
         lastTimestamp,
@@ -428,6 +477,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       } = await this._getLastTimestampAndBlockNumber()
       let earliestTimestamp = lastTimestamp
       let earliestBlockNumber = lastBlockNumber
+      this.log.debug('Determined earliest timestamp and blockNumber', {
+        earliestTimestamp,
+        earliestBlockNumber,
+      })
 
       // The latest allowed timestamp/blockNumber is the next queue element!
       let nextQueueIndex = await this.chainContract.getNextQueueIndex()
@@ -457,6 +510,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       }
       // Actually update the latest timestamp and block number
       await updateLatestTimestampAndBlockNumber()
+      this.log.debug('Determined latest timestamp and blockNumber', {
+        latestTimestamp,
+        latestBlockNumber,
+      })
 
       // Now go through our batch and fix the timestamps and block numbers
       // to automatically enforce monotonicity.
@@ -573,7 +630,13 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       blockNumber > queueElement.blockNumber
     ) {
       this.log.warn(
-        'Double deposit detected!!! Fixing by skipping the deposit & replacing with a dummy tx.'
+        'Double deposit detected. Fixing by skipping the deposit & replacing with a dummy tx.',
+        {
+          timestamp,
+          blockNumber,
+          queueElementTimestamp: queueElement.timestamp,
+          queueElementBlockNumber: queueElement.blockNumber,
+        }
       )
       // This implies that we've double played a deposit.
       // We can correct this by instead submitting a dummy sequencer tx
@@ -712,6 +775,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   private async _getL2BatchElement(blockNumber: number): Promise<BatchElement> {
     const block = await this._getBlock(blockNumber)
+    this.log.debug('Fetched L2 block', {
+      block,
+    })
     const txType = block.transactions[0].txType
 
     if (this._isSequencerTx(block)) {
@@ -744,6 +810,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     if (!block.transactions[0].l1BlockNumber) {
       block.transactions[0].l1BlockNumber = this.lastL1BlockNumber
     }
+
     return block
   }
 

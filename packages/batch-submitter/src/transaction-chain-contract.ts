@@ -5,11 +5,11 @@ import {
   TransactionRequest,
 } from '@ethersproject/abstract-provider'
 import { keccak256 } from 'ethers/lib/utils'
-import { remove0x, encodeHex } from './utils'
 import {
   AppendSequencerBatchParams,
   BatchContext,
   encodeAppendSequencerBatch,
+  encodeHex,
 } from '@eth-optimism/core-utils'
 
 export { encodeAppendSequencerBatch, BatchContext, AppendSequencerBatchParams }

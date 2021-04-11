@@ -75,8 +75,20 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
 subtask(
   TASK_COMPILE_SOLIDITY_RUN_SOLC,
   async (args: { input: any; solcPath: string }, hre, runSuper) => {
+    const ignoreRxList = hre.network.config.ignoreRxList || [];
+    const ignore = (filename: string) => ignoreRxList.reduce((ignored: boolean, rx: string | RegExp) => ignored || new RegExp(rx).test(filename), false);
     if (hre.network.ovm !== true) {
-      return runSuper(args)
+        // Separate the EVM and OVM inputs.
+        for (const file of Object.keys(args.input.sources)) {
+          // Ignore any contract that has this tag or in ignore list
+          if (args.input.sources[file].content.includes('// @unsupported: evm') || ignore(file)) {
+              delete args.input.sources[file];
+          }
+          else {
+              //console.log(file + ' included');
+          }
+        }
+        return runSuper(args)
     }
 
     // Just some silly sanity checks, make sure we have a solc version to download. Our format is
@@ -101,8 +113,8 @@ subtask(
 
     // Separate the EVM and OVM inputs.
     for (const file of Object.keys(args.input.sources)) {
-      // Ignore any contract that has this tag.
-      if (!args.input.sources[file].content.includes('// @unsupported: ovm')) {
+      // Ignore any contract that has this tag or in ignore list
+      if (!args.input.sources[file].content.includes('// @unsupported: ovm') && !ignore(file)) {
         ovmInput.sources[file] = args.input.sources[file]
       }
     }
@@ -141,8 +153,8 @@ extendEnvironment((hre) => {
     }
 
     // Forcibly update the artifacts object.
-    hre.config.paths.artifacts = artifactsPath
-    hre.config.paths.cache = cachePath
-    ;(hre as any).artifacts = new Artifacts(artifactsPath)
+    hre.config.paths.artifacts = artifactsPath;
+    hre.config.paths.cache = cachePath;
+    (hre as any).artifacts = new Artifacts(artifactsPath);
   }
 })

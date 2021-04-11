@@ -201,9 +201,12 @@ export const run = async () => {
               value: 0,
               nonce: i,
             })
-            log.info('Submitting empty transaction', {
+            log.info('Submitted empty transaction', {
               nonce: i,
               txHash: response.hash,
+              to: response.to,
+              from: response.from,
+              data: response.data,
             })
             await sequencerSigner.provider.waitForTransaction(
               response.hash,
