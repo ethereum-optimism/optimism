@@ -36,7 +36,7 @@ RUN yarn install --frozen-lockfile
 
 ### BUILDER: Builds the typescript
 FROM node
- 
+
 WORKDIR /optimism
 
 # cache the node_modules copying step since it's expensive
