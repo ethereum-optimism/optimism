@@ -1,5 +1,5 @@
 #!/bin/bash
-RETRIES=${RETRIES:-40}
+RETRIES=${RETRIES:-60}
 
 # get the addrs from the URL provided
 ADDRESSES=$(curl --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
