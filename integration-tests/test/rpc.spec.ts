@@ -129,6 +129,7 @@ describe('Basic RPC tests', () => {
         const estimate = await l2Provider.estimateGas({
           ...DEFAULT_TRANSACTION,
           data: '0x' + '00'.repeat(len),
+          from: '0x' + '1234'.repeat(10),
         })
 
         expect(estimate.gt(last)).to.be.true
