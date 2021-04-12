@@ -9,4 +9,4 @@ curl -H "Content-Type: application/json" --retry-connrefused --retry $RETRIES --
 yarn run deploy
 
 # serve the addrs and the state dump
-./bin/serve_dump.sh
+exec ./bin/serve_dump.sh

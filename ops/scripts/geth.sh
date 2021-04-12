@@ -19,4 +19,4 @@ if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
     envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
 fi
 
-geth --verbosity=6
+exec geth --verbosity=6
