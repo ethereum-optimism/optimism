@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/smock",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.7",
   "main": "dist/src/index",
   "types": "dist/src/index",
   "files": [
