@@ -1,8 +1,8 @@
 #!/bin/bash
-RETRIES=${RETRIES:-20}
+RETRIES=${RETRIES:-40}
 
 # get the addrs from the URL provided
-ADDRESSES=$(curl --retry-connrefused --retry $RETRIES --retry-delay 3 $URL)
+ADDRESSES=$(curl --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
 # set the env
 export ADDRESS_MANAGER_ADDRESS=$(echo $ADDRESSES | jq -r '.AddressManager')
 
