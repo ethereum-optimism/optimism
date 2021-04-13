@@ -1,4 +1,3 @@
-import { JsonRpcProvider } from '@ethersproject/providers'
 import cloneDeep from 'lodash/cloneDeep'
 import { providers } from 'ethers'
 

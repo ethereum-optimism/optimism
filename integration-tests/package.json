@@ -25,7 +25,6 @@
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.32",
     "hardhat": "^2.1.2",
-    "lodash": "^4.17.21",
     "mocha": "^8.3.1",
     "rimraf": "^3.0.2"
   }
