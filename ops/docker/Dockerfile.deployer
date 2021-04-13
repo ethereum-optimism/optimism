@@ -19,24 +19,20 @@ COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/d
 # get the needed built artifacts
 WORKDIR /opt/optimism/packages/contracts
 COPY --from=builder /optimism/packages/contracts/dist ./dist
-COPY --from=builder /optimism/packages/contracts/bin ./bin
 COPY --from=builder /optimism/packages/contracts/*.json ./
 COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
 COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
 COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
 
-# copy over the cache so that hardhat-deploy does not recompile
-COPY --from=builder /optimism/packages/contracts/cache ./cache
-COPY --from=builder /optimism/packages/contracts/cache-ovm ./cache-ovm
-
-# get the files for hardhat-deploy
-COPY --from=builder /optimism/packages/contracts/contracts ./contracts
-COPY --from=builder /optimism/packages/contracts/hardhat.config.ts ./
-COPY --from=builder /optimism/packages/contracts/deploy ./deploy
-COPY --from=builder /optimism/packages/contracts/tasks ./tasks
-COPY --from=builder /optimism/packages/contracts/src ./src
-COPY --from=builder /optimism/packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
-COPY --from=builder /optimism/packages/contracts/scripts ./scripts
+# get non-build artifacts from the host
+COPY packages/contracts/bin ./bin
+COPY packages/contracts/contracts ./contracts
+COPY packages/contracts/hardhat.config.ts ./
+COPY packages/contracts/deploy ./deploy
+COPY packages/contracts/tasks ./tasks
+COPY packages/contracts/src ./src
+COPY packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
+COPY packages/contracts/scripts ./scripts
 
 COPY ./ops/scripts/deployer.sh .
 ENTRYPOINT yarn run deploy
