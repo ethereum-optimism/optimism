@@ -1065,19 +1065,20 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 		args.From = &common.Address{}
 	}
 	// Create a helper to check if a gas allowance results in an executable transaction
-	executable := func(gas uint64) bool {
+	executable := func(gas uint64) (uint64, bool) {
 		args.Gas = (*hexutil.Uint64)(&gas)
 
-		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
+		_, gas, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
 		if err != nil || failed {
-			return false
+			return gas, false
 		}
-		return true
+		return gas, true
 	}
 	// Execute the binary search and hone in on an executable gas limit
 	for lo+1 < hi {
 		mid := (hi + lo) / 2
-		if !executable(mid) {
+		_, executed := executable(mid)
+		if !executed {
 			lo = mid
 		} else {
 			hi = mid
@@ -1085,8 +1086,9 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 	}
 	// Reject the transaction as invalid if it still fails at the highest allowance
 	if hi == cap {
-		if !executable(hi) {
-			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
+		gas, executed := executable(hi)
+		if !executed {
+			return 0, fmt.Errorf("gas required (%d) exceeds allowance (%d) or always failing transaction", gas, cap)
 		}
 	}
 	return hexutil.Uint64(hi), nil
