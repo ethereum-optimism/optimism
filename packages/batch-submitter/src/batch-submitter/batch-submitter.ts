@@ -1,10 +1,9 @@
 /* External Imports */
-import { Contract, Signer, utils } from 'ethers'
+import { Contract, Signer, utils, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import * as ynatm from '@eth-optimism/ynatm'
-import { Address, Bytes32, Logger } from '@eth-optimism/core-utils'
-import { OptimismProvider } from '@eth-optimism/provider'
-import { getContractFactory } from '@eth-optimism/contracts'
+import { Logger } from '@eth-optimism/core-utils'
+import { getContractFactory } from 'old-contracts'
 
 export interface RollupInfo {
   mode: 'sequencer' | 'verifier'
@@ -38,7 +37,7 @@ export abstract class BatchSubmitter {
 
   constructor(
     readonly signer: Signer,
-    readonly l2Provider: OptimismProvider,
+    readonly l2Provider: providers.JsonRpcProvider,
     readonly minTxSize: number,
     readonly maxTxSize: number,
     readonly maxBatchSize: number,

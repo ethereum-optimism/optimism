@@ -7,7 +7,7 @@ import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import ganache from 'ganache-core'
 import sinon from 'sinon'
 import { Web3Provider, JsonRpcProvider } from '@ethersproject/providers'
-import { getContractInterface } from '@eth-optimism/contracts'
+import { getContractInterface } from 'old-contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */

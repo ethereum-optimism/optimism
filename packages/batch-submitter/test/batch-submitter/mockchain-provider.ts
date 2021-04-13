@@ -1,5 +1,5 @@
 /* External Imports */
-import { OptimismProvider } from '@eth-optimism/provider'
+import { providers } from 'ethers'
 import {
   BlockWithTransactions,
   TransactionResponse,
@@ -25,7 +25,7 @@ interface UnformattedL2Block extends BlockWithTransactions {
   transactions: [UnformattedL2Transaction]
 }
 
-export class MockchainProvider extends OptimismProvider {
+export class MockchainProvider extends providers.JsonRpcProvider {
   public mockBlockNumber: number = 1
   public numBlocksToReturn: number = 2
   public mockBlocks: L2Block[] = []

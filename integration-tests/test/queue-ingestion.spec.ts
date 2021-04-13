@@ -1,5 +1,5 @@
 /* Imports: Internal */
-import { injectL2Context } from './shared/l2provider'
+import { injectL2Context } from '@eth-optimism/core-utils'
 import { sleep } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 

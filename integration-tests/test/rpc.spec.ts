@@ -1,7 +1,7 @@
+import { injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber } from 'ethers'
 import chai, { expect } from 'chai'
-import { sleep, l1Provider, l2Provider, GWEI } from './shared/utils'
-import { injectL2Context } from './shared/l2provider'
+import { sleep, l2Provider, GWEI } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
@@ -55,12 +55,14 @@ describe('Basic RPC tests', () => {
     it('should not accept a transaction with a value', async () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
-        chainId: (await wallet.getChainId()),
+        chainId: await wallet.getChainId(),
         value: 100,
       }
       await expect(
         provider.sendTransaction(await wallet.signTransaction(tx))
-      ).to.be.rejectedWith('Cannot send transaction with non-zero value. Use WETH.transfer()')
+      ).to.be.rejectedWith(
+        'Cannot send transaction with non-zero value. Use WETH.transfer()'
+      )
     })
   })
 

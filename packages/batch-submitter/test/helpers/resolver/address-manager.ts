@@ -1,7 +1,7 @@
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
-import { getContractFactory as ctFactory } from '@eth-optimism/contracts'
+import { getContractFactory as ctFactory } from 'old-contracts'
 
 export const getContractFactory = async (contract: string) =>
   ctFactory(contract, (await ethers.getSigners())[0])
