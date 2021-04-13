@@ -40,6 +40,21 @@ describe('Native ETH Integration Tests', async () => {
     l2Bob = l1Bob.connect(env.l2Wallet.provider)
   })
 
+  describe('estimateGas', () => {
+    it('Should estimate gas for ETH transfer', async () => {
+      const amount = utils.parseEther('0.5')
+      const addr = await l2Bob.getAddress()
+      const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
+      expect(gas).is.instanceof(BigNumber)
+    })
+
+    it('Should estimate gas for ETH withdraw', async () => {
+      const amount = utils.parseEther('0.5')
+      const gas = await env.ovmEth.estimateGas.withdraw(amount)
+      expect(gas).is.instanceof(BigNumber)
+    })
+  })
+
   it('deposit', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
