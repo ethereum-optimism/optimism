@@ -14,7 +14,7 @@
   "types": "dist/index",
   "license": "MIT",
   "scripts": {
-    "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint && yarn generate-markdown",
+    "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "./scripts/build.sh",
     "build:kovan": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=69 yarn run build:dump && yarn run build:typechain",
     "build:mainnet": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=10 yarn run build:dump && yarn run build:typechain",
@@ -31,7 +31,7 @@
     "lint:fix": "yarn run lint:fix:typescript",
     "lint:fix:typescript": "prettier --config prettier-config.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
-    "deploy": "./bin/deploy.ts",
+    "deploy": "./bin/deploy.ts && yarn generate-markdown",
     "serve": "./bin/serve_dump.sh",
     "prepublishOnly": "yarn copyfiles -u 2 \"contracts/optimistic-ethereum/**/*\" ./",
     "postpublish": "rimraf OVM iOVM libraries mockOVM",
