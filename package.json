@@ -4,6 +4,7 @@
   "license": "MIT",
   "workspaces": [
     "packages/*",
+    "l2geth",
     "integration-tests"
   ],
   "private": true,
@@ -11,12 +12,15 @@
     "lerna": "^4.0.0"
   },
   "scripts": {
-      "clean": "yarn lerna run clean",
-      "build": "yarn lerna run build",
-      "test": "yarn lerna run test --parallel",
-      "test:ci": "yarn lerna run test --parallel --since origin/master",
-      "lint": "yarn lerna run lint",
-      "lint:ci": "yarn lerna run lint  --parallel --since origin/master",
-      "lint:fix": "yarn lerna run lint:fix"
+    "clean": "yarn lerna run clean",
+    "build": "yarn lerna run build",
+    "test": "yarn lerna run test --parallel",
+    "test:ci": "yarn lerna run test --parallel --since origin/master",
+    "lint": "yarn lerna run lint",
+    "lint:ci": "yarn lerna run lint  --parallel --since origin/master",
+    "lint:fix": "yarn lerna run lint:fix"
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.16.0"
   }
 }
