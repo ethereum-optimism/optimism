@@ -5,7 +5,7 @@ A plugin that brings OVM compiler support to Hardhat projects.
 ## Installation
 
 ```
-yarn add --dev @eth-optimism/plugins
+yarn add --dev @eth-optimism/hardhat-ovm
 ```
 
 Next, import the plugin inside your `hardhat.config.js`:
