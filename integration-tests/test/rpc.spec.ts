@@ -51,6 +51,17 @@ describe('Basic RPC tests', () => {
         provider.sendTransaction(await wallet.signTransaction(tx))
       ).to.be.rejectedWith('Cannot submit unprotected transaction')
     })
+
+    it('should not accept a transaction with a value', async () => {
+      const tx = {
+        ...DEFAULT_TRANSACTION,
+        chainId: (await wallet.getChainId()),
+        value: 100,
+      }
+      await expect(
+        provider.sendTransaction(await wallet.signTransaction(tx))
+      ).to.be.rejectedWith('Cannot send transaction with non-zero value. Use WETH.transfer()')
+    })
   })
 
   describe('eth_getTransactionByHash', () => {
