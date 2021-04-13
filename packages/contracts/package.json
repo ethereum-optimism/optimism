@@ -14,7 +14,7 @@
   "types": "dist/index",
   "license": "MIT",
   "scripts": {
-    "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
+    "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint && yarn generate-markdown",
     "build": "./scripts/build.sh",
     "build:kovan": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=69 yarn run build:dump && yarn run build:typechain",
     "build:mainnet": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=10 yarn run build:dump && yarn run build:typechain",
@@ -36,7 +36,8 @@
     "prepublishOnly": "yarn copyfiles -u 2 \"contracts/optimistic-ethereum/**/*\" ./",
     "postpublish": "rimraf OVM iOVM libraries mockOVM",
     "prepack": "yarn prepublishOnly",
-    "postpack": "yarn postpublish"
+    "postpack": "yarn postpublish",
+    "generate-markdown": "node scripts/generate-markdown.js"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.2.1",
