@@ -230,19 +230,6 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
-"@eth-optimism/contracts@0.1.4":
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.1.4.tgz#a918bffcdfa0ce22c1af3b091a81af732f58a294"
-  integrity sha512-JlbhPkYDgurQwlar1L90XTAG0QK8Sd2WCU8Zaa6BXn+Bg1mVe3g80samE0YaOFNHmSscjtvjXqy3B/d0tzIH7w==
-  dependencies:
-    "@eth-optimism/solc" "^0.6.12-alpha.1"
-    "@ethersproject/abstract-provider" "^5.0.8"
-    "@ethersproject/contracts" "^5.0.5"
-    "@ethersproject/hardware-wallets" "^5.0.8"
-    "@openzeppelin/contracts" "^3.3.0"
-    ethers "5.0.0"
-    ganache-core "^2.12.1"
-
 "@eth-optimism/core-utils@0.0.1-alpha.30":
   version "0.0.1-alpha.30"
   resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.0.1-alpha.30.tgz#31462596753df182e89cea63e19bf621c07ad898"
@@ -272,16 +259,6 @@
     "@eth-optimism/core-utils" "0.0.1-alpha.30"
     bn.js "^5.1.3"
     ethers "^5.0.24"
-
-"@eth-optimism/smock@1.0.0-alpha.3":
-  version "1.0.0-alpha.3"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/smock/-/smock-1.0.0-alpha.3.tgz#5f3e8f137407c4c62f06aed60bac3dc282632f89"
-  integrity sha512-TKqbmElCWQ0qM6qj8JajqOijZVKl47L/5v2NnEWBJERKZ6zkuFxT0Y8HtUCM3r4ZEURuXFbRxRLP/ZTrOG6axg==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.1.10"
-    "@ethersproject/abi" "^5.0.13"
-    "@ethersproject/abstract-provider" "^5.0.10"
-    bn.js "^5.2.0"
 
 "@eth-optimism/solc@^0.6.12-alpha.1":
   version "0.6.12-alpha.1"
