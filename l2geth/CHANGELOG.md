@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+### Patch Changes
+
+- 3b00b7c: bump private package versions to try triggering a tag
+
 ## v0.1.3
 
 - Integrate data transport layer
