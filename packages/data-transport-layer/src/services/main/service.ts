@@ -58,9 +58,6 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
 
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
-    this.logger.info('Opened db', {
-      dbPath: this.options.dbPath
-    })
 
     this.state.l1TransportServer = new L1TransportServer({
       ...this.options,

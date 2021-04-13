@@ -128,7 +128,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         this.logger.info('Served HTTP Request', {
           method: req.method,
           url: req.url,
-          body: json,
           elapsed,
         })
         return res.json(json)

@@ -34,9 +34,7 @@ export class BaseService<T> {
       return
     }
 
-    this.logger.info('Service is initializing...', {
-      name: this.name,
-    })
+    this.logger.info('Service is initializing...')
     await this._init()
     this.logger.info('Service has initialized.', {
       name: this.name,
@@ -52,9 +50,7 @@ export class BaseService<T> {
     if (this.running) {
       return
     }
-    this.logger.info('Service is starting...', {
-      name: this.name,
-    })
+    this.logger.info('Service is starting...')
     await this.init()
 
     // set the service to running
