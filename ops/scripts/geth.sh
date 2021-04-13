@@ -19,6 +19,7 @@ if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
     envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
 fi
 
-curl --retry-connrefused --retry $RETRIES --retry-delay 1 $ROLLUP_CLIENT_HTTP
+# wait for the dtl to be up, else geth will crash if it cannot connect
+curl --retry-connrefused --retry $RETRIES --retry-delay 2 $ROLLUP_CLIENT_HTTP
 
 exec geth --verbosity=6
