@@ -12,12 +12,6 @@ describe('Fee Payment Integration Tests', async () => {
     env = await OptimismEnv.new()
   })
 
-  it('Should estimate gas for wETH transfer', async () => {
-    const amount = utils.parseEther('0.5')
-    const gas = await env.ovmEth.estimateGas.transfer(other, amount)
-    expect(gas).is.instanceof(BigNumber)
-  })
-
   it('Paying a nonzero but acceptable gasPrice fee', async () => {
     const amount = utils.parseEther('0.5')
 
