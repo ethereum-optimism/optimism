@@ -20,7 +20,8 @@
     "lint": "yarn lerna run lint",
     "lint:ci": "yarn lerna run lint  --parallel --since origin/master",
     "lint:fix": "yarn lerna run lint:fix",
-    "post-install": "patch-package"
+    "post-install": "patch-package",
+    "release": "yarn build && yarn changeset publish"
   },
   "dependencies": {
     "@changesets/cli": "^2.16.0"
