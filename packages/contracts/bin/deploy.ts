@@ -36,6 +36,7 @@ const main = async () => {
     ovmProposerAddress: sequencer.address,
     ovmRelayerAddress: sequencer.address,
     ovmAddressManagerOwner: deployer.address,
+    noCompile: process.env.NO_COMPILE ? true : false,
   })
 
   // Stuff below this line is currently required for CI to work properly. We probably want to
