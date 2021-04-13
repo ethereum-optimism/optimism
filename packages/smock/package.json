@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/smock",
-  "version": "1.0.0-alpha.7",
+  "version": "1.0.0",
   "main": "dist/src/index",
   "types": "dist/src/index",
   "files": [
@@ -22,7 +22,7 @@
     "hardhat": "^2"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.1.10",
+    "@eth-optimism/core-utils": "^0.2.0",
     "@ethersproject/abi": "^5.0.13",
     "@ethersproject/abstract-provider": "^5.0.10",
     "bn.js": "^5.2.0"

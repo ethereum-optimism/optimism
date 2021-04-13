@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8
+
+### Patch Changes
+
+- 6cbc54d: allow injecting L2 transaction and block context via core-utils (this removes the need to import the now deprecated @eth-optimism/provider package)
+- Updated dependencies [6cbc54d]
+  - @eth-optimism/core-utils@0.2.0
+  - @eth-optimism/contracts@0.2.2
+
 ## v0.1.3
 
 - Add tx resubmission logic
