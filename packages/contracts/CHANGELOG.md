@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+### Patch Changes
+
+- 5362d38: adds build files which were not published before to npm
+- Updated dependencies [5362d38]
+  - @eth-optimism/core-utils@0.2.1
+
 ## 0.2.2
 
 ### Patch Changes
