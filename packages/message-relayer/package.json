@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.1.10",
-    "@eth-optimism/contracts": "^0.1.11",
+    "@eth-optimism/contracts": "^0.2.0",
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",
     "google-spreadsheet": "^3.1.15",
