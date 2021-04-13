@@ -4,6 +4,7 @@
   "license": "MIT",
   "workspaces": [
     "packages/*",
+    "l2geth",
     "integration-tests"
   ],
   "private": true,
