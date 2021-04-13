@@ -4,6 +4,7 @@
 ### Chain IDs:
 - Mainnet: 10
 - Kovan: 69
+- Goerli: 420
 *The contracts relevant for the majority of developers are `OVM_ETH` and the cross-domain messengers. The L2 addresses don't change.*
 
 ### Predeploy contracts:
