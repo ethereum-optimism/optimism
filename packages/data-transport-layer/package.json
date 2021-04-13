@@ -19,7 +19,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.1.6",
+    "@eth-optimism/contracts": "^0.2.0",
     "@eth-optimism/core-utils": "^0.1.10",
     "@ethersproject/providers": "^5.0.21",
     "@types/express": "^4.17.11",
