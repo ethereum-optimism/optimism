@@ -81,6 +81,16 @@
     bn.js "^5.1.3"
     ethers "^5.0.24"
 
+"@eth-optimism/smock@1.0.0-alpha.3":
+  version "1.0.0-alpha.3"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/smock/-/smock-1.0.0-alpha.3.tgz#5f3e8f137407c4c62f06aed60bac3dc282632f89"
+  integrity sha512-TKqbmElCWQ0qM6qj8JajqOijZVKl47L/5v2NnEWBJERKZ6zkuFxT0Y8HtUCM3r4ZEURuXFbRxRLP/ZTrOG6axg==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.1.10"
+    "@ethersproject/abi" "^5.0.13"
+    "@ethersproject/abstract-provider" "^5.0.10"
+    bn.js "^5.2.0"
+
 "@eth-optimism/solc@^0.6.12-alpha.1":
   version "0.6.12-alpha.1"
   resolved "https://registry.yarnpkg.com/@eth-optimism/solc/-/solc-0.6.12-alpha.1.tgz#041876f83b34c6afe2f19dfe9626568df6ed8590"
