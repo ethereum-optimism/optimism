@@ -1,5 +1,13 @@
 # data transport layer
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [6cbc54d]
+  - @eth-optimism/core-utils@0.2.0
+  - @eth-optimism/contracts@0.2.2
+
 ## v0.1.2
 
 - Fix bug in L2 sync
