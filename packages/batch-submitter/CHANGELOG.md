@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9
+
+### Patch Changes
+
+- 774e3b6: bump private package versions to try triggering a tag
+
 ## 0.1.8
 
 ### Patch Changes
