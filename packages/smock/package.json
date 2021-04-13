@@ -1,11 +1,11 @@
 {
   "name": "@eth-optimism/smock",
+   "files": [
+    "dist/src/*"
+  ],
   "version": "1.0.0",
   "main": "dist/src/index",
   "types": "dist/src/index",
-  "files": [
-    "dist/src/index"
-  ],
   "license": "MIT",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

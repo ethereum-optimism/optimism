@@ -3,7 +3,12 @@
   "version": "0.2.2",
   "main": "dist/index",
   "files": [
-    "dist/index"
+    "dist/**/*.js",
+    "dist/contracts/*",
+    "dist/dumps/*json",
+    "dist/artifacts/**/*.json",
+    "dist/artifacts-ovm/**/*.json",
+    "dist/types/**/*.ts"
   ],
   "types": "dist/index",
   "license": "MIT",

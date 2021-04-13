@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "main": "dist/index",
   "files": [
-    "dist/index"
+    "dist/*"
   ],
   "types": "dist/index",
   "repository": "git@github.com:ethereum-optimism/core-utils.git",
