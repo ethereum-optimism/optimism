@@ -1,6 +1,14 @@
 # Changelog
 
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [6cbc54d]
+  - @eth-optimism/core-utils@0.2.0
+
 ## v0.1.11
+
 - cleanup: ECDSAContractAccount
 - cleanup: Proxy_EOA
 - cleanup: StateManagerFactory
@@ -15,6 +23,7 @@
 - Move OVM_BondManager test into the right location
 
 ## v0.1.10
+
 Adds extensible ERC20Gateway and Improve CI.
 
 - dev: Apply linting to all test files

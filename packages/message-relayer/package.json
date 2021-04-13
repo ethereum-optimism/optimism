@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "[Optimism] Cross Domain Message Relayer service",
   "main": "dist/index",
   "types": "dist/index",
@@ -28,8 +28,8 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.1.10",
-    "@eth-optimism/contracts": "^0.1.11",
+    "@eth-optimism/core-utils": "^0.2.0",
+    "@eth-optimism/contracts": "^0.1.12",
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",
     "google-spreadsheet": "^3.1.15",
