@@ -1,6 +1,7 @@
 {
   "name": "@eth-optimism/message-relayer",
   "version": "0.0.1",
+  "private": true,
   "description": "[Optimism] Cross Domain Message Relayer service",
   "main": "dist/index",
   "types": "dist/index",

@@ -1,0 +1,52 @@
+diff --git a/node_modules/@changesets/cli/dist/cli.cjs.dev.js b/node_modules/@changesets/cli/dist/cli.cjs.dev.js
+index f771824..662990f 100644
+--- a/node_modules/@changesets/cli/dist/cli.cjs.dev.js
++++ b/node_modules/@changesets/cli/dist/cli.cjs.dev.js
+@@ -786,6 +786,7 @@ async function publishPackages({
+ }) {
+   const packagesByName = new Map(packages.map(x => [x.packageJson.name, x]));
+   const publicPackages = packages.filter(pkg => !pkg.packageJson.private);
++  const privatePackages = packages.filter(pkg => pkg.packageJson.private);
+   let twoFactorState = otp === undefined ? {
+     token: null,
+     isRequired: isCI || publicPackages.some(x => x.packageJson.publishConfig && x.packageJson.publishConfig.registry && x.packageJson.publishConfig.registry !== "https://registry.npmjs.org" && x.packageJson.publishConfig.registry !== "https://registry.yarnpkg.com") || process.env.npm_config_registry !== undefined && process.env.npm_config_registry !== "https://registry.npmjs.org" && process.env.npm_config_registry !== "https://registry.yarnpkg.com" ? Promise.resolve(false) : // note: we're not awaiting this here, we want this request to happen in parallel with getUnpublishedPackages
+@@ -800,10 +801,26 @@ async function publishPackages({
+     logger.warn("No unpublished packages to publish");
+   }
+ 
+-  return Promise.all(unpublishedPackagesInfo.map(pkgInfo => {
+-    let pkg = packagesByName.get(pkgInfo.name);
+-    return publishAPackage(pkg, access, twoFactorState, getReleaseTag(pkgInfo, preState, tag));
+-  }));
++  const privatePromises = privatePackages.filter(privatePackage => {
++      const tagName = `${privatePackage.packageJson.name}@${privatePackage.packageJson.version}`
++      return !tagExists(tagName)
++  }).map(privatePackage => {
++    return Promise.resolve({
++        name: privatePackage.packageJson.name,
++        newVersion: privatePackage.packageJson.version,
++        // Private packages do not need to be published
++        published: true
++      });
++  });
++
++
++  const publicPromises = unpublishedPackagesInfo.map(pkgInfo => {
++      let pkg = packagesByName.get(pkgInfo.name);
++      return publishAPackage(pkg, access, twoFactorState, getReleaseTag(pkgInfo, preState, tag));
++  })
++
++  const promises = [...privatePromises, ...publicPromises]
++  return Promise.all(promises);
+ }
+ 
+ async function publishAPackage(pkg, access, twoFactorState, tag) {
+@@ -1357,3 +1374,8 @@ ${util.format("", err).replace(process.cwd(), "<cwd>")}
+   logger.error(err);
+   process.exit(1);
+ });
++
++async function tagExists(tagStr) {
++  const gitCmd = await spawn("git", ["tag", "-l", tagStr]);
++  return !!gitCmd.stdout.toString().trim();
++}

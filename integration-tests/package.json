@@ -2,6 +2,7 @@
   "name": "@eth-optimism/integration-tests",
   "version": "0.0.1",
   "description": "[Optimism] Integration Tests",
+  "private": true,
   "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {

@@ -1,6 +1,7 @@
 {
   "name": "@eth-optimism/data-transport-layer",
   "version": "0.1.2",
+  "private": true,
   "main": "dist/index",
   "files": [
     "dist/index"
