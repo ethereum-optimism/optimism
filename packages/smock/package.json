@@ -1,9 +1,9 @@
 {
   "name": "@eth-optimism/smock",
-   "files": [
+  "files": [
     "dist/src/*"
   ],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist/src/index",
   "types": "dist/src/index",
   "license": "MIT",
@@ -22,7 +22,7 @@
     "hardhat": "^2"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.2.0",
+    "@eth-optimism/core-utils": "^0.2.1",
     "@ethersproject/abi": "^5.0.13",
     "@ethersproject/abstract-provider": "^5.0.10",
     "bn.js": "^5.2.0"
