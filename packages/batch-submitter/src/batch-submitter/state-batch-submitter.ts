@@ -1,10 +1,9 @@
 /* External Imports */
 import { Promise as bPromise } from 'bluebird'
-import { Contract, Signer } from 'ethers'
+import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from 'old-contracts'
 import { Logger, Bytes32, remove0x } from '@eth-optimism/core-utils'
-import { OptimismProvider } from '@eth-optimism/provider'
 
 /* Internal Imports */
 import { L2Block } from '..'
@@ -22,7 +21,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
 
   constructor(
     signer: Signer,
-    l2Provider: OptimismProvider,
+    l2Provider: providers.JsonRpcProvider,
     minTxSize: number,
     maxTxSize: number,
     maxBatchSize: number,

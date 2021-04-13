@@ -1,16 +1,12 @@
 /* External Imports */
 import { Promise as bPromise } from 'bluebird'
-import { BigNumber, Signer, ethers, Wallet, Contract } from 'ethers'
+import { BigNumber, Signer, ethers, Wallet, Contract, providers } from 'ethers'
 import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
-import {
-  getContractInterface,
-  getContractFactory,
-} from 'old-contracts'
+import { getContractInterface, getContractFactory } from 'old-contracts'
 import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
-import { OptimismProvider } from '@eth-optimism/provider'
 import {
   Logger,
   EIP155TxData,
@@ -52,7 +48,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
   constructor(
     signer: Signer,
-    l2Provider: OptimismProvider,
+    l2Provider: providers.JsonRpcProvider,
     minTxSize: number,
     maxTxSize: number,
     maxBatchSize: number,
