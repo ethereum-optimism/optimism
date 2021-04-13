@@ -34,9 +34,14 @@ export class BaseService<T> {
       return
     }
 
-    this.logger.info('Service is initializing...')
+    this.logger.info('Service is initializing...', {
+      name: this.name,
+    })
     await this._init()
-    this.logger.info('Service has initialized.')
+    this.logger.info('Service has initialized.', {
+      name: this.name,
+      options: this.options,
+    })
     this.initialized = true
   }
 
@@ -47,13 +52,17 @@ export class BaseService<T> {
     if (this.running) {
       return
     }
-    this.logger.info('Service is starting...')
+    this.logger.info('Service is starting...', {
+      name: this.name,
+    })
     await this.init()
 
     // set the service to running
     this.running = true
     await this._start()
-    this.logger.info('Service has started')
+    this.logger.info('Service has started', {
+      name: this.name,
+    })
   }
 
   /**
@@ -64,9 +73,13 @@ export class BaseService<T> {
       return
     }
 
-    this.logger.info('Service is stopping...')
+    this.logger.info('Service is stopping...', {
+      name: this.name,
+    })
     await this._stop()
-    this.logger.info('Service has stopped')
+    this.logger.info('Service has stopped', {
+      name: this.name,
+    })
     this.running = false
   }
 

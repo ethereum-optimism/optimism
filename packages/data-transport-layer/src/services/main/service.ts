@@ -84,16 +84,13 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     }
 
     await this.state.l1TransportServer.init()
-    this.logger.info('Initialized L1 Transport Server')
 
     if (this.options.syncFromL1) {
       await this.state.l1IngestionService.init()
-      this.logger.info('Initialized L1 Ingestion Server')
     }
 
     if (this.options.syncFromL2) {
       await this.state.l2IngestionService.init()
-      this.logger.info('Initialized L2 Ingestion Server')
     }
   }
 
@@ -103,7 +100,6 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
       this.options.syncFromL1 ? this.state.l1IngestionService.start() : null,
       this.options.syncFromL2 ? this.state.l2IngestionService.start() : null,
     ])
-    this.logger.info('Started L1 Data Transport Service')
   }
 
   protected async _stop(): Promise<void> {
@@ -114,6 +110,5 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     ])
 
     await this.state.db.close()
-    this.logger.info('Stopped L1 Data Transport Service')
   }
 }
