@@ -103,6 +103,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     this.state.app = express()
     this.state.app.use(cors())
     this._registerAllRoutes()
+    this.logger.info('All routes registered for L1 Transport Server')
   }
 
   /**
@@ -157,8 +158,15 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/eth/syncing',
       async (): Promise<SyncingResponse> => {
+        this.logger.info('Retrieving L2 syncing status...')
         const highestL2BlockNumber = await this.state.db.getHighestL2BlockNumber()
+        this.logger.info('Got highest L2 block number', {
+          highestL2BlockNumber,
+        })
         const currentL2Block = await this.state.db.getLatestTransaction()
+        this.logger.info('Got current L2 block', {
+          currentL2Block,
+        })
 
         if (currentL2Block === null) {
           if (highestL2BlockNumber === null) {
@@ -194,7 +202,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/eth/gasprice',
       async (): Promise<GasPriceResponse> => {
+        this.logger.info('Retrieving L1 gas price...')
         const gasPrice = await this.state.l1RpcProvider.getGasPrice()
+        this.logger.info('Got L1 gas price', {
+          gasPrice,
+        })
 
         return {
           gasPrice: gasPrice.toString(),
@@ -206,10 +218,19 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/eth/context/latest',
       async (): Promise<ContextResponse> => {
+        this.logger.info('Retrieving latest L1 context...')
         const tip = await this.state.l1RpcProvider.getBlockNumber()
+        this.logger.info('Got L1 tip block number', {
+          tip,
+        })
         const blockNumber = Math.max(0, tip - this.options.confirmations)
 
         const block = await this.state.l1RpcProvider.getBlock(blockNumber)
+        this.logger.info('Got L1 tip block', {
+          blockNumber: block.number,
+          timestamp: block.timestamp,
+          blockHash: block.hash,
+        })
 
         return {
           blockNumber: block.number,
@@ -224,10 +245,19 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       '/eth/context/blocknumber/:number',
       async (req): Promise<ContextResponse> => {
         const number = BigNumber.from(req.params.number).toNumber()
+        this.logger.info('Retrieving L1 block by number...', {
+          number,
+        })
         const tip = await this.state.l1RpcProvider.getBlockNumber()
+        this.logger.info('Got L1 chain tip block number', {
+          tip,
+        })
         const blockNumber = Math.max(0, tip - this.options.confirmations)
 
         if (number > blockNumber) {
+          this.logger.info(
+            'Requested block number is not confirmed, returning null block'
+          )
           return {
             blockNumber: null,
             timestamp: null,
@@ -236,6 +266,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         }
 
         const block = await this.state.l1RpcProvider.getBlock(number)
+        this.logger.info('Got L1 block by number', {
+          blockNumber: block.number,
+          timestamp: block.timestamp,
+          blockHash: block.hash,
+        })
         return {
           blockNumber: block.number,
           timestamp: block.timestamp,
@@ -248,7 +283,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/enqueue/latest',
       async (): Promise<EnqueueResponse> => {
+        this.logger.info('Retrieving latest enqueue...')
         const enqueue = await this.state.db.getLatestEnqueue()
+        this.logger.info('Got latest enqueue', {
+          enqueue,
+        })
 
         if (enqueue === null) {
           return {
@@ -266,6 +305,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const ctcIndex = await this.state.db.getTransactionIndexByQueueIndex(
           enqueue.index
         )
+        this.logger.info('Got transaction index at queue index', {
+          queueIndex: enqueue.index,
+          ctcIndex,
+        })
 
         return {
           ...enqueue,
@@ -278,9 +321,15 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/enqueue/index/:index',
       async (req): Promise<EnqueueResponse> => {
-        const enqueue = await this.state.db.getEnqueueByIndex(
-          BigNumber.from(req.params.index).toNumber()
-        )
+        const index = BigNumber.from(req.params.index).toNumber()
+        this.logger.info('Retrieving equeue by index...', {
+          index,
+        })
+        const enqueue = await this.state.db.getEnqueueByIndex(index)
+        this.logger.info('Got enqueue at index', {
+          index,
+          enqueue,
+        })
 
         if (enqueue === null) {
           return {
@@ -298,6 +347,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const ctcIndex = await this.state.db.getTransactionIndexByQueueIndex(
           enqueue.index
         )
+        this.logger.info('Got transaction index at queue index', {
+          queueIndex: enqueue.index,
+          ctcIndex,
+        })
 
         return {
           ...enqueue,
@@ -310,9 +363,17 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/transaction/latest',
       async (): Promise<TransactionResponse> => {
+        this.logger.info('Retrieving latest transaction...')
         let transaction = await this.state.db.getLatestFullTransaction()
+        this.logger.info('Got latest transaction', {
+          transaction,
+        })
+
         if (this.options.showUnconfirmedTransactions) {
           const latestUnconfirmedTx = await this.state.db.getLatestUnconfirmedTransaction()
+          this.logger.info('Got latest unconfirmed transaction', {
+            latestUnconfirmedTx,
+          })
           if (
             transaction === null ||
             transaction === undefined ||
@@ -323,7 +384,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         }
 
         if (transaction === null) {
+          this.logger.info('Latest transaction was null, retrying...')
           transaction = await this.state.db.getLatestFullTransaction()
+          this.logger.info('Retried and got latest transaction', {
+            transaction,
+          })
         }
 
         if (transaction === null) {
@@ -336,6 +401,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const batch = await this.state.db.getTransactionBatchByIndex(
           transaction.batchIndex
         )
+        this.logger.info('Got transaction batch', {
+          batchIndex: transaction.batchIndex,
+          batch,
+        })
 
         return {
           transaction,
@@ -349,16 +418,24 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       '/transaction/index/:index',
       async (req): Promise<TransactionResponse> => {
         let transaction = null
+        const index = BigNumber.from(req.params.index).toNumber()
+        this.logger.info('Retrieving transaction by index...', {
+          index,
+        })
         if (this.options.showUnconfirmedTransactions) {
           transaction = await this.state.db.getUnconfirmedTransactionByIndex(
-            BigNumber.from(req.params.index).toNumber()
+            index
           )
+          this.logger.info('Got latest unconfirmed transaction', {
+            transaction,
+          })
         }
 
         if (transaction === null) {
-          transaction = await this.state.db.getFullTransactionByIndex(
-            BigNumber.from(req.params.index).toNumber()
-          )
+          transaction = await this.state.db.getFullTransactionByIndex(index)
+          this.logger.info('Got latest full transaction', {
+            transaction,
+          })
         }
 
         if (transaction === null) {
@@ -371,6 +448,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const batch = await this.state.db.getTransactionBatchByIndex(
           transaction.batchIndex
         )
+        this.logger.info('Got transaction batch', {
+          batchIndex: transaction.batchIndex,
+          batch,
+        })
 
         return {
           transaction,
@@ -383,7 +464,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/batch/transaction/latest',
       async (): Promise<TransactionBatchResponse> => {
+        this.logger.info('Retrieving latest transaction batch...')
         const batch = await this.state.db.getLatestTransactionBatch()
+        this.logger.info('Got latest transaction batch', {
+          batch,
+        })
 
         if (batch === null) {
           return {
@@ -392,11 +477,19 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           }
         }
 
-        const transactions = await this.state.db.getFullTransactionsByIndexRange(
-          BigNumber.from(batch.prevTotalElements).toNumber(),
+        const start = BigNumber.from(batch.prevTotalElements).toNumber()
+        const end =
           BigNumber.from(batch.prevTotalElements).toNumber() +
-            BigNumber.from(batch.size).toNumber()
+          BigNumber.from(batch.size).toNumber()
+
+        const transactions = await this.state.db.getFullTransactionsByIndexRange(
+          start,
+          end
         )
+        this.logger.info('Got transactions in batch', {
+          start,
+          end,
+        })
 
         return {
           batch,
@@ -409,9 +502,15 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/batch/transaction/index/:index',
       async (req): Promise<TransactionBatchResponse> => {
-        const batch = await this.state.db.getTransactionBatchByIndex(
-          BigNumber.from(req.params.index).toNumber()
-        )
+        const index = BigNumber.from(req.params.index).toNumber()
+        this.logger.info('Retrieving transaction batch by index...', {
+          index,
+        })
+        const batch = await this.state.db.getTransactionBatchByIndex(index)
+        this.logger.info('Got transaction batch by index', {
+          index,
+          batch,
+        })
 
         if (batch === null) {
           return {
@@ -420,11 +519,18 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           }
         }
 
-        const transactions = await this.state.db.getFullTransactionsByIndexRange(
-          BigNumber.from(batch.prevTotalElements).toNumber(),
+        const start = BigNumber.from(batch.prevTotalElements).toNumber()
+        const end =
           BigNumber.from(batch.prevTotalElements).toNumber() +
-            BigNumber.from(batch.size).toNumber()
+          BigNumber.from(batch.size).toNumber()
+        const transactions = await this.state.db.getFullTransactionsByIndexRange(
+          start,
+          end
         )
+        this.logger.info('Got transactions in batch', {
+          start,
+          end,
+        })
 
         return {
           batch,
@@ -437,9 +543,16 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/stateroot/latest',
       async (): Promise<StateRootResponse> => {
+        this.logger.info('Retrieving latest state root...')
         let stateRoot = await this.state.db.getLatestStateRoot()
+        this.logger.info('Got latest state root', {
+          stateRoot,
+        })
         if (this.options.showUnconfirmedTransactions) {
           const latestUnconfirmedStateRoot = await this.state.db.getLatestUnconfirmedStateRoot()
+          this.logger.info('Got latest unconfirmed state root', {
+            latestUnconfirmedStateRoot,
+          })
           if (
             stateRoot === null ||
             stateRoot === undefined ||
@@ -450,7 +563,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         }
 
         if (stateRoot === null) {
+          this.logger.info('Latest transaction was null, retrying...')
           stateRoot = await this.state.db.getLatestStateRoot()
+          this.logger.info('Retried and got latest state root', {
+            stateRoot,
+          })
         }
 
         if (stateRoot === null) {
@@ -463,6 +580,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const batch = await this.state.db.getStateRootBatchByIndex(
           stateRoot.batchIndex
         )
+        this.logger.info('Got state root batch', {
+          batchIndex: stateRoot.batchIndex,
+          batch,
+        })
 
         return {
           stateRoot,
@@ -476,16 +597,24 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       '/stateroot/index/:index',
       async (req): Promise<StateRootResponse> => {
         let stateRoot = null
+        const index = BigNumber.from(req.params.index).toNumber()
+        this.logger.info('Retrieving state root by index...', {
+          index,
+        })
         if (this.options.showUnconfirmedTransactions) {
-          stateRoot = await this.state.db.getUnconfirmedStateRootByIndex(
-            BigNumber.from(req.params.index).toNumber()
-          )
+          stateRoot = await this.state.db.getUnconfirmedStateRootByIndex(index)
+          this.logger.info('Got unconfirmed state root by index', {
+            index,
+            stateRoot,
+          })
         }
 
         if (stateRoot === null) {
-          stateRoot = await this.state.db.getStateRootByIndex(
-            BigNumber.from(req.params.index).toNumber()
-          )
+          stateRoot = await this.state.db.getStateRootByIndex(index)
+          this.logger.info('Got state root by index', {
+            index,
+            stateRoot,
+          })
         }
 
         if (stateRoot === null) {
@@ -498,6 +627,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const batch = await this.state.db.getStateRootBatchByIndex(
           stateRoot.batchIndex
         )
+        this.logger.info('Got state root batch', {
+          batchIndex: stateRoot.batchIndex,
+          batch,
+        })
 
         return {
           stateRoot,
@@ -510,7 +643,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/batch/stateroot/latest',
       async (): Promise<StateRootBatchResponse> => {
+        this.logger.info('Retrieving latest state root batch...')
         const batch = await this.state.db.getLatestStateRootBatch()
+        this.logger.info('Got latest state root batch', {
+          batch,
+        })
 
         if (batch === null) {
           return {
@@ -519,11 +656,18 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           }
         }
 
-        const stateRoots = await this.state.db.getStateRootsByIndexRange(
-          BigNumber.from(batch.prevTotalElements).toNumber(),
+        const start = BigNumber.from(batch.prevTotalElements).toNumber()
+        const end =
           BigNumber.from(batch.prevTotalElements).toNumber() +
-            BigNumber.from(batch.size).toNumber()
+          BigNumber.from(batch.size).toNumber()
+        const stateRoots = await this.state.db.getStateRootsByIndexRange(
+          start,
+          end
         )
+        this.logger.info('Got state roots in batch', {
+          start,
+          end,
+        })
 
         return {
           batch,
@@ -536,9 +680,15 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/batch/stateroot/index/:index',
       async (req): Promise<StateRootBatchResponse> => {
-        const batch = await this.state.db.getStateRootBatchByIndex(
-          BigNumber.from(req.params.index).toNumber()
-        )
+        const index = BigNumber.from(req.params.index).toNumber()
+        this.logger.info('Retrieving state root batch by index...', {
+          index,
+        })
+        const batch = await this.state.db.getStateRootBatchByIndex(index)
+        this.logger.info('Got state root batch by index', {
+          index,
+          batch,
+        })
 
         if (batch === null) {
           return {
@@ -547,11 +697,18 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           }
         }
 
-        const stateRoots = await this.state.db.getStateRootsByIndexRange(
-          BigNumber.from(batch.prevTotalElements).toNumber(),
+        const start = BigNumber.from(batch.prevTotalElements).toNumber()
+        const end =
           BigNumber.from(batch.prevTotalElements).toNumber() +
-            BigNumber.from(batch.size).toNumber()
+          BigNumber.from(batch.size).toNumber()
+        const stateRoots = await this.state.db.getStateRootsByIndexRange(
+          start,
+          end
         )
+        this.logger.info('Got state roots in batch', {
+          start,
+          end,
+        })
 
         return {
           batch,
