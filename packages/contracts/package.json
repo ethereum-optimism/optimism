@@ -4,11 +4,12 @@
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
-    "dist/contracts/*",
-    "dist/dumps/*json",
-    "dist/artifacts/**/*.json",
-    "dist/artifacts-ovm/**/*.json",
-    "dist/types/**/*.ts"
+    "artifacts/**/*.json",
+    "artifacts-ovm/**/*.json",
+    "OVM",
+    "iOVM",
+    "libraries",
+    "mockOVM"
   ],
   "types": "dist/index",
   "license": "MIT",
@@ -21,10 +22,6 @@
     "build:contracts": "hardhat compile --show-stack-traces",
     "build:contracts:ovm": "hardhat compile --network optimism",
     "build:dump": "ts-node \"bin/take-dump.ts\"",
-    "build:copy": "yarn run build:copy:artifacts && yarn build:copy:artifacts:ovm && yarn run build:copy:contracts",
-    "build:copy:artifacts": "copyfiles -u 1 \"artifacts/**/*.json\" \"dist/artifacts\"",
-    "build:copy:artifacts:ovm": "copyfiles -u 1 \"artifacts-ovm/**/*.json\" \"dist/artifacts-ovm\"",
-    "build:copy:contracts": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"dist/contracts\"",
     "build:typechain": "hardhat typechain",
     "test": "yarn run test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
@@ -35,7 +32,11 @@
     "lint:fix:typescript": "prettier --config prettier-config.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
     "deploy": "./bin/deploy.ts",
-    "serve": "./bin/serve_dump.sh"
+    "serve": "./bin/serve_dump.sh",
+    "prepublishOnly": "yarn copyfiles -u 2 \"contracts/optimistic-ethereum/**/*\" ./",
+    "postpublish": "rimraf OVM iOVM libraries mockOVM",
+    "prepack": "yarn prepublishOnly",
+    "postpack": "yarn postpublish"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.2.1",
