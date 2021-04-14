@@ -21,7 +21,7 @@ npm install @eth-optimism/contracts
 Within your contracts:
 
 ```solidity
-import { SomeContract } from "@eth-optimism/contracts/SomeContract.sol";
+import { SomeContract } from "@eth-optimism/contracts/dist/contracts/PATH/TO/CONTRACT";
 ```
 
 ## Guide for Developers
