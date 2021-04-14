@@ -4,12 +4,15 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
+import { iOVM_ERC20 } from "../../iOVM/predeploys/iOVM_ERC20.sol";
 
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
-import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
-import { Lib_SafeMathWrapper } from "../../libraries/wrappers/Lib_SafeMathWrapper.sol";
+import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+
+/* External Imports */
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
  * @title OVM_ECDSAContractAccount
@@ -17,7 +20,7 @@ import { Lib_SafeMathWrapper } from "../../libraries/wrappers/Lib_SafeMathWrappe
  * ovmCREATEEOA operation. It enables backwards compatibility with Ethereum's Layer 1, by 
  * providing eth_sign and EIP155 formatted transaction encodings.
  *
- * Compiler used: solc
+ * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
@@ -29,7 +32,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     // TODO: should be the amount sufficient to cover the gas costs of all of the transactions up
     // to and including the CALL/CREATE which forms the entrypoint of the transaction.
     uint256 constant EXECUTION_VALIDATION_GAS_OVERHEAD = 25000;
-    address constant ETH_ERC20_ADDRESS = 0x4200000000000000000000000000000000000006;
+    iOVM_ERC20 constant ETH_ERC20 = iOVM_ERC20(0x4200000000000000000000000000000000000006);
 
 
     /********************
@@ -66,75 +69,76 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         // recovered address of the user who signed this message. This is how we manage to shim
         // account abstraction even though the user isn't a contract.
         // Need to make sure that the transaction nonce is right and bump it if so.
-        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
+        require(
             Lib_ECDSAUtils.recover(
                 _transaction,
                 isEthSign,
                 _v,
                 _r,
                 _s
-            ) == Lib_SafeExecutionManagerWrapper.safeADDRESS(),
-            "Signature provided for EOA transaction execution is invalid."
+            ) == address(this),
+            "OVM_ECDSAContractAccount: Signature provided for EOA transaction execution is invalid."
         );
 
         Lib_OVMCodec.EIP155Transaction memory decodedTx = Lib_OVMCodec.decodeEIP155Transaction(_transaction, isEthSign);
 
         // Need to make sure that the transaction chainId is correct.
-        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            decodedTx.chainId == Lib_SafeExecutionManagerWrapper.safeCHAINID(),
+        require(
+            decodedTx.chainId == Lib_ExecutionManagerWrapper.ovmCHAINID(),
             "Transaction chainId does not match expected OVM chainId."
         );
 
         // Need to make sure that the transaction nonce is right.
-        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            decodedTx.nonce == Lib_SafeExecutionManagerWrapper.safeGETNONCE(),
+        require(
+            decodedTx.nonce == Lib_ExecutionManagerWrapper.ovmGETNONCE(),
             "Transaction nonce does not match the expected nonce."
         );
 
         // TEMPORARY: Disable gas checks for mainnet.
         // // Need to make sure that the gas is sufficient to execute the transaction.
-        // Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-        //    gasleft() >= Lib_SafeMathWrapper.add(decodedTx.gasLimit, EXECUTION_VALIDATION_GAS_OVERHEAD),
+        // require(
+        //    gasleft() >= SafeMath.add(decodedTx.gasLimit, EXECUTION_VALIDATION_GAS_OVERHEAD),
         //    "Gas is not sufficient to execute the transaction."
         // );
 
         // Transfer fee to relayer.
-        address relayer = Lib_SafeExecutionManagerWrapper.safeCALLER();
-        uint256 fee = Lib_SafeMathWrapper.mul(decodedTx.gasLimit, decodedTx.gasPrice);
-        (bool success, ) = Lib_SafeExecutionManagerWrapper.safeCALL(
-            gasleft(),
-            ETH_ERC20_ADDRESS,
-            abi.encodeWithSignature("transfer(address,uint256)", relayer, fee)
-        );
-        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            success == true,
-            "Fee was not transferred to relayer."
+        require(
+            ETH_ERC20.transfer(
+                msg.sender,
+                SafeMath.mul(decodedTx.gasLimit, decodedTx.gasPrice)
+            ),
+            "OVM_ECDSAContractAccount: Fee was not transferred to relayer."
         );
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.to == address(0)) {
-            (address created, bytes memory revertData) = Lib_SafeExecutionManagerWrapper.safeCREATE(
-                gasleft(),
-                decodedTx.data
-            );
+            bytes memory initcode = decodedTx.data;
+            bytes memory revertdata;
+            address created;
+            assembly {
+                created := create(0, add(initcode, 0x20), mload(initcode))
+                if iszero(created) {
+                    let size := returndatasize()
+                    revertdata := mload(0x40)
+                    mstore(0x40, add(add(revertdata, 0x20), size))
+                    mstore(revertdata, size)
+                    returndatacopy(add(revertdata, 0x20), 0, size)
+                }
+            }
 
             // Return true if the contract creation succeeded, false w/ revertData otherwise.
             if (created != address(0)) {
                 return (true, abi.encode(created));
             } else {
-                return (false, revertData);
+                return (false, revertdata);
             }
         } else {
             // We only want to bump the nonce for `ovmCALL` because `ovmCREATE` automatically bumps
             // the nonce of the calling account. Normally an EOA would bump the nonce for both
             // cases, but since this is a contract we'd end up bumping the nonce twice.
-            Lib_SafeExecutionManagerWrapper.safeINCREMENTNONCE();
+            Lib_ExecutionManagerWrapper.ovmINCREMENTNONCE();
 
-            return Lib_SafeExecutionManagerWrapper.safeCALL(
-                gasleft(),
-                decodedTx.to,
-                decodedTx.data
-            );
+            return decodedTx.to.call(decodedTx.data);
         }
     }
 }

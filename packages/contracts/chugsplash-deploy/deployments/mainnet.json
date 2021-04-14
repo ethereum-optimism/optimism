@@ -1,0 +1,92 @@
+{
+    "contracts": {
+        "OVM_ChainStorageContainer:CTC:batches": {
+            "source": "OVM_ChainStorageContainer",
+            "variables": {
+                "owner": "{{ contracts.OVM_CanonicalTransactionChain }}"
+            }
+        },
+        "OVM_ChainStorageContainer:CTC:queue": {
+            "source": "OVM_ChainStorageContainer",
+            "variables": {
+                "owner": "{{ contracts.OVM_CanonicalTransactionChain }}"
+            }
+        },
+        "OVM_ChainStorageContainer:SCC:batches": {
+            "source": "OVM_ChainStorageContainer",
+            "variables": {
+                "owner": "{{ contracts.OVM_CanonicalTransactionChain }}"
+            }
+        },
+        "OVM_CanonicalTransactionChain": {
+            "source": "OVM_CanonicalTransactionChain",
+            "variables": {
+                "forceInclusionPeriodSeconds": "{{ env.CTC_FORCE_INCLUSION_PERIOD_SECONDS }}",
+                "forceInclusionPeriodBlocks": "{{ env.CTC_FORCE_INCLUSION_PERIOD_BLOCKS }}",
+                "maxTransactionGasLimit": "{{ env.CTC_MAX_TRANSACTION_GAS_LIMIT }}",
+                "batches": "{{ contracts.OVM_ChainStorageContainer:CTC:batches }}",
+                "queue": "{{ contracts.OVM_ChainStorageContainer:CTC:queue }}",
+                "ovmExecutionManager": "{{ contracts.OVM_ExecutionManager }}",
+                "ovmSequencer": "{{ env.SEQUENCER_ADDRESS }}",
+                "ovmSequencerEntrypoint": "0x4200000000000000000000000000000000000005"
+            }
+        },
+        "OVM_StateCommitmentChain": {
+            "source": "OVM_StateCommitmentChain",
+            "variables": {
+                "FRAUD_PROOF_WINDOW": "{{ env.SCC_FRAUD_PROOF_WINDOW }}",
+                "SEQUENCER_PUBLISH_WINDOW": "{{ env.SCC_SEQUENCER_PUBLISH_WINDOW }}",
+                "batches": "{{ contracts.OVM_ChainStorageContainer:SCC:batches }}",
+                "ovmBondManager": "{{ contracts.OVM_BondManager }}",
+                "ovmFraudVerifier": "{{ contracts.OVM_FraudVerifier }}",
+                "ovmCanonicalTransactionChain": "{{ contracts.OVM_CanonicalTransactionChain }}",
+                "ovmProposer": "{{ env.PROPOSER_ADDRESS }}"
+            }
+        },
+        "OVM_ExecutionManager": {
+            "source": "OVM_ExecutionManager",
+            "variables": {
+                "ovmSafetyChecker": "{{ contracts.OVM_SafetyChecker }}",
+                "gasMeterConfig": {
+                    "minTransactionGasLimit": "{{ env.EM_MIN_TRANSACTION_GAS_LIMIT }}",
+                    "maxTransactionGasLimit": "{{ env.EM_MAX_TRANSACTION_GAS_LIMIT }}",
+                    "maxGasPerQueuePerEpoch": "{{ env.EM_MAX_GAS_PER_QUEUE_PER_EPOCH }}",
+                    "secondsPerEpoch": "{{ env.EM_SECONDS_PER_EPOCH }}"
+                },
+                "globalContext": {
+                    "ovmCHAINID": "{{ env.OVM_CHAIN_ID }}"
+                },
+                "transactionContext": {
+                    "ovmNUMBER": "0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d"
+                }
+            }
+        },
+        "OVM_SafetyChecker": {
+            "source": "OVM_SafetyChecker"
+        },
+        "OVM_FraudVerifier": {
+            "source": "OVM_FraudVerifier",
+            "variables": {
+                "ovmStateCommitmentChain": "{{ contracts.OVM_StateCommitmentChain }}",
+                "ovmCanonicalTransactionChain": "{{ contracts.OVM_CanonicalTransactionChain }}",
+                "ovmStateTransitionerFactory": "{{ contracts.OVM_StateTransitionerFactory }}",
+                "ovmBondManager": "{{ contracts.OVM_BondManager }}"
+            }
+        },
+        "OVM_BondManager": {
+            "source": "mockOVM_BondManager"
+        },
+        "OVM_StateManagerFactory": {
+            "source": "OVM_StateManagerFactory"
+        },
+        "OVM_StateTransitionerFactory": {
+            "source": "OVM_StateTransitionerFactory"
+        },
+        "OVM_L1MultiMessageRelayer": {
+            "source": "OVM_L1MultiMessageRelayer"
+        },
+        "OVM_L1CrossDomainMessenger": {
+            "source": "OVM_L1CrossDomainMessenger"
+        }
+    }
+}

@@ -35,6 +35,10 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
      *******************************************/
 
     mapping (bytes32 => iOVM_StateTransitioner) internal transitioners;
+    iOVM_StateCommitmentChain public ovmStateCommitmentChain;
+    iOVM_CanonicalTransactionChain public ovmCanonicalTransactionChain;
+    iOVM_StateTransitionerFactory public ovmStateTransitionerFactory;
+    iOVM_BondManager public ovmBondManager;
 
 
     /***************
@@ -108,9 +112,6 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
             return;
         }
 
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
-        iOVM_CanonicalTransactionChain ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
-
         require(
             ovmStateCommitmentChain.verifyStateCommitment(
                 _preStateRoot,
@@ -169,7 +170,6 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
         contributesToFraudProof(_preStateRoot, _txHash)
     {
         iOVM_StateTransitioner transitioner = getStateTransitioner(_preStateRoot, _txHash);
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
 
         require(
             transitioner.isComplete() == true,
@@ -254,9 +254,9 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
     )
         internal
     {
-        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitionerFactory(
-            resolve("OVM_StateTransitionerFactory")
-        ).create(
+        transitioners[
+            keccak256(abi.encodePacked(_preStateRoot, _txHash))
+        ] = ovmStateTransitionerFactory.create(
             address(libAddressManager),
             _stateTransitionIndex,
             _preStateRoot,
@@ -275,9 +275,6 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
     )
         internal
     {
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
-        iOVM_BondManager ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
-
         // Delete the state batch.
         ovmStateCommitmentChain.deleteStateBatch(
             _postStateRootBatchHeader

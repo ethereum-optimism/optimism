@@ -48,13 +48,17 @@ contract TestLib_OVMCodec {
     }
 
     function decompressEIP155Transaction(
-        bytes memory _transaction
+        bytes memory _transaction,
+        uint256 _chainId
     )
         public
         returns (
             Lib_OVMCodec.EIP155Transaction memory _decompressed
         )
     {
-        return Lib_OVMCodec.decompressEIP155Transaction(_transaction);
+        return Lib_OVMCodec.decompressEIP155Transaction(
+            _transaction,
+            _chainId
+        );
     }
 }

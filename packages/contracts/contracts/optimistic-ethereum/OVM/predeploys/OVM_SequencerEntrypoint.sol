@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
+/* Interface Imports */
+import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
+
 /* Library Imports */
 import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
-import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
+import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 
 /**
  * @title OVM_SequencerEntrypoint
@@ -61,7 +64,10 @@ contract OVM_SequencerEntrypoint {
 
         // Need to decompress and then re-encode the transaction based on the original encoding.
         bytes memory encodedTx = Lib_OVMCodec.encodeEIP155Transaction(
-            Lib_OVMCodec.decompressEIP155Transaction(compressedTx),
+            Lib_OVMCodec.decompressEIP155Transaction(
+                compressedTx,
+                Lib_ExecutionManagerWrapper.ovmCHAINID()
+            ),
             isEthSignedMessage
         );
 
@@ -73,29 +79,33 @@ contract OVM_SequencerEntrypoint {
             s
         );
 
-        if (Lib_SafeExecutionManagerWrapper.safeEXTCODESIZE(target) == 0) {
-            // ProxyEOA has not yet been deployed for this EOA.
-            bytes32 messageHash = Lib_ECDSAUtils.getMessageHash(encodedTx, isEthSignedMessage);
-            Lib_SafeExecutionManagerWrapper.safeCREATEEOA(messageHash, uint8(v), r, s);
+        bool isEmptyContract;
+        assembly {
+            isEmptyContract := iszero(extcodesize(target))
         }
 
-        // ProxyEOA has been deployed for this EOA, continue to CALL.
-        bytes memory callbytes = abi.encodeWithSignature(
-            "execute(bytes,uint8,uint8,bytes32,bytes32)",
+        if (isEmptyContract) {
+            // ProxyEOA has not yet been deployed for this EOA.
+            bytes32 messageHash = Lib_ECDSAUtils.getMessageHash(encodedTx, isEthSignedMessage);
+            Lib_ExecutionManagerWrapper.ovmCREATEEOA(messageHash, uint8(v), r, s);
+        }
+
+        Lib_OVMCodec.EOASignatureType sigtype;
+        if (isEthSignedMessage) {
+            sigtype = Lib_OVMCodec.EOASignatureType.ETH_SIGNED_MESSAGE;
+        } else {
+            sigtype = Lib_OVMCodec.EOASignatureType.EIP155_TRANSACTION;
+        }
+
+        iOVM_ECDSAContractAccount(target).execute(
             encodedTx,
-            isEthSignedMessage,
+            sigtype,
             uint8(v),
             r,
             s
         );
-
-        Lib_SafeExecutionManagerWrapper.safeCALL(
-            gasleft(),
-            target,
-            callbytes
-        );
     }
-    
+
 
     /**********************
      * Internal Functions *
@@ -119,9 +129,7 @@ contract OVM_SequencerEntrypoint {
         } if (_transactionType == 2) {
             return TransactionType.ETH_SIGNED_MESSAGE;
         } else {
-            Lib_SafeExecutionManagerWrapper.safeREVERT(
-                "Transaction type must be 0 or 2"
-            );
+            revert("Transaction type must be 0 or 2");
         }
     }
 }

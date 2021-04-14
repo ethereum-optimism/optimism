@@ -5,7 +5,6 @@ pragma solidity >0.5.0 <0.8.0;
 import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
-import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 
 /**
  * @title OVM_ProxyEOA
@@ -34,8 +33,7 @@ contract OVM_ProxyEOA {
      */
     constructor(
         address _implementation
-    )
-    {
+    ) {
         _setImplementation(_implementation);
     }
 
@@ -47,20 +45,16 @@ contract OVM_ProxyEOA {
     fallback()
         external
     {
-        (bool success, bytes memory returndata) = Lib_SafeExecutionManagerWrapper.safeDELEGATECALL(
-            gasleft(),
-            getImplementation(),
-            msg.data
-        );
+        (bool success, bytes memory returndata) = getImplementation().delegatecall(msg.data);
 
         if (success) {
             assembly {
                 return(add(returndata, 0x20), mload(returndata))
             }
         } else {
-            Lib_SafeExecutionManagerWrapper.safeREVERT(
-                string(returndata)
-            );
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
         }
     }
 
@@ -78,8 +72,8 @@ contract OVM_ProxyEOA {
     )
         external
     {
-        Lib_SafeExecutionManagerWrapper.safeREQUIRE(
-            Lib_SafeExecutionManagerWrapper.safeADDRESS() == Lib_SafeExecutionManagerWrapper.safeCALLER(),
+        require(
+            msg.sender == address(this),
             "EOAs can only upgrade their own EOA implementation"
         );
 
@@ -96,11 +90,11 @@ contract OVM_ProxyEOA {
             address
         )
     {
-        return Lib_Bytes32Utils.toAddress(
-            Lib_SafeExecutionManagerWrapper.safeSLOAD(
-                IMPLEMENTATION_KEY
-            )
-        );
+        bytes32 addr32;
+        assembly {
+            addr32 := sload(IMPLEMENTATION_KEY)
+        }
+        return Lib_Bytes32Utils.toAddress(addr32);
     }
 
 
@@ -113,9 +107,9 @@ contract OVM_ProxyEOA {
     )
         internal
     {
-        Lib_SafeExecutionManagerWrapper.safeSSTORE(
-            IMPLEMENTATION_KEY,
-            Lib_Bytes32Utils.fromAddress(_implementation)
-        );
+        bytes32 addr32 = Lib_Bytes32Utils.fromAddress(_implementation);
+        assembly {
+            sstore(IMPLEMENTATION_KEY, addr32)
+        }
     }
 }

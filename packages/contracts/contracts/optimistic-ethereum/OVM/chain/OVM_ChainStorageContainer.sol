@@ -22,7 +22,7 @@ import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageCo
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressResolver {
+contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer {
 
     /*************
      * Libraries *
@@ -35,26 +35,8 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
      * Variables *
      *************/
 
-    string public owner;
+    address public owner;
     Lib_RingBuffer.RingBuffer internal buffer;
-
-
-    /***************
-     * Constructor *
-     ***************/
-
-    /**
-     * @param _libAddressManager Address of the Address Manager.
-     * @param _owner Name of the contract that owns this container (will be resolved later).
-     */
-    constructor(
-        address _libAddressManager,
-        string memory _owner
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {
-        owner = _owner;
-    }
 
 
     /**********************
@@ -63,7 +45,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
 
     modifier onlyOwner() {
         require(
-            msg.sender == resolve(owner),
+            msg.sender == owner,
             "OVM_ChainStorageContainer: Function can only be called by the owner."
         );
         _;

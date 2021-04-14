@@ -35,6 +35,11 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
 
     uint256 public FRAUD_PROOF_WINDOW;
     uint256 public SEQUENCER_PUBLISH_WINDOW;
+    iOVM_ChainStorageContainer public batches;
+    iOVM_BondManager public ovmBondManager;
+    iOVM_FraudVerifier public ovmFraudVerifier;
+    iOVM_CanonicalTransactionChain public ovmCanonicalTransactionChain;
+    address public ovmProposer;
 
 
     /***************
@@ -59,22 +64,6 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     /********************
      * Public Functions *
      ********************/
-
-    /**
-     * Accesses the batch storage container.
-     * @return Reference to the batch storage container.
-     */
-    function batches()
-        public
-        view
-        returns (
-            iOVM_ChainStorageContainer
-        )
-    {
-        return iOVM_ChainStorageContainer(
-            resolve("OVM_ChainStorageContainer:SCC:batches")
-        );
-    }
 
     /**
      * @inheritdoc iOVM_StateCommitmentChain
@@ -102,7 +91,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
             uint256 _totalBatches
         )
     {
-        return batches().length();
+        return batches.length();
     }
 
     /**
@@ -139,7 +128,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
 
         // Proposers must have previously staked at the BondManager
         require(
-            iOVM_BondManager(resolve("OVM_BondManager")).isCollateralized(msg.sender),
+            ovmBondManager.isCollateralized(msg.sender),
             "Proposer does not have enough collateral posted"
         );
 
@@ -149,7 +138,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
         );
 
         require(
-            getTotalElements() + _batch.length <= iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getTotalElements(),
+            getTotalElements() + _batch.length <= ovmCanonicalTransactionChain.getTotalElements(),
             "Number of state roots cannot exceed the number of canonical transactions."
         );
 
@@ -171,7 +160,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
         public
     {
         require(
-            msg.sender == resolve("OVM_FraudVerifier"),
+            msg.sender == address(ovmFraudVerifier),
             "State batches can only be deleted by the OVM_FraudVerifier."
         );
 
@@ -265,7 +254,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
             uint40
         )
     {
-        bytes27 extraData = batches().getGlobalMetadata();
+        bytes27 extraData = batches.getGlobalMetadata();
 
         uint40 totalElements;
         uint40 lastSequencerTimestamp;
@@ -318,10 +307,9 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     )
         internal
     {
-        address sequencer = resolve("OVM_Proposer");
         (uint40 totalElements, uint40 lastSequencerTimestamp) = _getBatchExtraData();
 
-        if (msg.sender == sequencer) {
+        if (msg.sender == ovmProposer) {
             lastSequencerTimestamp = uint40(block.timestamp);
         } else {
             // We keep track of the last batch submitted by the sequencer so there's a window in
@@ -353,7 +341,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
             batchHeader.extraData
         );
 
-        batches().push(
+        batches.push(
             Lib_OVMCodec.hashBatchHeader(batchHeader),
             _makeBatchExtraData(
                 uint40(batchHeader.prevTotalElements + batchHeader.batchSize),
@@ -372,7 +360,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
         internal
     {
         require(
-            _batchHeader.batchIndex < batches().length(),
+            _batchHeader.batchIndex < batches.length(),
             "Invalid batch index."
         );
 
@@ -381,7 +369,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
             "Invalid batch header."
         );
 
-        batches().deleteElementsAfterInclusive(
+        batches.deleteElementsAfterInclusive(
             _batchHeader.batchIndex,
             _makeBatchExtraData(
                 uint40(_batchHeader.prevTotalElements),
@@ -409,6 +397,6 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
             bool
         )
     {
-        return Lib_OVMCodec.hashBatchHeader(_batchHeader) == batches().get(_batchHeader.batchIndex);
+        return Lib_OVMCodec.hashBatchHeader(_batchHeader) == batches.get(_batchHeader.batchIndex);
     }
 }
