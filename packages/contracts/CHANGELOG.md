@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4
+
+### Patch Changes
+
+- 6626d99: fix contract import paths
+
 ## 0.2.3
 
 ### Patch Changes
