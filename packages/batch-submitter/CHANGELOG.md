@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.10
+
+### Patch Changes
+
+- 962e31b: removed unused l1 block number logic, added debug logging to batch submitter
+
 ## 0.1.9
 
 ### Patch Changes
