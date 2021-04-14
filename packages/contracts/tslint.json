@@ -2,7 +2,6 @@
   "extends": "../../tslint.base.json",
   "rules": {
     "array-type": false,
-    "class-name": false,
-    "prefer-conditional-expression": false
+    "class-name": false
   }
 }
