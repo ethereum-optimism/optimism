@@ -64,8 +64,8 @@ const networks = {
 
     md += `Network : __${network} (chain id: ${chainId})__\n\n`;
 
-    md += `|Contract|Address|Etherscan|\n`;
-    md += `|--|--|--|\n`;
+    md += `|Contract|Address|\n`;
+    md += `|--|--|\n`;
 
     const contracts = dirtree(`./deployments/${deployment}`)
       .children.filter((child) => {
@@ -80,7 +80,7 @@ const networks = {
 
       const escPrefix = chainId !== 1 ? `${network}.` : "";
       const etherscanUrl = `https://${escPrefix}etherscan.io/address/${deploymentInfo.address}`;
-      md += `|${contract}|${deploymentInfo.address}|[Open](${etherscanUrl})|\n`;
+      md += `|${contract}|[${deploymentInfo.address}](${etherscanUrl})|\n`;
     }
     md += `---\n`;
   }
