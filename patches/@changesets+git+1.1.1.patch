@@ -1,0 +1,86 @@
+diff --git a/node_modules/@changesets/git/dist/declarations/src/index.d.ts b/node_modules/@changesets/git/dist/declarations/src/index.d.ts
+index fbcd2f1..e2d70a3 100644
+--- a/node_modules/@changesets/git/dist/declarations/src/index.d.ts
++++ b/node_modules/@changesets/git/dist/declarations/src/index.d.ts
+@@ -2,6 +2,7 @@ import { Package } from "@manypkg/get-packages";
+ declare function add(pathToFile: string, cwd: string): Promise<boolean>;
+ declare function commit(message: string, cwd: string): Promise<boolean>;
+ declare function tag(tagStr: string, cwd: string): Promise<boolean>;
++declare function tagExists(tagStr: string): Promise<boolean>;
+ export declare function getDivergedCommit(cwd: string, ref: string): Promise<string>;
+ declare const getCommitThatAddsFile: (gitPath: string, cwd: string) => Promise<string | undefined>;
+ /**
+@@ -24,4 +25,4 @@ declare function getChangedPackagesSinceRef({ cwd, ref }: {
+     cwd: string;
+     ref: string;
+ }): Promise<Package[]>;
+-export { getCommitThatAddsFile, getCommitsThatAddFiles, getChangedFilesSince, add, commit, tag, getChangedPackagesSinceRef, getChangedChangesetFilesSinceRef };
++export { getCommitThatAddsFile, getCommitsThatAddFiles, getChangedFilesSince, add, commit, tag, tagExists, getChangedPackagesSinceRef, getChangedChangesetFilesSinceRef };
+diff --git a/node_modules/@changesets/git/dist/git.cjs.dev.js b/node_modules/@changesets/git/dist/git.cjs.dev.js
+index 0564b7e..bd82516 100644
+--- a/node_modules/@changesets/git/dist/git.cjs.dev.js
++++ b/node_modules/@changesets/git/dist/git.cjs.dev.js
+@@ -46,6 +46,13 @@ async function tag(tagStr, cwd) {
+     cwd
+   });
+   return gitCmd.code === 0;
++}
++
++async function tagExists(tagStr) {
++  const gitCmd = await spawn__default['default']("git", ["tag", "-l", tagStr]);
++  const output = gitCmd.stdout.toString().trim();
++  const tagExists = !!output;
++  return tagExists;
+ } // Find the commit where we diverged from `ref` at using `git merge-base`
+ 
+ 
+@@ -231,3 +238,4 @@ exports.getCommitThatAddsFile = getCommitThatAddsFile;
+ exports.getCommitsThatAddFiles = getCommitsThatAddFiles;
+ exports.getDivergedCommit = getDivergedCommit;
+ exports.tag = tag;
++exports.tagExists = tagExists;
+diff --git a/node_modules/@changesets/git/dist/git.cjs.prod.js b/node_modules/@changesets/git/dist/git.cjs.prod.js
+index db3cf82..87ec043 100644
+--- a/node_modules/@changesets/git/dist/git.cjs.prod.js
++++ b/node_modules/@changesets/git/dist/git.cjs.prod.js
+@@ -35,6 +35,10 @@ async function tag(tagStr, cwd) {
+   })).code;
+ }
+ 
++async function tagExists(tagStr) {
++  return !!(await spawn__default.default("git", [ "tag", "-l", tagStr ])).stdout.toString().trim();
++}
++
+ async function getDivergedCommit(cwd, ref) {
+   const cmd = await spawn__default.default("git", [ "merge-base", ref, "HEAD" ], {
+     cwd: cwd
+@@ -133,4 +137,4 @@ async function getChangedPackagesSinceRef({cwd: cwd, ref: ref}) {
+ exports.add = add, exports.commit = commit, exports.getChangedChangesetFilesSinceRef = getChangedChangesetFilesSinceRef, 
+ exports.getChangedFilesSince = getChangedFilesSince, exports.getChangedPackagesSinceRef = getChangedPackagesSinceRef, 
+ exports.getCommitThatAddsFile = getCommitThatAddsFile, exports.getCommitsThatAddFiles = getCommitsThatAddFiles, 
+-exports.getDivergedCommit = getDivergedCommit, exports.tag = tag;
++exports.getDivergedCommit = getDivergedCommit, exports.tag = tag, exports.tagExists = tagExists;
+diff --git a/node_modules/@changesets/git/dist/git.esm.js b/node_modules/@changesets/git/dist/git.esm.js
+index 9e7349c..922a627 100644
+--- a/node_modules/@changesets/git/dist/git.esm.js
++++ b/node_modules/@changesets/git/dist/git.esm.js
+@@ -35,6 +35,13 @@ async function tag(tagStr, cwd) {
+     cwd
+   });
+   return gitCmd.code === 0;
++}
++
++async function tagExists(tagStr) {
++  const gitCmd = await spawn("git", ["tag", "-l", tagStr]);
++  const output = gitCmd.stdout.toString().trim();
++  const tagExists = !!output;
++  return tagExists;
+ } // Find the commit where we diverged from `ref` at using `git merge-base`
+ 
+ 
+@@ -211,4 +218,4 @@ async function getChangedPackagesSinceRef({
+   .filter((pkg, idx, packages) => packages.indexOf(pkg) === idx);
+ }
+ 
+-export { add, commit, getChangedChangesetFilesSinceRef, getChangedFilesSince, getChangedPackagesSinceRef, getCommitThatAddsFile, getCommitsThatAddFiles, getDivergedCommit, tag };
++export { add, commit, getChangedChangesetFilesSinceRef, getChangedFilesSince, getChangedPackagesSinceRef, getCommitThatAddsFile, getCommitsThatAddFiles, getDivergedCommit, tag, tagExists };
