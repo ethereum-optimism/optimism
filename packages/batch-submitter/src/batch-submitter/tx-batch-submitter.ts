@@ -42,7 +42,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   protected chainContract: CanonicalTransactionChainContract
   protected l2ChainId: number
   protected syncing: boolean
-  protected lastL1BlockNumber: number
   private disableQueueBatchAppend: boolean
   private autoFixBatchOptions: AutoFixBatchOptions
 
@@ -173,36 +172,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return
   }
 
-  // TODO: Remove this function and use geth for lastL1BlockNumber!
-  private async _updateLastL1BlockNumber() {
-    this.log.warn('Calling _updateLastL1BlockNumber...')
-    const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
-
-    if (pendingQueueElements !== 0) {
-      const nextQueueIndex = await this.chainContract.getNextQueueIndex()
-      const queueElement = await this.chainContract.getQueueElement(
-        nextQueueIndex
-      )
-      this.lastL1BlockNumber = queueElement[2] // The block number is the 3rd element returned in the array....
-    } else {
-      const curBlockNum = await this.chainContract.provider.getBlockNumber()
-      if (!this.lastL1BlockNumber) {
-        // Set the block number to the current l1BlockNumber
-        this.lastL1BlockNumber = curBlockNum
-      } else {
-        if (curBlockNum - this.lastL1BlockNumber > 30) {
-          // If the lastL1BlockNumber is too old, then set it to a recent
-          // block number. (10 blocks ago to prevent reorgs)
-          this.lastL1BlockNumber = curBlockNum - 10
-        }
-      }
-    }
-
-    this.log.debug('Set lastL1BlockNumber', {
-      lastL1BlockNumber: this.lastL1BlockNumber,
-    })
-  }
-
   public async _getBatchStartAndEnd(): Promise<Range> {
     this.log.info(
       'Getting batch start and end for transaction batch submitter...'
@@ -274,8 +243,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     if (!wasBatchTruncated && !this._shouldSubmitBatch(batchSizeInBytes)) {
       return
     }
+    const l1tipHeight = await this.signer.provider.getBlockNumber()
     this.log.debug('Submitting batch.', {
       calldata: batchParams,
+      l1tipHeight,
     })
 
     const nonce = await this.signer.getTransactionCount()
@@ -308,9 +279,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     endBlock: number
   ): Promise<[AppendSequencerBatchParams, boolean]> {
     // Get all L2 BatchElements for the given range
-    // For now we need to update our internal `lastL1BlockNumber` value
-    // which is used when submitting batches.
-    this._updateLastL1BlockNumber() // TODO: Remove this
     const blockRange = endBlock - startBlock
     let batch: Batch = await bPromise.map(
       [...Array(blockRange).keys()],
@@ -802,9 +770,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     block.transactions[0].txType = txTypePlainText[block.transactions[0].txType]
     block.transactions[0].queueOrigin =
       queueOriginPlainText[block.transactions[0].queueOrigin]
-    // For now just set the l1BlockNumber based on the current l1 block number
     if (!block.transactions[0].l1BlockNumber) {
-      block.transactions[0].l1BlockNumber = this.lastL1BlockNumber
+      this.log.error('Current block missing l1BlockNumber', {
+        blockNumber,
+        block,
+      })
     }
 
     return block
