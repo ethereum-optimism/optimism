@@ -1,0 +1,15 @@
+node_modules/
+artifacts/
+artifacts-ovm/
+cache/
+cache-ovm/
+yarn-error.log
+build/
+.DS_STORE
+
+# Coverage output
+coverage/
+coverage.json
+
+# Environment variables
+.env
