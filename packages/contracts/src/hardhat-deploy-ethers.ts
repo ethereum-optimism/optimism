@@ -2,7 +2,6 @@
 import { Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { HardhatRuntimeEnvironment } from 'hardhat/types'
 
 export const registerAddress = async ({
   hre,
@@ -51,7 +50,7 @@ export const deployAndRegister = async ({
   args,
   contract,
 }: {
-  hre: HardhatRuntimeEnvironment
+  hre: any
   name: string
   args: any[]
   contract?: string
@@ -78,7 +77,7 @@ export const deployAndRegister = async ({
 }
 
 export const getDeployedContract = async (
-  hre: HardhatRuntimeEnvironment,
+  hre: any,
   name: string,
   options: {
     iface?: string
