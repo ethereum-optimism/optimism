@@ -130,6 +130,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           url: req.url,
           elapsed,
         })
+        this.logger.debug('Response body', {
+          method: req.method,
+          url: req.url,
+          body: json,
+        })
         return res.json(json)
       } catch (e) {
         const elapsed = Date.now() - start
