@@ -131,7 +131,8 @@ describe('BatchSubmitter', () => {
       Mock__OVM_StateCommitmentChain
     )
 
-    Mock__OVM_StateCommitmentChain.smocked.canOverwrite.will.return.with(false)
+    // console.log(Mock__OVM_StateCommitmentChain.smocked)
+    // Mock__OVM_StateCommitmentChain.smocked.canOverwrite.will.return.with(false)
     Mock__OVM_ExecutionManager.smocked.getMaxTransactionGasLimit.will.return.with(
       MAX_GAS_LIMIT
     )
@@ -156,9 +157,11 @@ describe('BatchSubmitter', () => {
   beforeEach(async () => {
     const unwrapped_OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
       AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS
+      FORCE_INCLUSION_PERIOD_SECONDS,
+      2, // ForceInclusionPeriodBlocks
+      MAX_GAS_LIMIT // MaxTransactionGasLimit
     )
-    await unwrapped_OVM_CanonicalTransactionChain.init()
+    // await unwrapped_OVM_CanonicalTransactionChain.init()
 
     await AddressManager.setAddress(
       'OVM_CanonicalTransactionChain',
@@ -177,7 +180,7 @@ describe('BatchSubmitter', () => {
       0 // sequencerPublishWindowSeconds
     )
 
-    await unwrapped_OVM_StateCommitmentChain.init()
+    // await unwrapped_OVM_StateCommitmentChain.init()
 
     await AddressManager.setAddress(
       'OVM_StateCommitmentChain',

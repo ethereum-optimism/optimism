@@ -5,8 +5,10 @@ import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
-import { getContractInterface, getContractFactory } from 'old-contracts'
-import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
+import {
+  getContractInterface,
+  getContractFactory,
+} from '@eth-optimism/contracts'
 import {
   Logger,
   EIP155TxData,
@@ -548,7 +550,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }> {
     const manager = new Contract(
       this.addressManagerAddress,
-      getNewContractInterface('Lib_AddressManager'),
+      getContractInterface('Lib_AddressManager'),
       this.signer.provider
     )
 
@@ -557,7 +559,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     )
     const container = new Contract(
       addr,
-      getNewContractInterface('iOVM_ChainStorageContainer'),
+      getContractInterface('iOVM_ChainStorageContainer'),
       this.signer.provider
     )
 
