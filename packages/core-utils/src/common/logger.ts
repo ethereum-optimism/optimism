@@ -1,6 +1,7 @@
 import pino, {
   LoggerOptions as PinoLoggerOptions,
   DestinationObjectOptions,
+  DestinationStream,
 } from 'pino'
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
@@ -8,7 +9,7 @@ export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 export interface LoggerOptions {
   name: string
   level?: LogLevel
-  destination?: DestinationObjectOptions
+  destination?: DestinationObjectOptions | DestinationStream
 }
 
 /**
