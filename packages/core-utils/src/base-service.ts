@@ -37,7 +37,6 @@ export class BaseService<T> {
     this.logger.info('Service is initializing...')
     await this._init()
     this.logger.info('Service has initialized.', {
-      name: this.name,
       options: this.options,
     })
     this.initialized = true
