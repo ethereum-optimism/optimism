@@ -54,6 +54,8 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
   } = {} as any
 
   protected async _init(): Promise<void> {
+    this.logger.info('Initializing L1 Data Transport Service...')
+
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
 
