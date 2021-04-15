@@ -56,9 +56,7 @@ export class BaseService<T> {
     // set the service to running
     this.running = true
     await this._start()
-    this.logger.info('Service has started', {
-      name: this.name,
-    })
+    this.logger.info('Service has started')
   }
 
   /**
@@ -69,13 +67,9 @@ export class BaseService<T> {
       return
     }
 
-    this.logger.info('Service is stopping...', {
-      name: this.name,
-    })
+    this.logger.info('Service is stopping...')
     await this._stop()
-    this.logger.info('Service has stopped', {
-      name: this.name,
-    })
+    this.logger.info('Service has stopped')
     this.running = false
   }
 
