@@ -7,7 +7,6 @@ import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
 import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
 import { Lib_Bytes32Utils } from "../utils/Lib_Bytes32Utils.sol";
-import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 
 /**
  * @title Lib_OVMCodec
@@ -155,10 +154,12 @@ library Lib_OVMCodec {
     /**
      * Decompresses a compressed EIP155 transaction.
      * @param _transaction Compressed EIP155 transaction bytes.
+     * @param _chainId Chain ID used to sign this transaction.
      * @return Transaction parsed into a struct.
      */
     function decompressEIP155Transaction(
-        bytes memory _transaction
+        bytes memory _transaction,
+        uint256 _chainId
     )
         internal
         returns (
@@ -171,7 +172,7 @@ library Lib_OVMCodec {
             nonce: Lib_BytesUtils.toUint24(_transaction, 6),
             to: Lib_BytesUtils.toAddress(_transaction, 9),
             data: Lib_BytesUtils.slice(_transaction, 29),
-            chainId: Lib_SafeExecutionManagerWrapper.safeCHAINID(),
+            chainId: _chainId,
             value: 0
         });
     }

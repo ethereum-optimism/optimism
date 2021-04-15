@@ -172,10 +172,6 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_DeployerWhitelist'),
       params: [],
     },
-    OVM_L1MessageSender: {
-      factory: getContractFactory('OVM_L1MessageSender'),
-      params: [],
-    },
     OVM_L2ToL1MessagePasser: {
       factory: getContractFactory('OVM_L2ToL1MessagePasser'),
       params: [],
@@ -221,12 +217,6 @@ export const makeContractDeployConfig = async (
     },
     OVM_SequencerEntrypoint: {
       factory: getContractFactory('OVM_SequencerEntrypoint'),
-    },
-    OVM_ProxySequencerEntrypoint: {
-      factory: getContractFactory('OVM_ProxySequencerEntrypoint'),
-    },
-    mockOVM_ECDSAContractAccount: {
-      factory: getContractFactory('mockOVM_ECDSAContractAccount'),
     },
     OVM_BondManager: {
       factory: getContractFactory('mockOVM_BondManager'),
