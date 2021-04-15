@@ -7,6 +7,7 @@ export const getXDomainCalldata = (
   messageNonce: number
 ): string => {
   return getContractInterface(
-    'OVM_L2CrossDomainMessenger'
+    'OVM_L2CrossDomainMessenger',
+    true
   ).encodeFunctionData('relayMessage', [target, sender, message, messageNonce])
 }

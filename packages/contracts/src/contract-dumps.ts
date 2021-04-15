@@ -165,6 +165,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_SequencerEntrypoint',
     'Lib_AddressManager',
     'OVM_ETH',
+    'Proxy_EOA',
   ]
 
   const deploymentResult = await deploy(config)

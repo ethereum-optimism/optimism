@@ -14,11 +14,6 @@ import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManage
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
 
-/* Contract Imports */
-import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
-import { OVM_ProxyEOA } from "../accounts/OVM_ProxyEOA.sol";
-import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
-
 /**
  * @title OVM_ExecutionManager
  * @dev The Execution Manager (EM) is the core of our OVM implementation, and provides a sandboxed
@@ -534,9 +529,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address prevADDRESS = messageContext.ovmADDRESS;
         messageContext.ovmADDRESS = eoa;
 
+        uint256 proxyEOAsize = ovmEXTCODESIZE(0x4200000000000000000000000000000000000009);
+        bytes memory proxyEOAcode = ovmEXTCODECOPY(0x4200000000000000000000000000000000000009, 0, proxyEOAsize);
+
         // Now actually create the account and get its bytecode. We're not worried about reverts
         // (other than out of gas, which we can't capture anyway) because this contract is trusted.
-        OVM_ProxyEOA proxyEOA = new OVM_ProxyEOA(0x4200000000000000000000000000000000000003);
+        address proxyEOA = Lib_EthUtils.createContract(proxyEOAcode);
 
         // Reset the address now that we're done deploying.
         messageContext.ovmADDRESS = prevADDRESS;

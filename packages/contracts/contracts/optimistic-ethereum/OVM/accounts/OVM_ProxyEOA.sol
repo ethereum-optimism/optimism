@@ -26,14 +26,8 @@ contract OVM_ProxyEOA {
      * Constructor *
      ***************/
 
-    /**
-     * @param _implementation Address of the initial implementation contract.
-     */
-    constructor(
-        address _implementation
-    )
-    {
-        _setImplementation(_implementation);
+    constructor() {
+        _setImplementation(0x4200000000000000000000000000000000000003);
     }
 
 

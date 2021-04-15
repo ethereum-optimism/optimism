@@ -45,16 +45,15 @@ describe('OVM_L1CrossDomainMessenger', () => {
     AddressManager = await makeAddressManager()
   })
 
+  const dummy_L2CrossDomainMessenger =
+    '0x1234123412341234123412341234123412341234'
+
   let Mock__TargetContract: MockContract
-  let Mock__OVM_L2CrossDomainMessenger: MockContract
   let Mock__OVM_CanonicalTransactionChain: MockContract
   let Mock__OVM_StateCommitmentChain: MockContract
   before(async () => {
     Mock__TargetContract = await smockit(
       await ethers.getContractFactory('Helper_SimpleProxy')
-    )
-    Mock__OVM_L2CrossDomainMessenger = await smockit(
-      await ethers.getContractFactory('OVM_L2CrossDomainMessenger')
     )
     Mock__OVM_CanonicalTransactionChain = await smockit(
       await ethers.getContractFactory('OVM_CanonicalTransactionChain')
@@ -65,7 +64,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     await AddressManager.setAddress(
       'OVM_L2CrossDomainMessenger',
-      Mock__OVM_L2CrossDomainMessenger.address
+      dummy_L2CrossDomainMessenger
     )
 
     await setProxyTarget(
@@ -111,7 +110,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       expect(
         Mock__OVM_CanonicalTransactionChain.smocked.enqueue.calls[0]
       ).to.deep.equal([
-        Mock__OVM_L2CrossDomainMessenger.address,
+        dummy_L2CrossDomainMessenger,
         BigNumber.from(gasLimit),
         getXDomainCalldata(await signer.getAddress(), target, message, 0),
       ])
@@ -176,9 +175,8 @@ describe('OVM_L1CrossDomainMessenger', () => {
       const precompile = '0x4200000000000000000000000000000000000000'
 
       const storageKey = keccak256(
-        keccak256(
-          calldata + remove0x(Mock__OVM_L2CrossDomainMessenger.address)
-        ) + '00'.repeat(32)
+        keccak256(calldata + remove0x(dummy_L2CrossDomainMessenger)) +
+          '00'.repeat(32)
       )
       const storageGenerator = await TrieTestGenerator.fromNodes({
         nodes: [
