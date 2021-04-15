@@ -59,7 +59,7 @@ jobs:
         id: packages
         if: steps.changesets.outputs.published == 'true'
         run: |
-          node ops/scripts/ci-versions.js "${{ toJSON(steps.changesets.outputs.publishedPackages) }}"
+          node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
 
   # The below code is duplicated, would be ideal if we could use a matrix with a
   # key/value being dynamically generated from the `publishedPackages` output

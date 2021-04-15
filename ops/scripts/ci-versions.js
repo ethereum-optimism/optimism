@@ -8,10 +8,10 @@ data = JSON.parse(data)
 
 builder = false
 for (const i of data) {
-  if (i.name !== 'l2geth') {
+  const name = i.name.replace("@eth-optimism/", "")
+  if (name !== 'l2geth') {
     builder = true
   }
-  const name = i.name.replace("@eth-optimism/", "")
   const version = i.version
   process.stdout.write(`::set-output name=${name}::${version}` + os.EOL)
 }
