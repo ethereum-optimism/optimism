@@ -37,6 +37,8 @@ import {
 } from '../constants'
 import { getStorageXOR } from '../'
 import { UNSAFE_BYTECODE } from '../dummy'
+import { getContractDefinition, getContractFactory } from '../../../src'
+import { deployContractCode } from '../utils'
 
 export class ExecutionManagerTestRunner {
   private snapshot: string
@@ -47,6 +49,7 @@ export class ExecutionManagerTestRunner {
     Helper_TestRunner: Contract
     Factory__Helper_TestRunner_CREATE: ContractFactory
     OVM_DeployerWhitelist: Contract
+    OVM_ProxyEOA: string
   } = {
     OVM_SafetyChecker: undefined,
     OVM_StateManager: undefined,
@@ -54,6 +57,7 @@ export class ExecutionManagerTestRunner {
     Helper_TestRunner: undefined,
     Factory__Helper_TestRunner_CREATE: undefined,
     OVM_DeployerWhitelist: undefined,
+    OVM_ProxyEOA: undefined,
   }
 
   // Default pre-state with contract deployer whitelist NOT initialized.
@@ -65,17 +69,21 @@ export class ExecutionManagerTestRunner {
           codeHash: NON_NULL_BYTES32,
           ethAddress: '$OVM_DEPLOYER_WHITELIST',
         },
+        ['0x4200000000000000000000000000000000000009']: {
+          codeHash: NON_NULL_BYTES32,
+          ethAddress: '$OVM_PROXY_EOA',
+        },
       },
       contractStorage: {
         ['0x4200000000000000000000000000000000000002']: {
-          '0x0000000000000000000000000000000000000000000000000000000000000010': getStorageXOR(
+          '0x0000000000000000000000000000000000000000000000000000000000000000': getStorageXOR(
             ethers.constants.HashZero
           ),
         },
       },
       verifiedContractStorage: {
         ['0x4200000000000000000000000000000000000002']: {
-          '0x0000000000000000000000000000000000000000000000000000000000000010': true,
+          '0x0000000000000000000000000000000000000000000000000000000000000000': true,
         },
       },
     },
@@ -211,11 +219,19 @@ export class ExecutionManagerTestRunner {
       this.contracts.OVM_SafetyChecker.address
     )
 
-    const DeployerWhitelist = await (
-      await ethers.getContractFactory('OVM_DeployerWhitelist')
+    const DeployerWhitelist = await getContractFactory(
+      'OVM_DeployerWhitelist',
+      AddressManager.signer,
+      true
     ).deploy()
 
     this.contracts.OVM_DeployerWhitelist = DeployerWhitelist
+
+    this.contracts.OVM_ProxyEOA = await deployContractCode(
+      getContractDefinition('OVM_ProxyEOA', true).bytecode,
+      AddressManager.signer,
+      8_000_000
+    )
 
     this.contracts.OVM_ExecutionManager = await (
       await smoddit('OVM_ExecutionManager')
@@ -266,6 +282,8 @@ export class ExecutionManagerTestRunner {
         return this.contracts.Helper_TestRunner.address
       } else if (kv === '$OVM_DEPLOYER_WHITELIST') {
         return this.contracts.OVM_DeployerWhitelist.address
+      } else if (kv === '$OVM_PROXY_EOA') {
+        return this.contracts.OVM_ProxyEOA
       } else if (kv.startsWith('$DUMMY_OVM_ADDRESS_')) {
         return ExecutionManagerTestRunner.getDummyAddress(kv)
       } else {

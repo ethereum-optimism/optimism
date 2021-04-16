@@ -1067,6 +1067,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (msg.sender != address(this)) {
             return;
         }
+
         // Check that there is not already code at this address.
         if (_hasEmptyAccount(_address) == false) {
             // Note: in the EVM, this case burns all allotted gas.  For improved

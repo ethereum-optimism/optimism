@@ -144,6 +144,6 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
             initialized == false
             || allowArbitraryDeployment == true
             || whitelist[_deployer]
-        );    
+        );
     }
 }
