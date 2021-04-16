@@ -49,6 +49,7 @@ interface Bcfg {
         false
       ),
       stopL2SyncAtBlock: config.uint('stopL2SyncAtBlock'),
+      sentryDsn: config.str('sentryDsn'),
     })
 
     await service.start()
