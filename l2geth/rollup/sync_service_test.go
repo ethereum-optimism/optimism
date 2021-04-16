@@ -395,7 +395,7 @@ func (m *mockClient) GetLatestEnqueue() (*types.Transaction, error) {
 	return m.getEnqueue[len(m.getEnqueue)-1], nil
 }
 
-func (m *mockClient) GetTransaction(index uint64) (*types.Transaction, error) {
+func (m *mockClient) GetTransaction(index uint64, typ SyncType) (*types.Transaction, error) {
 	if m.getTransactionCallCount < len(m.getTransaction) {
 		tx := m.getTransaction[m.getTransactionCallCount]
 		m.getTransactionCallCount++
@@ -404,7 +404,7 @@ func (m *mockClient) GetTransaction(index uint64) (*types.Transaction, error) {
 	return nil, errors.New("")
 }
 
-func (m *mockClient) GetLatestTransaction(backend string) (*types.Transaction, error) {
+func (m *mockClient) GetLatestTransaction(typ SyncType) (*types.Transaction, error) {
 	if len(m.getTransaction) == 0 {
 		return nil, errors.New("")
 	}

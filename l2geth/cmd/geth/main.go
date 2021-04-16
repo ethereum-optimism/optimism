@@ -160,6 +160,7 @@ var (
 		utils.RollupEnableVerifierFlag,
 		utils.RollupAddressManagerOwnerAddressFlag,
 		utils.RollupTimstampRefreshFlag,
+		utils.RollupSyncTypeFlag,
 		utils.RollupPollIntervalFlag,
 		utils.RollupStateDumpPathFlag,
 		utils.RollupDiffDbFlag,

@@ -74,6 +74,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupAddressManagerOwnerAddressFlag,
 			utils.RollupEnableVerifierFlag,
 			utils.RollupTimstampRefreshFlag,
+			utils.RollupSyncTypeFlag,
 			utils.RollupPollIntervalFlag,
 			utils.RollupStateDumpPathFlag,
 			utils.RollupDiffDbFlag,

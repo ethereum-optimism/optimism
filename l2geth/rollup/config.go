@@ -35,4 +35,6 @@ type Config struct {
 	TimestampRefreshThreshold time.Duration
 	// The gas price to use when estimating L1 calldata publishing costs
 	L1GasPrice *big.Int
+	// SyncType defines the security model of the transactions that are synced
+	SyncType SyncType
 }

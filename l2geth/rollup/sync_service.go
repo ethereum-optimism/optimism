@@ -23,19 +23,9 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
-// Remove the concept of swapping out the backend
-// Have a static backend that is set at runtime
-// Replica L1 vs L2
-
-// OVMContext represents the blocknumber and timestamp
-// that exist during L2 execution
-type OVMContext struct {
-	blockNumber uint64
-	timestamp   uint64
-}
-
-// SyncService implements the verifier functionality as well as the reorg
-// protection for the sequencer.
+// SyncService implements the main functionality around pulling in transactions
+// and executing them. It can be configured to run in both sequencer mode and in
+// verifier mode.
 type SyncService struct {
 	ctx                       context.Context
 	cancel                    context.CancelFunc
@@ -54,14 +44,13 @@ type SyncService struct {
 	syncing                   atomic.Value
 	chainHeadSub              event.Subscription
 	OVMContext                OVMContext
-	confirmationDepth         uint64
 	pollInterval              time.Duration
 	timestampRefreshThreshold time.Duration
 	chainHeadCh               chan core.ChainHeadEvent
-	backend                   string
+	syncType                  SyncType
 }
 
-// NewSyncService returns an initialized sync service
+// NewSyncService returns an initialized sync service.
 func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *core.BlockChain, db ethdb.Database) (*SyncService, error) {
 	if bc == nil {
 		return nil, errors.New("Must pass BlockChain to SyncService")
@@ -71,9 +60,9 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	_ = cancel // satisfy govet
 
 	if cfg.IsVerifier {
-		log.Info("Running in verifier mode")
+		log.Info("Running in verifier mode", "sync-type", cfg.SyncType.String())
 	} else {
-		log.Info("Running in sequencer mode")
+		log.Info("Running in sequencer mode", "sync-type", cfg.SyncType.String())
 	}
 
 	pollInterval := cfg.PollInterval
@@ -83,14 +72,9 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	}
 	timestampRefreshThreshold := cfg.TimestampRefreshThreshold
 	if timestampRefreshThreshold == 0 {
-		log.Info("Sanitizing timestamp refresh threshold to 15 minutes")
-		timestampRefreshThreshold = time.Minute * 15
+		log.Info("Sanitizing timestamp refresh threshold to 5 minutes")
+		timestampRefreshThreshold = time.Minute * 5
 	}
-
-	// TODO: parse the backend from a CLI flag
-	// the backend is used to query from the data transport layer
-	// transactions from a particular backend
-	backend := "l1"
 
 	// Layer 2 chainid
 	chainID := bc.Config().ChainID
@@ -99,13 +83,12 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	}
 	// Initialize the rollup client
 	client := NewClient(cfg.RollupClientHttp, chainID)
-	log.Info("Configured rollup client", "url", cfg.RollupClientHttp, "chain-id", chainID.Uint64(), "ctc-deploy-height", cfg.CanonicalTransactionChainDeployHeight)
+	log.Info("Configured rollup client", "url", cfg.RollupClientHttp, "chain-id", chainID.Uint64())
 	service := SyncService{
 		ctx:                       ctx,
 		cancel:                    cancel,
 		verifier:                  cfg.IsVerifier,
 		enable:                    cfg.Eth1SyncServiceEnable,
-		confirmationDepth:         cfg.Eth1ConfirmationDepth,
 		syncing:                   atomic.Value{},
 		bc:                        bc,
 		txpool:                    txpool,
@@ -115,12 +98,18 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		db:                        db,
 		pollInterval:              pollInterval,
 		timestampRefreshThreshold: timestampRefreshThreshold,
-		backend:                   backend,
+		syncType:                  cfg.SyncType,
 	}
 
+	// The chainHeadSub is used to synchronize the SyncService with the chain.
+	// As the SyncService processes transactions, it waits until the transaction
+	// is added to the chain. This synchronization is required for handling
+	// reorgs and also favors safety over liveliness. If a transaction breaks
+	// things downstream, it is expected that this channel will halt ingestion
+	// of additional transactions by the SyncService.
 	service.chainHeadSub = service.bc.SubscribeChainHeadEvent(service.chainHeadCh)
 
-	// Initial sync service setup if it is enabled. This code depends on
+	// Initialize sync service setup if it is enabled. This code depends on
 	// a remote server that indexes the layer one contracts. Place this
 	// code behind this if statement so that this can run without the
 	// requirement of the remote server being up.
@@ -132,7 +121,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 			return nil, fmt.Errorf("Rollup client unable to connect: %w", err)
 		}
 
-		// Ensure that the remote is still not syncing
+		// Wait until the remote service is done syncing
 		for {
 			status, err := service.client.SyncStatus()
 			if err != nil {
@@ -149,12 +138,13 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		// Initialize the latest L1 data here to make sure that
 		// it happens before the RPC endpoints open up
 		// Only do it if the sync service is enabled so that this
-		// can be ran without needing to have a configured client.
+		// can be ran without needing to have a configured RollupClient
 		err = service.initializeLatestL1(cfg.CanonicalTransactionChainDeployHeight)
 		if err != nil {
 			return nil, fmt.Errorf("Cannot initialize latest L1 data: %w", err)
 		}
 
+		// Log the OVMContext information on startup
 		bn := service.GetLatestL1BlockNumber()
 		ts := service.GetLatestL1Timestamp()
 		log.Info("Initialized Latest L1 Info", "blocknumber", bn, "timestamp", ts)
@@ -162,7 +152,12 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		index := service.GetLatestIndex()
 		queueIndex := service.GetLatestEnqueueIndex()
 		verifiedIndex := service.GetLatestVerifiedIndex()
-		log.Info("Initialized Eth Context", "index", stringify(index), "queue-index", stringify(queueIndex), "verified-index", verifiedIndex)
+		block := service.bc.CurrentBlock()
+		if block == nil {
+			block = types.NewBlock(&types.Header{}, nil, nil, nil)
+		}
+		header := block.Header()
+		log.Info("Initial Rollup State", "state", header.Root.Hex(), "index", stringify(index), "queue-index", stringify(queueIndex), "verified-index", verifiedIndex)
 
 		// The sequencer needs to sync to the tip at start up
 		// By setting the sync status to true, it will prevent RPC calls.
@@ -174,6 +169,8 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	return &service, nil
 }
 
+// ensureClient checks to make sure that the remote transaction source is
+// available. It will return an error if it cannot connect via HTTP
 func (s *SyncService) ensureClient() error {
 	_, err := s.client.GetLatestEthContext()
 	if err != nil {
@@ -182,7 +179,7 @@ func (s *SyncService) ensureClient() error {
 	return nil
 }
 
-// Start initializes the service
+// Start initializes the SyncService.
 func (s *SyncService) Start() error {
 	if !s.enable {
 		log.Info("Sync Service not initialized")
@@ -196,7 +193,7 @@ func (s *SyncService) Start() error {
 		// The sequencer must sync the transactions to the tip and the
 		// pending queue transactions on start before setting sync status
 		// to false and opening up the RPC to accept transactions.
-		err := s.syncTransactionsToTip(s.backend)
+		err := s.syncTransactionsToTip(s.syncType)
 		if err != nil {
 			return fmt.Errorf("Cannot sync transactions to the tip: %w", err)
 		}
@@ -221,6 +218,7 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		if ctcDeployHeight == nil {
 			return errors.New("Must configure with canonical transaction chain deploy height")
 		}
+		log.Info("Initializing initial OVM Context", "ctc-deploy-height", ctcDeployHeight.Uint64())
 		context, err := s.client.GetEthContext(ctcDeployHeight.Uint64())
 		if err != nil {
 			return fmt.Errorf("Cannot fetch ctc deploy block at height %d: %w", ctcDeployHeight.Uint64(), err)
@@ -234,7 +232,7 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 			block = s.bc.CurrentBlock()
 			idx := block.Number().Uint64()
 			if idx > *index {
-				// This is recoverable with a reorg
+				// This is recoverable with a reorg but should never happen
 				return fmt.Errorf("Current block height greater than index")
 			}
 			s.SetLatestIndex(&idx)
@@ -296,6 +294,7 @@ func (s *SyncService) Stop() error {
 	return nil
 }
 
+// VerifierLoop is the main loop for Verifier mode
 func (s *SyncService) VerifierLoop() {
 	log.Info("Starting Verifier Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
@@ -306,23 +305,26 @@ func (s *SyncService) VerifierLoop() {
 	}
 }
 
-// verify
+// verify is the main logic for the Verifier. The verifier logic is different
+// depending on the SyncType.
 func (s *SyncService) verify() error {
-	switch s.backend {
-	case "l1":
+	switch s.syncType {
+	case SyncTypeBatched:
 		err := s.syncTransactionBatchesToTip()
 		if err != nil {
-			log.Error("Verifier cannot sync transaction batches", "msg", err)
+			log.Error("Verifier cannot sync transaction batches to tip", "msg", err)
 		}
-	case "l2":
-		err := s.syncTransactionsToTip("l2")
+	case SyncTypeSequenced:
+		err := s.syncTransactionsToTip(SyncTypeSequenced)
 		if err != nil {
-			log.Error("Verifier cannot sync transactions", "msg", err)
+			log.Error("Verifier cannot sync transactions with SyncTypeSequencer", "msg", err)
 		}
 	}
 	return nil
 }
 
+// SequencerLoop is the polling loop that runs in sequencer mode. It sequences
+// transactions and then updates the EthContext.
 func (s *SyncService) SequencerLoop() {
 	log.Info("Starting Sequencer Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
@@ -336,53 +338,57 @@ func (s *SyncService) SequencerLoop() {
 		if s.updateEthContext() != nil {
 			log.Error("Could not update execution context", "error", err)
 		}
-
 		time.Sleep(s.pollInterval)
 	}
 }
 
+// sequence is the main logic for the Sequencer. It will sync any `enqueue`
+// transactions it has yet to sync and then pull in transaction batches to
+// compare against the transactions it has in its local state. The sequencer
+// should reorg based on the transaction batches that are posted because
+// L1 is the source of truth. The sequencer concurrently accepts user
+// transactions via the RPC.
 func (s *SyncService) sequence() error {
-	switch s.backend {
-	case "l1":
-		err := s.syncQueueToTip()
-		if err != nil {
-			log.Error("Sequencer cannot sync queue", "msg", err)
-		}
-		err = s.syncTransactionBatchesToTip()
-		if err != nil {
-			log.Error("Sequencer cannot sync transaction batches", "msg", err)
-		}
-	case "l2":
-		err := s.syncTransactionsToTip("l2")
-		if err != nil {
-			log.Error("Sequencer cannot sync", "msg", err)
-		}
+	err := s.syncQueueToTip()
+	if err != nil {
+		log.Error("Sequencer cannot sync queue", "msg", err)
+	}
+	err = s.syncTransactionBatchesToTip()
+	if err != nil {
+		log.Error("Sequencer cannot sync transaction batches", "msg", err)
 	}
 	return nil
 }
 
 // Methods for safely accessing and storing the latest
 // L1 blocknumber and timestamp. These are held in memory.
+
+// GetLatestL1Timestamp returns the OVMContext timestamp
 func (s *SyncService) GetLatestL1Timestamp() uint64 {
 	return atomic.LoadUint64(&s.OVMContext.timestamp)
 }
 
+// GetLatestL1BlockNumber returns the OVMContext blocknumber
 func (s *SyncService) GetLatestL1BlockNumber() uint64 {
 	return atomic.LoadUint64(&s.OVMContext.blockNumber)
 }
 
+// SetLatestL1Timestamp will set the OVMContext timestamp
 func (s *SyncService) SetLatestL1Timestamp(ts uint64) {
 	atomic.StoreUint64(&s.OVMContext.timestamp, ts)
 }
 
+// SetLatestL1BlockNumber will set the OVMContext blocknumber
 func (s *SyncService) SetLatestL1BlockNumber(bn uint64) {
 	atomic.StoreUint64(&s.OVMContext.blockNumber, bn)
 }
 
+// GetLatestEnqueueIndex reads the last queue index processed
 func (s *SyncService) GetLatestEnqueueIndex() *uint64 {
 	return rawdb.ReadHeadQueueIndex(s.db)
 }
 
+// GetNextEnqueueIndex returns the next queue index to process
 func (s *SyncService) GetNextEnqueueIndex() uint64 {
 	latest := s.GetLatestEnqueueIndex()
 	if latest == nil {
@@ -391,40 +397,19 @@ func (s *SyncService) GetNextEnqueueIndex() uint64 {
 	return *latest + 1
 }
 
+// SetLatestEnqueueIndex writes the last queue index that was processed
 func (s *SyncService) SetLatestEnqueueIndex(index *uint64) {
 	if index != nil {
 		rawdb.WriteHeadQueueIndex(s.db, *index)
 	}
 }
 
-func (s *SyncService) SetLatestIndex(index *uint64) {
-	if index != nil {
-		rawdb.WriteHeadIndex(s.db, *index)
-	}
-}
-
-func (s *SyncService) SetLatestVerifiedIndex(index *uint64) {
-	if index != nil {
-		rawdb.WriteHeadVerifiedIndex(s.db, *index)
-	}
-}
-
-func (s *SyncService) GetLatestVerifiedIndex() *uint64 {
-	return rawdb.ReadHeadVerifiedIndex(s.db)
-}
-
-func (s *SyncService) GetNextVerifiedIndex() uint64 {
-	index := s.GetLatestVerifiedIndex()
-	if index == nil {
-		return 0
-	}
-	return *index + 1
-}
-
+// GetLatestIndex reads the last CTC index that was processed
 func (s *SyncService) GetLatestIndex() *uint64 {
 	return rawdb.ReadHeadIndex(s.db)
 }
 
+// GetNextIndex reads the next CTC index to process
 func (s *SyncService) GetNextIndex() uint64 {
 	latest := s.GetLatestIndex()
 	if latest == nil {
@@ -433,6 +418,37 @@ func (s *SyncService) GetNextIndex() uint64 {
 	return *latest + 1
 }
 
+// SetLatestIndex writes the last CTC index that was processed
+func (s *SyncService) SetLatestIndex(index *uint64) {
+	if index != nil {
+		rawdb.WriteHeadIndex(s.db, *index)
+	}
+}
+
+// GetLatestVerifiedIndex reads the last verified CTC index that was processed
+// These are set by processing batches of transactions that were submitted to
+// the Canonical Transaction Chain.
+func (s *SyncService) GetLatestVerifiedIndex() *uint64 {
+	return rawdb.ReadHeadVerifiedIndex(s.db)
+}
+
+// GetNextVerifiedIndex reads the next verified index
+func (s *SyncService) GetNextVerifiedIndex() uint64 {
+	index := s.GetLatestVerifiedIndex()
+	if index == nil {
+		return 0
+	}
+	return *index + 1
+}
+
+// SetLatestVerifiedIndex writes the last verified index that was processed
+func (s *SyncService) SetLatestVerifiedIndex(index *uint64) {
+	if index != nil {
+		rawdb.WriteHeadVerifiedIndex(s.db, *index)
+	}
+}
+
+// applyTransaction is a higher level API for applying a transaction
 func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 	if tx.GetMeta().Index != nil {
 		return s.applyIndexedTransaction(tx)
@@ -440,7 +456,9 @@ func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 	return s.applyTransactionToTip(tx)
 }
 
-// applyIndexedTransaction applys an indexed transaction
+// applyIndexedTransaction applys a transaction that has an index. This means
+// that the source of the transaction was either a L1 batch or from the
+// sequencer.
 func (s *SyncService) applyIndexedTransaction(tx *types.Transaction) error {
 	if tx == nil {
 		return errors.New("Transaction is nil in applyIndexedTransaction")
@@ -449,7 +467,7 @@ func (s *SyncService) applyIndexedTransaction(tx *types.Transaction) error {
 	if index == nil {
 		return errors.New("No index found in applyIndexedTransaction")
 	}
-	log.Debug("Applying indexed transaction", "index", *index)
+	log.Trace("Applying indexed transaction", "index", *index)
 	next := s.GetNextIndex()
 	if *index == next {
 		return s.applyTransactionToTip(tx)
@@ -460,6 +478,8 @@ func (s *SyncService) applyIndexedTransaction(tx *types.Transaction) error {
 	return fmt.Errorf("Received tx at index %d when looking for %d", *index, next)
 }
 
+// applyHistoricalTransaction will compare a historical transaction against what
+// is locally indexed. This will trigger a reorg in the future
 func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 	if tx == nil {
 		return errors.New("Transaction is nil in applyHistoricalTransaction")
@@ -485,8 +505,14 @@ func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 	return nil
 }
 
+// applyTransactionToTip will do sanity checks on the transaction before
+// applying it to the tip. It blocks until the transaction has been included in
+// the chain.
 func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
-	log.Debug("Applying transaction to tip")
+	if tx == nil {
+		return errors.New("nil transaction passed to applyTransactionToTip")
+	}
+	log.Trace("Applying transaction to tip")
 	if tx.L1Timestamp() == 0 {
 		ts := s.GetLatestL1Timestamp()
 		bn := s.GetLatestL1BlockNumber()
@@ -498,7 +524,8 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		s.SetLatestL1Timestamp(ts)
 		s.SetLatestL1BlockNumber(bn.Uint64())
 	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
-		log.Warn("Timestamp monotonicity violation")
+		// TODO: this should force a reorg
+		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
 	}
 
 	if tx.GetMeta().Index == nil {
@@ -514,7 +541,11 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
 
+	// This is a temporary fix for a bug in the SequencerEntrypoint. It will
+	// be removed when the custom batch serialization is removed in favor of
+	// batching RLP encoded transactions.
 	tx = fixType(tx)
+
 	txs := types.Transactions{tx}
 	s.txFeed.Send(core.NewTxsEvent{Txs: txs})
 	// Block until the transaction has been added to the chain
@@ -524,6 +555,10 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	return nil
 }
 
+// applyBatchedTransaction applies transactions that were batched to layer one.
+// The sequencer checks for batches over time to make sure that it does not
+// deviate from the L1 state and this is the main method of transaction
+// ingestion for the verifier.
 func (s *SyncService) applyBatchedTransaction(tx *types.Transaction) error {
 	if tx == nil {
 		return errors.New("nil transaction passed into applyBatchedTransaction")
@@ -532,7 +567,7 @@ func (s *SyncService) applyBatchedTransaction(tx *types.Transaction) error {
 	if index == nil {
 		return errors.New("No index found on transaction")
 	}
-	log.Debug("Applying batched transaction", "index", *index)
+	log.Trace("Applying batched transaction", "index", *index)
 	err := s.applyIndexedTransaction(tx)
 	if err != nil {
 		return fmt.Errorf("Cannot apply batched transaction: %w", err)
@@ -554,16 +589,7 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 
 	s.txLock.Lock()
 	defer s.txLock.Unlock()
-
-	// On the first transaction received by a sequencer, switch the backend
-	if s.backend == "l2" {
-		log.Info("Sequencer syncing final transactions to tip")
-		s.syncTransactionsToTip("l2")
-		s.backend = "l1"
-		log.Info("Sequencing switch staring", "next-index", s.GetNextIndex())
-	}
-
-	log.Debug("Sequencer transaction validation", "hash", tx.Hash().Hex())
+	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex())
 
 	qo := tx.QueueOrigin()
 	if qo == nil {
@@ -577,7 +603,7 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 		return fmt.Errorf("invalid transaction: %w", err)
 	}
 
-	// Set the raw transaction data in the meta
+	// Set the raw transaction data in the meta.
 	txRaw, err := getRawTransaction(tx)
 	if err != nil {
 		return fmt.Errorf("invalid transaction: %w", err)
@@ -597,13 +623,14 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 	return s.applyTransaction(tx)
 }
 
-// syncTransactionsToTip will sync all of the transactions to the tip
-func (s *SyncService) syncTransactionsToTip(backend string) error {
+// syncTransactionsToTip will sync all of the transactions to the tip.
+// The syncType determines the source of the transactions.
+func (s *SyncService) syncTransactionsToTip(syncType SyncType) error {
 	s.loopLock.Lock()
 	defer s.loopLock.Unlock()
 
 	for {
-		latest, err := s.client.GetLatestTransaction(backend)
+		latest, err := s.client.GetLatestTransaction(syncType)
 		if err != nil {
 			return fmt.Errorf("Cannot get latest transaction: %w", err)
 		}
@@ -619,7 +646,7 @@ func (s *SyncService) syncTransactionsToTip(backend string) error {
 		log.Info("Syncing transactions to tip", "start", *latestIndex, "end", nextIndex)
 
 		for i := nextIndex; i <= *latestIndex; i++ {
-			tx, err := s.client.GetTransaction(i, backend)
+			tx, err := s.client.GetTransaction(i, syncType)
 			if err != nil {
 				log.Error("Cannot get latest transaction", "msg", err)
 				time.Sleep(time.Second * 2)
@@ -634,7 +661,7 @@ func (s *SyncService) syncTransactionsToTip(backend string) error {
 			}
 		}
 
-		post, err := s.client.GetLatestTransaction(backend)
+		post, err := s.client.GetLatestTransaction(syncType)
 		if err != nil {
 			return fmt.Errorf("Cannot get latest transaction: %w", err)
 		}
@@ -648,6 +675,8 @@ func (s *SyncService) syncTransactionsToTip(backend string) error {
 	}
 }
 
+// syncTransactionBatchesToTip will sync all of the transaction batches to the
+// tip
 func (s *SyncService) syncTransactionBatchesToTip() error {
 	s.loopLock.Lock()
 	defer s.loopLock.Unlock()
@@ -685,6 +714,8 @@ func (s *SyncService) syncTransactionBatchesToTip() error {
 	}
 }
 
+// syncQueueToTip will sync the `enqueue` transactions to the tip
+// from the last known `enqueue` transaction
 func (s *SyncService) syncQueueToTip() error {
 	s.loopLock.Lock()
 	defer s.loopLock.Unlock()
@@ -703,7 +734,6 @@ func (s *SyncService) syncQueueToTip() error {
 			return errors.New("Latest queue transaction has no queue index")
 		}
 		nextIndex := s.GetNextEnqueueIndex()
-		// TODO: make sure these indices are correct
 		log.Info("Syncing enqueue transactions to tip", "start", *latestIndex, "end", nextIndex)
 
 		for i := nextIndex; i <= *latestIndex; i++ {
@@ -733,8 +763,9 @@ func (s *SyncService) syncQueueToTip() error {
 	}
 }
 
-// Update the execution context's timestamp and blocknumber
-// over time. This is only necessary for the sequencer.
+// updateEthContext will update the OVM execution context's
+// timestamp and blocknumber if enough time has passed since
+// it was last updated. This is a sequencer only function.
 func (s *SyncService) updateEthContext() error {
 	context, err := s.client.GetLatestEthContext()
 	if err != nil {
@@ -756,6 +787,9 @@ func (s *SyncService) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Sub
 	return s.scope.Track(s.txFeed.Subscribe(ch))
 }
 
+// getRawTransaction will return the raw serialization of the transaction. This
+// function will be deprecated in the near future when the batch serialization
+// is RLP encoded transactions.
 func getRawTransaction(tx *types.Transaction) ([]byte, error) {
 	if tx == nil {
 		return nil, errors.New("Cannot process nil transaction")
@@ -803,6 +837,7 @@ func getRawTransaction(tx *types.Transaction) ([]byte, error) {
 	return data.Bytes(), nil
 }
 
+// fillBytes is taken from a newer version of the golang standard library
 func fillBytes(x *big.Int, size int) []byte {
 	b := x.Bytes()
 	switch {
@@ -817,6 +852,8 @@ func fillBytes(x *big.Int, size int) []byte {
 	}
 }
 
+// getSignatureType is a patch to fix a bug in the contracts. Will be deprecated
+// with the move to RLP encoded transactions in batches.
 func getSignatureType(tx *types.Transaction) uint8 {
 	if tx.SignatureHashType() == 0 {
 		return 0

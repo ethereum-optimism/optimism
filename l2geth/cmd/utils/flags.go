@@ -849,6 +849,12 @@ var (
 		Value:  time.Minute * 15,
 		EnvVar: "ROLLUP_TIMESTAMP_REFRESH",
 	}
+	RollupSyncTypeFlag = cli.StringFlag{
+		Name:   "rollup.synctype",
+		Usage:  "Transaction sync source",
+		Value:  "batched",
+		EnvVar: "ROLLUP_SYNC_TYPE",
+	}
 	// Flag to enable verifier mode
 	RollupEnableVerifierFlag = cli.BoolFlag{
 		Name:   "rollup.verifier",
@@ -1160,6 +1166,14 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupL1GasPriceFlag.Name) {
 		cfg.L1GasPrice = GlobalBig(ctx, RollupL1GasPriceFlag.Name)
+	}
+	if ctx.GlobalIsSet(RollupSyncTypeFlag.Name) {
+		typ, err := rollup.NewSyncType(ctx.GlobalString(RollupSyncTypeFlag.Name))
+		if err != nil {
+			log.Error("Configured with unknown sync type")
+			typ, _ = rollup.NewSyncType("batched")
+		}
+		cfg.SyncType = typ
 	}
 }
 

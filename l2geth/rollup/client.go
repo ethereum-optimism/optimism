@@ -84,8 +84,8 @@ type decoded struct {
 type RollupClient interface {
 	GetEnqueue(index uint64) (*types.Transaction, error)
 	GetLatestEnqueue() (*types.Transaction, error)
-	GetTransaction(uint64, string) (*types.Transaction, error)
-	GetLatestTransaction(string) (*types.Transaction, error)
+	GetTransaction(uint64, SyncType) (*types.Transaction, error)
+	GetLatestTransaction(SyncType) (*types.Transaction, error)
 	GetEthContext(uint64) (*EthContext, error)
 	GetLatestEthContext() (*EthContext, error)
 	GetLastConfirmedEnqueue() (*types.Transaction, error)
@@ -324,14 +324,18 @@ func transactionResponseToTransaction(res *transaction, signer *types.OVMSigner)
 	return tx, nil
 }
 
-func (c *Client) GetTransaction(index uint64, backend string) (*types.Transaction, error) {
+// TODO: update DTL PR to use these
+// source: confirmed
+// source: pending
+
+func (c *Client) GetTransaction(index uint64, syncType SyncType) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
 		SetPathParams(map[string]string{
 			"index": str,
 		}).
 		SetQueryParams(map[string]string{
-			"backend": backend,
+			"source": syncType.String(),
 		}).
 		SetResult(&TransactionResponse{}).
 		Get("/transaction/index/{index}")
@@ -346,10 +350,10 @@ func (c *Client) GetTransaction(index uint64, backend string) (*types.Transactio
 	return transactionResponseToTransaction(res.Transaction, c.signer)
 }
 
-func (c *Client) GetLatestTransaction(backend string) (*types.Transaction, error) {
+func (c *Client) GetLatestTransaction(syncType SyncType) (*types.Transaction, error) {
 	response, err := c.client.R().
 		SetQueryParams(map[string]string{
-			"backend": backend,
+			"source": syncType.String(),
 		}).
 		SetResult(&TransactionResponse{}).
 		Get("/transaction/latest")
