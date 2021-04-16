@@ -30,14 +30,14 @@ type EthContext struct {
 	Timestamp   uint64      `json:"timestamp"`
 }
 
-type L1GasPrice struct {
-	GasPrice string `json:"gasPrice"`
-}
-
 type SyncStatus struct {
 	Syncing                      bool   `json:"syncing"`
 	HighestKnownTransactionIndex uint64 `json:"highestKnownTransactionIndex"`
 	CurrentTransactionIndex      uint64 `json:"currentTransactionIndex"`
+}
+
+type L1GasPrice struct {
+	GasPrice string `json:"gasPrice"`
 }
 
 type transaction struct {
