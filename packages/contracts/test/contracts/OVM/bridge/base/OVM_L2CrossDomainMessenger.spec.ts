@@ -197,5 +197,27 @@ describe('OVM_L2CrossDomainMessenger', () => {
         )
       ).to.be.true
     })
+
+    it('should revert if trying reenter `relayMessage`', async () => {
+      // What if reentering to `sendMessage`?
+      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
+        Mock__OVM_L1CrossDomainMessenger.address
+      )
+
+    const reentrantMessage = OVM_L2CrossDomainMessenger.interface.encodeFunctionData('relayMessage', [
+      OVM_L2CrossDomainMessenger.address,
+      sender,
+      message,
+      1
+    ])
+    sender = await signer.getAddress()
+
+      await OVM_L2CrossDomainMessenger.relayMessage(relayer, sender, reentrantMessage, 0)
+
+      await expect(
+        OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+      ).to.be.revertedWith('Provided message has already been received.')
+    })
+
   })
 })
