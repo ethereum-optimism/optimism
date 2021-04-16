@@ -44,3 +44,22 @@ func WriteHeadQueueIndex(db ethdb.KeyValueWriter, index uint64) {
 		log.Crit("Failed to store queue index", "err", err)
 	}
 }
+
+func ReadHeadVerifiedIndex(db ethdb.KeyValueReader) *uint64 {
+	data, _ := db.Get(headVerifiedIndexKey)
+	if len(data) == 0 {
+		return nil
+	}
+	ret := new(big.Int).SetBytes(data).Uint64()
+	return &ret
+}
+
+func WriteHeadVerifiedIndex(db ethdb.KeyValueWriter, index uint64) {
+	value := new(big.Int).SetUint64(index).Bytes()
+	if index == 0 {
+		value = []byte{0}
+	}
+	if err := db.Put(headVerifiedIndexKey, value); err != nil {
+		log.Crit("Failed to store verfied index", "err", err)
+	}
+}

@@ -58,8 +58,10 @@ var (
 
 	// headIndexKey tracks the last processed ctc index
 	headIndexKey = []byte("LastIndex")
-	// headQueueIndexKey tracks th last processed queue index
+	// headQueueIndexKey tracks the last processed queue index
 	headQueueIndexKey = []byte("LastQueueIndex")
+	// headVerifiedIndexKey tracks the latest verified index
+	headVerifiedIndexKey = []byte("LastVerifiedIndex")
 
 	preimagePrefix = []byte("secure-key-")      // preimagePrefix + hash -> preimage
 	configPrefix   = []byte("ethereum-config-") // config prefix for the db

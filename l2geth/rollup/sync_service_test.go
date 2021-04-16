@@ -48,7 +48,7 @@ func TestSyncServiceContextUpdated(t *testing.T) {
 	}
 
 	// run the update context call once
-	err := service.updateContext()
+	err := service.updateEthContext()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestSyncServiceContextUpdated(t *testing.T) {
 	})
 
 	// call it again
-	err = service.updateContext()
+	err = service.updateEthContext()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +404,7 @@ func (m *mockClient) GetTransaction(index uint64) (*types.Transaction, error) {
 	return nil, errors.New("")
 }
 
-func (m *mockClient) GetLatestTransaction() (*types.Transaction, error) {
+func (m *mockClient) GetLatestTransaction(backend string) (*types.Transaction, error) {
 	if len(m.getTransaction) == 0 {
 		return nil, errors.New("")
 	}
@@ -426,6 +426,14 @@ func (m *mockClient) GetLatestEthContext() (*EthContext, error) {
 
 func (m *mockClient) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 	return nil, nil
+}
+
+func (m *mockClient) GetLatestTransactionBatch() (*Batch, []*types.Transaction, error) {
+	return nil, nil, nil
+}
+
+func (m *mockClient) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction, error) {
+	return nil, nil, nil
 }
 
 func (m *mockClient) SyncStatus() (*SyncStatus, error) {
