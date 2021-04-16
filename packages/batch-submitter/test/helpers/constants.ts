@@ -2,7 +2,8 @@
 import { ethers } from 'ethers'
 import { defaultAccounts } from 'ethereum-waffle'
 
-export const FORCE_INCLUSION_PERIOD_SECONDS = 600
+export const FORCE_INCLUSION_PERIOD_SECONDS = 60_000
+export const MIN_ROLLUP_TX_GAS = 100_000
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_HARDHAT = defaultAccounts.map((account) => {
   return {
