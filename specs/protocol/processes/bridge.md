@@ -7,11 +7,9 @@ A high-level description I find useful to summarize the difference between the t
 1. From L2 to L1, messages are validated by verifying the inclusion of the message data in a mapping in a contract on the L2 state.
 2. From L1 to L2, messages are validated simply by checking that the `ovmL1TXORIGIN` matches the expected address
 
-## Cross Domain Messengers Contracts
+## Cross Domain Messengers Contracts (aka xDMs)
 
-There are two contracts
-
-
+There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messengers), which are 'paired' in the sense that they each other's addresses in order to validate the
 
 ## L2 to L1 messaging flow
 
@@ -49,9 +47,9 @@ There are two contracts
 
 **Starting on L1:**
 
-- Any account on L1 may call `
--
--
+- Any account may call the L1xDM's `sendMessage()` function submit their transaction data to the CTC's Transaction Queue, with the L2xDM as the `target`.
+
+
 - `OVM_L2CrossDomainMessenger.sendMessage()` with the information for the L1 message (aka `xDomainCalldata`)
   - (ie.  `_target`, `msg.sender`, `_message`)
   - This data is hashed with the `messageNonce` storage variable, and the hash is store in the `sentMessages` mapping (this is not actually used AFAIK)

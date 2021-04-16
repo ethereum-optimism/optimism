@@ -20,6 +20,7 @@ The following definitions are intended only to disambiguate some of the terms an
 - **State Manager (SM):** The contract which manages a remapping of L2 to L1 addresses.
 - **Fraud Prover:** The contract used to initiate and adjudicate a fraud proof.
 - **Bond Manager:** The contract which accepts the collateral deposit required to act as a state proposer.
+- **Cross Domain Messenger (xDM):** The pair of contracts used to pass messages between L1 and L2. These contracts are sometimes referred to as the L1xDM, and L2xDM.
 
 ## Implementation Specific Concepts
 
