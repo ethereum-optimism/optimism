@@ -324,10 +324,6 @@ func transactionResponseToTransaction(res *transaction, signer *types.OVMSigner)
 	return tx, nil
 }
 
-// TODO: update DTL PR to use these
-// source: confirmed
-// source: pending
-
 func (c *Client) GetTransaction(index uint64, syncType SyncType) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
