@@ -460,7 +460,7 @@ func (c *Client) GetLatestTransactionBatch() (*Batch, []*types.Transaction, erro
 	}
 	txBatch, ok := response.Result().(*TransactionBatchResponse)
 	if !ok {
-		return nil, nil, fmt.Errorf("Cannot parse transaciton batch response")
+		return nil, nil, fmt.Errorf("Cannot parse transaction batch response")
 	}
 	return parseTransactionBatchResponse(txBatch, c.signer)
 }
@@ -479,7 +479,7 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 	}
 	txBatch, ok := response.Result().(*TransactionBatchResponse)
 	if !ok {
-		return nil, nil, fmt.Errorf("Cannot parse transaciton batch response")
+		return nil, nil, fmt.Errorf("Cannot parse transaction batch response")
 	}
 	return parseTransactionBatchResponse(txBatch, c.signer)
 }

@@ -48,7 +48,7 @@ const (
 	SyncTypeBatched SyncType = iota
 	// Sequenced SyncType involves syncing transactions from the sequencer,
 	// meaning that the transactions may have not been batched to Layer One yet.
-	// This gives higher latency access to the sequencer data but no gurantees
+	// This gives higher latency access to the sequencer data but no guarantees
 	// around the transactions as they have not been submitted via a batch to
 	// L1.
 	SyncTypeSequenced
