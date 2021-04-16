@@ -43,7 +43,7 @@ services:
     image: ethereumoptimism/data-transport-layer
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.dtl
+      dockerfile: ./ops/docker/Dockerfile.data-transport-layer
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
@@ -83,10 +83,10 @@ services:
       - ${L2GETH_WS_PORT:-8546}:8546
 
   relayer:
-    image: ethereumoptimism/relayer
+    image: ethereumoptimism/message-relayer
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.relayer
+      dockerfile: ./ops/docker/Dockerfile.message-relayer
     entrypoint: ./relayer.sh
     environment:
         L1_NODE_WEB3_URL: http://l1_chain:8545
@@ -102,7 +102,7 @@ services:
     image: ethereumoptimism/batch-submitter
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.batches
+      dockerfile: ./ops/docker/Dockerfile.batch-submitter
     entrypoint: ./batches.sh
     env_file:
         ./envs/batches.env
