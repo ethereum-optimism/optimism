@@ -319,8 +319,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      *********************************/
 
     /**
-     * @notice Specifies from which L1 rollup queue this transaction originated from.
-     * @return _queueOrigin Address of the ovmL1QUEUEORIGIN within the current message context.
+     * @notice Specifies from which source (Sequencer or Queue) this transaction originated from.
+     * @return _queueOrigin Enum indicating the ovmL1QUEUEORIGIN within the current message context.
      */
     function ovmL1QUEUEORIGIN()
         override
