@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "main": "dist/index",
   "files": [
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@eth-optimism/contracts": "^0.2.2",
-    "@eth-optimism/core-utils": "^0.2.0",
+    "@eth-optimism/core-utils": "^0.2.2",
     "@ethersproject/providers": "^5.0.21",
     "@types/express": "^4.17.11",
     "bcfg": "^0.1.6",

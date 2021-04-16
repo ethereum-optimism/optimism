@@ -1,5 +1,13 @@
 # data transport layer
 
+## 0.1.5
+
+### Patch Changes
+
+- 01eaf2c: added extra logs to base-service / dtl to improve observability
+- Updated dependencies [01eaf2c]
+  - @eth-optimism/core-utils@0.2.2
+
 ## 0.1.4
 
 ### Patch Changes
