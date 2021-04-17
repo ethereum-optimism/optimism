@@ -66,7 +66,11 @@ export const makeContractDeployConfig = async (
 
   return {
     OVM_L2CrossDomainMessenger: {
-      factory: getContractFactory('OVM_L2CrossDomainMessenger'),
+      factory: getContractFactory(
+        'OVM_L2CrossDomainMessenger',
+        undefined,
+        true
+      ),
       params: [AddressManager.address],
     },
     OVM_L1CrossDomainMessenger: {
@@ -213,10 +217,10 @@ export const makeContractDeployConfig = async (
       params: [AddressManager.address],
     },
     OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount'),
+      factory: getContractFactory('OVM_ECDSAContractAccount', undefined, true),
     },
     OVM_SequencerEntrypoint: {
-      factory: getContractFactory('OVM_SequencerEntrypoint'),
+      factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),
     },
     OVM_BondManager: {
       factory: getContractFactory('mockOVM_BondManager'),

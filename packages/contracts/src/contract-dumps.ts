@@ -211,12 +211,19 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       predeploys[name] ||
       `0xdeaddeaddeaddeaddeaddeaddeaddeaddead${i.toString(16).padStart(4, '0')}`
 
+    let def: any
+    try {
+      def = getContractDefinition(name.replace('Proxy__', ''))
+    } catch (err) {
+      def = getContractDefinition(name.replace('Proxy__', ''), true)
+    }
+
     dump.accounts[name] = {
       address: deadAddress,
       code,
       codeHash: keccak256(code),
       storage: await getStorageDump(cStateManager, contract.address),
-      abi: getContractDefinition(name.replace('Proxy__', '')).abi,
+      abi: def.abi,
     }
   }
 
