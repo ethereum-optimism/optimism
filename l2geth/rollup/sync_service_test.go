@@ -132,11 +132,7 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 		},
 	})
 
-	// Run an iteration of the loop
-	err = service.syncQueueToTip()
-	if err != nil {
-		t.Fatal("sequencing failed", err)
-	}
+	go service.syncQueueToTip()
 
 	// Wait for the tx to be confirmed into the chain and then
 	// make sure it is the transactions that was set up with in the mockclient
