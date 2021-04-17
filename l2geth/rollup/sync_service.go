@@ -328,8 +328,12 @@ func (s *SyncService) verify() error {
 func (s *SyncService) SequencerLoop() {
 	log.Info("Starting Sequencer Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
+		err := s.updateGasPrice()
+		if err != nil {
+			log.Error("Cannot update L1 gas price", "msg", err)
+		}
 		s.txLock.Lock()
-		err := s.sequence()
+		err = s.sequence()
 		if err != nil {
 			log.Error("Could not sequence", "error", err)
 		}
@@ -357,6 +361,18 @@ func (s *SyncService) sequence() error {
 	if err != nil {
 		log.Error("Sequencer cannot sync transaction batches", "msg", err)
 	}
+	return nil
+}
+
+// updateGasPrice will query the remote data transport layer for the current L1
+// gas price
+func (s *SyncService) updateGasPrice() error {
+	l1GasPrice, err := s.client.GetL1GasPrice()
+	if err != nil {
+		return fmt.Errorf("cannot fetch L1 gas price: %w", err)
+	}
+	s.L1gpo.SetL1GasPrice(l1GasPrice)
+	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
 	return nil
 }
 
