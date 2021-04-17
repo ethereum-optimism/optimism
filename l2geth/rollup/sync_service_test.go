@@ -216,11 +216,7 @@ func TestSyncServiceSync(t *testing.T) {
 		},
 	})
 
-	err = service.verify()
-	if err != nil {
-		t.Fatal("verification failed", err)
-	}
-
+	go service.syncTransactionsToTip(SyncTypeSequenced)
 	event := <-txCh
 	if len(event.Txs) != 1 {
 		t.Fatal("Unexpected number of transactions")
@@ -319,6 +315,7 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 		// Set as an empty string as this is a dummy value anyways.
 		// The client needs to be mocked with a mockClient
 		RollupClientHttp: "",
+		SyncType:         SyncTypeSequenced,
 	}
 
 	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
