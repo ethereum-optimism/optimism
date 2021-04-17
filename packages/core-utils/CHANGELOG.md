@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.2.2
+
+### Patch Changes
+
+- 01eaf2c: added extra logs to base-service / dtl to improve observability
+
 ## 0.2.1
 
 ### Patch Changes
