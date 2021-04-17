@@ -111,7 +111,7 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 	// The queue index of the L1 to L2 transaction
 	queueIndex := uint64(0)
 	// The index in the ctc
-	index := uint64(5)
+	index := uint64(0)
 
 	tx := types.NewTransaction(0, target, big.NewInt(0), gasLimit, big.NewInt(0), data)
 	txMeta := types.NewTransactionMeta(
@@ -132,8 +132,8 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 		},
 	})
 
-	// Run an iteration of the eloop
-	err = service.sequence()
+	// Run an iteration of the loop
+	err = service.syncQueueToTip()
 	if err != nil {
 		t.Fatal("sequencing failed", err)
 	}
@@ -169,8 +169,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 		t.Fatal("expected 0 gas price, got", gasBefore)
 	}
 
-	// run 1 iteration of the eloop
-	service.sequence()
+	service.updateGasPrice()
 
 	gasAfter, err := service.L1gpo.SuggestDataPrice(context.Background())
 	if err != nil {
