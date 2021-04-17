@@ -1913,6 +1913,11 @@ type EthContext struct {
 	BlockNumber uint64 `json:"blockNumber"`
 	Timestamp   uint64 `json:"timestamp"`
 }
+
+// RollupContext represents the height of the rollup.
+// Index is the last processed CanonicalTransactionChain index
+// QueueIndex is the last processed `enqueue` index
+// VerifiedIndex is the last processed CTC index that was batched
 type RollupContext struct {
 	Index         uint64 `json:"index"`
 	QueueIndex    uint64 `json:"queueIndex"`
