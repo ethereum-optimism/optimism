@@ -16,12 +16,8 @@ on:
 
 jobs:
   test:
-    name: Run tests on ${{matrix.node}}
+    name: Run unit tests
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node: [ '10', '12', '14' ]
 
     steps:
       - uses: actions/checkout@v2
@@ -29,10 +25,10 @@ jobs:
       - name: Fetch history
         run: git fetch
 
-      - name: Setup node ${{ matrix.node }}
+      - name: Setup node
         uses: actions/setup-node@v1
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '12.x'
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
