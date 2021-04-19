@@ -12,6 +12,7 @@ import {
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
   getXDomainCalldata,
+  getNextBlockNumber,
 } from '../../../../helpers'
 import { solidityKeccak256 } from 'ethers/lib/utils'
 
@@ -198,26 +199,66 @@ describe('OVM_L2CrossDomainMessenger', () => {
       ).to.be.true
     })
 
-    it('should revert if trying reenter `relayMessage`', async () => {
-      // What if reentering to `sendMessage`?
+    it('should revert if trying to reenter `relayMessage`', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
         Mock__OVM_L1CrossDomainMessenger.address
       )
 
-    const reentrantMessage = OVM_L2CrossDomainMessenger.interface.encodeFunctionData('relayMessage', [
-      OVM_L2CrossDomainMessenger.address,
-      sender,
-      message,
-      1
-    ])
-    sender = await signer.getAddress()
+      const reentrantMessageArgs = [target, sender, message, 1]
+      const reentrantMessage = OVM_L2CrossDomainMessenger.interface.encodeFunctionData(
+        'relayMessage',
+        reentrantMessageArgs
+      )
 
-      await OVM_L2CrossDomainMessenger.relayMessage(relayer, sender, reentrantMessage, 0)
+      // Calculate xDomainCallData used for indexing
+      // (within the first call to the L2 Messenger).
+      const xDomainCallData = getXDomainCalldata(
+        OVM_L2CrossDomainMessenger.address,
+        sender,
+        reentrantMessage,
+        0
+      )
 
-      await expect(
-        OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
-      ).to.be.revertedWith('Provided message has already been received.')
+      const blockNumber = await getNextBlockNumber(ethers.provider)
+
+      // Make the call.
+      const res = await OVM_L2CrossDomainMessenger.relayMessage(
+        OVM_L2CrossDomainMessenger.address,
+        sender,
+        reentrantMessage,
+        0
+      )
+
+      // We can't test for the nonReentrant revert string because it occurs in the second call frame,
+      // and target.call() won't "bubble up" the revert. So we need to use other criteria to ensure the
+      // right things are happening.
+      // Criteria 1: the reentrant message is NOT listed in successful messages.
+      expect(
+        await OVM_L2CrossDomainMessenger.successfulMessages(
+          solidityKeccak256(['bytes'], [xDomainCallData])
+        )
+      ).to.be.false
+
+      const relayId = solidityKeccak256(
+        ['bytes'],
+        [
+          ethers.utils.solidityPack(
+            ['bytes', 'address', 'uint256'],
+            [xDomainCallData, sender, blockNumber]
+          ),
+        ]
+      )
+      // Criteria 2: the reentrant message is listed with a relayID.
+      expect(
+        await OVM_L2CrossDomainMessenger.relayedMessages(
+          relayId
+        )
+      ).to.be.true
+
+      // Criteria 3: the target contract did not receive a call.
+      expect(Mock__TargetContract.smocked.setTarget.calls[0].length).to.deep.equal(
+        0
+      )
     })
-
   })
 })
