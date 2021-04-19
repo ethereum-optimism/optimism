@@ -113,7 +113,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       ).to.deep.equal([
         Mock__OVM_L2CrossDomainMessenger.address,
         BigNumber.from(gasLimit),
-        getXDomainCalldata(await signer.getAddress(), target, message, 0),
+        getXDomainCalldata(target, await signer.getAddress(), message, 0),
       ])
     })
 
@@ -171,7 +171,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       ])
       sender = await signer.getAddress()
 
-      calldata = getXDomainCalldata(sender, target, message, 0)
+      calldata = getXDomainCalldata(target, sender, message, 0)
 
       const precompile = '0x4200000000000000000000000000000000000000'
 

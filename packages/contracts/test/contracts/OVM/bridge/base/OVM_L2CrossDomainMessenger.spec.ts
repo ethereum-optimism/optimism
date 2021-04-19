@@ -88,7 +88,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       expect(
         Mock__OVM_L2ToL1MessagePasser.smocked.passMessageToL1.calls[0]
       ).to.deep.equal([
-        getXDomainCalldata(await signer.getAddress(), target, message, 0),
+        getXDomainCalldata(target, await signer.getAddress(), message, 0),
       ])
     })
 
@@ -192,7 +192,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
         await OVM_L2CrossDomainMessenger.successfulMessages(
           solidityKeccak256(
             ['bytes'],
-            [getXDomainCalldata(await signer.getAddress(), target, message, 0)]
+            [getXDomainCalldata(target, sender, message, 0)]
           )
         )
       ).to.be.true
