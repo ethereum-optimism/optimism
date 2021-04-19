@@ -96,3 +96,10 @@ docker-compose stop -- batch_submitter
 docker-compose build -- builder batch_submitter
 docker-compose start batch_submitter
 ```
+
+By default, the `docker-compose up` command will show logs from all services, and that
+can be hard to filter through. In order to view the logs from a specific service, you can run:
+
+```
+docker-compose logs --follow <service name>
+```
