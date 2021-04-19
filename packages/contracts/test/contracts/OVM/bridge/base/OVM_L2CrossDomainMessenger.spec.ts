@@ -204,10 +204,9 @@ describe('OVM_L2CrossDomainMessenger', () => {
         Mock__OVM_L1CrossDomainMessenger.address
       )
 
-      const reentrantMessageArgs = [target, sender, message, 1]
       const reentrantMessage = OVM_L2CrossDomainMessenger.interface.encodeFunctionData(
         'relayMessage',
-        reentrantMessageArgs
+        [target, sender, message, 1]
       )
 
       // Calculate xDomainCallData used for indexing
@@ -219,10 +218,8 @@ describe('OVM_L2CrossDomainMessenger', () => {
         0
       )
 
-      const blockNumber = await getNextBlockNumber(ethers.provider)
-
       // Make the call.
-      const res = await OVM_L2CrossDomainMessenger.relayMessage(
+      await OVM_L2CrossDomainMessenger.relayMessage(
         OVM_L2CrossDomainMessenger.address,
         sender,
         reentrantMessage,
@@ -239,6 +236,9 @@ describe('OVM_L2CrossDomainMessenger', () => {
         )
       ).to.be.false
 
+      // Criteria 2: the relayID of the reentrant message is recorded.
+      // Get blockNumber at time of the call.
+      const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
       const relayId = solidityKeccak256(
         ['bytes'],
         [
@@ -248,17 +248,12 @@ describe('OVM_L2CrossDomainMessenger', () => {
           ),
         ]
       )
-      // Criteria 2: the reentrant message is listed with a relayID.
-      expect(
-        await OVM_L2CrossDomainMessenger.relayedMessages(
-          relayId
-        )
-      ).to.be.true
+
+      expect(await OVM_L2CrossDomainMessenger.relayedMessages(relayId)).to.be
+        .true
 
       // Criteria 3: the target contract did not receive a call.
-      expect(Mock__TargetContract.smocked.setTarget.calls[0].length).to.deep.equal(
-        0
-      )
+      expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.be.undefined
     })
   })
 })
