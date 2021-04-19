@@ -27,6 +27,7 @@ export interface L1DataTransportServiceOptions {
   transactionsPerPollingInterval: number
   legacySequencerCompatibility: boolean
   stopL2SyncAtBlock?: number
+  sentryDsn?: string
 }
 
 const optionSettings = {

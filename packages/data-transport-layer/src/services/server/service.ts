@@ -5,6 +5,8 @@ import cors from 'cors'
 import { BigNumber } from 'ethers'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
+import * as Sentry from '@sentry/node'
+import * as Tracing from '@sentry/tracing'
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
@@ -101,8 +103,21 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
+    Sentry.init({
+      dsn: this.options.sentryDsn,
+      integrations: [
+        new Sentry.Integrations.Http({ tracing: true }),
+        new Tracing.Integrations.Express({
+          app: this.state.app,
+        }),
+      ],
+      tracesSampleRate: 0.05,
+    })
+    this.state.app.use(Sentry.Handlers.requestHandler())
+    this.state.app.use(Sentry.Handlers.tracingHandler())
     this.state.app.use(cors())
     this._registerAllRoutes()
+    this.state.app.use(Sentry.Handlers.errorHandler())
   }
 
   /**

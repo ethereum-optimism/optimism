@@ -31,7 +31,7 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7",
+    "@eth-optimism/contracts": "^0.2.2",
     "@eth-optimism/core-utils": "^0.2.0",
     "@eth-optimism/ynatm": "^0.2.2",
     "@ethersproject/abstract-provider": "^5.0.5",
@@ -39,7 +39,8 @@
     "bluebird": "^3.7.2",
     "dotenv": "^8.2.0",
     "ethers": "5.0.0",
-    "@eth-optimism/contracts": "^0.2.2"
+    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7",
+    "pino-sentry": "^0.6.1"
   },
   "devDependencies": {
     "@eth-optimism/smock": "^1.0.0",
@@ -64,7 +65,8 @@
     "typescript": "^4.2.3"
   },
   "resolutions": {
-    "ganache-core": "^2.13.2"
+    "ganache-core": "^2.13.2",
+    "**/@sentry/node": "^6.2.5"
   },
   "publishConfig": {
     "access": "public"
