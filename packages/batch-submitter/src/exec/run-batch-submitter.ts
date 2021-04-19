@@ -17,7 +17,10 @@ import {
 } from '..'
 
 /* Logger */
-const destination = createWriteStream({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0 })
+const destination = createWriteStream({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: 0.05,
+})
 const log = new Logger({ name: 'oe:batch-submitter:init', destination })
 
 interface RequiredEnvVars {
