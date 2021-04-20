@@ -9,7 +9,7 @@ export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 export interface LoggerOptions {
   name: string
   level?: LogLevel
-  destination?: DestinationObjectOptions | DestinationStream
+  destination?: DestinationStream
 }
 
 /**
@@ -32,7 +32,7 @@ export class Logger {
     }
 
     this.inner = options.destination
-      ? pino(loggerOptions, pino.destination(options.destination))
+      ? pino(loggerOptions, options.destination)
       : pino(loggerOptions)
   }
 

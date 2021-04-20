@@ -1780,7 +1780,7 @@
     "@sentry/types" "6.2.5"
     tslib "^1.9.3"
 
-"@sentry/node@^5.18.1", "@sentry/node@^5.21.1":
+"@sentry/node@^5.18.1":
   version "5.30.0"
   resolved "https://registry.yarnpkg.com/@sentry/node/-/node-5.30.0.tgz#4ca479e799b1021285d7fe12ac0858951c11cd48"
   integrity sha512-Br5oyVBF0fZo6ZS9bxbJZG4ApAjRqAnqFFurMVJJdunNb80brh7a5Qva2kjhm+U6r9NJAB5OmDyPkA1Qnt+QVg==
@@ -9950,12 +9950,12 @@ pino-pretty@^4.7.1:
     split2 "^3.1.1"
     strip-json-comments "^3.1.1"
 
-pino-sentry@^0.6.1:
-  version "0.6.1"
-  resolved "https://registry.yarnpkg.com/pino-sentry/-/pino-sentry-0.6.1.tgz#ba3c6b0f904f918a55d99e4fd87cc92da4ba5164"
-  integrity sha512-UWA+rR7ybFFePqMw+hBL93hIureAWw+WfnxTjT3xg7an0lTnZRZ6rSdxIBgNb0pyKx9goHFaQbYU7Y6vSuIIXg==
+pino-sentry@^0.7.0:
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/pino-sentry/-/pino-sentry-0.7.0.tgz#087717d2787ec437627e97454238ca7ce0562a91"
+  integrity sha512-/rZO1R/oMcMa4mzfIqW6Afap+TGgVHgB8iZfzwjhLdT2PhyuTUNJ3KJT2eIZ0citsQNv26pxRzIPbqgHuQtUAQ==
   dependencies:
-    "@sentry/node" "^5.21.1"
+    "@sentry/node" "^6.2.5"
     commander "^2.20.0"
     pumpify "^2.0.1"
     split2 "^3.1.1"
