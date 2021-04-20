@@ -23,7 +23,7 @@ func TestCalculateRollupFee(t *testing.T) {
 			data := make([]byte, 0, tt.dataLen)
 			fee := CalculateRollupFee(data, tt.gasUsed, big.NewInt(tt.dataPrice), big.NewInt(tt.executionPrice))
 
-			dataFee := uint64((ROLLUP_BASE_TX_SIZE + len(data)) * int(tt.dataPrice))
+			dataFee := uint64((RollupBaseTxSize + len(data)) * int(tt.dataPrice))
 			executionFee := uint64(tt.executionPrice) * tt.gasUsed
 			expectedFee := dataFee + executionFee
 			if fee.Cmp(big.NewInt(int64(expectedFee))) != 0 {
