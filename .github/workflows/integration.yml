@@ -63,7 +63,7 @@ jobs:
       # Waffle tests
       - name: Install Waffle dependencies
         working-directory: ./examples/Waffle-ERC20-Example
-        run: yarn && yarn add @eth-optimism/solc@0.7.6-alpha.1 solc@0.7.6
+        run: yarn
 
       - name: Compile Waffle-ERC20-Example contracts
         working-directory: ./examples/Waffle-ERC20-Example
@@ -76,7 +76,7 @@ jobs:
       # Truffle tests
       - name: Install Truffle dependencies
         working-directory: ./examples/Truffle-ERC20-Example
-        run: yarn && yarn add @eth-optimism/solc@0.7.6-alpha.1
+        run: yarn
 
       - name: Compile Truffle-ERC20-Example contracts
         working-directory: ./examples/Truffle-ERC20-Example
