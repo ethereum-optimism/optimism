@@ -428,6 +428,14 @@ func (m *mockClient) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 	return nil, nil
 }
 
+func (m *mockClient) GetLatestTransactionBatch() (*Batch, []*types.Transaction, error) {
+	return nil, nil, nil
+}
+
+func (m *mockClient) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction, error) {
+	return nil, nil, nil
+}
+
 func (m *mockClient) SyncStatus() (*SyncStatus, error) {
 	return &SyncStatus{
 		Syncing: false,
