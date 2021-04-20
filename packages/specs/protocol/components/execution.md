@@ -59,12 +59,6 @@ The first magic string MUST:
 
 The second magic string does this:
 
-**TODO**
-
-<!--
-TODO:
-update
--->
 
 ## Defining the OVM Sandbox
 
