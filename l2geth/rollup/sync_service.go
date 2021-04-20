@@ -347,13 +347,11 @@ func (s *SyncService) verify() error {
 func (s *SyncService) SequencerLoop() {
 	log.Info("Starting Sequencer Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
-		err := s.updateL1GasPrice()
-		if err != nil {
+		if err := s.updateL1GasPrice(); err != nil {
 			log.Error("Cannot update L1 gas price", "msg", err)
-			continue
 		}
 		s.txLock.Lock()
-		err = s.sequence()
+		err := s.sequence()
 		if err != nil {
 			log.Error("Could not sequence", "error", err)
 		}
