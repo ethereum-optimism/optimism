@@ -48,7 +48,6 @@ interface Bcfg {
         'legacySequencerCompatibility',
         false
       ),
-      stopL2SyncAtBlock: config.uint('stopL2SyncAtBlock'),
       sentryDsn: config.str('sentryDsn'),
     })
 

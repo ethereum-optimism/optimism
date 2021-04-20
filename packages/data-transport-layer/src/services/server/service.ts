@@ -48,9 +48,6 @@ const optionSettings = {
       return validators.isUrl(val) || validators.isJsonRpcProvider(val)
     },
   },
-  showUnconfirmedTransactions: {
-    validate: validators.isBoolean,
-  },
 }
 
 export class L1TransportServer extends BaseService<L1TransportServerOptions> {
