@@ -41,3 +41,10 @@ jobs:
             yarn build:contracts
             yarn build:contracts:ovm
             yarn test:integration
+
+
+      - name: Compile optimism-tutorial contracts
+        run: yarn compile && yarn compile 
+
+      - name: Test optimism-tutorial contracts
+        run: yarn hardhat test && yarn hardhat network --optimism test
