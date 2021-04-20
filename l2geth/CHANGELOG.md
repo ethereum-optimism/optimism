@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+
+### Patch Changes
+
+- b290cfe: CPU Optimization by caching ABI methods
+- c4266fa: Fix logger error
+
 ## 0.2.1
 
 ### Patch Changes
