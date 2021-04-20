@@ -35,22 +35,32 @@ type Batch struct {
 	Submitter         common.Address `json:"submitter"`
 }
 
+// EthContext represents the L1 EVM context that is injected into
+// the OVM at runtime. It is updated with each `enqueue` transaction
+// and needs to be fetched from a remote server to be updated when
+// too much time has passed between `enqueue` transactions.
 type EthContext struct {
 	BlockNumber uint64      `json:"blockNumber"`
 	BlockHash   common.Hash `json:"blockHash"`
 	Timestamp   uint64      `json:"timestamp"`
 }
 
+// SyncStatus represents the state of the remote server. The SyncService
+// does not want to begin syncing until the remote server has fully synced.
 type SyncStatus struct {
 	Syncing                      bool   `json:"syncing"`
 	HighestKnownTransactionIndex uint64 `json:"highestKnownTransactionIndex"`
 	CurrentTransactionIndex      uint64 `json:"currentTransactionIndex"`
 }
 
+// L1GasPrice represents the gas price of L1. It is used as part of the gas
+// estimatation logic.
 type L1GasPrice struct {
 	GasPrice string `json:"gasPrice"`
 }
 
+// transaction represents the return result of the remote server.
+// It either came from a batch or was replicated from the sequencer.
 type transaction struct {
 	Index       uint64          `json:"index"`
 	BatchIndex  uint64          `json:"batchIndex"`
@@ -66,6 +76,7 @@ type transaction struct {
 	Decoded     *decoded        `json:"decoded"`
 }
 
+// Enqueue represents an `enqueue` transaction or a L1 to L2 transaction.
 type Enqueue struct {
 	Index       *uint64         `json:"ctcIndex"`
 	Target      *common.Address `json:"target"`
@@ -77,12 +88,16 @@ type Enqueue struct {
 	QueueIndex  *uint64         `json:"index"`
 }
 
+// signature represents a secp256k1 ECDSA signature
 type signature struct {
 	R hexutil.Bytes `json:"r"`
 	S hexutil.Bytes `json:"s"`
 	V uint          `json:"v"`
 }
 
+// decoded represents the decoded transaction from the batch.
+// When this struct exists in other structs and is set to `nil`,
+// it means that the decoding failed.
 type decoded struct {
 	Signature signature      `json:"sig"`
 	GasLimit  uint64         `json:"gasLimit"`
@@ -92,6 +107,8 @@ type decoded struct {
 	Data      hexutil.Bytes  `json:"data"`
 }
 
+// RollupClient is able to query for information
+// that is required by the SyncService
 type RollupClient interface {
 	GetEnqueue(index uint64) (*types.Transaction, error)
 	GetLatestEnqueue() (*types.Transaction, error)
@@ -106,21 +123,27 @@ type RollupClient interface {
 	GetL1GasPrice() (*big.Int, error)
 }
 
+// Client is an HTTP based RollupClient
 type Client struct {
 	client *resty.Client
 	signer *types.OVMSigner
 }
 
+// TransactionResponse represents the response from the remote server when
+// querying transactions.
 type TransactionResponse struct {
 	Transaction *transaction `json:"transaction"`
 	Batch       *Batch       `json:"batch"`
 }
 
+// TransactionBatchResponse represents the response from the remote server
+// when querying batches.
 type TransactionBatchResponse struct {
 	Batch        *Batch         `json:"batch"`
 	Transactions []*transaction `json:"transactions"`
 }
 
+// NewClient create a new Client given a remote HTTP url and a chain id
 func NewClient(url string, chainID *big.Int) *Client {
 	client := resty.New()
 	client.SetHostURL(url)
@@ -133,6 +156,7 @@ func NewClient(url string, chainID *big.Int) *Client {
 	}
 }
 
+// GetEnqueue fetches an `enqueue` transaction by queue index
 func (c *Client) GetEnqueue(index uint64) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
@@ -159,6 +183,8 @@ func (c *Client) GetEnqueue(index uint64) (*types.Transaction, error) {
 	return tx, nil
 }
 
+// enqueueToTransaction turns an Enqueue into a types.Transaction
+// so that it can be consumed by the SyncService
 func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 	// When the queue index is nil, is means that the enqueue'd transaction
 	// does not exist.
@@ -215,6 +241,8 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 	return tx, nil
 }
 
+// GetLatestEnqueue fetches the latest `enqueue`, meaning the `enqueue`
+// transaction with the greatest queue index.
 func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 	response, err := c.client.R().
 		SetResult(&Enqueue{}).
@@ -234,6 +262,8 @@ func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 	return tx, nil
 }
 
+// batchedTransactionToTransaction converts a transaction into a
+// types.Transaction that can be consumed by the SyncService
 func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) (*types.Transaction, error) {
 	// `nil` transactions are not found
 	if res == nil {
@@ -335,6 +365,7 @@ func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) 
 	return tx, nil
 }
 
+// GetTransaction will get a transaction by Canonical Transaction Chain index
 func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
@@ -354,6 +385,8 @@ func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
 	return batchedTransactionToTransaction(res.Transaction, c.signer)
 }
 
+// GetLatestTransaction will get the latest transaction, meaning the transaction
+// with the greatest Canonical Transaction Chain index
 func (c *Client) GetLatestTransaction() (*types.Transaction, error) {
 	response, err := c.client.R().
 		SetResult(&TransactionResponse{}).
@@ -370,6 +403,7 @@ func (c *Client) GetLatestTransaction() (*types.Transaction, error) {
 	return batchedTransactionToTransaction(res.Transaction, c.signer)
 }
 
+// GetEthContext will return the EthContext by block number
 func (c *Client) GetEthContext(blockNumber uint64) (*EthContext, error) {
 	str := strconv.FormatUint(blockNumber, 10)
 	response, err := c.client.R().
@@ -390,6 +424,7 @@ func (c *Client) GetEthContext(blockNumber uint64) (*EthContext, error) {
 	return context, nil
 }
 
+// GetLatestEthContext will return the latest EthContext
 func (c *Client) GetLatestEthContext() (*EthContext, error) {
 	response, err := c.client.R().
 		SetResult(&EthContext{}).
@@ -407,6 +442,8 @@ func (c *Client) GetLatestEthContext() (*EthContext, error) {
 	return context, nil
 }
 
+// GetLastConfirmedEnqueue will get the last `enqueue` transaction that has been
+// batched up
 func (c *Client) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 	enqueue, err := c.GetLatestEnqueue()
 	if err != nil {
@@ -438,6 +475,7 @@ func (c *Client) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 	}
 }
 
+// SyncStatus will query the remote server to determine if it is still syncing
 func (c *Client) SyncStatus() (*SyncStatus, error) {
 	response, err := c.client.R().
 		SetResult(&SyncStatus{}).
@@ -455,6 +493,7 @@ func (c *Client) SyncStatus() (*SyncStatus, error) {
 	return status, nil
 }
 
+// GetLatestTransactionBatch will return the latest transaction batch
 func (c *Client) GetLatestTransactionBatch() (*Batch, []*types.Transaction, error) {
 	response, err := c.client.R().
 		SetResult(&TransactionBatchResponse{}).
@@ -470,6 +509,7 @@ func (c *Client) GetLatestTransactionBatch() (*Batch, []*types.Transaction, erro
 	return parseTransactionBatchResponse(txBatch, c.signer)
 }
 
+// GetTransactionBatch will return the transaction batch by batch index
 func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
@@ -489,6 +529,8 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 	return parseTransactionBatchResponse(txBatch, c.signer)
 }
 
+// parseTransactionBatchResponse will turn a TransactionBatchResponse into a
+// Batch and its corresponding types.Transactions
 func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *types.OVMSigner) (*Batch, []*types.Transaction, error) {
 	if txBatch == nil {
 		return nil, nil, nil
@@ -505,6 +547,7 @@ func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *ty
 	return batch, txs, nil
 }
 
+// GetL1GasPrice will return the current gas price on L1
 func (c *Client) GetL1GasPrice() (*big.Int, error) {
 	response, err := c.client.R().
 		SetResult(&L1GasPrice{}).
