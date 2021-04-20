@@ -13,6 +13,7 @@ jobs:
         DOCKER_BUILDKIT: 1
         COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
+      # Monorepo tests
       - uses: actions/checkout@v2
 
       - name: Get yarn cache directory path
@@ -42,9 +43,49 @@ jobs:
             yarn build:contracts:ovm
             yarn test:integration
 
+      # optimism-tutorial tests
+      - name: Install optimism-tutorial dependencies
+        working-directory: ./examples/optimism-tutorial
+        run: yarn
 
       - name: Compile optimism-tutorial contracts
-        run: yarn compile && yarn compile 
+        working-directory: ./examples/optimism-tutorial
+        run: yarn hardhat compile && yarn hardhat --network optimism compile
 
       - name: Test optimism-tutorial contracts
-        run: yarn hardhat test && yarn hardhat network --optimism test
+        working-directory: ./examples/optimism-tutorial
+        run: yarn hardhat test && yarn hardhat --network optimism test
+
+      - name: Deploy optimism-tutorial contracts
+        working-directory: ./examples/optimism-tutorial
+        run: yarn hardhat deploy && yarn hardhat --network optimism deploy
+      
+      # Waffle tests
+      - name: Install Waffle dependencies
+        working-directory: ./examples/Waffle-ERC20-Example
+        run: yarn && yarn add @eth-optimism/solc@0.7.6-alpha.1 solc@0.7.6
+
+      - name: Compile Waffle-ERC20-Example contracts
+        working-directory: ./examples/Waffle-ERC20-Example
+        run: yarn waffle && yarn waffle waffle-ovm.json
+
+      - name: Test Waffle-ERC20-Example contracts
+        working-directory: ./examples/Waffle-ERC20-Example
+        run: yarn mocha 'test/*spec.js' --timeout 10000 && yarn TARGET=OVM mocha 'test/*spec.js' --timeout 50000
+      
+      # Truffle tests
+      - name: Install Truffle dependencies
+        working-directory: ./examples/Truffle-ERC20-Example
+        run: yarn && yarn add @eth-optimism/solc@0.7.6-alpha.1
+
+      - name: Compile Truffle-ERC20-Example contracts
+        working-directory: ./examples/Truffle-ERC20-Example
+        run: yarn truffle compile && yarn truffle compile --config truffle-config-ovm.js
+
+      - name: Test Truffle-ERC20-Example contracts
+        working-directory: ./examples/Truffle-ERC20-Example
+        run: yarn truffle test && yarn truffle test ./test/erc20.spec.js --network optimistic_ethereum --config truffle-config-ovm.js
+
+      - name: Deploy Truffle-ERC20-Example contracts
+        working-directory: ./examples/Truffle-ERC20-Example
+        run: yarn truffle migrate && yarn truffle migrate --network optimistic_ethereum --config truffle-config-ovm.js

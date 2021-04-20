@@ -1,0 +1,23 @@
+{
+  "name": "optimism-tutorial",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rimraf ./cache-ovm ./cache ./artifacts-ovm ./artifacts ./deployments"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "4.3.4",
+    "chai-as-promised": "^7.1.1",
+    "ethereum-waffle": "^3.2.1",
+    "ethers": "^5.0.24",
+    "hardhat": "^2.0.7",
+    "hardhat-deploy": "^0.7.0-beta.49",
+    "mocha": "^8.2.1"
+  },
+  "dependencies": {
+    "@eth-optimism/hardhat-ovm": "^0.0.2"
+  }
+}
