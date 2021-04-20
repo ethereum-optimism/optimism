@@ -169,7 +169,7 @@ func testAndSetAccount(evm *EVM, contract *Contract, args map[string]interface{}
 		)
 
 		if err != nil {
-			log.Error("Cannot set account diff", err)
+			log.Error("Cannot set account diff", "err", err)
 		}
 	}
 
