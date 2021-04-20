@@ -1008,24 +1008,25 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	// 1. get the gas that would be used by the transaction
 	gasUsed, err := legacyDoEstimateGas(ctx, b, args, blockNrOrHash, gasCap)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("execution gas used error: %w", err)
 	}
 
 	// 2a. fetch the data price, depends on how the sequencer has chosen to update their values based on the
 	// l1 gas prices
 	dataPrice, err := b.SuggestDataPrice(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("data gas pricing error: %w", err)
 	}
 
 	// 2b. fetch the execution gas price, by the typical mempool dynamics
 	executionPrice, err := b.SuggestPrice(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("unknown gas price: %w", err)
 	}
 
 	// 3. calculate the fee and normalize by the default gas price
 	fee := core.CalculateRollupFee(*args.Data, uint64(gasUsed), dataPrice, executionPrice).Uint64() / defaultGasPrice
+	log.Debug("Estimate Gas", "gas-used", uint64(gasUsed), "data-price", dataPrice.Uint64(), "execution-price", executionPrice.Uint64(), "fee", fee, "default-gas-price", defaultGasPrice)
 	return (hexutil.Uint64)(fee), nil
 }
 
