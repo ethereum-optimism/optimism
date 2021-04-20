@@ -6,6 +6,7 @@
     "prettier": "2.2.1"
   },
   "scripts": {
-    "format": "yarn prettier --write ./**/*.md"
+    "format": "yarn prettier --write ./**/*.md",
+    "format:check": "yarn prettier --check ./**/*.md"
   }
 }
