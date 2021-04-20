@@ -21,12 +21,12 @@ export interface L1DataTransportServiceOptions {
   logsPerPollingInterval: number
   pollingInterval: number
   port: number
-  showUnconfirmedTransactions: boolean
   syncFromL1?: boolean
   syncFromL2?: boolean
   transactionsPerPollingInterval: number
   legacySequencerCompatibility: boolean
   sentryDsn?: string
+  defaultSource: string
 }
 
 const optionSettings = {

@@ -39,7 +39,6 @@ interface Bcfg {
       l2ChainId: config.uint('l2ChainId'),
       syncFromL1: config.bool('syncFromL1', true),
       syncFromL2: config.bool('syncFromL2', false),
-      showUnconfirmedTransactions: config.bool('syncFromL2', false),
       transactionsPerPollingInterval: config.uint(
         'transactionsPerPollingInterval',
         1000
@@ -49,6 +48,7 @@ interface Bcfg {
         false
       ),
       sentryDsn: config.str('sentryDsn'),
+      defaultSource: config.str('defaultSource', 'batched'),
     })
 
     await service.start()
