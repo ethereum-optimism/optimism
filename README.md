@@ -70,6 +70,7 @@ export DOCKER_BUILDKIT=1
 docker-compose build
 docker-compose up -d
 cd ../integration-tests
+yarn build:integration
 yarn test:integration
 ```
 
