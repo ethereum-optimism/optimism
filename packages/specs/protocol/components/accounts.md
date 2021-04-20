@@ -1,13 +1,11 @@
-# Account Abstraction
+# Accounts
 
-**WIP:** This is currently just a disorganized place to dump notes.
-
+This document is
 
 ### ProxyEOAs
 
 - Created by call to ovmCREATEEOA with signature
-- ecrecover is used to retrieve address and deploy the trusted ProxyEOA contract, which implements a simple DelegateCall pattern there.
--
+- `ecrecover` is used to retrieve address and deploy the trusted ProxyEOA contract, which implements a simple DelegateCall pattern there.
 
 
 ### OVM_ECDSAContractAccount
@@ -17,6 +15,5 @@ ovmCREATEEOA operation. It enables backwards compatibility with Ethereum's Layer
 providing EIP155 formatted transaction encodings.
 
 #### Value Transfer
-<!-- Maybe this should go into execution.md -->
 
-Value transfer is currently only supported in the
+Value transfer is currently only supported in the first call frame of a transaction on L2.

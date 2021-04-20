@@ -47,10 +47,9 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
 
 **Starting on L1:**
 
-- Any account may call the L1xDM's `sendMessage()` function submit their transaction data to the CTC's Transaction Queue, with the L2xDM as the `target`.
+- Any account may call the L1xDM's `sendMessage()` function to submit their transaction data to the CTC's Transaction Queue, with the L2xDM as the `target`.
 
 
-- `OVM_L2CrossDomainMessenger.sendMessage()` with the information for the L1 message (aka `xDomainCalldata`)
   - (ie.  `_target`, `msg.sender`, `_message`)
   - This data is hashed with the `messageNonce` storage variable, and the hash is store in the `sentMessages` mapping (this is not actually used AFAIK)
   - The `messageNonce` is then incremented.

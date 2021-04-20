@@ -114,45 +114,36 @@ The Entrypoint then:
 
 ### 3. Execution Proceeds within the Sandbox
 
-Given the guarantees provided by the SafetyChecker contract, henceforth
-
-
-
-
-Modification 5: Rollup Sync Service
-
-The sync service is a new process that runs alongside “normal” geth operations. It is responsible for monitoring Ethereum logs, processing them, and injecting the corresponding L2 transactions to be applied in the L2 state via geth’s worker.
-
-
+Given the guarantees provided by the SafetyChecker contract, henceforth all calls to overridden opcodes will be routed through the Execution Manager.
 
 
 ## Exception handling within the OVM
 
 It is critical to handle different exceptions properly during execution.
 
-### When to REVERT and when to RETURN
+### Invalid transactions
 
+If a transaction (or more generally a call to `run()`) is 'invalid', the Execution Manager's run function should `RETURN` prior to initiating the first `ovmCALL`.
 
+Invalid calls to to run include calls which:
+- don't change the context from its default values
+- have a `_gasLimit` outside the minimum and maximum transaction gas limits
 
-### Revert Flags
+### Revert
 
 Refer to Data Structures spec for a description of [`RevertFlag`](./../data-structures.md#revertflag-enum) enum fields.
-
-<!-- Elaborate -->
-
-
-
 
 ## Gas Considerations
 
 ### Epoch limitations
 
-Modification 4: Epoch-based batches instead of blocks
-
 The OVM does not have blocks, it just maintains an ordered list of transactions. Because of this, there is no notion of a block gas limit; instead, the overall gas consumption is rate limited based on time segments, called epochs8. Before a transaction is executed, there’s a check to see if a new epoch needs to be started, and after execution its gas consumption is added on the cumulative gas used for that epoch. There is a separate gas limit per epoch for sequencer submitted transactions and “L1 to L2” transactions. Any transactions exceeding the gas limit for an epoch return early. This implies that an operator can post several transactions with varying timestamps in one on-chain batch (timestamps are defined by the sequencer, with some restrictions which we explain in the “Data Availability Batches” section).
 
 ### GAS Metering
 
+Notably, the `GAS` opcode is not disallowed or overridden. This enables us to use the EVM's built in gas metering, but also creates an attack vector in the case that fees diverge on L1 and L2.
+
+An important property to maintain is that the amount of gas passed to `run()`'s first `ovmCALL` is deterministic, and that within that call-frame, the `GAS` value remains deterministic. Assuming L2 geth is in consensus with L1 geth, and no _other_ L1 context is exposed to the OVM, this property should follow.
 
 ### Nuisance Gas
 

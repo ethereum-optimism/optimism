@@ -1,7 +1,5 @@
 # Actor and Roles
 
-**WIP:** This page is 'under construction'. Suggestions for improvement are much appreciated.
-
 ## Sequencer
 
 ### Motivation
