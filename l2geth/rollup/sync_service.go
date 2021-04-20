@@ -443,8 +443,10 @@ func (s *SyncService) sequence() error {
 	return nil
 }
 
+// updateL1GasPrice queries for the current L1 gas price and then stores it
+// in the L1 Gas Price Oracle. This must be called over time to properly
+// estimate the transaction fees that the sequencer should charge.
 func (s *SyncService) updateL1GasPrice() error {
-	// Update to the latest L1 gas price
 	l1GasPrice, err := s.client.GetL1GasPrice()
 	if err != nil {
 		return err
