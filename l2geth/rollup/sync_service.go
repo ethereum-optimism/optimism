@@ -537,40 +537,90 @@ func (s *SyncService) syncTransactionsToTip() error {
 
 // Methods for safely accessing and storing the latest
 // L1 blocknumber and timestamp. These are held in memory.
+
+// GetLatestL1Timestamp returns the OVMContext timestamp
 func (s *SyncService) GetLatestL1Timestamp() uint64 {
 	return atomic.LoadUint64(&s.OVMContext.timestamp)
 }
 
+// GetLatestL1BlockNumber returns the OVMContext blocknumber
 func (s *SyncService) GetLatestL1BlockNumber() uint64 {
 	return atomic.LoadUint64(&s.OVMContext.blockNumber)
 }
 
+// SetLatestL1Timestamp will set the OVMContext timestamp
 func (s *SyncService) SetLatestL1Timestamp(ts uint64) {
 	atomic.StoreUint64(&s.OVMContext.timestamp, ts)
 }
 
+// SetLatestL1BlockNumber will set the OVMContext blocknumber
 func (s *SyncService) SetLatestL1BlockNumber(bn uint64) {
 	atomic.StoreUint64(&s.OVMContext.blockNumber, bn)
 }
 
+// GetLatestEnqueueIndex reads the last queue index processed
 func (s *SyncService) GetLatestEnqueueIndex() *uint64 {
 	return rawdb.ReadHeadQueueIndex(s.db)
 }
 
+// GetNextEnqueueIndex returns the next queue index to process
+func (s *SyncService) GetNextEnqueueIndex() uint64 {
+	latest := s.GetLatestEnqueueIndex()
+	if latest == nil {
+		return 0
+	}
+	return *latest + 1
+}
+
+// SetLatestEnqueueIndex writes the last queue index that was processed
 func (s *SyncService) SetLatestEnqueueIndex(index *uint64) {
 	if index != nil {
 		rawdb.WriteHeadQueueIndex(s.db, *index)
 	}
 }
 
+// GetLatestIndex reads the last CTC index that was processed
+func (s *SyncService) GetLatestIndex() *uint64 {
+	return rawdb.ReadHeadIndex(s.db)
+}
+
+// GetNextIndex reads the next CTC index to process
+func (s *SyncService) GetNextIndex() uint64 {
+	latest := s.GetLatestIndex()
+	if latest == nil {
+		return 0
+	}
+	return *latest + 1
+}
+
+// SetLatestIndex writes the last CTC index that was processed
 func (s *SyncService) SetLatestIndex(index *uint64) {
 	if index != nil {
 		rawdb.WriteHeadIndex(s.db, *index)
 	}
 }
 
-func (s *SyncService) GetLatestIndex() *uint64 {
-	return rawdb.ReadHeadIndex(s.db)
+// GetLatestVerifiedIndex reads the last verified CTC index that was processed
+// These are set by processing batches of transactions that were submitted to
+// the Canonical Transaction Chain.
+func (s *SyncService) GetLatestVerifiedIndex() *uint64 {
+	return rawdb.ReadHeadVerifiedIndex(s.db)
+}
+
+// GetNextVerifiedIndex reads the next verified index
+func (s *SyncService) GetNextVerifiedIndex() uint64 {
+	index := s.GetLatestVerifiedIndex()
+	if index == nil {
+		return 0
+	}
+	return *index + 1
+}
+
+// SetLatestVerifiedIndex writes the last verified index that was processed
+func (s *SyncService) SetLatestVerifiedIndex(index *uint64) {
+	if index != nil {
+		rawdb.WriteHeadVerifiedIndex(s.db, *index)
+	}
 }
 
 // reorganize will reorganize to directly to the index passed in.
