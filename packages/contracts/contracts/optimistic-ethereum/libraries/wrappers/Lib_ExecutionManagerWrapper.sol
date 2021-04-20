@@ -139,7 +139,7 @@ library Lib_ExecutionManagerWrapper {
             kall(add(_calldata, 0x20), mload(_calldata), 0x0, 0x0)
             let size := returndatasize()
             returndata := mload(0x40)
-            mstore(0x40, add(add(returndata, 0x20), size))
+            mstore(0x40, add(returndata, and(add(add(size, 0x20), 0x1f), not(0x1f))))
             mstore(returndata, size)
             returndatacopy(add(returndata, 0x20), 0x0, size)
         }

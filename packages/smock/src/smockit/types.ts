@@ -35,9 +35,7 @@ export interface MockContractFunction {
     }
     revert: {
       (): void
-      with: (
-        revertValue?: string | (() => string) | (() => Promise<string>)
-      ) => void
+      with: (returnValue?: MockReturnValue) => void
     }
     resolve: 'return' | 'revert'
   }

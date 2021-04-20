@@ -28,7 +28,7 @@ const DEFAULT_OVM_SOLC_VERSION = '0.7.6'
  */
 const getOvmSolcPath = async (version: string): Promise<string> => {
   // TEMP
-  version = '0.7.6-allow_kall'
+  version = '0.7.6-allow_kall_2'
 
   // If __DANGEROUS_OVM_IGNORE_ERRORS__ env var is not undefined we append the -no-errors suffix to the solc version.
   if (process.env.__DANGEROUS_OVM_IGNORE_ERRORS__) {

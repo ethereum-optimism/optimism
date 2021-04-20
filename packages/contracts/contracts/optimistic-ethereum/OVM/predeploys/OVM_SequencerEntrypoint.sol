@@ -19,7 +19,7 @@ import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Execut
  * This contract is the implementation referenced by the Proxy Sequencer Entrypoint, thus enabling
  * the Optimism team to upgrade the decompression of calldata from the Sequencer.
  * 
- * Compiler used: solc
+ * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_SequencerEntrypoint {
@@ -80,12 +80,12 @@ contract OVM_SequencerEntrypoint {
             s
         );
 
-        bool isEmptyContract;
+        uint256 eoaContractSize;
         assembly {
-            isEmptyContract := iszero(extcodesize(target))
+            eoaContractSize := extcodesize(target)
         }
 
-        if (isEmptyContract) {
+        if (eoaContractSize == 0) {
             // ProxyEOA has not yet been deployed for this EOA.
             bytes32 messageHash = Lib_ECDSAUtils.getMessageHash(encodedTx, isEthSignedMessage);
             Lib_ExecutionManagerWrapper.ovmCREATEEOA(messageHash, v, r, s);

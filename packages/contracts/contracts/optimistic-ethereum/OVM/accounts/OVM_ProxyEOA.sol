@@ -38,7 +38,7 @@ contract OVM_ProxyEOA {
     fallback()
         external
     {
-        (bool success, bytes memory returndata) = getImplementation().call(msg.data);
+        (bool success, bytes memory returndata) = getImplementation().delegatecall(msg.data);
 
         if (success) {
             assembly {

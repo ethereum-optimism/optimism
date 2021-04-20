@@ -121,7 +121,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                 if iszero(created) {
                     let size := returndatasize()
                     revertdata := mload(0x40)
-                    mstore(0x40, add(add(revertdata, 0x20), size))
+                    mstore(0x40, add(revertdata, and(add(add(size, 0x20), 0x1f), not(0x1f))))
                     mstore(revertdata, size)
                     returndatacopy(add(revertdata, 0x20), 0x0, size)
                 }
