@@ -7,6 +7,6 @@
   },
   "scripts": {
     "format": "yarn prettier --write \"{l2geth,protocol}/**/*.md\"",
-    "format:check": "yarn prettier --check \"{l2geth,protocol}/**/*.md\"",
+    "format:check": "yarn prettier --check \"{l2geth,protocol}/**/*.md\""
   }
 }
