@@ -1,5 +1,6 @@
 /* Imports: Internal */
 import { Logger } from './common/logger'
+import { Metrics } from './common/metrics'
 
 type OptionSettings<TOptions> = {
   [P in keyof TOptions]?: {
@@ -16,6 +17,7 @@ export class BaseService<T> {
   protected name: string
   protected options: T
   protected logger: Logger
+  protected metrics: Metrics
   protected initialized: boolean = false
   protected running: boolean = false
 
@@ -24,6 +26,7 @@ export class BaseService<T> {
     this.name = name
     this.options = mergeDefaultOptions(options, optionSettings)
     this.logger = new Logger({ name })
+    this.metrics = new Metrics({ prefix: name })
   }
 
   /**
