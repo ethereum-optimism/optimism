@@ -33,6 +33,7 @@
     "@ethersproject/abstract-provider": "^5.0.9",
     "ethers": "^5.0.31",
     "lodash": "^4.17.21",
-    "pino": "^6.11.1"
+    "pino": "^6.11.1",
+    "prom-client": "^13.1.0"
   }
 }
