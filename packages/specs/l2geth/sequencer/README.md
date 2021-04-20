@@ -1,6 +1,7 @@
 # Sequencer specs
 
 ## Contents
+
 - [Batch Submitter](./batch-submitter.md) (empty file)
 - [Fees](./fees.md) (empty file)
 
@@ -55,6 +56,7 @@
 </pre>
 
 ### Verifier Syncing from Mainnet
+
 1. Batches full of L2 transactions are pulled in from an L1Geth node syncing mainnet Ethereum.
 2. Each transaction is applied to the Sync Service (AKA the `transaction-ingestor`).
 3. The Sync Service pipes the transaction into the OVM (using Geth's Clique Miner).

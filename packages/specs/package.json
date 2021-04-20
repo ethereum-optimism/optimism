@@ -1,5 +1,11 @@
 {
   "name": "@eth-optimism/specs",
   "version": "0.1.0",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "prettier": "2.2.1"
+  },
+  "scripts": {
+    "format": "yarn prettier --write ./**/*.md"
+  }
 }

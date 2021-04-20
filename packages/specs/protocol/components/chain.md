@@ -26,7 +26,6 @@ This document describes the Transaction Queue, the State Commitment Chain, the C
       - [Deleting batches from the SCC](#deleting-batches-from-the-scc)
         - [`deleteStateBatch()` requirements](#deletestatebatch-requirements)
 
-
 ## Transaction Queue
 
 The Transaction Queue is an append-only array of transaction data which MUST eventually be included in the Canonical Transaction Chain. The Transaction Queue itself does not describe the L2 state, but it serves as a source of transaction inputs to the CTC (the other source being the Sequencer).
@@ -37,16 +36,16 @@ Two `bytes32` entries are stored for each Queue transaction:
 
 1. The first entry is `transactionHash` defined in solidity as:
 
-  ```jsx
-  bytes32 transactionHash = keccak256(
-    abi.encode(
-        msg.sender,
-        _target,
-        _gasLimit,
-        _data
-    )
-  );
-  ```
+```jsx
+bytes32 transactionHash = keccak256(
+  abi.encode(
+      msg.sender,
+      _target,
+      _gasLimit,
+      _data
+  )
+);
+```
 
 2. The second entry is `timestampAndBlockNumber`, which records the `TIMESTAMP` and `NUMBER` values in the EVM at write time. This entry is defined in solidity as:
 
@@ -59,7 +58,6 @@ assembly {
 ```
 
 There is a [`QueueElement`](../data-structures.md#queueelement) type, which is also sometimes used to represent this data.
-
 
 ### Transaction Queue Processes
 
@@ -83,10 +81,10 @@ function enqueue(
 ```
 
 Where the parameters are:
+
 - `address _target`: Target L2 contract to send the transaction to.
 - `uint256 _gasLimit`: Gas limit for the enqueued L2 transaction.
 - `bytes _data`: Arbitrary calldata for the enqueued L2 transaction.
-
 
 ## Canonical Transaction Chain
 
@@ -100,12 +98,12 @@ Entries in the CTC are of type `bytes32 batchHeaderHash`, defined as the hash of
 
 ```jsx
 keccak256(
-   abi.encode(
-       _batchHeader.batchRoot,
-       _batchHeader.batchSize,
-       _batchHeader.prevTotalElements,
-       _batchHeader.extraData
-   )
+  abi.encode(
+    _batchHeader.batchRoot,
+    _batchHeader.batchSize,
+    _batchHeader.prevTotalElements,
+    _batchHeader.extraData
+  )
 );
 ```
 
@@ -147,7 +145,6 @@ Where the parameters are:
 
 <!-- TODO: we should add a note somewhere in this section explaining the implicit structure underneath these batches, i.e. the actual leaves of the trees. -->
 
-
 ### Updating the CTC
 
 The Transaction Queue is append-only, thus the only allowed update operation is appending to it. There are two methods by which this can be done.
@@ -183,13 +180,13 @@ The `Force Inclusion Period` is a storage variable defined in the CTC. It is exp
 1. If any queue elements are older than the Force Inclusion Period, they must be appended to the chain before any Sequencer transactions.
 2. The Sequencer MUST not be able to insert Sequencer Transactions older than Force Inclusion Period.
 
-
 ##### Context properties
 
 `BatchContext.blockNumber` and `BatchContext.timestamp` MUST be:
-  - monotonically increasing
-  - less than or equal to the L1 `blockNumber` and `timestamp` when `appendSequencerBatch()` is called
-  - less than or equal to the `blockNumber` and `timestamp` on all `QueueElements`
+
+- monotonically increasing
+- less than or equal to the L1 `blockNumber` and `timestamp` when `appendSequencerBatch()` is called
+- less than or equal to the `blockNumber` and `timestamp` on all `QueueElements`
 
 An important high level property which emerges from these rules is that Queue transactions will always have the same timestamp/blocknumber on L2 as the L1 block during which they were enqueued.
 
@@ -206,6 +203,7 @@ function appendQueueBatch(
 ```
 
 Where the parameter is:
+
 - `uint256 _numQueuedTransactions`: the number of transactions from the queue to be appended to the CTC.
 
 ##### `appendQueueBatch()` requirements
@@ -243,7 +241,6 @@ Where the parameters are:
 - `ChainBatchHeader _batchHeader`: Header of the batch in which the element was included.
 - `ChainInclusionProof _proof`: Merkle inclusion proof for the element.
 
-
 ### Updating the SCC
 
 #### Appending batches to the SCC
@@ -278,14 +275,13 @@ function deleteStateBatch(
 ```
 
 Where the parameters are:
+
 - `ChainBatchHeader _batchHeader`: The header of the state batch to delete.
 
 Note that this may result in valid state commitments prior to the fraudulent state being deleted. This is OK, the next honest proposer can resubmit them.
-
 
 ##### `deleteStateBatch()` requirements
 
 - The caller MUST be the Fraud Verifier contract
 - The fraud proof window must not have passed at runtime
 - The batch header must be valid
-

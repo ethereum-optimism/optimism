@@ -7,7 +7,6 @@ This document is
 - Created by call to ovmCREATEEOA with signature
 - `ecrecover` is used to retrieve address and deploy the trusted ProxyEOA contract, which implements a simple DelegateCall pattern there.
 
-
 ### OVM_ECDSAContractAccount
 
 The ECDSA Contract Account can be used as the implementation for a ProxyEOA deployed by the

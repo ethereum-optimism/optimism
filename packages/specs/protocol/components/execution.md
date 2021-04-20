@@ -5,13 +5,13 @@ The Optimistic Virtual Machine (OVM) provides a sandboxed execution environment 
 ## Security properties and invariants
 
 - Deterministic execution; maintaining consensus of rollup state between L1 and L2.
+
   - Corollary: L1 execution context MUST not be accessible (except in cases where the context can be guaranteed to agree with L2, ie. `GAS` is allowed, but must agree at all time during execution.
   - Unsafe opcodes must not be deployable.
   - It must be possible to complete the execution of a fraud proof within the L1 block gas limit.
 
 - The execution context should be ephemeral, and not persist between calls to `run()`
   - More precisely: although the Execution Manager does hold some permanent values in storage, those values should remain constant before and after each execution. The state root of the contract should be constant.
-
 
 ## Safety Checking
 
@@ -20,6 +20,7 @@ In order to maintain the property of Deterministic Execution, we consider the fo
 All currently unassigned opcodes which are not yet assigned in the EVM are also disallowed.
 
 **Unsafe Opcodes**
+
 - `ADDRESS`
 - `BALANCE`
 - `ORIGIN`
@@ -43,9 +44,9 @@ All currently unassigned opcodes which are not yet assigned in the EVM are also 
 - `SSTORE`
 - `SLOAD`
 - `CHAINID`
-- `CALLER`*
-- `CALL`*
-- `REVERT`*
+- `CALLER`\*
+- `CALL`\*
+- `REVERT`\*
 
 \* The `CALLER`, `CALL`, and `REVERT` opcodes are also banned, except in the special case that they appear as part of one of the following "magic strings" of bytecode:
 
@@ -68,11 +69,11 @@ update
 ## Defining the OVM Sandbox
 
 The OVM Sandbox consists of:
+
 - The Execution Manager
 - The State Manager
 - The Safety Cache and Safety Checker
 - The
-
 
 ## Transaction lifecycle
 
@@ -83,6 +84,7 @@ The OVM Sandbox consists of:
 All transactions begin as calls to the Execution Manager contract.
 
 Thus clients (the Sequencer or Verifiers) MUST modify the `Transaction` with the following modifications:
+
 1. Replace the `to` field with the Execution Manager’s address.
 2. Encode the `data` field as arguments to `run()`.
 
@@ -94,6 +96,7 @@ function run(
 ```
 
 Where the parameters are:
+
 - `Transaction _transaction`:
 - `address _ovmStateManager`:
 
@@ -103,9 +106,10 @@ Importantly, the `Transaction` parameter includes all the contextual information
 
 For **Sequencer transactions only**, the `Transaction.entrypoint` SHOULD be the Sequencer Entrypoint (or simply Entrypoint) contract. In order to achieve this, the Sequencer MUST modify the transaction's `to` field to the address of the Entrypoint.
 
-The Entrypoint contract accepts a more efficient compressed calldata format.  This is done at a low level, using the contract's fallback function, which expects an RLP-encoded EIP155 transaction as input.
+The Entrypoint contract accepts a more efficient compressed calldata format. This is done at a low level, using the contract's fallback function, which expects an RLP-encoded EIP155 transaction as input.
 
 The Entrypoint then:
+
 - decodes the input to extract the hash, and signature of [`EIP155Transaction`](#eip155transaction).
 - calculates an address using `ecrecover()`
 - checks for the existence of a contract at that address
@@ -116,7 +120,6 @@ The Entrypoint then:
 
 Given the guarantees provided by the SafetyChecker contract, henceforth all calls to overridden opcodes will be routed through the Execution Manager.
 
-
 ## Exception handling within the OVM
 
 It is critical to handle different exceptions properly during execution.
@@ -126,6 +129,7 @@ It is critical to handle different exceptions properly during execution.
 If a transaction (or more generally a call to `run()`) is 'invalid', the Execution Manager's run function should `RETURN` prior to initiating the first `ovmCALL`.
 
 Invalid calls to to run include calls which:
+
 - don't change the context from its default values
 - have a `_gasLimit` outside the minimum and maximum transaction gas limits
 
@@ -154,16 +158,16 @@ Nuisance-gas is initialized in `run()` to be equal to the transaction's `gasLimi
 A nuisance gas fee is charged on the following OVM operations the first time they occur:
 
 - a new account is loaded
-    - the base fee is `MIN_NUISANCE_GAS_PER_CONTRACT = 30000`
-    - the variable fee is `NUISANCE_GAS_PER_CONTRACT_BYTE = 100`
+  - the base fee is `MIN_NUISANCE_GAS_PER_CONTRACT = 30000`
+  - the variable fee is `NUISANCE_GAS_PER_CONTRACT_BYTE = 100`
 - a new storage slot is read from
-    - the fee is `NUISANCE_GAS_SLOAD = 20000`
+
+  - the fee is `NUISANCE_GAS_SLOAD = 20000`
 
 - a new storage slot is written to
   - the fee is `NUISANCE_GAS_SSTORE = 20000`
 
 If a message tries to use more nuisance gas than allowed in the message’s context, execution reverts.
-
 
 ## Key Properties
 

@@ -31,4 +31,3 @@ The following definitions are intended only to disambiguate some of the terms an
 - **Safe/Unsafe opcodes:** Unsafe opcodes are those which would return a different value when executed on L1 or L2, and thus invalidate the property of deterministic execution.
 - **Magic Strings:** The specific bytecode strings which are allowable despite containing unsafe opcodes, which force contracts to call to the Execution Manager.
 - **Source** or **Feed:** The origin of a transaction, currently either the Sequencer, or Transaction Queue.
-

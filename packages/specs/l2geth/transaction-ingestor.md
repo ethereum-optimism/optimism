@@ -169,7 +169,6 @@ class Backend(enum):
     L2
 ```
 
-
 #### `RollupClient`
 
 ```python
@@ -181,27 +180,27 @@ class RollupClient:
     @abc.abstractmethod
     def get_latest_enqueue() -> Transaction:
         return
-        
+
     @abc.abstractmethod
     def get_transaction(index: int, backend: Backend) -> Transaction:
         return
-        
+
     @abc.abstractmethod
     def get_latest_transaction(backend: Backend) -> Transaction:
         return
-        
+
     @abc.abstractmethod
     def get_eth_context(index: int) -> EthContext:
         return
-        
+
     @abc.abstractmethod
     def get_latest_eth_context(index: int) -> EthContext:
         return
-        
+
     @abc.abstractmethod
     def get_last_confirmed_enqueue() -> Transaction:
         return
-        
+
     @abc.abstractmethod
     def sync_status() -> SyncStatus:
         return
@@ -245,7 +244,7 @@ class EthContext:
     last_l1_timestamp: int
 ```
 
-The `EthContext` includes the`last_l1_timestamp` and the  `last_l1_blocknumber`. They are used for the EVM context at
+The `EthContext` includes the`last_l1_timestamp` and the `last_l1_blocknumber`. They are used for the EVM context at
 transaction execution time. These values must be monotonic.
 An L1 to L2 transaction must have the same timestamp and blocknumber in its EVM context on L2 as the L1 transaction itself.
 The `TransactionExecutor` is also responsible for assigning timestamps to transactions sent directly to the sequencer.
@@ -258,7 +257,7 @@ class DB:
     @abc.abstractmethod
     def get_current_index() -> int:
         return
-    
+
     @abc.abstractmethod
     def get_current_queue_index() -> int:
         return
@@ -305,7 +304,7 @@ import abc
 class TransactionExecutor:
     def __init__(self, options):
         self.eth_context = EthContext()
-        self.rollup_context = RollupContext()   
+        self.rollup_context = RollupContext()
         self.db = options.db
         self.rollup_context.current_index = self.db.get_current_index()
         self.rollup_context.current_queue_index = self.db.get_current_queue_index()
@@ -318,7 +317,7 @@ class TransactionExecutor:
         self.blockchain = Blockchain()
         self.tx_pool = TxPool()
         self.poll_interval = options.poll_interval
-    
+
     @abc.abstractmethod
     def start():
         return
@@ -333,7 +332,7 @@ class TransactionExecutor:
             tx = block.transactions[0]
             self.eth_context.last_l1_timestamp = tx.meta.l1_timestamp
             self.eth_context.last_l1_blocknumber = tx.meta.l1_blocknumber
-        
+
     def set_initial_rollup_context():
         if self.rollup_context.current_enqueue is None:
             tx = self.client.get_last_confirmed_enqueue()
@@ -342,7 +341,7 @@ class TransactionExecutor:
         block = self.blockchain.current_block()
         if block.number - 1 != self.rollup_context.current_index:
             self.rollup_context.current_index = block.number - 1
-        
+
     def apply_transaction(self, tx):
         if tx.meta.index != None:
             return self.apply_indexed_transaction(tx)
@@ -374,13 +373,13 @@ class TransactionExecutor:
             self.l1_block_number = tx.meta.l1_block_number
         elif tx.meta.l1_timestamp < self.eth_context.last_l1_timestamp:
             raise Exception("Out of order timestamp!")
-            
+
         if tx.meta.index is None:
             tx.meta.index = self.rollup_context.current_index + 1
         self.rollup_context.current_index = tx.meta.index
         if tx.meta.queue_index is not None:
             self.current_queue_index = tx.meta.queue_index
-        
+
         return miner.apply_transaction(tx)
 
     def apply_batched_transaction(self, tx):
@@ -393,7 +392,7 @@ class TransactionExecutor:
             raise Exception("Expected sequencer transactions only")
         self.tx_pool.validate_tx(tx)
         return apply_transaction(tx)
-    
+
     @abc.abstractmethod
     def handle_eth_send_raw_transaction(self, tx):
         return
@@ -448,12 +447,12 @@ class Verifier(TransactionExecutor):
         latest_indexed_transaction = self.client.get_latest_transaction(self.backend)
         latest_indexed_transaction_index = latest_indexed_transaction.meta.index
         latest_local_transaction_index = self.rollup_context.index
-        
+
         while latest_indexed_transaction_index != latest_local_transaction_index:
             for tx_index in range(latest_local_transaction_index, latest_indexed_transaction_index + 1):
                 tx = self.client.get_transaction(tx_index)
                 self.apply_transaction(tx)
-                
+
             latest_indexed_transaction = self.client.get_latest_transaction()
             latest_indexed_transaction_index = latest_indexed_transaction.index
             latest_local_transaction = self.rollup_context.index
@@ -471,7 +470,7 @@ class Verifier(TransactionExecutor):
 
             latest_indexed_tx_batch = self.client.get_latest_tx_batch()
             latest_indexed_tx_batch_index = tx_batch.batch.index
-            
+
     def handle_eth_send_raw_transaction(self, tx):
         raise Exception("Cannot accept transactions")
 ```
@@ -509,16 +508,16 @@ class Sequencer(Verifier):
         latest_indexed_queue_element = self.client.get_latest_enqueue()
         latest_indexed_queue_element_index = latest_indexed_queue_element.meta.index
         latest_local_queue_element_index = self.rollup_context.current_queue_index
-        
+
         while latest_indexed_queue_element_index != latest_local_queue_element:
             for tx_index in range(latest_local_queue_element_index, latest_indexed_queue_element_index):
                 tx = self.client.get_queue_element(tx_index)
                 self.apply_transaction(tx)
-        
+
             latest_indexed_queue_element = self.client.get_latest_enqueue()
             latest_indexed_queue_element_index = latest_indexed_queue_element.meta.index
             latest_local_queue_element_index = self.rollup_context.current_queue_index
-            
+
     def handle_eth_send_raw_transaction(self, tx):
         tx.set_timestamp(self.eth_context.last_l1_timestamp)
         tx.set_blocknumber(self.eth_context.last_l1_blocknumber)
@@ -539,7 +538,7 @@ class SequencerReplica(Sequencer):
         super().set_initial_eth_context()
         super().set_initial_rollup_context()
         self.start()
-        
+
    def start():
         while True:
             if self.backend == L2:
@@ -548,7 +547,7 @@ class SequencerReplica(Sequencer):
                 self.sync_queue_to_tip()
                 self.sync_tx_batches_to_tip()
             sleep options.poll_interval
-    
+
     def handle_eth_send_raw_transaction(self, tx):
         if self.backend == L2:
             self.sync_transactions_to_tip(self.backend)
@@ -574,7 +573,7 @@ class VerifierReplica(Verifier):
         while True:
             self.sync_transactions_to_tip(self.backend)
             sleep self.poll_interval
-    
+
     def handle_eth_send_raw_transaction(self, tx):
         raise Exception("Cannot accept transactions")
 ```
@@ -582,12 +581,14 @@ class VerifierReplica(Verifier):
 ## Sequencer Deployment
 
 Deploy:
+
 - Sequencer
 - Layer One Data Transport Layer
 
 ## Sequencer Upgrades
 
 Deploy new:
+
 - Replica Sequencer
 - Replica Data Transport Layer
 

@@ -17,57 +17,58 @@ See [Appendix](#appendix) for a list of data structures.
 #### getEnqueuedTransactionByIndex
 
 ```ts
-function getEnqueuedTransactionByIndex(index: number): EnqueuedTransaction
+function getEnqueuedTransactionByIndex(index: number): EnqueuedTransaction;
 ```
 
 #### getLatestEnqueuedTransaction
 
 ```ts
-function getLatestEnqueuedTransaction(): EnqueuedTransaction
+function getLatestEnqueuedTransaction(): EnqueuedTransaction;
 ```
 
 #### getTransactionByIndex
 
 ```ts
-function getTransactionByIndex(index: number): Transaction
+function getTransactionByIndex(index: number): Transaction;
 ```
 
 #### getLatestTransaction
 
 ```ts
-function getLatestTransaction(): Transaction
+function getLatestTransaction(): Transaction;
 ```
 
 #### getStateRootByIndex
 
 ```ts
-function getStateRootByIndex(index: number): StateRoot
+function getStateRootByIndex(index: number): StateRoot;
 ```
 
 #### getLatestStateRoot
 
 ```ts
-function getLatestStateRoot(): StateRoot
+function getLatestStateRoot(): StateRoot;
 ```
 
 ### Requirements
 
-* Must get data within X amount of time (?)
-* Must not get reorg'd out of existence.
+- Must get data within X amount of time (?)
+- Must not get reorg'd out of existence.
 
 ### Retrieving Relevant Data
 
 We need to retrieve the following information reliably:
 
-* All transactions enqueued for inclusion in the CanonicalTransactionChain in the order in which they were enqueued.
-* All transactions included in the CanonicalTransactionChain in the order in which they were included.
-* All state roots included in the StateCommitmentChain in the order in which they were included.
+- All transactions enqueued for inclusion in the CanonicalTransactionChain in the order in which they were enqueued.
+- All transactions included in the CanonicalTransactionChain in the order in which they were included.
+- All state roots included in the StateCommitmentChain in the order in which they were included.
 
 All relevant data can be retrieved by parsing data from the following functions:
-* `OVM_CanonicalTransactionChain.enqueue`
-* `OVM_CanonicalTransactionChain.appendQueueBatch`
-* `OVM_CanonicalTransactionChain.appendSequencerBatch`
-* `OVM_StateCommitmentChain.appendStateBatch`
+
+- `OVM_CanonicalTransactionChain.enqueue`
+- `OVM_CanonicalTransactionChain.appendQueueBatch`
+- `OVM_CanonicalTransactionChain.appendSequencerBatch`
+- `OVM_StateCommitmentChain.appendStateBatch`
 
 #### Enqueued Transactions
 
@@ -93,6 +94,7 @@ function parseTransactionEnqueuedEvent(
 ```
 
 So the process of parsing and indexing these transactions is pretty straightforward:
+
 1. Listen to [`TransactionEnqueued`](#transactionenqueued) events.
 2. Parse each found event into `EnqueuedTransaction` structs.
 3. Store each event based on their `queueIndex` field.
@@ -144,7 +146,7 @@ function parseQueueBatchAppendedEvent(
     }
 
     // TODO: Add parsing batches.
-    
+
     return transactions
 }
 ```
@@ -156,18 +158,18 @@ function parseQueueBatchAppendedEvent(
 
 The function internally parses `calldata` directly using the following format:
 
-* Bytes 0-3 (4 bytes) of `calldata` are the 4 byte function selector derived from `keccak256("appendSequencerBatch()")`. Just skip these four bytes.
-* Bytes 4-8 (5 bytes; `uint40`) describe the index of the "canonical transaction chain" that this batch of transactions expects to follow.
-* Bytes 9-11 (3 bytes; `uint24`) are the total number of elements that the sequencer wants to append to the chain.
-* Bytes 12-14 (3 bytes; `uint24`) are the total number of "batch contexts," effectively timestamp/block numbers to be assigned to given sets of transactions.
-* After byte 14, we have a series of encoded "batch contexts." Each batch context is exactly **16 bytes**. The number of contexts comes from bytes 12-14, as described above. Each context has the following structure:
-    * Bytes 0-2 (3 bytes; `uint24`) are the number of sequencer transactions that will utilize this batch context.
-    * Bytes 3-5 (3 bytes; `uint24`) are the number of *queue* transactions that will be inserted into the chain after these sequencer transactions.
-    * Bytes 6-10 (5 bytes; `uint40`) are the timestamp that will be assigned to these sequencer transactions.
-    * Bytes 11-15 (5 bytes; `uint40`) are the block number that will be assigned to these sequencer transactions.
-* After the batch context section, we have a series of dynamically sized transactions. Each transaction consists of the following information:
-    * Bytes 0-2 (3 bytes: `uint24`) are the total size of the coming transaction data in bytes.
-    * Some arbitrary data of a length equal to that described by the first three bytes.
+- Bytes 0-3 (4 bytes) of `calldata` are the 4 byte function selector derived from `keccak256("appendSequencerBatch()")`. Just skip these four bytes.
+- Bytes 4-8 (5 bytes; `uint40`) describe the index of the "canonical transaction chain" that this batch of transactions expects to follow.
+- Bytes 9-11 (3 bytes; `uint24`) are the total number of elements that the sequencer wants to append to the chain.
+- Bytes 12-14 (3 bytes; `uint24`) are the total number of "batch contexts," effectively timestamp/block numbers to be assigned to given sets of transactions.
+- After byte 14, we have a series of encoded "batch contexts." Each batch context is exactly **16 bytes**. The number of contexts comes from bytes 12-14, as described above. Each context has the following structure:
+  - Bytes 0-2 (3 bytes; `uint24`) are the number of sequencer transactions that will utilize this batch context.
+  - Bytes 3-5 (3 bytes; `uint24`) are the number of _queue_ transactions that will be inserted into the chain after these sequencer transactions.
+  - Bytes 6-10 (5 bytes; `uint40`) are the timestamp that will be assigned to these sequencer transactions.
+  - Bytes 11-15 (5 bytes; `uint40`) are the block number that will be assigned to these sequencer transactions.
+- After the batch context section, we have a series of dynamically sized transactions. Each transaction consists of the following information:
+  - Bytes 0-2 (3 bytes: `uint24`) are the total size of the coming transaction data in bytes.
+  - Some arbitrary data of a length equal to that described by the first three bytes.
 
 We can represent the input as an object roughly equivalent to the following json-ish thing:
 
@@ -284,7 +286,7 @@ Transaction({
 ```
 
 We next pull `numSubsequentQueueTransactions` transactions in from the queue (by reference to the queue).
-This process is repeated for every provided `context`. 
+This process is repeated for every provided `context`.
 
 `appendSequencerBatch` can be detected (and parsed) by looking for [`SequencerBatchAppended`](#sequencerbatchappended) events.
 Each of these events will always be immediately preceeded by a [`TransactionBatchAppended`](#transactionbatchappended) event.
@@ -302,63 +304,61 @@ Finally, pseudocode for parsing the event:
 
 ```ts
 function parseSequencerBatchAppendedEvent(
-    event: QueueBatchAppended
+  event: QueueBatchAppended
 ): Transaction[] {
-    // Get the `TransactionBatchAppended` event. Really should be turned into a
-    // single event to avoid having to do this extra network request.
-    const event2: TransactionBatchAppended = getEventByIndex(
-        getEventIndex(event) - 1
-    )
+  // Get the `TransactionBatchAppended` event. Really should be turned into a
+  // single event to avoid having to do this extra network request.
+  const event2: TransactionBatchAppended = getEventByIndex(
+    getEventIndex(event) - 1
+  );
 
-    const calldata: bytes = getCalldataByTransaction(
-        getTransaction(event)
-    )
+  const calldata: bytes = getCalldataByTransaction(getTransaction(event));
 
-    const params: AppendSequencerBatchParams = decode(calldata)
+  const params: AppendSequencerBatchParams = decode(calldata);
 
-    let sequencerTransactionCount = 0
-    let queueTransactionCount = 0
-    const transactions: Transaction[] = []
-    for (const context of params.contexts) {
-        for (let i = 0; i < context.numSequencerTransactions; i++) {
-            transactions.push({
-                l1QueueOrigin: QueueOrigin.SEQUENCER_QUEUE,
-                timestamp: context.ctxTimestamp,
-                blockNumber: context.ctxBlockNumber,
-                l1TxOrigin: 0x0000000000000000000000000000000000000000,
-                entrypoint: 0x4200000000000000000000000000000000000005,
-                gasLimit: OVM_ExecutionManager.getMaxTransactionGasLimit(),
-                data: params.transactions[sequencerTransactionCount]
-            })
+  let sequencerTransactionCount = 0;
+  let queueTransactionCount = 0;
+  const transactions: Transaction[] = [];
+  for (const context of params.contexts) {
+    for (let i = 0; i < context.numSequencerTransactions; i++) {
+      transactions.push({
+        l1QueueOrigin: QueueOrigin.SEQUENCER_QUEUE,
+        timestamp: context.ctxTimestamp,
+        blockNumber: context.ctxBlockNumber,
+        l1TxOrigin: 0x0000000000000000000000000000000000000000,
+        entrypoint: 0x4200000000000000000000000000000000000005,
+        gasLimit: OVM_ExecutionManager.getMaxTransactionGasLimit(),
+        data: params.transactions[sequencerTransactionCount]
+      });
 
-            sequencerTransactionCount = sequencerTransactionCount + 1
-        }
-
-        for (let i = 0; i < context.numSubsequentQueueTransactions; i++) {
-            // Note that this places an assumption on how events are parsed. This
-            // only works if enqueued transactions are parsed before
-            // `appendQueueBatch` events.
-            const enqueuedTransaction: EnqueuedTransaction = getEnqueuedTransactionByIndex(
-                event.startingQueueIndex + queueTransactionCount
-            )
-
-            transactions.push({
-                l1QueueOrigin: QueueOrigin.L1TOL2_QUEUE,
-                timestamp: enqueuedTransaction.timestamp,
-                blockNumber: enqueuedTransaction.blockNumber,
-                l1TxOrigin: enqueuedTransaction.l1TxOrigin,
-                entrypoint: enqueuedTransaction.entrypoint,
-                gasLimit: enqueuedTransaction.gasLimit,
-                data: enqueuedTransaction.data
-            })
-
-            queueTransactionCount = queueTransactionCount + 1
-        }
+      sequencerTransactionCount = sequencerTransactionCount + 1;
     }
 
-    // TODO: Add parsing batches.
+    for (let i = 0; i < context.numSubsequentQueueTransactions; i++) {
+      // Note that this places an assumption on how events are parsed. This
+      // only works if enqueued transactions are parsed before
+      // `appendQueueBatch` events.
+      const enqueuedTransaction: EnqueuedTransaction = getEnqueuedTransactionByIndex(
+        event.startingQueueIndex + queueTransactionCount
+      );
 
-    return transactions
+      transactions.push({
+        l1QueueOrigin: QueueOrigin.L1TOL2_QUEUE,
+        timestamp: enqueuedTransaction.timestamp,
+        blockNumber: enqueuedTransaction.blockNumber,
+        l1TxOrigin: enqueuedTransaction.l1TxOrigin,
+        entrypoint: enqueuedTransaction.entrypoint,
+        gasLimit: enqueuedTransaction.gasLimit,
+        data: enqueuedTransaction.data
+      });
+
+      queueTransactionCount = queueTransactionCount + 1;
+    }
+  }
+
+  // TODO: Add parsing batches.
+
+  return transactions;
 }
 ```
 
@@ -457,4 +457,3 @@ event QueueBatchAppended(
 ## Indexing Data From Layer 2
 
 It is possible to sync data from L2 and expose the same API
-

@@ -12,17 +12,17 @@ abstraction.
 A compressed EIP155 transaction. The transaction that is signed follows
 [EIP155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md). The type enum is `0`.
 
-| Field     | Size (bytes) |
-| --------- | ------------ |
-| Type      | 1            |
-| R         | 32           |
-| S         | 32           |
-| V         | 1            |
-| gasLimit  | 3            |
-| gasPrice  | 3            |
-| nonce     | 3            |
-| target    | 20           |
-| data      | variable     |
+| Field    | Size (bytes) |
+| -------- | ------------ |
+| Type     | 1            |
+| R        | 32           |
+| S        | 32           |
+| V        | 1            |
+| gasLimit | 3            |
+| gasPrice | 3            |
+| nonce    | 3            |
+| target   | 20           |
+| data     | variable     |
 
 The `gasPrice` must be scaled by a factor of `1,000,000` when encoding and
 decoding. This means that precision is lost and must be divisibl by 1 million.
@@ -38,31 +38,30 @@ A compressed EIP155 transaction that uses an alternative signature hashing
 algorithm. The data is ABI encoded hashed and then signed with `eth_sign`.
 The type enum is `1`.
 
-| Field     | Size (bytes) |
-| --------- | ------------ |
-| Type      | 1            |
-| R         | 32           |
-| S         | 32           |
-| V         | 1            |
-| gasLimit  | 3            |
-| gasPrice  | 3            |
-| nonce     | 3            |
-| target    | 20           |
-| data      | variable     |
-
+| Field    | Size (bytes) |
+| -------- | ------------ |
+| Type     | 1            |
+| R        | 32           |
+| S        | 32           |
+| V        | 1            |
+| gasLimit | 3            |
+| gasPrice | 3            |
+| nonce    | 3            |
+| target   | 20           |
+| data     | variable     |
 
 The same `gasPrice` and `nonce` rules apply as the `EIP155` transaction.
 
 The following table shows how the fields are ABI encoded before hashing.
 
-| Field     | ABI Type     |
-| --------- | ------------ |
-| nonce     | uint256      |
-| gasLimit  | uint256      |
-| gasPrice  | uint256      |
-| chainId   | uint256      |
-| target    | address      |
-| data      | bytes        |
+| Field    | ABI Type |
+| -------- | -------- |
+| nonce    | uint256  |
+| gasLimit | uint256  |
+| gasPrice | uint256  |
+| chainId  | uint256  |
+| target   | address  |
+| data     | bytes    |
 
 The ABI encoded data is hashed with `keccak256` and then prepended with
 `\x19Ethereum Signed Message:\n32` before being hashed again with `keccak256`
