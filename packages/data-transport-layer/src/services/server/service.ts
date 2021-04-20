@@ -173,7 +173,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
    * TODO: Link to our API spec.
    */
   private _registerAllRoutes(): void {
-    // TODO: this needs a source argument
     this._registerRoute(
       'get',
       '/eth/syncing',
