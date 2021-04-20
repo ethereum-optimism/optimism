@@ -168,4 +168,3 @@ A nuisance gas fee is charged on the following OVM operations the first time the
   - the fee is `NUISANCE_GAS_SSTORE = 20000`
 
 If a message tries to use more nuisance gas than allowed in the message’s context, execution reverts.
-

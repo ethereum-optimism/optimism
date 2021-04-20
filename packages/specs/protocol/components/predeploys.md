@@ -15,7 +15,7 @@ This contract exclusively serves as a getter for the `ovmL1TXORIGIN` operation. 
 
 The L2 to L1 Message Passer is a utility contract which facilitate an L1 proof of the
 of a message on L2. The L1 Cross Domain Messenger performs this proof in its
-_verifyStorageProof function, which verifies the existence of the transaction hash in this
+\_verifyStorageProof function, which verifies the existence of the transaction hash in this
 contract's `sentMessages` mapping.
 
 ### OVM_ProxySequencerEntrypoint
