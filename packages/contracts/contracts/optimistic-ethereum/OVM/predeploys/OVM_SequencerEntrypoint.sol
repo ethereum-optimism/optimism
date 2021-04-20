@@ -80,12 +80,12 @@ contract OVM_SequencerEntrypoint {
             s
         );
 
-        uint256 eoaContractSize;
+        bool isEmptyContract;
         assembly {
-            eoaContractSize := extcodesize(target)
+            isEmptyContract := iszero(extcodesize(target))
         }
 
-        if (eoaContractSize == 0) {
+        if (isEmptyContract) {
             // ProxyEOA has not yet been deployed for this EOA.
             bytes32 messageHash = Lib_ECDSAUtils.getMessageHash(encodedTx, isEthSignedMessage);
             Lib_ExecutionManagerWrapper.ovmCREATEEOA(messageHash, v, r, s);
