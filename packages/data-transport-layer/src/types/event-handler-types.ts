@@ -1,14 +1,17 @@
 import { JsonRpcProvider } from '@ethersproject/providers'
-import { BigNumber } from 'ethers'
+import { BigNumber, Event } from 'ethers'
 
 import { TransportDB } from '../db/transport-db'
-import { TypedEthersEvent } from './event-types'
 import {
   TransactionBatchEntry,
   TransactionEntry,
   StateRootBatchEntry,
   StateRootEntry,
 } from './database-types'
+
+export type TypedEthersEvent<T> = Event & {
+  args: T
+}
 
 export type GetExtraDataHandler<TEventArgs, TExtraData> = (
   event?: TypedEthersEvent<TEventArgs>,
