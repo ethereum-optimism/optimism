@@ -3,9 +3,12 @@ import { Wallet, BigNumber } from 'ethers'
 import chai, { expect } from 'chai'
 import { sleep, l2Provider, GWEI } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
+import { OptimismEnv } from './shared/env'
 chai.use(chaiAsPromised)
 
 describe('Basic RPC tests', () => {
+  let env: OptimismEnv;
+
   const DEFAULT_TRANSACTION = {
     to: '0x' + '1234'.repeat(10),
     gasLimit: 4000000,
@@ -16,6 +19,10 @@ describe('Basic RPC tests', () => {
 
   const provider = injectL2Context(l2Provider)
   const wallet = Wallet.createRandom().connect(provider)
+
+  before(async () => {
+    env = await OptimismEnv.new()
+  })
 
   describe('eth_sendRawTransaction', () => {
     it('should correctly process a valid transaction', async () => {
@@ -116,6 +123,14 @@ describe('Basic RPC tests', () => {
         expect(latest).to.deep.equal(prev)
         await sleep(2000)
       }
+    })
+  })
+
+  describe('eth_getBalance', () => {
+    it('should get the OVM_ETH balance', async () => {
+      const rpcBalance = await provider.getBalance(env.l2Wallet.address)
+      const contractBalance = await env.ovmEth.balanceOf(env.l2Wallet.address)
+      expect(rpcBalance).to.be.deep.eq(contractBalance)
     })
   })
 
