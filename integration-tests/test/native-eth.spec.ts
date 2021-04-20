@@ -58,7 +58,7 @@ describe('Native ETH Integration Tests', async () => {
   it('deposit', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
-    const { tx, receipt } = await env.waitForXDomainTransaction(
+    const { tx, receipt, remoteReceipt } = await env.waitForXDomainTransaction(
       env.gateway.deposit({ value: depositAmount }),
       Direction.L1ToL2
     )
@@ -75,6 +75,8 @@ describe('Native ETH Integration Tests', async () => {
     expect(postBalances.l1UserBalance).to.deep.eq(
       preBalances.l1UserBalance.sub(l1FeePaid.add(depositAmount))
     )
+
+    expect(remoteReceipt.status).to.not.eq(0); // tx should not revert
   })
 
   it('depositTo', async () => {
