@@ -1,11 +1,11 @@
 /* Imports: External */
 import { getContractFactory } from '@eth-optimism/contracts'
+import { EventArgsStateBatchAppended } from '@eth-optimism/core-utils'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
 import {
-  EventArgsStateBatchAppended,
-  StateRootBatchEntry,
+    StateRootBatchEntry,
   StateBatchAppendedExtraData,
   StateBatchAppendedParsedEvent,
   StateRootEntry,

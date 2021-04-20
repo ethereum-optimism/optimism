@@ -1,5 +1,5 @@
 /* Imports: External */
-import { fromHexString, BaseService } from '@eth-optimism/core-utils'
+import { fromHexString, BaseService, EventArgsAddressSet } from '@eth-optimism/core-utils'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 
@@ -13,7 +13,6 @@ import {
   validators,
 } from '../../utils'
 import {
-  EventArgsAddressSet,
   TypedEthersEvent,
   EventHandlerSet,
 } from '../../types'
