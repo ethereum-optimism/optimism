@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.11
+
+### Patch Changes
+
+- 35b99b0: add Sentry to TypeScript services for error tracking
+- Updated dependencies [35b99b0]
+  - @eth-optimism/core-utils@0.2.3
+
 ## 0.1.10
 
 ### Patch Changes
