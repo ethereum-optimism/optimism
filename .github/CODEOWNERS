@@ -2,7 +2,7 @@ l2geth/                             @smartcontracts @tynes @karlfloersch
 ops/                                @tynes @karlfloersch
 packages/hardhat-ovm/               @smartcontracts
 packages/smock/                     @smartcontracts @maurelian
-packages/core-utils/                @smartcontracts @annieke @maurelian @ben-chain
+packages/core-utils/                @smartcontracts @annieke @ben-chain
 packages/core-utils/src/watcher.ts  @K-Ho
 packages/contracts/                 @smartcontracts @ben-chain @maurelian
 packages/message-relayer/           @K-Ho
