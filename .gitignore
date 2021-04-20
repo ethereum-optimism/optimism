@@ -15,4 +15,7 @@ packages/contracts/deployments/custom
 
 packages/data-transport-layer/db
 
+# vim
+*.swp
+
 .env
