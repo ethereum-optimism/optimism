@@ -210,7 +210,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// channel directly to the miner
-	worker.rollupSub = eth.SyncService().SubscribeNewTxsEvent(worker.rollupCh)
+	//worker.rollupSub = eth.SyncService().SubscribeNewTxsEvent(worker.rollupCh)
 
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
@@ -408,7 +408,7 @@ func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
 	defer w.chainHeadSub.Unsubscribe()
 	defer w.chainSideSub.Unsubscribe()
-	defer w.rollupSub.Unsubscribe()
+	//defer w.rollupSub.Unsubscribe()
 
 	for {
 		select {

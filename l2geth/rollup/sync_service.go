@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/eth/gasprice"
@@ -42,13 +43,14 @@ type SyncService struct {
 	L1gpo                     *gasprice.L1Oracle
 	client                    RollupClient
 	syncing                   atomic.Value
-	chainHeadSub              event.Subscription
 	OVMContext                OVMContext
-	confirmationDepth         uint64
 	pollInterval              time.Duration
 	timestampRefreshThreshold time.Duration
 	chainHeadCh               chan core.ChainHeadEvent
 	backend                   Backend
+	//chainHeadSub              event.Subscription
+	txCh     chan *types.Transaction
+	gasLimit uint64
 }
 
 // NewSyncService returns an initialized sync service
@@ -90,17 +92,18 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		cancel:                    cancel,
 		verifier:                  cfg.IsVerifier,
 		enable:                    cfg.Eth1SyncServiceEnable,
-		confirmationDepth:         cfg.Eth1ConfirmationDepth,
 		syncing:                   atomic.Value{},
 		bc:                        bc,
 		txpool:                    txpool,
 		chainHeadCh:               make(chan core.ChainHeadEvent, 1),
+		txCh:                      make(chan *types.Transaction, 1),
 		eth1ChainId:               cfg.Eth1ChainId,
 		client:                    client,
 		db:                        db,
 		pollInterval:              pollInterval,
 		timestampRefreshThreshold: timestampRefreshThreshold,
 		backend:                   cfg.Backend,
+		gasLimit:                  9_000_000,
 	}
 
 	// The chainHeadSub is used to synchronize the SyncService with the chain.
@@ -109,7 +112,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	// reorgs and also favors safety over liveliness. If a transaction breaks
 	// things downstream, it is expected that this channel will halt ingestion
 	// of additional transactions by the SyncService.
-	service.chainHeadSub = service.bc.SubscribeChainHeadEvent(service.chainHeadCh)
+	//service.chainHeadSub = service.bc.SubscribeChainHeadEvent(service.chainHeadCh)
 
 	// Initial sync service setup if it is enabled. This code depends on
 	// a remote server that indexes the layer one contracts. Place this
@@ -171,6 +174,25 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	return &service, nil
 }
 
+func (s *SyncService) transition() {
+	for {
+		select {
+		case tx := <-s.txCh:
+			log.Info("Received on txCh", "hash", tx.Hash().Hex())
+			if block, receipts, logs, statedb, err := s.stateTransition(tx); err == nil {
+				log.Info("Post state transition")
+				_, err := s.bc.WriteBlockWithState(block, receipts, logs, statedb, false)
+				log.Info("Post WriteBlockWithState")
+				if err != nil {
+					log.Error("Cannot write state with block", "msg", err)
+				}
+			} else {
+				log.Error("Cannot state transition", "msg", err)
+			}
+		}
+	}
+}
+
 // ensureClient checks to make sure that the remote transaction source is
 // available. It will return an error if it cannot connect via HTTP
 func (s *SyncService) ensureClient() error {
@@ -188,6 +210,8 @@ func (s *SyncService) Start() error {
 		return nil
 	}
 	log.Info("Initializing Sync Service", "eth1-chainid", s.eth1ChainId)
+
+	go s.transition()
 
 	if s.verifier {
 		go s.VerifierLoop()
@@ -228,8 +252,12 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		s.SetLatestL1Timestamp(context.Timestamp)
 		s.SetLatestL1BlockNumber(context.BlockNumber)
 	} else {
+		// Prevent underflows
+		if *index != 0 {
+			*index = *index - 1
+		}
 		log.Info("Found latest index", "index", *index)
-		block := s.bc.GetBlockByNumber(*index - 1)
+		block := s.bc.GetBlockByNumber(*index)
 		if block == nil {
 			block = s.bc.CurrentBlock()
 			idx := block.Number().Uint64()
@@ -238,11 +266,12 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 				return fmt.Errorf("Current block height greater than index")
 			}
 			s.SetLatestIndex(&idx)
-			log.Info("Block not found, resetting index", "new", idx, "old", *index-1)
+			log.Info("Block not found, resetting index", "new", idx, "old", *index)
 		}
 		txs := block.Transactions()
 		if len(txs) != 1 {
-			log.Error("Unexpected number of transactions in block: %d", len(txs))
+			log.Error("Unexpected number of transactions in block", "count", len(txs))
+			panic("Cannot recover OVM Context")
 		}
 		tx := txs[0]
 		s.SetLatestL1Timestamp(tx.L1Timestamp())
@@ -289,7 +318,7 @@ func (s *SyncService) IsSyncing() bool {
 // started by this service.
 func (s *SyncService) Stop() error {
 	s.scope.Close()
-	s.chainHeadSub.Unsubscribe()
+	//s.chainHeadSub.Unsubscribe()
 	close(s.chainHeadCh)
 
 	if s.cancel != nil {
@@ -568,6 +597,9 @@ func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 // applying it to the tip. It blocks until the transaction has been included in
 // the chain.
 func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
+	s.txLock.Lock()
+	defer s.txLock.Unlock()
+
 	if tx == nil {
 		return errors.New("nil transaction passed to applyTransactionToTip")
 	}
@@ -606,13 +638,57 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// batching RLP encoded transactions.
 	tx = fixType(tx)
 
-	txs := types.Transactions{tx}
-	s.txFeed.Send(core.NewTxsEvent{Txs: txs})
+	s.txCh <- tx
 	// Block until the transaction has been added to the chain
 	log.Debug("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
-	<-s.chainHeadCh
+	//<-s.chainHeadCh
 
 	return nil
+}
+
+func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, error) {
+	config := s.bc.Config()
+	coinbase := common.Address{}
+	gasPool := new(core.GasPool).AddGas(s.gasLimit)
+	statedb, err := s.bc.State()
+	snap := statedb.Snapshot()
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf(": %w", err)
+	}
+	vmConfig := s.bc.GetVMConfig()
+	current := s.bc.CurrentHeader()
+
+	header := types.Header{
+		ParentHash: current.Hash(),
+		Coinbase:   coinbase,
+		Time:       tx.L1Timestamp(),
+		GasLimit:   s.gasLimit,
+		Nonce:      [8]byte{},
+		Root:       statedb.IntermediateRoot(true),
+		Number:     new(big.Int).Add(current.Number, common.Big1),
+		Difficulty: new(big.Int),
+	}
+
+	gasUsed := uint64(0)
+	receipt, err := core.ApplyTransaction(config, s.bc, &coinbase, gasPool, statedb, &header, tx, &gasUsed, *vmConfig)
+	if err != nil {
+		statedb.RevertToSnapshot(snap)
+		return nil, nil, nil, nil, fmt.Errorf(": %w", err)
+	}
+	header.GasUsed = receipt.GasUsed
+
+	receipts := []*types.Receipt{receipt}
+	// types.NewBlock will derive the transaction hash, receipt hash and uncle hash
+	block := types.NewBlock(&header, types.Transactions{tx}, nil, receipts)
+	hash := block.Hash()
+
+	receipt.BlockHash = hash
+	receipt.BlockNumber = block.Number()
+	receipt.TransactionIndex = 0
+	for _, log := range receipt.Logs {
+		log.BlockHash = hash
+	}
+	return block, []*types.Receipt{receipt}, receipt.Logs, statedb, nil
 }
 
 // applyBatchedTransaction applies transactions that were batched to layer one.
@@ -647,8 +723,6 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 		return errors.New("nil transaction passed to ValidateAndApplySequencerTransaction")
 	}
 
-	s.txLock.Lock()
-	defer s.txLock.Unlock()
 	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex())
 
 	qo := tx.QueueOrigin()
