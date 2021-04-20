@@ -1,5 +1,5 @@
 /* External Imports */
-import { providers } from 'ethers'
+import { providers, BigNumber } from 'ethers'
 import {
   BlockWithTransactions,
   TransactionResponse,
@@ -18,6 +18,7 @@ interface UnformattedL2Transaction extends TransactionResponse {
   l1MessageSender: string
   signatureHashType: string
   queueOrigin: string
+  rawTransaction: string
 }
 
 interface UnformattedL2Block extends BlockWithTransactions {
@@ -60,25 +61,32 @@ export class MockchainProvider extends providers.JsonRpcProvider {
   }
 
   public async send(endpoint: string, params: []): Promise<any> {
-    if (endpoint === 'eth_chainId') {
-      return this.chainId()
+    switch (endpoint) {
+      case 'eth_chainId':
+        return this.chainId()
+      case 'rollup_getInfo':
+        const info: RollupInfo = {
+          mode: 'sequencer',
+          syncing: false,
+          ethContext: {
+            timestamp: 0,
+            blockNumber: 0,
+          },
+          rollupContext: {
+            index: 0,
+            queueIndex: 0,
+          },
+        }
+        return info
+      case 'eth_getBlockByNumber':
+        if (params.length === 0) {
+          throw new Error(`Invalid params for ${endpoint}`)
+        }
+        const blockNumber = BigNumber.from((params as any)[0]).toNumber()
+        return this.mockBlocks[blockNumber]
+      default:
+        throw new Error('Unsupported endpoint!')
     }
-    if (endpoint === 'rollup_getInfo') {
-      const info: RollupInfo = {
-        mode: 'sequencer',
-        syncing: false,
-        ethContext: {
-          timestamp: 0,
-          blockNumber: 0,
-        },
-        rollupContext: {
-          index: 0,
-          queueIndex: 0,
-        },
-      }
-      return info
-    }
-    throw new Error('Unsupported endpoint!')
   }
 
   public setNumBlocksToReturn(numBlocks: number): void {
@@ -209,6 +217,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA",
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -261,6 +270,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -313,6 +323,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -365,6 +376,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0x94BA4d5Ebb0e05A50e977FFbF6e1a1Ee3D89299c",
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -417,6 +429,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -469,6 +482,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -521,6 +535,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0x956dA338C1518a7FB213042b70c60c021aeBd554",
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -573,6 +588,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -625,6 +641,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -677,6 +694,7 @@ const BLOCKS = JSON.parse(`
              "creates":"0x6454C9d69a4721feBA60e26A367bD4D56196Ee7c",
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -729,6 +747,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -781,6 +800,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -833,6 +853,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -885,6 +906,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
@@ -937,6 +959,7 @@ const BLOCKS = JSON.parse(`
              "creates":null,
              "l1BlockNumber":"1",
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
+             "rawTransaction":"0x420420",
              "signatureHashType":"0",
              "queueOrigin":"0",
              "chainId":31337
