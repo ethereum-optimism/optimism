@@ -1,7 +1,8 @@
 # Accounts
 
-This document is
+This document is a WIP. It is kept here to maintain a consistent structure mirroring the [implementation directory](../../../contracts/contracts/optimistic-ethereum/OVM/).
 
+<!--
 ### ProxyEOAs
 
 - Created by call to ovmCREATEEOA with signature
@@ -15,4 +16,4 @@ providing EIP155 formatted transaction encodings.
 
 #### Value Transfer
 
-Value transfer is currently only supported in the first call frame of a transaction on L2.
+Value transfer is currently only supported in the first call frame of a transaction on L2. -->

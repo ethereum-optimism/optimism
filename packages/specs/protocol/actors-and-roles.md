@@ -2,17 +2,13 @@
 
 ## Sequencer
 
-### Motivation
-
 The Sequencer is a semi-privileged service provider in Optimistic Ethereum which enables instant transactions. The sequencer is given the role of assigning an order to L2 transactions, similarly to miners on L1.
 
 There is only one sequencer at a time, allowing consensus on transactions to be reached extremely rapidly. Users can send transactions to the sequencer, and (within seconds) receive confirmation that their transaction was processed and will be included in the next rollup batch. These instant confirmations have weaker security than confirmed L1 transactions, but stronger security than 0-conf L1 transactions.
 
-<!-- but stronger security than 0-conf L1 transactions. Why? -->
-
 Once the sequencer's batch is confirmed on L1, the security is the same.
 
-### Censorship resistance
+### On censorship resistance
 
 In the event that a malicious Sequencer censors user's transactions, the user SHOULD `enqueue()` their transactions directly to the L1 Queue, forcing the sequencer to include them in the L2 chain within the `FORCE_INCLUSION_PERIOD`.
 
@@ -29,14 +25,22 @@ In the event that the Sequencer stops submitting transactions entirely, the prot
 
 ## Proposers
 
-**Roles:**
+Proposers evaluate the transactions in the CTC, and 'commit' to the resulting state by writing them to the SCC. They must deposit a bond for the privilege of this role.
+This bond will be slashed in the event of a successful fraud proof on a state root committed by the Proposer.
+
+### Roles
 
 - Process transactions from the CTC, and propose new state roots by posting them to the SCC.
 - MUST be collateralized by depositing a bond to the `OVM_BondManager` .
 
+**Future note:** The Proposer is currently identical to the Sequencer. This is expected to change.
+
 ## Verifier
 
-**Roles:**
+Like Proposers, Verifiers evaluate the transactions in the CTC, in order to determine the resulting state root following each transaction.
+If a Verifier finds that a proposed state root is incorrect, they can prove fraud, and earn a reward taken from the Proposer's bond.
+
+### Roles
 
 - Read transactions from the CTC, process them, and verify the correctness of state roots in the SCC.
 - If an invalid state root is detected: initiate and complete a fraud proof.
@@ -44,7 +48,9 @@ In the event that the Sequencer stops submitting transactions entirely, the prot
 
 ## Users
 
-**Roles:**
+Any account may transact on OE.
+
+### Roles
 
 - MAY post L2 transactions via the Sequencer's RPC endpoint, to be appended in sequencer batches
 - MAY submit an L2 transaction via the CTC's queue on L1

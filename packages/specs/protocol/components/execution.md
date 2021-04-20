@@ -169,13 +169,3 @@ A nuisance gas fee is charged on the following OVM operations the first time the
 
 If a message tries to use more nuisance gas than allowed in the message’s context, execution reverts.
 
-## Key Properties
-
-- context management
-- Contract creation
-- [x] Magic string to call the EM
-- Error handling
-  - Revert flags
-  - When to REVERT and when to RETURN
-- Gas Metering
-  - Nuisance gas
