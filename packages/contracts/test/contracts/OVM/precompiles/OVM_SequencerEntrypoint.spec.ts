@@ -5,7 +5,6 @@ import { waffle, ethers } from 'hardhat'
 import { ContractFactory, Wallet, Contract, BigNumber } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
-import { ecrecover, publicToAddress } from 'ethereumjs-util'
 
 /* Internal Imports */
 import { getContractInterface, getContractFactory } from '../../../../src'
