@@ -31,14 +31,14 @@ export class Logger {
       base: null,
     }
 
-    const loggerStreams: Streams = [{ stream: process.stdout }]
+    let loggerStreams: Streams = [{ stream: process.stdout }]
     if (options.sentryOptions) {
       loggerStreams.push({
         level: 'error',
         stream: createWriteStream(options.sentryOptions),
       })
     }
-    if (options.streams) loggerStreams.concat(options.streams)
+    if (options.streams) loggerStreams = loggerStreams.concat(options.streams)
 
     this.inner = pino(loggerOptions, pinoms.multistream(loggerStreams))
   }
