@@ -55,7 +55,7 @@ const optionSettings = {
 
 export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   constructor(options: L1TransportServerOptions) {
-    super('L1 Transport Server', options, optionSettings)
+    super('L1_Transport_Server', options, optionSettings)
   }
 
   private state: {

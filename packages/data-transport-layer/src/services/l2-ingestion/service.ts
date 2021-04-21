@@ -51,7 +51,7 @@ const optionSettings = {
 
 export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
   constructor(options: L2IngestionServiceOptions) {
-    super('L2 Ingestion Service', options, optionSettings)
+    super('L2_Ingestion_Service', options, optionSettings)
   }
 
   private state: {
