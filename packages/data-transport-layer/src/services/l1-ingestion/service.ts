@@ -1,5 +1,9 @@
 /* Imports: External */
-import { fromHexString, BaseService, EventArgsAddressSet } from '@eth-optimism/core-utils'
+import {
+  fromHexString,
+  BaseService,
+  EventArgsAddressSet,
+} from '@eth-optimism/core-utils'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 
@@ -12,10 +16,7 @@ import {
   loadContract,
   validators,
 } from '../../utils'
-import {
-  TypedEthersEvent,
-  EventHandlerSet,
-} from '../../types'
+import { TypedEthersEvent, EventHandlerSet } from '../../types'
 import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
 import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
