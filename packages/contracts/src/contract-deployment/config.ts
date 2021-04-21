@@ -217,7 +217,7 @@ export const makeContractDeployConfig = async (
       params: [AddressManager.address],
     },
     OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount'),
+      factory: getContractFactory('OVM_ECDSAContractAccount', undefined, true),
     },
     OVM_SequencerEntrypoint: {
       factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),

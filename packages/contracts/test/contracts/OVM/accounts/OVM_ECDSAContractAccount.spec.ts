@@ -2,11 +2,11 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers, waffle } from 'hardhat'
-import { ContractFactory, Contract, Wallet } from 'ethers'
+import { ContractFactory, Contract, Wallet, BigNumber } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { NON_ZERO_ADDRESS } from '../../../helpers/constants'
 import {
   serializeNativeTransaction,
   signNativeTransaction,
@@ -14,7 +14,9 @@ import {
   serializeEthSignTransaction,
   signEthSignMessage,
   decodeSolidityError,
+  NON_ZERO_ADDRESS,
 } from '../../../helpers'
+import { getContractFactory, predeploys } from '../../../../src'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -57,13 +59,16 @@ describe('OVM_ECDSAContractAccount', () => {
     Helper_PredeployCaller = await (
       await ethers.getContractFactory('Helper_PredeployCaller')
     ).deploy()
+
     Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
   })
 
   let Factory__OVM_ECDSAContractAccount: ContractFactory
   before(async () => {
-    Factory__OVM_ECDSAContractAccount = await ethers.getContractFactory(
-      'OVM_ECDSAContractAccount'
+    Factory__OVM_ECDSAContractAccount = getContractFactory(
+      'OVM_ECDSAContractAccount',
+      wallet,
+      true
     )
   })
 
@@ -74,9 +79,38 @@ describe('OVM_ECDSAContractAccount', () => {
     Mock__OVM_ExecutionManager.smocked.ovmADDRESS.will.return.with(
       await wallet.getAddress()
     )
+    Mock__OVM_ExecutionManager.smocked.ovmEXTCODESIZE.will.return.with(1)
     Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
     Mock__OVM_ExecutionManager.smocked.ovmGETNONCE.will.return.with(100)
-    Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with([true, '0x'])
+    Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with(
+      (gasLimit, target, data) => {
+        if (target === predeploys.OVM_ETH) {
+          return [
+            true,
+            '0x0000000000000000000000000000000000000000000000000000000000000001',
+          ]
+        } else {
+          return [true, '0x']
+        }
+      }
+    )
+    Mock__OVM_ExecutionManager.smocked.ovmSTATICCALL.will.return.with(
+      (gasLimit, target, data) => {
+        // Duplicating the behavior of the ecrecover precompile.
+        if (target === '0x0000000000000000000000000000000000000001') {
+          const databuf = fromHexString(data)
+          const addr = ethers.utils.recoverAddress(databuf.slice(0, 32), {
+            v: BigNumber.from(databuf.slice(32, 64)).toNumber(),
+            r: toHexString(databuf.slice(64, 96)),
+            s: toHexString(databuf.slice(96, 128)),
+          })
+          const ret = ethers.utils.defaultAbiCoder.encode(['address'], [addr])
+          return [true, ret]
+        } else {
+          return [true, '0x']
+        }
+      }
+    )
     Mock__OVM_ExecutionManager.smocked.ovmCREATE.will.return.with([
       NON_ZERO_ADDRESS,
       '0x',
@@ -266,7 +300,18 @@ describe('OVM_ECDSAContractAccount', () => {
     it(`should revert if fee is not transferred to the relayer`, async () => {
       const message = serializeNativeTransaction(DEFAULT_EIP155_TX)
       const sig = await signNativeTransaction(wallet, DEFAULT_EIP155_TX)
-      Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with([false, '0x'])
+      Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with(
+        (gasLimit, target, data) => {
+          if (target === '0x4200000000000000000000000000000000000006') {
+            return [
+              true,
+              '0x0000000000000000000000000000000000000000000000000000000000000000',
+            ]
+          } else {
+            return [true, '0x']
+          }
+        }
+      )
 
       await callPredeploy(
         Helper_PredeployCaller,

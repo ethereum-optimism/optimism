@@ -18,6 +18,30 @@ library Lib_ExecutionManagerWrapper {
      **********************/
 
     /**
+     * Performs a safe ovmCREATE call.
+     * @param _bytecode Code for the new contract.
+     * @return _contract Address of the created contract.
+     */
+    function ovmCREATE(
+        bytes memory _bytecode
+    )
+        internal
+        returns (
+            address,
+            bytes memory
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmCREATE(bytes)",
+                _bytecode
+            )
+        );
+
+        return abi.decode(returndata, (address, bytes));
+    }
+
+    /**
      * Performs a safe ovmGETNONCE call.
      * @return _nonce Result of calling ovmGETNONCE.
      */
