@@ -75,8 +75,8 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	}
 	timestampRefreshThreshold := cfg.TimestampRefreshThreshold
 	if timestampRefreshThreshold == 0 {
-		log.Info("Sanitizing timestamp refresh threshold to 15 minutes")
-		timestampRefreshThreshold = time.Minute * 15
+		log.Info("Sanitizing timestamp refresh threshold to 3 minutes")
+		timestampRefreshThreshold = time.Minute * 3
 	}
 
 	// Layer 2 chainid
