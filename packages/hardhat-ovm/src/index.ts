@@ -53,7 +53,10 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
   // Pull the locally stored info about the latest commit. If this differs from the remote info
   // then we know to invalidate our cache.
   let cachedCompilerVersion = ''
-  const cachedCompilerVersionPath = path.join(ovmCompilersCache, 'version.json')
+  const cachedCompilerVersionPath = path.join(
+    ovmCompilersCache,
+    `version-info-${version}.json`
+  )
   if (fs.existsSync(cachedCompilerVersionPath)) {
     cachedCompilerVersion = fs
       .readFileSync(cachedCompilerVersionPath)
