@@ -1913,9 +1913,15 @@ type EthContext struct {
 	BlockNumber uint64 `json:"blockNumber"`
 	Timestamp   uint64 `json:"timestamp"`
 }
+
+// RollupContext represents the height of the rollup.
+// Index is the last processed CanonicalTransactionChain index
+// QueueIndex is the last processed `enqueue` index
+// VerifiedIndex is the last processed CTC index that was batched
 type RollupContext struct {
-	Index      uint64 `json:"index"`
-	QueueIndex uint64 `json:"queueIndex"`
+	Index         uint64 `json:"index"`
+	QueueIndex    uint64 `json:"queueIndex"`
+	VerifiedIndex uint64 `json:"verifiedIndex"`
 }
 
 type rollupInfo struct {
@@ -1932,7 +1938,7 @@ func (api *PublicRollupAPI) GetInfo(ctx context.Context) rollupInfo {
 	}
 	syncing := api.b.IsSyncing()
 	bn, ts := api.b.GetEthContext()
-	index, queueIndex := api.b.GetRollupContext()
+	index, queueIndex, verifiedIndex := api.b.GetRollupContext()
 
 	return rollupInfo{
 		Mode:    mode,
@@ -1942,8 +1948,9 @@ func (api *PublicRollupAPI) GetInfo(ctx context.Context) rollupInfo {
 			Timestamp:   ts,
 		},
 		RollupContext: RollupContext{
-			Index:      index,
-			QueueIndex: queueIndex,
+			Index:         index,
+			QueueIndex:    queueIndex,
+			VerifiedIndex: verifiedIndex,
 		},
 	}
 }

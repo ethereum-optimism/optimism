@@ -58,8 +58,8 @@ func (b *LesApiBackend) GetEthContext() (uint64, uint64) {
 	return 0, 0
 }
 
-func (b *LesApiBackend) GetRollupContext() (uint64, uint64) {
-	return 0, 0
+func (b *LesApiBackend) GetRollupContext() (uint64, uint64, uint64) {
+	return 0, 0, 0
 }
 
 func (b *LesApiBackend) IsSyncing() bool {

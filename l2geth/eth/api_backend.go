@@ -71,18 +71,21 @@ func (b *EthAPIBackend) GetEthContext() (uint64, uint64) {
 	return bn, ts
 }
 
-func (b *EthAPIBackend) GetRollupContext() (uint64, uint64) {
-	i := uint64(0)
-	q := uint64(0)
-	index := b.eth.syncService.GetLatestIndex()
-	if index != nil {
-		i = *index
+func (b *EthAPIBackend) GetRollupContext() (uint64, uint64, uint64) {
+	index := uint64(0)
+	queueIndex := uint64(0)
+	verifiedIndex := uint64(0)
+
+	if latest := b.eth.syncService.GetLatestIndex(); latest != nil {
+		index = *latest
 	}
-	queueIndex := b.eth.syncService.GetLatestEnqueueIndex()
-	if queueIndex != nil {
-		q = *queueIndex
+	if latest := b.eth.syncService.GetLatestEnqueueIndex(); latest != nil {
+		queueIndex = *latest
 	}
-	return i, q
+	if latest := b.eth.syncService.GetLatestVerifiedIndex(); latest != nil {
+		verifiedIndex = *latest
+	}
+	return index, queueIndex, verifiedIndex
 }
 
 // ChainConfig returns the active chain configuration.
