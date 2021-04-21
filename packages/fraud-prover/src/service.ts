@@ -44,12 +44,13 @@ interface FraudProverOptions {
   // within this service.
   addressManagerAddress: string
 
-  // Wallet instance, used to sign and send the L1 relay transactions.
-  l1Wallet: Wallet
+  // Wallet instance, used to sign the L1 transactions.
+  l1Wallet: Wallet // l1Wallet: Signer
 
-  // Max gas to relay messages with.
-  relayGasLimit: number
-
+  // Max gas.
+  deployGasLimit: number
+  runGasLimit: number
+  
   // Height of the L2 transaction to start searching for L2->L1 messages.
   fromL2TransactionIndex?: number
 
@@ -63,28 +64,31 @@ interface FraudProverOptions {
   // L1 block to start querying events from. Recommended to set to the StateCommitmentChain deploy height
   l1StartOffset?: number
 
+  // When L1 blocks are considered final
+  l1BlockFinality: number
+  
   // Number of blocks within each getLogs query - max is 2000
-  getLogsInterval?: number
+  //getLogsInterval?: number
 }
 
 const optionSettings = {
-  relayGasLimit: { default: 4_000_000 },
-  fromL2TransactionIndex: { default: 0 },
   pollingInterval: { default: 5000 },
+  deployGasLimit: { default: 4_000_000 },
+  runGasLimit: { default: 9_500_000 },
+  fromL2TransactionIndex: { default: 0 },
   l2BlockOffset: { default: 1 },
   l1StartOffset: { default: 0 },
+  l1BlockFinality: { default: 0 },
   //getLogsInterval: { default: 2000 },
 }
 
-export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
-  constructor(options: MessageRelayerOptions) {
-    super('Message_Relayer', options, optionSettings)
+export class FraudProverService extends BaseService<FraudProverService> {
+  constructor(options: FraudProverOptions) {
+    super('Fraud_Prover', options, optionSettings)
   }
 
-  protected spreadsheetMode: boolean
-  protected spreadsheet: SpreadSheet
-
   private state: {
+    nextUnverifiedStateRoot: number
     lastFinalizedTxHeight: number
     nextUnfinalizedTxHeight: number
     lastQueriedL1Block: number
@@ -94,6 +98,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     OVM_L1CrossDomainMessenger: Contract
     OVM_L2CrossDomainMessenger: Contract
     OVM_L2ToL1MessagePasser: Contract
+    //l1Provider: L1ProviderWrapper
+    //l2Provider: L2ProviderWrapper
+    OVM_CanonicalTransactionChain: Contract
+    OVM_FraudVerifier: Contract
+    OVM_ExecutionManager: Contract
   }
 
   protected async _init(): Promise<void> {
@@ -104,11 +113,55 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const address = await this.options.l1Wallet.getAddress()
     this.logger.info('Using L1 EOA', { address })
 
+    this.logger.info('Trying to connect to the L1 network...')
+    for (let i = 0; i < 10; i++) {
+      try {
+        await this.options.l1RpcProvider.detectNetwork()
+        this.logger.info('Successfully connected to the L1 network.')
+        break
+      } catch (err) {
+        if (i < 9) {
+          this.logger.info('Unable to connect to L1 network', {
+            retryAttemptsRemaining: 10 - i,
+          })
+          await sleep(1000)
+        } else {
+          throw new Error(
+            `Unable to connect to the L1 network, check that your L1 endpoint is correct.`
+          )
+        }
+      }
+    }
+
+    this.logger.info('Trying to connect to the L2 network...')
+    for (let i = 0; i < 10; i++) {
+      try {
+        await this.options.l2RpcProvider.detectNetwork()
+        this.logger.info('Successfully connected to the L2 network.')
+        break
+      } catch (err) {
+        if (i < 9) {
+          this.logger.info('Unable to connect to L1 network', {
+            retryAttemptsRemaining: 10 - i,
+          })
+          await sleep(1000)
+        } else {
+          throw new Error(
+            `Unable to connect to the L2 network, check that your L2 endpoint is correct.`
+          )
+        }
+      }
+    }
+
+    this.logger.info('Connecting to Lib_AddressManager...')
     this.state.Lib_AddressManager = loadContract(
       'Lib_AddressManager',
       this.options.addressManagerAddress,
       this.options.l1RpcProvider
     )
+    this.logger.info('Connected to Lib_AddressManager', {
+      address: this.state.Lib_AddressManager.address,
+    })
 
     this.logger.info('Connecting to OVM_StateCommitmentChain...')
     this.state.OVM_StateCommitmentChain = await loadContractFromManager({
@@ -120,42 +173,100 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       address: this.state.OVM_StateCommitmentChain.address,
     })
 
-    this.logger.info('Connecting to OVM_L1CrossDomainMessenger...')
-    this.state.OVM_L1CrossDomainMessenger = await loadContractFromManager({
-      name: 'OVM_L1CrossDomainMessenger',
-      proxy: 'Proxy__OVM_L1CrossDomainMessenger',
-      Lib_AddressManager: this.state.Lib_AddressManager,
-      provider: this.options.l1RpcProvider,
-    })
-    this.logger.info('Connected to OVM_L1CrossDomainMessenger', {
-      address: this.state.OVM_L1CrossDomainMessenger.address,
-    })
-
-    this.logger.info('Connecting to OVM_L2CrossDomainMessenger...')
-    this.state.OVM_L2CrossDomainMessenger = await loadContractFromManager({
-      name: 'OVM_L2CrossDomainMessenger',
-      Lib_AddressManager: this.state.Lib_AddressManager,
-      provider: this.options.l2RpcProvider,
-    })
-    this.logger.info('Connected to OVM_L2CrossDomainMessenger', {
-      address: this.state.OVM_L2CrossDomainMessenger.address,
-    })
-
-    this.logger.info('Connecting to OVM_L2ToL1MessagePasser...')
-    this.state.OVM_L2ToL1MessagePasser = loadContract(
-      'OVM_L2ToL1MessagePasser',
-      '0x4200000000000000000000000000000000000000',
-      this.options.l2RpcProvider
+    this.logger.info('Connecting to OVM_CanonicalTransactionChain...')
+    this.state.OVM_CanonicalTransactionChain = await loadContractFromManager(
+      'OVM_CanonicalTransactionChain',
+      this.state.Lib_AddressManager,
+      this.options.l1RpcProvider
     )
-    this.logger.info('Connected to OVM_L2ToL1MessagePasser', {
-      address: this.state.OVM_L2ToL1MessagePasser.address,
+    this.logger.info('Connected to OVM_CanonicalTransactionChain', {
+      address: this.state.OVM_CanonicalTransactionChain.address,
     })
+
+    this.logger.info('Connecting to OVM_FraudVerifier...')
+    this.state.OVM_FraudVerifier = await loadContractFromManager(
+      'OVM_FraudVerifier',
+      this.state.Lib_AddressManager,
+      this.options.l1RpcProvider
+    )
+    this.logger.info('Connected to OVM_FraudVerifier', {
+      address: this.state.OVM_FraudVerifier.address,
+    })
+
+    this.logger.info('Connecting to OVM_ExecutionManager...')
+    this.state.OVM_ExecutionManager = await loadContractFromManager(
+      'OVM_ExecutionManager',
+      this.state.Lib_AddressManager,
+      this.options.l1RpcProvider
+    )
+    this.logger.info('Connected to OVM_ExecutionManager', {
+      address: this.state.OVM_ExecutionManager.address,
+    })
+
+    // this.logger.info('Connecting to OVM_L1CrossDomainMessenger...')
+    // this.state.OVM_L1CrossDomainMessenger = await loadContractFromManager({
+    //   name: 'OVM_L1CrossDomainMessenger',
+    //   proxy: 'Proxy__OVM_L1CrossDomainMessenger',
+    //   Lib_AddressManager: this.state.Lib_AddressManager,
+    //   provider: this.options.l1RpcProvider,
+    // })
+    // this.logger.info('Connected to OVM_L1CrossDomainMessenger', {
+    //   address: this.state.OVM_L1CrossDomainMessenger.address,
+    // })
+
+    // this.logger.info('Connecting to OVM_L2CrossDomainMessenger...')
+    // this.state.OVM_L2CrossDomainMessenger = await loadContractFromManager({
+    //   name: 'OVM_L2CrossDomainMessenger',
+    //   Lib_AddressManager: this.state.Lib_AddressManager,
+    //   provider: this.options.l2RpcProvider,
+    // })
+    // this.logger.info('Connected to OVM_L2CrossDomainMessenger', {
+    //   address: this.state.OVM_L2CrossDomainMessenger.address,
+    // })
+
+    // this.logger.info('Connecting to OVM_L2ToL1MessagePasser...')
+    // this.state.OVM_L2ToL1MessagePasser = loadContract(
+    //   'OVM_L2ToL1MessagePasser',
+    //   '0x4200000000000000000000000000000000000000',
+    //   this.options.l2RpcProvider
+    // )
+    // this.logger.info('Connected to OVM_L2ToL1MessagePasser', {
+    //   address: this.state.OVM_L2ToL1MessagePasser.address,
+    // })
 
     this.logger.info('Connected to all contracts.')
 
-    if (this.options.spreadsheetMode) {
-      this.logger.info('Running in spreadsheet mode')
-    }
+    this.state.l1Provider = new L1ProviderWrapper(
+      this.options.l1RpcProvider,
+      this.state.OVM_StateCommitmentChain,
+      this.state.OVM_CanonicalTransactionChain,
+      this.state.OVM_ExecutionManager,
+      this.options.l1StartOffset,
+      this.options.l1BlockFinality
+    )
+
+    this.logger.info(
+      'Caching events for relevant contracts, this might take a while...'
+    )
+    this.logger.info('Caching events for OVM_StateCommitmentChain...')
+    await this.state.l1Provider.findAllEvents(
+      this.state.OVM_StateCommitmentChain,
+      this.state.OVM_StateCommitmentChain.filters.StateBatchAppended()
+    )
+
+    this.logger.info('Caching events for OVM_CanonicalTransactionChain...')
+    await this.state.l1Provider.findAllEvents(
+      this.state.OVM_CanonicalTransactionChain,
+      this.state.OVM_CanonicalTransactionChain.filters.TransactionBatchAppended()
+    )
+    await this.state.l1Provider.findAllEvents(
+      this.state.OVM_CanonicalTransactionChain,
+      this.state.OVM_CanonicalTransactionChain.filters.SequencerBatchAppended()
+    )
+
+    // if (this.options.spreadsheetMode) {
+    //   this.logger.info('Running in spreadsheet mode')
+    // }
 
     this.state.lastQueriedL1Block = this.options.l1StartOffset
     this.state.eventCache = []
@@ -170,78 +281,213 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       await sleep(this.options.pollingInterval)
 
       try {
-        this.logger.info('Checking for newly finalized transactions...')
-        if (
-          !(await this._isTransactionFinalized(
-            this.state.nextUnfinalizedTxHeight
-          ))
-        ) {
-          this.logger.info('Did not find any newly finalized transactions', {
-            retryAgainInS: Math.floor(this.options.pollingInterval / 1000),
-          })
+        this.logger.info('Looking for mismatched state roots...')
+        const fraudulentStateRootIndex = await this._findNextFraudulentStateRoot()
 
+        if (fraudulentStateRootIndex === undefined) {
+          this.logger.info('Did not find any mismatched state roots', {
+            nextAttemptInS: this.options.pollingInterval / 1000,
+          })
           continue
         }
 
-        this.state.lastFinalizedTxHeight = this.state.nextUnfinalizedTxHeight
-        while (
-          await this._isTransactionFinalized(this.state.nextUnfinalizedTxHeight)
-        ) {
-          const size = (
-            await this._getStateBatchHeader(this.state.nextUnfinalizedTxHeight)
-          ).batch.batchSize.toNumber()
-          this.logger.info(
-            'Found a batch of finalized transaction(s), checking for more...',
-            { batchSize: size }
-          )
-          this.state.nextUnfinalizedTxHeight += size
-        }
-
-        this.logger.info('Found finalized transactions', {
-          totalNumber:
-            this.state.nextUnfinalizedTxHeight -
-            this.state.lastFinalizedTxHeight,
+        this.logger.info('Found a mismatched state root', {
+          index: fraudulentStateRootIndex,
         })
 
-        const messages = await this._getSentMessages(
-          this.state.lastFinalizedTxHeight,
-          this.state.nextUnfinalizedTxHeight
-        )
+        this.logger.info('Pulling fraud proof data...')
+        const proof = await this._getFraudProofData(fraudulentStateRootIndex)
 
-        if (messages.length === 0) {
-          this.logger.info('Did not find any L2->L1 messages', {
-            retryAgainInS: Math.floor(this.options.pollingInterval / 1000),
-          })
+        this.logger.info('Initializing the fraud verification process...')
+        try {
+          await this._initializeFraudVerification(
+            proof.preStateRootProof,
+            proof.transactionProof
+          )
+        } catch (err) {
+          if (err.toString().includes('Reverted 0x')) {
+            this.logger.info(
+              'Fraud proof was initialized by someone else, moving on...'
+            )
+          } else {
+            throw err
+          }
         }
 
-        for (const message of messages) {
-          this.logger.info('Found a message sent during transaction', {
-            index: message.parentTransactionIndex,
-          })
-          if (await this._wasMessageRelayed(message)) {
-            this.logger.info('Message has already been relayed, skipping.')
-            continue
+        this.logger.info('Loading fraud proof contracts...')
+        const {
+          OVM_StateTransitioner,
+          OVM_StateManager,
+        } = await this._getFraudProofContracts(
+          await this.state.l1Provider.getStateRoot(
+            fraudulentStateRootIndex - 1
+          ),
+          proof.transactionProof.transaction
+        )
+
+        // PRE_EXECUTION phase.
+        if (
+          (await OVM_StateTransitioner.phase()) ===
+          StateTransitionPhase.PRE_EXECUTION
+        ) {
+          try {
+            this.logger.info('Fraud proof is now in the PRE_EXECUTION phase.')
+
+            this.logger.info('Proving account states...')
+            await this._proveAccountStates(
+              OVM_StateTransitioner,
+              OVM_StateManager,
+              proof.stateDiffProof.accountStateProofs,
+              fraudulentStateRootIndex
+            )
+
+            this.logger.info('Proving storage slot states...')
+            await this._proveContractStorageStates(
+              OVM_StateTransitioner,
+              OVM_StateManager,
+              proof.stateDiffProof.accountStateProofs
+            )
+
+            this.logger.info('Executing transaction...')
+            try {
+              await (
+                await OVM_StateTransitioner.applyTransaction(
+                  proof.transactionProof.transaction,
+                  {
+                    gasLimit: this.options.runGasLimit,
+                  }
+                )
+              ).wait()
+            } catch (err) {
+              await OVM_StateTransitioner.callStatic.applyTransaction(
+                proof.transactionProof.transaction,
+                {
+                  gasLimit: this.options.runGasLimit,
+                }
+              )
+            }
+
+            this.logger.info('Transaction successfully executed.')
+          } catch (err) {
+            if (
+              err
+                .toString()
+                .includes(
+                  'Function must be called during the correct phase.'
+                ) ||
+              err
+                .toString()
+                .includes(
+                  '46756e6374696f6e206d7573742062652063616c6c656420647572696e672074686520636f72726563742070686173652e'
+                )
+            ) {
+              this.logger.info(
+                'Phase was completed by someone else, moving on.'
+              )
+            } else {
+              throw err
+            }
           }
-
-          this.logger.info(
-            'Message not yet relayed. Attempting to generate a proof...'
-          )
-          const proof = await this._getMessageProof(message)
-          this.logger.info(
-            'Successfully generated a proof. Attempting to relay to Layer 1...'
-          )
-
-          await this._relayMessageToL1(message, proof)
         }
 
-        this.logger.info(
-          'Finished searching through newly finalized transactions',
-          {
-            retryAgainInS: Math.floor(this.options.pollingInterval / 1000),
+        // POST_EXECUTION phase.
+        if (
+          (await OVM_StateTransitioner.phase()) ===
+          StateTransitionPhase.POST_EXECUTION
+        ) {
+          try {
+            this.logger.info('Fraud proof is now in the POST_EXECUTION phase.')
+
+            this.logger.info('Committing storage slot state updates...')
+            await this._updateContractStorageStates(
+              OVM_StateTransitioner,
+              OVM_StateManager,
+              proof.stateDiffProof.accountStateProofs,
+              proof.storageTries
+            )
+
+            this.logger.info('Committing account state updates...')
+            await this._updateAccountStates(
+              OVM_StateTransitioner,
+              OVM_StateManager,
+              proof.stateDiffProof.accountStateProofs,
+              proof.stateTrie
+            )
+
+            this.logger.info('Completing the state transition...')
+            try {
+              await (await OVM_StateTransitioner.completeTransition()).wait()
+            } catch (err) {
+              try {
+                await OVM_StateTransitioner.callStatic.completeTransition()
+              } catch (err) {
+                if (err.toString().includes('Reverted 0x')) {
+                  this.logger.info(
+                    'State transition was completed by someone else, moving on.'
+                  )
+                } else {
+                  throw err
+                }
+              }
+            }
+
+            this.logger.info('State transition completed.')
+          } catch (err) {
+            if (
+              err
+                .toString()
+                .includes(
+                  'Function must be called during the correct phase.'
+                ) ||
+              err
+                .toString()
+                .includes(
+                  '46756e6374696f6e206d7573742062652063616c6c656420647572696e672074686520636f72726563742070686173652e'
+                )
+            ) {
+              this.logger.info(
+                'Phase was completed by someone else, moving on.'
+              )
+            } else {
+              throw err
+            }
           }
-        )
+        }
+
+        // COMPLETE phase.
+        if (
+          (await OVM_StateTransitioner.phase()) ===
+          StateTransitionPhase.COMPLETE
+        ) {
+          this.logger.info('Fraud proof is now in the COMPLETE phase.')
+
+          this.logger.info('Attempting to finalize the fraud proof...')
+          try {
+            await this._finalizeFraudVerification(
+              proof.preStateRootProof,
+              proof.postStateRootProof,
+              proof.transactionProof.transaction
+            )
+
+            this.logger.info('Fraud proof finalized! Congrats.')
+          } catch (err) {
+            if (
+              err.toString().includes('Invalid batch header.') ||
+              err.toString().includes('Index out of bounds.') ||
+              err.toString().includes('Reverted 0x')
+            ) {
+              this.logger.info('Fraud proof was finalized by someone else.')
+            } else {
+              throw err
+            }
+          }
+        }
+
+        this.state.nextUnverifiedStateRoot = proof.preStateRootProof.stateRootBatchHeader.prevTotalElements.toNumber()
       } catch (err) {
-        this.logger.error('Caught an unhandled error', { err })
+        this.logger.error('Caught an unhandled error', {
+          err,
+        })
       }
     }
   }
