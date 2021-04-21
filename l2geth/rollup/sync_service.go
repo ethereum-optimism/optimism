@@ -296,6 +296,9 @@ func (s *SyncService) Stop() error {
 func (s *SyncService) VerifierLoop() {
 	log.Info("Starting Verifier Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
+		if err := s.updateL1GasPrice(); err != nil {
+			log.Error("Cannot update L1 gas price", "msg", err)
+		}
 		if err := s.verify(); err != nil {
 			log.Error("Could not verify", "error", err)
 		}
@@ -344,6 +347,9 @@ func (s *SyncService) verify() error {
 func (s *SyncService) SequencerLoop() {
 	log.Info("Starting Sequencer Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
+		if err := s.updateL1GasPrice(); err != nil {
+			log.Error("Cannot update L1 gas price", "msg", err)
+		}
 		s.txLock.Lock()
 		err := s.sequence()
 		if err != nil {
@@ -360,14 +366,6 @@ func (s *SyncService) SequencerLoop() {
 }
 
 func (s *SyncService) sequence() error {
-	// Update to the latest L1 gas price
-	l1GasPrice, err := s.client.GetL1GasPrice()
-	if err != nil {
-		return err
-	}
-	s.L1gpo.SetL1GasPrice(l1GasPrice)
-	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
-
 	// Only the sequencer needs to poll for enqueue transactions
 	// and then can choose when to apply them. We choose to apply
 	// transactions such that it makes for efficient batch submitting.
@@ -442,6 +440,19 @@ func (s *SyncService) sequence() error {
 		}
 	}
 
+	return nil
+}
+
+// updateL1GasPrice queries for the current L1 gas price and then stores it
+// in the L1 Gas Price Oracle. This must be called over time to properly
+// estimate the transaction fees that the sequencer should charge.
+func (s *SyncService) updateL1GasPrice() error {
+	l1GasPrice, err := s.client.GetL1GasPrice()
+	if err != nil {
+		return err
+	}
+	s.L1gpo.SetL1GasPrice(l1GasPrice)
+	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
 	return nil
 }
 
