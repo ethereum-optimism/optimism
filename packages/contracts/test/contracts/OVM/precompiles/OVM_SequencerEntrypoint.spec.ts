@@ -2,11 +2,13 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { waffle, ethers } from 'hardhat'
-import { ContractFactory, Wallet, Contract } from 'ethers'
+import { ContractFactory, Wallet, Contract, BigNumber } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
+import { ecrecover, publicToAddress } from 'ethereumjs-util'
 
 /* Internal Imports */
-import { getContractInterface } from '../../../../src'
+import { getContractInterface, getContractFactory } from '../../../../src'
 import {
   encodeSequencerCalldata,
   signNativeTransaction,
@@ -31,7 +33,38 @@ describe('OVM_SequencerEntrypoint', () => {
     )
 
     Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
-    Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with([true, '0x'])
+    Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with(
+      (gasLimit, target, data) => {
+        if (target === wallet.address) {
+          return [
+            true,
+            iOVM_ECDSAContractAccount.encodeFunctionResult('execute', [
+              true,
+              '0x',
+            ]),
+          ]
+        } else {
+          return [true, '0x']
+        }
+      }
+    )
+    Mock__OVM_ExecutionManager.smocked.ovmSTATICCALL.will.return.with(
+      (gasLimit, target, data) => {
+        if (target === '0x0000000000000000000000000000000000000001') {
+          const databuf = fromHexString(data)
+          const msghash = databuf.slice(0, 32)
+          const v = databuf.slice(32, 64)
+          const r = databuf.slice(64, 96)
+          const s = databuf.slice(96, 128)
+          const pubkey = ecrecover(msghash, BigNumber.from(v).toNumber(), r, s)
+          const addr = toHexString(publicToAddress(pubkey))
+          const ret = ethers.utils.defaultAbiCoder.encode(['address'], [addr])
+          return [true, ret]
+        } else {
+          return [true, '0x']
+        }
+      }
+    )
 
     Helper_PredeployCaller = await (
       await ethers.getContractFactory('Helper_PredeployCaller')
@@ -42,10 +75,17 @@ describe('OVM_SequencerEntrypoint', () => {
 
   let OVM_SequencerEntrypointFactory: ContractFactory
   before(async () => {
-    OVM_SequencerEntrypointFactory = await ethers.getContractFactory(
-      'OVM_SequencerEntrypoint'
+    OVM_SequencerEntrypointFactory = getContractFactory(
+      'OVM_SequencerEntrypoint',
+      wallet,
+      true
     )
   })
+
+  const iOVM_ECDSAContractAccount = getContractInterface(
+    'OVM_ECDSAContractAccount',
+    true
+  )
 
   let OVM_SequencerEntrypoint: Contract
   beforeEach(async () => {
@@ -69,15 +109,16 @@ describe('OVM_SequencerEntrypoint', () => {
       const encodedTx = serializeNativeTransaction(DEFAULT_EIP155_TX)
       const sig = await signNativeTransaction(wallet, DEFAULT_EIP155_TX)
 
-      const expectedEOACalldata = getContractInterface(
-        'OVM_ECDSAContractAccount'
-      ).encodeFunctionData('execute', [
-        encodedTx,
-        0, //isEthSignedMessage
-        `0x${sig.v}`, //v
-        `0x${sig.r}`, //r
-        `0x${sig.s}`, //s
-      ])
+      const expectedEOACalldata = iOVM_ECDSAContractAccount.encodeFunctionData(
+        'execute',
+        [
+          encodedTx,
+          0, //isEthSignedMessage
+          `0x${sig.v}`, //v
+          `0x${sig.r}`, //r
+          `0x${sig.s}`, //s
+        ]
+      )
       const ovmCALL: any = Mock__OVM_ExecutionManager.smocked.ovmCALL.calls[0]
       expect(ovmCALL._address).to.equal(await wallet.getAddress())
       expect(ovmCALL._calldata).to.equal(expectedEOACalldata)
@@ -94,15 +135,16 @@ describe('OVM_SequencerEntrypoint', () => {
       const encodedTx = serializeNativeTransaction(createTx)
       const sig = await signNativeTransaction(wallet, createTx)
 
-      const expectedEOACalldata = getContractInterface(
-        'OVM_ECDSAContractAccount'
-      ).encodeFunctionData('execute', [
-        encodedTx,
-        0, //isEthSignedMessage
-        `0x${sig.v}`, //v
-        `0x${sig.r}`, //r
-        `0x${sig.s}`, //s
-      ])
+      const expectedEOACalldata = iOVM_ECDSAContractAccount.encodeFunctionData(
+        'execute',
+        [
+          encodedTx,
+          0, //isEthSignedMessage
+          `0x${sig.v}`, //v
+          `0x${sig.r}`, //r
+          `0x${sig.s}`, //s
+        ]
+      )
       const ovmCALL: any = Mock__OVM_ExecutionManager.smocked.ovmCALL.calls[0]
       expect(ovmCALL._address).to.equal(await wallet.getAddress())
       expect(ovmCALL._calldata).to.equal(expectedEOACalldata)
@@ -110,7 +152,17 @@ describe('OVM_SequencerEntrypoint', () => {
 
     for (let i = 0; i < 3; i += 2) {
       it(`should call ovmCreateEOA when tx type is ${i} and ovmEXTCODESIZE returns 0`, async () => {
-        Mock__OVM_ExecutionManager.smocked.ovmEXTCODESIZE.will.return.with(0)
+        let firstCheck = true
+        Mock__OVM_ExecutionManager.smocked.ovmEXTCODESIZE.will.return.with(
+          () => {
+            if (firstCheck) {
+              firstCheck = false
+              return 0
+            } else {
+              return 1
+            }
+          }
+        )
         const calldata = await encodeSequencerCalldata(
           wallet,
           DEFAULT_EIP155_TX,
@@ -145,15 +197,16 @@ describe('OVM_SequencerEntrypoint', () => {
       const encodedTx = serializeEthSignTransaction(DEFAULT_EIP155_TX)
       const sig = await signEthSignMessage(wallet, DEFAULT_EIP155_TX)
 
-      const expectedEOACalldata = getContractInterface(
-        'OVM_ECDSAContractAccount'
-      ).encodeFunctionData('execute', [
-        encodedTx,
-        1, //isEthSignedMessage
-        `0x${sig.v}`, //v
-        `0x${sig.r}`, //r
-        `0x${sig.s}`, //s
-      ])
+      const expectedEOACalldata = iOVM_ECDSAContractAccount.encodeFunctionData(
+        'execute',
+        [
+          encodedTx,
+          1, //isEthSignedMessage
+          `0x${sig.v}`, //v
+          `0x${sig.r}`, //r
+          `0x${sig.s}`, //s
+        ]
+      )
       const ovmCALL: any = Mock__OVM_ExecutionManager.smocked.ovmCALL.calls[0]
       expect(ovmCALL._address).to.equal(await wallet.getAddress())
       expect(ovmCALL._calldata).to.equal(expectedEOACalldata)
