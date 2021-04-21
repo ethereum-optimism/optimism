@@ -23,13 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
-// OVMContext represents the blocknumber and timestamp
-// that exist during L2 execution
-type OVMContext struct {
-	blockNumber uint64
-	timestamp   uint64
-}
-
 // SyncService implements the verifier functionality as well as the reorg
 // protection for the sequencer.
 type SyncService struct {
