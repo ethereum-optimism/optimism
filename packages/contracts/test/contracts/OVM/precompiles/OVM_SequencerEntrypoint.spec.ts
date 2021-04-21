@@ -53,12 +53,11 @@ describe('OVM_SequencerEntrypoint', () => {
         // Duplicating the behavior of the ecrecover precompile.
         if (target === '0x0000000000000000000000000000000000000001') {
           const databuf = fromHexString(data)
-          const msghash = databuf.slice(0, 32)
-          const v = databuf.slice(32, 64)
-          const r = databuf.slice(64, 96)
-          const s = databuf.slice(96, 128)
-          const pubkey = ecrecover(msghash, BigNumber.from(v).toNumber(), r, s)
-          const addr = toHexString(publicToAddress(pubkey))
+          const addr = ethers.utils.recoverAddress(databuf.slice(0, 32), {
+            v: BigNumber.from(databuf.slice(32, 64)).toNumber(),
+            r: toHexString(databuf.slice(64, 96)),
+            s: toHexString(databuf.slice(96, 128)),
+          })
           const ret = ethers.utils.defaultAbiCoder.encode(['address'], [addr])
           return [true, ret]
         } else {

@@ -63,7 +63,6 @@
     "directory-tree": "^2.2.7",
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.3.0",
-    "ethereumjs-util": "^7.0.10",
     "ethers": "^5.0.31",
     "hardhat": "^2.0.8",
     "hardhat-deploy": "^0.7.4",
