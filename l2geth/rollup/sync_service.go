@@ -249,13 +249,15 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		queueIndex := s.GetLatestEnqueueIndex()
 		if queueIndex == nil {
 			enqueue, err := s.client.GetLastConfirmedEnqueue()
+			// There are no enqueues yet
+			if errors.Is(err, errElementNotFound) {
+				return nil
+			}
+			// Other unexpected error
 			if err != nil {
 				return fmt.Errorf("Cannot fetch last confirmed queue tx: %w", err)
 			}
-			// There are no enqueues yet
-			if enqueue == nil {
-				return nil
-			}
+			// No error, the queue element was found
 			queueIndex = enqueue.GetMeta().QueueIndex
 		}
 		s.SetLatestEnqueueIndex(queueIndex)
@@ -307,13 +309,12 @@ func (s *SyncService) verify() error {
 	// The verifier polls for ctc transactions.
 	// the ctc transactions are extending the chain.
 	latest, err := s.client.GetLatestTransaction()
-	if err != nil {
-		return err
-	}
-
-	if latest == nil {
+	if errors.Is(err, errElementNotFound) {
 		log.Debug("latest transaction not found")
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	var start uint64
@@ -374,16 +375,13 @@ func (s *SyncService) sequence() error {
 	// Place as many L1ToL2 transactions in the same context as possible
 	// by executing them one after another.
 	latest, err := s.client.GetLatestEnqueue()
-	if err != nil {
-		return err
-	}
-
-	// This should never happen unless the backend is empty
-	if latest == nil {
+	if errors.Is(err, errElementNotFound) {
 		log.Debug("No enqueue transactions found")
 		return nil
 	}
-
+	if err != nil {
+		return fmt.Errorf("cannot fetch latest enqueue: %w", err)
+	}
 	// Compare the remote latest queue index to the local latest
 	// queue index. If the remote latest queue index is greater
 	// than the local latest queue index, be sure to ingest more
@@ -475,14 +473,14 @@ func (s *SyncService) syncTransactionsToTip() error {
 		// This function must be sure to sync all the way to the tip.
 		// First query the latest transaction
 		latest, err := s.client.GetLatestTransaction()
+		if errors.Is(err, errElementNotFound) {
+			log.Info("No transactions to sync")
+			return nil
+		}
 		if err != nil {
 			log.Error("Cannot get latest transaction", "msg", err)
 			time.Sleep(time.Second * 2)
 			continue
-		}
-		if latest == nil {
-			log.Info("No transactions to sync")
-			return nil
 		}
 		tipHeight := latest.GetMeta().Index
 		index := rawdb.ReadHeadIndex(s.db)

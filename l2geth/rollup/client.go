@@ -22,6 +22,10 @@ const (
 	ETH_SIGN  = "ETH_SIGN"
 )
 
+// errElementNotFound represents the error case of the remote element not being
+// found. It applies to transactions, queue elements and batches
+var errElementNotFound = errors.New("element not found")
+
 // Batch represents the data structure that is submitted with
 // a series of transactions to layer one
 type Batch struct {
@@ -167,7 +171,7 @@ func (c *Client) GetEnqueue(index uint64) (*types.Transaction, error) {
 		Get("/enqueue/index/{index}")
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot fetch enqueue: %w", err)
 	}
 	enqueue, ok := response.Result().(*Enqueue)
 	if !ok {
@@ -178,7 +182,7 @@ func (c *Client) GetEnqueue(index uint64) (*types.Transaction, error) {
 	}
 	tx, err := enqueueToTransaction(enqueue)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot parse enqueue tx :%w", err)
+		return nil, err
 	}
 	return tx, nil
 }
@@ -186,10 +190,13 @@ func (c *Client) GetEnqueue(index uint64) (*types.Transaction, error) {
 // enqueueToTransaction turns an Enqueue into a types.Transaction
 // so that it can be consumed by the SyncService
 func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
+	if enqueue == nil {
+		return nil, errElementNotFound
+	}
 	// When the queue index is nil, is means that the enqueue'd transaction
 	// does not exist.
 	if enqueue.QueueIndex == nil {
-		return nil, nil
+		return nil, errElementNotFound
 	}
 	// The queue index is the nonce
 	nonce := *enqueue.QueueIndex
@@ -249,7 +256,7 @@ func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 		Get("/enqueue/latest")
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot fetch latest enqueue: %w", err)
 	}
 	enqueue, ok := response.Result().(*Enqueue)
 	if !ok {
@@ -257,7 +264,7 @@ func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 	}
 	tx, err := enqueueToTransaction(enqueue)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot parse enqueue tx :%w", err)
+		return nil, fmt.Errorf("Cannot parse enqueue tx: %w", err)
 	}
 	return tx, nil
 }
@@ -267,7 +274,7 @@ func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) (*types.Transaction, error) {
 	// `nil` transactions are not found
 	if res == nil {
-		return nil, nil
+		return nil, errElementNotFound
 	}
 	// The queue origin must be either sequencer of l1, otherwise
 	// it is considered an unknown queue origin and will not be processed
@@ -376,7 +383,7 @@ func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
 		Get("/transaction/index/{index}")
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot fetch transaction: %w", err)
 	}
 	res, ok := response.Result().(*TransactionResponse)
 	if !ok {
@@ -393,7 +400,7 @@ func (c *Client) GetLatestTransaction() (*types.Transaction, error) {
 		Get("/transaction/latest")
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot fetch latest transactions: %w", err)
 	}
 	res, ok := response.Result().(*TransactionResponse)
 	if !ok {
