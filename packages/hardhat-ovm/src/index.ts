@@ -13,6 +13,9 @@ import {
 /* Imports: Internal */
 import './type-extensions'
 
+const OPTIMISM_SOLC_VERSION_URL =
+  'https://api.github.com/repos/ethereum-optimism/solc-bin/git/refs/heads/gh-pages'
+
 const OPTIMISM_SOLC_BIN_URL =
   'https://raw.githubusercontent.com/ethereum-optimism/solc-bin/gh-pages/bin'
 
@@ -41,10 +44,32 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
   if (!fs.existsSync(ovmCompilersCache))
     [fs.mkdirSync(ovmCompilersCache, { recursive: true })]
 
+  // Pull information about the latest commit in the solc-bin repo. We'll use this to invalidate
+  // our compiler cache if necessary.
+  const remoteCompilerVersion = await (
+    await fetch(OPTIMISM_SOLC_VERSION_URL)
+  ).text()
+
+  // Pull the locally stored info about the latest commit. If this differs from the remote info
+  // then we know to invalidate our cache.
+  let cachedCompilerVersion = ''
+  const cachedCompilerVersionPath = path.join(
+    ovmCompilersCache,
+    `version-info-${version}.json`
+  )
+  if (fs.existsSync(cachedCompilerVersionPath)) {
+    cachedCompilerVersion = fs
+      .readFileSync(cachedCompilerVersionPath)
+      .toString()
+  }
+
   // Check to see if we already have this compiler version downloaded. We store the cached files at
   // `X.Y.Z.js`. If it already exists, just return that instead of downloading a new one.
   const cachedCompilerPath = path.join(ovmCompilersCache, `${version}.js`)
-  if (fs.existsSync(cachedCompilerPath)) {
+  if (
+    remoteCompilerVersion === cachedCompilerVersion &&
+    fs.existsSync(cachedCompilerPath)
+  ) {
     return cachedCompilerPath
   }
 
@@ -68,6 +93,7 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
   // figure out how to properly extend and/or hack Hardat's CompilerDownloader class.
   const compilerContent = await compilerContentResponse.text()
   fs.writeFileSync(cachedCompilerPath, compilerContent)
+  fs.writeFileSync(cachedCompilerVersionPath, remoteCompilerVersion)
 
   return cachedCompilerPath
 }

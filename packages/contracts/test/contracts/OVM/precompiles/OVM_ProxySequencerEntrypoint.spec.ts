@@ -8,6 +8,7 @@ import { remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { decodeSolidityError } from '../../../helpers'
+import { getContractFactory } from '../../../../src'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -59,8 +60,10 @@ describe('OVM_ProxySequencerEntrypoint', () => {
 
     Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
 
-    OVM_SequencerEntrypoint = await (
-      await ethers.getContractFactory('OVM_SequencerEntrypoint')
+    OVM_SequencerEntrypoint = await getContractFactory(
+      'OVM_SequencerEntrypoint',
+      wallet,
+      true
     ).deploy()
   })
 

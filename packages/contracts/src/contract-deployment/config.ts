@@ -220,7 +220,7 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_ECDSAContractAccount'),
     },
     OVM_SequencerEntrypoint: {
-      factory: getContractFactory('OVM_SequencerEntrypoint'),
+      factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),
     },
     OVM_ProxySequencerEntrypoint: {
       factory: getContractFactory('OVM_ProxySequencerEntrypoint'),
