@@ -291,7 +291,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       { concurrency: 100 }
     )
 
-
     // Fix our batches if we are configured to. TODO: Remove this.
     batch = await this._fixBatch(batch)
     if (!(await this._validateBatch(batch))) {
