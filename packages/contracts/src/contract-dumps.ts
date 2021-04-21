@@ -159,13 +159,13 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   config = { ...config, ...cfg }
 
   const ovmCompiled = [
+    'Lib_AddressManager',
     'OVM_L2ToL1MessagePasser',
     'OVM_L2CrossDomainMessenger',
     'OVM_DeployerWhitelist',
     'OVM_SequencerEntrypoint',
-    'Lib_AddressManager',
+    'OVM_ProxyEOA',
     'OVM_ETH',
-    'Proxy_EOA',
   ]
 
   const deploymentResult = await deploy(config)
