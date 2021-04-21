@@ -80,6 +80,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupMaxCalldataSizeFlag,
 			utils.RollupDataPriceFlag,
 			utils.RollupExecutionPriceFlag,
+			utils.RollupBackendFlag,
 		},
 	},
 	{
