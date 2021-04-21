@@ -169,7 +169,7 @@ export const makeContractDeployConfig = async (
       ],
     },
     OVM_DeployerWhitelist: {
-      factory: getContractFactory('OVM_DeployerWhitelist'),
+      factory: getContractFactory('OVM_DeployerWhitelist', undefined, true),
       params: [],
     },
     OVM_L1MessageSender: {

@@ -11,7 +11,7 @@ interface iOVM_DeployerWhitelist {
      ********************/
 
     function initialize(address _owner, bool _allowArbitraryDeployment) external;
-    function getOwner() external returns (address _owner);
+    function owner() external returns (address _owner);
     function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) external;
     function setOwner(address _newOwner) external;
     function setAllowArbitraryDeployment(bool _allowArbitraryDeployment) external;
