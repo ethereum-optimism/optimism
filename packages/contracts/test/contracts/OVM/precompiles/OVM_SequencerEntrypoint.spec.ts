@@ -50,6 +50,7 @@ describe('OVM_SequencerEntrypoint', () => {
     )
     Mock__OVM_ExecutionManager.smocked.ovmSTATICCALL.will.return.with(
       (gasLimit, target, data) => {
+        // Duplicating the behavior of the ecrecover precompile.
         if (target === '0x0000000000000000000000000000000000000001') {
           const databuf = fromHexString(data)
           const msghash = databuf.slice(0, 32)

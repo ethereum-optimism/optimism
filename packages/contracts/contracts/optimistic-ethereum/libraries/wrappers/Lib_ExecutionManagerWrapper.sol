@@ -7,9 +7,6 @@ import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
 
 /**
  * @title Lib_ExecutionManagerWrapper
- * @dev The Safe Execution Manager Wrapper provides functions which facilitate writing OVM safe 
- * code using the standard solidity compiler, by routing all its operations through the Execution 
- * Manager.
  * 
  * Compiler used: solc
  * Runtime target: OVM
@@ -19,25 +16,6 @@ library Lib_ExecutionManagerWrapper {
     /**********************
      * Internal Functions *
      **********************/
-
-    /**
-     * Performs a safe ovmCHAINID call.
-     * @return _CHAINID Result of calling ovmCHAINID.
-     */
-    function ovmCHAINID()
-        internal
-        returns (
-            uint256 _CHAINID
-        )
-    {
-        bytes memory returndata = _safeExecutionManagerInteraction(
-            abi.encodeWithSignature(
-                "ovmCHAINID()"
-            )
-        );
-
-        return abi.decode(returndata, (uint256));
-    }
 
     /**
      * Performs a safe ovmGETNONCE call.
@@ -136,6 +114,8 @@ library Lib_ExecutionManagerWrapper {
     {
         bytes memory returndata;
         assembly {
+            // kall is a custom yul builtin within optimistic-solc that allows us to directly call
+            // the execution manager (since `call` would be compiled).
             kall(add(_calldata, 0x20), mload(_calldata), 0x0, 0x0)
             let size := returndatasize()
             returndata := mload(0x40)

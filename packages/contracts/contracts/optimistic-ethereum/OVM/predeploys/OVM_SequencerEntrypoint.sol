@@ -63,11 +63,17 @@ contract OVM_SequencerEntrypoint {
         bytes memory compressedTx = Lib_BytesUtils.slice(msg.data, 66);
         bool isEthSignedMessage = transactionType == TransactionType.ETH_SIGNED_MESSAGE;
 
+        // Grab the chain ID for the current network.
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
+
         // Need to decompress and then re-encode the transaction based on the original encoding.
         bytes memory encodedTx = Lib_OVMCodec.encodeEIP155Transaction(
             Lib_OVMCodec.decompressEIP155Transaction(
                 compressedTx,
-                Lib_ExecutionManagerWrapper.ovmCHAINID()
+                chainId
             ),
             isEthSignedMessage
         );
