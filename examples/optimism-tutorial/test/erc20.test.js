@@ -15,7 +15,7 @@ describe(`ERC20`, () => {
   let account1
   let account2
   before(`load accounts`, async () => {
-    ;[account1, account2] = await ethers.getSigners()
+    ;[ account1, account2 ] = await ethers.getSigners()
   })
 
   let ERC20
@@ -25,7 +25,8 @@ describe(`ERC20`, () => {
       INITIAL_SUPPLY,
       TOKEN_NAME,
       {
-        gasLimit: 8999999
+        gasLimit: 8999999,
+        gasPrice: 0
       }
     )
 
@@ -53,7 +54,8 @@ describe(`ERC20`, () => {
         await account2.getAddress(),
         INITIAL_SUPPLY + 1,
         {
-          gasLimit: 8999999
+          gasLimit: 8999999,
+          gasPrice: 0
         }
       )
 
@@ -74,7 +76,8 @@ describe(`ERC20`, () => {
         await account2.getAddress(),
         INITIAL_SUPPLY,
         {
-          gasLimit: 8999999
+          gasLimit: 8999999,
+          gasPrice: 0
         }
       )
       await tx.wait()
@@ -99,7 +102,8 @@ describe(`ERC20`, () => {
         await account2.getAddress(),
         INITIAL_SUPPLY,
         {
-          gasLimit: 8999999
+          gasLimit: 8999999,
+          gasPrice: 0
         }
       )
 
@@ -120,7 +124,8 @@ describe(`ERC20`, () => {
         await account2.getAddress(),
         INITIAL_SUPPLY,
         {
-          gasLimit: 8999999
+          gasLimit: 8999999,
+          gasPrice: 0
         }
       )
       await tx1.wait()
@@ -130,10 +135,11 @@ describe(`ERC20`, () => {
         await account2.getAddress(),
         INITIAL_SUPPLY,
         {
-          gasLimit: 8999999
+          gasLimit: 8999999,
+          gasPrice: 0
         }
       )
-      await tx2.wait() 
+      await tx2.wait()
 
       expect(
         (await ERC20.balanceOf(
