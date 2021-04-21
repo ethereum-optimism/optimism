@@ -19,3 +19,4 @@ packages/data-transport-layer/db
 *.swp
 
 .env
+.DS_Store
