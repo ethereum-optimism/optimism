@@ -156,7 +156,6 @@ var (
 		utils.Eth1ETHGatewayAddressFlag,
 		utils.Eth1ChainIdFlag,
 		utils.RollupClientHttpFlag,
-		// Enable verifier mode
 		utils.RollupEnableVerifierFlag,
 		utils.RollupAddressManagerOwnerAddressFlag,
 		utils.RollupTimstampRefreshFlag,
@@ -165,6 +164,7 @@ var (
 		utils.RollupDiffDbFlag,
 		utils.RollupMaxCalldataSizeFlag,
 		utils.RollupL1GasPriceFlag,
+		utils.RollupBackendFlag,
 	}
 
 	rpcFlags = []cli.Flag{
