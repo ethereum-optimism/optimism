@@ -19,7 +19,7 @@
   "keywords": [
     "optimism",
     "ethereum",
-    "relayer"
+    "fraud-prover"
   ],
   "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/fraud-prover#readme",
   "license": "MIT",
