@@ -48,7 +48,11 @@ export const toBytesN = (buf: Buffer | string | number, n: number): string => {
 }
 
 export const toUnpaddedHexString = (buf: Buffer | string | number): string => {
-  const hex = '0x' + toHexString(buf).slice(2).replace(/^0+/, '')
+  const hex =
+    '0x' +
+    toHexString(buf)
+      .slice(2)
+      .replace(/^0+/, '')
 
   if (hex === '0x') {
     return '0x0'

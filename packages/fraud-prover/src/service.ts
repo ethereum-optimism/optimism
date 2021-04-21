@@ -12,10 +12,7 @@ import {
   fromHexString,
 } from '@eth-optimism/core-utils'
 
-import { 
-  loadContract, 
-  loadContractFromManager 
-} from '@eth-optimism/contracts'
+import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import {
@@ -56,7 +53,7 @@ interface FraudProverOptions {
   // Max gas.
   deployGasLimit: number
   runGasLimit: number
-  
+
   // Height of the L2 transaction to start searching for L2->L1 messages.
   fromL2TransactionIndex?: number
 
@@ -72,7 +69,7 @@ interface FraudProverOptions {
 
   // When L1 blocks are considered final
   l1BlockFinality: number
-  
+
   // Number of blocks within each getLogs query - max is 2000
   //getLogsInterval?: number
 }
@@ -112,7 +109,6 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
   }
 
   protected async _init(): Promise<void> {
-
     this.logger.info('Initializing fraud prover', { options: this.options })
     // Need to improve this, sorry.
     this.state = {} as any
@@ -184,7 +180,7 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
     this.state.OVM_CanonicalTransactionChain = await loadContractFromManager({
       name: 'OVM_CanonicalTransactionChain',
       Lib_AddressManager: this.state.Lib_AddressManager,
-      provider: this.options.l1RpcProvider
+      provider: this.options.l1RpcProvider,
     })
     this.logger.info('Connected to OVM_CanonicalTransactionChain', {
       address: this.state.OVM_CanonicalTransactionChain.address,
@@ -194,7 +190,7 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
     this.state.OVM_FraudVerifier = await loadContractFromManager({
       name: 'OVM_FraudVerifier',
       Lib_AddressManager: this.state.Lib_AddressManager,
-      provider: this.options.l1RpcProvider
+      provider: this.options.l1RpcProvider,
     })
     this.logger.info('Connected to OVM_FraudVerifier', {
       address: this.state.OVM_FraudVerifier.address,
@@ -204,7 +200,7 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
     this.state.OVM_ExecutionManager = await loadContractFromManager({
       name: 'OVM_ExecutionManager',
       Lib_AddressManager: this.state.Lib_AddressManager,
-      provider: this.options.l1RpcProvider
+      provider: this.options.l1RpcProvider,
     })
     this.logger.info('Connected to OVM_ExecutionManager', {
       address: this.state.OVM_ExecutionManager.address,
@@ -499,7 +495,7 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
     }
   }
 
-    /**
+  /**
    * Finds the index of the next fraudulent state root.
    * @return Index of the next fraudulent state root, if any.
    */

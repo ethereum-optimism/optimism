@@ -6,7 +6,7 @@ import {
   fromHexString,
   toHexString,
   TxType,
-  EventArgsSequencerBatchAppended
+  EventArgsSequencerBatchAppended,
 } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
