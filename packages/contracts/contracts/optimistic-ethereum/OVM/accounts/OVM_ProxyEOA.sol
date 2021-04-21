@@ -20,16 +20,8 @@ contract OVM_ProxyEOA {
      * Constants *
      *************/
 
+    address constant DEFAULT_IMPLEMENTATION = 0x4200000000000000000000000000000000000003;
     bytes32 constant IMPLEMENTATION_KEY = 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead;
-
-
-    /***************
-     * Constructor *
-     ***************/
-
-    constructor() {
-        _setImplementation(0x4200000000000000000000000000000000000003);
-    }
 
 
     /*********************
@@ -51,6 +43,10 @@ contract OVM_ProxyEOA {
             }
         }
     }
+
+    // WARNING: We use the deployed bytecode of this contract as a template to create ProxyEOA
+    // contracts. As a result, we must *not* perform any constructor logic. Use initialization
+    // functions if necessary.
 
 
     /********************
@@ -88,7 +84,13 @@ contract OVM_ProxyEOA {
         assembly {
             addr32 := sload(IMPLEMENTATION_KEY)
         }
-        return Lib_Bytes32Utils.toAddress(addr32);
+
+        address implementation = Lib_Bytes32Utils.toAddress(addr32);
+        if (implementation == address(0)) {
+            return DEFAULT_IMPLEMENTATION;
+        } else {
+            return implementation;
+        }
     }
 
 
