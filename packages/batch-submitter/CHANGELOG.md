@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.12
+
+### Patch Changes
+
+- a0a7956: initialize Sentry and streams in Logger, remove Sentry from Batch Submitter
+- Updated dependencies [91460d9]
+- Updated dependencies [a0a7956]
+- Updated dependencies [0497d7d]
+  - @eth-optimism/core-utils@0.3.0
+  - @eth-optimism/contracts@0.2.5
+
 ## 0.1.11
 
 ### Patch Changes
