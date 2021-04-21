@@ -23,18 +23,18 @@ func TestCalculateRollupFee(t *testing.T) {
 			data := make([]byte, 0, tt.dataLen)
 			fee := CalculateRollupFee(data, tt.gasUsed, big.NewInt(tt.dataPrice), big.NewInt(tt.executionPrice))
 
-            var zeros uint64
-            for _, byt := range data {
-                if byt != 0 {
-                    zeros++
-                }
-            }
-            ones := uint64(len(data)) - zeros
+			var zeros uint64
+			for _, byt := range data {
+				if byt != 0 {
+					zeros++
+				}
+			}
+			ones := uint64(len(data)) - zeros
 
-            zerosCost := zeros * 4
-            onesCost := (96 + ones) * 16
-            dataCost := zerosCost + onesCost
-            dataFee := int64(dataCost) * tt.dataPrice
+			zerosCost := zeros * 4
+			onesCost := (96 + ones) * 16
+			dataCost := zerosCost + onesCost
+			dataFee := int64(dataCost) * tt.dataPrice
 
 			executionFee := uint64(tt.executionPrice) * tt.gasUsed
 			expectedFee := uint64(dataFee) + executionFee

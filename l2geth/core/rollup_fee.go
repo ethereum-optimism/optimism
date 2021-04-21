@@ -15,17 +15,17 @@ const RollupBaseTxSize uint64 = 96
 // account the cost of publishing data to L1.
 // Returns: (4 * zeroDataBytes + 16 * (nonZeroDataBytes + RollupBaseTxSize)) * dataPrice + executionPrice * gasUsed
 func CalculateRollupFee(data []byte, gasUsed uint64, dataPrice, executionPrice *big.Int) *big.Int {
-    var zeros uint64
-    for _, byt := range data {
-        if byt != 0 {
-            zeros++
-        }
-    }
-    ones := uint64(len(data)) - zeros
+	var zeros uint64
+	for _, byt := range data {
+		if byt != 0 {
+			zeros++
+		}
+	}
+	ones := uint64(len(data)) - zeros
 
-    zerosCost := big.NewInt(int64(zeros * params.TxDataZeroGas))
-    onesCost := big.NewInt(int64((RollupBaseTxSize + ones) * params.TxDataNonZeroGasEIP2028))
-    dataCost := new(big.Int).Add(zerosCost, onesCost)
+	zerosCost := big.NewInt(int64(zeros * params.TxDataZeroGas))
+	onesCost := big.NewInt(int64((RollupBaseTxSize + ones) * params.TxDataNonZeroGasEIP2028))
+	dataCost := new(big.Int).Add(zerosCost, onesCost)
 
 	// get the data fee
 	dataFee := new(big.Int).Mul(dataPrice, dataCost)
