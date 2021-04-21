@@ -107,6 +107,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     this.state.app = express()
     Sentry.init({
       dsn: this.options.sentryDsn,
+      release: `@eth-optimism/data-transport-layer@${process.env.npm_package_version}`,
       integrations: [
         new Sentry.Integrations.Http({ tracing: true }),
         new Tracing.Integrations.Express({
