@@ -1,5 +1,20 @@
 # data transport layer
 
+## 0.2.0
+
+### Minor Changes
+
+- 91460d9: add Metrics and use in base-service, rename DTL services to avoid spaces
+
+### Patch Changes
+
+- 0497d7d: Re-organize event typings to core-utils
+- Updated dependencies [91460d9]
+- Updated dependencies [a0a7956]
+- Updated dependencies [0497d7d]
+  - @eth-optimism/core-utils@0.3.0
+  - @eth-optimism/contracts@0.2.5
+
 ## 0.1.6
 
 ### Patch Changes
