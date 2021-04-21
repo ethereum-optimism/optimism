@@ -1,6 +1,5 @@
 /* External Imports */
 import { Logger, injectL2Context } from '@eth-optimism/core-utils'
-import { createWriteStream } from 'pino-sentry'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
@@ -17,11 +16,13 @@ import {
 } from '..'
 
 /* Logger */
-const destination = createWriteStream({
-  dsn: process.env.SENTRY_DSN,
-  tracesSampleRate: 0.05,
+const log = new Logger({
+  name: 'oe:batch-submitter:init',
+  sentryOptions: {
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 0.05,
+  },
 })
-const log = new Logger({ name: 'oe:batch-submitter:init', destination })
 
 interface RequiredEnvVars {
   // The HTTP provider URL for L1.
