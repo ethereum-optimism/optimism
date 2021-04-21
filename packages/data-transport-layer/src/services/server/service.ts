@@ -48,10 +48,10 @@ const optionSettings = {
       return validators.isUrl(val) || validators.isJsonRpcProvider(val)
     },
   },
-  defaultSource: {
-    default: 'batched',
+  defaultBackend: {
+    default: 'l1',
     validate: (val: string) => {
-      return val === 'batched' || val === 'sequenced'
+      return val === 'l1' || val === 'l2'
     }
   }
 }
@@ -177,21 +177,21 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/eth/syncing',
       async (req): Promise<SyncingResponse> => {
-        const source = req.query.source || this.options.defaultSource
+        const backend = req.query.backend || this.options.defaultBackend
 
         let currentL2Block
         let highestL2BlockNumber
-        switch (source) {
-          case 'batched':
+        switch (backend) {
+          case 'l1':
             currentL2Block = await this.state.db.getLatestTransaction()
             highestL2BlockNumber = await this.state.db.getHighestL2BlockNumber()
             break
-          case 'sequenced':
+          case 'l2':
             currentL2Block = await this.state.db.getLatestUnconfirmedTransaction()
             highestL2BlockNumber = await this.state.db.getHighestSyncedUnconfirmedBlock()
             break
           default:
-            throw new Error(`Unknown transaction source ${source}`)
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (currentL2Block === null) {
@@ -344,18 +344,18 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/transaction/latest',
       async (req): Promise<TransactionResponse> => {
-        const source = req.query.source || this.options.defaultSource
+        const backend = req.query.backend || this.options.defaultBackend
         let transaction = null
 
-        switch (source) {
-          case 'batched':
+        switch (backend) {
+          case 'l1':
             transaction = await this.state.db.getLatestFullTransaction()
             break
-          case 'sequenced':
+          case 'l2':
             transaction = await this.state.db.getLatestUnconfirmedTransaction()
             break
           default:
-            throw new Error(`Unknown transaction source ${source}`)
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (transaction === null) {
@@ -380,22 +380,22 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/transaction/index/:index',
       async (req): Promise<TransactionResponse> => {
-        const source = req.query.source || this.options.defaultSource
+        const backend = req.query.backend || this.options.defaultBackend
         let transaction = null
 
-        switch (source) {
-          case 'batched':
+        switch (backend ) {
+          case 'l1':
             transaction = await this.state.db.getFullTransactionByIndex(
               BigNumber.from(req.params.index).toNumber()
             )
             break
-          case 'sequenced':
+          case 'l2':
             transaction = await this.state.db.getUnconfirmedTransactionByIndex(
               BigNumber.from(req.params.index).toNumber()
             )
             break
           default:
-            throw new Error(`Unknown transaction source ${source}`)
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (transaction === null) {
@@ -474,18 +474,18 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/stateroot/latest',
       async (req): Promise<StateRootResponse> => {
-        const source = req.query.source || this.options.defaultSource
+        const backend = req.query.backend || this.options.defaultBackend
         let stateRoot = null
 
-        switch (source) {
-          case 'batched':
+        switch (backend) {
+          case 'l1':
             stateRoot = await this.state.db.getLatestStateRoot()
             break
-          case 'sequenced':
+          case 'l2':
             stateRoot = await this.state.db.getLatestUnconfirmedStateRoot()
             break
           default:
-            throw new Error(`Unknown transaction source ${source}`)
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (stateRoot === null) {
@@ -510,22 +510,22 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/stateroot/index/:index',
       async (req): Promise<StateRootResponse> => {
-        const source = req.query.source || this.options.defaultSource
+        const backend = req.query.backend || this.options.defaultBackend
         let stateRoot = null
 
-        switch (source) {
-          case 'batched':
+        switch (backend) {
+          case 'l1':
             stateRoot = await this.state.db.getStateRootByIndex(
               BigNumber.from(req.params.index).toNumber()
             )
             break
-          case 'sequenced':
+          case 'l2':
             stateRoot = await this.state.db.getUnconfirmedStateRootByIndex(
               BigNumber.from(req.params.index).toNumber()
             )
             break
           default:
-            throw new Error(`Unknown transaction source ${source}`)
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (stateRoot === null) {

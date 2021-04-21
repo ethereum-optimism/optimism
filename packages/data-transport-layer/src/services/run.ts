@@ -48,7 +48,7 @@ interface Bcfg {
         false
       ),
       sentryDsn: config.str('sentryDsn'),
-      defaultSource: config.str('defaultSource', 'batched'),
+      defaultBackend: config.str('defaultBackend', 'l1'),
     })
 
     await service.start()
