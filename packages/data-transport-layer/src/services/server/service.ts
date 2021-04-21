@@ -48,9 +48,12 @@ const optionSettings = {
       return validators.isUrl(val) || validators.isJsonRpcProvider(val)
     },
   },
-  showUnconfirmedTransactions: {
-    validate: validators.isBoolean,
-  },
+  defaultBackend: {
+    default: 'l1',
+    validate: (val: string) => {
+      return val === 'l1' || val === 'l2'
+    }
+  }
 }
 
 export class L1TransportServer extends BaseService<L1TransportServerOptions> {
@@ -66,7 +69,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   } = {} as any
 
   protected async _init(): Promise<void> {
-    // TODO: I don't know if this is strictly necessary, but it's probably a good thing to do.
     if (!this.options.db.isOpen()) {
       await this.options.db.open()
     }
@@ -171,14 +173,26 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
    * TODO: Link to our API spec.
    */
   private _registerAllRoutes(): void {
-    // TODO: Maybe add doc-like comments to each of these routes?
-
     this._registerRoute(
       'get',
       '/eth/syncing',
-      async (): Promise<SyncingResponse> => {
-        const highestL2BlockNumber = await this.state.db.getHighestL2BlockNumber()
-        const currentL2Block = await this.state.db.getLatestTransaction()
+      async (req): Promise<SyncingResponse> => {
+        const backend = req.query.backend || this.options.defaultBackend
+
+        let currentL2Block
+        let highestL2BlockNumber
+        switch (backend) {
+          case 'l1':
+            currentL2Block = await this.state.db.getLatestTransaction()
+            highestL2BlockNumber = await this.state.db.getHighestL2BlockNumber()
+            break
+          case 'l2':
+            currentL2Block = await this.state.db.getLatestUnconfirmedTransaction()
+            highestL2BlockNumber = await this.state.db.getHighestSyncedUnconfirmedBlock()
+            break
+          default:
+            throw new Error(`Unknown transaction backend ${backend}`)
+        }
 
         if (currentL2Block === null) {
           if (highestL2BlockNumber === null) {
@@ -329,21 +343,19 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     this._registerRoute(
       'get',
       '/transaction/latest',
-      async (): Promise<TransactionResponse> => {
-        let transaction = await this.state.db.getLatestFullTransaction()
-        if (this.options.showUnconfirmedTransactions) {
-          const latestUnconfirmedTx = await this.state.db.getLatestUnconfirmedTransaction()
-          if (
-            transaction === null ||
-            transaction === undefined ||
-            latestUnconfirmedTx.index >= transaction.index
-          ) {
-            transaction = latestUnconfirmedTx
-          }
-        }
+      async (req): Promise<TransactionResponse> => {
+        const backend = req.query.backend || this.options.defaultBackend
+        let transaction = null
 
-        if (transaction === null) {
-          transaction = await this.state.db.getLatestFullTransaction()
+        switch (backend) {
+          case 'l1':
+            transaction = await this.state.db.getLatestFullTransaction()
+            break
+          case 'l2':
+            transaction = await this.state.db.getLatestUnconfirmedTransaction()
+            break
+          default:
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (transaction === null) {
@@ -368,17 +380,22 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/transaction/index/:index',
       async (req): Promise<TransactionResponse> => {
+        const backend = req.query.backend || this.options.defaultBackend
         let transaction = null
-        if (this.options.showUnconfirmedTransactions) {
-          transaction = await this.state.db.getUnconfirmedTransactionByIndex(
-            BigNumber.from(req.params.index).toNumber()
-          )
-        }
 
-        if (transaction === null) {
-          transaction = await this.state.db.getFullTransactionByIndex(
-            BigNumber.from(req.params.index).toNumber()
-          )
+        switch (backend ) {
+          case 'l1':
+            transaction = await this.state.db.getFullTransactionByIndex(
+              BigNumber.from(req.params.index).toNumber()
+            )
+            break
+          case 'l2':
+            transaction = await this.state.db.getUnconfirmedTransactionByIndex(
+              BigNumber.from(req.params.index).toNumber()
+            )
+            break
+          default:
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (transaction === null) {
@@ -456,21 +473,19 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     this._registerRoute(
       'get',
       '/stateroot/latest',
-      async (): Promise<StateRootResponse> => {
-        let stateRoot = await this.state.db.getLatestStateRoot()
-        if (this.options.showUnconfirmedTransactions) {
-          const latestUnconfirmedStateRoot = await this.state.db.getLatestUnconfirmedStateRoot()
-          if (
-            stateRoot === null ||
-            stateRoot === undefined ||
-            latestUnconfirmedStateRoot.index >= stateRoot.index
-          ) {
-            stateRoot = latestUnconfirmedStateRoot
-          }
-        }
+      async (req): Promise<StateRootResponse> => {
+        const backend = req.query.backend || this.options.defaultBackend
+        let stateRoot = null
 
-        if (stateRoot === null) {
-          stateRoot = await this.state.db.getLatestStateRoot()
+        switch (backend) {
+          case 'l1':
+            stateRoot = await this.state.db.getLatestStateRoot()
+            break
+          case 'l2':
+            stateRoot = await this.state.db.getLatestUnconfirmedStateRoot()
+            break
+          default:
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (stateRoot === null) {
@@ -495,17 +510,22 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       'get',
       '/stateroot/index/:index',
       async (req): Promise<StateRootResponse> => {
+        const backend = req.query.backend || this.options.defaultBackend
         let stateRoot = null
-        if (this.options.showUnconfirmedTransactions) {
-          stateRoot = await this.state.db.getUnconfirmedStateRootByIndex(
-            BigNumber.from(req.params.index).toNumber()
-          )
-        }
 
-        if (stateRoot === null) {
-          stateRoot = await this.state.db.getStateRootByIndex(
-            BigNumber.from(req.params.index).toNumber()
-          )
+        switch (backend) {
+          case 'l1':
+            stateRoot = await this.state.db.getStateRootByIndex(
+              BigNumber.from(req.params.index).toNumber()
+            )
+            break
+          case 'l2':
+            stateRoot = await this.state.db.getUnconfirmedStateRootByIndex(
+              BigNumber.from(req.params.index).toNumber()
+            )
+            break
+          default:
+            throw new Error(`Unknown transaction backend ${backend}`)
         }
 
         if (stateRoot === null) {
