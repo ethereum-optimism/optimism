@@ -21,4 +21,4 @@ packages/data-transport-layer/db
 .env
 .DS_Store
 *.spec.ts
-*d.ts
+*.d.ts
