@@ -1,15 +1,15 @@
-import pino, {
-  LoggerOptions as PinoLoggerOptions,
-  DestinationObjectOptions,
-  DestinationStream,
-} from 'pino'
+import pino, { LoggerOptions as PinoLoggerOptions } from 'pino'
+import pinoms, { Streams } from 'pino-multi-stream'
+import { createWriteStream } from 'pino-sentry'
+import { NodeOptions } from '@sentry/node'
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
 export interface LoggerOptions {
   name: string
   level?: LogLevel
-  destination?: DestinationStream
+  sentryOptions?: NodeOptions
+  streams?: Streams
 }
 
 /**
@@ -31,9 +31,16 @@ export class Logger {
       base: null,
     }
 
-    this.inner = options.destination
-      ? pino(loggerOptions, options.destination)
-      : pino(loggerOptions)
+    const loggerStreams: Streams = [{ stream: process.stdout }]
+    if (options.sentryOptions) {
+      loggerStreams.push({
+        level: 'error',
+        stream: createWriteStream(options.sentryOptions),
+      })
+    }
+    if (options.streams) loggerStreams.concat(options.streams)
+
+    this.inner = pino(loggerOptions, pinoms.multistream(loggerStreams))
   }
 
   child(bindings: pino.Bindings): Logger {

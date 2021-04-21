@@ -39,8 +39,7 @@
     "bluebird": "^3.7.2",
     "dotenv": "^8.2.0",
     "ethers": "5.0.0",
-    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7",
-    "pino-sentry": "^0.7.0"
+    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7"
   },
   "devDependencies": {
     "@eth-optimism/smock": "^1.0.0",

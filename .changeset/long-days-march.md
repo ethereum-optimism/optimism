@@ -3,4 +3,4 @@
 "@eth-optimism/batch-submitter": patch
 ---
 
-directly use DestinationStream in Logger, configure Batch Submitter stream to write errors to Sentry
+initialize Sentry and streams in Logger, remove Sentry from Batch Submitter
