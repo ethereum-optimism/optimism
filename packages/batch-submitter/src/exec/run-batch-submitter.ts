@@ -19,6 +19,7 @@ import {
 const log = new Logger({
   name: 'oe:batch-submitter:init',
   sentryOptions: {
+    release: `@eth-optimism/batch-submitter@${process.env.npm_package_version}`,
     dsn: process.env.SENTRY_DSN,
     tracesSampleRate: 0.05,
   },
