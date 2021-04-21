@@ -1,0 +1,10 @@
+/// <reference types="node" />
+export declare const fromHexString: (buf: Buffer | string) => Buffer;
+export declare const toHexString: (buf: Buffer | string | number | null) => string;
+export declare const toUint256: (num: number) => string;
+export declare const toUint8: (num: number) => string;
+export declare const toUintN: (num: number, n: number) => string;
+export declare const toBytes32: (buf: Buffer | string | number) => string;
+export declare const toBytesN: (buf: Buffer | string | number, n: number) => string;
+export declare const toUnpaddedHexString: (buf: Buffer | string | number) => string;
+export declare const toStrippedHexString: (buf: Buffer | string | number) => string;

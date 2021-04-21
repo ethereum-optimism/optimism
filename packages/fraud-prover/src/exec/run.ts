@@ -49,6 +49,7 @@ const main = async () => {
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
     l1Wallet: wallet,
     deployGasLimit: parseInt(RELAY_GAS_LIMIT, 10), //should reconcile naming
+    runGasLimit: parseInt(RUN_GAS_LIMIT, 10), //should reconcile naming
     fromL2TransactionIndex: parseInt(FROM_L2_TRANSACTION_INDEX, 10),
     pollingInterval: parseInt(POLLING_INTERVAL, 10),
     l2BlockOffset: parseInt(L2_BLOCK_OFFSET, 10),

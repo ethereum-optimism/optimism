@@ -6,23 +6,29 @@ import { BaseTrie } from 'merkle-patricia-tree'
 
 /* Imports: Internal */
 import {
+  BaseService,
   sleep,
-  ZERO_ADDRESS,
-  loadContract,
-  loadContractFromManager,
-  L1ProviderWrapper,
-  L2ProviderWrapper,
   toHexString,
   fromHexString,
+} from '@eth-optimism/core-utils'
+
+import { 
+  loadContract, 
+  loadContractFromManager 
+} from '@eth-optimism/contracts'
+
+/* Imports: Internal */
+import {
+  ZERO_ADDRESS,
+  L1ProviderWrapper,
+  L2ProviderWrapper,
   toStrippedHexString,
   encodeAccountState,
   hashOvmTransaction,
   toBytes32,
   makeTrieFromProofs,
   shuffle,
-} from '@eth-optimism/core-utils'
-
-import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
+} from './utils'
 
 import {
   StateDiffProof,
@@ -33,7 +39,7 @@ import {
   TransactionBatchProof,
   AccountStateProof,
   StorageStateProof,
-} from '../types'
+} from './types'
 
 interface FraudProverOptions {
   // Providers for interacting with L1 and L2.
@@ -82,7 +88,7 @@ const optionSettings = {
   //getLogsInterval: { default: 2000 },
 }
 
-export class FraudProverService extends BaseService<FraudProverService> {
+export class FraudProverService extends BaseService<FraudProverOptions> {
   constructor(options: FraudProverOptions) {
     super('Fraud_Prover', options, optionSettings)
   }
@@ -98,14 +104,15 @@ export class FraudProverService extends BaseService<FraudProverService> {
     OVM_L1CrossDomainMessenger: Contract
     OVM_L2CrossDomainMessenger: Contract
     OVM_L2ToL1MessagePasser: Contract
-    //l1Provider: L1ProviderWrapper
-    //l2Provider: L2ProviderWrapper
+    l1Provider: L1ProviderWrapper
+    l2Provider: L2ProviderWrapper
     OVM_CanonicalTransactionChain: Contract
     OVM_FraudVerifier: Contract
     OVM_ExecutionManager: Contract
   }
 
   protected async _init(): Promise<void> {
+
     this.logger.info('Initializing fraud prover', { options: this.options })
     // Need to improve this, sorry.
     this.state = {} as any
@@ -174,31 +181,31 @@ export class FraudProverService extends BaseService<FraudProverService> {
     })
 
     this.logger.info('Connecting to OVM_CanonicalTransactionChain...')
-    this.state.OVM_CanonicalTransactionChain = await loadContractFromManager(
-      'OVM_CanonicalTransactionChain',
-      this.state.Lib_AddressManager,
-      this.options.l1RpcProvider
-    )
+    this.state.OVM_CanonicalTransactionChain = await loadContractFromManager({
+      name: 'OVM_CanonicalTransactionChain',
+      Lib_AddressManager: this.state.Lib_AddressManager,
+      provider: this.options.l1RpcProvider
+    })
     this.logger.info('Connected to OVM_CanonicalTransactionChain', {
       address: this.state.OVM_CanonicalTransactionChain.address,
     })
 
     this.logger.info('Connecting to OVM_FraudVerifier...')
-    this.state.OVM_FraudVerifier = await loadContractFromManager(
-      'OVM_FraudVerifier',
-      this.state.Lib_AddressManager,
-      this.options.l1RpcProvider
-    )
+    this.state.OVM_FraudVerifier = await loadContractFromManager({
+      name: 'OVM_FraudVerifier',
+      Lib_AddressManager: this.state.Lib_AddressManager,
+      provider: this.options.l1RpcProvider
+    })
     this.logger.info('Connected to OVM_FraudVerifier', {
       address: this.state.OVM_FraudVerifier.address,
     })
 
     this.logger.info('Connecting to OVM_ExecutionManager...')
-    this.state.OVM_ExecutionManager = await loadContractFromManager(
-      'OVM_ExecutionManager',
-      this.state.Lib_AddressManager,
-      this.options.l1RpcProvider
-    )
+    this.state.OVM_ExecutionManager = await loadContractFromManager({
+      name: 'OVM_ExecutionManager',
+      Lib_AddressManager: this.state.Lib_AddressManager,
+      provider: this.options.l1RpcProvider
+    })
     this.logger.info('Connected to OVM_ExecutionManager', {
       address: this.state.OVM_ExecutionManager.address,
     })
