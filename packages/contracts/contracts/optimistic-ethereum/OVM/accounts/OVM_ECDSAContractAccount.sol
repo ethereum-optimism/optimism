@@ -4,13 +4,15 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_ERC20 } from "../../iOVM/predeploys/iOVM_ERC20.sol";
 import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
 
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+
+/* Contract Imports */
+import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
 
 /* External Imports */
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -33,7 +35,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     // TODO: should be the amount sufficient to cover the gas costs of all of the transactions up
     // to and including the CALL/CREATE which forms the entrypoint of the transaction.
     uint256 constant EXECUTION_VALIDATION_GAS_OVERHEAD = 25000;
-    iOVM_ERC20 constant ETH_ERC20 = iOVM_ERC20(0x4200000000000000000000000000000000000006);
+    OVM_ETH constant ovmETH = OVM_ETH(0x4200000000000000000000000000000000000006);
 
 
     /********************
@@ -113,7 +115,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Transfer fee to relayer.
         require(
-            ETH_ERC20.transfer(
+            ovmETH.transfer(
                 msg.sender,
                 SafeMath.mul(decodedTx.gasLimit, decodedTx.gasPrice)
             ),
