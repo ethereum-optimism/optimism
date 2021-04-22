@@ -116,14 +116,14 @@ type decoded struct {
 type RollupClient interface {
 	GetEnqueue(index uint64) (*types.Transaction, error)
 	GetLatestEnqueue() (*types.Transaction, error)
-	GetTransaction(uint64) (*types.Transaction, error)
-	GetLatestTransaction() (*types.Transaction, error)
+	GetTransaction(uint64, Backend) (*types.Transaction, error)
+	GetLatestTransaction(Backend) (*types.Transaction, error)
 	GetEthContext(uint64) (*EthContext, error)
 	GetLatestEthContext() (*EthContext, error)
 	GetLastConfirmedEnqueue() (*types.Transaction, error)
 	GetLatestTransactionBatch() (*Batch, []*types.Transaction, error)
 	GetTransactionBatch(uint64) (*Batch, []*types.Transaction, error)
-	SyncStatus() (*SyncStatus, error)
+	SyncStatus(Backend) (*SyncStatus, error)
 	GetL1GasPrice() (*big.Int, error)
 }
 
@@ -373,11 +373,14 @@ func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) 
 }
 
 // GetTransaction will get a transaction by Canonical Transaction Chain index
-func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
+func (c *Client) GetTransaction(index uint64, backend Backend) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
 		SetPathParams(map[string]string{
 			"index": str,
+		}).
+		SetQueryParams(map[string]string{
+			"backend": backend.String(),
 		}).
 		SetResult(&TransactionResponse{}).
 		Get("/transaction/index/{index}")
@@ -394,9 +397,12 @@ func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
 
 // GetLatestTransaction will get the latest transaction, meaning the transaction
 // with the greatest Canonical Transaction Chain index
-func (c *Client) GetLatestTransaction() (*types.Transaction, error) {
+func (c *Client) GetLatestTransaction(backend Backend) (*types.Transaction, error) {
 	response, err := c.client.R().
 		SetResult(&TransactionResponse{}).
+		SetQueryParams(map[string]string{
+			"backend": backend.String(),
+		}).
 		Get("/transaction/latest")
 
 	if err != nil {
@@ -483,9 +489,12 @@ func (c *Client) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 }
 
 // SyncStatus will query the remote server to determine if it is still syncing
-func (c *Client) SyncStatus() (*SyncStatus, error) {
+func (c *Client) SyncStatus(backend Backend) (*SyncStatus, error) {
 	response, err := c.client.R().
 		SetResult(&SyncStatus{}).
+		SetQueryParams(map[string]string{
+			"backend": backend.String(),
+		}).
 		Get("/eth/syncing")
 
 	if err != nil {
