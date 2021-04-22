@@ -1,5 +1,5 @@
 /* External Imports */
-import { Logger, injectL2Context } from '@eth-optimism/core-utils'
+import { Logger, Metrics, injectL2Context } from '@eth-optimism/core-utils'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
@@ -16,13 +16,18 @@ import {
 } from '..'
 
 /* Logger */
+const name = 'oe:batch-submitter:init'
 const log = new Logger({
-  name: 'oe:batch-submitter:init',
+  name,
   sentryOptions: {
     release: `@eth-optimism/batch-submitter@${process.env.npm_package_version}`,
     dsn: process.env.SENTRY_DSN,
     tracesSampleRate: 0.05,
   },
+})
+/* Metrics */
+const metrics = new Metrics({
+  prefix: name,
 })
 
 interface RequiredEnvVars {
@@ -159,6 +164,7 @@ export const run = async () => {
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
     new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({ prefix: TX_BATCH_SUBMITTER_LOG_TAG }),
     DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
   )
@@ -180,6 +186,7 @@ export const run = async () => {
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
     new Logger({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({ prefix: STATE_BATCH_SUBMITTER_LOG_TAG }),
     FRAUD_SUBMISSION_ADDRESS
   )
 

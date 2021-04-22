@@ -8,6 +8,7 @@ import {
   Bytes32,
   remove0x,
   toRpcHexString,
+  Metrics
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -41,6 +42,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
     gasRetryIncrement: number,
     gasThresholdInGwei: number,
     log: Logger,
+    metrics: Metrics,
     fraudSubmissionAddress: string
   ) {
     super(
@@ -59,7 +61,8 @@ export class StateBatchSubmitter extends BatchSubmitter {
       maxGasPriceInGwei,
       gasRetryIncrement,
       gasThresholdInGwei,
-      log
+      log,
+      metrics
     )
     this.fraudSubmissionAddress = fraudSubmissionAddress
   }
