@@ -486,6 +486,27 @@ func (s *SyncService) SetLatestVerifiedIndex(index *uint64) {
 	}
 }
 
+// GetLatestBatchIndex reads the last processed transaction batch
+func (s *SyncService) GetLatestBatchIndex() *uint64 {
+	return rawdb.ReadHeadBatchIndex(s.db)
+}
+
+// GetNextBatchIndex reads the index of the next transaction batch to process
+func (s *SyncService) GetNextBatchIndex() uint64 {
+	index := s.GetLatestBatchIndex()
+	if index == nil {
+		return 0
+	}
+	return *index + 1
+}
+
+// SetLatestBatchIndex writes the last index of the transaction batch that was processed
+func (s *SyncService) SetLatestBatchIndex(index *uint64) {
+	if index != nil {
+		rawdb.WriteHeadBatchIndex(s.db, *index)
+	}
+}
+
 // applyTransaction is a higher level API for applying a transaction
 func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 	if tx.GetMeta().Index != nil {
