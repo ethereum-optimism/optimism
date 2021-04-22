@@ -548,8 +548,8 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 // parseTransactionBatchResponse will turn a TransactionBatchResponse into a
 // Batch and its corresponding types.Transactions
 func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *types.OVMSigner) (*Batch, []*types.Transaction, error) {
-	if txBatch == nil {
-		return nil, nil, nil
+	if txBatch == nil || txBatch.Batch == nil {
+		return nil, nil, errElementNotFound
 	}
 	batch := txBatch.Batch
 	txs := make([]*types.Transaction, len(txBatch.Transactions))

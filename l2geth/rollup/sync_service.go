@@ -669,12 +669,12 @@ func (s *SyncService) syncTransactionsToTip(backend Backend) error {
 
 	for {
 		latest, err := s.client.GetLatestTransaction(backend)
-		if err != nil {
-			return fmt.Errorf("Cannot get latest transaction: %w", err)
-		}
-		if latest == nil {
+		if errors.Is(err, errElementNotFound) {
 			log.Info("No transactions to sync")
 			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("Cannot get latest transaction: %w", err)
 		}
 		latestIndex := latest.GetMeta().Index
 		if latestIndex == nil {
@@ -722,12 +722,12 @@ func (s *SyncService) syncTransactionBatchesToTip() error {
 
 	for {
 		latest, _, err := s.client.GetLatestTransactionBatch()
-		if err != nil {
-			return fmt.Errorf("Cannot get latest transaction batch: %w", err)
-		}
-		if latest == nil {
+		if errors.Is(err, errElementNotFound) {
 			log.Info("No transaction batches to sync")
 			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("Cannot get latest transaction batch: %w", err)
 		}
 		latestIndex := latest.Index
 		nextIndex := s.GetNextVerifiedIndex()
@@ -739,7 +739,9 @@ func (s *SyncService) syncTransactionBatchesToTip() error {
 				return fmt.Errorf("Cannot get transaction batch: %w", err)
 			}
 			for _, tx := range txs {
-				s.applyBatchedTransaction(tx)
+				if err := s.applyBatchedTransaction(tx); err != nil {
+					return fmt.Errorf("cannot apply batched transaction: %w", err)
+				}
 			}
 		}
 		post, _, err := s.client.GetLatestTransactionBatch()
@@ -760,12 +762,12 @@ func (s *SyncService) syncQueueToTip() error {
 
 	for {
 		latest, err := s.client.GetLatestEnqueue()
-		if err != nil {
-			return fmt.Errorf("Cannot get latest enqueue transaction: %w", err)
-		}
-		if latest == nil {
+		if errors.Is(err, errElementNotFound) {
 			log.Info("No enqueue transactions to sync")
 			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("Cannot get latest enqueue transaction: %w", err)
 		}
 		latestIndex := latest.GetMeta().QueueIndex
 		if latestIndex == nil {
