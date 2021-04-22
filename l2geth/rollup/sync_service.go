@@ -760,7 +760,7 @@ func (s *SyncService) syncTransactionBatchesToTip() error {
 			return fmt.Errorf("Cannot get latest transaction batch: %w", err)
 		}
 
-		nextIndex := s.GetNextVerifiedIndex()
+		nextIndex := s.GetNextBatchIndex()
 		if nextIndex-1 == latest.Index {
 			log.Info("No new batches to sync", "tip", latest.Index)
 			return nil
@@ -782,6 +782,7 @@ func (s *SyncService) syncTransactionBatchesToTip() error {
 // syncTransactionBatchRange will sync a range of batched transactions from
 // start to end (inclusive)
 func (s *SyncService) syncTransactionBatchRange(start, end uint64) error {
+	log.Debug("Syncing transaction batch range", "start", start, "end", end)
 	for i := start; i <= end; i++ {
 		log.Debug("Fetching transaction batch", "index", i)
 		_, txs, err := s.client.GetTransactionBatch(i)
@@ -793,6 +794,7 @@ func (s *SyncService) syncTransactionBatchRange(start, end uint64) error {
 				return fmt.Errorf("cannot apply batched transaction: %w", err)
 			}
 		}
+		s.SetLatestBatchIndex(&i)
 	}
 	return nil
 }
