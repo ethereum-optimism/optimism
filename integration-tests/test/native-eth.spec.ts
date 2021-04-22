@@ -45,7 +45,7 @@ describe('Native ETH Integration Tests', async () => {
       const amount = utils.parseEther('0.5')
       const addr = await l2Bob.getAddress()
       const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
-      expect(gas).to.be.deep.eq(BigNumber.from(213438))
+      expect(gas).to.be.deep.eq(BigNumber.from(213546))
     })
 
     it('Should estimate gas for ETH withdraw', async () => {
