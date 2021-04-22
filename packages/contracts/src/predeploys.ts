@@ -6,10 +6,11 @@
  * - 0x42...04 was the address of the OVM_ProxySequencerEntrypoint. This contract is no longer in
  *    use and has therefore been removed. We may place a new predeployed contract at this address
  *    in the future. See https://github.com/ethereum-optimism/optimism/pull/549 for more info.
+ * - 0x42...01 was the address of the OVM_L1MessageSender. This contract was removed in favor of
+ *    directly calling the OVM_ExecutionManager via the custom `kall` builtin.
  */
 export const predeploys = {
   OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
-  OVM_L1MessageSender: '0x4200000000000000000000000000000000000001',
   OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002',
   OVM_ECDSAContractAccount: '0x4200000000000000000000000000000000000003',
   OVM_SequencerEntrypoint: '0x4200000000000000000000000000000000000005',

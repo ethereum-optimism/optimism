@@ -82,8 +82,7 @@ describe('OVM_SequencerEntrypoint', () => {
   })
 
   const iOVM_ECDSAContractAccount = getContractInterface(
-    'OVM_ECDSAContractAccount',
-    true
+    'OVM_ECDSAContractAccount'
   )
 
   let OVM_SequencerEntrypoint: Contract

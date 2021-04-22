@@ -37,17 +37,4 @@ contract Helper_PredeployCaller is Helper_SimpleProxy {
         require(success, "Predeploy call reverted");
         return returndata;
     }
-
-    function getL1MessageSender(
-        address _predeploy,
-        bytes memory _data
-    )
-        public
-        returns (
-            address
-        )
-    {
-        callPredeploy(_predeploy, _data);
-        return address(0); // unused: silence compiler
-    }
 }

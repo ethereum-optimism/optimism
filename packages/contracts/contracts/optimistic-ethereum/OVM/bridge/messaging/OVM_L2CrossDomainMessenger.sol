@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
+// @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuard.sol";
+import { Lib_ExecutionManagerWrapper } from "../../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
-import { iOVM_L1MessageSender } from "../../../iOVM/predeploys/iOVM_L1MessageSender.sol";
 import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/predeploys/iOVM_L2ToL1MessagePasser.sol";
 
 /* Contract Imports */
@@ -117,14 +118,13 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
      * @return _valid Whether or not the message is valid.
      */
     function _verifyXDomainMessage()
-        view
         internal
         returns (
             bool _valid
         )
     {
         return (
-            iOVM_L1MessageSender(resolve("OVM_L1MessageSender")).getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
+            Lib_ExecutionManagerWrapper.ovmL1TXORIGIN() == resolve("OVM_L1CrossDomainMessenger")
         );
     }
 

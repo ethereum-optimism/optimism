@@ -142,7 +142,6 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'ERC1820Registry',
       'Lib_AddressManager',
       'OVM_DeployerWhitelist',
-      'OVM_L1MessageSender',
       'OVM_L2ToL1MessagePasser',
       'OVM_ProxyEOA',
       'OVM_ECDSAContractAccount',
