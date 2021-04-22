@@ -33,6 +33,7 @@ import {
   ctcCoder,
   remove0x,
   Logger,
+  Metrics,
 } from '@eth-optimism/core-utils'
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
@@ -71,6 +72,7 @@ class TransactionBatchSubmitter extends RealTransactionBatchSubmitter {
     return true
   }
 }
+const testMetrics = new Metrics({ prefix: 'tx_bs_test' })
 
 describe('TransactionBatchSubmitter', () => {
   let signer: Signer
@@ -189,6 +191,7 @@ describe('TransactionBatchSubmitter', () => {
         GAS_RETRY_INCREMENT,
         GAS_THRESHOLD_IN_GWEI,
         new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
+        testMetrics,
         false
       )
     })
@@ -309,6 +312,7 @@ describe('TransactionBatchSubmitter', () => {
           GAS_RETRY_INCREMENT,
           GAS_THRESHOLD_IN_GWEI,
           new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
+          testMetrics,
           false
         )
 

@@ -7,7 +7,7 @@ import {
 } from '@ethersproject/abstract-provider'
 import { getContractInterface, getContractFactory } from 'old-contracts'
 import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
-import { Logger, ctcCoder } from '@eth-optimism/core-utils'
+import { Logger, Metrics, ctcCoder } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -48,6 +48,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     gasRetryIncrement: number,
     gasThresholdInGwei: number,
     log: Logger,
+    metrics: Metrics,
     disableQueueBatchAppend: boolean,
     autoFixBatchOptions: AutoFixBatchOptions = {
       fixDoublePlayedDeposits: false,
@@ -70,7 +71,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       maxGasPriceInGwei,
       gasRetryIncrement,
       gasThresholdInGwei,
-      log
+      log,
+      metrics
     )
     this.disableQueueBatchAppend = disableQueueBatchAppend
     this.autoFixBatchOptions = autoFixBatchOptions
