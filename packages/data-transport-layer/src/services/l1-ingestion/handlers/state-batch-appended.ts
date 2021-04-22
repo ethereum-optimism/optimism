@@ -5,7 +5,7 @@ import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
 import {
-  StateRootBatchEntry,
+    StateRootBatchEntry,
   StateBatchAppendedExtraData,
   StateBatchAppendedParsedEvent,
   StateRootEntry,

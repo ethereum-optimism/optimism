@@ -7,7 +7,7 @@ import { OptimismEnv } from './shared/env'
 chai.use(chaiAsPromised)
 
 describe('Basic RPC tests', () => {
-  let env: OptimismEnv
+  let env: OptimismEnv;
 
   const DEFAULT_TRANSACTION = {
     to: '0x' + '1234'.repeat(10),
