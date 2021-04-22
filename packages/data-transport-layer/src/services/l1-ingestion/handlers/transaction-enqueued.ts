@@ -4,7 +4,7 @@ import {EventArgsTransactionEnqueued} from '@eth-optimism/core-utils'
 import { BigNumber } from 'ethers'
 import {
   EnqueueEntry,
-    EventHandlerSet
+    EventHandlerSet,
 } from '../../../types'
 
 export const handleEventsTransactionEnqueued: EventHandlerSet<

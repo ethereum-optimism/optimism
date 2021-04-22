@@ -13,8 +13,8 @@ import {
   validators,
 } from '../../utils'
 import { 
-  TypedEthersEvent, 
-  EventHandlerSet 
+  TypedEthersEvent,
+  EventHandlerSet,
 } from '../../types'
 import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
