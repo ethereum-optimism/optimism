@@ -1,12 +1,7 @@
 import { ethers } from 'hardhat'
 import { injectL2Context } from '@eth-optimism/core-utils'
 import { expect } from 'chai'
-import {
-  sleep,
-  l2Provider,
-  l1Provider,
-  getAddressManager,
-} from './shared/utils'
+import { sleep, l2Provider, l1Provider, getAddressManager } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { getContractFactory } from '@eth-optimism/contracts'
 import { Contract, ContractFactory, Wallet, BigNumber } from 'ethers'
@@ -46,12 +41,12 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       'OVM_CanonicalTransactionChain'
     )
     const CanonicalTransactionChainFactory = getContractFactory(
-      'OVM_CanonicalTransactionChain'
+      'OVM_CanonicalTransactionChain',
     )
 
-    CanonicalTransactionChain = CanonicalTransactionChainFactory.connect(
-      l1Wallet
-    ).attach(ctcAddress)
+    CanonicalTransactionChain = CanonicalTransactionChainFactory
+      .connect(l1Wallet)
+      .attach(ctcAddress)
 
     const OVMMulticallFactory = await ethers.getContractFactory(
       'OVMMulticall',
