@@ -8,7 +8,7 @@ import {
   Bytes32,
   remove0x,
   toRpcHexString,
-  Metrics
+  Metrics,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
