@@ -16,7 +16,7 @@ import {
 } from '..'
 
 /* Logger */
-const name = 'oe:batch-submitter:init'
+const name = 'oe:batch_submitter:init'
 const log = new Logger({
   name,
   sentryOptions: {
