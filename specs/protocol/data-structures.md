@@ -211,6 +211,7 @@ Enum encoding the reason for reverting during execution in the OVM.
 | CREATE_COLLISION     |             |
 | STATIC_VIOLATION     |             |
 | CREATOR_NOT_ALLOWED  |             |
+| CALLER_NOT_ALLOWED   |             |
 
 ### GasMetadataKey (enum)
 

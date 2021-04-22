@@ -18,7 +18,8 @@ interface iOVM_ExecutionManager {
         UNSAFE_BYTECODE,
         CREATE_COLLISION,
         STATIC_VIOLATION,
-        CREATOR_NOT_ALLOWED
+        CREATOR_NOT_ALLOWED,
+        CALLER_NOT_ALLOWED
     }
 
     enum GasMetadataKey {

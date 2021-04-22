@@ -144,6 +144,23 @@ contract OVM_StateManager is iOVM_StateManager {
     }
 
     /**
+     * Inserts the given bytecode into the given OVM account.
+     * @param _address Address of the account to overwrite code onto.
+     * @param _code Bytecode to put at the address.
+     */
+    function putAccountCode(
+        address _address,
+        bytes memory _code
+    )
+        override
+        public
+        authenticated
+    {
+        Lib_OVMCodec.Account storage account = accounts[_address];
+        account.codeHash = keccak256(_code);
+    }
+
+    /**
      * Retrieves an account from the state.
      * @param _address Address of the account to retrieve.
      * @return Account for the given address.

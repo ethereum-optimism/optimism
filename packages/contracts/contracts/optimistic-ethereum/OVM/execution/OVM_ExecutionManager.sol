@@ -146,6 +146,18 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         _;
     }
 
+    /**
+     * Modifies an EM method so that only a given address can invoke it.
+     */
+    modifier onlyCallableBy(
+        address _allowed
+    ) {
+        if (ovmADDRESS() != _allowed) {
+            _revertWithFlag(RevertFlag.CALLER_NOT_ALLOWED);
+        }
+        _;
+    }
+
 
     /************************************
      * Transaction Execution Entrypoint *
@@ -1936,6 +1948,52 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         external
     {
         // TODO: IMPLEMENT ME
+    }
+
+
+
+    /*********************
+     * Upgrade Functions *
+     *********************/
+
+    /**
+     * Sets the code of an ovm contract.
+     * @param _address Address to update the code of.
+     * @param _code Bytecode to put into the ovm account.
+     */
+    function ovmSETCODE(
+        address _address,
+        bytes memory _code
+    )
+        override
+        external
+        onlyCallableBy(resolve("OVM_UpgradeExecutor"))
+    {
+        _checkAccountLoad(_address);
+        ovmStateManager.putAccountCode(_address, _code);
+    }
+
+
+    /**
+     * Sets the storage slot of an OVM contract.
+     * @param _address OVM account to set storage of.
+     * @param _key Key to set set.
+     * @param _value Value to store at the given key.
+     */
+    function ovmSETSTORAGE(
+        address _address,
+        bytes32 _key,
+        bytes32 _value
+    )
+        override
+        external
+        onlyCallableBy(resolve("OVM_UpgradeExecutor"))
+    {
+        _putContractStorage(
+            _address,
+            _key,
+            _value
+        );
     }
 
 
