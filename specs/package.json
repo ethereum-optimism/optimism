@@ -7,7 +7,7 @@
     "prettier": "2.2.1"
   },
   "scripts": {
-    "format": "yarn prettier --write \"{l2geth,protocol}/**/*.md\"",
-    "format:check": "yarn prettier --check \"{l2geth,protocol}/**/*.md\""
+    "lint:fix": "yarn prettier --write \"{l2geth,protocol}/**/*.md\"",
+    "lint": "yarn prettier --check \"{l2geth,protocol}/**/*.md\""
   }
 }
