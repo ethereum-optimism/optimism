@@ -46,7 +46,7 @@ type EthAPIBackend struct {
 	extRPCEnabled   bool
 	eth             *Ethereum
 	gpo             *gasprice.Oracle
-	l1gpo           *gasprice.L1Oracle
+	rollupGpo       *gasprice.RollupOracle
 	verifier        bool
 	gasLimit        uint64
 	UsingOVM        bool
@@ -381,11 +381,11 @@ func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 }
 
 func (b *EthAPIBackend) SuggestDataPrice(ctx context.Context) (*big.Int, error) {
-	return b.l1gpo.SuggestDataPrice(ctx)
+	return b.rollupGpo.SuggestDataPrice(ctx)
 }
 
-func (b *EthAPIBackend) SetL1GasPrice(ctx context.Context, gasPrice *big.Int) {
-	b.l1gpo.SetL1GasPrice(gasPrice)
+func (b *EthAPIBackend) SetDataPrice(ctx context.Context, gasPrice *big.Int) {
+	b.rollupGpo.SetDataPrice(gasPrice)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

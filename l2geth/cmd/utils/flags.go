@@ -879,11 +879,11 @@ var (
 		Value:  eth.DefaultConfig.Rollup.MaxCallDataSize,
 		EnvVar: "ROLLUP_MAX_CALLDATA_SIZE",
 	}
-	RollupL1GasPriceFlag = BigFlag{
-		Name:   "rollup.l1gasprice",
-		Usage:  "The L1 gas price to use for the sequencer fees",
-		Value:  eth.DefaultConfig.Rollup.L1GasPrice,
-		EnvVar: "ROLLUP_L1_GASPRICE",
+	RollupDataPriceFlag = BigFlag{
+		Name:   "rollup.dataprice",
+		Usage:  "The L1 calldata price to use for the sequencer fees",
+		Value:  eth.DefaultConfig.Rollup.DataPrice,
+		EnvVar: "ROLLUP_DATAPRICE",
 	}
 )
 
@@ -1158,8 +1158,8 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(RollupTimstampRefreshFlag.Name) {
 		cfg.TimestampRefreshThreshold = ctx.GlobalDuration(RollupTimstampRefreshFlag.Name)
 	}
-	if ctx.GlobalIsSet(RollupL1GasPriceFlag.Name) {
-		cfg.L1GasPrice = GlobalBig(ctx, RollupL1GasPriceFlag.Name)
+	if ctx.GlobalIsSet(RollupDataPriceFlag.Name) {
+		cfg.DataPrice = GlobalBig(ctx, RollupDataPriceFlag.Name)
 	}
 }
 

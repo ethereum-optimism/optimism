@@ -78,7 +78,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupStateDumpPathFlag,
 			utils.RollupDiffDbFlag,
 			utils.RollupMaxCalldataSizeFlag,
-			utils.RollupL1GasPriceFlag,
+			utils.RollupDataPriceFlag,
 		},
 	},
 	{

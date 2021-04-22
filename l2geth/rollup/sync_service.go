@@ -44,7 +44,7 @@ type SyncService struct {
 	eth1ChainId               uint64
 	bc                        *core.BlockChain
 	txpool                    *core.TxPool
-	L1gpo                     *gasprice.L1Oracle
+	RollupGpo                 *gasprice.RollupOracle
 	client                    RollupClient
 	syncing                   atomic.Value
 	OVMContext                OVMContext
@@ -449,7 +449,7 @@ func (s *SyncService) updateL1GasPrice() error {
 	if err != nil {
 		return err
 	}
-	s.L1gpo.SetL1GasPrice(l1GasPrice)
+	s.RollupGpo.SetDataPrice(l1GasPrice)
 	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
 	return nil
 }

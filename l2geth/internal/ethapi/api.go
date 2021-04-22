@@ -1984,8 +1984,8 @@ func NewPrivateRollupAPI(b Backend) *PrivateRollupAPI {
 
 // SetGasPrice sets the gas price to be used when quoting calldata publishing costs
 // to users
-func (api *PrivateRollupAPI) SetL1GasPrice(ctx context.Context, gasPrice hexutil.Big) {
-	api.b.SetL1GasPrice(ctx, (*big.Int)(&gasPrice))
+func (api *PrivateRollupAPI) SetDataPrice(ctx context.Context, gasPrice hexutil.Big) {
+	api.b.SetDataPrice(ctx, (*big.Int)(&gasPrice))
 }
 
 // PublicDebugAPI is the collection of Ethereum APIs exposed over the public
