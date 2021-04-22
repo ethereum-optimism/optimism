@@ -15,7 +15,6 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
 
 /* Contract Imports */
-import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
 
 /**
