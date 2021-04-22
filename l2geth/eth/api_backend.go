@@ -384,8 +384,16 @@ func (b *EthAPIBackend) SuggestDataPrice(ctx context.Context) (*big.Int, error) 
 	return b.rollupGpo.SuggestDataPrice(ctx)
 }
 
+func (b *EthAPIBackend) SuggestExecutionPrice(ctx context.Context) (*big.Int, error) {
+	return b.rollupGpo.SuggestExecutionPrice(ctx)
+}
+
 func (b *EthAPIBackend) SetDataPrice(ctx context.Context, gasPrice *big.Int) {
 	b.rollupGpo.SetDataPrice(gasPrice)
+}
+
+func (b *EthAPIBackend) SetExecutionPrice(ctx context.Context, gasPrice *big.Int) {
+	b.rollupGpo.SetExecutionPrice(gasPrice)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

@@ -96,6 +96,8 @@ type Backend interface {
 	GetDiff(*big.Int) (diffdb.Diff, error)
 	SuggestDataPrice(ctx context.Context) (*big.Int, error)
 	SetDataPrice(context.Context, *big.Int)
+	SuggestExecutionPrice(context.Context) (*big.Int, error)
+	SetExecutionPrice(context.Context, *big.Int)
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {
