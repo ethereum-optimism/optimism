@@ -254,5 +254,8 @@ export const makeContractDeployConfig = async (
     ERC1820Registry: {
       factory: getContractFactory('ERC1820Registry'),
     },
+    OVM_ProxyEOA: {
+      factory: getContractFactory('OVM_ProxyEOA', undefined, true),
+    },
   }
 }
