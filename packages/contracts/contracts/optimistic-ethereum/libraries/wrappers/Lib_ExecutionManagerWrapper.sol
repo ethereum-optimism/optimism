@@ -118,6 +118,25 @@ library Lib_ExecutionManagerWrapper {
         return abi.decode(returndata, (address));
     }
 
+    /**
+     * Calls the ovmCHAINID opcode.
+     * @return Chain ID of the current network.
+     */
+    function ovmCHAINID()
+        internal
+        returns (
+            uint256
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmCHAINID()"
+            )
+        );
+
+        return abi.decode(returndata, (uint256));
+    }
+
 
     /*********************
      * Private Functions *
