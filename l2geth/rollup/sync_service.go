@@ -559,7 +559,7 @@ func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 	if !isCtcTxEqual(tx, txs[0]) {
 		log.Error("Mismatched transaction", "index", index)
 	} else {
-		log.Debug("Batched transaction matches", "index", index, "hash", tx.Hash().Hex())
+		log.Debug("Historical transaction matches", "index", *index, "hash", tx.Hash().Hex())
 	}
 	return nil
 }
@@ -571,7 +571,6 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	if tx == nil {
 		return errors.New("nil transaction passed to applyTransactionToTip")
 	}
-	log.Trace("Applying transaction to tip")
 	if tx.L1Timestamp() == 0 {
 		ts := s.GetLatestL1Timestamp()
 		bn := s.GetLatestL1BlockNumber()
@@ -599,6 +598,8 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	if tx.GetMeta().QueueIndex != nil {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
+	// The index was set above so it is safe to dereference
+	log.Trace("Applying transaction to tip", "index", *tx.GetMeta().Index)
 
 	// This is a temporary fix for a bug in the SequencerEntrypoint. It will
 	// be removed when the custom batch serialization is removed in favor of
