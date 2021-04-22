@@ -12,7 +12,7 @@ import {
   loadContract,
   validators,
 } from '../../utils'
-import { 
+import {
   TypedEthersEvent,
   EventHandlerSet,
 } from '../../types'
