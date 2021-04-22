@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.6
+
+### Patch Changes
+
+- ce5d596: Ports OVM_ECDSAContractAccount to use optimistic-solc.
+- 1a55f64: Fix bridge contracts upgradeability by changing `Abs_L1TokenGateway.DEFAULT_FINALIZE_DEPOSIT_L2_GAS` from a storage var to an internal constant.
+  Additionally, make some bridge functions virtual so they could be overriden in child contracts.
+- 6e8fe1b: Removes mockOVM_ECDSAContractAccount and OVM_ProxySequencerEntrypoint, two unused contracts.
+- 8d4aae4: Removed Lib_SafeExecutionManagerWrapper since it's no longer being used.
+- c75a0fc: Use optimistic-solc to compile the SequencerEntrypoint. Also introduces a cache invalidation mechanism for hardhat-ovm so that we can push new compiler versions.
+- d4ee2d7: Port OVM_DeployerWhitelist to use optimistic-solc.
+- edb4346: Ports OVM_ProxyEOA to use optimistic-solc instead of the standard solc compiler.
+- Updated dependencies [5077441]
+  - @eth-optimism/core-utils@0.3.1
+
 ## 0.2.5
 
 ### Patch Changes

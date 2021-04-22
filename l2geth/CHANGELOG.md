@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+### Patch Changes
+
+- 7e9ca1e: Add batch API to rollup client
+- 6e8fe1b: Removes mockOVM_ECDSAContractAccount and OVM_ProxySequencerEntrypoint, two unused contracts.
+- 76c4ceb: Calculate data fees based on if a byte was zero or non-zero
+
 ## 0.2.3
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @eth-optimism/core-utils
 
+## 0.3.1
+
+### Patch Changes
+
+- 5077441: - Use raw transaction in batch submitter -- incompatible with L2Geth v0.1.2.1
+  - Pass through raw transaction in l2context
+
 ## 0.3.0
 
 ### Minor Changes

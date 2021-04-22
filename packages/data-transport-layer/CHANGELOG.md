@@ -1,5 +1,25 @@
 # data transport layer
 
+## 0.2.1
+
+### Patch Changes
+
+- a3dc553: Adds a release version to batch-submitter and data-transport-layer usage of Sentry
+- 27f32ca: Allow the DTL to provide data from either L1 or L2, configurable via a query param sent by the client.
+  The config option `default-backend` can be used to specify the backend to be
+  used if the query param is not specified. This allows it to be backwards
+  compatible with how the DTL was previously used.
+- Updated dependencies [ce5d596]
+- Updated dependencies [1a55f64]
+- Updated dependencies [6e8fe1b]
+- Updated dependencies [8d4aae4]
+- Updated dependencies [c75a0fc]
+- Updated dependencies [d4ee2d7]
+- Updated dependencies [edb4346]
+- Updated dependencies [5077441]
+  - @eth-optimism/contracts@0.2.6
+  - @eth-optimism/core-utils@0.3.1
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "main": "dist/index",
   "files": [
@@ -19,8 +19,8 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.2.5",
-    "@eth-optimism/core-utils": "^0.3.0",
+    "@eth-optimism/contracts": "^0.2.6",
+    "@eth-optimism/core-utils": "^0.3.1",
     "@ethersproject/providers": "^5.0.21",
     "@sentry/node": "^6.2.5",
     "@sentry/tracing": "^6.2.5",

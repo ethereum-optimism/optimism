@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- 5077441: - Use raw transaction in batch submitter -- incompatible with L2Geth v0.1.2.1
+  - Pass through raw transaction in l2context
+
+### Patch Changes
+
+- a3dc553: Adds a release version to batch-submitter and data-transport-layer usage of Sentry
+- b95dc22: log errors for monotonicity violations
+- c7bc0ce: Correctly formatted error object to log exceptions
+- Updated dependencies [ce5d596]
+- Updated dependencies [1a55f64]
+- Updated dependencies [6e8fe1b]
+- Updated dependencies [8d4aae4]
+- Updated dependencies [c75a0fc]
+- Updated dependencies [d4ee2d7]
+- Updated dependencies [edb4346]
+- Updated dependencies [5077441]
+  - @eth-optimism/contracts@0.2.6
+  - @eth-optimism/core-utils@0.3.1
+
 ## 0.1.12
 
 ### Patch Changes
