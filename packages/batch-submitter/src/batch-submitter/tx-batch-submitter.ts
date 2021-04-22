@@ -694,7 +694,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       stateRoot: block.stateRoot,
       timestamp: block.timestamp,
       blockNumber: block.transactions[0].l1BlockNumber,
-      isSequencerTx: undefined,
+      isSequencerTx: false,
       rawTransaction: undefined,
     }
 
