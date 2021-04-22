@@ -707,7 +707,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   private async _getBlock(blockNumber: number): Promise<L2Block> {
-    return this.l2Provider.getBlockWithTransactions(blockNumber) as Promise<L2Block>
+    const p = this.l2Provider.getBlockWithTransactions(blockNumber)
+    return p as Promise<L2Block>
   }
 
   private _isSequencerTx(block: L2Block): boolean {
