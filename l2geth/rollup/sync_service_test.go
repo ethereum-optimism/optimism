@@ -111,7 +111,7 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 	// The queue index of the L1 to L2 transaction
 	queueIndex := uint64(0)
 	// The index in the ctc
-	index := uint64(5)
+	index := uint64(0)
 
 	tx := types.NewTransaction(0, target, big.NewInt(0), gasLimit, big.NewInt(0), data)
 	txMeta := types.NewTransactionMeta(
@@ -133,14 +133,16 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 	})
 
 	// Run an iteration of the eloop
-	err = service.sequence()
-	if err != nil {
-		t.Fatal("sequencing failed", err)
-	}
-
+	err = nil
+	go func() {
+		err = service.syncQueueToTip()
+	}()
 	// Wait for the tx to be confirmed into the chain and then
 	// make sure it is the transactions that was set up with in the mockclient
 	event := <-txCh
+	if err != nil {
+		t.Fatal("sequencing failed", err)
+	}
 	if len(event.Txs) != 1 {
 		t.Fatal("Unexpected number of transactions")
 	}
@@ -217,12 +219,15 @@ func TestSyncServiceSync(t *testing.T) {
 		},
 	})
 
-	err = service.verify()
+	err = nil
+	go func() {
+		err = service.syncTransactionsToTip(BackendL2)
+	}()
+	event := <-txCh
 	if err != nil {
 		t.Fatal("verification failed", err)
 	}
 
-	event := <-txCh
 	if len(event.Txs) != 1 {
 		t.Fatal("Unexpected number of transactions")
 	}
@@ -320,6 +325,7 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 		// Set as an empty string as this is a dummy value anyways.
 		// The client needs to be mocked with a mockClient
 		RollupClientHttp: "",
+		Backend:          BackendL2,
 	}
 
 	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
@@ -395,7 +401,7 @@ func (m *mockClient) GetLatestEnqueue() (*types.Transaction, error) {
 	return m.getEnqueue[len(m.getEnqueue)-1], nil
 }
 
-func (m *mockClient) GetTransaction(index uint64) (*types.Transaction, error) {
+func (m *mockClient) GetTransaction(index uint64, backend Backend) (*types.Transaction, error) {
 	if m.getTransactionCallCount < len(m.getTransaction) {
 		tx := m.getTransaction[m.getTransactionCallCount]
 		m.getTransactionCallCount++
@@ -404,7 +410,7 @@ func (m *mockClient) GetTransaction(index uint64) (*types.Transaction, error) {
 	return nil, errors.New("")
 }
 
-func (m *mockClient) GetLatestTransaction() (*types.Transaction, error) {
+func (m *mockClient) GetLatestTransaction(backend Backend) (*types.Transaction, error) {
 	if len(m.getTransaction) == 0 {
 		return nil, errors.New("")
 	}
@@ -425,7 +431,7 @@ func (m *mockClient) GetLatestEthContext() (*EthContext, error) {
 }
 
 func (m *mockClient) GetLastConfirmedEnqueue() (*types.Transaction, error) {
-	return nil, nil
+	return nil, errElementNotFound
 }
 
 func (m *mockClient) GetLatestTransactionBatch() (*Batch, []*types.Transaction, error) {
@@ -436,7 +442,7 @@ func (m *mockClient) GetTransactionBatch(index uint64) (*Batch, []*types.Transac
 	return nil, nil, nil
 }
 
-func (m *mockClient) SyncStatus() (*SyncStatus, error) {
+func (m *mockClient) SyncStatus(backend Backend) (*SyncStatus, error) {
 	return &SyncStatus{
 		Syncing: false,
 	}, nil
