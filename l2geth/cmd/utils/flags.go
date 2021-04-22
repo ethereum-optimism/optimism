@@ -885,6 +885,12 @@ var (
 		Value:  eth.DefaultConfig.Rollup.DataPrice,
 		EnvVar: "ROLLUP_DATAPRICE",
 	}
+	RollupExecutionPriceFlag = BigFlag{
+		Name:   "rollup.executionprice",
+		Usage:  "The execution gas price to use for the sequencer fees",
+		Value:  eth.DefaultConfig.Rollup.ExecutionPrice,
+		EnvVar: "ROLLUP_EXECUTIONPRICE",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1160,6 +1166,9 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupDataPriceFlag.Name) {
 		cfg.DataPrice = GlobalBig(ctx, RollupDataPriceFlag.Name)
+	}
+	if ctx.GlobalIsSet(RollupExecutionPriceFlag.Name) {
+		cfg.ExecutionPrice = GlobalBig(ctx, RollupExecutionPriceFlag.Name)
 	}
 }
 

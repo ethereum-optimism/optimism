@@ -35,4 +35,6 @@ type Config struct {
 	TimestampRefreshThreshold time.Duration
 	// The gas price to use when estimating L1 calldata publishing costs
 	DataPrice *big.Int
+	// The gas price to use for L2 congestion costs
+	ExecutionPrice *big.Int
 }

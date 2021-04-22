@@ -82,6 +82,7 @@ var DefaultConfig = Config{
 		// safety.
 		MaxCallDataSize: 127000,
 		DataPrice:       big.NewInt(100 * params.GWei),
+		ExecutionPrice:  big.NewInt(0),
 	},
 	DiffDbCache: 256,
 }

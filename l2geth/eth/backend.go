@@ -226,7 +226,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
-	log.Info("Backend Config", "max-calldata-size", config.Rollup.MaxCallDataSize, "gas-limit", config.Rollup.GasLimit, "is-verifier", config.Rollup.IsVerifier, "using-ovm", vm.UsingOVM, "dataprice", config.Rollup.DataPrice)
+	log.Info("Backend Config", "max-calldata-size", config.Rollup.MaxCallDataSize, "gas-limit", config.Rollup.GasLimit, "is-verifier", config.Rollup.IsVerifier, "using-ovm", vm.UsingOVM, "data-price", config.Rollup.DataPrice, "execution-price", config.Rollup.ExecutionPrice)
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth, nil, nil, config.Rollup.IsVerifier, config.Rollup.GasLimit, vm.UsingOVM, config.Rollup.MaxCallDataSize}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {
@@ -234,7 +234,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
 	// create the Rollup GPO and allow the API backend and the sync service to access it
-	rollupGpo := gasprice.NewRollupOracle(config.Rollup.DataPrice)
+	rollupGpo := gasprice.NewRollupOracle(config.Rollup.DataPrice, config.Rollup.ExecutionPrice)
 	eth.APIBackend.rollupGpo = rollupGpo
 	eth.syncService.RollupGpo = rollupGpo
 	return eth, nil

@@ -165,6 +165,7 @@ var (
 		utils.RollupDiffDbFlag,
 		utils.RollupMaxCalldataSizeFlag,
 		utils.RollupDataPriceFlag,
+		utils.RollupExecutionPriceFlag,
 	}
 
 	rpcFlags = []cli.Flag{
