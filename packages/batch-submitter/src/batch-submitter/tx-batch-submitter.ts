@@ -1,20 +1,13 @@
 /* External Imports */
 import { Promise as bPromise } from 'bluebird'
-import { BigNumber, Signer, ethers, Wallet, Contract, providers } from 'ethers'
+import { Signer, ethers, Contract, providers } from 'ethers'
 import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
 import { getContractInterface, getContractFactory } from 'old-contracts'
 import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
-import {
-  Logger,
-  EIP155TxData,
-  TxType,
-  ctcCoder,
-  EthSignTxData,
-  txTypePlainText,
-} from '@eth-optimism/core-utils'
+import { Logger, ctcCoder } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -600,7 +593,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return {
         stateRoot: queueElement.stateRoot,
         isSequencerTx: true,
-        sequencerTxType: TxType.EIP155,
         rawTransaction: dummyTx,
         timestamp: queueElement.timestamp,
         blockNumber: queueElement.blockNumber,
@@ -703,14 +695,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       timestamp: block.timestamp,
       blockNumber: block.transactions[0].l1BlockNumber,
       isSequencerTx: undefined,
-      sequencerTxType: undefined,
       rawTransaction: undefined,
     }
 
     if (this._isSequencerTx(block)) {
       batchElement.isSequencerTx = true
-      batchElement.sequencerTxType =
-        txTypePlainText[block.transactions[0].txType]
       batchElement.rawTransaction = block.transactions[0].rawTransaction
     }
 

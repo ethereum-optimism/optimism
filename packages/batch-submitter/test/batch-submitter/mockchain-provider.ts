@@ -127,13 +127,12 @@ export class MockchainProvider extends providers.JsonRpcProvider {
       block.transactions[0].l1BlockNumber,
       10
     )
-    const queueOrigin: number = parseInt(block.transactions[0].queueOrigin, 10)
+    const queueOrigin: string = block.transactions[0].queueOrigin
     const l1TxOrigin: string = block.transactions[0].l1MessageSender
     const l2Transaction: L2Transaction = {
       ...block.transactions[0],
       // Rename the incorrectly named fields
       l1TxOrigin,
-      txType,
       queueOrigin,
       l1BlockNumber,
     }
@@ -219,7 +218,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -272,7 +271,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -325,7 +324,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -378,7 +377,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -431,7 +430,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -484,7 +483,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -537,7 +536,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -590,7 +589,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -643,7 +642,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -696,7 +695,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -749,7 +748,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -802,7 +801,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -855,7 +854,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -908,7 +907,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
@@ -961,7 +960,7 @@ const BLOCKS = JSON.parse(`
              "l1TxOrigin":"0x3333333333333333333333333333333333333333",
              "rawTransaction":"0x420420",
              "signatureHashType":"0",
-             "queueOrigin":"0",
+             "queueOrigin":"sequencer",
              "chainId":31337
           }
        ]
