@@ -1,7 +1,8 @@
 import { ethers } from 'ethers'
 
 import { OvmTransaction } from '../types'
-import { toUint256, toUint8, toHexString, fromHexString } from './hex-utils'
+import { toUint256, toUint8 } from './hex-utils'
+import { toHexString, fromHexString } from '@eth-optimism/core-utils'
 
 export const encodeOvmTransaction = (transaction: OvmTransaction): string => {
   return toHexString(

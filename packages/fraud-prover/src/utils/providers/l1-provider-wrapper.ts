@@ -1,5 +1,4 @@
-import { JsonRpcProvider } from '@ethersproject/providers'
-import { ethers, Event, Contract, BigNumber } from 'ethers'
+import { ethers, Event, Contract, BigNumber, providers } from 'ethers'
 import { MerkleTree } from 'merkletreejs'
 
 import {
@@ -11,7 +10,7 @@ import {
   OvmTransaction,
 } from '../../types'
 
-import { fromHexString, toHexString } from '../hex-utils'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 
 export class L1ProviderWrapper {
   private eventCache: {
@@ -22,7 +21,7 @@ export class L1ProviderWrapper {
   } = {}
 
   constructor(
-    public provider: JsonRpcProvider,
+    public provider: providers.JsonRpcProvider,
     public OVM_StateCommitmentChain: Contract,
     public OVM_CanonicalTransactionChain: Contract,
     public OVM_ExecutionManager: Contract,

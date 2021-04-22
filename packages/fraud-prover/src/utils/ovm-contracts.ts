@@ -1,5 +1,4 @@
-import { Contract } from 'ethers'
-import { JsonRpcProvider } from '@ethersproject/providers'
+import { Contract, providers } from 'ethers'
 import { getContractInterface } from '@eth-optimism/contracts'
 
 import { ZERO_ADDRESS } from './constants'
@@ -7,7 +6,7 @@ import { ZERO_ADDRESS } from './constants'
 export const loadContract = (
   name: string,
   address: string,
-  provider: JsonRpcProvider
+  provider: providers.JsonRpcProvider
 ): Contract => {
   return new Contract(address, getContractInterface(name) as any, provider)
 }
@@ -15,7 +14,7 @@ export const loadContract = (
 export const loadContractFromManager = async (
   name: string,
   Lib_AddressManager: Contract,
-  provider: JsonRpcProvider
+  provider: providers.JsonRpcProvider
 ): Promise<Contract> => {
   const address = await Lib_AddressManager.getAddress(name)
 
@@ -32,7 +31,7 @@ export const loadProxyFromManager = async (
   name: string,
   proxy: string,
   Lib_AddressManager: Contract,
-  provider: JsonRpcProvider
+  provider: providers.JsonRpcProvider
 ): Promise<Contract> => {
   const address = await Lib_AddressManager.getAddress(proxy)
 

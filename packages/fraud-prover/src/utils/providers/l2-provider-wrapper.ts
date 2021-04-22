@@ -1,10 +1,11 @@
-import { JsonRpcProvider } from '@ethersproject/providers'
+//import { JsonRpcProvider } from '@ethersproject/providers'
 
+import { providers } from 'ethers'
 import { StateDiffProof } from '../../types'
 import { toUnpaddedHexString } from '../hex-utils'
 
 export class L2ProviderWrapper {
-  constructor(public provider: JsonRpcProvider) {}
+  constructor(public provider: providers.JsonRpcProvider) {}
 
   public async getStateRoot(index: number): Promise<string> {
     const block = await this.provider.send('eth_getBlockByNumber', [

@@ -4,7 +4,6 @@ import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
 import { BaseTrie } from 'merkle-patricia-tree'
 
-/* Imports: Internal */
 import {
   BaseService,
   sleep,
@@ -12,19 +11,22 @@ import {
   fromHexString,
 } from '@eth-optimism/core-utils'
 
-import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
+import { 
+  loadContract, 
+  loadContractFromManager 
+} from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import {
   ZERO_ADDRESS,
   L1ProviderWrapper,
   L2ProviderWrapper,
-  toStrippedHexString,
   encodeAccountState,
   hashOvmTransaction,
-  toBytes32,
   makeTrieFromProofs,
   shuffle,
+  toStrippedHexString,
+  toBytes32,
 } from './utils'
 
 import {
@@ -206,37 +208,6 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
       address: this.state.OVM_ExecutionManager.address,
     })
 
-    // this.logger.info('Connecting to OVM_L1CrossDomainMessenger...')
-    // this.state.OVM_L1CrossDomainMessenger = await loadContractFromManager({
-    //   name: 'OVM_L1CrossDomainMessenger',
-    //   proxy: 'Proxy__OVM_L1CrossDomainMessenger',
-    //   Lib_AddressManager: this.state.Lib_AddressManager,
-    //   provider: this.options.l1RpcProvider,
-    // })
-    // this.logger.info('Connected to OVM_L1CrossDomainMessenger', {
-    //   address: this.state.OVM_L1CrossDomainMessenger.address,
-    // })
-
-    // this.logger.info('Connecting to OVM_L2CrossDomainMessenger...')
-    // this.state.OVM_L2CrossDomainMessenger = await loadContractFromManager({
-    //   name: 'OVM_L2CrossDomainMessenger',
-    //   Lib_AddressManager: this.state.Lib_AddressManager,
-    //   provider: this.options.l2RpcProvider,
-    // })
-    // this.logger.info('Connected to OVM_L2CrossDomainMessenger', {
-    //   address: this.state.OVM_L2CrossDomainMessenger.address,
-    // })
-
-    // this.logger.info('Connecting to OVM_L2ToL1MessagePasser...')
-    // this.state.OVM_L2ToL1MessagePasser = loadContract(
-    //   'OVM_L2ToL1MessagePasser',
-    //   '0x4200000000000000000000000000000000000000',
-    //   this.options.l2RpcProvider
-    // )
-    // this.logger.info('Connected to OVM_L2ToL1MessagePasser', {
-    //   address: this.state.OVM_L2ToL1MessagePasser.address,
-    // })
-
     this.logger.info('Connected to all contracts.')
 
     this.state.l1Provider = new L1ProviderWrapper(
@@ -266,10 +237,6 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
       this.state.OVM_CanonicalTransactionChain,
       this.state.OVM_CanonicalTransactionChain.filters.SequencerBatchAppended()
     )
-
-    // if (this.options.spreadsheetMode) {
-    //   this.logger.info('Running in spreadsheet mode')
-    // }
 
     this.state.lastQueriedL1Block = this.options.l1StartOffset
     this.state.eventCache = []
@@ -660,7 +627,7 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
   }
 
   /**
-   * Retrieves the state transitioner correspondng to a given pre-state root and transaction.
+   * Retrieves the state transitioner corresponding to a given pre-state root and transaction.
    * @param preStateRoot Pre-state root to retreive a state transitioner for.
    * @param transaction Transaction to retreive a state transitioner for.
    * @return Address of the corresponding state transitioner.
