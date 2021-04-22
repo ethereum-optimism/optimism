@@ -321,7 +321,7 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 				return fmt.Errorf("Calldata cannot be larger than %d, sent %d", b.MaxCallDataSize, len(signedTx.Data()))
 			}
 		}
-		return b.eth.syncService.ApplyTransaction(signedTx)
+		return b.eth.syncService.ValidateAndApplySequencerTransaction(signedTx)
 	}
 	// OVM Disabled
 	return b.eth.txPool.AddLocal(signedTx)
