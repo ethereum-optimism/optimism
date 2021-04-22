@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - master
+      - v*
     paths:
         - 'packages/**/*.sol'
         - 'packages/**/*.ts'
   pull_request:
     branches:
       - master
+      - v*
     paths:
         - 'packages/**/*.sol'
         - 'packages/**/*.ts'
