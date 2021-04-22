@@ -8,7 +8,7 @@ import { remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { decodeSolidityError } from '../../../helpers'
-import { getContractInterface } from '../../../../src'
+import { getContractInterface, getContractFactory } from '../../../../src'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -61,12 +61,12 @@ describe('OVM_ProxyEOA', () => {
 
   let OVM_ProxyEOAFactory: ContractFactory
   before(async () => {
-    OVM_ProxyEOAFactory = await ethers.getContractFactory('OVM_ProxyEOA')
+    OVM_ProxyEOAFactory = getContractFactory('OVM_ProxyEOA', wallet, true)
   })
 
   let OVM_ProxyEOA: Contract
   beforeEach(async () => {
-    OVM_ProxyEOA = await OVM_ProxyEOAFactory.deploy(eoaDefaultAddr)
+    OVM_ProxyEOA = await OVM_ProxyEOAFactory.deploy()
 
     Mock__OVM_ExecutionManager.smocked.ovmADDRESS.will.return.with(
       OVM_ProxyEOA.address

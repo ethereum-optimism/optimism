@@ -496,7 +496,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           ele.timestamp < earliestTimestamp ||
           ele.blockNumber < earliestBlockNumber
         ) {
-          this.log.warn('Fixing timestamp/blockNumber too small', {
+          this.log.error('Fixing timestamp/blockNumber too small', {
             oldTimestamp: ele.timestamp,
             newTimestamp: earliestTimestamp,
             oldBlockNumber: ele.blockNumber,
@@ -514,7 +514,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           ele.timestamp > latestTimestamp ||
           ele.blockNumber > latestBlockNumber
         ) {
-          this.log.warn('Fixing timestamp/blockNumber too large.', {
+          this.log.error('Fixing timestamp/blockNumber too large.', {
             oldTimestamp: ele.timestamp,
             newTimestamp: latestTimestamp,
             oldBlockNumber: ele.blockNumber,
