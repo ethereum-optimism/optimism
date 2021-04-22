@@ -3,7 +3,12 @@ import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from 'old-contracts'
-import { Logger, Bytes32, remove0x, toRpcHexString } from '@eth-optimism/core-utils'
+import {
+  Logger,
+  Bytes32,
+  remove0x,
+  toRpcHexString,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { L2Block } from '..'
@@ -202,10 +207,10 @@ export class StateBatchSubmitter extends BatchSubmitter {
       [...Array(blockRange).keys()],
       async (i: number) => {
         this.log.debug('Fetching L2BatchElement', { blockNo: startBlock + i })
-        const block = (await this.l2Provider.send('eth_getBlockByNumber', [
-          toRpcHexString(startBlock + i),
-          true,
-        ])) as L2Block
+        const block = (await this.l2Provider.getBlockWithTransactions(
+          startBlock + i
+        )) as L2Block
+
         const blockTx = block.transactions[0]
         if (blockTx.from === this.fraudSubmissionAddress) {
           this.log.warn('Found transaction from fraud submission address', {

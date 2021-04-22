@@ -21,10 +21,3 @@ export const remove0x = (str: string): string => {
     return str
   }
 }
-
-export const formatNumber = (num: any): number => {
-  if (num === '0x') {
-    return 0
-  }
-  return BigNumber.from(num).toNumber()
-}

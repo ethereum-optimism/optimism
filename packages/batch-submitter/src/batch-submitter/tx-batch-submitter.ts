@@ -14,7 +14,6 @@ import {
   ctcCoder,
   EthSignTxData,
   txTypePlainText,
-  toRpcHexString,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -25,14 +24,7 @@ import {
   AppendSequencerBatchParams,
 } from '../transaction-chain-contract'
 
-import {
-  formatNumber,
-  L2Block,
-  BatchElement,
-  Batch,
-  QueueOrigin,
-  queueOriginPlainText,
-} from '..'
+import { L2Block, BatchElement, Batch, QueueOrigin } from '..'
 import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 
 export interface AutoFixBatchOptions {
@@ -706,40 +698,32 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       block,
     })
 
-    const sequencerFields = {
-      isSequencerTx: false,
+    const batchElement = {
+      stateRoot: block.stateRoot,
+      timestamp: block.timestamp,
+      blockNumber: block.transactions[0].l1BlockNumber,
+      isSequencerTx: undefined,
       sequencerTxType: undefined,
       rawTransaction: undefined,
     }
 
     if (this._isSequencerTx(block)) {
-      sequencerFields.isSequencerTx = true
-      sequencerFields.sequencerTxType =
+      batchElement.isSequencerTx = true
+      batchElement.sequencerTxType =
         txTypePlainText[block.transactions[0].txType]
-      sequencerFields.rawTransaction = block.transactions[0].rawTransaction
-    }
-
-    const batchElement = {
-      ...sequencerFields,
-      stateRoot: block.stateRoot,
-      timestamp: formatNumber(block.timestamp),
-      blockNumber: formatNumber(block.transactions[0].l1BlockNumber),
+      batchElement.rawTransaction = block.transactions[0].rawTransaction
     }
 
     return batchElement
   }
 
   private async _getBlock(blockNumber: number): Promise<L2Block> {
-    return (await this.l2Provider.send('eth_getBlockByNumber', [
-      toRpcHexString(blockNumber),
-      true,
-    ])) as L2Block
+    return (await this.l2Provider.getBlockWithTransactions(
+      blockNumber
+    )) as L2Block
   }
 
   private _isSequencerTx(block: L2Block): boolean {
-    return (
-      queueOriginPlainText[block.transactions[0].queueOrigin] ===
-      QueueOrigin.Sequencer
-    )
+    return block.transactions[0].queueOrigin === QueueOrigin.Sequencer
   }
 }
