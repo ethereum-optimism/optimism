@@ -154,13 +154,13 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 func TestSyncServiceL1GasPrice(t *testing.T) {
 	service, _, _, err := newTestSyncService(true)
 	setupMockClient(service, map[string]interface{}{})
-	service.L1gpo = gasprice.NewL1Oracle(big.NewInt(0))
+	service.RollupGpo = gasprice.NewRollupOracle(big.NewInt(0), big.NewInt(0))
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	gasBefore, err := service.L1gpo.SuggestDataPrice(context.Background())
+	gasBefore, err := service.RollupGpo.SuggestDataPrice(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 	// Update the gas price
 	service.updateL1GasPrice()
 
-	gasAfter, err := service.L1gpo.SuggestDataPrice(context.Background())
+	gasAfter, err := service.RollupGpo.SuggestDataPrice(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +346,7 @@ type mockClient struct {
 func setupMockClient(service *SyncService, responses map[string]interface{}) {
 	client := newMockClient(responses)
 	service.client = client
-	service.L1gpo = gasprice.NewL1Oracle(big.NewInt(0))
+	service.RollupGpo = gasprice.NewRollupOracle(big.NewInt(0), big.NewInt(0))
 }
 
 func newMockClient(responses map[string]interface{}) *mockClient {
