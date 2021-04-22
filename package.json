@@ -5,7 +5,8 @@
   "workspaces": [
     "packages/*",
     "l2geth",
-    "integration-tests"
+    "integration-tests",
+    "specs"
   ],
   "private": true,
   "devDependencies": {

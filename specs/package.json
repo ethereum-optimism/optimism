@@ -2,6 +2,7 @@
   "name": "@eth-optimism/specs",
   "version": "0.1.0",
   "license": "MIT",
+  "private": true,
   "devDependencies": {
     "prettier": "2.2.1"
   },
