@@ -134,7 +134,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         override
         public
         returns (
-            bool _allowed
+            bool
         )
     {
         return (
