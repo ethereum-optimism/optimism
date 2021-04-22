@@ -680,23 +680,14 @@ func (s *SyncService) syncTransactionsToTip(backend Backend) error {
 		if latestIndex == nil {
 			return errors.New("Latest index is nil")
 		}
-		nextIndex := s.GetNextIndex()
-		log.Info("Syncing transactions to tip", "start", *latestIndex, "end", nextIndex)
 
-		for i := nextIndex; i <= *latestIndex; i++ {
-			tx, err := s.client.GetTransaction(i, backend)
-			if err != nil {
-				log.Error("Cannot get latest transaction", "msg", err)
-				time.Sleep(time.Second * 2)
-				continue
-			}
-			if tx == nil {
-				return fmt.Errorf("Transaction %d is nil", i)
-			}
-			err = s.applyTransaction(tx)
-			if err != nil {
-				return fmt.Errorf("Cannot apply transaction: %w", err)
-			}
+		nextIndex := s.GetNextIndex()
+		if nextIndex-1 == *latestIndex {
+			log.Info("No new transactions to sync", "tip", *latestIndex, "backend", backend.String())
+			return nil
+		}
+		if err := s.syncTransactionRange(nextIndex, *latestIndex, backend); err != nil {
+			return err
 		}
 
 		post, err := s.client.GetLatestTransaction(backend)
@@ -707,10 +698,27 @@ func (s *SyncService) syncTransactionsToTip(backend Backend) error {
 		if postLatestIndex == nil {
 			return errors.New("Latest index is nil")
 		}
+
 		if *postLatestIndex == *latestIndex {
 			return nil
 		}
 	}
+}
+
+// syncTransactionRange will sync a range of transactions from
+// start to end (inclusive) from a specific Backend
+func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) error {
+	log.Info("Syncing transactions to tip", "start", start, "end", end)
+	for i := start; i <= end; i++ {
+		tx, err := s.client.GetTransaction(i, backend)
+		if err != nil {
+			return fmt.Errorf("cannot fetch transaction %d: %w", i, err)
+		}
+		if err = s.applyTransaction(tx); err != nil {
+			return fmt.Errorf("Cannot apply transaction: %w", err)
+		}
+	}
+	return nil
 }
 
 // syncTransactionBatchesToTip will sync all of the transaction batches to the
@@ -729,21 +737,16 @@ func (s *SyncService) syncTransactionBatchesToTip() error {
 		if err != nil {
 			return fmt.Errorf("Cannot get latest transaction batch: %w", err)
 		}
-		latestIndex := latest.Index
-		nextIndex := s.GetNextVerifiedIndex()
 
-		for i := nextIndex; i <= latestIndex; i++ {
-			log.Debug("Fetching transaction batch", "index", i)
-			_, txs, err := s.client.GetTransactionBatch(i)
-			if err != nil {
-				return fmt.Errorf("Cannot get transaction batch: %w", err)
-			}
-			for _, tx := range txs {
-				if err := s.applyBatchedTransaction(tx); err != nil {
-					return fmt.Errorf("cannot apply batched transaction: %w", err)
-				}
-			}
+		nextIndex := s.GetNextVerifiedIndex()
+		if nextIndex-1 == latest.Index {
+			log.Info("No new batches to sync", "tip", latest.Index)
+			return nil
 		}
+		if err := s.syncTransactionBatchRange(nextIndex, latest.Index); err != nil {
+			return err
+		}
+
 		post, _, err := s.client.GetLatestTransactionBatch()
 		if err != nil {
 			return fmt.Errorf("Cannot get latest transaction batch: %w", err)
@@ -752,6 +755,24 @@ func (s *SyncService) syncTransactionBatchesToTip() error {
 			return nil
 		}
 	}
+}
+
+// syncTransactionBatchRange will sync a range of batched transactions from
+// start to end (inclusive)
+func (s *SyncService) syncTransactionBatchRange(start, end uint64) error {
+	for i := start; i <= end; i++ {
+		log.Debug("Fetching transaction batch", "index", i)
+		_, txs, err := s.client.GetTransactionBatch(i)
+		if err != nil {
+			return fmt.Errorf("Cannot get transaction batch: %w", err)
+		}
+		for _, tx := range txs {
+			if err := s.applyBatchedTransaction(tx); err != nil {
+				return fmt.Errorf("cannot apply batched transaction: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // syncQueueToTip will sync the `enqueue` transactions to the tip
@@ -763,7 +784,7 @@ func (s *SyncService) syncQueueToTip() error {
 	for {
 		latest, err := s.client.GetLatestEnqueue()
 		if errors.Is(err, errElementNotFound) {
-			log.Info("No enqueue transactions to sync")
+			log.Info("No queue transactions to sync")
 			return nil
 		}
 		if err != nil {
@@ -773,22 +794,16 @@ func (s *SyncService) syncQueueToTip() error {
 		if latestIndex == nil {
 			return errors.New("Latest queue transaction has no queue index")
 		}
-		nextIndex := s.GetNextEnqueueIndex()
-		log.Info("Syncing enqueue transactions to tip", "start", *latestIndex, "end", nextIndex)
 
-		for i := nextIndex; i <= *latestIndex; i++ {
-			tx, err := s.client.GetEnqueue(i)
-			if err != nil {
-				return fmt.Errorf("Canot get enqueue transaction; %w", err)
-			}
-			if tx == nil {
-				return fmt.Errorf("Cannot get queue tx at index %d", i)
-			}
-			err = s.applyTransaction(tx)
-			if err != nil {
-				return fmt.Errorf("Cannot apply transaction: %w", err)
-			}
+		nextIndex := s.GetNextEnqueueIndex()
+		if nextIndex-1 == *latestIndex {
+			log.Info("No new queue transactions to sync", "tip", *latestIndex)
+			return nil
 		}
+		if err := s.syncQueueTransactionRange(nextIndex, *latestIndex); err != nil {
+			return err
+		}
+
 		post, err := s.client.GetLatestEnqueue()
 		if err != nil {
 			return fmt.Errorf("Cannot get latest transaction: %w", err)
@@ -801,6 +816,22 @@ func (s *SyncService) syncQueueToTip() error {
 			return nil
 		}
 	}
+}
+
+// syncQueueTransactionRange will apply a range of queue transactions from
+// start to end (inclusive)
+func (s *SyncService) syncQueueTransactionRange(start, end uint64) error {
+	log.Info("Syncing enqueue transactions to tip", "start", start, "end", end)
+	for i := start; i <= end; i++ {
+		tx, err := s.client.GetEnqueue(i)
+		if err != nil {
+			return fmt.Errorf("Canot get enqueue transaction; %w", err)
+		}
+		if err := s.applyTransaction(tx); err != nil {
+			return fmt.Errorf("Cannot apply transaction: %w", err)
+		}
+	}
+	return nil
 }
 
 // updateEthContext will update the OVM execution context's
