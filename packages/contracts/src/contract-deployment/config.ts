@@ -222,12 +222,6 @@ export const makeContractDeployConfig = async (
     OVM_SequencerEntrypoint: {
       factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),
     },
-    OVM_ProxySequencerEntrypoint: {
-      factory: getContractFactory('OVM_ProxySequencerEntrypoint'),
-    },
-    mockOVM_ECDSAContractAccount: {
-      factory: getContractFactory('mockOVM_ECDSAContractAccount'),
-    },
     OVM_BondManager: {
       factory: getContractFactory('mockOVM_BondManager'),
       params: [AddressManager.address],

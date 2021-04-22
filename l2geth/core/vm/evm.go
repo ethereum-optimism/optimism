@@ -139,7 +139,6 @@ type Context struct {
 	OriginalTargetReached bool
 	OvmExecutionManager   dump.OvmDumpAccount
 	OvmStateManager       dump.OvmDumpAccount
-	OvmMockAccount        dump.OvmDumpAccount
 	OvmSafetyChecker      dump.OvmDumpAccount
 }
 
@@ -190,7 +189,6 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 	if chainConfig != nil && chainConfig.StateDump != nil {
 		ctx.OvmExecutionManager = chainConfig.StateDump.Accounts["OVM_ExecutionManager"]
 		ctx.OvmStateManager = chainConfig.StateDump.Accounts["OVM_StateManager"]
-		ctx.OvmMockAccount = chainConfig.StateDump.Accounts["mockOVM_ECDSAContractAccount"]
 		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
 	}
 
