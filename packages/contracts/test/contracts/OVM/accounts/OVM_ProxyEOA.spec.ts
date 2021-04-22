@@ -55,7 +55,7 @@ describe('OVM_ProxyEOA', () => {
     Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
 
     Mock__OVM_ECDSAContractAccount = await smockit(
-      getContractInterface('OVM_ECDSAContractAccount', true)
+      getContractInterface('OVM_ECDSAContractAccount')
     )
   })
 

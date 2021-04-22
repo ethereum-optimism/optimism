@@ -23,11 +23,16 @@ export const getContractDefinition = (name: string, ovm?: boolean): any => {
   }
 }
 
-export const getContractInterface = (
-  name: string,
-  ovm?: boolean
-): Interface => {
-  const definition = getContractDefinition(name, ovm)
+export const getContractInterface = (name: string): Interface => {
+  // ABI *will* be identical for both compilers. So to simplify the life of consumers of this
+  // function we'll just try both paths and see which one sticks.
+  let definition: any
+  try {
+    definition = getContractDefinition(name, true)
+  } catch (err) {
+    definition = getContractDefinition(name, false)
+  }
+
   return new ethers.utils.Interface(definition.abi)
 }
 
@@ -37,7 +42,7 @@ export const getContractFactory = (
   ovm?: boolean
 ): ContractFactory => {
   const definition = getContractDefinition(name, ovm)
-  const contractInterface = getContractInterface(name, ovm)
+  const contractInterface = getContractInterface(name)
   return new ContractFactory(contractInterface, definition.bytecode, signer)
 }
 
