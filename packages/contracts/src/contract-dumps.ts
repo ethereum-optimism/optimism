@@ -166,6 +166,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_L2CrossDomainMessenger',
     'OVM_SequencerEntrypoint',
     'Lib_AddressManager',
+    'OVM_DeployerWhitelist',
     'OVM_ETH',
     'OVM_ECDSAContractAccount',
     'OVM_ProxyEOA',
