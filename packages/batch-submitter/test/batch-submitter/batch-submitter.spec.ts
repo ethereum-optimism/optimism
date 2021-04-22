@@ -247,18 +247,9 @@ describe('BatchSubmitter', () => {
         const nextQueueElement = await getQueueElement(
           OVM_CanonicalTransactionChain
         )
-        const data = ctcCoder.eip155TxData.encode({
-          sig: DUMMY_SIG,
-          gasLimit: 0,
-          gasPrice: 0,
-          nonce: 0,
-          target: DUMMY_ADDRESS,
-          data: '0x',
-          type: TxType.EIP155,
-        })
         l2Provider.setL2BlockData(
           {
-            data,
+            rawTransaction: '0x1234',
             l1BlockNumber: nextQueueElement.blockNumber - 1,
             txType: TxType.EIP155,
             queueOrigin: QueueOrigin.Sequencer,
@@ -305,18 +296,9 @@ describe('BatchSubmitter', () => {
           OVM_CanonicalTransactionChain,
           2
         )
-        const data = ctcCoder.ethSignTxData.encode({
-          sig: DUMMY_SIG,
-          gasLimit: 0,
-          gasPrice: 0,
-          nonce: 0,
-          target: DUMMY_ADDRESS,
-          data: '0x',
-          type: TxType.EthSign,
-        })
         l2Provider.setL2BlockData(
           {
-            data,
+            rawTransaction: '0x1234',
             l1BlockNumber: nextQueueElement.blockNumber - 1,
             txType: TxType.EthSign,
             queueOrigin: QueueOrigin.Sequencer,
@@ -418,18 +400,9 @@ describe('BatchSubmitter', () => {
       const nextQueueElement = await getQueueElement(
         OVM_CanonicalTransactionChain
       )
-      const data = ctcCoder.eip155TxData.encode({
-        sig: DUMMY_SIG,
-        gasLimit: 0,
-        gasPrice: 0,
-        nonce: 0,
-        target: DUMMY_ADDRESS,
-        data: '0x',
-        type: TxType.EIP155,
-      })
       l2Provider.setL2BlockData(
         {
-          data,
+          rawTransaction: '0x1234',
           l1BlockNumber: nextQueueElement.blockNumber - 1,
           txType: TxType.EIP155,
           queueOrigin: QueueOrigin.Sequencer,

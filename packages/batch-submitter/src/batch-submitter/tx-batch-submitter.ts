@@ -1,20 +1,13 @@
 /* External Imports */
 import { Promise as bPromise } from 'bluebird'
-import { BigNumber, Signer, ethers, Wallet, Contract, providers } from 'ethers'
+import { Signer, ethers, Contract, providers } from 'ethers'
 import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
 import { getContractInterface, getContractFactory } from 'old-contracts'
 import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
-import {
-  Logger,
-  EIP155TxData,
-  TxType,
-  ctcCoder,
-  EthSignTxData,
-  txTypePlainText,
-} from '@eth-optimism/core-utils'
+import { Logger, ctcCoder } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -24,13 +17,7 @@ import {
   AppendSequencerBatchParams,
 } from '../transaction-chain-contract'
 
-import {
-  L2Block,
-  BatchElement,
-  Batch,
-  QueueOrigin,
-  queueOriginPlainText,
-} from '..'
+import { L2Block, BatchElement, Batch, QueueOrigin } from '..'
 import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 
 export interface AutoFixBatchOptions {
@@ -602,41 +589,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           queueElementBlockNumber: queueElement.blockNumber,
         }
       )
-      // This implies that we've double played a deposit.
-      // We can correct this by instead submitting a dummy sequencer tx
-      const wallet = Wallet.createRandom()
-      const gasLimit = 8_000_000
-      const gasPrice = 0
-      const chainId = 10
-      const nonce = 0
-      const rawTx = await wallet.signTransaction({
-        gasLimit,
-        gasPrice,
-        chainId,
-        nonce,
-        to: '0x1111111111111111111111111111111111111111',
-        data: '0x1234',
-      })
-      // tx: [0nonce, 1gasprice, 2startgas, 3to, 4value, 5data, 6v, 7r, 8s]
-      const tx = ethers.utils.RLP.decode(rawTx)
-      const dummyTx: EIP155TxData = {
-        sig: {
-          v: tx[6],
-          r: tx[7],
-          s: tx[8],
-        },
-        gasLimit,
-        gasPrice,
-        nonce,
-        target: tx[3],
-        data: tx[5],
-        type: TxType.EIP155,
-      }
+      const dummyTx: string = '0x1234'
       return {
         stateRoot: queueElement.stateRoot,
         isSequencerTx: true,
-        sequencerTxType: TxType.EIP155,
-        txData: dummyTx,
+        rawTransaction: dummyTx,
         timestamp: queueElement.timestamp,
         blockNumber: queueElement.blockNumber,
       }
@@ -715,17 +672,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       if (!block.isSequencerTx) {
         continue
       }
-      let encoding: string
-      if (block.sequencerTxType === TxType.EIP155) {
-        encoding = ctcCoder.eip155TxData.encode(block.txData as EIP155TxData)
-      } else if (block.sequencerTxType === TxType.EthSign) {
-        encoding = ctcCoder.ethSignTxData.encode(block.txData as EthSignTxData)
-      } else {
-        throw new Error(
-          `Trying to build batch with unknown type ${block.sequencerTxType}`
-        )
-      }
-      transactions.push(encoding)
+      transactions.push(block.rawTransaction)
     }
 
     return {
@@ -742,67 +689,26 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     this.log.debug('Fetched L2 block', {
       block,
     })
-    const txType = block.transactions[0].txType
+
+    const batchElement = {
+      stateRoot: block.stateRoot,
+      timestamp: block.timestamp,
+      blockNumber: block.transactions[0].l1BlockNumber,
+      isSequencerTx: false,
+      rawTransaction: undefined,
+    }
 
     if (this._isSequencerTx(block)) {
-      if (txType === TxType.EIP155 || txType === TxType.EthSign) {
-        return this._getDefaultEcdsaTxBatchElement(block)
-      } else {
-        throw new Error('Unsupported Tx Type!')
-      }
-    } else {
-      return {
-        stateRoot: block.stateRoot,
-        isSequencerTx: false,
-        sequencerTxType: undefined,
-        txData: undefined,
-        timestamp: block.timestamp,
-        blockNumber: block.transactions[0].l1BlockNumber,
-      }
+      batchElement.isSequencerTx = true
+      batchElement.rawTransaction = block.transactions[0].rawTransaction
     }
+
+    return batchElement
   }
 
   private async _getBlock(blockNumber: number): Promise<L2Block> {
-    const block = (await this.l2Provider.getBlockWithTransactions(
-      blockNumber
-    )) as L2Block
-    // Convert the tx type to a number
-    block.transactions[0].txType = txTypePlainText[block.transactions[0].txType]
-    block.transactions[0].queueOrigin =
-      queueOriginPlainText[block.transactions[0].queueOrigin]
-    if (!block.transactions[0].l1BlockNumber) {
-      this.log.error('Current block missing l1BlockNumber', {
-        blockNumber,
-        block,
-      })
-    }
-
-    return block
-  }
-
-  private _getDefaultEcdsaTxBatchElement(block: L2Block): BatchElement {
-    const tx: TransactionResponse = block.transactions[0]
-    const txData: EIP155TxData = {
-      sig: {
-        v: tx.v - this.l2ChainId * 2 - 8 - 27,
-        r: tx.r,
-        s: tx.s,
-      },
-      gasLimit: BigNumber.from(tx.gasLimit).toNumber(),
-      gasPrice: BigNumber.from(tx.gasPrice).toNumber(),
-      nonce: tx.nonce,
-      target: tx.to ? tx.to : '00'.repeat(20),
-      data: tx.data,
-      type: block.transactions[0].txType,
-    }
-    return {
-      stateRoot: block.stateRoot,
-      isSequencerTx: true,
-      sequencerTxType: block.transactions[0].txType,
-      txData,
-      timestamp: block.timestamp,
-      blockNumber: block.transactions[0].l1BlockNumber,
-    }
+    const p = this.l2Provider.getBlockWithTransactions(blockNumber)
+    return p as Promise<L2Block>
   }
 
   private _isSequencerTx(block: L2Block): boolean {

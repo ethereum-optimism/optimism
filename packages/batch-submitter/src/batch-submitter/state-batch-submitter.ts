@@ -3,7 +3,12 @@ import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from 'old-contracts'
-import { Logger, Bytes32, remove0x } from '@eth-optimism/core-utils'
+import {
+  Logger,
+  Bytes32,
+  remove0x,
+  toRpcHexString,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { L2Block } from '..'
