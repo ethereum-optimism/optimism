@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+### Patch Changes
+
+- ab285e4: properly start the batch submitter instead of instantly exiting
+
 ## 0.2.0
 
 ### Minor Changes
