@@ -5,8 +5,10 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
-import { Abs_L1TokenGateway } from "./Abs_L1TokenGateway.sol";
 import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
+
+/* Contract Imports */
+import { Abs_L1TokenGateway } from "./Abs_L1TokenGateway.sol";
 
 /**
  * @title OVM_L1ERC20Gateway
@@ -24,11 +26,12 @@ import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
  */
 contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
 
-    /********************************
-     * External Contract References *
-     ********************************/
+    /*************
+     * Variables *
+     *************/
     
     iOVM_ERC20 public l1ERC20;
+
 
     /***************
      * Constructor *
@@ -52,9 +55,9 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
     }
 
 
-    /**************
-     * Accounting *
-     **************/
+    /**********************
+     * Internal Functions *
+     **********************/
 
     /**
      * @dev When a deposit is initiated on L1, the L1 Gateway

@@ -19,9 +19,9 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
 
 /**
  * @title OVM_L1CrossDomainMessenger
- * @dev The L1 Cross Domain Messenger contract sends messages from L1 to L2, and relays messages from L2 onto L1.
- * In the event that a message sent from L1 to L2 is rejected for exceeding the L2 epoch gas limit, it can be resubmitted
- * via this contract's replay function.
+ * @dev The L1 Cross Domain Messenger contract sends messages from L1 to L2, and relays messages
+ * from L2 onto L1. In the event that a message sent from L1 to L2 is rejected for exceeding the L2
+ * epoch gas limit, it can be resubmitted via this contract's replay function.
  *
  * Compiler used: solc
  * Runtime target: EVM
@@ -39,26 +39,14 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         Lib_AddressResolver(address(0))
     {}
 
-    /**
-     * @param _libAddressManager Address of the Address Manager.
-     */
-    function initialize(
-        address _libAddressManager
-    )
-        public
-    {
-        require(address(libAddressManager) == address(0), "L1CrossDomainMessenger already intialized.");
-        libAddressManager = Lib_AddressManager(_libAddressManager);
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
-    }
-
 
     /**********************
      * Function Modifiers *
      **********************/
 
     /**
-     * Modifier to enforce that, if configured, only the OVM_L2MessageRelayer contract may successfully call a method.
+     * Modifier to enforce that, if configured, only the OVM_L2MessageRelayer contract may
+     * successfully call a method.
      */
     modifier onlyRelayer() {
         address relayer = resolve("OVM_L2MessageRelayer");
@@ -75,6 +63,23 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
     /********************
      * Public Functions *
      ********************/
+
+    /**
+     * @param _libAddressManager Address of the Address Manager.
+     */
+    function initialize(
+        address _libAddressManager
+    )
+        public
+    {
+        require(
+            address(libAddressManager) == address(0),
+            "L1CrossDomainMessenger already intialized."
+        );
+
+        libAddressManager = Lib_AddressManager(_libAddressManager);
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+    }
 
     /**
      * Relays a cross domain message to a contract.
@@ -207,7 +212,9 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
             bool
         )
     {
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(
+            resolve("OVM_StateCommitmentChain")
+        );
 
         return (
             ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) == false
