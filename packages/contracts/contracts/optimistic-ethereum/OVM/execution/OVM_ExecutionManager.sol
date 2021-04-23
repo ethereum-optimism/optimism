@@ -826,7 +826,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // not being either 0 or 1 counts as invalid. Reset `authorized` and exit early.
         if (_yParity > 1) {
             messageContext.authorized = address(0);
-            return signer;
+            return address(0);
         }
 
         // Compute message hash based on EIP-3074 behavior:
