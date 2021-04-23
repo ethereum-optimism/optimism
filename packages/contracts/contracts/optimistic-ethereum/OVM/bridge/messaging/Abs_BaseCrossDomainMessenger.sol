@@ -5,8 +5,8 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { iAbs_BaseCrossDomainMessenger } from "../../../iOVM/bridge/messaging/iAbs_BaseCrossDomainMessenger.sol";
 
-/* Library Imports */
-import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuard.sol";
+/* External Imports */
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title Abs_BaseCrossDomainMessenger
@@ -17,7 +17,7 @@ import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuar
  * Compiler used: defined by child contract
  * Runtime target: defined by child contract
  */
-abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger, Lib_ReentrancyGuard {
+abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger, ReentrancyGuard {
 
     /*************
      * Constants *
@@ -44,7 +44,7 @@ abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger,
      * Constructor *
      ***************/
 
-    constructor() Lib_ReentrancyGuard() {}
+    constructor() ReentrancyGuard() {}
 
 
     /********************

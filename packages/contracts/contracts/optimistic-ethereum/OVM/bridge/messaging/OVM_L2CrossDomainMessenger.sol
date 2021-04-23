@@ -4,7 +4,6 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuard.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
