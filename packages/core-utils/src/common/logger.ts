@@ -92,7 +92,11 @@ export class Logger {
 
   error(msg: string, o?: object, ...args: any[]): void {
     if (o) {
-      this.inner.error(o, msg, ...args)
+      // Formatting error log for Sentry
+      const context = {
+        extra: { ...o },
+      }
+      this.inner.error(context, msg, ...args)
     } else {
       this.inner.error(msg, ...args)
     }
