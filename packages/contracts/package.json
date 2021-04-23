@@ -5,6 +5,7 @@
   "files": [
     "dist/**/*.js",
     "dist/types/*.ts",
+    "dist/types-ovm/*.ts",
     "artifacts/**/*.json",
     "artifacts-ovm/**/*.json",
     "OVM",
