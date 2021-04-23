@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.7
+
+### Patch Changes
+
+- e3f55ad: Remove trailing whitespace from many files
+
 ## 0.2.6
 
 ### Patch Changes

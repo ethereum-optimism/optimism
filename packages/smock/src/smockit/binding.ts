@@ -1,13 +1,24 @@
 /* Imports: External */
-import { TransactionExecutionError } from 'hardhat/internal/hardhat-network/provider/errors'
 import { HardhatNetworkProvider } from 'hardhat/internal/hardhat-network/provider/provider'
 import { decodeRevertReason } from 'hardhat/internal/hardhat-network/stack-traces/revert-reasons'
 import { VmError } from '@nomiclabs/ethereumjs-vm/dist/exceptions'
-import { toHexString, fromHexString } from '@eth-optimism/core-utils'
 import BN from 'bn.js'
+
+// Handle hardhat ^2.2.0
+let TransactionExecutionError: any
+try {
+  // tslint:disable-next-line
+  TransactionExecutionError = require('hardhat/internal/hardhat-network/provider/errors')
+    .TransactionExecutionError
+} catch (err) {
+  // tslint:disable-next-line
+  TransactionExecutionError = require('hardhat/internal/core/providers/errors')
+    .TransactionExecutionError
+}
 
 /* Imports: Internal */
 import { MockContract, SmockedVM } from './types'
+import { fromFancyAddress, toFancyAddress } from '../common'
 
 /**
  * Checks to see if smock has been initialized already. Basically just checking to see if we've
@@ -52,7 +63,7 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
       return
     }
 
-    const target = toHexString(message.to).toLowerCase()
+    const target = fromFancyAddress(message.to)
 
     // Check if the target address is a smocked contract.
     if (!(target in vm._smockState.mocks)) {
@@ -77,7 +88,7 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
     // later creates a contract at that address. Not sure how to handle this case. Very open to
     // ideas.
     if (result.createdAddress) {
-      const created = toHexString(result.createdAddress).toLowerCase()
+      const created = fromFancyAddress(result.createdAddress)
       if (created in vm._smockState.mocks) {
         delete vm._smockState.mocks[created]
       }
@@ -92,7 +103,7 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
     // contracts never create new sub-calls (meaning this `afterMessage` event corresponds directly
     // to a `beforeMessage` event emitted during a call to a smock contract).
     const message = vm._smockState.messages.pop()
-    const target = toHexString(message.to).toLowerCase()
+    const target = fromFancyAddress(message.to)
 
     // Not sure if this can ever actually happen? Just being safe.
     if (!(target in vm._smockState.mocks)) {
@@ -157,7 +168,7 @@ export const bindSmock = async (
   }
 
   const vm: SmockedVM = (provider as any)._node._vm
-  const pStateManager = vm.pStateManager
+  const pStateManager = vm.pStateManager || vm.stateManager
 
   // Add mock to our list of mocks currently attached to the VM.
   vm._smockState.mocks[mock.address.toLowerCase()] = mock
@@ -166,7 +177,7 @@ export const bindSmock = async (
   // Solidity will sometimes throw if it's calling something without code (I forget the exact
   // scenario that causes this throw).
   await pStateManager.putContractCode(
-    fromHexString(mock.address),
+    toFancyAddress(mock.address),
     Buffer.from('00', 'hex')
   )
 }

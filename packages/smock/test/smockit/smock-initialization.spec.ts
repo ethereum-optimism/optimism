@@ -1,11 +1,13 @@
 /* Imports: External */
-import { ethers, artifacts } from 'hardhat'
+import hre from 'hardhat'
 import { expect } from 'chai'
 
 /* Imports: Internal */
 import { smockit, isMockContract } from '../../src'
 
 describe('[smock]: initialization tests', () => {
+  const ethers = (hre as any).ethers
+
   describe('initialization: ethers objects', () => {
     it('should be able to create a SmockContract from an ethers ContractFactory', async () => {
       const spec = await ethers.getContractFactory('TestHelpers_EmptyContract')
@@ -46,7 +48,7 @@ describe('[smock]: initialization tests', () => {
     })
 
     it('should be able to create a SmockContract from a JSON contract artifact object', async () => {
-      const artifact = await artifacts.readArtifact(
+      const artifact = await hre.artifacts.readArtifact(
         'TestHelpers_BasicReturnContract'
       )
       const spec = artifact
@@ -56,7 +58,7 @@ describe('[smock]: initialization tests', () => {
     })
 
     it('should be able to create a SmockContract from a JSON contract ABI object', async () => {
-      const artifact = await artifacts.readArtifact(
+      const artifact = await hre.artifacts.readArtifact(
         'TestHelpers_BasicReturnContract'
       )
       const spec = artifact.abi
@@ -66,7 +68,7 @@ describe('[smock]: initialization tests', () => {
     })
 
     it('should be able to create a SmockContract from a JSON contract ABI string', async () => {
-      const artifact = await artifacts.readArtifact(
+      const artifact = await hre.artifacts.readArtifact(
         'TestHelpers_BasicReturnContract'
       )
       const spec = JSON.stringify(artifact.abi)

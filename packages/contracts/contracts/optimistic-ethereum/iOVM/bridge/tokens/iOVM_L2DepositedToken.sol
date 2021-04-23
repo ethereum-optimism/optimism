@@ -20,7 +20,7 @@ interface iOVM_L2DepositedToken {
     event DepositFinalized(
         address indexed _to,
         uint256 _amount
-    );    
+    );
 
 
     /********************

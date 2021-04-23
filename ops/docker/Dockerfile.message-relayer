@@ -29,4 +29,4 @@ COPY --from=builder /optimism/packages/message-relayer/node_modules ./node_modul
 
 # copy this over in case you want to run alongside other services
 COPY ./ops/scripts/relayer.sh .
-ENTRYPOINT ["node", "exec/run-message-relayer.js"]
+ENTRYPOINT ["npm", "run", "start"]

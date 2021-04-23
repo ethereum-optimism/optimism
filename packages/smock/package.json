@@ -3,7 +3,7 @@
   "files": [
     "dist/src/*"
   ],
-  "version": "1.0.2",
+  "version": "1.1.0",
   "main": "dist/src/index",
   "types": "dist/src/index",
   "license": "MIT",
@@ -28,15 +28,15 @@
     "bn.js": "^5.2.0"
   },
   "devDependencies": {
-    "@nomiclabs/ethereumjs-vm": "4.2.2",
+    "@nomiclabs/ethereumjs-vm": "^4.2.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@types/lodash": "^4.14.161",
     "chai": "^4.3.0",
     "ethereum-waffle": "^3.3.0",
-    "ethers": "^5.0.32",
+    "ethers": "^5.0.31",
     "glob": "^7.1.6",
-    "hardhat": "^2.1.1",
+    "hardhat": "^2.2.1",
     "lodash": "^4.17.20",
     "prettier": "^2.2.1"
   }

@@ -104,7 +104,7 @@ library Lib_RingBuffer {
         internal
     {
         RingBufferContext memory ctx = _self.getContext();
-        
+
         _self.push(
             _value,
             ctx.extraData
@@ -124,7 +124,7 @@ library Lib_RingBuffer {
         internal
         view
         returns (
-            bytes32    
+            bytes32
         )
     {
         RingBufferContext memory ctx = _self.getContext();
