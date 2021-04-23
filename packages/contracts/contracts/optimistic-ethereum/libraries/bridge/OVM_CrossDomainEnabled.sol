@@ -16,7 +16,7 @@ contract OVM_CrossDomainEnabled {
 
     /***************
      * Constructor *
-     ***************/    
+     ***************/
     constructor(
         address _messenger
     ) {
@@ -46,14 +46,14 @@ contract OVM_CrossDomainEnabled {
 
         _;
     }
-    
+
     /**********************
      * Internal Functions *
      **********************/
 
     /**
      * @notice Gets the messenger, usually from storage.  This function is exposed in case a child contract needs to override.
-     * @return The address of the cross-domain messenger contract which should be used. 
+     * @return The address of the cross-domain messenger contract which should be used.
      */
     function getCrossDomainMessenger()
         internal

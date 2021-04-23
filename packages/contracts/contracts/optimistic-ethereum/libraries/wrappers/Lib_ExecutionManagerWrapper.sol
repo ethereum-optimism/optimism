@@ -7,7 +7,7 @@ import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
 
 /**
  * @title Lib_ExecutionManagerWrapper
- * 
+ *
  * Compiler used: solc
  * Runtime target: OVM
  */

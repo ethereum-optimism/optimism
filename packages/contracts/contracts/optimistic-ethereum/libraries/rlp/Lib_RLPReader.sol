@@ -23,7 +23,7 @@ library Lib_RLPReader {
         LIST_ITEM
     }
 
-    
+
     /***********
      * Structs *
      ***********/
@@ -32,12 +32,12 @@ library Lib_RLPReader {
         uint256 length;
         uint256 ptr;
     }
-    
+
 
     /**********************
      * Internal Functions *
      **********************/
-    
+
     /**
      * Converts bytes to a reference to memory position and length.
      * @param _in Input bytes to convert.
@@ -484,7 +484,7 @@ library Lib_RLPReader {
             // Short string.
 
             uint256 strLen = prefix - 0x80;
-            
+
             require(
                 _in.length > strLen,
                 "Invalid RLP short string."

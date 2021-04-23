@@ -15,9 +15,9 @@ import { OVM_StateTransitioner } from "./OVM_StateTransitioner.sol";
 
 /**
  * @title OVM_StateTransitionerFactory
- * @dev The State Transitioner Factory is used by the Fraud Verifier to create a new State 
+ * @dev The State Transitioner Factory is used by the Fraud Verifier to create a new State
  * Transitioner during the initialization of a fraud proof.
- * 
+ *
  * Compiler used: solc
  * Runtime target: EVM
  */

@@ -8,9 +8,9 @@ import { iOVM_DeployerWhitelist } from "../../iOVM/predeploys/iOVM_DeployerWhite
  * @title OVM_DeployerWhitelist
  * @dev The Deployer Whitelist is a temporary predeploy used to provide additional safety during the
  * initial phases of our mainnet roll out. It is owned by the Optimism team, and defines accounts
- * which are allowed to deploy contracts on Layer2. The Execution Manager will only allow an 
+ * which are allowed to deploy contracts on Layer2. The Execution Manager will only allow an
  * ovmCREATE or ovmCREATE2 operation to proceed if the deployer's address whitelisted.
- * 
+ *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
@@ -19,7 +19,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
     /**********************
      * Contract Constants *
      **********************/
-    
+
     bool public initialized;
     bool public allowArbitraryDeployment;
     address override public owner;
@@ -29,7 +29,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
     /**********************
      * Function Modifiers *
      **********************/
-    
+
     /**
      * Blocks functions to anyone except the contract owner.
      */
@@ -45,7 +45,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
     /********************
      * Public Functions *
      ********************/
-    
+
     /**
      * Initializes the whitelist.
      * @param _owner Address of the owner for this contract.

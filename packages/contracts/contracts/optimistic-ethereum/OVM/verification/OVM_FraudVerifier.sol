@@ -21,10 +21,10 @@ import { Abs_FraudContributor } from "./Abs_FraudContributor.sol";
 
 /**
  * @title OVM_FraudVerifier
- * @dev The Fraud Verifier contract coordinates the entire fraud proof verification process. 
+ * @dev The Fraud Verifier contract coordinates the entire fraud proof verification process.
  * If the fraud proof was successful it prunes any state batches from State Commitment Chain
  * which were published after the fraudulent state root.
- * 
+ *
  * Compiler used: solc
  * Runtime target: EVM
  */
@@ -204,7 +204,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
             _postStateRoot != transitioner.getPostStateRoot(),
             "State transition has not been proven fraudulent."
         );
-        
+
         _cancelStateTransition(_postStateRootBatchHeader, _preStateRoot);
 
         // TEMPORARY: Remove the transitioner; for minnet.
