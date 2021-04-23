@@ -96,7 +96,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         );
 
         // Contract creations are signalled by sending a transaction to the zero address.
-        if (transaction.to == address(0)) {
+        if (transaction.isCreate) {
             (address created, bytes memory revertdata) = Lib_ExecutionManagerWrapper.ovmCREATE(
                 transaction.data
             );
