@@ -8,6 +8,8 @@ import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressReso
 import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManager.sol";
 import { Lib_SecureMerkleTrie } from "../../../libraries/trie/Lib_SecureMerkleTrie.sol";
 import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuard.sol";
+import { Ownable } from "../../../libraries/utils/Lib_Ownable.sol";
+import { Pausable } from "../../../libraries/utils/Lib_Pausable.sol";
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
@@ -26,14 +28,22 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver, Ownable, Pausable {
+
+    /**********************
+     * Contract Variables *
+     **********************/
+
+    mapping (bytes32 => bool) public blockedMessages;
 
     /***************
      * Constructor *
      ***************/
 
     /**
-     * Pass a default zero address to the address resolver. This will be updated when initialized.
+     * This contract is intended to be behind a delegate proxy.
+     * We pass the zero address to the address resolver just to satisfy the constructor.
+     * We still need to set this value in initialize().
      */
     constructor()
         Lib_AddressResolver(address(0))
@@ -50,6 +60,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         require(address(libAddressManager) == address(0), "L1CrossDomainMessenger already intialized.");
         libAddressManager = Lib_AddressManager(_libAddressManager);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        owner = msg.sender;
     }
 
 
@@ -77,8 +88,49 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
      ********************/
 
     /**
+     * Pause relaying.
+     */
+    function pause()
+        external
+        onlyOwner
+    {
+        _pause();
+    }
+
+    /**
+     * Block a message.
+     * @param _xDomainCalldataHash Hash of the message to block.
+     */
+    function blockMessage(
+        bytes32 _xDomainCalldataHash
+    )
+        external
+        onlyOwner
+    {
+        blockedMessages[_xDomainCalldataHash] = true;
+    }
+
+    /**
+     * Allow a message.
+     * @param _xDomainCalldataHash Hash of the message to block.
+     */
+    function allowMessage(
+        bytes32 _xDomainCalldataHash
+    )
+        external
+        onlyOwner
+    {
+        blockedMessages[_xDomainCalldataHash] = false;
+    }
+
+    /**
      * Relays a cross domain message to a contract.
-     * @inheritdoc iOVM_L1CrossDomainMessenger
+     * This function executes a transaction on L1, which was initiated on L2.
+     * @param _target Target contract address.
+     * @param _sender Message sender address.
+     * @param _message Message to send to the target.
+     * @param _messageNonce Nonce for the provided message.
+     * @param _proof Inclusion proof for the given message.
      */
     function relayMessage(
         address _target,
@@ -90,7 +142,8 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         override
         public
         nonReentrant
-        onlyRelayer()
+        onlyRelayer
+        whenNotPaused
     {
         bytes memory xDomainCalldata = _getXDomainCalldata(
             _target,
@@ -112,6 +165,11 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         require(
             successfulMessages[xDomainCalldataHash] == false,
             "Provided message has already been received."
+        );
+
+        require(
+            blockedMessages[xDomainCalldataHash] == false,
+            "Provided message has been blocked."
         );
 
         xDomainMsgSender = _sender;
@@ -139,7 +197,15 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
 
     /**
      * Replays a cross domain message to the target messenger.
-     * @inheritdoc iOVM_L1CrossDomainMessenger
+     * In case an L1 to L2 message is not successfully executed in the L2 messenger,
+     * this function can be used to replay the message.
+     * There is no limit to how many time this can be called,
+     * but replay protection is handled by the L2 messenger.
+     * @param _target Target contract address.
+     * @param _sender Original sender address.
+     * @param _message Message to send to the target.
+     * @param _messageNonce Nonce for the provided message.
+     * @param _gasLimit Gas limit for the provided message.
      */
     function replayMessage(
         address _target,
