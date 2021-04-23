@@ -21,6 +21,8 @@ const log = new Logger({
   name,
   sentryOptions: {
     release: `batch-submitter@${process.env.npm_package_version}`,
+    // @ts-ignore stackAttributeKey belongs to PinoSentryOptions, not exported
+    stackAttributeKey: 'err',
     dsn: process.env.SENTRY_DSN,
     tracesSampleRate: 0.05,
   },
