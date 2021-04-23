@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+
+### Patch Changes
+
+- 6d31324: Update release tag for Sentry compatability
+- a2f6e83: add default metrics to all batch submitters
+
 ## 0.2.1
 
 ### Patch Changes
