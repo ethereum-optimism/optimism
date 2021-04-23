@@ -16,9 +16,29 @@ import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Execut
  * Runtime target: OVM
  */
 contract OVM_UpgradeExecutor {
-    fallback()
+    function setCode(
+        address _address,
+        bytes memory _code
+    )
         external
     {
-        revert("Not yet implemented.");
+        Lib_ExecutionManagerWrapper.ovmSETCODE(
+            _address,
+            _code
+        );
+    }
+
+    function setStorage(
+        address _address,
+        bytes32 _key,
+        bytes32 _value
+    )
+        external
+    {
+        Lib_ExecutionManagerWrapper.ovmSETSTORAGE(
+            _address,
+            _key,
+            _value
+        );
     }
 }

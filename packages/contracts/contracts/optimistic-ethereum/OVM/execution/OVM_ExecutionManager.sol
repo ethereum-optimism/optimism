@@ -1967,7 +1967,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         external
-        onlyCallableBy(resolve("OVM_UpgradeExecutor"))
+        onlyCallableBy(0x420000000000000000000000000000000000000A)
     {
         _checkAccountLoad(_address);
         ovmStateManager.putAccountCode(_address, _code);
@@ -1987,7 +1987,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         external
-        onlyCallableBy(resolve("OVM_UpgradeExecutor"))
+        onlyCallableBy(0x420000000000000000000000000000000000000A)
     {
         _putContractStorage(
             _address,

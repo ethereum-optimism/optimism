@@ -237,7 +237,7 @@ export const makeContractDeployConfig = async (
       ],
     },
     OVM_UpgradeExecutor: {
-      factory: getContractFactory('OVM_UpgradeExecutor'),
+      factory: getContractFactory('OVM_UpgradeExecutor', undefined, true),
       params: [],
     },
     'OVM_ChainStorageContainer-CTC-batches': {

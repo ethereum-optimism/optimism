@@ -18,7 +18,12 @@ const config: HardhatUserConfig = {
       ovm: true,
     },
   },
-  solidity: '0.7.6',
+  solidity: {
+    version: '0.7.6',
+    settings: {
+      optimizer: { enabled: true, runs: 1 },
+    },
+  },
   ovm: {
     solcVersion: '0.7.6',
   },

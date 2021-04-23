@@ -5,9 +5,9 @@ contract ICrossDomainMessenger {
 }
 
 contract SimpleStorage {
+    bytes32 public value;
     address public msgSender;
     address public xDomainSender;
-    bytes32 public value;
     uint256 public totalCount;
 
     function setValue(bytes32 newValue) public {
