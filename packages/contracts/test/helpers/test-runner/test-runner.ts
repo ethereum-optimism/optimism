@@ -28,6 +28,8 @@ import {
   isTestStep_EXTCODEHASH,
   isTestStep_EXTCODECOPY,
   isTestStep_REVERT,
+  isTestStep_SETCODE,
+  isTestStep_SETSTORAGE,
 } from './test.types'
 import { encodeRevertData, REVERT_FLAGS } from '../codec'
 import {
@@ -37,7 +39,7 @@ import {
 } from '../constants'
 import { getStorageXOR } from '../'
 import { UNSAFE_BYTECODE } from '../dummy'
-import { getContractFactory } from '../../../src'
+import { getContractFactory, predeploys } from '../../../src'
 
 export class ExecutionManagerTestRunner {
   private snapshot: string
@@ -216,6 +218,11 @@ export class ExecutionManagerTestRunner {
     await AddressManager.setAddress(
       'OVM_SafetyChecker',
       this.contracts.OVM_SafetyChecker.address
+    )
+
+    await AddressManager.setAddress(
+      'OVM_UpgradeExecutor',
+      predeploys.OVM_UpgradeExecutor
     )
 
     const DeployerWhitelist = await getContractFactory(
@@ -426,7 +433,9 @@ export class ExecutionManagerTestRunner {
       isTestStep_EXTCODESIZE(step) ||
       isTestStep_EXTCODEHASH(step) ||
       isTestStep_EXTCODECOPY(step) ||
-      isTestStep_CREATEEOA(step)
+      isTestStep_CREATEEOA(step) ||
+      isTestStep_SETCODE(step) ||
+      isTestStep_SETSTORAGE(step)
     ) {
       functionParams = Object.values(step.functionParams)
     } else if (isTestStep_CALL(step)) {
