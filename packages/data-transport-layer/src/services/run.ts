@@ -39,7 +39,6 @@ interface Bcfg {
       l2ChainId: config.uint('l2ChainId'),
       syncFromL1: config.bool('syncFromL1', true),
       syncFromL2: config.bool('syncFromL2', false),
-      showUnconfirmedTransactions: config.bool('syncFromL2', false),
       transactionsPerPollingInterval: config.uint(
         'transactionsPerPollingInterval',
         1000
@@ -48,8 +47,8 @@ interface Bcfg {
         'legacySequencerCompatibility',
         false
       ),
-      stopL2SyncAtBlock: config.uint('stopL2SyncAtBlock'),
       sentryDsn: config.str('sentryDsn'),
+      defaultBackend: config.str('defaultBackend', 'l1'),
     })
 
     await service.start()

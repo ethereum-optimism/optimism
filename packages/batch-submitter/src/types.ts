@@ -1,23 +1,12 @@
 /* External Imports */
 import {
   BlockWithTransactions,
-  Provider,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 
-/* Internal Imports */
-import { EIP155TxData, TxType } from '@eth-optimism/core-utils'
-
 export enum QueueOrigin {
-  Sequencer = 0,
-  L1ToL2 = 1,
-}
-
-export const queueOriginPlainText = {
-  0: QueueOrigin.Sequencer,
-  1: QueueOrigin.L1ToL2,
-  sequencer: QueueOrigin.Sequencer,
-  l1ToL2: QueueOrigin.L1ToL2,
+  Sequencer = 'sequencer',
+  L1ToL2 = 'l1',
 }
 
 /**
@@ -27,8 +16,8 @@ export const queueOriginPlainText = {
 export interface L2Transaction extends TransactionResponse {
   l1BlockNumber: number
   l1TxOrigin: string
-  txType: number
-  queueOrigin: number
+  queueOrigin: string
+  rawTransaction: string
 }
 
 export interface L2Block extends BlockWithTransactions {
@@ -43,8 +32,7 @@ export interface L2Block extends BlockWithTransactions {
 export interface BatchElement {
   stateRoot: string
   isSequencerTx: boolean
-  sequencerTxType: undefined | TxType
-  txData: undefined | EIP155TxData
+  rawTransaction: undefined | string
   timestamp: number
   blockNumber: number
 }

@@ -1,5 +1,29 @@
 # @eth-optimism/core-utils
 
+## 0.3.1
+
+### Patch Changes
+
+- 5077441: - Use raw transaction in batch submitter -- incompatible with L2Geth v0.1.2.1
+  - Pass through raw transaction in l2context
+
+## 0.3.0
+
+### Minor Changes
+
+- 91460d9: add Metrics and use in base-service, rename DTL services to avoid spaces
+- a0a7956: initialize Sentry and streams in Logger, remove Sentry from Batch Submitter
+
+### Patch Changes
+
+- 0497d7d: Re-organize event typings to core-utils
+
+## 0.2.3
+
+### Patch Changes
+
+- 35b99b0: add Sentry to TypeScript services for error tracking
+
 ## 0.2.2
 
 ### Patch Changes

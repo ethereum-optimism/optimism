@@ -169,8 +169,8 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 		t.Fatal("expected 0 gas price, got", gasBefore)
 	}
 
-	// run 1 iteration of the eloop
-	service.sequence()
+	// Update the gas price
+	service.updateL1GasPrice()
 
 	gasAfter, err := service.L1gpo.SuggestDataPrice(context.Background())
 	if err != nil {
@@ -426,6 +426,14 @@ func (m *mockClient) GetLatestEthContext() (*EthContext, error) {
 
 func (m *mockClient) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 	return nil, nil
+}
+
+func (m *mockClient) GetLatestTransactionBatch() (*Batch, []*types.Transaction, error) {
+	return nil, nil, nil
+}
+
+func (m *mockClient) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction, error) {
+	return nil, nil, nil
 }
 
 func (m *mockClient) SyncStatus() (*SyncStatus, error) {

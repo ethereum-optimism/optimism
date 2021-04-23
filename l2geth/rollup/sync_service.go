@@ -75,8 +75,8 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	}
 	timestampRefreshThreshold := cfg.TimestampRefreshThreshold
 	if timestampRefreshThreshold == 0 {
-		log.Info("Sanitizing timestamp refresh threshold to 15 minutes")
-		timestampRefreshThreshold = time.Minute * 15
+		log.Info("Sanitizing timestamp refresh threshold to 3 minutes")
+		timestampRefreshThreshold = time.Minute * 3
 	}
 
 	// Layer 2 chainid
@@ -249,13 +249,15 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		queueIndex := s.GetLatestEnqueueIndex()
 		if queueIndex == nil {
 			enqueue, err := s.client.GetLastConfirmedEnqueue()
+			// There are no enqueues yet
+			if errors.Is(err, errElementNotFound) {
+				return nil
+			}
+			// Other unexpected error
 			if err != nil {
 				return fmt.Errorf("Cannot fetch last confirmed queue tx: %w", err)
 			}
-			// There are no enqueues yet
-			if enqueue == nil {
-				return nil
-			}
+			// No error, the queue element was found
 			queueIndex = enqueue.GetMeta().QueueIndex
 		}
 		s.SetLatestEnqueueIndex(queueIndex)
@@ -296,6 +298,9 @@ func (s *SyncService) Stop() error {
 func (s *SyncService) VerifierLoop() {
 	log.Info("Starting Verifier Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
+		if err := s.updateL1GasPrice(); err != nil {
+			log.Error("Cannot update L1 gas price", "msg", err)
+		}
 		if err := s.verify(); err != nil {
 			log.Error("Could not verify", "error", err)
 		}
@@ -307,13 +312,12 @@ func (s *SyncService) verify() error {
 	// The verifier polls for ctc transactions.
 	// the ctc transactions are extending the chain.
 	latest, err := s.client.GetLatestTransaction()
-	if err != nil {
-		return err
-	}
-
-	if latest == nil {
+	if errors.Is(err, errElementNotFound) {
 		log.Debug("latest transaction not found")
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	var start uint64
@@ -344,6 +348,9 @@ func (s *SyncService) verify() error {
 func (s *SyncService) SequencerLoop() {
 	log.Info("Starting Sequencer Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	for {
+		if err := s.updateL1GasPrice(); err != nil {
+			log.Error("Cannot update L1 gas price", "msg", err)
+		}
 		s.txLock.Lock()
 		err := s.sequence()
 		if err != nil {
@@ -360,30 +367,19 @@ func (s *SyncService) SequencerLoop() {
 }
 
 func (s *SyncService) sequence() error {
-	// Update to the latest L1 gas price
-	l1GasPrice, err := s.client.GetL1GasPrice()
-	if err != nil {
-		return err
-	}
-	s.L1gpo.SetL1GasPrice(l1GasPrice)
-	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
-
 	// Only the sequencer needs to poll for enqueue transactions
 	// and then can choose when to apply them. We choose to apply
 	// transactions such that it makes for efficient batch submitting.
 	// Place as many L1ToL2 transactions in the same context as possible
 	// by executing them one after another.
 	latest, err := s.client.GetLatestEnqueue()
-	if err != nil {
-		return err
-	}
-
-	// This should never happen unless the backend is empty
-	if latest == nil {
+	if errors.Is(err, errElementNotFound) {
 		log.Debug("No enqueue transactions found")
 		return nil
 	}
-
+	if err != nil {
+		return fmt.Errorf("cannot fetch latest enqueue: %w", err)
+	}
 	// Compare the remote latest queue index to the local latest
 	// queue index. If the remote latest queue index is greater
 	// than the local latest queue index, be sure to ingest more
@@ -445,6 +441,19 @@ func (s *SyncService) sequence() error {
 	return nil
 }
 
+// updateL1GasPrice queries for the current L1 gas price and then stores it
+// in the L1 Gas Price Oracle. This must be called over time to properly
+// estimate the transaction fees that the sequencer should charge.
+func (s *SyncService) updateL1GasPrice() error {
+	l1GasPrice, err := s.client.GetL1GasPrice()
+	if err != nil {
+		return err
+	}
+	s.L1gpo.SetL1GasPrice(l1GasPrice)
+	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
+	return nil
+}
+
 /// Update the execution context's timestamp and blocknumber
 /// over time. This is only necessary for the sequencer.
 func (s *SyncService) updateContext() error {
@@ -475,14 +484,14 @@ func (s *SyncService) syncTransactionsToTip() error {
 		// This function must be sure to sync all the way to the tip.
 		// First query the latest transaction
 		latest, err := s.client.GetLatestTransaction()
+		if errors.Is(err, errElementNotFound) {
+			log.Info("No transactions to sync")
+			return nil
+		}
 		if err != nil {
 			log.Error("Cannot get latest transaction", "msg", err)
 			time.Sleep(time.Second * 2)
 			continue
-		}
-		if latest == nil {
-			log.Info("No transactions to sync")
-			return nil
 		}
 		tipHeight := latest.GetMeta().Index
 		index := rawdb.ReadHeadIndex(s.db)
@@ -537,40 +546,90 @@ func (s *SyncService) syncTransactionsToTip() error {
 
 // Methods for safely accessing and storing the latest
 // L1 blocknumber and timestamp. These are held in memory.
+
+// GetLatestL1Timestamp returns the OVMContext timestamp
 func (s *SyncService) GetLatestL1Timestamp() uint64 {
 	return atomic.LoadUint64(&s.OVMContext.timestamp)
 }
 
+// GetLatestL1BlockNumber returns the OVMContext blocknumber
 func (s *SyncService) GetLatestL1BlockNumber() uint64 {
 	return atomic.LoadUint64(&s.OVMContext.blockNumber)
 }
 
+// SetLatestL1Timestamp will set the OVMContext timestamp
 func (s *SyncService) SetLatestL1Timestamp(ts uint64) {
 	atomic.StoreUint64(&s.OVMContext.timestamp, ts)
 }
 
+// SetLatestL1BlockNumber will set the OVMContext blocknumber
 func (s *SyncService) SetLatestL1BlockNumber(bn uint64) {
 	atomic.StoreUint64(&s.OVMContext.blockNumber, bn)
 }
 
+// GetLatestEnqueueIndex reads the last queue index processed
 func (s *SyncService) GetLatestEnqueueIndex() *uint64 {
 	return rawdb.ReadHeadQueueIndex(s.db)
 }
 
+// GetNextEnqueueIndex returns the next queue index to process
+func (s *SyncService) GetNextEnqueueIndex() uint64 {
+	latest := s.GetLatestEnqueueIndex()
+	if latest == nil {
+		return 0
+	}
+	return *latest + 1
+}
+
+// SetLatestEnqueueIndex writes the last queue index that was processed
 func (s *SyncService) SetLatestEnqueueIndex(index *uint64) {
 	if index != nil {
 		rawdb.WriteHeadQueueIndex(s.db, *index)
 	}
 }
 
+// GetLatestIndex reads the last CTC index that was processed
+func (s *SyncService) GetLatestIndex() *uint64 {
+	return rawdb.ReadHeadIndex(s.db)
+}
+
+// GetNextIndex reads the next CTC index to process
+func (s *SyncService) GetNextIndex() uint64 {
+	latest := s.GetLatestIndex()
+	if latest == nil {
+		return 0
+	}
+	return *latest + 1
+}
+
+// SetLatestIndex writes the last CTC index that was processed
 func (s *SyncService) SetLatestIndex(index *uint64) {
 	if index != nil {
 		rawdb.WriteHeadIndex(s.db, *index)
 	}
 }
 
-func (s *SyncService) GetLatestIndex() *uint64 {
-	return rawdb.ReadHeadIndex(s.db)
+// GetLatestVerifiedIndex reads the last verified CTC index that was processed
+// These are set by processing batches of transactions that were submitted to
+// the Canonical Transaction Chain.
+func (s *SyncService) GetLatestVerifiedIndex() *uint64 {
+	return rawdb.ReadHeadVerifiedIndex(s.db)
+}
+
+// GetNextVerifiedIndex reads the next verified index
+func (s *SyncService) GetNextVerifiedIndex() uint64 {
+	index := s.GetLatestVerifiedIndex()
+	if index == nil {
+		return 0
+	}
+	return *index + 1
+}
+
+// SetLatestVerifiedIndex writes the last verified index that was processed
+func (s *SyncService) SetLatestVerifiedIndex(index *uint64) {
+	if index != nil {
+		rawdb.WriteHeadVerifiedIndex(s.db, *index)
+	}
 }
 
 // reorganize will reorganize to directly to the index passed in.

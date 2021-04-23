@@ -91,7 +91,7 @@ type Backend interface {
 	IsVerifier() bool
 	IsSyncing() bool
 	GetEthContext() (uint64, uint64)
-	GetRollupContext() (uint64, uint64)
+	GetRollupContext() (uint64, uint64, uint64)
 	GasLimit() uint64
 	GetDiff(*big.Int) (diffdb.Diff, error)
 	SuggestDataPrice(ctx context.Context) (*big.Int, error)

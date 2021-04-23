@@ -1,5 +1,9 @@
 /* Imports: External */
-import { fromHexString, BaseService } from '@eth-optimism/core-utils'
+import {
+  fromHexString,
+  BaseService,
+  EventArgsAddressSet,
+} from '@eth-optimism/core-utils'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 
@@ -12,11 +16,7 @@ import {
   loadContract,
   validators,
 } from '../../utils'
-import {
-  EventArgsAddressSet,
-  TypedEthersEvent,
-  EventHandlerSet,
-} from '../../types'
+import { TypedEthersEvent, EventHandlerSet } from '../../types'
 import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
 import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
@@ -60,7 +60,7 @@ const optionSettings = {
 
 export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
   constructor(options: L1IngestionServiceOptions) {
-    super('L1 Ingestion Service', options, optionSettings)
+    super('L1_Ingestion_Service', options, optionSettings)
   }
 
   private state: {

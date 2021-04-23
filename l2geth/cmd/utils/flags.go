@@ -846,7 +846,7 @@ var (
 	RollupTimstampRefreshFlag = cli.DurationFlag{
 		Name:   "rollup.timestamprefresh",
 		Usage:  "Interval for refreshing the timestamp",
-		Value:  time.Minute * 15,
+		Value:  time.Minute * 3,
 		EnvVar: "ROLLUP_TIMESTAMP_REFRESH",
 	}
 	// Flag to enable verifier mode

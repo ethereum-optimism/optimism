@@ -1,8 +1,8 @@
 import { getContractInterface } from '../../../src/contract-defs'
 
 export const getXDomainCalldata = (
-  sender: string,
   target: string,
+  sender: string,
   message: string,
   messageNonce: number
 ): string => {

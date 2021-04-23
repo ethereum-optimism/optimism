@@ -1,7 +1,7 @@
 #!/bin/bash
 RETRIES=${RETRIES:-40}
 # get the addrs from the URL provided
-ADDRESSES=$(curl --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
+ADDRESSES=$(curl --silent --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
 
 function envSet() {
     VAR=$1
@@ -20,6 +20,12 @@ if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
 fi
 
 # wait for the dtl to be up, else geth will crash if it cannot connect
-curl --retry-connrefused --retry $RETRIES --retry-delay 2 $ROLLUP_CLIENT_HTTP
+curl \
+    --silent \
+    --output /dev/null \
+    --retry-connrefused \
+    --retry $RETRIES \
+    --retry-delay 1 \
+    $ROLLUP_CLIENT_HTTP
 
 exec geth --verbosity=6

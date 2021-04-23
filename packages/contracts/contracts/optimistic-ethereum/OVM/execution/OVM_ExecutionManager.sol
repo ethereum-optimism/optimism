@@ -15,8 +15,6 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
 
 /* Contract Imports */
-import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
-import { OVM_ProxyEOA } from "../accounts/OVM_ProxyEOA.sol";
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
 
 /**
@@ -534,9 +532,25 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address prevADDRESS = messageContext.ovmADDRESS;
         messageContext.ovmADDRESS = eoa;
 
-        // Now actually create the account and get its bytecode. We're not worried about reverts
-        // (other than out of gas, which we can't capture anyway) because this contract is trusted.
-        OVM_ProxyEOA proxyEOA = new OVM_ProxyEOA(0x4200000000000000000000000000000000000003);
+        // Creates a duplicate of the OVM_ProxyEOA located at 0x42....09. Uses the following
+        // "magic" prefix to deploy an exact copy of the code:
+        // PUSH1 0x0D   # size of this prefix in bytes
+        // CODESIZE
+        // SUB          # subtract prefix size from codesize 
+        // DUP1
+        // PUSH1 0x0D
+        // PUSH1 0x00
+        // CODECOPY     # copy everything after prefix into memory at pos 0
+        // PUSH1 0x00
+        // RETURN       # return the copied code
+        address proxyEOA = Lib_EthUtils.createContract(abi.encodePacked(
+            hex"600D380380600D6000396000f3",
+            ovmEXTCODECOPY(
+                0x4200000000000000000000000000000000000009,
+                0,
+                ovmEXTCODESIZE(0x4200000000000000000000000000000000000009)
+            )
+        ));
 
         // Reset the address now that we're done deploying.
         messageContext.ovmADDRESS = prevADDRESS;

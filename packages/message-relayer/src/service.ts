@@ -57,10 +57,8 @@ const optionSettings = {
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
-  protected name = 'Message Relayer'
-
   constructor(options: MessageRelayerOptions) {
-    super('Message Relayer', options, optionSettings)
+    super('Message_Relayer', options, optionSettings)
   }
 
   protected spreadsheetMode: boolean

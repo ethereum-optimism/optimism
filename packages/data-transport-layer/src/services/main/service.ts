@@ -21,13 +21,12 @@ export interface L1DataTransportServiceOptions {
   logsPerPollingInterval: number
   pollingInterval: number
   port: number
-  showUnconfirmedTransactions: boolean
   syncFromL1?: boolean
   syncFromL2?: boolean
   transactionsPerPollingInterval: number
   legacySequencerCompatibility: boolean
-  stopL2SyncAtBlock?: number
   sentryDsn?: string
+  defaultBackend: string
 }
 
 const optionSettings = {
@@ -44,7 +43,7 @@ const optionSettings = {
 // prettier-ignore
 export class L1DataTransportService extends BaseService<L1DataTransportServiceOptions> {
   constructor(options: L1DataTransportServiceOptions) {
-    super('L1 Data Transport Service', options, optionSettings)
+    super('L1_Data_Transport_Service', options, optionSettings)
   }
 
   private state: {

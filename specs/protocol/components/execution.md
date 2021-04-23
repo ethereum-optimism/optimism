@@ -59,7 +59,6 @@ The first magic string MUST:
 
 The second magic string does this:
 
-
 ## Defining the OVM Sandbox
 
 The OVM Sandbox consists of:

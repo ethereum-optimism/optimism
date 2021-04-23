@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.4
+
+### Patch Changes
+
+- 7e9ca1e: Add batch API to rollup client
+- 6e8fe1b: Removes mockOVM_ECDSAContractAccount and OVM_ProxySequencerEntrypoint, two unused contracts.
+- 76c4ceb: Calculate data fees based on if a byte was zero or non-zero
+
+## 0.2.3
+
+### Patch Changes
+
+- d6734f6: Change ROLLUP_BASE_TX_SIZE to camelcase for standard style
+- 5e0d0fc: Commit go.sum after a `make test`
+- 8a2c24a: Set default timestamp refresh threshold to 3 minutes
+- ba2e043: Add `VerifiedIndex` to db and api
+- ef40ed7: Allow gas estimation for replicas
+
+## 0.2.2
+
+### Patch Changes
+
+- b290cfe: CPU Optimization by caching ABI methods
+- c4266fa: Fix logger error
+
 ## 0.2.1
 
 ### Patch Changes

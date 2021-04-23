@@ -66,7 +66,7 @@ describe('OVM_L1ERC20Gateway', () => {
       Mock__OVM_L1CrossDomainMessenger.address
     )
 
-    finalizeDepositGasLimit = await OVM_L1ERC20Gateway.DEFAULT_FINALIZE_DEPOSIT_L2_GAS()
+    finalizeDepositGasLimit = await OVM_L1ERC20Gateway.getFinalizeDepositL2Gas()
   })
 
   describe('finalizeWithdrawal', () => {

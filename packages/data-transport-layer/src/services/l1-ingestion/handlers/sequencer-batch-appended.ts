@@ -6,12 +6,12 @@ import {
   fromHexString,
   toHexString,
   TxType,
+  EventArgsSequencerBatchAppended,
 } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import {
   DecodedSequencerBatchTransaction,
-  EventArgsSequencerBatchAppended,
   SequencerBatchAppendedExtraData,
   SequencerBatchAppendedParsedEvent,
   TransactionBatchEntry,
