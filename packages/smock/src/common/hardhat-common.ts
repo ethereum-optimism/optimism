@@ -1,6 +1,7 @@
 /* Imports: External */
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { HardhatNetworkProvider } from 'hardhat/internal/hardhat-network/provider/provider'
+import { fromHexString } from '@eth-optimism/core-utils'
 
 /**
  * Finds the "base" Ethereum provider of the current hardhat environment.
@@ -43,4 +44,19 @@ export const findBaseHardhatProvider = (
   // TODO: Figure out a reliable way to do a type check here. Source for inspiration:
   // https://github.com/nomiclabs/hardhat/blob/master/packages/hardhat-core/src/internal/hardhat-network/provider/provider.ts
   return provider as any
+}
+
+/**
+ * Converts a string into the fancy new address thing that ethereumjs-vm v5 expects while also
+ * maintaining backwards compatibility with ethereumjs-vm v4.
+ * @param address String address to convert into the fancy new address type.
+ * @returns Fancified address.
+ */
+export const toFancyAddress = (address: string): any => {
+  const addressBuf = fromHexString(address)
+  ;(addressBuf as any).buf = fromHexString(address)
+  ;(addressBuf as any).toString = () => {
+    return address.toLowerCase()
+  }
+  return addressBuf
 }
