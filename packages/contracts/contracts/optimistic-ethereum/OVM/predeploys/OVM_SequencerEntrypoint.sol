@@ -39,7 +39,7 @@ contract OVM_SequencerEntrypoint {
             Lib_ExecutionManagerWrapper.ovmCHAINID()
         );
 
-        // Value is computed on the fly. Store it to save some gas.
+        // Value is computed on the fly. Keep it in the stack to save some gas.
         address target = transaction.sender();
 
         bool isEmptyContract;
