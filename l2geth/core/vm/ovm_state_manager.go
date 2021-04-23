@@ -19,6 +19,7 @@ var funcs = map[string]stateManagerFunction{
 	"getAccountEthAddress":                     getAccountEthAddress,
 	"getContractStorage":                       getContractStorage,
 	"putContractStorage":                       putContractStorage,
+	"putAccountCode":                           putAccountCode,
 	"isAuthenticated":                          nativeFunctionTrue,
 	"hasAccount":                               nativeFunctionTrue,
 	"hasEmptyAccount":                          hasEmptyAccount,
@@ -153,6 +154,32 @@ func putContractStorage(evm *EVM, contract *Contract, args map[string]interface{
 		// otherwise just do the db update
 		evm.StateDB.SetState(address, key, val)
 	}
+	return []interface{}{}, nil
+}
+
+func putAccountCode(evm *EVM, contract *Contract, args map[string]interface{}) ([]interface{}, error) {
+	address, ok := args["_address"].(common.Address)
+	if !ok {
+		return nil, errors.New("Could not parse address arg in putAccountCode")
+	}
+	code, ok := args["_code"].([]byte)
+	if !ok {
+		return nil, errors.New("Could not parse code arg in putAccountCode")
+	}
+
+	// save the block number and address with modified key if it's not an eth_call
+	if evm.Context.EthCallSender == nil {
+		err := evm.StateDB.SetDiffAccount(
+			evm.Context.BlockNumber,
+			address,
+		)
+		if err != nil {
+			log.Error("Cannot set diff key", "err", err)
+		}
+	}
+	evm.StateDB.SetCode(address, code)
+	log.Debug("Put account code", "address", address.Hex(), "code", code)
+
 	return []interface{}{}, nil
 }
 
