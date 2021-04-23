@@ -140,7 +140,7 @@ library Lib_ExecutionManagerWrapper {
     /*
      * Performs a safe ovmSETCODE call.
      */
-    function safeSETCODE(
+    function ovmSETCODE(
         address _address,
         bytes memory _code
     )
@@ -160,15 +160,17 @@ library Lib_ExecutionManagerWrapper {
      */
     function ovmSETSTORAGE(
         address _address,
-        bytes memory _code
+        bytes32 _key,
+        bytes32 _value
     )
         internal
     {
         _safeExecutionManagerInteraction(
             abi.encodeWithSignature(
-                "ovmSETSTORAGE(address,bytes)",
+                "ovmSETSTORAGE(address,bytes32,bytes32)",
                 _address,
-                _code
+                _key,
+                _value
             )
         );
     }
