@@ -165,7 +165,7 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
-    new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
+    log.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     new Metrics({ prefix: TX_BATCH_SUBMITTER_LOG_TAG }),
     DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
@@ -187,7 +187,7 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
-    new Logger({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
+    log.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
     new Metrics({ prefix: STATE_BATCH_SUBMITTER_LOG_TAG }),
     FRAUD_SUBMISSION_ADDRESS
   )
