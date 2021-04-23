@@ -36,8 +36,9 @@ const deployProxyXDomainMessenger = async (
 
 describe('OVM_L1CrossDomainMessenger', () => {
   let signer: Signer
+  let signer2: Signer
   before(async () => {
-    ;[signer] = await ethers.getSigners()
+    ;[signer, signer2] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
@@ -103,9 +104,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       it('should pause the contract', async () => {
         await OVM_L1CrossDomainMessenger.pause()
 
-        expect(
-          await OVM_L1CrossDomainMessenger.paused()
-        ).to.be.true
+        expect(await OVM_L1CrossDomainMessenger.paused()).to.be.true
       })
     })
   })
@@ -185,7 +184,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
       calldata = getXDomainCalldata(target, sender, message, 0)
 
-      const precompile = '0x4200000000000000000000000000000000000000'
+      const predeploy = '0x4200000000000000000000000000000000000000'
 
       const storageKey = keccak256(
         keccak256(
@@ -205,7 +204,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       const generator = await TrieTestGenerator.fromAccounts({
         accounts: [
           {
-            address: precompile,
+            address: predeploy,
             nonce: 0,
             balance: 0,
             codeHash: keccak256('0x1234'),
@@ -219,7 +218,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
         stateRoot: toHexString(generator._trie.root),
         stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
         stateRootProof: DUMMY_BATCH_PROOFS[0],
-        stateTrieWitness: (await generator.makeAccountProofTest(precompile))
+        stateTrieWitness: (await generator.makeAccountProofTest(predeploy))
           .accountTrieWitness,
         storageTrieWitness: (
           await storageGenerator.makeInclusionProofTest(storageKey)
@@ -378,18 +377,24 @@ describe('OVM_L1CrossDomainMessenger', () => {
           0,
           proof
         )
-      ).to.be.revertedWith(
-        'Pausable: paused'
-      )
+      ).to.be.revertedWith('Pausable: paused')
     })
 
     describe('blockMessage and allowMessage', () => {
-      it('should revert if the message is blocked', async () => {
-        await OVM_L1CrossDomainMessenger.blockMessage(
-          keccak256(
-            calldata
-          )
+      it('should revert if called by an account other than the owner', async () => {
+        const OVM_L1CrossDomainMessenger2 = OVM_L1CrossDomainMessenger.connect(
+          signer2
         )
+        await expect(
+          OVM_L1CrossDomainMessenger2.blockMessage(keccak256(calldata))
+        ).to.be.revertedWith('Ownable: caller is not the owner')
+
+        await expect(
+          OVM_L1CrossDomainMessenger2.allowMessage(keccak256(calldata))
+        ).to.be.revertedWith('Ownable: caller is not the owner')
+      })
+      it('should revert if the message is blocked', async () => {
+        await OVM_L1CrossDomainMessenger.blockMessage(keccak256(calldata))
 
         await expect(
           OVM_L1CrossDomainMessenger.relayMessage(
@@ -399,16 +404,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
             0,
             proof
           )
-        ).to.be.revertedWith(
-          'Provided message has been blocked.'
-        )
+        ).to.be.revertedWith('Provided message has been blocked.')
       })
       it('should succeed if the message is blocked, then unblocked', async () => {
-        await OVM_L1CrossDomainMessenger.blockMessage(
-          keccak256(
-            calldata
-          )
-        )
+        await OVM_L1CrossDomainMessenger.blockMessage(keccak256(calldata))
 
         await expect(
           OVM_L1CrossDomainMessenger.relayMessage(
@@ -418,15 +417,9 @@ describe('OVM_L1CrossDomainMessenger', () => {
             0,
             proof
           )
-        ).to.be.revertedWith(
-          'Provided message has been blocked.'
-        )
+        ).to.be.revertedWith('Provided message has been blocked.')
 
-        await OVM_L1CrossDomainMessenger.allowMessage(
-          keccak256(
-            calldata
-          )
-        )
+        await OVM_L1CrossDomainMessenger.allowMessage(keccak256(calldata))
 
         await expect(
           OVM_L1CrossDomainMessenger.relayMessage(
