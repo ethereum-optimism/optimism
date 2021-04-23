@@ -128,6 +128,8 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         if (success == true) {
             successfulMessages[xDomainCalldataHash] = true;
             emit RelayedMessage(xDomainCalldataHash);
+        } else {
+            emit FailedRelayedMessage(xDomainCalldataHash);
         }
 
         // Store an identifier that can be used to prove that the given message was relayed by some
