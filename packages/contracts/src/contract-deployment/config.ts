@@ -236,6 +236,10 @@ export const makeContractDeployConfig = async (
         '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
       ],
     },
+    OVM_UpgradeExecutor: {
+      factory: getContractFactory('OVM_UpgradeExecutor'),
+      params: [],
+    },
     'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],

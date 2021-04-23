@@ -169,6 +169,27 @@ export interface TestStep_Run {
   expectedRevertValue?: string
 }
 
+export interface TestStep_SETCODE {
+  functionName: 'ovmSETCODE'
+  functionParams: {
+    address: string
+    code: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue?: RevertFlagError
+}
+
+export interface TestStep_SETSTORAGE {
+  functionName: 'ovmSETSTORAGE'
+  functionParams: {
+    address: string
+    key: string
+    value: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue?: RevertFlagError
+}
+
 export type TestStep =
   | TestStep_Context
   | TestStep_SSTORE
@@ -183,6 +204,8 @@ export type TestStep =
   | TestStep_EXTCODECOPY
   | TestStep_REVERT
   | TestStep_evm
+  | TestStep_SETCODE
+  | TestStep_SETSTORAGE
 
 export interface ParsedTestStep {
   functionName: string
@@ -279,6 +302,18 @@ export const isTestStep_CREATE2 = (
   step: TestStep
 ): step is TestStep_CREATE2 => {
   return step.functionName === 'ovmCREATE2'
+}
+
+export const isTestStep_SETCODE = (
+  step: TestStep | TestStep_Run
+): step is TestStep_SETCODE => {
+  return step.functionName === 'ovmSETCODE'
+}
+
+export const isTestStep_SETSTORAGE = (
+  step: TestStep | TestStep_Run
+): step is TestStep_SETSTORAGE => {
+  return step.functionName === 'ovmSETSTORAGE'
 }
 
 export const isTestStep_Run = (
