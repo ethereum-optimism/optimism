@@ -8,7 +8,7 @@ import BN from 'bn.js'
 
 /* Imports: Internal */
 import { MockContract, SmockedVM } from './types'
-import { toFancyAddress } from '../common'
+import { fromFancyAddress, toFancyAddress } from '../common'
 
 /**
  * Checks to see if smock has been initialized already. Basically just checking to see if we've
@@ -53,12 +53,7 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
       return
     }
 
-    let target: string
-    if (message.to.buf) {
-      target = toHexString(message.to.buf).toLowerCase()
-    } else {
-      target = toHexString(message.to).toLowerCase()
-    }
+    const target = fromFancyAddress(message.to)
 
     // Check if the target address is a smocked contract.
     if (!(target in vm._smockState.mocks)) {
@@ -83,13 +78,7 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
     // later creates a contract at that address. Not sure how to handle this case. Very open to
     // ideas.
     if (result.createdAddress) {
-      let created: string
-      if (result.createdAddress.buf) {
-        created = toHexString(result.createdAddress.buf).toLowerCase()
-      } else {
-        created = toHexString(result.createdAddress).toLowerCase()
-      }
-
+      const created = fromFancyAddress(result.createdAddress)
       if (created in vm._smockState.mocks) {
         delete vm._smockState.mocks[created]
       }
@@ -104,13 +93,7 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
     // contracts never create new sub-calls (meaning this `afterMessage` event corresponds directly
     // to a `beforeMessage` event emitted during a call to a smock contract).
     const message = vm._smockState.messages.pop()
-
-    let target: string
-    if (message.to.buf) {
-      target = toHexString(message.to.buf).toLowerCase()
-    } else {
-      target = toHexString(message.to).toLowerCase()
-    }
+    const target = fromFancyAddress(message.to)
 
     // Not sure if this can ever actually happen? Just being safe.
     if (!(target in vm._smockState.mocks)) {

@@ -1,7 +1,7 @@
 /* Imports: External */
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { HardhatNetworkProvider } from 'hardhat/internal/hardhat-network/provider/provider'
-import { fromHexString } from '@eth-optimism/core-utils'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 
 /**
  * Finds the "base" Ethereum provider of the current hardhat environment.
@@ -53,10 +53,23 @@ export const findBaseHardhatProvider = (
  * @returns Fancified address.
  */
 export const toFancyAddress = (address: string): any => {
-  const addressBuf = fromHexString(address)
-  ;(addressBuf as any).buf = fromHexString(address)
-  ;(addressBuf as any).toString = () => {
+  const fancyAddress = fromHexString(address)
+  ;(fancyAddress as any).buf = fromHexString(address)
+  ;(fancyAddress as any).toString = () => {
     return address.toLowerCase()
   }
-  return addressBuf
+  return fancyAddress
+}
+
+/**
+ * Same as toFancyAddress but in the opposite direction.
+ * @param fancyAddress Fancy address to turn into a string.
+ * @returns Way more boring address.
+ */
+export const fromFancyAddress = (fancyAddress: any): string => {
+  if (fancyAddress.buf) {
+    return toHexString(fancyAddress.buf)
+  } else {
+    return toHexString(fancyAddress)
+  }
 }
