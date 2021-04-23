@@ -9,7 +9,7 @@ import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol"
  * @dev  The Safety Checker verifies that contracts deployed on L2 do not contain any
  * "unsafe" operations. An operation is considered unsafe if it would access state variables which
  * are specific to the environment (ie. L1 or L2) in which it is executed, as this could be used
- * to "escape the sandbox" of the OVM, resulting in non-deterministic fraud proofs. 
+ * to "escape the sandbox" of the OVM, resulting in non-deterministic fraud proofs.
  * That is, an attacker would be able to "prove fraud" on an honestly applied transaction.
  * Note that a "safe" contract requires opcodes to appear in a particular pattern;
  * omission of "unsafe" opcodes is necessary, but not sufficient.
@@ -129,7 +129,7 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
                     if ((firstOps >> 192) == 0x3350600060045af1) {
                         _pc += 8;
                     // Call EM and abort execution if instructed
-                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x0E ADD JUMPI RETURNDATASIZE PUSH1 0x00 DUP1 RETURNDATACOPY RETURNDATASIZE PUSH1 0x00 REVERT JUMPDEST RETURNDATASIZE PUSH1 0x01 EQ ISZERO PC PUSH1 0x0a ADD JUMPI PUSH1 0x01 PUSH1 0x00 RETURN JUMPDEST 
+                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x0E ADD JUMPI RETURNDATASIZE PUSH1 0x00 DUP1 RETURNDATACOPY RETURNDATASIZE PUSH1 0x00 REVERT JUMPDEST RETURNDATASIZE PUSH1 0x01 EQ ISZERO PC PUSH1 0x0a ADD JUMPI PUSH1 0x01 PUSH1 0x00 RETURN JUMPDEST
                     } else if (firstOps == 0x336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760 && secondOps == 0x016000f35b) {
                         _pc += 37;
                     } else {

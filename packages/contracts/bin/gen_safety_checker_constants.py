@@ -52,7 +52,7 @@ for i in range(0, 0x100, 0x20):
   for j in range(i, i+0x20, 1):
     ret += ("%02X" % stoplist[j])
   rr += ret+"),\n"
-  
+
 rr = rr[:-2] + "];"
 
 print(rr)
