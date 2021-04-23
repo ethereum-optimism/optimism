@@ -25,7 +25,6 @@ const log = new Logger({
     tracesSampleRate: 0.05,
   },
 })
-
 /* Metrics */
 const metrics = new Metrics({
   prefix: name,
