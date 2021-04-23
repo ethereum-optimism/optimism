@@ -8,6 +8,7 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
+import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 
 /* Interface Imports */
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
@@ -65,12 +66,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     uint256 constant NUISANCE_GAS_PER_CONTRACT_BYTE = 100;
     uint256 constant MIN_GAS_FOR_INVALID_STATE_ACCESS = 30000;
 
+
     /**************************
      * Default Context Values *
      **************************/
 
     uint256 constant DEFAULT_UINT256 = 0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
     address constant DEFAULT_ADDRESS = 0xdEfa017defA017DeFA017DEfa017DeFA017DeFa0;
+
 
     /***************
      * Constructor *
@@ -595,6 +598,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
+        nextMessageContext.authorized = address(0);
 
         return _callContract(
             nextMessageContext,
@@ -630,6 +634,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
         nextMessageContext.isStatic = true;
+        nextMessageContext.authorized = address(0);
 
         return _callContract(
             nextMessageContext,
@@ -662,6 +667,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         // DELEGATECALL does not change anything about the message context.
         MessageContext memory nextMessageContext = messageContext;
+        nextMessageContext.authorized = address(0);
 
         return _callContract(
             nextMessageContext,
@@ -799,6 +805,80 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         );
     }
 
+
+    /************************
+     * Experimental Opcodes *
+     ************************/
+
+    function ovmAUTH(
+        bytes32 _commit,
+        uint8 _yParity,
+        bytes32 _r,
+        bytes32 _s
+    )
+        override
+        public
+        returns (
+            address _authorized
+        )
+    {
+        // QUESTION: Should we throw here if _yParity != 0 or 1?
+
+        // Compute message hash based on EIP-3074 behavior:
+        // https://eips.ethereum.org/EIPS/eip-3074#behavior
+        bytes32 messageHash = abi.encodePacked(
+            0x03,
+            Lib_Bytes32Utils.fromAddress(
+                ovmADDRESS()
+            ),
+            _commit
+        );
+
+        address signer = ecrecover(
+            messageHash,
+            _yParity + 27,
+            _r,
+            _s
+        );
+
+        // QUESTION: EIP-3074 specifies that if the signature is "invalid," `authorized` is reset.
+        // Does this apply here?
+
+        messageContext.authorized = signer;
+        return signer;
+    }
+
+    function ovmAUTHCALL(
+        uint256 _gasLimit,
+        address _address,
+        bytes memory _calldata
+    )
+        override
+        public
+        returns (
+            bool _success,
+            bytes memory _returndata
+        )
+    {
+        if (messageContext.authorized == address(0)) {
+            _revertWithFlag(RevertFlag.AUTH_CALL_VIOLATION);
+        }
+
+        // AUTHCALL updates the CALLER and ADDRESS.
+        MessageContext memory nextMessageContext = messageContext;
+        nextMessageContext.ovmCALLER = nextMessageContext.authorized;
+        nextMessageContext.ovmADDRESS = _address;
+        nextMessageContext.authorized = address(0);
+
+        return _callContract(
+            nextMessageContext,
+            _gasLimit,
+            _address,
+            _calldata
+        );
+    }
+
+
     /***************************************
      * Public Functions: Execution Context *
      ***************************************/
@@ -813,6 +893,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         return gasMeterConfig.maxTransactionGasLimit;
     }
+
 
     /********************************************
      * Public Functions: Deployment Whitelisting *
@@ -840,6 +921,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             _revertWithFlag(RevertFlag.CREATOR_NOT_ALLOWED);
         }
     }
+
 
     /********************************************
      * Internal Functions: Contract Interaction *
@@ -1027,6 +1109,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 || flag == RevertFlag.UNSAFE_BYTECODE
                 || flag == RevertFlag.STATIC_VIOLATION
                 || flag == RevertFlag.CREATOR_NOT_ALLOWED
+                || flag == RevertFlag.AUTH_CALL_VIOLATION
             ) {
                 transactionRecord.ovmGasRefund = ovmGasRefund;
             }
@@ -1135,6 +1218,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             Lib_EthUtils.getCodeHash(ethAddress)
         );
     }
+
 
     /******************************************
      * Internal Functions: State Manipulation *
@@ -1820,6 +1904,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Avoid unnecessary the SSTORE.
         if (_prevMessageContext.isStatic != _nextMessageContext.isStatic) {
             messageContext.isStatic = _nextMessageContext.isStatic;
+        }
+
+        // Avoid unnecessary the SSTORE.
+        if (_prevMessageContext.authorized != _nextMessageContext.authorized) {
+            messageContext.isStatic = _nextMessageContext.authorized;
         }
     }
 

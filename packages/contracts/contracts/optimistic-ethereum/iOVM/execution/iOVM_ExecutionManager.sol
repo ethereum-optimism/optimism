@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 interface iOVM_ExecutionManager {
+
     /**********
      * Enums *
      *********/
@@ -18,7 +19,8 @@ interface iOVM_ExecutionManager {
         UNSAFE_BYTECODE,
         CREATE_COLLISION,
         STATIC_VIOLATION,
-        CREATOR_NOT_ALLOWED
+        CREATOR_NOT_ALLOWED,
+        AUTH_CALL_VIOLATION
     }
 
     enum GasMetadataKey {
@@ -28,6 +30,7 @@ interface iOVM_ExecutionManager {
         PREV_EPOCH_SEQUENCER_QUEUE_GAS,
         PREV_EPOCH_L1TOL2_QUEUE_GAS
     }
+
 
     /***********
      * Structs *
@@ -60,6 +63,7 @@ interface iOVM_ExecutionManager {
     struct MessageContext {
         address ovmCALLER;
         address ovmADDRESS;
+        address authorized;
         bool isStatic;
     }
 
@@ -146,6 +150,14 @@ interface iOVM_ExecutionManager {
     function ovmEXTCODECOPY(address _contract, uint256 _offset, uint256 _length) external returns (bytes memory _code);
     function ovmEXTCODESIZE(address _contract) external returns (uint256 _size);
     function ovmEXTCODEHASH(address _contract) external returns (bytes32 _hash);
+
+
+    /************************
+     * Experimental Opcodes *
+     ************************/
+
+    function ovmAUTH(bytes32 _commit, uint8 _yParity, bytes32 _r, bytes32 _s) external returns (address _authorized);
+    function ovmAUTHCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
 
 
     /***************************************

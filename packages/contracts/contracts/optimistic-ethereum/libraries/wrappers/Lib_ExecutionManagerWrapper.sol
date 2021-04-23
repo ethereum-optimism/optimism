@@ -118,6 +118,53 @@ library Lib_ExecutionManagerWrapper {
         return abi.decode(returndata, (address));
     }
 
+    function ovmAUTH(
+        bytes32 _commit,
+        uint8 _yParity,
+        bytes32 _r,
+        bytes32 _s
+    )
+        internal
+        returns (
+            address
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmAUTH(bytes32,uint8,bytes32,bytes32)",
+                _commit,
+                _yParity,
+                _r,
+                _s
+            )
+        );
+
+        return abi.decode(returndata, (address));
+    }
+
+    function ovmAUTHCALL(
+        uint256 _gasLimit,
+        address _address,
+        bytes memory _calldata
+    )
+        internal
+        returns (
+            bool,
+            bytes memory
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmAUTHCALL(uint256,address,bytes)",
+                _gasLimit,
+                _address,
+                _calldata
+            )
+        );
+
+        return abi.decode(returndata, (bool, bytes));
+    }
+
 
     /*********************
      * Private Functions *
