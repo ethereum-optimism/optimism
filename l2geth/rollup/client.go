@@ -130,7 +130,7 @@ type RollupClient interface {
 // Client is an HTTP based RollupClient
 type Client struct {
 	client *resty.Client
-	signer *types.OVMSigner
+	signer *types.EIP155Signer
 }
 
 // TransactionResponse represents the response from the remote server when
@@ -152,7 +152,7 @@ func NewClient(url string, chainID *big.Int) *Client {
 	client := resty.New()
 	client.SetHostURL(url)
 	client.SetHeader("User-Agent", "sequencer")
-	signer := types.NewOVMSigner(chainID)
+	signer := types.NewEIP155Signer(chainID)
 
 	return &Client{
 		client: client,
@@ -271,7 +271,7 @@ func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 
 // batchedTransactionToTransaction converts a transaction into a
 // types.Transaction that can be consumed by the SyncService
-func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) (*types.Transaction, error) {
+func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signer) (*types.Transaction, error) {
 	// `nil` transactions are not found
 	if res == nil {
 		return nil, errElementNotFound
@@ -538,7 +538,7 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 
 // parseTransactionBatchResponse will turn a TransactionBatchResponse into a
 // Batch and its corresponding types.Transactions
-func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *types.OVMSigner) (*Batch, []*types.Transaction, error) {
+func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *types.EIP155Signer) (*Batch, []*types.Transaction, error) {
 	if txBatch == nil {
 		return nil, nil, nil
 	}
