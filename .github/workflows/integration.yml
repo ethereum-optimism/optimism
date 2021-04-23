@@ -35,6 +35,11 @@ jobs:
         working-directory: ./ops
         run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
 
+      - name: Be different
+        working-directory: ./integration-tests
+        run: |
+            echo "I'm different and that makes me special!"
+
       - name: Run the integration tests
         working-directory: ./integration-tests
         run: |
