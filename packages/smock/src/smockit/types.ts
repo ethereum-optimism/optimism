@@ -62,7 +62,11 @@ export interface SmockedVM {
 
   on: (event: string, callback: Function) => void
 
-  pStateManager: {
+  stateManager?: {
+    putContractCode: (address: Buffer, code: Buffer) => Promise<void>
+  }
+
+  pStateManager?: {
     putContractCode: (address: Buffer, code: Buffer) => Promise<void>
   }
 }
@@ -88,6 +92,30 @@ export const isMockContract = (obj: any): obj is MockContract => {
       return isMockFunction(smockFunction)
     })
   )
+}
+
+export const isInterface = (obj: any): boolean => {
+  return (
+    obj &&
+    obj.functions !== undefined &&
+    obj.errors !== undefined &&
+    obj.structs !== undefined &&
+    obj.events !== undefined &&
+    Array.isArray(obj.fragments)
+  )
+}
+
+export const isContract = (obj: any): boolean => {
+  return (
+    obj &&
+    obj.functions !== undefined &&
+    obj.estimateGas !== undefined &&
+    obj.callStatic !== undefined
+  )
+}
+
+export const isContractFactory = (obj: any): boolean => {
+  return obj && obj.interface !== undefined && obj.deploy !== undefined
 }
 
 export const isArtifact = (obj: any): obj is Artifact => {

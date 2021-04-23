@@ -78,7 +78,7 @@ contract mockOVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
     )
         override
         public
-        pure 
+        pure
         returns (
             uint256
         )

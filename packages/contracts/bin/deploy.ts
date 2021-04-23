@@ -21,17 +21,20 @@ const sequencer = new Wallet(process.env.SEQUENCER_PRIVATE_KEY)
 const deployer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY)
 
 const main = async () => {
+
+  const config = parseEnv()
+
   await hre.run('deploy', {
-    l1BlockTimeSeconds: process.env.BLOCK_TIME_SECONDS,
-    ctcForceInclusionPeriodSeconds: process.env.FORCE_INCLUSION_PERIOD_SECONDS,
-    ctcMaxTransactionGasLimit: process.env.MAX_TRANSACTION_GAS_LIMIT,
-    emMinTransactionGasLimit: process.env.MIN_TRANSACTION_GAS_LIMIT,
-    emMaxtransactionGasLimit: process.env.MAX_TRANSACTION_GAS_LIMIT,
-    emMaxGasPerQueuePerEpoch: process.env.MAX_GAS_PER_QUEUE_PER_EPOCH,
-    emSecondsPerEpoch: process.env.SECONDS_PER_EPOCH,
-    emOvmChainId: process.env.CHAIN_ID,
-    sccFraudProofWindow: parseInt(process.env.FRAUD_PROOF_WINDOW_SECONDS, 10),
-    sccSequencerPublishWindow: process.env.SEQUENCER_PUBLISH_WINDOW_SECONDS,
+    l1BlockTimeSeconds: config.l1BlockTimeSeconds,
+    ctcForceInclusionPeriodSeconds: config.ctcForceInclusionPeriodSeconds,
+    ctcMaxTransactionGasLimit: config.ctcMaxTransactionGasLimit,
+    emMinTransactionGasLimit: config.emMinTransactionGasLimit,
+    emMaxtransactionGasLimit: config.emMaxtransactionGasLimit,
+    emMaxGasPerQueuePerEpoch: config.emMaxGasPerQueuePerEpoch,
+    emSecondsPerEpoch: config.emSecondsPerEpoch,
+    emOvmChainId: config.emOvmChainId,
+    sccFraudProofWindow: config.sccFraudProofWindow,
+    sccSequencerPublishWindow: config.sccFraudProofWindow,
     ovmSequencerAddress: sequencer.address,
     ovmProposerAddress: sequencer.address,
     ovmRelayerAddress: sequencer.address,
@@ -78,3 +81,26 @@ main()
     )
     process.exit(1)
   })
+
+function parseEnv() {
+  function ensure(env, type) {
+    if (typeof process.env[env] === 'undefined')
+      return undefined
+    if (type === 'number')
+      return parseInt(process.env[env], 10)
+    return process.env[env]
+  }
+
+  return {
+    l1BlockTimeSeconds: ensure('BLOCK_TIME_SECONDS', 'number'),
+    ctcForceInclusionPeriodSeconds: ensure('FORCE_INCLUSION_PERIOD_SECONDS', 'number'),
+    ctcMaxTransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
+    emMinTransactionGasLimit: ensure('MIN_TRANSACTION_GAS_LIMIT', 'number'),
+    emMaxtransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
+    emMaxGasPerQueuePerEpoch: ensure('MAX_GAS_PER_QUEUE_PER_EPOCH', 'number'),
+    emSecondsPerEpoch: ensure('ECONDS_PER_EPOCH', 'number'),
+    emOvmChainId: ensure('CHAIN_ID', 'number'),
+    sccFraudProofWindow: ensure('FRAUD_PROOF_WINDOW_SECONDS', 'number'),
+    sccSequencerPublishWindow: ensure('SEQUENCER_PUBLISH_WINDOW_SECONDS', 'number'),
+  }
+}

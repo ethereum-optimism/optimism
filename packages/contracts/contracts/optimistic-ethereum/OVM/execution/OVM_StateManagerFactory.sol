@@ -12,7 +12,7 @@ import { OVM_StateManager } from "./OVM_StateManager.sol";
  * @title OVM_StateManagerFactory
  * @dev The State Manager Factory is called by a State Transitioner's init code, to create a new
  * State Manager for use in the Fraud Verification process.
- * 
+ *
  * Compiler used: solc
  * Runtime target: EVM
  */

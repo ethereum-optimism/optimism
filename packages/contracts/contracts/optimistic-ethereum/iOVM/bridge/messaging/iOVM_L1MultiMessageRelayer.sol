@@ -14,5 +14,5 @@ interface iOVM_L1MultiMessageRelayer {
         iOVM_L1CrossDomainMessenger.L2MessageInclusionProof proof;
     }
 
-    function batchRelayMessages(L2ToL1Message[] calldata _messages) external; 
+    function batchRelayMessages(L2ToL1Message[] calldata _messages) external;
 }

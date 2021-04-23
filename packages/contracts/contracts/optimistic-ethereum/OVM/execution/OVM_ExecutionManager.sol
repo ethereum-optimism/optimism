@@ -536,7 +536,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // "magic" prefix to deploy an exact copy of the code:
         // PUSH1 0x0D   # size of this prefix in bytes
         // CODESIZE
-        // SUB          # subtract prefix size from codesize 
+        // SUB          # subtract prefix size from codesize
         // DUP1
         // PUSH1 0x0D
         // PUSH1 0x00
@@ -1064,9 +1064,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * This function sanitizes the return types for creation messages to match calls (bool, bytes),
      * by being an external function which the EM can call, that mimics the success/fail case of the CREATE.
      * This allows for consistent handling of both types of messages in _handleExternalMessage().
-     * Having this step occur as a separate call frame also allows us to easily revert the 
+     * Having this step occur as a separate call frame also allows us to easily revert the
      * contract deployment in the event that the code is unsafe.
-     * 
+     *
      * @param _gasLimit Amount of gas to be passed into this creation.
      * @param _creationCode Code to pass into CREATE for deployment.
      * @param _address OVM address being deployed to.
@@ -1111,7 +1111,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (ethAddress == address(0)) {
             // If the creation fails, the EVM lets us grab its revert data. This may contain a revert flag
             // to be used above in _handleExternalMessage, so we pass the revert data back up unmodified.
-            assembly { 
+            assembly {
                 returndatacopy(0,0,returndatasize())
                 revert(0, returndatasize())
             }
