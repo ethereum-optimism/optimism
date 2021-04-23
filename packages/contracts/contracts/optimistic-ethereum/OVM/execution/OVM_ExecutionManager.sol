@@ -831,12 +831,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Compute message hash based on EIP-3074 behavior:
         // https://eips.ethereum.org/EIPS/eip-3074#behavior
-        bytes32 messageHash = abi.encodePacked(
-            0x03,
-            Lib_Bytes32Utils.fromAddress(
-                ovmADDRESS()
-            ),
-            _commit
+        bytes32 messageHash = keccak256(
+            abi.encodePacked(
+                uint8(0x03),
+                Lib_Bytes32Utils.fromAddress(
+                    ovmADDRESS()
+                ),
+                _commit
+            )
         );
 
         address signer = ecrecover(
@@ -1910,7 +1912,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Avoid unnecessary the SSTORE.
         if (_prevMessageContext.authorized != _nextMessageContext.authorized) {
-            messageContext.isStatic = _nextMessageContext.authorized;
+            messageContext.authorized = _nextMessageContext.authorized;
         }
     }
 
