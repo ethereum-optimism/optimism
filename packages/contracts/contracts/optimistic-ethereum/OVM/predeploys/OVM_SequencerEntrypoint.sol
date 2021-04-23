@@ -34,8 +34,12 @@ contract OVM_SequencerEntrypoint {
     fallback()
         external
     {
+        // We use this twice, so it's more gas efficient to store a copy of it (barely).
+        bytes memory encodedTx = msg.data;
+
+        // Decode the tx with the correct chain ID.
         Lib_EIP155Tx.EIP155Tx memory transaction = Lib_EIP155Tx.decode(
-            msg.data,
+            encodedTx,
             Lib_ExecutionManagerWrapper.ovmCHAINID()
         );
 
@@ -47,6 +51,7 @@ contract OVM_SequencerEntrypoint {
             isEmptyContract := iszero(extcodesize(target))
         }
 
+        // If the account is empty, deploy the default EOA to that address.
         if (isEmptyContract) {
             Lib_ExecutionManagerWrapper.ovmCREATEEOA(
                 transaction.hash(),
@@ -56,6 +61,7 @@ contract OVM_SequencerEntrypoint {
             );
         }
 
-        iOVM_ECDSAContractAccount(target).execute(msg.data);
+        // Forward the transaction over to the EOA.
+        iOVM_ECDSAContractAccount(target).execute(encodedTx);
     }
 }
