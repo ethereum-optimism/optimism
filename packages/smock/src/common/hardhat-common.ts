@@ -55,8 +55,12 @@ export const findBaseHardhatProvider = (
 export const toFancyAddress = (address: string): any => {
   const fancyAddress = fromHexString(address)
   ;(fancyAddress as any).buf = fromHexString(address)
-  ;(fancyAddress as any).toString = () => {
-    return address.toLowerCase()
+  ;(fancyAddress as any).toString = (encoding?: any) => {
+    if (encoding === undefined) {
+      return address.toLowerCase()
+    } else {
+      return fromHexString(address).toString(encoding)
+    }
   }
   return fancyAddress
 }
