@@ -1,10 +1,18 @@
 /* Imports: External */
-import { TransactionExecutionError } from 'hardhat/internal/hardhat-network/provider/errors'
 import { HardhatNetworkProvider } from 'hardhat/internal/hardhat-network/provider/provider'
 import { decodeRevertReason } from 'hardhat/internal/hardhat-network/stack-traces/revert-reasons'
 import { VmError } from '@nomiclabs/ethereumjs-vm/dist/exceptions'
-import { toHexString, fromHexString } from '@eth-optimism/core-utils'
 import BN from 'bn.js'
+
+// Handle hardhat ^2.2.0
+let TransactionExecutionError: any
+try {
+  TransactionExecutionError = require('hardhat/internal/hardhat-network/provider/errors')
+    .TransactionExecutionError
+} catch (err) {
+  TransactionExecutionError = require('hardhat/internal/core/providers/errors')
+    .TransactionExecutionError
+}
 
 /* Imports: Internal */
 import { MockContract, SmockedVM } from './types'
