@@ -17,9 +17,10 @@ process.env.CONTRACTS_RPC_URL =
 
 import hre from 'hardhat'
 
+const sequencer = new Wallet(process.env.SEQUENCER_PRIVATE_KEY)
+const deployer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY)
+
 const main = async () => {
-  const sequencer = new Wallet(process.env.SEQUENCER_PRIVATE_KEY)
-  const deployer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY)
 
   const config = parseEnv()
 
@@ -49,7 +50,7 @@ const main = async () => {
     'mockOVM_BondManager': 'OVM_BondManager'
   }
 
-  const contracts = dirtree(
+  const contracts: any = dirtree(
     path.resolve(__dirname, `../deployments/custom`)
   ).children.filter((child) => {
     return child.extension === '.json'
@@ -59,6 +60,9 @@ const main = async () => {
     contracts[nicknames[contractName] || contractName] = artifact.address
     return contracts
   }, {})
+
+  contracts.OVM_Sequencer = await sequencer.getAddress()
+  contracts.Deployer = await deployer.getAddress()
 
   const addresses = JSON.stringify(contracts, null, 2)
   const dumpsPath = path.resolve(__dirname, "../dist/dumps")
@@ -100,4 +104,3 @@ function parseEnv() {
     sccSequencerPublishWindow: ensure('SEQUENCER_PUBLISH_WINDOW_SECONDS', 'number'),
   }
 }
-
