@@ -7,9 +7,11 @@ import BN from 'bn.js'
 // Handle hardhat ^2.2.0
 let TransactionExecutionError: any
 try {
+  // tslint:disable-next-line
   TransactionExecutionError = require('hardhat/internal/hardhat-network/provider/errors')
     .TransactionExecutionError
 } catch (err) {
+  // tslint:disable-next-line
   TransactionExecutionError = require('hardhat/internal/core/providers/errors')
     .TransactionExecutionError
 }
