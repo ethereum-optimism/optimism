@@ -33,7 +33,7 @@ All configuration is done via environment variables. See below for more informat
 
 ## Local testing
 
-The fraud prover will first connect to the relevant chains and then look for mismatched state roots. Note that the *Fraud Prover* does not connect to the *Sequencer*, rather, it connects to the *Verifier*, and the Verifier it turn is monitoring the Sequencer. Assuming _your sequencer is not fraudulant_, the standard Fraud Prover output looks like this:
+The fraud prover will first connect to the relevant chains and then look for mismatched state roots. Note that the *Fraud Prover* does not connect to the *Sequencer*, rather, it connects to the *Verifier*, and the Verifier in turn is looking at the L1. Assuming _your sequencer is not fraudulant_, the standard Fraud Prover output looks like this:
 
 ```
 
