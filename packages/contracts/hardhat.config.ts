@@ -13,7 +13,7 @@ import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
 import '@typechain/hardhat'
 import '@eth-optimism/hardhat-ovm'
-import './tasks/deploy'
+import './tasks'
 
 // Load environment variables from .env
 dotenv.config()
