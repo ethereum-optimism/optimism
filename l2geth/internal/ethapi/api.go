@@ -1740,33 +1740,6 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 	return SubmitTransaction(ctx, s.b, tx)
 }
 
-// SendRawEthSignTransaction will add the signed transaction to the mempool.
-// The signature hash was computed with `eth_sign`, meaning that the
-// `abi.encodedPacked` transaction was prefixed with the string
-// "Ethereum Signed Message".
-func (s *PublicTransactionPoolAPI) SendRawEthSignTransaction(ctx context.Context, encodedTx hexutil.Bytes) (common.Hash, error) {
-	if s.b.IsVerifier() {
-		return common.Hash{}, errors.New("Cannot send raw ethsign transaction in verifier mode")
-	}
-
-	if s.b.IsSyncing() {
-		return common.Hash{}, errors.New("Cannot send raw transaction while syncing")
-	}
-
-	tx := new(types.Transaction)
-	if err := rlp.DecodeBytes(encodedTx, tx); err != nil {
-		return common.Hash{}, err
-	}
-
-	if new(big.Int).Mod(tx.GasPrice(), big.NewInt(1000000)).Cmp(big.NewInt(0)) != 0 {
-		return common.Hash{}, errors.New("Gas price must be a multiple of 1,000,000 wei")
-	}
-	// L1Timestamp and L1BlockNumber will be set by the miner
-	txMeta := types.NewTransactionMeta(nil, 0, nil, types.SighashEthSign, types.QueueOriginSequencer, nil, nil, nil)
-	tx.SetTransactionMeta(txMeta)
-	return SubmitTransaction(ctx, s.b, tx)
-}
-
 // Sign calculates an ECDSA signature for:
 // keccack256("\x19Ethereum Signed Message:\n" + len(message) + message).
 //
