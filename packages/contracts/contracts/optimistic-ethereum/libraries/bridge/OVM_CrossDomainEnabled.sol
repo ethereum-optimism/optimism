@@ -12,12 +12,14 @@ import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/messaging/iAbs_
  * Runtime target: defined by inheriting contract
  */
 contract OVM_CrossDomainEnabled {
+
     /*************
      * Variables *
      *************/
 
     // Messenger contract used to send and recieve messages from the other domain.
     address public messenger;
+
 
     /***************
      * Constructor *
