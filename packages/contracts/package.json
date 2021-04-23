@@ -4,6 +4,7 @@
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
+    "dist/types/*.ts",
     "artifacts/**/*.json",
     "artifacts-ovm/**/*.json",
     "OVM",
