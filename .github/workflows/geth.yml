@@ -7,11 +7,13 @@ on:
         - 'l2geth/**'
     branches:
       - master
+      - '*rc'
   pull_request:
     paths:
         - 'l2geth/**'
     branches:
       - master
+      - '*rc'
 
 defaults:
   run:
