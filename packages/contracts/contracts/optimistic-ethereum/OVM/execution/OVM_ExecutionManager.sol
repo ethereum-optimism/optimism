@@ -822,7 +822,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             address _authorized
         )
     {
-        // QUESTION: Should we throw here if _yParity != 0 or 1?
+        // EIP-3074 specifies that if the signature is "invalid," `authorized` is reset. yParity
+        // not being either 0 or 1 counts as invalid. Reset `authorized` and exit early.
+        if (_yParity > 1) {
+            messageContext.authorized = address(0);
+            return signer;
+        }
 
         // Compute message hash based on EIP-3074 behavior:
         // https://eips.ethereum.org/EIPS/eip-3074#behavior
@@ -840,9 +845,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             _r,
             _s
         );
-
-        // QUESTION: EIP-3074 specifies that if the signature is "invalid," `authorized` is reset.
-        // Does this apply here?
 
         messageContext.authorized = signer;
         return signer;
