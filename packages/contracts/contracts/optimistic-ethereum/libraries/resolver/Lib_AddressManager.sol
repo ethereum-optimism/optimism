@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Contract Imports */
-import { Ownable } from "./Lib_Ownable.sol";
+import { Ownable } from "../utils/Lib_Ownable.sol";
 
 /**
  * @title Lib_AddressManager
