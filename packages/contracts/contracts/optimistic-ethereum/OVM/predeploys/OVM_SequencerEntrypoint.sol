@@ -19,6 +19,11 @@ import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Execut
  * Runtime target: OVM
  */
 contract OVM_SequencerEntrypoint {
+
+    /*************
+     * Libraries *
+     *************/
+
     using Lib_EIP155Tx for Lib_EIP155Tx.EIP155Tx;
 
 

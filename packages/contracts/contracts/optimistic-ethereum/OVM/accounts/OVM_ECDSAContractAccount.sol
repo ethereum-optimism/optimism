@@ -26,6 +26,11 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
  * Runtime target: OVM
  */
 contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
+
+    /*************
+     * Libraries *
+     *************/
+
     using Lib_EIP155Tx for Lib_EIP155Tx.EIP155Tx;
 
 
@@ -113,7 +118,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_ExecutionManagerWrapper.ovmINCREMENTNONCE();
 
-            return transaction.to.call{gas: transaction.gasLimit}(transaction.data);
+            return transaction.to.call(transaction.data);
         }
     }
 }
