@@ -22,16 +22,16 @@ import {
 } from '../helpers'
 import {
   CanonicalTransactionChainContract,
-  QueueOrigin,
   TransactionBatchSubmitter as RealTransactionBatchSubmitter,
   StateBatchSubmitter,
   TX_BATCH_SUBMITTER_LOG_TAG,
   STATE_BATCH_SUBMITTER_LOG_TAG,
-  Batch,
   BatchSubmitter,
 } from '../../src'
 
 import {
+  QueueOrigin,
+  Batch,
   Signature,
   TxType,
   remove0x,

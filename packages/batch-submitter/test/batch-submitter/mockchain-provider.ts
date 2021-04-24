@@ -4,9 +4,7 @@ import {
   BlockWithTransactions,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
-
-/* Internal Imports */
-import { L2Transaction, L2Block, RollupInfo } from '../../src'
+import { L2Transaction, L2Block, RollupInfo } from '@eth-optimism/core-utils'
 
 /**
  * Unformatted Transaction & Blocks. This exists because Geth currently
