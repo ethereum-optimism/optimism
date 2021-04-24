@@ -1,7 +1,6 @@
 package rollup
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,11 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -707,7 +706,6 @@ func (s *SyncService) maybeApplyTransaction(tx *types.Transaction) error {
 // Lower level API used to apply a transaction, must only be used with
 // transactions that came from L1.
 func (s *SyncService) applyTransaction(tx *types.Transaction) error {
-	tx = fixType(tx)
 	txs := types.Transactions{tx}
 	s.txFeed.Send(core.NewTxsEvent{Txs: txs})
 	return nil
@@ -747,7 +745,7 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 	}
 
 	// Set the raw transaction data in the meta
-	txRaw, err := getRawTransaction(tx)
+	txRaw, err := rlp.EncodeToBytes(tx)
 	if err != nil {
 		return fmt.Errorf("invalid transaction: %w", err)
 	}
@@ -765,94 +763,4 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 	tx.SetTransactionMeta(newMeta)
 
 	return s.applyTransaction(tx)
-}
-
-func getRawTransaction(tx *types.Transaction) ([]byte, error) {
-	if tx == nil {
-		return nil, errors.New("Cannot process nil transaction")
-	}
-	v, r, s := tx.RawSignatureValues()
-
-	// V parameter here will include the chain ID, so we need to recover the original V. If the V
-	// does not equal zero or one, we have an invalid parameter and need to throw an error.
-	// This is technically a duplicate check because it happens inside of
-	// `tx.AsMessage` as well.
-	v = new(big.Int).SetUint64(v.Uint64() - 35 - 2*tx.ChainId().Uint64())
-	if v.Uint64() != 0 && v.Uint64() != 1 {
-		return nil, fmt.Errorf("invalid signature v parameter: %d", v.Uint64())
-	}
-
-	// Since we use a fixed encoding, we need to insert some placeholder address to represent that
-	// the user wants to create a contract (in this case, the zero address).
-	var target common.Address
-	if tx.To() == nil {
-		target = common.Address{}
-	} else {
-		target = *tx.To()
-	}
-
-	// Divide the gas price by one million to compress it
-	// before it is send to the sequencer entrypoint. This is to save
-	// space on calldata.
-	gasPrice := new(big.Int).Div(tx.GasPrice(), new(big.Int).SetUint64(1000000))
-
-	// Sequencer uses a custom encoding structure --
-	// We originally receive sequencer transactions encoded in this way, but we decode them before
-	// inserting into Geth so we can make transactions easily parseable. However, this means that
-	// we need to re-encode the transactions before executing them.
-	var data = new(bytes.Buffer)
-	data.WriteByte(getSignatureType(tx))                         // 1 byte: 00 == EIP 155, 02 == ETH Sign Message
-	data.Write(fillBytes(r, 32))                                 // 32 bytes: Signature `r` parameter
-	data.Write(fillBytes(s, 32))                                 // 32 bytes: Signature `s` parameter
-	data.Write(fillBytes(v, 1))                                  // 1 byte: Signature `v` parameter
-	data.Write(fillBytes(new(big.Int).SetUint64(tx.Gas()), 3))   // 3 bytes: Gas limit
-	data.Write(fillBytes(gasPrice, 3))                           // 3 bytes: Gas price
-	data.Write(fillBytes(new(big.Int).SetUint64(tx.Nonce()), 3)) // 3 bytes: Nonce
-	data.Write(target.Bytes())                                   // 20 bytes: Target address
-	data.Write(tx.Data())
-
-	return data.Bytes(), nil
-}
-
-func fillBytes(x *big.Int, size int) []byte {
-	b := x.Bytes()
-	switch {
-	case len(b) > size:
-		panic("math/big: value won't fit requested size")
-	case len(b) == size:
-		return b
-	default:
-		buf := make([]byte, size)
-		copy(buf[size-len(b):], b)
-		return buf
-	}
-}
-
-func getSignatureType(tx *types.Transaction) uint8 {
-	if tx.SignatureHashType() == 0 {
-		return 0
-	} else if tx.SignatureHashType() == 1 {
-		return 2
-	} else {
-		return 1
-	}
-}
-
-// This is a temporary fix to patch the enums being used in the raw data
-func fixType(tx *types.Transaction) *types.Transaction {
-	meta := tx.GetMeta()
-	raw := meta.RawTransaction
-	if len(raw) == 0 {
-		log.Error("Transaction with no raw detected")
-		return tx
-	}
-	if raw[0] == 0x00 {
-		return tx
-	} else if raw[0] == 0x01 {
-		raw[0] = 0x02
-	}
-	queueOrigin := types.QueueOrigin(meta.QueueOrigin.Uint64())
-	fixed := types.NewTransactionMeta(meta.L1BlockNumber, meta.L1Timestamp, meta.L1MessageSender, meta.SignatureHashType, queueOrigin, meta.Index, meta.QueueIndex, raw)
-	tx.SetTransactionMeta(fixed)
-	return tx
 }
