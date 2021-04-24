@@ -13,7 +13,7 @@ import { Abs_L2DepositedToken } from "./Abs_L2DepositedToken.sol";
 
 /**
  * @title OVM_L2DepositedERC20
- * @dev The L2 Deposited ERC20 is an ERC20 implementation which represents L1 assets deposited into L2.
+ * @dev The L2 Token Gateway is an ERC20 implementation which represents L1 assets deposited into L2.
  * This contract mints new tokens when it hears about deposits into the L1 ERC20 gateway.
  * This contract also burns the tokens intended for withdrawal, informing the L1 gateway to release L1 funds.
  *
@@ -23,7 +23,7 @@ import { Abs_L2DepositedToken } from "./Abs_L2DepositedToken.sol";
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
+contract OVM_L2DepositedERC20 is Abs_L2DepositedToken {
 
     /***************
      * Constructor *

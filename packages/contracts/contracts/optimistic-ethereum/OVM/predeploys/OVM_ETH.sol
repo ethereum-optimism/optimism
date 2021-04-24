@@ -5,7 +5,7 @@ pragma solidity >0.5.0 <0.8.0;
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
-import { iOVM_L1TokenGateway } from "../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
+import { iOVM_TokenGateway } from "../../iOVM/bridge/tokens/iOVM_TokenGateway.sol";
 
 /* Contract Imports */
 import { OVM_L2DepositedERC20 } from "../bridge/tokens/OVM_L2DepositedERC20.sol";
@@ -29,6 +29,6 @@ contract OVM_ETH is OVM_L2DepositedERC20 {
             "ETH"
         )
     {
-        init(iOVM_L1TokenGateway(_l1ETHGateway));
+        init(iOVM_TokenGateway(_l1ETHGateway));
     }
 }

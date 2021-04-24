@@ -4,7 +4,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
+import { iOVM_TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_TokenGateway.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
 
 /* Library Imports */
@@ -23,7 +23,7 @@ import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomai
  * Compiler used: solc
  * Runtime target: EVM
  */
-abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
+abstract contract Abs_L1TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled {
 
     /********************************
      * External Contract References *

@@ -4,7 +4,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
+import { iOVM_TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_TokenGateway.sol";
 import { Abs_L1TokenGateway } from "./Abs_L1TokenGateway.sol";
 import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
 
