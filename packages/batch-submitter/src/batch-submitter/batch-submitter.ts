@@ -100,7 +100,7 @@ export abstract class BatchSubmitter {
     })
 
     if (num < this.minBalanceEther) {
-      this.log.warn('Current balance lower than min safe balance', {
+      this.log.fatal('Current balance lower than min safe balance', {
         current: num,
         safeBalance: this.minBalanceEther,
       })
