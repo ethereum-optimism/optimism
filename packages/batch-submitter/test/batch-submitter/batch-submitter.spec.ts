@@ -34,7 +34,6 @@ import {
 import {
   Signature,
   TxType,
-  ctcCoder,
   remove0x,
   Logger,
   Metrics,

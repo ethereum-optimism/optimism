@@ -1,13 +1,10 @@
 /* External Imports */
 import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
-import {
-  TransactionResponse,
-  TransactionReceipt,
-} from '@ethersproject/abstract-provider'
+import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractInterface, getContractFactory } from 'old-contracts'
 import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
-import { Logger, Metrics, ctcCoder } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
