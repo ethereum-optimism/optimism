@@ -207,7 +207,7 @@ contract OVM_StateManager is iOVM_StateManager {
      */
     function setAccountNonce(
         address _address,
-        uint256 _nonce
+        uint64 _nonce
     )
         override
         public
@@ -228,7 +228,7 @@ contract OVM_StateManager is iOVM_StateManager {
         public
         view
         returns (
-            uint256
+            uint64
         )
     {
         return accounts[_address].nonce;

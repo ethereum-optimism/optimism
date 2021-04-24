@@ -20,9 +20,9 @@ library Lib_EIP155Tx {
     // Struct representing an EIP155 transaction. See EIP link above for more information.
     struct EIP155Tx {
         // These fields correspond to the actual RLP-encoded fields specified by EIP155.
-        uint256 nonce;
+        uint64 nonce;
         uint256 gasPrice;
-        uint256 gasLimit;
+        uint64 gasLimit;
         address to;
         uint256 value;
         bytes data;
@@ -98,9 +98,9 @@ library Lib_EIP155Tx {
         bool isCreate = Lib_RLPReader.readBytes(decoded[3]).length == 0;
 
         return EIP155Tx({
-            nonce: Lib_RLPReader.readUint256(decoded[0]),
+            nonce: Lib_RLPReader.readUint64(decoded[0]),
             gasPrice: Lib_RLPReader.readUint256(decoded[1]),
-            gasLimit: Lib_RLPReader.readUint256(decoded[2]),
+            gasLimit: Lib_RLPReader.readUint64(decoded[2]),
             to: Lib_RLPReader.readAddress(decoded[3]),
             value: Lib_RLPReader.readUint256(decoded[4]),
             data: Lib_RLPReader.readBytes(decoded[5]),

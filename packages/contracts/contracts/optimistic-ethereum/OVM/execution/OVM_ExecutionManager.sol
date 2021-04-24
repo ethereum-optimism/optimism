@@ -458,7 +458,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
         returns (
-            uint256 _nonce
+            uint64 _nonce
         )
     {
         return _getAccountNonce(ovmADDRESS());
@@ -473,7 +473,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         notStatic
     {
         address account = ovmADDRESS();
-        uint256 nonce = _getAccountNonce(account);
+        uint64 nonce = _getAccountNonce(account);
 
         // Prevent overflow.
         if (nonce + 1 > nonce) {
@@ -1181,7 +1181,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function _setAccountNonce(
         address _address,
-        uint256 _nonce
+        uint64 _nonce
     )
         internal
     {
@@ -1199,7 +1199,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         internal
         returns (
-            uint256 _nonce
+            uint64 _nonce
         )
     {
         _checkAccountLoad(_address);
