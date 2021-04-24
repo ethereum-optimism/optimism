@@ -118,7 +118,19 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_ExecutionManagerWrapper.ovmINCREMENTNONCE();
 
-            return transaction.to.call(transaction.data);
+            // Value transfer currently only supported for CALL but not for CREATE.
+            if (transaction.value > 0) {
+                require(
+                    ovmETH.transfer(
+                        transaction.to,
+                        transaction.value
+                    ),
+                    "Value could not be transferred to recipient."
+                );
+                return (true, bytes(""));
+            } else {
+                return transaction.to.call(transaction.data);
+            }
         }
     }
 }
