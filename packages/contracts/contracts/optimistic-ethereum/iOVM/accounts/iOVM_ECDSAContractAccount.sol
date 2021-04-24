@@ -15,10 +15,11 @@ interface iOVM_ECDSAContractAccount {
      ********************/
 
     function execute(
-        bytes memory _transaction,
-        Lib_OVMCodec.EOASignatureType _signatureType,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    ) external returns (bool _success, bytes memory _returndata);
+        bytes memory _encodedTransaction
+    )
+        external
+        returns (
+            bool,
+            bytes memory
+        );
 }
