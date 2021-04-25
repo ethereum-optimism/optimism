@@ -1,2 +1,0 @@
-import './deploy'
-import './typechain'

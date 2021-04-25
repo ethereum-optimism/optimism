@@ -192,5 +192,13 @@ extendEnvironment((hre) => {
     hre.config.paths.artifacts = artifactsPath
     hre.config.paths.cache = cachePath
     ;(hre as any).artifacts = new Artifacts(artifactsPath)
+
+    // if typechain is present, send the typed bindings to an ovm-specific
+    // directory
+    if ((hre.config as any).typechain) {
+      if (!(hre as any).config.typechain.outDir.endsWith('-ovm')) {
+        (hre as any).config.typechain.outDir += '-ovm'
+      }
+    }
   }
 })
