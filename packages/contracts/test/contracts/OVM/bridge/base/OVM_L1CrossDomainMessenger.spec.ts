@@ -110,9 +110,9 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     describe('when called by account other than the owner', () => {
       it('should not pause the contract', async () => {
-        await expect(OVM_L1CrossDomainMessenger.connect(signer2).pause()).to.be.revertedWith(
-          'Ownable: caller is not the owner'
-        )
+        await expect(
+          OVM_L1CrossDomainMessenger.connect(signer2).pause()
+        ).to.be.revertedWith('Ownable: caller is not the owner')
       })
     })
   })
