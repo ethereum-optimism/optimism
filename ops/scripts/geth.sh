@@ -1,5 +1,6 @@
 #!/bin/bash
 RETRIES=${RETRIES:-40}
+VERBOSITY=${VERBOSITY:-6}
 
 if [[ ! -z "$URL" ]]; then
     # get the addrs from the URL provided
@@ -31,4 +32,4 @@ curl \
     --retry-delay 1 \
     $ROLLUP_CLIENT_HTTP
 
-exec geth --verbosity=6
+exec geth --verbosity="$VERBOSITY"

@@ -35,7 +35,10 @@ export class Logger {
     if (options.sentryOptions) {
       loggerStreams.push({
         level: 'error',
-        stream: createWriteStream(options.sentryOptions),
+        stream: createWriteStream({
+          ...options.sentryOptions,
+          stackAttributeKey: 'err',
+        }),
       })
     }
     if (options.streams) loggerStreams = loggerStreams.concat(options.streams)
@@ -92,7 +95,11 @@ export class Logger {
 
   error(msg: string, o?: object, ...args: any[]): void {
     if (o) {
-      this.inner.error(o, msg, ...args)
+      // Formatting error log for Sentry
+      const context = {
+        extra: { ...o },
+      }
+      this.inner.error(context, msg, ...args)
     } else {
       this.inner.error(msg, ...args)
     }
@@ -100,23 +107,10 @@ export class Logger {
 
   fatal(msg: string, o?: object, ...args: any[]): void {
     if (o) {
-      this.inner.fatal(o, msg, ...args)
-    } else {
-      this.inner.fatal(msg, ...args)
-    }
-  }
-
-  crit(msg: string, o?: object, ...args: any[]): void {
-    if (o) {
-      this.inner.fatal(o, msg, ...args)
-    } else {
-      this.inner.fatal(msg, ...args)
-    }
-  }
-
-  critical(msg: string, o?: object, ...args: any[]): void {
-    if (o) {
-      this.inner.fatal(o, msg, ...args)
+      const context = {
+        extra: { ...o },
+      }
+      this.inner.fatal(context, msg, ...args)
     } else {
       this.inner.fatal(msg, ...args)
     }

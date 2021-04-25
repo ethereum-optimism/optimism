@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - '*rc'
   pull_request:
 
 jobs:

@@ -1,5 +1,11 @@
 # @eth-optimism/smock
 
+## 1.1.0
+
+### Minor Changes
+
+- 79f812d: Adds support for hardhat ^2.2.0, required because of move to ethereumjs-vm v5.
+
 ## 1.0.2
 
 ### Patch Changes

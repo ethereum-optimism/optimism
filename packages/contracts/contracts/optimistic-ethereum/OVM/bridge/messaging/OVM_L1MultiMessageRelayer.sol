@@ -2,17 +2,17 @@
 // @unsupported: ovm
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
+
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
 import { iOVM_L1MultiMessageRelayer } from "../../../iOVM/bridge/messaging/iOVM_L1MultiMessageRelayer.sol";
 
-/* Contract Imports */
+/* Library Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
-
 
 /**
  * @title OVM_L1MultiMessageRelayer
- * @dev The L1 Multi-Message Relayer contract is a gas efficiency optimization which enables the 
+ * @dev The L1 Multi-Message Relayer contract is a gas efficiency optimization which enables the
  * relayer to submit multiple messages in a single transaction to be relayed by the L1 Cross Domain
  * Message Sender.
  *
@@ -24,11 +24,16 @@ contract OVM_L1MultiMessageRelayer is iOVM_L1MultiMessageRelayer, Lib_AddressRes
     /***************
      * Constructor *
      ***************/
+
+    /**
+     * @param _libAddressManager Address of the Address Manager.
+     */
     constructor(
         address _libAddressManager
-    ) 
+    )
         Lib_AddressResolver(_libAddressManager)
     {}
+
 
     /**********************
      * Function Modifiers *
@@ -42,6 +47,7 @@ contract OVM_L1MultiMessageRelayer is iOVM_L1MultiMessageRelayer, Lib_AddressRes
         _;
     }
 
+
     /********************
      * Public Functions *
      ********************/
@@ -50,12 +56,17 @@ contract OVM_L1MultiMessageRelayer is iOVM_L1MultiMessageRelayer, Lib_AddressRes
      * @notice Forwards multiple cross domain messages to the L1 Cross Domain Messenger for relaying
      * @param _messages An array of L2 to L1 messages
      */
-    function batchRelayMessages(L2ToL1Message[] calldata _messages) 
+    function batchRelayMessages(
+        L2ToL1Message[] calldata _messages
+    ) 
         override
         external
-        onlyBatchRelayer 
+        onlyBatchRelayer
     {
-        iOVM_L1CrossDomainMessenger messenger = iOVM_L1CrossDomainMessenger(resolve("Proxy__OVM_L1CrossDomainMessenger"));
+        iOVM_L1CrossDomainMessenger messenger = iOVM_L1CrossDomainMessenger(
+            resolve("Proxy__OVM_L1CrossDomainMessenger")
+        );
+
         for (uint256 i = 0; i < _messages.length; i++) {
             L2ToL1Message memory message = _messages[i];
             messenger.relayMessage(

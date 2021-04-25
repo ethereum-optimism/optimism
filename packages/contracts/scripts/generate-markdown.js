@@ -44,7 +44,6 @@ const networks = {
 |OVM_L1MessageSender: | \`0x4200000000000000000000000000000000000001\`
 |OVM_DeployerWhitelist: | \`0x4200000000000000000000000000000000000002\`
 |OVM_ECDSAContractAccount: | \`0x4200000000000000000000000000000000000003\`
-|OVM_ProxySequencerEntrypoint: | \`0x4200000000000000000000000000000000000004\`
 |OVM_SequencerEntrypoint: | \`0x4200000000000000000000000000000000000005\`
 |Lib_AddressManager: | \`0x4200000000000000000000000000000000000008\`
 |ERC1820Registry: | \`0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24\`
@@ -85,5 +84,5 @@ const networks = {
     md += `---\n`;
   }
 
-  fs.writeFileSync(`./addresses.md`, md);
+  fs.writeFileSync(`./deployments/README.md`, md);
 })().catch(console.error);

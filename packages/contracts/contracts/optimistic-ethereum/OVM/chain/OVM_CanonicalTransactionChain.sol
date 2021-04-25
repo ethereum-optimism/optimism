@@ -16,7 +16,6 @@ import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageCo
 /* Contract Imports */
 import { OVM_ExecutionManager } from "../execution/OVM_ExecutionManager.sol";
 
-
 /**
  * @title OVM_CanonicalTransactionChain
  * @dev The Canonical Transaction Chain (CTC) contract is an append-only log of transactions

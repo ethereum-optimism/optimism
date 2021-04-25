@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.2.2
+
+### Patch Changes
+
+- 6d31324: Update release tag for Sentry compatability
+
 ## 0.2.1
 
 ### Patch Changes

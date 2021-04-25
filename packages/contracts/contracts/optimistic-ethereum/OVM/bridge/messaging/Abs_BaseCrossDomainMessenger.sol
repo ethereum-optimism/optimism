@@ -10,26 +10,28 @@ import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuar
 
 /**
  * @title Abs_BaseCrossDomainMessenger
- * @dev The Base Cross Domain Messenger is an abstract contract providing the interface and common functionality used in the
- * L1 and L2 Cross Domain Messengers. It can also serve as a template for developers wishing to implement a custom bridge
- * contract to suit their needs.
+ * @dev The Base Cross Domain Messenger is an abstract contract providing the interface and common
+ * functionality used in the L1 and L2 Cross Domain Messengers. It can also serve as a template for
+ * developers wishing to implement a custom bridge contract to suit their needs.
  *
  * Compiler used: defined by child contract
  * Runtime target: defined by child contract
  */
 abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger, Lib_ReentrancyGuard {
-    /**************
-     *  Constants *
-     **************/
+
+    /*************
+     * Constants *
+     *************/
 
     // The default x-domain message sender being set to a non-zero value makes
     // deployment a bit more expensive, but in exchange the refund on every call to
     // `relayMessage` by the L1 and L2 messengers will be higher.
     address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
 
-    /**********************
-     * Contract Variables *
-     **********************/
+
+    /*************
+     * Variables *
+     *************/
 
     mapping (bytes32 => bool) public relayedMessages;
     mapping (bytes32 => bool) public successfulMessages;
@@ -37,13 +39,26 @@ abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger,
     uint256 public messageNonce;
     address internal xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
+
+    /***************
+     * Constructor *
+     ***************/
+
+    constructor() Lib_ReentrancyGuard() {}
+
+
     /********************
      * Public Functions *
      ********************/
 
-    constructor() Lib_ReentrancyGuard() {}
-
-    function xDomainMessageSender() public override view returns (address) {
+    function xDomainMessageSender()
+        public
+        override
+        view
+        returns (
+            address
+        )
+    {
         require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
         return xDomainMsgSender;
     }
@@ -75,6 +90,7 @@ abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger,
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
         emit SentMessage(xDomainCalldata);
     }
+
 
     /**********************
      * Internal Functions *

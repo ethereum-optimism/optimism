@@ -10,13 +10,18 @@ interface iAbs_BaseCrossDomainMessenger {
     /**********
      * Events *
      **********/
+
     event SentMessage(bytes message);
     event RelayedMessage(bytes32 msgHash);
+    event FailedRelayedMessage(bytes32 msgHash);
 
-    /**********************
-     * Contract Variables *
-     **********************/
+
+    /*************
+     * Variables *
+     *************/
+
     function xDomainMessageSender() external view returns (address);
+
 
     /********************
      * Public Functions *

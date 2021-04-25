@@ -20,7 +20,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 /**
  * @title OVM_ECDSAContractAccount
  * @dev The ECDSA Contract Account can be used as the implementation for a ProxyEOA deployed by the
- * ovmCREATEEOA operation. It enables backwards compatibility with Ethereum's Layer 1, by 
+ * ovmCREATEEOA operation. It enables backwards compatibility with Ethereum's Layer 1, by
  * providing eth_sign and EIP155 formatted transaction encodings.
  *
  * Compiler used: optimistic-solc

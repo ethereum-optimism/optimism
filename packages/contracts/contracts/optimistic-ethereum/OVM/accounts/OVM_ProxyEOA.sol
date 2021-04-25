@@ -8,9 +8,9 @@ import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 /**
  * @title OVM_ProxyEOA
  * @dev The Proxy EOA contract uses a delegate call to execute the logic in an implementation contract.
- * In combination with the logic implemented in the ECDSA Contract Account, this enables a form of upgradable 
- * 'account abstraction' on layer 2. 
- * 
+ * In combination with the logic implemented in the ECDSA Contract Account, this enables a form of upgradable
+ * 'account abstraction' on layer 2.
+ *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
