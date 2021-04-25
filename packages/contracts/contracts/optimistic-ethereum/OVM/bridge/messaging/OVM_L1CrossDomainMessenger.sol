@@ -16,6 +16,11 @@ import { iOVM_StateCommitmentChain } from "../../../iOVM/chain/iOVM_StateCommitm
 /* Contract Imports */
 import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol";
 
+/* External Imports */
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/utils/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+
 /**
  * @title OVM_L1CrossDomainMessenger
  * @dev The L1 Cross Domain Messenger contract sends messages from L1 to L2, and relays messages
@@ -25,19 +30,38 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver, Ownable, Pausable {
+
+    /**********
+     * Events *
+     **********/
+
+    event MessageBlocked(
+        bytes32 indexed _xDomainCalldataHash
+    );
+
+    event MessageAllowed(
+        bytes32 indexed _xDomainCalldataHash
+    );
+
+    /**********************
+     * Contract Variables *
+     **********************/
+
+    mapping (bytes32 => bool) public blockedMessages;
 
     /***************
      * Constructor *
      ***************/
 
     /**
-     * Pass a default zero address to the address resolver. This will be updated when initialized.
+     * This contract is intended to be behind a delegate proxy.
+     * We pass the zero address to the address resolver just to satisfy the constructor.
+     * We still need to set this value in initialize().
      */
     constructor()
         Lib_AddressResolver(address(0))
     {}
-
 
     /**********************
      * Function Modifiers *
@@ -75,9 +99,47 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
             address(libAddressManager) == address(0),
             "L1CrossDomainMessenger already intialized."
         );
-
         libAddressManager = Lib_AddressManager(_libAddressManager);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        owner = msg.sender;
+    }
+
+    /**
+     * Pause relaying.
+     */
+    function pause()
+        external
+        onlyOwner
+    {
+        _pause();
+    }
+
+    /**
+     * Block a message.
+     * @param _xDomainCalldataHash Hash of the message to block.
+     */
+    function blockMessage(
+        bytes32 _xDomainCalldataHash
+    )
+        external
+        onlyOwner
+    {
+        blockedMessages[_xDomainCalldataHash] = true;
+        emit MessageBlocked(_xDomainCalldataHash);
+    }
+
+    /**
+     * Allow a message.
+     * @param _xDomainCalldataHash Hash of the message to block.
+     */
+    function allowMessage(
+        bytes32 _xDomainCalldataHash
+    )
+        external
+        onlyOwner
+    {
+        blockedMessages[_xDomainCalldataHash] = false;
+        emit MessageAllowed(_xDomainCalldataHash);
     }
 
     /**
@@ -94,7 +156,8 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         override
         public
         nonReentrant
-        onlyRelayer()
+        onlyRelayer
+        whenNotPaused
     {
         bytes memory xDomainCalldata = _getXDomainCalldata(
             _target,
@@ -116,6 +179,11 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         require(
             successfulMessages[xDomainCalldataHash] == false,
             "Provided message has already been received."
+        );
+
+        require(
+            blockedMessages[xDomainCalldataHash] == false,
+            "Provided message has been blocked."
         );
 
         xDomainMsgSender = _sender;
