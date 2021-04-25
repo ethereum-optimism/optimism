@@ -2,21 +2,9 @@
 import { Contract, Signer, utils, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import * as ynatm from '@eth-optimism/ynatm'
-import { Logger, Metrics } from '@eth-optimism/core-utils'
+import { RollupInfo, Logger, Metrics } from '@eth-optimism/core-utils'
 import { getContractFactory } from 'old-contracts'
 
-export interface RollupInfo {
-  mode: 'sequencer' | 'verifier'
-  syncing: boolean
-  ethContext: {
-    blockNumber: number
-    timestamp: number
-  }
-  rollupContext: {
-    index: number
-    queueIndex: number
-  }
-}
 export interface Range {
   start: number
   end: number

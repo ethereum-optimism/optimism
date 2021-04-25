@@ -1,13 +1,18 @@
 /* External Imports */
 import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
-import {
-  TransactionResponse,
-  TransactionReceipt,
-} from '@ethersproject/abstract-provider'
+import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractInterface, getContractFactory } from 'old-contracts'
 import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
-import { Logger, Metrics, ctcCoder } from '@eth-optimism/core-utils'
+import {
+  L2Block,
+  RollupInfo,
+  BatchElement,
+  Batch,
+  QueueOrigin,
+  Logger,
+  Metrics,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -17,8 +22,7 @@ import {
   AppendSequencerBatchParams,
 } from '../transaction-chain-contract'
 
-import { L2Block, BatchElement, Batch, QueueOrigin } from '..'
-import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
+import { Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 
 export interface AutoFixBatchOptions {
   fixDoublePlayedDeposits: boolean

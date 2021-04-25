@@ -4,16 +4,16 @@ import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from 'old-contracts'
 import {
+  L2Block,
+  RollupInfo,
   Logger,
   Bytes32,
   remove0x,
-  toRpcHexString,
   Metrics,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { L2Block } from '..'
-import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
+import { Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!

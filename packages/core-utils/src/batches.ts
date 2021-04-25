@@ -4,6 +4,19 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 
+export interface RollupInfo {
+  mode: 'sequencer' | 'verifier'
+  syncing: boolean
+  ethContext: {
+    blockNumber: number
+    timestamp: number
+  }
+  rollupContext: {
+    index: number
+    queueIndex: number
+  }
+}
+
 export enum QueueOrigin {
   Sequencer = 'sequencer',
   L1ToL2 = 'l1',
