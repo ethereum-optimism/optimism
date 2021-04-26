@@ -42,3 +42,8 @@ jobs:
             yarn build:contracts
             yarn build:contracts:ovm
             yarn test:integration
+        env:
+          FORCE_COLOR: 1
+          ENABLE_GAS_REPORT: 1
+      - name: Print gas report
+        run: cat integration-tests/gas-report.txt
