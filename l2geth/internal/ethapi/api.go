@@ -1752,8 +1752,8 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 	if new(big.Int).Mod(tx.GasPrice(), big.NewInt(1000000)).Cmp(big.NewInt(0)) != 0 {
 		return common.Hash{}, errors.New("Gas price must be a multiple of 1,000,000 wei")
 	}
-	// L1Timestamp and L1BlockNumber will be set by the miner
-	txMeta := types.NewTransactionMeta(nil, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, nil)
+	// L1Timestamp and L1BlockNumber will be set right before execution
+	txMeta := types.NewTransactionMeta(nil, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, encodedTx)
 	tx.SetTransactionMeta(txMeta)
 	return SubmitTransaction(ctx, s.b, tx)
 }
