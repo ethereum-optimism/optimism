@@ -2,9 +2,6 @@
 // @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
 
-/* Interface Imports */
-import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
-
 /* Library Imports */
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
@@ -69,6 +66,21 @@ contract OVM_SequencerEntrypoint {
         }
 
         // Forward the transaction over to the EOA.
-        iOVM_ECDSAContractAccount(target).execute(encodedTx);
+        (bool success, bytes memory returndata) = target.call(
+            abi.encodeWithSelector(
+                "execute(bytes)",
+                encodedTx
+            )
+        );
+
+        if (success) {
+            assembly {
+                return(add(returndata, 0x20), mload(returndata))
+            }
+        } else {
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
+        }
     }
 }
