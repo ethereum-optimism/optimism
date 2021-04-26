@@ -133,10 +133,10 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	// OVM_ADDITION
-	EthCallSender         *common.Address
-	OvmExecutionManager   dump.OvmDumpAccount
-	OvmStateManager       dump.OvmDumpAccount
-	OvmSafetyChecker      dump.OvmDumpAccount
+	EthCallSender       *common.Address
+	OvmExecutionManager dump.OvmDumpAccount
+	OvmStateManager     dump.OvmDumpAccount
+	OvmSafetyChecker    dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
