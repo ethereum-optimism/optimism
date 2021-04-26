@@ -69,6 +69,7 @@
     "ethers": "^5.0.31",
     "hardhat": "^2.0.8",
     "hardhat-deploy": "^0.7.4",
+    "hardhat-gas-reporter": "^1.0.4",
     "lodash": "^4.17.20",
     "merkle-patricia-tree": "^4.0.0",
     "merkletreejs": "^0.2.12",

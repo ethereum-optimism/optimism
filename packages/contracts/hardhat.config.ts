@@ -14,6 +14,7 @@ import 'hardhat-deploy'
 import '@typechain/hardhat'
 import '@eth-optimism/hardhat-ovm'
 import './tasks/deploy'
+import 'hardhat-gas-reporter'
 
 // Load environment variables from .env
 dotenv.config()
@@ -63,6 +64,11 @@ const config: HardhatUserConfig = {
     deployer: {
       default: 0,
     },
+  },
+  gasReporter: {
+    currency: 'USD',
+    gasPrice: 100,
+    enabled: true,
   },
 }
 
