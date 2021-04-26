@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -743,24 +742,5 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 		tx.SetL1Timestamp(ts)
 		tx.SetL1BlockNumber(bn)
 	}
-
-	// Set the raw transaction data in the meta
-	txRaw, err := rlp.EncodeToBytes(tx)
-	if err != nil {
-		return fmt.Errorf("invalid transaction: %w", err)
-	}
-	meta := tx.GetMeta()
-	newMeta := types.NewTransactionMeta(
-		meta.L1BlockNumber,
-		meta.L1Timestamp,
-		meta.L1MessageSender,
-		meta.SignatureHashType,
-		types.QueueOrigin(meta.QueueOrigin.Uint64()),
-		meta.Index,
-		meta.QueueIndex,
-		txRaw,
-	)
-	tx.SetTransactionMeta(newMeta)
-
 	return s.applyTransaction(tx)
 }
