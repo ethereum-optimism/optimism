@@ -52,8 +52,8 @@ const optionSettings = {
     default: 'l1',
     validate: (val: string) => {
       return val === 'l1' || val === 'l2'
-    }
-  }
+    },
+  },
 }
 
 export class L1TransportServer extends BaseService<L1TransportServerOptions> {
@@ -384,7 +384,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const backend = req.query.backend || this.options.defaultBackend
         let transaction = null
 
-        switch (backend ) {
+        switch (backend) {
           case 'l1':
             transaction = await this.state.db.getFullTransactionByIndex(
               BigNumber.from(req.params.index).toNumber()
