@@ -62,15 +62,15 @@ describe('Basic RPC tests', () => {
     it('should accept a transaction with a value', async () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
-        chainId: await wallet.getChainId(),
+        chainId: await env.l2Wallet.getChainId(),
         data: '0x',
         value: ethers.utils.parseEther('5'),
       }
 
-      const balanceBefore = await provider.getBalance(wallet.address)
-      await wallet.sendTransaction(tx)
+      const balanceBefore = await provider.getBalance(env.l2Wallet.address)
+      await env.l2Wallet.sendTransaction(tx)
 
-      expect(await provider.getBalance(wallet.address)).to.deep.equal(
+      expect(await provider.getBalance(env.l2Wallet.address)).to.deep.equal(
         balanceBefore.sub(ethers.utils.parseEther('5'))
       )
     })
@@ -78,12 +78,12 @@ describe('Basic RPC tests', () => {
     it('should reject a transaction with higher value than user balance', async () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
-        chainId: await wallet.getChainId(),
+        chainId: await env.l2Wallet.getChainId(),
         data: '0x',
         value: ethers.utils.parseEther('100'), // wallet only has 10 eth by default
       }
 
-      await expect(wallet.sendTransaction(tx)).to.be.rejectedWith(
+      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
         'invalid transaction: insufficient funds for gas * price + value'
       )
     })
