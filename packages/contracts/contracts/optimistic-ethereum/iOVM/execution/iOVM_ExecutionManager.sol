@@ -75,7 +75,7 @@ interface iOVM_ExecutionManager {
     function run(
         Lib_OVMCodec.Transaction calldata _transaction,
         address _txStateManager
-    ) external;
+    ) external returns (bytes memory);
 
 
     /*******************

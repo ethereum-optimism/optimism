@@ -133,13 +133,10 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	// OVM_ADDITION
-	EthCallSender         *common.Address
-	OriginalTargetAddress *common.Address
-	OriginalTargetResult  []byte
-	OriginalTargetReached bool
-	OvmExecutionManager   dump.OvmDumpAccount
-	OvmStateManager       dump.OvmDumpAccount
-	OvmSafetyChecker      dump.OvmDumpAccount
+	EthCallSender       *common.Address
+	OvmExecutionManager dump.OvmDumpAccount
+	OvmStateManager     dump.OvmDumpAccount
+	OvmSafetyChecker    dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -251,34 +248,6 @@ func (evm *EVM) Interpreter() Interpreter {
 // the necessary steps to create accounts and reverses the state in case of an
 // execution error or failed value transfer.
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
-	var isTarget = false
-	if UsingOVM {
-		// OVM_ENABLED
-		if evm.depth == 0 {
-			// We're inside a new transaction, so make sure to wipe these variables beforehand.
-			evm.Context.OriginalTargetAddress = nil
-			evm.Context.OriginalTargetResult = []byte("00")
-			evm.Context.OriginalTargetReached = false
-		}
-
-		if caller.Address() == evm.Context.OvmExecutionManager.Address &&
-			!bytes.HasPrefix(addr.Bytes(), deadPrefix) &&
-			!bytes.HasPrefix(addr.Bytes(), zeroPrefix) &&
-			!bytes.HasPrefix(addr.Bytes(), fortyTwoPrefix) &&
-			evm.Context.OriginalTargetAddress == nil {
-			// Whew. Okay, so: we consider ourselves to be at a "target" as long as we were called
-			// by the execution manager, and we're not a precompile or "dead" address.
-			evm.Context.OriginalTargetAddress = &addr
-			evm.Context.OriginalTargetReached = true
-			isTarget = true
-		}
-		// Handle eth_call
-		if evm.Context.EthCallSender != nil && (caller.Address() == common.Address{}) {
-			evm.Context.OriginalTargetReached = true
-			isTarget = true
-		}
-	}
-
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
@@ -357,28 +326,17 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if UsingOVM {
 		// OVM_ENABLED
 
-		if isTarget {
-			// If this was our target contract, store the result so that it can be later re-inserted
-			// into the user-facing return data (as seen below).
-			evm.Context.OriginalTargetResult = ret
-		}
-
 		if evm.depth == 0 {
 			// We're back at the root-level message call, so we'll need to modify the return data
 			// sent to us by the OVM_ExecutionManager to instead be the intended return data.
 
-			if !evm.Context.OriginalTargetReached {
-				// If we didn't get to the target contract, then our execution somehow failed
-				// (perhaps due to insufficient gas). Just return an error that represents this.
-				ret = common.FromHex("0x")
-				err = ErrOvmExecutionFailed
-			} else if len(evm.Context.OriginalTargetResult) >= 96 {
+			if len(ret) >= 96 {
 				// We expect that EOA contracts return at least 96 bytes of data, where the first
 				// 32 bytes are the boolean success value and the next 64 bytes are unnecessary
 				// ABI encoding data. The actual return data starts at the 96th byte and can be
 				// empty.
-				success := evm.Context.OriginalTargetResult[:32]
-				ret = evm.Context.OriginalTargetResult[96:]
+				success := ret[:32]
+				ret = ret[96:]
 
 				if !bytes.Equal(success, AbiBytesTrue) && !bytes.Equal(success, AbiBytesFalse) {
 					// If the first 32 bytes not either are the ABI encoding of "true" or "false",
@@ -390,17 +348,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 					// If the first 32 bytes are the ABI encoding of "false", then we need to add an
 					// artificial error that represents the revert.
 					err = errExecutionReverted
-
-					// We also currently need to add an extra four empty bytes to the return data
-					// to appease ethers.js. Our return correctly inserts the four specific bytes
-					// that represent a "string error" to clients, but somehow the returndata size
-					// is a multiple of 32 (when we expect size % 32 == 4). ethers.js checks that
-					// [size % 32 == 4] before trying to decode a string error result. Adding these
-					// four empty bytes tricks ethers into correctly decoding the error string.
-					// ovmTODO: Figure out how to actually deal with this.
-					// ovmTODO: This may actually be completely broken if the first four bytes of
-					// the return data are **not** the specific "string error" bytes.
-					ret = append(ret, make([]byte, 4)...)
 				}
 			} else {
 				// User hasn't conformed the standard format, just return "null" for the success
