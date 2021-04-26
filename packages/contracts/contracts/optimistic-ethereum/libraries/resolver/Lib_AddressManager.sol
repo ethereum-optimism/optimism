@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
-/* Contract Imports */
-import { Ownable } from "./Lib_Ownable.sol";
+/* External Imports */
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title Lib_AddressManager
