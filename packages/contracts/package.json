@@ -5,6 +5,7 @@
   "files": [
     "dist/**/*.js",
     "dist/types/*.ts",
+    "dist/types-ovm/*.ts",
     "artifacts/**/*.json",
     "artifacts-ovm/**/*.json",
     "OVM",
@@ -24,6 +25,7 @@
     "build:contracts:ovm": "hardhat compile --network optimism",
     "build:dump": "ts-node \"bin/take-dump.ts\"",
     "build:typechain": "hardhat typechain",
+    "build:typechain:ovm": "hardhat --network optimism typechain",
     "test": "yarn run test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
     "test:gas": "hardhat test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
