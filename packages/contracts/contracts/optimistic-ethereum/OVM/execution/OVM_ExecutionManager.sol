@@ -750,7 +750,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         return Lib_EthUtils.getCode(
             _getAccountEthAddress(_contract),
             _offset,
-            length
+            _length
         );
     }
 
