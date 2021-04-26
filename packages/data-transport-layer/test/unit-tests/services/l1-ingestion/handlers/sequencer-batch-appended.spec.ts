@@ -136,65 +136,6 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.SequencerBatchAppended',
         '10B99425FB53AD7D40A939205C0F7B35CBB89AB4D67E7AE64BDAC5F1073943B4',
       batchExtraData: '',
     }
-    it('should correctly parse a mainnet transaction', async () => {
-      const input1: [any, SequencerBatchAppendedExtraData] = [
-        {
-          args: {
-            _startingQueueIndex: ethers.constants.Zero,
-            _numQueueElements: ethers.constants.Zero,
-            _totalElements: ethers.constants.Zero,
-          },
-        },
-        {
-          l1TransactionData,
-          ...exampleExtraData,
-        },
-      ]
-
-      const output1 = await handleEventsSequencerBatchAppended.parseEvent(
-        ...input1
-      )
-
-      const batchEntry = output1.transactionBatchEntry
-      expect(batchEntry.index).to.eq(exampleExtraData.batchIndex.toNumber())
-      expect(batchEntry.root).to.eq(exampleExtraData.batchRoot)
-      expect(batchEntry.size).to.eq(exampleExtraData.batchSize.toNumber())
-      expect(batchEntry.prevTotalElements).to.eq(
-        exampleExtraData.prevTotalElements.toNumber()
-      )
-      expect(batchEntry.extraData).to.eq(exampleExtraData.batchExtraData)
-      expect(batchEntry.blockNumber).to.eq(exampleExtraData.blockNumber)
-      expect(batchEntry.timestamp).to.eq(exampleExtraData.timestamp)
-      expect(batchEntry.submitter).to.eq(exampleExtraData.submitter)
-      expect(batchEntry.l1TransactionHash).to.eq(
-        exampleExtraData.l1TransactionHash
-      )
-
-      // Expected transaction entry results based on mainnet data
-      // Source: https://ethtx.info/mainnet/0x6effe006836b841205ace4d99d7ae1b74ee96aac499a3f358b97fccd32ee9af2
-      const txEntries = output1.transactionEntries
-      expect(txEntries).to.have.length(101)
-      expect(txEntries.every((t) => t.queueOrigin === 'sequencer' || 'l1')).to
-        .be.true
-
-      // Sequencer transactions are decoded, but l1 transactions are not
-      txEntries.forEach((tx, i) => {
-        if (tx.queueOrigin === 'l1') {
-          expect(tx.decoded).to.be.null
-        } else {
-          const l2Tx = blocksOnL2[i].transactions[0]
-          expect(tx.decoded.data).to.equal(l2Tx.data)
-          expect(tx.decoded.target).to.equal(l2Tx.to.toLowerCase())
-          expect(tx.decoded.nonce).to.equal(l2Tx.nonce)
-          expect(tx.decoded.gasLimit).to.equal(
-            BigNumber.from(l2Tx.gasLimit.hex).toNumber()
-          )
-          expect(tx.decoded.gasPrice).to.equal(
-            BigNumber.from(l2Tx.gasPrice.hex).toNumber()
-          )
-        }
-      })
-    })
 
     it('should error on malformed transaction data', async () => {
       const input1: [any, SequencerBatchAppendedExtraData] = [
