@@ -69,7 +69,8 @@ describe('Basic RPC tests', () => {
 
       const balanceBefore = await provider.getBalance(env.l2Wallet.address)
       const result = await env.l2Wallet.sendTransaction(tx)
-      await result.wait()
+      const receipt = await result.wait()
+      expect(receipt.status).to.deep.equal(1)
 
       expect(await provider.getBalance(env.l2Wallet.address)).to.deep.equal(
         balanceBefore.sub(ethers.utils.parseEther('5'))
