@@ -23,32 +23,32 @@ interface Bcfg {
     })
 
     const service = new L1DataTransportService({
-      dbPath: config.str('dbPath', './db'),
-      port: config.uint('serverPort', 7878),
-      hostname: config.str('serverHostname', 'localhost'),
+      dbPath: config.str('db-path', './db'),
+      port: config.uint('server-port', 7878),
+      hostname: config.str('server-hostname', 'localhost'),
       confirmations: config.uint('confirmations', 35),
-      l1RpcProvider: config.str('l1RpcEndpoint'),
-      addressManager: config.str('addressManager'),
-      pollingInterval: config.uint('pollingInterval', 5000),
-      logsPerPollingInterval: config.uint('logsPerPollingInterval', 2000),
+      l1RpcProvider: config.str('l1-rpc-endpoint'),
+      addressManager: config.str('address-manager'),
+      pollingInterval: config.uint('polling-interval', 5000),
+      logsPerPollingInterval: config.uint('logs-per-polling-interval', 2000),
       dangerouslyCatchAllErrors: config.bool(
-        'dangerouslyCatchAllErrors',
+        'dangerously-catch-all-errors',
         false
       ),
-      l2RpcProvider: config.str('l2RpcEndpoint'),
-      l2ChainId: config.uint('l2ChainId'),
-      syncFromL1: config.bool('syncFromL1', true),
-      syncFromL2: config.bool('syncFromL2', false),
+      l2RpcProvider: config.str('l2-rpc-endpoint'),
+      l2ChainId: config.uint('l2-chain-id'),
+      syncFromL1: config.bool('sync-from-l1', true),
+      syncFromL2: config.bool('sync-from-l2', false),
       transactionsPerPollingInterval: config.uint(
-        'transactionsPerPollingInterval',
+        'transactions-per-polling-interval',
         1000
       ),
       legacySequencerCompatibility: config.bool(
-        'legacySequencerCompatibility',
+        'legacy-sequencer-compatibility',
         false
       ),
-      sentryDsn: config.str('sentryDsn'),
-      defaultBackend: config.str('defaultBackend', 'l1'),
+      defaultBackend: config.str('default-backend', 'l1'),
+      sentryDsn: config.str('sentry-dsn'),
     })
 
     await service.start()
