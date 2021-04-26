@@ -4,4 +4,4 @@
 "@eth-optimism/contracts": patch
 ---
 
-Pass through execution manager data
+Add value transfer support to ECDSAContractAccount
