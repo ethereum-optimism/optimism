@@ -320,10 +320,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 			if len(signedTx.Data()) > b.MaxCallDataSize {
 				return fmt.Errorf("Calldata cannot be larger than %d, sent %d", b.MaxCallDataSize, len(signedTx.Data()))
 			}
-			// The gas price must be a multiple of a gwei
-			if new(big.Int).Mod(signedTx.GasPrice(), big.NewInt(1e6)).Cmp(common.Big0) != 0 {
-				return errors.New("Gas price must be a multiple of 1,000,000 wei")
-			}
 			// If there is a value field set then reject transactions that
 			// contain calldata. The feature of sending transactions with value
 			// and calldata will be added in the future.
