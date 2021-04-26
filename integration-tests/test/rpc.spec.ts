@@ -1,5 +1,5 @@
 import { injectL2Context } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber } from 'ethers'
+import { Wallet, BigNumber, ethers } from 'ethers'
 import chai, { expect } from 'chai'
 import { sleep, l2Provider, GWEI } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
@@ -59,16 +59,34 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('Cannot submit unprotected transaction')
     })
 
-    it('should not accept a transaction with a value', async () => {
+    it('should accept a transaction with a value', async () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         chainId: await wallet.getChainId(),
-        value: 100,
+        data: '0x',
+        value: ethers.utils.parseEther('5'),
       }
+
+      const balanceBefore = await provider.getBalance(wallet.address)
+      await provider.sendTransaction(await wallet.signTransaction(tx))
+
+      expect(await provider.getBalance(wallet.address)).to.deep.equal(
+        balanceBefore.sub(ethers.utils.parseEther('5'))
+      )
+    })
+
+    it('should reject a transaction with higher value than user balance', async () => {
+      const tx = {
+        ...DEFAULT_TRANSACTION,
+        chainId: await wallet.getChainId(),
+        data: '0x',
+        value: ethers.utils.parseEther('100'), // wallet only has 10 eth by default
+      }
+
       await expect(
         provider.sendTransaction(await wallet.signTransaction(tx))
       ).to.be.rejectedWith(
-        'Cannot send transaction with non-zero value. Use WETH.transfer()'
+        'invalid transaction: insufficient funds for gas * price + value'
       )
     })
   })
