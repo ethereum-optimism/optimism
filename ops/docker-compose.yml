@@ -47,7 +47,7 @@ services:
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
-        ./envs/dtl.env
+      -  ./envs/dtl.env
     # set the rest of the env vars for the network whcih do not
     # depend on the docker-compose setup
     environment:
@@ -68,7 +68,7 @@ services:
     # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
     env_file:
-        ./envs/geth.env
+      - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
@@ -105,7 +105,7 @@ services:
       dockerfile: ./ops/docker/Dockerfile.batch-submitter
     entrypoint: ./batches.sh
     env_file:
-        ./envs/batches.env
+      - ./envs/batches.env
     environment:
         L1_NODE_WEB3_URL: http://l1_chain:8545
         L2_NODE_WEB3_URL: http://l2geth:8545
