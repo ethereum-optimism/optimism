@@ -78,11 +78,12 @@ describe('Basic RPC tests', () => {
     })
 
     it('should reject a transaction with higher value than user balance', async () => {
+      const balance = await env.l2Wallet.getBalance()
       const tx = {
         ...DEFAULT_TRANSACTION,
         chainId: await env.l2Wallet.getChainId(),
         data: '0x',
-        value: ethers.utils.parseEther('100'), // wallet only has 10 eth by default
+        value: balance.add(ethers.utils.parseEther('1')),
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
