@@ -197,7 +197,7 @@ extendEnvironment((hre) => {
     // directory
     if ((hre.config as any).typechain) {
       if (!(hre as any).config.typechain.outDir.endsWith('-ovm')) {
-        (hre as any).config.typechain.outDir += '-ovm'
+        ;(hre as any).config.typechain.outDir += '-ovm'
       }
     }
   }
