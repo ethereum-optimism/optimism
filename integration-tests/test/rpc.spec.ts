@@ -68,7 +68,7 @@ describe('Basic RPC tests', () => {
       }
 
       const balanceBefore = await provider.getBalance(wallet.address)
-      await provider.sendTransaction(await wallet.signTransaction(tx))
+      await wallet.sendTransaction(tx)
 
       expect(await provider.getBalance(wallet.address)).to.deep.equal(
         balanceBefore.sub(ethers.utils.parseEther('5'))
@@ -83,9 +83,7 @@ describe('Basic RPC tests', () => {
         value: ethers.utils.parseEther('100'), // wallet only has 10 eth by default
       }
 
-      await expect(
-        provider.sendTransaction(await wallet.signTransaction(tx))
-      ).to.be.rejectedWith(
+      await expect(wallet.sendTransaction(tx)).to.be.rejectedWith(
         'invalid transaction: insufficient funds for gas * price + value'
       )
     })
