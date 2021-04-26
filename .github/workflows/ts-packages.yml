@@ -54,7 +54,11 @@ jobs:
 
       - name: Test
         run: yarn test:ci
-
+        env:
+          FORCE_COLOR: 1
+          ENABLE_GAS_REPORT: 1
+      - name: Print gas report
+        run: cat packages/contracts/gas-report.txt
   lint:
     name: Linting
     runs-on: ubuntu-latest

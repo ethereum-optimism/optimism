@@ -19,6 +19,8 @@ import 'hardhat-gas-reporter'
 // Load environment variables from .env
 dotenv.config()
 
+const enableGasReport = !!process.env.ENABLE_GAS_REPORT
+
 const config: HardhatUserConfig = {
   networks: {
     hardhat: {
@@ -66,9 +68,10 @@ const config: HardhatUserConfig = {
     },
   },
   gasReporter: {
+    enabled: enableGasReport,
     currency: 'USD',
     gasPrice: 100,
-    enabled: true,
+    outputFile: process.env.CI ? 'gas-report.txt' : undefined,
   },
 }
 
