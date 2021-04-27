@@ -29,21 +29,6 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
     iOVM_L2ToL1MessagePasser public ovmL2ToL1MessagePasser;
 
 
-    /***************
-     * Constructor *
-     ***************/
-
-    constructor(
-        address _ovmL1CrossDomainMessenger,
-        iOVM_L1MessageSender _ovmL1MessageSender,
-        iOVM_L2ToL1MessagePasser _ovmL2ToL1MessagePasser
-    ) {
-        ovmL1CrossDomainMessenger = _ovmL1CrossDomainMessenger;
-        ovmL1MessageSender = _ovmL1MessageSender;
-        ovmL2ToL1MessagePasser = _ovmL2ToL1MessagePasser;
-    }
-
-
     /********************
      * Public Functions *
      ********************/
