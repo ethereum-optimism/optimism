@@ -101,6 +101,7 @@ contract OVM_L1CrossDomainMessenger is
         address _libAddressManager
     )
         public
+        initializer
     {
         require(
             address(libAddressManager) == address(0),
@@ -108,7 +109,9 @@ contract OVM_L1CrossDomainMessenger is
         );
         libAddressManager = Lib_AddressManager(_libAddressManager);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
-        __Context_init_unchained();
+
+        // Initialize upgradable OZ contracts
+        __Context_init_unchained(); // Context is a dependency for both Ownable and Pausable
         __Ownable_init_unchained();
         __Pausable_init_unchained();
         __ReentrancyGuard_init_unchained();
