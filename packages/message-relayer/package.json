@@ -14,7 +14,7 @@
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "tslint --format stylish --project .",
-    "lint:fix": "prettier --config prettier-config.json --write \"{src,exec,test}/**/*.ts\""
+    "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\""
   },
   "keywords": [
     "optimism",

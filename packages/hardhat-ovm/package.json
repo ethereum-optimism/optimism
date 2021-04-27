@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "lint:check": "tslint --format stylish --project .",
-    "lint:fix": "prettier --config prettier-config.json --write \"{src,test}/**/*.ts\""
+    "lint:fix": "prettier --config .prettierrc.json --write \"{src,test}/**/*.ts\""
   },
   "dependencies": {
     "node-fetch": "^2.6.1"
