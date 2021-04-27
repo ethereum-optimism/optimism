@@ -4,6 +4,7 @@ pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_ExecutionManagerWrapper } from "../../optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+import { Lib_MerkleTree } from "../../optimistic-ethereum/libraries/utils/Lib_MerkleTree.sol";
 
 /**
  * @title ChugSplashDeployer
@@ -17,6 +18,23 @@ contract ChugSplashDeployer {
     enum ActionType {
         SET_CODE,
         SET_STORAGE
+    }
+
+
+    /***********
+     * Structs *
+     ***********/
+
+    struct ChugSplashAction {
+        ActionType actionType;
+        uint256 gasLimit;
+        address target;
+        bytes data;
+    }
+
+    struct ChugSplashActionProof {
+        uint256 actionIndex;
+        bytes32[] siblings;
     }
 
 
@@ -111,13 +129,13 @@ contract ChugSplashDeployer {
     }
 
     function executeAction(
-        ActionType _type,
-        address _target,
-        bytes memory _data,
-        uint256 _gasLimit
+        ChugSplashAction memory _action,
+        ChugSplashActionProof memory _proof
     )
         public
     {
+        // TODO: Do we need to validate enums or does solidity do it for us?
+
         require(
             hasActiveBundle() == true,
             "ChugSplashDeployer: there is no active bundle"
@@ -125,16 +143,26 @@ contract ChugSplashDeployer {
 
         // Make sure the user has provided enough gas to perform this action successfully.
         require(
-            gasleft() > _gasLimit,
+            gasleft() > _action.gasLimit,
             "ChugSplashDeployer: sender didn't supply enough gas"
         );
 
+        // Make sure that the owner did actually sign off on this action.
         require(
-            _type == ActionType.SET_CODE || _type == ActionType.SET_STORAGE,
-            "ChugSplashDeployer: unknown action type"
+            Lib_MerkleTree.verify(
+                currentBundleHash,
+                keccak256(
+                    _action.actionType,
+                    _action.gasLimit,
+                    _action.target,
+                    _action.data
+                ),
+                _proof.actionIndex,
+                _proof.siblings,
+                currentBundleSize
+            ),
+            "ChugSplashDeployer: invalid action proof"
         );
-
-        // TODO: Check proof.
 
         if (_type == ActionType.SET_CODE) {
             Lib_ExecutionManagerWrapper.ovmSETCODE(_target, _data);
