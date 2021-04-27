@@ -14,6 +14,7 @@ type SolidityVariable =
 export interface ChugSplashConfig {
   contracts: {
     [name: string]: {
+      address?: string
       source: string
       variables?: {
         [name: string]: SolidityVariable
@@ -110,19 +111,24 @@ export const parseConfig = (
   // original object.
   const parsed = cloneDeep(config)
 
+  // Make sure this field is definitely defined.
+  parsed.contracts = parsed.contracts || {}
+
   // Generate a mapping of contract names to contract addresses. Used to inject values for
   // {{ contract.X }} template strings.
   const addresses = {}
-  for (const contractNickname of Object.keys(config.contracts || {})) {
-    addresses[contractNickname] = ethers.utils.getCreate2Address(
-      deployerAddress,
-      ethers.utils.keccak256(ethers.utils.toUtf8Bytes(contractNickname)),
-      ethers.utils.keccak256(proxyArtifact.bytecode)
-    )
+  for (const contractNickname of Object.keys(parsed.contracts)) {
+    addresses[contractNickname] =
+      parsed.contracts[contractNickname].address ||
+      ethers.utils.getCreate2Address(
+        deployerAddress,
+        ethers.utils.keccak256(ethers.utils.toUtf8Bytes(contractNickname)),
+        ethers.utils.keccak256(proxyArtifact.bytecode)
+      )
   }
 
   for (const [contractNickname, contractConfig] of Object.entries(
-    config.contracts || {}
+    parsed.contracts
   )) {
     for (const [variableName, variableValue] of Object.entries(
       contractConfig.variables || {}

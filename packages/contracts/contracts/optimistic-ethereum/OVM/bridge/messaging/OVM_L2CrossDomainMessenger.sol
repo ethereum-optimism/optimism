@@ -2,9 +2,6 @@
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
-/* Library Imports */
-import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
-
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
 import { iOVM_L1MessageSender } from "../../../iOVM/predeploys/iOVM_L1MessageSender.sol";
@@ -21,20 +18,30 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
  * Compiler used: optimistic-solc
  * Runtime target: OVM
   */
-contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCrossDomainMessenger {
+
+    /*************
+     * Variables *
+     *************/
+
+    address public ovmL1CrossDomainMessenger;
+    iOVM_L1MessageSender public ovmL1MessageSender;
+    iOVM_L2ToL1MessagePasser public ovmL2ToL1MessagePasser;
+
 
     /***************
      * Constructor *
      ***************/
 
-    /**
-     * @param _libAddressManager Address of the Address Manager.
-     */
     constructor(
-        address _libAddressManager
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {}
+        address _ovmL1CrossDomainMessenger,
+        iOVM_L1MessageSender _ovmL1MessageSender,
+        iOVM_L2ToL1MessagePasser _ovmL2ToL1MessagePasser
+    ) {
+        ovmL1CrossDomainMessenger = _ovmL1CrossDomainMessenger;
+        ovmL1MessageSender = _ovmL1MessageSender;
+        ovmL2ToL1MessagePasser = _ovmL2ToL1MessagePasser;
+    }
 
 
     /********************
@@ -126,9 +133,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
         )
     {
         return (
-            iOVM_L1MessageSender(
-                resolve("OVM_L1MessageSender")
-            ).getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
+            ovmL1MessageSender.getL1MessageSender() == ovmCrossDomainMessenger
         );
     }
 
@@ -144,6 +149,6 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
         override
         internal
     {
-        iOVM_L2ToL1MessagePasser(resolve("OVM_L2ToL1MessagePasser")).passMessageToL1(_message);
+        ovmL2ToL1MessagePasser.passMessageToL1(_message);
     }
 }
