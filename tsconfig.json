@@ -11,6 +11,7 @@
     "esModuleInterop": true,
     "sourceMap": true,
     "resolveJsonModule": true,
+    "skipLibCheck": true,
     "outDir": "dist",
     "lib": [
       "es7"

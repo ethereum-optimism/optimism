@@ -5,14 +5,21 @@
   "private": true,
   "author": "Optimism PBC",
   "license": "MIT",
+  "files": [
+    "test/**/*.ts"
+  ],
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "tslint --format stylish --project .",
     "lint:fix": "prettier --config ./prettier-config.json --write 'test/**/*.ts'",
+    "build": "yarn build:contracts && yarn build:contracts:ovm && yarn build:typescript && yarn build:copy && yarn build:dump && yarn build:typechain",
+    "build:typescript": "tsc",
+    "build:dump": "ts-node \"bin/take-dump.ts\"",
+    "build:copy": "yarn build:copy:artifacts && yarn build:copy:artifacts:ovm && yarn build:copy:contracts",
     "build:integration": "./scripts/build.sh",
     "build:contracts": "hardhat compile",
     "build:contracts:ovm": "hardhat compile --network omgx",
-    "test:integration": "hardhat --network omgx test",
+    "deploy": "hardhat --network omgx test",
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
@@ -30,7 +37,8 @@
     "mocha": "^8.3.1",
     "rimraf": "^3.0.2",
     "ts-node": "^9.1.1",
-    "typescript": "^4.2.4"
+    "typescript": "^4.2.4",
+    "directory-tree": "^2.2.7"
   },
   "dependencies": {
     "dotenv": "^8.2.0",
