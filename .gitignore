@@ -5,7 +5,9 @@ node_modules/
 build/
 build-ovm/
 artifacts/
+artifacts-ovm/
 cache/
+cache-ovm/
 
 # IDE
 /.idea
