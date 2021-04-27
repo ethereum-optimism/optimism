@@ -15,7 +15,6 @@ func TestGasLimit(t *testing.T) {
 		extRPCEnabled: false,
 		eth:           nil,
 		gpo:           nil,
-		l1gpo:         nil,
 		verifier:      false,
 		gasLimit:      0,
 		UsingOVM:      true,
