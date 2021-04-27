@@ -1041,6 +1041,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 
 	// 3. calculate the fee and normalize by the default gas price
 	fee := core.CalculateRollupFee(*args.Data, uint64(gasUsed), dataPrice, executionPrice).Uint64() / defaultGasPrice
+	if fee < 21000 {
+		fee = 21000
+	}
 	return (hexutil.Uint64)(fee), nil
 }
 
