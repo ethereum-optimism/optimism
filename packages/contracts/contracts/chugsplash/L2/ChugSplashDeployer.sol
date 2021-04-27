@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
+pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_ExecutionManagerWrapper } from "../../optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
@@ -152,10 +153,12 @@ contract ChugSplashDeployer {
             Lib_MerkleTree.verify(
                 currentBundleHash,
                 keccak256(
-                    _action.actionType,
-                    _action.gasLimit,
-                    _action.target,
-                    _action.data
+                    abi.encodePacked(
+                        _action.actionType,
+                        _action.gasLimit,
+                        _action.target,
+                        _action.data
+                    )
                 ),
                 _proof.actionIndex,
                 _proof.siblings,
@@ -164,11 +167,26 @@ contract ChugSplashDeployer {
             "ChugSplashDeployer: invalid action proof"
         );
 
-        if (_type == ActionType.SET_CODE) {
-            Lib_ExecutionManagerWrapper.ovmSETCODE(_target, _data);
+        if (_action.actionType == ActionType.SET_CODE) {
+            // When the action is SET_CODE, we expect that the data is exactly the bytecode that
+            // the user wants to set the code to.
+            Lib_ExecutionManagerWrapper.ovmSETCODE(
+                _action.target,
+                _action.data
+            );
         } else {
-            (bytes32 key, bytes32 val) = abi.decode(_data, (bytes32, bytes32));
-            Lib_ExecutionManagerWrapper.ovmSETSTORAGE(_target, key, val);
+            // When the action is SET_STORAGE, we expect that the data is actually an ABI encoded
+            // key/value pair. So we'll need to decode that first.
+            (bytes32 key, bytes32 value) = abi.decode(
+                _action.data,
+                (bytes32, bytes32)
+            );
+
+            Lib_ExecutionManagerWrapper.ovmSETSTORAGE(
+                _action.target,
+                key,
+                value
+            );
         }
 
         currentBundleTxsExecuted++;
