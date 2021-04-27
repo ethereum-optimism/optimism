@@ -240,12 +240,7 @@ const maybeDecodeSequencerBatchTransaction = (
   decoded: DecodedSequencerBatchTransaction | null
   type: 'EIP155' | 'ETH_SIGN' | null
 } => {
-  let decoded = null
-  let type = null
-
   try {
-    // Try to decode as RLP first. This function will throw if the transaction can't be properly
-    // decoded as RLP and we'll get bumped down to the next set of possible decodings.
     const decodedTx = ethers.utils.parseTransaction(transaction)
 
     return {
@@ -265,31 +260,10 @@ const maybeDecodeSequencerBatchTransaction = (
       },
     }
   } catch (err) {
-    // Do nothing, fall back to legacy decode.
-  }
-
-  try {
-    const txType = transaction.slice(0, 1).readUInt8()
-    if (txType === TxType.EIP155) {
-      type = 'EIP155'
-      decoded = ctcCoder.eip155TxData.decode(transaction.toString('hex'))
-    } else if (txType === TxType.EthSign) {
-      type = 'ETH_SIGN'
-      decoded = ctcCoder.ethSignTxData.decode(transaction.toString('hex'))
-    } else {
-      throw new Error(`Unknown sequencer transaction type.`)
+    return {
+      decoded: null,
+      type: null,
     }
-    // Validate the transaction
-    if (!validateBatchTransaction(type, decoded)) {
-      decoded = null
-    }
-  } catch (err) {
-    // Do nothing
-  }
-
-  return {
-    decoded,
-    type,
   }
 }
 
