@@ -1,0 +1,45 @@
+@import 'index.scss';
+
+.Login {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  position: relative;
+  background: white;
+  min-height: 400px;
+
+}
+
+.LoginInputContainer {
+  margin-bottom: 20px;
+  margin-right: 10px;
+  width: $maxWidth;
+  padding: 7px;
+  @include mobile {
+    margin-right: unset;
+  }
+}
+
+.Note {
+  font-size: 0.8em;
+  font-style: italic;
+  color: $gray3;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  .loading {
+    margin-left: 10px;
+  }
+}
+
+.ErrorMessageBox {
+  background-color: $red;
+  padding: 20px;
+  max-width: $maxWidth;
+  color: white;
+  margin-top: 10px;
+}

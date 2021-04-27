@@ -1,0 +1,32 @@
+@import 'index.scss';
+
+.container {
+  position: absolute;
+  width: 250px;
+  padding: 20px;
+  background-color: $blue;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  border-radius: 10px;
+  color: white;
+  box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+  animation: slideIn 1s;
+  overflow: hidden;
+
+  .button {
+    background-color: white;
+    color: $red;
+    border-radius: 5px;
+    margin-top: 10px;
+  }
+}
+
+@keyframes slideIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 100;
+  } 
+}

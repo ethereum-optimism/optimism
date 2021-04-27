@@ -1,0 +1,102 @@
+@import 'index.scss';
+
+.Transaction {
+  display: flex;
+  flex-direction: row;
+  padding: 20px;
+  background-color: $bunnyRed;
+  margin-bottom: 5px;
+  min-height: 101px;
+  box-sizing: border-box;
+  transition: all 200ms ease-in-out;
+  &:hover {
+    background-color: $gray2;
+  }
+  @include mobile {
+    flex-direction: column;
+    padding: 15px 10px;
+  }
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  div:last-child {
+    margin-top: 10px;
+    font-size: 0.7em;
+  }
+  @include mobile {
+    margin-bottom: 10px;
+  }
+}
+
+.midTitle {
+  margin-top: 10px;
+  color: $gray6;
+  font-size: 0.8em;
+}
+
+.statusContainer {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  align-items: flex-end;
+  font-size: 0.9em;
+  @include mobile {
+    text-align: left;
+    align-items: flex-start;
+  }
+  div:last-child {
+    margin-top: 10px;
+    font-size: 0.8em;
+  }
+}
+
+.status {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  div:last-child {
+    font-size: 0.8em;
+  }
+  @include mobile {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+  }
+  .indicator {
+    margin: 0 10px 0 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 100%;
+    @include mobile {
+      margin-left: 10px;
+    }
+  }
+  .pending {
+    background-color: $yellow;
+  }
+  .exited {
+    background-color: $green;
+  }
+  .failed {
+    background-color: $red;
+  }
+}
+
+.percentage {
+  margin-left: 10px;
+  @include mobile {
+    margin-left: 0;
+    margin-right: 10px;
+  }
+}
+
+.button {
+  color: $gray1;
+  background-color: $blue;
+  border-radius: 20px;
+  padding: 5px 10px;
+  cursor: pointer;
+}

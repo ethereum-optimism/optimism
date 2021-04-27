@@ -1,0 +1,38 @@
+@import 'index.scss';
+
+.xline {
+  height: 2px;
+  width: 25px;
+  background-color: $gray4;
+  margin: 6px 0;
+  transition: all 250ms ease-in-out;
+}
+
+.xline1 {
+  transform-origin: top left;
+  &.open {
+    transform: rotate(45deg) translateY(0px);
+  }
+  &.closed {
+    transform: initial;
+  }
+}
+
+.xline2 {
+  &.open {
+    opacity: 0;
+  }
+  &.closed {
+    opacity: 1;
+  }
+}
+
+.xline3 {
+  transform-origin: bottom left;
+  &.open {
+    transform: rotate(-45deg) translateY(0px);
+  }
+  &.closed {
+    transform: initial;
+  }
+}

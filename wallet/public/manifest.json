@@ -1,0 +1,15 @@
+{
+  "short_name": "OMG Network | Web Wallet",
+  "name": "OMG Network | Web Wallet",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "type": "image/png",
+      "sizes": "236x236"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}

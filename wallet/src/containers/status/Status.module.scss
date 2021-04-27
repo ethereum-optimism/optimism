@@ -1,0 +1,71 @@
+@import 'index.scss';
+
+.Status {
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+  max-width: 200px;
+  flex: 1;
+  color: $gray4;
+
+  h1 {
+    margin-bottom: 40px;
+  }
+
+  .statusCircle {
+    border-radius: 100%;
+    width: 8px;
+    height: 8px;
+    margin-left: 10px;
+  }
+
+  .healthy {
+    background-color: $green;
+  }
+  .unhealthy {
+    background-color: $red;
+  }
+  .healthyText {
+    color: $green;
+  }
+  .unhealthyText {
+    color: $red;
+  }
+
+  .indicator {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .icon {
+    cursor: pointer;
+    background-color: $green;
+    border-radius: 100%;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  .github {
+    cursor: pointer;
+    svg {
+      width: 40px;
+      height: 40px;
+    }
+  }
+}
+
+.logo {
+  margin-bottom: 40px;
+  height: 50px;
+}

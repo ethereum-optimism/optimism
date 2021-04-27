@@ -1,0 +1,26 @@
+@import 'index.scss';
+
+.Tabs {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  border-bottom: 2px solid $gray6;
+  flex: 1;
+  margin-bottom: 20px;
+
+  .tab {
+    color: $gray6;
+    transition: color 200ms ease-in-out;
+    cursor: pointer;
+    margin-right: 20px;
+    padding-bottom: 10px;
+  }
+
+  .active {
+    color: $gray2;
+    border-bottom: 2px solid $gray2;
+    margin-bottom: -2px;
+    z-index: 1;
+  }
+}
+

@@ -1,0 +1,199 @@
+@import 'index.scss';
+
+.Account {
+  padding: 10px;
+  padding-top: 0px;
+  background: white;
+}
+
+.logo {
+  margin-bottom: 40px;
+  height: 50px;
+}
+
+.bunny {
+  width: 200px;
+  @include mobile {
+    width: 140px;
+  }
+}
+
+  .RabbitBox {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-content: center;
+    @include mobile {
+      padding-left: 20px;
+    }
+  }
+
+  .RabbitRight {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    margin-left: 10px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .RabbitRightTop {
+    font-size: 1em;
+    width: 100%;
+    align-items: left;
+  }
+
+  .RabbitRightMiddle {
+    width: 100%;
+    align-items: left;
+    .sad {
+      color: #ff6868;
+      font-size: 6em;
+      @include mobile {
+        font-size: 3em;
+      }
+    }
+    .happy {
+      color: #0ebf9a;
+      font-size: 4em;
+      @include mobile {
+        font-size: 3em;
+      }
+    }
+  }
+
+  .RabbitRightBottom {
+    font-size: 1.0em;
+    width: 100%;
+    align-items: left;
+  }
+
+.wallet {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 20px;
+  @include mobile {
+    justify-content: space-between;
+  }
+  .address {
+    margin-right: 20px;
+    @include mobile {
+      font-size: 0.8em;
+    }
+  }
+}
+
+.balances {
+  display: flex;
+  flex-direction: row;
+  @include mobile {
+    flex-direction: column;
+  }
+
+  .box {
+    background-color: $bunnyRed;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    @include mobile {
+      font-size: 0.8rem;
+      padding: 15px;
+    }
+
+    &:first-child {
+      margin-right: 20px;
+      @include mobile {
+        margin-right: 0;
+        margin-bottom: 20px;
+      }
+    }
+
+    .buttons {
+      margin: 20px -20px -20px -20px;
+      @include mobile {
+        margin: 15px -15px -15px -15px;
+      }
+      display: flex;
+      flex-direction: row;
+      button {
+        flex: 1;
+      }
+    }
+
+    .header {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      .actions {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        @include mobile {
+          flex-direction: column;
+          align-items: flex-end;
+        }
+      }
+      .title {
+        display: flex;
+        flex-direction: column;
+        color: $gray6;
+        font-family: 'Messina';
+        span:first-child {
+          font-size: 0.8em;
+        }
+      }
+      .transfer {
+        font-family: 'Messina';
+        cursor: pointer;
+        border-radius: 20px;
+        padding: 5px 10px;
+        border: 2px solid $gray6;
+        filter: brightness(100%);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        color: $gray6;
+        svg {
+          margin-right: 10px;
+          width: 15px;
+          height: 15px;
+        }
+        &:first-child {
+          margin-right: 10px;
+          @include mobile {
+            margin-right: 0px;
+            margin-bottom: 5px;
+          }
+        }
+      }
+      .disabled {
+        pointer-events: none;
+        border: 2px solid $gray3;
+        color: $gray3;
+        filter: brightness(75%);
+      }
+    }
+
+    .row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      color: $gray6;
+      margin-bottom: 5px;
+
+      .token {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        .symbol {
+          margin-right: 10px;
+        }
+      }
+    }
+  }
+}

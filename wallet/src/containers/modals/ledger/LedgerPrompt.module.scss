@@ -1,0 +1,108 @@
+@import 'index.scss';
+
+.buttons {
+  display: flex;
+  flex-direction: row;
+  margin-top: 30px;
+  justify-content: flex-end;
+
+  .button {
+    margin-right: 10px;
+    min-width: 0;
+    &:last-child {
+      margin-right: 0px;
+    }
+  }
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.logo {
+  padding: 7px;
+  height: 60px;
+  border-radius: 20px;
+  background-color: white;
+}
+
+.logoContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  @include mobile {
+    display: none;
+  }
+  .spinner {
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    background-color: $blue;
+    border-radius: 100%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
+.title {
+  margin-top: 20px;
+  font-size: 1.5em;
+  font-family: 'Messina';
+  font-weight: 400;
+  color: white;
+  text-align: center;
+}
+
+.description {
+  font-family: 'Messina';
+  margin-top: 20px;
+  color: white;
+  font-size: 1em;
+}
+
+.steps {
+  margin: 20px 0;
+  .step {
+    min-height: 50px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    background-color: $gray2;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    font-family: 'Messina';
+    @include mobile {
+      font-size: 0.8em;
+    }
+    .text {
+      padding: 10px 15px;
+      display: flex;
+      align-items: center;
+    }
+    .iconWrapper {
+      border-radius: 4px 0px 0px 4px;
+      min-width: 40px;
+      min-height: 50px;
+      background-color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      img {
+        height: 15px;
+        max-width: 15px;
+      }
+    }
+  }
+  .code {
+    word-break: break-all;
+    font-family: 'MessinaMono';
+    padding: 10px 15px;
+  }
+}

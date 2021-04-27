@@ -1,0 +1,64 @@
+@import 'index.scss';
+
+.buttons {
+  display: flex;
+  flex-direction: row;
+  margin-top: 30px;
+  justify-content: flex-end;
+
+  .button {
+    margin-right: 10px;
+    min-width: 0;
+    &:last-child {
+      margin-right: 0px;
+    }
+  }
+}
+
+.disclaimer {
+  font-family: 'Messina';
+  margin: 20px 0;
+}
+
+.list {
+  height: 250px;
+  overflow-y: auto;
+  .utxo {
+    font-size: 0.9em;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    background-color: $gray3;
+    border-bottom: 2px solid $gray4;
+    padding: 10px;
+    height: 25px;
+    transition: all 200ms ease-in-out;
+    cursor: pointer;
+    .title {
+      flex: 1
+    }
+    .value {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-end;
+      text-align: right;
+      .check {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 50px;
+        svg {
+          width: 15px;
+          height: 15px;
+        }
+      }
+    }
+  }
+  .selected {
+    background-color: $gray2;
+    color: $gray6;
+  }
+}

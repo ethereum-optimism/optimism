@@ -1,0 +1,70 @@
+@import 'index.scss';
+
+.Input {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 5px;
+
+  .label {
+    font-size: 0.7em;
+    margin-bottom: 5px;
+  }
+
+  .field {
+    position: relative;
+    padding: 7px;
+    border: 1px solid $gray4;
+    transition: all 200ms ease-in-out;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    &:focus-within {
+      border: 1px solid $blue;
+    }
+    .icon {
+      margin-right: 10px;
+    }
+    .input {
+      flex: 1;
+      background-color: $gray6;
+      color: $gray3;
+    }
+    .unit {
+      margin: 0 10px;
+      position: absolute;
+      right: 0;
+      background-color: $gray6;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+    .paste {
+      color: $blue;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    &.error {
+      border: 2px solid $red;
+      color: $red;
+      .input {
+        color: $red;
+      }
+    }
+  }
+}
+
+.maxValue {
+  background-color: $blue;
+  opacity: 0.8;
+  color: white;
+  padding: 3px 7px;
+  font-size: 12px;
+  border-radius: 4px;
+  margin-right: 10px;
+  z-index: 1;
+  cursor: pointer;
+  transition: all 150ms ease-in-out;
+  &:active {
+    opacity: 0.5;
+  }
+}
