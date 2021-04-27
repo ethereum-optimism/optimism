@@ -1,68 +1,254 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.7.0 <0.8.0;
+pragma solidity >=0.6.0 <0.8.0;
+import { IERC20 } from "./interfaces/IERC20.sol";
 
-contract ERC20 {
-    event Transfer(address indexed _from, address indexed _to, uint256 _value);
-    event Approval(address indexed _owner, address indexed _spender, uint256 _value);
-
+/**
+ * @title ERC20
+ * @dev A super simple ERC20 implementation!
+ */
+contract ERC20 is IERC20 {
+    /*************
+     * Variables *
+     *************/
     uint256 constant private MAX_UINT256 = 2**256 - 1;
     mapping (address => uint256) public balances;
-    mapping (address => mapping (address => uint256)) public allowed;
-    /*
-    NOTE:
-    The following variables are OPTIONAL vanities. One does not have to include them.
-    They allow one to customise the token contract & in no way influences the core functionality.
-    Some wallets/interfaces might not even bother to look at this information.
-    */
-    string public name;                   //fancy name: eg OVM Coin
-    uint8 public decimals;                //How many decimals to show.
-    string public symbol;                 //An identifier: eg OVM
-    uint256 public totalSupply;
+    mapping (address => mapping (address => uint256)) public allowances;
 
+    // Some optional extra goodies
+    string public name;
+    uint8 public decimals;
+    string public symbol;                 //An identifier: eg SBX
+    uint256 public override totalSupply;
+
+    /***************
+     * Constructor *
+     ***************/
+
+    /**
+     * @param _initialSupply Initial maximum token supply.
+     * @param _name A name for our ERC20 (technically optional, but it's fun ok jeez).
+     */
     constructor(
-        uint256 _initialAmount,
-        string memory _tokenName,
+        uint256 _initialSupply,
+        string memory _name,
         uint8 _decimalUnits,
         string memory _tokenSymbol
-    ) public {
-        balances[msg.sender] = _initialAmount;               // Give the creator all initial tokens
-        totalSupply = _initialAmount;                        // Update total supply
-        name = _tokenName;                                   // Set the name for display purposes
-        decimals = _decimalUnits;                            // Amount of decimals for display purposes
-        symbol = _tokenSymbol;                               // Set the symbol for display purposes
+    ) {
+        balances[msg.sender] = _initialSupply;
+        totalSupply = _initialSupply;
+        name = _name;
+        decimals = _decimalUnits;
+        symbol = _tokenSymbol;
     }
 
-    function transfer(address _to, uint256 _value) public returns (bool success) {
-        require(balances[msg.sender] >= _value);
-        balances[msg.sender] -= _value;
-        balances[_to] += _value;
-        emit Transfer(msg.sender, _to, _value);
-        return true;
-    }
+    /********************
+     * Public Functions *
+     ********************/
 
-    function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
-        uint256 allowance = allowed[_from][msg.sender];
-        require(balances[_from] >= _value && allowance >= _value);
-        balances[_to] += _value;
-        balances[_from] -= _value;
-        if (allowance < MAX_UINT256) {
-            allowed[_from][msg.sender] -= _value;
-        }
-        emit Transfer(_from, _to, _value);
-        return true;
-    }
+     /**
+      * Mints new coins to the sender.
+      * @param _amount  Amount to mint.
+      * @return true if the mint was successful.
+      */
+     function mint(
+         uint256 _amount
+     )
+         public
+         returns (
+             bool
+         )
+     {
+         //TODO SafeMath here
+         balances[msg.sender] += _amount;
+         totalSupply += _amount;
+         return true;
+     }
 
-    function balanceOf(address _owner) public view returns (uint256 balance) {
+    /**
+     * Checks the balance of an address.
+     * @param _owner Address to check a balance for.
+     * @return Balance of the address.
+     */
+    function balanceOf(
+        address _owner
+    )
+        external
+        override
+        view
+        returns (
+            uint256
+        )
+    {
         return balances[_owner];
     }
 
-    function approve(address _spender, uint256 _value) public returns (bool success) {
-        allowed[msg.sender][_spender] = _value;
-        emit Approval(msg.sender, _spender, _value);
+    /**
+     * Transfers a balance from your account to someone else's account!
+     * @param _to Address to transfer a balance to.
+     * @param _amount Amount to transfer to the other account.
+     * @return true if the transfer was successful.
+     */
+    function transfer(
+        address _to,
+        uint256 _amount
+    )
+        external
+        override
+        returns (
+            bool
+        )
+    {
+        require(
+            balances[msg.sender] >= _amount,
+            "Cannot Transfer: Insufficent Balance"
+        );
+
+        balances[msg.sender] -= _amount;
+        balances[_to] += _amount;
+
+        emit Transfer(
+            msg.sender,
+            _to,
+            _amount
+        );
+
         return true;
     }
 
-    function allowance(address _owner, address _spender) public view returns (uint256 remaining) {
-        return allowed[_owner][_spender];
+    /**
+     * Transfers a balance from someone else's account to another account. You need an allowance
+     * from the sending account for this to work!
+     * @param _from Account to transfer a balance from.
+     * @param _to Account to transfer a balance to.
+     * @param _amount Amount to transfer to the other account.
+     * @return true if the transfer was successful.
+     */
+    function transferFrom(
+        address _from,
+        address _to,
+        uint256 _amount
+    )
+        external
+        override
+        returns (
+            bool
+        )
+    {
+
+        uint256 allowance = allowances[_from][msg.sender];
+
+        require(
+            balances[_from] >= _amount,
+            "Cannot TransferFrom: Balance too small."
+        );
+
+        require(
+            allowance >= _amount,
+            "Cannot TransferFrom: Allowance too small."
+        );
+
+        balances[_to] += _amount;
+        balances[_from] -= _amount;
+
+        if (allowance < MAX_UINT256) {
+            allowances[_from][msg.sender] -= _amount;
+        }
+
+        emit Transfer(
+            _from,
+            _to,
+            _amount
+        );
+
+        return true;
+    }
+
+    /**
+     * Approves an account to spend some amount from your account.
+     * @param _spender Account to approve a balance for.
+     * @param _amount Amount to allow the account to spend from your account.
+     * @return true if the allowance was successful.
+     */
+    function approve(
+        address _spender,
+        uint256 _amount
+    )
+        external
+        override
+        returns (
+            bool
+        )
+    {
+        allowances[msg.sender][_spender] = _amount;
+
+        emit Approval(
+            msg.sender,
+            _spender,
+            _amount
+        );
+
+        return true;
+    }
+
+    /**
+     * Checks how much a given account is allowed to spend from another given account.
+     * @param _owner Address of the account to check an allowance from.
+     * @param _spender Address of the account trying to spend from the owner.
+     * @return Allowance for the spender from the owner.
+     */
+    function allowance(
+        address _owner,
+        address _spender
+    )
+        external
+        override
+        view
+        returns (
+            uint256
+        )
+    {
+        return allowances[_owner][_spender];
+    }
+
+    /**
+     * Mints new coins to an account.
+     * @param _owner Address of the account to mint to.
+     * @param _amount  Amount to mint.
+     * @return true if the mint was successful.
+     */
+    function _mint(
+        address _owner,
+        uint256 _amount
+    )
+        internal
+        returns (
+            bool
+        )
+    {
+        //TODO SafeMath here
+        balances[_owner] += _amount;
+        totalSupply += _amount;
+        return true;
+    }
+
+    /**
+     * Burns coins from an account.
+     * @param _owner Address of the account to mint to.
+     * @param _amount  Amount to mint.
+     * @return true if the mint was successful.
+     */
+    function _burn(
+        address _owner,
+        uint256 _amount
+    )
+        internal
+        returns (
+            bool
+        )
+    {
+        require(balances[_owner] >= _amount, "Account doesn't have enough coins to burn");
+        balances[_owner] -= _amount;
+        totalSupply -= _amount; //TODO SafeMath here
+        return true;
     }
 }
