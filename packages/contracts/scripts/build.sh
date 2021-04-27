@@ -2,7 +2,8 @@
 
 set -e
 
-yarn run build:typescript&
-yarn run build:contracts&
-yarn run build:contracts:ovm&
+yarn build:typescript &
+yarn build:contracts &
+yarn build:contracts:ovm
+
 wait
