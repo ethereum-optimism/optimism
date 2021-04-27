@@ -307,10 +307,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 			if *to == (common.Address{}) {
 				return errors.New("Cannot send transaction to zero address")
 			}
-			// Prevent transactions from being submitted if the gas limit too high
-			if signedTx.Gas() >= b.gasLimit {
-				return fmt.Errorf("Transaction gasLimit (%d) is greater than max gasLimit (%d)", signedTx.Gas(), b.gasLimit)
-			}
 			// Prevent QueueOriginSequencer transactions that are too large to
 			// be included in a batch. The `MaxCallDataSize` should be set to
 			// the layer one consensus max transaction size in bytes minus the
