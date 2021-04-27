@@ -15,6 +15,7 @@ jobs:
         DOCKER_BUILDKIT: 1
         COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
+      # Monorepo tests
       - uses: actions/checkout@v2
 
       - name: Get yarn cache directory path
@@ -46,5 +47,19 @@ jobs:
         env:
           FORCE_COLOR: 1
           ENABLE_GAS_REPORT: 1
+
       - name: Print gas report
         run: cat integration-tests/gas-report.txt
+
+      # Examples Tests
+      - name: Test & deploy hardhat-example on hardhat (regression)
+        working-directory: ./examples/hardhat
+        run: |
+          yarn deploy
+          yarn test
+
+      - name: Test & deploy hardhat-example on Optimism
+        working-directory: ./examples/hardhat
+        run: |
+          yarn deploy:ovm
+          yarn test:ovm
