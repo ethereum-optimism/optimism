@@ -102,6 +102,12 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (transaction.isCreate) {
+            // TEMPORARY: Disable value transfer for contract creations.
+            require(
+                transaction.value == 0,
+                "Value transfer in contract creation not supported."
+            );
+
             (address created, bytes memory revertdata) = Lib_ExecutionManagerWrapper.ovmCREATE(
                 transaction.data
             );
@@ -118,7 +124,25 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_ExecutionManagerWrapper.ovmINCREMENTNONCE();
 
-            return transaction.to.call(transaction.data);
+            // Value transfer currently only supported for CALL but not for CREATE.
+            if (transaction.value > 0) {
+                // TEMPORARY: Block value transfer if the transaction has input data.
+                require(
+                    transaction.data.length == 0,
+                    "Value is nonzero but input data was provided."
+                );
+
+                require(
+                    ovmETH.transfer(
+                        transaction.to,
+                        transaction.value
+                    ),
+                    "Value could not be transferred to recipient."
+                );
+                return (true, bytes(""));
+            } else {
+                return transaction.to.call(transaction.data);
+            }
         }
     }
 }

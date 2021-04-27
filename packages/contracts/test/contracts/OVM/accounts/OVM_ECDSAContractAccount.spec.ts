@@ -12,7 +12,11 @@ import {
   DEFAULT_EIP155_TX,
   decodeSolidityError,
 } from '../../../helpers'
-import { getContractFactory, predeploys } from '../../../../src'
+import {
+  getContractFactory,
+  getContractInterface,
+  predeploys,
+} from '../../../../src'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -36,6 +40,8 @@ const callPredeploy = async (
     predeploy.interface.encodeFunctionData(functionName, functionParams || [])
   )
 }
+
+const iOVM_ETH = getContractInterface('OVM_ETH')
 
 describe('OVM_ECDSAContractAccount', () => {
   let wallet: Wallet
@@ -260,6 +266,110 @@ describe('OVM_ECDSAContractAccount', () => {
         Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
       expect(decodeSolidityError(ovmREVERT._data)).to.equal(
         'Fee was not transferred to relayer.'
+      )
+    })
+
+    it(`should transfer value if value is greater than 0`, async () => {
+      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
+      await callPredeploy(
+        Helper_PredeployCaller,
+        OVM_ECDSAContractAccount,
+        'execute',
+        [encodedTransaction],
+        40000000
+      )
+
+      // First call transfers fee, second transfers value (since value > 0).
+      const ovmCALL: any = Mock__OVM_ExecutionManager.smocked.ovmCALL.calls[1]
+      expect(ovmCALL._address).to.equal(predeploys.OVM_ETH)
+      expect(ovmCALL._calldata).to.equal(
+        iOVM_ETH.encodeFunctionData('transfer', [
+          transaction.to,
+          transaction.value,
+        ])
+      )
+    })
+
+    it(`should revert if the value is not transferred to the recipient`, async () => {
+      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
+      Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with(
+        (gasLimit, target, data) => {
+          if (target === predeploys.OVM_ETH) {
+            const [recipient, amount] = iOVM_ETH.decodeFunctionData(
+              'transfer',
+              data
+            )
+            if (recipient === transaction.to) {
+              return [
+                true,
+                '0x0000000000000000000000000000000000000000000000000000000000000000',
+              ]
+            } else {
+              return [
+                true,
+                '0x0000000000000000000000000000000000000000000000000000000000000001',
+              ]
+            }
+          } else {
+            return [true, '0x']
+          }
+        }
+      )
+
+      await callPredeploy(
+        Helper_PredeployCaller,
+        OVM_ECDSAContractAccount,
+        'execute',
+        [encodedTransaction],
+        40000000
+      )
+
+      const ovmREVERT: any =
+        Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
+        'Value could not be transferred to recipient.'
+      )
+    })
+
+    it(`should revert if trying to send value with a contract creation`, async () => {
+      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, to: '' }
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
+      await callPredeploy(
+        Helper_PredeployCaller,
+        OVM_ECDSAContractAccount,
+        'execute',
+        [encodedTransaction],
+        40000000
+      )
+
+      const ovmREVERT: any =
+        Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
+        'Value transfer in contract creation not supported.'
+      )
+    })
+
+    it(`should revert if trying to send value with non-empty transaction data`, async () => {
+      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, to: '' }
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
+      await callPredeploy(
+        Helper_PredeployCaller,
+        OVM_ECDSAContractAccount,
+        'execute',
+        [encodedTransaction],
+        40000000
+      )
+
+      const ovmREVERT: any =
+        Mock__OVM_ExecutionManager.smocked.ovmREVERT.calls[0]
+      expect(decodeSolidityError(ovmREVERT._data)).to.equal(
+        'Value transfer in contract creation not supported.'
       )
     })
   })

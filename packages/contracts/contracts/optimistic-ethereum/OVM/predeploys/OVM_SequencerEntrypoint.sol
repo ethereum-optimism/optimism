@@ -11,9 +11,6 @@ import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Execut
  * @dev The Sequencer Entrypoint is a predeploy which, despite its name, can in fact be called by
  * any account. It accepts a more efficient compressed calldata format, which it decompresses and
  * encodes to the standard EIP155 transaction format.
- * This contract is the implementation referenced by the Proxy Sequencer Entrypoint, thus enabling
- * the Optimism team to upgrade the decompression of calldata from the Sequencer.
- *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
