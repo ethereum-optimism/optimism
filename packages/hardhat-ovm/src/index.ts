@@ -2,6 +2,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import fetch from 'node-fetch'
+import { ethers } from 'ethers'
 import { subtask, extendEnvironment } from 'hardhat/config'
 import { getCompilersDir } from 'hardhat/internal/util/global-dir'
 import { Artifacts } from 'hardhat/internal/artifacts'
@@ -22,6 +23,10 @@ const OPTIMISM_SOLC_BIN_URL =
 // I figured this was a reasonably modern default, but not sure if this is too new. Maybe we can
 // default to 0.6.X instead?
 const DEFAULT_OVM_SOLC_VERSION = '0.7.6'
+
+// Poll the node every 50ms, to override ethers.js's default 4000ms causing OVM
+// tests to be slow.
+const OVM_POLLING_INTERVAL = 50
 
 /**
  * Find or generate an OVM soljson.js compiler file and return the path of this file.
@@ -199,6 +204,27 @@ extendEnvironment((hre) => {
       if (!(hre as any).config.typechain.outDir.endsWith('-ovm')) {
         ;(hre as any).config.typechain.outDir += '-ovm'
       }
+    }
+
+    // if ethers is present, override the polling interval to not wait the full
+    // duration in tests
+    if ((hre as any).ethers) {
+      ;(hre as any).ethers.getSigners = async () => {
+        let signers = await (hre as any).ethers.getSigners()
+        signers = signers.map((s: any) => {
+          s._signer.provider.pollingInterval =
+            hre.network.config.interval || OVM_POLLING_INTERVAL
+          return s
+        })
+        return signers
+      }
+
+      const provider = new ethers.providers.JsonRpcProvider(
+        (hre as any).ethers.provider.url
+      )
+      provider.pollingInterval =
+        hre.network.config.interval || OVM_POLLING_INTERVAL
+      ;(hre as any).ethers.provider = provider
     }
   }
 })

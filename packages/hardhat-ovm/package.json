@@ -17,8 +17,11 @@
   "dependencies": {
     "node-fetch": "^2.6.1"
   },
-  "devDependencies": {
-    "@types/mocha": "^8.2.2",
+  "peerDependencies": {
+    "ethers": "^5.1.4",
     "hardhat": "^2.1.2"
+  },
+  "devDependencies": {
+    "@types/mocha": "^8.2.2"
   }
 }
