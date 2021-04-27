@@ -135,7 +135,7 @@ contract ERC20 is IERC20 {
         )
     {
 
-        uint256 allowance = allowances[_from][msg.sender];
+        uint256 allowAmount = allowances[_from][msg.sender];
 
         require(
             balances[_from] >= _amount,
@@ -143,14 +143,14 @@ contract ERC20 is IERC20 {
         );
 
         require(
-            allowance >= _amount,
+            allowAmount >= _amount,
             "Cannot TransferFrom: Allowance too small."
         );
 
         balances[_to] += _amount;
         balances[_from] -= _amount;
 
-        if (allowance < MAX_UINT256) {
+        if (allowAmount < MAX_UINT256) {
             allowances[_from][msg.sender] -= _amount;
         }
 
