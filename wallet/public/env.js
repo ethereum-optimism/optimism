@@ -1,1 +1,1 @@
-window._env = {"NODE_ENV":"development","REACT_APP_SYNC_INTERVAL":"120","REACT_APP_POLL_INTERVAL":"20"};
+window._env = {"NODE_ENV":"development"};
