@@ -69,7 +69,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
         // Prevent calls to OVM_L2ToL1MessagePasser, which would enable
         // an attacker to maliciously craft the _message to spoof
         // a call from any L2 account.
-        if(_target == resolve("OVM_L2ToL1MessagePasser")){
+        if(_target == address(ovmL2ToL1MessagePasser)){
             // Write to the successfulMessages mapping and return immediately.
             successfulMessages[xDomainCalldataHash] = true;
             return;
@@ -108,17 +108,17 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
 
     /**
      * Verifies that a received cross domain message is valid.
-     * @return _valid Whether or not the message is valid.
+     * @return Whether or not the message is valid.
      */
     function _verifyXDomainMessage()
         view
         internal
         returns (
-            bool _valid
+            bool
         )
     {
         return (
-            ovmL1MessageSender.getL1MessageSender() == ovmCrossDomainMessenger
+            ovmL1MessageSender.getL1MessageSender() == ovmL1CrossDomainMessenger
         );
     }
 
