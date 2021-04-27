@@ -2,7 +2,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import fetch from 'node-fetch'
+import { ethers } from 'ethers'
 import { subtask, extendEnvironment } from 'hardhat/config'
+import { HardhatNetworkHDAccountsConfig } from 'hardhat/types/config'
 import { getCompilersDir } from 'hardhat/internal/util/global-dir'
 import { Artifacts } from 'hardhat/internal/artifacts'
 import {
@@ -22,6 +24,10 @@ const OPTIMISM_SOLC_BIN_URL =
 // I figured this was a reasonably modern default, but not sure if this is too new. Maybe we can
 // default to 0.6.X instead?
 const DEFAULT_OVM_SOLC_VERSION = '0.7.6'
+
+// Poll the node every 50ms, to override ethers.js's default 4000ms causing OVM
+// tests to be slow.
+const OVM_POLLING_INTERVAL = 50
 
 /**
  * Find or generate an OVM soljson.js compiler file and return the path of this file.
@@ -174,7 +180,7 @@ subtask(
   }
 )
 
-extendEnvironment((hre) => {
+extendEnvironment(async (hre) => {
   if (hre.network.config.ovm) {
     hre.network.ovm = hre.network.config.ovm
 
@@ -199,6 +205,49 @@ extendEnvironment((hre) => {
       if (!(hre as any).config.typechain.outDir.endsWith('-ovm')) {
         ;(hre as any).config.typechain.outDir += '-ovm'
       }
+    }
+
+    // if ethers is present and the node is running, override the polling interval to not wait the full
+    // duration in tests
+    if ((hre as any).ethers) {
+      const interval = hre.network.config.interval || OVM_POLLING_INTERVAL
+      if ((hre as any).ethers.provider.pollingInterval === interval) {
+        return
+      }
+
+      // override the provider polling interval
+      const provider = new ethers.providers.JsonRpcProvider(
+        (hre as any).ethers.provider.url
+      )
+      provider.pollingInterval = interval
+      provider.getGasPrice = async () =>
+        ethers.BigNumber.from(hre.network.config.gasPrice)
+      ;(hre as any).ethers.provider = provider
+
+      // if the node is up, override the getSigners method's signers
+      try {
+        let signers: ethers.Signer[]
+        const accounts = hre.network.config
+          .accounts as HardhatNetworkHDAccountsConfig
+        if (accounts) {
+          const indices = Array.from(Array(20).keys()) // generates array of [0, 1, 2, ..., 18, 19]
+          signers = indices.map((i) =>
+            ethers.Wallet.fromMnemonic(
+              accounts.mnemonic,
+              `${accounts.path}/${i}`
+            ).connect(provider)
+          )
+        } else {
+          signers = await (hre as any).ethers.getSigners()
+          signers = signers.map((s: any) => {
+            s._signer.provider.pollingInterval = interval
+            return s
+          })
+        }
+
+        ;(hre as any).ethers.getSigners = () => signers
+        /* tslint:disable:no-empty */
+      } catch (e) {}
     }
   }
 })
