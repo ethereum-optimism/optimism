@@ -17,9 +17,9 @@ import { iOVM_StateCommitmentChain } from "../../../iOVM/chain/iOVM_StateCommitm
 import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol";
 
 /* External Imports */
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { Ownable } from "@openzeppelin/contracts/utils/Ownable.sol";
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /**
  * @title OVM_L1CrossDomainMessenger
@@ -30,7 +30,14 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver, Ownable, Pausable {
+contract OVM_L1CrossDomainMessenger is
+        iOVM_L1CrossDomainMessenger,
+        Abs_BaseCrossDomainMessenger,
+        Lib_AddressResolver,
+        OwnableUpgradeable,
+        PausableUpgradeable,
+        ReentrancyGuardUpgradeable
+{
 
     /**********
      * Events *
@@ -101,7 +108,10 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
         );
         libAddressManager = Lib_AddressManager(_libAddressManager);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
-        owner = msg.sender;
+        __Context_init_unchained();
+        __Ownable_init_unchained();
+        __Pausable_init_unchained();
+        __ReentrancyGuard_init_unchained();
     }
 
     /**
