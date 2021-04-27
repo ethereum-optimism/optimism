@@ -33,7 +33,6 @@
     "typescript": "^4.2.4"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.2.5",
     "dotenv": "^8.2.0",
     "enyalabs_contracts": "git+ssh://git@github.com:enyalabs/contracts.git#rinkeby",
     "glob": "^7.1.6"
