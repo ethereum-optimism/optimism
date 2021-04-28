@@ -15,6 +15,7 @@ on:
     paths:
         - 'packages/**/*.sol'
         - 'packages/**/*.ts'
+  workflow_dispatch:
 
 jobs:
   test:
