@@ -105,15 +105,7 @@
       font-size: 0.8rem;
       padding: 15px;
     }
-/*
-    &:first-child {
-      margin-right: 10px;
-      @include mobile {
-        margin-right: 0;
-        margin-bottom: 20px;
-      }
-    }
-*/
+
     .buttons {
       margin: 20px -20px -20px -20px;
       @include mobile {

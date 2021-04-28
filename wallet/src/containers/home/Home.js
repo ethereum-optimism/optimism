@@ -42,7 +42,6 @@ import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 //Wallet Functions
 import Status from 'containers/status/Status';
 import Account from 'containers/account/Account';
-import Transactions from 'containers/transactions/Transactions';
 
 // OMGX
 import Pool from 'containers/pool/Pool';
@@ -152,21 +151,9 @@ The Top SubMenu Bar, non-mobile
             >  
               Wallet
             </h2>
-            <h2
-              className={pageDisplay === "Pool" ? styles.subtitletextActive : styles.subtitletext}
-              onClick={()=>{handleSetPage("Pool")}}
-            >  
-              Pool
-            </h2>
           </div>
           {pageDisplay === "AccountNow" &&
-          <>
             <Account/>
-            <Transactions/>
-          </>
-          }
-          {pageDisplay === "Pool" &&
-            <Pool/>
           }
         </div>
       </div>

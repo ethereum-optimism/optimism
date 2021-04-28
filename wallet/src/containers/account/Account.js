@@ -164,6 +164,13 @@ function Account () {
               <span>Balance on Childchain</span>
               <span>OMGX</span>
             </div>
+              <div
+                onClick={()=>handleModalClick('transferModal')}
+                className={[styles.transfer, disabled ? styles.disabled : ''].join(' ')}
+              >
+                <Send />
+                <span>TRANSFER L2->L2</span>
+              </div>
           </div>
           {childBalance.map((i, index) => {
             return (
@@ -175,16 +182,6 @@ function Account () {
               </div>
             );
           })}
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('transferModal')}
-              type='primary'
-              disabled={disabled || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            >
-              TRANSFER L2->L2
-            </Button>
-          </div>
         </div>
 
         <div className={styles.boxActions}>
