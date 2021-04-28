@@ -54,7 +54,7 @@ import logo from 'images/omg_labs.svg';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = config.pollInterval * 1000;
+const POLL_INTERVAL = 1000; //in milliseconds?
 
 function Home () {
 
@@ -80,7 +80,6 @@ function Home () {
       ? body.style.overflow = 'hidden'
       : body.style.overflow = 'auto';
   }, [ mobileMenuOpen ]);
-
 
   // calls only on boot
   useEffect(() => {

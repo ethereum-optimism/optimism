@@ -15,7 +15,7 @@ limitations under the License. */
 
 import React, { useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Send, MergeType } from '@material-ui/icons';
+import { Send, MergeType, ArrowBack, ArrowForward } from '@material-ui/icons';
 import { isEqual } from 'lodash';
 import truncate from 'truncate-middle';
 
@@ -151,13 +151,6 @@ function Account () {
               </span>
             </div>
             <div className={styles.RabbitRightBottom}>
-              <Button
-                onClick={()=>handleModalClick('depositModal')}
-                type='primary'
-                style={{fontFamily: 'MessinaMonoSemiBold', fontSize: '1.4em', padding: 10}}
-              >
-                DEPOSIT wETH
-              </Button>
             </div>
           </div>
         </div>
@@ -170,22 +163,6 @@ function Account () {
             <div className={styles.title}>
               <span>Balance on Childchain</span>
               <span>OMGX</span>
-            </div>
-            <div className={styles.actions}>
-              <div
-                onClick={()=>handleModalClick('depositModal')}
-                className={[styles.transfer, !isSynced ? styles.disabled : ''].join(' ')}
-              >
-                <Send />
-                <span>Deposit to L2</span>
-              </div>
-              <div
-                onClick={() => handleModalClick('exitModal')}
-                className={[styles.transfer, disabled ? styles.disabled : ''].join(' ')}
-              >
-                <MergeType />
-                <span>Exit</span>
-              </div>
             </div>
           </div>
           {childBalance.map((i, index) => {
@@ -205,7 +182,55 @@ function Account () {
               disabled={disabled || criticalTransactionLoading}
               style={{maxWidth: 'none'}}
             >
-              TRANSFER
+              TRANSFER L2->L2
+            </Button>
+          </div>
+        </div>
+
+        <div className={styles.boxActions}>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              <ArrowBack/>
+              FAST ONRAMP
+            </Button>
+          </div>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            > 
+              FAST EXIT
+              <ArrowForward/>
+            </Button>
+          </div>
+
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              <ArrowBack/>
+              SLOW ONRAMP
+            </Button>
+          </div>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('exitModal')}
+              type='primary'
+              disabled={disabled || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              SLOW EXIT
+              <ArrowForward/>
             </Button>
           </div>
         </div>
