@@ -31,13 +31,13 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.0.9",
-    "@sentry/node": "^6.3.0",
+    "@sentry/node": "^6.2.5",
     "@types/pino-multi-stream": "^5.1.1",
     "ethers": "^5.0.31",
     "lodash": "^4.17.21",
-    "pino": "^6.11.1",
-    "prom-client": "^13.1.0",
+    "pino": "^6.11.3",
     "pino-multi-stream": "^5.3.0",
-    "pino-sentry": "^0.7.0"
+    "pino-sentry": "^0.7.0",
+    "prom-client": "^13.1.0"
   }
 }

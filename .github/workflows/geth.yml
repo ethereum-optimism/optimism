@@ -14,6 +14,7 @@ on:
     branches:
       - master
       - '*rc'
+  workflow_dispatch:
 
 defaults:
   run:

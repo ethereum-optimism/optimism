@@ -19,6 +19,6 @@
   },
   "devDependencies": {
     "@types/mocha": "^8.2.2",
-    "hardhat": "^2.1.2"
+    "hardhat": "^2.2.1"
   }
 }
