@@ -39,25 +39,38 @@ import VarnaPoolABI from "contracts/VarnaPool.abi";
 import VarnaPoolAddress from "contracts/VarnaPool.address";
 import VarnaSwapABI from "contracts/AtomicSwap.abi";
 import VarnaSwapAddress from "contracts/AtomicSwap.address";
-import ERC20Address from 'contracts/ERC20.address';
-import ERC20ABI from "contracts/ERC20.abi";
-import L1ERC20GatewayAddress from "contracts/L1ERC20Gateway.address";
-import L1ERC20GatewayABI from "contracts/L1ERC20Gateway.abi";
-import L2DepositedERC20Address from "contracts/L2DepositedERC20.address";
-import L2DepositedERC20ABI from "contracts/L2DepositedERC20.abi";
 
-// LP
-import L1LPABI from "contracts/L1LiquidityPool.abi";
-import L1LPAddress from "contracts/L1LiquidityPool.address";
+/*
+
+import ERC20ABI from "contracts/ERC20.abi";
 import L2LPABI from "contracts/L2LiquidityPool.abi";
+import L1ERC20GatewayJson.abi from "contracts/L1ERC20Gateway.abi";
+import L2DepositedERC20Json.abi from "contracts/L2DepositedERC20.abi";
+import L1LPJson.abi from "contracts/L1LiquidityPool.abi";
+
+import ERC20Address from 'contracts/ERC20.address';
+import ERC20Address from 'contracts/ERC20.address';
+import L1ERC20GatewayAddress from "contracts/L1ERC20Gateway.address";
+import L2DepositedERC20Address from "contracts/L2DepositedERC20.address";
+import L1LPAddress from "contracts/L1LiquidityPool.address";
 import L2LPAddress from "contracts/L2LiquidityPool.address";
+
+*/
+
+import L1LPJson from '../../../artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
+import L2LPJson from '../../../artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
+import L1ERC20Json from '../../../artifacts/contracts/ERC20.sol/ERC20.json'
+import L2DepositedERC20Json from '../../../artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
+import L1ERC20GatewayJson from '../../../artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
 
 import { powAmount, logAmount } from 'util/amountConvert';
 
 import { L1ETHGATEWAY, L2DEPOSITEDERC20, NETWORKS, SELECT_NETWORK } from "Settings";
-/*
-  Web3 modal helps us "connect" external wallets:
-*/
+
+const addresses = require('../../../deployment/addresses.json');
+
+console.log(addresses)
+
 const web3Modal = new Web3Modal({
   cacheProvider: true, // optional
   providerOptions: {},
@@ -138,8 +151,9 @@ class NetworkService {
       // connect to the wallet
       this.provider = await web3Modal.connect();
       // can't get rid of it at this moment, there are 
-      // other functions to use this 
+      // other functions that use this 
       this.web3Provider = new Web3Provider(this.provider);
+      
       this.l1Web3Provider = new Web3(new Web3.providers.HttpProvider(l1Network.rpcUrl));
       this.l2Web3Provider = new Web3(new Web3.providers.HttpProvider(l2Network.rpcUrl));
 
@@ -169,37 +183,37 @@ class NetworkService {
 
       this.OVM_L1ERC20Gateway = new ethers.Contract(
         L1ERC20GatewayAddress, 
-        L1ERC20GatewayABI, 
+        L1ERC20GatewayJson.abi, 
         this.web3Provider.getSigner(),
       );
 
       this.OVM_L2DepositedERC20 = new ethers.Contract(
         L2DepositedERC20Address, 
-        L2DepositedERC20ABI, 
+        L2DepositedERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
 
       // For the balance
       this.ERC20L1Contract = new this.l1Web3Provider.eth.Contract(
-        ERC20ABI,
+        L1ERC20Json.abi,
         ERC20Address,
       );
 
       this.ERC20L2Contract = new this.l2Web3Provider.eth.Contract(
-        L2DepositedERC20ABI,
+        L2DepositedERC20Json.abi,
         L2DepositedERC20Address,
       );
 
-      // Liquid pool
+      // Liquidity pools
       this.L1LPContract = new ethers.Contract(
         L1LPAddress,
-        L1LPABI,
+        L1LPJson.abi,
         this.web3Provider.getSigner(),
       );
 
       this.L2LPContract = new ethers.Contract(
         L2LPAddress,
-        L2LPABI,
+        L2LPJson.abi,
         this.web3Provider.getSigner(),
       );
 
@@ -224,17 +238,15 @@ class NetworkService {
   bindProviderListeners() {
     this.provider.on("accountsChanged", () => {
       window.location.reload();
-    });
+    })
 
     this.provider.on("chainChanged", () => {
       window.location.reload();
-    });
+    })
 
     this.OVM_L2DepositedERC20.on("WithdrawalInitiated", (sender, to, amount) => {
       console.log({ sender, to, amount: amount.toString() });
-    }
-      
-    )
+    })
   }
 
   initializeAccounts = () => async (dispatch) => {
@@ -324,16 +336,16 @@ class NetworkService {
   }
 
   depositETHL1 = () => async(dispatch) => {
+
     const networkStatus = await dispatch(this.checkNetwork('L1'));
+    
     if (!networkStatus) return 
 
     try {
-      // I have no idea how they use the injected account to
-      // send the ETH
       const l1ProviderRPC = new JsonRpcProvider(l1Network.rpcUrl);
       const signer = l1ProviderRPC.getSigner();
       
-      // send 1 ETH
+      // Send 1 ETH
       const txOption = {
         to: this.account,
         value: parseEther('1'), 
@@ -497,7 +509,7 @@ class NetworkService {
     try {
       const ERC20Contract = new ethers.Contract(
         currency, 
-        ERC20ABI, 
+        L1ERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
       const allowance = await ERC20Contract.allowance(this.account, targetContract);
@@ -516,7 +528,7 @@ class NetworkService {
     try {
       const ERC20Contract = new ethers.Contract(
         currency, 
-        ERC20ABI, 
+        L1ERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
 
@@ -541,7 +553,7 @@ class NetworkService {
     try {
       const ERC20Contract = new ethers.Contract(
         currency, 
-        ERC20ABI, 
+        L1ERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
 
@@ -573,7 +585,7 @@ class NetworkService {
 
       const ERC20Contract = new ethers.Contract(
         currency, 
-        ERC20ABI, 
+        L1ERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
       const allowance = await ERC20Contract.allowance(this.account, L1ERC20GatewayAddress);
@@ -615,6 +627,7 @@ class NetworkService {
 
       const [l2ToL1msgHash] = await this.watcher.getMessageHashesFromL2Tx(tx.hash)
       console.log(' got L2->L1 message hash', l2ToL1msgHash)
+      
       const l1Receipt = await this.watcher.getL1TransactionReceipt(l2ToL1msgHash)
       console.log(' completed Deposit! L1 tx hash:', l1Receipt.transactionHash)
     
@@ -647,7 +660,7 @@ class NetworkService {
       // L2 LP has enough tokens
       const ERC20Contract = new ethers.Contract(
         currency, 
-        ERC20ABI, 
+        L1ERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
       
@@ -694,7 +707,7 @@ class NetworkService {
           // L2 LP has enough tokens
       const ERC20Contract = new ethers.Contract(
         currency, 
-        ERC20ABI, 
+        L1ERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
       
@@ -745,7 +758,7 @@ class NetworkService {
 
   async L1LPBalance(currency) {
     const L1LPContract = new this.l1Web3Provider.eth.Contract(
-      L1LPABI,
+      L1LPJson.abi,
       L1LPAddress,
     );
     const balance = await L1LPContract.methods.balanceOf(
@@ -758,7 +771,7 @@ class NetworkService {
 
   async L1LPFeeBalance(currency) {
     const L1LPContract = new this.l1Web3Provider.eth.Contract(
-      L1LPABI,
+      L1LPJson.abi,
       L1LPAddress,
     );
     const balance = await L1LPContract.methods.feeBalanceOf(
@@ -799,7 +812,7 @@ class NetworkService {
   async initialDepositL2LP(currency, value) {
     const ERC20Contract = new ethers.Contract(
       currency, 
-      L2DepositedERC20ABI, 
+      L2DepositedERC20Json.abi, 
       this.web3Provider.getSigner(),
     );
 
@@ -830,7 +843,9 @@ class NetworkService {
   }
 
   async depositL2LP(currency, value) {
+    
     let l1TokenCurrency = null;
+    
     if (currency === l2ETHGatewayAddress) {
       l1TokenCurrency = "0x0000000000000000000000000000000000000000";
     } else {
@@ -839,7 +854,7 @@ class NetworkService {
 
     const ERC20Contract = new ethers.Contract(
       currency, 
-      L2DepositedERC20ABI, 
+      L2DepositedERC20Json.abi, 
       this.web3Provider.getSigner(),
     );
 
@@ -878,7 +893,7 @@ class NetworkService {
 
   async L2LPBalance(currency) {
     const L2LPContract = new this.l2Web3Provider.eth.Contract(
-      L2LPABI,
+      L2LPJson.abi,
       L2LPAddress,
     );
     const balance = await L2LPContract.methods.balanceOf(
@@ -891,7 +906,7 @@ class NetworkService {
 
   async L2LPFeeBalance(currency) {
     const L2LPContract = new this.l2Web3Provider.eth.Contract(
-      L2LPABI,
+      L2LPJson.abi,
       L2LPAddress,
     );
     const balance = await L2LPContract.methods.feeBalanceOf(
@@ -904,7 +919,7 @@ class NetworkService {
 
   async L2LPWithdrawFee(currency, receiver, amount) {
     const ERC20Contract = new this.l2Web3Provider.eth.Contract(
-      L2DepositedERC20ABI,
+      L2DepositedERC20Json.abi,
       currency,
     );
     const L2LPBalance = await ERC20Contract.methods.balanceOf(L2LPAddress).call({from: this.account});
