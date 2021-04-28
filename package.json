@@ -6,7 +6,8 @@
     "packages/*",
     "l2geth",
     "integration-tests",
-    "specs"
+    "specs",
+    "examples/*"
   ],
   "private": true,
   "devDependencies": {
