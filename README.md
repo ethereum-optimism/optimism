@@ -2,7 +2,14 @@
 
 Typescript based integration test repo for OMGX.
 
-## CONFIGURATION
+##### Table of Contents  
+[Headers](#headers)  
+[Emphasis](#emphasis)  
+...snip...    
+<a name="headers"/>
+## Headers
+
+## 1. Basic Configuration
 
 Create a `.env` file in the root directory of this project. Add environment-specific variables on new lines in the form of `NAME=VALUE`.
 
@@ -32,9 +39,7 @@ TARGET_GAS_LIMIT=9000000000
 CHAIN_ID=420
 ```
 
-To test on Rinkeby, ChainID4, you will need an Infura key and two accounts with Rinkeby ETH in them. The test wallets must contain enough ETH to cover the tests. 
-
-**The full test suite includes some very slow transactions such as withdrawls, which can take 300 seconds each. Please be patient.**
+To test on Rinkeby, ChainID4, you will need an Infura key and two accounts with Rinkeby ETH in them. The test wallets must contain enough ETH to cover the tests. **The full test suite includes some very slow transactions such as withdrawls, which can take 300 seconds each. Please be patient.**
 
 ## PERFORM THE TESTS
 
@@ -52,8 +57,8 @@ These contracts instnatiate a simple swap on/off system for fast entry/exit, as 
 
 Layer 1 liquidity pool. It accepts ERC20 and ETH. 
 
-**L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.
-**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet. `L1liquidityPool.sol` charges a convenience fee to the user.
+**L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.  
+**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet. `L1liquidityPool.sol` charges a convenience fee to the user.  
 
 ### Initial values
 
