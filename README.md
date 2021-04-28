@@ -1,3 +1,7 @@
+# Integration Tests
+
+Typescript based integration test repo for OMGX.
+
 - [1. Basic Configuration](#1-basic-configuration)
   * [Test Local](#test-local)
   * [Test Rinkeby](#test-rinkeby)
@@ -12,10 +16,6 @@
   * [Deploy Liquidity Pools](#deploy-liquidity-pools)
   * [3.3 AtomicSwap](#33-atomicswap)
     + [Functions](#functions-1)
-
-# Integration Tests
-
-Typescript based integration test repo for OMGX.
 
 ## 1. Basic Configuration
 
