@@ -294,19 +294,11 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
     await approveTX.wait()
 
-    //this is for wETH 
-    const depositTX = await L2LiquidityPool.clientDepositL2(
-      swapAmount,
-      L2ERC20.address, //should be _erc20L2ContractAddress
-      L1ERC20.address  //should be _erc20L1ContractAddress
-    )
-    await depositTX.wait()
-
     await env.waitForXDomainTransaction(
-      L1LiquidityPool.clientPayL1(
-        env.alicel1Wallet.address,
+      L2LiquidityPool.clientDepositL2(
         swapAmount,
-        env.L1ETHGateway.address
+        env.L2ETHGateway.address,
+        "0x0000000000000000000000000000000000000000" // ETH Address
       ),
       Direction.L2ToL1
     )
