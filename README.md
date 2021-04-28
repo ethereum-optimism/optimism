@@ -59,7 +59,6 @@ $ yarn deploy #if needed - this will test and deploy the contracts, and write th
 
 If you want to run these locally, you need a local OMGX system. 
 
-
 ### 2.1 Spinnnig up a local OMGX deployment for testing. 
 
 ```bash
