@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.3
+
+### Patch Changes
+
+- 6daa408: update hardhat versions so that solc is resolved correctly
+- dee74ef: migrate batch submitter types to core-utils
+- d64b66d: reformat error context for Sentry
+- Updated dependencies [6daa408]
+- Updated dependencies [ea4041b]
+- Updated dependencies [f1f5bf2]
+- Updated dependencies [dee74ef]
+- Updated dependencies [9ec3ec0]
+- Updated dependencies [d64b66d]
+- Updated dependencies [5f376ee]
+- Updated dependencies [eef1df4]
+- Updated dependencies [a76cde5]
+- Updated dependencies [e713cd0]
+- Updated dependencies [572dcbc]
+- Updated dependencies [6014ec0]
+  - @eth-optimism/contracts@0.2.8
+  - @eth-optimism/core-utils@0.3.2
+
 ## 0.2.2
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.8
+
+### Patch Changes
+
+- 6daa408: update hardhat versions so that solc is resolved correctly
+- ea4041b: Removed two old mock contracts
+- f1f5bf2: Updates deployment files to remove colon filenames
+- 9ec3ec0: Removes copies of OZ contracts in favor of importing from OZ directly
+- 5f376ee: Adds config parsing to the deploy script for local deployments
+- eef1df4: Minor update to package.json to correctly export typechain artifacts"
+- a76cde5: Remove unused logic in ovmEXTCODECOPY
+- e713cd0: Updates the `yarn build` command to not error
+- 572dcbc: Add an extra event to messenger contracts to emit when a message is unsuccessfully relayed
+- 6014ec0: Adds OVM_Sequencer and Deployer to the addresses.json output file
+- Updated dependencies [6daa408]
+- Updated dependencies [dee74ef]
+- Updated dependencies [d64b66d]
+  - @eth-optimism/core-utils@0.3.2
+
 ## 0.2.7
 
 ### Patch Changes

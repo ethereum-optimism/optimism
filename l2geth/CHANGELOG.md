@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5
+
+### Patch Changes
+
+- 79f66e9: Use constant execution price, which is set by the sequencer
+- 5b9be2e: Correctly set the OVM context based on the L1 values during `eth_call`. This will also set it during `eth_estimateGas`. Add tests for this in the integration tests
+
 ## 0.2.4
 
 ### Patch Changes
