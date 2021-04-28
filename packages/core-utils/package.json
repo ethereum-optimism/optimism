@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "tslint --format stylish --project .",
-    "lint:fix": "prettier --config prettier-config.json --write '{src,test}/**/*.ts'",
+    "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
     "test": "ts-mocha test/**/*.spec.ts"
   },
   "devDependencies": {
