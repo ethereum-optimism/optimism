@@ -15,14 +15,8 @@ limitations under the License. */
 
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector, batch } from 'react-redux';
-// import { isEqual } from 'lodash';
-
-import networkService from 'services/networkService';
-
 import { selectWalletMethod } from 'selectors/setupSelector';
 import { selectModalState } from 'selectors/uiSelector';
-// import { selectChildchainTransactions } from 'selectors/transactionSelector';
-import { selectLogin } from 'selectors/loginSelector';
 
 import config from 'util/config';
 import useInterval from 'util/useInterval';
@@ -42,7 +36,6 @@ import DepositModal from 'containers/modals/deposit/DepositModal';
 import TransferModal from 'containers/modals/transfer/TransferModal';
 import ExitModal from 'containers/modals/exit/ExitModal';
 import MergeModal from 'containers/modals/merge/MergeModal';
-import ConfirmationModal from 'containers/modals/confirmation/ConfirmationModal';
 import LedgerConnect from 'containers/modals/ledger/LedgerConnect';
 import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 
@@ -50,11 +43,6 @@ import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 import Status from 'containers/status/Status';
 import Account from 'containers/account/Account';
 import Transactions from 'containers/transactions/Transactions';
-
-//Varna
-import Login from 'containers/login/Login';
-import Seller from 'containers/seller/Seller';
-import Buyer from 'containers/buyer/Buyer';
 
 // OMGX
 import Pool from 'containers/pool/Pool';
@@ -65,7 +53,6 @@ import MobileMenu from 'components/mobilemenu/MobileMenu';
 import logo from 'images/omg_labs.svg';
 
 import * as styles from './Home.module.scss';
-
 
 const POLL_INTERVAL = config.pollInterval * 1000;
 
@@ -82,13 +69,10 @@ function Home () {
   const transferModalState = useSelector(selectModalState('transferModal'));
   const exitModalState = useSelector(selectModalState('exitModal'));
   const mergeModalState = useSelector(selectModalState('mergeModal'));
-  const confirmationModalState = useSelector(selectModalState('confirmationModal'));
   const addTokenModalState = useSelector(selectModalState('addNewTokenModal'));
   const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'));
 
   const walletMethod = useSelector(selectWalletMethod());
-  const loggedIn = useSelector(selectLogin());
-  // const transactions = useSelector(selectChildchainTransactions, isEqual);
   
   useEffect(() => {
     const body = document.getElementsByTagName('body')[0];
@@ -103,6 +87,7 @@ function Home () {
     window.scrollTo(0, 0);
     dispatch(fetchDeposits());
     dispatch(fetchExits());
+    setPageDisplay("AccountNow");
   }, [ dispatch ]);
 
   useInterval(() => {
@@ -121,21 +106,9 @@ function Home () {
 
   useInterval(() => {
     dispatch(fetchBalances());
-  }, POLL_INTERVAL / 5);
-
-  useEffect(() => {
-    if (!loggedIn) {
-      setPageDisplay("AccountNow");
-    } else {
-      setPageDisplay("VarnaSell");
-    }
-  },[loggedIn]);
+  }, POLL_INTERVAL);
 
   const handleSetPage = async (page) => {
-    if (page === 'VarnaLogin') {
-      const networkStatus = await dispatch(networkService.checkNetwork('L2'));
-      if (!networkStatus) return
-    }
     setPageDisplay(page);
   }
 
@@ -146,7 +119,6 @@ function Home () {
       <TransferModal open={transferModalState} />
       <ExitModal open={exitModalState} />
       <MergeModal open={mergeModalState} />
-      <ConfirmationModal open={confirmationModalState} />
       <AddTokenModal open={addTokenModalState} />
 
       <LedgerConnect
@@ -187,44 +159,12 @@ The Top SubMenu Bar, non-mobile
             >  
               Pool
             </h2>
-            {!loggedIn ?
-              <h2
-                className={pageDisplay === "VarnaLogin" ? styles.subtitletextActive : styles.subtitletext}
-                onClick={()=>{handleSetPage("VarnaLogin")}}
-              >  
-                Login
-              </h2>:
-              <>
-                <h2 
-                  className={pageDisplay === "VarnaBuy" ? styles.subtitletextActive : styles.subtitletext}
-                  onClick={()=>{handleSetPage("VarnaBuy")}}
-                  style={{position: 'relative'}}
-                >  
-                  Buy
-                </h2>
-                <h2
-                  className={pageDisplay === "VarnaSell" ? styles.subtitletextActive : styles.subtitletext}
-                  onClick={()=>{handleSetPage("VarnaSell")}}
-                >  
-                  Sell
-                </h2>
-              </>
-            }
           </div>
           {pageDisplay === "AccountNow" &&
           <>
             <Account/>
             <Transactions/>
           </>
-          }
-          {pageDisplay === "VarnaSell" &&
-            <Seller/>
-          }
-          {pageDisplay === "VarnaBuy" &&
-            <Buyer/>
-          }
-          {pageDisplay === "VarnaLogin" &&
-            <Login/>
           }
           {pageDisplay === "Pool" &&
             <Pool/>
