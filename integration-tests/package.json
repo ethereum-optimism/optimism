@@ -25,7 +25,7 @@
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.32",
-    "hardhat": "^2.1.2",
+    "hardhat": "^2.2.1",
     "hardhat-gas-reporter": "^1.0.4",
     "mocha": "^8.3.1",
     "rimraf": "^3.0.2"

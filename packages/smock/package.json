@@ -19,7 +19,7 @@
     "@nomiclabs/ethereumjs-vm": "^4",
     "@nomiclabs/hardhat-ethers": "^2",
     "ethers": "^5",
-    "hardhat": "^2"
+    "hardhat": "^2.2.1"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.3.0",

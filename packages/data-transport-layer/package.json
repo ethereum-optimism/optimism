@@ -45,7 +45,7 @@
     "@types/rimraf": "^3.0.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "hardhat": "^2.0.9",
+    "hardhat": "^2.2.1",
     "mocha": "^8.3.2",
     "pino-pretty": "^4.7.1",
     "rimraf": "^3.0.2",

@@ -67,7 +67,7 @@
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.31",
-    "hardhat": "^2.0.8",
+    "hardhat": "^2.2.1",
     "hardhat-deploy": "^0.7.4",
     "hardhat-gas-reporter": "^1.0.4",
     "lodash": "^4.17.20",
