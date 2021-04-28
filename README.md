@@ -59,11 +59,7 @@ $ yarn test:integration
 Layer 1 liquidity pool. It accepts ERC20 and ETH. 
 
 **L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.
-**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding funds are sent to them at their L1 wallet. 
-
-
-
-When users deposit into the Layer 2 liquidity pool, `L1liquidityPool.sol` sends tokens to the user on L1 and charges a convenience fee to the user.
+**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet. `L1liquidityPool.sol` charges a convenience fee to the user.
 
 ### Initial values
 
@@ -74,7 +70,7 @@ When users deposit into the Layer 2 liquidity pool, `L1liquidityPool.sol` sends 
 
 ### Events
 
-* initiateDepositedTo
+* initiateDepositedTo 
 
   The event of adding funds to the pool by the contract owner. **initiateDepositTo** doesn't send the message to L2. 
 
@@ -102,6 +98,11 @@ For the contract owner, it doesn't send the message to L2 when the contracts rec
 
 For other addresses, it sends the message to L2. The **L2liquidityPool** smart contract on L2 sends **oWETH** to the sender.
 
+
+#### ownerAddLiquidity
+
+Used by the owner to provide liquidity into an ETH or ERC20 pool. Unlike a normal deposit, it doesn't send a message to L2.
+
 #### balanceOf
 
 It returns the balance of ERC20 or ETH of this contract. The default address of ETH is **address(0)**.
@@ -110,9 +111,7 @@ It returns the balance of ERC20 or ETH of this contract. The default address of 
 
 It returns the fee balance of ERC20 or ETH of this contract.
 
-#### initiateDepositTo
 
-It is used to add tokens to this pool, it doesn't send the message to L2.
 
 #### depositTo
 

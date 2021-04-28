@@ -228,88 +228,96 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
   })
 
-  // it('should add initial funds in L2 Liquidity Pool', async () => {
+  it('should add initial funds to the L2 Liquidity Pool', async () => {
 
-  //   const depositL2Amount = BigNumber.from(350)
-  //   const addAmount = BigNumber.from(200)
-  //   const preBalances = await getBalances(env.L2ETHGateway.address)
+    const depositL2Amount = BigNumber.from(350)
+    const addAmount = BigNumber.from(200)
+    const preBalances = await getBalances(env.L2ETHGateway.address)
 
-  //   await env.waitForXDomainTransaction(
-  //     env.L1ETHGateway.deposit({ value: depositL2Amount }),
-  //     Direction.L1ToL2
-  //   )
+    await env.waitForXDomainTransaction(
+      env.L1ETHGateway.deposit({ value: depositL2Amount }),
+      Direction.L1ToL2
+    )
     
-  //   const approveTX = await env.L2ETHGateway.approve(
-  //     L2LiquidityPool.address,
-  //     addAmount,
-  //   );
-  //   await approveTX.wait()
+    const approveTX = await env.L2ETHGateway.approve(
+      L2LiquidityPool.address,
+      addAmount,
+    );
+    await approveTX.wait()
 
-  //   const depositTX = await L2LiquidityPool.initiateDepositTo(
-  //     addAmount,
-  //     env.L2ETHGateway.address,
-  //   );
-  //   await depositTX.wait()
+    const depositTX = await L2LiquidityPool.ownerAddERC20Liquidity(
+      addAmount,
+      env.L2ETHGateway.address,
+    );
+    await depositTX.wait()
 
-  //   const postBalance = await getBalances(env.L2ETHGateway.address)
+    const postBalance = await getBalances(env.L2ETHGateway.address)
 
-  //   expect(postBalance.L2LPBalance).to.deep.eq(
-  //     preBalances.L2LPBalance.add(addAmount)
-  //   )
-  // })
+    expect(postBalance.L2LPBalance).to.deep.eq(
+      preBalances.L2LPBalance.add(addAmount)
+    )
+  })
 
-  // it('should swap on funds from L1 LP to L2', async () => {
+  it('should move ETH from L1 LP to L2', async () => {
 
-  //   const swapAmount = BigNumber.from(100)
-  //   const preBalances = await getBalances(env.L2ETHGateway.address)
+    const swapAmount = BigNumber.from(100)
+    const preBalances = await getBalances(env.L2ETHGateway.address)
 
-  //   await env.waitForXDomainTransaction(
-  //     env.alicel1Wallet.sendTransaction({
-  //       from: env.alicel1Wallet.address,
-  //       to: L1LiquidityPool.address,
-  //       value: swapAmount
-  //     }),
-  //     Direction.L1ToL2
-  //   )
+    //this triggers the receive
+    await env.waitForXDomainTransaction(
+      env.alicel1Wallet.sendTransaction({
+        from: env.alicel1Wallet.address,
+        to: L1LiquidityPool.address,
+        value: swapAmount
+      }),
+      Direction.L1ToL2
+    )
 
-  //   const postBalance = await getBalances(env.L2ETHGateway.address)
+    const postBalance = await getBalances(env.L2ETHGateway.address)
 
-  //   expect(postBalance.aliceL2Balance).to.deep.eq(
-  //     preBalances.aliceL2Balance.add(swapAmount.mul(97).div(100))
-  //   )
-  //   expect(postBalance.L2LPFeeBalance).to.deep.eq(
-  //     preBalances.L2LPFeeBalance.add(swapAmount.mul(3).div(100))
-  //   )
-  // })
+    expect(postBalance.aliceL2Balance).to.deep.eq(
+      preBalances.aliceL2Balance.add(swapAmount.mul(97).div(100))
+    )
+    expect(postBalance.L2LPFeeBalance).to.deep.eq(
+      preBalances.L2LPFeeBalance.add(swapAmount.mul(3).div(100))
+    )
+  })
   
-  // it('should swap off funds from L2 LP to L1', async () => {
+  it('should swap wETH from L2 LP to ETH in L1 user wallet', async () => {
     
-  //   const swapAmount = BigNumber.from(100)
-  //   const preBalances = await getBalances("0x0000000000000000000000000000000000000000")
+    const swapAmount = BigNumber.from(100)
+    const preBalances = await getBalances("0x0000000000000000000000000000000000000000")
 
-  //   const approveTX = await env.L2ETHGateway.approve(
-  //     L2LiquidityPool.address,
-  //     swapAmount,
-  //   )
-    
-  //   await approveTX.wait()
+    const approveTX = await env.L2ETHGateway.approve(
+      L2LiquidityPool.address,
+      swapAmount
+    )
+    await approveTX.wait()
 
-  //   await env.waitForXDomainTransaction(
-  //     L2LiquidityPool.depositTo(
-  //       swapAmount,
-  //       env.L2ETHGateway.address,
-  //       "0x0000000000000000000000000000000000000000",
-  //     ),
-  //     Direction.L2ToL1
-  //   )
+    //this is for wETH 
+    const depositTX = await L2LiquidityPool.clientDepositL2(
+      swapAmount,
+      L2ERC20.address, //should be _erc20L2ContractAddress
+      L1ERC20.address  //should be _erc20L1ContractAddress
+    )
+    await depositTX.wait()
 
-  //   const postBalance = await getBalances("0x0000000000000000000000000000000000000000")
+    await env.waitForXDomainTransaction(
+      L1LiquidityPool.clientPayL1(
+        env.alicel1Wallet.address,
+        swapAmount,
+        env.L1ETHGateway.address
+      ),
+      Direction.L2ToL1
+    )
 
-  //   expect(postBalance.aliceL1Balance).to.deep.eq(
-  //     preBalances.aliceL1Balance.add(swapAmount.mul(97).div(100))
-  //   )
-  //   expect(postBalance.L1LPFeeBalance).to.deep.eq(
-  //     preBalances.L1LPFeeBalance.add(swapAmount.mul(3).div(100))
-  //   )
-  // })
+    const postBalance = await getBalances("0x0000000000000000000000000000000000000000")
+
+    expect(postBalance.aliceL1Balance).to.deep.eq(
+      preBalances.aliceL1Balance.add(swapAmount.mul(97).div(100))
+    )
+    expect(postBalance.L1LPFeeBalance).to.deep.eq(
+      preBalances.L1LPFeeBalance.add(swapAmount.mul(3).div(100))
+    )
+  })
 })
