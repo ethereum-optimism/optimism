@@ -1,5 +1,15 @@
 # @eth-optimism/smock
 
+## 1.1.1
+
+### Patch Changes
+
+- 6daa408: update hardhat versions so that solc is resolved correctly
+- Updated dependencies [6daa408]
+- Updated dependencies [dee74ef]
+- Updated dependencies [d64b66d]
+  - @eth-optimism/core-utils@0.3.2
+
 ## 1.1.0
 
 ### Minor Changes

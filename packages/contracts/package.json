@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
@@ -43,7 +43,7 @@
     "generate-markdown": "node scripts/generate-markdown.js"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.3.1",
+    "@eth-optimism/core-utils": "^0.3.2",
     "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
@@ -53,8 +53,8 @@
     "glob": "^7.1.6"
   },
   "devDependencies": {
-    "@eth-optimism/hardhat-ovm": "^0.0.3",
-    "@eth-optimism/smock": "^1.1.0",
+    "@eth-optimism/hardhat-ovm": "^0.1.0",
+    "@eth-optimism/smock": "^1.1.1",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "1.0.0",
