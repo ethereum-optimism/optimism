@@ -29,6 +29,7 @@ const config: HardhatUserConfig = {
       live: false,
       saveDeployments: false,
       tags: ['local'],
+      hardfork: 'istanbul',
     },
     // Add this network to your config!
     optimism: {
