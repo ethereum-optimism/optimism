@@ -21,6 +21,8 @@ services:
       - ${L1_CHAIN_PORT:-9545}:8545
 
   deployer:
+    depends_on: 
+      - l1_chain
     image: ethereumoptimism/deployer
     build:
       context: ..
@@ -40,6 +42,10 @@ services:
       - ${DEPLOYER_PORT:-8080}:8081
 
   dtl:
+    depends_on: 
+      - l1_chain
+      - deployer
+      - l2geth
     image: ethereumoptimism/data-transport-layer
     build:
       context: ..
@@ -61,6 +67,9 @@ services:
       - ${DTL_PORT:-7878}:7878
 
   l2geth:
+    depends_on:
+      - l1_chain
+      - deployer
     image: ethereumoptimism/l2geth
     build:
       context: ..
@@ -83,6 +92,10 @@ services:
       - ${L2GETH_WS_PORT:-8546}:8546
 
   relayer:
+    depends_on:
+      - l1_chain
+      - deployer
+      - l2geth
     image: ethereumoptimism/message-relayer
     build:
       context: ..
@@ -99,6 +112,10 @@ services:
         GET_LOGS_INTERVAL: 500
 
   batch_submitter:
+    depends_on:
+      - l1_chain
+      - deployer
+      - l2geth
     image: ethereumoptimism/batch-submitter
     build:
       context: ..
