@@ -54,7 +54,7 @@ jobs:
         run: yarn build
 
       - name: Test
-        run: yarn test:ci
+        run: yarn test
         env:
           FORCE_COLOR: 1
           ENABLE_GAS_REPORT: 1
@@ -89,4 +89,4 @@ jobs:
         run: yarn install
 
       - name: Lint
-        run: yarn lint:ci
+        run: yarn lint
