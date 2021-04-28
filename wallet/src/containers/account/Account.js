@@ -23,7 +23,6 @@ import { selectLoading } from 'selectors/loadingSelector';
 import { selectIsSynced } from 'selectors/statusSelector';
 import { selectChildchainBalance, selectRootchainBalance } from 'selectors/balanceSelector';
 import { selectPendingExits } from 'selectors/exitSelector';
-import { selectChildchainTransactions } from 'selectors/transactionSelector';
 
 import { SELECT_NETWORK } from 'Settings';
 
@@ -46,21 +45,9 @@ function Account () {
   const isSynced = useSelector(selectIsSynced);
   const childBalance = useSelector(selectChildchainBalance, isEqual);
   const rootBalance = useSelector(selectRootchainBalance, isEqual);
-  const pendingExits = useSelector(selectPendingExits, isEqual);
-  const transactions = useSelector(selectChildchainTransactions, isEqual);
   const criticalTransactionLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
   
-  const exitPending = useMemo(() => 
-    pendingExits.some(i => i.status === 'Pending'), 
-    [ pendingExits ]
-  );
-
-  const transferPending = useMemo(() => 
-    transactions.some(i => i.status === 'Pending'), 
-    [ transactions ]
-  );
-
-  const disabled = !childBalance.length || !isSynced || exitPending || transferPending;
+  const disabled = !childBalance.length || !isSynced ;
 
   const handleModalClick = useCallback(
     async (name, beginner = false) => {

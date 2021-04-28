@@ -13,13 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import * as Sentry from '@sentry/react';
-import config from 'util/config';
-
-if (config.sentry) {
-  Sentry.init({ dsn: config.sentry });
-}
-
 const errorCache = [];
 const noLogErrors = [
   'user denied',
@@ -32,14 +25,10 @@ export class WebWalletError extends Error {
   constructor ({
     originalError,
     customErrorMessage,
-    reportToSentry,
-    reportToUi
   }) {
     super(originalError.message);
     this._originalError = originalError;
     this._customErrorMessage = customErrorMessage;
-    this._reportToSentry = reportToSentry;
-    this._reportToUi = reportToUi;
   }
 
   // report (dispatchMethod) {
@@ -50,23 +39,6 @@ export class WebWalletError extends Error {
       this._originalError.code === metamaskHeaderNotFoundCode
     ) {
       return;
-    }
-
-    if (this._reportToSentry && config.sentry) {
-      if (!errorCache.includes(this._originalError.message)) {
-        errorCache.push(this._originalError.message);
-        try {
-          Sentry.captureException(this._originalError);
-        } catch (error) {
-          //
-        }
-      }
-    }
-
-    if (this._reportToUi) {
-      // dispatchMethod(
-      //   // openError(this._customErrorMessage || this._originalError.message || 'Something went wrong.')
-      // );
     }
   }
 }

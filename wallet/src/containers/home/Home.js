@@ -17,8 +17,6 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector, batch } from 'react-redux';
 import { selectWalletMethod } from 'selectors/setupSelector';
 import { selectModalState } from 'selectors/uiSelector';
-
-import config from 'util/config';
 import useInterval from 'util/useInterval';
 
 import {
