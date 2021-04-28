@@ -18,7 +18,6 @@ $ yarn build
 $ yarn deploy #if needed - this will test and deploy the contracts, and write their addresses to /deployments/addresses.json
 ```
 
-
 ## Test local
 
 ```bash
@@ -57,7 +56,14 @@ $ yarn test:integration
 
 ## L1liquidityPool.sol
 
-Layer 1 liquidity pool. It accepts ERC20 and ETH. When users deposit into the Layer 2 liquidity pool, `L1liquidityPool.sol` sends tokens to the user on L1 and charges a convenience fee to the user.
+Layer 1 liquidity pool. It accepts ERC20 and ETH. 
+
+**L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.
+**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding funds are sent to them at their L1 wallet. 
+
+
+
+When users deposit into the Layer 2 liquidity pool, `L1liquidityPool.sol` sends tokens to the user on L1 and charges a convenience fee to the user.
 
 ### Initial values
 
