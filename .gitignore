@@ -8,7 +8,8 @@ artifacts/
 artifacts-ovm/
 cache/
 cache-ovm/
-
+deployment/
+wallet/src/deployment
 # IDE
 /.idea
 /.awcache
