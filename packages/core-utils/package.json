@@ -18,7 +18,6 @@
     "test": "ts-mocha test/**/*.spec.ts"
   },
   "devDependencies": {
-    "@types/pino": "^6.3.6",
     "chai": "^4.3.0",
     "mocha": "^8.3.0",
     "prettier": "^2.2.1",
@@ -31,13 +30,7 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.0.9",
-    "@sentry/node": "^6.2.5",
-    "@types/pino-multi-stream": "^5.1.1",
     "ethers": "^5.0.31",
-    "lodash": "^4.17.21",
-    "pino": "^6.11.3",
-    "pino-multi-stream": "^5.3.0",
-    "pino-sentry": "^0.7.0",
-    "prom-client": "^13.1.0"
+    "lodash": "^4.17.21"
   }
 }
