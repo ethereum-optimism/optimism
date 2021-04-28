@@ -61,6 +61,10 @@ jobs:
       - name: Print gas report
         run: cat packages/contracts/gas-report.txt
 
+      - name: Run codechecks
+        working-directory: ./packages/contracts
+        run: yarn codechecks
+
   test-coverage:
     name: Generate test coverage
     runs-on: ubuntu-latest
@@ -106,7 +110,6 @@ jobs:
           files: ./packages/contracts/coverage.json
           fail_ci_if_error: false
           verbose: true
-
   lint:
     name: Linting
     runs-on: ubuntu-latest
