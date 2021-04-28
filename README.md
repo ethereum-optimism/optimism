@@ -65,7 +65,7 @@ CHAIN_ID=420
 
 To test on Rinkeby, ChainID4, you will need an Infura key and two accounts with Rinkeby ETH in them. The test wallets must contain enough ETH to cover the tests. **The full test suite includes some very slow transactions such as withdrawls, which can take 300 seconds each. Please be patient.**
 
-## 2. Run the Integration Tests
+## 2. Running the Integration Tests
 
 ```bash
 $ yarn install
@@ -75,43 +75,35 @@ $ yarn deploy #if needed - this will test and deploy the contracts, and write th
 
 ## 3. Wallet Specific Smart Contracts
 
-These contracts instnatiate a simple swap on/off system for fast entry/exit, as well as some basics such as 
+These contracts instnatiate a simple swap on/off system for fast entry/exit, as well as some basics such as XXXXXXXXXXXXX
 
 ### 3.1 L1liquidityPool.sol
 
-Layer 1 liquidity pool. It accepts ERC20 and ETH. 
+The Layer 1 liquidity pool accepts ERC20 and ETH. 
 
 **L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.  
-**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet. `L1liquidityPool.sol` charges a convenience fee to the user.  
+
+**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet. `L1liquidityPool.sol` charges a convenience fee to the user.   
 
 #### Initial values
 
-* _l2LiquidityPoolAddress_ The address of the Layer 2 liquidity pool 
-* _l1messenger_ The address of the Layer 1 messager  
-* _l2ETHAddress_ The address of the oWETH contract on the L2 
+* _l2LiquidityPoolAddress_. The address of the Layer 2 liquidity pool 
+* _l1messenger_. The address of the Layer 1 messager  
+* _l2ETHAddress_. The address of the oWETH contract on the L2 
 * _fee_ The convenience fee. The data type of **_fee** is `uint256`. If the fee is 3%, then _fee_ is 3. (This needs to be improved)
 
 #### Events
 
-* _ownerAddERC20Liquidity_EVENT_. The event of adding funds to the pool by the contract owner. **ownerAddERC20Liquidity** doesn't send any messages to L2. 
-
-* _clientDepositL1_EVENT_. The event of depositing tokens to the pool. **clientDepositL1** sends a message to L2, which triggers a contract on the L2 side to send funds to the user's L2 wallet.
-
-* clientPayL1_EVENT_. The event of sending tokens to the user. **clientPayL1** is a cross-chain function - it's triggered by actions on the L2 side, which then call clientPayL1 to send funds to the user's L1 accounut.
-
-* _ownerRecoverFee_EVENT_. The event of withdrawing fees by the contract owner.
+* `ownerAddERC20Liquidity_EVENT`. The event of adding funds to the pool by the contract owner. `ownerAddERC20Liquidity` doesn't send any messages to L2. 
+* `clientDepositL1_EVENT`. The event of depositing tokens to the pool. `clientDepositL1` sends a message to L2, which triggers a contract on the L2 side to send funds to the user's L2 wallet.
+* `clientPayL1_EVENT`. The event of sending tokens to the user. `clientPayL1` is a cross-chain function - it's triggered by actions on the L2 side, which then call clientPayL1 to send funds to the user's L1 accounut.
+* `ownerRecoverFee_EVENT`. The event of withdrawing fees by the contract owner.
 
 #### Functions
 
-* _init_. It can only be accessed by the contract owner. The owner can update the **_fee**.
-
-#### receive
-
-This handles ETH. If called by the contract owner, it allows ETH to be desposited into the ETH pool. For other callers, it also sends a message to the **L2liquidityPool** smart contract on L2, which then sends **oWETH** to the sender.
-
-#### ownerAddERC20Liquidity
-
-Used by the owner to provide liquidity into an ERC20 pool. Unlike a normal deposit, it doesn't send a message to L2.
+* `init`. It can only be accessed by the contract owner. The owner can update the **_fee**.
+* `receive`. This handles ETH. If called by the contract owner, it allows ETH to be desposited into the ETH pool. For other callers, it also sends a message to the `L2liquidityPool` smart contract on L2, which then sends oWETH to the sender.
+* `ownerAddERC20Liquidity`. Used by the owner to provide liquidity into an ERC20 pool. Unlike a normal deposit, it doesn't send a message to L2.
 
 #### balanceOf
 
