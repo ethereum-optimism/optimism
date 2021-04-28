@@ -11,8 +11,7 @@ export const VERSION = "1.0.26";
 
 // global network
 export const SELECT_NETWORK = 'local'; // local || rinkeby
-
-export const INFURA_ID = "a1372be75cef440da1a8295acbd977b4";
+export const INFURA_ID = "fd76d0a0b9e940058d6d42d5e261f517";
 
 export const NETWORK = (chainId) => {
   for (let n in NETWORKS) {
@@ -43,8 +42,8 @@ export const NETWORKS = {
     name: "Rinkeby Network",
     color: "#7003DD",
     chainId: 4,
-    rpcUrl: `https://rinkeby.infura.io/v3/`,
-    blockExplorer: "https://rinkeby.etherscan.io/${INFURA_ID}",
+    rpcUrl: `https://rinkeby.infura.io/v3/${INFURA_ID}`,
+    blockExplorer: `https://rinkeby.etherscan.io/${INFURA_ID}`,
   },
   rinkebyL2: {
     name: "Rinkeby L2 Network",

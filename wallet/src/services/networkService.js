@@ -40,20 +40,6 @@ import VarnaPoolAddress from "contracts/VarnaPool.address";
 import VarnaSwapABI from "contracts/AtomicSwap.abi";
 import VarnaSwapAddress from "contracts/AtomicSwap.address";
 
-/*
-import ERC20ABI from "contracts/ERC20.abi";
-import L2LPABI from "contracts/L2LiquidityPool.abi";
-import L1ERC20GatewayJson.abi from "contracts/L1ERC20Gateway.abi";
-import L2DepositedERC20Json.abi from "contracts/L2DepositedERC20.abi";
-import L1LPJson.abi from "contracts/L1LiquidityPool.abi";
-*/
-
-import ERC20Address from 'contracts/ERC20.address';
-import L1ERC20GatewayAddress from "contracts/L1ERC20Gateway.address";
-import L2DepositedERC20Address from "contracts/L2DepositedERC20.address";
-import L1LPAddress from "contracts/L1LiquidityPool.address";
-import L2LPAddress from "contracts/L2LiquidityPool.address";
-
 import L1LPJson from '../deployment/artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
 import L2LPJson from '../deployment/artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
 import L1ERC20Json from '../deployment/artifacts/contracts/ERC20.sol/ERC20.json'
@@ -64,9 +50,13 @@ import { powAmount, logAmount } from 'util/amountConvert';
 
 import { L1ETHGATEWAY, L2DEPOSITEDERC20, NETWORKS, SELECT_NETWORK } from "Settings";
 
+//All the current addresses
 const addresses = require('../deployment/addresses.json');
-console.log(addresses)
-console.log(addresses.l1ETHGatewayAddress)
+const ERC20Address = addresses.L1ERC20
+const L1ERC20GatewayAddress = addresses.L1ERC20Gateway
+const L2DepositedERC20Address = addresses.L2DepositedERC20
+const L1LPAddress = addresses.L1LiquidityPool
+const L2LPAddress = addresses.L2LiquidityPool
 
 const web3Modal = new Web3Modal({
   cacheProvider: true, // optional
