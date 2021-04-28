@@ -9,10 +9,9 @@ import {
   RollupInfo,
   BatchElement,
   Batch,
-  QueueOrigin,
-  Logger,
-  Metrics,
+  QueueOrigin
 } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
 import {

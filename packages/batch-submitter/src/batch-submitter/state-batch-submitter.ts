@@ -8,9 +8,9 @@ import {
   RollupInfo,
   Logger,
   Bytes32,
-  remove0x,
-  Metrics,
+  remove0x
 } from '@eth-optimism/core-utils'
+import { Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
 import { Range, BatchSubmitter, BLOCK_OFFSET } from '.'

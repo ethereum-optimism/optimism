@@ -1,0 +1,38 @@
+{
+  "name": "@eth-optimism/common-ts",
+  "version": "0.0.1",
+  "main": "dist/index",
+  "files": [
+    "dist/*"
+  ],
+  "types": "dist/index",
+  "license": "MIT",
+  "scripts": {
+    "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
+    "lint": "tslint --format stylish --project .",
+    "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
+    "test": "ts-mocha test/**/*.spec.ts"
+  },
+  "devDependencies": {
+    "@types/pino": "^6.3.6",
+    "prettier": "^2.2.1",
+    "tslint": "^6.1.3",
+    "tslint-config-prettier": "^1.18.0",
+    "tslint-no-focused-test": "^0.5.0",
+    "tslint-plugin-prettier": "^2.3.0",
+    "typescript": "^4.2.3"
+  },
+  "dependencies": {
+    "@ethersproject/abstract-provider": "^5.0.9",
+    "@sentry/node": "^6.2.5",
+    "@types/pino-multi-stream": "^5.1.1",
+    "ethers": "^5.0.31",
+    "lodash": "^4.17.21",
+    "pino": "^6.11.3",
+    "pino-multi-stream": "^5.3.0",
+    "pino-sentry": "^0.7.0",
+    "prom-client": "^13.1.0"
+  }
+}
