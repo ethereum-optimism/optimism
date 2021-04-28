@@ -9,7 +9,7 @@ import {
   RollupInfo,
   BatchElement,
   Batch,
-  QueueOrigin
+  QueueOrigin,
 } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 

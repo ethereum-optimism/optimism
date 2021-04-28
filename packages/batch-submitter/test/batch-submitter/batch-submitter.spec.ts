@@ -35,9 +35,8 @@ import {
   Signature,
   TxType,
   remove0x,
-  Logger,
-  Metrics,
 } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const DUMMY_ADDRESS = '0x' + '00'.repeat(20)
