@@ -10,9 +10,9 @@ export const SERVICE_OPTIMISM_API_URL = "https://zlba6djrv6.execute-api.us-west-
 export const VERSION = "1.0.26";
 
 // global network
-export const SELECT_NETWORK = 'rinkeby'; // kovan || local || rinkeby
+export const SELECT_NETWORK = 'local'; // local || rinkeby
 
-export const INFURA_ID = "460f40a260564ac4a4f4b3fffb032dad";
+export const INFURA_ID = "a1372be75cef440da1a8295acbd977b4";
 
 export const NETWORK = (chainId) => {
   for (let n in NETWORKS) {
@@ -23,33 +23,12 @@ export const NETWORK = (chainId) => {
 };
 
 export const NETWORKS = {
-  kovan: {
-    name: "Kovan Network",
-    color: "#7003DD",
-    chainId: 42,
-    rpcUrl: `https://kovan.infura.io/v3/${INFURA_ID}`,
-    blockExplorer: "https://kovan.etherscan.io/",
-    faucet: "https://gitter.im/kovan-testnet/faucet", //https://faucet.kovan.network/
-    l1ETHGatewayAddress: '0x6647D5BD9EB9425838Bb89f76a166228b95671a3',
-    l1MessengerAddress: '0xb89065D5eB05Cac554FDB11fC764C679b4202322'
-  },
-  kovanL2: {
-    name: "Kovan Optimism Network",
-    color: "#e0bfc3",
-    chainId: 69,
-    blockExplorer: "",
-    rpcUrl: "https://kovan.optimism.io",
-    l2ETHGatewayAddress: '0x4200000000000000000000000000000000000006',
-    l2MessengerAddress: "0x4200000000000000000000000000000000000007"
-  },
   localL1: {
     name: "Local L1 Network",
     color: "#666666",
     chainId: 31337,
     blockExplorer: "",
-    rpcUrl: "http://" + window.location.hostname + ":9545",
-    l1ETHGatewayAddress: '0x4F53A01556Dc6f120db9a1b4caE786D5f0b5792C',
-    l1MessengerAddress: '0xA6404B184Ad3f6F41b6472f02ba45f25C6A66d49'
+    rpcUrl: "http://" + window.location.hostname + ":9545"
   },
   localL2: {
     name: "Local L2 Network",
@@ -58,16 +37,14 @@ export const NETWORKS = {
     blockExplorer: "",
     rpcUrl: "http://" + window.location.hostname + ":8545",
     l2ETHGatewayAddress: '0x4200000000000000000000000000000000000006',
-    l2MessengerAddress: "0x4200000000000000000000000000000000000007"
+    l2MessengerAddress: '0x4200000000000000000000000000000000000007'
   },
   rinkeby: {
     name: "Rinkeby Network",
     color: "#7003DD",
     chainId: 4,
-    rpcUrl: `https://rinkeby.infura.io/v3/a1372be75cef440da1a8295acbd977b4`,
-    blockExplorer: "https://rinkeby.etherscan.io/",
-    l1ETHGatewayAddress: '0xBa67f68C956178CB7fd1c882f9B882487Fa28898',
-    l1MessengerAddress: '0x07A5992d8bE8c271B3baa5320975b6E8d8816e34'
+    rpcUrl: `https://rinkeby.infura.io/v3/`,
+    blockExplorer: "https://rinkeby.etherscan.io/${INFURA_ID}",
   },
   rinkebyL2: {
     name: "Rinkeby L2 Network",
@@ -76,7 +53,7 @@ export const NETWORKS = {
     blockExplorer: "",
     rpcUrl: "http://54.161.5.63:8545",
     l2ETHGatewayAddress: '0x4200000000000000000000000000000000000006',
-    l2MessengerAddress: "0x4200000000000000000000000000000000000007"
+    l2MessengerAddress: '0x4200000000000000000000000000000000000007'
   },
 };
 

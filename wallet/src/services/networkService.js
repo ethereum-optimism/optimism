@@ -41,35 +41,32 @@ import VarnaSwapABI from "contracts/AtomicSwap.abi";
 import VarnaSwapAddress from "contracts/AtomicSwap.address";
 
 /*
-
 import ERC20ABI from "contracts/ERC20.abi";
 import L2LPABI from "contracts/L2LiquidityPool.abi";
 import L1ERC20GatewayJson.abi from "contracts/L1ERC20Gateway.abi";
 import L2DepositedERC20Json.abi from "contracts/L2DepositedERC20.abi";
 import L1LPJson.abi from "contracts/L1LiquidityPool.abi";
+*/
 
-import ERC20Address from 'contracts/ERC20.address';
 import ERC20Address from 'contracts/ERC20.address';
 import L1ERC20GatewayAddress from "contracts/L1ERC20Gateway.address";
 import L2DepositedERC20Address from "contracts/L2DepositedERC20.address";
 import L1LPAddress from "contracts/L1LiquidityPool.address";
 import L2LPAddress from "contracts/L2LiquidityPool.address";
 
-*/
-
-import L1LPJson from '../../../artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
-import L2LPJson from '../../../artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
-import L1ERC20Json from '../../../artifacts/contracts/ERC20.sol/ERC20.json'
-import L2DepositedERC20Json from '../../../artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
-import L1ERC20GatewayJson from '../../../artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
+import L1LPJson from '../deployment/artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
+import L2LPJson from '../deployment/artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
+import L1ERC20Json from '../deployment/artifacts/contracts/ERC20.sol/ERC20.json'
+import L2DepositedERC20Json from '../deployment/artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
+import L1ERC20GatewayJson from '../deployment/artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
 
 import { powAmount, logAmount } from 'util/amountConvert';
 
 import { L1ETHGATEWAY, L2DEPOSITEDERC20, NETWORKS, SELECT_NETWORK } from "Settings";
 
-const addresses = require('../../../deployment/addresses.json');
-
+const addresses = require('../deployment/addresses.json');
 console.log(addresses)
+console.log(addresses.l1ETHGatewayAddress)
 
 const web3Modal = new Web3Modal({
   cacheProvider: true, // optional
@@ -80,10 +77,6 @@ const configChain = {
   local: {
     l1Network: NETWORKS['localL1'],
     l2Network: NETWORKS['localL2'],
-  },
-  kovan: {
-    l1Network: NETWORKS['kovan'],
-    l2Network: NETWORKS['kovanL2'],
   },
   rinkeby: {
     l1Network: NETWORKS['rinkeby'],
@@ -97,10 +90,10 @@ const l2Network = configChain[SELECT_NETWORK].l2Network;
 const l1Provider = new JsonRpcProvider(l1Network.rpcUrl);
 const l2Provider = new JsonRpcProvider(l2Network.rpcUrl);
 
-const l1ETHGatewayAddress = l1Network.l1ETHGatewayAddress;
+const l1ETHGatewayAddress = addresses.l1ETHGatewayAddress;
 const l2ETHGatewayAddress = l2Network.l2ETHGatewayAddress;
 
-const l1MessengerAddress = l1Network.l1MessengerAddress;
+const l1MessengerAddress = addresses.l1MessengerAddress;
 const l2MessengerAddress = l2Network.l2MessengerAddress;
 
 const l1ChainID = l1Network.chainId;
@@ -217,6 +210,9 @@ class NetworkService {
         this.web3Provider.getSigner(),
       );
 
+      //Fire up the new watcher
+      //const addressManager = getAddressManager(bobl1Wallet)
+      //const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
       this.watcher = new Watcher({
         l1: {
           provider: l1Provider,
@@ -251,11 +247,15 @@ class NetworkService {
 
   initializeAccounts = () => async (dispatch) => {
     try {
+
       this.account = await this.web3Provider.getSigner().getAddress();
+      
       const networkStatus = await dispatch(this.checkNetwork('L1L2'));
+      
       if (!networkStatus) return 'wrongnetwork'
 
       const network = await this.web3Provider.getNetwork();
+      
       this.selectedNetwork = network.chainId === l1ChainID ? "L1" : "L2";
 
       dispatch(setNetwork({
@@ -783,14 +783,16 @@ class NetworkService {
   }
 
   async L1LPWithdrawFee(currency, receiver, amount) {
+    
     const L1LPFeeBalance = await this.L1LPContract.feeBalanceOf(currency);
+    
     let L1LPBalance = 0;
 
     if (currency !== '0x0000000000000000000000000000000000000000') {
       const ERC20Contract = new this.l1Web3Provider.eth.Contract(
-        ERC20ABI,
+        L1ERC20Json.abi,
         currency,
-      );
+      )
       L1LPBalance = await ERC20Contract.methods.balanceOf(L1LPAddress).call({from: this.account});
     } else {
       L1LPBalance = L1LPFeeBalance;

@@ -21,6 +21,8 @@ import {
   waitForXDomainTransaction,
 } from './watcher-utils'
 
+import * as fs from 'fs'
+
 import { TransactionResponse } from '@ethersproject/providers'
 
 /// Helper class for instantiating a test environment with a funded account
@@ -29,6 +31,7 @@ export class OptimismEnv {
   addressManager: Contract
   L1ETHGateway: Contract
   l1Messenger: Contract
+  l1MessengerAddress: String
   ctc: Contract
 
   // L2 Contracts
@@ -49,6 +52,7 @@ export class OptimismEnv {
     this.addressManager = args.addressManager
     this.L1ETHGateway = args.L1ETHGateway
     this.l1Messenger = args.l1Messenger
+    this.l1MessengerAddress = args.l1MessengerAddress
     this.L2ETHGateway = args.L2ETHGateway
     this.l2Messenger = args.l2Messenger
     this.watcher = args.watcher
@@ -79,6 +83,8 @@ export class OptimismEnv {
     const l1Messenger = getContractFactory('iOVM_L1CrossDomainMessenger')
       .connect(bobl1Wallet)
       .attach(watcher.l1.messengerAddress)
+
+    const l1MessengerAddress = l1Messenger.address;  
     
     const l2Messenger = getContractFactory('iOVM_L2CrossDomainMessenger')
       .connect(bobl2Wallet)
@@ -96,6 +102,7 @@ export class OptimismEnv {
       L1ETHGateway,
       ctc,
       l1Messenger,
+      l1MessengerAddress,
       L2ETHGateway,
       l2Messenger,
       watcher,

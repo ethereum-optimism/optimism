@@ -14,9 +14,9 @@ export interface WatcherOptions {
 
 export class Watcher {
 
+  public NUM_BLOCKS_TO_FETCH: number = 10000
   public l1: Layer
   public l2: Layer
-  public NUM_BLOCKS_TO_FETCH: number = 10000
 
   constructor(opts: WatcherOptions) {
     this.l1 = opts.l1
@@ -82,10 +82,6 @@ export class Watcher {
     
     const blockNumber = await layer.provider.getBlockNumber()
     const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
-
-    //console.log("Watcher::getTransactionReceipt-blockNumber",blockNumber)
-    //console.log("Watcher::getTransactionReceipt-startingBlock",startingBlock)
-    //console.log("Watcher::topic:",ethers.utils.id(`RelayedMessage(bytes32)`))
 
     const filter = {
       address: layer.messengerAddress,

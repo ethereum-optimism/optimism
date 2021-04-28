@@ -10,6 +10,15 @@ To test on Rinkeby, ChainID4, you will need an Infura key and two accounts with 
 
 **The full test suite includes some very slow transactions such as withdrawls, which can take 300 seconds each. Please be patient.**
 
+## PERFORM THE TESTS
+
+```bash
+$ yarn install
+$ yarn build
+$ yarn deploy #if needed - this will test and deploy the contracts, and write their addresses to /deployments/addresses.json
+```
+
+
 ## Test local
 
 ```bash

@@ -189,7 +189,9 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       L2LiquidityPool: L2LiquidityPool.address,
       L1ERC20: L1ERC20.address,
       L2DepositedERC20: L2DepositedERC20.address,
-      L1ERC20Gateway: L1ERC20Gateway.address
+      L1ERC20Gateway: L1ERC20Gateway.address,
+      l1ETHGatewayAddress: env.L1ETHGateway.address,
+      l1MessengerAddress: env.l1MessengerAddress
     }
 
     console.log(JSON.stringify(addresses, null, 2))
