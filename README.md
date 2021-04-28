@@ -2,12 +2,36 @@
 
 Typescript based integration test repo for OMGX.
 
-##### Table of Contents  
-[Headers](#headers)  
-[Emphasis](#emphasis)  
-...snip...    
-<a name="headers"/>
-## Headers
+- [Integration Tests](#integration-tests)
+        * [Table of Contents](#table-of-contents)
+  * [Headers](#headers)
+  * [1. Basic Configuration](#1-basic-configuration)
+    + [Test Local](#test-local)
+    + [Test Rinkeby](#test-rinkeby)
+  * [PERFORM THE TESTS](#perform-the-tests)
+  * [Wallet Specific Smart Contracts](#wallet-specific-smart-contracts)
+  * [L1liquidityPool.sol](#l1liquiditypoolsol)
+    + [Initial values](#initial-values)
+    + [Events](#events)
+    + [Functions](#functions)
+      - [init](#init)
+      - [receive](#receive)
+      - [ownerAddERC20Liquidity](#owneradderc20liquidity)
+      - [balanceOf](#balanceof)
+      - [feeBalanceOf](#feebalanceof)
+      - [clientDepositL1](#clientdepositl1)
+      - [clientPayL1](#clientpayl1)
+      - [ownerRecoverFee](#ownerrecoverfee)
+  * [L2liquidityPool.sol](#l2liquiditypoolsol)
+    + [Deploy Liquidity Pools (probably outdated)](#deploy-liquidity-pools--probably-outdated-)
+  * [AtomicSwap](#atomicswap)
+    + [Function](#function)
+      - [open](#open)
+      - [close](#close)
+      - [expire](#expire)
+      - [check](#check)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
 
 ## 1. Basic Configuration
 
@@ -41,7 +65,7 @@ CHAIN_ID=420
 
 To test on Rinkeby, ChainID4, you will need an Infura key and two accounts with Rinkeby ETH in them. The test wallets must contain enough ETH to cover the tests. **The full test suite includes some very slow transactions such as withdrawls, which can take 300 seconds each. Please be patient.**
 
-## PERFORM THE TESTS
+## 2. Run the Integration Tests
 
 ```bash
 $ yarn install
@@ -49,47 +73,37 @@ $ yarn build
 $ yarn deploy #if needed - this will test and deploy the contracts, and write their addresses to /deployments/addresses.json
 ```
 
-## Wallet Specific Smart Contracts
+## 3. Wallet Specific Smart Contracts
 
 These contracts instnatiate a simple swap on/off system for fast entry/exit, as well as some basics such as 
 
-## L1liquidityPool.sol
+### 3.1 L1liquidityPool.sol
 
 Layer 1 liquidity pool. It accepts ERC20 and ETH. 
 
 **L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.  
 **L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet. `L1liquidityPool.sol` charges a convenience fee to the user.  
 
-### Initial values
+#### Initial values
 
 * _l2LiquidityPoolAddress_ The address of the Layer 2 liquidity pool 
 * _l1messenger_ The address of the Layer 1 messager  
 * _l2ETHAddress_ The address of the oWETH contract on the L2 
 * _fee_ The convenience fee. The data type of **_fee** is `uint256`. If the fee is 3%, then _fee_ is 3. (This needs to be improved)
 
-### Events
+#### Events
 
-* ownerAddERC20Liquidity_EVENT 
+* _ownerAddERC20Liquidity_EVENT_. The event of adding funds to the pool by the contract owner. **ownerAddERC20Liquidity** doesn't send any messages to L2. 
 
-  The event of adding funds to the pool by the contract owner. **ownerAddERC20Liquidity** doesn't send any messages to L2. 
+* _clientDepositL1_EVENT_. The event of depositing tokens to the pool. **clientDepositL1** sends a message to L2, which triggers a contract on the L2 side to send funds to the user's L2 wallet.
 
-* clientDepositL1_EVENT
+* clientPayL1_EVENT_. The event of sending tokens to the user. **clientPayL1** is a cross-chain function - it's triggered by actions on the L2 side, which then call clientPayL1 to send funds to the user's L1 accounut.
 
-  The event of depositing tokens to the pool. **clientDepositL1** sends a message to L2, which triggers a contract on the L2 side to send funds to the user's L2 wallet.
+* _ownerRecoverFee_EVENT_. The event of withdrawing fees by the contract owner.
 
-* clientPayL1_EVENT
+#### Functions
 
-  The event of sending tokens to the user. **clientPayL1** is a cross-chain function - it's triggered by actions on the L2 side, which then call clientPayL1 to send funds to the user's L1 accounut.
-
-* ownerRecoverFee_EVENT
-
-  The event of withdrawing fees by the contract owner.
-
-### Functions
-
-#### init
-
-It can only be accessed by the contract owner. The owner can update the **_fee**.
+* _init_. It can only be accessed by the contract owner. The owner can update the **_fee**.
 
 #### receive
 
