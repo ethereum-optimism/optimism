@@ -96,36 +96,21 @@ The Layer 1 liquidity pool accepts ERC20 and ETH.
 
 * `ownerAddERC20Liquidity_EVENT`. The event of adding funds to the pool by the contract owner. `ownerAddERC20Liquidity` doesn't send any messages to L2. 
 * `clientDepositL1_EVENT`. The event of depositing tokens to the pool. `clientDepositL1` sends a message to L2, which triggers a contract on the L2 side to send funds to the user's L2 wallet.
-* `clientPayL1_EVENT`. The event of sending tokens to the user. `clientPayL1` is a cross-chain function - it's triggered by actions on the L2 side, which then call clientPayL1 to send funds to the user's L1 accounut.
+* `clientPayL1_EVENT`. The event of sending tokens to the user. `clientPayL1` is a cross-chain function - it's triggered by actions on the L2 side, which then call clientPayL1 to send funds to the user's L1 account.
 * `ownerRecoverFee_EVENT`. The event of withdrawing fees by the contract owner.
 
 #### Functions
 
-* `init`. It can only be accessed by the contract owner. The owner can update the **_fee**.
+* `init`. It can only be accessed by the contract owner. The owner can update the `_fee`.
 * `receive`. This handles ETH. If called by the contract owner, it allows ETH to be desposited into the ETH pool. For other callers, it also sends a message to the `L2liquidityPool` smart contract on L2, which then sends oWETH to the sender.
 * `ownerAddERC20Liquidity`. Used by the owner to provide liquidity into an ERC20 pool. Unlike a normal deposit, it doesn't send a message to L2.
+* ` balanceOf` returns the balance of ERC20 or ETH of this contract. The default address of ETH is `address(0)`.
+* ` feeBalanceOf` returns the fee balance of ERC20 or ETH of this contract.
+* ` clientDepositL1` Users call this function to deposit tokens. After receiving the deposit, the contract sends a cross-domain message to L2. The `L2liquidityPool` sends the corresponding tokens to the user.
+* ` clientPayL1` This cross-chain function can only be accessed `onlyFromCrossDomainAccount`. It can't be accessed by any users. When the layer 2 liquidity pool receives tokens and sends a message to L1, `clientPayL1` sends the token to the user and charges a convenience fee.
+* ` ownerRecoverFee` can only be accessed by the contract owner. The contract owner can withdraw fees as they accumulate.
 
-#### balanceOf
-
-It returns the balance of ERC20 or ETH of this contract. The default address of ETH is **address(0)**.
-
-#### feeBalanceOf
-
-It returns the fee balance of ERC20 or ETH of this contract.
-
-#### clientDepositL1
-
-Users call this function to deposit tokens. After receiving the deposit, the contract sends a cross-domain message to L2. The **L2liquidityPool** sends the corresponding tokens to the user.
-
-#### clientPayL1
-
-This cross-chain function can only be accessed `onlyFromCrossDomainAccount`. It can't be accessed by any users. When the layer 2 liquidity pool receives tokens and sends a message to L1,  **clientPayL1** sends the token to the user and charges a convenience fee.
-
-#### ownerRecoverFee
-
-It can only be accessed by the contract owner. The contract owner can withdraw fees as they accumulate.
-
-## L2liquidityPool.sol
+### 3.2 L2liquidityPool.sol
 
 Just like the contract for L1, but with small changes e.g. to deal with the fact that the L2 does not have native ETH.
 
@@ -147,7 +132,7 @@ const initL2LP = await L2_LP.init(L1_LP.address, "3");
 await initL2LP.wait();
 ```
 
-## AtomicSwap
+### 3.3 AtomicSwap
 
 Used to swap ERC20 tokens.
 
@@ -155,15 +140,11 @@ Used to swap ERC20 tokens.
 
 ****
 
-#### open
+* `open` creates **Swap** struct, which contains the information of the buyer and sender.
 
-It creates **Swap** struct, which contains the information of the buyer and sender.
+* `close` closes the swap. It swaps the ERC20 tokens of the sender and the buyer.
 
-#### close
-
-It closes the swap. It swaps the ERC20 tokens of the sender and the buyer.
-
-#### expire
+* `expire`
 
 It sets the status of the swap to be **EXPIRED**.
 
