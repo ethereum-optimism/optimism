@@ -15,7 +15,7 @@ limitations under the License. */
 
 import React, { useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Send, MergeType } from '@material-ui/icons';
+import { Send, MergeType, ArrowBack, ArrowForward } from '@material-ui/icons';
 import { isEqual } from 'lodash';
 import truncate from 'truncate-middle';
 
@@ -23,7 +23,6 @@ import { selectLoading } from 'selectors/loadingSelector';
 import { selectIsSynced } from 'selectors/statusSelector';
 import { selectChildchainBalance, selectRootchainBalance } from 'selectors/balanceSelector';
 import { selectPendingExits } from 'selectors/exitSelector';
-import { selectChildchainTransactions } from 'selectors/transactionSelector';
 
 import { SELECT_NETWORK } from 'Settings';
 
@@ -46,21 +45,9 @@ function Account () {
   const isSynced = useSelector(selectIsSynced);
   const childBalance = useSelector(selectChildchainBalance, isEqual);
   const rootBalance = useSelector(selectRootchainBalance, isEqual);
-  const pendingExits = useSelector(selectPendingExits, isEqual);
-  const transactions = useSelector(selectChildchainTransactions, isEqual);
   const criticalTransactionLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
   
-  const exitPending = useMemo(() => 
-    pendingExits.some(i => i.status === 'Pending'), 
-    [ pendingExits ]
-  );
-
-  const transferPending = useMemo(() => 
-    transactions.some(i => i.status === 'Pending'), 
-    [ transactions ]
-  );
-
-  const disabled = !childBalance.length || !isSynced || exitPending || transferPending;
+  const disabled = !childBalance.length || !isSynced ;
 
   const handleModalClick = useCallback(
     async (name, beginner = false) => {
@@ -151,13 +138,6 @@ function Account () {
               </span>
             </div>
             <div className={styles.RabbitRightBottom}>
-              <Button
-                onClick={()=>handleModalClick('depositModal')}
-                type='primary'
-                style={{fontFamily: 'MessinaMonoSemiBold', fontSize: '1.4em', padding: 10}}
-              >
-                DEPOSIT wETH
-              </Button>
             </div>
           </div>
         </div>
@@ -171,22 +151,13 @@ function Account () {
               <span>Balance on Childchain</span>
               <span>OMGX</span>
             </div>
-            <div className={styles.actions}>
               <div
-                onClick={()=>handleModalClick('depositModal')}
-                className={[styles.transfer, !isSynced ? styles.disabled : ''].join(' ')}
-              >
-                <Send />
-                <span>Deposit to L2</span>
-              </div>
-              <div
-                onClick={() => handleModalClick('exitModal')}
+                onClick={()=>handleModalClick('transferModal')}
                 className={[styles.transfer, disabled ? styles.disabled : ''].join(' ')}
               >
-                <MergeType />
-                <span>Exit</span>
+                <Send />
+                <span>TRANSFER L2->L2</span>
               </div>
-            </div>
           </div>
           {childBalance.map((i, index) => {
             return (
@@ -198,14 +169,52 @@ function Account () {
               </div>
             );
           })}
+        </div>
+
+        <div className={styles.boxActions}>
           <div className={styles.buttons}>
             <Button
-              onClick={() => handleModalClick('transferModal')}
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              <ArrowBack/>
+              FAST ONRAMP
+            </Button>
+          </div>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            > 
+              FAST EXIT
+              <ArrowForward/>
+            </Button>
+          </div>
+
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              <ArrowBack/>
+              SLOW ONRAMP
+            </Button>
+          </div>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('exitModal')}
               type='primary'
               disabled={disabled || criticalTransactionLoading}
               style={{maxWidth: 'none'}}
             >
-              TRANSFER
+              SLOW EXIT
+              <ArrowForward/>
             </Button>
           </div>
         </div>

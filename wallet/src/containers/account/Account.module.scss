@@ -85,29 +85,25 @@
 }
 
 .balances {
+
   display: flex;
   flex-direction: row;
+
   @include mobile {
     flex-direction: column;
   }
 
   .box {
+
     background-color: $bunnyRed;
     padding: 20px;
     display: flex;
     flex-direction: column;
     flex: 1;
+    
     @include mobile {
       font-size: 0.8rem;
       padding: 15px;
-    }
-
-    &:first-child {
-      margin-right: 20px;
-      @include mobile {
-        margin-right: 0;
-        margin-bottom: 20px;
-      }
     }
 
     .buttons {
@@ -195,5 +191,24 @@
         }
       }
     }
+  }
+
+  .boxActions {
+    
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-between;
+    
+    @include mobile {
+      font-size: 0.8rem;
+      padding: 15px;
+    }
+
+    .buttons {
+      padding: 5px;
+    }
+
   }
 }

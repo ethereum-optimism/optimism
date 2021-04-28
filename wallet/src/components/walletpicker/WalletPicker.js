@@ -96,7 +96,7 @@ function WalletPicker ({ onEnable }) {
             <div className={styles.network}>
               <div className={styles.indicator} />
               <div>
-                Optimism Local Chain
+                OMGX Local Chain
               </div>
             </div>
           </div>

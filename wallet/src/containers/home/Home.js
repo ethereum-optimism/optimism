@@ -17,8 +17,6 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector, batch } from 'react-redux';
 import { selectWalletMethod } from 'selectors/setupSelector';
 import { selectModalState } from 'selectors/uiSelector';
-
-import config from 'util/config';
 import useInterval from 'util/useInterval';
 
 import {
@@ -42,7 +40,6 @@ import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 //Wallet Functions
 import Status from 'containers/status/Status';
 import Account from 'containers/account/Account';
-import Transactions from 'containers/transactions/Transactions';
 
 // OMGX
 import Pool from 'containers/pool/Pool';
@@ -54,7 +51,7 @@ import logo from 'images/omg_labs.svg';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = config.pollInterval * 1000;
+const POLL_INTERVAL = 1000; //in milliseconds?
 
 function Home () {
 
@@ -80,7 +77,6 @@ function Home () {
       ? body.style.overflow = 'hidden'
       : body.style.overflow = 'auto';
   }, [ mobileMenuOpen ]);
-
 
   // calls only on boot
   useEffect(() => {
@@ -153,21 +149,9 @@ The Top SubMenu Bar, non-mobile
             >  
               Wallet
             </h2>
-            <h2
-              className={pageDisplay === "Pool" ? styles.subtitletextActive : styles.subtitletext}
-              onClick={()=>{handleSetPage("Pool")}}
-            >  
-              Pool
-            </h2>
           </div>
           {pageDisplay === "AccountNow" &&
-          <>
             <Account/>
-            <Transactions/>
-          </>
-          }
-          {pageDisplay === "Pool" &&
-            <Pool/>
           }
         </div>
       </div>
