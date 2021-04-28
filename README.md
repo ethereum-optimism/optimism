@@ -10,8 +10,8 @@ Typescript based integration test repo for OMGX.
     + [Events](#events)
     + [Functions](#functions)
   * [3.2 L2liquidityPool.sol](#32-l2liquiditypoolsol)
-  * [Deploy Liquidity Pools](#deploy-liquidity-pools)
-  * [3.3 AtomicSwap](#33-atomicswap)
+  * [3.3 Deploy Liquidity Pools](#33-deploy-liquidity-pools)
+  * [3.4 AtomicSwap](#34-atomicswap)
     + [Functions](#functions-1)
 
 If you want to run these locally, you need a local OMGX system. 
@@ -119,7 +119,7 @@ The Layer 1 liquidity pool accepts ERC20 and ETH.
 
 Just like the contract for L1, but with small changes e.g. to deal with the fact that the L2 does not have native ETH.
 
-### Deploy Liquidity Pools
+### 3.3 Deploy Liquidity Pools
 
 If you are working on a local testnet, please deploy **L2LiquidityPool.sol** first, then use the address of **L2LiquidityPool** as the parameter for deploying the **L1Liquidity**. See **/test/setup_test.spec.ts** to see the whole process.
 
@@ -144,7 +144,7 @@ If you are working on a local testnet, please deploy **L2LiquidityPool.sol** fir
 
 ```
 
-### 3.3 AtomicSwap
+### 3.4 AtomicSwap
 
 Used to swap ERC20 tokens.
 
@@ -154,3 +154,11 @@ Used to swap ERC20 tokens.
 * `close` closes the swap. It swaps the ERC20 tokens of the sender and the buyer.
 * `expire` sets the status of the swap to be **EXPIRED**.
 * `check` returns the **Swap** construct
+
+## 4. Running the web wallet
+
+```bash
+$ cd /wallet 
+$ yarn install
+$ yarn start
+```
