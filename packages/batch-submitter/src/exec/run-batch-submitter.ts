@@ -16,19 +16,45 @@ import {
   TX_BATCH_SUBMITTER_LOG_TAG,
 } from '..'
 
+const environment = process.env.NODE_ENV
+const release = `batch-submitter@${process.env.npm_package_version}`
+
 /* Logger */
 const name = 'oe:batch_submitter:init'
-const log = new Logger({
-  name,
-  sentryOptions: {
-    release: `batch-submitter@${process.env.npm_package_version}`,
-    dsn: process.env.SENTRY_DSN,
-    tracesSampleRate: 0.05,
-  },
-})
+let log
+switch (environment) {
+  case 'kovan':
+  case 'mainnet':
+    log = new Logger({
+      name,
+      sentryOptions: {
+        release,
+        dsn: process.env.SENTRY_DSN,
+        tracesSampleRate: 0.05,
+        environment,
+      },
+    })
+    break
+  case 'goerli':
+    log = new Logger({
+      name,
+      sentryOptions: {
+        release,
+        dsn: process.env.SENTRY_DSN,
+        tracesSampleRate: 1, // Use 100% trace rate
+        environment,
+      },
+    })
+    break
+  default:
+    // Skip initializing Sentry
+    log = new Logger({ name })
+}
+
 /* Metrics */
 const metrics = new Metrics({
   prefix: name,
+  labels: { environment, release },
 })
 
 interface RequiredEnvVars {
@@ -165,7 +191,10 @@ export const run = async () => {
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
     log.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({ prefix: TX_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({
+      prefix: TX_BATCH_SUBMITTER_LOG_TAG,
+      labels: { environment, release },
+    }),
     DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
   )
@@ -187,7 +216,10 @@ export const run = async () => {
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
     log.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({ prefix: STATE_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({
+      prefix: STATE_BATCH_SUBMITTER_LOG_TAG,
+      labels: { environment, release },
+    }),
     FRAUD_SUBMISSION_ADDRESS
   )
 
