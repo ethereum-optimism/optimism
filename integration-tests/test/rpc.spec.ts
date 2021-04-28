@@ -169,7 +169,12 @@ describe('Basic RPC tests', () => {
         // we normalize by gwei here because the RPC does it as well, since the
         // user provides a 1gwei gas price when submitting txs via the eth_gasPrice
         // rpc call
-        const expected = expectedCost[i].mul(l1GasPrice).div(GWEI)
+        let expected = expectedCost[i].mul(l1GasPrice).div(GWEI)
+        // The minimum return value for gas estimation is the insinsic gas of
+        // 21000.
+        if (expected.lt(BigNumber.from(21000))) {
+          expected = BigNumber.from(21000)
+        }
         expect(estimate).to.be.deep.eq(expected)
       }
     })
