@@ -5,6 +5,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
+    "deploy": "hardhat deploy",
+    "deploy:ovm": "hardhat deploy --network optimism",
     "compile": "hardhat compile",
     "compile:ovm": "hardhat compile --network optimism",
     "test": "hardhat test",
