@@ -60,8 +60,23 @@ jobs:
         run: |
           yarn compile
           yarn test:integration
+
       - name: Test & deploy waffle-example on Optimism
         working-directory: ./examples/waffle
         run: |
           yarn compile:ovm
           yarn test:integration:ovm
+
+      - name: Test & deploy truffle-example on truffle (regression)
+        working-directory: ./examples/truffle
+        run: |
+          yarn compile
+          yarn test
+          yarn deploy
+
+      - name: Test & deploy truffle-example on Optimism
+        working-directory: ./examples/truffle
+        run: |
+          yarn compile:ovm
+          yarn test:ovm
+          yarn deploy:ovm

@@ -1,0 +1,41 @@
+{
+  "name": "@ethereum-optimism/Truffle-ERC20-Example",
+  "private": true,
+  "version": "1.0.0-alpha.1",
+  "description": "Example of using Optimistic Ethereum compiler & local Optimistic Ethereum nodes with Truffle to run a full ERC20 test suite",
+  "scripts": {
+    "clean": "rimraf build",
+    "compile": "truffle",
+    "compile:ovm": "truffle compile --config truffle-config-ovm.js",
+    "test": "truffle test",
+    "test:ovm": "truffle test --network optimism --config truffle-config-ovm.js",
+    "deploy": "truffle migrate",
+    "deploy:ovm": "truffle migrate --network optimism --config truffle-config-ovm.js"
+  },
+  "keywords": [
+    "optimism",
+    "rollup",
+    "optimistic",
+    "ethereum",
+    "truffle",
+    "ovm",
+    "example",
+    "ERC20",
+    "token"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/Truffle-ERC20-Example#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/Truffle-ERC20-Example.git"
+  },
+  "dependencies": {
+    "@truffle/hdwallet-provider": "^1.2.6",
+    "rimraf": "^2.6.3",
+    "truffle": "^5.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
