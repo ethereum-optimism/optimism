@@ -161,6 +161,8 @@ subtask(
       }
     }
 
+    if (Object.keys(ovmInput.sources).length === 0) return {};
+
     // Build both inputs separately.
     const ovmOutput = await hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, {
       input: ovmInput,
