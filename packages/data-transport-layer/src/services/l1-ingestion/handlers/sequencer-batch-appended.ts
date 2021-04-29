@@ -5,6 +5,7 @@ import {
   ctcCoder,
   fromHexString,
   toHexString,
+  toRpcHexString,
   TxType,
   EventArgsSequencerBatchAppended,
 } from '@eth-optimism/core-utils'
@@ -120,6 +121,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           data: toHexString(sequencerTransaction),
           queueOrigin: 'sequencer',
           type,
+          value: decoded.value,
           queueIndex: null,
           decoded,
           confirmed: true,
@@ -152,6 +154,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           data: '0x',
           queueOrigin: 'l1',
           type: 'EIP155',
+          value: '0x0',
           queueIndex: queueIndex.toNumber(),
           decoded: null,
           confirmed: true,
@@ -249,6 +252,7 @@ const maybeDecodeSequencerBatchTransaction = (
         nonce: BigNumber.from(decodedTx.nonce).toNumber(),
         gasPrice: BigNumber.from(decodedTx.gasPrice).toNumber(),
         gasLimit: BigNumber.from(decodedTx.gasLimit).toNumber(),
+        value: toRpcHexString(decodedTx.value),
         target: toHexString(decodedTx.to), // Maybe null this out for creations?
         data: toHexString(decodedTx.data),
         sig: {
