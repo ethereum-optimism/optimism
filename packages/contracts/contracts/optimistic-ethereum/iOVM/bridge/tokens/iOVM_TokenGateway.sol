@@ -46,7 +46,7 @@ interface iOVM_TokenGateway {
 
 
     /**
-     * @returns Address of the token (or the gateway)? on the xDomain
+     * @return Address of the token (or the gateway)? on the xDomain
      */
     function crossDomainToken() // @todo: Token or Gateway?
         external
@@ -59,7 +59,7 @@ interface iOVM_TokenGateway {
 	 * @notice Transfers a token to the same address as msg.sender on the cross-domain.
 	 * emits a TransferredOver event
      * @param _amount Amount of the ERC20 to deposit.
-     * @param _data
+     * @param _data Arbitrary data with additional information for use on the cross-domain.
      */
     function transferOver(
         uint _amount,
@@ -91,18 +91,20 @@ interface iOVM_TokenGateway {
 	 * emits a FinalizedReturn event.
 	 * @param _to Address to transfer the token to.
      * @param _amount Amount of the ERC20 to transfer.
-     * @returns _from Address of the sender on the cross-domain.
-     * @returns _data Data with additional information for use on the cross-domain.
+     * @return _from Address of the sender on the cross-domain.
+     * @return _data Data with additional information for use on the cross-domain.
      */
     function finalizeReturnTransfer(
+        address _from,
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         external
         returns
     (
-        address _from,
-        bytes memory _data
+        address,
+        bytes memory
     );
 }
 

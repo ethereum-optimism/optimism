@@ -187,6 +187,8 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
 
         emit FinalizedReturn(_from, _to, _amount, _data);
 
+        // @todo: I don't actually see any good reason to return this data.
+        // the caller already has it.
         return (_from, _data);
     }
 
