@@ -178,10 +178,9 @@ $ yarn install
 $ yarn start
 ```
 
-You will need to set up MetaMask to know about the two accounts you are using for local testing. You will need to point MetaMask at your local chains (at :9545 and :8545) and add the two accounts.
+You will need to set up MetaMask to know about the two accounts you are using for local testing. You will need to point MetaMask at your local chains (at :9545 and :8545) and add the account.
 
 ```bash
-TEST_PRIVATE_KEY_1=0x754fde3f5e60ef2c7649061e06957c29017fe21032a8017132c0078e37f6193a
-TEST_PRIVATE_KEY_2=0x23d9aeeaa08ab710a57972eb56fc711d9ab13afdecc92c89586e0150bfa380a6
+TEST_PRIVATE_KEY=0x23d9aeeaa08ab710a57972eb56fc711d9ab13afdecc92c89586e0150bfa380a6
 ```
 

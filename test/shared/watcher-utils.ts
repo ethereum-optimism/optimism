@@ -53,15 +53,15 @@ export const waitForXDomainTransaction = async (
   if (direction === Direction.L1ToL2) {
     // DEPOSIT
     const [xDomainMsgHash] = await watcher.getMessageHashesFromL1Tx(tx.hash)
-    console.log(' Got L1->L2 message hash', xDomainMsgHash)
+    // console.log(' Got L1->L2 message hash', xDomainMsgHash)
     remoteReceipt = await watcher.getL2TransactionReceipt(xDomainMsgHash)
-    console.log(' Completed Deposit! L2 tx hash:', remoteReceipt.transactionHash)
+    // console.log(' Completed Deposit! L2 tx hash:', remoteReceipt.transactionHash)
   } else {
     // WITHDRAWAL
     const [xDomainMsgHash] = await watcher.getMessageHashesFromL2Tx(tx.hash)
-    console.log(' Got L2->L1 message hash', xDomainMsgHash)
+    // console.log(' Got L2->L1 message hash', xDomainMsgHash)
     remoteReceipt = await watcher.getL1TransactionReceipt(xDomainMsgHash)
-    console.log(' Completed Withdrawal! L1 tx hash:', remoteReceipt.transactionHash)
+    // console.log(' Completed Withdrawal! L1 tx hash:', remoteReceipt.transactionHash)
   }
 
   return {

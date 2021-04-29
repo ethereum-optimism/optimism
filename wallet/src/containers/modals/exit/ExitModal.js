@@ -22,7 +22,7 @@ import Modal from 'components/modal/Modal';
 
 import DoExitStep from './steps/DoExitStep';
 
-function ExitModal ({ open }) {
+function ExitModal ({ open, fast }) {
   const dispatch = useDispatch();
 
   function handleClose () {
@@ -33,6 +33,7 @@ function ExitModal ({ open }) {
     <Modal open={open} onClose={handleClose}>
       <DoExitStep 
         handleClose={handleClose}
+        fast={fast}
       />
     </Modal>
   );

@@ -9,7 +9,7 @@ import { openAlert, openError, setActiveHistoryTab } from 'actions/uiAction';
 import networkService from 'services/networkService';
 import { selectLoading } from 'selectors/loadingSelector';
 
-import { depositETHL2 } from 'actions/networkAction';
+import { depositETHL2, depositL1LP } from 'actions/networkAction';
 
 import * as styles from '../DepositModal.module.scss';
 
@@ -26,16 +26,17 @@ function InputStep ({
   setCurrency,
   setTokenInfo,
   setValue,
-  omgOnly
+  omgOnly,
+  fast
 }) {
 
-  const dispatch = useDispatch();
+  const dispatch = useDispatch(); 
 
   let uSC = 'ETH';
   if(omgOnly) uSC = 'ERC20'
 
-  let [ activeTab, setActiveTab ] = useState(uSC);
-
+  const [ activeTab, setActiveTab ] = useState(uSC);
+  const [ LPBalance, setLPBalance ] = useState(0);
   const depositLoading = useSelector(selectLoading([ 'DEPOSIT/CREATE' ]));
 
   function handleClose () {
@@ -45,10 +46,19 @@ function InputStep ({
 
   async function depositETH () {
     if (value > 0 && tokenInfo) {
-      const res = await dispatch(depositETHL2(value));
+      let res
+      if (fast === false) {
+        res = await dispatch(depositETHL2(value));
+      } else {
+        res = await dispatch(depositL1LP(currency, value))
+      }
       if (res) {
         dispatch(setActiveHistoryTab('Deposits'));
-        dispatch(openAlert('ETH deposit submitted.'));
+        if (fast === false) {
+          dispatch(openAlert('ETH deposit submitted.'));
+        } else {
+          dispatch(openAlert(`ETH was deposited to liquidity pool. You got ${(Number(value) * 0.97).toFixed(2)} WETH on L2`));
+        }
         handleClose();
       } else {
         dispatch(openError('Failed to deposit ETH'));
@@ -56,10 +66,16 @@ function InputStep ({
     }
   }
 
-  const disabledSubmit = value <= 0 || !currency || !networkService.l1Web3Provider.utils.isAddress(currency);
+  const disabledSubmit = value <= 0 || !currency || !networkService.l1Web3Provider.utils.isAddress(currency) || (fast && Number(value) > Number(LPBalance));
 
   if(omgOnly) {
     setCurrency(OMG0x)
+  }
+
+  if (fast && Object.keys(tokenInfo).length && currency) {
+    networkService.L2LPBalance(currency).then((LPBalance)=>{
+      setLPBalance(LPBalance)
+    })
   }
 
   return (
@@ -105,6 +121,12 @@ function InputStep ({
         value={value}
         onChange={i=>setValue(i.target.value)} 
       />
+
+      {fast && Object.keys(tokenInfo).length && currency ? (
+        <h3>
+          The liquidity pool has {LPBalance} {tokenInfo.symbol}.
+        </h3>
+      ):<></>}
 
       <div className={styles.buttons}>
         <Button

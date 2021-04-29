@@ -68,17 +68,8 @@ export class OptimismEnv {
     const addressManager = getAddressManager(bobl1Wallet)
     const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
 
-    //const L1ETHGateway = await getL1ETHGateway(bobl1Wallet, addressManager)
-    const L1ETHGateway = await getL1ETHGateway(alicel1Wallet, addressManager)
-
-    // fund the user if needed
-    //const balance = await l2Wallet.getBalance()
-    //if (balance.isZero()) {
-    //  await fundUser(watcher, gateway, utils.parseEther('10'))
-    //}
-
-    //const L2ETHGateway = getL2ETHGateway(bobl2Wallet)
-    const L2ETHGateway = getL2ETHGateway(alicel2Wallet)
+    const L1ETHGateway = await getL1ETHGateway(bobl1Wallet, addressManager)
+    const L2ETHGateway = getL2ETHGateway(bobl2Wallet)
 
     const l1Messenger = getContractFactory('iOVM_L1CrossDomainMessenger')
       .connect(bobl1Wallet)

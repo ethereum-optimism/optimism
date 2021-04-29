@@ -19,7 +19,7 @@ import { isEqual } from 'lodash';
 
 import { selectChildchainBalance } from 'selectors/balanceSelector';
 
-import { exitOptimism } from 'actions/networkAction';
+import { exitOptimism, depositL2LP } from 'actions/networkAction';
 import { openAlert } from 'actions/uiAction';
 import { selectLoading } from 'selectors/loadingSelector';
 
@@ -35,11 +35,13 @@ import * as styles from '../ExitModal.module.scss';
 
 function DoExitStep ({
   handleClose,
+  fast
 }) {
   const dispatch = useDispatch();
 
   const [ currency, setCurrency ] = useState('');
   const [ value, setValue ] = useState('');
+  const [ LPBalance, setLPBalance ] = useState(0);
 
   const balances = useSelector(selectChildchainBalance, isEqual);
 
@@ -47,7 +49,12 @@ function DoExitStep ({
     if (balances.length && !currency) {
       setCurrency(balances[0].currency);
     }
-  }, [ balances, currency ]);
+    if (fast && currency) {
+      networkService.L1LPBalance(currency).then((LPBalance)=>{
+        setLPBalance(LPBalance)
+      })
+    }
+  }, [ balances, currency, fast ]);
 
   const selectOptions = balances.map(i => ({
     title: i.symbol,
@@ -55,18 +62,31 @@ function DoExitStep ({
     subTitle: `Balance: ${logAmount(i.amount, i.decimals)}`
   }));
 
+  const currencySymbols = balances.reduce((acc, cur) => {
+    acc[cur.currency] = cur.symbol;
+    return acc;
+  }, {})
+
   const submitLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
 
   async function doExit () {
     const networkStatus = await dispatch(networkService.checkNetwork('L2'));
     if (!networkStatus) return 
-    const res = await dispatch(exitOptimism(currency, value));
+    let res;
+    if (fast === false) {
+      res = await dispatch(exitOptimism(currency, value));
+    } else {
+      res = await dispatch(depositL2LP(currency, value));
+    }
     if (res) {
-      dispatch(openAlert('Exit finished.'));
+      if (fast === false) {
+        dispatch(openAlert(`${currencySymbols[currency]} was exited to L1`));
+      } else {
+        dispatch(openAlert(`${currencySymbols[currency]} was deposited to liquidity pool. You got ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1`));
+      }
       handleClose();
     }
   }
-
 
   function getMaxTransferValue () {
 
@@ -95,6 +115,12 @@ function DoExitStep ({
         selectValue={currency}
         maxValue={getMaxTransferValue()}
       />
+      
+      {fast && currency ? (
+        <h3>
+          The liquidity pool has {LPBalance} {currencySymbols[currency]}.
+        </h3>
+      ):<></>}
 
       <div className={styles.buttons}>
         <Button
