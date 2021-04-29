@@ -78,7 +78,7 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
      *
      * @param _l1TokenGateway Address of the corresponding L1 gateway deployed to the main chain
      */
-    function initialize(
+    function init(
         iOVM_TokenGateway _l1TokenGateway
     )
         public
