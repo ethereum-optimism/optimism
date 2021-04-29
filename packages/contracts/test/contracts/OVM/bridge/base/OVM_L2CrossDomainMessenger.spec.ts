@@ -2,27 +2,29 @@ import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, constants } from 'ethers'
-import {
-  smockit,
-  MockContract,
-  smoddit,
-  ModifiableContractFactory,
-  ModifiableContract,
-} from '@eth-optimism/smock'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
+import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import {
+  makeAddressManager,
+  setProxyTarget,
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
   getXDomainCalldata,
   getNextBlockNumber,
 } from '../../../../helpers'
+import { solidityKeccak256 } from 'ethers/lib/utils'
 
 describe('OVM_L2CrossDomainMessenger', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
+  })
+
+  let AddressManager: Contract
+  before(async () => {
+    AddressManager = await makeAddressManager()
   })
 
   let Mock__TargetContract: MockContract
@@ -42,24 +44,36 @@ describe('OVM_L2CrossDomainMessenger', () => {
     Mock__OVM_L2ToL1MessagePasser = await smockit(
       await ethers.getContractFactory('OVM_L2ToL1MessagePasser')
     )
+
+    await AddressManager.setAddress(
+      'OVM_L1CrossDomainMessenger',
+      Mock__OVM_L1CrossDomainMessenger.address
+    )
+
+    await setProxyTarget(
+      AddressManager,
+      'OVM_L1MessageSender',
+      Mock__OVM_L1MessageSender
+    )
+    await setProxyTarget(
+      AddressManager,
+      'OVM_L2ToL1MessagePasser',
+      Mock__OVM_L2ToL1MessagePasser
+    )
   })
 
-  let Factory__OVM_L2CrossDomainMessenger: ModifiableContractFactory
+  let Factory__OVM_L2CrossDomainMessenger: ContractFactory
   before(async () => {
-    Factory__OVM_L2CrossDomainMessenger = await smoddit(
+    Factory__OVM_L2CrossDomainMessenger = await ethers.getContractFactory(
       'OVM_L2CrossDomainMessenger'
     )
   })
 
-  let OVM_L2CrossDomainMessenger: ModifiableContract
+  let OVM_L2CrossDomainMessenger: Contract
   beforeEach(async () => {
-    OVM_L2CrossDomainMessenger = await Factory__OVM_L2CrossDomainMessenger.deploy()
-
-    await OVM_L2CrossDomainMessenger.smodify.put({
-      ovmL1CrossDomainMessenger: Mock__OVM_L1CrossDomainMessenger.address,
-      ovmL1MessageSender: Mock__OVM_L1MessageSender.address,
-      ovmL2ToL1MessagePasser: Mock__OVM_L2ToL1MessagePasser.address,
-    })
+    OVM_L2CrossDomainMessenger = await Factory__OVM_L2CrossDomainMessenger.deploy(
+      AddressManager.address
+    )
   })
 
   describe('sendMessage', () => {
@@ -150,7 +164,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
         Mock__OVM_L1CrossDomainMessenger.address
       )
-      target = Mock__OVM_L2ToL1MessagePasser.address
+      target = await AddressManager.getAddress('OVM_L2ToL1MessagePasser')
       message = Mock__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
         'passMessageToL1(bytes)',
         [NON_NULL_BYTES32]
@@ -177,7 +191,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       // The message should be registered as successful.
       expect(
         await OVM_L2CrossDomainMessenger.successfulMessages(
-          ethers.utils.solidityKeccak256(
+          solidityKeccak256(
             ['bytes'],
             [getXDomainCalldata(target, sender, message, 0)]
           )
@@ -218,14 +232,14 @@ describe('OVM_L2CrossDomainMessenger', () => {
       // Criteria 1: the reentrant message is NOT listed in successful messages.
       expect(
         await OVM_L2CrossDomainMessenger.successfulMessages(
-          ethers.utils.solidityKeccak256(['bytes'], [xDomainCallData])
+          solidityKeccak256(['bytes'], [xDomainCallData])
         )
       ).to.be.false
 
       // Criteria 2: the relayID of the reentrant message is recorded.
       // Get blockNumber at time of the call.
       const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
-      const relayId = ethers.utils.solidityKeccak256(
+      const relayId = solidityKeccak256(
         ['bytes'],
         [
           ethers.utils.solidityPack(

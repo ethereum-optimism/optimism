@@ -37,14 +37,24 @@
             "address": "0x4200000000000000000000000000000000000007",
             "source": "OVM_L2CrossDomainMessenger",
             "variables": {
-                "ovmL2ToL1MessagePasser": "{{ contracts.OVM_L2ToL1MessagePasser }}",
-                "ovmL1MessageSender": "{{ contracts.OVM_L1MessageSender }}",
-                "ovmL1CrossDomainMessenger": "{{ env.L1_CROSS_DOMAIN_MESSENGER_ADDRESS }}"
+                "libAddressManager": "{{ contracts.Lib_AddressManager }}"
             }
         },
         "OVM_ProxyEOA": {
             "address": "0x4200000000000000000000000000000000000009",
             "source": "OVM_ProxyEOA"
+        },
+        "Lib_AddressManager": {
+            "address": "0x4200000000000000000000000000000000000008",
+            "source": "Lib_AddressManager",
+            "variables": {
+                "_owner": "0x1212121212121212121212121212121212121212",
+                "addresses": {
+                    "OVM_L2ToL1MessagePasser": "{{ contracts.OVM_L2ToL1MessagePasser }}",
+                    "OVM_L1MessageSender": "{{ contracts.OVM_L1MessageSender }}",
+                    "OVM_L1CrossDomainMessenger": "{{ contracts.OVM_L1CrossDomainMessenger }}"
+                }
+            }
         },
         "ERC1820Registry": {
             "address": "0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24",
