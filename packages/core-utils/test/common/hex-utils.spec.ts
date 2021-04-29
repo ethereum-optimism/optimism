@@ -28,12 +28,12 @@ describe('toRpcHexString', () => {
 
   it('should parse non 0', () => {
     const cases = [
-      {input: 2, output: '0x2'},
-      {input: BigNumber.from(2), output: '0x2'},
-      {input: 100, output: '0x64'},
-      {input: BigNumber.from(100), output: '0x64'},
-      {input: 300, output: '0x12c'},
-      {input: BigNumber.from(300), output: '0x12c'},
+      { input: 2, output: '0x2' },
+      { input: BigNumber.from(2), output: '0x2' },
+      { input: 100, output: '0x64' },
+      { input: BigNumber.from(100), output: '0x64' },
+      { input: 300, output: '0x12c' },
+      { input: BigNumber.from(300), output: '0x12c' },
     ]
     for (const test of cases) {
       expect(toRpcHexString(test.input)).to.deep.equal(test.output)
