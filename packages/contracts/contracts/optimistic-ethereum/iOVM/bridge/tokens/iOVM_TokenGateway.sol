@@ -53,7 +53,7 @@ interface iOVM_TokenGateway {
         returns
     (
         address
-    )
+    );
 
 	/**
 	 * @notice Transfers a token to the same address as msg.sender on the cross-domain.
