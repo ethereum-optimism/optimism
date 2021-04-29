@@ -3,6 +3,11 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 import { BigNumber, utils } from 'ethers'
 import { OptimismEnv } from './shared/env'
+import { DockerComposeNetwork } from './shared/docker-compose'
+
+before(async () => {
+  await new DockerComposeNetwork().up()
+})
 
 describe('Fee Payment Integration Tests', async () => {
   let env: OptimismEnv

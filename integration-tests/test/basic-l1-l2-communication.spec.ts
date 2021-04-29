@@ -8,6 +8,12 @@ import { Direction } from './shared/watcher-utils'
 import l1SimpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 import l2SimpleStorageJson from '../artifacts-ovm/contracts/SimpleStorage.sol/SimpleStorage.json'
 import { OptimismEnv } from './shared/env'
+import { DockerComposeNetwork } from './shared/docker-compose'
+
+
+before(async () => {
+  await new DockerComposeNetwork().up()
+})
 
 describe('Basic L1<>L2 Communication', async () => {
   let Factory__L1SimpleStorage: ContractFactory
