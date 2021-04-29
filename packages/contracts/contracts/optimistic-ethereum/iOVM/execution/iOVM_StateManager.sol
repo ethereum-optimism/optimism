@@ -42,6 +42,7 @@ interface iOVM_StateManager {
 
     function putAccount(address _address, Lib_OVMCodec.Account memory _account) external;
     function putEmptyAccount(address _address) external;
+    function putAccountCode(address _address, bytes memory _code) external;
     function getAccount(address _address) external view returns (Lib_OVMCodec.Account memory _account);
     function hasAccount(address _address) external view returns (bool _exists);
     function hasEmptyAccount(address _address) external view returns (bool _exists);

@@ -161,12 +161,12 @@ library Lib_ExecutionManagerWrapper {
      * Calls the ovmSETSTORAGE opcode. Only callable by the upgrade deployer.
      * @param _address Address to set a storage slot for.
      * @param _key Storage slot key to modify.
-     * @param _val Storage slot value.
+     * @param _value Storage slot value.
      */
     function ovmSETSTORAGE(
         address _address,
         bytes32 _key,
-        bytes32 _val
+        bytes32 _value
     )
         internal
     {
@@ -175,7 +175,7 @@ library Lib_ExecutionManagerWrapper {
                 "ovmSETSTORAGE(address,bytes32,bytes32)",
                 _address,
                 _key,
-                _val
+                _value
             )
         );
     }
