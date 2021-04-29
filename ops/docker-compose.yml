@@ -6,7 +6,6 @@ services:
   # base service builder
   builder:
     image: ethereumoptimism/builder
-    scale: 0
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.monorepo
