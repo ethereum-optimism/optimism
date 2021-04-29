@@ -688,12 +688,15 @@ class NetworkService {
   }
 
   async depositL1LP(currency, value) {
+
     const decimals = 18;
     let depositAmount = powAmount(value, decimals);
     depositAmount = new BN(depositAmount);
 
     let l2TokenCurrency = null;
+
     if (currency.toLowerCase() === ERC20Address.toLowerCase()) {
+      
       l2TokenCurrency = L2DepositedERC20Address;
 
       const ERC20Contract = new ethers.Contract(
@@ -734,7 +737,8 @@ class NetworkService {
         from: this.account,
         to: L1LPAddress,
         value: depositAmount,
-      });
+      })
+      await depositTX.wait();
       console.log(depositTX);
       const [l1ToL2msgHash] = await this.watcher.getMessageHashesFromL1Tx(depositTX.transactionHash)
       console.log(' got L1->L2 message hash', l1ToL2msgHash)

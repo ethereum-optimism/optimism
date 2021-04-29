@@ -98,7 +98,7 @@ function ApproveStep ({
       if (fast === false) {
         dispatch(openAlert(`${tokenName} deposit submitted.`));
       } else {
-        dispatch(openAlert(`${tokenName} was deposited to liquidity pool. You got ${(Number(value) * 0.97).toFixed(2)} ${tokenName} on L2`));
+        dispatch(openAlert(`${tokenName} was deposited to the L1LP. You will receive ${(Number(value) * 0.97).toFixed(2)} ${tokenName} on L2`));
       }
       handleClose();
     }

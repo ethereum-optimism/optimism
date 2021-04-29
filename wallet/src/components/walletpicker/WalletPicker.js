@@ -13,40 +13,69 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import WrongNetworkModal from 'containers/modals/wrongnetwork/WrongNetworkModal';
 
 import networkService from 'services/networkService';
 
-import { selectWalletMethod } from 'selectors/setupSelector';
+import { selectModalState } from 'selectors/uiSelector';
 
-import { setWalletMethod } from 'actions/setupAction';
+import { 
+  selectWalletMethod, 
+  selectNetwork, 
+  selectNetworkShort, 
+  selectNetworkWURL,
+  selectPlasmaAddress,  
+} from 'selectors/setupSelector';
+
+import { openModal } from 'actions/uiAction';
+import { setWalletMethod, setNetwork } from 'actions/setupAction';
+import { getAllNetworks } from 'util/networkName';
 
 import logo from 'images/omg_labs.svg';
 import vp1 from 'images/vp_1.svg';
 import vp2 from 'images/vp_2.svg';
 import vp3 from 'images/vp_3.svg';
+import chevron from 'images/chevron.svg';
 
 import * as styles from './WalletPicker.module.scss';
 
 function WalletPicker ({ onEnable }) {
 
   const dispatch = useDispatch();
+  const dropdownNode = useRef(null);
 
   const [ walletEnabled, setWalletEnabled ] = useState(false);
   const [ accountsEnabled, setAccountsEnabled ] = useState(false);
+  const [ wrongNetwork, setWrongNetwork ] = useState(false);
+  const [ showAllNetworks, setShowAllNetworks ] = useState(false);
 
   const walletMethod = useSelector(selectWalletMethod());
 
+  const networkName = useSelector(selectNetwork());
+  const networkNameShort = useSelector(selectNetworkShort());
+  const watcherURL = useSelector(selectNetworkWURL());
+  const plasmaAddress = useSelector(selectPlasmaAddress());
+
+  const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
+
   const dispatchSetWalletMethod = useCallback((methodName) => {
     dispatch(setWalletMethod(methodName));
-  }, [ dispatch ]);
+  }, [ dispatch ])
+
+  const dispatchSetNetwork = useCallback((network) => {
+    setShowAllNetworks(false);
+    dispatch(setNetwork(network));
+  }, [ dispatch ])
 
   useEffect(() => {
 
     async function enableBrowserWallet () {
       
-      const walletEnabled = await networkService.enableBrowserWallet();
+      const selectedNetwork = networkName ? networkName : "Mainnet";
+
+      const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
       
       return walletEnabled
         ? setWalletEnabled(true)
@@ -57,16 +86,25 @@ function WalletPicker ({ onEnable }) {
       enableBrowserWallet();
     }
 
-  }, [ dispatchSetWalletMethod, walletMethod ]);
+  }, [ dispatchSetWalletMethod, walletMethod, networkName ]);
 
   useEffect(() => {
 
     async function initializeAccounts () {
 
-      const initialized = await dispatch(networkService.initializeAccounts());
+      const initialized = await networkService.initializeAccounts( 
+        networkNameShort, 
+        watcherURL,
+        plasmaAddress
+      );
 
       if (!initialized) {
         return setAccountsEnabled(false);
+      }
+
+      if (initialized === 'wrongnetwork') {
+        setAccountsEnabled(false);
+        return setWrongNetwork(true);
       }
       
       if (initialized === 'enabled') {
@@ -77,7 +115,7 @@ function WalletPicker ({ onEnable }) {
     if (walletEnabled) {
       initializeAccounts();
     }
-  }, [ dispatch, walletEnabled ]);
+  }, [ dispatch, walletEnabled, watcherURL, plasmaAddress ]);
 
   useEffect(() => {
     if (accountsEnabled) {
@@ -85,20 +123,72 @@ function WalletPicker ({ onEnable }) {
     }
   }, [ onEnable, accountsEnabled ]);
 
+  useEffect(() => {
+    if (walletEnabled && wrongNetwork) {
+      dispatch(openModal('wrongNetworkModal'));
+    }
+  }, [ dispatch, walletEnabled, wrongNetwork ]);
+
+  function resetSelection () {
+    dispatchSetWalletMethod(null);
+    setWalletEnabled(false);
+    setAccountsEnabled(false);
+  }
+
   const browserEnabled = !!window.ethereum;
+
+  // defines the set of possible networks
+  const allNetworks = getAllNetworks();
 
   return (
     <>
+
+      <WrongNetworkModal
+        open={wrongNetworkModalState}
+        onClose={resetSelection}
+      />
+
       <div className={styles.WalletPicker}>
         <div className={styles.title}>
           <img src={logo} alt='logo' />
           <div className={styles.menu}>
-            <div className={styles.network}>
+
+            <div
+              onClick={()=>setShowAllNetworks(prev => !prev)}
+              className={styles.network}
+            >
               <div className={styles.indicator} />
               <div>
-                OMGX Local Chain
+                OMGX&nbsp;
+                {networkName}
               </div>
+              {!!allNetworks.length && (
+                <img
+                  src={chevron}
+                  alt='chevron'
+                  className={[
+                    styles.chevron,
+                    showAllNetworks ? styles.open : ''
+                  ].join(' ')}
+                />
+              )}
             </div>
+
+            <div 
+              ref={dropdownNode} 
+              className={styles.dropdown}
+            >
+              {!!allNetworks.length && showAllNetworks && allNetworks.map((network, index) => (
+                <div
+                  style={{background: '#2A308E', color: 'white', marginTop: 5, padding: 5, borderRadius: 3}}
+                  key={index}
+                  onClick={()=>dispatchSetNetwork({network})}
+                >
+                  {network.name}
+                </div>))
+              }
+            </div>
+           
           </div>
         </div>
       </div>

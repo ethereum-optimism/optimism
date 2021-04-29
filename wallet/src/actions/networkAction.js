@@ -193,13 +193,6 @@ export function getTransferTypedData (data) {
   };
 }
 
-export function mergeUtxos (useLedgerSign, utxos) {
-  return createAction(
-    'TRANSFER/CREATE',
-    () => networkService.mergeUtxos(useLedgerSign, utxos)
-  );
-}
-
 // export function fetchGas () {
 //   return createAction(
 //     'GAS/GET',

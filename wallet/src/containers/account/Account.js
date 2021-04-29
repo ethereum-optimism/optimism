@@ -105,7 +105,7 @@ function Account () {
             <div
               className={styles.RabbitRightTop}
             >
-              Child Chain<br/>Balance
+              OMGX Balance
             </div>
             <div 
               className={styles.RabbitRightMiddle.sad}
@@ -129,7 +129,7 @@ function Account () {
             <div
               className={styles.RabbitRightTop}
             >
-              OMGX L2<br/>wETH Balance
+              OMGX wETH Balance
             </div>
             <div className={styles.RabbitRightMiddle}>
               <span className={styles.sad}>
@@ -143,80 +143,6 @@ function Account () {
       }
 
       <div className={styles.balances} style={{marginTop: 30}}>
-
-        <div className={styles.box}>
-          <div className={styles.header}>
-            <div className={styles.title}>
-              <span>Balance on Childchain</span>
-              <span>OMGX</span>
-            </div>
-              <div
-                onClick={()=>handleModalClick('transferModal')}
-                className={[styles.transfer, disabled ? styles.disabled : ''].join(' ')}
-              >
-                <Send />
-                <span>TRANSFER L2->L2</span>
-              </div>
-          </div>
-          {childBalance.map((i, index) => {
-            return (
-              <div key={index} className={styles.row}>
-                <div className={styles.token}>
-                  <span className={styles.symbol}>{i.symbol}</span>
-                </div>
-                <span>{logAmount(i.amount, i.decimals, 4)}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className={styles.boxActions}>
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('depositModal', true)}
-              type='primary'
-              disabled={!isSynced || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            >
-              <ArrowBack/>
-              FAST ONRAMP
-            </Button>
-          </div>
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('exitModal', true)}
-              type='primary'
-              disabled={!isSynced || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            > 
-              FAST EXIT
-              <ArrowForward/>
-            </Button>
-          </div>
-
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('depositModal')}
-              type='primary'
-              disabled={!isSynced || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            >
-              <ArrowBack/>
-              SLOW ONRAMP
-            </Button>
-          </div>
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('exitModal')}
-              type='primary'
-              disabled={disabled || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            >
-              SLOW EXIT
-              <ArrowForward/>
-            </Button>
-          </div>
-        </div>
 
         <div className={styles.box}>
           <div className={styles.header}>
@@ -247,6 +173,77 @@ function Account () {
           })}
 
         </div>
+
+        <div className={styles.boxActions}>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal', true)}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              FAST ONRAMP<ArrowForward/>
+            </Button>
+          </div>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('exitModal', true)}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            > 
+            <ArrowBack/>FAST EXIT
+            </Button>
+          </div>
+
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              SLOW ONRAMP<ArrowForward/>
+            </Button>
+          </div>
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('exitModal')}
+              type='primary'
+              disabled={disabled || criticalTransactionLoading}
+              style={{maxWidth: 'none'}}
+            >
+              <ArrowBack/>SLOW EXIT
+            </Button>
+          </div>
+        </div>
+
+        <div className={styles.box}>
+          <div className={styles.header}>
+            <div className={styles.title}>
+              <span>Balance on Childchain</span>
+              <span>OMGX</span>
+            </div>
+              <div
+                onClick={()=>handleModalClick('transferModal')}
+                className={[styles.transfer, disabled ? styles.disabled : ''].join(' ')}
+              >
+                <Send />
+                <span>TRANSFER L2->L2</span>
+              </div>
+          </div>
+          {childBalance.map((i, index) => {
+            return (
+              <div key={index} className={styles.row}>
+                <div className={styles.token}>
+                  <span className={styles.symbol}>{i.symbol}</span>
+                </div>
+                <span>{logAmount(i.amount, i.decimals, 4)}</span>
+              </div>
+            );
+          })}
+        </div>
+       
       </div>
 
     </div>

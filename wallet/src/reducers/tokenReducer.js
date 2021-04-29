@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 const ETH0x = '0x0000000000000000000000000000000000000000';
-const oWETH = '0x4200000000000000000000000000000000000006';
+const oETH = '0x4200000000000000000000000000000000000006';
 
 const initialState = {
   [ETH0x]: {
@@ -23,10 +23,10 @@ const initialState = {
     symbol: 'ETH',
     name: 'Ethereum'
   },
-  [oWETH]: {
-    currency: oWETH,
+  [oETH]: {
+    currency: oETH,
     decimals: 18,
-    symbol: 'WETH',
+    symbol: 'oETH',
     name: 'Ethereum',
   }
 };
