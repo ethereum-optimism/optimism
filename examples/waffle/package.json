@@ -6,8 +6,8 @@
     "clean": "rimraf build",
     "compile": "waffle",
     "compile:ovm": "waffle waffle-ovm.json",
-    "test": "mocha 'test/*.spec.js' --timeout 10000",
-    "test:ovm": "TARGET=OVM mocha 'test/*.spec.js' --timeout 50000"
+    "test:integration": "mocha 'test/*.spec.js' --timeout 10000",
+    "test:integration:ovm": "TARGET=OVM mocha 'test/*.spec.js' --timeout 50000"
   },
   "keywords": [
     "optimism",
