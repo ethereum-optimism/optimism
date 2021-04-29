@@ -6,7 +6,6 @@ pragma experimental ABIEncoderV2;
 import { iOVM_TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_TokenGateway.sol";
 
 /* Contract Imports */
-// TODO: get a generic mint/burn token
 import { OVM_L2ERC20 } from "../../../libraries/standards/OVM_L2ERC20.sol";
 
 /* Library Imports */
@@ -36,7 +35,7 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
      *************/
 
     // Default gas value which can be overridden if more complex logic runs on the cross-domain.
-    uint32 internal constant DEFAULT_FINALIZE_TRANSFER_OVER_L1_GAS = 100000;
+    uint32 internal constant DEFAULT_L1_FINALIZATION_GAS = 100000;
 
 
     /********************************
@@ -65,8 +64,10 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
 
     /**
      * @dev Initialize this contract with the L1 token gateway address.
-     * The flow: 1) this contract gets deployed on L2, 2) the L1
-     * gateway is deployed with addr from (1), 3) L1 gateway address passed here.
+     * The flow:
+     * 1. this contract gets deployed on L2,
+     * 2. the L1 gateway is deployed with the address from step 1,
+     * 3. the L1 gateway address passed here.
      *
      * @param _l1TokenGateway Address of the corresponding L1 gateway deployed to the main chain
      */
@@ -92,26 +93,28 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
     }
 
 
-    /*****************************
-     * External Getter Functions *
-     *****************************/
+    /********************
+     * Getter Functions *
+     *******************/
 
     /**
-     * @dev Get the address of the gateway/(@todo: or token???) on the *cross-domain*.
+     * @dev Get the address of the gateway on the *cross-domain*.
+     * @return Address.
      */
-    function crossDomainToken()
+    function crossDomainGateway()
         external
         view
         override
         virtual
         returns(address)
     {
-        return address(l2ERC20);
+        return address(l1TokenGateway);
     }
 
     /**
-     * @dev Overridable getter for the *cross-domain* gas limit of settling the transfer over, in the case it may be
-     * dynamic, and the above public constant does not suffice.
+     * @dev Overridable getter for the *cross-domain* gas limit of settling the outbound transfer,
+     * in the case it may be dynamic, and the above public constant does not suffice.
+     * @return L1 finalization gas required.
      */
     function getL1GasToFinalize()
         public
@@ -121,14 +124,18 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
             uint32
         )
     {
-        return DEFAULT_FINALIZE_TRANSFER_OVER_L1_GAS;
+        return DEFAULT_L1_FINALIZATION_GAS;
     }
 
+    /**********************
+     * External Functions *
+     *********************/
+
     /**
-     * @dev initiate a "transferOver" of the token to the caller's account on L1
-     * @param _amount Amount of the token to transferOver
+     * @dev initiate an outboundTransfer of the token to the caller's account on L1
+     * @param _amount Amount of the token to outboundTransfer
      */
-    function transferOver(
+    function outboundTransfer(
         uint _amount,
         bytes calldata _data
     )
@@ -137,15 +144,15 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
         virtual
         onlyInitialized()
     {
-        _initiateTransferOver(msg.sender, msg.sender, _amount, _data);
+        _initiateOutboundTransfer(msg.sender, msg.sender, _amount, _data);
     }
 
     /**
-     * @dev initiate a transferOver of the token to a recipient's account on L1
-     * @param _to L1 adress to credit the transferOver to
-     * @param _amount Amount of the token to transferOver
+     * @dev initiate an outboundTransfer of the token to a recipient's account on L1
+     * @param _to L1 adress to credit the outboundTransfer to.
+     * @param _amount Amount of the token to outboundTransfer.
      */
-    function transferOverTo(
+    function outboundTransferTo(
         address _to,
         uint _amount,
         bytes calldata _data
@@ -155,7 +162,7 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
         virtual
         onlyInitialized()
     {
-        _initiateTransferOver(msg.sender, _to, _amount, _data);
+        _initiateOutboundTransfer(msg.sender, _to, _amount, _data);
     }
 
     /**
@@ -163,10 +170,12 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
      * L2 token.
      * This call will fail if it did not originate from a corresponding deposit in OVM_l1TokenGateway.
      *
-     * @param _to Address to receive the withdrawal at
-     * @param _amount Amount of the token to withdraw
+     * @param _to Address to receive the withdrawal at.
+     * @param _amount Amount of the token to withdraw.
+     * @return Address of the sender on L1.
+     * @return Data provided with the message from L1.
      */
-    function finalizeReturnTransfer(
+    function finalizeInboundTransfer(
         address _from,
         address _to,
         uint _amount,
@@ -185,10 +194,10 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
     {
         l2ERC20.mint(_to, _amount);
 
-        emit FinalizedReturn(_from, _to, _amount, _data);
+        emit InboundTransfer(_from, _to, _amount, _data);
 
         // @todo: I don't actually see any good reason to return this data.
-        // the caller already has it.
+        // the caller already has it, but it's in the interface proposal, so keeping it for now.
         return (_from, _data);
     }
 
@@ -202,7 +211,7 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
      * @param _to Account to give the withdrawal to on L1
      * @param _amount Amount of the token to withdraw
      */
-    function _initiateTransferOver(
+    function _initiateOutboundTransfer(
         address _from,
         address _to,
         uint _amount,
@@ -213,9 +222,9 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
         // Call our withdrawal accounting handler implemented by child contracts (usually a _burn)
         l2ERC20.burn(_from, _amount);
 
-        // Construct calldata for l1TokenGateway.finalizeReturnTransfer(_to, _amount)
+        // Construct calldata for l1TokenGateway.finalizeInboundTransfer(_to, _amount)
         bytes memory data = abi.encodeWithSelector(
-            iOVM_TokenGateway.finalizeReturnTransfer.selector,
+            iOVM_TokenGateway.finalizeInboundTransfer.selector,
             _to,
             _amount
         );
@@ -227,6 +236,6 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
             getL1GasToFinalize()
         );
 
-        emit TransferredOver(msg.sender, _to, _amount, _data);
+        emit OutboundTransfer(msg.sender, _to, _amount, _data);
     }
 }
