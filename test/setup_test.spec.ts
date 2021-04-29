@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 
-import { Contract, ContractFactory, BigNumber, Wallet, utils } from 'ethers'
+import { Contract, ContractFactory, BigNumber, Wallet, utils, providers } from 'ethers'
 import { Direction } from './shared/watcher-utils'
 
 import L1LiquidityPoolJson from '../artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
@@ -52,7 +52,16 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
     const bobL1Balance = await _env.bobl1Wallet.getBalance()
     const bobL2Balance = await _env.bobl2Wallet.getBalance()
-
+/*
+    console.log("\nbobL1Balance:", bobL1Balance.toString())
+    console.log("bobL2Balance:", bobL2Balance.toString())
+    console.log("aliceL1Balance:", aliceL1Balance.toString())
+    console.log("aliceL2Balance:", aliceL2Balance.toString())
+    console.log("L1LPBalance:", L1LPBalance.toString())
+    console.log("L2LPBalance:", L2LPBalance.toString())
+    console.log("L1LPFeeBalance:", L1LPFeeBalance.toString())
+    console.log("L2LPFeeBalance:", L2LPFeeBalance.toString())
+*/
     return {
       L1LPBalance,      
       L2LPBalance,
@@ -65,32 +74,29 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     }
   }
 
+  /************* BOB owns all the pools, and ALICE Mints a new token ***********/
   before(async () => {
 
     env = await OptimismEnv.new()
 
-    //this is going on to the L1
     Factory__L1LiquidityPool = new ContractFactory(
       L1LiquidityPoolJson.abi,
       L1LiquidityPoolJson.bytecode,
       env.bobl1Wallet
     )
 
-    //this is going on to the L2
     Factory__L2LiquidityPool = new ContractFactory(
       L2LiquidityPoolJson.abi,
       L2LiquidityPoolJson.bytecode,
       env.bobl2Wallet
     )
 
-    //this is going on to the L1
     Factory__L1ERC20 = new ContractFactory(
       L1ERC20Json.abi,
       L1ERC20Json.bytecode,
       env.bobl1Wallet
     )
 
-    //this is going on to the L2
     Factory__L2DepositedERC20 = new ContractFactory(
       L2DepositedERC20Json.abi,
       L2DepositedERC20Json.bytecode,
@@ -107,6 +113,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
   before(async () => {
 
+    //Who? sets up the L2LP
     L2LiquidityPool = await Factory__L2LiquidityPool.deploy(
       env.watcher.l2.messengerAddress,
     )
@@ -122,11 +129,15 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L1LiquidityPool.deployTransaction.wait()
     console.log("L1LiquidityPool deployed to:", L1LiquidityPool.address)
     
-    const L2LiquidityPoolTX = await L2LiquidityPool.init(L1LiquidityPool.address, "3")
+    const L2LiquidityPoolTX = await L2LiquidityPool.init(L1LiquidityPool.address, /*this is the fee = */ "3")
+    //The '3' here denotes the fee to charge, i.e. fee = 3%
     await L2LiquidityPoolTX.wait()
-    console.log('L2 LP initialized:',L2LiquidityPoolTX.hash);
+    console.log('L2 LP initialized with the L1LiquidityPool.address:',L2LiquidityPoolTX.hash);
 
+    //Who? mints a new token and sets up the L1 and L2 infrastructure
+    // Mint a new token on L1
     // [initialSupply, name, decimals, symbol]
+    // this is owned by bobl1Wallet
     L1ERC20 = await Factory__L1ERC20.deploy(
       initialAmount,
       tokenName,
@@ -136,6 +147,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L1ERC20.deployTransaction.wait()
     console.log("L1ERC20 deployed to:", L1ERC20.address)
 
+    // Who? sets up things on L2 for this new token
+    // [l2MessengerAddress, name, symbol]
     L2DepositedERC20 = await Factory__L2DepositedERC20.deploy(
       env.watcher.l2.messengerAddress,
       tokenName,
@@ -144,6 +157,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L2DepositedERC20.deployTransaction.wait()
     console.log("L2DepositedERC20 deployed to:", L2DepositedERC20.address)
     
+    // Who? deploys a gateway for this new token
+    // [L1_ERC20.address, OVM_L2DepositedERC20.address, l1MessengerAddress]
     L1ERC20Gateway = await Factory__L1ERC20Gateway.deploy(
       L1ERC20.address,
       L2DepositedERC20.address,
@@ -152,7 +167,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L1ERC20Gateway.deployTransaction.wait()
     console.log("L1ERC20Gateway deployed to:", L1ERC20Gateway.address)
 
-    // initialize the contracts
+    // Who initializes the contracts for the new token
     const initL2 = await L2DepositedERC20.init(L1ERC20Gateway.address);
     await initL2.wait();
     console.log('L2 ERC20 initialized:',initL2.hash);
@@ -161,7 +176,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
   before(async () => {
     //keep track of where things are for future use by the front end
-    console.log("\n\nSaving all key addresses")
+    console.log("\n\n********************************\nSaving all key addresses")
 
     const addresses = {
       L1LiquidityPool: L1LiquidityPool.address,
@@ -183,11 +198,14 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       }
     })
 
+    console.log('********************************\n\n')
+
   })
 
-  it('should transfer ERC20 to alice', async () => {
+  it('should transfer ERC20 from Bob to Alice', async () => {
     const transferAmount = utils.parseEther("50")
 
+    //L1ERC20 is owned by Bob
     const preERC20Balances = await L1ERC20.balanceOf(env.alicel1Wallet.address);
 
     const transferERC20TX = await L1ERC20.transfer(
@@ -206,13 +224,24 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
   it('should add initial ETH and ERC20 to the L1 Liquidity Pool', async () => {
 
     // **************************************************
-    // Only the contract owner can deposit ETH into L1 LP
+    // Only the contract owner (Bob) can deposit ETH into L1 LP
     // **************************************************
     const addAmount = utils.parseEther("50")
 
     // Add ETH
     const preETHBalances = await getBalances("0x0000000000000000000000000000000000000000")
 
+    //const fee = BigNumber.from(189176000000000)
+    const chainID = await env.bobl1Wallet.getChainId()
+    const gasPrice = await env.bobl1Wallet.getGasPrice()
+
+    const gasEstimate = await env.bobl1Wallet.estimateGas({
+      from: env.bobl1Wallet.address,
+      to: L1LiquidityPool.address,
+      value: addAmount
+    })
+    
+    //Bob, the owner of the L1LiquidityPool, sends funds into the L1LP
     const depositETHTX = await env.bobl1Wallet.sendTransaction({
       from: env.bobl1Wallet.address,
       to: L1LiquidityPool.address,
@@ -220,10 +249,60 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     })
     await depositETHTX.wait()
 
-    const postETHBalance = await getBalances("0x0000000000000000000000000000000000000000")
+    const postETHBalances = await getBalances("0x0000000000000000000000000000000000000000")
 
-    expect(postETHBalance.L1LPBalance).to.deep.eq(
+    const l1ProviderLL = providers.getDefaultProvider(process.env.L1_NODE_WEB3_URL)
+    const receipt = await l1ProviderLL.getTransactionReceipt(depositETHTX.hash);
+    //console.log("transaction receipt:",receipt)
+
+    //add fee calculation
+    const feeSimple = depositETHTX.gasLimit.mul(depositETHTX.gasPrice)
+    
+    console.log('\nFEE DEBUG INFORMATION')
+    console.log("ChainID:",chainID)
+    console.log("GasPrice (gWei):",utils.formatUnits(gasPrice, "gwei"))
+    console.log("Fee actually paid:",utils.formatUnits(preETHBalances.bobL1Balance.sub(addAmount).sub(postETHBalances.bobL1Balance), "gwei"))
+    console.log("Fee gasLimit*gasPrice:",utils.formatUnits(feeSimple, "gwei"))
+    console.log("GasEstimate (gWei):",utils.formatUnits(gasEstimate, "gwei"))
+    console.log("GasUsed (gWei):",utils.formatUnits(receipt.gasUsed, "gwei"))
+    console.log('\n')
+    
+    /*
+    console.log("Fee actually paid:",postETHBalances.bobL1Balance.sub(addAmount).sub(postETHBalances.bobL1Balance).toString())
+    console.log("Fee gasLimit*gasPrice:",feeSimple.toString())
+    console.log("GasEstimate:",gasEstimate.toString())
+    console.log("GasUsed:",gasUsed.toString())
+    */
+    
+    /*
+    IF YOU SEND ZERO AMOUNT, these numbers will be off. For example,
+    
+    Fee actually paid: 189176.0
+    Fee gasLimit*gasPrice: 202464.0
+    GasEstimate (gWei): 0.000025308
+    GasUsed (gWei): 0.000023647
+
+    IF YOU SEND NONZERO AMOUNT
+
+    Fee actually paid: 342776.0
+    Fee gasLimit*gasPrice: 342776.0
+    GasEstimate (gWei): 0.000042847
+    GasUsed (gWei): 0.000042847
+    */
+
+    //Bob should have less money now - this breaks for zero value transfer
+    expect(postETHBalances.bobL1Balance).to.deep.eq(
+      preETHBalances.bobL1Balance.sub(addAmount).sub(feeSimple)
+    )
+
+    //He paid into the L1LP
+    expect(postETHBalances.L1LPBalance).to.deep.eq(
       preETHBalances.L1LPBalance.add(addAmount)
+    )
+
+    //Alice did not pay, so no change
+    expect(postETHBalances.aliceL1Balance).to.deep.eq(
+      preETHBalances.aliceL1Balance
     )
     
     // Add ERC20 Token
