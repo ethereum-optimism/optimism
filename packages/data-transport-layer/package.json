@@ -19,9 +19,9 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "@eth-optimism/common-ts": "^0.0.1",
     "@eth-optimism/contracts": "^0.2.8",
     "@eth-optimism/core-utils": "^0.3.2",
-    "@eth-optimism/common-ts": "^0.0.1",
     "@ethersproject/providers": "^5.0.21",
     "@sentry/node": "^6.3.1",
     "@sentry/tracing": "^6.3.1",
@@ -32,6 +32,7 @@
     "dotenv": "^8.2.0",
     "ethers": "^5.0.26",
     "express": "^4.17.1",
+    "express-prom-bundle": "^6.3.6",
     "level": "^6.0.1",
     "levelup": "^4.4.0",
     "node-fetch": "^2.6.1"

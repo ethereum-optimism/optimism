@@ -1,6 +1,7 @@
 /* Imports: External */
 import { BaseService } from '@eth-optimism/common-ts'
 import express, { Request, Response } from 'express'
+import promBundle from 'express-prom-bundle'
 import cors from 'cors'
 import { BigNumber } from 'ethers'
 import { JsonRpcProvider } from '@ethersproject/providers'
@@ -105,6 +106,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
+    // Init Sentry options
     Sentry.init({
       dsn: this.options.sentryDsn,
       release: `data-transport-layer@${process.env.npm_package_version}`,
@@ -118,6 +120,12 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     })
     this.state.app.use(Sentry.Handlers.requestHandler())
     this.state.app.use(Sentry.Handlers.tracingHandler())
+    // Init metrics
+    const metricsMiddleware = promBundle({
+      includeMethod: true,
+      includePath: true,
+    })
+    this.state.app.use(metricsMiddleware)
     this.state.app.use(cors())
     this._registerAllRoutes()
     this.state.app.use(Sentry.Handlers.errorHandler())
