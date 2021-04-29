@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
-/* Library Imports */
-import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
-
 /* Interface Imports */
 import { iOVM_TokenGateway } from "../../iOVM/bridge/tokens/iOVM_TokenGateway.sol";
 
 /* Contract Imports */
-import { OVM_L2DepositedERC20 } from "../bridge/tokens/OVM_L2DepositedERC20.sol";
+// import { OVM_L2DepositedERC20 } from "../bridge/tokens/OVM_L2TokenGateway.sol";
+import { OVM_L2ERC20 } from "../../libraries/standards/OVM_L2ERC20.sol";
 
 /**
  * @title OVM_ETH
@@ -18,17 +16,17 @@ import { OVM_L2DepositedERC20 } from "../bridge/tokens/OVM_L2DepositedERC20.sol"
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_ETH is OVM_L2DepositedERC20 {
+contract OVM_ETH is OVM_L2ERC20 {
     constructor(
-        address _l2CrossDomainMessenger,
-        address _l1ETHGateway
+        iOVM_TokenGateway _l2EthGateway
     )
-        OVM_L2DepositedERC20(
-            _l2CrossDomainMessenger,
+        OVM_L2ERC20(
             "Ether",
             "ETH"
         )
     {
-        init(iOVM_TokenGateway(_l1ETHGateway));
+        // We immediately transfer ownership to the L2 Token Gateway for OVM_ETH
+        // @todo: it's not so simple given this is already deployed
+        transferOwnership(address(_l2EthGateway));
     }
 }

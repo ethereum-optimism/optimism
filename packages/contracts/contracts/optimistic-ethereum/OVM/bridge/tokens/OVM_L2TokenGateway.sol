@@ -56,11 +56,18 @@ contract OVM_L2TokenGateway is iOVM_TokenGateway, OVM_CrossDomainEnabled  {
      */
     constructor(
         address _l2CrossDomainMessenger,
+        OVM_L2ERC20 _l2ERC20,
         string memory _name,
         string memory _symbol
     )
         OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
-    {}
+    {
+        if(address(_l2ERC20) == address(0) ){
+            l2ERC20 = new OVM_L2ERC20(_name, _symbol);
+        } else {
+            l2ERC20 = _l2ERC20;
+        }
+    }
 
     /**
      * @dev Initialize this contract with the L1 token gateway address.
