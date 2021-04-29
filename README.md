@@ -3,6 +3,8 @@
 Typescript based integration test repo for OMGX.
 
 - [1. Basic Setup and Configuration](#1-basic-setup-and-configuration)
+  * [1.1 Using Rinkeby Testnet](#11-using-rinkeby-testnet)
+  * [1.2 Using Local Net](#12-using-local-net)
 - [2. Running the Integration Tests](#2-running-the-integration-tests)
 - [3. Wallet Specific Smart Contracts](#3-wallet-specific-smart-contracts)
   * [3.1 L1liquidityPool.sol](#31-l1liquiditypoolsol)
