@@ -60,11 +60,18 @@ export const toHexString = (inp: Buffer | string | number | null): string => {
   }
 }
 
-export const toRpcHexString = (n: number): string => {
-  if (n === 0) {
-    return '0x0'
+export const toRpcHexString = (n: number | BigNumber): string => {
+  let num
+  if (typeof n === 'number') {
+    num = '0x' + n.toString(16)
   } else {
-    return '0x' + toHexString(n).slice(2).replace(/^0+/, '')
+    num = n.toHexString()
+  }
+
+  if (num === '0x0') {
+    return num
+  } else {
+    return num.replace(/^0x0/, '0x')
   }
 }
 
