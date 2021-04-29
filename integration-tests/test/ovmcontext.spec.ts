@@ -8,8 +8,14 @@ import {
   getAddressManager,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
+import { DockerComposeNetwork } from './shared/docker-compose'
 import { getContractFactory } from '@eth-optimism/contracts'
 import { Contract, ContractFactory, Wallet, BigNumber } from 'ethers'
+
+
+before(async () => {
+  await new DockerComposeNetwork().up()
+})
 
 /**
  * These tests cover the OVM execution contexts. In the OVM execution

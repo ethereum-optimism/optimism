@@ -1,10 +1,16 @@
+
 import { injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber } from 'ethers'
 import chai, { expect } from 'chai'
 import { sleep, l2Provider, GWEI } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
+import { DockerComposeNetwork } from './shared/docker-compose'
 chai.use(chaiAsPromised)
+
+before(async () => {
+  await new DockerComposeNetwork().up()
+})
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv

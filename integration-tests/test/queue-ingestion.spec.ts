@@ -2,10 +2,15 @@
 import { injectL2Context } from '@eth-optimism/core-utils'
 import { sleep } from './shared/utils'
 import { OptimismEnv } from './shared/env'
+import { DockerComposeNetwork } from './shared/docker-compose'
 
 /* Imports: External */
 import { providers } from 'ethers'
 import { expect } from 'chai'
+
+before(async () => {
+  await new DockerComposeNetwork().up()
+})
 
 // This test ensures that the transactions which get `enqueue`d get
 // added to the L2 blocks by the Sync Service (which queries the DTL)
