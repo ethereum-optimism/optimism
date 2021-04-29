@@ -63,7 +63,7 @@ contract OVM_L1CrossDomainMessenger is
     mapping (bytes32 => bool) public blockedMessages;
     mapping (bytes32 => bool) public relayedMessages;
     mapping (bytes32 => bool) public successfulMessages;
-    mapping (bytes32 => bool) public sentMessages;
+
     address internal xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
     /***************
@@ -198,8 +198,6 @@ contract OVM_L1CrossDomainMessenger is
             queueLength
         );
 
-        sentMessages[keccak256(xDomainCalldata)] = true;
-
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
         emit SentMessage(xDomainCalldata);
     }
@@ -287,16 +285,18 @@ contract OVM_L1CrossDomainMessenger is
         override
         public
     {
+        // Check the nonce used exists
+        uint40 queueLength = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueLength();
+        require(
+            _messageNonce < queueLength,
+            "Provided message has not already been sent."
+        );
+
         bytes memory xDomainCalldata = _getXDomainCalldata(
             _target,
             _sender,
             _message,
             _messageNonce
-        );
-
-        require(
-            sentMessages[keccak256(xDomainCalldata)] == true,
-            "Provided message has not already been sent."
         );
 
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
