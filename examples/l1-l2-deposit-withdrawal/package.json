@@ -1,0 +1,23 @@
+{
+  "name": "l1-l2-deposit-withdrawal",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rimraf ./cache && rimraf ./artifacts",
+    "compile:ovm": "yarn clean && hardhat compile && hardhat --network optimism compile",
+    "deploy:ovm": "node ./example.js"
+  },
+  "devDependencies": {
+    "@eth-optimism/contracts": "^0.2.4",
+    "@eth-optimism/core-utils": "^0.2.1",
+    "@eth-optimism/hardhat-ovm": "^0.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "ethers": "^5.0.24",
+    "hardhat": "^2.0.7",
+    "rimraf": "^3.0.2"
+  },
+  "dependencies": {
+    "@eth-optimism/watcher": "^0.0.1-alpha.9"
+  }
+}

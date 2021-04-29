@@ -81,4 +81,9 @@ jobs:
         run: |
           yarn compile:ovm
           yarn test:integration:ovm
+      
+      - name: Deploy l1-l2-deposit-withdrawal example on Optimism with cross-domain message passing
+        working-directory: ./examples/l1-l2-deposit-withdrawal
+        run: |
+          yarn compile:ovm
           yarn deploy:ovm
