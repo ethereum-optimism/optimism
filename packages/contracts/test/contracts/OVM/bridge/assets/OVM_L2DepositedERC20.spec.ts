@@ -11,7 +11,7 @@ import {
 } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { NON_ZERO_ADDRESS } from '../../../../helpers'
+import { NON_ZERO_ADDRESS, NON_NULL_BYTES32 } from '../../../../helpers'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -19,7 +19,7 @@ const ERR_INVALID_X_DOMAIN_MSG_SENDER =
 const MOCK_L1GATEWAY_ADDRESS: string =
   '0x1234123412341234123412341234123412341234'
 
-describe('OVM_L2DepositedERC20', () => {
+describe('OVM_L2TokenGateway', () => {
   let alice: Signer
   let bob: Signer
   let Factory__OVM_L1ERC20Gateway: ContractFactory
@@ -30,7 +30,7 @@ describe('OVM_L2DepositedERC20', () => {
     )
   })
 
-  let OVM_L2DepositedERC20: Contract
+  let OVM_L2TokenGateway: Contract
   let Mock__OVM_L2CrossDomainMessenger: MockContract
   let finalizeWithdrawalGasLimit: number
   beforeEach(async () => {
@@ -46,27 +46,27 @@ describe('OVM_L2DepositedERC20', () => {
     )
 
     // Deploy the contract under test
-    OVM_L2DepositedERC20 = await (
-      await ethers.getContractFactory('OVM_L2DepositedERC20')
-    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, 'ovmWETH', 'oWETH')
+    OVM_L2TokenGateway = await (
+      await ethers.getContractFactory('OVM_L2TokenGateway')
+    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, conststants.AddressZero, 'ovmWETH', 'oWETH')
 
-    // initialize the L2 Gateway with the L1G ateway addrss
-    await OVM_L2DepositedERC20.init(MOCK_L1GATEWAY_ADDRESS)
+    // initialize the L2 Gateway with the L1Gateway addrss
+    await OVM_L2TokenGateway.init(MOCK_L1GATEWAY_ADDRESS)
 
-    finalizeWithdrawalGasLimit = await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
+    finalizeWithdrawalGasLimit = await OVM_L2TokenGateway.getL1GasToFinalize()
   })
 
-  // test the transfer flow of moving a token from L2 to L1
-  describe('finalizeDeposit', () => {
+  // test the transfer flow of moving a token from L1 to L2
+  describe('finalizeInboundTransfer', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L2 account', async () => {
       // Deploy new gateway, initialize with random messenger
-      OVM_L2DepositedERC20 = await (
-        await ethers.getContractFactory('OVM_L2DepositedERC20')
+      OVM_L2TokenGateway = await (
+        await ethers.getContractFactory('OVM_L2TokenGateway')
       ).deploy(NON_ZERO_ADDRESS, 'ovmWETH', 'oWETH')
-      await OVM_L2DepositedERC20.init(NON_ZERO_ADDRESS)
+      await OVM_L2TokenGateway.init(NON_ZERO_ADDRESS)
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(constants.AddressZero, 0)
+        OVM_L2TokenGateway.finalizeInboundTransfer(constants.AddressZero, constants.AddressZero, 0,  NON_NULL_BYTES32)
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
 
@@ -76,7 +76,7 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(constants.AddressZero, 0, {
+        OVM_L2TokenGateway.finalizeInboundTransfer(constants.AddressZero, 0, {
           from: Mock__OVM_L2CrossDomainMessenger.address,
         })
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
@@ -88,13 +88,13 @@ describe('OVM_L2DepositedERC20', () => {
         () => MOCK_L1GATEWAY_ADDRESS
       )
 
-      await OVM_L2DepositedERC20.finalizeDeposit(
+      await OVM_L2TokenGateway.finalizeInboundTransfer(
         await alice.getAddress(),
         depositAmount,
         { from: Mock__OVM_L2CrossDomainMessenger.address }
       )
 
-      const aliceBalance = await OVM_L2DepositedERC20.balanceOf(
+      const aliceBalance = await OVM_L2TokenGateway.balanceOf(
         await alice.getAddress()
       )
       aliceBalance.should.equal(depositAmount)
@@ -109,7 +109,7 @@ describe('OVM_L2DepositedERC20', () => {
     beforeEach(async () => {
       // Deploy a smodded gateway so we can give some balances to withdraw
       SmoddedL2Gateway = await (
-        await smoddit('OVM_L2DepositedERC20', alice)
+        await smoddit('OVM_L2TokenGateway', alice)
       ).deploy(Mock__OVM_L2CrossDomainMessenger.address, 'ovmWETH', 'oWETH')
       await SmoddedL2Gateway.init(MOCK_L1GATEWAY_ADDRESS)
 
