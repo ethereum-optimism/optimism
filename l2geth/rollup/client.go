@@ -70,6 +70,7 @@ type transaction struct {
 	BatchIndex  uint64          `json:"batchIndex"`
 	BlockNumber uint64          `json:"blockNumber"`
 	Timestamp   uint64          `json:"timestamp"`
+	Value       hexutil.Uint64  `json:"value"`
 	GasLimit    uint64          `json:"gasLimit"`
 	Target      common.Address  `json:"target"`
 	Origin      *common.Address `json:"origin"`
@@ -104,6 +105,7 @@ type signature struct {
 // it means that the decoding failed.
 type decoded struct {
 	Signature signature      `json:"sig"`
+	Value     hexutil.Uint64 `json:"value"`
 	GasLimit  uint64         `json:"gasLimit"`
 	GasPrice  uint64         `json:"gasPrice"`
 	Nonce     uint64         `json:"nonce"`
@@ -228,6 +230,7 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 	}
 	data := *enqueue.Data
 
+	// enqueue transactions have no value
 	value := big.NewInt(0)
 	tx := types.NewTransaction(nonce, target, value, gasLimit, big.NewInt(0), data)
 
@@ -303,7 +306,7 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 	if res.Decoded != nil {
 		nonce := res.Decoded.Nonce
 		to := res.Decoded.Target
-		value := new(big.Int)
+		value := new(big.Int).SetUint64(uint64(res.Decoded.Value))
 		// Note: there are two gas limits, one top level and
 		// another on the raw transaction itself. Maybe maxGasLimit
 		// for the top level?
@@ -357,7 +360,8 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 	gasLimit := res.GasLimit
 	data := res.Data
 	origin := res.Origin
-	tx := types.NewTransaction(nonce, target, big.NewInt(0), gasLimit, big.NewInt(0), data)
+	value := new(big.Int).SetUint64(uint64(res.Value))
+	tx := types.NewTransaction(nonce, target, value, gasLimit, big.NewInt(0), data)
 	txMeta := types.NewTransactionMeta(
 		new(big.Int).SetUint64(res.BlockNumber),
 		res.Timestamp,
