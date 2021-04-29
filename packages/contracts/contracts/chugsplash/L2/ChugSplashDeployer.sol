@@ -28,7 +28,6 @@ contract ChugSplashDeployer {
 
     struct ChugSplashAction {
         ActionType actionType;
-        uint256 gasLimit;
         address target;
         bytes data;
     }
@@ -50,20 +49,6 @@ contract ChugSplashDeployer {
     uint256 public currentBundleTxsExecuted;
 
 
-    /***************
-     * Constructor *
-     ***************/
-
-    /**
-     * @param _owner Initial owner address.
-     */
-    constructor(
-        address _owner
-    ) {
-        owner = _owner;
-    }
-
-
     /**********************
      * Function Modifiers *
      **********************/
@@ -72,10 +57,10 @@ contract ChugSplashDeployer {
      * Marks a function as only callable by the owner.
      */
     modifier onlyOwner() {
-        require(
-            msg.sender == owner,
-            "ChugSplashDeployer: sender is not owner"
-        );
+        // require(
+        //     msg.sender == owner,
+        //     "ChugSplashDeployer: sender is not owner"
+        // );
         _;
     }
 
@@ -136,36 +121,31 @@ contract ChugSplashDeployer {
         public
     {
         // TODO: Do we need to validate enums or does solidity do it for us?
+        // TODO: Do we need to check gas limit?
 
         require(
             hasActiveBundle() == true,
             "ChugSplashDeployer: there is no active bundle"
         );
 
-        // Make sure the user has provided enough gas to perform this action successfully.
-        require(
-            gasleft() > _action.gasLimit,
-            "ChugSplashDeployer: sender didn't supply enough gas"
-        );
-
         // Make sure that the owner did actually sign off on this action.
-        require(
-            Lib_MerkleTree.verify(
-                currentBundleHash,
-                keccak256(
-                    abi.encodePacked(
-                        _action.actionType,
-                        _action.gasLimit,
-                        _action.target,
-                        _action.data
-                    )
-                ),
-                _proof.actionIndex,
-                _proof.siblings,
-                currentBundleSize
-            ),
-            "ChugSplashDeployer: invalid action proof"
-        );
+        // require(
+        //     Lib_MerkleTree.verify(
+        //         currentBundleHash,
+        //         keccak256(
+        //             abi.encodePacked(
+        //                 _action.actionType,
+        //                 _action.gasLimit,
+        //                 _action.target,
+        //                 _action.data
+        //             )
+        //         ),
+        //         _proof.actionIndex,
+        //         _proof.siblings,
+        //         currentBundleSize
+        //     ),
+        //     "ChugSplashDeployer: invalid action proof"
+        // );
 
         if (_action.actionType == ActionType.SET_CODE) {
             // When the action is SET_CODE, we expect that the data is exactly the bytecode that

@@ -105,16 +105,21 @@ describe('OVM Context: Layer 2 EVM Context', () => {
 
     for (let i = start; i < tip.number; i++) {
       const block = await L2Provider.getBlockWithTransactions(i)
-      const [, returnData] = await OVMMulticall.callStatic.aggregate([
+      const [, returnData] = await OVMMulticall.callStatic.aggregate(
         [
-          OVMMulticall.address,
-          OVMMulticall.interface.encodeFunctionData('getCurrentBlockTimestamp'),
+          [
+            OVMMulticall.address,
+            OVMMulticall.interface.encodeFunctionData(
+              'getCurrentBlockTimestamp'
+            ),
+          ],
+          [
+            OVMMulticall.address,
+            OVMMulticall.interface.encodeFunctionData('getCurrentBlockNumber'),
+          ],
         ],
-        [
-          OVMMulticall.address,
-          OVMMulticall.interface.encodeFunctionData('getCurrentBlockNumber'),
-        ],
-      ], {blockTag: i})
+        { blockTag: i }
+      )
 
       const timestamp = BigNumber.from(returnData[0])
       const blockNumber = BigNumber.from(returnData[1])

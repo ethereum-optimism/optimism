@@ -8,18 +8,17 @@ import { getContractInterface } from '@eth-optimism/contracts'
 import { l2Provider, OVM_ETH_ADDRESS } from './shared/utils'
 import { ethers } from 'hardhat'
 
-
 // TODO: use actual imported Chugsplash type
 
 interface SetCodeInstruction {
-	target: string // address
-	code: string // bytes memory
+  target: string // address
+  code: string // bytes memory
 }
 
 interface SetStorageInstruction {
-	target: string // address
-	key: string // bytes32
-	value: string // bytes32
+  target: string // address
+  key: string // bytes32
+  value: string // bytes32
 }
 
 type ChugsplashInstruction = SetCodeInstruction | SetStorageInstruction
@@ -27,35 +26,57 @@ type ChugsplashInstruction = SetCodeInstruction | SetStorageInstruction
 // Just an array of the above two instruction types.
 type ChugSplashInstructions = Array<ChugsplashInstruction>
 
-const isSetStorageInstruction = (instr: ChugsplashInstruction): instr is SetStorageInstruction => {
-  return !instr["code"]
+const isSetStorageInstruction = (
+  instr: ChugsplashInstruction
+): instr is SetStorageInstruction => {
+  return !instr['code']
 }
 
-describe.skip('OVM Self-Upgrades', async () => {
+describe('OVM Self-Upgrades', async () => {
   let env: OptimismEnv
   let l2Wallet: Wallet
-  let OVM_UpgradeExecutor: Contract
+  let ChugSplashDeployer: Contract
 
-  const applyChugsplashInstructions = async (instructions: ChugSplashInstructions) => {
+  const applyChugsplashInstructions = async (
+    instructions: ChugSplashInstructions
+  ) => {
     for (const instruction of instructions) {
-      let res
+      let res: any
       if (isSetStorageInstruction(instruction)) {
-        res = await OVM_UpgradeExecutor.setStorage(
-          instruction.target,
-          instruction.key,
-          instruction.value
+        res = await ChugSplashDeployer.executeAction(
+          {
+            actionType: 1,
+            target: instruction.target,
+            data: ethers.utils.defaultAbiCoder.encode(
+              ['bytes32', 'bytes32'],
+              [instruction.key, instruction.value]
+            ),
+          },
+          {
+            actionIndex: 0,
+            siblings: [],
+          }
         )
       } else {
-        res = await OVM_UpgradeExecutor.setCode(
-          instruction.target,
-          instruction.code
+        res = await ChugSplashDeployer.executeAction(
+          {
+            actionType: 0,
+            target: instruction.target,
+            data: instruction.code,
+          },
+          {
+            actionIndex: 0,
+            siblings: [],
+          }
         )
       }
       await res.wait() // TODO: promise.all
     }
   }
 
-  const checkChugsplashInstructionsApplied = async (instructions: ChugSplashInstructions) => {
+  const checkChugsplashInstructionsApplied = async (
+    instructions: ChugSplashInstructions
+  ) => {
     for (const instruction of instructions) {
       // TODO: promise.all this for with a map for efficiency
       if (isSetStorageInstruction(instruction)) {
@@ -65,15 +86,15 @@ describe.skip('OVM Self-Upgrades', async () => {
         )
         expect(actualStorage).to.deep.eq(instruction.value)
       } else {
-        const actualCode = await l2Provider.getCode(
-          instruction.target
-        )
+        const actualCode = await l2Provider.getCode(instruction.target)
         expect(actualCode).to.deep.eq(instruction.code)
       }
     }
   }
 
-  const applyAndVerifyUpgrade = async (instructions: ChugSplashInstructions) => {
+  const applyAndVerifyUpgrade = async (
+    instructions: ChugSplashInstructions
+  ) => {
     await applyChugsplashInstructions(instructions)
     await checkChugsplashInstructionsApplied(instructions)
   }
@@ -82,9 +103,9 @@ describe.skip('OVM Self-Upgrades', async () => {
     env = await OptimismEnv.new()
     l2Wallet = env.l2Wallet
 
-    OVM_UpgradeExecutor = new Contract(
+    ChugSplashDeployer = new Contract(
       '0x420000000000000000000000000000000000000a',
-      getContractInterface('OVM_UpgradeExecutor', true),
+      getContractInterface('ChugSplashDeployer', true),
       l2Wallet
     )
   })
@@ -94,9 +115,11 @@ describe.skip('OVM Self-Upgrades', async () => {
       const basicStorageUpgrade: ChugSplashInstructions = [
         {
           target: OVM_ETH_ADDRESS,
-          key: '0x1234123412341234123412341234123412341234123412341234123412341234',
-          value: '0x6789123412341234123412341234123412341234123412341234678967896789',
-        }
+          key:
+            '0x1234123412341234123412341234123412341234123412341234123412341234',
+          value:
+            '0x6789123412341234123412341234123412341234123412341234678967896789',
+        },
       ]
       await applyAndVerifyUpgrade(basicStorageUpgrade)
     })
@@ -110,8 +133,9 @@ describe.skip('OVM Self-Upgrades', async () => {
       const basicCodeUpgrade: ChugSplashInstructions = [
         {
           target: DummyContract.address,
-          code: '0x1234123412341234123412341234123412341234123412341234123412341234',
-        }
+          code:
+            '0x1234123412341234123412341234123412341234123412341234123412341234',
+        },
       ]
       await applyAndVerifyUpgrade(basicCodeUpgrade)
     })
@@ -122,8 +146,9 @@ describe.skip('OVM Self-Upgrades', async () => {
       const emptyAccountCodeUpgrade: ChugSplashInstructions = [
         {
           target: '0x5678657856785678567856785678567856785678',
-          code: '0x1234123412341234123412341234123412341234123412341234123412341234',
-        }
+          code:
+            '0x1234123412341234123412341234123412341234123412341234123412341234',
+        },
       ]
       await applyAndVerifyUpgrade(emptyAccountCodeUpgrade)
     })
