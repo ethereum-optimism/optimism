@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/core-utils'
+import { BaseService } from '@eth-optimism/common-ts'
 import express, { Request, Response } from 'express'
 import cors from 'cors'
 import { BigNumber } from 'ethers'

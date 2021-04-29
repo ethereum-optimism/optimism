@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.3.0",
+    "@eth-optimism/common-ts": "^0.0.1",
     "@eth-optimism/contracts": "^0.2.5",
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",

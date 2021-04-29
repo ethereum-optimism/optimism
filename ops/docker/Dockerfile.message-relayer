@@ -14,6 +14,8 @@ COPY --from=builder /optimism/node_modules ./node_modules
 # copy deps (would have been nice if docker followed the symlinks required)
 COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
 COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
+COPY --from=builder /optimism/packages/common-ts/package.json ./packages/common-ts/package.json
+COPY --from=builder /optimism/packages/common-ts/dist ./packages/common-ts/dist
 
 COPY --from=builder /optimism/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=builder /optimism/packages/contracts/dist ./packages/contracts/dist
