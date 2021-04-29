@@ -49,7 +49,7 @@ import (
 )
 
 const (
-	defaultGasPrice = params.GWei
+	defaultGasPrice = params.GWei * 0.1
 )
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
@@ -63,7 +63,7 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 	return &PublicEthereumAPI{b}
 }
 
-// GasPrice always returns 1 gwei. See `DoEstimateGas` below for context.
+// GasPrice always returns 0.1 gwei. See `DoEstimateGas` below for context.
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
 	return (*hexutil.Big)(big.NewInt(defaultGasPrice)), nil
 }
