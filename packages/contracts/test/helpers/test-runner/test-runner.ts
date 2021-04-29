@@ -221,8 +221,8 @@ export class ExecutionManagerTestRunner {
     )
 
     await AddressManager.setAddress(
-      'OVM_UpgradeExecutor',
-      predeploys.OVM_UpgradeExecutor
+      'ChugSplashDeployer',
+      predeploys.ChugSplashDeployer
     )
 
     const DeployerWhitelist = await getContractFactory(

@@ -31,7 +31,7 @@ const isSetStorageInstruction = (instr: ChugsplashInstruction): instr is SetStor
   return !instr["code"]
 }
 
-describe('OVM Self-Upgrades', async () => {
+describe.skip('OVM Self-Upgrades', async () => {
   let env: OptimismEnv
   let l2Wallet: Wallet
   let OVM_UpgradeExecutor: Contract

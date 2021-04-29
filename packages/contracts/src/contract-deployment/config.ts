@@ -233,8 +233,8 @@ export const makeContractDeployConfig = async (
         '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
       ],
     },
-    OVM_UpgradeExecutor: {
-      factory: getContractFactory('OVM_UpgradeExecutor', undefined, true),
+    ChugSplashDeployer: {
+      factory: getContractFactory('ChugSplashDeployer', undefined, true),
       params: [],
     },
     'OVM_ChainStorageContainer:CTC:batches': {
