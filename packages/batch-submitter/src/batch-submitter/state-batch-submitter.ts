@@ -79,6 +79,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       process.exit(1)
     }
     this.syncing = info.syncing
+    
     const addrs = await this._getChainAddresses()
     const sccAddress = addrs.sccAddress
     const ctcAddress = addrs.ctcAddress
