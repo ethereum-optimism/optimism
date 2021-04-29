@@ -56,10 +56,13 @@ export const getDeploymentBundle = async (
     const artifact = hre.artifacts.readArtifactSync(contractConfig.source)
     const storageLayout = await getStorageLayout(hre, contractConfig.source)
 
+    const target =
+      config.contracts[contractNickname].address || contractNickname
+
     // Push an action to deploy this contract.
     actions.push({
       type: ChugSplashActionType.SET_CODE,
-      target: contractNickname,
+      target: target,
       data: artifact.deployedBytecode,
     })
 
@@ -70,7 +73,7 @@ export const getDeploymentBundle = async (
     )) {
       actions.push({
         type: ChugSplashActionType.SET_STORAGE,
-        target: contractNickname,
+        target: target,
         data: ethers.utils.defaultAbiCoder.encode(
           ['bytes32', 'bytes32'],
           [slot.key, slot.val]

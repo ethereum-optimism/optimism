@@ -48,12 +48,7 @@
             "address": "0x4200000000000000000000000000000000000008",
             "source": "Lib_AddressManager",
             "variables": {
-                "_owner": "0x1212121212121212121212121212121212121212",
-                "addresses": {
-                    "OVM_L2ToL1MessagePasser": "{{ contracts.OVM_L2ToL1MessagePasser }}",
-                    "OVM_L1MessageSender": "{{ contracts.OVM_L1MessageSender }}",
-                    "OVM_L1CrossDomainMessenger": "{{ contracts.OVM_L1CrossDomainMessenger }}"
-                }
+                "_owner": "0x1212121212121212121212121212121212121212"
             }
         },
         "ERC1820Registry": {

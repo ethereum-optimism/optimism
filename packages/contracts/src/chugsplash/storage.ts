@@ -61,12 +61,6 @@ const encodeVariable = (
 ): Array<StorageSlotPair> => {
   const variableType = storageTypes[storageObj.type]
 
-  // Packed storage slots are annoying to deal with. We'll add support for this later but for now
-  // we just need to get something working.
-  if (storageObj.offset !== 0) {
-    throw new Error(`packed storage slots not supported`)
-  }
-
   // Slot key will be the same no matter what so we can just compute it here.
   const slotKey =
     '0x' +
@@ -74,7 +68,9 @@ const encodeVariable = (
       BigNumber.from(
         parseInt(storageObj.slot as any, 10) + nestedSlotOffset
       ).toHexString()
-    ).padStart(64, '0')
+    )
+      .padStart(64 - storageObj.offset * 2, '0')
+      .padEnd(64, '0')
 
   if (variableType.encoding === 'inplace') {
     if (
@@ -181,8 +177,34 @@ const encodeVariable = (
       return slots
     }
   } else if (variableType.encoding === 'bytes') {
-    throw new Error('string types not yet supported')
+    if (storageObj.offset !== 0) {
+      throw new Error(`offset not supported for string/bytes types`)
+    }
+
+    // ref: https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#bytes-and-string
+    const strUtf8 = ethers.utils.toUtf8Bytes(variable)
+    if (strUtf8.length < 32) {
+      const slotVal = ethers.utils.hexlify(
+        ethers.utils.concat([
+          ethers.utils
+            .concat([strUtf8, ethers.constants.HashZero])
+            .slice(0, 31),
+          ethers.BigNumber.from(strUtf8.length * 2).toHexString(),
+        ])
+      )
+
+      return [
+        {
+          key: slotKey,
+          val: slotVal,
+        },
+      ]
+    } else {
+      throw new Error('large strings (>31 bytes) not supported')
+    }
   } else if (variableType.encoding === 'mapping') {
+    console.log(variable, variableType)
+
     throw new Error('mapping types not yet supported')
   } else if (variableType.encoding === 'dynamic_array') {
     throw new Error('array types not yet supported')
@@ -223,5 +245,17 @@ export const computeStorageSlots = (
       encodeVariable(variableValue, storageObj, storageLayout.types)
     )
   }
+
+  // TODO: Deal with packed storage slots.
+
+  const seen = {}
+  for (const slot of slots) {
+    if (seen[slot.key]) {
+      throw new Error(`packed storage slots not supported`)
+    } else {
+      seen[slot.key] = true
+    }
+  }
+
   return slots
 }

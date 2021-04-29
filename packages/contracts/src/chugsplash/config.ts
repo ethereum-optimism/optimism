@@ -75,14 +75,18 @@ const parseVariable = (
   } else if (Array.isArray(variable)) {
     // Each array element gets parsed individually.
     return variable.map((element) => {
-      return parseVariable(element, env)
+      return parseVariable(element, env, addresses)
     })
   } else if (isPlainObject(variable)) {
     // Parse the keys *and* values for objects.
     variable = cloneDeep(variable)
     for (const [key, val] of Object.entries(variable)) {
       delete variable[key] // Make sure to delete the original key!
-      variable[parseVariable(key, env) as string] = parseVariable(val, env)
+      variable[parseVariable(key, env, addresses) as string] = parseVariable(
+        val,
+        env,
+        addresses
+      )
     }
     return variable
   } else {
@@ -92,7 +96,7 @@ const parseVariable = (
 }
 
 // TODO: Change this when we break this logic out into its own package.
-const proxyArtifact = hre.artifacts.readArtifactSync('ChugSplashProxy')
+// const proxyArtifact = hre.artifacts.readArtifactSync('ChugSplashProxy')
 
 /**
  * Replaces any template strings inside of a chugsplash config.
@@ -118,13 +122,12 @@ export const parseConfig = (
   // {{ contract.X }} template strings.
   const addresses = {}
   for (const contractNickname of Object.keys(parsed.contracts)) {
-    addresses[contractNickname] =
-      parsed.contracts[contractNickname].address ||
-      ethers.utils.getCreate2Address(
-        deployerAddress,
-        ethers.utils.keccak256(ethers.utils.toUtf8Bytes(contractNickname)),
-        ethers.utils.keccak256(proxyArtifact.bytecode)
-      )
+    addresses[contractNickname] = parsed.contracts[contractNickname].address
+    // ethers.utils.getCreate2Address(
+    //   deployerAddress,
+    //   ethers.utils.keccak256(ethers.utils.toUtf8Bytes(contractNickname)),
+    //   ethers.utils.keccak256(proxyArtifact.bytecode)
+    // )
   }
 
   for (const [contractNickname, contractConfig] of Object.entries(
