@@ -27,7 +27,7 @@ import ApproveStep from './steps/ApproveStep';
 
 const ETH0x = networkService.OmgUtil.transaction.ETH_CURRENCY;
 
-function DepositModal ({ open, omgOnly = false }) {
+function DepositModal ({ open, omgOnly = false, fast = false }) {
 
   const dispatch = useDispatch();
 
@@ -69,6 +69,7 @@ function DepositModal ({ open, omgOnly = false }) {
           setTokenInfo={setTokenInfo}
           setValue={setValue}
           omgOnly={omgOnly}
+          fast={fast}
         />
       )}
       {step === 'APPROVE_STEP' && (
@@ -77,6 +78,7 @@ function DepositModal ({ open, omgOnly = false }) {
           currency={currency}
           value={value}
           tokenInfo={tokenInfo}
+          fast={fast}
         />
       )}
     </Modal>

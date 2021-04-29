@@ -5,7 +5,7 @@ import BN from 'bn.js';
 import Button from 'components/button/Button';
 import GasPicker from 'components/gaspicker/GasPicker';
 
-import { approveErc20, depositErc20, resetApprove } from 'actions/networkAction';
+import { approveErc20, depositErc20, resetApprove, depositL1LP } from 'actions/networkAction';
 import { openAlert, setActiveHistoryTab } from 'actions/uiAction';
 import networkService from 'services/networkService';
 import { selectLoading } from 'selectors/loadingSelector';
@@ -17,7 +17,8 @@ function ApproveStep ({
   onClose,
   currency,
   value,
-  tokenInfo
+  tokenInfo,
+  fast,
 }) {
   const dispatch = useDispatch();
   const [ allowance, setAllowance ] = useState('');
@@ -29,10 +30,14 @@ function ApproveStep ({
   const approveLoading = useSelector(selectLoading([ 'APPROVE/CREATE' ]));
   const depositLoading = useSelector(selectLoading([ 'DEPOSIT/CREATE' ]));
   const weiAmount = powAmount(value, tokenInfo.decimals);
-  console.log({ depositLoading });
   const checkAllowance = useCallback(async () => {
     try {
-      const allowance = await networkService.checkAllowance(currency);
+      let allowance;
+      if (fast === false) {
+        allowance = await networkService.checkAllowance(currency);
+      } else {
+        allowance = await networkService.checkAllowance(currency, networkService.L1LPAddress);
+      }
       setAllowance(allowance);
       const allowanceBN = new BN(allowance);
       const weiAmountBN = new BN(weiAmount);
@@ -42,7 +47,7 @@ function ApproveStep ({
     } catch (error) {
       onClose();
     }
-  }, [ onClose, currency, weiAmount ]);
+  }, [ onClose, currency, weiAmount, fast ]);
 
   useEffect(() => {
     checkAllowance();
@@ -56,7 +61,12 @@ function ApproveStep ({
   }
 
   async function doApprove () {
-    const res = await dispatch(approveErc20(weiAmount, currency));
+    let res;
+    if (fast) {
+      res = await dispatch(approveErc20(weiAmount, currency, networkService.L1LPAddress));
+    } else {
+      res = await dispatch(approveErc20(weiAmount, currency));
+    }
     if (res) {
       dispatch(openAlert('ERC20 approval submitted.'));
       checkAllowance();
@@ -64,7 +74,12 @@ function ApproveStep ({
   }
 
   async function doReset () {
-    const res = await dispatch(resetApprove(weiAmount, currency));
+    let res;
+    if (fast) {
+      res = await dispatch(resetApprove(weiAmount, currency, networkService.L1LPAddress));
+    } else {
+      res = await dispatch(resetApprove(weiAmount, currency));
+    }
     if (res) {
       dispatch(openAlert('ERC20 approval reset successful.'));
       checkAllowance();
@@ -72,10 +87,19 @@ function ApproveStep ({
   }
 
   async function doDeposit () {
-    const res = await dispatch(depositErc20(weiAmount, currency, gasPrice));
+    let res;
+    if (fast === false) {
+      res = await dispatch(depositErc20(weiAmount, currency, gasPrice));
+    } else {
+      res = await dispatch(depositL1LP(currency, value))
+    }
     if (res) {
       dispatch(setActiveHistoryTab('Deposits'));
-      dispatch(openAlert('ERC20 deposit submitted.'));
+      if (fast === false) {
+        dispatch(openAlert(`${tokenName} deposit submitted.`));
+      } else {
+        dispatch(openAlert(`${tokenName} was deposited to liquidity pool. You got ${(Number(value) * 0.97).toFixed(2)} ${tokenName} on L2`));
+      }
       handleClose();
     }
   }

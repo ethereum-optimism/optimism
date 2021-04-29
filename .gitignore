@@ -8,7 +8,7 @@ artifacts/
 artifacts-ovm/
 cache/
 cache-ovm/
-deployment/
+deployment/*.json
 wallet/src/deployment
 # IDE
 /.idea

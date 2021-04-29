@@ -117,6 +117,13 @@ export function exitOptimism (token, value) {
   )
 }
 
+export function depositL2LP (token, value) {
+  return createAction(
+    'EXIT/CREATE',
+    () => networkService.depositL2LP(token, value)
+  )
+}
+
 export function depositETHL2 (value) {
   return createAction(
     'DEPOSIT/CREATE',
@@ -124,17 +131,24 @@ export function depositETHL2 (value) {
   );
 }
 
-export function approveErc20 (value, currency, contract) {
+export function depositL1LP (currency, value) {
   return createAction(
-    'APPROVE/CREATE',
-    () => networkService.approveErc20(value, currency, contract)
+    'DEPOSIT/CREATE',
+    () => networkService.depositL1LP(currency, value)
   );
 }
 
-export function resetApprove (value, currency, contract) {
+export function approveErc20 (value, currency, approveContractAddress, contractABI) {
+  return createAction(
+    'APPROVE/CREATE',
+    () => networkService.approveErc20(value, currency, approveContractAddress, contractABI)
+  );
+}
+
+export function resetApprove (value, currency, approveContractAddress, contractABI) {
   return createAction(
     'APPROVE/RESET',
-    () => networkService.resetApprove(value, currency, contract)
+    () => networkService.resetApprove(value, currency, approveContractAddress, contractABI)
   );
 }
 

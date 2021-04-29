@@ -13,16 +13,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Send, MergeType, ArrowBack, ArrowForward } from '@material-ui/icons';
+import { Send, ArrowBack, ArrowForward } from '@material-ui/icons';
 import { isEqual } from 'lodash';
 import truncate from 'truncate-middle';
 
 import { selectLoading } from 'selectors/loadingSelector';
 import { selectIsSynced } from 'selectors/statusSelector';
 import { selectChildchainBalance, selectRootchainBalance } from 'selectors/balanceSelector';
-import { selectPendingExits } from 'selectors/exitSelector';
 
 import { SELECT_NETWORK } from 'Settings';
 
@@ -50,8 +49,8 @@ function Account () {
   const disabled = !childBalance.length || !isSynced ;
 
   const handleModalClick = useCallback(
-    async (name, beginner = false) => {
-      if (name === 'transferModal') {
+    async (name, fast = false, beginner = false) => {
+      if (name === 'transferModal' || name === 'exitModal') {
         const networkStatus = await dispatch(networkService.checkNetwork('L2'));
         if (!networkStatus) return 
       }
@@ -59,7 +58,7 @@ function Account () {
         const networkStatus = await dispatch(networkService.checkNetwork('L1'));
         if (!networkStatus) return 
       }
-      dispatch(openModal(name, beginner))
+      dispatch(openModal(name, beginner, fast))
     }, [ dispatch ]
   );
 
@@ -174,7 +173,7 @@ function Account () {
         <div className={styles.boxActions}>
           <div className={styles.buttons}>
             <Button
-              onClick={() => handleModalClick('depositModal')}
+              onClick={() => handleModalClick('depositModal', true)}
               type='primary'
               disabled={!isSynced || criticalTransactionLoading}
               style={{maxWidth: 'none'}}
@@ -185,7 +184,7 @@ function Account () {
           </div>
           <div className={styles.buttons}>
             <Button
-              onClick={() => handleModalClick('depositModal')}
+              onClick={() => handleModalClick('exitModal', true)}
               type='primary'
               disabled={!isSynced || criticalTransactionLoading}
               style={{maxWidth: 'none'}}

@@ -78,7 +78,7 @@ export class Watcher {
     pollForPending: boolean = true
   ): Promise<TransactionReceipt> {
     
-    console.log(" Watcher::getTransactionReceipt")
+    // console.log(" Watcher::getTransactionReceipt")
     
     const blockNumber = await layer.provider.getBlockNumber()
     const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
@@ -109,10 +109,10 @@ export class Watcher {
 
     // Message has yet to be relayed, poll until it is found
     return new Promise(async (resolve, reject) => {
-      console.log(" Watcher polling::layer.provider.getTransactionReceipt pre filter")
+      // console.log(" Watcher polling::layer.provider.getTransactionReceipt pre filter")
       //listener that triggers on filter event
       layer.provider.on(filter, async (log: any) => {
-        console.log(" Watcher polling::layer.provider.getTransactionReceipt post filter")
+        // console.log(" Watcher polling::layer.provider.getTransactionReceipt post filter")
         if (log.data === msgHash) {
           try {
             const txReceipt = await layer.provider.getTransactionReceipt(log.transactionHash)

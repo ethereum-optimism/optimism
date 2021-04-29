@@ -41,9 +41,6 @@ import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 import Status from 'containers/status/Status';
 import Account from 'containers/account/Account';
 
-// OMGX
-import Pool from 'containers/pool/Pool';
-
 import MobileHeader from 'components/mobileheader/MobileHeader';
 import MobileMenu from 'components/mobilemenu/MobileMenu';
 
@@ -63,6 +60,7 @@ function Home () {
   
   const depositModalState = useSelector(selectModalState('depositModal'));
   const beginner = useSelector(selectModalState('beginner'));
+  const fast = useSelector(selectModalState('fast'));
   const transferModalState = useSelector(selectModalState('transferModal'));
   const exitModalState = useSelector(selectModalState('exitModal'));
   const mergeModalState = useSelector(selectModalState('mergeModal'));
@@ -111,9 +109,9 @@ function Home () {
   return (
 
     <>
-      <DepositModal open={depositModalState} omgOnly={beginner}/>
+      <DepositModal open={depositModalState} omgOnly={beginner} fast={fast}/>
       <TransferModal open={transferModalState} />
-      <ExitModal open={exitModalState} />
+      <ExitModal open={exitModalState} fast={fast}/>
       <MergeModal open={mergeModalState} />
       <AddTokenModal open={addTokenModalState} />
 

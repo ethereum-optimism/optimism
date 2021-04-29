@@ -34,7 +34,8 @@ function uiReducer (state = initialState, action) {
     case 'UI/MODAL/OPEN':
       return { ...state, 
         [action.payload]: true,
-        beginner: action.beginner
+        beginner: action.beginner,
+        fast: action.fast,
       };
     case 'UI/MODAL/CLOSE':
       return { ...state, [action.payload]: false };
