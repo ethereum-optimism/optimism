@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_CrossDomainUtils } from "../../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
@@ -89,7 +90,7 @@ contract OVM_L2CrossDomainMessenger is
         override
         public
     {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             msg.sender,
             _message,
@@ -122,7 +123,7 @@ contract OVM_L2CrossDomainMessenger is
             "Provided message could not be verified."
         );
 
-        bytes memory xDomainCalldata = _getXDomainCalldata(
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
             _message,
@@ -206,34 +207,5 @@ contract OVM_L2CrossDomainMessenger is
         internal
     {
         iOVM_L2ToL1MessagePasser(resolve("OVM_L2ToL1MessagePasser")).passMessageToL1(_message);
-    }
-
-    /**
-     * Generates the correct cross domain calldata for a message.
-     * @param _target Target contract address.
-     * @param _sender Message sender address.
-     * @param _message Message to send to the target.
-     * @param _messageNonce Nonce for the provided message.
-     * @return ABI encoded cross domain calldata.
-     */
-    function _getXDomainCalldata(
-        address _target,
-        address _sender,
-        bytes memory _message,
-        uint256 _messageNonce
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
-        return abi.encodeWithSignature(
-            "relayMessage(address,address,bytes,uint256)",
-            _target,
-            _sender,
-            _message,
-            _messageNonce
-        );
     }
 }

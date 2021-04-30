@@ -7,6 +7,7 @@ import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressReso
 import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManager.sol";
 import { Lib_SecureMerkleTrie } from "../../../libraries/trie/Lib_SecureMerkleTrie.sol";
+import { Lib_CrossDomainUtils } from "../../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
@@ -191,7 +192,7 @@ contract OVM_L1CrossDomainMessenger is
         // Use the CTC queue lenght as nonce 
         uint40 queueLength = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueLength();
         
-        bytes memory xDomainCalldata = _getXDomainCalldata(
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             msg.sender,
             _message,
@@ -219,7 +220,7 @@ contract OVM_L1CrossDomainMessenger is
         onlyRelayer
         whenNotPaused
     {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
             _message,
@@ -426,35 +427,6 @@ contract OVM_L1CrossDomainMessenger is
             resolve("OVM_L2CrossDomainMessenger"),
             _gasLimit,
             _message
-        );
-    }
-
-    /**
-     * Generates the correct cross domain calldata for a message.
-     * @param _target Target contract address.
-     * @param _sender Message sender address.
-     * @param _message Message to send to the target.
-     * @param _messageNonce Nonce for the provided message.
-     * @return ABI encoded cross domain calldata.
-     */
-    function _getXDomainCalldata(
-        address _target,
-        address _sender,
-        bytes memory _message,
-        uint256 _messageNonce
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
-        return abi.encodeWithSignature(
-            "relayMessage(address,address,bytes,uint256)",
-            _target,
-            _sender,
-            _message,
-            _messageNonce
         );
     }
 }
