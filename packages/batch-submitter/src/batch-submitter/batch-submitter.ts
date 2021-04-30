@@ -2,7 +2,8 @@
 import { Contract, Signer, utils, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import * as ynatm from '@eth-optimism/ynatm'
-import { RollupInfo, Logger, Metrics } from '@eth-optimism/core-utils'
+import { RollupInfo } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { getContractFactory } from 'old-contracts'
 
 export interface Range {

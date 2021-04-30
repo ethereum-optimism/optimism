@@ -169,18 +169,27 @@ describe('Basic RPC tests', () => {
   describe('eth_estimateGas (returns the fee)', () => {
     it('should return a gas estimate that grows with the size of data', async () => {
       const dataLen = [0, 2, 8, 64, 256]
+      const l1GasPrice = await env.l1Wallet.provider.getGasPrice()
 
-      let last = BigNumber.from(0)
+      // 96 bytes * 16 per non zero byte
+      const onesCost = BigNumber.from(96).mul(16)
+      const expectedCost = dataLen
+        .map(len => BigNumber.from(len).mul(4))
+        .map(zerosCost => zerosCost.add(onesCost))
+
       // Repeat this test for a series of possible transaction sizes.
-      for (const len of dataLen) {
+      for (let i = 0; i < dataLen.length; i++) {
         const estimate = await l2Provider.estimateGas({
           ...DEFAULT_TRANSACTION,
-          data: '0x' + '00'.repeat(len),
+          data: '0x' + '00'.repeat(dataLen[i]),
           from: '0x' + '1234'.repeat(10),
         })
 
-        expect(estimate.gt(last)).to.be.true
-        last = estimate
+        // we normalize by gwei here because the RPC does it as well, since the
+        // user provides a 1gwei gas price when submitting txs via the eth_gasPrice
+        // rpc call
+        const expected = expectedCost[i].mul(l1GasPrice).div(GWEI)
+        expect(estimate).to.be.deep.eq(expected)
       }
     })
   })

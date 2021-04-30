@@ -5,9 +5,6 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { iAbs_BaseCrossDomainMessenger } from "../../../iOVM/bridge/messaging/iAbs_BaseCrossDomainMessenger.sol";
 
-/* External Imports */
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
 /**
  * @title Abs_BaseCrossDomainMessenger
  * @dev The Base Cross Domain Messenger is an abstract contract providing the interface and common
@@ -17,7 +14,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
  * Compiler used: defined by child contract
  * Runtime target: defined by child contract
  */
-abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger, ReentrancyGuard {
+abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
 
     /*************
      * Constants *
@@ -44,7 +41,7 @@ abstract contract Abs_BaseCrossDomainMessenger is iAbs_BaseCrossDomainMessenger,
      * Constructor *
      ***************/
 
-    constructor() ReentrancyGuard() {}
+    constructor() {}
 
 
     /********************

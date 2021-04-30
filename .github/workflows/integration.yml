@@ -6,6 +6,7 @@ on:
       - master
       - '*rc'
   pull_request:
+  workflow_dispatch:
 
 jobs:
   integration:
@@ -14,6 +15,7 @@ jobs:
         DOCKER_BUILDKIT: 1
         COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
+      # Monorepo tests
       - uses: actions/checkout@v2
 
       - name: Get yarn cache directory path
@@ -42,3 +44,33 @@ jobs:
             yarn build:contracts
             yarn build:contracts:ovm
             yarn test:integration
+        env:
+          FORCE_COLOR: 1
+          ENABLE_GAS_REPORT: 1
+
+      - name: Print gas report
+        run: cat integration-tests/gas-report.txt
+
+      # Examples Tests
+      - name: Test & deploy hardhat-example on hardhat (regression)
+        working-directory: ./examples/hardhat
+        run: |
+          yarn deploy
+          yarn test:integration
+
+      - name: Test & deploy hardhat-example on Optimism
+        working-directory: ./examples/hardhat
+        run: |
+          yarn deploy:ovm
+          yarn test:integration:ovm
+
+      - name: Test & deploy waffle-example on waffle (regression)
+        working-directory: ./examples/waffle
+        run: |
+          yarn compile
+          yarn test:integration
+      - name: Test & deploy waffle-example on Optimism
+        working-directory: ./examples/waffle
+        run: |
+          yarn compile:ovm
+          yarn test:integration:ovm

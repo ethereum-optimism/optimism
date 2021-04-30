@@ -14,9 +14,12 @@ import 'hardhat-deploy'
 import '@typechain/hardhat'
 import '@eth-optimism/hardhat-ovm'
 import './tasks/deploy'
+import 'hardhat-gas-reporter'
 
 // Load environment variables from .env
 dotenv.config()
+
+const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 
 const config: HardhatUserConfig = {
   networks: {
@@ -26,6 +29,7 @@ const config: HardhatUserConfig = {
       live: false,
       saveDeployments: false,
       tags: ['local'],
+      hardfork: 'istanbul',
     },
     // Add this network to your config!
     optimism: {
@@ -63,6 +67,12 @@ const config: HardhatUserConfig = {
     deployer: {
       default: 0,
     },
+  },
+  gasReporter: {
+    enabled: enableGasReport,
+    currency: 'USD',
+    gasPrice: 100,
+    outputFile: process.env.CI ? 'gas-report.txt' : undefined,
   },
 }
 

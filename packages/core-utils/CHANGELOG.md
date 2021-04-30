@@ -1,5 +1,13 @@
 # @eth-optimism/core-utils
 
+## 0.3.2
+
+### Patch Changes
+
+- 6daa408: update hardhat versions so that solc is resolved correctly
+- dee74ef: migrate batch submitter types to core-utils
+- d64b66d: reformat error context for Sentry
+
 ## 0.3.1
 
 ### Patch Changes

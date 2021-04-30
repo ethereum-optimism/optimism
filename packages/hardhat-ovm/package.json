@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/hardhat-ovm",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
@@ -12,13 +12,16 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "lint:check": "tslint --format stylish --project .",
-    "lint:fix": "prettier --config prettier-config.json --write \"{src,test}/**/*.ts\""
+    "lint:fix": "prettier --config .prettierrc.json --write \"{src,test}/**/*.ts\""
   },
   "dependencies": {
     "node-fetch": "^2.6.1"
   },
   "devDependencies": {
-    "@types/mocha": "^8.2.2",
-    "hardhat": "^2.1.2"
+    "@types/mocha": "^8.2.2"
+  },
+  "peerDependencies": {
+    "ethers": "^5.1.4",
+    "hardhat": "^2.2.1"
   }
 }

@@ -752,17 +752,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _code
         )
     {
-        // `ovmEXTCODECOPY` is the only overridden opcode capable of producing exactly one byte of
-        // return data. By blocking reads of one byte, we're able to use the condition that an
-        // OVM_ExecutionManager function return value having a length of exactly one byte indicates
-        // an error without an explicit revert. If users were able to read a single byte, they
-        // could forcibly trigger behavior that should only be available to this contract.
-        uint256 length = _length == 1 ? 2 : _length;
-
         return Lib_EthUtils.getCode(
             _getAccountEthAddress(_contract),
             _offset,
-            length
+            _length
         );
     }
 
