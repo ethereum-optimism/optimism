@@ -21,6 +21,7 @@ const sequencer = new Wallet(process.env.SEQUENCER_PRIVATE_KEY)
 const deployer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY)
 
 const main = async () => {
+
   const config = parseEnv()
 
   await hre.run('deploy', {
@@ -45,31 +46,26 @@ const main = async () => {
   // update our CI so this is no longer necessary. But I'm adding it for backwards compat so we can
   // get the hardhat-deploy stuff merged. Woot.
   const nicknames = {
-    Lib_AddressManager: 'AddressManager',
-    mockOVM_BondManager: 'OVM_BondManager',
+    'Lib_AddressManager': 'AddressManager',
+    'mockOVM_BondManager': 'OVM_BondManager'
   }
 
   const contracts: any = dirtree(
     path.resolve(__dirname, `../deployments/custom`)
-  )
-    .children.filter((child) => {
-      return child.extension === '.json'
-    })
-    .reduce((contracts, child) => {
-      const contractName = child.name.replace('.json', '')
-      const artifact = require(path.resolve(
-        __dirname,
-        `../deployments/custom/${child.name}`
-      ))
-      contracts[nicknames[contractName] || contractName] = artifact.address
-      return contracts
-    }, {})
+  ).children.filter((child) => {
+    return child.extension === '.json'
+  }).reduce((contracts, child) => {
+    const contractName = child.name.replace('.json', '')
+    const artifact = require(path.resolve(__dirname, `../deployments/custom/${child.name}`))
+    contracts[nicknames[contractName] || contractName] = artifact.address
+    return contracts
+  }, {})
 
   contracts.OVM_Sequencer = await sequencer.getAddress()
   contracts.Deployer = await deployer.getAddress()
 
   const addresses = JSON.stringify(contracts, null, 2)
-  const dumpsPath = path.resolve(__dirname, '../dist/dumps')
+  const dumpsPath = path.resolve(__dirname, "../dist/dumps")
   if (!fs.existsSync(dumpsPath)) {
     fs.mkdirSync(dumpsPath)
   }
@@ -88,17 +84,16 @@ main()
 
 function parseEnv() {
   function ensure(env, type) {
-    if (typeof process.env[env] === 'undefined') return undefined
-    if (type === 'number') return parseInt(process.env[env], 10)
+    if (typeof process.env[env] === 'undefined')
+      return undefined
+    if (type === 'number')
+      return parseInt(process.env[env], 10)
     return process.env[env]
   }
 
   return {
     l1BlockTimeSeconds: ensure('BLOCK_TIME_SECONDS', 'number'),
-    ctcForceInclusionPeriodSeconds: ensure(
-      'FORCE_INCLUSION_PERIOD_SECONDS',
-      'number'
-    ),
+    ctcForceInclusionPeriodSeconds: ensure('FORCE_INCLUSION_PERIOD_SECONDS', 'number'),
     ctcMaxTransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
     emMinTransactionGasLimit: ensure('MIN_TRANSACTION_GAS_LIMIT', 'number'),
     emMaxtransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
@@ -106,9 +101,6 @@ function parseEnv() {
     emSecondsPerEpoch: ensure('ECONDS_PER_EPOCH', 'number'),
     emOvmChainId: ensure('CHAIN_ID', 'number'),
     sccFraudProofWindow: ensure('FRAUD_PROOF_WINDOW_SECONDS', 'number'),
-    sccSequencerPublishWindow: ensure(
-      'SEQUENCER_PUBLISH_WINDOW_SECONDS',
-      'number'
-    ),
+    sccSequencerPublishWindow: ensure('SEQUENCER_PUBLISH_WINDOW_SECONDS', 'number'),
   }
 }
