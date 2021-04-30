@@ -5,7 +5,7 @@ export const connectL1Contracts = async (
   signerOrProvider: Signer | providers.Provider,
   network: 'goerli' | 'kovan' | 'mainnet'
 ): Promise<Object> => {
-  const l1ContractData = getL1ContractData(network)
+  const l1ContractData = await getL1ContractData(network)
 
   return {
     addressManager: new Contract(
@@ -84,7 +84,7 @@ export const connectL1Contracts = async (
 export const connectL2Contracts = async (
   signerOrProvider: Signer | providers.Provider
 ): Promise<Object> => {
-  const l2ContractData = getL2ContractData()
+  const l2ContractData = await getL2ContractData()
 
   return {
     eth: new Contract(
