@@ -1,7 +1,5 @@
 /* External Imports */
-import hre from 'hardhat'
 import { cloneDeep, isPlainObject } from 'lodash'
-import { ethers } from 'ethers'
 
 type SolidityVariable =
   | string

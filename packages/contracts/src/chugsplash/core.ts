@@ -1,50 +1,140 @@
 /* External Imports */
-import { Contract, ethers } from 'ethers'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
+import { ethers } from 'ethers'
+import MerkleTree from 'merkletreejs'
 
 /* Internal Imports */
 import { parseConfig } from './config'
-import { computeStorageSlots, SolidityStorageLayout } from './storage'
+import { computeStorageSlots, getStorageLayout } from './storage'
 
-enum ChugSplashActionType {
+export enum ChugSplashActionType {
   SET_CODE,
   SET_STORAGE,
 }
 
-interface ChugSplashAction {
-  type: ChugSplashActionType
+export interface RawChugSplashAction {
+  actionType: ChugSplashActionType
   target: string
   data: string
 }
 
-export const getStorageLayout = async (
-  hre: any, //HardhatRuntimeEnvironment,
-  name: string
-): Promise<SolidityStorageLayout> => {
-  const { sourceName, contractName } = hre.artifacts.readArtifactSync(name)
-  const buildInfo = await hre.artifacts.getBuildInfo(
-    `${sourceName}:${contractName}`
-  )
-  const output = buildInfo.output.contracts[sourceName][contractName]
+export interface SetCodeAction {
+  target: string
+  code: string
+}
 
-  if (!('storageLayout' in output)) {
-    throw new Error(
-      `Storage layout for ${name} not found. Did you forget to set the storage layout compiler option in your hardhat config? Read more: https://github.com/ethereum-optimism/smock#note-on-using-smoddit`
+export interface SetStorageAction {
+  target: string
+  key: string
+  value: string
+}
+
+export type ChugSplashAction = SetCodeAction | SetStorageAction
+
+export interface ChugSplashActionBundle {
+  root: string
+  actions: Array<{
+    action: RawChugSplashAction
+    proof: {
+      actionIndex: number
+      siblings: string[]
+    }
+  }>
+}
+
+export const isSetStorageAction = (
+  action: ChugSplashAction
+): action is SetStorageAction => {
+  return (
+    (action as SetStorageAction).key !== undefined &&
+    (action as SetStorageAction).value !== undefined
+  )
+}
+
+export const toRawChugSplashAction = (
+  action: ChugSplashAction
+): RawChugSplashAction => {
+  if (isSetStorageAction(action)) {
+    return {
+      actionType: ChugSplashActionType.SET_STORAGE,
+      target: action.target,
+      data: ethers.utils.defaultAbiCoder.encode(
+        ['bytes32', 'bytes32'],
+        [action.key, action.value]
+      ),
+    }
+  } else {
+    return {
+      actionType: ChugSplashActionType.SET_CODE,
+      target: action.target,
+      data: action.code,
+    }
+  }
+}
+
+export const getChugSplashActionBundle = (
+  actions: ChugSplashAction[]
+): ChugSplashActionBundle => {
+  const rawActions = actions.map((action) => {
+    return toRawChugSplashAction(action)
+  })
+
+  const getLeafHash = (action: RawChugSplashAction): string => {
+    return ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(
+        ['uint8', 'address', 'bytes'],
+        [action.actionType, action.target, action.data]
+      )
     )
   }
 
-  return (output as any).storageLayout
+  const elements = rawActions.map((action) => {
+    return getLeafHash(action)
+  })
+
+  const filledElements = []
+  for (let i = 0; i < Math.pow(2, Math.ceil(Math.log2(elements.length))); i++) {
+    if (i < elements.length) {
+      filledElements.push(elements[i])
+    } else {
+      filledElements.push(ethers.utils.keccak256(ethers.constants.HashZero))
+    }
+  }
+
+  const bufs = filledElements.map((element) => {
+    return fromHexString(element)
+  })
+
+  const tree = new MerkleTree(
+    bufs,
+    (el: Buffer | string): Buffer => {
+      return fromHexString(ethers.utils.keccak256(el))
+    }
+  )
+
+  return {
+    root: toHexString(tree.getRoot()),
+    actions: rawActions.map((action, idx) => {
+      return {
+        action: action,
+        proof: {
+          actionIndex: idx,
+          siblings: tree.getProof(getLeafHash(action), idx).map((element) => {
+            return element.data
+          }),
+        },
+      }
+    }),
+  }
 }
 
-export const getDeploymentBundle = async (
+export const getBundleFromConfig = async (
   hre: any, //HardhatRuntimeEnvironment,
-  deploymentPath: string,
+  deployment: string | any,
   deployerAddress: string
-): Promise<{
-  hash: string
-  actions: ChugSplashAction[]
-}> => {
+): Promise<ChugSplashActionBundle> => {
   const config = parseConfig(
-    require(deploymentPath),
+    typeof deployment === 'string' ? require(deployment) : deployment,
     deployerAddress,
     process.env
   )
@@ -61,9 +151,8 @@ export const getDeploymentBundle = async (
 
     // Push an action to deploy this contract.
     actions.push({
-      type: ChugSplashActionType.SET_CODE,
       target: target,
-      data: artifact.deployedBytecode,
+      code: artifact.deployedBytecode,
     })
 
     // Push a `SET_STORAGE` action for each storage slot that we need to set.
@@ -72,28 +161,12 @@ export const getDeploymentBundle = async (
       contractConfig.variables
     )) {
       actions.push({
-        type: ChugSplashActionType.SET_STORAGE,
         target: target,
-        data: ethers.utils.defaultAbiCoder.encode(
-          ['bytes32', 'bytes32'],
-          [slot.key, slot.val]
-        ),
+        key: slot.key,
+        value: slot.val,
       })
     }
   }
 
-  return {
-    hash: '0x' + 'FF'.repeat(32),
-    actions,
-  }
-}
-
-export const createDeploymentManager = async (
-  hre: any, //HardhatRuntimeEnvironment,
-  owner: string
-): Promise<Contract> => {
-  const factory = await hre.ethers.getContractFactory('ChugSplashDeployer')
-  const instance = await factory.deploy(owner)
-  await instance.deployTransaction.wait()
-  return instance
+  return getChugSplashActionBundle(actions)
 }

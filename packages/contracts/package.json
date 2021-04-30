@@ -50,7 +50,8 @@
     "@openzeppelin/contracts": "^3.3.0",
     "@typechain/hardhat": "^1.0.1",
     "ganache-core": "^2.13.2",
-    "glob": "^7.1.6"
+    "glob": "^7.1.6",
+    "merkletreejs": "^0.2.18"
   },
   "devDependencies": {
     "@eth-optimism/hardhat-ovm": "^0.0.3",
@@ -71,7 +72,6 @@
     "hardhat-deploy": "^0.7.4",
     "lodash": "^4.17.20",
     "merkle-patricia-tree": "^4.0.0",
-    "merkletreejs": "^0.2.12",
     "mkdirp": "^1.0.4",
     "mocha": "^8.3.0",
     "random-bytes-seed": "^1.0.3",

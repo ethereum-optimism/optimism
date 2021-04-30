@@ -1,104 +1,70 @@
 import { expect } from 'chai'
+
+/* Imports: External */
 import { ethers } from 'hardhat'
 import { Wallet, Contract } from 'ethers'
-import { getContractInterface } from '@eth-optimism/contracts'
+import {
+  getContractInterface,
+  getChugSplashActionBundle,
+  ChugSplashAction,
+  isSetStorageAction,
+  predeploys,
+} from '@eth-optimism/contracts'
 
+/* Imports: Internal */
 import { OptimismEnv } from './shared/env'
-import { l2Provider, OVM_ETH_ADDRESS } from './shared/utils'
 
-interface SetCodeInstruction {
-  target: string // address
-  code: string // bytes memory
+const executeAndVerifyChugSplashBundle = async (
+  ChugSplashDeployer: Contract,
+  actions: ChugSplashAction[]
+): Promise<void> => {
+  const bundle = getChugSplashActionBundle(actions)
+
+  const res1 = await ChugSplashDeployer.approveTransactionBundle(
+    bundle.root,
+    bundle.actions.length,
+    {
+      gasLimit: 8000000,
+      gasPrice: 0,
+    }
+  )
+  await res1.wait()
+
+  for (const rawAction of bundle.actions) {
+    const res2 = await ChugSplashDeployer.executeAction(
+      rawAction.action,
+      rawAction.proof,
+      {
+        gasPrice: 0,
+      }
+    )
+    await res2.wait()
+
+    const action = actions[rawAction.proof.actionIndex]
+    if (isSetStorageAction(action)) {
+      expect(
+        await ChugSplashDeployer.provider.getStorageAt(
+          action.target,
+          action.key
+        )
+      ).to.deep.equal(action.value)
+    } else {
+      expect(
+        await ChugSplashDeployer.provider.getCode(action.target)
+      ).to.deep.equal(action.code)
+    }
+  }
 }
 
-interface SetStorageInstruction {
-  target: string // address
-  key: string // bytes32
-  value: string // bytes32
-}
-
-type ChugSplashInstruction = SetCodeInstruction | SetStorageInstruction
-
-const isSetStorageInstruction = (
-  instr: ChugSplashInstruction
-): instr is SetStorageInstruction => {
-  return !instr['code']
-}
-
-describe('OVM Self-Upgrades', async () => {
+describe.only('OVM Self-Upgrades', async () => {
   let env: OptimismEnv
   let l2Wallet: Wallet
   let ChugSplashDeployer: Contract
-
-  const applyChugsplashInstructions = async (
-    instructions: ChugSplashInstruction[]
-  ) => {
-    for (const instruction of instructions) {
-      let res: any
-      if (isSetStorageInstruction(instruction)) {
-        res = await ChugSplashDeployer.executeAction(
-          {
-            actionType: 1,
-            target: instruction.target,
-            data: ethers.utils.defaultAbiCoder.encode(
-              ['bytes32', 'bytes32'],
-              [instruction.key, instruction.value]
-            ),
-          },
-          {
-            actionIndex: 0,
-            siblings: [],
-          }
-        )
-      } else {
-        res = await ChugSplashDeployer.executeAction(
-          {
-            actionType: 0,
-            target: instruction.target,
-            data: instruction.code,
-          },
-          {
-            actionIndex: 0,
-            siblings: [],
-          }
-        )
-      }
-      await res.wait() // TODO: promise.all
-    }
-  }
-
-  const checkChugsplashInstructionsApplied = async (
-    instructions: ChugSplashInstruction[]
-  ) => {
-    for (const instruction of instructions) {
-      if (isSetStorageInstruction(instruction)) {
-        const actualStorage = await l2Provider.getStorageAt(
-          instruction.target,
-          instruction.key
-        )
-        expect(actualStorage).to.deep.eq(instruction.value)
-      } else {
-        const actualCode = await l2Provider.getCode(instruction.target)
-        expect(actualCode).to.deep.eq(instruction.code)
-      }
-    }
-  }
-
-  const applyAndVerifyUpgrade = async (
-    instructions: ChugSplashInstruction[]
-  ) => {
-    // TODO: Initialize the upgrade here.
-    // TODO: Add proof data to each instruction
-    await applyChugsplashInstructions(instructions)
-    await checkChugsplashInstructionsApplied(instructions)
-  }
-
   before(async () => {
     env = await OptimismEnv.new()
     l2Wallet = env.l2Wallet
-
     ChugSplashDeployer = new Contract(
-      '0x420000000000000000000000000000000000000a',
+      predeploys.ChugSplashDeployer,
       getContractInterface('ChugSplashDeployer', true),
       l2Wallet
     )
@@ -106,13 +72,11 @@ describe('OVM Self-Upgrades', async () => {
 
   describe('setStorage and setCode are correctly applied', () => {
     it('Should execute a basic storage upgrade', async () => {
-      await applyAndVerifyUpgrade([
+      await executeAndVerifyChugSplashBundle(ChugSplashDeployer, [
         {
-          target: OVM_ETH_ADDRESS,
-          key:
-            '0x1234123412341234123412341234123412341234123412341234123412341234',
-          value:
-            '0x6789123412341234123412341234123412341234123412341234678967896789',
+          target: predeploys.OVM_ETH,
+          key: `0x${'12'.repeat(32)}`,
+          value: `0x${'32'.repeat(32)}`,
         },
       ])
     })
@@ -123,21 +87,90 @@ describe('OVM Self-Upgrades', async () => {
       ).deploy()
       await DummyContract.deployTransaction.wait()
 
-      await applyAndVerifyUpgrade([
+      await executeAndVerifyChugSplashBundle(ChugSplashDeployer, [
         {
           target: DummyContract.address,
-          code:
-            '0x1234123412341234123412341234123412341234123412341234123412341234',
+          code: `0x${'12'.repeat(32)}`,
         },
       ])
     })
 
     it('Should execute a basic code upgrade which is not overwriting an existing account', async () => {
-      await applyAndVerifyUpgrade([
+      await executeAndVerifyChugSplashBundle(ChugSplashDeployer, [
         {
-          target: '0x5678657856785678567856785678567856785678',
-          code:
-            '0x1234123412341234123412341234123412341234123412341234123412341234',
+          target: `0x${'56'.repeat(20)}`,
+          code: `0x${'12'.repeat(32)}`,
+        },
+      ])
+    })
+
+    it('should set code and set storage in the same bundle', async () => {
+      await executeAndVerifyChugSplashBundle(ChugSplashDeployer, [
+        {
+          target: `0x${'56'.repeat(20)}`,
+          code: `0x${'12'.repeat(32)}`,
+        },
+        {
+          target: `0x${'56'.repeat(20)}`,
+          key: `0x${'12'.repeat(32)}`,
+          value: `0x${'12'.repeat(32)}`,
+        },
+      ])
+    })
+
+    it('should set code multiple times in the same bundle', async () => {
+      await executeAndVerifyChugSplashBundle(ChugSplashDeployer, [
+        {
+          target: `0x${'56'.repeat(20)}`,
+          code: `0x${'12'.repeat(32)}`,
+        },
+        {
+          target: `0x${'56'.repeat(20)}`,
+          code: `0x${'34'.repeat(32)}`,
+        },
+        {
+          target: `0x${'56'.repeat(20)}`,
+          code: `0x${'56'.repeat(32)}`,
+        },
+      ])
+    })
+
+    it('should set storage multiple times in the same bundle', async () => {
+      await executeAndVerifyChugSplashBundle(ChugSplashDeployer, [
+        {
+          target: `0x${'56'.repeat(20)}`,
+          key: `0x${'12'.repeat(32)}`,
+          value: `0x${'12'.repeat(32)}`,
+        },
+        {
+          target: `0x${'56'.repeat(20)}`,
+          key: `0x${'34'.repeat(32)}`,
+          value: `0x${'12'.repeat(32)}`,
+        },
+        {
+          target: `0x${'56'.repeat(20)}`,
+          key: `0x${'56'.repeat(32)}`,
+          value: `0x${'12'.repeat(32)}`,
+        },
+      ])
+    })
+
+    it.skip('should set storage multiple times with different addresses in the same bundle', async () => {
+      await executeAndVerifyChugSplashBundle(ChugSplashDeployer, [
+        {
+          target: `0x${'57'.repeat(20)}`,
+          key: `0x${'12'.repeat(32)}`,
+          value: `0x${'12'.repeat(32)}`,
+        },
+        {
+          target: `0x${'58'.repeat(20)}`,
+          key: `0x${'34'.repeat(32)}`,
+          value: `0x${'12'.repeat(32)}`,
+        },
+        {
+          target: `0x${'59'.repeat(20)}`,
+          key: `0x${'56'.repeat(32)}`,
+          value: `0x${'12'.repeat(32)}`,
         },
       ])
     })

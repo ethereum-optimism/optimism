@@ -41,6 +41,25 @@ interface StorageSlotPair {
   val: string
 }
 
+export const getStorageLayout = async (
+  hre: any, //HardhatRuntimeEnvironment,
+  name: string
+): Promise<SolidityStorageLayout> => {
+  const { sourceName, contractName } = hre.artifacts.readArtifactSync(name)
+  const buildInfo = await hre.artifacts.getBuildInfo(
+    `${sourceName}:${contractName}`
+  )
+  const output = buildInfo.output.contracts[sourceName][contractName]
+
+  if (!('storageLayout' in output)) {
+    throw new Error(
+      `Storage layout for ${name} not found. Did you forget to set the storage layout compiler option in your hardhat config? Read more: https://github.com/ethereum-optimism/smock#note-on-using-smoddit`
+    )
+  }
+
+  return (output as any).storageLayout
+}
+
 /**
  * Encodes a single variable as a series of key/value storage slot pairs using some storage layout
  * as instructions for how to perform this encoding. Works recursively with struct types.
