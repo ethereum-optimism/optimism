@@ -25,3 +25,10 @@ export function selectNetwork () {
     return state.setup['networkName'];
   };
 }
+
+//L1 or L2
+export function selectLayer () {
+  return function (state) {
+    return state.setup['netLayer'];
+  };
+}

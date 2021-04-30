@@ -47,7 +47,7 @@ import logo from 'images/omg_labs.svg';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = 1000; //in milliseconds?
+const POLL_INTERVAL = 2000; //in milliseconds?
 
 function Home () {
 

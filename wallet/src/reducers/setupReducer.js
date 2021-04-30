@@ -16,6 +16,7 @@ limitations under the License. */
 const initialState = {
   walletMethod: null,
   networkName: 'local',
+  netLayer: null,
 };
 
 function setupReducer (state = initialState, action) {
@@ -24,15 +25,38 @@ function setupReducer (state = initialState, action) {
       return { 
         ...state, 
         walletMethod: action.payload 
-      };
+      }
     case 'SETUP/NETWORK/SET':
       return { 
-      		...state, 
-      		networkName: action.payload.network,
-      	};
+      	...state, 
+      	networkName: action.payload
+      }
+    case 'SETUP/LAYER/SET':
+      return { 
+        ...state, 
+        netLayer: action.payload
+      }
     default:
       return state;
   }
 }
 
 export default setupReducer;
+
+/*
+export function setWalletMethod (method) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: method });
+  };
+}
+
+export function setNetwork (network) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/NETWORK/SET', payload: network });
+  };
+}
+
+export function setLayer (layer) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/LAYER/SET', payload: layer });
+*/

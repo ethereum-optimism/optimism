@@ -29,10 +29,8 @@ import { orderBy } from 'lodash';
 import BN from 'bn.js';
 import Web3 from 'web3';
 
-import { setNetwork } from 'actions/setupAction';
 import { getToken } from 'actions/tokenAction';
 import { openAlert, openError } from 'actions/uiAction';
-import { openNotification } from 'actions/notificationAction';
 import { WebWalletError } from 'services/errorService';
 
 import L1LPJson from '../deployment/artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
@@ -91,7 +89,7 @@ class NetworkService {
     this.ERC20L2Contract = null;
 
     // L1 or L2
-    this.thisL1orL2 = null;
+    this.L1orL2 = null;
     this.networkName = null;
 
     // Watcher
@@ -104,6 +102,7 @@ class NetworkService {
 
   async enableBrowserWallet() {
 
+    console.log("NS: enableBrowserWallet()")
     try {
       // connect to the wallet
       this.provider = await web3Modal.connect();
@@ -111,7 +110,7 @@ class NetworkService {
       // can't get rid of it at this moment, there are 
       // other functions that use this 
       this.web3Provider = new Web3Provider(this.provider);
-      
+     
       return true;
     } catch(error) {
       return false;
@@ -134,17 +133,21 @@ class NetworkService {
   }
 
   async initializeAccounts ( networkName ) {
-
+    
+    console.log("NS: initializeAccounts() for",networkName)
     try {
+
+      
 
       //at this point, the wallet should be connected
       this.account = await this.web3Provider.getSigner().getAddress();
+      console.log("this.account",this.account)
       const network = await this.web3Provider.getNetwork();
 
       this.networkName = networkName;
-      console.log("networkName:",networkName)
-      console.log("account:",this.account)
-      console.log("network:",network)
+      console.log("NS: networkName:",this.networkName)
+      console.log("NS: account:",this.account)
+      console.log("NS: network:",network)
 
       //there are numerous possible chains we could be on
       //either local, rinkeby etc
@@ -154,22 +157,25 @@ class NetworkService {
       if(networkName === 'local' && network.chainId === 420) {
         //ok, that's reasonable
         //local deployment, L2
-        this.thisL1orL2 = 'L2';
+        this.L1orL2 = 'L2';
       } else if (networkName === 'local' && network.chainId === 31337) {
         //ok, that's reasonable
         //local deployment, L1
-        this.thisL1orL2 = 'L1';
+        this.L1orL2 = 'L1';
       } else if (networkName === 'rinkeby' && network.chainId === 4) {
         //ok, that's reasonable
         //rinkeby, L1
-        this.thisL1orL2 = 'L1';
+        this.L1orL2 = 'L1';
       } else if (networkName === 'rinkeby' && network.chainId === 420) {
         //ok, that's reasonable
         //rinkeby, L2
-        this.thisL1orL2 = 'L2';
+        this.L1orL2 = 'L2';
       } else {
         return 'wrongnetwork'
       }
+
+      //dispatch(setLayer(this.L1orL2))
+      //const dispatch = useDispatch();
 
       // defines the set of possible networks
       const nw = getAllNetworks();
@@ -245,7 +251,7 @@ class NetworkService {
       })
 
       this.bindProviderListeners();
-
+      
       return 'enabled'
 
     } catch (error) {
@@ -278,7 +284,7 @@ class NetworkService {
       let testToken = null;
       
       //For testing - we always provide a test token
-      if (networkService.thisL1orL2 === 'L1') {
+      if (this.L1orL2 === 'L1') {
         testToken = await getToken(ERC20Address);
       } else {
         testToken = await getToken(L2DepositedERC20Address);
@@ -399,33 +405,14 @@ class NetworkService {
     }
   }
 
-/*
-  checkNetwork = (networkCase) => async (dispatch) =>{
+  confirmLayer = (layerToConfirm) => async (dispatch) =>{
     
-    const network = await this.web3Provider.getNetwork();
-
-    let networkCorrect = false;
-
-    if(networkCase === 'L1') {
-      if( network.chainId === 4 || network.chainId === 31337 ) {
-        return true
-      } else {
-        dispatch(openNotification({notificationText: `Metamask is set to the L2. For transactions on L1, please switch it to the L1.`}))
-        return false
-      }
-    } else if (networkCase === 'L2') {
-      if( network.chainId === 420 ) {
-        return true
-      } else {
-        dispatch(openNotification({notificationText: `Metamask is set to the L1. For transactions on L2, please switch it to the L2.`}))
-        return false
-      }
+    if(layerToConfirm === this.L1orL2 ) {
+      return true
     } else {
-      //should never happen. haha
+      return false
     }
-    return true
   }
-*/
 
   async getAllTransactions () {
     let transactionHistory = {};
@@ -551,7 +538,7 @@ class NetworkService {
     }
   }
 
-  async exitOptimism(currency, value) {
+  async exitOMGX(currency, value) {
     if (currency === '0x4200000000000000000000000000000000000006') {
       const tx = await this.L2ETHGatewayContract.withdraw(
         parseEther(value.toString()), 

@@ -15,8 +15,8 @@ limitations under the License. */
 
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import WrongNetworkModal from 'containers/modals/wrongnetwork/WrongNetworkModal';
 
+import WrongNetworkModal from 'containers/modals/wrongnetwork/WrongNetworkModal';
 import networkService from 'services/networkService';
 
 import { selectModalState } from 'selectors/uiSelector';
@@ -24,6 +24,7 @@ import { selectModalState } from 'selectors/uiSelector';
 import { 
   selectWalletMethod, 
   selectNetwork,
+  selectLayer,
 } from 'selectors/setupSelector';
 
 import { openModal } from 'actions/uiAction';
@@ -48,40 +49,41 @@ function WalletPicker ({ onEnable }) {
   const [ wrongNetwork, setWrongNetwork ] = useState(false);
   const [ showAllNetworks, setShowAllNetworks ] = useState(false);
 
-  const walletMethod = useSelector(selectWalletMethod());
+  const walletMethod = useSelector(selectWalletMethod())
+  const networkName = useSelector(selectNetwork())
+  const netLayer = useSelector(selectLayer())
 
-  const networkName = useSelector(selectNetwork());
+  console.log("walletMethod:",walletMethod)
   console.log("networkName:",networkName)
+  console.log("netLayer:",netLayer)
   
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
   const dispatchSetWalletMethod = useCallback((methodName) => {
+    console.log("dispatchSetWalletMethod:",methodName)
     dispatch(setWalletMethod(methodName));
   }, [ dispatch ])
 
   const dispatchSetNetwork = useCallback((network) => {
-    console.log(network)
+    console.log("dispatchSetNetwork:",network)
     setShowAllNetworks(false);
     dispatch(setNetwork(network));
   }, [ dispatch ])
 
   useEffect(() => {
 
+    if (walletMethod === 'browser') {
+      enableBrowserWallet();
+    }
+
     async function enableBrowserWallet () {
-      
-      console.log("enableBrowserWallet for",networkName)
-
+      console.log("enableBrowserWallet() for",networkName)
       const selectedNetwork = networkName ? networkName : "local";
-
       const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
-      
+      console.log("walletEnabled:",walletEnabled)
       return walletEnabled
         ? setWalletEnabled(true)
         : dispatchSetWalletMethod(null);
-    }
-
-    if (walletMethod === 'browser') {
-      enableBrowserWallet();
     }
 
   }, [ dispatchSetWalletMethod, walletMethod, networkName ]);
@@ -90,11 +92,12 @@ function WalletPicker ({ onEnable }) {
 
     async function initializeAccounts () {
 
-      console.log("initializeAccounts for",networkName)
+      console.log("initializeAccounts() for:",networkName)
 
       const initialized = await networkService.initializeAccounts(networkName);
 
       if (!initialized) {
+        console.log("Error !initialized for:",networkName)
         return setAccountsEnabled(false);
       }
 
@@ -180,7 +183,7 @@ function WalletPicker ({ onEnable }) {
                 <div
                   style={{background: '#2A308E', color: 'white', marginTop: 5, padding: 5, borderRadius: 3}}
                   key={index}
-                  onClick={()=>dispatchSetNetwork({network})}
+                  onClick={()=>dispatchSetNetwork(network)}
                 >
                   {network}
                 </div>))

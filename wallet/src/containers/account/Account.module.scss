@@ -84,6 +84,16 @@
   }
 }
 
+.dim {
+  background: #F4D7DC;
+  color: $gray4;
+}
+
+.active {
+  background: $bunnyRed;
+  color: $gray6;
+}
+
 .balances {
 
   display: flex;
@@ -94,8 +104,6 @@
   }
 
   .box {
-
-    background-color: $bunnyRed;
     padding: 20px;
     display: flex;
     flex-direction: column;
@@ -136,7 +144,6 @@
       .title {
         display: flex;
         flex-direction: column;
-        color: $gray6;
         font-family: 'Messina';
         span:first-child {
           font-size: 0.8em;
@@ -152,7 +159,6 @@
         display: flex;
         flex-direction: row;
         align-items: center;
-        color: $gray6;
         svg {
           margin-right: 10px;
           width: 15px;
@@ -179,7 +185,6 @@
       flex-direction: row;
       align-items: center;
       justify-content: space-between;
-      color: $gray6;
       margin-bottom: 5px;
 
       .token {

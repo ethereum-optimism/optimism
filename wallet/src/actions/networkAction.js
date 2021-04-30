@@ -110,10 +110,10 @@ export function addExitQueue (token, gasPrice) {
   );
 }
 
-export function exitOptimism (token, value) {
+export function exitOMGX (token, value) {
   return createAction(
     'EXIT/CREATE',
-    () => networkService.exitOptimism(token, value)
+    () => networkService.exitOMGX(token, value)
   )
 }
 
