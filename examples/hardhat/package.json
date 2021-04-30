@@ -9,8 +9,8 @@
     "deploy:ovm": "hardhat deploy --network optimism",
     "compile": "hardhat compile",
     "compile:ovm": "hardhat compile --network optimism",
-    "test": "hardhat test",
-    "test:ovm": "hardhat test --network optimism",
+    "test:integration": "hardhat test",
+    "test:integration:ovm": "hardhat test --network optimism",
     "clean": "rimraf ./cache-ovm ./cache ./artifacts-ovm ./artifacts ./deployments"
   },
   "devDependencies": {
