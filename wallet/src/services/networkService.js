@@ -73,6 +73,9 @@ class NetworkService {
     this.l1Web3Provider = null;
     this.l2Web3Provider = null;
 
+    this.l1Provider = null;
+    this.l2Provider = null;
+
     this.provider = null;
     this.OmgUtil = OmgUtil;
     this.environment = null;
@@ -95,8 +98,8 @@ class NetworkService {
     this.watcher = null;
 
     // LP address
-    this.this.L1LPAddress = addresses.L1LiquidityPool;
-    this.this.L2LPAddress = addresses.L2LiquidityPool;
+    this.L1LPAddress = addresses.L1LiquidityPool;
+    this.L2LPAddress = addresses.L2LiquidityPool;
   }
 
   async enableBrowserWallet() {
@@ -175,6 +178,9 @@ class NetworkService {
       this.l1Web3Provider = new Web3(new Web3.providers.HttpProvider(nw[networkName]['L1']['rpcUrl']));
       this.l2Web3Provider = new Web3(new Web3.providers.HttpProvider(nw[networkName]['L2']['rpcUrl']));
 
+      this.l1Provider = new JsonRpcProvider(nw[networkName]['L1']['rpcUrl']);
+      this.l2Provider = new JsonRpcProvider(nw[networkName]['L2']['rpcUrl']);
+
       this.L1ETHGatewayContract = new ethers.Contract(
         l1ETHGatewayAddress, 
         L1ETHGATEWAY, 
@@ -225,15 +231,15 @@ class NetworkService {
 
       //Fire up the new watcher
       //const addressManager = getAddressManager(bobl1Wallet)
-      //const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
+      //const watcher = await initWatcher(l1Provider, this.l2Provider, addressManager)
 
       this.watcher = new Watcher({
         l1: {
-          provider: l1Provider,
+          provider: this.l1Provider,
           messengerAddress: l1MessengerAddress
         },
         l2: {
-          provider: l2Provider,
+          provider: this.l2Provider,
           messengerAddress: l2MessengerAddress
         }
       })
@@ -262,10 +268,10 @@ class NetworkService {
 
     try {
 
-      const rootChainBalance = await l1Provider.getBalance(this.account);
+      const rootChainBalance = await this.l1Provider.getBalance(this.account);
       const ERC20L1Balance = await this.ERC20L1Contract.methods.balances(this.account).call({from: this.account});
 
-      const childChainBalance = await l2Provider.getBalance(this.account);
+      const childChainBalance = await this.l2Provider.getBalance(this.account);
       const ERC20L2Balance = await this.ERC20L2Contract.methods.balanceOf(this.account).call({from: this.account});
 
       const ethToken = await getToken(OmgUtil.transaction.ETH_CURRENCY);
@@ -325,11 +331,8 @@ class NetworkService {
     if (this.L1orL2 !== 'L1') return 
 
     try {
-
       //const l1ProviderRPC = new JsonRpcProvider(l1Network.rpcUrl);
-      const nw = getAllNetworks();
-      const l1ProviderRPC = new JsonRpcProvider(nw[this.networkName]['L1']['rpcUrl']);
-      const signer = l1ProviderRPC.getSigner();
+      const signer = this.l1Provider.getSigner();
       
       // Send 1 ETH
       const txOption = {
@@ -426,11 +429,11 @@ class NetworkService {
 
   async getAllTransactions () {
     let transactionHistory = {};
-    const latest = await l2Provider.eth.getBlockNumber();
+    const latest = await this.l2Provider.eth.getBlockNumber();
     const blockNumbers = Array.from(Array(latest).keys());
     
     for (let blockNumber of blockNumbers) {
-      const blockData = await l2Provider.eth.getBlock(blockNumber);
+      const blockData = await this.l2Provider.eth.getBlock(blockNumber);
       const transactionsArray = blockData.transactions;
       if (transactionsArray.length === 0) {
         transactionHistory.push({/*ToDo*/})
