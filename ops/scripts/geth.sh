@@ -4,7 +4,7 @@ VERBOSITY=${VERBOSITY:-6}
 
 if [[ ! -z "$URL" ]]; then
     # get the addrs from the URL provided
-    ADDRESSES=$(curl --silent --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
+    ADDRESSES=$(curl --fail --show-error --silent --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
 
     function envSet() {
         VAR=$1
@@ -25,6 +25,8 @@ fi
 
 # wait for the dtl to be up, else geth will crash if it cannot connect
 curl \
+    --fail \
+    --show-error \
     --silent \
     --output /dev/null \
     --retry-connrefused \
