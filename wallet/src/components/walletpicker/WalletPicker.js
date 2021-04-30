@@ -51,6 +51,8 @@ function WalletPicker ({ onEnable }) {
   const walletMethod = useSelector(selectWalletMethod());
 
   const networkName = useSelector(selectNetwork());
+  console.log("networkName:",networkName)
+  
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
   const dispatchSetWalletMethod = useCallback((methodName) => {
@@ -90,9 +92,7 @@ function WalletPicker ({ onEnable }) {
 
       console.log("initializeAccounts for",networkName)
 
-      const initialized = await networkService.initializeAccounts( 
-        networkName
-      );
+      const initialized = await networkService.initializeAccounts(networkName);
 
       if (!initialized) {
         return setAccountsEnabled(false);
@@ -111,7 +111,7 @@ function WalletPicker ({ onEnable }) {
     if (walletEnabled) {
       initializeAccounts();
     }
-  }, [ dispatchSetNetwork, walletEnabled, networkName ]);
+  }, [ walletEnabled, networkName ]);
 
   useEffect(() => {
     if (accountsEnabled) {
@@ -158,7 +158,7 @@ function WalletPicker ({ onEnable }) {
             >
               <div className={styles.indicator} />
               <div>
-                OMGX&nbsp;{networkName}
+                OMGX {networkName}
               </div>
               {!!allNetworks.length && (
                 <img

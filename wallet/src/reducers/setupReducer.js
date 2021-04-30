@@ -15,7 +15,7 @@ limitations under the License. */
 
 const initialState = {
   walletMethod: null,
-  networkName: '',
+  networkName: 'local',
 };
 
 function setupReducer (state = initialState, action) {
