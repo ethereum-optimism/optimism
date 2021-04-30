@@ -57,6 +57,13 @@ const padHexSlotValue = (val: string, offset: number): string => {
   )
 }
 
+/**
+ * Retrieves the storageLayout portion of the compiler artifact for a given contract by name. This
+ * function is hardhat specific.
+ * @param hre HardhatRuntimeEnvironment, required for the readArtifactSync function.
+ * @param name Name of the contract to retrieve the storage layout for.
+ * @return Storage layout object from the compiler output.
+ */
 export const getStorageLayout = async (
   hre: any, //HardhatRuntimeEnvironment,
   name: string
@@ -79,6 +86,7 @@ export const getStorageLayout = async (
 /**
  * Encodes a single variable as a series of key/value storage slot pairs using some storage layout
  * as instructions for how to perform this encoding. Works recursively with struct types.
+ * ref: https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#layout-of-state-variables-in-storage
  * @param variable Variable to encode as key/value slot pairs.
  * @param storageObj Solidity compiler JSON output describing the layout for this
  * @param storageTypes Full list of storage types allowed for this encoding.
@@ -193,26 +201,32 @@ const encodeVariable = (
     }
   } else if (variableType.encoding === 'bytes') {
     if (storageObj.offset !== 0) {
-      throw new Error(`offset not supported for string/bytes types`)
+      // string/bytes types are *not* packed by Solidity.
+      throw new Error(`got offset for string/bytes type, should never happen`)
     }
 
-    // ref: https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#bytes-and-string
+    // `string` types are converted to utf8 bytes, `bytes` are left as-is (assuming 0x prefixed).
     const bytes =
       storageObj.type === 'string'
         ? ethers.utils.toUtf8Bytes(variable)
         : fromHexString(variable)
-    if (bytes.length < 32) {
-      const slotVal = ethers.utils.hexlify(
-        ethers.utils.concat([
-          ethers.utils.concat([bytes, ethers.constants.HashZero]).slice(0, 31),
-          ethers.BigNumber.from(bytes.length * 2).toHexString(),
-        ])
-      )
 
+    // ref: https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#bytes-and-string
+    if (bytes.length < 32) {
+      // NOTE: Solidity docs (see above) specifies that strings or bytes with a length of 31 bytes
+      // should be placed into a storage slot where the last byte of the storage slot is the length
+      // of the variable in bytes * 2.
       return [
         {
           key: slotKey,
-          val: slotVal,
+          val: ethers.utils.hexlify(
+            ethers.utils.concat([
+              ethers.utils
+                .concat([bytes, ethers.constants.HashZero])
+                .slice(0, 31),
+              ethers.BigNumber.from(bytes.length * 2).toHexString(),
+            ])
+          ),
         },
       ]
     } else {
@@ -260,43 +274,53 @@ export const computeStorageSlots = (
     )
   }
 
+  // Dealing with packed storage slots now. We know that a storage slot is packed when two storage
+  // slots produced by the above encoding have the same key. In this case, we want to merge the two
+  // values into a single bytes32 value. We'll throw an error if the two values overlap (have some
+  // byte where both values are non-zero).
   slots = slots.reduce((prevSlots, slot) => {
+    // Find some previous slot where we have the same key.
     const prevSlot = prevSlots.find((otherSlot) => {
       return otherSlot.key === slot.key
     })
 
-    if (prevSlot !== undefined) {
+    if (prevSlot === undefined) {
+      // Slot doesn't share a key with any other slot so we can just push it and continue.
+      prevSlots.push(slot)
+    } else {
+      // Slot shares a key with some previous slot.
+      // First, we remove the previous slot from the list of slots since we'll be modifying it.
       prevSlots = prevSlots.filter((otherSlot) => {
         return otherSlot.key !== prevSlot.key
       })
 
+      // Now we'll generate a merged value by taking the non-zero bytes from both values. There's
+      // probably a more efficient way to do this, but this is relatively easy and straightforward.
+      let mergedVal = '0x'
       const valA = remove0x(slot.val)
       const valB = remove0x(prevSlot.val)
-
-      let val = '0x'
       for (let i = 0; i < 64; i += 2) {
         const byteA = valA.slice(i, i + 2)
         const byteB = valB.slice(i, i + 2)
 
         if (byteA === '00' && byteB === '00') {
-          val += '00'
+          mergedVal += '00'
         } else if (byteA === '00' && byteB !== '00') {
-          val += byteB
+          mergedVal += byteB
         } else if (byteA !== '00' && byteB === '00') {
-          val += byteA
+          mergedVal += byteA
         } else {
+          // Should never happen, means our encoding is broken. Values should *never* overlap.
           throw new Error(
-            'detected badly encoded packed string, should not happen'
+            'detected badly encoded packed value, should not happen'
           )
         }
       }
 
       prevSlots.push({
         key: slot.key,
-        val,
+        val: mergedVal,
       })
-    } else {
-      prevSlots.push(slot)
     }
 
     return prevSlots
