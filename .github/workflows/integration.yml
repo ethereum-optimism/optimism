@@ -34,10 +34,6 @@ jobs:
         working-directory: ./ops
         run: ./scripts/build-ci.sh
 
-      - name: Bring the stack up and wait for the sequencer to be ready
-        working-directory: ./ops
-        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
-
       - name: Run the integration tests
         working-directory: ./integration-tests
         run: |
