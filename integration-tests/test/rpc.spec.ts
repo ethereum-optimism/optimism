@@ -1,16 +1,10 @@
-
 import { injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber } from 'ethers'
 import chai, { expect } from 'chai'
 import { sleep, l2Provider, GWEI } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
-import { DockerComposeNetwork } from './shared/docker-compose'
 chai.use(chaiAsPromised)
-
-before(async () => {
-  await new DockerComposeNetwork().up()
-})
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
@@ -161,8 +155,8 @@ describe('Basic RPC tests', () => {
       // 96 bytes * 16 per non zero byte
       const onesCost = BigNumber.from(96).mul(16)
       const expectedCost = dataLen
-        .map(len => BigNumber.from(len).mul(4))
-        .map(zerosCost => zerosCost.add(onesCost))
+        .map((len) => BigNumber.from(len).mul(4))
+        .map((zerosCost) => zerosCost.add(onesCost))
 
       // Repeat this test for a series of possible transaction sizes.
       for (let i = 0; i < dataLen.length; i++) {
