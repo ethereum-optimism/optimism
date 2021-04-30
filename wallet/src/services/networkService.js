@@ -701,7 +701,7 @@ class NetworkService {
   async getL1LPFeeRatio() {
     const L1LPContract = new this.l1Web3Provider.eth.Contract(
       L1LPJson.abi,
-      L1LPAddress,
+      this.L1LPAddress,
     );
     return await L1LPContract.methods.getFeeRatio().call({ from: this.account });
   }
@@ -853,7 +853,7 @@ class NetworkService {
   async getL2LPFeeRatio() {
     const L2LPContract = new this.l2Web3Provider.eth.Contract(
       L2LPJson.abi,
-      L2LPAddress,
+      this.L2LPAddress,
     );
     return await L2LPContract.methods.getFeeRatio().call({ from: this.account });
   }
