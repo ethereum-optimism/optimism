@@ -41,6 +41,22 @@ interface StorageSlotPair {
   val: string
 }
 
+/**
+ * Takes a slot value (in hex), left-pads it with zeros, and displaces it by a given offset.
+ * @param val Hex string value to pad.
+ * @param offset Number of bytes to offset from the right.
+ * @return Padded hex string.
+ */
+const padHexSlotValue = (val: string, offset: number): string => {
+  return (
+    '0x' +
+    remove0x(val)
+      .padStart(64 - offset * 2, '0') // Pad the start with 64 - offset zero bytes.
+      .padEnd(64, '0') // Pad the end (up to 64 bytes) with zero bytes.
+      .toLowerCase() // Making this lower case makes assertions more consistent later.
+  )
+}
+
 export const getStorageLayout = async (
   hre: any, //HardhatRuntimeEnvironment,
   name: string
@@ -98,18 +114,10 @@ const encodeVariable = (
         throw new Error(`invalid address type: ${variable}`)
       }
 
-      // Addresses are right-aligned.
-      const slotVal =
-        '0x' +
-        remove0x(variable)
-          .padStart(64 - storageObj.offset * 2, '0')
-          .padEnd(64, '0')
-          .toLowerCase()
-
       return [
         {
           key: slotKey,
-          val: slotVal,
+          val: padHexSlotValue(variable, storageObj.offset),
         },
       ]
     } else if (variableType.label === 'bool') {
@@ -127,17 +135,10 @@ const encodeVariable = (
         throw new Error(`invalid bool type: ${variable}`)
       }
 
-      // Booleans are right-aligned and represented as 0 or 1.
-      const slotVal =
-        '0x' +
-        (variable ? '1' : '0')
-          .padStart(64 - storageObj.offset * 2, '0')
-          .padEnd(64, '0')
-
       return [
         {
           key: slotKey,
-          val: slotVal,
+          val: padHexSlotValue(variable ? '1' : '0', storageObj.offset),
         },
       ]
     } else if (variableType.label.startsWith('bytes')) {
@@ -145,18 +146,13 @@ const encodeVariable = (
         throw new Error(`invalid bytesN type`)
       }
 
-      const slotVal =
-        '0x' +
-        remove0x(variable)
-          .padEnd(variableType.numberOfBytes * 2, '0')
-          .padStart(64 - storageObj.offset * 2, '0')
-          .padEnd(64, '0')
-          .toLowerCase()
-
       return [
         {
           key: slotKey,
-          val: slotVal,
+          val: padHexSlotValue(
+            remove0x(variable).padEnd(variableType.numberOfBytes * 2, '0'),
+            storageObj.offset
+          ),
         },
       ]
     } else if (variableType.label.startsWith('uint')) {
@@ -169,18 +165,13 @@ const encodeVariable = (
         )
       }
 
-      // Uints are right aligned.
-      const slotVal =
-        '0x' +
-        remove0x(BigNumber.from(variable).toHexString())
-          .padStart(64 - storageObj.offset * 2, '0')
-          .padEnd(64, '0')
-          .toLowerCase()
-
       return [
         {
           key: slotKey,
-          val: slotVal,
+          val: padHexSlotValue(
+            BigNumber.from(variable).toHexString(),
+            storageObj.offset
+          ),
         },
       ]
     } else if (variableType.label.startsWith('struct')) {
