@@ -236,6 +236,8 @@ export const run = async () => {
               txHash: response.hash,
               to: response.to,
               from: response.from,
+            })
+            logger.debug('empty transaction data', {
               data: response.data,
             })
             await sequencerSigner.provider.waitForTransaction(

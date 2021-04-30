@@ -186,6 +186,8 @@ export class StateBatchSubmitter extends BatchSubmitter {
         txHash: contractTx.hash,
         contractAddr: this.chainContract.address,
         from: contractTx.from,
+      })
+      this.logger.debug('appendStateBatch transaction data', {
         data: contractTx.data,
       })
       return this.signer.provider.waitForTransaction(

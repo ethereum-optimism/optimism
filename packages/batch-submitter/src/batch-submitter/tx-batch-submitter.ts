@@ -148,6 +148,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             txHash: tx.hash,
             contractAddr: this.chainContract.address,
             from: tx.from,
+          })
+          this.logger.debug('appendQueueBatch transaction data', {
             data: tx.data,
           })
           return this.signer.provider.waitForTransaction(
@@ -252,6 +254,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         txHash: tx.hash,
         contractAddr: this.chainContract.address,
         from: tx.from,
+      })
+      this.logger.debug('appendSequencerBatch transaction data', {
         data: tx.data,
       })
       return this.signer.provider.waitForTransaction(
