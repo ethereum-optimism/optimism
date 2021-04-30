@@ -81,10 +81,10 @@ const l1Provider = new JsonRpcProvider(l1Network.rpcUrl);
 const l2Provider = new JsonRpcProvider(l2Network.rpcUrl);
 
 const l1ETHGatewayAddress = addresses.l1ETHGatewayAddress;
-const l2ETHGatewayAddress = l2Network.l2ETHGatewayAddress;
-
 const l1MessengerAddress = addresses.l1MessengerAddress;
-const l2MessengerAddress = l2Network.l2MessengerAddress;
+
+const l2ETHGatewayAddress = '0x4200000000000000000000000000000000000006';
+const l2MessengerAddress = '0x4200000000000000000000000000000000000007';
 
 const l1ChainID = l1Network.chainId;
 const l2ChainID = l2Network.chainId;
@@ -95,6 +95,7 @@ const l2NetworkName = l2Network.name;
 class NetworkService {
 
   constructor () {
+
     this.web3 = null;
     // based on MetaMask
     this.web3Provider = null;
@@ -239,9 +240,14 @@ class NetworkService {
     })
   }
 
-  initializeAccounts = () => async (dispatch) => {
+  async initializeAccounts (
+      networkName
+  ) {
+
     try {
 
+      console.log("networkName:",networkName)
+    /*
       this.account = await this.web3Provider.getSigner().getAddress();
       
       const networkStatus = await dispatch(this.checkNetwork('L1L2'));
@@ -259,6 +265,7 @@ class NetworkService {
           watcher: NETWORKS.localL1.rpcUrl,
         }
       })); 
+    */
       return 'enabled';
     } catch (error) {
       return false;
@@ -284,6 +291,7 @@ class NetworkService {
 
       const ethToken = await getToken(OmgUtil.transaction.ETH_CURRENCY);
       let testToken = null;
+      
       if (networkService.selectedNetwork === 'L1') {
         testToken = await getToken(ERC20Address);
       } else {
@@ -306,7 +314,7 @@ class NetworkService {
         {
           ...ethToken,
           currency: l2ETHGatewayAddress,
-          symbol: 'WETH',
+          symbol: 'oETH',
           amount: new BN(childChainBalance.toString()),
         },
         {

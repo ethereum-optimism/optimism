@@ -23,10 +23,7 @@ import { selectModalState } from 'selectors/uiSelector';
 
 import { 
   selectWalletMethod, 
-  selectNetwork, 
-  selectNetworkShort, 
-  selectNetworkWURL,
-  selectPlasmaAddress,  
+  selectNetwork,
 } from 'selectors/setupSelector';
 
 import { openModal } from 'actions/uiAction';
@@ -54,10 +51,6 @@ function WalletPicker ({ onEnable }) {
   const walletMethod = useSelector(selectWalletMethod());
 
   const networkName = useSelector(selectNetwork());
-  const networkNameShort = useSelector(selectNetworkShort());
-  const watcherURL = useSelector(selectNetworkWURL());
-  const plasmaAddress = useSelector(selectPlasmaAddress());
-
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
   const dispatchSetWalletMethod = useCallback((methodName) => {
@@ -65,6 +58,7 @@ function WalletPicker ({ onEnable }) {
   }, [ dispatch ])
 
   const dispatchSetNetwork = useCallback((network) => {
+    console.log(network)
     setShowAllNetworks(false);
     dispatch(setNetwork(network));
   }, [ dispatch ])
@@ -73,7 +67,9 @@ function WalletPicker ({ onEnable }) {
 
     async function enableBrowserWallet () {
       
-      const selectedNetwork = networkName ? networkName : "Mainnet";
+      console.log("enableBrowserWallet for",networkName)
+
+      const selectedNetwork = networkName ? networkName : "local";
 
       const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
       
@@ -92,10 +88,10 @@ function WalletPicker ({ onEnable }) {
 
     async function initializeAccounts () {
 
+      console.log("initializeAccounts for",networkName)
+
       const initialized = await networkService.initializeAccounts( 
-        networkNameShort, 
-        watcherURL,
-        plasmaAddress
+        networkName
       );
 
       if (!initialized) {
@@ -115,7 +111,7 @@ function WalletPicker ({ onEnable }) {
     if (walletEnabled) {
       initializeAccounts();
     }
-  }, [ dispatch, walletEnabled, watcherURL, plasmaAddress ]);
+  }, [ dispatchSetNetwork, walletEnabled, networkName ]);
 
   useEffect(() => {
     if (accountsEnabled) {
@@ -138,7 +134,10 @@ function WalletPicker ({ onEnable }) {
   const browserEnabled = !!window.ethereum;
 
   // defines the set of possible networks
-  const allNetworks = getAllNetworks();
+  const networks = getAllNetworks();
+
+  let allNetworks = [];
+  for (var prop in networks) allNetworks.push(prop)
 
   return (
     <>
@@ -159,8 +158,7 @@ function WalletPicker ({ onEnable }) {
             >
               <div className={styles.indicator} />
               <div>
-                OMGX&nbsp;
-                {networkName}
+                OMGX&nbsp;{networkName}
               </div>
               {!!allNetworks.length && (
                 <img
@@ -184,7 +182,7 @@ function WalletPicker ({ onEnable }) {
                   key={index}
                   onClick={()=>dispatchSetNetwork({network})}
                 >
-                  {network.name}
+                  {network}
                 </div>))
               }
             </div>
