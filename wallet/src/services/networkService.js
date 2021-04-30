@@ -35,11 +35,6 @@ import { openAlert, openError } from 'actions/uiAction';
 import { openNotification } from 'actions/notificationAction';
 import { WebWalletError } from 'services/errorService';
 
-import VarnaPoolABI from "contracts/VarnaPool.abi";
-import VarnaPoolAddress from "contracts/VarnaPool.address";
-import VarnaSwapABI from "contracts/AtomicSwap.abi";
-import VarnaSwapAddress from "contracts/AtomicSwap.address";
-
 import L1LPJson from '../deployment/artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
 import L2LPJson from '../deployment/artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
 import L1ERC20Json from '../deployment/artifacts/contracts/ERC20.sol/ERC20.json'
@@ -116,12 +111,6 @@ class NetworkService {
     this.ERC20L1Contract = null;
     this.ERC20L2Contract = null;
 
-    // Varna
-    this.VarnaPoolContract = null;
-    this.VarnaSwapContract = null;
-    this.VarnaPoolAddress = VarnaPoolAddress;
-    this.VarnaSwapAddress = VarnaSwapAddress;
-
     // L1 or L2
     this.selectedNetwork = null;
 
@@ -153,18 +142,6 @@ class NetworkService {
       this.L2ETHGatewayContract = new ethers.Contract(
         l2ETHGatewayAddress,
         L2DEPOSITEDERC20,
-        this.web3Provider.getSigner(),
-      );
-
-      this.VarnaPoolContract = new ethers.Contract(
-        VarnaPoolAddress, 
-        VarnaPoolABI, 
-        this.web3Provider.getSigner(),
-      );
-      
-      this.VarnaSwapContract = new ethers.Contract(
-        VarnaSwapAddress,
-        VarnaSwapABI,
         this.web3Provider.getSigner(),
       );
 
@@ -232,10 +209,6 @@ class NetworkService {
 
     this.provider.on("chainChanged", () => {
       window.location.reload();
-    })
-
-    this.OVM_L2DepositedERC20.on("WithdrawalInitiated", (sender, to, amount) => {
-      console.log({ sender, to, amount: amount.toString() });
     })
   }
 
@@ -765,6 +738,14 @@ class NetworkService {
     return logAmount(balance.toString(), decimals);
   }
 
+  async getL1LPFeeRatio() {
+    const L1LPContract = new this.l1Web3Provider.eth.Contract(
+      L1LPJson.abi,
+      L1LPAddress,
+    );
+    return await L1LPContract.methods.getFeeRatio().call({ from: this.account });
+  }
+
   async L1LPFeeBalance(currency) {
     const L1LPContract = new this.l1Web3Provider.eth.Contract(
       L1LPJson.abi,
@@ -906,6 +887,15 @@ class NetworkService {
     // Demo purpose
     const decimals = 18;
     return logAmount(balance.toString(), decimals);
+  }
+
+
+  async getL2LPFeeRatio() {
+    const L2LPContract = new this.l2Web3Provider.eth.Contract(
+      L2LPJson.abi,
+      L2LPAddress,
+    );
+    return await L2LPContract.methods.getFeeRatio().call({ from: this.account });
   }
 
   async L2LPFeeBalance(currency) {

@@ -12,7 +12,7 @@
     "build": "./scripts/build.sh",
     "build:contracts": "hardhat compile",
     "build:contracts:ovm": "hardhat compile --network omgx",
-    "deploy": "hardhat --network omgx test && ./scripts/copy.sh"
+    "deploy": "./scripts/build.sh && hardhat --network omgx test && ./scripts/copy.sh"
   },
   "devDependencies": {
     "@eth-optimism/hardhat-ovm": "^0.0.2",

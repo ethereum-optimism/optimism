@@ -58,6 +58,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
     event clientDepositL2_EVENT(
         address sender,
         uint256 amount,
+        uint256 fee,
         address erc20ContractAddress
     );
 
@@ -112,7 +113,6 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
      * dynamic, and the above public constant does not suffice.
      *
      */
-
     function getFinalizeDepositL2Gas()
         public
         view
@@ -122,6 +122,20 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
         )
     {
         return DEFAULT_FINALIZE_DEPOSIT_L2_GAS;
+    }
+
+    /**
+     * Get the fee ratio.
+     * @return the fee ratio.
+     */
+    function getFeeRatio()
+        external
+        view
+        returns(
+            uint256
+        )
+    {
+        return fee;
     }
 
     /**
@@ -200,13 +214,16 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
         require(erc20Contract.transferFrom(msg.sender, address(this), _amount), "ERC20 token transfer was unsuccessful");
 
         //Augment the pool size for this ERC20
+        uint256 _swapFee = _amount * fee / 100; //dangerous
+        uint256 _receivedAmount = _amount - _swapFee; //need check
         balances[_erc20L2ContractAddress] += _amount;
+        fees[_erc20L2ContractAddress] += _swapFee;
 
-        // Construct calldata for L1LiquidityPool.depositToFinalize(_to, _amount)
+        // Construct calldata for L1LiquidityPool.depositToFinalize(_to, _receivedAmount)
         bytes memory data = abi.encodeWithSelector(
             L1LiquidityPool.clientPayL1.selector,
             msg.sender,
-            _amount,
+            _receivedAmount,
             _erc20L1ContractAddress
         );
 
@@ -219,6 +236,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
 
         emit clientDepositL2_EVENT(
             msg.sender,
+            _receivedAmount,
             _amount,
             _erc20L2ContractAddress
         );
@@ -273,12 +291,9 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
         onlyFromCrossDomainAccount(address(L1LiquidityPoolAddress))
     {
         ERC20 erc20Contract = ERC20(_erc20ContractAddress);
-        uint256 _swapFee = _amount * fee / 100; //dangerous
-        uint256 _receivedAmount = _amount - _swapFee; //need check
-        require(erc20Contract.transfer(_to, _receivedAmount));
+        require(erc20Contract.transfer(_to, _amount));
 
         balances[_erc20ContractAddress] -= _amount;
-        fees[_erc20ContractAddress] += _swapFee;
         
         emit clientPayL2_EVENT(
           _to,
