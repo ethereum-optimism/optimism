@@ -223,5 +223,5 @@ Here's a step-by-step process on how to do that while in your browser:
 
 3. Next, you'll enter in the network parameters and save it:
 
-   ![image-20210429184519460](/Users/chenboyuan/Library/Application Support/typora-user-images/image-20210429184519460.png)
+   ![image](https://user-images.githubusercontent.com/46272347/116638580-7c53a600-a91b-11eb-86c5-75242eb0507b.png)
 
