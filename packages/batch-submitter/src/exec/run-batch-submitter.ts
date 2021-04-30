@@ -16,19 +16,34 @@ import {
   TX_BATCH_SUBMITTER_LOG_TAG,
 } from '..'
 
+const environment = process.env.NODE_ENV
+const network = process.env.ETH_NETWORK_NAME
+const release = `batch-submitter@${process.env.npm_package_version}`
+
 /* Logger */
 const name = 'oe:batch_submitter:init'
-const log = new Logger({
-  name,
-  sentryOptions: {
-    release: `batch-submitter@${process.env.npm_package_version}`,
-    dsn: process.env.SENTRY_DSN,
-    tracesSampleRate: 0.05,
-  },
-})
+let logger
+
+if (network) {
+  // Initialize Sentry for Batch Submitter deployed to a network
+  logger = new Logger({
+    name,
+    sentryOptions: {
+      release,
+      dsn: process.env.SENTRY_DSN,
+      tracesSampleRate: parseInt(process.env.SENTRY_TRACE_RATE, 10) || 0.05,
+      environment: network, // separate our Sentry errors by network instead of node environment
+    },
+  })
+} else {
+  // Skip initializing Sentry
+  logger = new Logger({ name })
+}
+
 /* Metrics */
 const metrics = new Metrics({
   prefix: name,
+  labels: { environment, release, network },
 })
 
 interface RequiredEnvVars {
@@ -115,11 +130,11 @@ const autoFixBatchOptions: AutoFixBatchOptions = {
 }
 
 export const run = async () => {
-  log.info('Starting batch submitter...')
+  logger.info('Starting batch submitter...')
 
   for (const [i, val] of Object.entries(requiredEnvVars)) {
     if (!process.env[val]) {
-      log.warn('Missing environment variable', {
+      logger.warn('Missing environment variable', {
         varName: val,
       })
       exit(1)
@@ -144,7 +159,7 @@ export const run = async () => {
   }
 
   const address = await sequencerSigner.getAddress()
-  log.info('Configured batch submitter addresses', {
+  logger.info('Configured batch submitter addresses', {
     batchSubmitterAddress: address,
     addressManagerAddress: requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
   })
@@ -164,8 +179,11 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
-    log.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({ prefix: TX_BATCH_SUBMITTER_LOG_TAG }),
+    logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({
+      prefix: TX_BATCH_SUBMITTER_LOG_TAG,
+      labels: { environment, release, network },
+    }),
     DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
   )
@@ -186,8 +204,11 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
-    log.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({ prefix: STATE_BATCH_SUBMITTER_LOG_TAG }),
+    logger.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({
+      prefix: STATE_BATCH_SUBMITTER_LOG_TAG,
+      labels: { environment, release, network },
+    }),
     FRAUD_SUBMISSION_ADDRESS
   )
 
@@ -201,18 +222,22 @@ export const run = async () => {
         const pendingTxs = await sequencerSigner.getTransactionCount('pending')
         const latestTxs = await sequencerSigner.getTransactionCount('latest')
         if (pendingTxs > latestTxs) {
-          log.info('Detected pending transactions. Clearing all transactions!')
+          logger.info(
+            'Detected pending transactions. Clearing all transactions!'
+          )
           for (let i = latestTxs; i < pendingTxs; i++) {
             const response = await sequencerSigner.sendTransaction({
               to: await sequencerSigner.getAddress(),
               value: 0,
               nonce: i,
             })
-            log.info('Submitted empty transaction', {
+            logger.info('Submitted empty transaction', {
               nonce: i,
               txHash: response.hash,
               to: response.to,
               from: response.from,
+            })
+            logger.debug('empty transaction data', {
               data: response.data,
             })
             await sequencerSigner.provider.waitForTransaction(
@@ -222,7 +247,7 @@ export const run = async () => {
           }
         }
       } catch (err) {
-        log.error('Cannot clear transactions', { err })
+        logger.error('Cannot clear transactions', { err })
         process.exit(1)
       }
     }
@@ -231,8 +256,8 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        log.error('Error submitting batch', { err })
-        log.info('Retrying...')
+        logger.error('Error submitting batch', { err })
+        logger.info('Retrying...')
       }
       // Sleep
       await new Promise((r) =>
