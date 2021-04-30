@@ -16,19 +16,20 @@
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "^0.2.8",
-    "@eth-optimism/core-utils": "^0.3.2",
+    "@eth-optimism/contracts": "0.2.8",
+    "@eth-optimism/core-utils": "0.3.2",
     "@eth-optimism/hardhat-ovm": "^0.1.0",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
-    "chai": "^4.3.3",
+    "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "envalid": "^7.1.0",
     "ethereum-waffle": "^3.3.0",
-    "ethers": "^5.0.32",
+    "ethers": "^5.1.4",
     "hardhat": "^2.2.1",
     "hardhat-gas-reporter": "^1.0.4",
-    "mocha": "^8.3.1",
-    "rimraf": "^3.0.2"
+    "mocha": "^8.3.2",
+    "rimraf": "^3.0.2",
+    "shelljs": "^0.8.4"
   }
 }

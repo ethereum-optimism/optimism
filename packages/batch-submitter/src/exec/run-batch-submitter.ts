@@ -2,8 +2,7 @@
 import { injectL2Context } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { exit } from 'process'
-import { Signer, Wallet } from 'ethers'
-import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
+import { Signer, Wallet, providers } from 'ethers'
 import { config } from 'dotenv'
 config()
 
@@ -15,6 +14,7 @@ import {
   STATE_BATCH_SUBMITTER_LOG_TAG,
   TX_BATCH_SUBMITTER_LOG_TAG,
 } from '..'
+import { TransactionReceipt } from '@ethersproject/abstract-provider'
 
 /* Logger */
 const name = 'oe:batch_submitter:init'
@@ -129,9 +129,9 @@ export const run = async () => {
 
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS === 'true'
 
-  const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
+  const l1Provider = new providers.JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
   const l2Provider = injectL2Context(
-    new JsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
+    new providers.JsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
   )
 
   let sequencerSigner: Signer
