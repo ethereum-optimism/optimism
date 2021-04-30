@@ -42,6 +42,7 @@ function DoExitStep ({
   const [ currency, setCurrency ] = useState('');
   const [ value, setValue ] = useState('');
   const [ LPBalance, setLPBalance ] = useState(0);
+  const [ feeRate, setFeeRate ] = useState(0);
 
   const balances = useSelector(selectChildchainBalance, isEqual);
 
@@ -52,6 +53,9 @@ function DoExitStep ({
     if (fast && currency) {
       networkService.L1LPBalance(currency).then((LPBalance)=>{
         setLPBalance(LPBalance)
+      })
+      networkService.getL2LPFeeRatio().then((feeRate)=>{
+        setFeeRate(feeRate)
       })
     }
   }, [ balances, currency, fast ]);
@@ -117,9 +121,14 @@ function DoExitStep ({
       />
       
       {fast && currency ? (
-        <h3>
-          The liquidity pool has {LPBalance} {currencySymbols[currency]}.
-        </h3>
+        <>
+          <h3>
+            The L1 liquidity pool has {LPBalance} {currencySymbols[currency]}.
+          </h3>
+          <h3>
+            The convenience fee is {feeRate}%. {value && `You are going to receive ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1.`}
+          </h3>
+        </>
       ):<></>}
 
       <div className={styles.buttons}>

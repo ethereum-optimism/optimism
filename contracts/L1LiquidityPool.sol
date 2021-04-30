@@ -61,6 +61,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
     event clientDepositL1_EVENT(
         address sender,
         uint256 amount,
+        uint256 fee,
         address erc20ContractL1Address,
         address erc20ContractL2Address
     );
@@ -108,11 +109,16 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
     receive() external payable {
 
         if (msg.sender != owner) {
+            uint256 _swapFee = msg.value * fee / 100; //dangerous
+            uint256 _receivedAmount = msg.value - _swapFee; //needs check
+
+            fees[address(0)] += _swapFee;
+
             // Construct calldata for L2LiquidityPool.depositToFinalize(_to, _amount)
             bytes memory data = abi.encodeWithSelector(
                 L2LiquidityPool.clientPayL2.selector,
                 msg.sender,
-                msg.value,
+                _receivedAmount,
                 l2ETHAddress
             );
 
@@ -140,6 +146,20 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
         )
     {
         return DEFAULT_FINALIZE_DEPOSIT_L2_GAS;
+    }
+
+    /**
+     * Get the fee ratio.
+     * @return the fee ratio.
+     */
+    function getFeeRatio()
+        external
+        view
+        returns(
+            uint256
+        )
+    {
+        return fee;
     }
 
     /**
@@ -219,13 +239,16 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
         require(erc20Contract.transferFrom(msg.sender, address(this), _amount), "ERC20 token transfer was unsuccessful");
         
         //Augment the pool size for this ERC20
+        uint256 _swapFee = _amount * fee / 100; //dangerous
+        uint256 _receivedAmount = _amount - _swapFee; //needs check
         balances[_erc20L1ContractAddress] += _amount;
+        fees[_erc20L1ContractAddress] += _swapFee;
 
-        // Construct calldata for L2LiquidityPool.depositToFinalize(_to, _amount)
+        // Construct calldata for L2LiquidityPool.depositToFinalize(_to, _receivedAmount)
         bytes memory data = abi.encodeWithSelector(
             L2LiquidityPool.clientPayL2.selector,
             msg.sender,
-            _amount,
+            _receivedAmount,
             _erc20L2ContractAddress
         );
 
@@ -238,7 +261,8 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
 
         emit clientDepositL1_EVENT(
             msg.sender,
-            _amount,
+            _receivedAmount,
+            _swapFee,
             _erc20L1ContractAddress,
             _erc20L2ContractAddress
         );
@@ -273,8 +297,8 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
             //_to.transfer(_amount); //unsafe
             // Call returns a boolean value indicating success or failure.
             // This is the current recommended method to use.
-            //(bool sent, bytes memory data) = _to.call{value: msg.value}("");
-            (bool sent, bytes memory data) = _to.call{value: _amount}("");
+            //(bool sent,) = _to.call{value: msg.value}("");
+            (bool sent,) = _to.call{value: _amount}("");
             require(sent, "Failed to send Ether");
             fees[address(0)] -= _amount;
         }
@@ -305,22 +329,17 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
         external
         onlyFromCrossDomainAccount(address(l2LiquidityPoolAddress))
     {   
-        uint256 _swapFee = _amount * fee / 100; //dangerous
-        uint256 _receivedAmount = _amount - _swapFee; //needs check
-
         if (_erc20ContractAddress != address(0)) {
             //dealing with an ERC20
             ERC20 erc20Contract = ERC20(_erc20ContractAddress);
-            require(erc20Contract.transfer(_to, _receivedAmount));
+            require(erc20Contract.transfer(_to, _amount));
             balances[_erc20ContractAddress] -= _amount;
-            fees[_erc20ContractAddress] += _swapFee;
         } else {
             //this is ETH
-            //_to.transfer(_receivedAmount); UNSAFE
-            (bool sent, bytes memory data) = _to.call{value: _receivedAmount}("");
+            //_to.transfer(_amount); UNSAFE
+            (bool sent,) = _to.call{value: _amount}("");
             require(sent, "Failed to send Ether");
             balances[address(0)] -= _amount;
-            fees[address(0)] += _swapFee;   
         }
         
         emit clientPayL1_EVENT(
