@@ -1,1 +1,0 @@
-module.exports = ["ERC20","L1ERC20Gateway","L1LiquidityPool","L2DepositedERC20","L2LiquidityPool"];

@@ -312,8 +312,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
   it('should move ETH from L1 LP to L2', async () => {
 
-    const swapAmount = BigNumber.from(100)
-    const preBalances = await getBalances(env.L2ETHGateway.address)
+    const swapAmount = utils.parseEther("1")
+    const preBalances = await getBalances("0x0000000000000000000000000000000000000000")
 
     //this triggers the receive
     await env.waitForXDomainTransaction(
@@ -325,20 +325,20 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       Direction.L1ToL2
     )
 
-    const postBalance = await getBalances(env.L2ETHGateway.address)
+    const postBalance = await getBalances("0x0000000000000000000000000000000000000000")
 
     expect(postBalance.aliceL2Balance).to.deep.eq(
       preBalances.aliceL2Balance.add(swapAmount.mul(97).div(100))
     )
-    expect(postBalance.L2LPFeeBalance).to.deep.eq(
-      preBalances.L2LPFeeBalance.add(swapAmount.mul(3).div(100))
+    expect(postBalance.L1LPFeeBalance).to.deep.eq(
+      preBalances.L1LPFeeBalance.add(swapAmount.mul(3).div(100))
     )
   })
   
   it('should swap wETH from L2 LP to ETH in L1 user wallet', async () => {
     
-    const swapAmount = BigNumber.from(100)
-    const preBalances = await getBalances("0x0000000000000000000000000000000000000000")
+    const swapAmount = utils.parseEther("1")
+    const preBalances = await getBalances(env.L2ETHGateway.address)
 
     const approveTX = await env.L2ETHGateway.approve(
       L2LiquidityPool.address,
@@ -355,13 +355,13 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       Direction.L2ToL1
     )
 
-    const postBalance = await getBalances("0x0000000000000000000000000000000000000000")
+    const postBalance = await getBalances(env.L2ETHGateway.address)
 
     expect(postBalance.bobL1Balance).to.deep.eq(
       preBalances.bobL1Balance.add(swapAmount.mul(97).div(100))
     )
-    expect(postBalance.L1LPFeeBalance).to.deep.eq(
-      preBalances.L1LPFeeBalance.add(swapAmount.mul(3).div(100))
+    expect(postBalance.L2LPFeeBalance).to.deep.eq(
+      preBalances.L2LPFeeBalance.add(swapAmount.mul(3).div(100))
     )
   })
 })

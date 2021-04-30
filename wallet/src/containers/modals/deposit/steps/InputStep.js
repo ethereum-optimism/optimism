@@ -37,6 +37,7 @@ function InputStep ({
 
   const [ activeTab, setActiveTab ] = useState(uSC);
   const [ LPBalance, setLPBalance ] = useState(0);
+  const [ feeRate, setFeeRate ] = useState(0);
   const depositLoading = useSelector(selectLoading([ 'DEPOSIT/CREATE' ]));
 
   function handleClose () {
@@ -75,6 +76,9 @@ function InputStep ({
   if (fast && Object.keys(tokenInfo).length && currency) {
     networkService.L2LPBalance(currency).then((LPBalance)=>{
       setLPBalance(LPBalance)
+    })
+    networkService.getL1LPFeeRatio().then((feeRate)=>{
+      setFeeRate(feeRate)
     })
   }
 
@@ -123,9 +127,14 @@ function InputStep ({
       />
 
       {fast && Object.keys(tokenInfo).length && currency ? (
-        <h3>
-          The liquidity pool has {LPBalance} {tokenInfo.symbol}.
-        </h3>
+        <>
+          <h3>
+            The L2 liquidity pool has {LPBalance} {tokenInfo.symbol}.
+          </h3>
+          <h3>
+            The convenience fee is {feeRate}%. {value && `You are going to receive ${(Number(value) * 0.97).toFixed(2)} WETH on L2.`}
+          </h3>
+        </>
       ):<></>}
 
       <div className={styles.buttons}>
