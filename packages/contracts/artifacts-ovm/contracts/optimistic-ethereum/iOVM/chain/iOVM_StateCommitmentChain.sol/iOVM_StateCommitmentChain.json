@@ -1,0 +1,278 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "iOVM_StateCommitmentChain",
+  "sourceName": "contracts/optimistic-ethereum/iOVM/chain/iOVM_StateCommitmentChain.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_batchIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "_batchRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_batchSize",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_prevTotalElements",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "_extraData",
+          "type": "bytes"
+        }
+      ],
+      "name": "StateBatchAppended",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_batchIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "_batchRoot",
+          "type": "bytes32"
+        }
+      ],
+      "name": "StateBatchDeleted",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32[]",
+          "name": "_batch",
+          "type": "bytes32[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_shouldStartAtElement",
+          "type": "uint256"
+        }
+      ],
+      "name": "appendStateBatch",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchSize",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "prevTotalElements",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "extraData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainBatchHeader",
+          "name": "_batchHeader",
+          "type": "tuple"
+        }
+      ],
+      "name": "deleteStateBatch",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getLastSequencerTimestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "_lastSequencerTimestamp",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTotalBatches",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "_totalBatches",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTotalElements",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "_totalElements",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchSize",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "prevTotalElements",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "extraData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainBatchHeader",
+          "name": "_batchHeader",
+          "type": "tuple"
+        }
+      ],
+      "name": "insideFraudProofWindow",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "_inside",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_element",
+          "type": "bytes32"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchSize",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "prevTotalElements",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "extraData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainBatchHeader",
+          "name": "_batchHeader",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "index",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "siblings",
+              "type": "bytes32[]"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainInclusionProof",
+          "name": "_proof",
+          "type": "tuple"
+        }
+      ],
+      "name": "verifyStateCommitment",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "_verified",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

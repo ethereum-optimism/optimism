@@ -60,8 +60,8 @@ const config: HardhatUserConfig = {
     target: 'ethers-v5',
   },
   paths: {
-    deploy: './deploy',
-    deployments: './deployments',
+    deploy: './src/deploy',
+    deployments: './src/deployments',
   },
   namedAccounts: {
     deployer: {

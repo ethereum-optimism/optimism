@@ -1,0 +1,403 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "iOVM_FraudVerifier",
+  "sourceName": "contracts/optimistic-ethereum/iOVM/verification/iOVM_FraudVerifier.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "_preStateRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_preStateRootIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "_transactionHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "_who",
+          "type": "address"
+        }
+      ],
+      "name": "FraudProofFinalized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "_preStateRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_preStateRootIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "_transactionHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "_who",
+          "type": "address"
+        }
+      ],
+      "name": "FraudProofInitialized",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_preStateRoot",
+          "type": "bytes32"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchSize",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "prevTotalElements",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "extraData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainBatchHeader",
+          "name": "_preStateRootBatchHeader",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "index",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "siblings",
+              "type": "bytes32[]"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainInclusionProof",
+          "name": "_preStateRootProof",
+          "type": "tuple"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_txHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_postStateRoot",
+          "type": "bytes32"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchSize",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "prevTotalElements",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "extraData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainBatchHeader",
+          "name": "_postStateRootBatchHeader",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "index",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "siblings",
+              "type": "bytes32[]"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainInclusionProof",
+          "name": "_postStateRootProof",
+          "type": "tuple"
+        }
+      ],
+      "name": "finalizeFraudVerification",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_preStateRoot",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_txHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getStateTransitioner",
+      "outputs": [
+        {
+          "internalType": "contract iOVM_StateTransitioner",
+          "name": "_transitioner",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_preStateRoot",
+          "type": "bytes32"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchSize",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "prevTotalElements",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "extraData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainBatchHeader",
+          "name": "_preStateRootBatchHeader",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "index",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "siblings",
+              "type": "bytes32[]"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainInclusionProof",
+          "name": "_preStateRootProof",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "blockNumber",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum Lib_OVMCodec.QueueOrigin",
+              "name": "l1QueueOrigin",
+              "type": "uint8"
+            },
+            {
+              "internalType": "address",
+              "name": "l1TxOrigin",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "entrypoint",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gasLimit",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.Transaction",
+          "name": "_transaction",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "isSequenced",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "queueIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "blockNumber",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "txData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.TransactionChainElement",
+          "name": "_txChainElement",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "batchIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "batchRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "batchSize",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "prevTotalElements",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "extraData",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainBatchHeader",
+          "name": "_transactionBatchHeader",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "index",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "siblings",
+              "type": "bytes32[]"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.ChainInclusionProof",
+          "name": "_transactionProof",
+          "type": "tuple"
+        }
+      ],
+      "name": "initializeFraudVerification",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
