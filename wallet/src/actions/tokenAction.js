@@ -63,7 +63,7 @@ export async function addToken ( tokenContractAddress ) {
   try {
     
     let tokenContract = null;
-    if (networkService.selectedNetwork === 'L1') {
+    if (networkService.L1orL2 === 'L1') {
       tokenContract = new networkService.l1Web3Provider.eth.Contract(erc20abi, _tokenContractAddress);
     } else {
       tokenContract = new networkService.l2Web3Provider.eth.Contract(erc20abi, _tokenContractAddress);

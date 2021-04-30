@@ -74,8 +74,6 @@ function DoExitStep ({
   const submitLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
 
   async function doExit () {
-    const networkStatus = await dispatch(networkService.checkNetwork('L2'));
-    if (!networkStatus) return 
     let res;
     if (fast === false) {
       res = await dispatch(exitOMGX(currency, value));

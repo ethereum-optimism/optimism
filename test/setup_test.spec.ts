@@ -190,7 +190,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
     console.log(JSON.stringify(addresses, null, 2))
 
-    fs.writeFile('./deployment/addresses.json', JSON.stringify(addresses, null, 2), err => {
+    fs.writeFile('./deployment/local/addresses.json', JSON.stringify(addresses, null, 2), err => {
       if (err) {
         console.log('Error writing addresses to file:', err)
       } else {
@@ -203,7 +203,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
   })
 
   it('should transfer ERC20 from Bob to Alice', async () => {
-    const transferAmount = utils.parseEther("50")
+    const transferAmount = utils.parseEther("500")
 
     //L1ERC20 is owned by Bob
     const preERC20Balances = await L1ERC20.balanceOf(env.alicel1Wallet.address);
@@ -226,7 +226,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     // **************************************************
     // Only the contract owner (Bob) can deposit ETH into L1 LP
     // **************************************************
-    const addAmount = utils.parseEther("50")
+    const addETHAmount = utils.parseEther("5")
+    const addERC20Amount = utils.parseEther("500")
 
     // Add ETH
     const preETHBalances = await getBalances("0x0000000000000000000000000000000000000000")
@@ -238,14 +239,14 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const gasEstimate = await env.bobl1Wallet.estimateGas({
       from: env.bobl1Wallet.address,
       to: L1LiquidityPool.address,
-      value: addAmount
+      value: addETHAmount
     })
     
     //Bob, the owner of the L1LiquidityPool, sends funds into the L1LP
     const depositETHTX = await env.bobl1Wallet.sendTransaction({
       from: env.bobl1Wallet.address,
       to: L1LiquidityPool.address,
-      value: addAmount
+      value: addETHAmount
     })
     await depositETHTX.wait()
 
@@ -261,7 +262,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     console.log('\nFEE DEBUG INFORMATION')
     console.log("ChainID:",chainID)
     console.log("GasPrice (gWei):",utils.formatUnits(gasPrice, "gwei"))
-    console.log("Fee actually paid:",utils.formatUnits(preETHBalances.bobL1Balance.sub(addAmount).sub(postETHBalances.bobL1Balance), "gwei"))
+    console.log("Fee actually paid:",utils.formatUnits(preETHBalances.bobL1Balance.sub(addETHAmount).sub(postETHBalances.bobL1Balance), "gwei"))
     console.log("Fee gasLimit*gasPrice:",utils.formatUnits(feeSimple, "gwei"))
     console.log("GasEstimate (gWei):",utils.formatUnits(gasEstimate, "gwei"))
     console.log("GasUsed (gWei):",utils.formatUnits(receipt.gasUsed, "gwei"))
@@ -292,12 +293,12 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
     //Bob should have less money now - this breaks for zero value transfer
     expect(postETHBalances.bobL1Balance).to.deep.eq(
-      preETHBalances.bobL1Balance.sub(addAmount).sub(feeSimple)
+      preETHBalances.bobL1Balance.sub(addETHAmount).sub(feeSimple)
     )
 
     //He paid into the L1LP
     expect(postETHBalances.L1LPBalance).to.deep.eq(
-      preETHBalances.L1LPBalance.add(addAmount)
+      preETHBalances.L1LPBalance.add(addETHAmount)
     )
 
     //Alice did not pay, so no change
@@ -310,12 +311,12 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
     const approveERC20TX = await L1ERC20.approve(
       L1LiquidityPool.address,
-      addAmount,
+      addERC20Amount,
     )
     await approveERC20TX.wait()
 
     const depositERC20TX = await L1LiquidityPool.ownerAddERC20Liquidity(
-      addAmount,
+      addERC20Amount,
       L1ERC20.address,
     );
     await depositERC20TX.wait();
@@ -323,30 +324,32 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const postERC20Balance = await getBalances(L1ERC20.address)
     
     expect(postERC20Balance.L1LPBalance).to.deep.eq(
-      preERC20Balances.L1LPBalance.add(addAmount)
+      preERC20Balances.L1LPBalance.add(addERC20Amount)
     )
   })
 
   it('should add initial oWETH and ERC20 to the L2 Liquidity Pool', async () => {
-    const depositL2Amount = utils.parseEther("50")
-    const addAmount = utils.parseEther("45")
+    const depositL2oWETHAmount = utils.parseEther("5.1")
+    const addoWETHAmount = utils.parseEther("5")
+    const depositL2ERC20Amount = utils.parseEther("510")
+    const addERC20Amount = utils.parseEther("500")
 
     // Add ETH
     const preETHBalances = await getBalances(env.L2ETHGateway.address)
 
     await env.waitForXDomainTransaction(
-      env.L1ETHGateway.deposit({ value: depositL2Amount }),
+      env.L1ETHGateway.deposit({ value: depositL2oWETHAmount }),
       Direction.L1ToL2
     )
     
     const approveETHTX = await env.L2ETHGateway.approve(
       L2LiquidityPool.address,
-      addAmount,
+      addoWETHAmount,
     );
     await approveETHTX.wait()
 
     const depositETHTX = await L2LiquidityPool.ownerAddERC20Liquidity(
-      addAmount,
+      addoWETHAmount,
       env.L2ETHGateway.address,
     );
     await depositETHTX.wait()
@@ -354,30 +357,30 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const postETHBalance = await getBalances(env.L2ETHGateway.address)
 
     expect(postETHBalance.L2LPBalance).to.deep.eq(
-      preETHBalances.L2LPBalance.add(addAmount)
+      preETHBalances.L2LPBalance.add(addoWETHAmount)
     )
     // Add ERC20
     const preERC20Balances = await getBalances(L2DepositedERC20.address)
 
     const approveL1ERC20TX = await L1ERC20.approve(
       L1ERC20Gateway.address,
-      depositL2Amount,
+      depositL2ERC20Amount,
     )
     await approveL1ERC20TX.wait()
 
     await env.waitForXDomainTransaction(
-      L1ERC20Gateway.deposit(depositL2Amount),
+      L1ERC20Gateway.deposit(depositL2ERC20Amount),
       Direction.L1ToL2
     )
 
     const approveL2ERC20TX = await L2DepositedERC20.approve(
       L2LiquidityPool.address,
-      addAmount,
+      addERC20Amount,
     )
     await approveL2ERC20TX.wait()
 
     const depositERC20TX = await L2LiquidityPool.ownerAddERC20Liquidity(
-      addAmount,
+      addERC20Amount,
       L2DepositedERC20.address,
     );
     await depositERC20TX.wait()
@@ -385,13 +388,13 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const postERC20Balances = await getBalances(L2DepositedERC20.address)
 
     expect(postERC20Balances.L2LPBalance).to.deep.eq(
-      preERC20Balances.L2LPBalance.add(addAmount)
+      preERC20Balances.L2LPBalance.add(addERC20Amount)
     )
   })
 
   it('should move ETH from L1 LP to L2', async () => {
 
-    const swapAmount = utils.parseEther("1")
+    const swapAmount = utils.parseEther("0.05")
     const preBalances = await getBalances("0x0000000000000000000000000000000000000000")
 
     //this triggers the receive
@@ -416,7 +419,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
   
   it('should swap wETH from L2 LP to ETH in L1 user wallet', async () => {
     
-    const swapAmount = utils.parseEther("1")
+    const swapAmount = utils.parseEther("0.05")
     const preBalances = await getBalances(env.L2ETHGateway.address)
 
     const approveTX = await env.L2ETHGateway.approve(
