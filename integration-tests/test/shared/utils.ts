@@ -4,7 +4,7 @@ import {
   getContractFactory,
   getContractInterface,
 } from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
+import { remove0x, Watcher } from '@eth-optimism/core-utils'
 import {
   Contract,
   Wallet,
@@ -12,6 +12,7 @@ import {
   providers,
   BigNumberish,
   BigNumber,
+  utils,
 } from 'ethers'
 import { cleanEnv, str, num } from 'envalid'
 
@@ -100,3 +101,8 @@ export const fundUser = async (
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+const abiCoder = new utils.AbiCoder()
+export const encodeSolidityRevertMessage = (_reason: string): string => {
+  return '0x08c379a0' + remove0x(abiCoder.encode(['string'], [_reason]))
+}
