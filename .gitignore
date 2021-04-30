@@ -6,6 +6,7 @@ temp
 
 dist
 artifacts
+artifacts-ovm
 cache
 cache-ovm
 
