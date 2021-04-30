@@ -17,7 +17,7 @@ import {
 } from '..'
 
 const environment = process.env.NODE_ENV
-const network = process.env.ETH_NETWORK
+const network = process.env.ETH_NETWORK_NAME
 const release = `batch-submitter@${process.env.npm_package_version}`
 
 /* Logger */
