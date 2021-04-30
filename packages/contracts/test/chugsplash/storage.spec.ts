@@ -69,7 +69,7 @@ describe('ChugSplash storage layout parsing', () => {
           key:
             '0x0000000000000000000000000000000000000000000000000000000000000006',
           val:
-            '0x1100000000000000000000000000000000000000000000000000000000000000',
+            '0x0000000000000000000000000000000000000000000000000000000000000011',
         },
       ])
     })
@@ -84,7 +84,7 @@ describe('ChugSplash storage layout parsing', () => {
           key:
             '0x0000000000000000000000000000000000000000000000000000000000000008',
           val:
-            '0x1212121212121212000000000000000000000000000000000000000000000000',
+            '0x0000000000000000000000000000000000000000000000001212121212121212',
         },
       ])
     })
@@ -211,6 +211,40 @@ describe('ChugSplash storage layout parsing', () => {
             '0x0000000000000000000000000000000000000000000000000000000000000013',
           val:
             '0x0000000000000000000000005a0b54d5dc17e0aadc383d2db43b0a0d3e029c4c',
+        },
+      ])
+    })
+
+    it('compute slots for packed variables', () => {
+      expect(
+        computeStorageSlots(layout, {
+          _packedAddress: '0x5A0b54D5dc17e0AadC383d2db43B0a0D3E029c4c',
+          _packedBool: true,
+          _packedBytes11: '0x1212121212121212121212',
+        })
+      ).to.deep.equal([
+        {
+          key:
+            '0x0000000000000000000000000000000000000000000000000000000000000015',
+          val:
+            '0x1212121212121212121212015a0b54d5dc17e0aadc383d2db43b0a0d3e029c4c',
+        },
+      ])
+    })
+
+    it('compute slots for packed variables (2)', () => {
+      expect(
+        computeStorageSlots(layout, {
+          _otherPackedBytes11: '0x1212121212121212121212',
+          _otherPackedBool: true,
+          _otherPackedAddress: '0x5A0b54D5dc17e0AadC383d2db43B0a0D3E029c4c',
+        })
+      ).to.deep.equal([
+        {
+          key:
+            '0x0000000000000000000000000000000000000000000000000000000000000016',
+          val:
+            '0x5a0b54d5dc17e0aadc383d2db43b0a0d3e029c4c011212121212121212121212',
         },
       ])
     })

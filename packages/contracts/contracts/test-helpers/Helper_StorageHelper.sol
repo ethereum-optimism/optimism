@@ -36,4 +36,14 @@ contract Helper_StorageHelper {
     string _string;   // slot 17
 
     BasicStruct _struct; // slot 18,19,20
+
+    // Pack into (bytes11,bool,address)
+    address _packedAddress; // slot 21
+    bool _packedBool;       // slot 21
+    bytes11 _packedBytes11; // slot 21
+
+    // Pack into (address,bool,bytes11)
+    bytes11 _otherPackedBytes11; // slot 22
+    bool _otherPackedBool;       // slot 22
+    address _otherPackedAddress; // slot 22
 }

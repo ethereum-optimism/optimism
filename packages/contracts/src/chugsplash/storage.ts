@@ -87,9 +87,7 @@ const encodeVariable = (
       BigNumber.from(
         parseInt(storageObj.slot as any, 10) + nestedSlotOffset
       ).toHexString()
-    )
-      .padStart(64 - storageObj.offset * 2, '0')
-      .padEnd(64, '0')
+    ).padStart(64, '0')
 
   if (variableType.encoding === 'inplace') {
     if (
@@ -104,7 +102,8 @@ const encodeVariable = (
       const slotVal =
         '0x' +
         remove0x(variable)
-          .padStart(64, '0')
+          .padStart(64 - storageObj.offset * 2, '0')
+          .padEnd(64, '0')
           .toLowerCase()
 
       return [
@@ -129,7 +128,11 @@ const encodeVariable = (
       }
 
       // Booleans are right-aligned and represented as 0 or 1.
-      const slotVal = '0x' + (variable ? '1' : '0').padStart(64, '0')
+      const slotVal =
+        '0x' +
+        (variable ? '1' : '0')
+          .padStart(64 - storageObj.offset * 2, '0')
+          .padEnd(64, '0')
 
       return [
         {
@@ -142,10 +145,11 @@ const encodeVariable = (
         throw new Error(`invalid bytesN type`)
       }
 
-      // BytesN are **left** aligned (eyeroll).
       const slotVal =
         '0x' +
         remove0x(variable)
+          .padEnd(variableType.numberOfBytes * 2, '0')
+          .padStart(64 - storageObj.offset * 2, '0')
           .padEnd(64, '0')
           .toLowerCase()
 
@@ -169,7 +173,8 @@ const encodeVariable = (
       const slotVal =
         '0x' +
         remove0x(BigNumber.from(variable).toHexString())
-          .padStart(64, '0')
+          .padStart(64 - storageObj.offset * 2, '0')
+          .padEnd(64, '0')
           .toLowerCase()
 
       return [
@@ -264,16 +269,47 @@ export const computeStorageSlots = (
     )
   }
 
-  // TODO: Deal with packed storage slots.
+  slots = slots.reduce((slots, slot) => {
+    const prevSlot = slots.find((prevSlot) => {
+      return prevSlot.key === slot.key
+    })
 
-  const seen = {}
-  for (const slot of slots) {
-    if (seen[slot.key]) {
-      throw new Error(`packed storage slots not supported`)
+    if (prevSlot !== undefined) {
+      slots = slots.filter((slot) => {
+        return slot.key !== prevSlot.key
+      })
+
+      const valA = remove0x(slot.val)
+      const valB = remove0x(prevSlot.val)
+
+      let val = '0x'
+      for (let i = 0; i < 64; i += 2) {
+        const byteA = valA.slice(i, i + 2)
+        const byteB = valB.slice(i, i + 2)
+
+        if (byteA === '00' && byteB === '00') {
+          val += '00'
+        } else if (byteA === '00' && byteB !== '00') {
+          val += byteB
+        } else if (byteA !== '00' && byteB === '00') {
+          val += byteA
+        } else {
+          throw new Error(
+            'detected badly encoded packed string, should not happen'
+          )
+        }
+      }
+
+      slots.push({
+        key: slot.key,
+        val: val,
+      })
     } else {
-      seen[slot.key] = true
+      slots.push(slot)
     }
-  }
+
+    return slots
+  }, [])
 
   return slots
 }
