@@ -269,14 +269,14 @@ export const computeStorageSlots = (
     )
   }
 
-  slots = slots.reduce((slots, slot) => {
-    const prevSlot = slots.find((prevSlot) => {
-      return prevSlot.key === slot.key
+  slots = slots.reduce((prevSlots, slot) => {
+    const prevSlot = prevSlots.find((otherSlot) => {
+      return otherSlot.key === slot.key
     })
 
     if (prevSlot !== undefined) {
-      slots = slots.filter((slot) => {
-        return slot.key !== prevSlot.key
+      prevSlots = prevSlots.filter((otherSlot) => {
+        return otherSlot.key !== prevSlot.key
       })
 
       const valA = remove0x(slot.val)
@@ -300,15 +300,15 @@ export const computeStorageSlots = (
         }
       }
 
-      slots.push({
+      prevSlots.push({
         key: slot.key,
-        val: val,
+        val,
       })
     } else {
-      slots.push(slot)
+      prevSlots.push(slot)
     }
 
-    return slots
+    return prevSlots
   }, [])
 
   return slots
