@@ -1,6 +1,7 @@
 /* External Imports */
 import { Contract, Signer, utils, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
+import { Gauge } from 'prom-client'
 import * as ynatm from '@eth-optimism/ynatm'
 import { RollupInfo } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
@@ -17,12 +18,17 @@ export interface ResubmissionConfig {
   gasRetryIncrement: number
 }
 
+interface BatchSubmitterMetrics {
+  ethBalance: Gauge<string>
+}
+
 export abstract class BatchSubmitter {
   protected rollupInfo: RollupInfo
   protected chainContract: Contract
   protected l2ChainId: number
   protected syncing: boolean
   protected lastBatchSubmissionTimestamp: number = 0
+  protected bsMetrics: BatchSubmitterMetrics
 
   constructor(
     readonly signer: Signer,
@@ -42,7 +48,11 @@ export abstract class BatchSubmitter {
     readonly gasThresholdInGwei: number,
     readonly logger: Logger,
     readonly metrics: Metrics
-  ) {}
+  ) {
+    // only register metrics in production?
+    // look into prom-client mock, see thegraph repo
+    this.bsMetrics = this._registerMetrics(metrics)
+  }
 
   public abstract _submitBatch(
     startBlock: number,
@@ -87,6 +97,7 @@ export abstract class BatchSubmitter {
       address,
       ether,
     })
+    this.bsMetrics.ethBalance.set(num)
 
     if (num < this.minBalanceEther) {
       this.logger.fatal('Current balance lower than min safe balance', {
@@ -224,5 +235,19 @@ export abstract class BatchSubmitter {
     this.logger.info('Received transaction receipt', { receipt })
     this.logger.info(successMessage)
     return receipt
+  }
+
+  /*********************
+   * Private Functions *
+   ********************/
+
+  private _registerMetrics(metrics: Metrics): BatchSubmitterMetrics {
+    return {
+      ethBalance: new metrics.client.Gauge({
+        name: 'batch_submitter_balance',
+        help: 'ETH balance of the batch submitter',
+        registers: [metrics.registry],
+      }),
+    }
   }
 }
