@@ -184,3 +184,44 @@ You will need to set up MetaMask to know about the two accounts you are using fo
 TEST_PRIVATE_KEY=0x23d9aeeaa08ab710a57972eb56fc711d9ab13afdecc92c89586e0150bfa380a6
 ```
 
+You also need to add networks to your MetaMask. 
+
+* Local L1
+
+  ```
+  URL = http://localhost:9545
+  ChainID = 31337
+  ```
+
+* Local L2
+
+  ```
+  URL = http://localhost:8545
+  ChainID = 420
+  ```
+
+> You have to reset the MetaMask when you re-run the local networks! The reset button is in **Settings > Advanced > Reset Account**.
+
+* Rinkeby
+
+  Select Rinkeby Test Network
+
+* AWS L2
+
+  ```
+  URL = http://18.208.138.49:8545
+  ChainID = 420
+  ```
+
+Here's a step-by-step process on how to do that while in your browser:
+
+1. Open MetaMask the browser extension and click on your currently connected network at the top pane, next to your jazzicon.
+
+2. You'll see a modal open up with list of networks. Click on the "Custom RPC" button at the very bottom. (See example image below.)
+
+   ![Custom RPC button](https://community.optimism.io/assets/img/custom-metamask-network-1.d6908890.png)
+
+3. Next, you'll enter in the network parameters and save it:
+
+   ![image-20210429184519460](/Users/chenboyuan/Library/Application Support/typora-user-images/image-20210429184519460.png)
+
