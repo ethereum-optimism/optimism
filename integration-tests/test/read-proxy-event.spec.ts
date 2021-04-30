@@ -4,12 +4,6 @@ import { ethers } from 'hardhat'
 /* Imports: External */
 import { Contract, Wallet } from 'ethers'
 import { OptimismEnv } from './shared/env'
-import { DockerComposeNetwork } from './shared/docker-compose'
-
-
-before(async () => {
-  await new DockerComposeNetwork().up()
-})
 
 describe('Reading events from proxy contracts', () => {
   let l2Wallet: Wallet

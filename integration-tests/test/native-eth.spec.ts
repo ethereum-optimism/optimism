@@ -2,14 +2,8 @@ import { expect } from 'chai'
 import { Wallet, utils, BigNumber } from 'ethers'
 import { Direction } from './shared/watcher-utils'
 
-import { DockerComposeNetwork } from './shared/docker-compose'
 import { PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-
-
-before(async () => {
-  await new DockerComposeNetwork().up()
-})
 
 describe('Native ETH Integration Tests', async () => {
   let env: OptimismEnv

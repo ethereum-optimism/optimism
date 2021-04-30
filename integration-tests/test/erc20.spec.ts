@@ -3,12 +3,6 @@ import { ethers } from 'hardhat'
 import { expect } from 'chai'
 import { GWEI } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import { DockerComposeNetwork } from './shared/docker-compose'
-
-
-before(async () => {
-  await new DockerComposeNetwork().up()
-})
 
 describe('Basic ERC20 interactions', async () => {
   const initialAmount = 1000
