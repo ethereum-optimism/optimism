@@ -92,45 +92,34 @@ function Account () {
         <Copy value={networkService.account} />
       </div>
 
-      <div className={styles.wallet}>
-        <span className={styles.address}>{`NetworkLayer : ${networkLayer}`}</span>
-      </div>
-
-      <div className={styles.wallet}>
-        {networkLayer === 'L1' && 
-          <span>Since you are on Mainnet (L1), you can only perform L1 functions, such as sending funds from L1 to OMGX. To do things on OMGX (L2), please switch to L2 in your wallet.</span>
-        }
-        {networkLayer === 'L2' && 
-          <span>Since you are on OMGX (L2), you can only perform L2 functions, such as trading and sending funds from OMGX to L1. To do things on Mainchain (L1), please switch to L1 in your wallet.</span>
-        }
-      </div>
-
+{/*
       {balances['oETH']['have'] &&
         <h3 style={{marginBottom: '30px'}}>Status: Ready to use OMGX</h3> 
       }
       {!balances['oETH']['have'] &&
         <h3 style={{marginBottom: '30px'}}>Status: Bunny Cry. You do not have any oETH on OMGX</h3> 
       }
-
+*/}
       {balances['oETH']['have'] &&
         <div className={styles.RabbitBox}>
           <img className={styles.bunny} src={bunny_happy} alt='Happy Bunny' />
           <div className={styles.RabbitRight}>
-            <div
-              className={styles.RabbitRightTop}
-            >
+            <div className={styles.RabbitRightTop}>
               OMGX Balance
             </div>
-            <div 
-              className={styles.RabbitRightMiddle.sad}
-              style={{color: '#0ebf9a', fontSize: '4em'}}
-            >
-              <span>
-              {balances['oETH']['amountShort']}
-              </span>
+            <div className={styles.RabbitRightMiddle}>
+              <div className={styles.happy}>{balances['oETH']['amountShort']}</div>
             </div>
             <div className={styles.RabbitRightBottom}>
               oETH
+            </div>
+            <div className={styles.RabbitRightBottomNote}>
+            {networkLayer === 'L1' && 
+              <span>Since you are on Mainnet (L1), you can only perform L1 functions, such as sending funds from L1 to OMGX. To do things on OMGX (L2), please switch to L2 in your wallet.</span>
+            }
+            {networkLayer === 'L2' && 
+              <span>You are on OMGX (L2). Here, you can trade, send tokens to others on OMGX, and send tokens to L1. To use L1, please switch to L1 in your wallet.</span>
+            }
             </div>
           </div>
         </div>
@@ -143,12 +132,10 @@ function Account () {
             <div
               className={styles.RabbitRightTop}
             >
-              OMGX oETH Balance
+              OMGX Balance
             </div>
             <div className={styles.RabbitRightMiddle}>
-              <span className={styles.sad}>
                 0
-              </span>
             </div>
             <div className={styles.RabbitRightBottom}>
             </div>
@@ -158,7 +145,17 @@ function Account () {
 
       <div className={styles.balances} style={{marginTop: 30}}>
 
+      <div className={styles.boxWrapper}>
+
+        <div className={styles.location}>
+          <div>L1</div>
+            {networkLayer === 'L1' && <span>You are here</span>}
+            {networkLayer === 'L2' && <span>&nbsp;</span>}
+          <div>L1</div>
+        </div>
+
         <div className={[styles.box, networkLayer === 'L2' ? styles.dim : styles.active].join(' ')}>
+
           <div className={styles.header}>
             <div className={styles.title}>
               <span>Balance on Rootchain</span>
@@ -187,18 +184,23 @@ function Account () {
           })}
 
         </div>
+      </div>
 
+
+      <div className={styles.boxWrapper}>
         <div className={styles.boxActions}>
+        {networkLayer === 'L2' &&
           <div className={styles.buttons}>
             <Button
               onClick={() => handleModalClick('depositModal', true)}
               type='primary'
-              disabled={!isSynced || criticalTransactionLoading || networkLayer === 'L2'}
+              disabled={!isSynced || criticalTransactionLoading}
               style={{maxWidth: 'none'}}
             >
               FAST ONRAMP<ArrowForward/>
             </Button>
           </div>
+        }
           <div className={styles.buttons}>
             <Button
               onClick={() => handleModalClick('exitModal', true)}
@@ -231,7 +233,15 @@ function Account () {
             </Button>
           </div>
         </div>
-
+      </div>
+      
+      <div className={styles.boxWrapper}>
+        <div className={styles.location}>
+          <div>L2</div>
+            {networkLayer === 'L1' && <span>&nbsp;</span>}
+            {networkLayer === 'L2' && <span className={styles.under}>You are here</span>}
+          <div>L2</div>
+        </div>
         <div className={[styles.box, networkLayer === 'L1' ? styles.dim : styles.active].join(' ')}>
           <div className={styles.header}>
             <div className={styles.title}>
@@ -257,10 +267,10 @@ function Account () {
             );
           })}
         </div>
-       
       </div>
-
     </div>
+
+  </div>
   );
 
 }
