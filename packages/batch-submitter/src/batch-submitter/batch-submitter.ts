@@ -53,8 +53,6 @@ export abstract class BatchSubmitter {
     readonly logger: Logger,
     readonly metrics: Metrics
   ) {
-    // only register metrics in production?
-    // look into prom-client mock, see thegraph repo
     this.bsMetrics = this._registerMetrics(metrics)
   }
 
