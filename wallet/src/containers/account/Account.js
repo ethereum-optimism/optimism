@@ -23,8 +23,6 @@ import { selectLoading } from 'selectors/loadingSelector';
 import { selectIsSynced } from 'selectors/statusSelector';
 import { selectChildchainBalance, selectRootchainBalance } from 'selectors/balanceSelector';
 
-import { SELECT_NETWORK } from 'Settings';
-
 import { openModal } from 'actions/uiAction';
 
 import Copy from 'components/copy/Copy';
@@ -78,6 +76,7 @@ function Account () {
 
   const wAddress = networkService.account ? truncate(networkService.account, 6, 4, '...') : '';
   const networkLayer = networkService.L1orL2 === 'L1' ? 'L1' : 'L2';
+  const networkName = networkService.networkName;
 
   const handleDepositETHL1 = useCallback(
     () => dispatch(networkService.depositETHL1()),
@@ -161,7 +160,7 @@ function Account () {
               <span>Balance on Rootchain</span>
               <span>Ethereum Network</span>
             </div>
-            {SELECT_NETWORK === 'local' &&
+            {networkName === 'local' &&
               <div
                 onClick={()=>handleDepositETHL1()}
                 className={[styles.transfer, !isSynced ? styles.disabled : ''].join(' ')}
