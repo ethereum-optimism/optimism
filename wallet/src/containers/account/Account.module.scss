@@ -94,8 +94,8 @@
 }
 
 .dim {
-  background: #F4D7DC;
-  color: $gray3;
+  background: $gray7;
+  color: $gray4;
 }
 
 .active {
@@ -117,7 +117,6 @@
     padding: 0px;
     display: flex;
     flex-direction: column;
-    flex: 1;
     
     @include mobile {
       font-size: 0.8em;
@@ -132,6 +131,9 @@
       background: white;
       /*border: 1px solid black;*/
       padding: 10px;
+      padding-bottom: 3px;
+      padding-left: 0px;
+      padding-right: 0px;
       text-align: center;
       font-size: 1.6em;
       color: $gray3;
@@ -148,8 +150,10 @@
     .box {
 
       padding: 20px;
+      min-width: 350px;
 
       .buttons {
+
         margin: 20px -20px -20px -20px;
         @include mobile {
           margin: 15px -15px -15px -15px;
@@ -185,10 +189,11 @@
           }
         }
         .transfer {
+          font-size: 0.8em;
           font-family: 'Messina';
           cursor: pointer;
           border-radius: 20px;
-          padding: 5px 10px;
+          padding: 7px;
           border: 2px solid $gray6;
           filter: brightness(100%);
           display: flex;
@@ -235,11 +240,11 @@
 
     .boxActions {
       
-      padding: 10px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      flex: 1;
-      justify-content: space-between;
+      align-items: center;
+      justify-content: center;
       
       @include mobile {
         font-size: 0.8rem;
@@ -247,7 +252,9 @@
       }
 
       .buttons {
-        padding: 5px;
+        margin: 0;
+        padding: 0;
+        padding-bottom: 5px;
       }
     }
   }

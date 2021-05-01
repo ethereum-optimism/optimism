@@ -115,7 +115,7 @@ function Account () {
             </div>
             <div className={styles.RabbitRightBottomNote}>
             {networkLayer === 'L1' && 
-              <span>Since you are on Mainnet (L1), you can only perform L1 functions, such as sending funds from L1 to OMGX. To do things on OMGX (L2), please switch to L2 in your wallet.</span>
+              <span>You are on Mainnet (L1). Here, you can send tokens to OMGX. To do things on OMGX (L2), please switch to L2 in your wallet.</span>
             }
             {networkLayer === 'L2' && 
               <span>You are on OMGX (L2). Here, you can trade, send tokens to others on OMGX, and send tokens to L1. To use L1, please switch to L1 in your wallet.</span>
@@ -149,7 +149,7 @@ function Account () {
 
         <div className={styles.location}>
           <div>L1</div>
-            {networkLayer === 'L1' && <span>You are here</span>}
+            {networkLayer === 'L1' && <span className={styles.under}>You are here</span>}
             {networkLayer === 'L2' && <span>&nbsp;</span>}
           <div>L1</div>
         </div>
@@ -167,7 +167,7 @@ function Account () {
                 className={[styles.transfer, !isSynced ? styles.disabled : ''].join(' ')}
               >
                 <Send />
-                <span>L1 ETH Fountain</span>
+                <span>ETH Test Fountain</span>
               </div>
             }
           </div>
@@ -186,52 +186,59 @@ function Account () {
         </div>
       </div>
 
-
       <div className={styles.boxWrapper}>
+        <div className={styles.location}>
+          &nbsp;
+        </div>
         <div className={styles.boxActions}>
-        {networkLayer === 'L2' &&
+        {networkLayer === 'L1' &&
           <div className={styles.buttons}>
             <Button
               onClick={() => handleModalClick('depositModal', true)}
               type='primary'
               disabled={!isSynced || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
+              style={{maxWidth: '150px', padding: '8px'}}
             >
               FAST ONRAMP<ArrowForward/>
             </Button>
           </div>
         }
+        {networkLayer === 'L2' &&
           <div className={styles.buttons}>
             <Button
               onClick={() => handleModalClick('exitModal', true)}
               type='primary'
-              disabled={!isSynced || criticalTransactionLoading || networkLayer === 'L1'}
-              style={{maxWidth: 'none'}}
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: '150px', padding: '8px'}}
             > 
             <ArrowBack/>FAST EXIT
             </Button>
           </div>
-
+        }
+        {networkLayer === 'L1' &&
           <div className={styles.buttons}>
             <Button
               onClick={() => handleModalClick('depositModal')}
               type='primary'
-              disabled={!isSynced || criticalTransactionLoading || networkLayer === 'L2'}
-              style={{maxWidth: 'none'}}
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: '150px', padding: '8px'}}
             >
               SLOW ONRAMP<ArrowForward/>
             </Button>
           </div>
+        }
+        {networkLayer === 'L2' &&
           <div className={styles.buttons}>
             <Button
               onClick={() => handleModalClick('exitModal')}
               type='primary'
-              disabled={disabled || criticalTransactionLoading || networkLayer === 'L1'}
-              style={{maxWidth: 'none'}}
+              disabled={disabled || criticalTransactionLoading}
+              style={{maxWidth: '150px', padding: '8px'}}
             >
               <ArrowBack/>SLOW EXIT
             </Button>
           </div>
+        }
         </div>
       </div>
       
@@ -253,7 +260,7 @@ function Account () {
                 className={[styles.transfer, networkLayer === 'L1' ? styles.disabled : ''].join(' ')}
               >
                 <Send />
-                <span>TRANSFER L2->L2</span>
+                <span>TRANSFER</span>
               </div>
           </div>
           {childBalance.map((i, index) => {
