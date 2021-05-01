@@ -32,9 +32,6 @@ import { setWalletMethod, setNetwork } from 'actions/setupAction';
 import { getAllNetworks } from 'util/networkName';
 
 import logo from 'images/omgx.png';
-import vp1 from 'images/vp_1.svg';
-import vp2 from 'images/vp_2.svg';
-import vp3 from 'images/vp_3.svg';
 import chevron from 'images/chevron.svg';
 
 import * as styles from './WalletPicker.module.scss';

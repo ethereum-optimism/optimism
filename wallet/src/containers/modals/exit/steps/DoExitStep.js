@@ -41,6 +41,7 @@ function DoExitStep ({
   const [ value, setValue ] = useState('');
   const [ LPBalance, setLPBalance ] = useState(0);
   const [ feeRate, setFeeRate ] = useState(0);
+  const [ disabledSubmit, setDisabledSubmit ] = useState(true);
 
   const balances = useSelector(selectChildchainBalance, isEqual);
 
@@ -100,12 +101,22 @@ function DoExitStep ({
   }
 
   function getMaxTransferValue () {
-
     const transferingBalanceObject = balances.find(i => i.currency === currency);
     if (!transferingBalanceObject) {
       return;
     }
     return logAmount(transferingBalanceObject.amount, transferingBalanceObject.decimals);
+  }
+
+  function setExitAmount(value) {
+    const transferingBalanceObject = balances.find(i => i.currency === currency);
+    const maxTransferValue = Number(logAmount(transferingBalanceObject.amount, transferingBalanceObject.decimals));
+    if (value > 0 && (fast ? value < LPBalance : true) && value < maxTransferValue) {
+      setDisabledSubmit(false);
+    } else {
+      setDisabledSubmit(true);
+    }
+    setValue(value);
   }
 
   return (
@@ -123,7 +134,7 @@ function DoExitStep ({
         placeholder={0}
         value={value}
         onChange={i => {
-          setValue(i.target.value);
+          setExitAmount(i.target.value);
         }}
         selectOptions={selectOptions}
         onSelect={i => {
@@ -175,6 +186,7 @@ function DoExitStep ({
           loading={submitLoading}
           className={styles.button}
           tooltip='Your exit is still pending. Please wait for confirmation.'
+          disabled={disabledSubmit}
         >
           EXIT
         </Button>
