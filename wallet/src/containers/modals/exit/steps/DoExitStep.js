@@ -27,11 +27,9 @@ import InputSelect from 'components/inputselect/InputSelect';
 import Button from 'components/button/Button';
 
 import { logAmount } from 'util/amountConvert';
-
 import networkService from 'services/networkService';
 
 import * as styles from '../ExitModal.module.scss';
-
 
 function DoExitStep ({
   handleClose,
@@ -74,20 +72,31 @@ function DoExitStep ({
   const submitLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
 
   async function doExit () {
+
     let res;
-    if (fast === false) {
-      res = await dispatch(exitOMGX(currency, value));
-    } else {
+
+    if (fast) {
       res = await dispatch(depositL2LP(currency, value));
+    } else {
+      res = await dispatch(exitOMGX(currency, value));
     }
+    
+    let currencyL1 = currencySymbols[currency];
+
+    //person will receive ETH on the L1, not oETH
+    if(currencyL1 === 'oETH') {
+      currencyL1 = 'ETH'
+    }
+
     if (res) {
-      if (fast === false) {
-        dispatch(openAlert(`${currencySymbols[currency]} was exited to L1`));
+      if (fast) {
+        dispatch(openAlert(`${currencySymbols[currency]} was deposited into the L2 liquidity pool. You will receive ${(Number(value) * 0.97).toFixed(2)} ${currencyL1} on L1.`));
       } else {
-        dispatch(openAlert(`${currencySymbols[currency]} was deposited to liquidity pool. You will receive ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1`));
+        dispatch(openAlert(`${currencySymbols[currency]} was exited to L1. You will receive ${Number(value).toFixed(2)} ${currencyL1} on L1.`));
       }
       handleClose();
     }
+
   }
 
   function getMaxTransferValue () {
@@ -101,7 +110,13 @@ function DoExitStep ({
 
   return (
     <>
-      <h2>Start Standard Exit</h2>
+
+      {fast &&
+        <h2>Start Fast (Swap-off) Exit</h2>
+      }
+      {!fast &&
+        <h2>Start Standard Exit</h2>
+      }
 
       <InputSelect
         label='Amount to exit'
@@ -118,16 +133,31 @@ function DoExitStep ({
         maxValue={getMaxTransferValue()}
       />
       
-      {fast && currency ? (
-        <>
-          <h3>
-            The L1 liquidity pool has {LPBalance} {currencySymbols[currency]}.
-          </h3>
-          <h3>
-            The convenience fee is {feeRate}%. {value && `You are going to receive ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1.`}
-          </h3>
-        </>
-      ):<></>}
+      {fast && currencySymbols[currency] === 'oETH' &&
+        <h3>
+          The L1 liquidity pool has {LPBalance} ETH.
+          The liquidity fee is {feeRate}%. {value && `You will receive ${(Number(value) * 0.97).toFixed(2)} ETH on L1.`}
+        </h3>
+      }
+
+      {fast && currencySymbols[currency] != 'oETH' &&
+        <h3>
+          The L1 liquidity pool has {LPBalance} {currencySymbols[currency]}.
+          The liquidity fee is {feeRate}%. {value && `You will receive ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1.`}
+        </h3>
+      }
+
+      {!fast && currencySymbols[currency] === 'oETH' &&
+        <h3>
+          {value && `You will receive ${Number(value).toFixed(2)} ETH on L1. Your funds will be available on L1 in 7 days.`}
+        </h3>
+      }
+
+      {!fast && currencySymbols[currency] != 'oETH' &&
+        <h3>
+          {value && `You will receive ${Number(value).toFixed(2)} ${currencySymbols[currency]} on L1. Your funds will be available on L1 in 7 days.`}
+        </h3>
+      }
 
       <div className={styles.buttons}>
         <Button
@@ -144,7 +174,7 @@ function DoExitStep ({
           style={{ flex: 0 }}
           loading={submitLoading}
           className={styles.button}
-          tooltip='Your exit transaction is still pending. Please wait for confirmation.'
+          tooltip='Your exit is still pending. Please wait for confirmation.'
         >
           EXIT
         </Button>
