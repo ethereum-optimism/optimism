@@ -26,12 +26,15 @@ interface iOVM_L1ETHGateway {
      * Public Functions *
      ********************/
 
-    function deposit()
+    function deposit(
+        bytes calldata _data
+    )
         external
         payable;
 
     function depositTo(
-        address _to
+        address _to,
+        bytes calldata _data
     )
         external
         payable;
@@ -41,8 +44,11 @@ interface iOVM_L1ETHGateway {
      *************************/
 
     function finalizeWithdrawal(
+        address _from,
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata _data
+
     )
         external;
 

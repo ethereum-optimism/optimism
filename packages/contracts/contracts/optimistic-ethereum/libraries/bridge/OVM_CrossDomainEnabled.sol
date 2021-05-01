@@ -23,7 +23,7 @@ contract OVM_CrossDomainEnabled {
 
     /***************
      * Constructor *
-     ***************/    
+     ***************/
 
     /**
      * @param _messenger Address of the CrossDomainMessenger on the current layer.
@@ -68,7 +68,7 @@ contract OVM_CrossDomainEnabled {
     /**
      * Gets the messenger, usually from storage. This function is exposed in case a child contract
      * needs to override.
-     * @return The address of the cross-domain messenger contract which should be used. 
+     * @return The address of the cross-domain messenger contract which should be used.
      */
     function getCrossDomainMessenger()
         internal
@@ -83,17 +83,17 @@ contract OVM_CrossDomainEnabled {
     /**
      * Sends a message to an account on another domain
      * @param _crossDomainTarget The intended recipient on the destination domain
-     * @param _data The data to send to the target (usually calldata to a function with
+     * @param _message The data to send to the target (usually calldata to a function with
      *  `onlyFromCrossDomainAccount()`)
      * @param _gasLimit The gasLimit for the receipt of the message on the target domain.
      */
     function sendCrossDomainMessage(
         address _crossDomainTarget,
-        bytes memory _data,
+        bytes memory _message,
         uint32 _gasLimit
     )
         internal
     {
-        getCrossDomainMessenger().sendMessage(_crossDomainTarget, _data, _gasLimit);
+        getCrossDomainMessenger().sendMessage(_crossDomainTarget, _message, _gasLimit);
     }
 }

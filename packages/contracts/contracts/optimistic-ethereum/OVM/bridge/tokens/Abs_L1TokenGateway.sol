@@ -116,13 +116,14 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @param _amount Amount of the ERC20 to deposit
      */
     function deposit(
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         external
         override
         virtual
     {
-        _initiateDeposit(msg.sender, msg.sender, _amount);
+        _initiateDeposit(msg.sender, msg.sender, _amount, _data);
     }
 
     /**
@@ -132,13 +133,14 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      */
     function depositTo(
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         external
         override
         virtual
     {
-        _initiateDeposit(msg.sender, _to, _amount);
+        _initiateDeposit(msg.sender, _to, _amount, _data);
     }
 
     /**
@@ -152,7 +154,8 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     function _initiateDeposit(
         address _from,
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         internal
     {
@@ -164,19 +167,22 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         );
 
         // Construct calldata for l2DepositedToken.finalizeDeposit(_to, _amount)
-        bytes memory data = abi.encodeWithSelector(
+        bytes memory message = abi.encodeWithSelector(
             iOVM_L2DepositedToken.finalizeDeposit.selector,
+            _from,
             _to,
-            _amount
+            _amount,
+            _data
         );
 
         // Send calldata into L2
         sendCrossDomainMessage(
             l2DepositedToken,
-            data,
+            message,
             getFinalizeDepositL2Gas()
         );
 
+        // We omit _data here because events only support bytes32 types.
         emit DepositInitiated(_from, _to, _amount);
     }
 
@@ -189,24 +195,28 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * L1 ERC20 token.
      * This call will fail if the initialized withdrawal from L2 has not been finalized.
      *
+     * @param _from L2 address initiating the transfer
      * @param _to L1 address to credit the withdrawal to
      * @param _amount Amount of the ERC20 to withdraw
      */
     function finalizeWithdrawal(
+        address _from,
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata //_data
     )
         external
         override
         virtual
         onlyFromCrossDomainAccount(l2DepositedToken)
     {
+        // todo: add verification check on _from and _data
         // Call our withdrawal accounting handler implemented by child contracts.
         _handleFinalizeWithdrawal(
             _to,
             _amount
         );
-
-        emit WithdrawalFinalized(_to, _amount);
+        // We omit _data here because events only support bytes32 types.
+        emit WithdrawalFinalized(_from, _to, _amount);
     }
 }
