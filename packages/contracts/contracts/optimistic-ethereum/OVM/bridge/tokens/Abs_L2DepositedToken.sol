@@ -123,7 +123,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      */
     function getFinalizeWithdrawalL1Gas()
         public
-        view
+        pure
         virtual
         returns(
             uint32
@@ -142,14 +142,20 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @param _amount Amount of the token to withdraw
      */
     function withdraw(
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         external
         override
         virtual
         onlyInitialized()
     {
-        _initiateWithdrawal(msg.sender, _amount);
+        _initiateWithdrawal(
+            msg.sender,
+            msg.sender,
+            _amount,
+            _data
+        );
     }
 
     /**
@@ -159,25 +165,34 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      */
     function withdrawTo(
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         external
         override
         virtual
         onlyInitialized()
     {
-        _initiateWithdrawal(_to, _amount);
+        _initiateWithdrawal(
+            msg.sender,
+            _to,
+            _amount,
+            _data);
     }
 
     /**
      * @dev Performs the logic for deposits by storing the token and informing the L2 token Gateway of the deposit.
      *
      * @param _to Account to give the withdrawal to on L1
+     * @param _to Account to give the withdrawal to on L1
+     * @param _amount Amount of the token to withdraw
      * @param _amount Amount of the token to withdraw
      */
     function _initiateWithdrawal(
+        address _from,
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         internal
     {
@@ -185,20 +200,22 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
         _handleInitiateWithdrawal(_to, _amount);
 
         // Construct calldata for l1TokenGateway.finalizeWithdrawal(_to, _amount)
-        bytes memory data = abi.encodeWithSelector(
+        bytes memory message = abi.encodeWithSelector(
             iOVM_L1TokenGateway.finalizeWithdrawal.selector,
+            _from,
             _to,
-            _amount
+            _amount,
+            _data
         );
 
         // Send message up to L1 gateway
         sendCrossDomainMessage(
             address(l1TokenGateway),
-            data,
+            message,
             getFinalizeWithdrawalL1Gas()
         );
 
-        emit WithdrawalInitiated(msg.sender, _to, _amount);
+        emit WithdrawalInitiated(msg.sender, _to, _amount, _data);
     }
 
     /************************************
@@ -212,10 +229,13 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      *
      * @param _to Address to receive the withdrawal at
      * @param _amount Amount of the token to withdraw
+     * @param _data Data provided by the sender on L1.
      */
     function finalizeDeposit(
+        address _from,
         address _to,
-        uint _amount
+        uint _amount,
+        bytes calldata _data
     )
         external
         override
@@ -224,6 +244,6 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
         onlyFromCrossDomainAccount(address(l1TokenGateway))
     {
         _handleFinalizeDeposit(_to, _amount);
-        emit DepositFinalized(_to, _amount);
+        emit DepositFinalized(_from, _to, _amount, _data);
     }
 }

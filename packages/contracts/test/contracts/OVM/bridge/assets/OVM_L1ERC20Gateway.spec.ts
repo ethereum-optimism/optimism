@@ -6,7 +6,7 @@ import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { NON_ZERO_ADDRESS } from '../../../../helpers'
+import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
 
 const INITIAL_TOTAL_L1_SUPPLY = 3000
 
@@ -81,7 +81,12 @@ describe('OVM_L1ERC20Gateway', () => {
       )
 
       await expect(
-        OVM_L1ERC20Gateway.finalizeWithdrawal(constants.AddressZero, 1)
+        OVM_L1ERC20Gateway.finalizeWithdrawal(
+          constants.AddressZero,
+          constants.AddressZero,
+          1,
+          NON_NULL_BYTES32
+        )
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
 
@@ -91,9 +96,15 @@ describe('OVM_L1ERC20Gateway', () => {
       )
 
       await expect(
-        OVM_L1ERC20Gateway.finalizeWithdrawal(constants.AddressZero, 1, {
-          from: Mock__OVM_L1CrossDomainMessenger.address,
-        })
+        OVM_L1ERC20Gateway.finalizeWithdrawal(
+          constants.AddressZero,
+          constants.AddressZero,
+          1,
+          NON_NULL_BYTES32,
+          {
+            from: Mock__OVM_L1CrossDomainMessenger.address,
+          }
+        )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
 
@@ -110,7 +121,9 @@ describe('OVM_L1ERC20Gateway', () => {
 
       const res = await OVM_L1ERC20Gateway.finalizeWithdrawal(
         NON_ZERO_ADDRESS,
+        NON_ZERO_ADDRESS,
         withdrawalAmount,
+        NON_NULL_BYTES32,
         { from: Mock__OVM_L1CrossDomainMessenger.address }
       )
 
@@ -171,7 +184,7 @@ describe('OVM_L1ERC20Gateway', () => {
 
     it('deposit() escrows the deposit amount and sends the correct deposit message', async () => {
       // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ERC20Gateway.deposit(depositAmount)
+      await OVM_L1ERC20Gateway.deposit(depositAmount, NON_NULL_BYTES32)
       const depositCallToMessenger =
         Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -195,7 +208,7 @@ describe('OVM_L1ERC20Gateway', () => {
       expect(depositCallToMessenger._message).to.equal(
         await Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
           'finalizeDeposit',
-          [depositer, depositAmount]
+          [depositer, depositer, depositAmount, NON_NULL_BYTES32]
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(finalizeDepositGasLimit)
@@ -204,7 +217,11 @@ describe('OVM_L1ERC20Gateway', () => {
     it('depositTo() escrows the deposit amount and sends the correct deposit message', async () => {
       // depositor calls deposit on the gateway and the L1 gateway calls transferFrom on the token
       const bobsAddress = await bob.getAddress()
-      await OVM_L1ERC20Gateway.depositTo(bobsAddress, depositAmount)
+      await OVM_L1ERC20Gateway.depositTo(
+        bobsAddress,
+        depositAmount,
+        NON_NULL_BYTES32
+      )
       const depositCallToMessenger =
         Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -228,7 +245,7 @@ describe('OVM_L1ERC20Gateway', () => {
       expect(depositCallToMessenger._message).to.equal(
         await Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
           'finalizeDeposit',
-          [bobsAddress, depositAmount]
+          [depositer, bobsAddress, depositAmount, NON_NULL_BYTES32]
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(finalizeDepositGasLimit)

@@ -25,7 +25,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * Public Constants *
      ********************/
 
-    uint32 public constant override getFinalizeDepositL2Gas = 1200000;
+    uint32 constant public override getFinalizeDepositL2Gas = 1_200_000;
 
     /********************************
      * External Contract References *
@@ -68,36 +68,46 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * Depositing *
      **************/
 
+    /**
+     * @dev This function can be called with no data
+     * to deposit an amount of ETH to the caller's balance on L2
+     */
     receive()
         external
         payable
     {
-        _initiateDeposit(msg.sender, msg.sender);
+        _initiateDeposit(msg.sender, msg.sender, bytes(""));
     }
 
     /**
      * @dev deposit an amount of the ETH to the caller's balance on L2
+     * @param _data Data to forward to L2.
      */
-    function deposit()
-        external
-        override
-        payable
-    {
-        _initiateDeposit(msg.sender, msg.sender);
-    }
-
-    /**
-     * @dev deposit an amount of ETH to a recipients's balance on L2
-     * @param _to L2 address to credit the withdrawal to
-     */
-    function depositTo(
-        address _to
+    function deposit(
+        // @flag: How does adding this data affect the cost of finalizing on the other side?
+        bytes calldata _data
     )
         external
         override
         payable
     {
-        _initiateDeposit(msg.sender, _to);
+        _initiateDeposit(msg.sender, msg.sender, _data);
+    }
+
+    /**
+     * @dev deposit an amount of ETH to a recipients's balance on L2
+     * @param _to L2 address to credit the withdrawal to
+     * @param _data Data to forward to L2.
+     */
+    function depositTo(
+        address _to,
+        bytes calldata _data
+    )
+        external
+        override
+        payable
+    {
+        _initiateDeposit(msg.sender, _to, _data);
     }
 
     /**
@@ -108,26 +118,29 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      */
     function _initiateDeposit(
         address _from,
-        address _to
+        address _to,
+        bytes memory _data
     )
         internal
     {
         // Construct calldata for l2ETHGateway.finalizeDeposit(_to, _amount)
-        bytes memory data =
+        bytes memory message =
             abi.encodeWithSelector(
                 iOVM_L2DepositedToken.finalizeDeposit.selector,
+                _from,
                 _to,
-                msg.value
+                msg.value,
+                _data
             );
 
         // Send calldata into L2
         sendCrossDomainMessage(
             ovmEth,
-            data,
+            message,
             getFinalizeDepositL2Gas
         );
 
-        emit DepositInitiated(_from, _to, msg.value);
+        emit DepositInitiated(_from, _to, msg.value, _data);
     }
 
     /*************************
@@ -143,8 +156,10 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * @param _amount Amount of the ETH to withdraw
      */
     function finalizeWithdrawal(
+        address _from,
         address _to,
-        uint256 _amount
+        uint256 _amount,
+        bytes calldata _data
     )
         external
         override
@@ -152,7 +167,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     {
         _safeTransferETH(_to, _amount);
 
-        emit WithdrawalFinalized(_to, _amount);
+        emit WithdrawalFinalized(_from, _to, _amount, _data);
     }
 
     /**********************************

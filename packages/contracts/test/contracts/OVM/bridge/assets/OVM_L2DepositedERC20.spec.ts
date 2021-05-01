@@ -11,7 +11,7 @@ import {
 } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { NON_ZERO_ADDRESS } from '../../../../helpers'
+import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -66,7 +66,12 @@ describe('OVM_L2DepositedERC20', () => {
       await OVM_L2DepositedERC20.init(NON_ZERO_ADDRESS)
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(constants.AddressZero, 0)
+        OVM_L2DepositedERC20.finalizeDeposit(
+          constants.AddressZero,
+          constants.AddressZero,
+          0,
+          NON_NULL_BYTES32
+        )
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
 
@@ -76,9 +81,15 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(constants.AddressZero, 0, {
-          from: Mock__OVM_L2CrossDomainMessenger.address,
-        })
+        OVM_L2DepositedERC20.finalizeDeposit(
+          constants.AddressZero,
+          constants.AddressZero,
+          0,
+          NON_NULL_BYTES32,
+          {
+            from: Mock__OVM_L2CrossDomainMessenger.address,
+          }
+        )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
 
@@ -89,8 +100,10 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       await OVM_L2DepositedERC20.finalizeDeposit(
+        NON_ZERO_ADDRESS,
         await alice.getAddress(),
         depositAmount,
+        NON_NULL_BYTES32,
         { from: Mock__OVM_L2CrossDomainMessenger.address }
       )
 
@@ -124,7 +137,7 @@ describe('OVM_L2DepositedERC20', () => {
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await SmoddedL2Gateway.withdraw(withdrawAmount)
+      await SmoddedL2Gateway.withdraw(withdrawAmount, NON_NULL_BYTES32)
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -149,7 +162,12 @@ describe('OVM_L2DepositedERC20', () => {
       expect(withdrawalCallToMessenger._message).to.equal(
         await Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
           'finalizeWithdrawal',
-          [await alice.getAddress(), withdrawAmount]
+          [
+            await alice.getAddress(),
+            await alice.getAddress(),
+            withdrawAmount,
+            NON_NULL_BYTES32,
+          ]
         )
       )
       // Hardcoded gaslimit should be correct
@@ -159,7 +177,11 @@ describe('OVM_L2DepositedERC20', () => {
     })
 
     it('withdrawTo() burns and sends the correct withdrawal message', async () => {
-      await SmoddedL2Gateway.withdrawTo(await bob.getAddress(), withdrawAmount)
+      await SmoddedL2Gateway.withdrawTo(
+        await bob.getAddress(),
+        withdrawAmount,
+        NON_NULL_BYTES32
+      )
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -184,7 +206,12 @@ describe('OVM_L2DepositedERC20', () => {
       expect(withdrawalCallToMessenger._message).to.equal(
         await Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
           'finalizeWithdrawal',
-          [await bob.getAddress(), withdrawAmount]
+          [
+            await alice.getAddress(),
+            await bob.getAddress(),
+            withdrawAmount,
+            NON_NULL_BYTES32,
+          ]
         )
       )
       // Hardcoded gaslimit should be correct
