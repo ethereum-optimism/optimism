@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -e
+
 RETRIES=${RETRIES:-60}
 
 if [[ ! -z "$URL" ]]; then

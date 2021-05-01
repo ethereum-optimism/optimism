@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -e
+
 RETRIES=${RETRIES:-40}
 VERBOSITY=${VERBOSITY:-6}
 
