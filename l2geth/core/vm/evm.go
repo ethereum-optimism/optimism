@@ -17,13 +17,15 @@
 package vm
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"math/big"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -32,10 +34,54 @@ import (
 	"github.com/ethereum/go-ethereum/rollup/dump"
 )
 
+// codec is a decoder for the return values of the execution manager. It decodes
+// (bool, bytes) from the bytes that are returned from both
+// `ExecutionManager.run()` and `ExecutionManager.simulateMessage()`
+var codec abi.ABI
+
+// innerData represents the results returned from the ExecutionManager
+// that are wrapped in `bytes`
+type innerData struct {
+	Success    bool   `abi:"_success"`
+	ReturnData []byte `abi:"_returndata"`
+}
+
+// runReturnData represents the actual return data of the ExecutionManager.
+// It wraps (bool, bytes) in an ABI encoded bytes
+type runReturnData struct {
+	ReturnData []byte `abi:"_returndata"`
+}
+
 // Will be removed when we update EM to return data in `run`.
 var deadPrefix, fortyTwoPrefix, zeroPrefix []byte
 
 func init() {
+	const abidata = `
+	[
+		{
+			"type": "function",
+			"name": "call",
+			"constant": true,
+			"inputs": [],
+			"outputs": [
+				{
+					"name": "_success",
+					"type": "bool"
+				},
+				{
+					"name": "_returndata",
+					"type": "bytes"
+				}
+			]
+		}
+	]
+`
+
+	var err error
+	codec, err = abi.JSON(strings.NewReader(abidata))
+	if err != nil {
+		panic(fmt.Errorf("unable to create abi decoder: %v", err))
+	}
 	deadPrefix = hexutil.MustDecode("0xdeaddeaddeaddeaddeaddeaddeaddeaddead")
 	zeroPrefix = hexutil.MustDecode("0x000000000000000000000000000000000000")
 	fortyTwoPrefix = hexutil.MustDecode("0x420000000000000000000000000000000000")
@@ -325,39 +371,46 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	if UsingOVM {
 		// OVM_ENABLED
-
 		if evm.depth == 0 {
 			// We're back at the root-level message call, so we'll need to modify the return data
 			// sent to us by the OVM_ExecutionManager to instead be the intended return data.
 
-			if len(ret) >= 96 {
-				// We expect that EOA contracts return at least 96 bytes of data, where the first
-				// 32 bytes are the boolean success value and the next 64 bytes are unnecessary
-				// ABI encoding data. The actual return data starts at the 96th byte and can be
-				// empty.
-				success := ret[:32]
-				ret = ret[96:]
+			// Attempt to decode the returndata as as ExecutionManager.run when
+			// it is not an `eth_call` and as ExecutionManager.simulateMessage
+			// when it is an `eth_call`. If the data is not decodable as ABI
+			// encoded bytes, then return nothing. If the data is able to be
+			// decoded as bytes, then attempt to decode as (bool, bytes)
+			isDecodable := true
+			run := runReturnData{}
+			switch evm.Context.EthCallSender {
+			case nil:
+				if err := evm.Context.OvmExecutionManager.ABI.Unpack(&run, "run", ret); err != nil {
+					isDecodable = false
+				}
+			default:
+				if err := evm.Context.OvmExecutionManager.ABI.Unpack(&run, "simulateMessage", ret); err != nil {
+					isDecodable = false
+				}
+			}
 
-				if !bytes.Equal(success, AbiBytesTrue) && !bytes.Equal(success, AbiBytesFalse) {
-					// If the first 32 bytes not either are the ABI encoding of "true" or "false",
-					// then the user hasn't correctly ABI encoded the result. We return the null
-					// hex string as a default here (an annoying default that would convince most
-					// people to just use the standard form).
-					ret = common.FromHex("0x")
-				} else if bytes.Equal(success, AbiBytesFalse) {
-					// If the first 32 bytes are the ABI encoding of "false", then we need to add an
-					// artificial error that represents the revert.
+			switch isDecodable {
+			case true:
+				inner := innerData{}
+				// If this fails to decode, the nil values will be set in
+				// `inner`, meaning that it will be interpreted as reverted
+				// execution with empty returndata
+				_ = codec.Unpack(&inner, "call", run.ReturnData)
+				if !inner.Success {
 					err = errExecutionReverted
 				}
-			} else {
-				// User hasn't conformed the standard format, just return "null" for the success
-				// (with no return data) to convince them to use the standard.
-				ret = common.FromHex("0x")
+				ret = inner.ReturnData
+			case false:
+				ret = []byte{}
 			}
+		}
 
-			if evm.Context.EthCallSender == nil {
-				log.Debug("Reached the end of an OVM execution", "ID", evm.Id, "Return Data", hexutil.Encode(ret), "Error", err)
-			}
+		if evm.Context.EthCallSender == nil {
+			log.Debug("Reached the end of an OVM execution", "ID", evm.Id, "Return Data", hexutil.Encode(ret), "Error", err)
 		}
 	}
 
