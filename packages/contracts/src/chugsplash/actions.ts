@@ -38,6 +38,11 @@ export interface ChugSplashActionBundle {
   }>
 }
 
+/**
+ * Checks whether a given action is a SetStorage action.
+ * @param action ChugSplash action to check.
+ * @return `true` if the action is a SetStorage action, `false` otherwise.
+ */
 export const isSetStorageAction = (
   action: ChugSplashAction
 ): action is SetStorageAction => {
@@ -47,6 +52,12 @@ export const isSetStorageAction = (
   )
 }
 
+/**
+ * Converts the "nice" action structs into a "raw" action struct (better for Solidity but
+ * worse for users here).
+ * @param action ChugSplash action to convert.
+ * @return Converted "raw" ChugSplash action.
+ */
 export const toRawChugSplashAction = (
   action: ChugSplashAction
 ): RawChugSplashAction => {
@@ -68,6 +79,11 @@ export const toRawChugSplashAction = (
   }
 }
 
+/**
+ * Computes the hash of an action.
+ * @param action Action to compute the hash of.
+ * @return Hash of the action.
+ */
 export const getActionHash = (action: RawChugSplashAction): string => {
   return ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
@@ -77,17 +93,26 @@ export const getActionHash = (action: RawChugSplashAction): string => {
   )
 }
 
+/**
+ * Generates an action bundle from a set of actions. Effectively encodes the inputs that will be
+ * provided to the ChugSplashDeployer contract.
+ * @param actions Series of SetCode or SetStorage actions to bundle.
+ * @return Bundled actions.
+ */
 export const getChugSplashActionBundle = (
   actions: ChugSplashAction[]
 ): ChugSplashActionBundle => {
+  // First turn the "nice" action structs into raw actions.
   const rawActions = actions.map((action) => {
     return toRawChugSplashAction(action)
   })
 
+  // Now compute the hash for each action.
   const elements = rawActions.map((action) => {
     return getActionHash(action)
   })
 
+  // Pad the list of elements out with default hashes if len < a power of 2.
   const filledElements = []
   for (let i = 0; i < Math.pow(2, Math.ceil(Math.log2(elements.length))); i++) {
     if (i < elements.length) {
@@ -97,12 +122,11 @@ export const getChugSplashActionBundle = (
     }
   }
 
-  const bufs = filledElements.map((element) => {
-    return fromHexString(element)
-  })
-
+  // merkletreejs expects things to be buffers.
   const tree = new MerkleTree(
-    bufs,
+    filledElements.map((element) => {
+      return fromHexString(element)
+    }),
     (el: Buffer | string): Buffer => {
       return fromHexString(ethers.utils.keccak256(el))
     }
