@@ -196,9 +196,9 @@ function WalletPicker ({ onEnable }) {
 
       <div className={styles.MainBar} >
         <div className={styles.MainLeft}>
-          Privacy-preserving decentralized exchange.<br/>
-          No front-running.<br/>
-          Zero MEV.<br/>
+          OMGX Example Web Wallet<br/>
+          90 Second Swap-On and Swap-Off<br/>
+          Traditional Deposits and 7 Day Exits<br/>
         </div>
         <div 
           className={styles.MainRight}
@@ -215,48 +215,22 @@ function WalletPicker ({ onEnable }) {
         </div>
       </div>
 
-      <div className={styles.VPBar}>
-
-        <div className={styles.VPTile}>
-          <img src={vp1} className={styles.VPImage} alt='no front running' />
-          <div className={styles.VPText}>
-            Bids are encrypted - others cannot see or front-run them. 
-          </div>
-        </div>
-
-        <div className={styles.VPTile}>
-          <img src={vp2} className={styles.VPImage} alt='privacy' />
-          <div className={styles.VPText}>
-            Only the sellers can see your bids. 
-          </div>
-        </div>
-
-        <div className={styles.VPTile}>
-          <img src={vp3} className={styles.VPImage} alt='no mev' />
-          <div className={styles.VPText}>
-            By running on OMG Plasma, MEV is always zero. 
-          </div>
-        </div>
-
-      </div>
-
       <div className={styles.WalletPicker}>
 
         <div className={styles.directive}>
 
           <div className={styles.Title}>
-            <span className={styles.B}>Sellers</span>.{' '}Your listings are protected by Lattice Cryptography. No one knows how much you are selling.<br/><br/> 
-            <span className={styles.B}>Buyers</span>.{' '}Your bids are encrypted and visible only to sellers; no front-running.<br/><br/> 
-            <span className={styles.B}>Zero miner extractable value (MEV)</span>.{' '} Since Varna is built on OMG Plasma, there are no miners who could reorder transactions.<br/><br/>
-            <span className={styles.B}>Direct settlement</span>{' '} on OMG Plasma through atomic swaps.
+            <span className={styles.B}>Demo of Traditional Deposit and Exit.</span>{' '}Note - for testing, we have turned off the 7 day exit delay.<br/><br/> 
+            <span className={styles.B}>NEW.</span>{' '}Fast (90 second) Swap-On and Swap-Off, from L1 to L2, and back from L2 to L1. Despositing ETH on L1 
+            transfers oETH to you on the L2, and vice versa. No more waiting to exit.<br/><br/>
+            <span className={styles.B}>Staking and Community-provided Liquidity.</span>{' '}This fast on/off capability is 
+            based on paired Liquidity Pools on L1 and L2 provided by the operator and the broader community, 
+            who can earn rewards for providing liquidity.<br/><br/>  
+            <span className={styles.B}>Easy to customize.</span>{' '}We have tried to keep the code simple to make it easy to customize and modify.<br/><br/>
+            <span className={styles.B}>Requirements.</span>{' '}You will need Metamask and, 
+            if you want to test on the Rinkeby testnet, some Rinkeby ETH.<br/><br/>
             <br/>
             <br/>
-          </div>
-
-          <div className={styles.Note}>
-            <span className={styles.B}>Requirements</span>. You will need Metamask and 
-            some OMG on Plasma. To buy or sell ERC20 tokens, they must be on the 
-            Child Chain. Go to {' '}<span className={styles.B}>Wallet&gt;Deposit</span>.
           </div>
 
         </div>
