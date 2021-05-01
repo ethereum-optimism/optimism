@@ -140,7 +140,7 @@ function DoExitStep ({
         </h3>
       }
 
-      {fast && currencySymbols[currency] != 'oETH' &&
+      {fast && currencySymbols[currency] !== 'oETH' &&
         <h3>
           The L1 liquidity pool has {LPBalance} {currencySymbols[currency]}.
           The liquidity fee is {feeRate}%. {value && `You will receive ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1.`}
@@ -153,7 +153,7 @@ function DoExitStep ({
         </h3>
       }
 
-      {!fast && currencySymbols[currency] != 'oETH' &&
+      {!fast && currencySymbols[currency] !== 'oETH' &&
         <h3>
           {value && `You will receive ${Number(value).toFixed(2)} ${currencySymbols[currency]} on L1. Your funds will be available on L1 in 7 days.`}
         </h3>
