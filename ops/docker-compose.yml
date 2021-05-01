@@ -142,3 +142,4 @@ services:
       L2_URL: http://l2geth:8545
       URL: http://deployer:8081/addresses.json
       ENABLE_GAS_REPORT: 1
+      NO_NETWORK: 1

@@ -2,5 +2,7 @@ const { DockerComposeNetwork } = require("./shared/docker-compose")
 
 
 before(async () => {
-  await new DockerComposeNetwork().up()
+  if (!process.env.NO_NETWORK) {
+    await new DockerComposeNetwork().up()
+  }
 })
