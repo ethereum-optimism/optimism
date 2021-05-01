@@ -33,7 +33,6 @@ import {
 import DepositModal from 'containers/modals/deposit/DepositModal';
 import TransferModal from 'containers/modals/transfer/TransferModal';
 import ExitModal from 'containers/modals/exit/ExitModal';
-import MergeModal from 'containers/modals/merge/MergeModal';
 import LedgerConnect from 'containers/modals/ledger/LedgerConnect';
 import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 
@@ -44,11 +43,11 @@ import Account from 'containers/account/Account';
 import MobileHeader from 'components/mobileheader/MobileHeader';
 import MobileMenu from 'components/mobilemenu/MobileMenu';
 
-import logo from 'images/omg_labs.svg';
+import logo from 'images/omgx.png';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = 1000; //in milliseconds?
+const POLL_INTERVAL = 2000; //in milliseconds?
 
 function Home () {
 
@@ -63,7 +62,6 @@ function Home () {
   const fast = useSelector(selectModalState('fast'));
   const transferModalState = useSelector(selectModalState('transferModal'));
   const exitModalState = useSelector(selectModalState('exitModal'));
-  const mergeModalState = useSelector(selectModalState('mergeModal'));
   const addTokenModalState = useSelector(selectModalState('addNewTokenModal'));
   const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'));
 
@@ -112,7 +110,6 @@ function Home () {
       <DepositModal open={depositModalState} omgOnly={beginner} fast={fast}/>
       <TransferModal open={transferModalState} />
       <ExitModal open={exitModalState} fast={fast}/>
-      <MergeModal open={mergeModalState} />
       <AddTokenModal open={addTokenModalState} />
 
       <LedgerConnect

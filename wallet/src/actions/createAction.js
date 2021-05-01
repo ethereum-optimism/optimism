@@ -30,7 +30,7 @@ export function createAction (key, asyncAction) {
         ? error
         : new WebWalletError({
           originalError: error,
-          customErrorMessage: 'Something went wrong',
+          customErrorMessage: 'Something went wrong and none of the preconfigured error messages are relevant',
           reportToSentry: true,
           reportToUi: true
         });

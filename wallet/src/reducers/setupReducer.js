@@ -15,31 +15,48 @@ limitations under the License. */
 
 const initialState = {
   walletMethod: null,
-  networkName: '',
-  networkNameShort: '',
-  watcherURL: '',
-  blockexplorerURL: '',
-  plasmaAddress: '',
-  etherscan: '',
+  networkName: 'local',
+  netLayer: null,
 };
 
 function setupReducer (state = initialState, action) {
   switch (action.type) {
     case 'SETUP/WALLET_METHOD/SET':
-      return { ...state, walletMethod: action.payload };
+      return { 
+        ...state, 
+        walletMethod: action.payload 
+      }
     case 'SETUP/NETWORK/SET':
       return { 
-      		...state, 
-      		networkName: action.payload.network.name,
-      		networkNameShort: action.payload.network.shortName,
-      		watcherURL: action.payload.network.watcher,
-      		blockexplorerURL: action.payload.network.blockexplorer,
-          plasmaAddress: action.payload.network.plasmaAddress,
-          etherscan: action.payload.network.etherscan,
-      	};
+      	...state, 
+      	networkName: action.payload
+      }
+    case 'SETUP/LAYER/SET':
+      return { 
+        ...state, 
+        netLayer: action.payload
+      }
     default:
       return state;
   }
 }
 
 export default setupReducer;
+
+/*
+export function setWalletMethod (method) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: method });
+  };
+}
+
+export function setNetwork (network) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/NETWORK/SET', payload: network });
+  };
+}
+
+export function setLayer (layer) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/LAYER/SET', payload: layer });
+*/

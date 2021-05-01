@@ -19,7 +19,7 @@ import { isEqual } from 'lodash';
 
 import { selectChildchainBalance } from 'selectors/balanceSelector';
 
-import { exitOptimism, depositL2LP } from 'actions/networkAction';
+import { exitOMGX, depositL2LP } from 'actions/networkAction';
 import { openAlert } from 'actions/uiAction';
 import { selectLoading } from 'selectors/loadingSelector';
 
@@ -74,11 +74,9 @@ function DoExitStep ({
   const submitLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
 
   async function doExit () {
-    const networkStatus = await dispatch(networkService.checkNetwork('L2'));
-    if (!networkStatus) return 
     let res;
     if (fast === false) {
-      res = await dispatch(exitOptimism(currency, value));
+      res = await dispatch(exitOMGX(currency, value));
     } else {
       res = await dispatch(depositL2LP(currency, value));
     }
@@ -86,7 +84,7 @@ function DoExitStep ({
       if (fast === false) {
         dispatch(openAlert(`${currencySymbols[currency]} was exited to L1`));
       } else {
-        dispatch(openAlert(`${currencySymbols[currency]} was deposited to liquidity pool. You got ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1`));
+        dispatch(openAlert(`${currencySymbols[currency]} was deposited to liquidity pool. You will receive ${(Number(value) * 0.97).toFixed(2)} ${currencySymbols[currency]} on L1`));
       }
       handleClose();
     }

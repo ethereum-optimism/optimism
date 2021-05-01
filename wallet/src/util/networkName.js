@@ -13,59 +13,39 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-//import config from 'util/config';
+import { INFURA_ID } from "Settings";
 
-const shortNetworkMapRev = {
-  'Mainnet':   'main', 
-  'Rinkeby':   'rinkeby',
-  'RinkebyLR': 'rinkeby',
-};
-
-const linksWatcher = {
-  'Mainnet':   'https://watcher-info.mainnet.v1.omg.network',
-  'Rinkeby':   'https://watcher-info.rinkeby.v1.omg.network',
-  'RinkebyLR': 'https://development-watcher-info-rinkeby-lr.omg.network',
-};
-
-const linksBlockexplorer = {
-  'Mainnet':   'https://blockexplorer.mainnet.v1.omg.network',
-  'Rinkeby':   'https://blockexplorer.rinkeby.v1.omg.network',
-  'RinkebyLR': 'https://development-blockexplorer-rinkeby-lr.omg.network',
-};
-
-const plasmaAddress = {
-  'Mainnet':   '0x0d4c1222f5e839a911e2053860e45f18921d72ac',
-  'Rinkeby':   '0xb43f53394d86deab35bc2d8356d6522ced6429b5',
-  'RinkebyLR': '0x9d9ad8a9baa52a10a6958dfe31ac504f6d62427d',
-};
-
-const etherscan = {
-  'Mainnet':   'https://etherscan.io',
-  'Rinkeby':   'https://rinkeby.etherscan.io',
-  'RinkebyLR': 'https://rinkeby.etherscan.io',
-};
+const NETWORKS = {
+  local: {
+    L1: {
+      name: "Local L1",
+      chainId: 31337,
+      rpcUrl: "http://" + window.location.hostname + ":9545",
+      blockExplorer: "",
+    },
+    L2: {
+      name: "Local L2",
+      chainId: 420,
+      rpcUrl: "http://" + window.location.hostname + ":8545",
+      blockExplorer: "",
+    },
+  },
+  rinkeby: {
+    L1: {
+      name: "Rinkeby L1",
+      chainId: 4,
+      rpcUrl: `https://rinkeby.infura.io/v3/${INFURA_ID}`,
+      blockExplorer: `https://rinkeby.etherscan.io/${INFURA_ID}`,
+    },
+    L2: {
+      name: "Rinkeby L2",
+      chainId: 420,
+      rpcUrl: "http://54.161.5.63:8545",
+      blockExplorer: "",
+    }
+  }
+}
 
 export function getAllNetworks () {
-
-  const rawPossibilities = 'Mainnet|Rinkeby|RinkebyLR'
-
-  if (!rawPossibilities) {
-    return [];
-  }
-
-  const options = rawPossibilities.split('|');
-  const networks = [];
-
-  options.forEach(option => {
-    networks.push({
-      name: option,
-      shortName: shortNetworkMapRev[option],
-      watcher: linksWatcher[option],
-      blockexplorer: linksBlockexplorer[option],
-      plasmaAddress: plasmaAddress[option],
-      etherscan: etherscan[option],
-    });
-  });
-
-  return networks;
+  return NETWORKS;
 }

@@ -19,39 +19,16 @@ export function selectWalletMethod () {
   };
 }
 
-//mainnet, rinkeby, ...
+//local, rinkeby, mainnet...
 export function selectNetwork () {
   return function (state) {
     return state.setup['networkName'];
   };
 }
 
-export function selectNetworkShort () {
+//L1 or L2
+export function selectLayer () {
   return function (state) {
-    return state.setup['networkNameShort'];
+    return state.setup['netLayer'];
   };
 }
-
-export function selectNetworkWURL () {
-  return function (state) {
-    return state.setup['watcherURL'];
-  };
-}
-
-export function selectNetworkBURL () {
-  return function (state) {
-    return state.setup['blockexplorerURL'];
-  };
-}
-
-export function selectPlasmaAddress () {
-   return function (state) {
-     return state.setup['plasmaAddress'];
-   };
- }
-
-  export function selectEtherscan () {
-   return function (state) {
-     return state.setup['etherscan'];
-   };
- }

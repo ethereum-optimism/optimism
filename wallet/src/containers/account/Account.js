@@ -23,8 +23,6 @@ import { selectLoading } from 'selectors/loadingSelector';
 import { selectIsSynced } from 'selectors/statusSelector';
 import { selectChildchainBalance, selectRootchainBalance } from 'selectors/balanceSelector';
 
-import { SELECT_NETWORK } from 'Settings';
-
 import { openModal } from 'actions/uiAction';
 
 import Copy from 'components/copy/Copy';
@@ -45,38 +43,40 @@ function Account () {
   const childBalance = useSelector(selectChildchainBalance, isEqual);
   const rootBalance = useSelector(selectRootchainBalance, isEqual);
   const criticalTransactionLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
-  
+
   const disabled = !childBalance.length || !isSynced ;
 
   const handleModalClick = useCallback(
     async (name, fast = false, beginner = false) => {
       if (name === 'transferModal' || name === 'exitModal') {
-        const networkStatus = await dispatch(networkService.checkNetwork('L2'));
-        if (!networkStatus) return 
+        const correctLayer = await dispatch(networkService.confirmLayer('L2'));
+        if (!correctLayer) return 
       }
       if (name === 'depositModal') {
-        const networkStatus = await dispatch(networkService.checkNetwork('L1'));
-        if (!networkStatus) return 
+        const correctLayer = await dispatch(networkService.confirmLayer('L1'));
+        if (!correctLayer) return 
       }
       dispatch(openModal(name, beginner, fast))
     }, [ dispatch ]
   );
 
   let balances = {
-    OMG : {have: false, amount: 0, amountShort: '0'},
-    WETH : {have: false, amount: 0, amountShort: '0'}
+    /*____ : {have: false, amount: 0, amountShort: '0'},*/
+    oETH : {have: false, amount: 0, amountShort: '0'}
   }
 
   childBalance.reduce((acc, cur) => {
-    if (cur.symbol === 'WETH' && cur.amount > 0 ) {
-      acc['WETH']['have'] = true;
-      acc['WETH']['amount'] = cur.amount;
-      acc['WETH']['amountShort'] = logAmount(cur.amount, cur.decimals, 2);
+    if (cur.symbol === 'oETH' && cur.amount > 0 ) {
+      acc['oETH']['have'] = true;
+      acc['oETH']['amount'] = cur.amount;
+      acc['oETH']['amountShort'] = logAmount(cur.amount, cur.decimals, 2);
     }
     return acc;
   }, balances)
 
   const wAddress = networkService.account ? truncate(networkService.account, 6, 4, '...') : '';
+  const networkLayer = networkService.L1orL2 === 'L1' ? 'L1' : 'L2';
+  const networkName = networkService.networkName;
 
   const handleDepositETHL1 = useCallback(
     () => dispatch(networkService.depositETHL1()),
@@ -91,50 +91,50 @@ function Account () {
         <Copy value={networkService.account} />
       </div>
 
-      {balances['WETH']['have'] &&
+{/*
+      {balances['oETH']['have'] &&
         <h3 style={{marginBottom: '30px'}}>Status: Ready to use OMGX</h3> 
       }
-      {!balances['WETH']['have'] &&
-        <h3 style={{marginBottom: '30px'}}>Status: Bunny Cry. You do not have any wETH on OMGX</h3> 
+      {!balances['oETH']['have'] &&
+        <h3 style={{marginBottom: '30px'}}>Status: Bunny Cry. You do not have any oETH on OMGX</h3> 
       }
-
-      {balances['WETH']['have'] &&
+*/}
+      {balances['oETH']['have'] &&
         <div className={styles.RabbitBox}>
           <img className={styles.bunny} src={bunny_happy} alt='Happy Bunny' />
           <div className={styles.RabbitRight}>
-            <div
-              className={styles.RabbitRightTop}
-            >
-              Child Chain<br/>Balance
+            <div className={styles.RabbitRightTop}>
+              OMGX Balance
             </div>
-            <div 
-              className={styles.RabbitRightMiddle.sad}
-              style={{color: '#0ebf9a', fontSize: '4em'}}
-            >
-              <span>
-              {balances['WETH']['amountShort']}
-              </span>
+            <div className={styles.RabbitRightMiddle}>
+              <div className={styles.happy}>{balances['oETH']['amountShort']}</div>
             </div>
             <div className={styles.RabbitRightBottom}>
-              WETH
+              oETH
+            </div>
+            <div className={styles.RabbitRightBottomNote}>
+            {networkLayer === 'L1' && 
+              <span>You are on Mainnet (L1). Here, you can send tokens to OMGX. To do things on OMGX (L2), please switch to L2 in your wallet.</span>
+            }
+            {networkLayer === 'L2' && 
+              <span>You are on OMGX (L2). Here, you can trade, send tokens to others on OMGX, and send tokens to L1. To use L1, please switch to L1 in your wallet.</span>
+            }
             </div>
           </div>
         </div>
       }
 
-      {!balances['WETH']['have'] &&
+      {!balances['oETH']['have'] &&
         <div className={styles.RabbitBox}>
           <img className={styles.bunny} src={bunny_sad} alt='Sad Bunny' />
           <div className={styles.RabbitRight}>
             <div
               className={styles.RabbitRightTop}
             >
-              OMGX L2<br/>wETH Balance
+              OMGX Balance
             </div>
             <div className={styles.RabbitRightMiddle}>
-              <span className={styles.sad}>
                 0
-              </span>
             </div>
             <div className={styles.RabbitRightBottom}>
             </div>
@@ -144,93 +144,29 @@ function Account () {
 
       <div className={styles.balances} style={{marginTop: 30}}>
 
-        <div className={styles.box}>
-          <div className={styles.header}>
-            <div className={styles.title}>
-              <span>Balance on Childchain</span>
-              <span>OMGX</span>
-            </div>
-              <div
-                onClick={()=>handleModalClick('transferModal')}
-                className={[styles.transfer, disabled ? styles.disabled : ''].join(' ')}
-              >
-                <Send />
-                <span>TRANSFER L2->L2</span>
-              </div>
-          </div>
-          {childBalance.map((i, index) => {
-            return (
-              <div key={index} className={styles.row}>
-                <div className={styles.token}>
-                  <span className={styles.symbol}>{i.symbol}</span>
-                </div>
-                <span>{logAmount(i.amount, i.decimals, 4)}</span>
-              </div>
-            );
-          })}
+      <div className={styles.boxWrapper}>
+
+        <div className={styles.location}>
+          <div>L1</div>
+            {networkLayer === 'L1' && <span className={styles.under}>You are here</span>}
+            {networkLayer === 'L2' && <span>&nbsp;</span>}
+          <div>L1</div>
         </div>
 
-        <div className={styles.boxActions}>
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('depositModal', true)}
-              type='primary'
-              disabled={!isSynced || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            >
-              <ArrowBack/>
-              FAST ONRAMP
-            </Button>
-          </div>
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('exitModal', true)}
-              type='primary'
-              disabled={!isSynced || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            > 
-              FAST EXIT
-              <ArrowForward/>
-            </Button>
-          </div>
+        <div className={[styles.box, networkLayer === 'L2' ? styles.dim : styles.active].join(' ')}>
 
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('depositModal')}
-              type='primary'
-              disabled={!isSynced || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            >
-              <ArrowBack/>
-              SLOW ONRAMP
-            </Button>
-          </div>
-          <div className={styles.buttons}>
-            <Button
-              onClick={() => handleModalClick('exitModal')}
-              type='primary'
-              disabled={disabled || criticalTransactionLoading}
-              style={{maxWidth: 'none'}}
-            >
-              SLOW EXIT
-              <ArrowForward/>
-            </Button>
-          </div>
-        </div>
-
-        <div className={styles.box}>
           <div className={styles.header}>
             <div className={styles.title}>
               <span>Balance on Rootchain</span>
               <span>Ethereum Network</span>
             </div>
-            {SELECT_NETWORK === 'local' &&
+            {networkName === 'local' &&
               <div
                 onClick={()=>handleDepositETHL1()}
                 className={[styles.transfer, !isSynced ? styles.disabled : ''].join(' ')}
               >
                 <Send />
-                <span>L1 ETH Fountain</span>
+                <span>ETH Test Fountain</span>
               </div>
             }
           </div>
@@ -249,7 +185,98 @@ function Account () {
         </div>
       </div>
 
+      <div className={styles.boxWrapper}>
+        <div className={styles.location}>
+          &nbsp;
+        </div>
+        <div className={styles.boxActions}>
+        {networkLayer === 'L1' &&
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal', true)}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: '150px', padding: '8px'}}
+            >
+              FAST ONRAMP<ArrowForward/>
+            </Button>
+          </div>
+        }
+        {networkLayer === 'L2' &&
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('exitModal', true)}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: '150px', padding: '8px'}}
+            > 
+            <ArrowBack/>FAST EXIT
+            </Button>
+          </div>
+        }
+        {networkLayer === 'L1' &&
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('depositModal')}
+              type='primary'
+              disabled={!isSynced || criticalTransactionLoading}
+              style={{maxWidth: '150px', padding: '8px'}}
+            >
+              SLOW ONRAMP<ArrowForward/>
+            </Button>
+          </div>
+        }
+        {networkLayer === 'L2' &&
+          <div className={styles.buttons}>
+            <Button
+              onClick={() => handleModalClick('exitModal')}
+              type='primary'
+              disabled={disabled || criticalTransactionLoading}
+              style={{maxWidth: '150px', padding: '8px'}}
+            >
+              <ArrowBack/>SLOW EXIT
+            </Button>
+          </div>
+        }
+        </div>
+      </div>
+      
+      <div className={styles.boxWrapper}>
+        <div className={styles.location}>
+          <div>L2</div>
+            {networkLayer === 'L1' && <span>&nbsp;</span>}
+            {networkLayer === 'L2' && <span className={styles.under}>You are here</span>}
+          <div>L2</div>
+        </div>
+        <div className={[styles.box, networkLayer === 'L1' ? styles.dim : styles.active].join(' ')}>
+          <div className={styles.header}>
+            <div className={styles.title}>
+              <span>Balance on Childchain</span>
+              <span>OMGX</span>
+            </div>
+              <div
+                onClick={()=>handleModalClick('transferModal')}
+                className={[styles.transfer, networkLayer === 'L1' ? styles.disabled : ''].join(' ')}
+              >
+                <Send />
+                <span>TRANSFER</span>
+              </div>
+          </div>
+          {childBalance.map((i, index) => {
+            return (
+              <div key={index} className={styles.row}>
+                <div className={styles.token}>
+                  <span className={styles.symbol}>{i.symbol}</span>
+                </div>
+                <span>{logAmount(i.amount, i.decimals, 4)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
+
+  </div>
   );
 
 }

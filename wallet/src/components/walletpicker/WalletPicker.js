@@ -13,60 +13,97 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 
+import WrongNetworkModal from 'containers/modals/wrongnetwork/WrongNetworkModal';
 import networkService from 'services/networkService';
 
-import { selectWalletMethod } from 'selectors/setupSelector';
+import { selectModalState } from 'selectors/uiSelector';
 
-import { setWalletMethod } from 'actions/setupAction';
+import { 
+  selectWalletMethod, 
+  selectNetwork,
+  selectLayer,
+} from 'selectors/setupSelector';
 
-import logo from 'images/omg_labs.svg';
+import { openModal } from 'actions/uiAction';
+import { setWalletMethod, setNetwork } from 'actions/setupAction';
+import { getAllNetworks } from 'util/networkName';
+
+import logo from 'images/omgx.png';
 import vp1 from 'images/vp_1.svg';
 import vp2 from 'images/vp_2.svg';
 import vp3 from 'images/vp_3.svg';
+import chevron from 'images/chevron.svg';
 
 import * as styles from './WalletPicker.module.scss';
 
 function WalletPicker ({ onEnable }) {
 
   const dispatch = useDispatch();
+  const dropdownNode = useRef(null);
 
   const [ walletEnabled, setWalletEnabled ] = useState(false);
   const [ accountsEnabled, setAccountsEnabled ] = useState(false);
+  const [ wrongNetwork, setWrongNetwork ] = useState(false);
+  const [ showAllNetworks, setShowAllNetworks ] = useState(false);
 
-  const walletMethod = useSelector(selectWalletMethod());
+  const walletMethod = useSelector(selectWalletMethod())
+  const networkName = useSelector(selectNetwork())
+  const netLayer = useSelector(selectLayer())
+
+  console.log("walletMethod:",walletMethod)
+  console.log("networkName:",networkName)
+  console.log("netLayer:",netLayer)
+  
+  const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
   const dispatchSetWalletMethod = useCallback((methodName) => {
+    console.log("dispatchSetWalletMethod:",methodName)
     dispatch(setWalletMethod(methodName));
-  }, [ dispatch ]);
+  }, [ dispatch ])
+
+  const dispatchSetNetwork = useCallback((network) => {
+    console.log("dispatchSetNetwork:",network)
+    setShowAllNetworks(false);
+    dispatch(setNetwork(network));
+  }, [ dispatch ])
 
   useEffect(() => {
-
-    async function enableBrowserWallet () {
-      
-      const walletEnabled = await networkService.enableBrowserWallet();
-      
-      return walletEnabled
-        ? setWalletEnabled(true)
-        : dispatchSetWalletMethod(null);
-    }
 
     if (walletMethod === 'browser') {
       enableBrowserWallet();
     }
 
-  }, [ dispatchSetWalletMethod, walletMethod ]);
+    async function enableBrowserWallet () {
+      console.log("enableBrowserWallet() for",networkName)
+      const selectedNetwork = networkName ? networkName : "local";
+      const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
+      console.log("walletEnabled:",walletEnabled)
+      return walletEnabled
+        ? setWalletEnabled(true)
+        : dispatchSetWalletMethod(null);
+    }
+
+  }, [ dispatchSetWalletMethod, walletMethod, networkName ]);
 
   useEffect(() => {
 
     async function initializeAccounts () {
 
-      const initialized = await dispatch(networkService.initializeAccounts());
+      console.log("initializeAccounts() for:",networkName)
+
+      const initialized = await networkService.initializeAccounts(networkName);
 
       if (!initialized) {
+        console.log("Error !initialized for:",networkName)
         return setAccountsEnabled(false);
+      }
+
+      if (initialized === 'wrongnetwork') {
+        setAccountsEnabled(false);
+        return setWrongNetwork(true);
       }
       
       if (initialized === 'enabled') {
@@ -77,7 +114,7 @@ function WalletPicker ({ onEnable }) {
     if (walletEnabled) {
       initializeAccounts();
     }
-  }, [ dispatch, walletEnabled ]);
+  }, [ walletEnabled, networkName ]);
 
   useEffect(() => {
     if (accountsEnabled) {
@@ -85,29 +122,83 @@ function WalletPicker ({ onEnable }) {
     }
   }, [ onEnable, accountsEnabled ]);
 
+  useEffect(() => {
+    if (walletEnabled && wrongNetwork) {
+      dispatch(openModal('wrongNetworkModal'));
+    }
+  }, [ dispatch, walletEnabled, wrongNetwork ]);
+
+  function resetSelection () {
+    dispatchSetWalletMethod(null);
+    setWalletEnabled(false);
+    setAccountsEnabled(false);
+  }
+
   const browserEnabled = !!window.ethereum;
+
+  // defines the set of possible networks
+  const networks = getAllNetworks();
+
+  let allNetworks = [];
+  for (var prop in networks) allNetworks.push(prop)
 
   return (
     <>
+
+      <WrongNetworkModal
+        open={wrongNetworkModalState}
+        onClose={resetSelection}
+      />
+
       <div className={styles.WalletPicker}>
         <div className={styles.title}>
           <img src={logo} alt='logo' />
           <div className={styles.menu}>
-            <div className={styles.network}>
+
+            <div
+              onClick={()=>setShowAllNetworks(prev => !prev)}
+              className={styles.network}
+            >
               <div className={styles.indicator} />
               <div>
-                OMGX Local Chain
+                OMGX {networkName}
               </div>
+              {!!allNetworks.length && (
+                <img
+                  src={chevron}
+                  alt='chevron'
+                  className={[
+                    styles.chevron,
+                    showAllNetworks ? styles.open : ''
+                  ].join(' ')}
+                />
+              )}
             </div>
+
+            <div 
+              ref={dropdownNode} 
+              className={styles.dropdown}
+            >
+              {!!allNetworks.length && showAllNetworks && allNetworks.map((network, index) => (
+                <div
+                  style={{background: '#2A308E', color: 'white', marginTop: 5, padding: 5, borderRadius: 3}}
+                  key={index}
+                  onClick={()=>dispatchSetNetwork(network)}
+                >
+                  {network}
+                </div>))
+              }
+            </div>
+           
           </div>
         </div>
       </div>
 
       <div className={styles.MainBar} >
         <div className={styles.MainLeft}>
-          Privacy-preserving decentralized exchange.<br/>
-          No front-running.<br/>
-          Zero MEV.<br/>
+          OMGX Example Web Wallet<br/>
+          90 Second Swap-On and Swap-Off<br/>
+          Traditional Deposits and 7 Day Exits<br/>
         </div>
         <div 
           className={styles.MainRight}
@@ -124,48 +215,22 @@ function WalletPicker ({ onEnable }) {
         </div>
       </div>
 
-      <div className={styles.VPBar}>
-
-        <div className={styles.VPTile}>
-          <img src={vp1} className={styles.VPImage} alt='no front running' />
-          <div className={styles.VPText}>
-            Bids are encrypted - others cannot see or front-run them. 
-          </div>
-        </div>
-
-        <div className={styles.VPTile}>
-          <img src={vp2} className={styles.VPImage} alt='privacy' />
-          <div className={styles.VPText}>
-            Only the sellers can see your bids. 
-          </div>
-        </div>
-
-        <div className={styles.VPTile}>
-          <img src={vp3} className={styles.VPImage} alt='no mev' />
-          <div className={styles.VPText}>
-            By running on OMG Plasma, MEV is always zero. 
-          </div>
-        </div>
-
-      </div>
-
       <div className={styles.WalletPicker}>
 
         <div className={styles.directive}>
 
           <div className={styles.Title}>
-            <span className={styles.B}>Sellers</span>.{' '}Your listings are protected by Lattice Cryptography. No one knows how much you are selling.<br/><br/> 
-            <span className={styles.B}>Buyers</span>.{' '}Your bids are encrypted and visible only to sellers; no front-running.<br/><br/> 
-            <span className={styles.B}>Zero miner extractable value (MEV)</span>.{' '} Since Varna is built on OMG Plasma, there are no miners who could reorder transactions.<br/><br/>
-            <span className={styles.B}>Direct settlement</span>{' '} on OMG Plasma through atomic swaps.
+            <span className={styles.B}>Demo of Traditional Deposit and Exit.</span>{' '}Note - for testing, we have turned off the 7 day exit delay.<br/><br/> 
+            <span className={styles.B}>NEW.</span>{' '}Fast (90 second) Swap-On and Swap-Off, from L1 to L2, and back from L2 to L1. Despositing ETH on L1 
+            transfers oETH to you on the L2, and vice versa. No more waiting to exit.<br/><br/>
+            <span className={styles.B}>Staking and Community-provided Liquidity.</span>{' '}This fast on/off capability is 
+            based on paired Liquidity Pools on L1 and L2 provided by the operator and the broader community, 
+            who can earn rewards for providing liquidity.<br/><br/>  
+            <span className={styles.B}>Easy to customize.</span>{' '}We have tried to keep the code simple to make it easy to customize and modify.<br/><br/>
+            <span className={styles.B}>Requirements.</span>{' '}You will need Metamask and, 
+            if you want to test on the Rinkeby testnet, some Rinkeby ETH.<br/><br/>
             <br/>
             <br/>
-          </div>
-
-          <div className={styles.Note}>
-            <span className={styles.B}>Requirements</span>. You will need Metamask and 
-            some OMG on Plasma. To buy or sell ERC20 tokens, they must be on the 
-            Child Chain. Go to {' '}<span className={styles.B}>Wallet&gt;Deposit</span>.
           </div>
 
         </div>

@@ -110,10 +110,10 @@ export function addExitQueue (token, gasPrice) {
   );
 }
 
-export function exitOptimism (token, value) {
+export function exitOMGX (token, value) {
   return createAction(
     'EXIT/CREATE',
-    () => networkService.exitOptimism(token, value)
+    () => networkService.exitOMGX(token, value)
   )
 }
 
@@ -191,13 +191,6 @@ export function getTransferTypedData (data) {
       _error.report(dispatch);
     }
   };
-}
-
-export function mergeUtxos (useLedgerSign, utxos) {
-  return createAction(
-    'TRANSFER/CREATE',
-    () => networkService.mergeUtxos(useLedgerSign, utxos)
-  );
 }
 
 // export function fetchGas () {

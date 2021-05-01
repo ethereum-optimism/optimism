@@ -29,10 +29,8 @@ import { orderBy } from 'lodash';
 import BN from 'bn.js';
 import Web3 from 'web3';
 
-import { setNetwork } from 'actions/setupAction';
 import { getToken } from 'actions/tokenAction';
 import { openAlert, openError } from 'actions/uiAction';
-import { openNotification } from 'actions/notificationAction';
 import { WebWalletError } from 'services/errorService';
 
 import L1LPJson from '../deployment/artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
@@ -42,60 +40,32 @@ import L2DepositedERC20Json from '../deployment/artifacts-ovm/contracts/L2Deposi
 import L1ERC20GatewayJson from '../deployment/artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
 
 import { powAmount, logAmount } from 'util/amountConvert';
+import { getAllNetworks } from 'util/networkName';
 
-import { L1ETHGATEWAY, L2DEPOSITEDERC20, NETWORKS, SELECT_NETWORK } from "Settings";
+import { L1ETHGATEWAY, L2DEPOSITEDERC20 } from "Settings";
 
 //All the current addresses
-const addresses = require('../deployment/addresses.json');
-const ERC20Address = addresses.L1ERC20
-const L1ERC20GatewayAddress = addresses.L1ERC20Gateway
-const L2DepositedERC20Address = addresses.L2DepositedERC20
-const L1LPAddress = addresses.L1LiquidityPool
-const L2LPAddress = addresses.L2LiquidityPool
+const localAddresses = require(`../deployment/local/addresses.json`);
+const rinkebyAddresses = require(`../deployment/rinkeby/addresses.json`);
 
 const web3Modal = new Web3Modal({
   cacheProvider: true, // optional
   providerOptions: {},
 });
 
-const configChain = {
-  local: {
-    l1Network: NETWORKS['localL1'],
-    l2Network: NETWORKS['localL2'],
-  },
-  rinkeby: {
-    l1Network: NETWORKS['rinkeby'],
-    l2Network: NETWORKS['rinkebyL2'],
-  }
-}
-
-const l1Network = configChain[SELECT_NETWORK].l1Network;
-const l2Network = configChain[SELECT_NETWORK].l2Network;
-
-const l1Provider = new JsonRpcProvider(l1Network.rpcUrl);
-const l2Provider = new JsonRpcProvider(l2Network.rpcUrl);
-
-const l1ETHGatewayAddress = addresses.l1ETHGatewayAddress;
-const l2ETHGatewayAddress = l2Network.l2ETHGatewayAddress;
-
-const l1MessengerAddress = addresses.l1MessengerAddress;
-const l2MessengerAddress = l2Network.l2MessengerAddress;
-
-const l1ChainID = l1Network.chainId;
-const l2ChainID = l2Network.chainId;
-
-const l1NetworkName = l1Network.name;
-const l2NetworkName = l2Network.name;
-
 class NetworkService {
 
   constructor () {
+
     this.web3 = null;
     // based on MetaMask
     this.web3Provider = null;
 
     this.l1Web3Provider = null;
     this.l2Web3Provider = null;
+
+    this.l1Provider = null;
+    this.l2Provider = null;
 
     this.provider = null;
     this.OmgUtil = OmgUtil;
@@ -112,94 +82,41 @@ class NetworkService {
     this.ERC20L2Contract = null;
 
     // L1 or L2
-    this.selectedNetwork = null;
+    this.L1orL2 = null;
+    this.networkName = null;
 
     // Watcher
     this.watcher = null;
 
-    // LP address
-    this.L1LPAddress = L1LPAddress;
-    this.L2LPAddress = L2LPAddress;
+    // addresses
+
+    this.ERC20Address = null;
+    this.l1ETHGatewayAddress = null;
+    this.L1ERC20GatewayAddress = null;
+    this.L2DepositedERC20Address = null;
+    this.l1MessengerAddress = null;
+    this.L1LPAddress = null;
+    this.L2LPAddress = null;
+    this.l2ETHGatewayAddress = '0x4200000000000000000000000000000000000006';
+    this.l2MessengerAddress = '0x4200000000000000000000000000000000000007';
   }
 
   async enableBrowserWallet() {
+
+    console.log("NS: enableBrowserWallet()")
     try {
       // connect to the wallet
       this.provider = await web3Modal.connect();
+      
       // can't get rid of it at this moment, there are 
       // other functions that use this 
       this.web3Provider = new Web3Provider(this.provider);
-      
-      this.l1Web3Provider = new Web3(new Web3.providers.HttpProvider(l1Network.rpcUrl));
-      this.l2Web3Provider = new Web3(new Web3.providers.HttpProvider(l2Network.rpcUrl));
-
-      this.L1ETHGatewayContract = new ethers.Contract(
-        l1ETHGatewayAddress, 
-        L1ETHGATEWAY, 
-        this.web3Provider.getSigner(),
-      );
-
-      this.L2ETHGatewayContract = new ethers.Contract(
-        l2ETHGatewayAddress,
-        L2DEPOSITEDERC20,
-        this.web3Provider.getSigner(),
-      );
-
-      this.OVM_L1ERC20Gateway = new ethers.Contract(
-        L1ERC20GatewayAddress, 
-        L1ERC20GatewayJson.abi, 
-        this.web3Provider.getSigner(),
-      );
-
-      this.OVM_L2DepositedERC20 = new ethers.Contract(
-        L2DepositedERC20Address, 
-        L2DepositedERC20Json.abi, 
-        this.web3Provider.getSigner(),
-      );
-
-      // For the balance
-      this.ERC20L1Contract = new this.l1Web3Provider.eth.Contract(
-        L1ERC20Json.abi,
-        ERC20Address,
-      );
-
-      this.ERC20L2Contract = new this.l2Web3Provider.eth.Contract(
-        L2DepositedERC20Json.abi,
-        L2DepositedERC20Address,
-      );
-
-      // Liquidity pools
-      this.L1LPContract = new ethers.Contract(
-        L1LPAddress,
-        L1LPJson.abi,
-        this.web3Provider.getSigner(),
-      );
-
-      this.L2LPContract = new ethers.Contract(
-        L2LPAddress,
-        L2LPJson.abi,
-        this.web3Provider.getSigner(),
-      );
-
-      //Fire up the new watcher
-      //const addressManager = getAddressManager(bobl1Wallet)
-      //const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
-      this.watcher = new Watcher({
-        l1: {
-          provider: l1Provider,
-          messengerAddress: l1MessengerAddress
-        },
-        l2: {
-          provider: l2Provider,
-          messengerAddress: l2MessengerAddress
-        }
-      })
-      this.bindProviderListeners();
-
+     
       return true;
     } catch(error) {
       return false;
     }
+
   }
 
   bindProviderListeners() {
@@ -210,31 +127,147 @@ class NetworkService {
     this.provider.on("chainChanged", () => {
       window.location.reload();
     })
+
+    this.OVM_L2DepositedERC20.on("WithdrawalInitiated", (sender, to, amount) => {
+      console.log({ sender, to, amount: amount.toString() });
+    })
   }
 
-  initializeAccounts = () => async (dispatch) => {
+  async initializeAccounts ( networkName ) {
+    
+    console.log("NS: initializeAccounts() for",networkName)
     try {
+      let addresses;
+      if (networkName === 'local') addresses = localAddresses;
+      else addresses = rinkebyAddresses;
 
+      //at this point, the wallet should be connected
       this.account = await this.web3Provider.getSigner().getAddress();
-      
-      const networkStatus = await dispatch(this.checkNetwork('L1L2'));
-      
-      if (!networkStatus) return 'wrongnetwork'
-
+      console.log("this.account",this.account)
       const network = await this.web3Provider.getNetwork();
-      
-      this.selectedNetwork = network.chainId === l1ChainID ? "L1" : "L2";
 
-      dispatch(setNetwork({
-        network: {
-          name: 'Optimism',
-          shortName: 'L2',
-          watcher: NETWORKS.localL1.rpcUrl,
+      this.networkName = networkName;
+      console.log("NS: networkName:",this.networkName)
+      console.log("NS: account:",this.account)
+      console.log("NS: network:",network)
+
+      //there are numerous possible chains we could be on
+      //either local, rinkeby etc
+      //and then, also, either L1 or L2
+
+      //at this point, we only know whether we want to be on local or rinkeby etc
+      if(networkName === 'local' && network.chainId === 420) {
+        //ok, that's reasonable
+        //local deployment, L2
+        this.L1orL2 = 'L2';
+      } else if (networkName === 'local' && network.chainId === 31337) {
+        //ok, that's reasonable
+        //local deployment, L1
+        this.L1orL2 = 'L1';
+      } else if (networkName === 'rinkeby' && network.chainId === 4) {
+        //ok, that's reasonable
+        //rinkeby, L1
+        this.L1orL2 = 'L1';
+      } else if (networkName === 'rinkeby' && network.chainId === 420) {
+        //ok, that's reasonable
+        //rinkeby, L2
+        this.L1orL2 = 'L2';
+      } else {
+        return 'wrongnetwork'
+      }
+
+      //dispatch(setLayer(this.L1orL2))
+      //const dispatch = useDispatch();
+
+      // defines the set of possible networks
+      const nw = getAllNetworks();
+
+      this.l1Web3Provider = new Web3(new Web3.providers.HttpProvider(nw[networkName]['L1']['rpcUrl']));
+      this.l2Web3Provider = new Web3(new Web3.providers.HttpProvider(nw[networkName]['L2']['rpcUrl']));
+
+      this.l1Provider = new JsonRpcProvider(nw[networkName]['L1']['rpcUrl']);
+      this.l2Provider = new JsonRpcProvider(nw[networkName]['L2']['rpcUrl']);
+
+      // addresses
+      this.ERC20Address = addresses.L1ERC20;
+      this.l1ETHGatewayAddress = addresses.l1ETHGatewayAddress;
+      this.L1ERC20GatewayAddress = addresses.L1ERC20Gateway
+      this.L2DepositedERC20Address = addresses.L2DepositedERC20
+      this.l1MessengerAddress = addresses.l1MessengerAddress;
+      this.L1LPAddress = addresses.L1LiquidityPool;
+      this.L2LPAddress = addresses.L2LiquidityPool;
+
+      this.L1ETHGatewayContract = new ethers.Contract(
+        this.l1ETHGatewayAddress, 
+        L1ETHGATEWAY, 
+        this.web3Provider.getSigner(),
+      );
+
+      this.L2ETHGatewayContract = new ethers.Contract(
+        this.l2ETHGatewayAddress,
+        L2DEPOSITEDERC20,
+        this.web3Provider.getSigner(),
+      );
+
+      this.OVM_L1ERC20Gateway = new ethers.Contract(
+        this.L1ERC20GatewayAddress, 
+        L1ERC20GatewayJson.abi, 
+        this.web3Provider.getSigner(),
+      );
+
+      this.OVM_L2DepositedERC20 = new ethers.Contract(
+        this.L2DepositedERC20Address, 
+        L2DepositedERC20Json.abi, 
+        this.web3Provider.getSigner(),
+      );
+
+      // For the balance
+      this.ERC20L1Contract = new this.l1Web3Provider.eth.Contract(
+        L1ERC20Json.abi,
+        this.ERC20Address,
+      );
+
+      this.ERC20L2Contract = new this.l2Web3Provider.eth.Contract(
+        L2DepositedERC20Json.abi,
+        this.L2DepositedERC20Address,
+      );
+
+      // Liquidity pools
+      this.L1LPContract = new ethers.Contract(
+        this.L1LPAddress,
+        L1LPJson.abi,
+        this.web3Provider.getSigner(),
+      );
+
+      this.L2LPContract = new ethers.Contract(
+        this.L2LPAddress,
+        L2LPJson.abi,
+        this.web3Provider.getSigner(),
+      );
+
+      //Fire up the new watcher
+      //const addressManager = getAddressManager(bobl1Wallet)
+      //const watcher = await initWatcher(l1Provider, this.l2Provider, addressManager)
+
+      this.watcher = new Watcher({
+        l1: {
+          provider: this.l1Provider,
+          messengerAddress: this.l1MessengerAddress
+        },
+        l2: {
+          provider: this.l2Provider,
+          messengerAddress: this.l2MessengerAddress
         }
-      })); 
-      return 'enabled';
+      })
+
+      this.bindProviderListeners();
+      
+      return 'enabled'
+
     } catch (error) {
+
       return false;
+    
     }
   }
 
@@ -248,19 +281,23 @@ class NetworkService {
   }
 
   async getBalances () {
+
     try {
-      const rootChainBalance = await l1Provider.getBalance(this.account);
+
+      const rootChainBalance = await this.l1Provider.getBalance(this.account);
       const ERC20L1Balance = await this.ERC20L1Contract.methods.balances(this.account).call({from: this.account});
 
-      const childChainBalance = await l2Provider.getBalance(this.account);
+      const childChainBalance = await this.l2Provider.getBalance(this.account);
       const ERC20L2Balance = await this.ERC20L2Contract.methods.balanceOf(this.account).call({from: this.account});
 
       const ethToken = await getToken(OmgUtil.transaction.ETH_CURRENCY);
       let testToken = null;
-      if (networkService.selectedNetwork === 'L1') {
-        testToken = await getToken(ERC20Address);
+      
+      //For testing - we always provide a test token
+      if (this.L1orL2 === 'L1') {
+        testToken = await getToken(this.ERC20Address);
       } else {
-        testToken = await getToken(L2DepositedERC20Address);
+        testToken = await getToken(this.L2DepositedERC20Address);
       }
 
       const rootchainEthBalance = [
@@ -270,7 +307,7 @@ class NetworkService {
         },
         {
           ...testToken,
-          currency: ERC20Address,
+          currency: this.ERC20Address,
           amount: new BN(ERC20L1Balance.toString()),
         }
       ];
@@ -278,13 +315,13 @@ class NetworkService {
       const childchainEthBalance = [
         {
           ...ethToken,
-          currency: l2ETHGatewayAddress,
-          symbol: 'WETH',
+          currency: this.l2ETHGatewayAddress,
+          symbol: 'oETH',
           amount: new BN(childChainBalance.toString()),
         },
         {
           ...testToken,
-          currency: L2DepositedERC20Address,
+          currency: this.L2DepositedERC20Address,
           amount: new BN(ERC20L2Balance.toString()),
         },
       ]
@@ -292,7 +329,8 @@ class NetworkService {
       return {
         rootchain: orderBy(rootchainEthBalance, i => i.currency),
         childchain: orderBy(childchainEthBalance, i => i.currency)
-      };
+      }
+
     } catch (error) {
       throw new WebWalletError({
         originalError: error,
@@ -302,15 +340,15 @@ class NetworkService {
     }
   }
 
-  depositETHL1 = () => async(dispatch) => {
+  depositETHL1 = () => async (dispatch) => {
 
-    const networkStatus = await dispatch(this.checkNetwork('L1'));
-    
-    if (!networkStatus) return 
+    //for this to work, we have to be on the L1
+    //otherwise makes no sense
+    if (this.L1orL2 !== 'L1') return 
 
     try {
-      const l1ProviderRPC = new JsonRpcProvider(l1Network.rpcUrl);
-      const signer = l1ProviderRPC.getSigner();
+      //const l1ProviderRPC = new JsonRpcProvider(l1Network.rpcUrl);
+      const signer = this.l1Provider.getSigner();
       
       // Send 1 ETH
       const txOption = {
@@ -327,13 +365,13 @@ class NetworkService {
 
       dispatch(openAlert("Deposited ETH to L1"));
 
-      // break;
     } catch (error) {
       dispatch(openError("Failed to deposit ETH to L1"));
     }
   }
 
   depositETHL2 = async (value='1') => {
+
     try {
       const depositTxStatus = await this.L1ETHGatewayContract.deposit({
         value: parseEther(value),
@@ -347,6 +385,7 @@ class NetworkService {
       console.log(' completed Deposit! L2 tx hash:', l2Receipt.transactionHash);
       
       this.getBalances();
+
       return l2Receipt;
 
     } catch {
@@ -355,6 +394,7 @@ class NetworkService {
   }
 
   async transfer(address, value, currency) {
+
     if (currency === '0x4200000000000000000000000000000000000006') {
       const txStatus = await this.L2ETHGatewayContract.transfer(
         address,
@@ -364,7 +404,7 @@ class NetworkService {
       console.log(txRes);
       return txRes;
     }
-    if (currency.toLowerCase() === L2DepositedERC20Address.toLowerCase()) {
+    if (currency.toLowerCase() === this.L2DepositedERC20Address.toLowerCase()) {
       const txStatus = await this.OVM_L2DepositedERC20.transfer(
         address,
         parseEther(value.toString()), 
@@ -375,104 +415,30 @@ class NetworkService {
     }
   }
 
-  switchChainParam(chain) {
-    return {
-      chainId: '0x'+chain.chainID.toString(16),
-      chainName: chain.chainName,
-      nativeCurrency: {
-        name: chain.currencyName || 'ETH',
-        symbol: chain.currencySymbol || 'ETH', // 2-6 characters long
-        decimals: chain.currencyDecimals || 18,
-      },
-      rpcUrls: [chain.rpcUrl]
+  confirmLayer = (layerToConfirm) => async (dispatch) =>{
+    
+    if(layerToConfirm === this.L1orL2 ) {
+      return true
+    } else {
+      return false
     }
-  }
-
-  checkNetwork = (networkCase) => async (dispatch) =>{
-    const network = await this.web3Provider.getNetwork();
-
-    let networkCorrect = false;
-    switch(networkCase) {
-      case 'L1':
-        networkCorrect = network.chainId === l1ChainID;
-        break;
-      case 'L2':
-        networkCorrect = network.chainId === l2ChainID;
-        break;
-      case 'L1L2':
-        networkCorrect = network.chainId === l1ChainID || network.chainId === l2ChainID;
-        break;
-      default:
-        break;
-    }
-
-    const chainParam = this.switchChainParam({
-      chainID: l2ChainID,
-      chainName: l2NetworkName,
-      rpcUrl: l2Network.rpcUrl,
-      currencyName: 'oWETH',
-      currencySymbol: 'oWETH',
-    });
-
-    if (networkCase === 'L1') {
-      if (!networkCorrect) {
-        dispatch(openNotification({
-          notificationText: `Wrong Network. Please use ${l1NetworkName}.`,
-        }))
-        return false
-      }
-    }
-
-    if (networkCase === 'L2') {
-      if (!networkCorrect) {
-        dispatch(openNotification({
-          notificationText: `Wrong Network. Please use ${l2NetworkName}.`,
-          notificationButtonText: `Switch`,
-          notificationButtonAction: () => this.web3Provider.jsonRpcFetchFunc(
-            'wallet_addEthereumChain',
-            [chainParam, this.account],
-          )
-        }))
-        return  false
-      }
-    }
-
-    // L1 or L2 network
-    if (networkCase === 'L1L2') {
-      if (!networkCorrect) {
-        dispatch(openNotification({
-          notificationText: `Wrong Network. Please use ${l1NetworkName} or ${l2NetworkName}.`,
-          notificationButtonText: `Switch`,
-          notificationButtonAction: () => this.web3Provider.jsonRpcFetchFunc(
-            'wallet_addEthereumChain',
-            [chainParam, this.account],
-          )
-        }))
-        return  false
-      }
-    }
-
-    return true
   }
 
   async getAllTransactions () {
     let transactionHistory = {};
-    const latest = await l2Provider.eth.getBlockNumber();
+    const latest = await this.l2Provider.eth.getBlockNumber();
     const blockNumbers = Array.from(Array(latest).keys());
     
     for (let blockNumber of blockNumbers) {
-      const blockData = await l2Provider.eth.getBlock(blockNumber);
+      const blockData = await this.l2Provider.eth.getBlock(blockNumber);
       const transactionsArray = blockData.transactions;
-
       if (transactionsArray.length === 0) {
-        transactionHistory.push({
-
-        })
+        transactionHistory.push({/*ToDo*/})
       }
     }
   }
 
-  async checkAllowance (currency, targetContract=L1ERC20GatewayAddress) {
+  async checkAllowance (currency, targetContract=this.L1ERC20GatewayAddress) {
     try {
       const ERC20Contract = new ethers.Contract(
         currency, 
@@ -491,7 +457,7 @@ class NetworkService {
     }
   }
 
-  async approveErc20 (value, currency, approveContractAddress=L1ERC20GatewayAddress, contractABI= L1ERC20Json.abi) {
+  async approveErc20 (value, currency, approveContractAddress=this.L1ERC20GatewayAddress, contractABI= L1ERC20Json.abi) {
     try {
       const ERC20Contract = new ethers.Contract(
         currency, 
@@ -516,7 +482,7 @@ class NetworkService {
     }
   }
 
-  async resetApprove (value, currency, approveContractAddress=L1ERC20GatewayAddress, contractABI= L1ERC20Json.abi) {
+  async resetApprove (value, currency, approveContractAddress=this.L1ERC20GatewayAddress, contractABI= L1ERC20Json.abi) {
     try {
       const ERC20Contract = new ethers.Contract(
         currency, 
@@ -553,7 +519,7 @@ class NetworkService {
         L1ERC20Json.abi, 
         this.web3Provider.getSigner(),
       );
-      const allowance = await ERC20Contract.allowance(this.account, L1ERC20GatewayAddress);
+      const allowance = await ERC20Contract.allowance(this.account, this.L1ERC20GatewayAddress);
       
       console.log({allowance:  allowance.toString(), value});
 
@@ -582,7 +548,7 @@ class NetworkService {
     }
   }
 
-  async exitOptimism(currency, value) {
+  async exitOMGX(currency, value) {
     if (currency === '0x4200000000000000000000000000000000000006') {
       const tx = await this.L2ETHGatewayContract.withdraw(
         parseEther(value.toString()), 
@@ -598,7 +564,7 @@ class NetworkService {
     
       return tx
     }
-    if (currency === L2DepositedERC20Address) {
+    if (currency === this.L2DepositedERC20Address) {
       const tx = await this.OVM_L2DepositedERC20.withdraw(
         parseEther(value.toString()), 
         {gasLimit: 5000000}, 
@@ -621,7 +587,7 @@ class NetworkService {
     let depositAmount = powAmount(value, decimals);
     depositAmount = new BN(depositAmount);
 
-    if (currency === ERC20Address) {
+    if (currency === this.ERC20Address) {
       // L2 LP has enough tokens
       const ERC20Contract = new ethers.Contract(
         currency, 
@@ -630,12 +596,12 @@ class NetworkService {
       );
       
       // Check if the allowance is large enough
-      let allowance = await ERC20Contract.allowance(this.account, L1LPAddress);
+      let allowance = await ERC20Contract.allowance(this.account, this.L1LPAddress);
       allowance = new BN(allowance.toString());
 
       if (depositAmount.gt(allowance)) {
         const approveStatus = await ERC20Contract.approve(
-          L1LPAddress,
+          this.L1LPAddress,
           depositAmount.toString(),
         );
         await approveStatus.wait();
@@ -653,7 +619,7 @@ class NetworkService {
       const web3 = new Web3(this.provider);
       const depositTX = await web3.eth.sendTransaction({
         from: this.account,
-        to: L1LPAddress,
+        to: this.L1LPAddress,
         value: depositAmount,
       });
       return depositTX
@@ -661,13 +627,16 @@ class NetworkService {
   }
 
   async depositL1LP(currency, value) {
+
     const decimals = 18;
     let depositAmount = powAmount(value, decimals);
     depositAmount = new BN(depositAmount);
 
     let l2TokenCurrency = null;
-    if (currency.toLowerCase() === ERC20Address.toLowerCase()) {
-      l2TokenCurrency = L2DepositedERC20Address;
+
+    if (currency.toLowerCase() === this.ERC20Address.toLowerCase()) {
+      
+      l2TokenCurrency = this.L2DepositedERC20Address;
 
       const ERC20Contract = new ethers.Contract(
         currency, 
@@ -676,12 +645,12 @@ class NetworkService {
       );
       
       // Check if the allowance is large enough
-      let allowance = await ERC20Contract.allowance(this.account, L1LPAddress);
+      let allowance = await ERC20Contract.allowance(this.account, this.L1LPAddress);
       allowance = new BN(allowance.toString());
 
       if (depositAmount.gt(allowance)) {
         const approveStatus = await ERC20Contract.approve(
-          L1LPAddress,
+          this.L1LPAddress,
           depositAmount.toString(),
         );
         await approveStatus.wait();
@@ -705,9 +674,10 @@ class NetworkService {
       const web3 = new Web3(this.provider);
       const depositTX = await web3.eth.sendTransaction({
         from: this.account,
-        to: L1LPAddress,
+        to: this.L1LPAddress,
         value: depositAmount,
-      });
+      })
+      await depositTX.wait();
       console.log(depositTX);
       const [l1ToL2msgHash] = await this.watcher.getMessageHashesFromL1Tx(depositTX.transactionHash)
       console.log(' got L1->L2 message hash', l1ToL2msgHash)
@@ -720,15 +690,15 @@ class NetworkService {
   }
 
   async L1LPBalance(currency) {
-    if (currency === l2ETHGatewayAddress) {
+    if (currency === this.l2ETHGatewayAddress) {
       currency = '0x0000000000000000000000000000000000000000';
     }
-    if (currency === L2DepositedERC20Address) {
-      currency = ERC20Address;
+    if (currency === this.L2DepositedERC20Address) {
+      currency = this.ERC20Address;
     }
     const L1LPContract = new this.l1Web3Provider.eth.Contract(
       L1LPJson.abi,
-      L1LPAddress,
+      this.L1LPAddress,
     );
     const balance = await L1LPContract.methods.balanceOf(
       currency,
@@ -741,7 +711,7 @@ class NetworkService {
   async getL1LPFeeRatio() {
     const L1LPContract = new this.l1Web3Provider.eth.Contract(
       L1LPJson.abi,
-      L1LPAddress,
+      this.L1LPAddress,
     );
     return await L1LPContract.methods.getFeeRatio().call({ from: this.account });
   }
@@ -749,7 +719,7 @@ class NetworkService {
   async L1LPFeeBalance(currency) {
     const L1LPContract = new this.l1Web3Provider.eth.Contract(
       L1LPJson.abi,
-      L1LPAddress,
+      this.L1LPAddress,
     );
     const balance = await L1LPContract.methods.feeBalanceOf(
       currency,
@@ -770,7 +740,7 @@ class NetworkService {
         L1ERC20Json.abi,
         currency,
       )
-      L1LPBalance = await ERC20Contract.methods.balanceOf(L1LPAddress).call({from: this.account});
+      L1LPBalance = await ERC20Contract.methods.balanceOf(this.L1LPAddress).call({from: this.account});
     } else {
       L1LPBalance = L1LPFeeBalance;
     }
@@ -795,7 +765,7 @@ class NetworkService {
       this.web3Provider.getSigner(),
     );
 
-    let allowance = await ERC20Contract.allowance(this.account, L2LPAddress);
+    let allowance = await ERC20Contract.allowance(this.account, this.L2LPAddress);
     allowance = new BN(allowance.toString());
 
     const token = await getToken(currency);
@@ -805,7 +775,7 @@ class NetworkService {
 
     if (depositAmount.gt(allowance)) {
       const approveStatus = await ERC20Contract.approve(
-        L2LPAddress,
+        this.L2LPAddress,
         depositAmount.toString(),
       );
       await approveStatus.wait();
@@ -825,10 +795,10 @@ class NetworkService {
     
     let l1TokenCurrency = null;
     
-    if (currency === l2ETHGatewayAddress) {
+    if (currency === this.l2ETHGatewayAddress) {
       l1TokenCurrency = "0x0000000000000000000000000000000000000000";
     } else {
-      l1TokenCurrency = ERC20Address;
+      l1TokenCurrency = this.ERC20Address;
     }
 
     const ERC20Contract = new ethers.Contract(
@@ -837,7 +807,7 @@ class NetworkService {
       this.web3Provider.getSigner(),
     );
 
-    let allowance = await ERC20Contract.allowance(this.account, L2LPAddress);
+    let allowance = await ERC20Contract.allowance(this.account, this.L2LPAddress);
     allowance = new BN(allowance.toString());
 
     const token = await getToken(currency);
@@ -847,7 +817,7 @@ class NetworkService {
 
     if (depositAmount.gt(allowance)) {
       const approveStatus = await ERC20Contract.approve(
-        L2LPAddress,
+        this.L2LPAddress,
         depositAmount.toString(),
       );
       await approveStatus.wait();
@@ -872,14 +842,14 @@ class NetworkService {
 
   async L2LPBalance(currency) {
     if (currency === '0x0000000000000000000000000000000000000000') {
-      currency = l2ETHGatewayAddress;
+      currency = this.l2ETHGatewayAddress;
     }
-    if (currency.toLowerCase() === ERC20Address.toLowerCase()) {
-      currency = L2DepositedERC20Address;
+    if (currency.toLowerCase() === this.ERC20Address.toLowerCase()) {
+      currency = this.L2DepositedERC20Address;
     }
     const L2LPContract = new this.l2Web3Provider.eth.Contract(
       L2LPJson.abi,
-      L2LPAddress,
+      this.L2LPAddress,
     );
     const balance = await L2LPContract.methods.balanceOf(
       currency,
@@ -893,7 +863,7 @@ class NetworkService {
   async getL2LPFeeRatio() {
     const L2LPContract = new this.l2Web3Provider.eth.Contract(
       L2LPJson.abi,
-      L2LPAddress,
+      this.L2LPAddress,
     );
     return await L2LPContract.methods.getFeeRatio().call({ from: this.account });
   }
@@ -901,7 +871,7 @@ class NetworkService {
   async L2LPFeeBalance(currency) {
     const L2LPContract = new this.l2Web3Provider.eth.Contract(
       L2LPJson.abi,
-      L2LPAddress,
+      this.L2LPAddress,
     );
     const balance = await L2LPContract.methods.feeBalanceOf(
       currency,
@@ -916,7 +886,7 @@ class NetworkService {
       L2DepositedERC20Json.abi,
       currency,
     );
-    const L2LPBalance = await ERC20Contract.methods.balanceOf(L2LPAddress).call({from: this.account});
+    const L2LPBalance = await ERC20Contract.methods.balanceOf(this.L2LPAddress).call({from: this.account});
     const L2LPFeeBalance = await this.L2LPContract.feeBalanceOf(currency);
 
     const decimals = 18;
