@@ -51,7 +51,7 @@ function InputStep ({
       if (res) {
         dispatch(setActiveHistoryTab('Deposits'));
         if (fast) {
-          dispatch(openAlert(`ETH was deposited the the L1LP. You will receive ${(Number(value) * 0.97).toFixed(2)} WETH on L2`));
+          dispatch(openAlert(`ETH was deposited the the L1LP. You will receive ${(Number(value) * 0.97).toFixed(2)} oETH on L2`));
         } else {
           dispatch(openAlert('ETH deposit submitted.'));
         }
@@ -113,13 +113,20 @@ function InputStep ({
         onChange={i=>setValue(i.target.value)} 
       />
 
-      {fast && Object.keys(tokenInfo).length && currency ? (
+      {fast && activeTab === 'ETH' && Object.keys(tokenInfo).length && currency ? (
         <>
           <h3>
-            The L2 liquidity pool has {LPBalance} {tokenInfo.symbol}.
+            The L2 liquidity pool has {LPBalance} oETH. The liquidity fee is {feeRate}%.{" "} 
+            {value && `You will receive ${(Number(value) * 0.97).toFixed(2)} oETH on L2.`}
           </h3>
+        </>
+      ):<></>}
+
+      {fast && activeTab === 'ERC20' && Object.keys(tokenInfo).length && currency ? (
+        <>
           <h3>
-            The convenience fee is {feeRate}%. {value && `You are going to receive ${(Number(value) * 0.97).toFixed(2)} WETH on L2.`}
+            The L2 liquidity pool contains {LPBalance} {tokenInfo.symbol}. The liquidity fee is {feeRate}%.{" "} 
+            {value && `You will receive ${(Number(value) * 0.97).toFixed(2)} ${tokenInfo.symbol} on L2.`}
           </h3>
         </>
       ):<></>}
