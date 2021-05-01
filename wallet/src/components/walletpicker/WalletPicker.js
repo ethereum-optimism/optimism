@@ -31,7 +31,7 @@ import { openModal } from 'actions/uiAction';
 import { setWalletMethod, setNetwork } from 'actions/setupAction';
 import { getAllNetworks } from 'util/networkName';
 
-import logo from 'images/omg_labs.svg';
+import logo from 'images/omgx.png';
 import vp1 from 'images/vp_1.svg';
 import vp2 from 'images/vp_2.svg';
 import vp3 from 'images/vp_3.svg';

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import logo_small from 'images/varna_small.svg';
+import logo_small from 'images/omgx.png';
 
 import Hamburger from 'components/hamburger/Hamburger';
 import * as styles from './MobileHeader.module.scss';

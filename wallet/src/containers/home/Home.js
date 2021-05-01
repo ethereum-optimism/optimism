@@ -43,7 +43,7 @@ import Account from 'containers/account/Account';
 import MobileHeader from 'components/mobileheader/MobileHeader';
 import MobileMenu from 'components/mobilemenu/MobileMenu';
 
-import logo from 'images/omg_labs.svg';
+import logo from 'images/omgx.png';
 
 import * as styles from './Home.module.scss';
 
