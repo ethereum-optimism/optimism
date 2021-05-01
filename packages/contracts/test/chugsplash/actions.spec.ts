@@ -26,14 +26,12 @@ const makeAndVerifyBundle = (actions: ChugSplashAction[]): void => {
     expect(
       tree.verify(
         action.proof.siblings.map((sibling, idx) => {
+          const positions = action.proof.actionIndex
+            .toString(2)
+            .split('')
+            .reverse()
           return {
-            position:
-              action.proof.actionIndex
-                .toString(2)
-                .split('')
-                .reverse()[idx] === '1'
-                ? 'left'
-                : 'right',
+            position: positions[idx] === '1' ? 'left' : 'right',
             data: sibling,
           }
         }),

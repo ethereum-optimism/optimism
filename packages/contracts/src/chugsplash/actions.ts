@@ -136,7 +136,7 @@ export const getChugSplashActionBundle = (
     root: toHexString(tree.getRoot()),
     actions: rawActions.map((action, idx) => {
       return {
-        action: action,
+        action,
         proof: {
           actionIndex: idx,
           siblings: tree.getProof(getActionHash(action), idx).map((element) => {
