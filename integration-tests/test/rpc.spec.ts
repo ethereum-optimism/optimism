@@ -187,8 +187,11 @@ describe('Basic RPC tests', () => {
 
         // we normalize by gwei here because the RPC does it as well, since the
         // user provides a 1gwei gas price when submitting txs via the eth_gasPrice
-        // rpc call
-        const expected = expectedCost[i].mul(l1GasPrice).div(GWEI)
+        // rpc call. The smallest possible value for the expected cost is 21000
+        let expected = expectedCost[i].mul(l1GasPrice).div(GWEI)
+        if (expected.lt(BigNumber.from(21000))) {
+          expected = BigNumber.from(21000)
+        }
         expect(estimate).to.be.deep.eq(expected)
       }
     })
