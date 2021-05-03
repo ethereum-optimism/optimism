@@ -1882,7 +1882,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         external
         returns (
-            bool,
             bytes memory
         )
     {
@@ -1899,18 +1898,19 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (isCreate) {
             (address created, bytes memory revertData) = ovmCREATE(_transaction.data);
             if (created == address(0)) {
-                return (false, revertData);
+                return abi.encode(false, revertData);
             } else {
                 // The eth_call RPC endpoint for to = undefined will return the deployed bytecode
                 // in the success case, differing from standard create messages.
-                return (true, Lib_EthUtils.getCode(created));
+                return abi.encode(true, Lib_EthUtils.getCode(created));
             }
         } else {
-            return ovmCALL(
+            (bool success, bytes memory returndata) = ovmCALL(
                 _transaction.gasLimit,
                 _transaction.entrypoint,
                 _transaction.data
             );
+            return abi.encode(success, returndata);
         }
     }
 }
