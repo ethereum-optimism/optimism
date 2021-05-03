@@ -19,7 +19,7 @@ const ERR_INVALID_X_DOMAIN_MSG_SENDER =
 const MOCK_L1GATEWAY_ADDRESS: string =
   '0x1234123412341234123412341234123412341234'
 
-describe('OVM_L2DepositedERC20', () => {
+describe('OVM_L2TokenGateway', () => {
   let alice: Signer
   let bob: Signer
   let Factory__OVM_L1ERC20Gateway: ContractFactory
@@ -30,7 +30,8 @@ describe('OVM_L2DepositedERC20', () => {
     )
   })
 
-  let OVM_L2DepositedERC20: Contract
+  let OVM_L2TokenGateway: Contract
+  let OVM_L2ERC20: Contract
   let Mock__OVM_L2CrossDomainMessenger: MockContract
   let finalizeWithdrawalGasLimit: number
   beforeEach(async () => {
@@ -46,27 +47,33 @@ describe('OVM_L2DepositedERC20', () => {
     )
 
     // Deploy the contract under test
-    OVM_L2DepositedERC20 = await (
-      await ethers.getContractFactory('OVM_L2DepositedERC20')
-    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, 'ovmWETH', 'oWETH')
+    OVM_L2TokenGateway = await (
+      await ethers.getContractFactory('OVM_L2TokenGateway')
+    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, constants.AddressZero, 'ovmWETH', 'oWETH')
 
-    // initialize the L2 Gateway with the L1G ateway addrss
-    await OVM_L2DepositedERC20.init(MOCK_L1GATEWAY_ADDRESS)
+    // Get the address of the token contract created
+    OVM_L2ERC20 = await ethers.getContractAt(
+      'OVM_L2ERC20',
+      await OVM_L2TokenGateway.token()
+    )
 
-    finalizeWithdrawalGasLimit = await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
+    // initialize the L2 Gateway with the L1Gateway address
+    await OVM_L2TokenGateway.init(MOCK_L1GATEWAY_ADDRESS)
+
+    finalizeWithdrawalGasLimit = await OVM_L2TokenGateway.getFinalizeWithdrawalL1Gas()
   })
 
   // test the transfer flow of moving a token from L2 to L1
   describe('finalizeDeposit', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L2 account', async () => {
       // Deploy new gateway, initialize with random messenger
-      OVM_L2DepositedERC20 = await (
-        await ethers.getContractFactory('OVM_L2DepositedERC20')
-      ).deploy(NON_ZERO_ADDRESS, 'ovmWETH', 'oWETH')
-      await OVM_L2DepositedERC20.init(NON_ZERO_ADDRESS)
+      OVM_L2TokenGateway = await (
+        await ethers.getContractFactory('OVM_L2TokenGateway')
+      ).deploy(NON_ZERO_ADDRESS, constants.AddressZero, 'ovmWETH', 'oWETH')
+      await OVM_L2TokenGateway.init(NON_ZERO_ADDRESS)
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(
+        OVM_L2TokenGateway.finalizeDeposit(
           constants.AddressZero,
           constants.AddressZero,
           0,
@@ -81,7 +88,7 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(
+        OVM_L2TokenGateway.finalizeDeposit(
           constants.AddressZero,
           constants.AddressZero,
           0,
@@ -99,7 +106,7 @@ describe('OVM_L2DepositedERC20', () => {
         () => MOCK_L1GATEWAY_ADDRESS
       )
 
-      await OVM_L2DepositedERC20.finalizeDeposit(
+      await OVM_L2TokenGateway.finalizeDeposit(
         NON_ZERO_ADDRESS,
         await alice.getAddress(),
         depositAmount,
@@ -107,7 +114,7 @@ describe('OVM_L2DepositedERC20', () => {
         { from: Mock__OVM_L2CrossDomainMessenger.address }
       )
 
-      const aliceBalance = await OVM_L2DepositedERC20.balanceOf(
+      const aliceBalance = await OVM_L2ERC20.balanceOf(
         await alice.getAddress()
       )
       aliceBalance.should.equal(depositAmount)
@@ -118,31 +125,39 @@ describe('OVM_L2DepositedERC20', () => {
     const INITIAL_TOTAL_SUPPLY = 100_000
     const ALICE_INITIAL_BALANCE = 50_000
     const withdrawAmount = 1_000
-    let SmoddedL2Gateway: ModifiableContract
+    let OVM_L2TokenGateway: Contract
+    let SmoddedL2ERC20: ModifiableContract
     beforeEach(async () => {
-      // Deploy a smodded gateway so we can give some balances to withdraw
-      SmoddedL2Gateway = await (
-        await smoddit('OVM_L2DepositedERC20', alice)
-      ).deploy(Mock__OVM_L2CrossDomainMessenger.address, 'ovmWETH', 'oWETH')
-      await SmoddedL2Gateway.init(MOCK_L1GATEWAY_ADDRESS)
+      // Deploy a smodded ERC20 so we can give some balances to withdraw
+      SmoddedL2ERC20 = await (
+        await smoddit('OVM_L2ERC20', alice)
+      ).deploy('ovmWETH', 'oWETH')
 
-      // Populate the initial state with a total supply and some money in alice's balance
+      // Deploy the gateway
+      OVM_L2TokenGateway = await (
+        await ethers.getContractFactory('OVM_L2TokenGateway')
+      ).deploy(Mock__OVM_L2CrossDomainMessenger.address, SmoddedL2ERC20.address, '', '')
+      await OVM_L2TokenGateway.init(MOCK_L1GATEWAY_ADDRESS)
+
+      // Setup the token with a total supply and some money in alice's balance,
+      // and make it owned by the L2 gateway.
       const aliceAddress = await alice.getAddress()
-      SmoddedL2Gateway.smodify.put({
-        totalSupply: INITIAL_TOTAL_SUPPLY,
-        balanceOf: {
+      SmoddedL2ERC20.smodify.put({
+        _totalSupply: INITIAL_TOTAL_SUPPLY,
+        _balances: {
           [aliceAddress]: ALICE_INITIAL_BALANCE,
         },
+        _owner: OVM_L2TokenGateway.address
       })
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await SmoddedL2Gateway.withdraw(withdrawAmount, NON_NULL_BYTES32)
+      await OVM_L2TokenGateway.withdraw(withdrawAmount, NON_NULL_BYTES32)
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       // Assert Alice's balance went down
-      const aliceBalance = await SmoddedL2Gateway.balanceOf(
+      const aliceBalance = await SmoddedL2ERC20.balanceOf(
         await alice.getAddress()
       )
       expect(aliceBalance).to.deep.equal(
@@ -150,7 +165,7 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       // Assert totalSupply went down
-      const newTotalSupply = await SmoddedL2Gateway.totalSupply()
+      const newTotalSupply = await SmoddedL2ERC20.totalSupply()
       expect(newTotalSupply).to.deep.equal(
         ethers.BigNumber.from(INITIAL_TOTAL_SUPPLY - withdrawAmount)
       )
@@ -177,7 +192,7 @@ describe('OVM_L2DepositedERC20', () => {
     })
 
     it('withdrawTo() burns and sends the correct withdrawal message', async () => {
-      await SmoddedL2Gateway.withdrawTo(
+      await OVM_L2TokenGateway.withdrawTo(
         await bob.getAddress(),
         withdrawAmount,
         NON_NULL_BYTES32
@@ -186,7 +201,7 @@ describe('OVM_L2DepositedERC20', () => {
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       // Assert Alice's balance went down
-      const aliceBalance = await SmoddedL2Gateway.balanceOf(
+      const aliceBalance = await SmoddedL2ERC20.balanceOf(
         await alice.getAddress()
       )
       expect(aliceBalance).to.deep.equal(
@@ -194,7 +209,7 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       // Assert totalSupply went down
-      const newTotalSupply = await SmoddedL2Gateway.totalSupply()
+      const newTotalSupply = await SmoddedL2ERC20.totalSupply()
       expect(newTotalSupply).to.deep.equal(
         ethers.BigNumber.from(INITIAL_TOTAL_SUPPLY - withdrawAmount)
       )

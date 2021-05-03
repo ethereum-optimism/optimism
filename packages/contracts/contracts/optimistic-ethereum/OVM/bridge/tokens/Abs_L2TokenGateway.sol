@@ -3,14 +3,14 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
+import { iOVM_L2TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L2TokenGateway.sol";
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
 
 /**
- * @title Abs_L2DepositedToken
+ * @title Abs_L2TokenGateway
  * @dev An L2 Deposited Token is an L2 representation of funds which were deposited from L1.
  * Usually contract mints new tokens when it hears about deposits into the L1 ERC20 gateway.
  * This contract also burns the tokens intended for withdrawal, informing the L1 gateway to release L1 funds.
@@ -21,7 +21,7 @@ import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomai
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomainEnabled {
+abstract contract Abs_L2TokenGateway is iOVM_L2TokenGateway, OVM_CrossDomainEnabled {
 
     /*******************
      * Contract Events *
@@ -229,13 +229,13 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      *
      * @param _to Address to receive the withdrawal at
      * @param _amount Amount of the token to withdraw
-    * @param _data Data provided by the sender on L1.
+     * param _data Data provided by the sender on L1.
      */
     function finalizeDeposit(
         address _from,
         address _to,
         uint _amount,
-        bytes calldata _data
+        bytes calldata // _data
     )
         external
         override

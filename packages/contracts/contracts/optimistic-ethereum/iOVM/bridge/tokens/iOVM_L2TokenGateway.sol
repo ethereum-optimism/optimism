@@ -3,9 +3,9 @@ pragma solidity >0.5.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * @title iOVM_L2DepositedToken
+ * @title iOVM_L2TokenGateway
  */
-interface iOVM_L2DepositedToken {
+interface iOVM_L2TokenGateway {
 
     /**********
      * Events *

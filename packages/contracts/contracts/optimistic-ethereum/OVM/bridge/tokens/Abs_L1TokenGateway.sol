@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
-import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
+import { iOVM_L2TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L2TokenGateway.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
@@ -36,7 +36,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      ***************/
 
     /**
-     * @param _l2DepositedToken iOVM_L2DepositedToken-compatible address on the chain being deposited into.
+     * @param _l2DepositedToken iOVM_L2TokenGateway-compatible address on the chain being deposited into.
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      */
     constructor(
@@ -168,7 +168,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
 
         // Construct calldata for l2DepositedToken.finalizeDeposit(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L2DepositedToken.finalizeDeposit.selector,
+            iOVM_L2TokenGateway.finalizeInboundTransfer.selector,
             _from,
             _to,
             _amount,

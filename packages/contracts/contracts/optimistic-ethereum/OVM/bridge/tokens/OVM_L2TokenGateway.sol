@@ -6,42 +6,58 @@ pragma experimental ABIEncoderV2;
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
 
 /* Contract Imports */
-import { UniswapV2ERC20 } from "../../../libraries/standards/UniswapV2ERC20.sol";
+import { OVM_L2ERC20 } from "../../../libraries/standards/OVM_L2ERC20.sol";
 
 /* Library Imports */
-import { Abs_L2DepositedToken } from "./Abs_L2DepositedToken.sol";
+import { Abs_L2TokenGateway } from "./Abs_L2TokenGateway.sol";
 
 /**
- * @title OVM_L2DepositedERC20
+ * @title OVM_L2TokenGateway
  * @dev The L2 Deposited ERC20 is an ERC20 implementation which represents L1 assets deposited into L2.
  * This contract mints new tokens when it hears about deposits into the L1 ERC20 gateway.
  * This contract also burns the tokens intended for withdrawal, informing the L1 gateway to release L1 funds.
  *
- * NOTE: This contract implements the Abs_L2DepositedToken contract using Uniswap's ERC20 as the implementation.
+ * NOTE: This contract implements the Abs_L2TokenGateway contract using Uniswap's ERC20 as the implementation.
  * Alternative implementations can be used in this similar manner.
  *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
+contract OVM_L2TokenGateway is Abs_L2TokenGateway {
+
+    /*********************
+     * Storage Variables *
+     ********************/
+    OVM_L2ERC20 public token;
 
     /***************
      * Constructor *
      ***************/
 
     /**
+     * @dev A token address may either be provided, or a new one will be created.
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
+     * @param _token ERC20 token address
      * @param _name ERC20 name
      * @param _symbol ERC20 symbol
      */
     constructor(
         address _l2CrossDomainMessenger,
+        address _token,
         string memory _name,
         string memory _symbol
     )
-        Abs_L2DepositedToken(_l2CrossDomainMessenger)
-        UniswapV2ERC20(_name, _symbol)
-    {}
+        Abs_L2TokenGateway(_l2CrossDomainMessenger)
+    {
+        if(_token == address(0)){
+            token = new OVM_L2ERC20(
+                _name,
+                _symbol
+            );
+        } else {
+            token = OVM_L2ERC20(_token);
+        }
+    }
 
     // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage.
     function _handleInitiateWithdrawal(
@@ -51,7 +67,7 @@ contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
         internal
         override
     {
-        _burn(msg.sender, _amount);
+        token.burn(msg.sender, _amount);
     }
 
     // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
@@ -62,6 +78,6 @@ contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
         internal
         override
     {
-        _mint(_to, _amount);
+        token.mint(_to, _amount);
     }
 }
