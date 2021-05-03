@@ -222,8 +222,11 @@ extendEnvironment(async (hre) => {
         (hre as any).ethers.provider.url
       )
       provider.pollingInterval = interval
+
+      // the gas price is overriden to the user provided gasPrice or to 0.
       provider.getGasPrice = async () =>
-        ethers.BigNumber.from(hre.network.config.gasPrice)
+        ethers.BigNumber.from(hre.network.config.gasPrice || 0)
+
       ;(hre as any).ethers.provider = provider
 
       // if the node is up, override the getSigners method's signers
