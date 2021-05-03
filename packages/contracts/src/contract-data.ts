@@ -1,4 +1,5 @@
 import * as path from 'path'
+import { predeploys as l2Addresses } from './predeploys'
 
 export const getL1ContractData = (network: 'goerli' | 'kovan' | 'mainnet') => {
   const contractNames = [
@@ -39,63 +40,63 @@ export const getL2ContractData = () => {
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_ETH.sol/OVM_ETH.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000006',
+      address: l2Addresses.OVM_ETH,
     },
     OVM_L2CrossDomainMessenger: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/bridge/messaging/OVM_L2CrossDomainMessenger.sol/OVM_L2CrossDomainMessenger.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000007',
+      address: l2Addresses.OVM_L2CrossDomainMessenger,
     },
     OVM_L2ToL1MessagePasser: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_L2ToL1MessagePasser.sol/OVM_L2ToL1MessagePasser.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000000',
+      address: l2Addresses.OVM_L2ToL1MessagePasser,
     },
     OVM_L1MessageSender: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_L1MessageSender.sol/OVM_L1MessageSender.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000001',
+      address: l2Addresses.OVM_L1MessageSender,
     },
     OVM_DeployerWhitelist: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_DeployerWhitelist.sol/OVM_DeployerWhitelist.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000002',
+      address: l2Addresses.OVM_DeployerWhitelist,
     },
     OVM_ECDSAContractAccount: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/accounts/OVM_ECDSAContractAccount.sol/OVM_ECDSAContractAccount.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000003',
+      address: l2Addresses.OVM_ECDSAContractAccount,
     },
     OVM_SequencerEntrypoint: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol/OVM_SequencerEntrypoint.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000005',
+      address: l2Addresses.OVM_SequencerEntrypoint,
     },
     ERC1820Registry: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/ERC1820Registry.sol/ERC1820Registry.json`
       )).abi,
-      address: '0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24',
+      address: l2Addresses.ERC1820Registry,
     },
     Lib_AddressManager: {
       abi: require(path.resolve(
         __dirname,
         `../artifacts-ovm/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json`
       )).abi,
-      address: '0x4200000000000000000000000000000000000008',
+      address: l2Addresses.Lib_AddressManager,
     },
   }
 }
