@@ -11,7 +11,7 @@ interface iOVM_L1TokenGateway {
      * Events *
      **********/
 
-    event DepositInitiated(
+    event OutboundTransferInitiated(
         address indexed _from,
         address indexed _to,
         uint256 _amount
@@ -28,13 +28,13 @@ interface iOVM_L1TokenGateway {
      * Public Functions *
      ********************/
 
-    function deposit(
+    function outboundTransfer(
         uint _amount,
         bytes calldata _data
     )
         external;
 
-    function depositTo(
+    function outboundTransferTo(
         address _to,
         uint _amount,
         bytes calldata _data
@@ -46,7 +46,7 @@ interface iOVM_L1TokenGateway {
      * Cross-chain Functions *
      *************************/
 
-    function finalizeWithdrawal(
+    function finalizeInboundTransfer(
         address _from,
         address _to,
         uint _amount,

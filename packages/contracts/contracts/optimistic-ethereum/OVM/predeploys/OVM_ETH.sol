@@ -40,7 +40,7 @@ contract OVM_ETH is Abs_L2TokenGateway, UniswapV2ERC20 {
      ***************************/
 
     // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage.
-    function _handleInitiateWithdrawal(
+    function _handleInitiateOutboundTransfer(
         address, // _to,
         uint _amount
     )
@@ -51,7 +51,7 @@ contract OVM_ETH is Abs_L2TokenGateway, UniswapV2ERC20 {
     }
 
     // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
-    function _handleFinalizeDeposit(
+    function _handleFinalizeInboundTransfer(
         address _to,
         uint _amount
     )

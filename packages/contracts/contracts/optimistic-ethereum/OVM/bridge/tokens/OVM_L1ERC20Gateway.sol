@@ -64,7 +64,7 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
      * param _to L2 address that the ETH is being deposited to
      * @param _amount Amount of ERC20 to send
      */
-    function _handleInitiateDeposit(
+    function _handleInitiateOutboundTransfer(
         address _from,
         address, // _to,
         uint256 _amount
@@ -87,7 +87,7 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
      * @param _to L1 address that the ERC20 is being withdrawn to
      * @param _amount Amount of ERC20 to send
      */
-    function _handleFinalizeWithdrawal(
+    function _handleFinalizeInboundTransfer(
         address _to,
         uint _amount
     )

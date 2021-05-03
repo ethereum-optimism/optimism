@@ -33,7 +33,7 @@ describe('OVM_L2TokenGateway', () => {
   let OVM_L2TokenGateway: Contract
   let OVM_L2ERC20: Contract
   let Mock__OVM_L2CrossDomainMessenger: MockContract
-  let finalizeWithdrawalGasLimit: number
+  let finalizeInboundTransferGasLimit: number
   beforeEach(async () => {
     // Create a special signer which will enable us to send messages from the L2Messenger contract
     let l2MessengerImpersonator: Signer
@@ -49,7 +49,12 @@ describe('OVM_L2TokenGateway', () => {
     // Deploy the contract under test
     OVM_L2TokenGateway = await (
       await ethers.getContractFactory('OVM_L2TokenGateway')
-    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, constants.AddressZero, 'ovmWETH', 'oWETH')
+    ).deploy(
+      Mock__OVM_L2CrossDomainMessenger.address,
+      constants.AddressZero,
+      'ovmWETH',
+      'oWETH'
+    )
 
     // Get the address of the token contract created
     OVM_L2ERC20 = await ethers.getContractAt(
@@ -60,7 +65,7 @@ describe('OVM_L2TokenGateway', () => {
     // initialize the L2 Gateway with the L1Gateway address
     await OVM_L2TokenGateway.init(MOCK_L1GATEWAY_ADDRESS)
 
-    finalizeWithdrawalGasLimit = await OVM_L2TokenGateway.getFinalizeWithdrawalL1Gas()
+    finalizeInboundTransferGasLimit = await OVM_L2TokenGateway.getFinalizationGas()
   })
 
   // test the transfer flow of moving a token from L2 to L1
@@ -73,7 +78,7 @@ describe('OVM_L2TokenGateway', () => {
       await OVM_L2TokenGateway.init(NON_ZERO_ADDRESS)
 
       await expect(
-        OVM_L2TokenGateway.finalizeDeposit(
+        OVM_L2TokenGateway.finalizeInboundTransfer(
           constants.AddressZero,
           constants.AddressZero,
           0,
@@ -88,7 +93,7 @@ describe('OVM_L2TokenGateway', () => {
       )
 
       await expect(
-        OVM_L2TokenGateway.finalizeDeposit(
+        OVM_L2TokenGateway.finalizeInboundTransfer(
           constants.AddressZero,
           constants.AddressZero,
           0,
@@ -106,7 +111,7 @@ describe('OVM_L2TokenGateway', () => {
         () => MOCK_L1GATEWAY_ADDRESS
       )
 
-      await OVM_L2TokenGateway.finalizeDeposit(
+      await OVM_L2TokenGateway.finalizeInboundTransfer(
         NON_ZERO_ADDRESS,
         await alice.getAddress(),
         depositAmount,
@@ -114,9 +119,7 @@ describe('OVM_L2TokenGateway', () => {
         { from: Mock__OVM_L2CrossDomainMessenger.address }
       )
 
-      const aliceBalance = await OVM_L2ERC20.balanceOf(
-        await alice.getAddress()
-      )
+      const aliceBalance = await OVM_L2ERC20.balanceOf(await alice.getAddress())
       aliceBalance.should.equal(depositAmount)
     })
   })
@@ -125,18 +128,23 @@ describe('OVM_L2TokenGateway', () => {
     const INITIAL_TOTAL_SUPPLY = 100_000
     const ALICE_INITIAL_BALANCE = 50_000
     const withdrawAmount = 1_000
-    let OVM_L2TokenGateway: Contract
     let SmoddedL2ERC20: ModifiableContract
     beforeEach(async () => {
       // Deploy a smodded ERC20 so we can give some balances to withdraw
-      SmoddedL2ERC20 = await (
-        await smoddit('OVM_L2ERC20', alice)
-      ).deploy('ovmWETH', 'oWETH')
+      SmoddedL2ERC20 = await (await smoddit('OVM_L2ERC20', alice)).deploy(
+        'ovmWETH',
+        'oWETH'
+      )
 
       // Deploy the gateway
       OVM_L2TokenGateway = await (
         await ethers.getContractFactory('OVM_L2TokenGateway')
-      ).deploy(Mock__OVM_L2CrossDomainMessenger.address, SmoddedL2ERC20.address, '', '')
+      ).deploy(
+        Mock__OVM_L2CrossDomainMessenger.address,
+        SmoddedL2ERC20.address,
+        '',
+        ''
+      )
       await OVM_L2TokenGateway.init(MOCK_L1GATEWAY_ADDRESS)
 
       // Setup the token with a total supply and some money in alice's balance,
@@ -147,12 +155,15 @@ describe('OVM_L2TokenGateway', () => {
         _balances: {
           [aliceAddress]: ALICE_INITIAL_BALANCE,
         },
-        _owner: OVM_L2TokenGateway.address
+        _owner: OVM_L2TokenGateway.address,
       })
     })
 
-    it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await OVM_L2TokenGateway.withdraw(withdrawAmount, NON_NULL_BYTES32)
+    it('outboundTransfer() burns and sends the correct withdrawal message', async () => {
+      await OVM_L2TokenGateway.outboundTransfer(
+        withdrawAmount,
+        NON_NULL_BYTES32
+      )
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -176,7 +187,7 @@ describe('OVM_L2TokenGateway', () => {
       // Message data should be a call telling the L1ERC20Gateway to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
         await Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
-          'finalizeWithdrawal',
+          'finalizeInboundTransfer',
           [
             await alice.getAddress(),
             await alice.getAddress(),
@@ -187,12 +198,12 @@ describe('OVM_L2TokenGateway', () => {
       )
       // Hardcoded gaslimit should be correct
       expect(withdrawalCallToMessenger._gasLimit).to.equal(
-        finalizeWithdrawalGasLimit
+        finalizeInboundTransferGasLimit
       )
     })
 
-    it('withdrawTo() burns and sends the correct withdrawal message', async () => {
-      await OVM_L2TokenGateway.withdrawTo(
+    it('outboundTransferTo() burns and sends the correct withdrawal message', async () => {
+      await OVM_L2TokenGateway.outboundTransferTo(
         await bob.getAddress(),
         withdrawAmount,
         NON_NULL_BYTES32
@@ -220,7 +231,7 @@ describe('OVM_L2TokenGateway', () => {
       // The message data should be a call telling the L1ERC20Gateway to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
         await Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
-          'finalizeWithdrawal',
+          'finalizeInboundTransfer',
           [
             await alice.getAddress(),
             await bob.getAddress(),
@@ -231,7 +242,7 @@ describe('OVM_L2TokenGateway', () => {
       )
       // Hardcoded gaslimit should be correct
       expect(withdrawalCallToMessenger._gasLimit).to.equal(
-        finalizeWithdrawalGasLimit
+        finalizeInboundTransferGasLimit
       )
     })
   })

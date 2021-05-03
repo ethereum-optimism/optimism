@@ -13,12 +13,9 @@ import { Abs_L2TokenGateway } from "./Abs_L2TokenGateway.sol";
 
 /**
  * @title OVM_L2TokenGateway
- * @dev The L2 Deposited ERC20 is an ERC20 implementation which represents L1 assets deposited into L2.
- * This contract mints new tokens when it hears about deposits into the L1 ERC20 gateway.
+ * @dev The Token Gateway facilitates depositing L1 assets into L2.
+ * This contract controls an L2 ERC20 token, and mints new tokens when it hears about deposits into the L1 ERC20 gateway.
  * This contract also burns the tokens intended for withdrawal, informing the L1 gateway to release L1 funds.
- *
- * NOTE: This contract implements the Abs_L2TokenGateway contract using Uniswap's ERC20 as the implementation.
- * Alternative implementations can be used in this similar manner.
  *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
@@ -60,7 +57,7 @@ contract OVM_L2TokenGateway is Abs_L2TokenGateway {
     }
 
     // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage.
-    function _handleInitiateWithdrawal(
+    function _handleInitiateOutboundTransfer(
         address, // _to,
         uint _amount
     )
@@ -71,7 +68,7 @@ contract OVM_L2TokenGateway is Abs_L2TokenGateway {
     }
 
     // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
-    function _handleFinalizeDeposit(
+    function _handleFinalizeInboundTransfer(
         address _to,
         uint _amount
     )

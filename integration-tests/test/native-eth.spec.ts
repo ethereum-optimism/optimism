@@ -50,7 +50,7 @@ describe('Native ETH Integration Tests', async () => {
 
     it('Should estimate gas for ETH withdraw', async () => {
       const amount = utils.parseEther('0.5')
-      const gas = await env.ovmEth.estimateGas.withdraw(amount)
+      const gas = await env.ovmEth.estimateGas.outboundTransfer(amount)
       expect(gas).to.be.deep.eq(BigNumber.from(21000))
     })
   })
@@ -59,7 +59,7 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit({ value: depositAmount }),
+      env.gateway.outboundTransfer({ value: depositAmount }),
       Direction.L1ToL2
     )
 
@@ -77,11 +77,11 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('depositTo', async () => {
+  it('deposit (using outboundTransferTo() from L1 to L2)', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const depositReceipts = await env.waitForXDomainTransaction(
-      env.gateway.depositTo(l2Bob.address, {
+      env.gateway.outboundTransferTo(l2Bob.address, {
         value: depositAmount,
       }),
       Direction.L1ToL2
@@ -102,7 +102,7 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('withdraw', async () => {
+  it('withdraw (using outboundTransfer() from L2 to L1)', async () => {
     const withdrawAmount = BigNumber.from(3)
     const preBalances = await getBalances(env)
     expect(
@@ -111,7 +111,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdraw(withdrawAmount),
+      env.ovmEth.outboundTransfer(withdrawAmount),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -129,7 +129,7 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('withdrawTo', async () => {
+  it('outboundTransferTo', async () => {
     const withdrawAmount = BigNumber.from(3)
 
     const preBalances = await getBalances(env)
@@ -140,7 +140,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount),
+      env.ovmEth.outboundTransferTo(l1Bob.address, withdrawAmount),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -158,11 +158,11 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit, transfer, withdraw', async () => {
+  it('outboundTransfer (l1 to l2), transfer, outboundTransfer (l2 to l1)', async () => {
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(
-      env.gateway.deposit({
+      env.gateway.outboundTransfer({
         value: amount,
       }),
       Direction.L1ToL2
@@ -180,7 +180,7 @@ describe('Native ETH Integration Tests', async () => {
     // 3. do withdrawal
     const withdrawnAmount = utils.parseEther('0.95')
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.connect(other).withdraw(withdrawnAmount),
+      env.ovmEth.connect(other).outboundTransfer(withdrawnAmount),
       Direction.L2ToL1
     )
 

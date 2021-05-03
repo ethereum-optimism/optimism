@@ -11,13 +11,13 @@ interface iOVM_L1ETHGateway {
      * Events *
      **********/
 
-    event DepositInitiated(
+    event OutboundTransferInitiated(
         address indexed _from,
         address _to,
         uint256 _amount
     );
 
-    event WithdrawalFinalized(
+    event InboundTransferFinalized(
         address indexed _to,
         uint256 _amount
     );
@@ -26,13 +26,13 @@ interface iOVM_L1ETHGateway {
      * Public Functions *
      ********************/
 
-    function deposit(
+    function outboundTransfer(
         bytes calldata _data
     )
         external
         payable;
 
-    function depositTo(
+    function outboundTransferTo(
         address _to,
         bytes calldata _data
     )
@@ -43,7 +43,7 @@ interface iOVM_L1ETHGateway {
      * Cross-chain Functions *
      *************************/
 
-    function finalizeWithdrawal(
+    function finalizeInboundTransfer(
         address _from,
         address _to,
         uint _amount,
@@ -52,7 +52,7 @@ interface iOVM_L1ETHGateway {
     )
         external;
 
-    function getFinalizeDepositL2Gas()
+    function getFinalizationGas()
         external
         view
         returns(

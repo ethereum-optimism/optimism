@@ -62,7 +62,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * param _to Address being withdrawn to.
      * param _amount Amount being withdrawn.
      */
-    function _handleFinalizeWithdrawal(
+    function _handleFinalizeInboundTransfer(
         address, // _to,
         uint256 // _amount
     )
@@ -80,7 +80,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * param _to Address being deposited into on L2.
      * param _amount Amount being deposited.
      */
-    function _handleInitiateDeposit(
+    function _handleInitiateOutboundTransfer(
         address, // _from,
         address, // _to,
         uint256 // _amount
@@ -96,7 +96,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * dynamic, and the above public constant does not suffice.
      *
      */
-    function getFinalizeDepositL2Gas()
+    function getFinalizationGas()
         public
         view
         virtual
@@ -115,7 +115,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @dev deposit an amount of the ERC20 to the caller's balance on L2
      * @param _amount Amount of the ERC20 to deposit
      */
-    function deposit(
+    function outboundTransfer(
         uint _amount,
         bytes calldata _data
     )
@@ -123,7 +123,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         override
         virtual
     {
-        _initiateDeposit(msg.sender, msg.sender, _amount, _data);
+        _initiateOutboundTransfer(msg.sender, msg.sender, _amount, _data);
     }
 
     /**
@@ -131,7 +131,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @param _to L2 address to credit the withdrawal to
      * @param _amount Amount of the ERC20 to deposit
      */
-    function depositTo(
+    function outboundTransferTo(
         address _to,
         uint _amount,
         bytes calldata _data
@@ -140,7 +140,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         override
         virtual
     {
-        _initiateDeposit(msg.sender, _to, _amount, _data);
+        _initiateOutboundTransfer(msg.sender, _to, _amount, _data);
     }
 
     /**
@@ -151,7 +151,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @param _to Account to give the deposit to on L2
      * @param _amount Amount of the ERC20 to deposit.
      */
-    function _initiateDeposit(
+    function _initiateOutboundTransfer(
         address _from,
         address _to,
         uint _amount,
@@ -160,13 +160,13 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         internal
     {
         // Call our deposit accounting handler implemented by child contracts.
-        _handleInitiateDeposit(
+        _handleInitiateOutboundTransfer(
             _from,
             _to,
             _amount
         );
 
-        // Construct calldata for l2DepositedToken.finalizeDeposit(_to, _amount)
+        // Construct calldata for l2DepositedToken.finalizeInboundTransfer(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
             iOVM_L2TokenGateway.finalizeInboundTransfer.selector,
             _from,
@@ -179,11 +179,11 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         sendCrossDomainMessage(
             l2DepositedToken,
             message,
-            getFinalizeDepositL2Gas()
+            getFinalizationGas()
         );
 
         // We omit _data here because events only support bytes32 types.
-        emit DepositInitiated(_from, _to, _amount);
+        emit OutboundTransferInitiated(_from, _to, _amount);
     }
 
     /*************************
@@ -199,7 +199,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @param _to L1 address to credit the withdrawal to
      * @param _amount Amount of the ERC20 to withdraw
      */
-    function finalizeWithdrawal(
+    function finalizeInboundTransfer(
         address _from,
         address _to,
         uint _amount,
@@ -212,7 +212,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     {
         // todo: add verification check on _from and _data
         // Call our withdrawal accounting handler implemented by child contracts.
-        _handleFinalizeWithdrawal(
+        _handleFinalizeInboundTransfer(
             _to,
             _amount
         );
