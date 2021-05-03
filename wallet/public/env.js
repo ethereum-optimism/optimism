@@ -1,1 +1,1 @@
-window._env = {"NODE_ENV":"development","REACT_APP_INFURA_ID":"fd76d0a0b9e940058d6d42d5e261f517"};
+window._env = {"NODE_ENV":"development"};
