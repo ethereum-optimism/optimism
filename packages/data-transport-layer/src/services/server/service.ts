@@ -79,6 +79,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       typeof this.options.l1RpcProvider === 'string'
         ? new JsonRpcProvider(this.options.l1RpcProvider)
         : this.options.l1RpcProvider
+
     this._initializeApp()
   }
 

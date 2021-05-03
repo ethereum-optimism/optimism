@@ -39,9 +39,6 @@ export class BaseService<T> {
     this.logger.info('Service is initializing...')
     await this._init()
     this.logger.info('Service has initialized.')
-    this.logger.debug('Service options', {
-      options: this.options,
-    })
     this.initialized = true
   }
 
