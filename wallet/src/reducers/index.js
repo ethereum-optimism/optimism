@@ -27,7 +27,6 @@ import feeReducer from './feeReducer';
 import gasReducer from './gasReducer';
 import uiReducer from './uiReducer';
 import setupReducer from './setupReducer';
-import swapReducer from './swapReducer';
 import notificationReducer from './notificationReducer';
 
 const rootReducer = combineReducers({
@@ -43,7 +42,6 @@ const rootReducer = combineReducers({
   gas: gasReducer,
   ui: uiReducer,
   setup: setupReducer,
-  swap: swapReducer,
   notification: notificationReducer,
 });
 

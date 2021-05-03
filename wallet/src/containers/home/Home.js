@@ -121,7 +121,7 @@ function Home () {
 
       <div className={styles.Home}>
         <div className={styles.sidebar}>
-          <img className={styles.logo} src={logo} alt='varna' />
+          <img className={styles.logo} src={logo} alt='omgx' />
           <Status />
         </div>
         <div className={styles.main}>

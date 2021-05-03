@@ -1,7 +1,8 @@
+require('dotenv').config()
+
 export const VERSION = "1.0.26";
 
-//should really get this from the .env
-export const INFURA_ID = "fd76d0a0b9e940058d6d42d5e261f517";
+export const INFURA_ID = process.env.REACT_APP_INFURA_ID;
 
 export const L1ETHGATEWAY = [
   {
