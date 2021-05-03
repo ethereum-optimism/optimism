@@ -73,6 +73,18 @@ func init() {
 					"type": "bytes"
 				}
 			]
+		},
+		{
+			"type": "function",
+			"name": "blob",
+			"constant": true,
+			"inputs": [],
+			"outputs": [
+				{
+					"name": "_returndata",
+					"type": "bytes"
+				}
+			]
 		}
 	]
 `
@@ -381,16 +393,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			// encoded bytes, then return nothing. If the data is able to be
 			// decoded as bytes, then attempt to decode as (bool, bytes)
 			isDecodable := true
-			run := runReturnData{}
-			switch evm.Context.EthCallSender {
-			case nil:
-				if err := evm.Context.OvmExecutionManager.ABI.Unpack(&run, "run", ret); err != nil {
-					isDecodable = false
-				}
-			default:
-				if err := evm.Context.OvmExecutionManager.ABI.Unpack(&run, "simulateMessage", ret); err != nil {
-					isDecodable = false
-				}
+			returnData := runReturnData{}
+			if err := codec.Unpack(&returnData, "blob", ret); err != nil {
+				isDecodable = false
 			}
 
 			switch isDecodable {
@@ -399,7 +404,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 				// If this fails to decode, the nil values will be set in
 				// `inner`, meaning that it will be interpreted as reverted
 				// execution with empty returndata
-				_ = codec.Unpack(&inner, "call", run.ReturnData)
+				_ = codec.Unpack(&inner, "call", returnData.ReturnData)
 				if !inner.Success {
 					err = errExecutionReverted
 				}
