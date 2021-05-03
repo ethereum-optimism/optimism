@@ -26,7 +26,6 @@ export class BaseService<T> {
     this.name = name
     this.options = mergeDefaultOptions(options, optionSettings)
     this.logger = new Logger({ name })
-    this.metrics = new Metrics({ prefix: name })
   }
 
   /**

@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/common-ts'
+import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import express, { Request, Response } from 'express'
 import promBundle from 'express-prom-bundle'
 import cors from 'cors'
@@ -79,7 +79,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       typeof this.options.l1RpcProvider === 'string'
         ? new JsonRpcProvider(this.options.l1RpcProvider)
         : this.options.l1RpcProvider
-
     this._initializeApp()
   }
 
@@ -107,20 +106,29 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
     // Init Sentry options
+    const release = `data-transport-layer@${process.env.npm_package_version}`
     Sentry.init({
       dsn: this.options.sentryDsn,
-      release: `data-transport-layer@${process.env.npm_package_version}`,
+      release,
       integrations: [
         new Sentry.Integrations.Http({ tracing: true }),
         new Tracing.Integrations.Express({
           app: this.state.app,
         }),
       ],
-      tracesSampleRate: 0.05,
+      tracesSampleRate: this.options.sentryTraceRate,
     })
     this.state.app.use(Sentry.Handlers.requestHandler())
     this.state.app.use(Sentry.Handlers.tracingHandler())
     // Init metrics
+    this.metrics = new Metrics({
+      prefix: this.name,
+      labels: {
+        environment: this.options.nodeEnv,
+        network: this.options.ethNetworkName,
+        release,
+      },
+    })
     const metricsMiddleware = promBundle({
       includeMethod: true,
       includePath: true,

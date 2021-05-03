@@ -23,6 +23,8 @@ interface Bcfg {
     })
 
     const service = new L1DataTransportService({
+      nodeEnv: config.str('node-env', 'development'),
+      ethNetworkName: config.str('eth-network-name'),
       dbPath: config.str('db-path', './db'),
       port: config.uint('server-port', 7878),
       hostname: config.str('server-hostname', 'localhost'),
@@ -49,6 +51,7 @@ interface Bcfg {
       ),
       defaultBackend: config.str('default-backend', 'l1'),
       sentryDsn: config.str('sentry-dsn'),
+      sentryTraceRate: config.uint('sentry-trace-rate', 0.05),
     })
 
     await service.start()
