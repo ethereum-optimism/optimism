@@ -38,6 +38,7 @@ jobs:
     needs: build
     steps:
       # Monorepo tests
+      - uses: actions/checkout@v2
       - name: Bring the stack up and wait for the sequencer to be ready
         working-directory: ./ops
         run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
@@ -60,6 +61,7 @@ jobs:
     needs: build
     steps:
       # Examples Tests
+      - uses: actions/checkout@v2
       - name: Test & deploy hardhat-example on hardhat (regression)
         working-directory: ./examples/hardhat
         run: |
