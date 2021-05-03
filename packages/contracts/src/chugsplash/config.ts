@@ -23,18 +23,14 @@ export interface ChugSplashConfig {
 }
 
 /**
- * Parses a ChugSplash config file by replacing template values.
- * @param config Unparsed config file to parse.
- * @param env Environment variables to inject into the file.
- * @return Parsed config file with template variables replaced.
+ * Validates a ChugSplash config file.
+ * @param config Config file to validate.
  */
-export const parseChugSplashConfig = (
-  config: ChugSplashConfig,
-  env: any = {}
-): ChugSplashConfig => {
-  config.contracts = config.contracts || {}
+const validateChugSplashConfig = (config: ChugSplashConfig) => {
+  if (config.contracts === undefined) {
+    throw new Error('contracts field must be defined in ChugSplash config')
+  }
 
-  const contracts = {}
   for (const [contractName, contractConfig] of Object.entries(
     config.contracts
   )) {
@@ -61,7 +57,25 @@ export const parseChugSplashConfig = (
         `contract address is not a valid address: ${contractConfig.address}`
       )
     }
+  }
+}
 
+/**
+ * Parses a ChugSplash config file by replacing template values.
+ * @param config Unparsed config file to parse.
+ * @param env Environment variables to inject into the file.
+ * @return Parsed config file with template variables replaced.
+ */
+export const parseChugSplashConfig = (
+  config: ChugSplashConfig,
+  env: any = {}
+): ChugSplashConfig => {
+  validateChugSplashConfig(config)
+
+  const contracts = {}
+  for (const [contractName, contractConfig] of Object.entries(
+    config.contracts
+  )) {
     contracts[contractName] = contractConfig.address
   }
 
