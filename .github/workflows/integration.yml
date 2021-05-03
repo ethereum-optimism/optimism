@@ -9,13 +9,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  integration:
+  build:
     runs-on: ubuntu-latest
     env:
         DOCKER_BUILDKIT: 1
         COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
-      # Monorepo tests
       - uses: actions/checkout@v2
 
       - name: Get yarn cache directory path
@@ -34,6 +33,11 @@ jobs:
         working-directory: ./ops
         run: ./scripts/build-ci.sh
 
+  integration:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      # Monorepo tests
       - name: Bring the stack up and wait for the sequencer to be ready
         working-directory: ./ops
         run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
@@ -51,6 +55,10 @@ jobs:
       - name: Print gas report
         run: cat integration-tests/gas-report.txt
 
+  examples:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
       # Examples Tests
       - name: Test & deploy hardhat-example on hardhat (regression)
         working-directory: ./examples/hardhat
