@@ -57,4 +57,8 @@ contract Helper_StorageHelper {
     bytes11 public _otherPackedBytes11; // slot 22
     bool public _otherPackedBool;       // slot 22
     address public _otherPackedAddress; // slot 22
+
+    // Unsupported types.
+    mapping (uint256 => uint256) _uint256ToUint256Map;
+    uint256[] _uint256Array;
 }

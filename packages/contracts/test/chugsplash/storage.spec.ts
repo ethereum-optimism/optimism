@@ -1,14 +1,16 @@
 import { expect } from '../setup'
 
+/* Imports: External */
 import hre, { ethers } from 'hardhat'
 import { Contract } from 'ethers'
+import { isObject, toPlainObject } from 'lodash'
 
+/* Imports: Internal */
 import {
   computeStorageSlots,
   getStorageLayout,
   SolidityStorageLayout,
 } from '../../src'
-import { isObject, toPlainObject } from 'lodash'
 
 describe('ChugSplash storage layout parsing', () => {
   let layout: SolidityStorageLayout
@@ -129,6 +131,42 @@ describe('ChugSplash storage layout parsing', () => {
         _otherPackedBytes11: '0x1212121212121212121212',
         _otherPackedBool: true,
         _otherPackedAddress: '0x5A0b54D5dc17e0AadC383d2db43B0a0D3E029c4c',
+      })
+    })
+
+    describe('unsupported types', () => {
+      it('should not support mappings', () => {
+        expect(() => {
+          computeStorageSlots(layout, {
+            _uint256ToUint256Map: {
+              1234: 5678,
+            },
+          })
+        }).to.throw('mapping types not yet supported')
+      })
+
+      it('should not support arrays', () => {
+        expect(() => {
+          computeStorageSlots(layout, {
+            _uint256Array: [1234, 5678],
+          })
+        }).to.throw('array types not yet supported')
+      })
+
+      it('should not support bytes > 31 bytes long', () => {
+        expect(() => {
+          computeStorageSlots(layout, {
+            _bytes: '0x' + '22'.repeat(64),
+          })
+        }).to.throw('large strings (>31 bytes) not supported')
+      })
+
+      it('should not support strings > 31 bytes long', () => {
+        expect(() => {
+          computeStorageSlots(layout, {
+            _string: 'hello'.repeat(32),
+          })
+        }).to.throw('large strings (>31 bytes) not supported')
       })
     })
   })
