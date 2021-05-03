@@ -29,6 +29,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
+
       - name: Build the services
         working-directory: ./ops
         run: ./scripts/build-ci.sh
@@ -62,6 +63,12 @@ jobs:
     steps:
       # Examples Tests
       - uses: actions/checkout@v2
+
+      - name: Install and build hardhat example
+        working-directory: ./examples/hardhat
+        run: |
+          yarn
+
       - name: Test & deploy hardhat-example on hardhat (regression)
         working-directory: ./examples/hardhat
         run: |
@@ -74,11 +81,17 @@ jobs:
           yarn deploy:ovm
           yarn test:integration:ovm
 
+      - name: Install and build hardhat example
+        working-directory: ./examples/waffle
+        run: |
+          yarn
+
       - name: Test & deploy waffle-example on waffle (regression)
         working-directory: ./examples/waffle
         run: |
           yarn compile
           yarn test:integration
+
       - name: Test & deploy waffle-example on Optimism
         working-directory: ./examples/waffle
         run: |
