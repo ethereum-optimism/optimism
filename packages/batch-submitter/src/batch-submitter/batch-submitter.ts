@@ -19,11 +19,11 @@ export interface ResubmissionConfig {
 }
 
 interface BatchSubmitterMetrics {
-  ethBalance: Gauge<string>
+  batchSubmitterETHBalance: Gauge<string>
   batchSizeInBytes: Histogram<string>
   numTxPerBatch: Histogram<string>
-  minutesSinceLastSubmission: Gauge<string>
-  gasCostPerSubmission: Histogram<string>
+  submissionTimestamp: Histogram<string>
+  submissionGasUsed: Histogram<string>
 }
 
 export abstract class BatchSubmitter {
@@ -70,9 +70,7 @@ export abstract class BatchSubmitter {
     }
     await this._updateChainInfo()
     await this._checkBalance()
-    this.bsMetrics.minutesSinceLastSubmission.set(
-      (Date.now() - this.lastBatchSubmissionTimestamp) / 1000 / 60
-    )
+
     this.logger.info('Readying to submit next batch...', {
       l2ChainId: this.l2ChainId,
       batchSubmitterAddress: await this.signer.getAddress(),
@@ -102,7 +100,7 @@ export abstract class BatchSubmitter {
       address,
       ether,
     })
-    this.bsMetrics.ethBalance.set(num)
+    this.bsMetrics.batchSubmitterETHBalance.set(num)
 
     if (num < this.minBalanceEther) {
       this.logger.fatal('Current balance lower than min safe balance', {
@@ -241,18 +239,17 @@ export abstract class BatchSubmitter {
 
     this.logger.info('Received transaction receipt', { receipt })
     this.logger.info(successMessage)
-    this.bsMetrics.gasCostPerSubmission.observe(receipt.gasUsed.toNumber())
+    this.bsMetrics.submissionGasUsed.observe(receipt.gasUsed.toNumber())
+    this.bsMetrics.submissionTimestamp.observe(Date.now())
     return receipt
   }
 
-  /*********************
-   * Private Functions *
-   ********************/
-
   private _registerMetrics(metrics: Metrics): BatchSubmitterMetrics {
+    metrics.registry.clear()
+
     return {
-      ethBalance: new metrics.client.Gauge({
-        name: 'eth_balance',
+      batchSubmitterETHBalance: new metrics.client.Gauge({
+        name: 'batch_submitter_eth_balance',
         help: 'ETH balance of the batch submitter',
         registers: [metrics.registry],
       }),
@@ -266,14 +263,14 @@ export abstract class BatchSubmitter {
         help: 'Number of transactions in each batch',
         registers: [metrics.registry],
       }),
-      minutesSinceLastSubmission: new metrics.client.Gauge({
-        name: 'minutes_since_last_submission',
-        help: 'Number of minutes since last batch submission',
+      submissionTimestamp: new metrics.client.Histogram({
+        name: 'submission_timestamp',
+        help: 'Timestamp of each batch submitter submission',
         registers: [metrics.registry],
       }),
-      gasCostPerSubmission: new metrics.client.Histogram({
-        name: 'gas_cost_per_submission',
-        help: 'Gas cost to submit each batch',
+      submissionGasUsed: new metrics.client.Histogram({
+        name: 'submission_gash_used',
+        help: 'Gas used to submit each batch',
         registers: [metrics.registry],
       }),
     }
