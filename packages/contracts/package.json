@@ -52,6 +52,7 @@
     "@typechain/hardhat": "^1.0.1",
     "ganache-core": "^2.13.2",
     "glob": "^7.1.6",
+    "handlebars": "^4.7.7",
     "semver": "^7.3.5"
   },
   "devDependencies": {
