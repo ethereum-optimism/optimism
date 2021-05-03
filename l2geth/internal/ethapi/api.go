@@ -52,6 +52,8 @@ const (
 	defaultGasPrice = params.GWei
 )
 
+var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
+
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -1652,12 +1654,14 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 	}
 	if args.To == nil {
 		tx := types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
-		txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, nil)
+		raw, _ := rlp.EncodeToBytes(tx)
+		txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, raw)
 		tx.SetTransactionMeta(txMeta)
 		return tx
 	}
 	tx := types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
-	txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, args.L1MessageSender, args.SignatureHashType, types.QueueOriginSequencer, nil, nil, nil)
+	raw, _ := rlp.EncodeToBytes(tx)
+	txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, args.L1MessageSender, args.SignatureHashType, types.QueueOriginSequencer, nil, nil, raw)
 	tx.SetTransactionMeta(txMeta)
 	return tx
 }
@@ -1687,10 +1691,9 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // SendTransaction creates a transaction for the given argument, sign it and submit it to the
 // transaction pool.
 func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args SendTxArgs) (common.Hash, error) {
-	if s.b.IsVerifier() {
-		return common.Hash{}, errors.New("Cannot send transaction in verifier mode")
+	if vm.UsingOVM {
+		return common.Hash{}, errOVMUnsupported
 	}
-
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.From}
 
@@ -1723,6 +1726,9 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 // FillTransaction fills the defaults (nonce, gas, gasPrice) on a given unsigned transaction,
 // and returns it to the caller for further processing (signing + broadcast)
 func (s *PublicTransactionPoolAPI) FillTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
+	if vm.UsingOVM {
+		return nil, errOVMUnsupported
+	}
 	// Set some sanity defaults and terminate on failure
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
@@ -1767,6 +1773,9 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
 func (s *PublicTransactionPoolAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, error) {
+	if vm.UsingOVM {
+		return nil, errOVMUnsupported
+	}
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1792,6 +1801,9 @@ type SignTransactionResult struct {
 // The node needs to have the private key of the account corresponding with
 // the given from address and it needs to be unlocked.
 func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
+	if vm.UsingOVM {
+		return nil, errOVMUnsupported
+	}
 	if args.Gas == nil {
 		return nil, fmt.Errorf("gas not specified")
 	}
