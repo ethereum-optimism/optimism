@@ -12,7 +12,8 @@ use(solidity)
 const config = {
   l2Url: process.env.L2_URL || 'http://127.0.0.1:8545',
   l1Url: process.env.L1_URL || 'http://127.0.0.1:9545',
-  useL2: process.env.TARGET === 'OVM'
+  useL2: process.env.TARGET === 'OVM',
+  privateKey: process.env.PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 }
 
 describe('ERC20 smart contract', () => {
@@ -27,7 +28,7 @@ describe('ERC20 smart contract', () => {
     provider = new ethers.providers.JsonRpcProvider(config.l1Url)
   }
 
-  const wallet = new ethers.Wallet.createRandom().connect(provider)
+  const wallet = new ethers.Wallet(config.privateKey).connect(provider)
 
   // parameters to use for our test coin
   const COIN_NAME = 'OVM Test Coin'
