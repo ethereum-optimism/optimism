@@ -39,17 +39,27 @@ import (
 // `ExecutionManager.run()` and `ExecutionManager.simulateMessage()`
 var codec abi.ABI
 
-// innerData represents the results returned from the ExecutionManager
-// that are wrapped in `bytes`
-type innerData struct {
+// systemReturnData represents the return data of
+// the system level contracts. L2 contracts that interface
+// with the system level contracts such as Smart contract wallets
+// or Cross Domain Messengers should be sure to return data that can
+// be ABI decoded as `bytes`. These `bytes` can then wrap other
+// ABI encoded types.
+type systemReturnData struct {
+	ReturnData []byte `abi:"_returndata"`
+}
+
+// callReturnData represents the first attempted decoding of the `bytes`
+// that are decoded from the System ReturnData.
+type callReturnData struct {
 	Success    bool   `abi:"_success"`
 	ReturnData []byte `abi:"_returndata"`
 }
 
-// runReturnData represents the actual return data of the ExecutionManager.
-// It wraps (bool, bytes) in an ABI encoded bytes
-type runReturnData struct {
-	ReturnData []byte `abi:"_returndata"`
+// successReturnData represents the second attempted decoding of the `bytes`
+// that are returned from the System Returndata.
+type successReturnData struct {
+	Success bool `abi:"_success"`
 }
 
 // Will be removed when we update EM to return data in `run`.
@@ -58,6 +68,18 @@ var deadPrefix, fortyTwoPrefix, zeroPrefix []byte
 func init() {
 	const abidata = `
 	[
+		{
+			"type": "function",
+			"name": "blob",
+			"constant": true,
+			"inputs": [],
+			"outputs": [
+				{
+					"name": "_returndata",
+					"type": "bytes"
+				}
+			]
+		},
 		{
 			"type": "function",
 			"name": "call",
@@ -76,13 +98,13 @@ func init() {
 		},
 		{
 			"type": "function",
-			"name": "blob",
+			"name": "success",
 			"constant": true,
 			"inputs": [],
 			"outputs": [
 				{
-					"name": "_returndata",
-					"type": "bytes"
+					"name": "_success",
+					"type": "bool"
 				}
 			]
 		}
@@ -387,28 +409,42 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			// We're back at the root-level message call, so we'll need to modify the return data
 			// sent to us by the OVM_ExecutionManager to instead be the intended return data.
 
-			// Attempt to decode the returndata as as ExecutionManager.run when
-			// it is not an `eth_call` and as ExecutionManager.simulateMessage
-			// when it is an `eth_call`. If the data is not decodable as ABI
-			// encoded bytes, then return nothing. If the data is able to be
-			// decoded as bytes, then attempt to decode as (bool, bytes)
+			// Attempt to decode the data passed back from the system contracts
+			// as `bytes`. If this decoding succeeds, then attempt additional
+			// decoding steps
 			isDecodable := true
-			returnData := runReturnData{}
+			returnData := systemReturnData{}
 			if err := codec.Unpack(&returnData, "blob", ret); err != nil {
 				isDecodable = false
 			}
 
 			switch isDecodable {
 			case true:
-				inner := innerData{}
-				// If this fails to decode, the nil values will be set in
-				// `inner`, meaning that it will be interpreted as reverted
-				// execution with empty returndata
-				_ = codec.Unpack(&inner, "call", returnData.ReturnData)
-				if !inner.Success {
-					err = errExecutionReverted
+				call := callReturnData{}
+				// Attempt to decode as `(bool,bytes)`
+				if err := codec.Unpack(&call, "call", returnData.ReturnData); err != nil {
+					// Cannot decode as `(bool,bytes)`, one last attempt to decode as `bool`
+					success := successReturnData{}
+					if err := codec.Unpack(&success, "success", returnData.ReturnData); err != nil {
+						// Cannot decode as `bool` so the transaction is
+						// considered to be reverted
+						err = errExecutionReverted
+						ret = []byte{}
+					} else {
+						// Decoding as `bool` was successful. Set as a revert if
+						// decoded as false and there is no returndata
+						if !success.Success {
+							err = errExecutionReverted
+						}
+						ret = []byte{}
+					}
+				} else {
+					// Decoding as `(bool,bytes)` was successful
+					if !call.Success {
+						err = errExecutionReverted
+					}
+					ret = call.ReturnData
 				}
-				ret = inner.ReturnData
 			case false:
 				ret = []byte{}
 			}
