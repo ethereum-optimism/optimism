@@ -163,7 +163,7 @@ describe('ChugSplash config parsing', () => {
       })
     })
 
-    it('should correctly parse a config file with a templated contract address', () => {
+    it('should correctly parse a config file with multiple templated contract addresses', () => {
       expect(
         parseChugSplashConfig({
           contracts: {
