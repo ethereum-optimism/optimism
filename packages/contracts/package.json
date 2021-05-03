@@ -51,7 +51,8 @@
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/abstract-signer": "^5.1.0",
     "@ethersproject/contracts": "^5.0.5",
-    "glob": "^7.1.6"
+    "glob": "^7.1.6",
+    "handlebars": "^4.7.7"
   },
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
