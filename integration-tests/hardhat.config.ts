@@ -13,7 +13,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     optimism: {
-      url: 'http://localhost:8545',
+      url: process.env.L2_URL || 'http://localhost:8545',
       ovm: true,
     },
   },
