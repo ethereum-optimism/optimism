@@ -14,12 +14,15 @@ interface iOVM_L1ETHGateway {
     event OutboundTransferInitiated(
         address indexed _from,
         address _to,
-        uint256 _amount
+        uint256 _amount,
+        bytes _data
     );
 
     event InboundTransferFinalized(
+        address indexed _from,
         address indexed _to,
-        uint256 _amount
+        uint256 _amount,
+        bytes _data
     );
 
     /********************

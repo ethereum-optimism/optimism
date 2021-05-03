@@ -25,7 +25,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * Public Constants *
      ********************/
 
-    uint32 public constant override FINALIZATION_GAS = 1200000;
+    uint32 constant FINALIZATION_GAS = 1200000;
 
     /********************************
      * External Contract References *
@@ -140,12 +140,24 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
             FINALIZATION_GAS
         );
 
-        emit OutboundTransferInitiated(_from, _to, msg.value);
+        emit OutboundTransferInitiated(_from, _to, msg.value, _data);
     }
 
     /*************************
      * Cross-chain Functions *
      *************************/
+
+    function getFinalizationGas()
+        external
+        pure
+        override
+        returns(
+            uint32
+        )
+    {
+        return FINALIZATION_GAS;
+    }
+
 
     /**
      * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
@@ -167,7 +179,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     {
         _safeTransferETH(_to, _amount);
 
-        emit InboundTransferFinalized(_to, _amount);
+        emit InboundTransferFinalized(_from, _to, _amount, _data);
     }
 
     /**********************************

@@ -121,9 +121,9 @@ abstract contract Abs_L2TokenGateway is iOVM_L2TokenGateway, OVM_CrossDomainEnab
      * @dev Overridable getter for the *L1* gas limit of settling the withdrawal, in the case it may be
      * dynamic, and the above public constant does not suffice.
      */
-    function getFinalizeInboundTransferL1Gas()
+    function getFinalizationGas()
         public
-        view
+        pure
         virtual
         returns(
             uint32
@@ -212,10 +212,10 @@ abstract contract Abs_L2TokenGateway is iOVM_L2TokenGateway, OVM_CrossDomainEnab
         sendCrossDomainMessage(
             address(l1TokenGateway),
             message,
-            getFinalizeInboundTransferL1Gas()
+            getFinalizationGas()
         );
 
-        emit OutboundTransferInitiated(msg.sender, _to, _amount);
+        emit OutboundTransferInitiated(msg.sender, _to, _amount, _data);
     }
 
     /************************************
@@ -229,13 +229,13 @@ abstract contract Abs_L2TokenGateway is iOVM_L2TokenGateway, OVM_CrossDomainEnab
      *
      * @param _to Address to receive the withdrawal at
      * @param _amount Amount of the token to withdraw
-     * param _data Data provided by the sender on L1.
+     * @param _data Data provided by the sender on L1.
      */
     function finalizeInboundTransfer(
         address _from,
         address _to,
         uint _amount,
-        bytes calldata // _data
+        bytes calldata _data
     )
         external
         override
@@ -244,6 +244,6 @@ abstract contract Abs_L2TokenGateway is iOVM_L2TokenGateway, OVM_CrossDomainEnab
         onlyFromCrossDomainAccount(address(l1TokenGateway))
     {
         _handleFinalizeInboundTransfer(_to, _amount);
-        emit InboundTransferFinalized(_from, _to, _amount);
+        emit InboundTransferFinalized(_from, _to, _amount, _data);
     }
 }

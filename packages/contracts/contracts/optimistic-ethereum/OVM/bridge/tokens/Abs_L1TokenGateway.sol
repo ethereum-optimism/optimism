@@ -98,7 +98,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      */
     function getFinalizationGas()
         public
-        view
+        pure
         virtual
         returns(
             uint32
@@ -183,7 +183,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         );
 
         // We omit _data here because events only support bytes32 types.
-        emit OutboundTransferInitiated(_from, _to, _amount);
+        emit OutboundTransferInitiated(_from, _to, _amount, _data);
     }
 
     /*************************
@@ -197,13 +197,13 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      *
      * @param _from L2 address initiating the transfer
      * @param _to L1 address to credit the withdrawal to
-     * @param _amount Amount of the ERC20 to withdraw
+     * @param _data Data provided by the sender on L2.
      */
     function finalizeInboundTransfer(
         address _from,
         address _to,
         uint _amount,
-        bytes calldata //_data
+        bytes calldata _data
     )
         external
         override
@@ -217,6 +217,6 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
             _amount
         );
         // We omit _data here because events only support bytes32 types.
-        emit WithdrawalFinalized(_from, _to, _amount);
+        emit InboundTransferFinalized(_from, _to, _amount, _data);
     }
 }

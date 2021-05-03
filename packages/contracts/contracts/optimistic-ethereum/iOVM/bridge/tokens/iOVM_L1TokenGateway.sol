@@ -14,13 +14,15 @@ interface iOVM_L1TokenGateway {
     event OutboundTransferInitiated(
         address indexed _from,
         address indexed _to,
-        uint256 _amount
+        uint256 _amount,
+        bytes _data
     );
 
-    event WithdrawalFinalized(
+    event InboundTransferFinalized(
         address indexed _from,
         address indexed _to,
-        uint256 _amount
+        uint256 _amount,
+        bytes _data
     );
 
 
