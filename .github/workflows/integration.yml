@@ -68,6 +68,8 @@ jobs:
         working-directory: ./examples/hardhat
         run: |
           yarn
+          yarn compile
+          yarn compile:ovm
 
       - name: Test & deploy hardhat-example on hardhat (regression)
         working-directory: ./examples/hardhat
@@ -85,15 +87,15 @@ jobs:
         working-directory: ./examples/waffle
         run: |
           yarn
+          yarn compile
+          yarn compile:ovm
 
       - name: Test & deploy waffle-example on waffle (regression)
         working-directory: ./examples/waffle
         run: |
-          yarn compile
           yarn test:integration
 
       - name: Test & deploy waffle-example on Optimism
         working-directory: ./examples/waffle
         run: |
-          yarn compile:ovm
           yarn test:integration:ovm
