@@ -105,6 +105,16 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
+    if (this.options.ethNetworkName) this._initMonitoring()
+    this.state.app.use(cors())
+    this._registerAllRoutes()
+    this.state.app.use(Sentry.Handlers.errorHandler())
+  }
+
+  /**
+   * Initialize Sentry and Prometheus metrics for deployed instances
+   */
+  private _initMonitoring() {
     // Init Sentry options
     const release = `data-transport-layer@${process.env.npm_package_version}`
     Sentry.init({
@@ -134,9 +144,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       includePath: true,
     })
     this.state.app.use(metricsMiddleware)
-    this.state.app.use(cors())
-    this._registerAllRoutes()
-    this.state.app.use(Sentry.Handlers.errorHandler())
   }
 
   /**
