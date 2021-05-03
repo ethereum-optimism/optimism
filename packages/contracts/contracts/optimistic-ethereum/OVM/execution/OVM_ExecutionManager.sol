@@ -163,7 +163,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
         returns (
-            bytes memory _returndata
+            bytes memory
         )
     {
         // Make sure that run() is not re-enterable.  This condition should always be satisfied
@@ -1882,7 +1882,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         external
         returns (
-            bytes memory _returndata
+            bytes memory
         )
     {
         // Prevent this call from having any effect unless in a custom-set VM frame
