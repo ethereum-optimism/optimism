@@ -1,6 +1,7 @@
 /* External Imports */
 import { fromHexString, remove0x } from '@eth-optimism/core-utils'
 import { BigNumber, ethers } from 'ethers'
+import semver from 'semver'
 
 // Represents the JSON objects outputted by the Solidity compiler that describe the structure of
 // state within the contract. See
@@ -73,6 +74,12 @@ export const getStorageLayout = async (
     `${sourceName}:${contractName}`
   )
   const output = buildInfo.output.contracts[sourceName][contractName]
+
+  if (!semver.satisfies(buildInfo.solcVersion, '>=0.4.x <0.9.x')) {
+    throw new Error(
+      `Storage layout for Solidity version ${buildInfo.solcVersion} not yet supported. Sorry!`
+    )
+  }
 
   if (!('storageLayout' in output)) {
     throw new Error(
