@@ -109,7 +109,9 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     if (this.options.ethNetworkName) this._initMonitoring()
     this.state.app.use(cors())
     this._registerAllRoutes()
-    this.state.app.use(Sentry.Handlers.errorHandler())
+    // Error handling needs to be initialized last
+    if (this.options.ethNetworkName)
+      this.state.app.use(Sentry.Handlers.errorHandler())
   }
 
   /**
@@ -117,10 +119,9 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
    */
   private _initMonitoring() {
     // Init Sentry options
-    const release = `data-transport-layer@${process.env.npm_package_version}`
     Sentry.init({
       dsn: this.options.sentryDsn,
-      release,
+      release: this.options.release,
       integrations: [
         new Sentry.Integrations.Http({ tracing: true }),
         new Tracing.Integrations.Express({
@@ -137,7 +138,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       labels: {
         environment: this.options.nodeEnv,
         network: this.options.ethNetworkName,
-        release,
+        release: this.options.release,
       },
     })
     const metricsMiddleware = promBundle({

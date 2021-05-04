@@ -12,6 +12,12 @@ interface Bcfg {
   bool: (name: string, defaultValue?: boolean) => boolean
 }
 
+enum ethNetwork {
+  mainnet = 'mainnet',
+  kovan = 'kovan',
+  goerli = 'goerli',
+}
+
 ;(async () => {
   try {
     dotenv.config()
@@ -24,7 +30,8 @@ interface Bcfg {
 
     const service = new L1DataTransportService({
       nodeEnv: config.str('node-env', 'development'),
-      ethNetworkName: config.str('eth-network-name'),
+      ethNetworkName: ethNetwork[config.str('eth-network-name')],
+      release: `data-transport-layer@${process.env.npm_package_version}`,
       dbPath: config.str('db-path', './db'),
       port: config.uint('server-port', 7878),
       hostname: config.str('server-hostname', 'localhost'),

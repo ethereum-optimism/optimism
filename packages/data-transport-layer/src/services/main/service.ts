@@ -11,7 +11,8 @@ import { L2IngestionService } from '../l2-ingestion/service'
 
 export interface L1DataTransportServiceOptions {
   nodeEnv: string
-  ethNetworkName: string
+  ethNetworkName?: 'mainnet' | 'kovan' | 'goerli'
+  release: string
   addressManager: string
   confirmations: number
   dangerouslyCatchAllErrors?: boolean
