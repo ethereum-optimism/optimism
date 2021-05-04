@@ -13,8 +13,8 @@
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:check": "tslint --format stylish --project .",
-    "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\""
+    "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\"",
+    "lint:check": "tslint --format stylish --project ."
   },
   "keywords": [
     "optimism",

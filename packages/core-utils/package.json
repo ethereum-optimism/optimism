@@ -13,8 +13,9 @@
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
-    "lint": "tslint --format stylish --project .",
+    "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
+    "lint:check": "tslint --format stylish --project .",
     "test": "ts-mocha test/**/*.spec.ts"
   },
   "devDependencies": {
