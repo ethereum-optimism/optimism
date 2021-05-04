@@ -24,7 +24,7 @@ import { selectModalState } from 'selectors/uiSelector';
 import { 
   selectWalletMethod, 
   selectNetwork,
-  selectLayer,
+  //selectLayer,
 } from 'selectors/setupSelector';
 
 import { openModal } from 'actions/uiAction';
@@ -48,11 +48,11 @@ function WalletPicker ({ onEnable }) {
 
   const walletMethod = useSelector(selectWalletMethod())
   const networkName = useSelector(selectNetwork())
-  const netLayer = useSelector(selectLayer())
+  //const netLayer = useSelector(selectLayer())
 
   console.log("walletMethod:",walletMethod)
   console.log("networkName:",networkName)
-  console.log("netLayer:",netLayer)
+  //console.log("netLayer:",netLayer)
   
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 

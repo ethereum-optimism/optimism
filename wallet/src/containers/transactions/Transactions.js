@@ -22,16 +22,17 @@ import BN from 'bn.js';
 import moment from 'moment';
 import truncate from 'truncate-middle';
 
-import { setActiveHistoryTab } from 'actions/uiAction';
-import { selectActiveHistoryTab } from 'selectors/uiSelector';
-import { selectLoading } from 'selectors/loadingSelector';
-import networkService from 'services/networkService';
+import { setActiveHistoryTab } from 'actions/uiAction'
+import { selectActiveHistoryTab } from 'selectors/uiSelector'
+import { selectLoading } from 'selectors/loadingSelector'
+
+import networkService from 'services/networkService'
 import { selectNetworkBURL } from 'selectors/setupSelector';
 
-import Tabs from 'components/tabs/Tabs';
-import Input from 'components/input/Input';
-import Transaction from 'components/transaction/Transaction';
-import Pager from 'components/pager/Pager';
+import Tabs from 'components/tabs/Tabs'
+import Input from 'components/input/Input'
+import Transaction from 'components/transaction/Transaction'
+import Pager from 'components/pager/Pager'
 
 import Exits from './Exits';
 import Deposits from './Deposits';
