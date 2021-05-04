@@ -104,6 +104,34 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
   return cachedCompilerPath
 }
 
+// TODO: implement a more elegant fix for this.
+// Hardhat on M1 Macbooks does not run TASK_COMPILE_SOLIDITY_RUN_SOLC, but instead this runs one,
+// TASK_COMPILE_SOLIDITY_RUN_SOLCJS.  We reroute this task back to the solc task in the case
+// of OVM compilation.
+subtask(
+  TASK_COMPILE_SOLIDITY_RUN_SOLCJS,
+  async (args, hre, runSuper) => {
+    const argsAny = args as any
+    if (argsAny.real || hre.network.ovm !== true) {
+      for (const file of Object.keys(argsAny.input.sources)) {
+        // Ignore any contract that has this tag or in ignore list
+        if (
+          argsAny.input.sources[file].content.includes('// @unsupported: evm')
+          && hre.network.ovm !== true
+        ) {
+          delete argsAny.input.sources[file]
+        }
+      }
+      return runSuper(args)
+    } else {
+      return hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLC, {
+        ...argsAny,
+        solcPath: argsAny.solcJsPath
+      })
+    }
+  }
+)
+
 subtask(
   TASK_COMPILE_SOLIDITY_RUN_SOLC,
   async (args: { input: any; solcPath: string }, hre, runSuper) => {
@@ -167,6 +195,7 @@ subtask(
     const ovmOutput = await hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, {
       input: ovmInput,
       solcJsPath: ovmSolcPath,
+      real: true
     })
 
     // Just doing this to add some extra useful information to any errors in the OVM compiler output.
