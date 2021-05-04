@@ -7,8 +7,8 @@
   "license": "MIT",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:check": "tslint --format stylish --project .",
     "lint:fix": "prettier --config ./.prettierrc.json --write 'test/**/*.ts'",
+    "lint:check": "tslint --format stylish --project .",
     "build:integration": "./scripts/build.sh",
     "build:contracts": "hardhat compile",
     "build:contracts:ovm": "hardhat compile --network optimism",
