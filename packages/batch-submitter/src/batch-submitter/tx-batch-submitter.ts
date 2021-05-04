@@ -237,6 +237,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     if (!wasBatchTruncated && !this._shouldSubmitBatch(batchSizeInBytes)) {
       return
     }
+    this.metrics.numTxPerBatch.observe(endBlock - startBlock)
     const l1tipHeight = await this.signer.provider.getBlockNumber()
     this.logger.debug('Submitting batch.', {
       calldata: batchParams,
