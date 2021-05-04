@@ -30,6 +30,13 @@ interface iOVM_L2TokenGateway {
      * Public Functions *
      ********************/
 
+    function counterpartGateway()
+        external
+        view
+        returns(
+            address
+        );
+
     function outboundTransfer(
         uint _amount,
         bytes calldata _data

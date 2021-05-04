@@ -68,6 +68,14 @@ describe('OVM_L2TokenGateway', () => {
     finalizeInboundTransferGasLimit = await OVM_L2TokenGateway.getFinalizationGas()
   })
 
+  describe('counterpartGateway', () => {
+    it('Should return the address of the counterpart gateway', async () => {
+      await expect(await OVM_L2TokenGateway.counterpartGateway()).to.be.equal(
+        MOCK_L1GATEWAY_ADDRESS
+      )
+    })
+  })
+
   // test the transfer flow of moving a token from L2 to L1
   describe('finalizeDeposit', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L2 account', async () => {

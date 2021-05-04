@@ -33,7 +33,7 @@ abstract contract Abs_L2TokenGateway is iOVM_L2TokenGateway, OVM_CrossDomainEnab
      * External Contract References *
      ********************************/
 
-    iOVM_L1TokenGateway public l1TokenGateway;
+    iOVM_L1TokenGateway l1TokenGateway;
 
     /********************************
      * Constructor & Initialization *
@@ -75,6 +75,20 @@ abstract contract Abs_L2TokenGateway is iOVM_L2TokenGateway, OVM_CrossDomainEnab
         require(address(l1TokenGateway) != address(0), "Contract has not yet been initialized");
         _;
     }
+
+    /********************
+     * Public Functions *
+     ********************/
+
+    function counterpartGateway()
+        external
+        view
+        override
+        returns(
+            address
+        ) {
+            return address(l1TokenGateway);
+        }
 
     /********************************
      * Overridable Accounting logic *

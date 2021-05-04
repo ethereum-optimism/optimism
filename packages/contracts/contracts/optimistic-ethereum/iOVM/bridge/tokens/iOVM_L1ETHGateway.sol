@@ -29,6 +29,13 @@ interface iOVM_L1ETHGateway {
      * Public Functions *
      ********************/
 
+    function counterpartGateway()
+        external
+        view
+        returns(
+            address
+        );
+
     function outboundTransfer(
         bytes calldata _data
     )

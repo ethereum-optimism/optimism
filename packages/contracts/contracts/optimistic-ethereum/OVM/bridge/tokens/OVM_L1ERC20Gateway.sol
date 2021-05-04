@@ -28,7 +28,7 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
      * External Contract References *
      ********************************/
 
-    iOVM_ERC20 public l1ERC20;
+    iOVM_ERC20 l1ERC20;
 
     /***************
      * Constructor *
@@ -36,21 +36,20 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
 
     /**
      * @param _l1ERC20 L1 ERC20 address this contract stores deposits for
-     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into
+     * @param _l2TokenGateway L2 Gateway address on the chain being deposited into
      */
     constructor(
         iOVM_ERC20 _l1ERC20,
-        address _l2DepositedERC20,
+        address _l2TokenGateway,
         address _l1messenger
     )
         Abs_L1TokenGateway(
-            _l2DepositedERC20,
+            _l2TokenGateway,
             _l1messenger
         )
     {
         l1ERC20 = _l1ERC20;
     }
-
 
     /**************
      * Accounting *

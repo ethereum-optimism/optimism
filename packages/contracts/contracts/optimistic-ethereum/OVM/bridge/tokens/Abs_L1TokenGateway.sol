@@ -29,23 +29,23 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * External Contract References *
      ********************************/
 
-    address public l2DepositedToken;
+    address l2TokenGateway;
 
     /***************
      * Constructor *
      ***************/
 
     /**
-     * @param _l2DepositedToken iOVM_L2TokenGateway-compatible address on the chain being deposited into.
+     * @param _l2TokenGateway iOVM_L2TokenGateway-compatible address on the chain being deposited into.
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      */
     constructor(
-        address _l2DepositedToken,
+        address _l2TokenGateway,
         address _l1messenger
     )
         OVM_CrossDomainEnabled(_l1messenger)
     {
-        l2DepositedToken = _l2DepositedToken;
+        l2TokenGateway = _l2TokenGateway;
     }
 
     /********************************
@@ -90,6 +90,20 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     {
         revert("Implement me in child contracts");
     }
+
+    /********************
+     * Public Functions *
+     ********************/
+
+    function counterpartGateway()
+        external
+        view
+        override
+        returns(
+            address
+        ) {
+            return l2TokenGateway;
+        }
 
     /**
      * @dev Overridable getter for the L2 gas limit, in the case it may be
@@ -166,7 +180,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
             _amount
         );
 
-        // Construct calldata for l2DepositedToken.finalizeInboundTransfer(_to, _amount)
+        // Construct calldata for l2TokenGateway.finalizeInboundTransfer(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
             iOVM_L2TokenGateway.finalizeInboundTransfer.selector,
             _from,
@@ -177,7 +191,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
 
         // Send calldata into L2
         sendCrossDomainMessage(
-            l2DepositedToken,
+            l2TokenGateway,
             message,
             getFinalizationGas()
         );
@@ -208,7 +222,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         external
         override
         virtual
-        onlyFromCrossDomainAccount(l2DepositedToken)
+        onlyFromCrossDomainAccount(l2TokenGateway)
     {
         // todo: add verification check on _from and _data
         // Call our withdrawal accounting handler implemented by child contracts.

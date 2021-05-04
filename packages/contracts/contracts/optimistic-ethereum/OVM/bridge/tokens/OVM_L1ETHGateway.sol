@@ -31,7 +31,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * External Contract References *
      ********************************/
 
-    address public ovmEth;
+    address ovmEth;
 
     /***************
      * Constructor *
@@ -63,6 +63,20 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         ovmEth = _ovmEth;
         messenger = resolve("Proxy__OVM_L1CrossDomainMessenger");
     }
+
+    /********************
+     * Public Functions *
+     ********************/
+
+    function counterpartGateway()
+        external
+        view
+        override
+        returns(
+            address
+        ) {
+            return ovmEth;
+        }
 
     /**************
      * Depositing *
