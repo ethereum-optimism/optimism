@@ -1,10 +1,28 @@
-import { Signer, Contract, providers } from 'ethers'
+import { Signer, Contract } from 'ethers'
+import { Provider } from '@ethersproject/abstract-provider'
 import { getL1ContractData, getL2ContractData } from './contract-data'
 
+type Network = 'goerli' | 'kovan' | 'mainnet'
+
+const checkSignerType = (signerOrProvider: Signer | Provider) => {
+  if (!signerOrProvider) throw Error('signerOrProvider argument is undefined')
+  if (
+    !(signerOrProvider instanceof Signer) &&
+    !(signerOrProvider instanceof Provider)
+  )
+    throw Error('signerOrProvider argument is the wrong type')
+}
+
 export const connectL1Contracts = async (
-  signerOrProvider: Signer | providers.Provider,
-  network: 'goerli' | 'kovan' | 'mainnet'
+  signerOrProvider,
+  network: Network
 ): Promise<{ [key: string]: Contract }> => {
+  checkSignerType(signerOrProvider)
+
+  if (!network) throw Error('network argument is undefined')
+  if (network !== 'mainnet' && network !== 'kovan' && network !== 'goerli')
+    throw Error('network argument is the wrong type')
+
   const l1ContractData = getL1ContractData(network)
 
   const namesMap = {
@@ -38,9 +56,10 @@ export const connectL1Contracts = async (
 }
 
 export const connectL2Contracts = async (
-  signerOrProvider: Signer | providers.Provider
+  signerOrProvider
 ): Promise<{ [key: string]: Contract }> => {
   const l2ContractData = await getL2ContractData()
+  checkSignerType(signerOrProvider)
 
   const namesMap = {
     OVM_ETH: 'eth',
