@@ -198,7 +198,6 @@ describe('BatchSubmitter', () => {
 
   afterEach(() => {
     sinon.restore()
-    testMetrics.registry.clear()
   })
 
   const createBatchSubmitter = (timeout: number): TransactionBatchSubmitter =>
@@ -323,8 +322,6 @@ describe('BatchSubmitter', () => {
         l2Provider.setL2BlockData({
           queueOrigin: QueueOrigin.L1ToL2,
         } as any)
-        // Clear metrics of previously created batch submitters
-        testMetrics.registry.clear()
 
         // Create a batch submitter with a long timeout & make sure it doesn't submit the batches one after another
         const longTimeout = 10_000
@@ -334,7 +331,6 @@ describe('BatchSubmitter', () => {
         receipt = await batchSubmitter.submitNextBatch()
         // The receipt should be undefined because that means it didn't submit
         expect(receipt).to.be.undefined
-        testMetrics.registry.clear()
 
         // This time create a batch submitter with a short timeout & it should submit batches after the timeout is reached
         const shortTimeout = 5
@@ -419,7 +415,6 @@ describe('BatchSubmitter', () => {
 
       // submit a batch of transactions to enable state batch submission
       await txBatchSubmitter.submitNextBatch()
-      testMetrics.registry.clear()
 
       stateBatchSubmitter = new StateBatchSubmitter(
         sequencer,

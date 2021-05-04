@@ -32,7 +32,7 @@ export abstract class BatchSubmitter {
   protected l2ChainId: number
   protected syncing: boolean
   protected lastBatchSubmissionTimestamp: number = 0
-  protected bsMetrics: BatchSubmitterMetrics
+  protected metrics: BatchSubmitterMetrics
 
   constructor(
     readonly signer: Signer,
@@ -51,9 +51,9 @@ export abstract class BatchSubmitter {
     readonly gasRetryIncrement: number,
     readonly gasThresholdInGwei: number,
     readonly logger: Logger,
-    readonly metrics: Metrics
+    readonly defaultMetrics: Metrics
   ) {
-    this.bsMetrics = this._registerMetrics(metrics)
+    this.metrics = this._registerMetrics(defaultMetrics)
   }
 
   public abstract _submitBatch(
@@ -100,7 +100,7 @@ export abstract class BatchSubmitter {
       address,
       ether,
     })
-    this.bsMetrics.batchSubmitterETHBalance.set(num)
+    this.metrics.batchSubmitterETHBalance.set(num)
 
     if (num < this.minBalanceEther) {
       this.logger.fatal('Current balance lower than min safe balance', {
@@ -160,7 +160,7 @@ export abstract class BatchSubmitter {
         lastBatchSubmissionTimestamp: this.lastBatchSubmissionTimestamp,
         currentTimestamp,
       })
-      this.bsMetrics.batchSizeInBytes.observe(batchSizeInBytes)
+      this.metrics.batchSizeInBytes.observe(batchSizeInBytes)
       return true
     }
     this.logger.info(
@@ -171,7 +171,7 @@ export abstract class BatchSubmitter {
         currentTimestamp,
       }
     )
-    this.bsMetrics.batchSizeInBytes.observe(batchSizeInBytes)
+    this.metrics.batchSizeInBytes.observe(batchSizeInBytes)
     return true
   }
 
@@ -239,8 +239,8 @@ export abstract class BatchSubmitter {
 
     this.logger.info('Received transaction receipt', { receipt })
     this.logger.info(successMessage)
-    this.bsMetrics.submissionGasUsed.observe(receipt.gasUsed.toNumber())
-    this.bsMetrics.submissionTimestamp.observe(Date.now())
+    this.metrics.submissionGasUsed.observe(receipt.gasUsed.toNumber())
+    this.metrics.submissionTimestamp.observe(Date.now())
     return receipt
   }
 
