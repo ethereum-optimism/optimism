@@ -39,10 +39,8 @@ export const makeActionBundleFromConfig = async (
     })
 
     // Add SET_STORAGE actions for each storage slot that we want to modify.
-    for (const slot of computeStorageSlots(
-      storageLayout,
-      contractConfig.variables
-    )) {
+    const slots = computeStorageSlots(storageLayout, contractConfig.variables)
+    for (const slot of slots) {
       actions.push({
         target: contractConfig.address,
         key: slot.key,
