@@ -118,7 +118,7 @@ contract L2ChugSplashDeployer {
         currentBundleHash = _bundleHash;
         currentBundleSize = _bundleSize;
         currentBundleTxsExecuted = 0;
-        // TODO: Set system status to "upgrading".
+        _setUpgradeStatus(true);
     }
 
     /**
@@ -136,7 +136,7 @@ contract L2ChugSplashDeployer {
         currentBundleHash = bytes32(0);
         currentBundleSize = 0;
         currentBundleTxsExecuted = 0;
-        // TODO: Set system status to "done upgrading".
+        _setUpgradeStatus(false);
     }
 
     /**
@@ -150,7 +150,6 @@ contract L2ChugSplashDeployer {
     )
         public
     {
-        // TODO: Do we need to validate enums or does solidity do it for us?
         // TODO: Do we need to check gas limit?
 
         require(
@@ -201,7 +200,24 @@ contract L2ChugSplashDeployer {
         currentBundleTxsExecuted++;
         if (currentBundleSize == currentBundleTxsExecuted) {
             currentBundleHash = bytes32(0);
-            // TODO: Set system status to "done upgrading/active".
+            _setUpgradeStatus(false);
         }
+    }
+
+
+    /**********************
+     * Internal Functions *
+     **********************/
+    
+    /**
+     * Sets the system status to "upgrading" or "done upgrading" depending on the boolean input.
+     * @param _upgrading `true` sets status to "upgrading", `false` to "done upgrading."
+     */
+    function _setUpgradeStatus(
+        bool _upgrading
+    )
+        internal
+    {
+        // TODO: Requires system status work planned for Ben.
     }
 }
