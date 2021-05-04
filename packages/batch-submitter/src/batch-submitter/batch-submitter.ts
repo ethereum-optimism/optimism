@@ -40,7 +40,7 @@ export abstract class BatchSubmitter {
     readonly maxGasPriceInGwei: number,
     readonly gasRetryIncrement: number,
     readonly gasThresholdInGwei: number,
-    readonly log: Logger,
+    readonly logger: Logger,
     readonly metrics: Metrics
   ) {}
 
@@ -58,13 +58,13 @@ export abstract class BatchSubmitter {
     }
     await this._updateChainInfo()
     await this._checkBalance()
-    this.log.info('Readying to submit next batch...', {
+    this.logger.info('Readying to submit next batch...', {
       l2ChainId: this.l2ChainId,
       batchSubmitterAddress: await this.signer.getAddress(),
     })
 
     if (this.syncing === true) {
-      this.log.info(
+      this.logger.info(
         'Syncing mode enabled! Skipping batch submission and clearing queue...'
       )
       return this._onSync()
@@ -83,13 +83,13 @@ export abstract class BatchSubmitter {
     const ether = utils.formatEther(balance)
     const num = parseFloat(ether)
 
-    this.log.info('Checked balance', {
+    this.logger.info('Checked balance', {
       address,
       ether,
     })
 
     if (num < this.minBalanceEther) {
-      this.log.fatal('Current balance lower than min safe balance', {
+      this.logger.fatal('Current balance lower than min safe balance', {
         current: num,
         safeBalance: this.minBalanceEther,
       })
@@ -130,7 +130,7 @@ export abstract class BatchSubmitter {
       currentTimestamp
     if (batchSizeInBytes < this.minTxSize) {
       if (!isTimeoutReached) {
-        this.log.info(
+        this.logger.info(
           'Skipping batch submission. Batch too small & max submission timeout not reached.',
           {
             batchSizeInBytes,
@@ -141,25 +141,28 @@ export abstract class BatchSubmitter {
         )
         return false
       }
-      this.log.info('Timeout reached, proceeding with batch submission.', {
+      this.logger.info('Timeout reached, proceeding with batch submission.', {
         batchSizeInBytes,
         lastBatchSubmissionTimestamp: this.lastBatchSubmissionTimestamp,
         currentTimestamp,
       })
       return true
     }
-    this.log.info('Sufficient batch size, proceeding with batch submission.', {
-      batchSizeInBytes,
-      lastBatchSubmissionTimestamp: this.lastBatchSubmissionTimestamp,
-      currentTimestamp,
-    })
+    this.logger.info(
+      'Sufficient batch size, proceeding with batch submission.',
+      {
+        batchSizeInBytes,
+        lastBatchSubmissionTimestamp: this.lastBatchSubmissionTimestamp,
+        currentTimestamp,
+      }
+    )
     return true
   }
 
   public static async getReceiptWithResubmission(
     txFunc: (gasPrice) => Promise<TransactionReceipt>,
     resubmissionConfig: ResubmissionConfig,
-    log: Logger
+    logger: Logger
   ): Promise<TransactionReceipt> {
     const {
       resubmissionTimeout,
@@ -176,7 +179,7 @@ export abstract class BatchSubmitter {
       delay: resubmissionTimeout,
     })
 
-    log.debug('Resubmission tx receipt', { receipt })
+    logger.debug('Resubmission tx receipt', { receipt })
 
     return receipt
   }
@@ -190,7 +193,7 @@ export abstract class BatchSubmitter {
       10
     )
     if (minGasPriceInGwei > this.maxGasPriceInGwei) {
-      this.log.warn(
+      this.logger.warn(
         'Minimum gas price is higher than max! Ethereum must be congested...'
       )
       minGasPriceInGwei = this.maxGasPriceInGwei
@@ -203,7 +206,7 @@ export abstract class BatchSubmitter {
     successMessage: string
   ): Promise<TransactionReceipt> {
     this.lastBatchSubmissionTimestamp = Date.now()
-    this.log.debug('Waiting for receipt...')
+    this.logger.debug('Waiting for receipt...')
 
     const resubmissionConfig: ResubmissionConfig = {
       resubmissionTimeout: this.resubmissionTimeout,
@@ -215,11 +218,11 @@ export abstract class BatchSubmitter {
     const receipt = await BatchSubmitter.getReceiptWithResubmission(
       txFunc,
       resubmissionConfig,
-      this.log
+      this.logger
     )
 
-    this.log.info('Received transaction receipt', { receipt })
-    this.log.info(successMessage)
+    this.logger.info('Received transaction receipt', { receipt })
+    this.logger.info(successMessage)
     return receipt
   }
 }

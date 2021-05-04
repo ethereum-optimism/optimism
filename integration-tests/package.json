@@ -23,12 +23,14 @@
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "chai": "^4.3.3",
     "chai-as-promised": "^7.1.1",
+    "docker-compose": "^0.23.8",
     "envalid": "^7.1.0",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.32",
     "hardhat": "^2.2.1",
     "hardhat-gas-reporter": "^1.0.4",
     "mocha": "^8.3.1",
-    "rimraf": "^3.0.2"
+    "rimraf": "^3.0.2",
+    "shelljs": "^0.8.4"
   }
 }

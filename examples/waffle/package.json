@@ -20,6 +20,7 @@
     "ERC20",
     "waffle"
   ],
+  "private": true,
   "homepage": "https://github.com/ethereum-optimism/ERC20-Example#readme",
   "license": "MIT",
   "author": "Optimism PBC",
