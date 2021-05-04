@@ -22,6 +22,7 @@ export const makeActionBundleFromConfig = async (
   config: ChugSplashConfig,
   env: any = {}
 ): Promise<ChugSplashActionBundle> => {
+  // Parse the config to replace any template variables.
   const parsed = parseChugSplashConfig(config, env)
 
   const actions: ChugSplashAction[] = []
@@ -31,11 +32,13 @@ export const makeActionBundleFromConfig = async (
     const artifact = hre.artifacts.readArtifactSync(contractConfig.source)
     const storageLayout = await getStorageLayout(hre, contractConfig.source)
 
+    // Add a SET_CODE action for each contract first.
     actions.push({
       target: contractConfig.address,
       code: artifact.deployedBytecode,
     })
 
+    // Add SET_STORAGE actions for each storage slot that we want to modify.
     for (const slot of computeStorageSlots(
       storageLayout,
       contractConfig.variables
@@ -48,5 +51,6 @@ export const makeActionBundleFromConfig = async (
     }
   }
 
+  // Generate a bundle from the list of actions.
   return getChugSplashActionBundle(actions)
 }
