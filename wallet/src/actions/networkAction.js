@@ -117,6 +117,7 @@ export function exitOMGX (token, value) {
   )
 }
 
+//Deposting into the L2LP triggers the swap-exit
 export function depositL2LP (token, value) {
   return createAction(
     'EXIT/CREATE',
