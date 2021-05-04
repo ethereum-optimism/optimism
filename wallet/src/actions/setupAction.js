@@ -13,20 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-export function setWalletMethod (method) {
+export function setWalletMethod (methodName) {
   return function (dispatch) {
-    return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: method });
-  };
+    return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: methodName });
+  }
 }
 
 export function setNetwork (network) {
   return function (dispatch) {
     return dispatch({ type: 'SETUP/NETWORK/SET', payload: network });
-  };
-}
-
-export function setLayer (layer) {
-  return function (dispatch) {
-    return dispatch({ type: 'SETUP/LAYER/SET', payload: layer });
-  };
+  }
 }

@@ -17,7 +17,10 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector, batch } from 'react-redux';
 import { selectWalletMethod } from 'selectors/setupSelector';
 import { selectModalState } from 'selectors/uiSelector';
+import { selectChildchainTransactions } from 'selectors/transactionSelector';
+
 import useInterval from 'util/useInterval';
+import { isEqual } from 'lodash';
 
 import {
   checkWatcherStatus,
@@ -39,6 +42,7 @@ import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 //Wallet Functions
 import Status from 'containers/status/Status';
 import Account from 'containers/account/Account';
+import Transactions from 'containers/transactions/Transactions';
 
 import MobileHeader from 'components/mobileheader/MobileHeader';
 import MobileMenu from 'components/mobilemenu/MobileMenu';
@@ -53,19 +57,20 @@ function Home () {
 
   const dispatch = useDispatch();
 
-  const [ mobileMenuOpen, setMobileMenuOpen ] = useState(false);
+  const [ mobileMenuOpen, setMobileMenuOpen ] = useState(false)
   
   const [ pageDisplay, setPageDisplay ] = useState("AccountNow");
   
-  const depositModalState = useSelector(selectModalState('depositModal'));
-  const beginner = useSelector(selectModalState('beginner'));
-  const fast = useSelector(selectModalState('fast'));
-  const transferModalState = useSelector(selectModalState('transferModal'));
-  const exitModalState = useSelector(selectModalState('exitModal'));
-  const addTokenModalState = useSelector(selectModalState('addNewTokenModal'));
-  const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'));
+  const depositModalState = useSelector(selectModalState('depositModal'))
+  const beginner = useSelector(selectModalState('beginner'))
+  const fast = useSelector(selectModalState('fast'))
+  const transferModalState = useSelector(selectModalState('transferModal'))
+  const exitModalState = useSelector(selectModalState('exitModal'))
+  const addTokenModalState = useSelector(selectModalState('addNewTokenModal'))
+  const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'))
 
-  const walletMethod = useSelector(selectWalletMethod());
+  const walletMethod = useSelector(selectWalletMethod())
+  const transactions = useSelector(selectChildchainTransactions, isEqual);
   
   useEffect(() => {
     const body = document.getElementsByTagName('body')[0];
@@ -133,9 +138,7 @@ function Home () {
             mobileMenuOpen={mobileMenuOpen}
           />
 
-{/*
-The Top SubMenu Bar, non-mobile
-*/}
+          {/* The Top SubMenu Bar, non-mobile */}
 
           <div className={styles.secondtab}>
             <h2
@@ -146,7 +149,10 @@ The Top SubMenu Bar, non-mobile
             </h2>
           </div>
           {pageDisplay === "AccountNow" &&
+          <>  
             <Account/>
+            <Transactions/>
+          </>
           }
         </div>
       </div>

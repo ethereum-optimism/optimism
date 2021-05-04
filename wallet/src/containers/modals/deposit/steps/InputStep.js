@@ -5,7 +5,7 @@ import Button from 'components/button/Button';
 import Input from 'components/input/Input';
 import Tabs from 'components/tabs/Tabs';
 
-import { openAlert, openError, setActiveHistoryTab } from 'actions/uiAction';
+import { openAlert, openError, setActiveHistoryTab1 } from 'actions/uiAction';
 import networkService from 'services/networkService';
 import { selectLoading } from 'selectors/loadingSelector';
 import { depositETHL2, depositL1LP } from 'actions/networkAction';
@@ -30,13 +30,13 @@ function InputStep ({
 
   let uSC = 'ETH';
 
-  const [ activeTab, setActiveTab ] = useState(uSC);
+  const [ activeTab1, setActiveTab1 ] = useState(uSC);
   const [ LPBalance, setLPBalance ] = useState(0);
   const [ feeRate, setFeeRate ] = useState(0);
   const depositLoading = useSelector(selectLoading([ 'DEPOSIT/CREATE' ]));
 
   function handleClose () {
-    setActiveTab('ETH');
+    setActiveTab1('ETH');
     onClose();
   }
 
@@ -49,7 +49,7 @@ function InputStep ({
         res = await dispatch(depositL1LP(currency, value))
       }
       if (res) {
-        dispatch(setActiveHistoryTab('Deposits'));
+        dispatch(setActiveHistoryTab1('Deposits'));
         if (fast) {
           dispatch(openAlert(`ETH was deposited the the L1LP. You will receive ${(Number(value) * 0.97).toFixed(2)} oETH on L2`));
         } else {
@@ -88,13 +88,13 @@ function InputStep ({
         className={styles.tabs}
         onClick={i => {
           i === 'ETH' ? setCurrency(ETH0x) : setCurrency('');
-          setActiveTab(i);
+          setActiveTab1(i);
         }}
-        activeTab={activeTab}
+        activeTab={activeTab1}
         tabs={[ 'ETH', 'ERC20' ]}
       />
 
-      {activeTab === 'ERC20' && (
+      {activeTab1 === 'ERC20' && (
         <Input
           label='ERC20 Token Smart Contract Address.'
           placeholder='0x'
@@ -113,7 +113,7 @@ function InputStep ({
         onChange={i=>setValue(i.target.value)} 
       />
 
-      {fast && activeTab === 'ETH' && Object.keys(tokenInfo).length && currency ? (
+      {fast && activeTab1 === 'ETH' && Object.keys(tokenInfo).length && currency ? (
         <>
           <h3>
             The L2 liquidity pool has {LPBalance} oETH. The liquidity fee is {feeRate}%.{" "} 
@@ -122,7 +122,7 @@ function InputStep ({
         </>
       ):<></>}
 
-      {fast && activeTab === 'ERC20' && Object.keys(tokenInfo).length && currency ? (
+      {fast && activeTab1 === 'ERC20' && Object.keys(tokenInfo).length && currency ? (
         <>
           <h3>
             The L2 liquidity pool contains {LPBalance} {tokenInfo.symbol}. The liquidity fee is {feeRate}%.{" "} 
@@ -139,7 +139,7 @@ function InputStep ({
         >
           CANCEL
         </Button>
-        {activeTab === 'ETH' && (
+        {activeTab1 === 'ETH' && (
           <Button
             onClick={depositETH}
             type='primary'
@@ -151,7 +151,7 @@ function InputStep ({
             DEPOSIT
           </Button>
         )}
-        {activeTab === 'ERC20' && (
+        {activeTab1 === 'ERC20' && (
           <Button
             onClick={onNext}
             type='primary'

@@ -6,7 +6,7 @@ import Button from 'components/button/Button';
 import GasPicker from 'components/gaspicker/GasPicker';
 
 import { approveErc20, depositErc20, resetApprove, depositL1LP } from 'actions/networkAction';
-import { openAlert, setActiveHistoryTab } from 'actions/uiAction';
+import { openAlert, setActiveHistoryTab1 } from 'actions/uiAction';
 import networkService from 'services/networkService';
 import { selectLoading } from 'selectors/loadingSelector';
 import { powAmount, logAmount } from 'util/amountConvert';
@@ -94,7 +94,7 @@ function ApproveStep ({
       res = await dispatch(depositL1LP(currency, value))
     }
     if (res) {
-      dispatch(setActiveHistoryTab('Deposits'));
+      dispatch(setActiveHistoryTab1('Deposits'));
       if (fast === false) {
         dispatch(openAlert(`${tokenName} deposit submitted.`));
       } else {
