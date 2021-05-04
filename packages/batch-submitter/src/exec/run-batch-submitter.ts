@@ -1,5 +1,6 @@
 /* External Imports */
-import { Logger, Metrics, injectL2Context } from '@eth-optimism/core-utils'
+import { injectL2Context } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'

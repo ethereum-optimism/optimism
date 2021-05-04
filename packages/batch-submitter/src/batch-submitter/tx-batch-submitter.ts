@@ -10,9 +10,8 @@ import {
   BatchElement,
   Batch,
   QueueOrigin,
-  Logger,
-  Metrics,
 } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
 import {

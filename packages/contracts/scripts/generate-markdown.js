@@ -75,11 +75,13 @@ const networks = {
       });
 
     for (const contract of contracts) {
+      const colonizedName = contract.split(':').join('-');
+
       const deploymentInfo = require(`../deployments/${deployment}/${contract}.json`);
 
       const escPrefix = chainId !== 1 ? `${network}.` : "";
       const etherscanUrl = `https://${escPrefix}etherscan.io/address/${deploymentInfo.address}`;
-      md += `|${contract}|[${deploymentInfo.address}](${etherscanUrl})|\n`;
+      md += `|${colonizedName}|[${deploymentInfo.address}](${etherscanUrl})|\n`;
     }
     md += `---\n`;
   }

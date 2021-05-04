@@ -21,6 +21,8 @@ services:
       - ${L1_CHAIN_PORT:-9545}:8545
 
   deployer:
+    depends_on:
+      - l1_chain
     image: ethereumoptimism/deployer
     build:
       context: ..
@@ -40,6 +42,10 @@ services:
       - ${DEPLOYER_PORT:-8080}:8081
 
   dtl:
+    depends_on:
+      - l1_chain
+      - deployer
+      - l2geth
     image: ethereumoptimism/data-transport-layer
     build:
       context: ..
@@ -47,7 +53,7 @@ services:
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
-        ./envs/dtl.env
+      -  ./envs/dtl.env
     # set the rest of the env vars for the network whcih do not
     # depend on the docker-compose setup
     environment:
@@ -61,6 +67,9 @@ services:
       - ${DTL_PORT:-7878}:7878
 
   l2geth:
+    depends_on:
+      - l1_chain
+      - deployer
     image: ethereumoptimism/l2geth
     build:
       context: ..
@@ -68,7 +77,7 @@ services:
     # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
     env_file:
-        ./envs/geth.env
+      - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
@@ -83,6 +92,10 @@ services:
       - ${L2GETH_WS_PORT:-8546}:8546
 
   relayer:
+    depends_on:
+      - l1_chain
+      - deployer
+      - l2geth
     image: ethereumoptimism/message-relayer
     build:
       context: ..
@@ -99,13 +112,17 @@ services:
         GET_LOGS_INTERVAL: 500
 
   batch_submitter:
+    depends_on:
+      - l1_chain
+      - deployer
+      - l2geth
     image: ethereumoptimism/batch-submitter
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.batch-submitter
     entrypoint: ./batches.sh
     env_file:
-        ./envs/batches.env
+      - ./envs/batches.env
     environment:
         L1_NODE_WEB3_URL: http://l1_chain:8545
         L2_NODE_WEB3_URL: http://l2geth:8545

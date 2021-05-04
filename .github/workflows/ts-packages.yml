@@ -15,6 +15,7 @@ on:
     paths:
         - 'packages/**/*.sol'
         - 'packages/**/*.ts'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -53,8 +54,12 @@ jobs:
         run: yarn build
 
       - name: Test
-        run: yarn test:ci
-
+        run: yarn test
+        env:
+          FORCE_COLOR: 1
+          ENABLE_GAS_REPORT: 1
+      - name: Print gas report
+        run: cat packages/contracts/gas-report.txt
   lint:
     name: Linting
     runs-on: ubuntu-latest
@@ -84,4 +89,4 @@ jobs:
         run: yarn install
 
       - name: Lint
-        run: yarn lint:ci
+        run: yarn lint

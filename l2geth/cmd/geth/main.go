@@ -164,7 +164,8 @@ var (
 		utils.RollupStateDumpPathFlag,
 		utils.RollupDiffDbFlag,
 		utils.RollupMaxCalldataSizeFlag,
-		utils.RollupL1GasPriceFlag,
+		utils.RollupDataPriceFlag,
+		utils.RollupExecutionPriceFlag,
 	}
 
 	rpcFlags = []cli.Flag{

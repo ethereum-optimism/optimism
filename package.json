@@ -6,7 +6,8 @@
     "packages/*",
     "l2geth",
     "integration-tests",
-    "specs"
+    "specs",
+    "examples/*"
   ],
   "private": true,
   "devDependencies": {
@@ -17,9 +18,7 @@
     "clean": "yarn lerna run clean",
     "build": "yarn lerna run build",
     "test": "yarn lerna run test --parallel",
-    "test:ci": "yarn lerna run test --parallel --since origin/master",
     "lint": "yarn lerna run lint",
-    "lint:ci": "yarn lerna run lint  --parallel --since origin/master",
     "lint:fix": "yarn lerna run lint:fix",
     "postinstall": "patch-package",
     "release": "yarn build && yarn changeset publish"

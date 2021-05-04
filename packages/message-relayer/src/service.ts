@@ -4,7 +4,8 @@ import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
 
 /* Imports: Internal */
-import { BaseService, fromHexString, sleep } from '@eth-optimism/core-utils'
+import { fromHexString, sleep } from '@eth-optimism/core-utils'
+import { BaseService } from '@eth-optimism/common-ts'
 import SpreadSheet from './spreadsheet'
 
 import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'

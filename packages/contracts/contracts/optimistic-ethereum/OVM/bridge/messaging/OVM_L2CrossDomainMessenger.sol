@@ -13,6 +13,9 @@ import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/predeploys/iOVM_L2ToL1Me
 /* Contract Imports */
 import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol";
 
+/* External Imports */
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 /**
  * @title OVM_L2CrossDomainMessenger
  * @dev The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point
@@ -21,7 +24,12 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
  * Compiler used: optimistic-solc
  * Runtime target: OVM
   */
-contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L2CrossDomainMessenger is
+    iOVM_L2CrossDomainMessenger,
+    Abs_BaseCrossDomainMessenger,
+    Lib_AddressResolver,
+    ReentrancyGuard
+{
 
     /***************
      * Constructor *
@@ -34,6 +42,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
         address _libAddressManager
     )
         Lib_AddressResolver(_libAddressManager)
+        ReentrancyGuard()
     {}
 
 
