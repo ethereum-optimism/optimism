@@ -74,7 +74,6 @@ type transaction struct {
 	Origin      *common.Address `json:"origin"`
 	Data        hexutil.Bytes   `json:"data"`
 	QueueOrigin string          `json:"queueOrigin"`
-	Type        string          `json:"type"`
 	QueueIndex  *uint64         `json:"queueIndex"`
 	Decoded     *decoded        `json:"decoded"`
 }
