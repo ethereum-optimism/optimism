@@ -5,7 +5,6 @@ REPO=$DIR/..
 
 IS_VERIFIER=
 DATADIR=$HOME/.ethereum
-ETH1_CHAIN_ID=1
 TARGET_GAS_LIMIT=9000000
 CHAIN_ID=10
 ETH1_CTC_DEPLOYMENT_HEIGHT=12207792
@@ -31,7 +30,6 @@ CLI Arguments:
   --eth1.chainid                         - eth1 chain id
   --eth1.ctcdeploymentheight             - eth1 ctc deploy height
   --eth1.l1crossdomainmessengeraddress   - eth1 l1 xdomain messenger address
-  --eth1.ctcdeploymentheight             - eth1 ctc deployment height
   --rollup.statedumppath                 - http path to the initial state dump
   --rollup.clienthttp                    - rollup client http
   --rollup.pollinterval                  - polling interval for the rollup client
@@ -86,15 +84,6 @@ while (( "$#" )); do
                 exit 1
             fi
             ;;
-        --eth1.chainid)
-            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-                ETH1_CHAIN_ID="$2"
-                shift 2
-            else
-                echo "Error: Argument for $1 is missing" >&2
-                exit 1
-            fi
-            ;;
         --eth1.ctcdeploymentheight)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
                 ETH1_CTC_DEPLOYMENT_HEIGHT="$2"
@@ -116,6 +105,15 @@ while (( "$#" )); do
         --eth1.l1crossdomainmessengeraddress)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
                 ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS="$2"
+                shift 2
+            else
+                echo "Error: Argument for $1 is missing" >&2
+                exit 1
+            fi
+            ;;
+        --eth1.l1ethgatewayaddress)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                ETH1_L1_ETH_GATEWAY_ADDRESS="$2"
                 shift 2
             else
                 echo "Error: Argument for $1 is missing" >&2
@@ -167,6 +165,15 @@ while (( "$#" )); do
                 exit 1
             fi
             ;;
+        --rollup.addressmanagerowneraddress)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                ADDRESS_MANAGER_OWNER_ADDRESS="$2"
+                shift 2
+            else
+                echo "Error: Argument for $1 is missing" >&2
+                exit 1
+            fi
+            ;;
         --cache)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
                 CACHE="$2"
@@ -195,14 +202,11 @@ done
 cmd="$REPO/build/bin/geth"
 cmd="$cmd --eth1.syncservice"
 cmd="$cmd --datadir $DATADIR"
-cmd="$cmd --eth1.chainid $ETH1_CHAIN_ID"
 cmd="$cmd --eth1.l1crossdomainmessengeraddress $ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS"
 cmd="$cmd --rollup.addressmanagerowneraddress $ADDRESS_MANAGER_OWNER_ADDRESS"
 cmd="$cmd --rollup.statedumppath $ROLLUP_STATE_DUMP_PATH"
 cmd="$cmd --eth1.ctcdeploymentheight $ETH1_CTC_DEPLOYMENT_HEIGHT"
-if [[ ! -z $ETH1_L1_GATEWAY_ADDRESS ]]; then
-    cmd="$cmd --eth1.l1ethgatewayaddress $ETH1_L1_GATEWAY_ADDRESS"
-fi
+cmd="$cmd --eth1.l1ethgatewayaddress $ETH1_L1_GATEWAY_ADDRESS"
 cmd="$cmd --rollup.clienthttp $ROLLUP_CLIENT_HTTP"
 cmd="$cmd --rollup.pollinterval $ROLLUP_POLL_INTERVAL"
 cmd="$cmd --rollup.timestamprefresh $ROLLUP_TIMESTAMP_REFRESH"
