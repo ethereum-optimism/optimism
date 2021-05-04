@@ -161,7 +161,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _ovmStateManager
     )
         override
-        public
+        external
     {
         // Make sure that run() is not re-enterable.  This condition should always be satisfied
         // Once run has been called once, due to the behavior of _isValidInput().
@@ -228,7 +228,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmCALLER()
         override
-        public
+        external
         view
         returns (
             address _CALLER
@@ -258,7 +258,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmTIMESTAMP()
         override
-        public
+        external
         view
         returns (
             uint256 _TIMESTAMP
@@ -273,7 +273,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmNUMBER()
         override
-        public
+        external
         view
         returns (
             uint256 _NUMBER
@@ -288,7 +288,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmGASLIMIT()
         override
-        public
+        external
         view
         returns (
             uint256 _GASLIMIT
@@ -303,7 +303,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmCHAINID()
         override
-        public
+        external
         view
         returns (
             uint256 _CHAINID
@@ -322,7 +322,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmL1QUEUEORIGIN()
         override
-        public
+        external
         view
         returns (
             Lib_OVMCodec.QueueOrigin _queueOrigin
@@ -337,7 +337,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmL1TXORIGIN()
         override
-        public
+        external
         view
         returns (
             address _l1TxOrigin
@@ -417,7 +417,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _salt
     )
         override
-        public
+        external
         notStatic
         fixedGasDiscount(40000)
         returns (
@@ -456,7 +456,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmGETNONCE()
         override
-        public
+        external
         returns (
             uint256 _nonce
         )
@@ -469,7 +469,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmINCREMENTNONCE()
         override
-        public
+        external
         notStatic
     {
         address account = ovmADDRESS();
@@ -618,7 +618,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        public
+        external
         fixedGasDiscount(80000)
         returns (
             bool _success,
@@ -653,7 +653,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        public
+        external
         fixedGasDiscount(40000)
         returns (
             bool _success,
@@ -685,7 +685,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _key
     )
         override
-        public
+        external
         netGasCost(40000)
         returns (
             bytes32 _value
@@ -710,7 +710,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _value
     )
         override
-        public
+        external
         notStatic
         netGasCost(60000)
     {
@@ -782,7 +782,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _contract
     )
         override
-        public
+        external
         returns (
             bytes32 _EXTCODEHASH
         )
