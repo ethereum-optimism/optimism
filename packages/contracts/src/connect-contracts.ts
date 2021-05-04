@@ -7,67 +7,34 @@ export const connectL1Contracts = async (
 ): Promise<{ [key: string]: Contract }> => {
   const l1ContractData = getL1ContractData(network)
 
-  const toEthersContract = (address, abi) =>
-    new Contract(address, abi, signerOrProvider)
-
-  return {
-    addressManager: toEthersContract(
-      l1ContractData.Lib_AddressManager.address,
-      l1ContractData.Lib_AddressManager.abi
-    ),
-    canonicalTransactionChain: toEthersContract(
-      l1ContractData.OVM_CanonicalTransactionChain.address,
-      l1ContractData.OVM_CanonicalTransactionChain.abi
-    ),
-    executionManager: toEthersContract(
-      l1ContractData.OVM_ExecutionManager.address,
-      l1ContractData.OVM_ExecutionManager.abi
-    ),
-    fraudVerifier: toEthersContract(
-      l1ContractData.OVM_FraudVerifier.address,
-      l1ContractData.OVM_FraudVerifier.abi
-    ),
-    xDomainMessenger: toEthersContract(
-      l1ContractData.OVM_L1CrossDomainMessenger.address,
-      l1ContractData.OVM_L1CrossDomainMessenger.abi
-    ),
-    ethGateway: toEthersContract(
-      l1ContractData.OVM_L1ETHGateway.address,
-      l1ContractData.OVM_L1ETHGateway.abi
-    ),
-    multiMessageRelayer: toEthersContract(
-      l1ContractData.OVM_L1MultiMessageRelayer.address,
-      l1ContractData.OVM_L1MultiMessageRelayer.abi
-    ),
-    safetyChecker: toEthersContract(
-      l1ContractData.OVM_SafetyChecker.address,
-      l1ContractData.OVM_SafetyChecker.abi
-    ),
-    stateCommitmentChain: toEthersContract(
-      l1ContractData.OVM_StateCommitmentChain.address,
-      l1ContractData.OVM_StateCommitmentChain.abi
-    ),
-    stateManagerFactory: toEthersContract(
-      l1ContractData.OVM_StateManagerFactory.address,
-      l1ContractData.OVM_StateManagerFactory.abi
-    ),
-    stateTransitionerFactory: toEthersContract(
-      l1ContractData.OVM_StateTransitionerFactory.address,
-      l1ContractData.OVM_StateTransitionerFactory.abi
-    ),
-    xDomainMessengerProxy: toEthersContract(
-      l1ContractData.Proxy__OVM_L1CrossDomainMessenger.address,
-      l1ContractData.Proxy__OVM_L1CrossDomainMessenger.abi
-    ),
-    l1EthGatewayProxy: toEthersContract(
-      l1ContractData.Proxy__OVM_L1ETHGateway.address,
-      l1ContractData.Proxy__OVM_L1ETHGateway.abi
-    ),
-    mockBondManger: toEthersContract(
-      l1ContractData.mockOVM_BondManager.address,
-      l1ContractData.mockOVM_BondManager.abi
-    ),
+  const namesMap = {
+    Lib_AddressManager: 'addressManager',
+    OVM_CanonicalTransactionChain: 'canonicalTransactionChain',
+    OVM_ExecutionManager: 'executionManager',
+    OVM_FraudVerifier: 'fraudVerifier',
+    OVM_L1CrossDomainMessenger: 'xDomainMessenger',
+    OVM_L1ETHGateway: 'ethGateway',
+    OVM_L1MultiMessageRelayer: 'multiMessageRelayer',
+    OVM_SafetyChecker: 'safetyChecker',
+    OVM_StateCommitmentChain: 'stateCommitmentChain',
+    OVM_StateManagerFactory: 'stateManagerFactory',
+    OVM_StateTransitionerFactory: 'stateTransitionerFactory',
+    Proxy__OVM_L1CrossDomainMessenger: 'xDomainMessengerProxy',
+    Proxy__OVM_L1ETHGateway: 'l1EthGatewayProxy',
+    mockOVM_BondManager: 'mockBondManger',
   }
+
+  return Object.entries(l1ContractData).reduce(
+    (allContracts, [contractName, contractData]) => {
+      allContracts[namesMap[contractName]] = new Contract(
+        contractData.address,
+        contractData.abi,
+        signerOrProvider
+      )
+      return allContracts
+    },
+    {}
+  )
 }
 
 export const connectL2Contracts = async (
@@ -75,45 +42,27 @@ export const connectL2Contracts = async (
 ): Promise<{ [key: string]: Contract }> => {
   const l2ContractData = await getL2ContractData()
 
-  const toEthersContract = (address, abi) =>
-    new Contract(address, abi, signerOrProvider)
-
-  return {
-    eth: toEthersContract(
-      l2ContractData.OVM_ETH.address,
-      l2ContractData.OVM_ETH.abi
-    ),
-    xDomainMessenger: toEthersContract(
-      l2ContractData.OVM_L2CrossDomainMessenger.address,
-      l2ContractData.OVM_L2CrossDomainMessenger.abi
-    ),
-    messagePasser: toEthersContract(
-      l2ContractData.OVM_L2ToL1MessagePasser.address,
-      l2ContractData.OVM_L2ToL1MessagePasser.abi
-    ),
-    messageSender: toEthersContract(
-      l2ContractData.OVM_L1MessageSender.address,
-      l2ContractData.OVM_L1MessageSender.abi
-    ),
-    deployerWhiteList: toEthersContract(
-      l2ContractData.OVM_DeployerWhitelist.address,
-      l2ContractData.OVM_DeployerWhitelist.abi
-    ),
-    ecdsaContractAccount: toEthersContract(
-      l2ContractData.OVM_ECDSAContractAccount.address,
-      l2ContractData.OVM_ECDSAContractAccount.abi
-    ),
-    sequencerEntrypoint: toEthersContract(
-      l2ContractData.OVM_SequencerEntrypoint.address,
-      l2ContractData.OVM_SequencerEntrypoint.abi
-    ),
-    erc1820Registry: toEthersContract(
-      l2ContractData.ERC1820Registry.address,
-      l2ContractData.ERC1820Registry.abi
-    ),
-    addressManager: toEthersContract(
-      l2ContractData.Lib_AddressManager.address,
-      l2ContractData.Lib_AddressManager.abi
-    ),
+  const namesMap = {
+    OVM_ETH: 'eth',
+    OVM_L2CrossDomainMessenger: 'xDomainMessenger',
+    OVM_L2ToL1MessagePasser: 'messagePasser',
+    OVM_L1MessageSender: 'messageSender',
+    OVM_DeployerWhitelist: 'deployerWhiteList',
+    OVM_ECDSAContractAccount: 'ecdsaContractAccount',
+    OVM_SequencerEntrypoint: 'sequencerEntrypoint',
+    ERC1820Registry: 'erc1820Registry',
+    Lib_AddressManager: 'addressManager',
   }
+
+  return Object.entries(l2ContractData).reduce(
+    (allContracts, [contractName, contractData]) => {
+      allContracts[namesMap[contractName]] = new Contract(
+        contractData.address,
+        contractData.abi,
+        signerOrProvider
+      )
+      return allContracts
+    },
+    {}
+  )
 }
