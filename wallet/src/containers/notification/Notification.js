@@ -1,6 +1,6 @@
 /*
-  Varna - A Privacy-Preserving Marketplace
-  Varna uses Fully Homomorphic Encryption to make markets fair. 
+  OmgX - A Privacy-Preserving Marketplace
+  OmgX uses Fully Homomorphic Encryption to make markets fair. 
   Copyright (C) 2021 Enya Inc. Palo Alto, CA
 
   This program is free software: you can redistribute it and/or modify

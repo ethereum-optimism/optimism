@@ -178,7 +178,7 @@ function WalletPicker ({ onEnable }) {
             >
               {!!allNetworks.length && showAllNetworks && allNetworks.map((network, index) => (
                 <div
-                  style={{background: '#2A308E', color: 'white', marginTop: 5, padding: 5, borderRadius: 3}}
+                  style={{background: '#2A308E', color: 'white', marginTop: 5, padding: 5, borderRadius: 3, cursor: 'pointer'}}
                   key={index}
                   onClick={()=>dispatchSetNetwork(network)}
                 >
