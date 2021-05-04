@@ -1480,7 +1480,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	} else {
 		status = SideStatTy
 	}
-	log.Info("Adding block to chain", "hash", block.Transactions()[0].Hash().Hex())
 	// Set new head.
 	if status == CanonStatTy {
 		bc.writeHeadBlock(block)
@@ -1488,7 +1487,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	bc.futureBlocks.Remove(block.Hash())
 
 	if status == CanonStatTy {
-		log.Info("Sending chain event")
 		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
 		if len(logs) > 0 {
 			bc.logsFeed.Send(logs)
@@ -1499,9 +1497,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		// we will fire an accumulated ChainHeadEvent and disable fire
 		// event here.
 		if emitHeadEvent {
-			log.Info("EMIT CHAIN HEAD")
 			bc.chainHeadFeed.Send(ChainHeadEvent{Block: block})
-			log.Info("POST EMIT CHAIN HEAD")
 		}
 	} else {
 		bc.chainSideFeed.Send(ChainSideEvent{Block: block})

@@ -63,9 +63,9 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	_ = cancel // satisfy govet
 
 	if cfg.IsVerifier {
-		log.Info("Running in verifier mode", "sync-type", cfg.Backend.String())
+		log.Info("Running in verifier mode", "backend", cfg.Backend.String())
 	} else {
-		log.Info("Running in sequencer mode", "sync-type", cfg.Backend.String())
+		log.Info("Running in sequencer mode", "backend", cfg.Backend.String())
 	}
 
 	pollInterval := cfg.PollInterval
@@ -178,11 +178,11 @@ func (s *SyncService) transition() {
 	for {
 		select {
 		case tx := <-s.txCh:
-			log.Info("Received on txCh", "hash", tx.Hash().Hex())
+			//log.Info("Received on txCh", "hash", tx.Hash().Hex())
 			if block, receipts, logs, statedb, err := s.stateTransition(tx); err == nil {
-				log.Info("Post state transition")
+				//log.Info("Post state transition")
 				_, err := s.bc.WriteBlockWithState(block, receipts, logs, statedb, false)
-				log.Info("Post WriteBlockWithState")
+				//log.Info("Post WriteBlockWithState")
 				if err != nil {
 					log.Error("Cannot write state with block", "msg", err)
 				}
@@ -664,7 +664,6 @@ func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*t
 		Time:       tx.L1Timestamp(),
 		GasLimit:   s.gasLimit,
 		Nonce:      [8]byte{},
-		Root:       statedb.IntermediateRoot(true),
 		Number:     new(big.Int).Add(current.Number, common.Big1),
 		Difficulty: new(big.Int),
 	}
@@ -676,6 +675,7 @@ func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*t
 		return nil, nil, nil, nil, fmt.Errorf(": %w", err)
 	}
 	header.GasUsed = receipt.GasUsed
+	header.Root = statedb.IntermediateRoot(true)
 
 	receipts := []*types.Receipt{receipt}
 	// types.NewBlock will derive the transaction hash, receipt hash and uncle hash
@@ -688,6 +688,7 @@ func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*t
 	for _, log := range receipt.Logs {
 		log.BlockHash = hash
 	}
+
 	return block, []*types.Receipt{receipt}, receipt.Logs, statedb, nil
 }
 
