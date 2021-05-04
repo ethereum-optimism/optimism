@@ -34,7 +34,7 @@ export const validators = {
     }
   },
   isJsonRpcProvider: (val: any): boolean => {
-    return val.ready !== undefined
+    return val && val.ready !== undefined
   },
   isLevelUP: (val: any): boolean => {
     // TODO: Fix?
