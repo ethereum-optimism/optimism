@@ -10,6 +10,7 @@ interface Bcfg {
   str: (name: string, defaultValue?: string) => string
   uint: (name: string, defaultValue?: number) => number
   bool: (name: string, defaultValue?: boolean) => boolean
+  ufloat: (name: string, defaultValue?: number) => number
 }
 
 enum ethNetwork {
@@ -58,7 +59,7 @@ enum ethNetwork {
       ),
       defaultBackend: config.str('default-backend', 'l1'),
       sentryDsn: config.str('sentry-dsn'),
-      sentryTraceRate: config.uint('sentry-trace-rate', 0.05),
+      sentryTraceRate: config.ufloat('sentry-trace-rate', 0.05),
     })
 
     await service.start()
