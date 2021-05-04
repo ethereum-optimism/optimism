@@ -39,7 +39,7 @@ contract Lib_AddressManager is Ownable {
         string memory _name,
         address _address
     )
-        public
+        external
         onlyOwner
     {
         addresses[_getNameHash(_name)] = _address;
@@ -58,7 +58,7 @@ contract Lib_AddressManager is Ownable {
     function getAddress(
         string memory _name
     )
-        public
+        external
         view
         returns (
             address

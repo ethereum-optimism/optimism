@@ -56,7 +56,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         bool _allowArbitraryDeployment
     )
         override
-        public
+        external
     {
         if (initialized == true) {
             return;
@@ -77,7 +77,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         bool _isWhitelisted
     )
         override
-        public
+        external
         onlyOwner
     {
         whitelist[_deployer] = _isWhitelisted;
@@ -116,7 +116,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
      */
     function enableArbitraryContractDeployment()
         override
-        public
+        external
         onlyOwner
     {
         setAllowArbitraryDeployment(true);
@@ -132,7 +132,7 @@ contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
         address _deployer
     )
         override
-        public
+        external
         returns (
             bool
         )
