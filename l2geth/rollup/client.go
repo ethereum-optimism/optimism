@@ -289,18 +289,7 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 	} else {
 		return nil, fmt.Errorf("Unknown queue origin: %s", res.QueueOrigin)
 	}
-	// The transaction type must be EIP155 or EthSign. Throughout this
-	// codebase, it is referred to as "sighash type" but it could actually
-	// be generalized to transaction type. Right now the only different
-	// types use a different signature hashing scheme.
-	var sighashType types.SignatureHashType
-	if res.Type == EIP155 {
-		sighashType = types.SighashEIP155
-	} else if res.Type == ETH_SIGN {
-		sighashType = types.SighashEthSign
-	} else {
-		return nil, fmt.Errorf("Unknown transaction type: %s", res.Type)
-	}
+	sighashType := types.SighashEIP155
 	// Transactions that have been decoded are
 	// Queue Origin Sequencer transactions
 	if res.Decoded != nil {
