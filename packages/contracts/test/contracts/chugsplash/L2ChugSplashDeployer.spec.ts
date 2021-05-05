@@ -30,6 +30,8 @@ describe('L2ChugSplashDeployer', () => {
 
     it('should be able to trigger a SETSTORAGE action', async () => {})
 
+    it('should revert if trying to execute the same action more than once', async () => {})
+
     it('should change the upgrade status when the bundle is complete', async () => {})
 
     it('should allow the upgrader to submit a new bundle when the previous bundle is complete', async () => {})
