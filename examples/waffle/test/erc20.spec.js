@@ -58,8 +58,7 @@ describe('ERC20 smart contract', () => {
         1000,
         COIN_NAME,
         NUM_DECIMALS,
-        TICKER,
-        { gasLimit: 8_000_000 }
+        TICKER
       )
       await ERC20.deployTransaction.wait()
     })
