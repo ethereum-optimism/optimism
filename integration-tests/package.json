@@ -16,9 +16,9 @@
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "^0.2.8",
-    "@eth-optimism/core-utils": "^0.3.2",
-    "@eth-optimism/hardhat-ovm": "^0.1.0",
+    "@eth-optimism/contracts": "^0.2.9",
+    "@eth-optimism/core-utils": "^0.4.0",
+    "@eth-optimism/hardhat-ovm": "^0.1.1",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "chai": "^4.3.3",

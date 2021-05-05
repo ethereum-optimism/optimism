@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.9
+
+### Patch Changes
+
+- d2091d4: Removed verifyExclusionProof function from MerkleTrie library.
+- 0ef3069: Add pause(), blockMessage() and allowMessage() to L1 messenger
+- Updated dependencies [28dc442]
+- Updated dependencies [a0a0052]
+  - @eth-optimism/core-utils@0.4.0
+
 ## 0.2.8
 
 ### Patch Changes
