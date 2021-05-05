@@ -5,11 +5,8 @@ import hre from 'hardhat'
 import { ethers, Contract, Signer } from 'ethers'
 
 /* Imports: Internal */
+import { ChugSplashActionBundle, getChugSplashActionBundle } from '../../../src'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
-import {
-  ChugSplashActionBundle,
-  getChugSplashActionBundle,
-} from '@eth-optimism/contracts/src'
 
 describe('L2ChugSplashDeployer', () => {
   let signer1: Signer
@@ -18,6 +15,7 @@ describe('L2ChugSplashDeployer', () => {
     ;[signer1, signer2] = await hre.ethers.getSigners()
   })
 
+  // tslint:disable-next-line
   let L2ChugSplashDeployer: Contract
 
   describe('owner', () => {
