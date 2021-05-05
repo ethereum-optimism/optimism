@@ -18,7 +18,7 @@ describe(`ERC20`, () => {
     const Factory__ERC20 = await ethers.getContractFactory('ERC20')
     ERC20 = await Factory__ERC20.connect(account1).deploy(
       INITIAL_SUPPLY,
-      TOKEN_NAME,
+      TOKEN_NAME
     )
 
     await ERC20.deployTransaction.wait()
