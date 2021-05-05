@@ -1,7 +1,8 @@
 import * as path from 'path'
 import { predeploys as l2Addresses } from './predeploys'
+import { Network } from './connect-contracts'
 
-export const getL1ContractData = (network: 'goerli' | 'kovan' | 'mainnet') => {
+export const getL1ContractData = (network: Network) => {
   const contractNames = [
     'Lib_AddressManager',
     'OVM_CanonicalTransactionChain',

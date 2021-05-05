@@ -1,6 +1,9 @@
 import { ethers } from 'hardhat'
 import { Signer, Contract } from 'ethers'
-import { connectL1Contracts, connectL2Contracts } from '../src'
+import {
+  connectL1Contracts,
+  connectL2Contracts,
+} from '../dist/connect-contracts'
 import { expect } from './setup'
 
 describe('connectL1Contracts', () => {
