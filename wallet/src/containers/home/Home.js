@@ -17,7 +17,10 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector, batch } from 'react-redux';
 import { selectWalletMethod } from 'selectors/setupSelector';
 import { selectModalState } from 'selectors/uiSelector';
+import { selectChildchainTransactions } from 'selectors/transactionSelector';
+
 import useInterval from 'util/useInterval';
+import { isEqual } from 'lodash';
 
 import {
   checkWatcherStatus,
@@ -33,41 +36,41 @@ import {
 import DepositModal from 'containers/modals/deposit/DepositModal';
 import TransferModal from 'containers/modals/transfer/TransferModal';
 import ExitModal from 'containers/modals/exit/ExitModal';
-import MergeModal from 'containers/modals/merge/MergeModal';
 import LedgerConnect from 'containers/modals/ledger/LedgerConnect';
 import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
 
 //Wallet Functions
 import Status from 'containers/status/Status';
 import Account from 'containers/account/Account';
+import Transactions from 'containers/transactions/Transactions';
 
 import MobileHeader from 'components/mobileheader/MobileHeader';
 import MobileMenu from 'components/mobilemenu/MobileMenu';
 
-import logo from 'images/omg_labs.svg';
+import logo from 'images/omgx.png';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = 1000; //in milliseconds?
+const POLL_INTERVAL = 2000; //in milliseconds?
 
 function Home () {
 
   const dispatch = useDispatch();
 
-  const [ mobileMenuOpen, setMobileMenuOpen ] = useState(false);
+  const [ mobileMenuOpen, setMobileMenuOpen ] = useState(false)
   
   const [ pageDisplay, setPageDisplay ] = useState("AccountNow");
   
-  const depositModalState = useSelector(selectModalState('depositModal'));
-  const beginner = useSelector(selectModalState('beginner'));
-  const fast = useSelector(selectModalState('fast'));
-  const transferModalState = useSelector(selectModalState('transferModal'));
-  const exitModalState = useSelector(selectModalState('exitModal'));
-  const mergeModalState = useSelector(selectModalState('mergeModal'));
-  const addTokenModalState = useSelector(selectModalState('addNewTokenModal'));
-  const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'));
+  const depositModalState = useSelector(selectModalState('depositModal'))
+  const beginner = useSelector(selectModalState('beginner'))
+  const fast = useSelector(selectModalState('fast'))
+  const transferModalState = useSelector(selectModalState('transferModal'))
+  const exitModalState = useSelector(selectModalState('exitModal'))
+  const addTokenModalState = useSelector(selectModalState('addNewTokenModal'))
+  const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'))
 
-  const walletMethod = useSelector(selectWalletMethod());
+  const walletMethod = useSelector(selectWalletMethod())
+  const transactions = useSelector(selectChildchainTransactions, isEqual);
   
   useEffect(() => {
     const body = document.getElementsByTagName('body')[0];
@@ -112,7 +115,6 @@ function Home () {
       <DepositModal open={depositModalState} omgOnly={beginner} fast={fast}/>
       <TransferModal open={transferModalState} />
       <ExitModal open={exitModalState} fast={fast}/>
-      <MergeModal open={mergeModalState} />
       <AddTokenModal open={addTokenModalState} />
 
       <LedgerConnect
@@ -124,7 +126,7 @@ function Home () {
 
       <div className={styles.Home}>
         <div className={styles.sidebar}>
-          <img className={styles.logo} src={logo} alt='varna' />
+          <img className={styles.logo} src={logo} alt='omgx' />
           <Status />
         </div>
         <div className={styles.main}>
@@ -136,9 +138,7 @@ function Home () {
             mobileMenuOpen={mobileMenuOpen}
           />
 
-{/*
-The Top SubMenu Bar, non-mobile
-*/}
+          {/* The Top SubMenu Bar, non-mobile */}
 
           <div className={styles.secondtab}>
             <h2
@@ -149,7 +149,10 @@ The Top SubMenu Bar, non-mobile
             </h2>
           </div>
           {pageDisplay === "AccountNow" &&
+          <>  
             <Account/>
+            <Transactions/>
+          </>
           }
         </div>
       </div>

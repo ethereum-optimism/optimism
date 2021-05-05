@@ -1,9 +1,9 @@
 {
-  "name": "@enyalabs/integration-tests",
+  "name": "@enyalabs/OMGX_Wallet",
   "version": "0.0.1",
-  "description": "Integration Tests",
+  "description": "OMGX Example Wallet and Associated Smart Contracts",
   "private": true,
-  "author": "Optimism PBC",
+  "author": "OMG",
   "license": "MIT",
   "files": [
     "test/**/*.ts"

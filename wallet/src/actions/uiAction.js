@@ -55,9 +55,15 @@ export function ledgerConnect (derivation) {
   };
 }
 
-export function setActiveHistoryTab (tab) {
+export function setActiveHistoryTab1 (tab) {
   return function (dispatch) {
-    return dispatch({ type: 'UI/HISTORYTAB/UPDATE', payload: tab });
+    return dispatch({ type: 'UI/HISTORYTAB/UPDATE1', payload: tab });
+  };
+}
+
+export function setActiveHistoryTab2 (tab) {
+  return function (dispatch) {
+    return dispatch({ type: 'UI/HISTORYTAB/UPDATE2', payload: tab });
   };
 }
 

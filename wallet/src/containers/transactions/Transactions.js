@@ -22,16 +22,21 @@ import BN from 'bn.js';
 import moment from 'moment';
 import truncate from 'truncate-middle';
 
-import { setActiveHistoryTab } from 'actions/uiAction';
-import { selectActiveHistoryTab } from 'selectors/uiSelector';
-import { selectLoading } from 'selectors/loadingSelector';
-import networkService from 'services/networkService';
+import { setActiveHistoryTab1 } from 'actions/uiAction'
+import { setActiveHistoryTab2 } from 'actions/uiAction'
+
+import { selectActiveHistoryTab1 } from 'selectors/uiSelector'
+import { selectActiveHistoryTab2 } from 'selectors/uiSelector'
+
+import { selectLoading } from 'selectors/loadingSelector'
+
+import networkService from 'services/networkService'
 import { selectNetworkBURL } from 'selectors/setupSelector';
 
-import Tabs from 'components/tabs/Tabs';
-import Input from 'components/input/Input';
-import Transaction from 'components/transaction/Transaction';
-import Pager from 'components/pager/Pager';
+import Tabs from 'components/tabs/Tabs'
+import Input from 'components/input/Input'
+import Transaction from 'components/transaction/Transaction'
+import Pager from 'components/pager/Pager'
 
 import Exits from './Exits';
 import Deposits from './Deposits';
@@ -43,12 +48,17 @@ const PER_PAGE = 5;
 function Transactions () {
 
   const dispatch = useDispatch();
-  const [ page, setPage ] = useState(1);
+
+  const [ page1, setPage1 ] = useState(1);
+  const [ page2, setPage2 ] = useState(1);
+  
   const [ searchHistory, setSearchHistory ] = useState('');
 
   const loading = useSelector(selectLoading([ 'TRANSACTION/GETALL' ]));
-  const activeTab = useSelector(selectActiveHistoryTab, isEqual);
-  const activeTab2 = 'Exits'; //quick formatting fix
+
+  const activeTab1 = useSelector(selectActiveHistoryTab1, isEqual);
+  const activeTab2 = useSelector(selectActiveHistoryTab2, isEqual);
+
   const transactions = [];
 
   const blockexplorerURL = useSelector(selectNetworkBURL());
@@ -70,8 +80,8 @@ function Transactions () {
     return i.txhash.includes(searchHistory) || i.metadata.includes(searchHistory);
   });
 
-  const startingIndex = page === 1 ? 0 : ((page - 1) * PER_PAGE);
-  const endingIndex = page * PER_PAGE;
+  const startingIndex = page1 === 1 ? 0 : ((page1 - 1) * PER_PAGE);
+  const endingIndex = page1 * PER_PAGE;
   const paginatedTransactions = _transactions.slice(startingIndex, endingIndex);
 
   let totalNumberOfPages = Math.ceil(_transactions.length / PER_PAGE);
@@ -89,7 +99,7 @@ function Transactions () {
           placeholder='Search history'
           value={searchHistory}
           onChange={i => {
-            setPage(1);
+            setPage1(1);
             setSearchHistory(i.target.value);
           }}
           className={styles.searchBar}
@@ -102,21 +112,21 @@ function Transactions () {
         
           <Tabs
             onClick={tab => {
-              setPage(1);
-              dispatch(setActiveHistoryTab(tab));
+              setPage1(1);
+              dispatch(setActiveHistoryTab1(tab));
             }}
-            activeTab={activeTab}
+            activeTab={activeTab1}
             tabs={[ 'Transactions', 'Deposits' ]}
           />
 
-          {activeTab === 'Transactions' && (
+          {activeTab1 === 'Transactions' && (
             <div className={styles.transactions}>
               <Pager
-                currentPage={page}
+                currentPage={page1}
                 isLastPage={paginatedTransactions.length < PER_PAGE}
                 totalPages={totalNumberOfPages}
-                onClickNext={() => setPage(page + 1)}
-                onClickBack={() => setPage(page - 1)}
+                onClickNext={()=>setPage1(page1 + 1)}
+                onClickBack={()=>setPage1(page1 - 1)}
               />
               {!paginatedTransactions.length && !loading && (
                 <div className={styles.disclaimer}>No transaction history.</div>
@@ -144,7 +154,7 @@ function Transactions () {
             </div>
           )}
 
-          {activeTab === 'Deposits' && <
+          {activeTab1=== 'Deposits' && <
             Deposits searchHistory={searchHistory} />
           }
 
@@ -152,9 +162,12 @@ function Transactions () {
 
         <div className={styles.section}>
           <Tabs
-            onClick={tab=>{}}
-            activeTab2={activeTab2}
-            tabs={[ 'Exits' ]}
+            onClick={tab => {
+              setPage2(1);
+              dispatch(setActiveHistoryTab2(tab));
+            }}
+            activeTab={activeTab2}
+            tabs={[ 'Exits', 'TBD' ]}
           />
 
           {activeTab2 === 'Exits' && 
