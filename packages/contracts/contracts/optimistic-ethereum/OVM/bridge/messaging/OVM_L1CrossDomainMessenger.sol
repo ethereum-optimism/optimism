@@ -282,24 +282,35 @@ contract OVM_L1CrossDomainMessenger is
         address _target,
         address _sender,
         bytes memory _message,
-        uint256 _messageNonce,
+        uint256 _queueIndex,
         uint32 _gasLimit
     )
         override
         public
     {
-        // Check the nonce used exists
-        uint40 queueLength = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueLength();
+        // Verify that the message is in the queue:
+        Lib_OVMCodec.QueueElement memory element = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueElement(_queueIndex);
+
+        // Compute the transactionHash
+        bytes32 transactionHash = keccak256(
+            abi.encode(
+                address(this),
+                resolve("OVM_L2CrossDomainMessenger"),
+                _gasLimit,
+                _message
+            )
+        );
+
         require(
-            _messageNonce < queueLength,
-            "Provided message has not already been sent."
+            transactionHash == element.transactionHash,
+            "Provided message has not been enqueued."
         );
 
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
             _message,
-            _messageNonce
+            _queueIndex
         );
 
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
