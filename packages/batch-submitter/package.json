@@ -13,8 +13,8 @@
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf cache/ dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:check": "tslint --format stylish --project .",
     "lint:fix": "prettier --config .prettierrc.json --write \"hardhat.config.ts\" \"{src,exec,test}/**/*.ts\"",
+    "lint:check": "tslint --format stylish --project .",
     "test": "hardhat test --show-stack-traces"
   },
   "keywords": [
@@ -31,16 +31,17 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
+    "@eth-optimism/common-ts": "^0.0.1",
     "@eth-optimism/contracts": "^0.2.8",
     "@eth-optimism/core-utils": "^0.3.2",
-    "@eth-optimism/common-ts": "^0.0.1",
     "@eth-optimism/ynatm": "^0.2.2",
     "@ethersproject/abstract-provider": "^5.0.5",
     "@ethersproject/providers": "^5.0.14",
     "bluebird": "^3.7.2",
     "dotenv": "^8.2.0",
     "ethers": "5.0.0",
-    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7"
+    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7",
+    "prom-client": "^13.1.0"
   },
   "devDependencies": {
     "@eth-optimism/smock": "^1.1.1",

@@ -1,6 +1,7 @@
 /* External Imports */
 import { Contract, Signer, utils, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
+import { Gauge, Histogram } from 'prom-client'
 import * as ynatm from '@eth-optimism/ynatm'
 import { RollupInfo } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
@@ -17,12 +18,21 @@ export interface ResubmissionConfig {
   gasRetryIncrement: number
 }
 
+interface BatchSubmitterMetrics {
+  batchSubmitterETHBalance: Gauge<string>
+  batchSizeInBytes: Histogram<string>
+  numTxPerBatch: Histogram<string>
+  submissionTimestamp: Histogram<string>
+  submissionGasUsed: Histogram<string>
+}
+
 export abstract class BatchSubmitter {
   protected rollupInfo: RollupInfo
   protected chainContract: Contract
   protected l2ChainId: number
   protected syncing: boolean
   protected lastBatchSubmissionTimestamp: number = 0
+  protected metrics: BatchSubmitterMetrics
 
   constructor(
     readonly signer: Signer,
@@ -41,8 +51,10 @@ export abstract class BatchSubmitter {
     readonly gasRetryIncrement: number,
     readonly gasThresholdInGwei: number,
     readonly logger: Logger,
-    readonly metrics: Metrics
-  ) {}
+    readonly defaultMetrics: Metrics
+  ) {
+    this.metrics = this._registerMetrics(defaultMetrics)
+  }
 
   public abstract _submitBatch(
     startBlock: number,
@@ -58,6 +70,7 @@ export abstract class BatchSubmitter {
     }
     await this._updateChainInfo()
     await this._checkBalance()
+
     this.logger.info('Readying to submit next batch...', {
       l2ChainId: this.l2ChainId,
       batchSubmitterAddress: await this.signer.getAddress(),
@@ -87,6 +100,7 @@ export abstract class BatchSubmitter {
       address,
       ether,
     })
+    this.metrics.batchSubmitterETHBalance.set(num)
 
     if (num < this.minBalanceEther) {
       this.logger.fatal('Current balance lower than min safe balance', {
@@ -146,6 +160,7 @@ export abstract class BatchSubmitter {
         lastBatchSubmissionTimestamp: this.lastBatchSubmissionTimestamp,
         currentTimestamp,
       })
+      this.metrics.batchSizeInBytes.observe(batchSizeInBytes)
       return true
     }
     this.logger.info(
@@ -156,6 +171,7 @@ export abstract class BatchSubmitter {
         currentTimestamp,
       }
     )
+    this.metrics.batchSizeInBytes.observe(batchSizeInBytes)
     return true
   }
 
@@ -223,6 +239,40 @@ export abstract class BatchSubmitter {
 
     this.logger.info('Received transaction receipt', { receipt })
     this.logger.info(successMessage)
+    this.metrics.submissionGasUsed.observe(receipt.gasUsed.toNumber())
+    this.metrics.submissionTimestamp.observe(Date.now())
     return receipt
+  }
+
+  private _registerMetrics(metrics: Metrics): BatchSubmitterMetrics {
+    metrics.registry.clear()
+
+    return {
+      batchSubmitterETHBalance: new metrics.client.Gauge({
+        name: 'batch_submitter_eth_balance',
+        help: 'ETH balance of the batch submitter',
+        registers: [metrics.registry],
+      }),
+      batchSizeInBytes: new metrics.client.Histogram({
+        name: 'batch_size_in_bytes',
+        help: 'Size of batches in bytes',
+        registers: [metrics.registry],
+      }),
+      numTxPerBatch: new metrics.client.Histogram({
+        name: 'num_txs_per_batch',
+        help: 'Number of transactions in each batch',
+        registers: [metrics.registry],
+      }),
+      submissionTimestamp: new metrics.client.Histogram({
+        name: 'submission_timestamp',
+        help: 'Timestamp of each batch submitter submission',
+        registers: [metrics.registry],
+      }),
+      submissionGasUsed: new metrics.client.Histogram({
+        name: 'submission_gash_used',
+        help: 'Gas used to submit each batch',
+        registers: [metrics.registry],
+      }),
+    }
   }
 }

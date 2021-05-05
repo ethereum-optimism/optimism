@@ -127,6 +127,9 @@ const autoFixBatchOptions: AutoFixBatchOptions = {
   fixMonotonicity: AUTO_FIX_BATCH_OPTIONS_CONF
     ? AUTO_FIX_BATCH_OPTIONS_CONF.includes('fixMonotonicity')
     : false,
+  fixSkippedDeposits: AUTO_FIX_BATCH_OPTIONS_CONF
+    ? AUTO_FIX_BATCH_OPTIONS_CONF.includes('fixSkippedDeposits')
+    : false,
 }
 
 export const run = async () => {

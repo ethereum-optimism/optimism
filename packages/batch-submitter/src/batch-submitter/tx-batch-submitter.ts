@@ -26,6 +26,7 @@ import { Range, BatchSubmitter, BLOCK_OFFSET } from '.'
 export interface AutoFixBatchOptions {
   fixDoublePlayedDeposits: boolean
   fixMonotonicity: boolean
+  fixSkippedDeposits: boolean
 }
 
 export class TransactionBatchSubmitter extends BatchSubmitter {
@@ -56,6 +57,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     autoFixBatchOptions: AutoFixBatchOptions = {
       fixDoublePlayedDeposits: false,
       fixMonotonicity: false,
+      fixSkippedDeposits: false,
     } // TODO: Remove this
   ) {
     super(
@@ -237,6 +239,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     if (!wasBatchTruncated && !this._shouldSubmitBatch(batchSizeInBytes)) {
       return
     }
+    this.metrics.numTxPerBatch.observe(endBlock - startBlock)
     const l1tipHeight = await this.signer.provider.getBlockNumber()
     this.logger.debug('Submitting batch.', {
       calldata: batchParams,
@@ -421,12 +424,68 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             this.logger.warn('Fixing double played queue element.', {
               nextQueueIndex,
             })
-            fixedBatch.push(await this._fixQueueElement(nextQueueIndex, ele))
+            fixedBatch.push(
+              await this._fixDoublePlayedDepositQueueElement(
+                nextQueueIndex,
+                ele
+              )
+            )
             continue
           }
           nextQueueIndex++
         }
         fixedBatch.push(ele)
+      }
+      return fixedBatch
+    }
+
+    const fixSkippedDeposits = async (b: Batch): Promise<Batch> => {
+      this.logger.debug('Fixing skipped deposits...')
+      let nextQueueIndex = await this.chainContract.getNextQueueIndex()
+      const fixedBatch: Batch = []
+      for (const ele of b) {
+        // Look for skipped deposits
+        while (true) {
+          const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+          const nextRemoteQueueElements = await this.chainContract.getNextQueueIndex()
+          const totalQueueElements =
+            pendingQueueElements + nextRemoteQueueElements
+          // No more queue elements so we clearly haven't skipped anything
+          if (nextQueueIndex >= totalQueueElements) {
+            break
+          }
+          const [
+            queueEleHash,
+            timestamp,
+            blockNumber,
+          ] = await this.chainContract.getQueueElement(nextQueueIndex)
+
+          if (timestamp < ele.timestamp || blockNumber < ele.blockNumber) {
+            this.logger.error('Fixing skipped deposit', {
+              badTimestamp: ele.timestamp,
+              skippedQueueTimestamp: timestamp,
+              badBlockNumber: ele.blockNumber,
+              skippedQueueBlockNumber: blockNumber,
+            })
+            // Push a dummy queue element
+            fixedBatch.push({
+              stateRoot: ele.stateRoot,
+              isSequencerTx: false,
+              rawTransaction: undefined,
+              timestamp,
+              blockNumber,
+            })
+            nextQueueIndex++
+          } else {
+            // The next queue element's timestamp is after this batch element so
+            // we must not have skipped anything.
+            break
+          }
+        }
+        fixedBatch.push(ele)
+        if (!ele.isSequencerTx) {
+          nextQueueIndex++
+        }
       }
       return fixedBatch
     }
@@ -533,11 +592,16 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return fixedBatch
     }
 
+    // NOTE: It is unsafe to combine multiple autoFix options.
+    // If you must combine them, manually verify the output before proceeding.
     if (this.autoFixBatchOptions.fixDoublePlayedDeposits) {
       batch = await fixDoublePlayedDeposits(batch)
     }
     if (this.autoFixBatchOptions.fixMonotonicity) {
       batch = await fixMonotonicity(batch)
+    }
+    if (this.autoFixBatchOptions.fixSkippedDeposits) {
+      batch = await fixSkippedDeposits(batch)
     }
     return batch
   }
@@ -579,7 +643,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return { lastTimestamp, lastBlockNumber }
   }
 
-  private async _fixQueueElement(
+  private async _fixDoublePlayedDepositQueueElement(
     queueIndex: number,
     queueElement: BatchElement
   ): Promise<BatchElement> {
