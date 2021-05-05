@@ -18,7 +18,7 @@ services:
     env_file:
       -  ./envs/metrics.env
     volumes:
-      - influxdeb_data:/root/.influxdb
+      - influxdb_data:/root/.influxdb
 
 volumes:
   influxdeb_data:
