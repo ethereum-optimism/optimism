@@ -56,7 +56,7 @@ To remove the influxdb data, run a command like
 ```
 docker volume rm ops_influxdb_data
 ```
-Or, after stopiing the project, clean up all unused containers and volumes.  
+Or, after stopping the project, clean up all unused containers and volumes.  
 
 **This step remove way more then just this project, please make sure you know what you're doing**
 ```
