@@ -54,7 +54,7 @@ InfluxDB is persisting data to a Docker volume.
 
 To remove the influxdb data, run a command like
 ```
-docker volume rm ops_influxdeb_data
+docker volume rm ops_influxdb_data
 ```
 Or, after stopiing the project, clean up all unused containers and volumes.  
 
