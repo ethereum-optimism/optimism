@@ -11,18 +11,18 @@ services:
       dockerfile: ./ops/docker/Dockerfile.monorepo
 
   # this is a helper service used because there's no official hardhat image
-  l1_chain:
+  l1geth:
     image: ethereumoptimism/hardhat
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile
     ports:
         # expose the service to the host for integration testing
-      - ${L1_CHAIN_PORT:-9545}:8545
+      - ${L1CHAIN_HTTP_PORT:-9545}:8545
 
   deployer:
     depends_on: 
-      - l1_chain
+      - l1geth
     image: ethereumoptimism/deployer
     build:
       context: ..
@@ -30,7 +30,7 @@ services:
     entrypoint: ./deployer.sh
     environment:
         FRAUD_PROOF_WINDOW_SECONDS: 0
-        L1_NODE_WEB3_URL: http://l1_chain:8545
+        L1_NODE_WEB3_URL: http://l1geth:8545
         # these keys are hardhat's first 2 accounts, DO NOT use in production
         DEPLOYER_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
@@ -43,7 +43,7 @@ services:
 
   dtl:
     depends_on: 
-      - l1_chain
+      - l1geth
       - deployer
       - l2geth
     image: ethereumoptimism/data-transport-layer
@@ -60,7 +60,7 @@ services:
         # used for setting the address manager address
         URL: http://deployer:8081/addresses.json
         # connect to the 2 layers
-        DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
+        DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1geth:8545
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
         DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
     ports:
@@ -68,7 +68,7 @@ services:
 
   l2geth:
     depends_on:
-      - l1_chain
+      - l1geth
       - deployer
     image: ethereumoptimism/l2geth
     build:
@@ -79,7 +79,7 @@ services:
     env_file:
       - ./envs/geth.env
     environment:
-        ETH1_HTTP: http://l1_chain:8545
+        ETH1_HTTP: http://l1geth:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
         # used for getting the addresses
         URL: http://deployer:8081/addresses.json
@@ -93,7 +93,7 @@ services:
 
   relayer:
     depends_on:
-      - l1_chain
+      - l1geth
       - deployer
       - l2geth
     image: ethereumoptimism/message-relayer
@@ -102,7 +102,7 @@ services:
       dockerfile: ./ops/docker/Dockerfile.message-relayer
     entrypoint: ./relayer.sh
     environment:
-        L1_NODE_WEB3_URL: http://l1_chain:8545
+        L1_NODE_WEB3_URL: http://l1geth:8545
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
         # a funded hardhat account
@@ -113,7 +113,7 @@ services:
 
   batch_submitter:
     depends_on:
-      - l1_chain
+      - l1geth
       - deployer
       - l2geth
     image: ethereumoptimism/batch-submitter
@@ -124,7 +124,7 @@ services:
     env_file:
       - ./envs/batches.env
     environment:
-        L1_NODE_WEB3_URL: http://l1_chain:8545
+        L1_NODE_WEB3_URL: http://l1geth:8545
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
@@ -138,7 +138,7 @@ services:
       dockerfile: ./ops/docker/Dockerfile.integration-tests
     entrypoint: ./integration-tests.sh
     environment:
-      L1_URL: http://l1_chain:8545
+      L1_URL: http://l1geth:8545
       L2_URL: http://l2geth:8545
       URL: http://deployer:8081/addresses.json
       ENABLE_GAS_REPORT: 1

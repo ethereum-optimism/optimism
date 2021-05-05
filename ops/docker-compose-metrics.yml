@@ -1,0 +1,24 @@
+version: "3"
+
+services:
+  l2geth:
+    command: ["--metrics", "--metrics.influxdb", "--metrics.influxdb.endpoint", "http://influxdb:8086", "--metrics.influxdb.database", "l2geth"]
+
+  grafana:
+    image: grafana/grafana:7.5.5
+    env_file:
+      -  ./envs/metrics.env
+    ports:
+      - ${GRAFANA_HTTP_PORT:-3000}:3000
+    volumes:
+      - ./docker/grafana/provisioning/:/etc/grafana/provisioning/
+
+  influxdb:
+    image: quay.io/influxdb/influxdb:1.6
+    env_file:
+      -  ./envs/metrics.env
+    volumes:
+      - influxdeb_data:/root/.influxdb
+
+volumes:
+  influxdeb_data:
