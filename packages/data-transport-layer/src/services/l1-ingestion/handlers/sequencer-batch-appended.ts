@@ -108,7 +108,6 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           sequencerTransaction
         )
 
-
         transactionEntries.push({
           index: extraData.prevTotalElements
             .add(BigNumber.from(transactionIndex))
