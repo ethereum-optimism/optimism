@@ -21,4 +21,4 @@ services:
       - influxdb_data:/root/.influxdb
 
 volumes:
-  influxdeb_data:
+  influxdb_data:
