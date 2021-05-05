@@ -1,26 +1,23 @@
 import { expect } from 'chai'
 import { Wallet, utils, BigNumber, Contract, ContractFactory } from 'ethers'
-import { Direction } from './shared/watcher-utils'
 
 import { OptimismEnv } from './shared/env'
 
 import { getContractInterface } from '@eth-optimism/contracts'
 import { l2Provider, OVM_ETH_ADDRESS } from './shared/utils'
 import { ethers } from 'hardhat'
-import { fromHexString } from 'packages/core-utils/src/common'
-
 
 // TODO: use actual imported Chugsplash type
 
 interface SetCodeInstruction {
-	target: string // address
-	code: string // bytes memory
+  target: string // address
+  code: string // bytes memory
 }
 
 interface SetStorageInstruction {
-	target: string // address
-	key: string // bytes32
-	value: string // bytes32
+  target: string // address
+  key: string // bytes32
+  value: string // bytes32
 }
 
 type ChugsplashInstruction = SetCodeInstruction | SetStorageInstruction
@@ -28,8 +25,10 @@ type ChugsplashInstruction = SetCodeInstruction | SetStorageInstruction
 // Just an array of the above two instruction types.
 type ChugSplashInstructions = Array<ChugsplashInstruction>
 
-const isSetStorageInstruction = (instr: ChugsplashInstruction): instr is SetStorageInstruction => {
-  return !instr["code"]
+const isSetStorageInstruction = (
+  instr: ChugsplashInstruction
+): instr is SetStorageInstruction => {
+  return !instr['code']
 }
 
 describe('OVM Self-Upgrades', async () => {
@@ -40,7 +39,9 @@ describe('OVM Self-Upgrades', async () => {
   let DeployedBytecode__ReturnTwo: string
   let Factory__SimpleStorage: ContractFactory
 
-  const applyChugsplashInstructions = async (instructions: ChugSplashInstructions) => {
+  const applyChugsplashInstructions = async (
+    instructions: ChugSplashInstructions
+  ) => {
     for (const instruction of instructions) {
       let res
       if (isSetStorageInstruction(instruction)) {
@@ -59,7 +60,9 @@ describe('OVM Self-Upgrades', async () => {
     }
   }
 
-  const checkChugsplashInstructionsApplied = async (instructions: ChugSplashInstructions) => {
+  const checkChugsplashInstructionsApplied = async (
+    instructions: ChugSplashInstructions
+  ) => {
     for (const instruction of instructions) {
       // TODO: promise.all this for with a map for efficiency
       if (isSetStorageInstruction(instruction)) {
@@ -69,15 +72,15 @@ describe('OVM Self-Upgrades', async () => {
         )
         expect(actualStorage).to.deep.eq(instruction.value)
       } else {
-        const actualCode = await l2Provider.getCode(
-          instruction.target
-        )
+        const actualCode = await l2Provider.getCode(instruction.target)
         expect(actualCode).to.deep.eq(instruction.code)
       }
     }
   }
 
-  const applyAndVerifyUpgrade = async (instructions: ChugSplashInstructions) => {
+  const applyAndVerifyUpgrade = async (
+    instructions: ChugSplashInstructions
+  ) => {
     await applyChugsplashInstructions(instructions)
     await checkChugsplashInstructionsApplied(instructions)
   }
@@ -93,11 +96,21 @@ describe('OVM Self-Upgrades', async () => {
     )
 
     Factory__ReturnOne = await ethers.getContractFactory('ReturnOne', l2Wallet)
-    const Factory__ReturnTwo = await ethers.getContractFactory('ReturnTwo', l2Wallet)
-    const returnTwo = await (await Factory__ReturnTwo.deploy()).deployTransaction.wait()
-    DeployedBytecode__ReturnTwo = await l2Provider.getCode(returnTwo.contractAddress)
+    const Factory__ReturnTwo = await ethers.getContractFactory(
+      'ReturnTwo',
+      l2Wallet
+    )
+    const returnTwo = await (
+      await Factory__ReturnTwo.deploy()
+    ).deployTransaction.wait()
+    DeployedBytecode__ReturnTwo = await l2Provider.getCode(
+      returnTwo.contractAddress
+    )
 
-    Factory__SimpleStorage = await ethers.getContractFactory('SimpleStorage', l2Wallet)
+    Factory__SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorage',
+      l2Wallet
+    )
   })
 
   describe('setStorage and setCode are correctly applied according to geth RPC', () => {
@@ -105,9 +118,11 @@ describe('OVM Self-Upgrades', async () => {
       const basicStorageUpgrade: ChugSplashInstructions = [
         {
           target: OVM_ETH_ADDRESS,
-          key: '0x1234123412341234123412341234123412341234123412341234123412341234',
-          value: '0x6789123412341234123412341234123412341234123412341234678967896789',
-        }
+          key:
+            '0x1234123412341234123412341234123412341234123412341234123412341234',
+          value:
+            '0x6789123412341234123412341234123412341234123412341234678967896789',
+        },
       ]
       await applyAndVerifyUpgrade(basicStorageUpgrade)
     })
@@ -121,8 +136,9 @@ describe('OVM Self-Upgrades', async () => {
       const basicCodeUpgrade: ChugSplashInstructions = [
         {
           target: DummyContract.address,
-          code: '0x1234123412341234123412341234123412341234123412341234123412341234',
-        }
+          code:
+            '0x1234123412341234123412341234123412341234123412341234123412341234',
+        },
       ]
       await applyAndVerifyUpgrade(basicCodeUpgrade)
     })
@@ -133,8 +149,9 @@ describe('OVM Self-Upgrades', async () => {
       const emptyAccountCodeUpgrade: ChugSplashInstructions = [
         {
           target: '0x5678657856785678567856785678567856785678',
-          code: '0x1234123412341234123412341234123412341234123412341234123412341234',
-        }
+          code:
+            '0x1234123412341234123412341234123412341234123412341234123412341234',
+        },
       ]
       await applyAndVerifyUpgrade(emptyAccountCodeUpgrade)
     })
@@ -153,8 +170,8 @@ describe('OVM Self-Upgrades', async () => {
         {
           target: SimpleStorage.address,
           key: ethers.constants.HashZero,
-          value: newValue
-        }
+          value: newValue,
+        },
       ]
 
       await applyAndVerifyUpgrade(storageVarUpgrade)
@@ -172,8 +189,8 @@ describe('OVM Self-Upgrades', async () => {
       const constantUpgrade: ChugSplashInstructions = [
         {
           target: Returner.address,
-          code: DeployedBytecode__ReturnTwo
-        }
+          code: DeployedBytecode__ReturnTwo,
+        },
       ]
 
       await applyAndVerifyUpgrade(constantUpgrade)
