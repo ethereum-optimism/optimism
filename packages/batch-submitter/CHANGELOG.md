@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.4
+
+### Patch Changes
+
+- 12dbd81: add key metrics to batch submitter
+- 28dc442: move metrics, logger, and base-service to new common-ts package
+- 79df44e: Add skipped deposit auto heal
+- Updated dependencies [28dc442]
+- Updated dependencies [d2091d4]
+- Updated dependencies [a0a0052]
+- Updated dependencies [0ef3069]
+  - @eth-optimism/common-ts@0.1.0
+  - @eth-optimism/core-utils@0.4.0
+  - @eth-optimism/contracts@0.2.9
+
 ## 0.2.3
 
 ### Patch Changes
