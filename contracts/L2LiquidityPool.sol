@@ -1,23 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0;
 
-import "./ERC20.sol";
-import { L1LiquidityPool } from "./L1LiquidityPool.sol";
+import "./interfaces/IERC20.sol";
+import { iL1LiquidityPool } from "./interfaces/iL1LiquidityPool.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "enyalabs_contracts/build/contracts/libraries/bridge/OVM_CrossDomainEnabled.sol";
+
+/* External Imports */
+import '@openzeppelin/contracts/math/SafeMath.sol';
 
 /**
  * @dev An L2 LiquidityPool implementation
  */
 
 contract L2LiquidityPool is OVM_CrossDomainEnabled {
+    using SafeMath for uint256;
+
     /*************
      * Variables *
      *************/
 
-    mapping(address => uint256) balances;
+    // TO_DO
+    // contract's balance for a token is unused, remove usage
+    // can obtain balance of pool from token contract instead
+    // modify to user balance map while allowing multiple lprovider support
+    // mapping(address => uint256) balances;
     mapping(address => uint256) fees;
+    // this is to stop attacks where caller specifies l1contractaddress
+    // also acts as a whitelist
+    mapping(address => address) l1ContractAddress;
+    mapping(address => bool) isL2Eth;
 
     address owner;
     address L1LiquidityPoolAddress;
@@ -68,6 +81,13 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
         address erc20ContractAddress
     );
 
+    event ownerWithdrawLiquidity_EVENT(
+        address sender,
+        address receiver,
+        address erc20ContractAddress,
+        uint256 amount
+    );
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -99,14 +119,29 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
      */
     function init(
         address _L1LiquidityPoolAddress,
-        uint256 _fee
+        uint256 _fee,
+        address l2ETHAddress
     )
         public
         onlyOwner()
     {
         L1LiquidityPoolAddress = _L1LiquidityPoolAddress;
         fee = _fee;
+        isL2Eth[l2ETHAddress] = true;
     }
+
+    function registerTokenAddress(
+        address _erc20L1ContractAddress,
+        address _erc20L2ContractAddress
+    )
+        public
+        onlyOwner()
+    {
+        // use with caution, can register only once
+        require(l1ContractAddress[_erc20L2ContractAddress] == address(0), "Token Address Already Registerd");
+        require(!isL2Eth[_erc20L2ContractAddress], "Cannot replace Eth Address");
+        l1ContractAddress[_erc20L2ContractAddress] = _erc20L1ContractAddress;
+    } 
 
     /**
      * @dev Overridable getter for the *L2* gas limit of settling the deposit, in the case it may be
@@ -138,22 +173,22 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
         return fee;
     }
 
-    /**
-     * Checks the balance of an address.
-     * @param _erc20ContractAddress Address of ERC20.
-     * @return Balance of the address.
-     */
-    function balanceOf(
-        address _erc20ContractAddress
-    )
-        external
-        view
-        returns (
-            uint256
-        )
-    {
-        return balances[_erc20ContractAddress];
-    }
+    // /**
+    //  * Checks the balance of an address.
+    //  * @param _erc20ContractAddress Address of ERC20.
+    //  * @return Balance of the address.
+    //  */
+    // function balanceOf(
+    //     address _erc20ContractAddress
+    // )
+    //     external
+    //     view
+    //     returns (
+    //         uint256
+    //     )
+    // {
+    //     return balances[_erc20ContractAddress];
+    // }
 
     /**
      * Checks the fee balance of an address.
@@ -184,11 +219,12 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
         external
         onlyOwner() 
     {
-        ERC20 erc20Contract = ERC20(_erc20L2ContractAddress);
+        require(l1ContractAddress[_erc20L2ContractAddress] != address(0) || isL2Eth[_erc20L2ContractAddress], "Token Address Not Registerd");
+        IERC20 erc20Contract = IERC20(_erc20L2ContractAddress);
         require(_amount <= erc20Contract.allowance(msg.sender, address(this)));
         require(erc20Contract.transferFrom(msg.sender, address(this), _amount), "ERC20 token transfer was unsuccessful");
 
-        balances[_erc20L2ContractAddress] += _amount;
+        // balances[_erc20L2ContractAddress] = balances[_erc20L2ContractAddress].add(_amount);
 
         emit ownerAddERC20Liquidity_EVENT(
             msg.sender,
@@ -204,27 +240,27 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
      */
     function clientDepositL2(
         uint256 _amount,
-        address _erc20L2ContractAddress,
-        address _erc20L1ContractAddress
+        address _erc20L2ContractAddress
     )
         external
     {
-        ERC20 erc20Contract = ERC20(_erc20L2ContractAddress);
+        require(l1ContractAddress[_erc20L2ContractAddress] != address(0) || isL2Eth[_erc20L2ContractAddress], "Token Address Not Registerd");
+        IERC20 erc20Contract = IERC20(_erc20L2ContractAddress);
         require(_amount <= erc20Contract.allowance(msg.sender, address(this)));
         require(erc20Contract.transferFrom(msg.sender, address(this), _amount), "ERC20 token transfer was unsuccessful");
 
         //Augment the pool size for this ERC20
-        uint256 _swapFee = _amount * fee / 100; //dangerous
-        uint256 _receivedAmount = _amount - _swapFee; //need check
-        balances[_erc20L2ContractAddress] += _amount;
-        fees[_erc20L2ContractAddress] += _swapFee;
+        uint256 _swapFee = (_amount.mul(fee)).div(100);
+        uint256 _receivedAmount = _amount.sub(_swapFee);
+        // balances[_erc20L2ContractAddress] = balances[_erc20L2ContractAddress].add(_amount);
+        fees[_erc20L2ContractAddress] = fees[_erc20L2ContractAddress].add(_swapFee);
 
         // Construct calldata for L1LiquidityPool.depositToFinalize(_to, _receivedAmount)
         bytes memory data = abi.encodeWithSelector(
-            L1LiquidityPool.clientPayL1.selector,
+            iL1LiquidityPool.clientPayL1.selector,
             msg.sender,
             _receivedAmount,
-            _erc20L1ContractAddress
+            l1ContractAddress[_erc20L2ContractAddress]
         );
 
         // Send calldata into L1
@@ -243,6 +279,31 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
 
     }
 
+    // only one liquidity provider
+    // fees to be withdrawed from the other method, helps when shifting to multi Lproviders
+    function ownerWithdrawLiqudiity(
+        uint256 _amount,
+        address _erc20ContractAddress,
+        address payable _to
+    )
+        external
+        onlyOwner()
+    { 
+        IERC20 erc20Contract = IERC20(_erc20ContractAddress);
+        uint256 withdrawableLiquidity = (erc20Contract.balanceOf(address(this))).sub(fees[_erc20ContractAddress]);
+        require(withdrawableLiquidity >= _amount, "Not enough liquidity on the pool to withdraw");
+        // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
+        // use safe erc20 transfer
+        require(erc20Contract.transfer(_to, _amount));
+
+        emit ownerWithdrawLiquidity_EVENT(
+            msg.sender,
+            _to,
+            _erc20ContractAddress,
+            _amount
+        );
+    }
+
     /**
      * owner recover fee from ERC20
      * @param _amount Amount to transfer to the other account.
@@ -250,18 +311,19 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
      * @param _to receiver to get the fee.
      */
     function ownerRecoverFee(
-        uint _amount,
+        uint256 _amount,
         address _erc20ContractAddress,
         address _to
     )
         external
         onlyOwner()
     {
-        ERC20 erc20Contract = ERC20(_erc20ContractAddress);
+        IERC20 erc20Contract = IERC20(_erc20ContractAddress);
         require(fees[_erc20ContractAddress] >= _amount);
         require(erc20Contract.balanceOf(address(this)) >= _amount);
+        fees[_erc20ContractAddress] = fees[_erc20ContractAddress].sub(_amount);
+        // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
         require(erc20Contract.transfer(_to, _amount));
-        fees[_erc20ContractAddress] -= _amount;
 
         emit ownerRecoverFee_EVENT(
             msg.sender,
@@ -290,10 +352,10 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled {
         onlyInitialized()
         onlyFromCrossDomainAccount(address(L1LiquidityPoolAddress))
     {
-        ERC20 erc20Contract = ERC20(_erc20ContractAddress);
+        IERC20 erc20Contract = IERC20(_erc20ContractAddress);
+        // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
         require(erc20Contract.transfer(_to, _amount));
 
-        balances[_erc20ContractAddress] -= _amount;
         
         emit clientPayL2_EVENT(
           _to,
