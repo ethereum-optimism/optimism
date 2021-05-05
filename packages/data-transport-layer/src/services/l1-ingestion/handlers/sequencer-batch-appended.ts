@@ -108,6 +108,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           sequencerTransaction
         )
 
+
         transactionEntries.push({
           index: extraData.prevTotalElements
             .add(BigNumber.from(transactionIndex))
@@ -257,6 +258,8 @@ const maybeDecodeSequencerBatchTransaction = (
     } else {
       throw new Error(`Unknown sequencer transaction type.`)
     }
+    // Temporary fix to propagate the value
+    decoded.value = '0x0'
     // Validate the transaction
     if (!validateBatchTransaction(type, decoded)) {
       decoded = null
