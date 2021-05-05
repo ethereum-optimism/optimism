@@ -76,7 +76,9 @@ contract OVM_L1CrossDomainMessenger is
      * We pass the zero address to the address resolver just to satisfy the constructor.
      * We still need to set this value in initialize().
      */
-    constructor() Lib_AddressResolver(address(0)) ReentrancyGuard() {}
+    constructor()
+        Lib_AddressResolver(address(0))
+    {}
 
     /**********************
      * Function Modifiers *
@@ -189,9 +191,9 @@ contract OVM_L1CrossDomainMessenger is
         override
         public
     {
-        // Use the CTC queue lenght as nonce 
+        // Use the CTC queue length as nonce
         uint40 queueLength = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueLength();
-        
+
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             msg.sender,
@@ -293,7 +295,7 @@ contract OVM_L1CrossDomainMessenger is
             "Provided message has not already been sent."
         );
 
-        bytes memory xDomainCalldata = _getXDomainCalldata(
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
             _message,
