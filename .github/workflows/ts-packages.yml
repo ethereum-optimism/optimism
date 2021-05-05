@@ -64,6 +64,8 @@ jobs:
       - name: Run codechecks
         working-directory: ./packages/contracts
         run: yarn codechecks
+        env:
+          CC_SECRET: ${{ secrets.CC_SECRET }}
 
   test-coverage:
     name: Generate test coverage
