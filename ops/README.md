@@ -58,7 +58,7 @@ docker volume rm ops_influxdb_data
 ```
 Or, after stopping the project, clean up all unused containers and volumes.  
 
-**This step remove way more then just this project, please make sure you know what you're doing**
+**This step removes way more then just this project, please make sure you know what you're doing**
 ```
 docker system prune --volumes
 ```
