@@ -1,27 +1,40 @@
 // SPDX-License-Identifier: MIT
+// @unsupported: ovm
 pragma solidity >0.5.0;
 pragma experimental ABIEncoderV2;
 
-import "./ERC20.sol";
-import { L2LiquidityPool } from "./L2LiquidityPool.sol";
+import "./interfaces/IERC20.sol";
+import { iL2LiquidityPool } from "./interfaces/iL2LiquidityPool.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "enyalabs_contracts/build/contracts/libraries/bridge/OVM_CrossDomainEnabled.sol";
+
+/* External Imports */
+import '@openzeppelin/contracts/math/SafeMath.sol';
 
 /**
  * @dev An L1 LiquidityPool implementation
  */
 contract L1LiquidityPool is OVM_CrossDomainEnabled {
+    using SafeMath for uint256;
+    uint256 constant internal SAFE_GAS_STIPEND = 2300;
+
     /*************
      * Variables *
      *************/
 
-    mapping(address => uint256) balances;
+    // TO_DO
+    // contract's balance for a token is unused, remove usage
+    // can obtain balance of pool from token contract instead
+    // modify to user balance map while allowing multiple lprovider support
+    // mapping(address => uint256) balances;
     mapping(address => uint256) fees;
+    // this is to stop attacks where caller specifies l2contractaddress
+    // also acts as a whitelist
+    mapping(address => address) l2ContractAddress;
     
     address owner;
     address l2LiquidityPoolAddress;
-    address l2ETHAddress;
     uint256 fee;
 
     /********************
@@ -36,7 +49,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
         OVM_CrossDomainEnabled(_l1messenger)
     {
         l2LiquidityPoolAddress = _l2LiquidityPoolAddress;
-        l2ETHAddress = _l2ETHAddress;
+        l2ContractAddress[address(0)] = _l2ETHAddress;
         owner = msg.sender;
         fee = _fee;
     }
@@ -72,6 +85,13 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
         address erc20ContractAddress
     );
 
+    event ownerWithdrawLiquidity_EVENT(
+        address sender,
+        address receiver,
+        address erc20ContractAddress,
+        uint256 amount
+    );
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -102,6 +122,18 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
         fee = _fee;
     }
 
+    function registerTokenAddress(
+        address _erc20L1ContractAddress,
+        address _erc20L2ContractAddress
+    )
+        public
+        onlyOwner()
+    {
+        // use with caution, can register only once
+        require(l2ContractAddress[_erc20L1ContractAddress] == address(0), "Token Address Already Registerd");
+        l2ContractAddress[_erc20L1ContractAddress] = _erc20L2ContractAddress;
+    } 
+
     /**
      * @dev Receive ETH
      *
@@ -109,17 +141,17 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
     receive() external payable {
 
         if (msg.sender != owner) {
-            uint256 _swapFee = msg.value * fee / 100; //dangerous
-            uint256 _receivedAmount = msg.value - _swapFee; //needs check
+            uint256 _swapFee = (msg.value.mul(fee)).div(100);
+            uint256 _receivedAmount = msg.value.sub(_swapFee);
 
-            fees[address(0)] += _swapFee;
+            fees[address(0)] = fees[address(0)].add(_swapFee);
 
             // Construct calldata for L2LiquidityPool.depositToFinalize(_to, _amount)
             bytes memory data = abi.encodeWithSelector(
-                L2LiquidityPool.clientPayL2.selector,
+                iL2LiquidityPool.clientPayL2.selector,
                 msg.sender,
                 _receivedAmount,
-                l2ETHAddress
+                l2ContractAddress[address(0)]
             );
 
             // Send calldata into L2
@@ -130,7 +162,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
             );
         }
 
-        balances[address(0)] += msg.value;
+        // balances[address(0)] = balances[address(0)].add(msg.value);
     }
 
     /**
@@ -162,22 +194,22 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
         return fee;
     }
 
-    /**
-     * Checks the balance of an address.
-     * @param _erc20ContractAddress Address of ERC20
-     * @return Balance of the address.
-     */
-    function balanceOf(
-        address _erc20ContractAddress
-    )
-        external
-        view
-        returns (
-            uint256
-        )
-    {
-        return balances[_erc20ContractAddress];
-    }
+    // /**
+    //  * Checks the balance of an address.
+    //  * @param _erc20ContractAddress Address of ERC20
+    //  * @return Balance of the address.
+    //  */
+    // function balanceOf(
+    //     address _erc20ContractAddress
+    // )
+    //     external
+    //     view
+    //     returns (
+    //         uint256
+    //     )
+    // {
+    //     return balances[_erc20ContractAddress];
+    // }
 
     /**
      * Checks the fee balance of an address.
@@ -207,12 +239,13 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
     ) 
         external
         onlyOwner() 
-    {
-        ERC20 erc20Contract = ERC20(_erc20L1ContractAddress);
+    {   
+        require(l2ContractAddress[_erc20L1ContractAddress] != address(0), "Token L2 address not registered");
+        IERC20 erc20Contract = IERC20(_erc20L1ContractAddress);
         require(_amount <= erc20Contract.allowance(msg.sender, address(this)));
         require(erc20Contract.transferFrom(msg.sender, address(this), _amount), "ERC20 token transfer was unsuccessful");
 
-        balances[_erc20L1ContractAddress] += _amount;
+        // balances[_erc20L1ContractAddress] = balances[_erc20L1ContractAddress].add(_amount);
 
         emit ownerAddERC20Liquidity_EVENT(
             msg.sender,
@@ -225,31 +258,30 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
      * Client deposit ERC20 from their account to this contract, which then releases funds on the L2 side
      * @param _amount Amount to transfer to the other account.
      * @param _erc20L1ContractAddress ERC20 L1 token address.
-     * @param _erc20L2ContractAddress ERC20 L2 token address.
      */
     function clientDepositL1(
         uint256 _amount,
-        address _erc20L1ContractAddress,
-        address _erc20L2ContractAddress
+        address _erc20L1ContractAddress
     )
         external
-    {
-        ERC20 erc20Contract = ERC20(_erc20L1ContractAddress);
+    {   
+        require(l2ContractAddress[_erc20L1ContractAddress] != address(0), "Token L2 address not registered");
+        IERC20 erc20Contract = IERC20(_erc20L1ContractAddress);
         require(_amount <= erc20Contract.allowance(msg.sender, address(this)));
         require(erc20Contract.transferFrom(msg.sender, address(this), _amount), "ERC20 token transfer was unsuccessful");
         
         //Augment the pool size for this ERC20
-        uint256 _swapFee = _amount * fee / 100; //dangerous
-        uint256 _receivedAmount = _amount - _swapFee; //needs check
-        balances[_erc20L1ContractAddress] += _amount;
-        fees[_erc20L1ContractAddress] += _swapFee;
+        uint256 _swapFee = (_amount.mul(fee)).div(100);
+        uint256 _receivedAmount = _amount.sub(_swapFee);
+        // balances[_erc20L1ContractAddress] = balances[_erc20L1ContractAddress].add(_amount);
+        fees[_erc20L1ContractAddress] = fees[_erc20L1ContractAddress].add(_swapFee);
 
         // Construct calldata for L2LiquidityPool.depositToFinalize(_to, _receivedAmount)
         bytes memory data = abi.encodeWithSelector(
-            L2LiquidityPool.clientPayL2.selector,
+            iL2LiquidityPool.clientPayL2.selector,
             msg.sender,
             _receivedAmount,
-            _erc20L2ContractAddress
+            l2ContractAddress[_erc20L1ContractAddress]
         );
 
         // Send calldata into L2
@@ -264,9 +296,42 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
             _receivedAmount,
             _swapFee,
             _erc20L1ContractAddress,
-            _erc20L2ContractAddress
+            l2ContractAddress[_erc20L1ContractAddress]
         );
 
+    }
+
+    // only one liquidity provider
+    // fees to be withdrawed from the other method, helps when shifting to multi Lproviders
+    function ownerWithdrawLiqudiity(
+        uint256 _amount,
+        address _erc20ContractAddress,
+        address payable _to
+    )
+        external
+        onlyOwner()
+    { 
+        if (_erc20ContractAddress != address(0)) {
+            IERC20 erc20Contract = IERC20(_erc20ContractAddress);
+            uint256 withdrawableLiquidity = (erc20Contract.balanceOf(address(this))).sub(fees[_erc20ContractAddress]);
+            require(withdrawableLiquidity >= _amount, "Not enough liquidity on the pool to withdraw");
+            // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
+            // use safe erc20 transfer
+            require(erc20Contract.transfer(_to, _amount));
+        } else {
+            uint256 withdrawableLiquidity = (address(this).balance).sub(fees[_erc20ContractAddress]);
+            require(withdrawableLiquidity >= _amount, "Not enough liquidity on the pool to withdraw");
+            // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
+            (bool sent,) = _to.call{gas: SAFE_GAS_STIPEND, value: _amount}("");
+            require(sent, "Failed to send Ether");
+        }
+
+        emit ownerWithdrawLiquidity_EVENT(
+            msg.sender, //which is == owner, otherwise would not have gotten here
+            _to,
+            _erc20ContractAddress,
+            _amount
+        );
     }
 
     /**
@@ -276,7 +341,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
      * @param _to receiver to get the fee.
      */
     function ownerRecoverFee(
-        uint _amount,
+        uint256 _amount,
         address _erc20ContractAddress,
         address payable _to
     )
@@ -285,22 +350,25 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
     {   
         if (_erc20ContractAddress != address(0)) {
             //we are dealing with an ERC20
-            ERC20 erc20Contract = ERC20(_erc20ContractAddress);
-            require(fees[_erc20ContractAddress] >= _amount);
+            IERC20 erc20Contract = IERC20(_erc20ContractAddress);
             require(erc20Contract.balanceOf(address(this)) >= _amount);
+            fees[_erc20ContractAddress] = fees[_erc20ContractAddress].sub(_amount);
+            // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
+            // use safe erc20 transfer
             require(erc20Contract.transfer(_to, _amount));
-            fees[_erc20ContractAddress] -= _amount;
         } else {
             //we are dealing with Ether
             //address(this).balance is not supported
-            require(fees[address(0)] >= _amount);
+            // safety check on safemath
+            // require(fees[address(0)] >= _amount);
             //_to.transfer(_amount); //unsafe
             // Call returns a boolean value indicating success or failure.
             // This is the current recommended method to use.
             //(bool sent,) = _to.call{value: msg.value}("");
-            (bool sent,) = _to.call{value: _amount}("");
+            fees[address(0)] = fees[address(0)].sub(_amount);
+            // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
+            (bool sent,) = _to.call{gas: SAFE_GAS_STIPEND, value: _amount}("");
             require(sent, "Failed to send Ether");
-            fees[address(0)] -= _amount;
         }
 
         emit ownerRecoverFee_EVENT(
@@ -331,15 +399,15 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
     {   
         if (_erc20ContractAddress != address(0)) {
             //dealing with an ERC20
-            ERC20 erc20Contract = ERC20(_erc20ContractAddress);
+            IERC20 erc20Contract = IERC20(_erc20ContractAddress);
+            // balances[_erc20ContractAddress] = balances[_erc20ContractAddress].sub(_amount);
             require(erc20Contract.transfer(_to, _amount));
-            balances[_erc20ContractAddress] -= _amount;
         } else {
             //this is ETH
+            // balances[address(0)] = balances[address(0)].sub(_amount);
             //_to.transfer(_amount); UNSAFE
-            (bool sent,) = _to.call{value: _amount}("");
+            (bool sent,) = _to.call{gas: SAFE_GAS_STIPEND, value: _amount}("");
             require(sent, "Failed to send Ether");
-            balances[address(0)] -= _amount;
         }
         
         emit clientPayL1_EVENT(

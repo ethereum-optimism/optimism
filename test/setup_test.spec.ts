@@ -41,9 +41,6 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     _env=env
    ) => {
 
-    const L1LPBalance = await _L1LiquidityPool.balanceOf(_address)
-    const L2LPBalance = await _L2LiquidityPool.balanceOf(_address)
-
     const L1LPFeeBalance = await _L1LiquidityPool.feeBalanceOf(_address)
     const L2LPFeeBalance = await _L2LiquidityPool.feeBalanceOf(_address)
 
@@ -63,8 +60,6 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     console.log("L2LPFeeBalance:", L2LPFeeBalance.toString())
 */
     return {
-      L1LPBalance,      
-      L2LPBalance,
       L1LPFeeBalance,
       L2LPFeeBalance,
       aliceL1Balance,
@@ -129,7 +124,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L1LiquidityPool.deployTransaction.wait()
     console.log("L1LiquidityPool deployed to:", L1LiquidityPool.address)
     
-    const L2LiquidityPoolTX = await L2LiquidityPool.init(L1LiquidityPool.address, /*this is the fee = */ "3")
+    const L2LiquidityPoolTX = await L2LiquidityPool.init(L1LiquidityPool.address, /*this is the fee = */ "3", env.L2ETHGateway.address)
     //The '3' here denotes the fee to charge, i.e. fee = 3%
     await L2LiquidityPoolTX.wait()
     console.log('L2 LP initialized with the L1LiquidityPool.address:',L2LiquidityPoolTX.hash);
@@ -171,6 +166,10 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const initL2 = await L2DepositedERC20.init(L1ERC20Gateway.address);
     await initL2.wait();
     console.log('L2 ERC20 initialized:',initL2.hash);
+
+    // register erc20 token addresses on both Liquidity pools
+    await L1LiquidityPool.registerTokenAddress(L1ERC20.address, L2DepositedERC20.address);
+    await L2LiquidityPool.registerTokenAddress(L1ERC20.address, L2DepositedERC20.address);
     
   })
 
@@ -228,8 +227,10 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     // **************************************************
     const addAmount = utils.parseEther("50")
 
+    const l1ProviderLL = providers.getDefaultProvider(process.env.L1_NODE_WEB3_URL)
     // Add ETH
     const preETHBalances = await getBalances("0x0000000000000000000000000000000000000000")
+    const preL1LPETHBalance = await l1ProviderLL.getBalance(L1LiquidityPool.address)
 
     //const fee = BigNumber.from(189176000000000)
     const chainID = await env.bobl1Wallet.getChainId()
@@ -250,8 +251,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await depositETHTX.wait()
 
     const postETHBalances = await getBalances("0x0000000000000000000000000000000000000000")
+    const postL1LPETHBalance = await l1ProviderLL.getBalance(L1LiquidityPool.address)
 
-    const l1ProviderLL = providers.getDefaultProvider(process.env.L1_NODE_WEB3_URL)
     const receipt = await l1ProviderLL.getTransactionReceipt(depositETHTX.hash);
     //console.log("transaction receipt:",receipt)
 
@@ -296,8 +297,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
 
     //He paid into the L1LP
-    expect(postETHBalances.L1LPBalance).to.deep.eq(
-      preETHBalances.L1LPBalance.add(addAmount)
+    expect(postL1LPETHBalance).to.deep.eq(
+      preL1LPETHBalance.add(addAmount)
     )
 
     //Alice did not pay, so no change
@@ -306,7 +307,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
     
     // Add ERC20 Token
-    const preERC20Balances = await getBalances(L1ERC20.address)
+    const preL1LPERC20Balance = await L1ERC20.balanceOf(L1LiquidityPool.address)
 
     const approveERC20TX = await L1ERC20.approve(
       L1LiquidityPool.address,
@@ -320,10 +321,10 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     );
     await depositERC20TX.wait();
 
-    const postERC20Balance = await getBalances(L1ERC20.address)
+    const postL1LPERC20Balance = await L1ERC20.balanceOf(L1LiquidityPool.address)
     
-    expect(postERC20Balance.L1LPBalance).to.deep.eq(
-      preERC20Balances.L1LPBalance.add(addAmount)
+    expect(postL1LPERC20Balance).to.deep.eq(
+      preL1LPERC20Balance.add(addAmount)
     )
   })
 
@@ -332,7 +333,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const addAmount = utils.parseEther("45")
 
     // Add ETH
-    const preETHBalances = await getBalances(env.L2ETHGateway.address)
+    const preL2LPEthBalance = await env.L2ETHGateway.balanceOf(L2LiquidityPool.address)
 
     await env.waitForXDomainTransaction(
       env.L1ETHGateway.deposit({ value: depositL2Amount }),
@@ -351,13 +352,13 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     );
     await depositETHTX.wait()
 
-    const postETHBalance = await getBalances(env.L2ETHGateway.address)
+    const postL2LPEthBalance = await env.L2ETHGateway.balanceOf(L2LiquidityPool.address)
 
-    expect(postETHBalance.L2LPBalance).to.deep.eq(
-      preETHBalances.L2LPBalance.add(addAmount)
+    expect(postL2LPEthBalance).to.deep.eq(
+      preL2LPEthBalance.add(addAmount)
     )
     // Add ERC20
-    const preERC20Balances = await getBalances(L2DepositedERC20.address)
+    const preL2LPERC20Balance = await L2DepositedERC20.balanceOf(L2LiquidityPool.address)
 
     const approveL1ERC20TX = await L1ERC20.approve(
       L1ERC20Gateway.address,
@@ -382,10 +383,10 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     );
     await depositERC20TX.wait()
 
-    const postERC20Balances = await getBalances(L2DepositedERC20.address)
+    const postL2LPERC20Balance = await L2DepositedERC20.balanceOf(L2LiquidityPool.address)
 
-    expect(postERC20Balances.L2LPBalance).to.deep.eq(
-      preERC20Balances.L2LPBalance.add(addAmount)
+    expect(postL2LPERC20Balance).to.deep.eq(
+      preL2LPERC20Balance.add(addAmount)
     )
   })
 
@@ -428,8 +429,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await env.waitForXDomainTransaction(
       L2LiquidityPool.clientDepositL2(
         swapAmount,
-        env.L2ETHGateway.address,
-        "0x0000000000000000000000000000000000000000" // ETH Address
+        env.L2ETHGateway.address
       ),
       Direction.L2ToL1
     )
