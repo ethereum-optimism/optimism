@@ -5,16 +5,23 @@
   "license": "MIT",
   "scripts": {
     "clean": "rimraf ./cache && rimraf ./artifacts",
-    "compile:ovm": "yarn clean && hardhat compile && hardhat --network optimism compile",
-    "deploy:ovm": "node ./example.js"
+    "compile": "hardhat compile",
+    "compile:ovm": "hardhat --network optimism compile",
+    "test": "yarn hardhat test",
+    "test:ovm": "yarn hardhat test --network optimism"
   },
   "devDependencies": {
     "@eth-optimism/contracts": "^0.2.4",
     "@eth-optimism/core-utils": "^0.2.1",
     "@eth-optimism/hardhat-ovm": "^0.0.2",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
-    "ethers": "^5.0.24",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "4.3.4",
+    "chai-as-promised": "^7.1.1",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.1.4",
     "hardhat": "^2.0.7",
+    "mocha": "^8.3.2",
     "rimraf": "^3.0.2"
   },
   "dependencies": {

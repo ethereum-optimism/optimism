@@ -1,5 +1,6 @@
 // Plugins
 require('@nomiclabs/hardhat-ethers')
+require('@nomiclabs/hardhat-waffle')
 require('@eth-optimism/hardhat-ovm')
 
 module.exports = {
