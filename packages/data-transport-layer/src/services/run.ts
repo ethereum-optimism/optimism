@@ -13,12 +13,7 @@ interface Bcfg {
   ufloat: (name: string, defaultValue?: number) => number
 }
 
-enum ethNetwork {
-  mainnet = 'mainnet',
-  kovan = 'kovan',
-  goerli = 'goerli',
-}
-
+type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
 ;(async () => {
   try {
     dotenv.config()
@@ -31,7 +26,7 @@ enum ethNetwork {
 
     const service = new L1DataTransportService({
       nodeEnv: config.str('node-env', 'development'),
-      ethNetworkName: ethNetwork[config.str('eth-network-name')],
+      ethNetworkName: config.str('eth-network-name') as ethNetwork,
       release: `data-transport-layer@${process.env.npm_package_version}`,
       dbPath: config.str('db-path', './db'),
       port: config.uint('server-port', 7878),
