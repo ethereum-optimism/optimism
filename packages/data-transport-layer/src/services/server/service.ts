@@ -106,12 +106,15 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
-    if (this.options.ethNetworkName) this._initMonitoring()
+    if (this.options.ethNetworkName) {
+      this._initMonitoring()
+    }
     this.state.app.use(cors())
     this._registerAllRoutes()
     // Error handling needs to be initialized last
-    if (this.options.ethNetworkName)
+    if (this.options.ethNetworkName) {
       this.state.app.use(Sentry.Handlers.errorHandler())
+    }
   }
 
   /**
