@@ -460,7 +460,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             blockNumber,
           ] = await this.chainContract.getQueueElement(nextQueueIndex)
 
-          if (timestamp < ele.timestamp && blockNumber < ele.blockNumber) {
+          if (timestamp < ele.timestamp || blockNumber < ele.blockNumber) {
             this.logger.error('Fixing skipped deposit', {
               badTimestamp: ele.timestamp,
               skippedQueueTimestamp: timestamp,
