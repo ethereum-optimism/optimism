@@ -121,7 +121,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           data: toHexString(sequencerTransaction),
           queueOrigin: 'sequencer',
           type,
-          value: decoded.value,
+          value: decoded ? decoded.value : '0x0',
           queueIndex: null,
           decoded,
           confirmed: true,
