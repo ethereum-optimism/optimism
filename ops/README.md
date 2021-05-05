@@ -52,15 +52,10 @@ InfluxDB is persisting data to a Docker volume.
 
 **Stopping the project removing the containers will not clear this volume**
 
-To remove the influxdb data, run a command like
+To remove the influxdb and grafana data, run a commands like
 ```
 docker volume rm ops_influxdb_data
-```
-Or, after stopping the project, clean up all unused containers and volumes.  
-
-**This step removes way more then just this project, please make sure you know what you're doing**
-```
-docker system prune --volumes
+docker volume rm ops_grafana_data
 ```
 
 ## Accessing Grafana dashboards
