@@ -34,7 +34,7 @@ describe('NFT Test', async () => {
 
   //Test Marc's BioBase NFT system
   const nftName = 'BioBase'
-  const nftSymbol = 'BEE' //Bioeconomy Explodes
+  const nftSymbol = 'BEE' //BioEconomy Explodes
 
   const getBalances = async (
     _address: string, 

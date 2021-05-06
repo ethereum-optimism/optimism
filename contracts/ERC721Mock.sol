@@ -1,34 +1,15 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity >=0.7.6;
-
-import "./ERC721.sol";
-import "./utils/Counters.sol";
-
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 /**
  * @title ERC721Mock
  * This mock just provides a public safeMint, mint, and burn functions for testing purposes
  */
 contract ERC721Mock is ERC721 {
 
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
-
     constructor (string memory name, string memory symbol) ERC721(name, symbol) { }
-/*
-    function mintNFT(address recipient, string memory tokenURI) public returns (uint256)
-    {
-        _tokenIds.increment();
 
-        uint256 newItemId = _tokenIds.current();
-        
-        safeMint(recipient, newItemId);
-
-        setTokenURI(newItemId, tokenURI);
-
-        return newItemId;
-    }
-*/
     function mintNFT(address recipient, uint256 tokenId, string memory tokenURI) public returns (uint256)
     {
         safeMint(recipient, tokenId);
