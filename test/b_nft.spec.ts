@@ -64,7 +64,6 @@ describe('NFT Test', async () => {
       nftName
     )
     await L2ERC721.deployTransaction.wait()
-    console.log("Marc's BioBase NFT L2ERC721 deployed to:", L2ERC721)
     console.log("Marc's BioBase NFT L2ERC721 deployed to:", L2ERC721.address)
     
   })
@@ -98,30 +97,33 @@ describe('NFT Test', async () => {
     
     const owner = env.bobl2Wallet.address;
     const recipient = env.alicel2Wallet.address;
+    const tokenID = BigNumber.from(String(50));
 
     let nft = await L2ERC721.mintNFT(
       recipient,
-      BigNumber.from(42),
+      tokenID,
       'https://www.atcc.org/products/all/CCL-2.aspx'
     )
     await nft.wait()
-    console.log("ERC721:",nft)
+    //console.log("ERC721:",nft)
 
-    const balanceOwner = await L2ERC721.balanceOf(owner);
+    const balanceOwner = await L2ERC721.balanceOf(owner)
     console.log("balanceOwner:",balanceOwner.toString())
 
-    const balanceRecipient = await L2ERC721.balanceOf(recipient);
+    const balanceRecipient = await L2ERC721.balanceOf(recipient)
     console.log("balanceRecipient:",balanceRecipient.toString())
 
-    let nftURL = await L2ERC721.getTokenURI(BigNumber.from(42));
+    let nftURL = await L2ERC721.getTokenURI(tokenID) 
+    //for some strange reason need a string here
+    //no idea why that matters
     console.log("nftURL:",nftURL)
 
     //it('returns the amount of tokens owned by the given address', async function () {
-    expect(await L2ERC721.balanceOf(owner)).to.deep.eq('0');
+    expect(await L2ERC721.balanceOf(owner)).to.deep.eq(BigNumber.from(0));
     //});
 
     //it('returns the owner of the given token ID', async function () {
-    //expect(await L2ERC721.ownerOf(nft)).to.deep.eq(recipient);
+    expect(await L2ERC721.ownerOf(tokenID)).to.deep.eq(recipient);
     //});
 
   })
