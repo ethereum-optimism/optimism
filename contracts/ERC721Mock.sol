@@ -13,9 +13,7 @@ contract ERC721Mock is ERC721 {
     function mintNFT(address recipient, uint256 tokenId, string memory tokenURI) public returns (uint256)
     {
         safeMint(recipient, tokenId);
-
         setTokenURI(tokenId, tokenURI);
-
         return tokenId;
     }
 

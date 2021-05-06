@@ -15,7 +15,7 @@ import { OptimismEnv } from './shared/env'
 
 import * as fs from 'fs'
 
-describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
+describe('System Setup', async () => {
 
   let Factory__L1LiquidityPool: ContractFactory
   let Factory__L2LiquidityPool: ContractFactory
