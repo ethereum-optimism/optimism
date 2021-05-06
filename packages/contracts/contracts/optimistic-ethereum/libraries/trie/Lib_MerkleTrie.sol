@@ -352,11 +352,13 @@ library Lib_MerkleTrie {
         bool matchLeaf = false;
         if (lastNodeType == NodeType.LeafNode) {
             uint256 l = 0;
-            for (uint256 i = 0; i < _path.length; i++) {
-                if (_getNodeType(_path[i]) == NodeType.BranchNode) {
-                    l++;
-                } else {
-                    l += _getNodeKey(_path[i]).length;
+            if (_path.length > 0) {
+                for (uint256 i = 0; i < _path.length - 1; i++) {
+                    if (_getNodeType(_path[i]) == NodeType.BranchNode) {
+                        l++;
+                    } else {
+                        l += _getNodeKey(_path[i]).length;
+                    }
                 }
             }
 
@@ -511,7 +513,7 @@ library Lib_MerkleTrie {
                 // and we can skip this part.
                 if (previousNodeHash.length > 0) {
                     // Re-encode the node based on the previous node.
-                    currentNode = _makeExtensionNode(nodeKey, previousNodeHash);
+                    currentNode = _editExtensionNodeValue(currentNode, previousNodeHash);
                 }
             } else if (currentNodeType == NodeType.BranchNode) {
                 // If this node is the last element in the path, it'll be correctly encoded
@@ -780,11 +782,33 @@ library Lib_MerkleTrie {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_key, false);
         raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
-        // Values < 32 bytes are already RLP encoded here, don't encode again.
-        if (_value.length >= 32) {
-            raw[1] = Lib_RLPWriter.writeBytes(_value);
-        } else {
+        raw[1] = Lib_RLPWriter.writeBytes(_value);
+        return _makeNode(raw);
+    }
+
+    /**
+     * Creates a new extension node with the same key but a different value.
+     * @param _node Extension node to copy and modify.
+     * @param _value New value for the extension node.
+     * @return New node with the same key and different value.
+     */
+    function _editExtensionNodeValue(
+        TrieNode memory _node,
+        bytes memory _value
+    )
+        private
+        pure
+        returns (
+            TrieNode memory
+        )
+    {
+        bytes[] memory raw = new bytes[](2);
+        bytes memory key = _addHexPrefix(_getNodeKey(_node), false);
+        raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
+        if (_value.length < 32) {
             raw[1] = _value;
+        } else {
+            raw[1] = Lib_RLPWriter.writeBytes(_value);
         }
         return _makeNode(raw);
     }
