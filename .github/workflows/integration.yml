@@ -92,4 +92,4 @@ jobs:
         working-directory: ./examples/l1-l2-deposit-withdrawal
         run: |
           yarn compile:ovm
-          yarn test:ovm
+          yarn test:integration:ovm

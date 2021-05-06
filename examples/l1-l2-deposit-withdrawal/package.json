@@ -4,11 +4,11 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "clean": "rimraf ./cache && rimraf ./artifacts",
+    "clean": "rimraf ./cache ./artifacts ./cache-ovm ./artifacts-ovm",
     "compile": "hardhat compile",
     "compile:ovm": "hardhat --network optimism compile",
-    "test": "yarn hardhat test",
-    "test:ovm": "yarn hardhat test --network optimism"
+    "test:integration": "yarn hardhat test",
+    "test:integration:ovm": "yarn hardhat test --network optimism"
   },
   "devDependencies": {
     "@eth-optimism/contracts": "^0.2.9",
