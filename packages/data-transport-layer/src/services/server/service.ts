@@ -111,7 +111,8 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     }
     this.state.app.use(cors())
     this._registerAllRoutes()
-    // Error handling needs to be initialized last
+    // Sentry error handling must be after all controllers
+    // and before other error middleware
     if (this.options.ethNetworkName) {
       this.state.app.use(Sentry.Handlers.errorHandler())
     }
