@@ -4,18 +4,13 @@ require('@nomiclabs/hardhat-waffle')
 require('@eth-optimism/hardhat-ovm')
 
 module.exports = {
+  mocha: {
+    timeout: 50_000
+  },
   networks: {
-    hardhat: {
-      accounts: {
-        mnemonic: 'test test test test test test test test test test test junk'
-      }
-    },
     // Add this network to your config!
     optimism: {
       url: 'http://127.0.0.1:8545',
-      accounts: {
-        mnemonic: 'test test test test test test test test test test test junk'
-      },
       // This sets the gas price to 0 for all transactions on L2. We do this
       // because account balances are not automatically initiated with an ETH
       // balance.
