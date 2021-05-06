@@ -162,18 +162,17 @@ describe('OVM_L1CrossDomainMessenger', () => {
     return keccak256(encodeQueueTransaction(sender, target, gasLimit, data))
   }
 
-
-const encodeQueueTransaction = (
-  sender: string,
-  target: string,
-  gasLimit: number,
-  data: string
-): string => {
-  return ethers.utils.defaultAbiCoder.encode(
-    ['address', 'address', 'uint256', 'bytes'],
-    [sender, target, gasLimit, data]
-  )
-}
+  const encodeQueueTransaction = (
+    sender: string,
+    target: string,
+    gasLimit: number,
+    data: string
+  ): string => {
+    return ethers.utils.defaultAbiCoder.encode(
+      ['address', 'address', 'uint256', 'bytes'],
+      [sender, target, gasLimit, data]
+    )
+  }
   describe('sendMessage', () => {
     const target = NON_ZERO_ADDRESS
     const message = NON_NULL_BYTES32
@@ -184,7 +183,12 @@ const encodeQueueTransaction = (
         OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
       ).to.not.be.reverted
 
-      const calldata = getXDomainCalldata(target, await signer.getAddress(), message, 0)
+      const calldata = getXDomainCalldata(
+        target,
+        await signer.getAddress(),
+        message,
+        0
+      )
       const transactionHash = getTransactionHash(
         OVM_L1CrossDomainMessenger.address,
         Mock__OVM_L2CrossDomainMessenger.address,
@@ -192,8 +196,10 @@ const encodeQueueTransaction = (
         calldata
       )
 
-      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength();
-      const queueElement = await OVM_CanonicalTransactionChain.getQueueElement(queueLength-1)
+      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
+      const queueElement = await OVM_CanonicalTransactionChain.getQueueElement(
+        queueLength - 1
+      )
       expect(queueElement[0]).to.equal(transactionHash)
     })
 
@@ -214,13 +220,13 @@ const encodeQueueTransaction = (
     it('should revert if the message does not exist', async () => {
       await OVM_L1CrossDomainMessenger.sendMessage(target, message, 100_001)
 
-      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength();
+      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
       await expect(
         OVM_L1CrossDomainMessenger.replayMessage(
           target,
           await signer.getAddress(),
           message,
-          queueLength-1,
+          queueLength - 1,
           gasLimit
         )
       ).to.be.revertedWith('Provided message has not been enqueued.')
@@ -228,15 +234,20 @@ const encodeQueueTransaction = (
 
     it('should succeed if the message exists', async () => {
       await OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
-      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength();
+      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
 
-      const calldata = getXDomainCalldata(target, await signer.getAddress(), message, queueLength-1)
+      const calldata = getXDomainCalldata(
+        target,
+        await signer.getAddress(),
+        message,
+        queueLength - 1
+      )
       await expect(
         OVM_L1CrossDomainMessenger.replayMessage(
           Mock__OVM_L2CrossDomainMessenger.address,
           await signer.getAddress(),
           calldata,
-          queueLength-1,
+          queueLength - 1,
           gasLimit
         )
       ).to.not.be.reverted
