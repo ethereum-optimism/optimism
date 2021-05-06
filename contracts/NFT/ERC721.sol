@@ -16,6 +16,7 @@ import "./utils/introspection/ERC165.sol";
  * {ERC721Enumerable}.
  */
 contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
+    
     using Address for address;
     using Strings for uint256;
 
@@ -24,6 +25,11 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
 
     // Token symbol
     string private _symbol;
+
+    string private _baseURI;
+
+    // Optional mapping for token URIs
+    mapping (uint256 => string) private _tokenURIs;
 
     // Mapping from token ID to owner address
     mapping (uint256 => address) private _owners;
@@ -71,23 +77,16 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
         return owner;
     }
 
-    /**
-     * @dev See {IERC721Metadata-name}.
-     */
-    function name() public view virtual override returns (string memory) {
-        return _name;
-    }
-
-    /**
-     * @dev See {IERC721Metadata-symbol}.
-     */
-    function symbol() public view virtual override returns (string memory) {
-        return _symbol;
-    }
+    function name() public view virtual override returns (string memory) { return _name; }
+    
+    function symbol() public view virtual override returns (string memory) { return _symbol; }
+    
+    function baseURI() public view virtual returns (string memory) { return _baseURI; }
 
     /**
      * @dev See {IERC721Metadata-tokenURI}.
      */
+    /*
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
 
@@ -96,13 +95,44 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
             ? string(abi.encodePacked(baseURI, tokenId.toString()))
             : '';
     }
+    */
+    
+    /**
+     * @dev See {IERC721Metadata-tokenURI}.
+     */
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        
+        require(_exists(tokenId), "ERC721URIStorage: URI query for nonexistent token");
+
+        string memory _tokenURI = _tokenURIs[tokenId];
+        string memory base = _baseURI;
+
+        // If there is no base URI, return the token URI.
+        if (bytes(base).length == 0) {
+            return _tokenURI;
+        }
+        // If both are set, concatenate the baseURI and tokenURI (via abi.encodePacked).
+        if (bytes(_tokenURI).length > 0) {
+            return string(abi.encodePacked(base, _tokenURI));
+        }
+
+        return "";
+    }
 
     /**
-     * @dev Base URI for computing {tokenURI}. Empty by default, can be overriden
-     * in child contracts.
+     * @dev Sets `_tokenURI` as the tokenURI of `tokenId`.
+     *
+     * Requirements:
+     *
+     * - `tokenId` must exist.
      */
-    function _baseURI() internal view virtual returns (string memory) {
-        return "";
+    function _setTokenURI(uint256 tokenId, string memory _tokenURI) internal virtual {
+        require(_exists(tokenId), "ERC721URIStorage: URI set of nonexistent token");
+        _tokenURIs[tokenId] = _tokenURI;
+    }
+
+    function _setBaseURI(string calldata newBaseURI) internal virtual {
+        _baseURI = newBaseURI;
     }
 
     /**
@@ -276,6 +306,7 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
      * Emits a {Transfer} event.
      */
     function _burn(uint256 tokenId) internal virtual {
+        
         address owner = ERC721.ownerOf(tokenId);
 
         _beforeTokenTransfer(owner, address(0), tokenId);
@@ -286,7 +317,12 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
         _balances[owner] -= 1;
         delete _owners[tokenId];
 
+        if (bytes(_tokenURIs[tokenId]).length != 0) {
+            delete _tokenURIs[tokenId];
+        }
+
         emit Transfer(owner, address(0), tokenId);
+
     }
 
     /**

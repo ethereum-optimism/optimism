@@ -9,7 +9,7 @@ import L1ERC20GatewayJson from '../artifacts/contracts/L1ERC20Gateway.sol/L1ERC2
 
 import L2LiquidityPoolJson from '../artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
 import L2DepositedERC20Json from '../artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
-import L2ERC721Json from '../artifacts-ovm/contracts/NFT/ERC721.sol/ERC721.json'
+import L2ERC721Json from '../artifacts-ovm/contracts/NFT/ERC721Mock.sol/ERC721Mock.json'
 
 import { OptimismEnv } from './shared/env'
 
@@ -101,6 +101,12 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       env.bobl1Wallet
     )
 
+    Factory__L2ERC721 = new ContractFactory(
+      L2ERC721Json.abi,
+      L2ERC721Json.bytecode,
+      env.bobl1Wallet
+    )
+
     Factory__L2DepositedERC20 = new ContractFactory(
       L2DepositedERC20Json.abi,
       L2DepositedERC20Json.bytecode,
@@ -110,12 +116,6 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     Factory__L1ERC20Gateway = new ContractFactory(
       L1ERC20GatewayJson.abi,
       L1ERC20GatewayJson.bytecode,
-      env.bobl1Wallet
-    )
-
-    Factory__L2ERC721 = new ContractFactory(
-      L2ERC721Json.abi,
-      L2ERC721Json.bytecode,
       env.bobl1Wallet
     )
 
@@ -187,7 +187,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L2LiquidityPool.registerTokenAddress(L1ERC20.address, L2DepositedERC20.address);
 
     // Mint a new NFT on L2
-    // [initialSupply, name, decimals, symbol]
+    // [nftSymbol, nftName]
     // this is owned by bobl1Wallet
     L2ERC721 = await Factory__L2ERC721.deploy(
       nftSymbol,
@@ -245,26 +245,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       preERC20Balances.add(transferAmount)
     )
   })
-/*
-  it('should mint a new ERC721 and transfer it from Bob to Alice', async () => {
-    const transferAmount = utils.parseEther("500")
 
-    //L1ERC20 is owned by Bob
-    const preERC20Balances = await L1ERC20.balanceOf(env.alicel1Wallet.address);
-
-    const transferERC20TX = await L1ERC20.transfer(
-      env.alicel1Wallet.address,
-      transferAmount,
-    )
-    await transferERC20TX.wait()
-
-    const postERC20Balance = await L1ERC20.balanceOf(env.alicel1Wallet.address);
-    
-    expect(postERC20Balance).to.deep.eq(
-      preERC20Balances.add(transferAmount)
-    )
-  })
-*/
   it('should add initial ETH and ERC20 to the L1 Liquidity Pool', async () => {
 
     // **************************************************
@@ -274,6 +255,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const addERC20Amount = utils.parseEther("500")
 
     const l1ProviderLL = providers.getDefaultProvider(process.env.L1_NODE_WEB3_URL)
+    
     // Add ETH
     const preETHBalances = await getBalances("0x0000000000000000000000000000000000000000")
     const preL1LPETHBalance = await l1ProviderLL.getBalance(L1LiquidityPool.address)
@@ -374,7 +356,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
   })
 
-  it('should add initial oWETH and ERC20 to the L2 Liquidity Pool', async () => {
+  it('should add initial oETH and ERC20 to the L2 Liquidity Pool', async () => {
+    
     const depositL2oWETHAmount = utils.parseEther("5.1")
     const addoWETHAmount = utils.parseEther("5")
     const depositL2ERC20Amount = utils.parseEther("510")
@@ -440,7 +423,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
   it('should move ETH from L1 LP to L2', async () => {
 
-    const swapAmount = utils.parseEther("0.05")
+    const swapAmount = utils.parseEther("0.50")
     const preBalances = await getBalances("0x0000000000000000000000000000000000000000")
 
     //this triggers the receive
@@ -463,8 +446,9 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
   })
   
-  it('should swap wETH from L2 LP to ETH in L1 user wallet', async () => {
+  it('should swap oETH from L2 LP to ETH in L1 user wallet', async () => {
     
+    //basically, the swap-exit
     const swapAmount = utils.parseEther("0.05")
     const preBalances = await getBalances(env.L2ETHGateway.address)
 
@@ -490,5 +474,35 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     expect(postBalance.L2LPFeeBalance).to.deep.eq(
       preBalances.L2LPFeeBalance.add(swapAmount.mul(3).div(100))
     )
+  })
+
+  it('should mint a new ERC721 and transfer it from Bob to Alice', async () => {
+
+    const name = 'Non Fungible Token'
+    const symbol = 'NFT'
+    const firstTokenId = BigNumber.from('5042')
+    
+    const baseURI = 'https://api.com/v1/'
+    const sampleUri = 'mock://mytoken'
+    
+    const owner = env.bobl2Wallet.address;
+    const recipient = env.alicel2Wallet.address;
+
+    const nft = await L2ERC721.mintNFT(
+      recipient,
+      'https://www.atcc.org/products/all/CCL-2.aspx'
+    )
+
+    await nft.wait()
+    console.log("ERC721:",nft)
+
+    //it('returns the amount of tokens owned by the given address', async function () {
+    expect(await L2ERC721.balanceOf(owner)).to.be.bignumber.equal('1');
+    //});
+
+    //it('returns the owner of the given token ID', async function () {
+    expect(await L2ERC721.ownerOf(nft)).to.be.equal(recipient);
+    //});
+
   })
 })
