@@ -26,7 +26,6 @@ export class BaseService<T> {
     this.name = name
     this.options = mergeDefaultOptions(options, optionSettings)
     this.logger = new Logger({ name })
-    this.metrics = new Metrics({ prefix: name })
   }
 
   /**
@@ -39,9 +38,7 @@ export class BaseService<T> {
 
     this.logger.info('Service is initializing...')
     await this._init()
-    this.logger.info('Service has initialized.', {
-      options: this.options,
-    })
+    this.logger.info('Service has initialized.')
     this.initialized = true
   }
 
