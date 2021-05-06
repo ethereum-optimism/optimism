@@ -254,6 +254,9 @@ const maybeDecodeSequencerBatchTransaction = (
     } else if (txType === TxType.EthSign) {
       type = 'ETH_SIGN'
       decoded = ctcCoder.ethSignTxData.decode(transaction.toString('hex'))
+    } else if (txType === TxType.EthSign2) {
+      type = 'ETH_SIGN'
+      decoded = ctcCoder.ethSign2TxData.decode(transaction.toString('hex'))
     } else {
       throw new Error(`Unknown sequencer transaction type.`)
     }
