@@ -47,78 +47,77 @@ const Goerli__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/goerli
 const Goerli__Proxy__OVM_L1ETHGateway = require('../deployments/goerli/Proxy__OVM_L1ETHGateway.json')
 const Goerli__mockOVM_BondManager = require('../deployments/goerli/mockOVM_BondManager.json')
 
-
 export const getL1ContractData = (network: Network) => {
   return {
-    'Lib_AddressManager': {
+    Lib_AddressManager: {
       mainnet: Mainnet__Lib_AddressManager,
       kovan: Kovan__Lib_AddressManager,
-      goerli: Goerli__Lib_AddressManager
+      goerli: Goerli__Lib_AddressManager,
     }[network],
-    'OVM_CanonicalTransactionChain': {
+    OVM_CanonicalTransactionChain: {
       mainnet: Mainnet__OVM_CanonicalTransactionChain,
       kovan: Kovan__OVM_CanonicalTransactionChain,
-      goerli: Goerli__OVM_CanonicalTransactionChain
+      goerli: Goerli__OVM_CanonicalTransactionChain,
     }[network],
-    'OVM_ExecutionManager': {
+    OVM_ExecutionManager: {
       mainnet: Mainnet__OVM_ExecutionManager,
       kovan: Kovan__OVM_ExecutionManager,
-      goerli: Goerli__OVM_ExecutionManager
+      goerli: Goerli__OVM_ExecutionManager,
     }[network],
-    'OVM_FraudVerifier': {
+    OVM_FraudVerifier: {
       mainnet: Mainnet__OVM_FraudVerifier,
       kovan: Kovan__OVM_FraudVerifier,
-      goerli: Goerli__OVM_FraudVerifier
+      goerli: Goerli__OVM_FraudVerifier,
     }[network],
-    'OVM_L1CrossDomainMessenger': {
+    OVM_L1CrossDomainMessenger: {
       mainnet: Mainnet__OVM_L1CrossDomainMessenger,
       kovan: Kovan__OVM_L1CrossDomainMessenger,
-      goerli: Goerli__OVM_L1CrossDomainMessenger
+      goerli: Goerli__OVM_L1CrossDomainMessenger,
     }[network],
-    'OVM_L1ETHGateway': {
+    OVM_L1ETHGateway: {
       mainnet: Mainnet__OVM_L1ETHGateway,
       kovan: Kovan__OVM_L1ETHGateway,
-      goerli: Goerli__OVM_L1ETHGateway
+      goerli: Goerli__OVM_L1ETHGateway,
     }[network],
-    'OVM_L1MultiMessageRelayer': {
+    OVM_L1MultiMessageRelayer: {
       mainnet: Mainnet__OVM_L1MultiMessageRelayer,
       kovan: Kovan__OVM_L1MultiMessageRelayer,
-      goerli: Goerli__OVM_L1MultiMessageRelayer
+      goerli: Goerli__OVM_L1MultiMessageRelayer,
     }[network],
-    'OVM_SafetyChecker': {
+    OVM_SafetyChecker: {
       mainnet: Mainnet__OVM_SafetyChecker,
       kovan: Kovan__OVM_SafetyChecker,
-      goerli: Goerli__OVM_SafetyChecker
+      goerli: Goerli__OVM_SafetyChecker,
     }[network],
-    'OVM_StateCommitmentChain': {
+    OVM_StateCommitmentChain: {
       mainnet: Mainnet__OVM_StateCommitmentChain,
       kovan: Kovan__OVM_StateCommitmentChain,
-      goerli: Goerli__OVM_StateCommitmentChain
+      goerli: Goerli__OVM_StateCommitmentChain,
     }[network],
-    'OVM_StateManagerFactory': {
+    OVM_StateManagerFactory: {
       mainnet: Mainnet__OVM_StateManagerFactory,
       kovan: Kovan__OVM_StateManagerFactory,
-      goerli: Goerli__OVM_StateManagerFactory
+      goerli: Goerli__OVM_StateManagerFactory,
     }[network],
-    'OVM_StateTransitionerFactory': {
+    OVM_StateTransitionerFactory: {
       mainnet: Mainnet__OVM_StateTransitionerFactory,
       kovan: Kovan__OVM_StateTransitionerFactory,
-      goerli: Goerli__OVM_StateTransitionerFactory
+      goerli: Goerli__OVM_StateTransitionerFactory,
     }[network],
-    'Proxy__OVM_L1CrossDomainMessenger': {
+    Proxy__OVM_L1CrossDomainMessenger: {
       mainnet: Mainnet__Proxy__OVM_L1CrossDomainMessenger,
       kovan: Kovan__Proxy__OVM_L1CrossDomainMessenger,
-      goerli: Goerli__Proxy__OVM_L1CrossDomainMessenger
+      goerli: Goerli__Proxy__OVM_L1CrossDomainMessenger,
     }[network],
-    'Proxy__OVM_L1ETHGateway': {
+    Proxy__OVM_L1ETHGateway: {
       mainnet: Mainnet__Proxy__OVM_L1ETHGateway,
       kovan: Kovan__Proxy__OVM_L1ETHGateway,
-      goerli: Goerli__Proxy__OVM_L1ETHGateway
+      goerli: Goerli__Proxy__OVM_L1ETHGateway,
     }[network],
-    'mockOVM_BondManager': {
+    mockOVM_BondManager: {
       mainnet: Mainnet__mockOVM_BondManager,
       kovan: Kovan__mockOVM_BondManager,
-      goerli: Goerli__mockOVM_BondManager
+      goerli: Goerli__mockOVM_BondManager,
     }[network],
   }
 }
