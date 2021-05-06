@@ -57,7 +57,7 @@
     "solidity-coverage": "^0.7.16"
   },
   "devDependencies": {
-    "@codechecks/client": "^0.1.10",
+    "@codechecks/client": "0.1.10-beta",
     "@eth-optimism/hardhat-ovm": "^0.1.1",
     "@eth-optimism/smock": "^1.1.2",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
