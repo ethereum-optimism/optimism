@@ -122,7 +122,7 @@ library Lib_MerkleTrie {
 
         TrieNode[] memory proof = _parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(proof, _key, _root);
-        TrieNode[] memory newPath = _getNewPath(proof, pathLength, keyRemainder, _value);
+        TrieNode[] memory newPath = _getNewPath(proof, pathLength, _key, keyRemainder, _value);
 
         return _getUpdatedTrieRoot(newPath, _key);
     }
@@ -312,20 +312,20 @@ library Lib_MerkleTrie {
     }
 
     /**
-     * @notice Creates new nodes to support a k/v pair insertion into a given
-     * Merkle trie path.
+     * @notice Creates new nodes to support a k/v pair insertion into a given Merkle trie path.
      * @param _path Path to the node nearest the k/v pair.
-     * @param _pathLength Length of the path. Necessary because the provided
-     * path may include additional nodes (e.g., it comes directly from a proof)
-     * and we can't resize in-memory arrays without costly duplication.
-     * @param _keyRemainder Portion of the initial key that must be inserted
-     * into the trie.
+     * @param _pathLength Length of the path. Necessary because the provided path may include
+     *  additional nodes (e.g., it comes directly from a proof) and we can't resize in-memory
+     *  arrays without costly duplication.
+     * @param _key Full original key.
+     * @param _keyRemainder Portion of the initial key that must be inserted into the trie.
      * @param _value Value to insert at the given key.
      * @return _newPath A new path with the inserted k/v pair and extra supporting nodes.
      */
     function _getNewPath(
         TrieNode[] memory _path,
         uint256 _pathLength,
+        bytes memory _key,
         bytes memory _keyRemainder,
         bytes memory _value
     )
@@ -348,7 +348,30 @@ library Lib_MerkleTrie {
         TrieNode[] memory newNodes = new TrieNode[](3);
         uint256 totalNewNodes = 0;
 
-        if (keyRemainder.length == 0 && lastNodeType == NodeType.LeafNode) {
+        // Reference: https://github.com/ethereumjs/merkle-patricia-tree/blob/c0a10395aab37d42c175a47114ebfcbd7efcf059/src/baseTrie.ts#L294-L313
+        bool matchLeaf = false;
+        if (lastNodeType == NodeType.LeafNode) {
+            uint256 l = 0;
+            for (uint256 i = 0; i < _path.length; i++) {
+                if (_getNodeType(_path[i]) == NodeType.BranchNode) {
+                    l++;
+                } else {
+                    l += _getNodeKey(_path[i]).length;
+                }
+            }
+
+            if (
+                _getSharedNibbleLength(
+                    _getNodeKey(lastNode),
+                    Lib_BytesUtils.slice(Lib_BytesUtils.toNibbles(_key), l)
+                ) == _getNodeKey(lastNode).length
+                && keyRemainder.length == 0
+            ) {
+                matchLeaf = true;
+            }
+        }
+
+        if (matchLeaf) {
             // We've found a leaf node with the given key.
             // Simply need to update the value of the node to match.
             newNodes[totalNewNodes] = _makeLeafNode(_getNodeKey(lastNode), _value);
@@ -757,7 +780,12 @@ library Lib_MerkleTrie {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_key, false);
         raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
-        raw[1] = Lib_RLPWriter.writeBytes(_value);
+        // Values < 32 bytes are already RLP encoded here, don't encode again.
+        if (_value.length >= 32) {
+            raw[1] = Lib_RLPWriter.writeBytes(_value);
+        } else {
+            raw[1] = _value;
+        }
         return _makeNode(raw);
     }
 

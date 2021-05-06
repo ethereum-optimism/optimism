@@ -9,6 +9,7 @@ import { Trie } from 'merkle-patricia-tree/dist/baseTrie'
 
 /* Internal Imports */
 import { TrieTestGenerator } from '../../../helpers'
+import * as officialTestJson from '../../../data/json/libraries/trie/trietest.json'
 
 const NODE_COUNTS = [1, 2, 32, 128]
 
@@ -18,6 +19,53 @@ describe('Lib_MerkleTrie', () => {
     Lib_MerkleTrie = await (
       await ethers.getContractFactory('TestLib_MerkleTrie')
     ).deploy()
+  })
+
+  describe('official tests', () => {
+    for (const testName of Object.keys(officialTestJson.tests)) {
+      it(`should perform official test: ${testName}`, async () => {
+        const trie = new Trie()
+        const inputs = officialTestJson.tests[testName].in
+        const expected = officialTestJson.tests[testName].root
+
+        for (const input of inputs) {
+          let key: Buffer
+          if (input[0].startsWith('0x')) {
+            key = fromHexString(input[0])
+          } else {
+            key = fromHexString(
+              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(input[0]))
+            )
+          }
+
+          let val: Buffer
+          if (input[1] === null) {
+            throw new Error('deletions not supported, check your tests')
+          } else if (input[1].startsWith('0x')) {
+            val = fromHexString(input[1])
+          } else {
+            val = fromHexString(
+              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(input[1]))
+            )
+          }
+
+          const proof = await Trie.createProof(trie, key)
+          const root = trie.root
+          await trie.put(key, val)
+
+          const out = await Lib_MerkleTrie.update(
+            toHexString(key),
+            toHexString(val),
+            toHexString(rlp.encode(proof)),
+            root
+          )
+
+          expect(out).to.equal(toHexString(trie.root))
+        }
+
+        expect(toHexString(trie.root)).to.equal(expected)
+      })
+    }
   })
 
   describe('verifyInclusionProof', () => {
