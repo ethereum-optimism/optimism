@@ -174,4 +174,21 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         (bool success, ) = _to.call{value: _value}(new bytes(0));
         require(success, 'TransferHelper::safeTransferETH: ETH transfer failed');
     }
+
+    /*****************************
+     * Temporary - Migrating ETH *
+     *****************************/
+
+    /**
+     * @dev migrates entire ETH balance to another gateway
+     * @param _to Gateway Proxy address to migrate ETH to
+     */
+    function migrateEth(address payable _to) external {
+        address owner = Lib_AddressManager(libAddressManager).owner();
+        require(msg.sender == owner, "Only the owner can migrate ETH");
+        uint256 balance = address(this).balance;
+        OVM_L1ETHGateway(_to).donateETH{value:balance}();
+    }
+
+    function donateETH() external payable {}
 }
