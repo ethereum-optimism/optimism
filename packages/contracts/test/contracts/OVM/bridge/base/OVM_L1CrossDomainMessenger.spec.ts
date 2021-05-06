@@ -14,11 +14,15 @@ import {
   NON_ZERO_ADDRESS,
   DUMMY_BATCH_HEADERS,
   DUMMY_BATCH_PROOFS,
+  FORCE_INCLUSION_PERIOD_SECONDS,
+  FORCE_INCLUSION_PERIOD_BLOCKS,
   TrieTestGenerator,
   getNextBlockNumber,
   getXDomainCalldata,
 } from '../../../../helpers'
 import { keccak256 } from 'ethers/lib/utils'
+
+const MAX_GAS_LIMIT = 8_000_000
 
 const deployProxyXDomainMessenger = async (
   addressManager: Contract,
@@ -48,17 +52,19 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
   let Mock__TargetContract: MockContract
   let Mock__OVM_L2CrossDomainMessenger: MockContract
-  let Mock__OVM_CanonicalTransactionChain: MockContract
   let Mock__OVM_StateCommitmentChain: MockContract
+
+  let Factory__OVM_CanonicalTransactionChain: ContractFactory
+  let Factory__OVM_ChainStorageContainer: ContractFactory
+  let Factory__OVM_L1CrossDomainMessenger: ContractFactory
+
+  let OVM_CanonicalTransactionChain: Contract
   before(async () => {
     Mock__TargetContract = await smockit(
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
     Mock__OVM_L2CrossDomainMessenger = await smockit(
       await ethers.getContractFactory('OVM_L2CrossDomainMessenger')
-    )
-    Mock__OVM_CanonicalTransactionChain = await smockit(
-      await ethers.getContractFactory('OVM_CanonicalTransactionChain')
     )
     Mock__OVM_StateCommitmentChain = await smockit(
       await ethers.getContractFactory('OVM_StateCommitmentChain')
@@ -71,20 +77,50 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     await setProxyTarget(
       AddressManager,
-      'OVM_CanonicalTransactionChain',
-      Mock__OVM_CanonicalTransactionChain
-    )
-    await setProxyTarget(
-      AddressManager,
       'OVM_StateCommitmentChain',
       Mock__OVM_StateCommitmentChain
     )
-  })
 
-  let Factory__OVM_L1CrossDomainMessenger: ContractFactory
-  before(async () => {
+    Factory__OVM_CanonicalTransactionChain = await ethers.getContractFactory(
+      'OVM_CanonicalTransactionChain'
+    )
+
+    Factory__OVM_ChainStorageContainer = await ethers.getContractFactory(
+      'OVM_ChainStorageContainer'
+    )
+
     Factory__OVM_L1CrossDomainMessenger = await ethers.getContractFactory(
       'OVM_L1CrossDomainMessenger'
+    )
+    OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
+      AddressManager.address,
+      FORCE_INCLUSION_PERIOD_SECONDS,
+      FORCE_INCLUSION_PERIOD_BLOCKS,
+      MAX_GAS_LIMIT
+    )
+
+    const batches = await Factory__OVM_ChainStorageContainer.deploy(
+      AddressManager.address,
+      'OVM_CanonicalTransactionChain'
+    )
+    const queue = await Factory__OVM_ChainStorageContainer.deploy(
+      AddressManager.address,
+      'OVM_CanonicalTransactionChain'
+    )
+
+    await AddressManager.setAddress(
+      'OVM_ChainStorageContainer:CTC:batches',
+      batches.address
+    )
+
+    await AddressManager.setAddress(
+      'OVM_ChainStorageContainer:CTC:queue',
+      queue.address
+    )
+
+    await AddressManager.setAddress(
+      'OVM_CanonicalTransactionChain',
+      OVM_CanonicalTransactionChain.address
     )
   })
 
@@ -117,6 +153,27 @@ describe('OVM_L1CrossDomainMessenger', () => {
     })
   })
 
+  const getTransactionHash = (
+    sender: string,
+    target: string,
+    gasLimit: number,
+    data: string
+  ): string => {
+    return keccak256(encodeQueueTransaction(sender, target, gasLimit, data))
+  }
+
+
+const encodeQueueTransaction = (
+  sender: string,
+  target: string,
+  gasLimit: number,
+  data: string
+): string => {
+  return ethers.utils.defaultAbiCoder.encode(
+    ['address', 'address', 'uint256', 'bytes'],
+    [sender, target, gasLimit, data]
+  )
+}
   describe('sendMessage', () => {
     const target = NON_ZERO_ADDRESS
     const message = NON_NULL_BYTES32
@@ -127,13 +184,17 @@ describe('OVM_L1CrossDomainMessenger', () => {
         OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
       ).to.not.be.reverted
 
-      expect(
-        Mock__OVM_CanonicalTransactionChain.smocked.enqueue.calls[0]
-      ).to.deep.equal([
+      const calldata = getXDomainCalldata(target, await signer.getAddress(), message, 0)
+      const transactionHash = getTransactionHash(
+        OVM_L1CrossDomainMessenger.address,
         Mock__OVM_L2CrossDomainMessenger.address,
-        BigNumber.from(gasLimit),
-        getXDomainCalldata(target, await signer.getAddress(), message, 0),
-      ])
+        gasLimit,
+        calldata
+      )
+
+      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength();
+      const queueElement = await OVM_CanonicalTransactionChain.getQueueElement(queueLength-1)
+      expect(queueElement[0]).to.equal(transactionHash)
     })
 
     it('should be able to send the same message twice', async () => {
@@ -151,26 +212,31 @@ describe('OVM_L1CrossDomainMessenger', () => {
     const gasLimit = 100_000
 
     it('should revert if the message does not exist', async () => {
+      await OVM_L1CrossDomainMessenger.sendMessage(target, message, 100_001)
+
+      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength();
       await expect(
         OVM_L1CrossDomainMessenger.replayMessage(
           target,
           await signer.getAddress(),
           message,
-          0,
+          queueLength-1,
           gasLimit
         )
-      ).to.be.revertedWith('Provided message has not already been sent.')
+      ).to.be.revertedWith('Provided message has not been enqueued.')
     })
 
     it('should succeed if the message exists', async () => {
       await OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
+      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength();
 
+      const calldata = getXDomainCalldata(target, await signer.getAddress(), message, queueLength-1)
       await expect(
         OVM_L1CrossDomainMessenger.replayMessage(
-          target,
+          Mock__OVM_L2CrossDomainMessenger.address,
           await signer.getAddress(),
-          message,
-          0,
+          calldata,
+          queueLength-1,
           gasLimit
         )
       ).to.not.be.reverted
