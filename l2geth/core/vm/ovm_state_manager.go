@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -179,7 +178,7 @@ func putAccountCode(evm *EVM, contract *Contract, args map[string]interface{}) (
 		}
 	}
 	evm.StateDB.SetCode(address, code)
-	log.Debug("Put account code", "address", address.Hex(), "code", hex.EncodeToString(code))
+	log.Debug("Put account code", "address", address.Hex())
 
 	return []interface{}{}, nil
 }

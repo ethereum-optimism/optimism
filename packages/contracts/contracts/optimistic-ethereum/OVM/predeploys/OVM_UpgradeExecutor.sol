@@ -7,6 +7,7 @@ import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_Execut
 
 /**
  * @title OVM_UpgradeExecutor
+ * @notice This is a temporary, unauthenticated contract for use during initial integration tests.
  * @dev The OVM_UpgradeExecutor is the contract which authenticates and executes (i.e.
  * calls the relevant Execution Manager upgrade functions) upgrades to the OVM State.
  * This enables us to update the predeploy and execution contracts directly from within
