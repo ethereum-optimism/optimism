@@ -1,7 +1,7 @@
 /* External Imports */
 const { ethers } = require('hardhat')
 const { expect } = require('chai')
-const { Watcher } = require('@eth-optimism/watcher')
+const { Watcher } = require('@eth-optimism/core-utils')
 const { getContractFactory } = require('@eth-optimism/contracts')
 
 /* Internal Imports */

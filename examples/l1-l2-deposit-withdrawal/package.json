@@ -11,9 +11,9 @@
     "test:ovm": "yarn hardhat test --network optimism"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "^0.2.4",
-    "@eth-optimism/core-utils": "^0.2.1",
-    "@eth-optimism/hardhat-ovm": "^0.0.2",
+    "@eth-optimism/contracts": "^0.2.9",
+    "@eth-optimism/core-utils": "^0.4.0",
+    "@eth-optimism/hardhat-ovm": "^0.1.1",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "chai": "4.3.4",
@@ -23,8 +23,5 @@
     "hardhat": "^2.0.7",
     "mocha": "^8.3.2",
     "rimraf": "^3.0.2"
-  },
-  "dependencies": {
-    "@eth-optimism/watcher": "^0.0.1-alpha.9"
   }
 }
