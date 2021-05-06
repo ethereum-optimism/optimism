@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "devDependencies": {
-    "prettier": "2.2.1"
+    "prettier": "^2.2.1"
   },
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",

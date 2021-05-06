@@ -56,7 +56,7 @@
     "ganache-core": "^2.13.2",
     "hardhat": "^2.2.1",
     "mocha": "^6.1.4",
-    "prettier": "^1.16.4",
+    "prettier": "^2.2.1",
     "rimraf": "^2.6.3",
     "sinon": "^9.2.4",
     "sinon-chai": "^3.5.0",
