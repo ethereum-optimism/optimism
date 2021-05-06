@@ -3,6 +3,7 @@ import * as Handlebars from 'handlebars'
 import { ethers } from 'ethers'
 
 type SolidityVariable =
+  | boolean
   | string
   | number
   | Array<SolidityVariable>
