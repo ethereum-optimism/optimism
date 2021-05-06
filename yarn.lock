@@ -214,10 +214,10 @@
     human-id "^1.0.2"
     prettier "^1.19.1"
 
-"@codechecks/client@^0.1.10":
-  version "0.1.10"
-  resolved "https://registry.yarnpkg.com/@codechecks/client/-/client-0.1.10.tgz#41fe736c424976d9feb8116b131fb9c1f099d105"
-  integrity sha512-rvX+LknmMohsLTU8mHJqIcNTo8fKfw6A5i7JvT6JJWqwCLi+TujHpRO8BLf48iF96+gU5viVvKfRaUyhc3wloA==
+"@codechecks/client@0.1.10-beta":
+  version "0.1.10-beta"
+  resolved "https://registry.yarnpkg.com/@codechecks/client/-/client-0.1.10-beta.tgz#d93481214f43c1463586d9ca697d358a74fdc093"
+  integrity sha512-Wja7f4pxPK7A0D5h5RB7SLJCH0+H3Kz+mRXXX5Dj/58/aB1Tp2sXNu0bt0ESDE7CsAd/fROlf+Tu2nrn2g//fA==
   dependencies:
     bluebird "^3.5.3"
     chalk "^2.4.2"
