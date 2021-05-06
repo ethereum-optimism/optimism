@@ -27,7 +27,6 @@
     "build:dump": "ts-node \"bin/take-dump.ts\"",
     "build:typechain": "hardhat typechain",
     "build:typechain:ovm": "hardhat --network optimism typechain",
-    "build:browser": "webpack --mode=production",
     "test": "yarn run test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
     "test:gas": "hardhat test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
@@ -48,26 +47,17 @@
     "generate-markdown": "node scripts/generate-markdown.js"
   },
   "dependencies": {
-    "@babel/core": "^7.14.0",
-    "@babel/plugin-transform-runtime": "^7.13.15",
-    "@babel/preset-env": "^7.14.1",
-    "@babel/preset-typescript": "^7.13.0",
     "@eth-optimism/core-utils": "^0.4.0",
     "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/abstract-signer": "^5.1.0",
     "@ethersproject/contracts": "^5.0.5",
-    "@ethersproject/providers": "^5.1.2",
     "@openzeppelin/contracts": "^3.3.0",
     "@openzeppelin/contracts-upgradeable": "^3.3.0",
     "@typechain/hardhat": "^1.0.1",
-    "babel-loader": "^8.2.2",
     "ganache-core": "^2.13.2",
     "glob": "^7.1.6",
-    "solidity-coverage": "^0.7.16",
-    "ts-loader": "8.0.2",
-    "webpack": "4.44.1",
-		"webpack-cli": "3.3.12"
+    "solidity-coverage": "^0.7.16"  
   },
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
