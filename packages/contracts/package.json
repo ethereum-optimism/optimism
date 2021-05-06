@@ -46,7 +46,6 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.4.0",
-    "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/contracts": "^5.0.5",
     "@openzeppelin/contracts": "^3.3.0",
