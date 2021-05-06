@@ -4,12 +4,13 @@ import { expect } from '../../../setup'
 import * as rlp from 'rlp'
 import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
-import { toHexString } from '@eth-optimism/core-utils'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
+import { Trie } from 'merkle-patricia-tree/dist/baseTrie'
 
 /* Internal Imports */
 import { TrieTestGenerator } from '../../../helpers'
 
-const NODE_COUNTS = [1, 2, 128]
+const NODE_COUNTS = [1, 2, 32, 128]
 
 describe('Lib_MerkleTrie', () => {
   let Lib_MerkleTrie: Contract
@@ -21,13 +22,15 @@ describe('Lib_MerkleTrie', () => {
 
   describe('verifyInclusionProof', () => {
     for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes`, () => {
+      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
         let generator: TrieTestGenerator
         before(async () => {
           generator = await TrieTestGenerator.fromRandom({
             seed: `seed.incluson.${nodeCount}`,
             nodeCount,
             secure: false,
+            keySize: nodeCount,
+            valSize: nodeCount,
           })
         })
 
@@ -55,13 +58,15 @@ describe('Lib_MerkleTrie', () => {
 
   describe('update', () => {
     for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes`, () => {
+      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
         let generator: TrieTestGenerator
         before(async () => {
           generator = await TrieTestGenerator.fromRandom({
             seed: `seed.update.${nodeCount}`,
             nodeCount,
             secure: false,
+            keySize: nodeCount,
+            valSize: nodeCount,
           })
         })
 
@@ -88,17 +93,36 @@ describe('Lib_MerkleTrie', () => {
         }
       })
     }
+
+    it('should return the single-node root hash if the trie was previously empty', async () => {
+      const key = '0x1234'
+      const val = '0x5678'
+
+      const trie = new Trie()
+      await trie.put(fromHexString(key), fromHexString(val))
+
+      expect(
+        await Lib_MerkleTrie.update(
+          key,
+          val,
+          '0x', // Doesn't require a proof
+          ethers.utils.keccak256('0x80') // Empty Merkle trie root hash
+        )
+      ).to.equal(toHexString(trie.root))
+    })
   })
 
   describe('get', () => {
     for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes`, () => {
+      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
         let generator: TrieTestGenerator
         before(async () => {
           generator = await TrieTestGenerator.fromRandom({
             seed: `seed.get.${nodeCount}`,
             nodeCount,
             secure: false,
+            keySize: nodeCount,
+            valSize: nodeCount,
           })
         })
 
