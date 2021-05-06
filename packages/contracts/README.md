@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 # Optimistic Ethereum Smart Contracts
 
 `@eth-optimism/contracts` contains the various Solidity smart contracts used within the Optimistic Ethereum system.
