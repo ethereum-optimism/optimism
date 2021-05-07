@@ -22,6 +22,7 @@ describe('Lib_MerkleTrie', () => {
     ).deploy()
   })
 
+  // Eth-foundation tests: https://github.com/ethereum/tests/tree/develop/TrieTests
   describe('official tests', () => {
     for (const testName of Object.keys(officialTestJson.tests)) {
       it(`should perform official test: ${testName}`, async () => {
