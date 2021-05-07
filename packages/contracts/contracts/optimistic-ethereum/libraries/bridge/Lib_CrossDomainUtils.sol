@@ -9,7 +9,7 @@ import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
  * @title Lib_CrossDomainUtils
  */
 library Lib_CrossDomainUtils {
-  /**
+    /**
      * Generates the correct cross domain calldata for a message.
      * @param _target Target contract address.
      * @param _sender Message sender address.

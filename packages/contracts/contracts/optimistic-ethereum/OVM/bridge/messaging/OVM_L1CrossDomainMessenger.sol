@@ -192,7 +192,8 @@ contract OVM_L1CrossDomainMessenger is
         public
     {
         // Use the CTC queue length as nonce
-        uint40 queueLength = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueLength();
+        address ovmCanonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
+        uint40 queueLength = iOVM_CanonicalTransactionChain(ovmCanonicalTransactionChain).getQueueLength();
 
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
@@ -201,7 +202,8 @@ contract OVM_L1CrossDomainMessenger is
             queueLength
         );
 
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
+        address l2CrossDomainMessenger = resolve("OVM_L2CrossDomainMessenger");
+        _sendXDomainMessage(ovmCanonicalTransactionChain, l2CrossDomainMessenger, xDomainCalldata, _gasLimit);
         emit SentMessage(xDomainCalldata);
     }
 
@@ -289,13 +291,15 @@ contract OVM_L1CrossDomainMessenger is
         public
     {
         // Verify that the message is in the queue:
-        Lib_OVMCodec.QueueElement memory element = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).getQueueElement(_queueIndex);
+        address canonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
+        Lib_OVMCodec.QueueElement memory element = iOVM_CanonicalTransactionChain(canonicalTransactionChain).getQueueElement(_queueIndex);
 
+        address l2CrossDomainMessenger = resolve("OVM_L2CrossDomainMessenger");
         // Compute the transactionHash
         bytes32 transactionHash = keccak256(
             abi.encode(
                 address(this),
-                resolve("OVM_L2CrossDomainMessenger"),
+                l2CrossDomainMessenger,
                 _gasLimit,
                 _message
             )
@@ -313,7 +317,7 @@ contract OVM_L1CrossDomainMessenger is
             _queueIndex
         );
 
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
+        _sendXDomainMessage(canonicalTransactionChain, l2CrossDomainMessenger, xDomainCalldata, _gasLimit);
     }
 
 
@@ -427,17 +431,21 @@ contract OVM_L1CrossDomainMessenger is
 
     /**
      * Sends a cross domain message.
+     * @param _canonicalTransactionChain Address of the OVM_CanonicalTransactionChain instance.
+     * @param _l2CrossDomainMessenger Address of the OVM_L2CrossDomainMessenger instance.
      * @param _message Message to send.
      * @param _gasLimit OVM gas limit for the message.
      */
     function _sendXDomainMessage(
+        address _canonicalTransactionChain,
+        address _l2CrossDomainMessenger,
         bytes memory _message,
         uint256 _gasLimit
     )
         internal
     {
-        iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).enqueue(
-            resolve("OVM_L2CrossDomainMessenger"),
+        iOVM_CanonicalTransactionChain(_canonicalTransactionChain).enqueue(
+            _l2CrossDomainMessenger,
             _gasLimit,
             _message
         );
