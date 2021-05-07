@@ -8,13 +8,23 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
  */
 contract ERC721Mock is ERC721 {
 
-    constructor (string memory name, string memory symbol) ERC721(name, symbol) { }
+    uint256 tID;
 
-    function mintNFT(address recipient, uint256 tokenId, string memory tokenURI) public returns (uint256)
+    constructor (string memory name, string memory symbol, uint256 tID_start) 
+        ERC721(name, symbol) {
+        tID = tID_start;
+    }
+
+    function mintNFT(address recipient, string memory tokenURI) public returns (uint256)
     {
-        safeMint(recipient, tokenId);
-        setTokenURI(tokenId, tokenURI);
-        return tokenId;
+        safeMint(recipient, tID);
+        setTokenURI(tID, tokenURI);
+        tID += 1;
+        return tID;
+    }
+
+    function getLastTID() public view returns(uint256) {
+        return tID;
     }
 
     function baseURI() public view override returns (string memory) {

@@ -1,4 +1,8 @@
-import { expect } from 'chai'
+import chai from 'chai'
+import chaiAsPromised from 'chai-as-promised'
+chai.use(chaiAsPromised)
+const expect = chai.expect;
+
 import { Contract, ContractFactory, BigNumber, Wallet, utils, providers } from 'ethers'
 import { Direction } from './shared/watcher-utils'
 import L2ERC721Json from '../artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
@@ -61,7 +65,8 @@ describe('NFT Test', async () => {
     // this is owned by bobl1Wallet
     L2ERC721 = await Factory__L2ERC721.deploy(
       nftSymbol,
-      nftName
+      nftName,
+      BigNumber.from(String(0)) //starting index for the tokenIDs
     )
     await L2ERC721.deployTransaction.wait()
     console.log("Marc's BioBase NFT L2ERC721 deployed to:", L2ERC721.address)
@@ -97,34 +102,53 @@ describe('NFT Test', async () => {
     
     const owner = env.bobl2Wallet.address;
     const recipient = env.alicel2Wallet.address;
+
+    //for some strange reason need a string here
+    //no idea why that matters
     const tokenID = BigNumber.from(String(50));
 
+    //mint one NFT
     let nft = await L2ERC721.mintNFT(
       recipient,
-      tokenID,
       'https://www.atcc.org/products/all/CCL-2.aspx'
     )
     await nft.wait()
     //console.log("ERC721:",nft)
 
     const balanceOwner = await L2ERC721.balanceOf(owner)
-    console.log("balanceOwner:",balanceOwner.toString())
-
     const balanceRecipient = await L2ERC721.balanceOf(recipient)
+
+    console.log("balanceOwner:",balanceOwner.toString())
     console.log("balanceRecipient:",balanceRecipient.toString())
 
-    let nftURL = await L2ERC721.getTokenURI(tokenID) 
-    //for some strange reason need a string here
-    //no idea why that matters
+    //Get the URL
+    let nftURL = await L2ERC721.getTokenURI(BigNumber.from(String(0))) 
     console.log("nftURL:",nftURL)
 
+    //Should be 1
+    let TID = await L2ERC721.getLastTID() 
+    console.log("TID:",TID.toString())
+
+    //mint a second NFT
+    nft = await L2ERC721.mintNFT(
+      recipient,
+      'https://www.atcc.org/products/all/CCL-3.aspx'
+    )
+    await nft.wait()
+
+    //Should be 2
+    TID = await L2ERC721.getLastTID() 
+    console.log("TID:",TID.toString())
+
     //it('returns the amount of tokens owned by the given address', async function () {
-    expect(await L2ERC721.balanceOf(owner)).to.deep.eq(BigNumber.from(0));
+    expect(await L2ERC721.balanceOf(owner)).to.deep.eq(BigNumber.from(String(0)));
     //});
 
-    //it('returns the owner of the given token ID', async function () {
-    expect(await L2ERC721.ownerOf(tokenID)).to.deep.eq(recipient);
-    //});
+    // Token 1 should be owned by recipient
+    expect(await L2ERC721.ownerOf(BigNumber.from(String(1)))).to.deep.eq(recipient);
 
+    //And Token 50 should not exist (at this point)
+    expect(L2ERC721.ownerOf(BigNumber.from(String(50)))).to.be.eventually.rejectedWith("ERC721: owner query for nonexistent token");
   })
+
 })

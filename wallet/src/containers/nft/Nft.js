@@ -5,17 +5,16 @@ import { isEqual } from 'lodash';
 import InputSelect from 'components/inputselect/InputSelect';
 import Input from 'components/input/Input';
 import Button from 'components/button/Button';
-
 import { openError, openAlert } from 'actions/uiAction';
-
 import { logAmount } from 'util/amountConvert';
-
 import networkService from 'services/networkService';
 
-import * as styles from './Pool.module.scss';
+import * as styles from './Nft.module.scss';
 
-class Pool extends React.Component {
+class Nft extends React.Component {
+
   constructor(props) {
+
     super(props);
 
     const { balance } = this.props;
@@ -48,6 +47,10 @@ class Pool extends React.Component {
       L2FeeWithdrawAmount: '',
 
       loading: false,
+
+      receiverAddress: '',
+      tokenID: 1,
+      tokenURI: '' 
     }
   }
 
@@ -72,6 +75,7 @@ class Pool extends React.Component {
   }
 
   componentDidUpdate(prevState) {
+
     const { balance } = this.props;
     const { 
       initialL1Currency, initialL2Currency,
@@ -83,6 +87,7 @@ class Pool extends React.Component {
 
     const L1Token = balance.rootchain.filter(i => i.symbol !== 'WETH')[0];
     const L2Token = balance.childchain.filter(i => i.symbol !== 'ETH')[0];
+
     if (!isEqual(prevState.balance, balance)) {
       this.setState({ balance });
       if (!initialL1Currency) this.setState({initialL1Currency : L1Token.currency});
@@ -252,23 +257,54 @@ class Pool extends React.Component {
     this.setState({ loading: false })
   }
 
+  async handleMintAndSend() {
+
+    const { receiverAddress, tokenID, tokenURI } = this.state;
+
+    //we are doing this on L2
+
+    const networkStatus = await this.props.dispatch(networkService.checkNetwork('L2'));
+    if (!networkStatus) {
+      this.props.dispatch(openError('Please use L2 network.'));
+      return;
+    }
+
+    this.setState({ loading: true });
+
+    const mintTX = await networkService.mintAndSendNFT(
+      receiverAddress, 
+      tokenID, 
+      tokenURI
+    );
+    
+    if (mintTX) {
+      this.props.dispatch(openAlert(`You minted a new NFT for ${receiverAddress}`));
+    } else {
+      this.props.dispatch(openError('NFT minting error'));
+    }
+
+    this.setState({ loading: false })
+  }
+
   render() {
+
     const { 
       balance,
-
       initialL1Value, initialL1Currency,
       L1Value, L1Currency, 
       LPL1SearchToken, LPL1Balance,
       LPL1FeeSearchToken, LPL1FeeBalance,
       L1FeeReceiverAddress, L1FeeWithdrawAmount,
-
       initialL2Value, initialL2Currency,
       L2Value, L2Currency, 
       LPL2SearchToken, LPL2Balance,
       LPL2FeeSearchToken, LPL2FeeBalance,
       L2FeeReceiverAddress, L2FeeWithdrawAmount,
+      loading,
 
-      loading 
+      receiverAddress,
+      tokenID,
+      tokenURI 
     } = this.state;
 
     const rootChainBalance = balance.rootchain;
@@ -288,17 +324,33 @@ class Pool extends React.Component {
     return (
       <div className={styles.container}>
         <div className={styles.boxContainer}>
-          <h2>Layer 1 Liquidity Pool</h2>
-          <h3>Initial Deposit L1</h3>
-          <InputSelect
-            label='Amount to deposit (No fund on L2)'
-            placeholder={0}
-            value={initialL1Value}
-            onChange={i => {this.setState({initialL1Value: i.target.value})}}
-            selectOptions={selectL1Options}
-            onSelect={i => {this.setState({initialL1Currency: i.target.value})}}
-            selectValue={initialL1Currency}
+          
+          <h2>Minter/Owner Functions</h2>
+          
+          <h3>Mint and Send</h3>
+          
+          <Input
+            placeholder="Receiver Address (e.g. Ox.....)"
+            onChange={i=>{this.setState({receiverAddress: i.target.value})}}
           />
+          <Input
+            placeholder="NFT Unique ID (e.g. 7)"
+            onChange={i=>{this.setState({tokenID: i.target.value})}}
+          />
+          <Input
+            placeholder="NFT URL (e.g. https://jimb.stanford.edu)"
+            onChange={i=>{this.setState({tokenURI: i.target.value})}}
+          />
+          <Button
+            className={styles.button}
+            onClick={() => {this.handleMintAndSend()}}
+            type='primary'
+            loading={loading}
+            disabled={!receiverAddress || !tokenID || !tokenURI}
+          >
+            Mint and Send
+          </Button>
+          
           <Button
             className={styles.button}
             onClick={() => {this.handleInitialDepositL1();}}
@@ -576,4 +628,4 @@ const mapStateToProps = state => ({
   tokenList: state.tokenList
 });
 
-export default connect(mapStateToProps)(Pool);
+export default connect(mapStateToProps)(Nft);
