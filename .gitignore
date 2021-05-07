@@ -3,10 +3,10 @@ results
 temp
 .nyc_output
 *.tsbuildinfo
+**/.DS_Store
 
 dist
-artifacts
-artifacts-ovm
+
 cache
 cache-ovm
 

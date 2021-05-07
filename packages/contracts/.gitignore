@@ -1,0 +1,17 @@
+# only include relevant json from artifacts folders
+# ignore everything except contracts 
+artifacts/*
+artifacts-ovm/*
+artifacts/contracts/optimistic-ethereum/iOVM
+artifacts-ovm/contracts/optimistic-ethereum/iOVM
+artifacts/contracts/optimistic-ethereum/libraries
+artifacts-ovm/contracts/optimistic-ethereum/libraries
+artifacts/contracts/test-libraries
+artifacts-ovm/contracts/test-libraries
+artifacts/contracts/test-helpers
+artifacts-ovm/contracts/test-helpers
+!artifacts/contracts/
+!artifacts-ovm/contracts/
+!artifacts/contracts/**/*.json
+!artifacts-ovm/contracts/**/*.json
+*.dbg.json
