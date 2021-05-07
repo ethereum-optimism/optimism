@@ -10,6 +10,7 @@ import { Trie } from 'merkle-patricia-tree/dist/baseTrie'
 /* Internal Imports */
 import { TrieTestGenerator } from '../../../helpers'
 import * as officialTestJson from '../../../data/json/libraries/trie/trietest.json'
+import * as officialTestAnyOrderJson from '../../../data/json/libraries/trie/trieanyorder.json'
 
 const NODE_COUNTS = [1, 2, 32, 128]
 
@@ -46,6 +47,53 @@ describe('Lib_MerkleTrie', () => {
           } else {
             val = fromHexString(
               ethers.utils.hexlify(ethers.utils.toUtf8Bytes(input[1]))
+            )
+          }
+
+          const proof = await Trie.createProof(trie, key)
+          const root = trie.root
+          await trie.put(key, val)
+
+          const out = await Lib_MerkleTrie.update(
+            toHexString(key),
+            toHexString(val),
+            toHexString(rlp.encode(proof)),
+            root
+          )
+
+          expect(out).to.equal(toHexString(trie.root))
+        }
+
+        expect(toHexString(trie.root)).to.equal(expected)
+      })
+    }
+  })
+
+  describe('official tests - trie any order', () => {
+    for (const testName of Object.keys(officialTestAnyOrderJson.tests)) {
+      it(`should perform official test: ${testName}`, async () => {
+        const trie = new Trie()
+        const inputs = officialTestAnyOrderJson.tests[testName].in
+        const expected = officialTestAnyOrderJson.tests[testName].root
+
+        for (const input of Object.keys(inputs)) {
+          let key: Buffer
+          if (input.startsWith('0x')) {
+            key = fromHexString(input)
+          } else {
+            key = fromHexString(
+              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(input))
+            )
+          }
+
+          let val: Buffer
+          if (inputs[input] === null) {
+            throw new Error('deletions not supported, check your tests')
+          } else if (inputs[input].startsWith('0x')) {
+            val = fromHexString(inputs[input])
+          } else {
+            val = fromHexString(
+              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(inputs[input]))
             )
           }
 
