@@ -1,5 +1,20 @@
 # data transport layer
 
+## 0.2.5
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- ce7fa52: Add an additional enum for EthSign transactions as they now are batch submitted with 2 different enum values
+- 575bcf6: add environment and network to dtl, move metric init to app from base-service
+- Updated dependencies [1d40586]
+- Updated dependencies [ce7fa52]
+- Updated dependencies [575bcf6]
+- Updated dependencies [6dc1877]
+  - @eth-optimism/common-ts@0.1.1
+  - @eth-optimism/contracts@0.2.10
+  - @eth-optimism/core-utils@0.4.1
+
 ## 0.2.4
 
 ### Patch Changes
