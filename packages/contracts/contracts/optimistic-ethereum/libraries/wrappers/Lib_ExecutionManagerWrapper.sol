@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
@@ -7,6 +6,9 @@ import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
 
 /**
  * @title Lib_ExecutionManagerWrapper
+ * @dev This library acts as a utility for easily calling the OVM_ExecutionManagerWrapper, the
+ *  predeployed contract which exposes the `kall` builtin. Effectively, this contract allows the
+ *  user to trigger OVM opcodes by directly calling the OVM_ExecutionManger.
  *
  * Compiler used: solc
  * Runtime target: OVM
@@ -20,7 +22,7 @@ library Lib_ExecutionManagerWrapper {
     /**
      * Performs a safe ovmCREATE call.
      * @param _bytecode Code for the new contract.
-     * @return _contract Address of the created contract.
+     * @return Address of the created contract.
      */
     function ovmCREATE(
         bytes memory _bytecode
@@ -31,7 +33,7 @@ library Lib_ExecutionManagerWrapper {
             bytes memory
         )
     {
-        bytes memory returndata = _safeExecutionManagerInteraction(
+        bytes memory returndata = _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmCREATE(bytes)",
                 _bytecode
@@ -43,15 +45,15 @@ library Lib_ExecutionManagerWrapper {
 
     /**
      * Performs a safe ovmGETNONCE call.
-     * @return _nonce Result of calling ovmGETNONCE.
+     * @return Result of calling ovmGETNONCE.
      */
     function ovmGETNONCE()
         internal
         returns (
-            uint256 _nonce
+            uint256
         )
     {
-        bytes memory returndata = _safeExecutionManagerInteraction(
+        bytes memory returndata = _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmGETNONCE()"
             )
@@ -66,7 +68,7 @@ library Lib_ExecutionManagerWrapper {
     function ovmINCREMENTNONCE()
         internal
     {
-        _safeExecutionManagerInteraction(
+        _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmINCREMENTNONCE()"
             )
@@ -88,7 +90,7 @@ library Lib_ExecutionManagerWrapper {
     )
         internal
     {
-        _safeExecutionManagerInteraction(
+        _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmCREATEEOA(bytes32,uint8,bytes32,bytes32)",
                 _messageHash,
@@ -109,7 +111,7 @@ library Lib_ExecutionManagerWrapper {
             address
         )
     {
-        bytes memory returndata = _safeExecutionManagerInteraction(
+        bytes memory returndata = _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmL1TXORIGIN()"
             )
@@ -128,13 +130,32 @@ library Lib_ExecutionManagerWrapper {
             uint256
         )
     {
-        bytes memory returndata = _safeExecutionManagerInteraction(
+        bytes memory returndata = _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmCHAINID()"
             )
         );
 
         return abi.decode(returndata, (uint256));
+    }
+
+    /**
+     * Performs a safe ovmADDRESS call.
+     * @return Result of calling ovmADDRESS.
+     */
+    function ovmADDRESS()
+        internal
+        returns (
+            address
+        )
+    {
+        bytes memory returndata = _callWrapperContract(
+            abi.encodeWithSignature(
+                "ovmADDRESS()"
+            )
+        );
+
+        return abi.decode(returndata, (address));
     }
 
 
@@ -145,9 +166,9 @@ library Lib_ExecutionManagerWrapper {
     /**
      * Performs an ovm interaction and the necessary safety checks.
      * @param _calldata Data to send to the OVM_ExecutionManager (encoded with sighash).
-     * @return _returndata Data sent back by the OVM_ExecutionManager.
+     * @return Data sent back by the OVM_ExecutionManager.
      */
-    function _safeExecutionManagerInteraction(
+    function _callWrapperContract(
         bytes memory _calldata
     )
         private
@@ -155,17 +176,14 @@ library Lib_ExecutionManagerWrapper {
             bytes memory
         )
     {
-        bytes memory returndata;
-        assembly {
-            // kall is a custom yul builtin within optimistic-solc that allows us to directly call
-            // the execution manager (since `call` would be compiled).
-            kall(add(_calldata, 0x20), mload(_calldata), 0x0, 0x0)
-            let size := returndatasize()
-            returndata := mload(0x40)
-            mstore(0x40, add(returndata, and(add(add(size, 0x20), 0x1f), not(0x1f))))
-            mstore(returndata, size)
-            returndatacopy(add(returndata, 0x20), 0x0, size)
+        (bool success, bytes memory returndata) = 0x420000000000000000000000000000000000000B.delegatecall(_calldata);
+
+        if (success == true) {
+            return returndata;
+        } else {
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
         }
-        return returndata;
     }
 }
