@@ -1,9 +1,10 @@
 /* External Imports */
 import * as path from 'path'
+import hre from 'hardhat'
 import { ethers } from 'ethers'
-import * as Ganache from 'ganache-core'
 import { keccak256 } from 'ethers/lib/utils'
 import { fromHexString, toHexString, remove0x } from '@eth-optimism/core-utils'
+import { findBaseHardhatProvider } from '@eth-optimism/smock/dist/src/common'
 
 /* Internal Imports */
 import { deploy, RollupDeployConfig } from './contract-deployment'
@@ -28,34 +29,14 @@ export interface StateDump {
 
 /**
  * Generates a storage dump for a given address.
- * @param cStateManager Instance of the callback-based internal vm StateManager.
+ * @param pStateManager Instance of the promise-based internal Hardhat.
  * @param address Address to generate a state dump for.
  */
 const getStorageDump = async (
-  cStateManager: any,
+  pStateManager: any,
   address: string
 ): Promise<StorageDump> => {
-  return new Promise<StorageDump>((resolve, reject) => {
-    cStateManager._getStorageTrie(address, (err: any, trie: any) => {
-      if (err) {
-        reject(err)
-      }
-
-      const storage: StorageDump = {}
-      const stream = trie.createReadStream()
-
-      stream.on('data', (val: any) => {
-        const storageSlotValue = ethers.utils.RLP.decode(
-          '0x' + val.value.toString('hex')
-        )
-        storage['0x' + val.key.toString('hex')] = storageSlotValue
-      })
-
-      stream.on('end', () => {
-        resolve(storage)
-      })
-    })
-  })
+  return pStateManager._state.get(address.toLowerCase()).storage.toObject()
 }
 
 /**
@@ -77,6 +58,11 @@ const sanitizeStorageDump = (
   }
 
   for (const [key, value] of Object.entries(storageDump)) {
+    if (value === null) {
+      delete storageDump[key]
+      continue
+    }
+
     let parsedKey = key
     let parsedValue = value
     for (const account of accounts) {
@@ -96,20 +82,7 @@ const sanitizeStorageDump = (
 }
 
 export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
-  const ganache = (Ganache as any).provider({
-    gasLimit: 100_000_000,
-    allowUnlimitedContractSize: true,
-    accounts: [
-      {
-        secretKey:
-          '0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797',
-        balance: 10000000000000000000000000000000000,
-      },
-    ],
-  })
-
-  const provider = new ethers.providers.Web3Provider(ganache)
-  const signer = provider.getSigner(0)
+  const [signer] = await (hre as any).ethers.getSigners()
 
   let config: RollupDeployConfig = {
     deploymentSigner: signer,
@@ -180,8 +153,13 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     )
   }
 
-  const pStateManager = ganache.engine.manager.state.blockchain.vm.pStateManager
-  const cStateManager = pStateManager._wrapped
+  const provider = findBaseHardhatProvider(hre)
+
+  if ((provider as any)._node === undefined) {
+    await (provider as any)._init()
+  }
+
+  const pStateManager = (provider as any)._node._vm.stateManager
 
   const dump: StateDump = {
     accounts: {},
@@ -224,7 +202,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       address: deadAddress,
       code,
       codeHash: keccak256(code),
-      storage: await getStorageDump(cStateManager, contract.address),
+      storage: await getStorageDump(pStateManager, contract.address),
       abi: def.abi,
     }
   }
