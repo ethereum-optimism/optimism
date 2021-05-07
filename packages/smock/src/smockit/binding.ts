@@ -192,3 +192,32 @@ export const bindSmock = async (
     Buffer.from('00', 'hex')
   )
 }
+
+/**
+ * Attaches a smocked contract to a hardhat network provider.
+ * @param mock Smocked contract to detach to a provider, or an address.
+ * @param provider Hardhat network provider to detatch the contract from.
+ */
+export const unbindSmock = async (
+  mock: MockContract | string,
+  provider: HardhatNetworkProvider
+): Promise<void> => {
+  if (!isSmockInitialized(provider)) {
+    initializeSmock(provider)
+  }
+
+  const vm: SmockedVM = (provider as any)._node._vm
+  const pStateManager = vm.pStateManager || vm.stateManager
+
+  // Add mock to our list of mocks currently attached to the VM.
+  const address = typeof mock === 'string' ? mock : mock.address.toLowerCase()
+  delete vm._smockState.mocks[address]
+
+  // Set the contract code for our mock to 0x00 == STOP. Need some non-empty contract code because
+  // Solidity will sometimes throw if it's calling something without code (I forget the exact
+  // scenario that causes this throw).
+  await pStateManager.putContractCode(
+    toFancyAddress(address),
+    Buffer.from('', 'hex')
+  )
+}

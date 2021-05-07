@@ -16,7 +16,7 @@ import {
   SmockOptions,
   SmockSpec,
 } from './types'
-import { bindSmock } from './binding'
+import { bindSmock, unbindSmock } from './binding'
 import { makeRandomAddress } from '../utils'
 import { findBaseHardhatProvider } from '../common'
 
@@ -294,4 +294,19 @@ export const smockit = async (
   await bindSmock(contract, provider)
 
   return contract
+}
+
+export const unbind = async (mock: MockContract | string): Promise<void> => {
+  // Only support native hardhat runtime, haven't bothered to figure it out for anything else.
+  if (hre.network.name !== 'hardhat') {
+    throw new Error(
+      `[smock]: smock is only compatible with the "hardhat" network, got: ${hre.network.name}`
+    )
+  }
+
+  // Find the provider object. See comments for `findBaseHardhatProvider`
+  const provider = findBaseHardhatProvider(hre)
+
+  // Unbind the contract.
+  await unbindSmock(mock, provider)
 }

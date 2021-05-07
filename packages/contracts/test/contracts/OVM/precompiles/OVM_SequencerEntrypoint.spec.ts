@@ -3,7 +3,7 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { waffle, ethers } from 'hardhat'
 import { ContractFactory, Wallet, Contract, Signer } from 'ethers'
-import { smockit, MockContract } from '@eth-optimism/smock'
+import { smockit, MockContract, unbind } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
@@ -28,12 +28,9 @@ describe('OVM_SequencerEntrypoint', () => {
 
   let Mock__OVM_ExecutionManager: MockContract
   before(async () => {
-    Mock__OVM_ExecutionManager = await smockit(
-      await ethers.getContractFactory('OVM_ExecutionManager'),
-      {
-        address: predeploys.OVM_ExecutionManagerWrapper,
-      }
-    )
+    Mock__OVM_ExecutionManager = await smockit('OVM_ExecutionManager', {
+      address: predeploys.OVM_ExecutionManagerWrapper,
+    })
 
     Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
     Mock__OVM_ExecutionManager.smocked.ovmCREATEEOA.will.return()
@@ -55,6 +52,9 @@ describe('OVM_SequencerEntrypoint', () => {
     it('should call ovmCREATEEOA when ovmEXTCODESIZE returns 0', async () => {
       const transaction = DEFAULT_EIP155_TX
       const encodedTransaction = await wallet.signTransaction(transaction)
+
+      // Just unbind the smock in case it's there during this test for some reason.
+      await unbind(await wallet.getAddress())
 
       await signer.sendTransaction({
         to: OVM_SequencerEntrypoint.address,
