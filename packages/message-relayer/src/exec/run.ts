@@ -31,8 +31,8 @@ const main = async () => {
   const RELAY_GAS_LIMIT = env.RELAY_GAS_LIMIT || config.uint('relay-gas-limit', 4000000)
   const POLLING_INTERVAL = env.POLLING_INTERVAL || config.uint('polling-interval', 5000)
   const GET_LOGS_INTERVAL = env.GET_LOGS_INTERVAL || config.uint('get-logs-interval', 2000)
-  const L2_BLOCK_OFFSET = env.L2_BLOCK_OFFSET || config.uint('l2-block-offset', 1)
-  const L1_START_OFFSET = env.L1_BLOCK_OFFSET || config.uint('l1-block-offset', 1)
+  const L2_BLOCK_OFFSET = env.L2_BLOCK_OFFSET || config.uint('l2-start-offset', 1)
+  const L1_START_OFFSET = env.L1_BLOCK_OFFSET || config.uint('l1-start-offset', 1)
   const FROM_L2_TRANSACTION_INDEX = env.FROM_L2_TRANSACTION_INDEX || config.uint('from-l2-transaction-index', 0)
 
   // Spreadsheet configuration
