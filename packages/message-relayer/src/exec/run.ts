@@ -22,25 +22,35 @@ const main = async () => {
   })
 
   const env = process.env
-  const L2_NODE_WEB3_URL = env.L2_NODE_WEB3_URL || config.str('l2-node-web3-url')
-  const L1_NODE_WEB3_URL = env.L1_NODE_WEB3_URL || config.str('l1-node-web3-url')
-  const ADDRESS_MANAGER_ADDRESS = env.ADDRESS_MANAGER_ADDRESS || config.str('address-manager-address')
+  const L2_NODE_WEB3_URL =
+    env.L2_NODE_WEB3_URL || config.str('l2-node-web3-url')
+  const L1_NODE_WEB3_URL =
+    env.L1_NODE_WEB3_URL || config.str('l1-node-web3-url')
+  const ADDRESS_MANAGER_ADDRESS =
+    env.ADDRESS_MANAGER_ADDRESS || config.str('address-manager-address')
   const L1_WALLET_KEY = env.L1_WALLET_KEY || config.str('l1-wallet-key')
   const MNEMONIC = env.MNEMONIC || config.str('mnemonic')
   const HD_PATH = env.HD_PATH || config.str('hd-path')
-  const RELAY_GAS_LIMIT = env.RELAY_GAS_LIMIT || config.uint('relay-gas-limit', 4000000)
-  const POLLING_INTERVAL = env.POLLING_INTERVAL || config.uint('polling-interval', 5000)
-  const GET_LOGS_INTERVAL = env.GET_LOGS_INTERVAL || config.uint('get-logs-interval', 2000)
-  const L2_BLOCK_OFFSET = env.L2_BLOCK_OFFSET || config.uint('l2-start-offset', 1)
-  const L1_START_OFFSET = env.L1_BLOCK_OFFSET || config.uint('l1-start-offset', 1)
-  const FROM_L2_TRANSACTION_INDEX = env.FROM_L2_TRANSACTION_INDEX || config.uint('from-l2-transaction-index', 0)
+  const RELAY_GAS_LIMIT =
+    env.RELAY_GAS_LIMIT || config.uint('relay-gas-limit', 4000000)
+  const POLLING_INTERVAL =
+    env.POLLING_INTERVAL || config.uint('polling-interval', 5000)
+  const GET_LOGS_INTERVAL =
+    env.GET_LOGS_INTERVAL || config.uint('get-logs-interval', 2000)
+  const L2_BLOCK_OFFSET =
+    env.L2_BLOCK_OFFSET || config.uint('l2-start-offset', 1)
+  const L1_START_OFFSET =
+    env.L1_BLOCK_OFFSET || config.uint('l1-start-offset', 1)
+  const FROM_L2_TRANSACTION_INDEX =
+    env.FROM_L2_TRANSACTION_INDEX || config.uint('from-l2-transaction-index', 0)
 
   // Spreadsheet configuration
-  const SPREADSHEET_MODE = env.SPREADSHEET_MODE || config.bool('spreadsheet-mode', false)
+  const SPREADSHEET_MODE =
+    env.SPREADSHEET_MODE || config.bool('spreadsheet-mode', false)
   const SHEET_ID = env.SHEET_ID || config.str('sheet-id', '')
   const CLIENT_EMAIL = env.CLIENT_EMAIL || config.str('client-email', '')
-  const CLIENT_PRIVATE_KEY = env.CLIENT_PRIVATE_KEY || config.str('client-private-key', '')
-
+  const CLIENT_PRIVATE_KEY =
+    env.CLIENT_PRIVATE_KEY || config.str('client-private-key', '')
 
   if (!ADDRESS_MANAGER_ADDRESS) {
     throw new Error('Must pass ADDRESS_MANAGER_ADDRESS')
