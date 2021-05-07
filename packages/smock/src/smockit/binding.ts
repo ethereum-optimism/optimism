@@ -63,7 +63,12 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
       return
     }
 
-    const target = fromFancyAddress(message.to)
+    let target: string
+    if (message.delegatecall) {
+      target = fromFancyAddress(message._codeAddress)
+    } else {
+      target = fromFancyAddress(message.to)
+    }
 
     // Check if the target address is a smocked contract.
     if (!(target in vm._smockState.mocks)) {
@@ -103,7 +108,13 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
     // contracts never create new sub-calls (meaning this `afterMessage` event corresponds directly
     // to a `beforeMessage` event emitted during a call to a smock contract).
     const message = vm._smockState.messages.pop()
-    const target = fromFancyAddress(message.to)
+
+    let target: string
+    if (message.delegatecall) {
+      target = fromFancyAddress(message._codeAddress)
+    } else {
+      target = fromFancyAddress(message.to)
+    }
 
     // Not sure if this can ever actually happen? Just being safe.
     if (!(target in vm._smockState.mocks)) {
