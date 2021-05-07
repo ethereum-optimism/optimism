@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.11
+
+### Patch Changes
+
+- 9599b69: Fixed a bug in package json that stopped artifacts from being published
+
 ## 0.2.10
 
 ### Patch Changes
