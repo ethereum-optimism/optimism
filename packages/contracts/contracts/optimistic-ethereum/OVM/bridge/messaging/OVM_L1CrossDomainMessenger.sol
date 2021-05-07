@@ -191,15 +191,15 @@ contract OVM_L1CrossDomainMessenger is
         override
         public
     {
-        // Use the CTC queue length as nonce
         address ovmCanonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
-        uint40 queueLength = iOVM_CanonicalTransactionChain(ovmCanonicalTransactionChain).getQueueLength();
+        // Use the CTC queue length as nonce
+        uint40 nonce = iOVM_CanonicalTransactionChain(ovmCanonicalTransactionChain).getQueueLength();
 
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             msg.sender,
             _message,
-            queueLength
+            nonce
         );
 
         address l2CrossDomainMessenger = resolve("OVM_L2CrossDomainMessenger");
