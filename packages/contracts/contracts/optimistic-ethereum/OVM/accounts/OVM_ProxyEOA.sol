@@ -85,6 +85,7 @@ contract OVM_ProxyEOA {
      */
     function getImplementation()
         public
+        view
         returns (
             address
         )
