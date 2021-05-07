@@ -1,22 +1,16 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers, waffle } from 'hardhat'
-import { ContractFactory, Contract, Wallet, Signer } from 'ethers'
+import { ethers } from 'hardhat'
+import { ContractFactory, Contract, Signer } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
+import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
 import { getContractInterface } from '../../../../src'
-import { toPlainObject } from 'lodash'
 
 describe('OVM_ProxyEOA', () => {
   const eoaDefaultAddr = '0x4200000000000000000000000000000000000003'
-
-  let wallet: Wallet
-  before(async () => {
-    const provider = waffle.provider
-    ;[wallet] = provider.getWallets()
-  })
 
   let signer: Signer
   before(async () => {
@@ -53,15 +47,12 @@ describe('OVM_ProxyEOA', () => {
     // TODO: How do we test this?
     it.skip(`should upgrade the proxy implementation`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
-
       await expect(OVM_ProxyEOA.upgrade(newImpl)).to.not.be.reverted
-
       expect(await OVM_ProxyEOA.getImplementation()).to.equal(newImpl)
     })
 
     it(`should not allow upgrade of the proxy implementation by another account`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
-
       await expect(OVM_ProxyEOA.upgrade(newImpl)).to.be.revertedWith(
         'EOAs can only upgrade their own EOA implementation'
       )
