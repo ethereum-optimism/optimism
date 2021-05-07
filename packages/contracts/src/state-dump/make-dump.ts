@@ -136,6 +136,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_ExecutionManager',
       'OVM_StateManager',
       'OVM_ETH',
+      'OVM_ExecutionManagerWrapper',
     ],
     deployOverrides: {},
     waitForReceipts: false,
@@ -152,6 +153,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_ETH',
     'OVM_ECDSAContractAccount',
     'OVM_ProxyEOA',
+    'OVM_ExecutionManagerWrapper',
   ]
 
   const deploymentResult = await deploy(config)
@@ -174,7 +176,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   for (let i = 0; i < Object.keys(deploymentResult.contracts).length; i++) {
     const name = Object.keys(deploymentResult.contracts)[i]
     const contract = deploymentResult.contracts[name]
-    let code
+    let code: string
     if (ovmCompiled.includes(name)) {
       const ovmDeployedBytecode = getContractDefinition(name, true)
         .deployedBytecode
