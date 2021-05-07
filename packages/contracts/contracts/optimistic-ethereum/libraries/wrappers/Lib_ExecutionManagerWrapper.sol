@@ -169,7 +169,7 @@ library Lib_ExecutionManagerWrapper {
     )
         internal
     {
-        _safeExecutionManagerInteraction(
+        _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmSETCODE(address,bytes)",
                 _address,
@@ -191,7 +191,7 @@ library Lib_ExecutionManagerWrapper {
     )
         internal
     {
-        _safeExecutionManagerInteraction(
+        _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmSETSTORAGE(address,bytes32,bytes32)",
                 _address,

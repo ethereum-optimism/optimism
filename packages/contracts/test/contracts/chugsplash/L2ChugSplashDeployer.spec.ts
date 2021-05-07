@@ -2,11 +2,17 @@ import { expect } from '../../setup'
 
 /* Imports: External */
 import hre from 'hardhat'
-import { ethers, Contract, Signer } from 'ethers'
+import { ethers, Contract, Signer, ContractFactory } from 'ethers'
+import { MockContract, smockit } from '@eth-optimism/smock'
 
 /* Imports: Internal */
-import { ChugSplashActionBundle, getChugSplashActionBundle } from '../../../src'
+import {
+  ChugSplashActionBundle,
+  getChugSplashActionBundle,
+  predeploys,
+} from '../../../src'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
+import { toPlainObject } from 'lodash'
 
 describe('L2ChugSplashDeployer', () => {
   let signer1: Signer
@@ -15,8 +21,26 @@ describe('L2ChugSplashDeployer', () => {
     ;[signer1, signer2] = await hre.ethers.getSigners()
   })
 
-  // tslint:disable-next-line
+  let Mock__OVM_ExecutionManager: MockContract
+  before(async () => {
+    Mock__OVM_ExecutionManager = await smockit('OVM_ExecutionManager', {
+      address: predeploys.OVM_ExecutionManagerWrapper,
+    })
+  })
+
+  let Factory__L2ChugSplashDeployer: ContractFactory
+  before(async () => {
+    Factory__L2ChugSplashDeployer = await hre.ethers.getContractFactory(
+      'L2ChugSplashDeployer'
+    )
+  })
+
   let L2ChugSplashDeployer: Contract
+  beforeEach(async () => {
+    L2ChugSplashDeployer = await Factory__L2ChugSplashDeployer.connect(
+      signer1
+    ).deploy()
+  })
 
   describe('owner', () => {
     it('should have an owner', async () => {
@@ -109,7 +133,7 @@ describe('L2ChugSplashDeployer', () => {
     })
 
     describe('while there is an active upgrade bundle', () => {
-      const bundle: ChugSplashActionBundle = getChugSplashActionBundle([
+      const actions = [
         {
           target: NON_ZERO_ADDRESS,
           code: '0x1234',
@@ -119,7 +143,8 @@ describe('L2ChugSplashDeployer', () => {
           key: `0x${'11'.repeat(32)}`,
           value: `0x${'22'.repeat(32)}`,
         },
-      ])
+      ]
+      const bundle: ChugSplashActionBundle = getChugSplashActionBundle(actions)
 
       beforeEach(async () => {
         await L2ChugSplashDeployer.connect(signer1).approveTransactionBundle(
@@ -163,7 +188,12 @@ describe('L2ChugSplashDeployer', () => {
           )
         ).to.not.be.reverted
 
-        // TODO: CHECK
+        expect(
+          toPlainObject(Mock__OVM_ExecutionManager.smocked.ovmSETCODE.calls[0])
+        ).to.deep.include({
+          _address: actions[0].target,
+          _code: actions[0].code,
+        })
       })
 
       it('should be able to trigger a SETSTORAGE action', async () => {
@@ -174,7 +204,15 @@ describe('L2ChugSplashDeployer', () => {
           )
         ).to.not.be.reverted
 
-        // TODO: CHECK
+        expect(
+          toPlainObject(
+            Mock__OVM_ExecutionManager.smocked.ovmSETSTORAGE.calls[0]
+          )
+        ).to.deep.include({
+          _address: actions[1].target,
+          _key: actions[1].key,
+          _value: actions[1].value,
+        })
       })
 
       it('should revert if trying to execute the same action more than once', async () => {

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_ExecutionManagerWrapper } from "../../optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
-import { Lib_MerkleTree } from "../../optimistic-ethereum/libraries/utils/Lib_MerkleTree.sol";
+import { Lib_ExecutionManagerWrapper } from "../optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+import { Lib_MerkleTree } from "../optimistic-ethereum/libraries/utils/Lib_MerkleTree.sol";
 
 /**
  * @title L2ChugSplashDeployer
@@ -44,9 +43,20 @@ contract L2ChugSplashDeployer {
 
     // Address that can approve new transaction bundles.
     address public owner;
+    uint256 public currentBundleNonce;
     bytes32 public currentBundleHash;
     uint256 public currentBundleSize;
     uint256 public currentBundleTxsExecuted;
+    mapping (uint256 => mapping (uint256 => bool)) internal completedBundleActions;
+
+
+    /***************
+     * Constructor *
+     ***************/
+    
+    constructor() {
+        owner = msg.sender;
+    }
 
 
     /**********************
@@ -115,6 +125,7 @@ contract L2ChugSplashDeployer {
             "ChugSplashDeployer: previous bundle has not yet been fully executed"
         );
 
+        currentBundleNonce += 1;
         currentBundleHash = _bundleHash;
         currentBundleSize = _bundleSize;
         currentBundleTxsExecuted = 0;
@@ -157,17 +168,24 @@ contract L2ChugSplashDeployer {
             "ChugSplashDeployer: there is no active bundle"
         );
 
+        require(
+            completedBundleActions[currentBundleNonce][_proof.actionIndex] == false,
+            "ChugSplashDeployer: action has already been executed"
+        );
+
+        bytes32 actionHash = keccak256(
+            abi.encode(
+                _action.actionType,
+                _action.target,
+                _action.data
+            )
+        );
+
         // Make sure that the owner did actually sign off on this action.
         require(
             Lib_MerkleTree.verify(
                 currentBundleHash,
-                keccak256(
-                    abi.encode(
-                        _action.actionType,
-                        _action.target,
-                        _action.data
-                    )
-                ),
+                actionHash,
                 _proof.actionIndex,
                 _proof.siblings,
                 currentBundleSize
@@ -196,6 +214,9 @@ contract L2ChugSplashDeployer {
                 value
             );
         }
+
+        // Mark the action as complete.
+        completedBundleActions[currentBundleNonce][_proof.actionIndex] = true;
 
         currentBundleTxsExecuted++;
         if (currentBundleSize == currentBundleTxsExecuted) {
