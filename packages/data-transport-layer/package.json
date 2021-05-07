@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "main": "dist/index",
   "files": [
@@ -19,9 +19,9 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "^0.1.0",
-    "@eth-optimism/contracts": "^0.2.9",
-    "@eth-optimism/core-utils": "^0.4.0",
+    "@eth-optimism/common-ts": "^0.1.1",
+    "@eth-optimism/contracts": "^0.2.10",
+    "@eth-optimism/core-utils": "^0.4.1",
     "@ethersproject/providers": "^5.0.21",
     "@sentry/node": "^6.3.1",
     "@sentry/tracing": "^6.3.1",
@@ -48,8 +48,10 @@
     "@types/node-fetch": "^2.5.8",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
+    "hardhat": "^2.2.1",
     "mocha": "^8.3.2",
     "pino-pretty": "^4.7.1",
+    "prettier": "^2.2.1",
     "rimraf": "^3.0.2",
     "ts-node": "^9.1.1",
     "tslint": "^6.1.3",

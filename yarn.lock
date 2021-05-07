@@ -9409,9 +9409,9 @@ mixin-deep@^1.2.0:
     is-extendable "^1.0.1"
 
 mixme@^0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/mixme/-/mixme-0.5.0.tgz#7a7ebbb51251724b18054c63c91f5487c0b030ab"
-  integrity sha512-YyyBIzqe6EEi5xcnN66LXVVvwijMF51liPT9ZqsrHim9s2MgEg4jxI8gsSF6R7pzAotjvBiERC90bbnwAqiDHg==
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/mixme/-/mixme-0.5.1.tgz#b3da79a563b2da46efba9519830059e4c2a9e40f"
+  integrity sha512-NaeZIckeBFT7i0XBEpGyFcAE0/bLcQ9MHErTpnU3bLWVE5WZbxG5Y3fDsMxYGifTo5khDA42OquXCC2ngKJB+g==
 
 mkdirp-classic@^0.5.2, mkdirp-classic@^0.5.3:
   version "0.5.3"
@@ -10800,15 +10800,15 @@ prepend-http@^2.0.0:
   resolved "https://registry.yarnpkg.com/prepend-http/-/prepend-http-2.0.0.tgz#e92434bfa5ea8c19f41cdfd401d741a3c819d897"
   integrity sha1-6SQ0v6XqjBn0HN/UAddBo8gZ2Jc=
 
-prettier@2.2.1, prettier@^2.1.2, prettier@^2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.2.1.tgz#795a1a78dd52f073da0cd42b21f9c91381923ff5"
-  integrity sha512-PqyhM2yCjg/oKkFPtTGUojv7gnZAoG80ttl45O6x2Ug/rMJw4wcc9k6aaf2hibP7BGVCCM33gZoGjyvt9mm16Q==
-
-prettier@^1.14.2, prettier@^1.16.4, prettier@^1.19.1:
+prettier@^1.14.2, prettier@^1.19.1:
   version "1.19.1"
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.19.1.tgz#f7d7f5ff8a9cd872a7be4ca142095956a60797cb"
   integrity sha512-s7PoyDv/II1ObgQunCbB9PdLmUcBZcnWOcxDh7O0N/UwDEsHyqkW+Qh28jW+mVuCdx7gLB0BotYI1Y6uI9iyew==
+
+prettier@^2.1.2, prettier@^2.2.1:
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.2.1.tgz#795a1a78dd52f073da0cd42b21f9c91381923ff5"
+  integrity sha512-PqyhM2yCjg/oKkFPtTGUojv7gnZAoG80ttl45O6x2Ug/rMJw4wcc9k6aaf2hibP7BGVCCM33gZoGjyvt9mm16Q==
 
 printj@~1.1.0:
   version "1.1.2"

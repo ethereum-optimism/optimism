@@ -5,7 +5,7 @@
   "private": true,
   "devDependencies": {
     "@types/prettier": "2.2.1",
-    "prettier": "2.2.1"
+    "prettier": "^2.2.1"
   },
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
