@@ -251,5 +251,12 @@ export const makeContractDeployConfig = async (
     OVM_ProxyEOA: {
       factory: getContractFactory('OVM_ProxyEOA', undefined, true),
     },
+    OVM_ExecutionManagerWrapper: {
+      factory: getContractFactory(
+        'OVM_ExecutionManagerWrapper',
+        undefined,
+        true
+      ),
+    },
   }
 }
