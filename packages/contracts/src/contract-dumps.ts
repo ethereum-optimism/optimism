@@ -1,10 +1,9 @@
 /* External Imports */
 import * as path from 'path'
-import hre from 'hardhat'
-import { ethers } from 'ethers'
 import { keccak256 } from 'ethers/lib/utils'
 import { fromHexString, toHexString, remove0x } from '@eth-optimism/core-utils'
 import { findBaseHardhatProvider } from '@eth-optimism/smock/dist/src/common'
+import { HardhatRuntimeEnvironment } from 'hardhat/types'
 
 /* Internal Imports */
 import { deploy, RollupDeployConfig } from './contract-deployment'
@@ -81,7 +80,10 @@ const sanitizeStorageDump = (
   return storageDump
 }
 
-export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
+export const makeStateDump = async (
+  hre: HardhatRuntimeEnvironment,
+  cfg: RollupDeployConfig
+): Promise<any> => {
   const [signer] = await (hre as any).ethers.getSigners()
 
   let config: RollupDeployConfig = {

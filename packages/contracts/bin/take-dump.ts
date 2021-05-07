@@ -2,6 +2,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as mkdirp from 'mkdirp'
+import hre from 'hardhat'
 
 const env = process.env
 const CHAIN_ID = env.CHAIN_ID || '420'
@@ -20,6 +21,6 @@ import { RollupDeployConfig } from '../src/contract-deployment'
     },
   }
 
-  const dump = await makeStateDump(config as RollupDeployConfig)
+  const dump = await makeStateDump(hre, config as RollupDeployConfig)
   fs.writeFileSync(outfile, JSON.stringify(dump, null, 4))
 })()
