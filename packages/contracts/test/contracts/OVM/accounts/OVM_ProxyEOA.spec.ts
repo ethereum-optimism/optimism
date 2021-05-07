@@ -7,24 +7,23 @@ import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
-import { getContractInterface } from '../../../../src'
+import { getContractInterface, predeploys } from '../../../../src'
 
 describe('OVM_ProxyEOA', () => {
-  const eoaDefaultAddr = '0x4200000000000000000000000000000000000003'
-
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
   })
 
+  let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_ECDSAContractAccount: MockContract
   before(async () => {
-    Mock__OVM_ECDSAContractAccount = await smockit(
-      getContractInterface('OVM_ECDSAContractAccount'),
-      {
-        address: eoaDefaultAddr,
-      }
-    )
+    Mock__OVM_ExecutionManager = await smockit('OVM_ExecutionManager', {
+      address: predeploys.OVM_ExecutionManagerWrapper,
+    })
+    Mock__OVM_ECDSAContractAccount = await smockit('OVM_ECDSAContractAccount', {
+      address: predeploys.OVM_ECDSAContractAccount,
+    })
   })
 
   let Factory__OVM_ProxyEOA: ContractFactory
@@ -39,20 +38,27 @@ describe('OVM_ProxyEOA', () => {
 
   describe('getImplementation()', () => {
     it(`should be created with implementation at predeploy address`, async () => {
-      expect(await OVM_ProxyEOA.getImplementation()).to.equal(eoaDefaultAddr)
+      expect(await OVM_ProxyEOA.getImplementation()).to.equal(
+        predeploys.OVM_ECDSAContractAccount
+      )
     })
   })
 
   describe('upgrade()', () => {
-    // TODO: How do we test this?
-    it.skip(`should upgrade the proxy implementation`, async () => {
+    it(`should upgrade the proxy implementation`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
+      Mock__OVM_ExecutionManager.smocked.ovmADDRESS.will.return.with(
+        await signer.getAddress()
+      )
       await expect(OVM_ProxyEOA.upgrade(newImpl)).to.not.be.reverted
       expect(await OVM_ProxyEOA.getImplementation()).to.equal(newImpl)
     })
 
     it(`should not allow upgrade of the proxy implementation by another account`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
+      Mock__OVM_ExecutionManager.smocked.ovmADDRESS.will.return.with(
+        ethers.constants.AddressZero
+      )
       await expect(OVM_ProxyEOA.upgrade(newImpl)).to.be.revertedWith(
         'EOAs can only upgrade their own EOA implementation'
       )

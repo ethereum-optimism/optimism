@@ -136,6 +136,25 @@ library Lib_ExecutionManagerWrapper {
         return abi.decode(returndata, (uint256));
     }
 
+    /**
+     * Performs a safe ovmADDRESS call.
+     * @return Result of calling ovmADDRESS.
+     */
+    function ovmADDRESS()
+        internal
+        returns (
+            address
+        )
+    {
+        bytes memory returndata = _callWrapperContract(
+            abi.encodeWithSignature(
+                "ovmADDRESS()"
+            )
+        );
+
+        return abi.decode(returndata, (address));
+    }
+
 
     /*********************
      * Private Functions *

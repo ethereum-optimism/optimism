@@ -8,7 +8,7 @@ import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
 import { DEFAULT_EIP155_TX } from '../../../helpers'
-import { getContractInterface } from '../../../../src'
+import { getContractInterface, predeploys } from '../../../../src'
 
 describe('OVM_SequencerEntrypoint', () => {
   const iOVM_ECDSAContractAccount = getContractInterface(
@@ -31,7 +31,7 @@ describe('OVM_SequencerEntrypoint', () => {
     Mock__OVM_ExecutionManager = await smockit(
       await ethers.getContractFactory('OVM_ExecutionManager'),
       {
-        address: '0x420000000000000000000000000000000000000B',
+        address: predeploys.OVM_ExecutionManagerWrapper,
       }
     )
 

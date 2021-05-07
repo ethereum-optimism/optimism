@@ -3,6 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
+import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 
 /**
  * @title OVM_ProxyEOA
@@ -71,7 +72,7 @@ contract OVM_ProxyEOA {
         external
     {
         require(
-            msg.sender == address(this),
+            msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
             "EOAs can only upgrade their own EOA implementation"
         );
 
