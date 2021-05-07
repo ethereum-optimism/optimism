@@ -6,6 +6,9 @@ import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
 
 /**
  * @title Lib_ExecutionManagerWrapper
+ * @dev This library acts as a utility for easily calling the OVM_ExecutionManagerWrapper, the
+ *  predeployed contract which exposes the `kall` builtin. Effectively, this contract allows the
+ *  user to trigger OVM opcodes by directly calling the OVM_ExecutionManger.
  *
  * Compiler used: solc
  * Runtime target: OVM
