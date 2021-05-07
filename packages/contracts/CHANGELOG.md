@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.10
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- 6dc1877: Heavily reduces npm package size by excluding unnecessary files.
+- Updated dependencies [1d40586]
+- Updated dependencies [ce7fa52]
+  - @eth-optimism/core-utils@0.4.1
+
 ## 0.2.9
 
 ### Patch Changes

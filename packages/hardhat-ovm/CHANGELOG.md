@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-ovm
 
+## 0.1.2
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+
 ## 0.1.1
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.5
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- Updated dependencies [1d40586]
+- Updated dependencies [ce7fa52]
+- Updated dependencies [575bcf6]
+- Updated dependencies [6dc1877]
+  - @eth-optimism/common-ts@0.1.1
+  - @eth-optimism/contracts@0.2.10
+  - @eth-optimism/core-utils@0.4.1
+
 ## 0.2.4
 
 ### Patch Changes
