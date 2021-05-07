@@ -12,6 +12,11 @@ import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
  * Runtime target: OVM
  */
 contract OVM_ExecutionManagerWrapper {
+
+    /*********************
+     * Fallback Function *
+     *********************/
+
     fallback()
         external
     {
@@ -25,6 +30,9 @@ contract OVM_ExecutionManagerWrapper {
             mstore(0x40, add(returndata, and(add(add(size, 0x20), 0x1f), not(0x1f))))
             mstore(returndata, size)
             returndatacopy(add(returndata, 0x20), 0x0, size)
+
+            // kall automatically reverts if the underlying call fails, so we only need to handle
+            // the success case.
             return(add(returndata, 0x20), mload(returndata))
         }
     }
