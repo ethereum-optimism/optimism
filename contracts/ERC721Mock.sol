@@ -23,6 +23,10 @@ contract ERC721Mock is ERC721 {
         return tID;
     }
 
+    //function balanceOf(address owner) public view override returns (uint256) {
+    //    return _balanceOf(owner);
+    //}
+
     function getLastTID() public view returns(uint256) {
         return tID;
     }
@@ -39,6 +43,7 @@ contract ERC721Mock is ERC721 {
         _setTokenURI(tokenId, _tokenURI);
     }
 
+    //for a specific tokenId, get the associated NFT
     function getTokenURI(uint256 tokenId) public view returns (string memory) {
         return tokenURI(tokenId);
     }

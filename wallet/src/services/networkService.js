@@ -38,6 +38,7 @@ import L2LPJson from '../deployment/artifacts-ovm/contracts/L2LiquidityPool.sol/
 import L1ERC20Json from '../deployment/artifacts/contracts/ERC20.sol/ERC20.json'
 import L2DepositedERC20Json from '../deployment/artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
 import L1ERC20GatewayJson from '../deployment/artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
+import L2ERC721Json from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
 
 import { powAmount, logAmount } from 'util/amountConvert';
 import { getAllNetworks } from 'util/networkName';
@@ -81,6 +82,8 @@ class NetworkService {
     this.ERC20L1Contract = null;
     this.ERC20L2Contract = null;
 
+    this.ERC721Contract = null;
+
     // L1 or L2
     this.L1orL2 = null;
     this.networkName = null;
@@ -91,6 +94,7 @@ class NetworkService {
     // addresses
 
     this.ERC20Address = null;
+    this.ERC721Address = null;
     this.l1ETHGatewayAddress = null;
     this.L1ERC20GatewayAddress = null;
     this.L2DepositedERC20Address = null;
@@ -196,6 +200,7 @@ class NetworkService {
       this.l1MessengerAddress = addresses.l1MessengerAddress;
       this.L1LPAddress = addresses.L1LiquidityPool;
       this.L2LPAddress = addresses.L2LiquidityPool;
+      this.ERC721Address = addresses.L2ERC721;
 
       this.L1ETHGatewayContract = new ethers.Contract(
         this.l1ETHGatewayAddress, 
@@ -245,6 +250,12 @@ class NetworkService {
         this.web3Provider.getSigner(),
       );
 
+      this.ERC721Contract = new ethers.Contract(
+        this.ERC721Address,
+        L2ERC721Json.abi,
+        this.web3Provider.getSigner(),
+      );
+
       //Fire up the new watcher
       //const addressManager = getAddressManager(bobl1Wallet)
       //const watcher = await initWatcher(l1Provider, this.l2Provider, addressManager)
@@ -290,6 +301,14 @@ class NetworkService {
       const childChainBalance = await this.l2Provider.getBalance(this.account);
       const ERC20L2Balance = await this.ERC20L2Contract.methods.balanceOf(this.account).call({from: this.account});
 
+      //const ERC721L2Balance = 0; //await this.ERC721Contract.balanceOf(this.account);
+
+      const ERC721L2Balance = await this.ERC721Contract.balanceOf(this.account);
+
+      console.log("ERC721L2Balance",ERC721L2Balance)
+      console.log("this.account",this.account)
+      console.log(this.ERC721Contract);
+
       const ethToken = await getToken(OmgUtil.transaction.ETH_CURRENCY);
       let testToken = null;
       
@@ -298,6 +317,14 @@ class NetworkService {
         testToken = await getToken(this.ERC20Address);
       } else {
         testToken = await getToken(this.L2DepositedERC20Address);
+      }
+      
+      const nftInfo = {
+        currency: this.ERC721Address,
+        symbol: "BBE (NFT)",
+        decimals: 0,
+        name: "BioEcon",
+        redalert: false
       }
 
       const rootchainEthBalance = [
@@ -323,6 +350,11 @@ class NetworkService {
           ...testToken,
           currency: this.L2DepositedERC20Address,
           amount: new BN(ERC20L2Balance.toString()),
+        },
+        {
+          ...nftInfo,
+          currency: this.ERC721Address,
+          amount: new BN(ERC721L2Balance.toString()),
         },
       ]
 
