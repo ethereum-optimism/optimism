@@ -39,7 +39,9 @@ describe('L2ChugSplashDeployer', () => {
   beforeEach(async () => {
     L2ChugSplashDeployer = await Factory__L2ChugSplashDeployer.connect(
       signer1
-    ).deploy()
+    ).deploy(
+      await signer1.getAddress() // _owner
+    )
   })
 
   describe('owner', () => {

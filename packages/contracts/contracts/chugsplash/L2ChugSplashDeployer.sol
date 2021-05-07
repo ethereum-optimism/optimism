@@ -54,8 +54,13 @@ contract L2ChugSplashDeployer {
      * Constructor *
      ***************/
     
-    constructor() {
-        owner = msg.sender;
+    /**
+     * @param _owner Address that will initially own the L2ChugSplashDeployer.
+     */
+    constructor(
+        address _owner
+    ) {
+        owner = _owner;
     }
 
 
