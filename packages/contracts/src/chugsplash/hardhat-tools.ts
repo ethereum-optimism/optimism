@@ -20,7 +20,9 @@ import {
 export const makeActionBundleFromConfig = async (
   hre: HardhatRuntimeEnvironment,
   config: ChugSplashConfig,
-  env: any = {}
+  env: {
+    [key: string]: string | number | boolean
+  } = {}
 ): Promise<ChugSplashActionBundle> => {
   // Parse the config to replace any template variables.
   const parsed = parseChugSplashConfig(config, env)

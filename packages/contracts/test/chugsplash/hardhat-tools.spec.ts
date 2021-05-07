@@ -15,7 +15,7 @@ import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../helpers'
 
 describe('ChugSplash hardhat tooling', () => {
   describe('makeActionBundleFromConfig', () => {
-    it('shoulld make a bundle from config with one contract and no variables', async () => {
+    it('should make a bundle from config with one contract and no variables', async () => {
       const bundle = await makeActionBundleFromConfig(hre, {
         contracts: {
           MyContract: {
