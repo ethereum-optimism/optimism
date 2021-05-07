@@ -194,7 +194,7 @@ export const bindSmock = async (
 }
 
 /**
- * Attaches a smocked contract to a hardhat network provider.
+ * Detaches a smocked contract from a hardhat network provider.
  * @param mock Smocked contract to detach to a provider, or an address.
  * @param provider Hardhat network provider to detatch the contract from.
  */
