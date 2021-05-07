@@ -496,11 +496,19 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         }
       )
 
+      this.logger.info('Relay message transaction sent', {
+        transactionHash: result,
+      })
+
       try {
         const receipt = await result.wait()
 
-        this.logger.info('Relay message transaction sent', {
+        this.logger.info('Relay message included in block', {
           transactionHash: receipt.transactionHash,
+          blockNumber: receipt.blockNumber,
+          gasUsed: receipt.gasUsed.toString(),
+          confirmations: receipt.confirmations,
+          status: receipt.status,
         })
       } catch (err) {
         this.logger.error('Real relay attempt failed, skipping.', { err })
