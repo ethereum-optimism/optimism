@@ -296,6 +296,10 @@ export const smockit = async (
   return contract
 }
 
+/**
+ * Unbinds a mock contract (meaning the contract will no longer behave as a mock).
+ * @param mock Mock contract or address to unbind.
+ */
 export const unbind = async (mock: MockContract | string): Promise<void> => {
   // Only support native hardhat runtime, haven't bothered to figure it out for anything else.
   if (hre.network.name !== 'hardhat') {
