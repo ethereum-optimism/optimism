@@ -78,7 +78,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   }
 
   protected async _init(): Promise<void> {
-    this.logger.info('Initializing message relayer', { options: this.options })
+    this.logger.info('Initializing message relayer')
     // Need to improve this, sorry.
     this.state = {} as any
 
