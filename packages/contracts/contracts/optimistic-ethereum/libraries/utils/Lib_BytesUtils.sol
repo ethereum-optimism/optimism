@@ -93,7 +93,7 @@ library Lib_BytesUtils {
             bytes memory
         )
     {
-        if (_bytes.length - _start == 0) {
+        if (_start >= _bytes.length) {
             return bytes('');
         }
 
