@@ -1,5 +1,22 @@
 # @eth-optimism/smock
 
+## 1.1.3
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- Updated dependencies [1d40586]
+- Updated dependencies [ce7fa52]
+  - @eth-optimism/core-utils@0.4.1
+
+## 1.1.2
+
+### Patch Changes
+
+- Updated dependencies [28dc442]
+- Updated dependencies [a0a0052]
+  - @eth-optimism/core-utils@0.4.0
+
 ## 1.1.1
 
 ### Patch Changes
