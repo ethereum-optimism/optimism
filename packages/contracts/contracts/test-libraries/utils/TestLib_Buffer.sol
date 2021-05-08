@@ -3,15 +3,15 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_RingBuffer } from "../../optimistic-ethereum/libraries/utils/Lib_RingBuffer.sol";
+import { Lib_Buffer } from "../../optimistic-ethereum/libraries/utils/Lib_Buffer.sol";
 
 /**
- * @title TestLib_RingBuffer
+ * @title TestLib_Buffer
  */
-contract TestLib_RingBuffer {
-    using Lib_RingBuffer for Lib_RingBuffer.RingBuffer;
+contract TestLib_Buffer {
+    using Lib_Buffer for Lib_Buffer.Buffer;
 
-    Lib_RingBuffer.RingBuffer internal buf;
+    Lib_Buffer.Buffer internal buf;
 
     function push(
         bytes32 _value,
