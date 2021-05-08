@@ -14,8 +14,9 @@ contract Lib_AddressManager is Ownable {
      **********/
 
     event AddressSet(
-        string _name,
-        address _newAddress
+        string indexed _name,
+        address _newAddress,
+        address _oldAddress
     );
 
 
@@ -42,11 +43,13 @@ contract Lib_AddressManager is Ownable {
         public
         onlyOwner
     {
+        address oldAddress = addresses[_getNameHash(_name)];
         addresses[_getNameHash(_name)] = _address;
 
         emit AddressSet(
             _name,
-            _address
+            _address,
+            oldAddress
         );
     }
 
