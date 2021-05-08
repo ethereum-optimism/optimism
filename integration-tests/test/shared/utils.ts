@@ -18,12 +18,17 @@ import { cleanEnv, str, num } from 'envalid'
 export const GWEI = BigNumber.from(1e9)
 
 const env = cleanEnv(process.env, {
-  L1_URL:            str({ default: "http://localhost:9545" }),
-  L2_URL:            str({ default: "http://localhost:8545" }),
+  L1_URL: str({ default: 'http://localhost:9545' }),
+  L2_URL: str({ default: 'http://localhost:8545' }),
   L1_POLLING_INTERVAL: num({ default: 10 }),
   L2_POLLING_INTERVAL: num({ default: 10 }),
-  PRIVATE_KEY:         str({ default: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' }),
-  ADDRESS_MANAGER: str({ default: '0x5FbDB2315678afecb367f032d93F642f64180aa3' })
+  PRIVATE_KEY: str({
+    default:
+      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+  }),
+  ADDRESS_MANAGER: str({
+    default: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+  }),
 })
 
 // The hardhat instance

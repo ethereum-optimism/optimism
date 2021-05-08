@@ -174,8 +174,8 @@ describe('Basic RPC tests', () => {
       // 96 bytes * 16 per non zero byte
       const onesCost = BigNumber.from(96).mul(16)
       const expectedCost = dataLen
-        .map(len => BigNumber.from(len).mul(4))
-        .map(zerosCost => zerosCost.add(onesCost))
+        .map((len) => BigNumber.from(len).mul(4))
+        .map((zerosCost) => zerosCost.add(onesCost))
 
       // Repeat this test for a series of possible transaction sizes.
       for (let i = 0; i < dataLen.length; i++) {
