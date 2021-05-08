@@ -180,6 +180,7 @@ export const run = async () => {
     throw new Error('Must pass one of PROPOSER_PRIVATE_KEY, MNEMONIC, or PROPOSER_MNEMONIC')
   }
 
+
   const sequencerAddress = await sequencerSigner.getAddress()
   const proposerAddress = await proposerSigner.getAddress()
   const address = await sequencerSigner.getAddress()
@@ -188,6 +189,11 @@ export const run = async () => {
     proposerAddress,
     addressManagerAddress: requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
   })
+
+  // If the sequencer & proposer are the same, use a single wallet
+  if (sequencerAddress === proposerAddress) {
+    proposerSigner = sequencerSigner
+  }
 
   const txBatchSubmitter = new TransactionBatchSubmitter(
     sequencerSigner,
