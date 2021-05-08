@@ -122,7 +122,8 @@ const GAS_THRESHOLD_IN_GWEI = parseInt(env.GAS_THRESHOLD_IN_GWEI, 10) || 100
 
 // Private keys & mnemonics
 const SEQUENCER_PRIVATE_KEY = env.SEQUENCER_PRIVATE_KEY
-const PROPOSER_PRIVATE_KEY = env.PROPOSER_PRIVATE_KEY || env.SEQUENCER_PRIVATE_KEY // Kept for backwards compatibility
+const PROPOSER_PRIVATE_KEY =
+  env.PROPOSER_PRIVATE_KEY || env.SEQUENCER_PRIVATE_KEY // Kept for backwards compatibility
 const SEQUENCER_MNEMONIC = env.SEQUENCER_MNEMONIC || env.MNEMONIC
 const PROPOSER_MNEMONIC = env.PROPOSER_MNEMONIC || env.MNEMONIC
 const SEQUENCER_HD_PATH = env.SEQUENCER_HD_PATH || env.HD_PATH
@@ -166,18 +167,27 @@ export const run = async () => {
   if (SEQUENCER_PRIVATE_KEY) {
     sequencerSigner = new Wallet(SEQUENCER_PRIVATE_KEY, l1Provider)
   } else if (SEQUENCER_MNEMONIC) {
-    sequencerSigner = Wallet.fromMnemonic(SEQUENCER_MNEMONIC, SEQUENCER_HD_PATH).connect(l1Provider)
+    sequencerSigner = Wallet.fromMnemonic(
+      SEQUENCER_MNEMONIC,
+      SEQUENCER_HD_PATH
+    ).connect(l1Provider)
   } else {
-    throw new Error('Must pass one of SEQUENCER_PRIVATE_KEY, MNEMONIC, or SEQUENCER_MNEMONIC')
+    throw new Error(
+      'Must pass one of SEQUENCER_PRIVATE_KEY, MNEMONIC, or SEQUENCER_MNEMONIC'
+    )
   }
   if (PROPOSER_PRIVATE_KEY) {
     proposerSigner = new Wallet(PROPOSER_PRIVATE_KEY, l1Provider)
   } else if (PROPOSER_MNEMONIC) {
-    proposerSigner = Wallet.fromMnemonic(PROPOSER_MNEMONIC, PROPOSER_HD_PATH).connect(l1Provider)
+    proposerSigner = Wallet.fromMnemonic(
+      PROPOSER_MNEMONIC,
+      PROPOSER_HD_PATH
+    ).connect(l1Provider)
   } else {
-    throw new Error('Must pass one of PROPOSER_PRIVATE_KEY, MNEMONIC, or PROPOSER_MNEMONIC')
+    throw new Error(
+      'Must pass one of PROPOSER_PRIVATE_KEY, MNEMONIC, or PROPOSER_MNEMONIC'
+    )
   }
-
 
   const sequencerAddress = await sequencerSigner.getAddress()
   const proposerAddress = await proposerSigner.getAddress()
