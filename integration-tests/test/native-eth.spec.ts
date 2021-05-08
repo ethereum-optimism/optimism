@@ -59,7 +59,7 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit("0xFFFF", { value: depositAmount }),
+      env.gateway.deposit('0xFFFF', 0, { value: depositAmount }),
       Direction.L1ToL2
     )
 
@@ -81,7 +81,7 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const depositReceipts = await env.waitForXDomainTransaction(
-      env.gateway.depositTo(l2Bob.address, "0xFFFF", {
+      env.gateway.depositTo(l2Bob.address, '0xFFFF', 0, {
         value: depositAmount,
       }),
       Direction.L1ToL2
@@ -111,7 +111,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdraw(withdrawAmount, "0xFFFF"),
+      env.ovmEth.withdraw(withdrawAmount, '0xFFFF', 0),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -140,7 +140,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount, "0xFFFF"),
+      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount, '0xFFFF', 0),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -162,7 +162,7 @@ describe('Native ETH Integration Tests', async () => {
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(
-      env.gateway.deposit("0xFFFF", {
+      env.gateway.deposit('0xFFFF', 0, {
         value: amount,
       }),
       Direction.L1ToL2
@@ -180,7 +180,7 @@ describe('Native ETH Integration Tests', async () => {
     // 3. do withdrawal
     const withdrawnAmount = utils.parseEther('0.95')
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.connect(other).withdraw(withdrawnAmount, "0xFFFF"),
+      env.ovmEth.connect(other).withdraw(withdrawnAmount, '0xFFFF', 0),
       Direction.L2ToL1
     )
 

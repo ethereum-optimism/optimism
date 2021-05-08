@@ -30,14 +30,16 @@ interface iOVM_L1ETHGateway {
      ********************/
 
     function deposit(
-        bytes calldata _data
+        bytes calldata _data,
+        uint32 _l2Gas
     )
         external
         payable;
 
     function depositTo(
         address _to,
-        bytes calldata _data
+        bytes calldata _data,
+        uint32 _l2Gas
     )
         external
         payable;
@@ -51,7 +53,6 @@ interface iOVM_L1ETHGateway {
         address _to,
         uint _amount,
         bytes calldata _data
-
     )
         external;
 

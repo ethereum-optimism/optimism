@@ -21,11 +21,11 @@ import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManag
  */
 contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_AddressResolver {
 
-    /********************
-     * Public Constants *
-     ********************/
+    /*************
+     * Constants *
+     ************/
 
-    uint32 constant public override getFinalizeDepositL2Gas = 1_200_000;
+    uint32 constant ETH_FINALIZE_L2_GAS = 1_200_000;
 
     /********************************
      * External Contract References *
@@ -41,7 +41,6 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     constructor()
         OVM_CrossDomainEnabled(address(0))
         Lib_AddressResolver(address(0))
-        public
     {}
 
     /******************
@@ -70,44 +69,57 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
 
     /**
      * @dev This function can be called with no data
-     * to deposit an amount of ETH to the caller's balance on L2
+     * to deposit an amount of ETH to the caller's balance on L2.
      */
     receive()
         external
         payable
     {
-        _initiateDeposit(msg.sender, msg.sender, bytes(""));
+        _initiateDeposit(msg.sender, msg.sender, bytes(""), 0);
     }
 
     /**
-     * @dev deposit an amount of the ETH to the caller's balance on L2
+     * @dev Deposit an amount of the ETH to the caller's balance on L2.
      * @param _data Data to forward to L2.
+     * @param _l2Gas Gas limit for the provided message.
      */
     function deposit(
-        // @flag: How does adding this data affect the cost of finalizing on the other side?
-        bytes calldata _data
+        bytes calldata _data,
+        uint32 _l2Gas
     )
         external
         override
         payable
     {
-        _initiateDeposit(msg.sender, msg.sender, _data);
+        _initiateDeposit(
+            msg.sender,
+            msg.sender,
+            _data,
+            _l2Gas
+        );
     }
 
     /**
-     * @dev deposit an amount of ETH to a recipients's balance on L2
-     * @param _to L2 address to credit the withdrawal to
+     * @dev Deposit an amount of ETH to a recipient's balance on L2.
+     * @param _to L2 address to credit the withdrawal to.
      * @param _data Data to forward to L2.
+     * @param _l2Gas Gas limit for the provided message.
      */
     function depositTo(
         address _to,
-        bytes calldata _data
+        bytes calldata _data,
+        uint32 _l2Gas
     )
         external
         override
         payable
     {
-        _initiateDeposit(msg.sender, _to, _data);
+        _initiateDeposit(
+            msg.sender,
+            _to,
+            _data,
+            _l2Gas
+        );
     }
 
     /**
@@ -115,11 +127,14 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      *
      * @param _from Account to pull the deposit from on L1
      * @param _to Account to give the deposit to on L2
+     * @param _data Data to forward to L2.
+     * @param _l2Gas Gas limit for the provided message.
      */
     function _initiateDeposit(
         address _from,
         address _to,
-        bytes memory _data
+        bytes memory _data,
+        uint32 _l2Gas
     )
         internal
     {
@@ -133,11 +148,16 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
                 _data
             );
 
+        // Prevent tokens stranded on other side by taking
+        // the max of the user provided gas and DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS
+        uint32 defaultGas = getFinalizeDepositL2Gas();
+        uint32 l2Gas = _l2Gas > defaultGas ? _l2Gas : defaultGas;
+
         // Send calldata into L2
         sendCrossDomainMessage(
             ovmEth,
             message,
-            getFinalizeDepositL2Gas
+            l2Gas
         );
 
         emit DepositInitiated(_from, _to, msg.value, _data);
@@ -152,8 +172,10 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * L1 ETH token.
      * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized.
      *
-     * @param _to L1 address to credit the withdrawal to
-     * @param _amount Amount of the ETH to withdraw
+     * @param _from L2 address initiating the transfer.
+     * @param _to L1 address to credit the withdrawal to.
+     * @param _amount Amount of the ERC20 to deposit.
+     * @param _data Data provided by the sender on L2.
      */
     function finalizeWithdrawal(
         address _from,
@@ -168,6 +190,20 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         _safeTransferETH(_to, _amount);
 
         emit WithdrawalFinalized(_from, _to, _amount, _data);
+    }
+
+    /**
+     * @dev Getter for the L2 gas limit.
+     */
+    function getFinalizeDepositL2Gas()
+        public
+        pure
+        override
+        returns(
+            uint32
+        )
+    {
+        return ETH_FINALIZE_L2_GAS;
     }
 
     /**********************************

@@ -53,7 +53,7 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      ********************************/
 
     // Default gas value which can be overridden if more complex logic runs on L2.
-    uint32 internal constant DEFAULT_FINALIZE_DEPOSIT_L2_GAS = 1200000;
+    uint32 internal constant DEFAULT_FINALIZE_DEPOSIT_L2_GAS = 1_200_000;
 
     /**
      * @dev Core logic to be performed when a withdrawal is finalized on L1.
@@ -94,11 +94,11 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     /**
      * @dev Overridable getter for the L2 gas limit, in the case it may be
      * dynamic, and the above public constant does not suffice.
-     *
      */
     function getFinalizeDepositL2Gas()
         public
         pure
+        override
         virtual
         returns(
             uint32
@@ -114,33 +114,39 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     /**
      * @dev deposit an amount of the ERC20 to the caller's balance on L2
      * @param _amount Amount of the ERC20 to deposit
+     * @param _data Data to forward to L2.
+     * @param _l2Gas Gas limit for the provided message.
      */
     function deposit(
         uint _amount,
-        bytes calldata _data
+        bytes calldata _data,
+        uint32 _l2Gas
     )
         external
         override
         virtual
     {
-        _initiateDeposit(msg.sender, msg.sender, _amount, _data);
+        _initiateDeposit(msg.sender, msg.sender, _amount, _data, _l2Gas);
     }
 
     /**
-     * @dev deposit an amount of ERC20 to a recipients's balance on L2
-     * @param _to L2 address to credit the withdrawal to
-     * @param _amount Amount of the ERC20 to deposit
+     * @dev deposit an amount of ERC20 to a recipient's balance on L2
+     * @param _to L2 address to credit the withdrawal to.
+     * @param _amount Amount of the ERC20 to deposit.
+     * @param _data Data to forward to L2.
+     * @param _l2Gas Gas limit for the provided message.
      */
     function depositTo(
         address _to,
         uint _amount,
-        bytes calldata _data
+        bytes calldata _data,
+        uint32 _l2Gas
     )
         external
         override
         virtual
     {
-        _initiateDeposit(msg.sender, _to, _amount, _data);
+        _initiateDeposit(msg.sender, _to, _amount, _data, _l2Gas);
     }
 
     /**
@@ -150,12 +156,15 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @param _from Account to pull the deposit from on L1
      * @param _to Account to give the deposit to on L2
      * @param _amount Amount of the ERC20 to deposit.
+     * @param _data Data to forward to L2.
+     * @param _l2Gas Gas limit for the provided message.
      */
     function _initiateDeposit(
         address _from,
         address _to,
         uint _amount,
-        bytes calldata _data
+        bytes calldata _data,
+        uint32 _l2Gas
     )
         internal
     {
@@ -175,11 +184,16 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
             _data
         );
 
+        // Prevent tokens stranded on other side by taking
+        // the max of the user provided gas and DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS
+        uint32 defaultGas = getFinalizeDepositL2Gas();
+        uint32 l2Gas = _l2Gas > defaultGas ? _l2Gas : defaultGas;
+
         // Send calldata into L2
         sendCrossDomainMessage(
             l2DepositedToken,
             message,
-            getFinalizeDepositL2Gas()
+            l2Gas
         );
 
         // We omit _data here because events only support bytes32 types.
@@ -195,8 +209,9 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * L1 ERC20 token.
      * This call will fail if the initialized withdrawal from L2 has not been finalized.
      *
-     * @param _from L2 address initiating the transfer
-     * @param _to L1 address to credit the withdrawal to
+     * @param _from L2 address initiating the transfer.
+     * @param _to L1 address to credit the withdrawal to.
+     * @param _amount Amount of the ERC20 to deposit.
      * @param _data Data provided by the sender on L2.
      */
     function finalizeWithdrawal(
@@ -210,7 +225,6 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         virtual
         onlyFromCrossDomainAccount(l2DepositedToken)
     {
-        // todo: add verification check on _from and _data
         // Call our withdrawal accounting handler implemented by child contracts.
         _handleFinalizeWithdrawal(
             _to,
