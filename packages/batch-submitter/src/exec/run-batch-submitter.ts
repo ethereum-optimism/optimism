@@ -111,8 +111,6 @@ const requiredEnvVars: RequiredEnvVars = {
  * PROPOSER_MNEMONIC
  * SEQUENCER_HD_PATH
  * PROPOSER_HD_PATH
- * TX_SUBMITTER_MNEMONIC
- * STATE_SUBMITTER_MNEMONIC
  */
 const env = process.env
 const FRAUD_SUBMISSION_ADDRESS = env.FRAUD_SUBMISSION_ADDRESS || 'no fraud'
