@@ -103,15 +103,17 @@ describe('NFT Test', async () => {
     const owner = env.bobl2Wallet.address;
     const recipient = env.alicel2Wallet.address;
 
+    const ownerName = "Henrietta Lacks"
+
     //for some strange reason need a string here
     //no idea why that matters
     const tokenID = BigNumber.from(String(50));
+    
+    let meta = ownerName + "#" + Date.now().toString() + '#https://www.atcc.org/products/all/CCL-2.aspx';
+    console.log("meta:",meta)
 
     //mint one NFT
-    let nft = await L2ERC721.mintNFT(
-      recipient,
-      'https://www.atcc.org/products/all/CCL-2.aspx'
-    )
+    let nft = await L2ERC721.mintNFT(recipient,meta)
     await nft.wait()
     //console.log("ERC721:",nft)
 
@@ -130,10 +132,8 @@ describe('NFT Test', async () => {
     console.log("TID:",TID.toString())
 
     //mint a second NFT
-    nft = await L2ERC721.mintNFT(
-      recipient,
-      'https://www.atcc.org/products/all/CCL-3.aspx'
-    )
+    meta = ownerName + "#" + Date.now().toString() + '#https://www.atcc.org/products/all/CCL-185.aspx';
+    nft = await L2ERC721.mintNFT(recipient,meta)
     await nft.wait()
 
     //Should be 2

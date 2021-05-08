@@ -23,10 +23,6 @@ contract ERC721Mock is ERC721 {
         return tID;
     }
 
-    //function balanceOf(address owner) public view override returns (uint256) {
-    //    return _balanceOf(owner);
-    //}
-
     function getLastTID() public view returns(uint256) {
         return tID;
     }

@@ -19,7 +19,7 @@ import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
 import { hexlify } from "@ethersproject/bytes";
 import { parseUnits, parseEther } from "@ethersproject/units";
 import { Watcher } from "@eth-optimism/watcher";
-import { ethers } from "ethers";
+import { ethers, BigNumber } from "ethers";
 
 import Web3Modal from "web3modal";
 
@@ -30,6 +30,7 @@ import BN from 'bn.js';
 import Web3 from 'web3';
 
 import { getToken } from 'actions/tokenAction';
+import { getNFTs, addNFT } from 'actions/nftAction';
 import { openAlert, openError } from 'actions/uiAction';
 import { WebWalletError } from 'services/errorService';
 
@@ -303,11 +304,57 @@ class NetworkService {
 
       //const ERC721L2Balance = 0; //await this.ERC721Contract.balanceOf(this.account);
 
+      // //how many NFTs do I own?
       const ERC721L2Balance = await this.ERC721Contract.balanceOf(this.account);
 
-      console.log("ERC721L2Balance",ERC721L2Balance)
-      console.log("this.account",this.account)
-      console.log(this.ERC721Contract);
+      //console.log("ERC721L2Balance",ERC721L2Balance)
+      //console.log("this.account",this.account)
+      //console.log(this.ERC721Contract)
+
+      //let see if we already know about them
+      const myNFTS = await getNFTs()
+      const numberOfNFTS = Object.keys(myNFTS).length;
+      console.log(myNFTS)
+
+      //console.log(ERC721L2Balance.toString())
+      //console.log(numberOfNFTS.toString())
+
+      if(ERC721L2Balance.toString() !== numberOfNFTS.toString()) {
+        //oh - something just changed - either got one, or sent one
+        //we need to do something!
+        //get the first one
+        console.log("NFT change detected!")
+        
+        let tokenID = BigNumber.from(0)
+        let nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(this.account, tokenID)
+        let nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
+        let meta = nftMeta.split("#")
+        
+        addNFT({
+          UUID: this.ERC721Address.substring(1, 6) + "_" + nftTokenIDs.toString() +  "_" + this.account.substring(1, 6),
+          owner: meta[0],
+          mintedTime: meta[1],
+          url: meta[2],
+          tokenID: tokenID
+        })
+        
+        //get the second one
+        tokenID = BigNumber.from(1)
+        nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(this.account, tokenID)
+        nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
+        meta = nftMeta.split("#")
+        
+        addNFT({
+          UUID: this.ERC721Address.substring(1, 6) + "_" + nftTokenIDs.toString() +  "_" + this.account.substring(1, 6),
+          owner: meta[0],
+          mintedTime: meta[1],
+          url: meta[2],
+          tokenID: tokenID
+        })
+      } else {
+        //console.log("No NFT changes")
+        //all set - do nothing
+      }
 
       const ethToken = await getToken(OmgUtil.transaction.ETH_CURRENCY);
       let testToken = null;
@@ -318,7 +365,7 @@ class NetworkService {
       } else {
         testToken = await getToken(this.L2DepositedERC20Address);
       }
-      
+
       const nftInfo = {
         currency: this.ERC721Address,
         symbol: "BBE (NFT)",

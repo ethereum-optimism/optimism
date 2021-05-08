@@ -23,6 +23,7 @@ import balanceReducer from './balanceReducer';
 import exitReducer from './exitReducer';
 import queueReducer from './queueReducer';
 import tokenReducer from './tokenReducer';
+import nftReducer from './nftReducer';
 import feeReducer from './feeReducer';
 import gasReducer from './gasReducer';
 import uiReducer from './uiReducer';
@@ -38,6 +39,7 @@ const rootReducer = combineReducers({
   exit: exitReducer,
   queue: queueReducer,
   tokenList: tokenReducer,
+  nftList: nftReducer,
   fees: feeReducer,
   gas: gasReducer,
   ui: uiReducer,
