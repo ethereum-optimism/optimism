@@ -384,7 +384,7 @@ func (s *SyncService) syncTransactionsToTip() error {
 		return s.client.GetLatestTransactionIndex(s.backend)
 	}
 	if err := s.syncToTip(sync, check); err != nil {
-		return fmt.Errorf("Verifier cannot sync transactions with BackendL2: %w", err)
+		return fmt.Errorf("Verifier cannot sync transactions with backend %s: %w", s.backend.String(), err)
 	}
 	return nil
 }
@@ -739,6 +739,12 @@ type indexGetter func() (*uint64, error)
 // of the remote datasource
 func (s *SyncService) isAtTip(index *uint64, get indexGetter) (bool, error) {
 	latest, err := get()
+	if errors.Is(err, errElementNotFound) {
+		if index == nil {
+			return true, nil
+		}
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
@@ -767,6 +773,9 @@ func (s *SyncService) syncToTip(sync syncer, getTip indexGetter) error {
 
 	for {
 		index, err := sync()
+		if errors.Is(err, errElementNotFound) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -787,15 +796,14 @@ func (s *SyncService) sync(getLatest indexGetter, getNext nextGetter, sync range
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Cannot get latest enqueue transaction: %w", err)
+		return nil, fmt.Errorf("Cannot sync: %w", err)
 	}
 	if latestIndex == nil {
-		return nil, errors.New("Latest queue transaction has no queue index")
+		return nil, errors.New("Latest index is not defined")
 	}
 
 	nextIndex := getNext()
 	if nextIndex == *latestIndex+1 {
-		log.Info("No new queue transactions to sync", "tip", *latestIndex)
 		return latestIndex, nil
 	}
 	if err := sync(nextIndex, *latestIndex); err != nil {
