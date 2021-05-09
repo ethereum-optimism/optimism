@@ -221,7 +221,7 @@ func TestSyncServiceSync(t *testing.T) {
 
 	err = nil
 	go func() {
-		err = service.syncTransactionsToTip(BackendL2)
+		err = service.syncTransactionsToTip()
 	}()
 	event := <-txCh
 	if err != nil {
@@ -340,13 +340,15 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 }
 
 type mockClient struct {
-	getEnqueueCallCount     int
-	getEnqueue              []*types.Transaction
-	getTransactionCallCount int
-	getTransaction          []*types.Transaction
-	getEthContextCallCount  int
-	getEthContext           []*EthContext
-	getLatestEthContext     *EthContext
+	getEnqueueCallCount            int
+	getEnqueue                     []*types.Transaction
+	getTransactionCallCount        int
+	getTransaction                 []*types.Transaction
+	getEthContextCallCount         int
+	getEthContext                  []*EthContext
+	getLatestEthContext            *EthContext
+	getLatestEnqueueIndex          []func() (*uint64, error)
+	getLatestEnqueueIndexCallCount int
 }
 
 func setupMockClient(service *SyncService, responses map[string]interface{}) {
@@ -360,6 +362,7 @@ func newMockClient(responses map[string]interface{}) *mockClient {
 	getTransactionResponses := []*types.Transaction{}
 	getEthContextResponses := []*EthContext{}
 	getLatestEthContextResponse := &EthContext{}
+	getLatestEnqueueIndexResponses := []func() (*uint64, error){}
 
 	enqueue, ok := responses["GetEnqueue"]
 	if ok {
@@ -377,11 +380,17 @@ func newMockClient(responses map[string]interface{}) *mockClient {
 	if ok {
 		getLatestEthContextResponse = getLatestCtx.(*EthContext)
 	}
+	getLatestEnqueueIdx, ok := responses["GetLatestEnqueueIndex"]
+	if ok {
+		getLatestEnqueueIndexResponses = getLatestEnqueueIdx.([]func() (*uint64, error))
+	}
+
 	return &mockClient{
-		getEnqueue:          getEnqueueResponses,
-		getTransaction:      getTransactionResponses,
-		getEthContext:       getEthContextResponses,
-		getLatestEthContext: getLatestEthContextResponse,
+		getEnqueue:            getEnqueueResponses,
+		getTransaction:        getTransactionResponses,
+		getEthContext:         getEthContextResponses,
+		getLatestEthContext:   getLatestEthContextResponse,
+		getLatestEnqueueIndex: getLatestEnqueueIndexResponses,
 	}
 }
 
@@ -407,12 +416,12 @@ func (m *mockClient) GetTransaction(index uint64, backend Backend) (*types.Trans
 		m.getTransactionCallCount++
 		return tx, nil
 	}
-	return nil, errors.New("")
+	return nil, fmt.Errorf("Cannot get transaction: mocks (%d), call count (%d)", len(m.getTransaction), m.getTransactionCallCount)
 }
 
 func (m *mockClient) GetLatestTransaction(backend Backend) (*types.Transaction, error) {
 	if len(m.getTransaction) == 0 {
-		return nil, errors.New("")
+		return nil, errors.New("No transactions")
 	}
 	return m.getTransaction[len(m.getTransaction)-1], nil
 }
@@ -423,7 +432,7 @@ func (m *mockClient) GetEthContext(index uint64) (*EthContext, error) {
 		m.getEthContextCallCount++
 		return ctx, nil
 	}
-	return nil, errors.New("")
+	return nil, errors.New("Cannot get eth context")
 }
 
 func (m *mockClient) GetLatestEthContext() (*EthContext, error) {
@@ -450,4 +459,28 @@ func (m *mockClient) SyncStatus(backend Backend) (*SyncStatus, error) {
 
 func (m *mockClient) GetL1GasPrice() (*big.Int, error) {
 	return big.NewInt(100 * int64(params.GWei)), nil
+}
+
+func (m *mockClient) GetLatestEnqueueIndex() (*uint64, error) {
+	enqueue, err := m.GetLatestEnqueue()
+	if err != nil {
+		return nil, err
+	}
+	return enqueue.GetMeta().Index, nil
+}
+
+func (m *mockClient) GetLatestTransactionBatchIndex() (*uint64, error) {
+	return nil, nil
+}
+
+func (m *mockClient) GetLatestTransactionIndex(backend Backend) (*uint64, error) {
+	tx, err := m.GetLatestTransaction(backend)
+	if err != nil {
+		return nil, err
+	}
+	return tx.GetMeta().Index, nil
+}
+
+func newUint64(n uint64) *uint64 {
+	return &n
 }
