@@ -116,12 +116,15 @@ type decoded struct {
 type RollupClient interface {
 	GetEnqueue(index uint64) (*types.Transaction, error)
 	GetLatestEnqueue() (*types.Transaction, error)
+	GetLatestEnqueueIndex() (*uint64, error)
 	GetTransaction(uint64, Backend) (*types.Transaction, error)
 	GetLatestTransaction(Backend) (*types.Transaction, error)
+	GetLatestTransactionIndex(Backend) (*uint64, error)
 	GetEthContext(uint64) (*EthContext, error)
 	GetLatestEthContext() (*EthContext, error)
 	GetLastConfirmedEnqueue() (*types.Transaction, error)
 	GetLatestTransactionBatch() (*Batch, []*types.Transaction, error)
+	GetLatestTransactionBatchIndex() (*uint64, error)
 	GetTransactionBatch(uint64) (*Batch, []*types.Transaction, error)
 	SyncStatus(Backend) (*SyncStatus, error)
 	GetL1GasPrice() (*big.Int, error)
@@ -267,6 +270,43 @@ func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 		return nil, fmt.Errorf("Cannot parse enqueue tx: %w", err)
 	}
 	return tx, nil
+}
+
+// GetLatestEnqueueIndex returns the latest `enqueue()` index
+func (c *Client) GetLatestEnqueueIndex() (*uint64, error) {
+	tx, err := c.GetLatestEnqueue()
+	if err != nil {
+		return nil, err
+	}
+	index := tx.GetMeta().QueueIndex
+	if index == nil {
+		return nil, errors.New("Latest queue index is nil")
+	}
+	return index, nil
+}
+
+// GetLatestTransactionIndex returns the latest CTC index that has been batch
+// submitted or not, depending on the backend
+func (c *Client) GetLatestTransactionIndex(backend Backend) (*uint64, error) {
+	tx, err := c.GetLatestTransaction(backend)
+	if err != nil {
+		return nil, err
+	}
+	index := tx.GetMeta().Index
+	if index == nil {
+		return nil, errors.New("Latest index is nil")
+	}
+	return index, nil
+}
+
+// GetLatestTransactionBatchIndex returns the latest transaction batch index
+func (c *Client) GetLatestTransactionBatchIndex() (*uint64, error) {
+	batch, _, err := c.GetLatestTransactionBatch()
+	if err != nil {
+		return nil, err
+	}
+	index := batch.Index
+	return &index, nil
 }
 
 // batchedTransactionToTransaction converts a transaction into a
