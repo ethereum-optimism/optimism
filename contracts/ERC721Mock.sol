@@ -44,6 +44,14 @@ contract ERC721Mock is ERC721 {
         return tokenURI(tokenId);
     }
 
+    function getName() public view returns (string memory) {
+        return name();
+    }
+
+    function getSymbol() public view returns (string memory) {
+        return symbol();
+    }
+
     function exists(uint256 tokenId) public view returns (bool) {
         return _exists(tokenId);
     }

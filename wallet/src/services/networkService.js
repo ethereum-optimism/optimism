@@ -39,7 +39,7 @@ import L2LPJson from '../deployment/artifacts-ovm/contracts/L2LiquidityPool.sol/
 import L1ERC20Json from '../deployment/artifacts/contracts/ERC20.sol/ERC20.json'
 import L2DepositedERC20Json from '../deployment/artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
 import L1ERC20GatewayJson from '../deployment/artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
-import L2ERC721Json from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
+import ERC721Json from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
 
 import { powAmount, logAmount } from 'util/amountConvert';
 import { getAllNetworks } from 'util/networkName';
@@ -253,7 +253,7 @@ class NetworkService {
 
       this.ERC721Contract = new ethers.Contract(
         this.ERC721Address,
-        L2ERC721Json.abi,
+        ERC721Json.abi,
         this.web3Provider.getSigner(),
       );
 
@@ -305,7 +305,7 @@ class NetworkService {
       //const ERC721L2Balance = 0; //await this.ERC721Contract.balanceOf(this.account);
 
       // //how many NFTs do I own?
-      const ERC721L2Balance = await this.ERC721Contract.balanceOf(this.account);
+      const ERC721L2Balance = await this.ERC721Contract.balanceOf(this.account)
 
       //console.log("ERC721L2Balance",ERC721L2Balance)
       //console.log("this.account",this.account)
@@ -314,43 +314,54 @@ class NetworkService {
       //let see if we already know about them
       const myNFTS = await getNFTs()
       const numberOfNFTS = Object.keys(myNFTS).length;
-      console.log(myNFTS)
+      //console.log(myNFTS)
 
       //console.log(ERC721L2Balance.toString())
       //console.log(numberOfNFTS.toString())
 
-      if(ERC721L2Balance.toString() !== numberOfNFTS.toString()) {
+      if(ERC721L2Balance.toNumber() !== numberOfNFTS) {
+
         //oh - something just changed - either got one, or sent one
-        //we need to do something!
-        //get the first one
         console.log("NFT change detected!")
-        
-        let tokenID = BigNumber.from(0)
-        let nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(this.account, tokenID)
-        let nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
-        let meta = nftMeta.split("#")
-        
-        addNFT({
-          UUID: this.ERC721Address.substring(1, 6) + "_" + nftTokenIDs.toString() +  "_" + this.account.substring(1, 6),
-          owner: meta[0],
-          mintedTime: meta[1],
-          url: meta[2],
-          tokenID: tokenID
-        })
-        
-        //get the second one
-        tokenID = BigNumber.from(1)
-        nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(this.account, tokenID)
-        nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
-        meta = nftMeta.split("#")
-        
-        addNFT({
-          UUID: this.ERC721Address.substring(1, 6) + "_" + nftTokenIDs.toString() +  "_" + this.account.substring(1, 6),
-          owner: meta[0],
-          mintedTime: meta[1],
-          url: meta[2],
-          tokenID: tokenID
-        })
+
+        //we need to do something
+        //get the first one
+
+        let tokenID = null
+        let nftTokenIDs = null
+        let nftMeta = null
+        let meta = null
+
+        //always the same, no need to have in the loop
+        let nftName = await this.ERC721Contract.getName()
+        console.log("nftName:",nftName)
+        let nftSymbol = await this.ERC721Contract.getSymbol()
+        console.log("nftSymbol:",nftSymbol)
+
+        for (var i = 0; i < ERC721L2Balance.toNumber(); i++) {
+
+          tokenID = BigNumber.from(i)
+          nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(this.account, tokenID)
+          nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
+          meta = nftMeta.split("#")
+          
+          console.log("nftName:",nftName)
+          console.log("nftSymbol:",nftSymbol)
+          
+          const time = new Date(parseInt(meta[1]));
+          console.log(time)
+
+          addNFT({
+            UUID: this.ERC721Address.substring(1, 6) + "_" + nftTokenIDs.toString() +  "_" + this.account.substring(1, 6),
+            owner: meta[0],
+            mintedTime: String(time.toLocaleString('en-US', { weekday: 'narrow', month: '2-digit', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })),
+            url: meta[2],
+            tokenID: tokenID,
+            name: nftName,
+            symbol: nftSymbol
+          })
+        }
+
       } else {
         //console.log("No NFT changes")
         //all set - do nothing

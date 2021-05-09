@@ -64,22 +64,22 @@ export async function addNFT ( NFTproperties ) {
     
   //if we already have looked it up, no need to look up again. 
   if (state.nftList[UUID]) {
-    console.log("nftAction - already in list:",UUID)
-    console.log(state.nftList[UUID])
+    //console.log("nftAction - already in list:",UUID)
+    //console.log(state.nftList[UUID])
     return state.nftList[UUID];
   }
   
   const nftInfo = {
-    //currency: _tokenContractAddress,
-    //symbol,
-    //name,
-    //redalert: _decimals ? false : true 
     UUID: NFTproperties.UUID, 
     owner: NFTproperties.owner, 
     url: NFTproperties.url, 
     mintedTime: NFTproperties.mintedTime, 
     decimals: 0,
+    name:  NFTproperties.name, 
+    symbol:  NFTproperties.symbol, 
   };
+
+  console.log("nftInfo0:",nftInfo)
 
   store.dispatch({
     type: 'NFT/GET/SUCCESS',
