@@ -105,7 +105,12 @@ const requiredEnvVars: RequiredEnvVars = {
  * FRAUD_SUBMISSION_ADDRESS
  * DISABLE_QUEUE_BATCH_APPEND
  * SEQUENCER_PRIVATE_KEY
+ * PROPOSER_PRIVATE_KEY
  * MNEMONIC
+ * SEQUENCER_MNEMONIC
+ * PROPOSER_MNEMONIC
+ * SEQUENCER_HD_PATH
+ * PROPOSER_HD_PATH
  */
 const env = process.env
 const FRAUD_SUBMISSION_ADDRESS = env.FRAUD_SUBMISSION_ADDRESS || 'no fraud'
@@ -114,10 +119,15 @@ const MIN_GAS_PRICE_IN_GWEI = parseInt(env.MIN_GAS_PRICE_IN_GWEI, 10) || 0
 const MAX_GAS_PRICE_IN_GWEI = parseInt(env.MAX_GAS_PRICE_IN_GWEI, 10) || 70
 const GAS_RETRY_INCREMENT = parseInt(env.GAS_RETRY_INCREMENT, 10) || 5
 const GAS_THRESHOLD_IN_GWEI = parseInt(env.GAS_THRESHOLD_IN_GWEI, 10) || 100
-// The private key that will be used to submit tx and state batches.
+
+// Private keys & mnemonics
 const SEQUENCER_PRIVATE_KEY = env.SEQUENCER_PRIVATE_KEY
-const MNEMONIC = env.MNEMONIC
-const HD_PATH = env.HD_PATH
+const PROPOSER_PRIVATE_KEY =
+  env.PROPOSER_PRIVATE_KEY || env.SEQUENCER_PRIVATE_KEY // Kept for backwards compatibility
+const SEQUENCER_MNEMONIC = env.SEQUENCER_MNEMONIC || env.MNEMONIC
+const PROPOSER_MNEMONIC = env.PROPOSER_MNEMONIC || env.MNEMONIC
+const SEQUENCER_HD_PATH = env.SEQUENCER_HD_PATH || env.HD_PATH
+const PROPOSER_HD_PATH = env.PROPOSER_HD_PATH || env.HD_PATH
 // Auto fix batch options -- TODO: Remove this very hacky config
 const AUTO_FIX_BATCH_OPTIONS_CONF = env.AUTO_FIX_BATCH_OPTIONS_CONF
 const autoFixBatchOptions: AutoFixBatchOptions = {
@@ -153,19 +163,45 @@ export const run = async () => {
   )
 
   let sequencerSigner: Signer
+  let proposerSigner: Signer
   if (SEQUENCER_PRIVATE_KEY) {
     sequencerSigner = new Wallet(SEQUENCER_PRIVATE_KEY, l1Provider)
-  } else if (MNEMONIC) {
-    sequencerSigner = Wallet.fromMnemonic(MNEMONIC, HD_PATH).connect(l1Provider)
+  } else if (SEQUENCER_MNEMONIC) {
+    sequencerSigner = Wallet.fromMnemonic(
+      SEQUENCER_MNEMONIC,
+      SEQUENCER_HD_PATH
+    ).connect(l1Provider)
   } else {
-    throw new Error('Must pass one of SEQUENCER_PRIVATE_KEY or MNEMONIC')
+    throw new Error(
+      'Must pass one of SEQUENCER_PRIVATE_KEY, MNEMONIC, or SEQUENCER_MNEMONIC'
+    )
+  }
+  if (PROPOSER_PRIVATE_KEY) {
+    proposerSigner = new Wallet(PROPOSER_PRIVATE_KEY, l1Provider)
+  } else if (PROPOSER_MNEMONIC) {
+    proposerSigner = Wallet.fromMnemonic(
+      PROPOSER_MNEMONIC,
+      PROPOSER_HD_PATH
+    ).connect(l1Provider)
+  } else {
+    throw new Error(
+      'Must pass one of PROPOSER_PRIVATE_KEY, MNEMONIC, or PROPOSER_MNEMONIC'
+    )
   }
 
+  const sequencerAddress = await sequencerSigner.getAddress()
+  const proposerAddress = await proposerSigner.getAddress()
   const address = await sequencerSigner.getAddress()
   logger.info('Configured batch submitter addresses', {
-    batchSubmitterAddress: address,
+    sequencerAddress,
+    proposerAddress,
     addressManagerAddress: requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
   })
+
+  // If the sequencer & proposer are the same, use a single wallet
+  if (sequencerAddress === proposerAddress) {
+    proposerSigner = sequencerSigner
+  }
 
   const txBatchSubmitter = new TransactionBatchSubmitter(
     sequencerSigner,
@@ -192,7 +228,7 @@ export const run = async () => {
   )
 
   const stateBatchSubmitter = new StateBatchSubmitter(
-    sequencerSigner,
+    proposerSigner,
     l2Provider,
     parseInt(requiredEnvVars.MIN_L1_TX_SIZE, 10),
     parseInt(requiredEnvVars.MAX_L1_TX_SIZE, 10),

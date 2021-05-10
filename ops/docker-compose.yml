@@ -18,7 +18,7 @@ services:
       dockerfile: Dockerfile
     ports:
         # expose the service to the host for integration testing
-      - ${L1_CHAIN_PORT:-9545}:8545
+      - ${L1CHAIN_HTTP_PORT:-9545}:8545
 
   deployer:
     depends_on: 

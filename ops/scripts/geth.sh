@@ -38,4 +38,4 @@ curl \
     --retry-delay 1 \
     $ROLLUP_CLIENT_HTTP
 
-exec geth --verbosity="$VERBOSITY"
+exec geth --verbosity="$VERBOSITY" "$@"
