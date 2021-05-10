@@ -8,7 +8,7 @@ import { smockit, MockContract } from '@eth-optimism/smock'
 /* Internal Imports */
 import { NON_ZERO_ADDRESS, makeAddressManager } from '../../../../helpers'
 
-const L1_ETH_GATEWAY_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
+const L1_MESSENGER_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -82,7 +82,7 @@ describe('OVM_L1ETHGateway', () => {
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L2ETHGateway)', async () => {
       await AddressManager.setAddress(
-        L1_ETH_GATEWAY_NAME,
+        L1_MESSENGER_NAME,
         Mock__OVM_L1CrossDomainMessenger.address
       )
 
@@ -163,7 +163,7 @@ describe('OVM_L1ETHGateway', () => {
         await ethers.getContractFactory('OVM_L1CrossDomainMessenger')
       )
       await AddressManager.setAddress(
-        L1_ETH_GATEWAY_NAME,
+        L1_MESSENGER_NAME,
         Mock__OVM_L1CrossDomainMessenger.address
       )
 
@@ -254,6 +254,43 @@ describe('OVM_L1ETHGateway', () => {
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(finalizeDepositGasLimit)
+    })
+  })
+  describe('migrating ETH', () => {
+    const migrateAmount = 1_000
+
+    beforeEach(async () => {
+      await OVM_L1ETHGateway.donateETH({ value: migrateAmount })
+      const gatewayBalance = await ethers.provider.getBalance(
+        OVM_L1ETHGateway.address
+      )
+      expect(gatewayBalance).to.equal(migrateAmount)
+    })
+    it('should successfully migrate ETH to new gateway', async () => {
+      const New_OVM_L1ETHGateway = await (
+        await ethers.getContractFactory('OVM_L1ETHGateway')
+      ).deploy()
+      await New_OVM_L1ETHGateway.initialize(
+        AddressManager.address,
+        Mock__OVM_L2DepositedERC20.address
+      )
+      await OVM_L1ETHGateway.migrateEth(New_OVM_L1ETHGateway.address)
+      const newGatewayBalance = await ethers.provider.getBalance(
+        New_OVM_L1ETHGateway.address
+      )
+      expect(newGatewayBalance).to.equal(migrateAmount)
+    })
+    it('should not allow migrating ETH from non-owner', async () => {
+      const New_OVM_L1ETHGateway = await (
+        await ethers.getContractFactory('OVM_L1ETHGateway')
+      ).deploy()
+      await New_OVM_L1ETHGateway.initialize(
+        AddressManager.address,
+        Mock__OVM_L2DepositedERC20.address
+      )
+      await expect(
+        OVM_L1ETHGateway.connect(bob).migrateEth(New_OVM_L1ETHGateway.address)
+      ).to.be.revertedWith('Only the owner can migrate ETH')
     })
   })
 })
