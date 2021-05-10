@@ -34,6 +34,8 @@ export class OptimismEnv {
   l1MessengerAddress: String
   ctc: Contract
 
+  l2Provider
+
   // L2 Contracts
   L2ETHGateway: Contract
   l2Messenger: Contract
@@ -60,6 +62,7 @@ export class OptimismEnv {
     this.bobl2Wallet = args.bobl2Wallet
     this.alicel1Wallet = args.alicel1Wallet
     this.alicel2Wallet = args.alicel2Wallet
+    this.l2Provider = args.l2Provider
     this.ctc = args.ctc
   }
 
@@ -100,7 +103,8 @@ export class OptimismEnv {
       bobl1Wallet,
       bobl2Wallet,
       alicel1Wallet,
-      alicel2Wallet
+      alicel2Wallet,
+      l2Provider
     })
   }
 

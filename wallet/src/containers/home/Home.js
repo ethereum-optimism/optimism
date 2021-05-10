@@ -44,6 +44,8 @@ import Status from 'containers/status/Status';
 import Account from 'containers/account/Account';
 import Transactions from 'containers/transactions/Transactions';
 
+//NFT Example Page
+import NFT from 'containers/nft/Nft';
 import MobileHeader from 'components/mobileheader/MobileHeader';
 import MobileMenu from 'components/mobilemenu/MobileMenu';
 
@@ -147,12 +149,21 @@ function Home () {
             >  
               Wallet
             </h2>
+            <h2
+              className={pageDisplay === "NFT" ? styles.subtitletextActive : styles.subtitletext}
+              onClick={()=>{handleSetPage("NFT")}}
+            >  
+              NFT
+            </h2>
           </div>
           {pageDisplay === "AccountNow" &&
           <>  
             <Account/>
             <Transactions/>
           </>
+          }
+          {pageDisplay === "NFT" &&
+            <NFT/>
           }
         </div>
       </div>

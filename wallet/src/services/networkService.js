@@ -19,7 +19,7 @@ import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
 import { hexlify } from "@ethersproject/bytes";
 import { parseUnits, parseEther } from "@ethersproject/units";
 import { Watcher } from "@eth-optimism/watcher";
-import { ethers } from "ethers";
+import { ethers, BigNumber } from "ethers";
 
 import Web3Modal from "web3modal";
 
@@ -30,6 +30,7 @@ import BN from 'bn.js';
 import Web3 from 'web3';
 
 import { getToken } from 'actions/tokenAction';
+import { getNFTs, addNFT } from 'actions/nftAction';
 import { openAlert, openError } from 'actions/uiAction';
 import { WebWalletError } from 'services/errorService';
 
@@ -38,6 +39,7 @@ import L2LPJson from '../deployment/artifacts-ovm/contracts/L2LiquidityPool.sol/
 import L1ERC20Json from '../deployment/artifacts/contracts/ERC20.sol/ERC20.json'
 import L2DepositedERC20Json from '../deployment/artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
 import L1ERC20GatewayJson from '../deployment/artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
+import ERC721Json from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
 
 import { powAmount, logAmount } from 'util/amountConvert';
 import { getAllNetworks } from 'util/networkName';
@@ -81,6 +83,8 @@ class NetworkService {
     this.ERC20L1Contract = null;
     this.ERC20L2Contract = null;
 
+    this.ERC721Contract = null;
+
     // L1 or L2
     this.L1orL2 = null;
     this.networkName = null;
@@ -90,6 +94,7 @@ class NetworkService {
 
     // addresses
     this.ERC20Address = null;
+    this.ERC721Address = null;
     this.l1ETHGatewayAddress = null;
     this.L1ERC20GatewayAddress = null;
     this.L2DepositedERC20Address = null;
@@ -138,6 +143,7 @@ class NetworkService {
   async initializeAccounts ( networkName ) {
     
     console.log("NS: initializeAccounts() for",networkName)
+
     try {
       let addresses;
       if (networkName === 'local') addresses = localAddresses;
@@ -150,9 +156,9 @@ class NetworkService {
 
       this.chainID = network.chainId;
       this.networkName = networkName;
-      console.log("NS: networkName:",this.networkName)
-      console.log("NS: account:",this.account)
-      console.log("NS: network:",network)
+      //console.log("NS: networkName:",this.networkName)
+      //console.log("NS: account:",this.account)
+      //console.log("NS: network:",network)
 
       //there are numerous possible chains we could be on
       //either local, rinkeby etc
@@ -199,6 +205,7 @@ class NetworkService {
       this.l1MessengerAddress = addresses.l1MessengerAddress;
       this.L1LPAddress = addresses.L1LiquidityPool;
       this.L2LPAddress = addresses.L2LiquidityPool;
+      this.ERC721Address = addresses.L2ERC721;
 
       this.L1ETHGatewayContract = new ethers.Contract(
         this.l1ETHGatewayAddress, 
@@ -245,6 +252,12 @@ class NetworkService {
       this.L2LPContract = new ethers.Contract(
         this.L2LPAddress,
         L2LPJson.abi,
+        this.web3Provider.getSigner(),
+      );
+
+      this.ERC721Contract = new ethers.Contract(
+        this.ERC721Address,
+        ERC721Json.abi,
         this.web3Provider.getSigner(),
       );
 
@@ -349,6 +362,65 @@ class NetworkService {
 
       const childChainBalance = await this.l2Provider.getBalance(this.account);
       const ERC20L2Balance = await this.ERC20L2Contract.methods.balanceOf(this.account).call({from: this.account});
+
+      //const ERC721L2Balance = 0; //await this.ERC721Contract.balanceOf(this.account);
+
+      // //how many NFTs do I own?
+      const ERC721L2Balance = await this.ERC721Contract.balanceOf(this.account)
+
+      //console.log("ERC721L2Balance",ERC721L2Balance)
+      //console.log("this.account",this.account)
+      //console.log(this.ERC721Contract)
+
+      //let see if we already know about them
+      const myNFTS = await getNFTs()
+      const numberOfNFTS = Object.keys(myNFTS).length;
+      //console.log(myNFTS)
+
+      //console.log(ERC721L2Balance.toString())
+      //console.log(numberOfNFTS.toString())
+
+      if(ERC721L2Balance.toNumber() !== numberOfNFTS) {
+
+        //oh - something just changed - either got one, or sent one
+        console.log("NFT change detected!")
+
+        //we need to do something
+        //get the first one
+
+        let tokenID = null
+        let nftTokenIDs = null
+        let nftMeta = null
+        let meta = null
+
+        //always the same, no need to have in the loop
+        let nftName = await this.ERC721Contract.getName()
+        let nftSymbol = await this.ERC721Contract.getSymbol()
+
+        for (var i = 0; i < ERC721L2Balance.toNumber(); i++) {
+
+          tokenID = BigNumber.from(i)
+          nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(this.account, tokenID)
+          nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
+          meta = nftMeta.split("#")
+          
+          const time = new Date(parseInt(meta[1]));
+
+          addNFT({
+            UUID: this.ERC721Address.substring(1, 6) + "_" + nftTokenIDs.toString() +  "_" + this.account.substring(1, 6),
+            owner: meta[0],
+            mintedTime: String(time.toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })),
+            url: meta[2],
+            tokenID: tokenID,
+            name: nftName,
+            symbol: nftSymbol
+          })
+        }
+
+      } else {
+        //console.log("No NFT changes")
+        //all set - do nothing
+      }
 
       const ethToken = await getToken(OmgUtil.transaction.ETH_CURRENCY);
       let testToken = null;

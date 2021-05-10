@@ -1,47 +1,40 @@
 import { expect } from 'chai'
-
 import { Contract, ContractFactory, BigNumber, Wallet, utils, providers } from 'ethers'
 import { Direction } from './shared/watcher-utils'
 
-import L1LiquidityPoolJson from '../artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
 import L1ERC20Json from '../artifacts/contracts/ERC20.sol/ERC20.json'
 import L1ERC20GatewayJson from '../artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
 
-import L2LiquidityPoolJson from '../artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
 import L2DepositedERC20Json from '../artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
-import L2ERC721Json from '../artifacts-ovm/contracts/NFT/ERC721.sol/ERC721.json'
+
+import L1LiquidityPoolJson from '../artifacts/contracts/L1LiquidityPool.sol/L1LiquidityPool.json'
+import L2LiquidityPoolJson from '../artifacts-ovm/contracts/L2LiquidityPool.sol/L2LiquidityPool.json'
 
 import { OptimismEnv } from './shared/env'
 
 import * as fs from 'fs'
 
-describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
+describe('System setup', async () => {
 
   let Factory__L1LiquidityPool: ContractFactory
   let Factory__L2LiquidityPool: ContractFactory
   let Factory__L1ERC20: ContractFactory
   let Factory__L2DepositedERC20: ContractFactory
   let Factory__L1ERC20Gateway: ContractFactory
-  let Factory__L2ERC721: ContractFactory
 
   let L1LiquidityPool: Contract
   let L2LiquidityPool: Contract
   let L1ERC20: Contract
   let L2DepositedERC20: Contract
   let L1ERC20Gateway: Contract
-  let L2ERC721: Contract
   
   let env: OptimismEnv
 
   //Test ERC20 
   const initialAmount = utils.parseEther("10000000000")
-  const tokenName = 'JLKN Test'
+  const tokenName = 'OMGX Test'
   const tokenDecimals = 18
-  const tokenSymbol = 'JLKN'
-
-  //Test Marc's BioBase NFT system
-  const nftName = 'BioBase'
-  const nftSymbol = 'BEE' //Bioeconomy Explodes
+  const tokenSymbol = 'OMGX'
 
   const getBalances = async (
     _address: string, 
@@ -78,7 +71,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     }
   }
 
-  /************* BOB owns all the pools, and ALICE Mints a new token ***********/
+  /************* BOB owns all the pools, and ALICE mints a new token ***********/
   before(async () => {
 
     env = await OptimismEnv.new()
@@ -113,17 +106,11 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       env.bobl1Wallet
     )
 
-    Factory__L2ERC721 = new ContractFactory(
-      L2ERC721Json.abi,
-      L2ERC721Json.bytecode,
-      env.bobl1Wallet
-    )
-
   })
 
   before(async () => {
 
-    //Who? sets up the L2LP
+    //Set up the L2LP
     L2LiquidityPool = await Factory__L2LiquidityPool.deploy(
       env.watcher.l2.messengerAddress,
     )
@@ -144,8 +131,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L2LiquidityPoolTX.wait()
     console.log('L2 LP initialized with the L1LiquidityPool.address:',L2LiquidityPoolTX.hash);
 
-    //Who? mints a new token and sets up the L1 and L2 infrastructure
-    // Mint a new token on L1
+    //Mint a new token on L1 and set up the L1 and L2 infrastructure
     // [initialSupply, name, decimals, symbol]
     // this is owned by bobl1Wallet
     L1ERC20 = await Factory__L1ERC20.deploy(
@@ -157,7 +143,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L1ERC20.deployTransaction.wait()
     console.log("L1ERC20 deployed to:", L1ERC20.address)
 
-    // Who? sets up things on L2 for this new token
+    //Set up things on L2 for this new token
     // [l2MessengerAddress, name, symbol]
     L2DepositedERC20 = await Factory__L2DepositedERC20.deploy(
       env.watcher.l2.messengerAddress,
@@ -167,7 +153,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L2DepositedERC20.deployTransaction.wait()
     console.log("L2DepositedERC20 deployed to:", L2DepositedERC20.address)
     
-    // Who? deploys a gateway for this new token
+    //Deploy a gateway for the new token
     // [L1_ERC20.address, OVM_L2DepositedERC20.address, l1MessengerAddress]
     L1ERC20Gateway = await Factory__L1ERC20Gateway.deploy(
       L1ERC20.address,
@@ -177,24 +163,14 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     await L1ERC20Gateway.deployTransaction.wait()
     console.log("L1ERC20Gateway deployed to:", L1ERC20Gateway.address)
 
-    // Who initializes the contracts for the new token
+    //Initialize the contracts for the new token
     const initL2 = await L2DepositedERC20.init(L1ERC20Gateway.address);
     await initL2.wait();
     console.log('L2 ERC20 initialized:',initL2.hash);
 
-    // register erc20 token addresses on both Liquidity pools
+    //Register Erc20 token addresses in both Liquidity pools
     await L1LiquidityPool.registerTokenAddress(L1ERC20.address, L2DepositedERC20.address);
     await L2LiquidityPool.registerTokenAddress(L1ERC20.address, L2DepositedERC20.address);
-
-    // Mint a new NFT on L2
-    // [initialSupply, name, decimals, symbol]
-    // this is owned by bobl1Wallet
-    L2ERC721 = await Factory__L2ERC721.deploy(
-      nftSymbol,
-      nftName
-    )
-    await L2ERC721.deployTransaction.wait()
-    console.log("Marc's BioBase NFT L2ERC721 deployed to:", L2ERC721.address)
     
   })
 
@@ -209,8 +185,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       L2DepositedERC20: L2DepositedERC20.address,
       L1ERC20Gateway: L1ERC20Gateway.address,
       l1ETHGatewayAddress: env.L1ETHGateway.address,
-      l1MessengerAddress: env.l1MessengerAddress,
-      L2ERC721: L2ERC721.address
+      l1MessengerAddress: env.l1MessengerAddress
     }
 
     console.log(JSON.stringify(addresses, null, 2))
@@ -245,26 +220,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       preERC20Balances.add(transferAmount)
     )
   })
-/*
-  it('should mint a new ERC721 and transfer it from Bob to Alice', async () => {
-    const transferAmount = utils.parseEther("500")
 
-    //L1ERC20 is owned by Bob
-    const preERC20Balances = await L1ERC20.balanceOf(env.alicel1Wallet.address);
-
-    const transferERC20TX = await L1ERC20.transfer(
-      env.alicel1Wallet.address,
-      transferAmount,
-    )
-    await transferERC20TX.wait()
-
-    const postERC20Balance = await L1ERC20.balanceOf(env.alicel1Wallet.address);
-    
-    expect(postERC20Balance).to.deep.eq(
-      preERC20Balances.add(transferAmount)
-    )
-  })
-*/
   it('should add initial ETH and ERC20 to the L1 Liquidity Pool', async () => {
 
     // **************************************************
@@ -274,6 +230,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     const addERC20Amount = utils.parseEther("500")
 
     const l1ProviderLL = providers.getDefaultProvider(process.env.L1_NODE_WEB3_URL)
+    
     // Add ETH
     const preETHBalances = await getBalances("0x0000000000000000000000000000000000000000")
     const preL1LPETHBalance = await l1ProviderLL.getBalance(L1LiquidityPool.address)
@@ -374,7 +331,8 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
   })
 
-  it('should add initial oWETH and ERC20 to the L2 Liquidity Pool', async () => {
+  it('should add initial oETH and ERC20 to the L2 Liquidity Pool', async () => {
+    
     const depositL2oWETHAmount = utils.parseEther("5.1")
     const addoWETHAmount = utils.parseEther("5")
     const depositL2ERC20Amount = utils.parseEther("510")
@@ -440,7 +398,7 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
 
   it('should move ETH from L1 LP to L2', async () => {
 
-    const swapAmount = utils.parseEther("0.05")
+    const swapAmount = utils.parseEther("0.50")
     const preBalances = await getBalances("0x0000000000000000000000000000000000000000")
 
     //this triggers the receive
@@ -463,8 +421,9 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
     )
   })
   
-  it('should swap wETH from L2 LP to ETH in L1 user wallet', async () => {
+  it('should swap oETH from L2 LP to ETH in L1 user wallet', async () => {
     
+    //basically, the swap-exit
     const swapAmount = utils.parseEther("0.05")
     const preBalances = await getBalances(env.L2ETHGateway.address)
 
@@ -491,4 +450,5 @@ describe('Token, Bridge, and Swap Pool Setup and Test', async () => {
       preBalances.L2LPFeeBalance.add(swapAmount.mul(3).div(100))
     )
   })
+
 })
