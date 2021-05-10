@@ -460,6 +460,6 @@ export const run = async () => {
   // Initialize metrics server
   const metricsServer = createMetricsServer({
     logger,
-    registry: metrics.registry
+    registry: metrics.registry,
   })
 }

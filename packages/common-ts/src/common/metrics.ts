@@ -6,7 +6,7 @@ import prometheus, {
 import express from 'express'
 import { Server } from 'net'
 
-import {Logger} from './logger'
+import { Logger } from './logger'
 
 export interface MetricsOptions {
   prefix: string
@@ -41,7 +41,9 @@ export interface MetricsServerOptions {
   route?: string
 }
 
-export const createMetricsServer = async (options: MetricsServerOptions): Promise<Server> => {
+export const createMetricsServer = async (
+  options: MetricsServerOptions
+): Promise<Server> => {
   const logger = options.logger.child({ component: 'MetricsServer' })
 
   const app = express()

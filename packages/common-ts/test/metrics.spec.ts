@@ -8,15 +8,15 @@ import { Logger, Metrics, createMetricsServer } from '../src'
 describe('Metrics', () => {
   it('shoud serve metrics', async () => {
     const metrics = new Metrics({
-      prefix: 'test_metrics'
+      prefix: 'test_metrics',
     })
     const registry = metrics.registry
-    const logger = new Logger({ name: 'test_logger'})
+    const logger = new Logger({ name: 'test_logger' })
 
     const server = await createMetricsServer({
-      logger, 
+      logger,
       registry,
-      port: 42069
+      port: 42069,
     })
 
     try {
