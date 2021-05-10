@@ -54,7 +54,7 @@ export const deployAndRegister = async ({
   name: string
   args: any[]
   contract?: string
-}): Promise<Contract> => {
+}) => {
   const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
 
@@ -74,8 +74,6 @@ export const deployAndRegister = async ({
       address: result.address,
     })
   }
-
-  return getDeployedContract(hre, contract || name)
 }
 
 export const getDeployedContract = async (

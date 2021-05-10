@@ -14,7 +14,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Lib_AddressManager'
   )
 
-  const OVM_L1MultiMessageRelayer = await deployAndRegister({
+  await deployAndRegister({
     hre,
     name: 'OVM_L1MultiMessageRelayer',
     args: [Lib_AddressManager.address],
@@ -22,6 +22,11 @@ const deployFn: DeployFunction = async (hre) => {
 
   // OVM_L2MessageRelayer *must* be set to multi message relayer address on mainnet.
   if (hre.network.name.includes('mainnet')) {
+    const OVM_L1MultiMessageRelayer = await getDeployedContract(
+      hre,
+      'OVM_L1MultiMessageRelayer'
+    )
+
     await registerAddress({
       hre,
       name: 'OVM_L2MessageRelayer',
