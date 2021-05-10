@@ -3,6 +3,10 @@ import prometheus, {
   DefaultMetricsCollectorConfiguration,
   Registry,
 } from 'prom-client'
+import express from 'express'
+import { Server } from 'net'
+
+import {Logger} from './logger'
 
 export interface MetricsOptions {
   prefix: string
@@ -28,4 +32,28 @@ export class Metrics {
     // Collect default metrics (event loop lag, memory, file descriptors etc.)
     collectDefaultMetrics(metricsOptions)
   }
+}
+
+export interface MetricsServerOptions {
+  logger: Logger
+  registry: Registry
+  port?: number
+  route?: string
+}
+
+export const createMetricsServer = async (options: MetricsServerOptions): Promise<Server> => {
+  const logger = options.logger.child({ component: 'MetricsServer' })
+
+  const app = express()
+
+  app.get(options.route || '/metrics', async (_, res) => {
+    res.status(200).send(await options.registry.metrics())
+  })
+
+  const port = options.port || 7300
+  const server = app.listen(port, () => {
+    logger.info('Listening on port', { port })
+  })
+
+  return server
 }
