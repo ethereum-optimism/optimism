@@ -141,6 +141,7 @@ class NetworkService {
   async initializeAccounts ( networkName ) {
     
     console.log("NS: initializeAccounts() for",networkName)
+
     try {
       let addresses;
       if (networkName === 'local') addresses = localAddresses;
@@ -152,9 +153,9 @@ class NetworkService {
       const network = await this.web3Provider.getNetwork();
 
       this.networkName = networkName;
-      console.log("NS: networkName:",this.networkName)
-      console.log("NS: account:",this.account)
-      console.log("NS: network:",network)
+      //console.log("NS: networkName:",this.networkName)
+      //console.log("NS: account:",this.account)
+      //console.log("NS: network:",network)
 
       //there are numerous possible chains we could be on
       //either local, rinkeby etc
@@ -334,9 +335,7 @@ class NetworkService {
 
         //always the same, no need to have in the loop
         let nftName = await this.ERC721Contract.getName()
-        console.log("nftName:",nftName)
         let nftSymbol = await this.ERC721Contract.getSymbol()
-        console.log("nftSymbol:",nftSymbol)
 
         for (var i = 0; i < ERC721L2Balance.toNumber(); i++) {
 
@@ -345,16 +344,12 @@ class NetworkService {
           nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
           meta = nftMeta.split("#")
           
-          console.log("nftName:",nftName)
-          console.log("nftSymbol:",nftSymbol)
-          
           const time = new Date(parseInt(meta[1]));
-          console.log(time)
 
           addNFT({
             UUID: this.ERC721Address.substring(1, 6) + "_" + nftTokenIDs.toString() +  "_" + this.account.substring(1, 6),
             owner: meta[0],
-            mintedTime: String(time.toLocaleString('en-US', { weekday: 'narrow', month: '2-digit', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })),
+            mintedTime: String(time.toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })),
             url: meta[2],
             tokenID: tokenID,
             name: nftName,
@@ -375,14 +370,6 @@ class NetworkService {
         testToken = await getToken(this.ERC20Address);
       } else {
         testToken = await getToken(this.L2DepositedERC20Address);
-      }
-
-      const nftInfo = {
-        currency: this.ERC721Address,
-        symbol: "BBE (NFT)",
-        decimals: 0,
-        name: "BioEcon",
-        redalert: false
       }
 
       const rootchainEthBalance = [
@@ -408,11 +395,6 @@ class NetworkService {
           ...testToken,
           currency: this.L2DepositedERC20Address,
           amount: new BN(ERC20L2Balance.toString()),
-        },
-        {
-          ...nftInfo,
-          currency: this.ERC721Address,
-          amount: new BN(ERC721L2Balance.toString()),
         },
       ]
 

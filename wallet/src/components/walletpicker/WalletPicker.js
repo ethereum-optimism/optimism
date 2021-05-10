@@ -48,18 +48,18 @@ function WalletPicker ({ onEnable }) {
   const walletMethod = useSelector(selectWalletMethod())
   const networkName = useSelector(selectNetwork())
 
-  console.log("walletMethod:",walletMethod)
-  console.log("networkName:",networkName)
+  //console.log("walletMethod:",walletMethod)
+  //console.log("networkName:",networkName)
   
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
   const dispatchSetWalletMethod = useCallback((methodName) => {
-    console.log("dispatchSetWalletMethod:",methodName)
+    //console.log("dispatchSetWalletMethod:",methodName)
     dispatch(setWalletMethod(methodName));
   }, [ dispatch ])
 
   const dispatchSetNetwork = useCallback((network) => {
-    console.log("dispatchSetNetwork:",network)
+    //console.log("dispatchSetNetwork:",network)
     setShowAllNetworks(false);
     dispatch(setNetwork(network));
   }, [ dispatch ])
@@ -71,10 +71,10 @@ function WalletPicker ({ onEnable }) {
     }
 
     async function enableBrowserWallet () {
-      console.log("enableBrowserWallet() for",networkName)
+      //console.log("enableBrowserWallet() for",networkName)
       const selectedNetwork = networkName ? networkName : "local";
       const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
-      console.log("walletEnabled:",walletEnabled)
+      //console.log("walletEnabled:",walletEnabled)
       return walletEnabled
         ? setWalletEnabled(true)
         : dispatchSetWalletMethod(null);
@@ -86,7 +86,7 @@ function WalletPicker ({ onEnable }) {
 
     async function initializeAccounts () {
 
-      console.log("initializeAccounts() for:",networkName)
+      //console.log("initializeAccounts() for:",networkName)
 
       const initialized = await networkService.initializeAccounts(networkName);
 

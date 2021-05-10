@@ -14,26 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 const initialState = {
-  /*
-  [ETH0x]: {
-    currency: ETH0x,
-    decimals: 18,
-    symbol: 'ETH',
-    name: 'Ethereum'
-  },
-  [oETH]: {
-    currency: oETH,
-    decimals: 18,
-    symbol: 'oETH',
-    name: 'Ethereum',
-  }
-  */
 };
 
 function nftReducer (state = initialState, action) {
   switch (action.type) {
     case 'NFT/GET/SUCCESS':
-      console.log(state)
       return { 
         ...state, 
         [action.payload.UUID]: action.payload,
