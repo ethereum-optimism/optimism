@@ -47,9 +47,6 @@ function WalletPicker ({ onEnable }) {
 
   const walletMethod = useSelector(selectWalletMethod())
   const networkName = useSelector(selectNetwork())
-
-  //console.log("walletMethod:",walletMethod)
-  //console.log("networkName:",networkName)
   
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 

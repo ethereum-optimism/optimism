@@ -37,7 +37,7 @@ function exitReducer (state = initialState, action) {
         ...state,
         pending: {
           ...state.pending,
-          ...keyBy(action.payload, 'transactionHash')
+          ...keyBy(action.payload, 'hash')
         }
       };
     default:
