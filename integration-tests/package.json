@@ -21,6 +21,7 @@
     "@eth-optimism/hardhat-ovm": "^0.1.1",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@types/chai-as-promised": "^7.1.3",
     "@types/chai": "^4.2.17",
     "@types/mocha": "^8.2.2",

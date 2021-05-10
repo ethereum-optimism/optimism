@@ -27,6 +27,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/accounts/scwallet"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,6 +52,8 @@ import (
 const (
 	defaultGasPrice = params.GWei
 )
+
+var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
@@ -1043,6 +1046,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 
 	// 3. calculate the fee and normalize by the default gas price
 	fee := core.CalculateRollupFee(*args.Data, uint64(gasUsed), dataPrice, executionPrice).Uint64() / defaultGasPrice
+	if fee < 21000 {
+		fee = 21000
+	}
 	return (hexutil.Uint64)(fee), nil
 }
 
@@ -1082,19 +1088,21 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 		args.From = &common.Address{}
 	}
 	// Create a helper to check if a gas allowance results in an executable transaction
-	executable := func(gas uint64) bool {
+	executable := func(gas uint64) (bool, []byte) {
 		args.Gas = (*hexutil.Uint64)(&gas)
 
-		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
+		res, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
 		if err != nil || failed {
-			return false
+			return false, res
 		}
-		return true
+		return true, res
 	}
 	// Execute the binary search and hone in on an executable gas limit
 	for lo+1 < hi {
 		mid := (hi + lo) / 2
-		if !executable(mid) {
+		ok, _ := executable(mid)
+
+		if !ok {
 			lo = mid
 		} else {
 			hi = mid
@@ -1102,7 +1110,16 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 	}
 	// Reject the transaction as invalid if it still fails at the highest allowance
 	if hi == cap {
-		if !executable(hi) {
+		ok, res := executable(hi)
+		if !ok {
+			if len(res) >= 4 && bytes.Equal(res[:4], abi.RevertSelector) {
+				reason, errUnpack := abi.UnpackRevert(res)
+				err := errors.New("execution reverted")
+				if errUnpack == nil {
+					err = fmt.Errorf("execution reverted: %v", reason)
+				}
+				return 0, err
+			}
 			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
 		}
 	}
@@ -1286,7 +1303,10 @@ type RPCTransaction struct {
 // newRPCTransaction returns a transaction that will serialize to the RPC
 // representation, with the given location metadata set (if available).
 func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) *RPCTransaction {
-	var signer types.Signer = types.NewOVMSigner(tx.ChainId())
+	var signer types.Signer = types.FrontierSigner{}
+	if tx.Protected() {
+		signer = types.NewEIP155Signer(tx.ChainId())
+	}
 	from, _ := types.Sender(signer, tx)
 	v, r, s := tx.RawSignatureValues()
 
@@ -1514,7 +1534,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 
 	var signer types.Signer = types.FrontierSigner{}
 	if tx.Protected() {
-		signer = types.NewOVMSigner(tx.ChainId())
+		signer = types.NewEIP155Signer(tx.ChainId())
 	}
 	from, _ := types.Sender(signer, tx)
 
@@ -1648,12 +1668,14 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 	}
 	if args.To == nil {
 		tx := types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
-		txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, nil)
+		raw, _ := rlp.EncodeToBytes(tx)
+		txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, raw)
 		tx.SetTransactionMeta(txMeta)
 		return tx
 	}
 	tx := types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
-	txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, args.L1MessageSender, args.SignatureHashType, types.QueueOriginSequencer, nil, nil, nil)
+	raw, _ := rlp.EncodeToBytes(tx)
+	txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, args.L1MessageSender, args.SignatureHashType, types.QueueOriginSequencer, nil, nil, raw)
 	tx.SetTransactionMeta(txMeta)
 	return tx
 }
@@ -1683,10 +1705,9 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // SendTransaction creates a transaction for the given argument, sign it and submit it to the
 // transaction pool.
 func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args SendTxArgs) (common.Hash, error) {
-	if s.b.IsVerifier() {
-		return common.Hash{}, errors.New("Cannot send transaction in verifier mode")
+	if vm.UsingOVM {
+		return common.Hash{}, errOVMUnsupported
 	}
-
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.From}
 
@@ -1719,6 +1740,9 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 // FillTransaction fills the defaults (nonce, gas, gasPrice) on a given unsigned transaction,
 // and returns it to the caller for further processing (signing + broadcast)
 func (s *PublicTransactionPoolAPI) FillTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
+	if vm.UsingOVM {
+		return nil, errOVMUnsupported
+	}
 	// Set some sanity defaults and terminate on failure
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
@@ -1747,39 +1771,8 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 	if err := rlp.DecodeBytes(encodedTx, tx); err != nil {
 		return common.Hash{}, err
 	}
-
-	if new(big.Int).Mod(tx.GasPrice(), big.NewInt(1000000)).Cmp(big.NewInt(0)) != 0 {
-		return common.Hash{}, errors.New("Gas price must be a multiple of 1,000,000 wei")
-	}
-	// L1Timestamp and L1BlockNumber will be set by the miner
-	txMeta := types.NewTransactionMeta(nil, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, nil)
-	tx.SetTransactionMeta(txMeta)
-	return SubmitTransaction(ctx, s.b, tx)
-}
-
-// SendRawEthSignTransaction will add the signed transaction to the mempool.
-// The signature hash was computed with `eth_sign`, meaning that the
-// `abi.encodedPacked` transaction was prefixed with the string
-// "Ethereum Signed Message".
-func (s *PublicTransactionPoolAPI) SendRawEthSignTransaction(ctx context.Context, encodedTx hexutil.Bytes) (common.Hash, error) {
-	if s.b.IsVerifier() {
-		return common.Hash{}, errors.New("Cannot send raw ethsign transaction in verifier mode")
-	}
-
-	if s.b.IsSyncing() {
-		return common.Hash{}, errors.New("Cannot send raw transaction while syncing")
-	}
-
-	tx := new(types.Transaction)
-	if err := rlp.DecodeBytes(encodedTx, tx); err != nil {
-		return common.Hash{}, err
-	}
-
-	if new(big.Int).Mod(tx.GasPrice(), big.NewInt(1000000)).Cmp(big.NewInt(0)) != 0 {
-		return common.Hash{}, errors.New("Gas price must be a multiple of 1,000,000 wei")
-	}
-	// L1Timestamp and L1BlockNumber will be set by the miner
-	txMeta := types.NewTransactionMeta(nil, 0, nil, types.SighashEthSign, types.QueueOriginSequencer, nil, nil, nil)
+	// L1Timestamp and L1BlockNumber will be set right before execution
+	txMeta := types.NewTransactionMeta(nil, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, encodedTx)
 	tx.SetTransactionMeta(txMeta)
 	return SubmitTransaction(ctx, s.b, tx)
 }
@@ -1794,6 +1787,9 @@ func (s *PublicTransactionPoolAPI) SendRawEthSignTransaction(ctx context.Context
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
 func (s *PublicTransactionPoolAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, error) {
+	if vm.UsingOVM {
+		return nil, errOVMUnsupported
+	}
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1819,6 +1815,9 @@ type SignTransactionResult struct {
 // The node needs to have the private key of the account corresponding with
 // the given from address and it needs to be unlocked.
 func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
+	if vm.UsingOVM {
+		return nil, errOVMUnsupported
+	}
 	if args.Gas == nil {
 		return nil, fmt.Errorf("gas not specified")
 	}
@@ -1859,7 +1858,7 @@ func (s *PublicTransactionPoolAPI) PendingTransactions() ([]*RPCTransaction, err
 	for _, tx := range pending {
 		var signer types.Signer = types.HomesteadSigner{}
 		if tx.Protected() {
-			signer = types.NewOVMSigner(tx.ChainId())
+			signer = types.NewEIP155Signer(tx.ChainId())
 		}
 		from, _ := types.Sender(signer, tx)
 		if _, exists := accounts[from]; exists {
@@ -1887,7 +1886,7 @@ func (s *PublicTransactionPoolAPI) Resend(ctx context.Context, sendArgs SendTxAr
 	for _, p := range pending {
 		var signer types.Signer = types.HomesteadSigner{}
 		if p.Protected() {
-			signer = types.NewOVMSigner(p.ChainId())
+			signer = types.NewEIP155Signer(p.ChainId())
 		}
 		wantSigHash := signer.Hash(matchTx)
 

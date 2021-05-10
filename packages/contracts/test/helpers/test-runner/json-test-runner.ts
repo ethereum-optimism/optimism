@@ -4,10 +4,14 @@ import { expect } from '../../setup'
 import { ethers } from 'hardhat'
 import { Contract, BigNumber } from 'ethers'
 
-const bigNumberify = (arr) => {
+const bigNumberify = (arr: any[]) => {
   return arr.map((el: any) => {
     if (typeof el === 'number') {
       return BigNumber.from(el)
+    } else if (typeof el === 'string' && /^\d+n$/gm.test(el)) {
+      return BigNumber.from(el.slice(0, el.length - 1))
+    } else if (typeof el === 'string' && el.length > 2 && el.startsWith('0x')) {
+      return BigNumber.from(el.toLowerCase())
     } else if (Array.isArray(el)) {
       return bigNumberify(el)
     } else {
@@ -31,7 +35,7 @@ export const runJsonTest = (contractName: string, json: any): void => {
               .reverted
           } else {
             expect(
-              await contract.functions[functionName](...test.in)
+              bigNumberify(await contract.functions[functionName](...test.in))
             ).to.deep.equal(bigNumberify(test.out))
           }
         })
