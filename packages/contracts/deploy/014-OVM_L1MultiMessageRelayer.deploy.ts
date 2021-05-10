@@ -20,7 +20,7 @@ const deployFn: DeployFunction = async (hre) => {
     args: [Lib_AddressManager.address],
   })
 
-  // OVM_L2MessageRelayer *must* be set to multi message relayer address on L1.
+  // OVM_L2MessageRelayer *must* be set to multi message relayer address on mainnet.
   if (hre.network.name.includes('mainnet')) {
     await registerAddress({
       hre,
