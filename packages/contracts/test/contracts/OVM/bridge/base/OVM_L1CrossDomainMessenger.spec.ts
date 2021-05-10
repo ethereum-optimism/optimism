@@ -442,27 +442,5 @@ describe('OVM_L1CrossDomainMessenger', () => {
         ).to.not.be.reverted
       })
     })
-
-    describe('onlyRelayer', () => {
-      it('when the OVM_L2MessageRelayer address is set, should revert if called by a different account', async () => {
-        // set to a random NON-ZERO address
-        await AddressManager.setAddress(
-          'OVM_L2MessageRelayer',
-          '0x1234123412341234123412341234123412341234'
-        )
-
-        await expect(
-          OVM_L1CrossDomainMessenger.relayMessage(
-            target,
-            sender,
-            message,
-            0,
-            proof
-          )
-        ).to.be.revertedWith(
-          'Only OVM_L2MessageRelayer can relay L2-to-L1 messages.'
-        )
-      })
-    })
   })
 })
