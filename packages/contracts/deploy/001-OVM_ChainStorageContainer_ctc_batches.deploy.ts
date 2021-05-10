@@ -15,7 +15,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndRegister({
     hre,
-    name: 'OVM_ChainStorageContainer:CTC:batches',
+    name: 'OVM_ChainStorageContainer-CTC-batches',
     contract: 'OVM_ChainStorageContainer',
     args: [Lib_AddressManager.address, 'OVM_CanonicalTransactionChain'],
   })
