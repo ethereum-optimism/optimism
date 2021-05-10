@@ -39,8 +39,8 @@ const NETWORKS = {
     },
     L2: {
       name: "Rinkeby L2",
-      chainId: 420,
-      rpcUrl: "http://54.161.5.63:8545",
+      chainId: 28,
+      rpcUrl: "http://3.85.224.26:8545",
       blockExplorer: "",
     }
   }

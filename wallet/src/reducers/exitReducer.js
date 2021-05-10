@@ -27,6 +27,7 @@ function exitReducer (state = initialState, action) {
       if (!action.payload) {
         return state;
       }
+      console.log({ ...state, ...action.payload })
       return { ...state, ...action.payload };
     case 'EXIT/CREATE/SUCCESS':
       return {
@@ -37,7 +38,7 @@ function exitReducer (state = initialState, action) {
         ...state,
         pending: {
           ...state.pending,
-          ...keyBy(action.payload, 'transactionHash')
+          ...keyBy(action.payload, 'hash')
         }
       };
     default:

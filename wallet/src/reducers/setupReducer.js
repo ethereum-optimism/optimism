@@ -15,7 +15,7 @@ limitations under the License. */
 
 const initialState = {
   walletMethod: null,
-  networkName: 'local',
+  networkName: 'rinkeby',
   blockexplorerURL: '',
   etherscan: '',
 };
@@ -30,9 +30,10 @@ function setupReducer (state = initialState, action) {
     case 'SETUP/NETWORK/SET':
       return { 
       	...state, 
-      	networkName: action.payload.network.name,
-        blockexplorerURL: action.payload.network.blockexplorer,
-        etherscan: action.payload.network.etherscan,
+        networkName: action.payload,
+      	// networkName: action.payload.network.name,
+        // blockexplorerURL: action.payload.network.blockexplorer,
+        // etherscan: action.payload.network.etherscan,
       }
     case 'SETUP/LAYER/SET':
       return { 

@@ -41,11 +41,11 @@ function Exits ({ searchHistory }) {
   const etherscan = useSelector(selectEtherscan());
 
   const _pendingExits = pendingExits.filter(i => {
-    return i.transactionHash.includes(searchHistory);
+    return i.hash.includes(searchHistory);
   });
 
   const _exitedExits = exitedExits.filter(i => {
-    return i.transactionHash.includes(searchHistory);
+    return i.hash.includes(searchHistory);
   });
 
   const renderPending = _pendingExits.map((i, index) => {
@@ -70,11 +70,11 @@ function Exits ({ searchHistory }) {
             }
             : undefined
         }
-        link={`${etherscan}/tx/${i.transactionHash}`}
+        link={`${etherscan}/tx/${i.hash}`}
         status={getStatus()}
         subStatus={`Block ${i.blockNumber}`}
         statusPercentage={i.pendingPercentage <= 100 ? i.pendingPercentage : ''}
-        title={truncate(i.transactionHash, 6, 4, '...')}
+        title={truncate(i.hash, 6, 4, '...')}
         midTitle={i.exitableAt ? `Exitable ${exitableMoment.format('lll')}` : ''}
         subTitle={i.currency ? truncate(i.currency, 6, 4, '...'): ''}
       />
@@ -85,10 +85,10 @@ function Exits ({ searchHistory }) {
     return (
       <Transaction
         key={`exited-${index}`}
-        link={`${etherscan}/tx/${i.transactionHash}`}
+        link={`http://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`}
         status='Exited'
         subStatus={`Block ${i.blockNumber}`}
-        title={truncate(i.transactionHash, 6, 4, '...')}
+        title={truncate(i.hash, 6, 4, '...')}
       />
     );
   });
