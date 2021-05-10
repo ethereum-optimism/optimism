@@ -1,30 +1,73 @@
 import { Wallet, providers } from 'ethers'
 import { MessageRelayerService } from '../service'
 import SpreadSheet from '../spreadsheet'
-import { config } from 'dotenv'
-config()
+import * as dotenv from 'dotenv'
+import Config from 'bcfg'
 
-const env = process.env
-const L2_NODE_WEB3_URL = env.L2_NODE_WEB3_URL
-const L1_NODE_WEB3_URL = env.L1_NODE_WEB3_URL
-const ADDRESS_MANAGER_ADDRESS = env.ADDRESS_MANAGER_ADDRESS
-const L1_WALLET_KEY = env.L1_WALLET_KEY
-const MNEMONIC = env.MNEMONIC
-const HD_PATH = env.HD_PATH
-const RELAY_GAS_LIMIT = env.RELAY_GAS_LIMIT || '4000000'
-const POLLING_INTERVAL = env.POLLING_INTERVAL || '5000'
-const GET_LOGS_INTERVAL = env.GET_LOGS_INTERVAL || '2000'
-const L2_BLOCK_OFFSET = env.L2_BLOCK_OFFSET || '1'
-const L1_START_OFFSET = env.L1_BLOCK_OFFSET || '1'
-const FROM_L2_TRANSACTION_INDEX = env.FROM_L2_TRANSACTION_INDEX || '0'
+interface Bcfg {
+  load: (options: { env?: boolean; argv?: boolean }) => void
+  str: (name: string, defaultValue?: string) => string
+  uint: (name: string, defaultValue?: number) => number
+  bool: (name: string, defaultValue?: boolean) => boolean
+  ufloat: (name: string, defaultValue?: number) => number
+}
 
-// Spreadsheet configuration
-const SPREADSHEET_MODE = env.SPREADSHEET_MODE || ''
-const SHEET_ID = env.SHEET_ID || ''
-const CLIENT_EMAIL = env.CLIENT_EMAIL || ''
-const CLIENT_PRIVATE_KEY = env.CLIENT_PRIVATE_KEY || ''
+dotenv.config()
 
 const main = async () => {
+  const config: Bcfg = new Config('message-relayer')
+  config.load({
+    env: true,
+    argv: true,
+  })
+
+  const env = process.env
+  const L2_NODE_WEB3_URL = config.str('l2-node-web3-url', env.L2_NODE_WEB3_URL)
+  const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
+  const ADDRESS_MANAGER_ADDRESS = config.str(
+    'address-manager-address',
+    env.ADDRESS_MANAGER_ADDRESS
+  )
+  const L1_WALLET_KEY = config.str('l1-wallet-key', env.L1_WALLET_KEY)
+  const MNEMONIC = config.str('mnemonic', env.MNEMONIC)
+  const HD_PATH = config.str('hd-path', env.HD_PATH)
+  const RELAY_GAS_LIMIT = config.uint(
+    'relay-gas-limit',
+    parseInt(env.RELAY_GAS_LIMIT, 10) || 4000000
+  )
+  const POLLING_INTERVAL = config.uint(
+    'polling-interval',
+    parseInt(env.POLLING_INTERVAL, 10) || 5000
+  )
+  const GET_LOGS_INTERVAL = config.uint(
+    'get-logs-interval',
+    parseInt(env.GET_LOGS_INTERVAL, 10) || 2000
+  )
+  const L2_BLOCK_OFFSET = config.uint(
+    'l2-start-offset',
+    parseInt(env.L2_BLOCK_OFFSET, 10) || 1
+  )
+  const L1_START_OFFSET = config.uint(
+    'l1-start-offset',
+    parseInt(env.L1_BLOCK_OFFSET, 10) || 1
+  )
+  const FROM_L2_TRANSACTION_INDEX = config.uint(
+    'from-l2-transaction-index',
+    parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
+  )
+
+  // Spreadsheet configuration
+  const SPREADSHEET_MODE = config.bool(
+    'spreadsheet-mode',
+    !!env.SPREADSHEET_MODE || false
+  )
+  const SHEET_ID = config.str('sheet-id', env.SHEET_ID)
+  const CLIENT_EMAIL = config.str('client-email', env.CLIENT_EMAIL)
+  const CLIENT_PRIVATE_KEY = config.str(
+    'client-private-key',
+    env.CLIENT_PRIVATE_KEY
+  )
+
   if (!ADDRESS_MANAGER_ADDRESS) {
     throw new Error('Must pass ADDRESS_MANAGER_ADDRESS')
   }
@@ -69,12 +112,12 @@ const main = async () => {
     l2RpcProvider: l2Provider,
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
     l1Wallet: wallet,
-    relayGasLimit: parseInt(RELAY_GAS_LIMIT, 10),
-    fromL2TransactionIndex: parseInt(FROM_L2_TRANSACTION_INDEX, 10),
-    pollingInterval: parseInt(POLLING_INTERVAL, 10),
-    l2BlockOffset: parseInt(L2_BLOCK_OFFSET, 10),
-    l1StartOffset: parseInt(L1_START_OFFSET, 10),
-    getLogsInterval: parseInt(GET_LOGS_INTERVAL, 10),
+    relayGasLimit: RELAY_GAS_LIMIT,
+    fromL2TransactionIndex: FROM_L2_TRANSACTION_INDEX,
+    pollingInterval: POLLING_INTERVAL,
+    l2BlockOffset: L2_BLOCK_OFFSET,
+    l1StartOffset: L1_START_OFFSET,
+    getLogsInterval: GET_LOGS_INTERVAL,
     spreadsheetMode: !!SPREADSHEET_MODE,
     spreadsheet,
   })
