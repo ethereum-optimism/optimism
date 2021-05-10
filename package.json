@@ -37,7 +37,7 @@
   "dependencies": {
     "@openzeppelin/contracts": "^3.3.0",
     "dotenv": "^8.2.0",
-    "enyalabs_contracts": "git+ssh://git@github.com:enyalabs/contracts.git#rinkeby",
+    "enyalabs_contracts": "git+ssh://git@github.com:enyalabs/contracts.git",
     "glob": "^7.1.6",
     "patch-package": "^6.4.7"
   }
