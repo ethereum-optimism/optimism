@@ -362,10 +362,7 @@ export const run = async () => {
     GAS_THRESHOLD_IN_GWEI,
     BLOCK_OFFSET,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({
-      prefix: TX_BATCH_SUBMITTER_LOG_TAG,
-      labels: { environment, release, network },
-    }),
+    metrics,
     DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
   )
@@ -388,10 +385,7 @@ export const run = async () => {
     GAS_THRESHOLD_IN_GWEI,
     BLOCK_OFFSET,
     logger.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({
-      prefix: STATE_BATCH_SUBMITTER_LOG_TAG,
-      labels: { environment, release, network },
-    }),
+    metrics,
     FRAUD_SUBMISSION_ADDRESS
   )
 
