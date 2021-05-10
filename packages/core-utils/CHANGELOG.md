@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.4.2
+
+### Patch Changes
+
+- b799caa: Update toRpcHexString to accept ethers.BigNumber and add tests
+
 ## 0.4.1
 
 ### Patch Changes

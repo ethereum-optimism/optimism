@@ -19,10 +19,12 @@ package abi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // The ABI holds information about a contract's context and available
@@ -191,4 +193,26 @@ func (abi *ABI) EventByID(topic common.Hash) (*Event, error) {
 		}
 	}
 	return nil, fmt.Errorf("no event with id: %#x", topic.Hex())
+}
+
+// RevertSelector is a special function selector for revert reason unpacking.
+var RevertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
+
+// UnpackRevert resolves the abi-encoded revert reason. According to the solidity
+// docs https://docs.soliditylang.org/en/v0.8.4/control-structures.html#revert,
+// the provided revert reason is abi-encoded as if it were a call to a function
+// `Error(string)`. So it's a special tool for it.
+func UnpackRevert(data []byte) (string, error) {
+	if len(data) < 4 {
+		return "", errors.New("invalid data for unpacking")
+	}
+	if !bytes.Equal(data[:4], RevertSelector) {
+		return "", errors.New("invalid data for unpacking")
+	}
+	typ, _ := NewType("string", "", nil)
+	unpacked, err := (Arguments{{Type: typ}}).UnpackValues(data[4:])
+	if err != nil {
+		return "", err
+	}
+	return unpacked[0].(string), nil
 }

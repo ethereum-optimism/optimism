@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-ovm
 
+## 0.2.0
+
+### Minor Changes
+
+- b799caa: Updates to use RLP encoded transactions in batches for the `v0.3.0` release
+
 ## 0.1.2
 
 ### Patch Changes

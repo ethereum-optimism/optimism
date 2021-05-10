@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "main": "dist/index",
   "files": [
     "dist/*"
@@ -19,6 +19,10 @@
     "test": "ts-mocha test/**/*.spec.ts"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.17",
+    "@types/lodash": "^4.14.168",
+    "@types/mocha": "^8.2.2",
+    "@types/prettier": "^2.2.3",
     "chai": "^4.3.0",
     "mocha": "^8.3.0",
     "prettier": "^2.2.1",

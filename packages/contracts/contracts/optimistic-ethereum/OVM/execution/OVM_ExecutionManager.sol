@@ -162,11 +162,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         external
+        returns (
+            bytes memory
+        )
     {
         // Make sure that run() is not re-enterable.  This condition should always be satisfied
         // Once run has been called once, due to the behavior of _isValidInput().
         if (transactionContext.ovmNUMBER != DEFAULT_UINT256) {
-            return;
+            return bytes("");
         }
 
         // Store our OVM_StateManager instance (significantly easier than attempting to pass the
@@ -194,7 +197,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // reverts for INVALID_STATE_ACCESS.
         if (_isValidInput(_transaction) == false) {
             _resetContext();
-            return;
+            return bytes("");
         }
 
         // TEMPORARY: Gas metering is disabled for minnet.
@@ -202,7 +205,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // uint256 gasProvided = gasleft();
 
         // Run the transaction, make sure to meter the gas usage.
-        ovmCALL(
+        (, bytes memory returndata) = ovmCALL(
             _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
             _transaction.entrypoint,
             _transaction.data
@@ -215,6 +218,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Wipe the execution context.
         _resetContext();
+
+        return returndata;
     }
 
 
@@ -1877,7 +1882,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         external
         returns (
-            bool,
             bytes memory
         )
     {
@@ -1894,18 +1898,19 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (isCreate) {
             (address created, bytes memory revertData) = ovmCREATE(_transaction.data);
             if (created == address(0)) {
-                return (false, revertData);
+                return abi.encode(false, revertData);
             } else {
                 // The eth_call RPC endpoint for to = undefined will return the deployed bytecode
                 // in the success case, differing from standard create messages.
-                return (true, Lib_EthUtils.getCode(created));
+                return abi.encode(true, Lib_EthUtils.getCode(created));
             }
         } else {
-            return ovmCALL(
+            (bool success, bytes memory returndata) = ovmCALL(
                 _transaction.gasLimit,
                 _transaction.entrypoint,
                 _transaction.data
             );
+            return abi.encode(success, returndata);
         }
     }
 }

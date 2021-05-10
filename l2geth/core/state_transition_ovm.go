@@ -148,7 +148,7 @@ func modMessage(
 		from,
 		to,
 		msg.Nonce(),
-		msg.Value(),
+		common.Big0,
 		gasLimit,
 		msg.GasPrice(),
 		data,
