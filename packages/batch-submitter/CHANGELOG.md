@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+### Minor Changes
+
+- b799caa: Updates to use RLP encoded transactions in batches for the `v0.3.0` release
+
+### Patch Changes
+
+- 751e2be: Add the support for different sequencer & proposer keys in the batch submitter.
+- Updated dependencies [b799caa]
+- Updated dependencies [6132e7a]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+- Updated dependencies [20747fd]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+  - @eth-optimism/contracts@0.3.0
+  - @eth-optimism/core-utils@0.4.2
+
 ## 0.2.5
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @eth-optimism/integration-tests
 
+## 0.0.4
+
+### Patch Changes
+
+- b799caa: Add support for parsed revert reasons in DoEstimateGas
+- b799caa: Update minimum response from estimate gas
+- b799caa: Add value transfer support to ECDSAContractAccount
+- b799caa: Update expected gas prices based on minimum of 21k value
+
 ## 0.0.3
 
 ### Patch Changes
