@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.11
+
+### Patch Changes
+
+- 9599b69: Fixed a bug in package json that stopped artifacts from being published
+
+## 0.2.10
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- 6dc1877: Heavily reduces npm package size by excluding unnecessary files.
+- Updated dependencies [1d40586]
+- Updated dependencies [ce7fa52]
+  - @eth-optimism/core-utils@0.4.1
+
+## 0.2.9
+
+### Patch Changes
+
+- d2091d4: Removed verifyExclusionProof function from MerkleTrie library.
+- 0ef3069: Add pause(), blockMessage() and allowMessage() to L1 messenger
+- Updated dependencies [28dc442]
+- Updated dependencies [a0a0052]
+  - @eth-optimism/core-utils@0.4.0
+
 ## 0.2.8
 
 ### Patch Changes

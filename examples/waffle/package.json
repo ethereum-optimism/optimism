@@ -29,6 +29,9 @@
     "url": "https://github.com/ethereum-optimism/ERC20-Example.git"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.17",
+    "@types/mocha": "^7.0.2",
+    "@types/rimraf": "^3.0.0",
     "chai": "^4.3.4",
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.0.0",

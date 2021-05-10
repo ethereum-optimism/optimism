@@ -5,16 +5,7 @@ on:
     branches:
       - master
       - '*rc'
-    paths:
-        - 'packages/**/*.sol'
-        - 'packages/**/*.ts'
   pull_request:
-    branches:
-      - master
-      - '*rc'
-    paths:
-        - 'packages/**/*.sol'
-        - 'packages/**/*.ts'
   workflow_dispatch:
 
 jobs:

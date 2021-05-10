@@ -10,8 +10,10 @@ interface Bcfg {
   str: (name: string, defaultValue?: string) => string
   uint: (name: string, defaultValue?: number) => number
   bool: (name: string, defaultValue?: boolean) => boolean
+  ufloat: (name: string, defaultValue?: number) => number
 }
 
+type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
 ;(async () => {
   try {
     dotenv.config()
@@ -23,6 +25,9 @@ interface Bcfg {
     })
 
     const service = new L1DataTransportService({
+      nodeEnv: config.str('node-env', 'development'),
+      ethNetworkName: config.str('eth-network-name') as ethNetwork,
+      release: `data-transport-layer@${process.env.npm_package_version}`,
       dbPath: config.str('db-path', './db'),
       port: config.uint('server-port', 7878),
       hostname: config.str('server-hostname', 'localhost'),
@@ -49,6 +54,7 @@ interface Bcfg {
       ),
       defaultBackend: config.str('default-backend', 'l1'),
       sentryDsn: config.str('sentry-dsn'),
+      sentryTraceRate: config.ufloat('sentry-trace-rate', 0.05),
     })
 
     await service.start()

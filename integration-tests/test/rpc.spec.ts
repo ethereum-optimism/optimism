@@ -1,13 +1,26 @@
 import { injectL2Context } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber, ethers } from 'ethers'
+import { Wallet, BigNumber, Contract } from 'ethers'
+import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { sleep, l2Provider, GWEI } from './shared/utils'
+import {
+  sleep,
+  l2Provider,
+  GWEI,
+  encodeSolidityRevertMessage,
+} from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
+import {
+  TransactionReceipt,
+  TransactionRequest,
+} from '@ethersproject/providers'
+import { solidity } from 'ethereum-waffle'
 chai.use(chaiAsPromised)
+chai.use(solidity)
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
+  let wallet: Wallet
 
   const DEFAULT_TRANSACTION = {
     to: '0x' + '1234'.repeat(10),
@@ -18,10 +31,33 @@ describe('Basic RPC tests', () => {
   }
 
   const provider = injectL2Context(l2Provider)
-  const wallet = Wallet.createRandom().connect(provider)
+
+  let Reverter: Contract
+  let revertMessage: string
+  let revertingTx: TransactionRequest
+  let revertingDeployTx: TransactionRequest
 
   before(async () => {
     env = await OptimismEnv.new()
+    wallet = env.l2Wallet
+    const Factory__Reverter = await ethers.getContractFactory(
+      'Reverter',
+      wallet
+    )
+    Reverter = await Factory__Reverter.connect(env.l2Wallet).deploy()
+    await Reverter.deployTransaction.wait()
+    revertMessage = await Reverter.revertMessage()
+    revertingTx = {
+      to: Reverter.address,
+      data: Reverter.interface.encodeFunctionData('doRevert'),
+    }
+    const Factory__ConstructorReverter = await ethers.getContractFactory(
+      'ConstructorReverter',
+      wallet
+    )
+    revertingDeployTx = {
+      data: Factory__ConstructorReverter.bytecode,
+    }
   })
 
   describe('eth_sendRawTransaction', () => {
@@ -89,6 +125,91 @@ describe('Basic RPC tests', () => {
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
         'invalid transaction: insufficient funds for gas * price + value'
       )
+    })
+  })
+
+  describe('eth_call', () => {
+    let expectedReverterRevertData: string
+
+    before(async () => {
+      expectedReverterRevertData = encodeSolidityRevertMessage(revertMessage)
+    })
+
+    it('should correctly return solidity revert data from a call', async () => {
+      const revertData = await provider.call(revertingTx)
+      const expectedRevertData = encodeSolidityRevertMessage(revertMessage)
+      expect(revertData).to.eq(expectedRevertData)
+    })
+
+    it('should produce error when called from ethers', async () => {
+      await expect(Reverter.doRevert()).to.be.revertedWith(revertMessage)
+    })
+
+    it('should correctly return revert data from contract creation', async () => {
+      const revertData = await provider.call(revertingDeployTx)
+
+      expect(revertData).to.eq(expectedReverterRevertData)
+    })
+
+    it('should return the correct error message when attempting to deploy unsafe initcode', async () => {
+      // PUSH1 0x00 PUSH1 0x00 SSTORE
+      const unsafeCode = '0x6000600055'
+      const tx: TransactionRequest = {
+        data: unsafeCode,
+      }
+      const result = await provider.call(tx)
+      const expected = encodeSolidityRevertMessage(
+        'Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?'
+      )
+      expect(result).to.eq(expected)
+    })
+  })
+
+  describe('eth_getTransactionReceipt', () => {
+    it('correctly exposes revert data for contract calls', async () => {
+      const req: TransactionRequest = {
+        ...revertingTx,
+        gasLimit: 8_999_999, // override gas estimation
+      }
+
+      const tx = await wallet.sendTransaction(req)
+
+      let errored = false
+      try {
+        await tx.wait()
+      } catch (e) {
+        errored = true
+      }
+      expect(errored).to.be.true
+
+      const receipt: TransactionReceipt = await provider.getTransactionReceipt(
+        tx.hash
+      )
+
+      expect(receipt.status).to.eq(0)
+    })
+
+    it('correctly exposes revert data for contract creations', async () => {
+      const req: TransactionRequest = {
+        ...revertingDeployTx,
+        gasLimit: 8_999_999, // override gas estimation
+      }
+
+      const tx = await wallet.sendTransaction(req)
+
+      let errored = false
+      try {
+        await tx.wait()
+      } catch (e) {
+        errored = true
+      }
+      expect(errored).to.be.true
+
+      const receipt: TransactionReceipt = await provider.getTransactionReceipt(
+        tx.hash
+      )
+
+      expect(receipt.status).to.eq(0)
     })
   })
 
@@ -194,6 +315,16 @@ describe('Basic RPC tests', () => {
         }
         expect(estimate).to.be.deep.eq(expected)
       }
+    })
+
+    it('should fail for a reverting call transaction', async () => {
+      await expect(provider.send('eth_estimateGas', [revertingTx])).to.be
+        .reverted
+    })
+
+    it('should fail for a reverting deploy transaction', async () => {
+      await expect(provider.send('eth_estimateGas', [revertingDeployTx])).to.be
+        .reverted
     })
   })
 })

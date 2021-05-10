@@ -1,5 +1,22 @@
 # @eth-optimism/core-utils
 
+## 0.4.1
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- ce7fa52: Add an additional enum for EthSign transactions as they now are batch submitted with 2 different enum values
+
+## 0.4.0
+
+### Minor Changes
+
+- 28dc442: move metrics, logger, and base-service to new common-ts package
+
+### Patch Changes
+
+- a0a0052: Update toRpcHexString to accept ethers.BigNumber and add tests
+
 ## 0.3.2
 
 ### Patch Changes

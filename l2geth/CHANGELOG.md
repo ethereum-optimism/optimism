@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.6
+
+### Patch Changes
+
+- a0a0052: Add value parsing to the rollup client
+- 20df745: Protect a possible `nil` reference in `eth_call` when the blockchain is empty
+- 9f1529c: Update the start script to be more configurable
+- 925675d: Update `scripts/start.sh` to regenesis v0.2.0
+
 ## 0.2.5
 
 ### Patch Changes

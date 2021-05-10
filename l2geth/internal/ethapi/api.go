@@ -27,6 +27,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/accounts/scwallet"
 	"github.com/ethereum/go-ethereum/common"
@@ -1087,19 +1088,21 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 		args.From = &common.Address{}
 	}
 	// Create a helper to check if a gas allowance results in an executable transaction
-	executable := func(gas uint64) bool {
+	executable := func(gas uint64) (bool, []byte) {
 		args.Gas = (*hexutil.Uint64)(&gas)
 
-		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
+		res, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
 		if err != nil || failed {
-			return false
+			return false, res
 		}
-		return true
+		return true, res
 	}
 	// Execute the binary search and hone in on an executable gas limit
 	for lo+1 < hi {
 		mid := (hi + lo) / 2
-		if !executable(mid) {
+		ok, _ := executable(mid)
+
+		if !ok {
 			lo = mid
 		} else {
 			hi = mid
@@ -1107,7 +1110,16 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 	}
 	// Reject the transaction as invalid if it still fails at the highest allowance
 	if hi == cap {
-		if !executable(hi) {
+		ok, res := executable(hi)
+		if !ok {
+			if len(res) >= 4 && bytes.Equal(res[:4], abi.RevertSelector) {
+				reason, errUnpack := abi.UnpackRevert(res)
+				err := errors.New("execution reverted")
+				if errUnpack == nil {
+					err = fmt.Errorf("execution reverted: %v", reason)
+				}
+				return 0, err
+			}
 			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
 		}
 	}

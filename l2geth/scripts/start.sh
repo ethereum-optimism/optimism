@@ -17,6 +17,7 @@ ROLLUP_POLL_INTERVAL=15s
 ROLLUP_TIMESTAMP_REFRESH=3m
 CACHE=1024
 RPC_PORT=8545
+WS_PORT=8546
 VERBOSITY=3
 
 USAGE="
@@ -78,6 +79,15 @@ while (( "$#" )); do
         --rpcport)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
                 RPC_PORT="$2"
+                shift 2
+            else
+                echo "Error: Argument for $1 is missing" >&2
+                exit 1
+            fi
+            ;;
+        --wsport)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                WS_PORT="$2"
                 shift 2
             else
                 echo "Error: Argument for $1 is missing" >&2
@@ -222,7 +232,7 @@ cmd="$cmd --rpccorsdomain '*'"
 cmd="$cmd --rpcvhosts '*'"
 cmd="$cmd --ws"
 cmd="$cmd --wsaddr 0.0.0.0"
-cmd="$cmd --wsport 8546"
+cmd="$cmd --wsport $WS_PORT"
 cmd="$cmd --wsorigins '*'"
 cmd="$cmd --rpcapi 'eth,net,rollup,web3,debug'"
 cmd="$cmd --gasprice 0"

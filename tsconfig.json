@@ -1,10 +1,3 @@
 {
-  "extends": "./tsconfig.build.json",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@eth-optimism/*": ["packages/*/src", "integration-tests/*/test"]
-    },
-    "skipLibCheck": true
-  }
+  "extends": "./tsconfig.build.json"
 }

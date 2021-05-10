@@ -9,11 +9,13 @@ import { Coder, Signature, Uint16, Uint8, Uint24, Address } from './types'
 export enum TxType {
   EIP155 = 0,
   EthSign = 1,
+  EthSign2 = 2,
 }
 
 export const txTypePlainText = {
   0: TxType.EIP155,
   1: TxType.EthSign,
+  2: TxType.EthSign2,
   EIP155: TxType.EIP155,
   EthSign: TxType.EthSign,
 }
@@ -169,6 +171,20 @@ class EthSignTxCoder extends DefaultEcdsaTxCoder {
   }
 }
 
+class EthSign2TxCoder extends DefaultEcdsaTxCoder {
+  constructor() {
+    super(TxType.EthSign2)
+  }
+
+  public encode(txData: EthSignTxData): string {
+    return super.encode(txData)
+  }
+
+  public decode(txData: string): EthSignTxData {
+    return super.decode(txData)
+  }
+}
+
 class Eip155TxCoder extends DefaultEcdsaTxCoder {
   constructor() {
     super(TxType.EIP155)
@@ -209,6 +225,9 @@ function decode(data: string | Buffer): EIP155TxData {
   if (type === TxType.EthSign) {
     return new EthSignTxCoder().decode(data)
   }
+  if (type === TxType.EthSign2) {
+    return new EthSign2TxCoder().decode(data)
+  }
   return null
 }
 
@@ -218,6 +237,7 @@ function decode(data: string | Buffer): EIP155TxData {
 export const ctcCoder = {
   eip155TxData: new Eip155TxCoder(),
   ethSignTxData: new EthSignTxCoder(),
+  ethSign2TxData: new EthSign2TxCoder(),
   encode,
   decode,
 }
