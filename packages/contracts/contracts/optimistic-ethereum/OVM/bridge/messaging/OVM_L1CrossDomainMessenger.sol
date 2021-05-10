@@ -70,26 +70,6 @@ contract OVM_L1CrossDomainMessenger is
         Lib_AddressResolver(address(0))
     {}
 
-    /**********************
-     * Function Modifiers *
-     **********************/
-
-    /**
-     * Modifier to enforce that, if configured, only the OVM_L2MessageRelayer contract may
-     * successfully call a method.
-     */
-    modifier onlyRelayer() {
-        address relayer = resolve("OVM_L2MessageRelayer");
-        if (relayer != address(0)) {
-            require(
-                msg.sender == relayer,
-                "Only OVM_L2MessageRelayer can relay L2-to-L1 messages."
-            );
-        }
-        _;
-    }
-
-
     /********************
      * Public Functions *
      ********************/
@@ -169,7 +149,6 @@ contract OVM_L1CrossDomainMessenger is
         override
         public
         nonReentrant
-        onlyRelayer
         whenNotPaused
     {
         bytes memory xDomainCalldata = _getXDomainCalldata(
