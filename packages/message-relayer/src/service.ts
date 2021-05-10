@@ -78,7 +78,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   }
 
   protected async _init(): Promise<void> {
-    this.logger.info('Initializing message relayer', { options: this.options })
+    this.logger.info('Initializing message relayer', {
+      relayGasLimit: this.options.relayGasLimit,
+      fromL2TransactionIndex: this.options.fromL2TransactionIndex,
+      pollingInterval: this.options.pollingInterval,
+      l2BlockOffset: this.options.l2BlockOffset,
+      getLogsInterval: this.options.getLogsInterval,
+      spreadSheetMode: this.options.spreadsheetMode,
+    })
     // Need to improve this, sorry.
     this.state = {} as any
 
