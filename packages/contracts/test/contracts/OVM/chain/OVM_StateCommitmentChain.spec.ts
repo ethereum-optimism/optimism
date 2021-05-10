@@ -83,7 +83,7 @@ describe('OVM_StateCommitmentChain', () => {
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:SCC:batches',
+      'OVM_ChainStorageContainer-SCC-batches',
       batches.address
     )
 
