@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0
+
+### Minor Changes
+
+- b799caa: Updates to use RLP encoded transactions in batches for the `v0.3.0` release
+
+### Patch Changes
+
+- b799caa: Add value transfer support to ECDSAContractAccount
+- 6132e7a: Move various dependencies from primary deps to dev deps
+- b799caa: Add ExecutionManager return data & RLP encoding
+- b799caa: Makes ProxyEOA compatible with EIP1967, not backwards compatible since the storage slot changes.
+- 20747fd: Set L2MessageRelayer name to L1MultiMessageRelayer when deploying to mainnet
+- b799caa: Update ABI of simulateMessage to match run
+- Updated dependencies [b799caa]
+  - @eth-optimism/core-utils@0.4.2
+
 ## 0.2.11
 
 ### Patch Changes
