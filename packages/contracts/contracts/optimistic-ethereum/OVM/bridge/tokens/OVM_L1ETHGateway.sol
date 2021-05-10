@@ -180,7 +180,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      *****************************/
 
     /**
-     * @dev migrates entire ETH balance to another gateway
+     * @dev Migrates entire ETH balance to another gateway
      * @param _to Gateway Proxy address to migrate ETH to
      */
     function migrateEth(address payable _to) external {
@@ -190,5 +190,9 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         OVM_L1ETHGateway(_to).donateETH{value:balance}();
     }
 
+    /**
+     * @dev Adds ETH balance to the account. This is meant to allow for ETH
+     * to be migrated from an old gateway to a new gateway
+     */
     function donateETH() external payable {}
 }
