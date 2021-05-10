@@ -145,6 +145,7 @@ class NetworkService {
     console.log("NS: initializeAccounts() for",networkName)
 
     try {
+      
       let addresses;
       if (networkName === 'local') addresses = localAddresses;
       else addresses = rinkebyAddresses;
@@ -165,7 +166,7 @@ class NetworkService {
       //and then, also, either L1 or L2
 
       //at this point, we only know whether we want to be on local or rinkeby etc
-      if(networkName === 'local' && network.chainId === 420) {
+      if(networkName === 'local' && network.chainId === 28) {
         //ok, that's reasonable
         //local deployment, L2
         this.L1orL2 = 'L2';
@@ -297,6 +298,8 @@ class NetworkService {
   }
 
   async getTransactions() {
+
+    //rinkeby L1
     if (this.chainID === 4) {
       const response = await fetch(`${ETHERSCAN_URL}&address=${this.account}`);
       if (response.status === 200) {
@@ -306,6 +309,7 @@ class NetworkService {
         }
       }
     }
+    //rinkeby L2
     if (this.chainID === 28) {
       const response = await fetch( OMGX_WATCHER_URL + 'get.transaction', 
         {

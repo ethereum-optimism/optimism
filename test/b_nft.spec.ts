@@ -105,8 +105,6 @@ describe('NFT Test', async () => {
 
     const ownerName = "Henrietta Lacks"
 
-    //for some strange reason need a string here
-    //no idea why that matters
     const tokenID = BigNumber.from(String(50));
     
     let meta = ownerName + "#" + Date.now().toString() + '#https://www.atcc.org/products/all/CCL-2.aspx';
