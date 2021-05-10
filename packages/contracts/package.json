@@ -50,14 +50,13 @@
     "@eth-optimism/core-utils": "^0.4.0",
     "@eth-optimism/solc": "^0.6.12-alpha.1",
     "@ethersproject/abstract-provider": "^5.0.8",
-    "@ethersproject/abstract-signer": "^5.1.0",
     "@ethersproject/contracts": "^5.0.5",
     "@openzeppelin/contracts": "^3.3.0",
     "@openzeppelin/contracts-upgradeable": "^3.3.0",
     "@typechain/hardhat": "^1.0.1",
     "ganache-core": "^2.13.2",
     "glob": "^7.1.6",
-    "solidity-coverage": "^0.7.16"  
+    "solidity-coverage": "^0.7.16"
   },
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
