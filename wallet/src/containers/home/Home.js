@@ -17,10 +17,10 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector, batch } from 'react-redux';
 import { selectWalletMethod } from 'selectors/setupSelector';
 import { selectModalState } from 'selectors/uiSelector';
-import { selectChildchainTransactions } from 'selectors/transactionSelector';
+// import { selectChildchainTransactions } from 'selectors/transactionSelector';
 
 import useInterval from 'util/useInterval';
-import { isEqual } from 'lodash';
+// import { isEqual } from 'lodash';
 
 import {
   checkWatcherStatus,
@@ -51,7 +51,7 @@ import logo from 'images/omgx.png';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = 2000; //in milliseconds?
+const POLL_INTERVAL = 1000; //in milliseconds?
 
 function Home () {
 
@@ -70,7 +70,7 @@ function Home () {
   const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'))
 
   const walletMethod = useSelector(selectWalletMethod())
-  const transactions = useSelector(selectChildchainTransactions, isEqual);
+  // const transactions = useSelector(selectChildchainTransactions, isEqual);
   
   useEffect(() => {
     const body = document.getElementsByTagName('body')[0];
@@ -99,7 +99,7 @@ function Home () {
       dispatch(fetchBalances());
       dispatch(fetchTransactions());
     });
-  }, POLL_INTERVAL);
+  }, POLL_INTERVAL * 10);
 
   useInterval(() => {
     dispatch(fetchBalances());

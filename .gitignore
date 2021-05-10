@@ -24,6 +24,7 @@ wallet/src/deployment
 /**/package-lock.json
 
 /**/.env
+env.js
 
 /**/*.log
 

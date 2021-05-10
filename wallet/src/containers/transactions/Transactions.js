@@ -15,10 +15,9 @@ limitations under the License. */
 
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { isEqual } from 'lodash';
+import { isEqual, orderBy } from 'lodash';
 import { useSelector } from 'react-redux';
 
-import BN from 'bn.js';
 import moment from 'moment';
 import truncate from 'truncate-middle';
 
@@ -28,10 +27,8 @@ import { setActiveHistoryTab2 } from 'actions/uiAction'
 import { selectActiveHistoryTab1 } from 'selectors/uiSelector'
 import { selectActiveHistoryTab2 } from 'selectors/uiSelector'
 
+import { selectChildchainTransactions } from 'selectors/transactionSelector';
 import { selectLoading } from 'selectors/loadingSelector'
-
-import networkService from 'services/networkService'
-import { selectNetworkBURL } from 'selectors/setupSelector';
 
 import Tabs from 'components/tabs/Tabs'
 import Input from 'components/input/Input'
@@ -40,6 +37,8 @@ import Pager from 'components/pager/Pager'
 
 import Exits from './Exits';
 import Deposits from './Deposits';
+
+import networkService from 'services/networkService';
 
 import * as styles from './Transactions.module.scss';
 
@@ -50,6 +49,7 @@ function Transactions () {
   const dispatch = useDispatch();
 
   const [ page1, setPage1 ] = useState(1);
+  // eslint-disable-next-line
   const [ page2, setPage2 ] = useState(1);
   
   const [ searchHistory, setSearchHistory ] = useState('');
@@ -59,25 +59,11 @@ function Transactions () {
   const activeTab1 = useSelector(selectActiveHistoryTab1, isEqual);
   const activeTab2 = useSelector(selectActiveHistoryTab2, isEqual);
 
-  const transactions = [];
-
-  const blockexplorerURL = useSelector(selectNetworkBURL());
-
-  function renderStatus (utxo) {
-    if (utxo.status === 'Pending') {
-      return 'Pending';
-    }
-    const total = utxo.outputs.reduce((prev, curr) => {
-      if (curr.owner !== networkService.account) {
-        return prev.add(new BN(curr.amount));
-      }
-      return prev;
-    }, new BN(0));
-    return `${total.toString()}`;
-  }
+  const unorderedTransactions = useSelector(selectChildchainTransactions, isEqual);
+  const transactions = orderBy(unorderedTransactions, i => i.timeStamp, 'desc');
 
   const _transactions = transactions.filter(i => {
-    return i.txhash.includes(searchHistory) || i.metadata.includes(searchHistory);
+    return i.hash.includes(searchHistory);
   });
 
   const startingIndex = page1 === 1 ? 0 : ((page1 - 1) * PER_PAGE);
@@ -138,16 +124,14 @@ function Transactions () {
                 return (
                   <Transaction
                     key={index}
-                    link={
-                      i.status === 'Pending'
-                        ? undefined
-                        : `${blockexplorerURL}/transaction/${i.txhash}`
+                    link={ 
+                      (networkService.chainID === 4 || networkService.chainID === 28) ? 
+                        `https://rinkeby.etherscan.io/tx/${i.hash}`:
+                        undefined
                     }
-                    title={`${truncate(i.txhash, 6, 4, '...')}`}
-                    midTitle={i.metadata ? i.metadata : '-'}
-                    subTitle={moment.unix(i.block.timestamp).format('lll')}
-                    status={renderStatus(i)}
-                    subStatus={`Block ${i.block.blknum}`}
+                    title={`${truncate(i.hash, 6, 4, '...')}`}
+                    subTitle={moment.unix(i.timeStamp).format('lll')}
+                    subStatus={`Block ${i.blockNumber}`}
                   />
                 );
               })}
@@ -155,7 +139,7 @@ function Transactions () {
           )}
 
           {activeTab1=== 'Deposits' && <
-            Deposits searchHistory={searchHistory} />
+            Deposits searchHistory={searchHistory} transactions={transactions} />
           }
 
         </div>

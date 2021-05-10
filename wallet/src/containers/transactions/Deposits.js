@@ -14,25 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React, { useState, useEffect } from 'react';
-// import { isEqual } from 'lodash';
 import { useSelector } from 'react-redux';
+import moment from 'moment';
+import truncate from 'truncate-middle';
 
-// import { selectEthDeposits, selectErc20Deposits } from 'selectors/transactionSelector';
 import { selectLoading } from 'selectors/loadingSelector';
 
 import Pager from 'components/pager/Pager';
+import Transaction from 'components/transaction/Transaction';
+
+import networkService from 'services/networkService';
 
 import * as styles from './Transactions.module.scss';
 
 const PER_PAGE = 10;
 
-function Deposits ({ searchHistory }) {
+function Deposits ({ searchHistory, transactions }) {
 
   const [ page, setPage ] = useState(1);
 
   // const ethDeposits = useSelector(selectEthDeposits, isEqual);
   // const erc20Deposits = useSelector(selectErc20Deposits, isEqual);
-  const loading = useSelector(selectLoading([ 'DEPOSIT/GETALL' ]));
+  const loading = useSelector(selectLoading([ 'TRANSACTION/GETALL' ]));
 
   useEffect(() => {
     setPage(1);
@@ -43,7 +46,11 @@ function Deposits ({ searchHistory }) {
   //   i => i.blockNumber, 'desc'
   // );
 
-  const _deposits = [];
+  const _deposits = transactions.filter(i => {
+    return i.hash.includes(searchHistory) && (
+      i.to.toLowerCase() === networkService.L1LPAddress.toLowerCase() || 
+      i.to.toLowerCase() === networkService.l1ETHGatewayAddress.toLowerCase());
+  });
 
   const startingIndex = page === 1 ? 0 : ((page - 1) * PER_PAGE);
   const endingIndex = page * PER_PAGE;
@@ -70,21 +77,22 @@ function Deposits ({ searchHistory }) {
         {!paginatedDeposits.length && loading && (
           <div className={styles.disclaimer}>Loading...</div>
         )}
-        {/* {paginatedDeposits.map((i, index) => {
+        {paginatedDeposits.map((i, index) => {
           return (
             <Transaction
               key={index}
-              link={`${etherscan}/tx/${i.transactionHash}`}
-              title={truncate(i.transactionHash, 6, 4, '...')}
+              link={ 
+                (networkService.chainID === 4 || networkService.chainID === 28) ? 
+                  `https://rinkeby.etherscan.io/tx/${i.hash}`:
+                  undefined
+              }
+              title={truncate(i.hash, 6, 4, '...')}
               midTitle='Deposit'
-              subTitle={`Token: ${i.tokenInfo.symbol}`}
-              status={i.status === 'Pending' ? 'Pending' : logAmount(i.returnValues.amount, i.tokenInfo.decimals)}
-              statusPercentage={i.pendingPercentage <= 100 ? i.pendingPercentage : ''}
+              subTitle={moment.unix(i.timeStamp).format('lll')}
               subStatus={`Block ${i.blockNumber}`}
-              tooltip={'For re-org protection, deposits require 10 block confirmations before the UTXO is available to spend.'}
             />
           );
-        })} */}
+        })}
       </div>
     </div>
   );

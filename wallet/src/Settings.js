@@ -4,6 +4,9 @@ export const VERSION = "1.0.26";
 
 export const INFURA_ID = process.env.REACT_APP_INFURA_ID;
 
+export const ETHERSCAN_URL = `https://api-rinkeby.etherscan.io/api?module=account&action=txlist&startblock=0&endblock=99999999&sort=asc&apikey=${process.env.REACT_APP_ETHERSCAN_API}`;
+export const OMGX_WATCHER_URL = `https://api-watcher.rinkeby.omgx.network/`;
+
 export const L1ETHGATEWAY = [
   {
     anonymous: false,

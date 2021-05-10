@@ -50,7 +50,7 @@ function WalletPicker ({ onEnable }) {
   const networkName = useSelector(selectNetwork())
   //const netLayer = useSelector(selectLayer())
 
-  console.log("walletMethod:",walletMethod)
+  // console.log("walletMethod:",walletMethod)
   console.log("networkName:",networkName)
   //console.log("netLayer:",netLayer)
   

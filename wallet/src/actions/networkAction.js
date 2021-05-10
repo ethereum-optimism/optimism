@@ -43,7 +43,7 @@ export function fetchBalances () {
 export function fetchTransactions () {
   return createAction(
     'TRANSACTION/GETALL',
-    () => networkService.getAllTransactions()
+    () => networkService.getTransactions()
   );
 }
 

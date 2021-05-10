@@ -42,7 +42,7 @@ import L1ERC20GatewayJson from '../deployment/artifacts/contracts/L1ERC20Gateway
 import { powAmount, logAmount } from 'util/amountConvert';
 import { getAllNetworks } from 'util/networkName';
 
-import { L1ETHGATEWAY, L2DEPOSITEDERC20 } from "Settings";
+import { ETHERSCAN_URL, OMGX_WATCHER_URL, L1ETHGATEWAY, L2DEPOSITEDERC20 } from "Settings";
 
 //All the current addresses
 const localAddresses = require(`../deployment/local/addresses.json`);
@@ -89,7 +89,6 @@ class NetworkService {
     this.watcher = null;
 
     // addresses
-
     this.ERC20Address = null;
     this.l1ETHGatewayAddress = null;
     this.L1ERC20GatewayAddress = null;
@@ -99,6 +98,9 @@ class NetworkService {
     this.L2LPAddress = null;
     this.l2ETHGatewayAddress = '0x4200000000000000000000000000000000000006';
     this.l2MessengerAddress = '0x4200000000000000000000000000000000000007';
+
+    // chain ID
+    this.chainID = null;
   }
 
   async enableBrowserWallet() {
@@ -146,6 +148,7 @@ class NetworkService {
       console.log("this.account",this.account)
       const network = await this.web3Provider.getNetwork();
 
+      this.chainID = network.chainId;
       this.networkName = networkName;
       console.log("NS: networkName:",this.networkName)
       console.log("NS: account:",this.account)
@@ -168,7 +171,7 @@ class NetworkService {
         //ok, that's reasonable
         //rinkeby, L1
         this.L1orL2 = 'L1';
-      } else if (networkName === 'rinkeby' && network.chainId === 420) {
+      } else if (networkName === 'rinkeby' && network.chainId === 28) {
         //ok, that's reasonable
         //rinkeby, L2
         this.L1orL2 = 'L2';
@@ -238,7 +241,7 @@ class NetworkService {
         L1LPJson.abi,
         this.web3Provider.getSigner(),
       );
-
+      
       this.L2LPContract = new ethers.Contract(
         this.L2LPAddress,
         L2LPJson.abi,
@@ -278,6 +281,63 @@ class NetworkService {
       watcherSynced: true,
       lastSeenBlock: 0,
     };
+  }
+
+  async getTransactions() {
+    if (this.chainID === 4) {
+      const response = await fetch(`${ETHERSCAN_URL}&address=${this.account}`);
+      if (response.status === 200) {
+        const transactions = await response.json();
+        if (transactions.status === '1') {
+          return transactions.result;
+        }
+      }
+    }
+    if (this.chainID === 28) {
+      const response = await fetch( OMGX_WATCHER_URL + 'get.transaction', 
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            address: this.account,
+            fromRange: 0,
+            toRange: 100,
+          })
+        }
+      );
+      if (response.status === 201) {
+        const transactions = await response.json();
+        return transactions.map(i => {
+          return {
+            ...i,
+            timeStamp: i.timestamp,
+          }
+        });
+      }
+    }
+  }
+
+  async getExits() {
+    if (this.chainID === 28 || this.chainID === 4) {
+      const response = await fetch( OMGX_WATCHER_URL + 'get.transaction', 
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            address: this.account,
+            fromRange: 0,
+            toRange: 100,
+          })
+        }
+      );
+      if (response.status === 201) {
+        const transactions = await response.json();
+        const formatTransactions = transactions.map(i => { return { ...i, timeStamp: i.timestamp }});
+        const filteredTransactions = formatTransactions.filter(i => 
+          [this.L1LPAddress.toLowerCase(), this.ERC20L2Contract.address, this.l2ETHGatewayAddress]
+          .includes(i.to.toLowerCase())
+        )
+        return { exited: filteredTransactions};
+      }
+    }
   }
 
   async getBalances () {
@@ -633,12 +693,7 @@ class NetworkService {
     let depositAmount = powAmount(value, decimals);
     depositAmount = new BN(depositAmount);
 
-    let l2TokenCurrency = null;
-
     if (currency.toLowerCase() === this.ERC20Address.toLowerCase()) {
-      
-      l2TokenCurrency = this.L2DepositedERC20Address;
-
       const ERC20Contract = new ethers.Contract(
         currency, 
         L1ERC20Json.abi, 
@@ -659,8 +714,7 @@ class NetworkService {
 
       const depositTX = await this.L1LPContract.clientDepositL1(
         depositAmount.toString(),
-        currency,
-        l2TokenCurrency,
+        currency
       );
       await depositTX.wait();
 
@@ -691,20 +745,13 @@ class NetworkService {
   }
 
   async L1LPBalance(currency) {
+    let balance;
     if (currency === this.l2ETHGatewayAddress) {
-      currency = '0x0000000000000000000000000000000000000000';
+      balance = await this.l1Provider.getBalance(this.L1LPAddress);
     }
     if (currency === this.L2DepositedERC20Address) {
-      currency = this.ERC20Address;
+      balance = await this.ERC20L1Contract.methods.balances(this.L1LPAddress).call({from: this.account});
     }
-    const L1LPContract = new this.l1Web3Provider.eth.Contract(
-      L1LPJson.abi,
-      this.L1LPAddress,
-    );
-    const balance = await L1LPContract.methods.balanceOf(
-      currency,
-    ).call({ from: this.account });
-    // Demo purpose
     const decimals = 18;
     return logAmount(balance.toString(), decimals);
   }
@@ -730,78 +777,7 @@ class NetworkService {
     return logAmount(balance.toString(), decimals);
   }
 
-  async L1LPWithdrawFee(currency, receiver, amount) {
-    
-    const L1LPFeeBalance = await this.L1LPContract.feeBalanceOf(currency);
-    
-    let L1LPBalance = 0;
-
-    if (currency !== '0x0000000000000000000000000000000000000000') {
-      const ERC20Contract = new this.l1Web3Provider.eth.Contract(
-        L1ERC20Json.abi,
-        currency,
-      )
-      L1LPBalance = await ERC20Contract.methods.balanceOf(this.L1LPAddress).call({from: this.account});
-    } else {
-      L1LPBalance = L1LPFeeBalance;
-    }
-
-    const decimals = 18;
-    const sendAmount = powAmount(amount, decimals);
-
-    if (new BN(sendAmount).lte(new BN(L1LPBalance.toString())) && new BN(sendAmount).lte(new BN(L1LPFeeBalance.toString()))) {
-      const withdrawTX = await this.L1LPContract.withdrawFee(sendAmount, currency, receiver);
-      await withdrawTX.wait();
-      return withdrawTX;
-    } else {
-      return false;
-    }
-
-  }
-
-  async initialDepositL2LP(currency, value) {
-    const ERC20Contract = new ethers.Contract(
-      currency, 
-      L2DepositedERC20Json.abi, 
-      this.web3Provider.getSigner(),
-    );
-
-    let allowance = await ERC20Contract.allowance(this.account, this.L2LPAddress);
-    allowance = new BN(allowance.toString());
-
-    const token = await getToken(currency);
-    const decimals = token.decimals;
-    let depositAmount = powAmount(value, decimals);
-    depositAmount = new BN(depositAmount);
-
-    if (depositAmount.gt(allowance)) {
-      const approveStatus = await ERC20Contract.approve(
-        this.L2LPAddress,
-        depositAmount.toString(),
-      );
-      await approveStatus.wait();
-    }
-
-    const depositTX = await this.L2LPContract.initiateDepositTo(
-      depositAmount.toString(),
-      currency,
-    );
-
-    await depositTX.wait();
-
-    return depositTX
-  }
-
   async depositL2LP(currency, value) {
-    
-    let l1TokenCurrency = null;
-    
-    if (currency === this.l2ETHGatewayAddress) {
-      l1TokenCurrency = "0x0000000000000000000000000000000000000000";
-    } else {
-      l1TokenCurrency = this.ERC20Address;
-    }
-
     const ERC20Contract = new ethers.Contract(
       currency, 
       L2DepositedERC20Json.abi, 
@@ -827,7 +803,6 @@ class NetworkService {
     const depositTX = await this.L2LPContract.clientDepositL2(
       depositAmount.toString(),
       currency,
-      l1TokenCurrency,
     );
 
     await depositTX.wait();
@@ -843,24 +818,16 @@ class NetworkService {
   }
 
   async L2LPBalance(currency) {
+    let balance;
     if (currency === '0x0000000000000000000000000000000000000000') {
-      currency = this.l2ETHGatewayAddress;
+      balance = await this.l2Provider.getBalance(this.L2LPAddress);
     }
     if (currency.toLowerCase() === this.ERC20Address.toLowerCase()) {
-      currency = this.L2DepositedERC20Address;
+      balance = await this.ERC20L2Contract.methods.balanceOf(this.L2LPAddress).call({from: this.account});
     }
-    const L2LPContract = new this.l2Web3Provider.eth.Contract(
-      L2LPJson.abi,
-      this.L2LPAddress,
-    );
-    const balance = await L2LPContract.methods.balanceOf(
-      currency,
-    ).call({ from: this.account });
-    // Demo purpose
     const decimals = 18;
     return logAmount(balance.toString(), decimals);
   }
-
 
   async getL2LPFeeRatio() {
     const L2LPContract = new this.l2Web3Provider.eth.Contract(
@@ -881,27 +848,6 @@ class NetworkService {
     // Demo purpose
     const decimals = 18;
     return logAmount(balance.toString(), decimals);
-  }
-
-  async L2LPWithdrawFee(currency, receiver, amount) {
-    const ERC20Contract = new this.l2Web3Provider.eth.Contract(
-      L2DepositedERC20Json.abi,
-      currency,
-    );
-    const L2LPBalance = await ERC20Contract.methods.balanceOf(this.L2LPAddress).call({from: this.account});
-    const L2LPFeeBalance = await this.L2LPContract.feeBalanceOf(currency);
-
-    const decimals = 18;
-    const sendAmount = powAmount(amount, decimals);
-
-    if (new BN(sendAmount).lt(new BN(L2LPBalance)) && new BN(sendAmount).lte(new BN(L2LPFeeBalance.toString()))) {
-      const withdrawTX = await this.L2LPContract.withdrawFee(sendAmount, currency, receiver);
-      await withdrawTX.wait();
-      return withdrawTX;
-    } else {
-      return false;
-    }
-
   }
 }
 
