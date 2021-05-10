@@ -31,7 +31,6 @@
     "test:contracts": "hardhat test --show-stack-traces",
     "test:gas": "hardhat test \"test/contracts/OVM/execution/OVM_StateManager.gas-spec.ts\" --no-compile --show-stack-traces",
     "test:coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage",
-    "test:connect-contracts": "yarn run test:contracts test/connect-contracts.spec.ts",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:typescript": "tslint --format stylish --project .",
     "lint:fix": "yarn run lint:fix:typescript",
