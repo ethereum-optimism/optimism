@@ -1,7 +1,12 @@
 /* External Imports */
-const { ethers } = require('hardhat')
-const { expect } = require('chai')
+const { ethers, network } = require('hardhat')
+const chai = require('chai')
+const { solidity } = require('ethereum-waffle')
+const chaiAsPromised = require('chai-as-promised')
+const { expect } = chai
 
+chai.use(chaiAsPromised)
+chai.use(solidity)
 
 describe(`ERC20`, () => {
   const INITIAL_SUPPLY = 1000000
@@ -43,15 +48,15 @@ describe(`ERC20`, () => {
     it(`should revert when the sender does not have enough balance`, async () => {
       const tx = ERC20.connect(account1).transfer(
         await account2.getAddress(),
-        INITIAL_SUPPLY + 1,
+        INITIAL_SUPPLY + 1
       )
-      await expect(tx).to.be.reverted
+      await expect(tx).to.be.rejectedWith("You don't have enough balance to make this transfer!")
     })
 
     it(`should succeed when the sender has enough balance`, async () => {
       const tx = await ERC20.connect(account1).transfer(
         await account2.getAddress(),
-        INITIAL_SUPPLY,
+        INITIAL_SUPPLY
       )
       await tx.wait()
 
@@ -73,22 +78,22 @@ describe(`ERC20`, () => {
       const tx = ERC20.connect(account2).transferFrom(
         await account1.getAddress(),
         await account2.getAddress(),
-        INITIAL_SUPPLY,
+        INITIAL_SUPPLY
       )
-      await expect(tx).to.be.reverted
+      await expect(tx).to.be.rejectedWith("Can't transfer from the desired account because you don't have enough of an allowance.")
     })
 
     it(`should succeed when the owner has enough balance and the sender has a large enough allowance`, async () => {
       const tx1 = await ERC20.connect(account1).approve(
         await account2.getAddress(),
-        INITIAL_SUPPLY,
+        INITIAL_SUPPLY
       )
       await tx1.wait()
 
       const tx2 = await ERC20.connect(account2).transferFrom(
         await account1.getAddress(),
         await account2.getAddress(),
-        INITIAL_SUPPLY,
+        INITIAL_SUPPLY
       )
       await tx2.wait()
 
