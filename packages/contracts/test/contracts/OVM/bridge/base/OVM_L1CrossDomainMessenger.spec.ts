@@ -217,7 +217,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     const message = NON_NULL_BYTES32
     const gasLimit = 100_000
 
-    it('should revert if the message does not exist', async () => {
+    it('should revert if given the wrong queue index', async () => {
       await OVM_L1CrossDomainMessenger.sendMessage(target, message, 100_001)
 
       const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
