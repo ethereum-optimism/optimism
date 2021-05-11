@@ -63,6 +63,8 @@ Here's the list of environment variables you can change:
 | DATA_TRANSPORT_LAYER__NODE_ENV                          | development | Environment the service is running in.                                                                                                                        |
 | DATA_TRANSPORT_LAYER__ETH_NETWORK_NAME                  | -           | L1 Ethereum network the service is deployed to.                                                                                                               |
 
+To enable proper error tracking via Sentry on deployed instances, make sure `NODE_ENV` and `ETH_NETWORK_NAME` are set in addition to `SENTRY_DSN`.
+
 ## HTTP API
 
 This section describes the HTTP API for accessing indexed Layer 1 data.
