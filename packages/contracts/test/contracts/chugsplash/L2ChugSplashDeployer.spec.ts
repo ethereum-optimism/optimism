@@ -52,28 +52,6 @@ describe('L2ChugSplashDeployer', () => {
     })
   })
 
-  describe('setOwner', () => {
-    it('should allow the current owner to change ownership', async () => {
-      await expect(
-        L2ChugSplashDeployer.connect(signer1).setOwner(
-          await signer2.getAddress()
-        )
-      ).to.not.be.reverted
-
-      expect(await L2ChugSplashDeployer.owner()).to.equal(
-        await signer2.getAddress()
-      )
-    })
-
-    it('should revert if caller is not the owner', async () => {
-      await expect(
-        L2ChugSplashDeployer.connect(signer2).setOwner(
-          await signer2.getAddress()
-        )
-      ).to.be.revertedWith('ChugSplashDeployer: sender is not owner')
-    })
-  })
-
   describe('approveTransactionBundle', () => {
     it('should revert if caller is not the owner', async () => {
       await expect(
@@ -81,7 +59,7 @@ describe('L2ChugSplashDeployer', () => {
           ethers.constants.HashZero,
           0
         )
-      ).to.be.revertedWith('ChugSplashDeployer: sender is not owner')
+      ).to.be.revertedWith('Ownable: caller is not the owner')
     })
 
     it('should allow the owner to approve a new transaction bundle', async () => {
@@ -286,7 +264,7 @@ describe('L2ChugSplashDeployer', () => {
     it('should revert if caller is not the owner', async () => {
       await expect(
         L2ChugSplashDeployer.connect(signer2).cancelTransactionBundle()
-      ).to.be.revertedWith('ChugSplashDeployer: sender is not owner')
+      ).to.be.revertedWith('Ownable: caller is not the owner')
     })
 
     it('should revert if there is no active bundle', async () => {

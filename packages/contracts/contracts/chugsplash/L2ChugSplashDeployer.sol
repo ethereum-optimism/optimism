@@ -6,10 +6,13 @@ pragma experimental ABIEncoderV2;
 import { Lib_ExecutionManagerWrapper } from "../optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 import { Lib_MerkleTree } from "../optimistic-ethereum/libraries/utils/Lib_MerkleTree.sol";
 
+/* External Imports */
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
 /**
  * @title L2ChugSplashDeployer
  */
-contract L2ChugSplashDeployer {
+contract L2ChugSplashDeployer is Ownable {
 
     /*********
      * Enums *
@@ -70,8 +73,6 @@ contract L2ChugSplashDeployer {
      * Variables *
      *************/
 
-    // Address that can approve new transaction bundles.
-    address public owner;
     uint256 public currentBundleNonce;
     bytes32 public currentBundleHash;
     uint256 public currentBundleSize;
@@ -88,43 +89,16 @@ contract L2ChugSplashDeployer {
      */
     constructor(
         address _owner
-    ) {
-        owner = _owner;
-    }
-
-
-    /**********************
-     * Function Modifiers *
-     **********************/
-
-    /**
-     * Marks a function as only callable by the owner.
-     */
-    modifier onlyOwner() {
-        require(
-            msg.sender == owner,
-            "ChugSplashDeployer: sender is not owner"
-        );
-        _;
+    )
+        Ownable()
+    {
+        transferOwnership(_owner);
     }
 
 
     /********************
      * Public Functions *
      ********************/
-
-    /**
-     * Changes the owner. Only callable by the current owner.
-     * @param _owner New owner address.
-     */
-    function setOwner(
-        address _owner
-    )
-        public
-        onlyOwner
-    {
-        owner = _owner;
-    }
 
     /**
      * @return boolean, whether or not an upgrade is currently being executed.
