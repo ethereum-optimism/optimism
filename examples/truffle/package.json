@@ -9,7 +9,7 @@
     "compile:ovm": "truffle compile --config truffle-config-ovm.js",
     "test:integration": "truffle test",
     "test:integration:ovm": "truffle test --network optimism --config truffle-config-ovm.js",
-    "deploy": "truffle migrate",
+    "deploy": "truffle migrate --network ethereum --config truffle-config",
     "deploy:ovm": "truffle migrate --network optimism --config truffle-config-ovm.js"
   },
   "keywords": [
