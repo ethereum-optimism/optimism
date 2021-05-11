@@ -4,7 +4,7 @@
   "version": "1.0.0-alpha.1",
   "description": "Example of using Optimistic Ethereum compiler & local Optimistic Ethereum nodes with Truffle to run a full ERC20 test suite",
   "scripts": {
-    "clean": "rimraf build",
+    "clean": "rimraf build build-ovm",
     "compile": "truffle compile",
     "compile:ovm": "truffle compile --config truffle-config-ovm.js",
     "test:integration": "truffle test",

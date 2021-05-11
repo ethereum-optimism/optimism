@@ -22,7 +22,8 @@ module.exports = {
   compilers: {
     solc: {
       // Add path to the optimism solc fork
-      version: "node_modules/@eth-optimism/solc",
+      path: 'node_modules/@eth-optimism/solc',
+      version: '0.7.6',
       settings: {
         optimizer: {
           enabled: true,
