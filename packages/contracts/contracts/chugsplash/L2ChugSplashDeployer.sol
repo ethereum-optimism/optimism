@@ -11,6 +11,14 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title L2ChugSplashDeployer
+ * @dev Contract responsible for managing and executing "ChugSplash" upgrades. The ChugSplash
+ * scheme involves "upgrade bundles" containing a set of "actions." An action can take one of two
+ * types, SET_CODE or SET_STORAGE. A SET_CODE action will modify the code of a given account,
+ * whereas a SET_STORAGE action will modify the value of a given storage slot for an account.
+ * An owner (a multisig on mainnet) can approve a bundle by specifying the root of a Merkle tree
+ * generated from the actions within the bundle. Any other account is then allowed to execute any
+ * actions (in any order) by demonstrating with a Merkle proof that the action was approved by the
+ * contract owner. Only a single upgrade may be active at any given time.
  */
 contract L2ChugSplashDeployer is Ownable {
 
@@ -73,10 +81,19 @@ contract L2ChugSplashDeployer is Ownable {
      * Variables *
      *************/
 
+    // Unique number for each bundle, incremented whenever a new bundle is activated.
     uint256 public currentBundleNonce;
+
+    // A merkle root which commits to all steps in the currently active bundle.
     bytes32 public currentBundleHash;
+
+    // The total number of actions in the currently active bundle.
     uint256 public currentBundleSize;
+
+    // The number of actions in the bundle which have been completed so far.
     uint256 public currentBundleTxsExecuted;
+
+    // A boolean for whether or not an action has been completed, across all bundles and their actions.
     mapping (uint256 => mapping (uint256 => bool)) internal completedBundleActions;
 
 
