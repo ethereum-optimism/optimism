@@ -10,7 +10,7 @@ import { Lib_MerkleTree } from "../optimistic-ethereum/libraries/utils/Lib_Merkl
  * @title L2ChugSplashDeployer
  */
 contract L2ChugSplashDeployer {
-    
+
     /*********
      * Enums *
      *********/
@@ -19,6 +19,35 @@ contract L2ChugSplashDeployer {
         SET_CODE,
         SET_STORAGE
     }
+
+
+    /**********
+     * Events *
+     **********/
+    
+    event BundleApproved(
+        bytes32 indexed bundleHash,
+        uint256 indexed bundleNonce,
+        address indexed who,
+        uint256 bundleSize
+    );
+
+    event BundleCancelled(
+        bytes32 indexed bundleHash,
+        uint256 indexed bundleNonce,
+        address indexed who
+    );
+    
+    event BundleCompleted(
+        bytes32 indexed bundleHash,
+        uint256 indexed bundleNonce
+    );
+
+    event ActionExecuted(
+        bytes32 indexed bundleHash,
+        uint256 indexed bundleNonce,
+        uint256 actionIndex
+    );
 
 
     /***********
@@ -126,8 +155,18 @@ contract L2ChugSplashDeployer {
         onlyOwner
     {
         require(
+            _bundleHash != bytes32(0),
+            "ChugSplashDeployer: bundle hash must not be the empty hash"
+        );
+
+        require(
+            _bundleSize > 0,
+            "ChugSplashDeployer: bundle must include at least one action"
+        );
+
+        require(
             hasActiveBundle() == false,
-            "ChugSplashDeployer: previous bundle has not yet been fully executed"
+            "ChugSplashDeployer: previous bundle is still active"
         );
 
         currentBundleNonce += 1;
@@ -135,6 +174,13 @@ contract L2ChugSplashDeployer {
         currentBundleSize = _bundleSize;
         currentBundleTxsExecuted = 0;
         _setUpgradeStatus(true);
+
+        emit BundleApproved(
+            _bundleHash,
+            currentBundleNonce,
+            msg.sender,
+            _bundleSize
+        );
     }
 
     /**
@@ -147,6 +193,12 @@ contract L2ChugSplashDeployer {
         require(
             hasActiveBundle() == true,
             "ChugSplashDeployer: cannot cancel when there is no active bundle"
+        );
+
+        emit BundleCancelled(
+            currentBundleHash,
+            currentBundleNonce,
+            msg.sender
         );
 
         currentBundleHash = bytes32(0);
@@ -166,8 +218,6 @@ contract L2ChugSplashDeployer {
     )
         public
     {
-        // TODO: Do we need to check gas limit?
-
         require(
             hasActiveBundle() == true,
             "ChugSplashDeployer: there is no active bundle"
@@ -223,9 +273,22 @@ contract L2ChugSplashDeployer {
         // Mark the action as complete.
         completedBundleActions[currentBundleNonce][_proof.actionIndex] = true;
 
+        emit ActionExecuted(
+            currentBundleHash,
+            currentBundleNonce,
+            _proof.actionIndex
+        );
+
         currentBundleTxsExecuted++;
         if (currentBundleSize == currentBundleTxsExecuted) {
+            emit BundleCompleted(
+                currentBundleHash,
+                currentBundleNonce
+            );
+
             currentBundleHash = bytes32(0);
+            currentBundleSize = 0;
+            currentBundleTxsExecuted = 0;
             _setUpgradeStatus(false);
         }
     }

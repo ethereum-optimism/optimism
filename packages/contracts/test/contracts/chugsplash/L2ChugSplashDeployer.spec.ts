@@ -99,6 +99,28 @@ describe('L2ChugSplashDeployer', () => {
       expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(1234)
     })
 
+    it('should revert if trying to approve a bundle with the empty hash', async () => {
+      await expect(
+        L2ChugSplashDeployer.connect(signer1).approveTransactionBundle(
+          ethers.constants.HashZero,
+          1234
+        )
+      ).to.be.revertedWith(
+        'ChugSplashDeployer: bundle hash must not be the empty hash'
+      )
+    })
+
+    it('should revert if trying to approve a bundle with no actions', async () => {
+      await expect(
+        L2ChugSplashDeployer.connect(signer1).approveTransactionBundle(
+          NON_NULL_BYTES32,
+          0
+        )
+      ).to.be.revertedWith(
+        'ChugSplashDeployer: bundle must include at least one action'
+      )
+    })
+
     it('should revert if trying to approve a bundle when another bundle is already active', async () => {
       await L2ChugSplashDeployer.connect(signer1).approveTransactionBundle(
         NON_NULL_BYTES32,
@@ -111,7 +133,7 @@ describe('L2ChugSplashDeployer', () => {
           1234
         )
       ).to.be.revertedWith(
-        'ChugSplashDeployer: previous bundle has not yet been fully executed'
+        'ChugSplashDeployer: previous bundle is still active'
       )
     })
   })
@@ -218,10 +240,12 @@ describe('L2ChugSplashDeployer', () => {
       })
 
       it('should revert if trying to execute the same action more than once', async () => {
-        await L2ChugSplashDeployer.executeAction(
-          bundle.actions[0].action,
-          bundle.actions[0].proof
-        )
+        await expect(
+          L2ChugSplashDeployer.executeAction(
+            bundle.actions[0].action,
+            bundle.actions[0].proof
+          )
+        ).to.not.be.reverted
 
         await expect(
           L2ChugSplashDeployer.executeAction(
@@ -273,7 +297,7 @@ describe('L2ChugSplashDeployer', () => {
       )
     })
 
-    describe('when a bundle has been created', () => {
+    describe('when a bundle has been approved', () => {
       const bundle: ChugSplashActionBundle = getChugSplashActionBundle([
         {
           target: NON_ZERO_ADDRESS,
@@ -308,7 +332,7 @@ describe('L2ChugSplashDeployer', () => {
         expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(0)
       })
 
-      it('should allow the owner to cancel an active bundle immediately after creating it', async () => {
+      it('should allow the owner to cancel an active bundle after some actions have been executed', async () => {
         await L2ChugSplashDeployer.executeAction(
           bundle.actions[0].action,
           bundle.actions[0].proof
