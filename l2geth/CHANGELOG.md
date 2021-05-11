@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- 9231063: Prevent montonicity errors in the miner
+
 ## 0.3.0
 
 ### Minor Changes

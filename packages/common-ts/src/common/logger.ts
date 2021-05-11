@@ -41,7 +41,9 @@ export class Logger {
         }),
       })
     }
-    if (options.streams) loggerStreams = loggerStreams.concat(options.streams)
+    if (options.streams) {
+      loggerStreams = loggerStreams.concat(options.streams)
+    }
 
     this.inner = pino(loggerOptions, pinoms.multistream(loggerStreams))
   }
