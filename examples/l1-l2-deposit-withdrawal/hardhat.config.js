@@ -4,9 +4,6 @@ require('@nomiclabs/hardhat-waffle')
 require('@eth-optimism/hardhat-ovm')
 
 module.exports = {
-  mocha: {
-    timeout: 50_000
-  },
   networks: {
     // Add this network to your config!
     optimism: {
