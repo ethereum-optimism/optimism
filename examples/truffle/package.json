@@ -33,10 +33,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "devDependencies": {
-    "@eth-optimism/solc": "^0.7.6-alpha.1",
-    "@truffle/hdwallet-provider": "^1.2.6",
-    "rimraf": "^2.6.3",
-    "truffle": "^5.3.0"
+  "dependencies": {
+    "@eth-optimism/solc": "0.7.6-alpha.1",
+    "rimraf": "^3.0.2",
+    "truffle": "^5.3.6",
+    "@truffle/hdwallet-provider": "^1.4.0"
   }
 }
