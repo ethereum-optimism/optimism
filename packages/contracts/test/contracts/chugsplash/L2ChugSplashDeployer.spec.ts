@@ -302,11 +302,9 @@ describe('L2ChugSplashDeployer', () => {
         await expect(
           L2ChugSplashDeployer.connect(signer1).cancelTransactionBundle()
         ).to.not.be.reverted
-
         expect(await L2ChugSplashDeployer.currentBundleHash()).to.equal(
           ethers.constants.HashZero
         )
-
         expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(0)
       })
 
@@ -324,13 +322,43 @@ describe('L2ChugSplashDeployer', () => {
         await expect(
           L2ChugSplashDeployer.connect(signer1).cancelTransactionBundle()
         ).to.not.be.reverted
-
         expect(await L2ChugSplashDeployer.currentBundleHash()).to.equal(
           ethers.constants.HashZero
         )
-
         expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(0)
       })
+    })
+  })
+
+  // overrideTransactionBundle is just a composition of cancelTransactionBundle and
+  // approveTransactionBundle so no need to aggressively test it.
+  describe('overrideTransactionBundle', () => {
+    it('should revert if caller is not the owner', async () => {
+      await expect(
+        L2ChugSplashDeployer.connect(signer2).overrideTransactionBundle(
+          NON_NULL_BYTES32,
+          1234
+        )
+      ).to.be.revertedWith('Ownable: caller is not the owner')
+    })
+
+    it('should allow the owner to override the current active bundle', async () => {
+      await L2ChugSplashDeployer.connect(signer1).approveTransactionBundle(
+        '0x' + 'FF'.repeat(32),
+        12345
+      )
+
+      await expect(
+        L2ChugSplashDeployer.connect(signer1).overrideTransactionBundle(
+          NON_NULL_BYTES32,
+          1234
+        )
+      ).to.not.be.reverted
+
+      expect(await L2ChugSplashDeployer.currentBundleHash()).to.equal(
+        NON_NULL_BYTES32
+      )
+      expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(1234)
     })
   })
 })

@@ -199,6 +199,22 @@ contract L2ChugSplashDeployer is Ownable {
     }
 
     /**
+     * Allows the owner to cancel a transaction bundle and immediately approve a new one.
+     * @param _bundleHash Root of the Merkle tree of actions in the new bundle.
+     * @param _bundleSize Total number of elements in the new bundle.
+     */
+    function overrideTransactionBundle(
+        bytes32 _bundleHash,
+        uint256 _bundleSize
+    )
+        public
+        onlyOwner
+    {
+        cancelTransactionBundle();
+        approveTransactionBundle(_bundleHash, _bundleSize);
+    }
+
+    /**
      * Allows anyone to execute an action that has been approved as part of an upgrade bundle.
      * @param _action ChugSplashAction to execute.
      * @param _proof Proof that the given action was included in the upgrade bundle.
