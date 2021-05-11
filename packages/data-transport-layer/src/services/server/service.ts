@@ -218,7 +218,8 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
             break
           case 'l2':
             currentL2Block = await this.state.db.getLatestUnconfirmedTransaction()
-            highestL2BlockNumber = await this.state.db.getHighestSyncedUnconfirmedBlock()
+            highestL2BlockNumber =
+              (await this.state.db.getHighestSyncedUnconfirmedBlock()) - 1
             break
           default:
             throw new Error(`Unknown transaction backend ${backend}`)

@@ -21,7 +21,7 @@ services:
       - ${L1CHAIN_HTTP_PORT:-9545}:8545
 
   deployer:
-    depends_on: 
+    depends_on:
       - l1_chain
     image: ethereumoptimism/deployer
     build:
@@ -42,7 +42,7 @@ services:
       - ${DEPLOYER_PORT:-8080}:8081
 
   dtl:
-    depends_on: 
+    depends_on:
       - l1_chain
       - deployer
       - l2geth

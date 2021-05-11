@@ -25,13 +25,4 @@ describe('Fee Payment Integration Tests', async () => {
       tx.gasPrice.mul(tx.gasLimit).add(amount)
     )
   })
-
-  it('sequencer rejects transaction with a non-multiple-of-1M gasPrice', async () => {
-    const gasPrice = BigNumber.from(1_000_000 - 1)
-    await expect(
-      env.ovmEth.transfer(other, 0, { gasPrice })
-    ).to.be.eventually.rejectedWith(
-      'Gas price must be a multiple of 1,000,000 wei'
-    )
-  })
 })

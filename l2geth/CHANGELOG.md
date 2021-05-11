@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- 9231063: Prevent montonicity errors in the miner
+
+## 0.3.0
+
+### Minor Changes
+
+- b799caa: Updates to use RLP encoded transactions in batches for the `v0.3.0` release
+
+### Patch Changes
+
+- b799caa: Add value parsing to the rollup client
+- b799caa: Removes the extra setting of the txmeta in the syncservice and instead sets the raw tx in the txmeta at the rpc layer
+- b799caa: Fill in the raw transaction into the txmeta in the `eth_sendTransaction` codepath
+- b799caa: Add support for parsed revert reasons in DoEstimateGas
+- b799caa: Update minimum response from estimate gas
+- b799caa: Add value transfer support to ECDSAContractAccount
+- b799caa: Ignore the deprecated type field in the API
+- b799caa: Return bytes from both ExecutionManager.run and ExecutionManager.simulateMessage and be sure to properly ABI decode the return values and the nested (bool, returndata)
+- b799caa: Block access to RPCs related to signing transactions
+- b799caa: Add ExecutionManager return data & RLP encoding
+- b799caa: Update gas related things in the RPC to allow transactions with high gas limits and prevent gas estimations from being too small
+- 9b7dd4b: Update `scripts/start.sh` to parse the websocket port and pass to geth at runtime
+- b799caa: Remove the OVMSigner
+- b799caa: Prevent 0 value transactions with calldata via RPC
+
 ## 0.2.6
 
 ### Patch Changes

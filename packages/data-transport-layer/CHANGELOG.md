@@ -1,5 +1,28 @@
 # data transport layer
 
+## 0.3.0
+
+### Minor Changes
+
+- b799caa: Updates to use RLP encoded transactions in batches for the `v0.3.0` release
+
+### Patch Changes
+
+- b799caa: Parse and index the value field in the data transport layer
+- b799caa: Account for the off by one with regards to the l2geth block number and the CTC index
+- b799caa: Remove legacy transaction deserialization to support RLP batch encoding
+- b799caa: Prevent access of null value in L1 transaction deserialization
+- Updated dependencies [b799caa]
+- Updated dependencies [6132e7a]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+- Updated dependencies [20747fd]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+  - @eth-optimism/contracts@0.3.0
+  - @eth-optimism/core-utils@0.4.2
+
 ## 0.2.5
 
 ### Patch Changes
