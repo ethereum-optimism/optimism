@@ -17,8 +17,8 @@
   "types": "dist/index",
   "license": "MIT",
   "scripts": {
-    "all": "yarn build && yarn test && yarn lint:fix && yarn lint",
-    "build": "yarn clean && ./scripts/build.sh",
+    "all": "yarn clearn && yarn build && yarn test && yarn lint:fix && yarn lint",
+    "build": "./scripts/build.sh",
     "build:kovan": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=69 yarn run build:dump && yarn run build:typechain",
     "build:mainnet": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && CHAIN_ID=10 yarn run build:dump && yarn run build:typechain",
     "build:typescript": "tsc -p ./tsconfig.build.json",
