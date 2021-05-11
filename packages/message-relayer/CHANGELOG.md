@@ -1,5 +1,12 @@
 # @eth-optimism/message-relayer
 
+## 0.1.1
+
+### Patch Changes
+
+- aedf931: Add updated config parsing in a backwards compatible way
+- d723b2a: Don't log the config options at startup because it contains secrets
+
 ## 0.1.0
 
 ### Minor Changes

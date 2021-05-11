@@ -47,8 +47,9 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
   const ovmCompilersCache = path.join(await getCompilersDir(), 'ovm')
 
   // Need to create the OVM compiler cache folder if it doesn't already exist.
-  if (!fs.existsSync(ovmCompilersCache))
-    [fs.mkdirSync(ovmCompilersCache, { recursive: true })]
+  if (!fs.existsSync(ovmCompilersCache)) {
+    fs.mkdirSync(ovmCompilersCache, { recursive: true })
+  }
 
   // Pull information about the latest commit in the solc-bin repo. We'll use this to invalidate
   // our compiler cache if necessary.
@@ -186,7 +187,9 @@ subtask(
       }
     }
 
-    if (Object.keys(ovmInput.sources).length === 0) return {}
+    if (Object.keys(ovmInput.sources).length === 0) {
+      return {}
+    }
 
     // Build both inputs separately.
     const ovmOutput = await hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, {
