@@ -2,6 +2,12 @@ import * as path from 'path'
 import { predeploys as l2Addresses } from './predeploys'
 import { Network } from './connect-contracts'
 
+/**
+ * This file is necessarily not DRY because it needs to be usable
+ * in a browser context and can't take advantage of dynamic imports
+ * (ie: the json needs to all be imported when transpiled)
+ */
+
 const Mainnet__Lib_AddressManager = require('../deployments/mainnet/Lib_AddressManager.json')
 const Mainnet__OVM_CanonicalTransactionChain = require('../deployments/mainnet/OVM_CanonicalTransactionChain.json')
 const Mainnet__OVM_ExecutionManager = require('../deployments/mainnet/OVM_ExecutionManager.json')
