@@ -1,4 +1,4 @@
-/* External Imports */
+/* Imports: External */
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import MerkleTree from 'merkletreejs'
