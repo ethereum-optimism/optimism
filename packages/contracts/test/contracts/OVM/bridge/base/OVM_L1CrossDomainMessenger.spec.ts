@@ -18,7 +18,7 @@ import {
   FORCE_INCLUSION_PERIOD_BLOCKS,
   TrieTestGenerator,
   getNextBlockNumber,
-  getXDomainCalldata,
+  encodeXDomainCalldata,
 } from '../../../../helpers'
 import { keccak256 } from 'ethers/lib/utils'
 
@@ -183,7 +183,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
         OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
       ).to.not.be.reverted
 
-      const calldata = getXDomainCalldata(
+      const calldata = encodeXDomainCalldata(
         target,
         await signer.getAddress(),
         message,
@@ -236,7 +236,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       await OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
       const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
 
-      const calldata = getXDomainCalldata(
+      const calldata = encodeXDomainCalldata(
         target,
         await signer.getAddress(),
         message,
@@ -267,7 +267,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       ])
       sender = await signer.getAddress()
 
-      calldata = getXDomainCalldata(target, sender, message, 0)
+      calldata = encodeXDomainCalldata(target, sender, message, 0)
 
       const precompile = '0x4200000000000000000000000000000000000000'
 
