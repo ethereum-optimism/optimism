@@ -39,6 +39,7 @@ export interface MetricsServerOptions {
   registry: Registry
   port?: number
   route?: string
+  hostname?: string
 }
 
 export const createMetricsServer = async (
@@ -53,8 +54,11 @@ export const createMetricsServer = async (
   })
 
   const port = options.port || 7300
-  const server = app.listen(port, () => {
-    logger.info('Listening on port', { port })
+  const server = app.listen(port, options.hostname, () => {
+    logger.info('Metrics server is listening on port', {
+      port,
+      hostname: options.hostname,
+    })
   })
 
   return server

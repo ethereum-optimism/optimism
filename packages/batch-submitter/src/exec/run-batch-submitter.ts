@@ -67,6 +67,7 @@ interface RequiredEnvVars {
  * USE_HARDHAT
  * DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
  * DEBUG_IMPERSONATE_PROPOSER_ADDRESS
+ * RUN_PROMETHEUS_SERVER
  */
 
 export const run = async () => {
@@ -457,9 +458,11 @@ export const run = async () => {
     loop(() => stateBatchSubmitter.submitNextBatch())
   }
 
-  // Initialize metrics server
-  const metricsServer = createMetricsServer({
-    logger,
-    registry: metrics.registry,
-  })
+  if (RUN_METRICS_SERVER === 'true') {
+    // Initialize metrics server
+    const metricsServer = createMetricsServer({
+      logger,
+      registry: metrics.registry,
+    })
+  }
 }

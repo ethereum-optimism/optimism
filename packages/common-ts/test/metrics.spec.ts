@@ -35,7 +35,6 @@ describe('Metrics', () => {
       counter.inc()
       counter.inc()
       gauge.set(100)
-      console.log(registry.metrics())
 
       // Verify that the registered metrics are served at `/`
       const response = await request(server).get('/metrics').send()
