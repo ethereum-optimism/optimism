@@ -32,8 +32,14 @@ interface L2Contracts {
   addressManager: Contract
 }
 
+/**
+ * Validates user provided a singer or provider & throws error if not
+ * @param signerOrProvider
+ */
 const checkSignerType = (signerOrProvider: Signer | Provider) => {
-  if (!signerOrProvider) throw Error('signerOrProvider argument is undefined')
+  if (!signerOrProvider) {
+    throw Error('signerOrProvider argument is undefined')
+  }
   if (
     !Provider.isProvider(signerOrProvider) &&
     !Signer.isSigner(signerOrProvider)
@@ -41,6 +47,12 @@ const checkSignerType = (signerOrProvider: Signer | Provider) => {
     throw Error('signerOrProvider argument is the wrong type')
 }
 
+/**
+ * Connects a signer/provider to layer 1 contracts on a given network
+ * @param signerOrProvider ethers signer or provider
+ * @param network string denoting network
+ * @returns l1 contracts connected to signer/provider
+ */
 export const connectL1Contracts = async (
   signerOrProvider,
   network?: Network
@@ -93,6 +105,11 @@ export const connectL1Contracts = async (
   }
 }
 
+/**
+ * Connects a signer/provider to layer 2 contracts (network agnostic)
+ * @param signerOrProvider ethers signer or provider
+ * @returns l2 contracts connected to signer/provider
+ */
 export const connectL2Contracts = async (
   signerOrProvider
 ): Promise<L2Contracts> => {
