@@ -43,8 +43,9 @@ const checkSignerType = (signerOrProvider: Signer | Provider) => {
   if (
     !Provider.isProvider(signerOrProvider) &&
     !Signer.isSigner(signerOrProvider)
-  )
+  ) {
     throw Error('signerOrProvider argument is the wrong type')
+  }
 }
 
 /**
@@ -65,8 +66,9 @@ export const connectL1Contracts = async (
     )
     network = 'mainnet'
   }
-  if (network !== 'mainnet' && network !== 'kovan' && network !== 'goerli')
+  if (network !== 'mainnet' && network !== 'kovan' && network !== 'goerli') {
     throw Error('network argument is the wrong type')
+  }
 
   const l1ContractData = getL1ContractData(network)
 

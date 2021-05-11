@@ -1,4 +1,3 @@
-import * as path from 'path'
 import { predeploys as l2Addresses } from './predeploys'
 import { Network } from './connect-contracts'
 
