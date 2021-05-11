@@ -34,6 +34,7 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
+  l2ChugSplashDeployerOwner: string
   addressManager?: string
   dependencies?: string[]
   deployOverrides: Overrides
@@ -257,6 +258,10 @@ export const makeContractDeployConfig = async (
         undefined,
         true
       ),
+    },
+    L2ChugSplashDeployer: {
+      factory: getContractFactory('L2ChugSplashDeployer'),
+      params: [config.l2ChugSplashDeployerOwner],
     },
   }
 }
