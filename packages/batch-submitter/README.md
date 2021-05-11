@@ -41,4 +41,4 @@ You may test a submission locally against a local Hardhat fork.
 
 ## Observability in production
 
-When deploying Batch Submitter to production / a live ETH network, populate the environment variables `NODE_ENV` and `ETH_NETWORK_NAME`. This enables Batch Submitter to capture more context in logs and metrics, and initializes Sentry to track errors.
+When deploying Batch Submitter to production / a live ETH network, populate the environment variables `NODE_ENV` (`development`, `production`, or `test`) and `ETH_NETWORK_NAME` (`mainnet`, `kovan`, `goerli`). This enables Batch Submitter to capture more context in logs and metrics, and initializes [Sentry](https://docs.sentry.io/platforms/node/) to track errors.
