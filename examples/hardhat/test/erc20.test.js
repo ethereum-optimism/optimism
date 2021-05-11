@@ -2,10 +2,8 @@
 const { ethers, network } = require('hardhat')
 const chai = require('chai')
 const { solidity } = require('ethereum-waffle')
-const chaiAsPromised = require('chai-as-promised')
 const { expect } = chai
 
-chai.use(chaiAsPromised)
 chai.use(solidity)
 
 describe(`ERC20`, () => {
@@ -50,7 +48,7 @@ describe(`ERC20`, () => {
         await account2.getAddress(),
         INITIAL_SUPPLY + 1
       )
-      await expect(tx).to.be.rejectedWith("You don't have enough balance to make this transfer!")
+      await expect(tx).to.be.revertedWith("You don't have enough balance to make this transfer!")
     })
 
     it(`should succeed when the sender has enough balance`, async () => {
@@ -80,7 +78,7 @@ describe(`ERC20`, () => {
         await account2.getAddress(),
         INITIAL_SUPPLY
       )
-      await expect(tx).to.be.rejectedWith("Can't transfer from the desired account because you don't have enough of an allowance.")
+      await expect(tx).to.be.revertedWith("Can't transfer from the desired account because you don't have enough of an allowance.")
     })
 
     it(`should succeed when the owner has enough balance and the sender has a large enough allowance`, async () => {
