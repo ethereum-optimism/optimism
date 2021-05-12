@@ -851,7 +851,7 @@ var (
 	}
 	RollupBackendFlag = cli.StringFlag{
 		Name:   "rollup.backend",
-		Usage:  "Sync backend for verifiers (\"l1\" or \"l2\")",
+		Usage:  "Sync backend for verifiers (\"l1\" or \"l2\"), defaults to l1",
 		Value:  "l1",
 		EnvVar: "ROLLUP_BACKEND",
 	}
