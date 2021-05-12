@@ -19,11 +19,10 @@ contract OVM_ProxyEOA {
     /**********
      * Events *
      **********/
-    
-    // NOTE: See comment below w/r/t/ upgrade() to understand why we've commented this out.
-    // event Upgraded(
-    //    address indexed implementation
-    // );
+
+    event Upgraded(
+       address indexed implementation
+    );
 
 
     /*************
@@ -63,27 +62,27 @@ contract OVM_ProxyEOA {
      * Public Functions *
      ********************/
 
-    // NOTE: Upgrades are temporarily disabled while we construct a whitelist-based system of
-    // contract accounts that users can use. Without such a system, users could upgrade their
-    // accounts to a contract that completely avoids paying fees.
-    //
-    // /**
-    //  * Changes the implementation address.
-    //  * @param _implementation New implementation address.
-    //  */
-    // function upgrade(
-    //     address _implementation
-    // )
-    //     external
-    // {
-    //     require(
-    //         msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
-    //         "EOAs can only upgrade their own EOA implementation"
-    //     );
-    //
-    //     _setImplementation(_implementation);
-    //     emit Upgraded(_implementation);
-    // }
+    /**
+     * Changes the implementation address.
+     * @param _implementation New implementation address.
+     */
+    function upgrade(
+        address _implementation
+    )
+        external
+    {
+        // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
+        // so that they don't have to pay any fees to the sequencer. Function will remain disabled
+        // until a robust solution is in place.
+
+        // require(
+        //     msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
+        //     "EOAs can only upgrade their own EOA implementation"
+        // );
+
+        // _setImplementation(_implementation);
+        // emit Upgraded(_implementation);
+    }
 
     /**
      * Gets the address of the current implementation.
