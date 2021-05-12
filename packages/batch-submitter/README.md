@@ -38,3 +38,7 @@ You may test a submission locally against a local Hardhat fork.
 3. Also check `L2_NODE_WEB3_URL` is correctly set and has transactions to submit.
 3. Run `yarn build` to build your changes.
 4. Start Batch Submitter with `yarn start`. It will automatically start submitting pending transactions from L2.
+
+## Observability in production
+
+When deploying Batch Submitter to production / a live ETH network, populate the environment variables `NODE_ENV` (`development`, `production`, or `test`) and `ETH_NETWORK_NAME` (`mainnet`, `kovan`, `goerli`). This enables Batch Submitter to capture more context in logs and metrics, and initializes [Sentry](https://docs.sentry.io/platforms/node/) to track errors.
