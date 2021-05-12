@@ -791,7 +791,7 @@ func (s *SyncService) syncToTip(sync syncer, getTip indexGetter) error {
 }
 
 // sync will sync a range of items
-func (s *SyncService) sync(getLatest indexGetter, getNext nextGetter, sync rangeSyncer) (*uint64, error) {
+func (s *SyncService) sync(getLatest indexGetter, getNext nextGetter, syncer rangeSyncer) (*uint64, error) {
 	latestIndex, err := getLatest()
 	if errors.Is(err, errElementNotFound) {
 		return nil, nil
@@ -807,7 +807,7 @@ func (s *SyncService) sync(getLatest indexGetter, getNext nextGetter, sync range
 	if nextIndex == *latestIndex+1 {
 		return latestIndex, nil
 	}
-	if err := sync(nextIndex, *latestIndex); err != nil {
+	if err := syncer(nextIndex, *latestIndex); err != nil {
 		return nil, err
 	}
 	return latestIndex, nil
