@@ -449,23 +449,26 @@ func (c *Client) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Cannot get latest enqueue: %w", err)
 	}
-	// This should only happen if the database is empty
+	// This should only happen if there are no L1 to L2 transactions yet
 	if enqueue == nil {
-		return nil, nil
+		return nil, errElementNotFound
 	}
 	// Work backwards looking for the first enqueue
 	// to have an index, which means it has been included
 	// in the canonical transaction chain.
 	for {
 		meta := enqueue.GetMeta()
+		// The enqueue has an index so it has been confirmed
 		if meta.Index != nil {
 			return enqueue, nil
 		}
+		// There is no queue index so this is a bug
 		if meta.QueueIndex == nil {
 			return nil, fmt.Errorf("queue index is nil")
 		}
+		// No enqueue transactions have been confirmed yet
 		if *meta.QueueIndex == uint64(0) {
-			return enqueue, nil
+			return nil, nil
 		}
 		next, err := c.GetEnqueue(*meta.QueueIndex - 1)
 		if err != nil {
