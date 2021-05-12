@@ -613,7 +613,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		bn := tx.L1BlockNumber()
 		s.SetLatestL1Timestamp(ts)
 		s.SetLatestL1BlockNumber(bn.Uint64())
-		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64())
+		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64(), "queue-origin", tx.QueueOrigin().Uint64())
 	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
 		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
 	}
