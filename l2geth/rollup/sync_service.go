@@ -587,7 +587,8 @@ func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 
 // applyTransactionToTip will do sanity checks on the transaction before
 // applying it to the tip. It blocks until the transaction has been included in
-// the chain.
+// the chain. It is assumed that validation around the index has already
+// happened.
 func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	if tx == nil {
 		return errors.New("nil transaction passed to applyTransactionToTip")
