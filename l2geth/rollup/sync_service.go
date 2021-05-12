@@ -863,7 +863,7 @@ func (s *SyncService) syncTransactions(backend Backend) (*uint64, error) {
 // syncTransactionRange will sync a range of transactions from
 // start to end (inclusive) from a specific Backend
 func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) error {
-	log.Info("Syncing transaction range", "start", start, "end", end)
+	log.Info("Syncing transaction range", "start", start, "end", end, "backend", backend.String())
 	for i := start; i <= end; i++ {
 		tx, err := s.client.GetTransaction(i, backend)
 		if err != nil {
