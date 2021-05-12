@@ -89,7 +89,7 @@ export const run = async () => {
   const name = 'oe:batch_submitter:init'
   let logger
 
-  if (config.bool('use-sentry')) {
+  if (config.bool('use-sentry', env.USE_SENTRY === 'true')) {
     // Initialize Sentry for Batch Submitter deployed to a network
     logger = new Logger({
       name,
