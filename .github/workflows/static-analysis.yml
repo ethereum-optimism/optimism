@@ -1,0 +1,29 @@
+name: Static analysis
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  slither:
+    name: Slither run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install Slither
+        run: pip3 install slither-analyzer
+
+      - name: Run analysis
+        working-directory: ./packages/contracts
+        shell: bash
+        run: slither . --filter-paths "openzeppelin|test-helpers|test-libraries"

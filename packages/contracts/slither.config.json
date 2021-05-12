@@ -1,0 +1,10 @@
+{
+  "exclude_informational": false,
+  "exclude_low": false,
+  "exclude_medium": false,
+  "exclude_high": false,
+  "solc_disable_warnings": false,
+  "hardhat_ignore_compile": false,
+  "disable_color": false,
+  "filter_paths": "test-helpers,test-libraries"
+}
