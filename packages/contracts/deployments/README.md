@@ -49,7 +49,7 @@ Network : __mainnet (chain id: 1)__
 |Proxy__OVM_L1ETHGateway|[0xe681F80966a8b1fFadECf8068bD6F99034791c95](https://etherscan.io/address/0xe681F80966a8b1fFadECf8068bD6F99034791c95)|
 |mockOVM_BondManager|[0x90c5F8d045bBcCc99d907f30E8707F06D95d065b](https://etherscan.io/address/0x90c5F8d045bBcCc99d907f30E8707F06D95d065b)|
 ---
-## KOVAN-V3
+## KOVAN
 
 Network : __kovan (chain id: 42)__
 
@@ -73,31 +73,7 @@ Network : __kovan (chain id: 42)__
 |Proxy__OVM_L1ETHGateway|[0xB191d67F69e823445cD59e5A88953a82be73b9C6](https://kovan.etherscan.io/address/0xB191d67F69e823445cD59e5A88953a82be73b9C6)|
 |mockOVM_BondManager|[0x8ECe272C9f83041bcb1Cd57AC49Ca6494776bE01](https://kovan.etherscan.io/address/0x8ECe272C9f83041bcb1Cd57AC49Ca6494776bE01)|
 ---
-## KOVAN
-
-Network : __kovan (chain id: 42)__
-
-|Contract|Address|
-|--|--|
-|Lib_AddressManager|[0xFaf27b24ba54C6910C12CFF5C9453C0e8D634e05](https://kovan.etherscan.io/address/0xFaf27b24ba54C6910C12CFF5C9453C0e8D634e05)|
-|OVM_CanonicalTransactionChain|[0xeBD8F6ACF629f27AC7dDDD0603df3359a4f063E3](https://kovan.etherscan.io/address/0xeBD8F6ACF629f27AC7dDDD0603df3359a4f063E3)|
-|OVM_ChainStorageContainer-CTC-batches|[0x18bA855471f10B74851C0e133db597075Dff128d](https://kovan.etherscan.io/address/0x18bA855471f10B74851C0e133db597075Dff128d)|
-|OVM_ChainStorageContainer-CTC-queue|[0xf388A98F640baB14e5Cd343B1c27817811aDd682](https://kovan.etherscan.io/address/0xf388A98F640baB14e5Cd343B1c27817811aDd682)|
-|OVM_ChainStorageContainer-SCC-batches|[0xDC1f37ec1eeBF9fe5087c24f889E15AB228FDD22](https://kovan.etherscan.io/address/0xDC1f37ec1eeBF9fe5087c24f889E15AB228FDD22)|
-|OVM_ExecutionManager|[0x1e9d3f68422b50d3Fc413cb6a79C4144089cf64A](https://kovan.etherscan.io/address/0x1e9d3f68422b50d3Fc413cb6a79C4144089cf64A)|
-|OVM_FraudVerifier|[0x139D12963897129D48C99402Cc481e8C0E8FD0BC](https://kovan.etherscan.io/address/0x139D12963897129D48C99402Cc481e8C0E8FD0BC)|
-|OVM_L1CrossDomainMessenger|[0xDBafb4AB19eafE27aF30Dd9C811a1BF4F64b603b](https://kovan.etherscan.io/address/0xDBafb4AB19eafE27aF30Dd9C811a1BF4F64b603b)|
-|OVM_L1ETHGateway|[0x0E8917aF9eB7812c7819EF4e80D2217679d11324](https://kovan.etherscan.io/address/0x0E8917aF9eB7812c7819EF4e80D2217679d11324)|
-|OVM_L1MultiMessageRelayer|[0xf56d4FAeD6F52c4ce14e44885084dAFc5c440138](https://kovan.etherscan.io/address/0xf56d4FAeD6F52c4ce14e44885084dAFc5c440138)|
-|OVM_SafetyChecker|[0xeb91D9059761aFa197deD7b1FB4228F7ea921d3e](https://kovan.etherscan.io/address/0xeb91D9059761aFa197deD7b1FB4228F7ea921d3e)|
-|OVM_StateCommitmentChain|[0x41f707A213FB83010586860f81A4BF2F0FEbe56D](https://kovan.etherscan.io/address/0x41f707A213FB83010586860f81A4BF2F0FEbe56D)|
-|OVM_StateManagerFactory|[0xda9Da06A7b7D902A746649cA1304665C83a465F8](https://kovan.etherscan.io/address/0xda9Da06A7b7D902A746649cA1304665C83a465F8)|
-|OVM_StateTransitionerFactory|[0xE77250c2663d4E81a0Cd7B321f0BB270694A4851](https://kovan.etherscan.io/address/0xE77250c2663d4E81a0Cd7B321f0BB270694A4851)|
-|Proxy__OVM_L1CrossDomainMessenger|[0x48062eD9b6488EC41c4CfbF2f568D7773819d8C9](https://kovan.etherscan.io/address/0x48062eD9b6488EC41c4CfbF2f568D7773819d8C9)|
-|Proxy__OVM_L1ETHGateway|[0xf3902e50dA095bD2e954AB320E8eafDA6152dFDa](https://kovan.etherscan.io/address/0xf3902e50dA095bD2e954AB320E8eafDA6152dFDa)|
-|mockOVM_BondManager|[0x77e244ec49014cFb9c4572453568eCC3AbB70A2d](https://kovan.etherscan.io/address/0x77e244ec49014cFb9c4572453568eCC3AbB70A2d)|
----
-## GOERLI-V3
+## GOERLI
 
 Network : __goerli (chain id: 5)__
 
