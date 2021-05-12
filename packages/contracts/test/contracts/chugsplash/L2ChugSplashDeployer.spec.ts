@@ -4,6 +4,7 @@ import { expect } from '../../setup'
 import hre from 'hardhat'
 import { ethers, Contract, Signer, ContractFactory } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
+import { toPlainObject } from 'lodash'
 
 /* Imports: Internal */
 import {
@@ -12,7 +13,6 @@ import {
   predeploys,
 } from '../../../src'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
-import { toPlainObject } from 'lodash'
 
 describe('L2ChugSplashDeployer', () => {
   let signer1: Signer
@@ -22,10 +22,17 @@ describe('L2ChugSplashDeployer', () => {
   })
 
   let Mock__OVM_ExecutionManager: MockContract
+  let Mock__OVM_L2CrossDomainMessenger: MockContract
   before(async () => {
     Mock__OVM_ExecutionManager = await smockit('OVM_ExecutionManager', {
       address: predeploys.OVM_ExecutionManagerWrapper,
     })
+    Mock__OVM_L2CrossDomainMessenger = await smockit(
+      'OVM_L2CrossDomainMessenger',
+      {
+        address: predeploys.OVM_L2CrossDomainMessenger,
+      }
+    )
   })
 
   let Factory__L2ChugSplashDeployer: ContractFactory
@@ -59,7 +66,7 @@ describe('L2ChugSplashDeployer', () => {
           ethers.constants.HashZero,
           0
         )
-      ).to.be.revertedWith('Ownable: caller is not the owner')
+      ).to.be.revertedWith('ChugSplashDeployer: caller is not the owner')
     })
 
     it('should allow the owner to approve a new transaction bundle', async () => {
@@ -75,6 +82,34 @@ describe('L2ChugSplashDeployer', () => {
       )
 
       expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(1234)
+    })
+
+    it('should allow the owner to approve a new transaction bundle via an L1 => L2 message', async () => {
+      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+        await signer1.getAddress()
+      )
+
+      await expect(
+        L2ChugSplashDeployer.connect(
+          hre.ethers.provider
+        ).callStatic.approveTransactionBundle(NON_NULL_BYTES32, 1234, {
+          from: Mock__OVM_L2CrossDomainMessenger.address,
+        })
+      ).to.not.be.reverted
+    })
+
+    it('should revert if cross domain message sender is not the owner', async () => {
+      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+        await signer2.getAddress()
+      )
+
+      await expect(
+        L2ChugSplashDeployer.connect(
+          hre.ethers.provider
+        ).callStatic.approveTransactionBundle(NON_NULL_BYTES32, 1234, {
+          from: Mock__OVM_L2CrossDomainMessenger.address,
+        })
+      ).to.be.revertedWith('ChugSplashDeployer: caller is not the owner')
     })
 
     it('should revert if trying to approve a bundle with the empty hash', async () => {
@@ -264,7 +299,21 @@ describe('L2ChugSplashDeployer', () => {
     it('should revert if caller is not the owner', async () => {
       await expect(
         L2ChugSplashDeployer.connect(signer2).cancelTransactionBundle()
-      ).to.be.revertedWith('Ownable: caller is not the owner')
+      ).to.be.revertedWith('ChugSplashDeployer: caller is not the owner')
+    })
+
+    it('should revert if cross domain message sender is not the owner', async () => {
+      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+        await signer2.getAddress()
+      )
+
+      await expect(
+        L2ChugSplashDeployer.connect(
+          hre.ethers.provider
+        ).callStatic.cancelTransactionBundle({
+          from: Mock__OVM_L2CrossDomainMessenger.address,
+        })
+      ).to.be.revertedWith('ChugSplashDeployer: caller is not the owner')
     })
 
     it('should revert if there is no active bundle', async () => {
@@ -308,6 +357,20 @@ describe('L2ChugSplashDeployer', () => {
         expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(0)
       })
 
+      it('should allow the owner to cancel a bundle via an L1 => L2 message', async () => {
+        Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+          await signer1.getAddress()
+        )
+
+        await expect(
+          L2ChugSplashDeployer.connect(
+            hre.ethers.provider
+          ).callStatic.cancelTransactionBundle({
+            from: Mock__OVM_L2CrossDomainMessenger.address,
+          })
+        ).to.not.be.reverted
+      })
+
       it('should allow the owner to cancel an active bundle after some actions have been executed', async () => {
         await L2ChugSplashDeployer.executeAction(
           bundle.actions[0].action,
@@ -339,7 +402,21 @@ describe('L2ChugSplashDeployer', () => {
           NON_NULL_BYTES32,
           1234
         )
-      ).to.be.revertedWith('Ownable: caller is not the owner')
+      ).to.be.revertedWith('ChugSplashDeployer: caller is not the owner')
+    })
+
+    it('should revert if cross domain message sender is not the owner', async () => {
+      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+        await signer2.getAddress()
+      )
+
+      await expect(
+        L2ChugSplashDeployer.connect(
+          hre.ethers.provider
+        ).callStatic.overrideTransactionBundle(NON_NULL_BYTES32, 1234, {
+          from: Mock__OVM_L2CrossDomainMessenger.address,
+        })
+      ).to.be.revertedWith('ChugSplashDeployer: caller is not the owner')
     })
 
     it('should allow the owner to override the current active bundle', async () => {
@@ -359,6 +436,25 @@ describe('L2ChugSplashDeployer', () => {
         NON_NULL_BYTES32
       )
       expect(await L2ChugSplashDeployer.currentBundleSize()).to.equal(1234)
+    })
+
+    it('should allow the owner to override a bundle via an L1 => L2 message', async () => {
+      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+        await signer1.getAddress()
+      )
+
+      await L2ChugSplashDeployer.connect(signer1).approveTransactionBundle(
+        '0x' + 'FF'.repeat(32),
+        12345
+      )
+
+      await expect(
+        L2ChugSplashDeployer.connect(
+          hre.ethers.provider
+        ).callStatic.overrideTransactionBundle(NON_NULL_BYTES32, 1234, {
+          from: Mock__OVM_L2CrossDomainMessenger.address,
+        })
+      ).to.not.be.reverted
     })
   })
 })

@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_ExecutionManagerWrapper } from "../optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 import { Lib_MerkleTree } from "../optimistic-ethereum/libraries/utils/Lib_MerkleTree.sol";
+import { OVM_CrossDomainEnabled } from "../optimistic-ethereum/libraries/bridge/OVM_CrossDomainEnabled.sol";
 
 /* External Imports */
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -20,7 +21,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * actions (in any order) by demonstrating with a Merkle proof that the action was approved by the
  * contract owner. Only a single upgrade may be active at any given time.
  */
-contract L2ChugSplashDeployer is Ownable {
+contract L2ChugSplashDeployer is Ownable, OVM_CrossDomainEnabled {
 
     /*********
      * Enums *
@@ -100,7 +101,7 @@ contract L2ChugSplashDeployer is Ownable {
     /***************
      * Constructor *
      ***************/
-    
+
     /**
      * @param _owner Address that will initially own the L2ChugSplashDeployer.
      */
@@ -108,8 +109,30 @@ contract L2ChugSplashDeployer is Ownable {
         address _owner
     )
         Ownable()
+        OVM_CrossDomainEnabled(0x4200000000000000000000000000000000000007)
     {
         transferOwnership(_owner);
+    }
+
+
+    /*********************
+     * Function Modifier *
+     *********************/
+
+    /**
+     * A modifier like "onlyOwner" but also alternatively allows the owner to call this contract
+     * via an L1 => L2 message.
+     */
+    modifier onlyOwnerOrCrossDomainOwner() {
+        require(
+            msg.sender == owner()
+            || (
+                msg.sender == address(getCrossDomainMessenger())
+                && getCrossDomainMessenger().xDomainMessageSender() == owner()
+            ),
+            "ChugSplashDeployer: caller is not the owner"
+        );
+        _;
     }
 
 
@@ -143,7 +166,7 @@ contract L2ChugSplashDeployer is Ownable {
         uint256 _bundleSize
     )
         public
-        onlyOwner
+        onlyOwnerOrCrossDomainOwner
     {
         require(
             _bundleHash != bytes32(0),
@@ -179,7 +202,7 @@ contract L2ChugSplashDeployer is Ownable {
      */
     function cancelTransactionBundle()
         public
-        onlyOwner
+        onlyOwnerOrCrossDomainOwner
     {
         require(
             hasActiveBundle() == true,
@@ -208,7 +231,7 @@ contract L2ChugSplashDeployer is Ownable {
         uint256 _bundleSize
     )
         public
-        onlyOwner
+        onlyOwnerOrCrossDomainOwner
     {
         cancelTransactionBundle();
         approveTransactionBundle(_bundleHash, _bundleSize);
