@@ -21,7 +21,7 @@ contract OVM_ProxyEOA {
      **********/
 
     event Upgraded(
-       address indexed implementation
+        address indexed implementation
     );
 
 
