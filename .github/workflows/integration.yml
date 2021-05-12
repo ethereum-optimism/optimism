@@ -3,8 +3,10 @@ name: integration
 on:
   push:
     branches:
-      - master
+      - 'master'
+      - 'develop'
       - '*rc'
+      - 'regenesis/*'
   pull_request:
   workflow_dispatch:
 
