@@ -20,9 +20,10 @@ contract OVM_ProxyEOA {
      * Events *
      **********/
     
-    event Upgraded(
-        address indexed implementation
-    );
+    // NOTE: See comment below w/r/t/ upgrade() to understand why we've commented this out.
+    // event Upgraded(
+    //    address indexed implementation
+    // );
 
 
     /*************
