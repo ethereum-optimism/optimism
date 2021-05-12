@@ -1,20 +1,11 @@
 /* External Imports */
-import { injectL2Context } from '@eth-optimism/core-utils'
+import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
-
-interface Bcfg {
-  load: (options: { env?: boolean; argv?: boolean }) => void
-  str: (name: string, defaultValue?: string) => string
-  uint: (name: string, defaultValue?: number) => number
-  bool: (name: string, defaultValue?: boolean) => boolean
-  ufloat: (name: string, defaultValue?: number) => number
-  has: (name: string) => boolean
-}
 
 /* Internal Imports */
 import {
