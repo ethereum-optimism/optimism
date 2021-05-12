@@ -1,6 +1,6 @@
 import { getContractInterface } from '../../../src/contract-defs'
 
-export const getXDomainCalldata = (
+export const encodeXDomainCalldata = (
   target: string,
   sender: string,
   message: string,
