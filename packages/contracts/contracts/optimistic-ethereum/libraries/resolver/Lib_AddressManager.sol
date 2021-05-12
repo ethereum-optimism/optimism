@@ -43,8 +43,9 @@ contract Lib_AddressManager is Ownable {
         public
         onlyOwner
     {
-        address oldAddress = addresses[_getNameHash(_name)];
-        addresses[_getNameHash(_name)] = _address;
+        bytes32 nameHash = _getNameHash(_name);
+        address oldAddress = addresses[nameHash];
+        addresses[nameHash] = _address;
 
         emit AddressSet(
             _name,
