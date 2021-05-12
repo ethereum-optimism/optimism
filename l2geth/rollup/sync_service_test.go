@@ -2,6 +2,7 @@ package rollup
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
@@ -150,6 +151,119 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 
 	if !reflect.DeepEqual(tx, confirmed) {
 		t.Fatal("different txs")
+	}
+}
+
+func TestTransactionToTipNoIndex(t *testing.T) {
+	service, txCh, _, err := newTestSyncService(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get a reference to the current next index to compare with the index that
+	// is set to the transaction that is ingested
+	nextIndex := service.GetNextIndex()
+
+	timestamp := uint64(24)
+	target := common.HexToAddress("0x04668ec2f57cc15c381b461b9fedab5d451c8f7f")
+	l1TxOrigin := common.HexToAddress("0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8")
+	gasLimit := uint64(66)
+	data := []byte{0x02, 0x92}
+	l1BlockNumber := big.NewInt(100)
+
+	tx := types.NewTransaction(0, target, big.NewInt(0), gasLimit, big.NewInt(0), data)
+	meta := types.NewTransactionMeta(
+		l1BlockNumber,
+		timestamp,
+		&l1TxOrigin,
+		types.SighashEIP155,
+		types.QueueOriginL1ToL2,
+		nil, // The index is `nil`, expect it to be set afterwards
+		nil,
+		nil,
+	)
+	tx.SetTransactionMeta(meta)
+
+	go func() {
+		err = service.applyTransactionToTip(tx)
+	}()
+	event := <-txCh
+	if err != nil {
+		t.Fatal("Cannot apply transaction to the tip")
+	}
+	confirmed := event.Txs[0]
+	// The transaction was applied without an index so the chain gave it the
+	// next index
+	index := confirmed.GetMeta().Index
+	if index == nil {
+		t.Fatal("Did not set index after applying tx to tip")
+	}
+	if *index != *service.GetLatestIndex() {
+		t.Fatal("Incorrect latest index")
+	}
+	if *index != nextIndex {
+		t.Fatal("Incorrect index")
+	}
+}
+
+func TestTransactionToTipTimestamps(t *testing.T) {
+	service, txCh, _, err := newTestSyncService(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create two mock transactions with `nil` indices. This will allow
+	// assertions around the indices being updated correctly. Set the timestamp
+	// to 1 and 2 and assert that the timestamps in the sync service are updated
+	// correctly
+	tx1 := setMockTxL1Timestamp(mockTx(), 1)
+	tx2 := setMockTxL1Timestamp(mockTx(), 2)
+
+	txs := []*types.Transaction{
+		tx1,
+		tx2,
+	}
+
+	for i, tx := range txs {
+		go func() {
+			err = service.applyTransactionToTip(tx)
+		}()
+		event := <-txCh
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		conf := event.Txs[0]
+		// The index should be set to the next
+		if conf.GetMeta().Index == nil {
+			t.Fatal("Index is nil")
+		}
+		// The indexes should be incrementing by 1
+		if *conf.GetMeta().Index != uint64(i) {
+			t.Fatal("Mismatched index")
+		}
+		// The index that the sync service is tracking should be updated
+		if *conf.GetMeta().Index != *service.GetLatestIndex() {
+			t.Fatal("Mismatched index")
+		}
+		// The tx timestamp should be setting the services timestamp
+		ts := service.GetLatestL1Timestamp()
+		if conf.L1Timestamp() != ts {
+			t.Fatal("Mismatched timestamp")
+		}
+	}
+
+	// Send a transaction with no timestamp and then let it be updated
+	// by the sync service. This will prevent monotonicity errors as well
+	// as give timestamps to queue origin sequencer transactions
+	ts := service.GetLatestL1Timestamp()
+	tx3 := setMockTxL1Timestamp(mockTx(), 0)
+	go func() {
+		err = service.applyTransactionToTip(tx3)
+	}()
+	result := <-txCh
+	if result.Txs[0].L1Timestamp() != ts {
+		t.Fatal("Timestamp not updated correctly")
 	}
 }
 
@@ -466,6 +580,9 @@ func (m *mockClient) GetLatestEnqueueIndex() (*uint64, error) {
 	if err != nil {
 		return nil, err
 	}
+	if enqueue == nil {
+		return nil, errElementNotFound
+	}
 	return enqueue.GetMeta().Index, nil
 }
 
@@ -483,4 +600,40 @@ func (m *mockClient) GetLatestTransactionIndex(backend Backend) (*uint64, error)
 
 func newUint64(n uint64) *uint64 {
 	return &n
+}
+
+func mockTx() *types.Transaction {
+	address := make([]byte, 20)
+	rand.Read(address)
+
+	target := common.BytesToAddress(address)
+	timestamp := uint64(0)
+
+	rand.Read(address)
+	l1TxOrigin := common.BytesToAddress(address)
+
+	gasLimit := uint64(0)
+	data := []byte{0x00, 0x00}
+	l1BlockNumber := big.NewInt(0)
+
+	tx := types.NewTransaction(0, target, big.NewInt(0), gasLimit, big.NewInt(0), data)
+	meta := types.NewTransactionMeta(
+		l1BlockNumber,
+		timestamp,
+		&l1TxOrigin,
+		types.SighashEIP155,
+		types.QueueOriginL1ToL2,
+		nil,
+		nil,
+		nil,
+	)
+	tx.SetTransactionMeta(meta)
+	return tx
+}
+
+func setMockTxL1Timestamp(tx *types.Transaction, ts uint64) *types.Transaction {
+	meta := tx.GetMeta()
+	meta.L1Timestamp = ts
+	tx.SetTransactionMeta(meta)
+	return tx
 }
