@@ -468,7 +468,7 @@ func (c *Client) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 		}
 		// No enqueue transactions have been confirmed yet
 		if *meta.QueueIndex == uint64(0) {
-			return nil, nil
+			return nil, errElementNotFound
 		}
 		next, err := c.GetEnqueue(*meta.QueueIndex - 1)
 		if err != nil {
