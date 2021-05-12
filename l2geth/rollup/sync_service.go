@@ -607,7 +607,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	} else if tx.L1Timestamp() > s.GetLatestL1Timestamp() {
 		// If the timestamp of the transaction is greater than the sync
 		// service's locally maintained timestamp, update the timestamp and
-		// blocknumber to equal that of the transaction's. This should happend
+		// blocknumber to equal that of the transaction's. This should happen
 		// with `enqueue` transactions.
 		ts := tx.L1Timestamp()
 		bn := tx.L1BlockNumber()

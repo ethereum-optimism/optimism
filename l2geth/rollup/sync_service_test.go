@@ -641,10 +641,6 @@ func (m *mockClient) GetLatestTransactionIndex(backend Backend) (*uint64, error)
 	return tx.GetMeta().Index, nil
 }
 
-func newUint64(n uint64) *uint64 {
-	return &n
-}
-
 func mockTx() *types.Transaction {
 	address := make([]byte, 20)
 	rand.Read(address)
