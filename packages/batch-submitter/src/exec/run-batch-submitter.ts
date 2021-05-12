@@ -82,7 +82,7 @@ export const run = async () => {
   const sentryDsn = config.str('sentry-dsn', env.SENTRY_DSN)
   const sentryTraceRate = config.ufloat(
     'sentry-trace-rate',
-    parseInt(env.SENTRY_TRACE_RATE, 10) || 0.05
+    parseFloat(env.SENTRY_TRACE_RATE) || 0.05
   )
 
   /* Logger */
