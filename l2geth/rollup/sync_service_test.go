@@ -267,6 +267,49 @@ func TestTransactionToTipTimestamps(t *testing.T) {
 	}
 }
 
+func TestApplyIndexedTransaction(t *testing.T) {
+	service, txCh, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create three transactions, two of which have a dupliate index.
+	// The first two transactions can be ingested without a problem and the
+	// third transaction has a duplicate index so it will not be ingested.
+	// Expect an error for the third transaction and expect the SyncService
+	// global index to be updated with the first two transactions
+	tx0 := setMockTxIndex(mockTx(), 0)
+	tx1 := setMockTxIndex(mockTx(), 1)
+	tx1a := setMockTxIndex(mockTx(), 1)
+
+	go func() {
+		err = service.applyIndexedTransaction(tx0)
+	}()
+	<-txCh
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *tx0.GetMeta().Index != *service.GetLatestIndex() {
+		t.Fatal("Latest index mismatch")
+	}
+
+	go func() {
+		err = service.applyIndexedTransaction(tx1)
+	}()
+	<-txCh
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *tx1.GetMeta().Index != *service.GetLatestIndex() {
+		t.Fatal("Latest index mismatch")
+	}
+
+	err = service.applyIndexedTransaction(tx1a)
+	if err == nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSyncServiceL1GasPrice(t *testing.T) {
 	service, _, _, err := newTestSyncService(true)
 	setupMockClient(service, map[string]interface{}{})
@@ -634,6 +677,13 @@ func mockTx() *types.Transaction {
 func setMockTxL1Timestamp(tx *types.Transaction, ts uint64) *types.Transaction {
 	meta := tx.GetMeta()
 	meta.L1Timestamp = ts
+	tx.SetTransactionMeta(meta)
+	return tx
+}
+
+func setMockTxIndex(tx *types.Transaction, index uint64) *types.Transaction {
+	meta := tx.GetMeta()
+	meta.Index = &index
 	tx.SetTransactionMeta(meta)
 	return tx
 }
