@@ -39,6 +39,7 @@ export interface RollupDeployConfig {
     owner: string | Signer
     initialGasPrice: number
   }
+  l2ChugSplashDeployerOwner: string
   addressManager?: string
   dependencies?: string[]
   deployOverrides: Overrides
@@ -270,6 +271,10 @@ export const makeContractDeployConfig = async (
     OVM_SequencerFeeVault: {
       factory: getContractFactory('OVM_SequencerFeeVault'),
       params: [`0x${'11'.repeat(20)}`],
+    },
+    L2ChugSplashDeployer: {
+      factory: getContractFactory('L2ChugSplashDeployer'),
+      params: [config.l2ChugSplashDeployerOwner],
     },
   }
 }

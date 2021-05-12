@@ -2108,6 +2108,44 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Reset the ovmStateManager.
         ovmStateManager = iOVM_StateManager(address(0));
     }
+    
+    
+    /*********************
+     * Upgrade Functions *
+     *********************/
+
+    /**
+     * Sets the code of an ovm contract.
+     * @param _address Address to update the code of.
+     * @param _code Bytecode to put into the ovm account.
+     */
+    function ovmSETCODE(
+        address _address,
+        bytes memory _code
+    )
+        override
+        external
+    {
+        // TODO: IMPLEMENT ME
+    }
+
+    /**
+     * Sets the storage slot of an OVM contract.
+     * @param _address OVM account to set storage of.
+     * @param _key Key to set set.
+     * @param _value Value to store at the given key.
+     */
+    function ovmSETSTORAGE(
+        address _address,
+        bytes32 _key,
+        bytes32 _value
+    )
+        override
+        external
+    {
+        // TODO: IMPLEMENT ME
+    }
+
 
 
     /******************************************

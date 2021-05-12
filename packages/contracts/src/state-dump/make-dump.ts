@@ -141,6 +141,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_GasPriceOracle',
       'OVM_SequencerFeeVault',
       'OVM_L2StandardBridge',
+      'L2ChugSplashDeployer',
     ],
     deployOverrides: {},
     waitForReceipts: false,
@@ -148,6 +149,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       owner: signer,
       initialGasPrice: 0,
     },
+    l2ChugSplashDeployerOwner: cfg.l2ChugSplashDeployerOwner,
   }
 
   config = { ...config, ...cfg }
@@ -165,6 +167,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_GasPriceOracle',
     'OVM_SequencerFeeVault',
     'OVM_L2StandardBridge',
+    'L2ChugSplashDeployer',
   ]
 
   const deploymentResult = await deploy(config)
