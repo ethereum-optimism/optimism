@@ -62,23 +62,27 @@ contract OVM_ProxyEOA {
      * Public Functions *
      ********************/
 
-    /**
-     * Changes the implementation address.
-     * @param _implementation New implementation address.
-     */
-    function upgrade(
-        address _implementation
-    )
-        external
-    {
-        require(
-            msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
-            "EOAs can only upgrade their own EOA implementation"
-        );
-
-        _setImplementation(_implementation);
-        emit Upgraded(_implementation);
-    }
+    // NOTE: Upgrades are temporarily disabled while we construct a whitelist-based system of
+    // contract accounts that users can use. Without such a system, users could upgrade their
+    // accounts to a contract that completely avoids paying fees.
+    //
+    // /**
+    //  * Changes the implementation address.
+    //  * @param _implementation New implementation address.
+    //  */
+    // function upgrade(
+    //     address _implementation
+    // )
+    //     external
+    // {
+    //     require(
+    //         msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
+    //         "EOAs can only upgrade their own EOA implementation"
+    //     );
+    //
+    //     _setImplementation(_implementation);
+    //     emit Upgraded(_implementation);
+    // }
 
     /**
      * Gets the address of the current implementation.
