@@ -59,9 +59,9 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	_ = cancel // satisfy govet
 
 	if cfg.IsVerifier {
-		log.Info("Running in verifier mode", "sync-type", cfg.Backend.String())
+		log.Info("Running in verifier mode", "sync-backend", cfg.Backend.String())
 	} else {
-		log.Info("Running in sequencer mode", "sync-type", cfg.Backend.String())
+		log.Info("Running in sequencer mode", "sync-backend", cfg.Backend.String())
 	}
 
 	pollInterval := cfg.PollInterval
