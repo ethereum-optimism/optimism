@@ -2,6 +2,7 @@ import { HardhatUserConfig } from 'hardhat/types'
 
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
+import '@nomiclabs/hardhat-waffle'
 import '@eth-optimism/hardhat-ovm'
 import 'hardhat-gas-reporter'
 
@@ -13,7 +14,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     optimism: {
-      url: 'http://localhost:8545',
+      url: process.env.L2_URL || 'http://localhost:8545',
       ovm: true,
     },
   },

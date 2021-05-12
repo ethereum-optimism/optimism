@@ -286,7 +286,7 @@ MyMockContract.smocked.myFunction.will.return.with(() => {
   return 'Some return value!'
 })
 
-console.log(await MyMockContract.myFunction()) // ['Some return value!']
+console.log(await MyMockContract.myFunction()) // 'Some return value!'
 ```
 
 ### Returning a Function (w/ Arguments)
@@ -304,7 +304,7 @@ MyMockContract.smocked.myFunction.will.return.with((myFunctionArgument: string) 
   return myFunctionArgument
 })
 
-console.log(await MyMockContract.myFunction('Some return value!')) // ['Some return value!']
+console.log(await MyMockContract.myFunction('Some return value!')) // 'Some return value!'
 ```
 
 ### Reverting (w/o Data)

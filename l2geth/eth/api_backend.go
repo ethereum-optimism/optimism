@@ -297,19 +297,10 @@ func (b *EthAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 // a lock can be used around the remotes for when the sequencer is reorganizing.
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
 	if b.UsingOVM {
-		// The value field is not rolled up so it must be set to 0
-		if signedTx.Value().Cmp(new(big.Int)) != 0 {
-			return fmt.Errorf("Cannot send transaction with non-zero value. Use WETH.transfer()")
-		}
-
 		to := signedTx.To()
 		if to != nil {
 			if *to == (common.Address{}) {
 				return errors.New("Cannot send transaction to zero address")
-			}
-			// Prevent transactions from being submitted if the gas limit too high
-			if signedTx.Gas() >= b.gasLimit {
-				return fmt.Errorf("Transaction gasLimit (%d) is greater than max gasLimit (%d)", signedTx.Gas(), b.gasLimit)
 			}
 			// Prevent QueueOriginSequencer transactions that are too large to
 			// be included in a batch. The `MaxCallDataSize` should be set to
@@ -319,6 +310,14 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 			// to layer one.
 			if len(signedTx.Data()) > b.MaxCallDataSize {
 				return fmt.Errorf("Calldata cannot be larger than %d, sent %d", b.MaxCallDataSize, len(signedTx.Data()))
+			}
+			// If there is a value field set then reject transactions that
+			// contain calldata. The feature of sending transactions with value
+			// and calldata will be added in the future.
+			if signedTx.Value().Cmp(common.Big0) != 0 {
+				if len(signedTx.Data()) > 0 {
+					return errors.New("Cannot send transactions with value and calldata")
+				}
 			}
 		}
 		return b.eth.syncService.ValidateAndApplySequencerTransaction(signedTx)

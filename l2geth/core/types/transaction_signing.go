@@ -17,66 +17,15 @@
 package types
 
 import (
-	"bytes"
 	"crypto/ecdsa"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"golang.org/x/crypto/sha3"
 )
-
-var codec abi.ABI
-
-func init() {
-	const abidata = `
-	[
-		{
-			"type": "function",
-			"name": "encode",
-			"constant": true,
-			"inputs": [
-				{
-					"name": "nonce",
-					"type": "uint256"
-				},
-				{
-					"name": "gasLimit",
-					"type": "uint256"
-				},
-				{
-					"name": "gasPrice",
-					"type": "uint256"
-				},
-				{
-					"name": "chainId",
-					"type": "uint256"
-				},
-				{
-					"name": "to",
-					"type": "address"
-				},
-				{
-					"name": "data",
-					"type": "bytes"
-				}
-			]
-		}
-	]
-	`
-
-	var err error
-	codec, err = abi.JSON(strings.NewReader(abidata))
-	if err != nil {
-		panic(fmt.Errorf("unable to create Eth Sign abi reader: %v", err))
-	}
-}
 
 var (
 	ErrInvalidChainId = errors.New("invalid chain id for signer")
@@ -91,7 +40,16 @@ type sigCache struct {
 
 // MakeSigner returns a Signer based on the given chain config and block number.
 func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
-	return NewOVMSigner(config.ChainID)
+	var signer Signer
+	switch {
+	case config.IsEIP155(blockNumber):
+		signer = NewEIP155Signer(config.ChainID)
+	case config.IsHomestead(blockNumber):
+		signer = HomesteadSigner{}
+	default:
+		signer = FrontierSigner{}
+	}
+	return signer
 }
 
 // SignTx signs the transaction using the given signer and private key
@@ -142,97 +100,6 @@ type Signer interface {
 	Hash(tx *Transaction) common.Hash
 	// Equal returns true if the given signer is the same as the receiver.
 	Equal(Signer) bool
-}
-
-// OVMSigner implements Signers using the EIP155 rules along with a new
-// `eth_sign` based signature hash.
-type OVMSigner struct {
-	EIP155Signer
-}
-
-func NewOVMSigner(chainId *big.Int) OVMSigner {
-	signer := NewEIP155Signer(chainId)
-	return OVMSigner{signer}
-}
-
-func (s OVMSigner) Equal(s2 Signer) bool {
-	ovm, ok := s2.(OVMSigner)
-	return ok && ovm.chainId.Cmp(s.chainId) == 0
-}
-
-// Hash returns the hash to be signed by the sender.
-// It does not uniquely identify the transaction.
-func (s OVMSigner) Hash(tx *Transaction) common.Hash {
-	if tx.IsEthSignSighash() {
-		msg := s.OVMSignerTemplateSighashPreimage(tx)
-
-		hasher := sha3.NewLegacyKeccak256()
-		hasher.Write(msg[:])
-		digest := hasher.Sum(nil)
-
-		return common.BytesToHash(digest)
-	}
-
-	return rlpHash([]interface{}{
-		tx.data.AccountNonce,
-		tx.data.Price,
-		tx.data.GasLimit,
-		tx.data.Recipient,
-		tx.data.Amount,
-		tx.data.Payload,
-		s.chainId, uint(0), uint(0),
-	})
-}
-
-// Sender will ecrecover the public key that created the signature
-// and then hash the public key to create an address. In the
-// case of L1ToL2 transactions, Layer One did the authentication
-// for us so there is no signature involved. The concept of a "from"
-// is only required for bookkeeping within this codebase
-func (s OVMSigner) Sender(tx *Transaction) (common.Address, error) {
-	qo := tx.QueueOrigin()
-	if qo != nil && qo.Uint64() == uint64(QueueOriginL1ToL2) {
-		return common.Address{}, nil
-	}
-	if !tx.Protected() {
-		return HomesteadSigner{}.Sender(tx)
-	}
-	if tx.ChainId().Cmp(s.chainId) != 0 {
-		return common.Address{}, ErrInvalidChainId
-	}
-	V := new(big.Int).Sub(tx.data.V, s.chainIdMul)
-	V.Sub(V, big8)
-	return recoverPlain(s.Hash(tx), tx.data.R, tx.data.S, V, true)
-}
-
-// OVMSignerTemplateSighashPreimage creates the preimage for the `eth_sign` like
-// signature hash. The transaction is `ABI.encodePacked`.
-func (s OVMSigner) OVMSignerTemplateSighashPreimage(tx *Transaction) []byte {
-	data := []interface{}{
-		big.NewInt(int64(tx.data.AccountNonce)),
-		big.NewInt(int64(tx.data.GasLimit)),
-		tx.data.Price,
-		s.chainId,
-		*tx.data.Recipient,
-		tx.data.Payload,
-	}
-
-	ret, err := codec.Pack("encode", data...)
-	if err != nil {
-		panic(fmt.Errorf("unable to pack Eth Sign data: %v", err))
-	}
-
-	hasher := sha3.NewLegacyKeccak256()
-	// Slice off the function selector before hashing
-	hasher.Write(ret[4:])
-	digest := hasher.Sum(nil)
-
-	preimage := new(bytes.Buffer)
-	prefix := []byte("\x19Ethereum Signed Message:\n32")
-	binary.Write(preimage, binary.BigEndian, prefix)
-	binary.Write(preimage, binary.BigEndian, digest)
-
-	return preimage.Bytes()
 }
 
 // EIP155Transaction implements Signer using the EIP155 rules.

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.3.2",
+  "version": "0.4.2",
   "main": "dist/index",
   "files": [
     "dist/*"
@@ -13,11 +13,16 @@
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
-    "lint": "tslint --format stylish --project .",
+    "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
+    "lint:check": "tslint --format stylish --project .",
     "test": "ts-mocha test/**/*.spec.ts"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.17",
+    "@types/lodash": "^4.14.168",
+    "@types/mocha": "^8.2.2",
+    "@types/prettier": "^2.2.3",
     "chai": "^4.3.0",
     "mocha": "^8.3.0",
     "prettier": "^2.2.1",

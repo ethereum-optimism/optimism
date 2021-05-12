@@ -1,5 +1,61 @@
 # data transport layer
 
+## 0.3.0
+
+### Minor Changes
+
+- b799caa: Updates to use RLP encoded transactions in batches for the `v0.3.0` release
+
+### Patch Changes
+
+- b799caa: Parse and index the value field in the data transport layer
+- b799caa: Account for the off by one with regards to the l2geth block number and the CTC index
+- b799caa: Remove legacy transaction deserialization to support RLP batch encoding
+- b799caa: Prevent access of null value in L1 transaction deserialization
+- Updated dependencies [b799caa]
+- Updated dependencies [6132e7a]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+- Updated dependencies [20747fd]
+- Updated dependencies [b799caa]
+- Updated dependencies [b799caa]
+  - @eth-optimism/contracts@0.3.0
+  - @eth-optimism/core-utils@0.4.2
+
+## 0.2.5
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- ce7fa52: Add an additional enum for EthSign transactions as they now are batch submitted with 2 different enum values
+- 575bcf6: add environment and network to dtl, move metric init to app from base-service
+- Updated dependencies [1d40586]
+- Updated dependencies [ce7fa52]
+- Updated dependencies [575bcf6]
+- Updated dependencies [6dc1877]
+  - @eth-optimism/common-ts@0.1.1
+  - @eth-optimism/contracts@0.2.10
+  - @eth-optimism/core-utils@0.4.1
+
+## 0.2.4
+
+### Patch Changes
+
+- 47e40a2: Update the config parsing so that it gives a better error message
+- a0a0052: Parse and index the value field in the data transport layer
+- 34ab776: Better error logging in the DTL
+- e6350e2: add metrics to measure http endpoint latency
+- 28dc442: move metrics, logger, and base-service to new common-ts package
+- a0a0052: Prevent access of null value in L1 transaction deserialization
+- Updated dependencies [28dc442]
+- Updated dependencies [d2091d4]
+- Updated dependencies [a0a0052]
+- Updated dependencies [0ef3069]
+  - @eth-optimism/common-ts@0.1.0
+  - @eth-optimism/core-utils@0.4.0
+  - @eth-optimism/contracts@0.2.9
+
 ## 0.2.3
 
 ### Patch Changes

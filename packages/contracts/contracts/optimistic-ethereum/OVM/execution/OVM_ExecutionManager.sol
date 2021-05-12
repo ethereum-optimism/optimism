@@ -161,12 +161,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _ovmStateManager
     )
         override
-        public
+        external
+        returns (
+            bytes memory
+        )
     {
         // Make sure that run() is not re-enterable.  This condition should always be satisfied
         // Once run has been called once, due to the behavior of _isValidInput().
         if (transactionContext.ovmNUMBER != DEFAULT_UINT256) {
-            return;
+            return bytes("");
         }
 
         // Store our OVM_StateManager instance (significantly easier than attempting to pass the
@@ -194,7 +197,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // reverts for INVALID_STATE_ACCESS.
         if (_isValidInput(_transaction) == false) {
             _resetContext();
-            return;
+            return bytes("");
         }
 
         // TEMPORARY: Gas metering is disabled for minnet.
@@ -202,7 +205,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // uint256 gasProvided = gasleft();
 
         // Run the transaction, make sure to meter the gas usage.
-        ovmCALL(
+        (, bytes memory returndata) = ovmCALL(
             _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
             _transaction.entrypoint,
             _transaction.data
@@ -215,6 +218,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Wipe the execution context.
         _resetContext();
+
+        return returndata;
     }
 
 
@@ -228,7 +233,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmCALLER()
         override
-        public
+        external
         view
         returns (
             address _CALLER
@@ -258,7 +263,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmTIMESTAMP()
         override
-        public
+        external
         view
         returns (
             uint256 _TIMESTAMP
@@ -273,7 +278,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmNUMBER()
         override
-        public
+        external
         view
         returns (
             uint256 _NUMBER
@@ -288,7 +293,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmGASLIMIT()
         override
-        public
+        external
         view
         returns (
             uint256 _GASLIMIT
@@ -303,7 +308,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmCHAINID()
         override
-        public
+        external
         view
         returns (
             uint256 _CHAINID
@@ -322,7 +327,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmL1QUEUEORIGIN()
         override
-        public
+        external
         view
         returns (
             Lib_OVMCodec.QueueOrigin _queueOrigin
@@ -337,7 +342,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmL1TXORIGIN()
         override
-        public
+        external
         view
         returns (
             address _l1TxOrigin
@@ -417,7 +422,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _salt
     )
         override
-        public
+        external
         notStatic
         fixedGasDiscount(40000)
         returns (
@@ -456,7 +461,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmGETNONCE()
         override
-        public
+        external
         returns (
             uint256 _nonce
         )
@@ -469,7 +474,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmINCREMENTNONCE()
         override
-        public
+        external
         notStatic
     {
         address account = ovmADDRESS();
@@ -618,7 +623,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        public
+        external
         fixedGasDiscount(80000)
         returns (
             bool _success,
@@ -653,7 +658,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        public
+        external
         fixedGasDiscount(40000)
         returns (
             bool _success,
@@ -685,7 +690,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _key
     )
         override
-        public
+        external
         netGasCost(40000)
         returns (
             bytes32 _value
@@ -710,7 +715,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _value
     )
         override
-        public
+        external
         notStatic
         netGasCost(60000)
     {
@@ -782,7 +787,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _contract
     )
         override
-        public
+        external
         returns (
             bytes32 _EXTCODEHASH
         )
@@ -1877,7 +1882,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         external
         returns (
-            bool,
             bytes memory
         )
     {
@@ -1894,18 +1898,19 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (isCreate) {
             (address created, bytes memory revertData) = ovmCREATE(_transaction.data);
             if (created == address(0)) {
-                return (false, revertData);
+                return abi.encode(false, revertData);
             } else {
                 // The eth_call RPC endpoint for to = undefined will return the deployed bytecode
                 // in the success case, differing from standard create messages.
-                return (true, Lib_EthUtils.getCode(created));
+                return abi.encode(true, Lib_EthUtils.getCode(created));
             }
         } else {
-            return ovmCALL(
+            (bool success, bytes memory returndata) = ovmCALL(
                 _transaction.gasLimit,
                 _transaction.entrypoint,
                 _transaction.data
             );
+            return abi.encode(success, returndata);
         }
     }
 }

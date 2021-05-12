@@ -78,7 +78,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   }
 
   protected async _init(): Promise<void> {
-    this.logger.info('Initializing message relayer', { options: this.options })
+    this.logger.info('Initializing message relayer', {
+      relayGasLimit: this.options.relayGasLimit,
+      fromL2TransactionIndex: this.options.fromL2TransactionIndex,
+      pollingInterval: this.options.pollingInterval,
+      l2BlockOffset: this.options.l2BlockOffset,
+      getLogsInterval: this.options.getLogsInterval,
+      spreadSheetMode: this.options.spreadsheetMode,
+    })
     // Need to improve this, sorry.
     this.state = {} as any
 
@@ -151,6 +158,20 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       await sleep(this.options.pollingInterval)
 
       try {
+        // Check that the correct address is set in the address manager
+        const relayer = await this.state.Lib_AddressManager.getAddress(
+          'OVM_L2MessageRelayer'
+        )
+        // If it is address(0), then message relaying is not authenticated
+        if (relayer !== ethers.constants.AddressZero) {
+          const address = await this.options.l1Wallet.getAddress()
+          if (relayer !== address) {
+            throw new Error(
+              `OVM_L2MessageRelayer (${relayer}) is not set to message-passer EOA ${address}`
+            )
+          }
+        }
+
         this.logger.info('Checking for newly finalized transactions...')
         if (
           !(await this._isTransactionFinalized(
@@ -222,7 +243,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           }
         )
       } catch (err) {
-        this.logger.error('Caught an unhandled error', { err })
+        this.logger.error('Caught an unhandled error', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
       }
     }
   }
@@ -469,7 +494,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           'Proof should succeed. Submitting for real this time...'
         )
       } catch (err) {
-        this.logger.error('Proof would fail, skipping', { err })
+        this.logger.error('Proof would fail, skipping', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
         return
       }
 
@@ -486,14 +515,26 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         }
       )
 
+      this.logger.info('Relay message transaction sent', {
+        transactionHash: result,
+      })
+
       try {
         const receipt = await result.wait()
 
-        this.logger.info('Relay message transaction sent', {
+        this.logger.info('Relay message included in block', {
           transactionHash: receipt.transactionHash,
+          blockNumber: receipt.blockNumber,
+          gasUsed: receipt.gasUsed.toString(),
+          confirmations: receipt.confirmations,
+          status: receipt.status,
         })
       } catch (err) {
-        this.logger.error('Real relay attempt failed, skipping.', { err })
+        this.logger.error('Real relay attempt failed, skipping.', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
         return
       }
       this.logger.info('Message successfully relayed to Layer 1!')

@@ -16,19 +16,34 @@ import {
   TX_BATCH_SUBMITTER_LOG_TAG,
 } from '..'
 
+const environment = process.env.NODE_ENV
+const network = process.env.ETH_NETWORK_NAME
+const release = `batch-submitter@${process.env.npm_package_version}`
+
 /* Logger */
 const name = 'oe:batch_submitter:init'
-const log = new Logger({
-  name,
-  sentryOptions: {
-    release: `batch-submitter@${process.env.npm_package_version}`,
-    dsn: process.env.SENTRY_DSN,
-    tracesSampleRate: 0.05,
-  },
-})
+let logger
+
+if (network) {
+  // Initialize Sentry for Batch Submitter deployed to a network
+  logger = new Logger({
+    name,
+    sentryOptions: {
+      release,
+      dsn: process.env.SENTRY_DSN,
+      tracesSampleRate: parseInt(process.env.SENTRY_TRACE_RATE, 10) || 0.05,
+      environment: network, // separate our Sentry errors by network instead of node environment
+    },
+  })
+} else {
+  // Skip initializing Sentry
+  logger = new Logger({ name })
+}
+
 /* Metrics */
 const metrics = new Metrics({
   prefix: name,
+  labels: { environment, release, network },
 })
 
 interface RequiredEnvVars {
@@ -90,7 +105,12 @@ const requiredEnvVars: RequiredEnvVars = {
  * FRAUD_SUBMISSION_ADDRESS
  * DISABLE_QUEUE_BATCH_APPEND
  * SEQUENCER_PRIVATE_KEY
+ * PROPOSER_PRIVATE_KEY
  * MNEMONIC
+ * SEQUENCER_MNEMONIC
+ * PROPOSER_MNEMONIC
+ * SEQUENCER_HD_PATH
+ * PROPOSER_HD_PATH
  */
 const env = process.env
 const FRAUD_SUBMISSION_ADDRESS = env.FRAUD_SUBMISSION_ADDRESS || 'no fraud'
@@ -99,10 +119,15 @@ const MIN_GAS_PRICE_IN_GWEI = parseInt(env.MIN_GAS_PRICE_IN_GWEI, 10) || 0
 const MAX_GAS_PRICE_IN_GWEI = parseInt(env.MAX_GAS_PRICE_IN_GWEI, 10) || 70
 const GAS_RETRY_INCREMENT = parseInt(env.GAS_RETRY_INCREMENT, 10) || 5
 const GAS_THRESHOLD_IN_GWEI = parseInt(env.GAS_THRESHOLD_IN_GWEI, 10) || 100
-// The private key that will be used to submit tx and state batches.
+
+// Private keys & mnemonics
 const SEQUENCER_PRIVATE_KEY = env.SEQUENCER_PRIVATE_KEY
-const MNEMONIC = env.MNEMONIC
-const HD_PATH = env.HD_PATH
+const PROPOSER_PRIVATE_KEY =
+  env.PROPOSER_PRIVATE_KEY || env.SEQUENCER_PRIVATE_KEY // Kept for backwards compatibility
+const SEQUENCER_MNEMONIC = env.SEQUENCER_MNEMONIC || env.MNEMONIC
+const PROPOSER_MNEMONIC = env.PROPOSER_MNEMONIC || env.MNEMONIC
+const SEQUENCER_HD_PATH = env.SEQUENCER_HD_PATH || env.HD_PATH
+const PROPOSER_HD_PATH = env.PROPOSER_HD_PATH || env.HD_PATH
 // Auto fix batch options -- TODO: Remove this very hacky config
 const AUTO_FIX_BATCH_OPTIONS_CONF = env.AUTO_FIX_BATCH_OPTIONS_CONF
 const autoFixBatchOptions: AutoFixBatchOptions = {
@@ -112,14 +137,17 @@ const autoFixBatchOptions: AutoFixBatchOptions = {
   fixMonotonicity: AUTO_FIX_BATCH_OPTIONS_CONF
     ? AUTO_FIX_BATCH_OPTIONS_CONF.includes('fixMonotonicity')
     : false,
+  fixSkippedDeposits: AUTO_FIX_BATCH_OPTIONS_CONF
+    ? AUTO_FIX_BATCH_OPTIONS_CONF.includes('fixSkippedDeposits')
+    : false,
 }
 
 export const run = async () => {
-  log.info('Starting batch submitter...')
+  logger.info('Starting batch submitter...')
 
   for (const [i, val] of Object.entries(requiredEnvVars)) {
     if (!process.env[val]) {
-      log.warn('Missing environment variable', {
+      logger.warn('Missing environment variable', {
         varName: val,
       })
       exit(1)
@@ -135,19 +163,45 @@ export const run = async () => {
   )
 
   let sequencerSigner: Signer
+  let proposerSigner: Signer
   if (SEQUENCER_PRIVATE_KEY) {
     sequencerSigner = new Wallet(SEQUENCER_PRIVATE_KEY, l1Provider)
-  } else if (MNEMONIC) {
-    sequencerSigner = Wallet.fromMnemonic(MNEMONIC, HD_PATH).connect(l1Provider)
+  } else if (SEQUENCER_MNEMONIC) {
+    sequencerSigner = Wallet.fromMnemonic(
+      SEQUENCER_MNEMONIC,
+      SEQUENCER_HD_PATH
+    ).connect(l1Provider)
   } else {
-    throw new Error('Must pass one of SEQUENCER_PRIVATE_KEY or MNEMONIC')
+    throw new Error(
+      'Must pass one of SEQUENCER_PRIVATE_KEY, MNEMONIC, or SEQUENCER_MNEMONIC'
+    )
+  }
+  if (PROPOSER_PRIVATE_KEY) {
+    proposerSigner = new Wallet(PROPOSER_PRIVATE_KEY, l1Provider)
+  } else if (PROPOSER_MNEMONIC) {
+    proposerSigner = Wallet.fromMnemonic(
+      PROPOSER_MNEMONIC,
+      PROPOSER_HD_PATH
+    ).connect(l1Provider)
+  } else {
+    throw new Error(
+      'Must pass one of PROPOSER_PRIVATE_KEY, MNEMONIC, or PROPOSER_MNEMONIC'
+    )
   }
 
+  const sequencerAddress = await sequencerSigner.getAddress()
+  const proposerAddress = await proposerSigner.getAddress()
   const address = await sequencerSigner.getAddress()
-  log.info('Configured batch submitter addresses', {
-    batchSubmitterAddress: address,
+  logger.info('Configured batch submitter addresses', {
+    sequencerAddress,
+    proposerAddress,
     addressManagerAddress: requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
   })
+
+  // If the sequencer & proposer are the same, use a single wallet
+  if (sequencerAddress === proposerAddress) {
+    proposerSigner = sequencerSigner
+  }
 
   const txBatchSubmitter = new TransactionBatchSubmitter(
     sequencerSigner,
@@ -164,14 +218,17 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
-    log.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({ prefix: TX_BATCH_SUBMITTER_LOG_TAG }),
+    logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({
+      prefix: TX_BATCH_SUBMITTER_LOG_TAG,
+      labels: { environment, release, network },
+    }),
     DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
   )
 
   const stateBatchSubmitter = new StateBatchSubmitter(
-    sequencerSigner,
+    proposerSigner,
     l2Provider,
     parseInt(requiredEnvVars.MIN_L1_TX_SIZE, 10),
     parseInt(requiredEnvVars.MAX_L1_TX_SIZE, 10),
@@ -186,8 +243,11 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
-    log.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({ prefix: STATE_BATCH_SUBMITTER_LOG_TAG }),
+    logger.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
+    new Metrics({
+      prefix: STATE_BATCH_SUBMITTER_LOG_TAG,
+      labels: { environment, release, network },
+    }),
     FRAUD_SUBMISSION_ADDRESS
   )
 
@@ -201,18 +261,22 @@ export const run = async () => {
         const pendingTxs = await sequencerSigner.getTransactionCount('pending')
         const latestTxs = await sequencerSigner.getTransactionCount('latest')
         if (pendingTxs > latestTxs) {
-          log.info('Detected pending transactions. Clearing all transactions!')
+          logger.info(
+            'Detected pending transactions. Clearing all transactions!'
+          )
           for (let i = latestTxs; i < pendingTxs; i++) {
             const response = await sequencerSigner.sendTransaction({
               to: await sequencerSigner.getAddress(),
               value: 0,
               nonce: i,
             })
-            log.info('Submitted empty transaction', {
+            logger.info('Submitted empty transaction', {
               nonce: i,
               txHash: response.hash,
               to: response.to,
               from: response.from,
+            })
+            logger.debug('empty transaction data', {
               data: response.data,
             })
             await sequencerSigner.provider.waitForTransaction(
@@ -222,7 +286,11 @@ export const run = async () => {
           }
         }
       } catch (err) {
-        log.error('Cannot clear transactions', { err })
+        logger.error('Cannot clear transactions', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
         process.exit(1)
       }
     }
@@ -231,8 +299,12 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        log.error('Error submitting batch', { err })
-        log.info('Retrying...')
+        logger.error('Error submitting batch', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
+        logger.info('Retrying...')
       }
       // Sleep
       await new Promise((r) =>

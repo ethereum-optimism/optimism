@@ -1,10 +1,14 @@
-#!/bin/bash
+#!/bin/sh
+
+# FIXME: Cannot use set -e since bash is not installed in Dockerfile
+# set -e
+
 RETRIES=${RETRIES:-40}
 VERBOSITY=${VERBOSITY:-6}
 
 if [[ ! -z "$URL" ]]; then
     # get the addrs from the URL provided
-    ADDRESSES=$(curl --silent --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
+    ADDRESSES=$(curl --fail --show-error --silent --retry-connrefused --retry $RETRIES --retry-delay 5 $URL)
 
     function envSet() {
         VAR=$1
@@ -25,6 +29,8 @@ fi
 
 # wait for the dtl to be up, else geth will crash if it cannot connect
 curl \
+    --fail \
+    --show-error \
     --silent \
     --output /dev/null \
     --retry-connrefused \
@@ -32,4 +38,4 @@ curl \
     --retry-delay 1 \
     $ROLLUP_CLIENT_HTTP
 
-exec geth --verbosity="$VERBOSITY"
+exec geth --verbosity="$VERBOSITY" "$@"

@@ -53,7 +53,7 @@ const config: HardhatUserConfig = {
     },
   },
   ovm: {
-    solcVersion: '0.7.6-allow_kall_2', // temporary until we fix the build for 0.7.6
+    solcVersion: '0.7.6',
   },
   typechain: {
     outDir: 'dist/types',

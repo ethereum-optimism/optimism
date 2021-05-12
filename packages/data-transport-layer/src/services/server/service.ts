@@ -1,6 +1,7 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/common-ts'
+import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import express, { Request, Response } from 'express'
+import promBundle from 'express-prom-bundle'
 import cors from 'cors'
 import { BigNumber } from 'ethers'
 import { JsonRpcProvider } from '@ethersproject/providers'
@@ -105,22 +106,50 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
+    if (this.options.ethNetworkName) {
+      this._initMonitoring()
+    }
+    this.state.app.use(cors())
+    this._registerAllRoutes()
+    // Sentry error handling must be after all controllers
+    // and before other error middleware
+    if (this.options.ethNetworkName) {
+      this.state.app.use(Sentry.Handlers.errorHandler())
+    }
+  }
+
+  /**
+   * Initialize Sentry and Prometheus metrics for deployed instances
+   */
+  private _initMonitoring() {
+    // Init Sentry options
     Sentry.init({
       dsn: this.options.sentryDsn,
-      release: `data-transport-layer@${process.env.npm_package_version}`,
+      release: this.options.release,
       integrations: [
         new Sentry.Integrations.Http({ tracing: true }),
         new Tracing.Integrations.Express({
           app: this.state.app,
         }),
       ],
-      tracesSampleRate: 0.05,
+      tracesSampleRate: this.options.sentryTraceRate,
     })
     this.state.app.use(Sentry.Handlers.requestHandler())
     this.state.app.use(Sentry.Handlers.tracingHandler())
-    this.state.app.use(cors())
-    this._registerAllRoutes()
-    this.state.app.use(Sentry.Handlers.errorHandler())
+    // Init metrics
+    this.metrics = new Metrics({
+      prefix: this.name,
+      labels: {
+        environment: this.options.nodeEnv,
+        network: this.options.ethNetworkName,
+        release: this.options.release,
+      },
+    })
+    const metricsMiddleware = promBundle({
+      includeMethod: true,
+      includePath: true,
+    })
+    this.state.app.use(metricsMiddleware)
   }
 
   /**
@@ -189,7 +218,8 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
             break
           case 'l2':
             currentL2Block = await this.state.db.getLatestUnconfirmedTransaction()
-            highestL2BlockNumber = await this.state.db.getHighestSyncedUnconfirmedBlock()
+            highestL2BlockNumber =
+              (await this.state.db.getHighestSyncedUnconfirmedBlock()) - 1
             break
           default:
             throw new Error(`Unknown transaction backend ${backend}`)

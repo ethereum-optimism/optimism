@@ -47,8 +47,9 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
   const ovmCompilersCache = path.join(await getCompilersDir(), 'ovm')
 
   // Need to create the OVM compiler cache folder if it doesn't already exist.
-  if (!fs.existsSync(ovmCompilersCache))
-    [fs.mkdirSync(ovmCompilersCache, { recursive: true })]
+  if (!fs.existsSync(ovmCompilersCache)) {
+    fs.mkdirSync(ovmCompilersCache, { recursive: true })
+  }
 
   // Pull information about the latest commit in the solc-bin repo. We'll use this to invalidate
   // our compiler cache if necessary.
@@ -103,6 +104,31 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
 
   return cachedCompilerPath
 }
+
+// TODO: implement a more elegant fix for this.
+// Hardhat on M1 Macbooks does not run TASK_COMPILE_SOLIDITY_RUN_SOLC, but instead this runs one,
+// TASK_COMPILE_SOLIDITY_RUN_SOLCJS.  We reroute this task back to the solc task in the case
+// of OVM compilation.
+subtask(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, async (args, hre, runSuper) => {
+  const argsAny = args as any
+  if (argsAny.real || hre.network.ovm !== true) {
+    for (const file of Object.keys(argsAny.input.sources)) {
+      // Ignore any contract that has this tag or in ignore list
+      if (
+        argsAny.input.sources[file].content.includes('// @unsupported: evm') &&
+        hre.network.ovm !== true
+      ) {
+        delete argsAny.input.sources[file]
+      }
+    }
+    return runSuper(args)
+  } else {
+    return hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLC, {
+      ...argsAny,
+      solcPath: argsAny.solcJsPath,
+    })
+  }
+})
 
 subtask(
   TASK_COMPILE_SOLIDITY_RUN_SOLC,
@@ -161,10 +187,15 @@ subtask(
       }
     }
 
+    if (Object.keys(ovmInput.sources).length === 0) {
+      return {}
+    }
+
     // Build both inputs separately.
     const ovmOutput = await hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, {
       input: ovmInput,
       solcJsPath: ovmSolcPath,
+      real: true,
     })
 
     // Just doing this to add some extra useful information to any errors in the OVM compiler output.
@@ -220,8 +251,10 @@ extendEnvironment(async (hre) => {
         (hre as any).ethers.provider.url
       )
       provider.pollingInterval = interval
+
+      // the gas price is overriden to the user provided gasPrice or to 0.
       provider.getGasPrice = async () =>
-        ethers.BigNumber.from(hre.network.config.gasPrice)
+        ethers.BigNumber.from(hre.network.config.gasPrice || 0)
       ;(hre as any).ethers.provider = provider
 
       // if the node is up, override the getSigners method's signers

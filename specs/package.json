@@ -4,10 +4,12 @@
   "license": "MIT",
   "private": true,
   "devDependencies": {
-    "prettier": "2.2.1"
+    "@types/prettier": "2.2.1",
+    "prettier": "^2.2.1"
   },
   "scripts": {
+    "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "yarn prettier --write \"{l2geth,protocol}/**/*.md\"",
-    "lint": "yarn prettier --check \"{l2geth,protocol}/**/*.md\""
+    "lint:check": "yarn prettier --check \"{l2geth,protocol}/**/*.md\""
   }
 }

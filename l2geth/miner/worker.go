@@ -646,7 +646,7 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 		return err
 	}
 	env := &environment{
-		signer:    types.NewOVMSigner(w.chainConfig.ChainID),
+		signer:    types.NewEIP155Signer(w.chainConfig.ChainID),
 		state:     state,
 		ancestors: mapset.NewSet(),
 		family:    mapset.NewSet(),
@@ -863,12 +863,11 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	tstart := time.Now()
 
 	parent := w.chain.CurrentBlock()
-	timestamp := tx.L1Timestamp()
 	num := parent.Number()
 
 	// Preserve liveliness as best as possible. Must panic on L1 to L2
 	// transactions as the timestamp cannot be malleated
-	if parent.Time() > timestamp {
+	if parent.Time() > tx.L1Timestamp() {
 		log.Error("Monotonicity violation", "index", num)
 		if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginSequencer) {
 			tx.SetL1Timestamp(parent.Time())
@@ -898,7 +897,7 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 		Number:     num.Add(num, common.Big1),
 		GasLimit:   w.config.GasFloor,
 		Extra:      w.extra,
-		Time:       timestamp,
+		Time:       tx.L1Timestamp(),
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		return fmt.Errorf("Failed to prepare header for mining: %w", err)

@@ -4,6 +4,7 @@ export interface DecodedSequencerBatchTransaction {
     s: string
     v: number
   }
+  value: string
   gasLimit: number
   gasPrice: number
   nonce: number
@@ -31,6 +32,7 @@ export interface TransactionEntry {
   gasLimit: number
   target: string
   origin: string
+  value: string
   queueOrigin: 'sequencer' | 'l1'
   queueIndex: number | null
   type: 'EIP155' | 'ETH_SIGN' | null

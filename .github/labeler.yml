@@ -1,0 +1,37 @@
+---
+A-ci:
+  - any: ['.github/**/*']
+
+A-contracts:
+  - any: ['packages/contracts/**/*']
+
+A-geth:
+  - any: ['l2geth/**/*']
+
+A-integration-tests:
+  - any: ['integration-tests/**/*']
+
+A-ts-packages:
+  - any: ['packages/**/*']
+    all: ['!packages/contracts/**/*']
+
+M-batch-submitter:
+  - any: ['packages/batch-submitter/**/*']
+
+M-contracts:
+  - any: ['packages/contracts/**/*']
+
+M-core-utils:
+  - any: ['packages/core-utils/**/*']
+
+M-dtl:
+  - any: ['packages/data-transport-layer/**/*']
+
+M-hardhat-ovm:
+  - any: ['packages/hardhat-ovm/**/*']
+
+M-ops:
+  - any: ['ops/**/*']
+
+M-smock:
+  - any: ['packages/smock/**/*']

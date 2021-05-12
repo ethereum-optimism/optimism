@@ -3,8 +3,10 @@ name: integration
 on:
   push:
     branches:
-      - master
+      - 'master'
+      - 'develop'
       - '*rc'
+      - 'regenesis/*'
   pull_request:
   workflow_dispatch:
 
@@ -34,32 +36,49 @@ jobs:
         working-directory: ./ops
         run: ./scripts/build-ci.sh
 
-      - name: Bring the stack up and wait for the sequencer to be ready
+      - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
+        run: docker-compose up -d
 
       - name: Run the integration tests
-        working-directory: ./integration-tests
-        run: |
-            yarn build:contracts
-            yarn build:contracts:ovm
-            yarn test:integration
-        env:
-          FORCE_COLOR: 1
-          ENABLE_GAS_REPORT: 1
-
-      - name: Print gas report
-        run: cat integration-tests/gas-report.txt
+        working-directory: ./ops
+        run: docker-compose run integration_tests
 
       # Examples Tests
       - name: Test & deploy hardhat-example on hardhat (regression)
         working-directory: ./examples/hardhat
         run: |
           yarn deploy
-          yarn test
+          yarn test:integration
 
       - name: Test & deploy hardhat-example on Optimism
         working-directory: ./examples/hardhat
         run: |
           yarn deploy:ovm
-          yarn test:ovm
+          yarn test:integration:ovm
+
+      - name: Test & deploy waffle-example on waffle (regression)
+        working-directory: ./examples/waffle
+        run: |
+          yarn compile
+          yarn test:integration
+
+      - name: Test & deploy waffle-example on Optimism
+        working-directory: ./examples/waffle
+        run: |
+          yarn compile:ovm
+          yarn test:integration:ovm
+
+      - name: Test & deploy truffle-example on truffle (regression)
+        working-directory: ./examples/truffle
+        run: |
+          yarn compile
+          yarn test:integration
+          yarn deploy
+
+      - name: Test & deploy truffle-example on Optimism
+        working-directory: ./examples/truffle
+        run: |
+          yarn compile:ovm
+          yarn test:integration:ovm
+          yarn deploy:ovm

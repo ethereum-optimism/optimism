@@ -70,6 +70,7 @@ type transaction struct {
 	BatchIndex  uint64          `json:"batchIndex"`
 	BlockNumber uint64          `json:"blockNumber"`
 	Timestamp   uint64          `json:"timestamp"`
+	Value       hexutil.Uint64  `json:"value"`
 	GasLimit    uint64          `json:"gasLimit"`
 	Target      common.Address  `json:"target"`
 	Origin      *common.Address `json:"origin"`
@@ -104,6 +105,7 @@ type signature struct {
 // it means that the decoding failed.
 type decoded struct {
 	Signature signature      `json:"sig"`
+	Value     hexutil.Uint64 `json:"value"`
 	GasLimit  uint64         `json:"gasLimit"`
 	GasPrice  uint64         `json:"gasPrice"`
 	Nonce     uint64         `json:"nonce"`
@@ -133,7 +135,7 @@ type RollupClient interface {
 // Client is an HTTP based RollupClient
 type Client struct {
 	client *resty.Client
-	signer *types.OVMSigner
+	signer *types.EIP155Signer
 }
 
 // TransactionResponse represents the response from the remote server when
@@ -155,7 +157,7 @@ func NewClient(url string, chainID *big.Int) *Client {
 	client := resty.New()
 	client.SetHostURL(url)
 	client.SetHeader("User-Agent", "sequencer")
-	signer := types.NewOVMSigner(chainID)
+	signer := types.NewEIP155Signer(chainID)
 
 	return &Client{
 		client: client,
@@ -231,6 +233,7 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 	}
 	data := *enqueue.Data
 
+	// enqueue transactions have no value
 	value := big.NewInt(0)
 	tx := types.NewTransaction(nonce, target, value, gasLimit, big.NewInt(0), data)
 
@@ -311,7 +314,7 @@ func (c *Client) GetLatestTransactionBatchIndex() (*uint64, error) {
 
 // batchedTransactionToTransaction converts a transaction into a
 // types.Transaction that can be consumed by the SyncService
-func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) (*types.Transaction, error) {
+func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signer) (*types.Transaction, error) {
 	// `nil` transactions are not found
 	if res == nil {
 		return nil, errElementNotFound
@@ -326,24 +329,13 @@ func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) 
 	} else {
 		return nil, fmt.Errorf("Unknown queue origin: %s", res.QueueOrigin)
 	}
-	// The transaction type must be EIP155 or EthSign. Throughout this
-	// codebase, it is referred to as "sighash type" but it could actually
-	// be generalized to transaction type. Right now the only different
-	// types use a different signature hashing scheme.
-	var sighashType types.SignatureHashType
-	if res.Type == EIP155 {
-		sighashType = types.SighashEIP155
-	} else if res.Type == ETH_SIGN {
-		sighashType = types.SighashEthSign
-	} else {
-		return nil, fmt.Errorf("Unknown transaction type: %s", res.Type)
-	}
+	sighashType := types.SighashEIP155
 	// Transactions that have been decoded are
 	// Queue Origin Sequencer transactions
 	if res.Decoded != nil {
 		nonce := res.Decoded.Nonce
 		to := res.Decoded.Target
-		value := new(big.Int)
+		value := new(big.Int).SetUint64(uint64(res.Decoded.Value))
 		// Note: there are two gas limits, one top level and
 		// another on the raw transaction itself. Maybe maxGasLimit
 		// for the top level?
@@ -397,7 +389,8 @@ func batchedTransactionToTransaction(res *transaction, signer *types.OVMSigner) 
 	gasLimit := res.GasLimit
 	data := res.Data
 	origin := res.Origin
-	tx := types.NewTransaction(nonce, target, big.NewInt(0), gasLimit, big.NewInt(0), data)
+	value := new(big.Int).SetUint64(uint64(res.Value))
+	tx := types.NewTransaction(nonce, target, value, gasLimit, big.NewInt(0), data)
 	txMeta := types.NewTransactionMeta(
 		new(big.Int).SetUint64(res.BlockNumber),
 		res.Timestamp,
@@ -587,7 +580,7 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 
 // parseTransactionBatchResponse will turn a TransactionBatchResponse into a
 // Batch and its corresponding types.Transactions
-func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *types.OVMSigner) (*Batch, []*types.Transaction, error) {
+func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *types.EIP155Signer) (*Batch, []*types.Transaction, error) {
 	if txBatch == nil || txBatch.Batch == nil {
 		return nil, nil, errElementNotFound
 	}

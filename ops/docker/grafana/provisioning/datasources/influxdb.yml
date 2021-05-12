@@ -1,0 +1,10 @@
+apiVersion: 1
+datasources:
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    orgId: 1
+    database: l2geth
+    url: http://influxdb:8086
+    version: 1
+    editable: false
