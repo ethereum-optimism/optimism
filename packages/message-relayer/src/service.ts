@@ -243,7 +243,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           }
         )
       } catch (err) {
-        this.logger.error('Caught an unhandled error', { err })
+        this.logger.error('Caught an unhandled error', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
       }
     }
   }
@@ -490,7 +494,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           'Proof should succeed. Submitting for real this time...'
         )
       } catch (err) {
-        this.logger.error('Proof would fail, skipping', { err })
+        this.logger.error('Proof would fail, skipping', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
         return
       }
 
@@ -522,7 +530,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           status: receipt.status,
         })
       } catch (err) {
-        this.logger.error('Real relay attempt failed, skipping.', { err })
+        this.logger.error('Real relay attempt failed, skipping.', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
         return
       }
       this.logger.info('Message successfully relayed to Layer 1!')

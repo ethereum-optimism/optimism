@@ -4,14 +4,15 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 REPO=$DIR/..
 
 IS_VERIFIER=
+ROLLUP_SYNC_SERVICE_ENABLE=true
 DATADIR=$HOME/.ethereum
 TARGET_GAS_LIMIT=9000000
 CHAIN_ID=10
-ETH1_CTC_DEPLOYMENT_HEIGHT=12207792
-ETH1_L1_GATEWAY_ADDRESS=0xF20C38fCdDF0C790319Fd7431d17ea0c2bC9959c
-ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS=0xD1EC7d40CCd01EB7A305b94cBa8AB6D17f6a9eFE
+ETH1_CTC_DEPLOYMENT_HEIGHT=12410807
+ETH1_L1_GATEWAY_ADDRESS=0xe681F80966a8b1fFadECf8068bD6F99034791c95
+ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS=0x902e5fF5A99C4eC1C21bbab089fdabE32EF0A5DF
 ADDRESS_MANAGER_OWNER_ADDRESS=0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A
-ROLLUP_STATE_DUMP_PATH=https://storage.googleapis.com/optimism/mainnet/3.json
+ROLLUP_STATE_DUMP_PATH=https://storage.googleapis.com/optimism/mainnet/4.json
 ROLLUP_CLIENT_HTTP=http://localhost:7878
 ROLLUP_POLL_INTERVAL=15s
 ROLLUP_TIMESTAMP_REFRESH=3m
@@ -47,6 +48,10 @@ while (( "$#" )); do
             ;;
         -v|--verifier)
             IS_VERIFIER=true
+            shift 1
+            ;;
+        --rollup.disablesyncservice)
+            ROLLUP_SYNC_SERVICE_ENABLE=
             shift 1
             ;;
         --verbosity)
@@ -210,7 +215,9 @@ while (( "$#" )); do
 done
 
 cmd="$REPO/build/bin/geth"
-cmd="$cmd --eth1.syncservice"
+if [[ ! -z "$ROLLUP_SYNC_SERVICE_ENABLE" ]]; then
+    cmd="$cmd --eth1.syncservice"
+fi
 cmd="$cmd --datadir $DATADIR"
 cmd="$cmd --eth1.l1crossdomainmessengeraddress $ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS"
 cmd="$cmd --rollup.addressmanagerowneraddress $ADDRESS_MANAGER_OWNER_ADDRESS"

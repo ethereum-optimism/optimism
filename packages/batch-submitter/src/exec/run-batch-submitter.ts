@@ -383,7 +383,11 @@ export const run = async () => {
           }
         }
       } catch (err) {
-        logger.error('Cannot clear transactions', { err })
+        logger.error('Cannot clear transactions', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
         process.exit(1)
       }
     }
@@ -392,7 +396,11 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        logger.error('Error submitting batch', { err })
+        logger.error('Error submitting batch', {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
         logger.info('Retrying...')
       }
       // Sleep
