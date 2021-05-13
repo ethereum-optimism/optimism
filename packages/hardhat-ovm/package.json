@@ -6,6 +6,7 @@
   "files": [
     "dist/*"
   ],
+  "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "clean": "rimraf tsconfig.build.tsbuildinfo dist",
