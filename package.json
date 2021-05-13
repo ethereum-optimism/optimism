@@ -1,6 +1,7 @@
 {
   "name": "optimism",
   "version": "1.0.0",
+  "author": "Optimism PBC",
   "license": "MIT",
   "workspaces": [
     "packages/*",

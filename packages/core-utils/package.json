@@ -7,7 +7,7 @@
   ],
   "types": "dist/index",
   "repository": "git@github.com:ethereum-optimism/core-utils.git",
-  "author": "Kelvin Fichter <kelvinfichter@gmail.com>",
+  "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
