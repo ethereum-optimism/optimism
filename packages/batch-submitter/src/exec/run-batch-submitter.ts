@@ -243,10 +243,11 @@ export const run = async () => {
     ),
   }
 
-  for (const val of Object.values(requiredEnvVars)) {
+  for (const [key, val] of Object.entries(requiredEnvVars)) {
     if (val === null || val === undefined) {
       logger.warn('Missing environment variable', {
-        varName: val,
+        key,
+        value: val,
       })
       exit(1)
     }
