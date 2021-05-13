@@ -21,6 +21,10 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
+// errShortRemoteTip is an error for when the remote tip is shorter than the
+// local tip
+var errShortRemoteTip = errors.New("Unexpected remote less than tip")
+
 // SyncService implements the main functionality around pulling in transactions
 // and executing them. It can be configured to run in both sequencer mode and in
 // verifier mode.
@@ -576,7 +580,7 @@ func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 		return fmt.Errorf("More than one transaction found in block %d", *index+1)
 	}
 	if !isCtcTxEqual(tx, txs[0]) {
-		log.Error("Mismatched transaction", "index", index)
+		log.Error("Mismatched transaction", "index", *index)
 	} else {
 		log.Debug("Historical transaction matches", "index", *index, "hash", tx.Hash().Hex())
 	}
@@ -736,6 +740,10 @@ func (s *SyncService) isAtTip(index *uint64, get indexGetter) (bool, error) {
 	// The indices are equal
 	if *latest == *index {
 		return true, nil
+	}
+	// The local tip is greater than the remote tip. This should never happen
+	if *latest < *index {
+		return false, fmt.Errorf("is at tip mismatch: remote (%d) - local (%d): %w", *latest, *index, errShortRemoteTip)
 	}
 	// The indices are not equal
 	return false, nil
