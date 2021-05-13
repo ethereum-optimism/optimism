@@ -266,7 +266,7 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 }
 
 // ApplyOvmStateToState applies the initial OVM state to a state object.
-func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, chainID *big.Int) {
+func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, chainID *big.Int, gasLimit uint64) {
 	if len(stateDump.Accounts) == 0 {
 		return
 	}
@@ -325,6 +325,10 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		chainIdSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000007")
 		chainIdValue := common.BytesToHash(chainID.Bytes())
 		statedb.SetState(ExecutionManager.Address, chainIdSlot, chainIdValue)
+		log.Info("Setting maxTransactionGasLimit in ExecutionManager", "gas-limit", gasLimit)
+		maxTxGasLimitSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004")
+		maxTxGasLimitValue := common.BytesToHash(new(big.Int).SetUint64(gasLimit).Bytes())
+		statedb.SetState(ExecutionManager.Address, maxTxGasLimitSlot, maxTxGasLimitValue)
 	}
 }
 
@@ -338,7 +342,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 
 	if vm.UsingOVM {
 		// OVM_ENABLED
-		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1ETHGatewayAddress, g.AddressManagerOwnerAddress, g.ChainID)
+		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1ETHGatewayAddress, g.AddressManagerOwnerAddress, g.ChainID, g.GasLimit)
 	}
 
 	for addr, account := range g.Alloc {
