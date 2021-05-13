@@ -1,6 +1,6 @@
 /* External Imports */
 import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
-import { Logger, Metrics } from '@eth-optimism/common-ts'
+import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
@@ -458,11 +458,14 @@ export const run = async () => {
     loop(() => stateBatchSubmitter.submitNextBatch())
   }
 
-  if (RUN_METRICS_SERVER === 'true') {
+  if (
+    (config.bool('run-prometheus-server'), env.RUN_PROMETHEUS_SERVER === 'true')
+  ) {
     // Initialize metrics server
-    const metricsServer = createMetricsServer({
+    await createMetricsServer({
       logger,
       registry: metrics.registry,
+      port: config.uint('prometheus-port'),
     })
   }
 }

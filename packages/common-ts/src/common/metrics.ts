@@ -49,15 +49,17 @@ export const createMetricsServer = async (
 
   const app = express()
 
-  app.get(options.route || '/metrics', async (_, res) => {
+  const route = options.route || '/metrics'
+  app.get(route, async (_, res) => {
     res.status(200).send(await options.registry.metrics())
   })
 
   const port = options.port || 7300
   const server = app.listen(port, options.hostname, () => {
-    logger.info('Metrics server is listening on port', {
+    logger.info('Metrics server started', {
       port,
       hostname: options.hostname,
+      route,
     })
   })
 
