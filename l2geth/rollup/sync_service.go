@@ -595,6 +595,14 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	if tx == nil {
 		return errors.New("nil transaction passed to applyTransactionToTip")
 	}
+	// Queue Origin L1 to L2 transactions must have a timestamp that is set by
+	// the L1 block that holds the transaction. This should never happen but is
+	// a sanity check to prevent fraudulent execution.
+	if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginL1ToL2) {
+		if tx.L1Timestamp() == 0 {
+			return fmt.Errorf("Queue origin L1 to L2 transaction without a timestamp: %s", tx.Hash().Hex())
+		}
+	}
 	// If there is no OVM timestamp assigned to the transaction, then assign a
 	// timestamp and blocknumber to it. This should only be the case for queue
 	// origin sequencer transactions that come in via RPC. The L1 to L2
