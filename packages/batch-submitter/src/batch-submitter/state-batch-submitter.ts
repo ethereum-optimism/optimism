@@ -118,7 +118,6 @@ export class StateBatchSubmitter extends BatchSubmitter {
 
   public async _getBatchStartAndEnd(): Promise<Range> {
     this.logger.info('Getting batch start and end for state batch submitter...')
-    // TODO: Remove blockOffset by adding a tx to Geth's genesis
     const startBlock: number =
       (await this.chainContract.getTotalElements()).toNumber() +
       this.blockOffset
@@ -174,7 +173,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       return
     }
 
-    const offsetStartsAtIndex = startBlock - this.blockOffset // TODO: Remove blockOffset by adding a tx to Geth's genesis
+    const offsetStartsAtIndex = startBlock - this.blockOffset
     this.logger.debug('Submitting batch.', { tx })
 
     const nonce = await this.signer.getTransactionCount()

@@ -174,7 +174,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     this.logger.info(
       'Getting batch start and end for transaction batch submitter...'
     )
-    // TODO: Remove blockOffset by adding a tx to Geth's genesis
     const startBlock =
       (await this.chainContract.getTotalElements()).toNumber() +
       this.blockOffset
@@ -756,7 +755,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     return {
-      // TODO: Remove blockOffset by adding a tx to Geth's genesis
       shouldStartAtElement: shouldStartAtIndex - this.blockOffset,
       totalElementsToAppend,
       contexts,
