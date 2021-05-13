@@ -7,6 +7,8 @@
     "dist/index"
   ],
   "types": "dist/index",
+  "author": "Optimism PBC",
+  "license": "MIT",
   "scripts": {
     "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
     "clean:db": "rimraf ./db",

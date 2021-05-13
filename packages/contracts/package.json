@@ -14,6 +14,7 @@
     "mockOVM"
   ],
   "types": "dist/index",
+  "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",

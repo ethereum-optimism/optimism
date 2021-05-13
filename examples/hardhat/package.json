@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "main": "index.js",
+  "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "clean": "rimraf ./cache-ovm ./cache ./artifacts-ovm ./artifacts ./deployments",
