@@ -71,7 +71,7 @@ export const handleSequencerBlock = {
             chainId,
           },
           {
-            v: parseInt(transaction.v, 16),
+            v: BigNumber.from(transaction.v).toNumber(),
             r: padHexString(transaction.r, 32),
             s: padHexString(transaction.s, 32),
           }
