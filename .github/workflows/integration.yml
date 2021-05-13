@@ -82,9 +82,9 @@ jobs:
       - name: Test & deploy truffle-example on Optimistic Ethereum
         working-directory: ./examples/truffle
         run: |
-          yarn
           yarn compile:ovm
           yarn test:integration:ovm
+          yarn deploy:ovm
       
       - name: Test & deploy l1-l2-deposit-withdrawal example on Ethereum with cross-domain message passing
         working-directory: ./examples/l1-l2-deposit-withdrawal
