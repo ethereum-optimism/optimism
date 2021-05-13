@@ -784,9 +784,6 @@ func (s *SyncService) syncToTip(sync syncer, getTip indexGetter) error {
 // sync will sync a range of items
 func (s *SyncService) sync(getLatest indexGetter, getNext nextGetter, syncer rangeSyncer) (*uint64, error) {
 	latestIndex, err := getLatest()
-	if errors.Is(err, errElementNotFound) {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, fmt.Errorf("Cannot sync: %w", err)
 	}
