@@ -130,7 +130,7 @@ export const run = async () => {
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
-        throw new Error('')
+        throw new Error('Must pass DEBUG_IMPERSONATE_SEQUENCER_ADDRESS')
       }
       await l1Provider.send('hardhat_impersonateAccount', [
         DEBUG_IMPERSONATE_SEQUENCER_ADDRESS,
@@ -155,7 +155,7 @@ export const run = async () => {
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
-        throw new Error('')
+        throw new Error('Must pass DEBUG_IMPERSONATE_PROPOSER_ADDRESS')
       }
       await l1Provider.send('hardhat_impersonateAccount', [
         DEBUG_IMPERSONATE_PROPOSER_ADDRESS,
