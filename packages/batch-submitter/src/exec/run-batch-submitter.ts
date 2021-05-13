@@ -89,8 +89,11 @@ export const run = async () => {
     parseFloat(env.SENTRY_TRACE_RATE) || 0.05
   )
 
-   // Default is 1 because Geth normally has 1 more block than L1
-  const BLOCK_OFFSET = config.uint('block-offset', parseInt(env.BLOCK_OFFSET, 10) || 1)
+  // Default is 1 because Geth normally has 1 more block than L1
+  const BLOCK_OFFSET = config.uint(
+    'block-offset',
+    parseInt(env.BLOCK_OFFSET, 10) || 1
+  )
 
   /* Logger */
   const name = 'oe:batch_submitter:init'
