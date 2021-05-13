@@ -1,0 +1,55 @@
+{
+  "contracts": {
+      "OVM_L2ToL1MessagePasser": {
+          "address": "0x4200000000000000000000000000000000000000",
+          "source": "OVM_L2ToL1MessagePasser"
+      },
+      "OVM_L1MessageSender": {
+          "address": "0x4200000000000000000000000000000000000001",
+          "source": "OVM_L1MessageSender"
+      },
+      "OVM_DeployerWhitelist": {
+          "address": "0x4200000000000000000000000000000000000002",
+          "source": "OVM_DeployerWhitelist"
+      },
+      "OVM_ECDSAContractAccount": {
+          "address": "0x4200000000000000000000000000000000000003",
+          "source": "OVM_ECDSAContractAccount"
+      },
+      "OVM_SequencerEntrypoint": {
+          "address": "0x4200000000000000000000000000000000000005",
+          "source": "OVM_SequencerEntrypoint"
+      },
+      "OVM_ETH": {
+          "address": "0x4200000000000000000000000000000000000006",
+          "source": "OVM_ETH",
+          "variables": {
+              "messenger": "{{ contracts.OVM_L2CrossDomainMessenger }}",
+              "name": "Ether",
+              "symbol": "ETH"
+          }
+      },
+      "OVM_L2CrossDomainMessenger": {
+          "address": "0x4200000000000000000000000000000000000007",
+          "source": "OVM_L2CrossDomainMessenger",
+          "variables": {
+              "libAddressManager": "{{ contracts.Lib_AddressManager }}"
+          }
+      },
+      "OVM_ProxyEOA": {
+          "address": "0x4200000000000000000000000000000000000009",
+          "source": "OVM_ProxyEOA"
+      },
+      "Lib_AddressManager": {
+          "address": "0x4200000000000000000000000000000000000008",
+          "source": "Lib_AddressManager",
+          "variables": {
+              "_owner": "0x1212121212121212121212121212121212121212"
+          }
+      },
+      "ERC1820Registry": {
+          "address": "0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24",
+          "source": "ERC1820Registry"
+      }
+  }
+}
