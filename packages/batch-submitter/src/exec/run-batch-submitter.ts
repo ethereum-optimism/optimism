@@ -63,6 +63,8 @@ interface RequiredEnvVars {
  * PROPOSER_MNEMONIC
  * SEQUENCER_HD_PATH
  * PROPOSER_HD_PATH
+ * BLOCK_OFFSET
+ * USE_HARDHAT
  * DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
  * DEBUG_IMPERSONATE_PROPOSER_ADDRESS
  */
@@ -87,6 +89,9 @@ export const run = async () => {
     parseFloat(env.SENTRY_TRACE_RATE) || 0.05
   )
 
+   // Default is 1 because Geth normally has 1 more block than L1
+  const BLOCK_OFFSET = config.uint('block-offset', parseInt(env.BLOCK_OFFSET, 10) || 1)
+
   /* Logger */
   const name = 'oe:batch_submitter:init'
   let logger
@@ -107,6 +112,7 @@ export const run = async () => {
     logger = new Logger({ name })
   }
 
+  const hardhat = config.bool('hardhat', !!env.HARDAT)
   const DEBUG_IMPERSONATE_SEQUENCER_ADDRESS = config.str(
     'debug-impersonate-sequencer-address',
     env.DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
@@ -115,17 +121,14 @@ export const run = async () => {
     'debug-impersonate-proposer-address',
     env.DEBUG_IMPERSONATE_PROPOSER_ADDRESS
   )
-  if (
-    !DEBUG_IMPERSONATE_SEQUENCER_ADDRESS &&
-    !DEBUG_IMPERSONATE_PROPOSER_ADDRESS
-  ) {
-    throw new Error('Both sequencer & proposer addresses must be impersonated')
-  }
 
   const getSequencerSigner = async (): Promise<Signer> => {
     const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
 
-    if (DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
+    if (hardhat) {
+      if (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
+        throw new Error('')
+      }
       await l1Provider.send('hardhat_impersonateAccount', [
         DEBUG_IMPERSONATE_SEQUENCER_ADDRESS,
       ])
@@ -147,7 +150,10 @@ export const run = async () => {
   const getProposerSigner = async (): Promise<Signer> => {
     const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
 
-    if (DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
+    if (hardhat) {
+      if (!DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
+        throw new Error('')
+      }
       await l1Provider.send('hardhat_impersonateAccount', [
         DEBUG_IMPERSONATE_PROPOSER_ADDRESS,
       ])
@@ -351,6 +357,7 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
+    BLOCK_OFFSET,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     new Metrics({
       prefix: TX_BATCH_SUBMITTER_LOG_TAG,
@@ -376,6 +383,7 @@ export const run = async () => {
     MAX_GAS_PRICE_IN_GWEI,
     GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
+    BLOCK_OFFSET,
     logger.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
     new Metrics({
       prefix: STATE_BATCH_SUBMITTER_LOG_TAG,
