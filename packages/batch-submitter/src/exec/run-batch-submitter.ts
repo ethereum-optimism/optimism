@@ -139,11 +139,11 @@ if (env.USE_HARDHAT) {
   DEBUG_IMPERSONATE_SEQUENCER_ADDRESS = env.DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
   DEBUG_IMPERSONATE_PROPOSER_ADDRESS = env.DEBUG_IMPERSONATE_PROPOSER_ADDRESS
   if (
-    !DEBUG_IMPERSONATE_SEQUENCER_ADDRESS ||
+    !DEBUG_IMPERSONATE_SEQUENCER_ADDRESS &&
     !DEBUG_IMPERSONATE_PROPOSER_ADDRESS
   ) {
     throw new Error(
-      'Both sequencer & proposer addresses must be impersonated or none at all when USE_HARDHAT is set.'
+      'Both sequencer & proposer addresses must be impersonated when USE_HARDHAT is set.'
     )
   }
 }
