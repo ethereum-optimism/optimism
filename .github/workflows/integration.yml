@@ -91,7 +91,7 @@ jobs:
         run: |
           yarn
           yarn compile
-          yarn test
+          yarn test:integration
       
       - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
         working-directory: ./examples/l1-l2-deposit-withdrawal
