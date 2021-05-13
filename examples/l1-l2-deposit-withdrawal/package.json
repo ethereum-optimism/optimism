@@ -5,9 +5,7 @@
   "license": "MIT",
   "scripts": {
     "clean": "rimraf ./cache ./artifacts ./cache-ovm ./artifacts-ovm",
-    "compile": "hardhat compile",
     "compile:ovm": "hardhat --network optimism compile",
-    "test:integration": "yarn hardhat test",
     "test:integration:ovm": "yarn hardhat test --network optimism"
   },
   "devDependencies": {

@@ -5,13 +5,13 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "deploy": "hardhat deploy",
-    "deploy:ovm": "hardhat deploy --network optimism",
+    "clean": "rimraf ./cache-ovm ./cache ./artifacts-ovm ./artifacts ./deployments",
     "compile": "hardhat compile",
     "compile:ovm": "hardhat compile --network optimism",
     "test:integration": "hardhat test",
     "test:integration:ovm": "hardhat test --network optimism",
-    "clean": "rimraf ./cache-ovm ./cache ./artifacts-ovm ./artifacts ./deployments"
+    "deploy": "hardhat deploy",
+    "deploy:ovm": "hardhat deploy --network optimism"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",
