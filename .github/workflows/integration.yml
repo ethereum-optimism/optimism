@@ -86,13 +86,6 @@ jobs:
           yarn test:integration:ovm
           yarn deploy:ovm
       
-      - name: Test & deploy l1-l2-deposit-withdrawal example on Ethereum with cross-domain message passing
-        working-directory: ./examples/l1-l2-deposit-withdrawal
-        run: |
-          yarn
-          yarn compile
-          yarn test:integration
-      
       - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
         working-directory: ./examples/l1-l2-deposit-withdrawal
         run: |
