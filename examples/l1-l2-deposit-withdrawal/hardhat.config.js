@@ -18,5 +18,8 @@ module.exports = {
   solidity: '0.7.6',
   ovm: {
     solcVersion: '0.7.6'
+  },
+  mocha: {
+    timeout: 60000
   }
 }
