@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -310,6 +312,173 @@ func TestApplyIndexedTransaction(t *testing.T) {
 	}
 }
 
+func TestApplyBatchedTransaction(t *testing.T) {
+	service, txCh, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a transactoin with the index of 0
+	tx0 := setMockTxIndex(mockTx(), 0)
+
+	// Ingest through applyBatchedTransaction which should set the latest
+	// verified index to the index of the transaction
+	go func() {
+		err = service.applyBatchedTransaction(tx0)
+	}()
+	service.chainHeadCh <- core.ChainHeadEvent{}
+	<-txCh
+
+	// Catch race conditions with the database write
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		for {
+			if service.GetLatestVerifiedIndex() != nil {
+				wg.Done()
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+	wg.Wait()
+
+	// Assert that the verified index is the same as the transaction index
+	if *tx0.GetMeta().Index != *service.GetLatestVerifiedIndex() {
+		t.Fatal("Latest verified index mismatch")
+	}
+}
+
+func TestIsAtTip(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := []struct {
+		tip    *uint64
+		get    indexGetter
+		expect bool
+		err    error
+	}{
+		{
+			tip: newUint64(1),
+			get: func() (*uint64, error) {
+				return newUint64(1), nil
+			},
+			expect: true,
+			err:    nil,
+		},
+		{
+			tip: newUint64(0),
+			get: func() (*uint64, error) {
+				return newUint64(1), nil
+			},
+			expect: false,
+			err:    nil,
+		},
+		{
+			tip: newUint64(1),
+			get: func() (*uint64, error) {
+				return newUint64(0), nil
+			},
+			expect: false,
+			err:    errShortRemoteTip,
+		},
+		{
+			tip: nil,
+			get: func() (*uint64, error) {
+				return nil, nil
+			},
+			expect: true,
+			err:    nil,
+		},
+		{
+			tip: nil,
+			get: func() (*uint64, error) {
+				return nil, errElementNotFound
+			},
+			expect: true,
+			err:    nil,
+		},
+		{
+			tip: newUint64(0),
+			get: func() (*uint64, error) {
+				return nil, errElementNotFound
+			},
+			expect: false,
+			err:    nil,
+		},
+	}
+
+	for _, d := range data {
+		isAtTip, err := service.isAtTip(d.tip, d.get)
+		if isAtTip != d.expect {
+			t.Fatal("expected does not match")
+		}
+		if !errors.Is(err, d.err) {
+			t.Fatal("error no match")
+		}
+	}
+}
+
+func TestSyncQueue(t *testing.T) {
+	service, txCh, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	setupMockClient(service, map[string]interface{}{
+		"GetEnqueue": []*types.Transaction{
+			setMockQueueIndex(mockTx(), 0),
+			setMockQueueIndex(mockTx(), 1),
+			setMockQueueIndex(mockTx(), 2),
+			setMockQueueIndex(mockTx(), 3),
+		},
+	})
+
+	var tip *uint64
+	go func() {
+		tip, err = service.syncQueue()
+	}()
+
+	for i := 0; i < 4; i++ {
+		service.chainHeadCh <- core.ChainHeadEvent{}
+		event := <-txCh
+		tx := event.Txs[0]
+		if *tx.GetMeta().QueueIndex != uint64(i) {
+			t.Fatal("queue index mismatch")
+		}
+	}
+
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		for {
+			if tip != nil {
+				wg.Done()
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+	wg.Wait()
+	if tip == nil {
+		t.Fatal("tip is nil")
+	}
+	// There were a total of 4 transactions synced and the indexing starts at 0
+	if *service.GetLatestIndex() != 3 {
+		t.Fatalf("Latest index mismatch")
+	}
+	// All of the transactions are `enqueue()`s
+	if *service.GetLatestEnqueueIndex() != 3 {
+		t.Fatal("Latest queue index mismatch")
+	}
+	if *tip != 3 {
+		t.Fatal("Tip mismatch")
+	}
+}
+
 func TestSyncServiceL1GasPrice(t *testing.T) {
 	service, _, _, err := newTestSyncService(true)
 	setupMockClient(service, map[string]interface{}{})
@@ -562,7 +731,7 @@ func (m *mockClient) GetEnqueue(index uint64) (*types.Transaction, error) {
 
 func (m *mockClient) GetLatestEnqueue() (*types.Transaction, error) {
 	if len(m.getEnqueue) == 0 {
-		return &types.Transaction{}, errors.New("")
+		return &types.Transaction{}, errors.New("enqueue not found")
 	}
 	return m.getEnqueue[len(m.getEnqueue)-1], nil
 }
@@ -626,7 +795,7 @@ func (m *mockClient) GetLatestEnqueueIndex() (*uint64, error) {
 	if enqueue == nil {
 		return nil, errElementNotFound
 	}
-	return enqueue.GetMeta().Index, nil
+	return enqueue.GetMeta().QueueIndex, nil
 }
 
 func (m *mockClient) GetLatestTransactionBatchIndex() (*uint64, error) {
@@ -682,4 +851,15 @@ func setMockTxIndex(tx *types.Transaction, index uint64) *types.Transaction {
 	meta.Index = &index
 	tx.SetTransactionMeta(meta)
 	return tx
+}
+
+func setMockQueueIndex(tx *types.Transaction, index uint64) *types.Transaction {
+	meta := tx.GetMeta()
+	meta.QueueIndex = &index
+	tx.SetTransactionMeta(meta)
+	return tx
+}
+
+func newUint64(n uint64) *uint64 {
+	return &n
 }
