@@ -1,30 +1,14 @@
 /* External Imports */
-import * as path from 'path'
 import { ethers } from 'ethers'
 import * as Ganache from 'ganache-core'
 import { keccak256 } from 'ethers/lib/utils'
 import { fromHexString, toHexString, remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { deploy, RollupDeployConfig } from './contract-deployment'
-import { getContractDefinition } from './contract-defs'
-import { predeploys } from './predeploys'
-
-interface StorageDump {
-  [key: string]: string
-}
-
-export interface StateDump {
-  accounts: {
-    [name: string]: {
-      address: string
-      code: string
-      codeHash: string
-      storage: StorageDump
-      abi: any
-    }
-  }
-}
+import { StorageDump, StateDump } from './get-dump'
+import { deploy, RollupDeployConfig } from '../contract-deployment'
+import { getContractDefinition } from '../contract-defs'
+import { predeploys } from '../predeploys'
 
 /**
  * Generates a storage dump for a given address.
@@ -252,8 +236,4 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   }
 
   return dump
-}
-
-export const getLatestStateDump = (): StateDump => {
-  return require(path.join(__dirname, '../dumps', `state-dump.latest.json`))
 }
