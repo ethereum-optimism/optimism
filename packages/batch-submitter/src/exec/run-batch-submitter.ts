@@ -115,7 +115,7 @@ export const run = async () => {
     logger = new Logger({ name })
   }
 
-  const hardhat = config.bool('hardhat', !!env.HARDAT)
+  const useHardhat = config.bool('use-hardhat', !!env.USE_HARDAT)
   const DEBUG_IMPERSONATE_SEQUENCER_ADDRESS = config.str(
     'debug-impersonate-sequencer-address',
     env.DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
@@ -128,7 +128,7 @@ export const run = async () => {
   const getSequencerSigner = async (): Promise<Signer> => {
     const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
 
-    if (hardhat) {
+    if (useHardhat) {
       if (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
         throw new Error('')
       }
@@ -153,7 +153,7 @@ export const run = async () => {
   const getProposerSigner = async (): Promise<Signer> => {
     const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
 
-    if (hardhat) {
+    if (useHardhat) {
       if (!DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
         throw new Error('')
       }
