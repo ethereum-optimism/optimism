@@ -1,16 +1,9 @@
 import { Wallet, providers } from 'ethers'
 import { MessageRelayerService } from '../service'
+import { Bcfg } from '@eth-optimism/core-utils'
 import SpreadSheet from '../spreadsheet'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
-
-interface Bcfg {
-  load: (options: { env?: boolean; argv?: boolean }) => void
-  str: (name: string, defaultValue?: string) => string
-  uint: (name: string, defaultValue?: number) => number
-  bool: (name: string, defaultValue?: boolean) => boolean
-  ufloat: (name: string, defaultValue?: number) => number
-}
 
 dotenv.config()
 
