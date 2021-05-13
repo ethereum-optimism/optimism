@@ -459,7 +459,7 @@ export const run = async () => {
   }
 
   if (
-    (config.bool('run-prometheus-server'), env.RUN_PROMETHEUS_SERVER === 'true')
+    config.bool('run-prometheus-server', env.RUN_PROMETHEUS_SERVER === 'true')
   ) {
     // Initialize metrics server
     await createMetricsServer({
