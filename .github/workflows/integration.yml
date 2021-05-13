@@ -90,5 +90,6 @@ jobs:
         working-directory: ./examples/l1-l2-deposit-withdrawal
         run: |
           yarn
+          yarn compile
           yarn compile:ovm
           yarn test:integration:ovm
