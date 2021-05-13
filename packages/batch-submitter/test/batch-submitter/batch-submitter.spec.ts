@@ -216,6 +216,7 @@ describe('BatchSubmitter', () => {
       MAX_GAS_PRICE_IN_GWEI,
       GAS_RETRY_INCREMENT,
       GAS_THRESHOLD_IN_GWEI,
+      1,
       new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
       testMetrics,
       false
@@ -432,6 +433,7 @@ describe('BatchSubmitter', () => {
         MAX_GAS_PRICE_IN_GWEI,
         GAS_RETRY_INCREMENT,
         GAS_THRESHOLD_IN_GWEI,
+        1,
         new Logger({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
         testMetrics,
         '0x' + '01'.repeat(20) // placeholder for fraudSubmissionAddress
