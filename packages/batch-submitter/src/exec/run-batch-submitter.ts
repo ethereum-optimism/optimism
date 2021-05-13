@@ -111,6 +111,8 @@ const requiredEnvVars: RequiredEnvVars = {
  * PROPOSER_MNEMONIC
  * SEQUENCER_HD_PATH
  * PROPOSER_HD_PATH
+ * DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
+ * DEBUG_IMPERSONATE_PROPOSER_ADDRESS
  */
 const env = process.env
 const FRAUD_SUBMISSION_ADDRESS = env.FRAUD_SUBMISSION_ADDRESS || 'no fraud'
@@ -128,6 +130,19 @@ const SEQUENCER_MNEMONIC = env.SEQUENCER_MNEMONIC || env.MNEMONIC
 const PROPOSER_MNEMONIC = env.PROPOSER_MNEMONIC || env.MNEMONIC
 const SEQUENCER_HD_PATH = env.SEQUENCER_HD_PATH || env.HD_PATH
 const PROPOSER_HD_PATH = env.PROPOSER_HD_PATH || env.HD_PATH
+const DEBUG_IMPERSONATE_SEQUENCER_ADDRESS =
+  env.DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
+const DEBUG_IMPERSONATE_PROPOSER_ADDRESS =
+  env.DEBUG_IMPERSONATE_PROPOSER_ADDRESS
+if (
+  (DEBUG_IMPERSONATE_SEQUENCER_ADDRESS &&
+    !DEBUG_IMPERSONATE_PROPOSER_ADDRESS) ||
+  (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS && DEBUG_IMPERSONATE_PROPOSER_ADDRESS)
+) {
+  throw new Error(
+    'Both sequencer & proposer addresses must be impersonated or none at all.'
+  )
+}
 // Auto fix batch options -- TODO: Remove this very hacky config
 const AUTO_FIX_BATCH_OPTIONS_CONF = env.AUTO_FIX_BATCH_OPTIONS_CONF
 const autoFixBatchOptions: AutoFixBatchOptions = {
@@ -140,6 +155,50 @@ const autoFixBatchOptions: AutoFixBatchOptions = {
   fixSkippedDeposits: AUTO_FIX_BATCH_OPTIONS_CONF
     ? AUTO_FIX_BATCH_OPTIONS_CONF.includes('fixSkippedDeposits')
     : false,
+}
+
+const getSequencerSigner = async (): Promise<Signer> => {
+  const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
+
+  if (DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
+    await l1Provider.send('hardhat_impersonateAccount', [
+      DEBUG_IMPERSONATE_SEQUENCER_ADDRESS,
+    ])
+    return l1Provider.getSigner(DEBUG_IMPERSONATE_SEQUENCER_ADDRESS)
+  }
+
+  if (SEQUENCER_PRIVATE_KEY) {
+    return new Wallet(SEQUENCER_PRIVATE_KEY, l1Provider)
+  } else if (SEQUENCER_MNEMONIC) {
+    return Wallet.fromMnemonic(SEQUENCER_MNEMONIC, SEQUENCER_HD_PATH).connect(
+      l1Provider
+    )
+  }
+  throw new Error(
+    'Must pass one of SEQUENCER_PRIVATE_KEY, MNEMONIC, or SEQUENCER_MNEMONIC'
+  )
+}
+
+const getProposerSigner = async (): Promise<Signer> => {
+  const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
+
+  if (DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
+    await l1Provider.send('hardhat_impersonateAccount', [
+      DEBUG_IMPERSONATE_PROPOSER_ADDRESS,
+    ])
+    return l1Provider.getSigner(DEBUG_IMPERSONATE_PROPOSER_ADDRESS)
+  }
+
+  if (PROPOSER_PRIVATE_KEY) {
+    return new Wallet(PROPOSER_PRIVATE_KEY, l1Provider)
+  } else if (PROPOSER_MNEMONIC) {
+    return Wallet.fromMnemonic(PROPOSER_MNEMONIC, PROPOSER_HD_PATH).connect(
+      l1Provider
+    )
+  }
+  throw new Error(
+    'Must pass one of PROPOSER_PRIVATE_KEY, MNEMONIC, or PROPOSER_MNEMONIC'
+  )
 }
 
 export const run = async () => {
@@ -157,51 +216,25 @@ export const run = async () => {
 
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS === 'true'
 
-  const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
   const l2Provider = injectL2Context(
     new JsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
   )
 
-  let sequencerSigner: Signer
-  let proposerSigner: Signer
-  if (SEQUENCER_PRIVATE_KEY) {
-    sequencerSigner = new Wallet(SEQUENCER_PRIVATE_KEY, l1Provider)
-  } else if (SEQUENCER_MNEMONIC) {
-    sequencerSigner = Wallet.fromMnemonic(
-      SEQUENCER_MNEMONIC,
-      SEQUENCER_HD_PATH
-    ).connect(l1Provider)
-  } else {
-    throw new Error(
-      'Must pass one of SEQUENCER_PRIVATE_KEY, MNEMONIC, or SEQUENCER_MNEMONIC'
-    )
-  }
-  if (PROPOSER_PRIVATE_KEY) {
-    proposerSigner = new Wallet(PROPOSER_PRIVATE_KEY, l1Provider)
-  } else if (PROPOSER_MNEMONIC) {
-    proposerSigner = Wallet.fromMnemonic(
-      PROPOSER_MNEMONIC,
-      PROPOSER_HD_PATH
-    ).connect(l1Provider)
-  } else {
-    throw new Error(
-      'Must pass one of PROPOSER_PRIVATE_KEY, MNEMONIC, or PROPOSER_MNEMONIC'
-    )
-  }
+  const sequencerSigner: Signer = await getSequencerSigner()
+  let proposerSigner: Signer = await getProposerSigner()
 
   const sequencerAddress = await sequencerSigner.getAddress()
   const proposerAddress = await proposerSigner.getAddress()
-  const address = await sequencerSigner.getAddress()
+  // If the sequencer & proposer are the same, use a single wallet
+  if (sequencerAddress === proposerAddress) {
+    proposerSigner = sequencerSigner
+  }
+
   logger.info('Configured batch submitter addresses', {
     sequencerAddress,
     proposerAddress,
     addressManagerAddress: requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
   })
-
-  // If the sequencer & proposer are the same, use a single wallet
-  if (sequencerAddress === proposerAddress) {
-    proposerSigner = sequencerSigner
-  }
 
   const txBatchSubmitter = new TransactionBatchSubmitter(
     sequencerSigner,
