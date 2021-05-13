@@ -1,0 +1,19 @@
+name: Label Reviews
+on:
+  pull_request_review:
+    types:
+      - submitted
+      - edited
+      - dismissed
+jobs:
+  require-reviewers:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: master
+
+      - name: Require-reviewers
+        uses: travelperk/label-requires-reviews-action@v0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN}}

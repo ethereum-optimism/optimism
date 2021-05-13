@@ -35,3 +35,20 @@ M-ops:
 
 M-smock:
   - any: ['packages/smock/**/*']
+
+A-single-review:
+  - any:
+      - all:
+          - packages/smock/**/*
+      - all:
+          - packages/core-utils/**/*
+      - all:
+          - packages/hardhat-ovm/**/*
+      - all:
+          - packages/common-ts/**/*
+      - all:
+          - examples/**/*
+      - all:
+          - integration-tests/**/*
+      - all:
+          - specs/**/*
