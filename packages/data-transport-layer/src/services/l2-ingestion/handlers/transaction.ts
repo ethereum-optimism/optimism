@@ -60,19 +60,22 @@ export const handleSequencerBlock = {
         gasLimit: SEQUENCER_GAS_LIMIT, // ?
         target: SEQUENCER_ENTRYPOINT_ADDRESS,
         origin: null,
-        data: serialize({
-          value: transaction.value,
-          gasLimit: transaction.gas,
-          gasPrice: transaction.gasPrice,
-          nonce: transaction.nonce,
-          to: transaction.to || constants.AddressZero,
-          data: transaction.input,
-          chainId,
-        }, {
-          v: parseInt(transaction.v, 16),
-          r: padHexString(transaction.r, 32),
-          s: padHexString(transaction.s, 32),
-        }),
+        data: serialize(
+          {
+            value: transaction.value,
+            gasLimit: transaction.gas,
+            gasPrice: transaction.gasPrice,
+            nonce: transaction.nonce,
+            to: transaction.to || constants.AddressZero,
+            data: transaction.input,
+            chainId,
+          },
+          {
+            v: parseInt(transaction.v, 16),
+            r: padHexString(transaction.r, 32),
+            s: padHexString(transaction.s, 32),
+          }
+        ),
         decoded: decodedTransaction,
         queueIndex: null,
       }

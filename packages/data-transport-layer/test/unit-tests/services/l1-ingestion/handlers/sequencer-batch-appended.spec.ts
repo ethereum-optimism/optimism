@@ -1,8 +1,6 @@
 import { BigNumber, ethers } from 'ethers'
 import { expect } from '../../../../setup'
-import {
-  handleEventsSequencerBatchAppended,
-} from '../../../../../src/services/l1-ingestion/handlers/sequencer-batch-appended'
+import { handleEventsSequencerBatchAppended } from '../../../../../src/services/l1-ingestion/handlers/sequencer-batch-appended'
 import { SequencerBatchAppendedExtraData } from '../../../../../src/types'
 import { l1TransactionData } from '../../../examples/l1-data'
 import { blocksOnL2 } from '../../../examples/l2-data'
