@@ -6,6 +6,7 @@
   "version": "1.1.3",
   "main": "dist/src/index",
   "types": "dist/src/index",
+  "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

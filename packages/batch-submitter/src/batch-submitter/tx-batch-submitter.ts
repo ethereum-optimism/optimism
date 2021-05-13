@@ -21,7 +21,7 @@ import {
   AppendSequencerBatchParams,
 } from '../transaction-chain-contract'
 
-import { Range, BatchSubmitter, BLOCK_OFFSET } from '.'
+import { Range, BatchSubmitter } from '.'
 
 export interface AutoFixBatchOptions {
   fixDoublePlayedDeposits: boolean
@@ -51,6 +51,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     maxGasPriceInGwei: number,
     gasRetryIncrement: number,
     gasThresholdInGwei: number,
+    blockOffset: number,
     logger: Logger,
     metrics: Metrics,
     disableQueueBatchAppend: boolean,
@@ -76,6 +77,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       maxGasPriceInGwei,
       gasRetryIncrement,
       gasThresholdInGwei,
+      blockOffset,
       logger,
       metrics
     )
@@ -172,9 +174,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     this.logger.info(
       'Getting batch start and end for transaction batch submitter...'
     )
-    // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
     const startBlock =
-      (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET
+      (await this.chainContract.getTotalElements()).toNumber() +
+      this.blockOffset
     this.logger.info('Retrieved start block number from CTC', {
       startBlock,
     })
@@ -753,8 +755,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     return {
-      // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
-      shouldStartAtElement: shouldStartAtIndex - BLOCK_OFFSET,
+      shouldStartAtElement: shouldStartAtIndex - this.blockOffset,
       totalElementsToAppend,
       contexts,
       transactions,
