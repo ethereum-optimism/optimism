@@ -281,13 +281,11 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     // We need to figure out how to make this work without Infura. Mark and I think that infura is
     // doing some indexing of events beyond Geth's native capabilities, meaning some event logic
     // will only work on Infura and not on a local geth instance. Not great.
-    const addressSetEvents = ((await this.state.contracts.Lib_AddressManager.queryFilter(
-      this.state.contracts.Lib_AddressManager.filters.AddressSet(),
+    const addressSetEvents = await this.state.contracts.Lib_AddressManager.queryFilter(
+      this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
       fromL1Block,
       toL1Block
-    )) as TypedEthersEvent<EventArgsAddressSet>[]).filter((event) => {
-      return event.args._name === contractName
-    })
+    )
 
     // We're going to parse things out in ranges because the address of a given contract may have
     // changed in the range provided by the user.
@@ -370,21 +368,14 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contractName: string,
     blockNumber: number
   ): Promise<string> {
-    // TODO: Should be much easier than this. Need to change the params of this event.
-    const relevantAddressSetEvents = (
-      await this.state.contracts.Lib_AddressManager.queryFilter(
-        this.state.contracts.Lib_AddressManager.filters.AddressSet(),
-        this.state.startingL1BlockNumber
-      )
-    ).filter((event) => {
-      return (
-        event.args._name === contractName && event.blockNumber < blockNumber
-      )
-    })
+    const events = await this.state.contracts.Lib_AddressManager.queryFilter(
+      this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
+      this.state.startingL1BlockNumber,
+      blockNumber
+    )
 
-    if (relevantAddressSetEvents.length > 0) {
-      return relevantAddressSetEvents[relevantAddressSetEvents.length - 1].args
-        ._newAddress
+    if (events.length > 0) {
+      return events[events.length - 1].args._newAddress
     } else {
       // Address wasn't set before this.
       return constants.AddressZero
