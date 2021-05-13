@@ -226,7 +226,9 @@ func TestTransactionToTipTimestamps(t *testing.T) {
 		tx2,
 	}
 
-	for i, tx := range txs {
+	for _, tx := range txs {
+		nextIndex := service.GetNextIndex()
+
 		go func() {
 			err = service.applyTransactionToTip(tx)
 		}()
@@ -240,17 +242,16 @@ func TestTransactionToTipTimestamps(t *testing.T) {
 		if conf.GetMeta().Index == nil {
 			t.Fatal("Index is nil")
 		}
-		// The indexes should be incrementing by 1
-		if *conf.GetMeta().Index != uint64(i) {
-			t.Fatal("Mismatched index")
-		}
 		// The index that the sync service is tracking should be updated
 		if *conf.GetMeta().Index != *service.GetLatestIndex() {
-			t.Fatal("Mismatched index")
+			t.Fatal("index on the service was not updated")
+		}
+		// The indexes should be incrementing by 1
+		if *conf.GetMeta().Index != nextIndex {
+			t.Fatalf("Mismatched index: got %d, expect %d", *conf.GetMeta().Index, nextIndex)
 		}
 		// The tx timestamp should be setting the services timestamp
-		ts := service.GetLatestL1Timestamp()
-		if conf.L1Timestamp() != ts {
+		if conf.L1Timestamp() != service.GetLatestL1Timestamp() {
 			t.Fatal("Mismatched timestamp")
 		}
 	}
@@ -275,7 +276,7 @@ func TestApplyIndexedTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create three transactions, two of which have a dupliate index.
+	// Create three transactions, two of which have a duplicate index.
 	// The first two transactions can be ingested without a problem and the
 	// third transaction has a duplicate index so it will not be ingested.
 	// Expect an error for the third transaction and expect the SyncService
