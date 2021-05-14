@@ -265,6 +265,8 @@ func TestTransactionToTipTimestamps(t *testing.T) {
 		err = service.applyTransactionToTip(tx3)
 	}()
 	result := <-txCh
+	service.chainHeadCh <- core.ChainHeadEvent{}
+
 	if result.Txs[0].L1Timestamp() != ts {
 		t.Fatal("Timestamp not updated correctly")
 	}
@@ -831,7 +833,7 @@ func mockTx() *types.Transaction {
 		timestamp,
 		&l1TxOrigin,
 		types.SighashEIP155,
-		types.QueueOriginL1ToL2,
+		types.QueueOriginSequencer,
 		nil,
 		nil,
 		nil,
