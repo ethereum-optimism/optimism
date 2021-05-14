@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- c79dc8b: Add impersonate account debug config.
+- 0c16805: add metrics server to common-ts and batch submitter
+- fa4898a: Explicitly log error messages so that they do not show as empty objects
+- 96a586e: Updates the configuration to use bcfg in a backwards compatible way
+- c79dc8b: Make BLOCK_OFFSET configurable.
+- Updated dependencies [96a586e]
+- Updated dependencies [0c16805]
+- Updated dependencies [775118a]
+  - @eth-optimism/core-utils@0.4.3
+  - @eth-optimism/common-ts@0.1.2
+  - @eth-optimism/contracts@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes
