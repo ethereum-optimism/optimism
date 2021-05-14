@@ -93,6 +93,18 @@ describe('OVM_StateCommitmentChain', () => {
     )
   })
 
+  describe('getLastSequencerTimestamp', () => {
+    it('should return the current block timestamp after deployment', async () => {
+      const provider = ethers.getDefaultProvider()
+      const blockNumber = await provider.getBlockNumber()
+      const { timestamp } = await provider.getBlock(blockNumber)
+
+      expect(OVM_StateCommitmentChain.getLastSequencerTimestamp()).to.equal(
+        timestamp
+      )
+    })
+  })
+
   describe('appendStateBatch', () => {
     describe('when the provided batch is empty', () => {
       const batch = []
@@ -170,7 +182,8 @@ describe('OVM_StateCommitmentChain', () => {
 
         describe('when outside sequencer publish window', () => {
           beforeEach(async () => {
-            const SEQUENCER_PUBLISH_WINDOW = await OVM_StateCommitmentChain.SEQUENCER_PUBLISH_WINDOW()
+            const SEQUENCER_PUBLISH_WINDOW =
+              await OVM_StateCommitmentChain.SEQUENCER_PUBLISH_WINDOW()
             await increaseEthTime(
               ethers.provider,
               SEQUENCER_PUBLISH_WINDOW.toNumber() + 1
