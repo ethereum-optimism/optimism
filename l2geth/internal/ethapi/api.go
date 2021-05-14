@@ -2129,16 +2129,7 @@ func (api *PrivateDebugAPI) IngestTransactions(txs []*RPCTransaction) error {
 		l1Timestamp := uint64(tx.L1Timestamp)
 		rawTransaction := tx.RawTransaction
 
-		var sighashType types.SignatureHashType
-		switch tx.TxType {
-		case "EthSign":
-			sighashType = types.SighashEthSign
-		case "EIP155":
-			sighashType = types.SighashEIP155
-		default:
-			return fmt.Errorf("Transaction with unknown sighash type: %s", tx.TxType)
-		}
-
+		sighashType := types.SighashEIP155
 		var queueOrigin types.QueueOrigin
 		switch tx.QueueOrigin {
 		case "sequencer":
