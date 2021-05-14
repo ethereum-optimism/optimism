@@ -104,7 +104,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           nextTxPointer
         )
 
-        const { decoded, type } = maybeDecodeSequencerBatchTransaction(
+        const decoded = maybeDecodeSequencerBatchTransaction(
           sequencerTransaction
         )
 
@@ -120,7 +120,6 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           origin: null,
           data: toHexString(sequencerTransaction),
           queueOrigin: 'sequencer',
-          type,
           value: decoded ? decoded.value : '0x0',
           queueIndex: null,
           decoded,
@@ -153,7 +152,6 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           origin: constants.AddressZero,
           data: '0x',
           queueOrigin: 'l1',
-          type: 'EIP155',
           value: '0x0',
           queueIndex: queueIndex.toNumber(),
           decoded: null,
@@ -239,52 +237,24 @@ const parseSequencerBatchTransaction = (
 
 const maybeDecodeSequencerBatchTransaction = (
   transaction: Buffer
-): {
-  decoded: DecodedSequencerBatchTransaction | null
-  type: 'EIP155' | 'ETH_SIGN' | null
-} => {
+): DecodedSequencerBatchTransaction | null => {
   try {
     const decodedTx = ethers.utils.parseTransaction(transaction)
 
     return {
-      type: 'EIP155',
-      decoded: {
-        nonce: BigNumber.from(decodedTx.nonce).toNumber(),
-        gasPrice: BigNumber.from(decodedTx.gasPrice).toNumber(),
-        gasLimit: BigNumber.from(decodedTx.gasLimit).toNumber(),
-        value: toRpcHexString(decodedTx.value),
-        target: toHexString(decodedTx.to), // Maybe null this out for creations?
-        data: toHexString(decodedTx.data),
-        sig: {
-          v: BigNumber.from(decodedTx.v).toNumber(),
-          r: toHexString(decodedTx.r),
-          s: toHexString(decodedTx.s),
-        },
-        type: 0, // EIP155 legacy holdover.
+      nonce: BigNumber.from(decodedTx.nonce).toNumber(),
+      gasPrice: BigNumber.from(decodedTx.gasPrice).toNumber(),
+      gasLimit: BigNumber.from(decodedTx.gasLimit).toNumber(),
+      value: toRpcHexString(decodedTx.value),
+      target: toHexString(decodedTx.to), // Maybe null this out for creations?
+      data: toHexString(decodedTx.data),
+      sig: {
+        v: BigNumber.from(decodedTx.v).toNumber(),
+        r: toHexString(decodedTx.r),
+        s: toHexString(decodedTx.s),
       },
     }
   } catch (err) {
-    return {
-      decoded: null,
-      type: null,
-    }
+    return null
   }
-}
-
-export function validateBatchTransaction(
-  type: string | null,
-  decoded: DecodedSequencerBatchTransaction | null
-): boolean {
-  // Unknown types are considered invalid
-  if (type === null) {
-    return false
-  }
-  if (type === 'EIP155' || type === 'ETH_SIGN') {
-    if (decoded.sig.v !== 1 && decoded.sig.v !== 0) {
-      return false
-    }
-    return true
-  }
-  // Allow soft forks
-  return false
 }
