@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/batch-submitter",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "[Optimism] Batch submission for sequencer & aggregators",
   "main": "dist/index",
@@ -31,9 +31,9 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "^0.1.1",
-    "@eth-optimism/contracts": "^0.3.0",
-    "@eth-optimism/core-utils": "^0.4.2",
+    "@eth-optimism/common-ts": "^0.1.2",
+    "@eth-optimism/contracts": "^0.3.1",
+    "@eth-optimism/core-utils": "^0.4.3",
     "@eth-optimism/ynatm": "^0.2.2",
     "@ethersproject/abstract-provider": "^5.0.5",
     "@ethersproject/providers": "^5.0.14",
