@@ -184,9 +184,8 @@ func (s *SyncService) transition() {
 		case tx := <-s.txCh:
 			//log.Info("Received on txCh", "hash", tx.Hash().Hex())
 			if block, receipts, logs, statedb, err := s.stateTransition(tx); err == nil {
-				//log.Info("Post state transition")
+				log.Info("New Block", "index", block.Number().Uint64()-1, "tx", tx.Hash().Hex())
 				_, err := s.bc.WriteBlockWithState(block, receipts, logs, statedb, false)
-				//log.Info("Post WriteBlockWithState")
 				if err != nil {
 					log.Error("Cannot write state with block", "msg", err)
 				}
@@ -270,6 +269,7 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 			s.SetLatestIndex(&idx)
 			log.Info("Block not found, resetting index", "new", idx, "old", *index)
 		}
+		// TODO: this breaks when its the genesis block
 		txs := block.Transactions()
 		if len(txs) != 1 {
 			log.Error("Unexpected number of transactions in block", "count", len(txs))
@@ -674,16 +674,8 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
 	// The index was set above so it is safe to dereference
-	//log.Trace("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex())
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex())
-
-	//txs := types.Transactions{tx}
 	s.txCh <- tx
-	//s.txFeed.Send(core.NewTxsEvent{Txs: txs})
-	// Block until the transaction has been added to the chain
-	log.Trace("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
-	<-s.chainHeadCh
-
 	return nil
 }
 
@@ -726,6 +718,10 @@ func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*t
 	receipt.BlockHash = hash
 	receipt.BlockNumber = block.Number()
 	receipt.TransactionIndex = 0
+
+	// TODO:
+	// Logs do not appear to be working
+	//logs := make([]*Logs, len(receipt.Logs))
 	for _, log := range receipt.Logs {
 		log.BlockHash = hash
 	}
