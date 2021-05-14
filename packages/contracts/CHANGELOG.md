@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- 775118a: Updated package json with a missing dependency
+- Updated dependencies [96a586e]
+  - @eth-optimism/core-utils@0.4.3
+
 ## 0.3.0
 
 ### Minor Changes

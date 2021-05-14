@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.1.2
+
+### Patch Changes
+
+- 0c16805: add metrics server to common-ts and batch submitter
+
 ## 0.1.1
 
 ### Patch Changes

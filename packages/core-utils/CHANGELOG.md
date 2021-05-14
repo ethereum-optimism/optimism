@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.4.3
+
+### Patch Changes
+
+- 96a586e: Migrate bcfg interface to core-utils
+
 ## 0.4.2
 
 ### Patch Changes

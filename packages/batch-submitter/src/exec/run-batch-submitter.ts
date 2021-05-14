@@ -1,6 +1,6 @@
 /* External Imports */
 import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
-import { Logger, Metrics } from '@eth-optimism/common-ts'
+import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
@@ -67,6 +67,7 @@ interface RequiredEnvVars {
  * USE_HARDHAT
  * DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
  * DEBUG_IMPERSONATE_PROPOSER_ADDRESS
+ * RUN_PROMETHEUS_SERVER
  */
 
 export const run = async () => {
@@ -362,10 +363,7 @@ export const run = async () => {
     GAS_THRESHOLD_IN_GWEI,
     BLOCK_OFFSET,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({
-      prefix: TX_BATCH_SUBMITTER_LOG_TAG,
-      labels: { environment, release, network },
-    }),
+    metrics,
     DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
   )
@@ -388,10 +386,7 @@ export const run = async () => {
     GAS_THRESHOLD_IN_GWEI,
     BLOCK_OFFSET,
     logger.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
-    new Metrics({
-      prefix: STATE_BATCH_SUBMITTER_LOG_TAG,
-      labels: { environment, release, network },
-    }),
+    metrics,
     FRAUD_SUBMISSION_ADDRESS
   )
 
@@ -461,5 +456,17 @@ export const run = async () => {
   }
   if (requiredEnvVars.RUN_STATE_BATCH_SUBMITTER) {
     loop(() => stateBatchSubmitter.submitNextBatch())
+  }
+
+  if (
+    config.bool('run-prometheus-server', env.RUN_PROMETHEUS_SERVER === 'true')
+  ) {
+    // Initialize metrics server
+    await createMetricsServer({
+      logger,
+      registry: metrics.registry,
+      port: config.uint('prometheus-port', 7300),
+      hostname: config.str('prometheus-hostname', '127.0.0.1'),
+    })
   }
 }
