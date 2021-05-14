@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- 20242af: Fixes a bug in L2geth that causes it to skip the first deposit if there have been no deposits batch-submitted yet
+- cf3cfe4: Allow for dynamically set configuration of the gasLimit in the contracts by setting the storage slot at runtime
+- de5e3dc: Updates `scripts/start.sh` with the mainnet config by default
+
 ## 0.3.1
 
 ### Patch Changes
