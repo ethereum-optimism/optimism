@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/core-utils'
+import { BaseService } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
 import level from 'level'
 
@@ -10,6 +10,9 @@ import { validators } from '../../utils'
 import { L2IngestionService } from '../l2-ingestion/service'
 
 export interface L1DataTransportServiceOptions {
+  nodeEnv: string
+  ethNetworkName?: 'mainnet' | 'kovan' | 'goerli'
+  release: string
   addressManager: string
   confirmations: number
   dangerouslyCatchAllErrors?: boolean
@@ -26,6 +29,7 @@ export interface L1DataTransportServiceOptions {
   transactionsPerPollingInterval: number
   legacySequencerCompatibility: boolean
   sentryDsn?: string
+  sentryTraceRate?: number
   defaultBackend: string
 }
 

@@ -1,2 +1,7 @@
-yarn run build:typescript & yarn run build:contracts
-yarn run build:contracts:ovm
+#!/bin/bash
+
+set -e
+
+yarn build:typescript &
+yarn build:contracts
+yarn build:contracts:ovm

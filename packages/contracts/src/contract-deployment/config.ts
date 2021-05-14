@@ -169,7 +169,7 @@ export const makeContractDeployConfig = async (
       ],
     },
     OVM_DeployerWhitelist: {
-      factory: getContractFactory('OVM_DeployerWhitelist'),
+      factory: getContractFactory('OVM_DeployerWhitelist', undefined, true),
       params: [],
     },
     OVM_L1MessageSender: {
@@ -217,16 +217,10 @@ export const makeContractDeployConfig = async (
       params: [AddressManager.address],
     },
     OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount'),
+      factory: getContractFactory('OVM_ECDSAContractAccount', undefined, true),
     },
     OVM_SequencerEntrypoint: {
       factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),
-    },
-    OVM_ProxySequencerEntrypoint: {
-      factory: getContractFactory('OVM_ProxySequencerEntrypoint'),
-    },
-    mockOVM_ECDSAContractAccount: {
-      factory: getContractFactory('mockOVM_ECDSAContractAccount'),
     },
     OVM_BondManager: {
       factory: getContractFactory('mockOVM_BondManager'),
@@ -253,6 +247,9 @@ export const makeContractDeployConfig = async (
     },
     ERC1820Registry: {
       factory: getContractFactory('ERC1820Registry'),
+    },
+    OVM_ProxyEOA: {
+      factory: getContractFactory('OVM_ProxyEOA', undefined, true),
     },
   }
 }

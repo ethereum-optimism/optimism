@@ -851,7 +851,7 @@ var (
 	}
 	RollupBackendFlag = cli.StringFlag{
 		Name:   "rollup.backend",
-		Usage:  "Sync backend for verifiers (\"l1\" or \"l2\")",
+		Usage:  "Sync backend for verifiers (\"l1\" or \"l2\"), defaults to l1",
 		Value:  "l1",
 		EnvVar: "ROLLUP_BACKEND",
 	}
@@ -885,11 +885,17 @@ var (
 		Value:  eth.DefaultConfig.Rollup.MaxCallDataSize,
 		EnvVar: "ROLLUP_MAX_CALLDATA_SIZE",
 	}
-	RollupL1GasPriceFlag = BigFlag{
-		Name:   "rollup.l1gasprice",
-		Usage:  "The L1 gas price to use for the sequencer fees",
-		Value:  eth.DefaultConfig.Rollup.L1GasPrice,
-		EnvVar: "ROLLUP_L1_GASPRICE",
+	RollupDataPriceFlag = BigFlag{
+		Name:   "rollup.dataprice",
+		Usage:  "The L1 calldata price to use for the sequencer fees",
+		Value:  eth.DefaultConfig.Rollup.DataPrice,
+		EnvVar: "ROLLUP_DATAPRICE",
+	}
+	RollupExecutionPriceFlag = BigFlag{
+		Name:   "rollup.executionprice",
+		Usage:  "The execution gas price to use for the sequencer fees",
+		Value:  eth.DefaultConfig.Rollup.ExecutionPrice,
+		EnvVar: "ROLLUP_EXECUTIONPRICE",
 	}
 )
 
@@ -1164,8 +1170,11 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(RollupTimstampRefreshFlag.Name) {
 		cfg.TimestampRefreshThreshold = ctx.GlobalDuration(RollupTimstampRefreshFlag.Name)
 	}
-	if ctx.GlobalIsSet(RollupL1GasPriceFlag.Name) {
-		cfg.L1GasPrice = GlobalBig(ctx, RollupL1GasPriceFlag.Name)
+	if ctx.GlobalIsSet(RollupDataPriceFlag.Name) {
+		cfg.DataPrice = GlobalBig(ctx, RollupDataPriceFlag.Name)
+	}
+	if ctx.GlobalIsSet(RollupExecutionPriceFlag.Name) {
+		cfg.ExecutionPrice = GlobalBig(ctx, RollupExecutionPriceFlag.Name)
 	}
 	if ctx.GlobalIsSet(RollupBackendFlag.Name) {
 		val := ctx.GlobalString(RollupBackendFlag.Name)

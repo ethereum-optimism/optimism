@@ -180,18 +180,6 @@ const test_nuisanceGas: TestDefinition = {
     {
       name:
         'ovmCREATE consumes all allotted nuisance gas if creation code throws data-less exception',
-      postState: {
-        ExecutionManager: {
-          messageRecord: {
-            // note: this is slightly higher than the "idealized" value which would be:
-            // OVM_TX_GAS_LIMIT / 2 - 2 * ( Helper_TestRunner_BYTELEN * NUISANCE_GAS_PER_CONTRACT_BYTE )
-            // This is because there is natural gas consumption between the ovmCALL(GAS/2) and ovmCREATE, which allots nuisance gas via _getNuisanceGasLimit.
-            // This means that the ovmCREATE exception, DOES consumes all nuisance gas allotted, but that allotment
-            // is less than the full OVM_TX_GAS_LIMIT / 2 which is alloted to the parent ovmCALL.
-            nuisanceGasLeft: 4184829,
-          },
-        },
-      },
       parameters: [
         {
           name: 'give 1/2 gas to ovmCALL => ovmCREATE, evmINVALID',

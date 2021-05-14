@@ -1,7 +1,6 @@
 package rollup
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +23,10 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
+// errShortRemoteTip is an error for when the remote tip is shorter than the
+// local tip
+var errShortRemoteTip = errors.New("Unexpected remote less than tip")
+
 // SyncService implements the main functionality around pulling in transactions
 // and executing them. It can be configured to run in both sequencer mode and in
 // verifier mode.
@@ -40,9 +43,10 @@ type SyncService struct {
 	eth1ChainId               uint64
 	bc                        *core.BlockChain
 	txpool                    *core.TxPool
-	L1gpo                     *gasprice.L1Oracle
+	RollupGpo                 *gasprice.RollupOracle
 	client                    RollupClient
 	syncing                   atomic.Value
+	chainHeadSub              event.Subscription
 	OVMContext                OVMContext
 	pollInterval              time.Duration
 	timestampRefreshThreshold time.Duration
@@ -63,9 +67,9 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	_ = cancel // satisfy govet
 
 	if cfg.IsVerifier {
-		log.Info("Running in verifier mode", "backend", cfg.Backend.String())
+		log.Info("Running in verifier mode", "sync-backend", cfg.Backend.String())
 	} else {
-		log.Info("Running in sequencer mode", "backend", cfg.Backend.String())
+		log.Info("Running in sequencer mode", "sync-backend", cfg.Backend.String())
 	}
 
 	pollInterval := cfg.PollInterval
@@ -219,13 +223,11 @@ func (s *SyncService) Start() error {
 		// The sequencer must sync the transactions to the tip and the
 		// pending queue transactions on start before setting sync status
 		// to false and opening up the RPC to accept transactions.
-		err := s.syncTransactionsToTip(s.backend)
-		if err != nil {
-			return fmt.Errorf("Cannot sync transactions to the tip: %w", err)
+		if err := s.syncTransactionsToTip(); err != nil {
+			return fmt.Errorf("Sequencer cannot sync transactions to tip: %w", err)
 		}
-		err = s.syncQueueToTip()
-		if err != nil {
-			log.Error("Sequencer cannot sync queue", "msg", err)
+		if err := s.syncQueueToTip(); err != nil {
+			return fmt.Errorf("Sequencer cannot sync queue to tip: %w", err)
 		}
 		s.setSyncStatus(false)
 		go s.SequencerLoop()
@@ -346,14 +348,12 @@ func (s *SyncService) VerifierLoop() {
 func (s *SyncService) verify() error {
 	switch s.backend {
 	case BackendL1:
-		err := s.syncTransactionBatchesToTip()
-		if err != nil {
-			log.Error("Verifier cannot sync transaction batches to tip", "msg", err)
+		if err := s.syncBatchesToTip(); err != nil {
+			return fmt.Errorf("Verifier cannot sync transaction batches to tip: %w", err)
 		}
 	case BackendL2:
-		err := s.syncTransactionsToTip(BackendL2)
-		if err != nil {
-			log.Error("Verifier cannot sync transactions with BackendL2", "msg", err)
+		if err := s.syncTransactionsToTip(); err != nil {
+			return fmt.Errorf("Verifier cannot sync transactions with BackendL2: %w", err)
 		}
 	}
 	return nil
@@ -386,13 +386,38 @@ func (s *SyncService) SequencerLoop() {
 // L1 is the source of truth. The sequencer concurrently accepts user
 // transactions via the RPC.
 func (s *SyncService) sequence() error {
-	err := s.syncQueueToTip()
-	if err != nil {
-		log.Error("Sequencer cannot sync queue", "msg", err)
+	if err := s.syncQueueToTip(); err != nil {
+		return fmt.Errorf("Sequencer cannot sequence queue: %w", err)
 	}
-	err = s.syncTransactionBatchesToTip()
-	if err != nil {
-		log.Error("Sequencer cannot sync transaction batches", "msg", err)
+	if err := s.syncBatchesToTip(); err != nil {
+		return fmt.Errorf("Sequencer cannot sync transaction batches: %w", err)
+	}
+	return nil
+}
+
+func (s *SyncService) syncQueueToTip() error {
+	if err := s.syncToTip(s.syncQueue, s.client.GetLatestEnqueueIndex); err != nil {
+		return fmt.Errorf("Cannot sync queue to tip: %w", err)
+	}
+	return nil
+}
+
+func (s *SyncService) syncBatchesToTip() error {
+	if err := s.syncToTip(s.syncBatches, s.client.GetLatestTransactionBatchIndex); err != nil {
+		return fmt.Errorf("Cannot sync transaction batches to tip: %w", err)
+	}
+	return nil
+}
+
+func (s *SyncService) syncTransactionsToTip() error {
+	sync := func() (*uint64, error) {
+		return s.syncTransactions(s.backend)
+	}
+	check := func() (*uint64, error) {
+		return s.client.GetLatestTransactionIndex(s.backend)
+	}
+	if err := s.syncToTip(sync, check); err != nil {
+		return fmt.Errorf("Verifier cannot sync transactions with backend %s: %w", s.backend.String(), err)
 	}
 	return nil
 }
@@ -405,7 +430,7 @@ func (s *SyncService) updateL1GasPrice() error {
 	if err != nil {
 		return fmt.Errorf("cannot fetch L1 gas price: %w", err)
 	}
-	s.L1gpo.SetL1GasPrice(l1GasPrice)
+	s.RollupGpo.SetDataPrice(l1GasPrice)
 	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
 	return nil
 }
@@ -586,7 +611,7 @@ func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 		return fmt.Errorf("More than one transaction found in block %d", *index+1)
 	}
 	if !isCtcTxEqual(tx, txs[0]) {
-		log.Error("Mismatched transaction", "index", index)
+		log.Error("Mismatched transaction", "index", *index)
 	} else {
 		log.Debug("Historical transaction matches", "index", *index, "hash", tx.Hash().Hex())
 	}
@@ -595,26 +620,44 @@ func (s *SyncService) applyHistoricalTransaction(tx *types.Transaction) error {
 
 // applyTransactionToTip will do sanity checks on the transaction before
 // applying it to the tip. It blocks until the transaction has been included in
-// the chain.
+// the chain. It is assumed that validation around the index has already
+// happened.
 func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
-	s.txLock.Lock()
-	defer s.txLock.Unlock()
-
 	if tx == nil {
 		return errors.New("nil transaction passed to applyTransactionToTip")
 	}
+	// Queue Origin L1 to L2 transactions must have a timestamp that is set by
+	// the L1 block that holds the transaction. This should never happen but is
+	// a sanity check to prevent fraudulent execution.
+	if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginL1ToL2) {
+		if tx.L1Timestamp() == 0 {
+			return fmt.Errorf("Queue origin L1 to L2 transaction without a timestamp: %s", tx.Hash().Hex())
+		}
+	}
+	// If there is no OVM timestamp assigned to the transaction, then assign a
+	// timestamp and blocknumber to it. This should only be the case for queue
+	// origin sequencer transactions that come in via RPC. The L1 to L2
+	// transactions that come in via `enqueue` should have a timestamp set based
+	// on the L1 block that it was included in.
+	// Note that Ethereum Layer one consensus rules dictate that the timestamp
+	// must be strictly increasing between blocks, so no need to check both the
+	// timestamp and the blocknumber.
 	if tx.L1Timestamp() == 0 {
 		ts := s.GetLatestL1Timestamp()
 		bn := s.GetLatestL1BlockNumber()
 		tx.SetL1Timestamp(ts)
 		tx.SetL1BlockNumber(bn)
 	} else if tx.L1Timestamp() > s.GetLatestL1Timestamp() {
+		// If the timestamp of the transaction is greater than the sync
+		// service's locally maintained timestamp, update the timestamp and
+		// blocknumber to equal that of the transaction's. This should happen
+		// with `enqueue` transactions.
 		ts := tx.L1Timestamp()
 		bn := tx.L1BlockNumber()
 		s.SetLatestL1Timestamp(ts)
 		s.SetLatestL1BlockNumber(bn.Uint64())
+		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64(), "queue-origin", tx.QueueOrigin().Uint64())
 	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
-		// TODO: this should force a reorg
 		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
 	}
 
@@ -631,17 +674,15 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
 	// The index was set above so it is safe to dereference
-	log.Trace("Applying transaction to tip", "index", *tx.GetMeta().Index)
+	//log.Trace("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex())
+	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex())
 
-	// This is a temporary fix for a bug in the SequencerEntrypoint. It will
-	// be removed when the custom batch serialization is removed in favor of
-	// batching RLP encoded transactions.
-	tx = fixType(tx)
-
+	//txs := types.Transactions{tx}
 	s.txCh <- tx
+	//s.txFeed.Send(core.NewTxsEvent{Txs: txs})
 	// Block until the transaction has been added to the chain
-	log.Debug("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
-	//<-s.chainHeadCh
+	log.Trace("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
+	<-s.chainHeadCh
 
 	return nil
 }
@@ -724,6 +765,8 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 		return errors.New("nil transaction passed to ValidateAndApplySequencerTransaction")
 	}
 
+	s.txLock.Lock()
+	defer s.txLock.Unlock()
 	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex())
 
 	qo := tx.QueueOrigin()
@@ -737,127 +780,120 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 	if err != nil {
 		return fmt.Errorf("invalid transaction: %w", err)
 	}
-
-	// Set the raw transaction data in the meta.
-	txRaw, err := getRawTransaction(tx)
-	if err != nil {
-		return fmt.Errorf("invalid transaction: %w", err)
-	}
-	meta := tx.GetMeta()
-	newMeta := types.NewTransactionMeta(
-		meta.L1BlockNumber,
-		meta.L1Timestamp,
-		meta.L1MessageSender,
-		meta.SignatureHashType,
-		types.QueueOrigin(meta.QueueOrigin.Uint64()),
-		meta.Index,
-		meta.QueueIndex,
-		txRaw,
-	)
-	tx.SetTransactionMeta(newMeta)
 	return s.applyTransaction(tx)
 }
 
-// syncTransactionsToTip will sync all of the transactions to the tip.
-// The Backend determines the source of the transactions.
-func (s *SyncService) syncTransactionsToTip(backend Backend) error {
+// syncer represents a function that can sync remote items and then returns the
+// index that it synced to as well as an error if it encountered one. It has
+// side effects on the state and its functionality depends on the current state
+type syncer func() (*uint64, error)
+
+// rangeSyncer represents a function that syncs a range of items between its two
+// arguments (inclusive)
+type rangeSyncer func(uint64, uint64) error
+
+// nextGetter is a type that represents a function that will return the next
+// index
+type nextGetter func() uint64
+
+// indexGetter is a type that represents a function that returns an index and an
+// error if there is a problem fetching the index. The different types of
+// indices are canonical transaction chain indices, queue indices and batch
+// indices. It does not induce side effects on state
+type indexGetter func() (*uint64, error)
+
+// isAtTip is a function that will determine if the local chain is at the tip
+// of the remote datasource
+func (s *SyncService) isAtTip(index *uint64, get indexGetter) (bool, error) {
+	latest, err := get()
+	if errors.Is(err, errElementNotFound) {
+		if index == nil {
+			return true, nil
+		}
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	// There are no known enqueue transactions locally or remotely
+	if latest == nil && index == nil {
+		return true, nil
+	}
+	// Only one of the transactions are nil due to the check above so they
+	// cannot be equal
+	if latest == nil || index == nil {
+		return false, nil
+	}
+	// The indices are equal
+	if *latest == *index {
+		return true, nil
+	}
+	// The local tip is greater than the remote tip. This should never happen
+	if *latest < *index {
+		return false, fmt.Errorf("is at tip mismatch: remote (%d) - local (%d): %w", *latest, *index, errShortRemoteTip)
+	}
+	// The indices are not equal
+	return false, nil
+}
+
+// syncToTip is a function that can be used to sync to the tip of an ordered
+// list of things. It is used to sync transactions, enqueue elements and batches
+func (s *SyncService) syncToTip(sync syncer, getTip indexGetter) error {
 	s.loopLock.Lock()
 	defer s.loopLock.Unlock()
 
 	for {
-		latest, err := s.client.GetLatestTransaction(backend)
+		index, err := sync()
 		if errors.Is(err, errElementNotFound) {
-			log.Info("No transactions to sync")
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("Cannot get latest transaction: %w", err)
-		}
-		latestIndex := latest.GetMeta().Index
-		if latestIndex == nil {
-			return errors.New("Latest index is nil")
-		}
-
-		nextIndex := s.GetNextIndex()
-		if nextIndex-1 == *latestIndex {
-			log.Info("No new transactions to sync", "tip", *latestIndex, "backend", backend.String())
-			return nil
-		}
-		if err := s.syncTransactionRange(nextIndex, *latestIndex, backend); err != nil {
 			return err
 		}
-
-		post, err := s.client.GetLatestTransaction(backend)
+		isAtTip, err := s.isAtTip(index, getTip)
 		if err != nil {
-			return fmt.Errorf("Cannot get latest transaction: %w", err)
+			return err
 		}
-		postLatestIndex := post.GetMeta().Index
-		if postLatestIndex == nil {
-			return errors.New("Latest index is nil")
-		}
-
-		if *postLatestIndex == *latestIndex {
+		if isAtTip {
 			return nil
 		}
 	}
 }
 
-// syncTransactionRange will sync a range of transactions from
-// start to end (inclusive) from a specific Backend
-func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) error {
-	log.Info("Syncing transactions to tip", "start", start, "end", end)
-	for i := start; i <= end; i++ {
-		tx, err := s.client.GetTransaction(i, backend)
-		if err != nil {
-			return fmt.Errorf("cannot fetch transaction %d: %w", i, err)
-		}
-		if err = s.applyTransaction(tx); err != nil {
-			return fmt.Errorf("Cannot apply transaction: %w", err)
-		}
+// sync will sync a range of items
+func (s *SyncService) sync(getLatest indexGetter, getNext nextGetter, syncer rangeSyncer) (*uint64, error) {
+	latestIndex, err := getLatest()
+	if err != nil {
+		return nil, fmt.Errorf("Cannot sync: %w", err)
 	}
-	return nil
+	if latestIndex == nil {
+		return nil, errors.New("Latest index is not defined")
+	}
+
+	nextIndex := getNext()
+	if nextIndex == *latestIndex+1 {
+		return latestIndex, nil
+	}
+	if err := syncer(nextIndex, *latestIndex); err != nil {
+		return nil, err
+	}
+	return latestIndex, nil
 }
 
-// syncTransactionBatchesToTip will sync all of the transaction batches to the
-// tip
-func (s *SyncService) syncTransactionBatchesToTip() error {
-	s.loopLock.Lock()
-	defer s.loopLock.Unlock()
-	log.Debug("Syncing transaction batches to tip")
-
-	for {
-		latest, _, err := s.client.GetLatestTransactionBatch()
-		if errors.Is(err, errElementNotFound) {
-			log.Info("No transaction batches to sync")
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("Cannot get latest transaction batch: %w", err)
-		}
-
-		nextIndex := s.GetNextBatchIndex()
-		if nextIndex-1 == latest.Index {
-			log.Info("No new batches to sync", "tip", latest.Index)
-			return nil
-		}
-		if err := s.syncTransactionBatchRange(nextIndex, latest.Index); err != nil {
-			return err
-		}
-
-		post, _, err := s.client.GetLatestTransactionBatch()
-		if err != nil {
-			return fmt.Errorf("Cannot get latest transaction batch: %w", err)
-		}
-		if post.Index == latest.Index {
-			return nil
-		}
+// syncBatches will sync a range of batches from the current known tip to the
+// remote tip.
+func (s *SyncService) syncBatches() (*uint64, error) {
+	index, err := s.sync(s.client.GetLatestTransactionBatchIndex, s.GetNextBatchIndex, s.syncTransactionBatchRange)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot sync batches: %w", err)
 	}
+	return index, nil
 }
 
 // syncTransactionBatchRange will sync a range of batched transactions from
 // start to end (inclusive)
 func (s *SyncService) syncTransactionBatchRange(start, end uint64) error {
-	log.Debug("Syncing transaction batch range", "start", start, "end", end)
+	log.Info("Syncing transaction batch range", "start", start, "end", end)
 	for i := start; i <= end; i++ {
 		log.Debug("Fetching transaction batch", "index", i)
 		_, txs, err := s.client.GetTransactionBatch(i)
@@ -874,59 +910,58 @@ func (s *SyncService) syncTransactionBatchRange(start, end uint64) error {
 	return nil
 }
 
-// syncQueueToTip will sync the `enqueue` transactions to the tip
-// from the last known `enqueue` transaction
-func (s *SyncService) syncQueueToTip() error {
-	s.loopLock.Lock()
-	defer s.loopLock.Unlock()
-
-	for {
-		latest, err := s.client.GetLatestEnqueue()
-		if errors.Is(err, errElementNotFound) {
-			log.Info("No queue transactions to sync")
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("Cannot get latest enqueue transaction: %w", err)
-		}
-		latestIndex := latest.GetMeta().QueueIndex
-		if latestIndex == nil {
-			return errors.New("Latest queue transaction has no queue index")
-		}
-
-		nextIndex := s.GetNextEnqueueIndex()
-		if nextIndex-1 == *latestIndex {
-			log.Info("No new queue transactions to sync", "tip", *latestIndex)
-			return nil
-		}
-		if err := s.syncQueueTransactionRange(nextIndex, *latestIndex); err != nil {
-			return err
-		}
-
-		post, err := s.client.GetLatestEnqueue()
-		if err != nil {
-			return fmt.Errorf("Cannot get latest transaction: %w", err)
-		}
-		postLatestIndex := post.GetMeta().QueueIndex
-		if postLatestIndex == nil {
-			return errors.New("Latest queue index is nil")
-		}
-		if *latestIndex == *postLatestIndex {
-			return nil
-		}
+// syncQueue will sync from the local tip to the known tip of the remote
+// enqueue transaction feed.
+func (s *SyncService) syncQueue() (*uint64, error) {
+	index, err := s.sync(s.client.GetLatestEnqueueIndex, s.GetNextEnqueueIndex, s.syncQueueTransactionRange)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot sync queue: %w", err)
 	}
+	return index, nil
 }
 
 // syncQueueTransactionRange will apply a range of queue transactions from
 // start to end (inclusive)
 func (s *SyncService) syncQueueTransactionRange(start, end uint64) error {
-	log.Info("Syncing enqueue transactions to tip", "start", start, "end", end)
+	log.Info("Syncing enqueue transactions range", "start", start, "end", end)
 	for i := start; i <= end; i++ {
 		tx, err := s.client.GetEnqueue(i)
 		if err != nil {
 			return fmt.Errorf("Canot get enqueue transaction; %w", err)
 		}
 		if err := s.applyTransaction(tx); err != nil {
+			return fmt.Errorf("Cannot apply transaction: %w", err)
+		}
+	}
+	return nil
+}
+
+// syncTransactions will sync transactions to the remote tip based on the
+// backend
+func (s *SyncService) syncTransactions(backend Backend) (*uint64, error) {
+	getLatest := func() (*uint64, error) {
+		return s.client.GetLatestTransactionIndex(backend)
+	}
+	sync := func(start, end uint64) error {
+		return s.syncTransactionRange(start, end, backend)
+	}
+	index, err := s.sync(getLatest, s.GetNextIndex, sync)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot sync transactions with backend %s: %w", backend.String(), err)
+	}
+	return index, nil
+}
+
+// syncTransactionRange will sync a range of transactions from
+// start to end (inclusive) from a specific Backend
+func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) error {
+	log.Info("Syncing transaction range", "start", start, "end", end, "backend", backend.String())
+	for i := start; i <= end; i++ {
+		tx, err := s.client.GetTransaction(i, backend)
+		if err != nil {
+			return fmt.Errorf("cannot fetch transaction %d: %w", i, err)
+		}
+		if err = s.applyTransaction(tx); err != nil {
 			return fmt.Errorf("Cannot apply transaction: %w", err)
 		}
 	}
@@ -955,103 +990,6 @@ func (s *SyncService) updateEthContext() error {
 // starts sending event to the given channel.
 func (s *SyncService) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return s.scope.Track(s.txFeed.Subscribe(ch))
-}
-
-// getRawTransaction will return the raw serialization of the transaction. This
-// function will be deprecated in the near future when the batch serialization
-// is RLP encoded transactions.
-func getRawTransaction(tx *types.Transaction) ([]byte, error) {
-	if tx == nil {
-		return nil, errors.New("Cannot process nil transaction")
-	}
-	v, r, s := tx.RawSignatureValues()
-
-	// V parameter here will include the chain ID, so we need to recover the original V. If the V
-	// does not equal zero or one, we have an invalid parameter and need to throw an error.
-	// This is technically a duplicate check because it happens inside of
-	// `tx.AsMessage` as well.
-	v = new(big.Int).SetUint64(v.Uint64() - 35 - 2*tx.ChainId().Uint64())
-	if v.Uint64() != 0 && v.Uint64() != 1 {
-		return nil, fmt.Errorf("invalid signature v parameter: %d", v.Uint64())
-	}
-
-	// Since we use a fixed encoding, we need to insert some placeholder address to represent that
-	// the user wants to create a contract (in this case, the zero address).
-	var target common.Address
-	if tx.To() == nil {
-		target = common.Address{}
-	} else {
-		target = *tx.To()
-	}
-
-	// Divide the gas price by one million to compress it
-	// before it is send to the sequencer entrypoint. This is to save
-	// space on calldata.
-	gasPrice := new(big.Int).Div(tx.GasPrice(), new(big.Int).SetUint64(1000000))
-
-	// Sequencer uses a custom encoding structure --
-	// We originally receive sequencer transactions encoded in this way, but we decode them before
-	// inserting into Geth so we can make transactions easily parseable. However, this means that
-	// we need to re-encode the transactions before executing them.
-	var data = new(bytes.Buffer)
-	data.WriteByte(getSignatureType(tx))                         // 1 byte: 00 == EIP 155, 02 == ETH Sign Message
-	data.Write(fillBytes(r, 32))                                 // 32 bytes: Signature `r` parameter
-	data.Write(fillBytes(s, 32))                                 // 32 bytes: Signature `s` parameter
-	data.Write(fillBytes(v, 1))                                  // 1 byte: Signature `v` parameter
-	data.Write(fillBytes(new(big.Int).SetUint64(tx.Gas()), 3))   // 3 bytes: Gas limit
-	data.Write(fillBytes(gasPrice, 3))                           // 3 bytes: Gas price
-	data.Write(fillBytes(new(big.Int).SetUint64(tx.Nonce()), 3)) // 3 bytes: Nonce
-	data.Write(target.Bytes())                                   // 20 bytes: Target address
-	data.Write(tx.Data())
-
-	return data.Bytes(), nil
-}
-
-// fillBytes is taken from a newer version of the golang standard library
-// will panic if the provided biginteger does not fit in the provided `size` number of bytes
-func fillBytes(x *big.Int, size int) []byte {
-	b := x.Bytes()
-	switch {
-	case len(b) > size:
-		panic("math/big: value won't fit requested size")
-	case len(b) == size:
-		return b
-	default:
-		buf := make([]byte, size)
-		copy(buf[size-len(b):], b)
-		return buf
-	}
-}
-
-// getSignatureType is a patch to fix a bug in the contracts. Will be deprecated
-// with the move to RLP encoded transactions in batches.
-func getSignatureType(tx *types.Transaction) uint8 {
-	if tx.SignatureHashType() == 0 {
-		return 0
-	} else if tx.SignatureHashType() == 1 {
-		return 2
-	} else {
-		return 1
-	}
-}
-
-// This is a temporary fix to patch the enums being used in the raw data
-func fixType(tx *types.Transaction) *types.Transaction {
-	meta := tx.GetMeta()
-	raw := meta.RawTransaction
-	if len(raw) == 0 {
-		log.Error("Transaction with no raw detected")
-		return tx
-	}
-	if raw[0] == 0x00 {
-		return tx
-	} else if raw[0] == 0x01 {
-		raw[0] = 0x02
-	}
-	queueOrigin := types.QueueOrigin(meta.QueueOrigin.Uint64())
-	fixed := types.NewTransactionMeta(meta.L1BlockNumber, meta.L1Timestamp, meta.L1MessageSender, meta.SignatureHashType, queueOrigin, meta.Index, meta.QueueIndex, raw)
-	tx.SetTransactionMeta(fixed)
-	return tx
 }
 
 func stringify(i *uint64) string {

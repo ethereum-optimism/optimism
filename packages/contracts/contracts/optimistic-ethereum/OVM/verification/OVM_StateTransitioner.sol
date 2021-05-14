@@ -132,7 +132,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
      */
     function getPreStateRoot()
         override
-        public
+        external
         view
         returns (
             bytes32 _preStateRoot
@@ -147,7 +147,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
      */
     function getPostStateRoot()
         override
-        public
+        external
         view
         returns (
             bytes32 _postStateRoot
@@ -162,7 +162,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
      */
     function isComplete()
         override
-        public
+        external
         view
         returns (
             bool _complete
@@ -188,7 +188,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         bytes memory _stateTrieWitness
     )
         override
-        public
+        external
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
         contributesToFraudProof(preStateRoot, transactionHash)
     {
@@ -260,7 +260,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         bytes memory _storageTrieWitness
     )
         override
-        public
+        external
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
         contributesToFraudProof(preStateRoot, transactionHash)
     {
@@ -324,7 +324,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         Lib_OVMCodec.Transaction memory _transaction
     )
         override
-        public
+        external
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
         contributesToFraudProof(preStateRoot, transactionHash)
     {
@@ -374,7 +374,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         bytes memory _stateTrieWitness
     )
         override
-        public
+        external
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
         contributesToFraudProof(preStateRoot, transactionHash)
     {
@@ -417,7 +417,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         bytes memory _storageTrieWitness
     )
         override
-        public
+        external
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
         contributesToFraudProof(preStateRoot, transactionHash)
     {
@@ -457,7 +457,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
      */
     function completeTransition()
         override
-        public
+        external
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
     {
         require(

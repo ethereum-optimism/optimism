@@ -7,7 +7,7 @@ import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
 
 /**
  * @title Lib_ExecutionManagerWrapper
- * 
+ *
  * Compiler used: solc
  * Runtime target: OVM
  */
@@ -16,6 +16,30 @@ library Lib_ExecutionManagerWrapper {
     /**********************
      * Internal Functions *
      **********************/
+
+    /**
+     * Performs a safe ovmCREATE call.
+     * @param _bytecode Code for the new contract.
+     * @return _contract Address of the created contract.
+     */
+    function ovmCREATE(
+        bytes memory _bytecode
+    )
+        internal
+        returns (
+            address,
+            bytes memory
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmCREATE(bytes)",
+                _bytecode
+            )
+        );
+
+        return abi.decode(returndata, (address, bytes));
+    }
 
     /**
      * Performs a safe ovmGETNONCE call.
@@ -92,6 +116,25 @@ library Lib_ExecutionManagerWrapper {
         );
 
         return abi.decode(returndata, (address));
+    }
+
+    /**
+     * Calls the ovmCHAINID opcode.
+     * @return Chain ID of the current network.
+     */
+    function ovmCHAINID()
+        internal
+        returns (
+            uint256
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmCHAINID()"
+            )
+        );
+
+        return abi.decode(returndata, (uint256));
     }
 
 

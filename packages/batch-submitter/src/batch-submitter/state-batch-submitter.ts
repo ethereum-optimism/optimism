@@ -3,11 +3,16 @@ import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractFactory } from 'old-contracts'
-import { Logger, Bytes32, remove0x } from '@eth-optimism/core-utils'
+import {
+  L2Block,
+  RollupInfo,
+  Bytes32,
+  remove0x,
+} from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
-import { L2Block } from '..'
-import { RollupInfo, Range, BatchSubmitter, BLOCK_OFFSET } from '.'
+import { Range, BatchSubmitter } from '.'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!
@@ -35,7 +40,9 @@ export class StateBatchSubmitter extends BatchSubmitter {
     maxGasPriceInGwei: number,
     gasRetryIncrement: number,
     gasThresholdInGwei: number,
-    log: Logger,
+    blockOffset: number,
+    logger: Logger,
+    metrics: Metrics,
     fraudSubmissionAddress: string
   ) {
     super(
@@ -54,7 +61,9 @@ export class StateBatchSubmitter extends BatchSubmitter {
       maxGasPriceInGwei,
       gasRetryIncrement,
       gasThresholdInGwei,
-      log
+      blockOffset,
+      logger,
+      metrics
     )
     this.fraudSubmissionAddress = fraudSubmissionAddress
   }
@@ -66,7 +75,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
   public async _updateChainInfo(): Promise<void> {
     const info: RollupInfo = await this._getRollupInfo()
     if (info.mode === 'verifier') {
-      this.log.error(
+      this.logger.error(
         'Verifier mode enabled! Batch submitter only compatible with sequencer mode'
       )
       process.exit(1)
@@ -81,7 +90,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       sccAddress === this.chainContract.address &&
       ctcAddress === this.ctcContract.address
     ) {
-      this.log.debug('Chain contract already initialized', {
+      this.logger.debug('Chain contract already initialized', {
         sccAddress,
         ctcAddress,
       })
@@ -95,7 +104,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
     ).attach(ctcAddress)
 
-    this.log.info('Connected Optimism contracts', {
+    this.logger.info('Connected Optimism contracts', {
       stateCommitmentChain: this.chainContract.address,
       canonicalTransactionChain: this.ctcContract.address,
     })
@@ -103,23 +112,23 @@ export class StateBatchSubmitter extends BatchSubmitter {
   }
 
   public async _onSync(): Promise<TransactionReceipt> {
-    this.log.info('Syncing mode enabled! Skipping state batch submission...')
+    this.logger.info('Syncing mode enabled! Skipping state batch submission...')
     return
   }
 
   public async _getBatchStartAndEnd(): Promise<Range> {
-    this.log.info('Getting batch start and end for state batch submitter...')
-    // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
+    this.logger.info('Getting batch start and end for state batch submitter...')
     const startBlock: number =
-      (await this.chainContract.getTotalElements()).toNumber() + BLOCK_OFFSET
-    this.log.info('Retrieved start block number from SCC', {
+      (await this.chainContract.getTotalElements()).toNumber() +
+      this.blockOffset
+    this.logger.info('Retrieved start block number from SCC', {
       startBlock,
     })
 
     // We will submit state roots for txs which have been in the tx chain for a while.
     const totalElements: number =
-      (await this.ctcContract.getTotalElements()).toNumber() + BLOCK_OFFSET
-    this.log.info('Retrieved total elements from CTC', {
+      (await this.ctcContract.getTotalElements()).toNumber() + this.blockOffset
+    this.logger.info('Retrieved total elements from CTC', {
       totalElements,
     })
 
@@ -130,11 +139,11 @@ export class StateBatchSubmitter extends BatchSubmitter {
 
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {
-        this.log.error(
+        this.logger.error(
           'State commitment chain is larger than transaction chain. This should never happen!'
         )
       }
-      this.log.info(
+      this.logger.info(
         'No state commitments to submit. Skipping batch submission...'
       )
       return
@@ -155,7 +164,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       [batch, startBlock]
     )
     const batchSizeInBytes = remove0x(tx).length / 2
-    this.log.debug('State batch generated', {
+    this.logger.debug('State batch generated', {
       batchSizeInBytes,
       tx,
     })
@@ -164,8 +173,8 @@ export class StateBatchSubmitter extends BatchSubmitter {
       return
     }
 
-    const offsetStartsAtIndex = startBlock - BLOCK_OFFSET // TODO: Remove BLOCK_OFFSET by adding a tx to Geth's genesis
-    this.log.debug('Submitting batch.', { tx })
+    const offsetStartsAtIndex = startBlock - this.blockOffset
+    this.logger.debug('Submitting batch.', { tx })
 
     const nonce = await this.signer.getTransactionCount()
     const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
@@ -174,11 +183,13 @@ export class StateBatchSubmitter extends BatchSubmitter {
         offsetStartsAtIndex,
         { nonce, gasPrice }
       )
-      this.log.info('Submitted appendStateBatch transaction', {
+      this.logger.info('Submitted appendStateBatch transaction', {
         nonce,
         txHash: contractTx.hash,
         contractAddr: this.chainContract.address,
         from: contractTx.from,
+      })
+      this.logger.debug('appendStateBatch transaction data', {
         data: contractTx.data,
       })
       return this.signer.provider.waitForTransaction(
@@ -201,13 +212,15 @@ export class StateBatchSubmitter extends BatchSubmitter {
     const batch: Bytes32[] = await bPromise.map(
       [...Array(blockRange).keys()],
       async (i: number) => {
-        this.log.debug('Fetching L2BatchElement', { blockNo: startBlock + i })
+        this.logger.debug('Fetching L2BatchElement', {
+          blockNo: startBlock + i,
+        })
         const block = (await this.l2Provider.getBlockWithTransactions(
           startBlock + i
         )) as L2Block
         const blockTx = block.transactions[0]
         if (blockTx.from === this.fraudSubmissionAddress) {
-          this.log.warn('Found transaction from fraud submission address', {
+          this.logger.warn('Found transaction from fraud submission address', {
             txHash: blockTx.hash,
             fraudSubmissionAddress: this.fraudSubmissionAddress,
           })
@@ -225,7 +238,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
     )
     while (remove0x(tx).length / 2 > this.maxTxSize) {
       batch.splice(Math.ceil((batch.length * 2) / 3)) // Delete 1/3rd of all of the batch elements
-      this.log.debug('Splicing batch...', {
+      this.logger.debug('Splicing batch...', {
         batchSizeInBytes: tx.length / 2,
       })
       tx = this.chainContract.interface.encodeFunctionData('appendStateBatch', [
@@ -234,7 +247,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       ])
     }
 
-    this.log.info('Generated state commitment batch', {
+    this.logger.info('Generated state commitment batch', {
       batch, // list of stateRoots
     })
     return batch

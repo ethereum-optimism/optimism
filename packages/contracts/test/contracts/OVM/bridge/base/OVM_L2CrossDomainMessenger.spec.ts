@@ -12,6 +12,7 @@ import {
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
   getXDomainCalldata,
+  getNextBlockNumber,
 } from '../../../../helpers'
 import { solidityKeccak256 } from 'ethers/lib/utils'
 
@@ -88,7 +89,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       expect(
         Mock__OVM_L2ToL1MessagePasser.smocked.passMessageToL1.calls[0]
       ).to.deep.equal([
-        getXDomainCalldata(await signer.getAddress(), target, message, 0),
+        getXDomainCalldata(target, await signer.getAddress(), message, 0),
       ])
     })
 
@@ -192,10 +193,67 @@ describe('OVM_L2CrossDomainMessenger', () => {
         await OVM_L2CrossDomainMessenger.successfulMessages(
           solidityKeccak256(
             ['bytes'],
-            [getXDomainCalldata(await signer.getAddress(), target, message, 0)]
+            [getXDomainCalldata(target, sender, message, 0)]
           )
         )
       ).to.be.true
+    })
+
+    it('should revert if trying to reenter `relayMessage`', async () => {
+      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
+        Mock__OVM_L1CrossDomainMessenger.address
+      )
+
+      const reentrantMessage = OVM_L2CrossDomainMessenger.interface.encodeFunctionData(
+        'relayMessage',
+        [target, sender, message, 1]
+      )
+
+      // Calculate xDomainCallData used for indexing
+      // (within the first call to the L2 Messenger).
+      const xDomainCallData = getXDomainCalldata(
+        OVM_L2CrossDomainMessenger.address,
+        sender,
+        reentrantMessage,
+        0
+      )
+
+      // Make the call.
+      await OVM_L2CrossDomainMessenger.relayMessage(
+        OVM_L2CrossDomainMessenger.address,
+        sender,
+        reentrantMessage,
+        0
+      )
+
+      // We can't test for the nonReentrant revert string because it occurs in the second call frame,
+      // and target.call() won't "bubble up" the revert. So we need to use other criteria to ensure the
+      // right things are happening.
+      // Criteria 1: the reentrant message is NOT listed in successful messages.
+      expect(
+        await OVM_L2CrossDomainMessenger.successfulMessages(
+          solidityKeccak256(['bytes'], [xDomainCallData])
+        )
+      ).to.be.false
+
+      // Criteria 2: the relayID of the reentrant message is recorded.
+      // Get blockNumber at time of the call.
+      const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
+      const relayId = solidityKeccak256(
+        ['bytes'],
+        [
+          ethers.utils.solidityPack(
+            ['bytes', 'address', 'uint256'],
+            [xDomainCallData, sender, blockNumber]
+          ),
+        ]
+      )
+
+      expect(await OVM_L2CrossDomainMessenger.relayedMessages(relayId)).to.be
+        .true
+
+      // Criteria 3: the target contract did not receive a call.
+      expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.be.undefined
     })
   })
 })

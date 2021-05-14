@@ -95,7 +95,9 @@ type Backend interface {
 	GasLimit() uint64
 	GetDiff(*big.Int) (diffdb.Diff, error)
 	SuggestDataPrice(ctx context.Context) (*big.Int, error)
-	SetL1GasPrice(context.Context, *big.Int)
+	SetDataPrice(context.Context, *big.Int)
+	SuggestExecutionPrice(context.Context) (*big.Int, error)
+	SetExecutionPrice(context.Context, *big.Int)
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

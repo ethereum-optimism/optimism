@@ -1,6 +1,7 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/core-utils'
+import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import express, { Request, Response } from 'express'
+import promBundle from 'express-prom-bundle'
 import cors from 'cors'
 import { BigNumber } from 'ethers'
 import { JsonRpcProvider } from '@ethersproject/providers'
@@ -52,8 +53,8 @@ const optionSettings = {
     default: 'l1',
     validate: (val: string) => {
       return val === 'l1' || val === 'l2'
-    }
-  }
+    },
+  },
 }
 
 export class L1TransportServer extends BaseService<L1TransportServerOptions> {
@@ -105,21 +106,50 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
+    if (this.options.ethNetworkName) {
+      this._initMonitoring()
+    }
+    this.state.app.use(cors())
+    this._registerAllRoutes()
+    // Sentry error handling must be after all controllers
+    // and before other error middleware
+    if (this.options.ethNetworkName) {
+      this.state.app.use(Sentry.Handlers.errorHandler())
+    }
+  }
+
+  /**
+   * Initialize Sentry and Prometheus metrics for deployed instances
+   */
+  private _initMonitoring() {
+    // Init Sentry options
     Sentry.init({
       dsn: this.options.sentryDsn,
+      release: this.options.release,
       integrations: [
         new Sentry.Integrations.Http({ tracing: true }),
         new Tracing.Integrations.Express({
           app: this.state.app,
         }),
       ],
-      tracesSampleRate: 0.05,
+      tracesSampleRate: this.options.sentryTraceRate,
     })
     this.state.app.use(Sentry.Handlers.requestHandler())
     this.state.app.use(Sentry.Handlers.tracingHandler())
-    this.state.app.use(cors())
-    this._registerAllRoutes()
-    this.state.app.use(Sentry.Handlers.errorHandler())
+    // Init metrics
+    this.metrics = new Metrics({
+      prefix: this.name,
+      labels: {
+        environment: this.options.nodeEnv,
+        network: this.options.ethNetworkName,
+        release: this.options.release,
+      },
+    })
+    const metricsMiddleware = promBundle({
+      includeMethod: true,
+      includePath: true,
+    })
+    this.state.app.use(metricsMiddleware)
   }
 
   /**
@@ -188,7 +218,8 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
             break
           case 'l2':
             currentL2Block = await this.state.db.getLatestUnconfirmedTransaction()
-            highestL2BlockNumber = (await this.state.db.getHighestSyncedUnconfirmedBlock()) - 1
+            highestL2BlockNumber =
+              (await this.state.db.getHighestSyncedUnconfirmedBlock()) - 1
             break
           default:
             throw new Error(`Unknown transaction backend ${backend}`)
@@ -383,7 +414,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const backend = req.query.backend || this.options.defaultBackend
         let transaction = null
 
-        switch (backend ) {
+        switch (backend) {
           case 'l1':
             transaction = await this.state.db.getFullTransactionByIndex(
               BigNumber.from(req.params.index).toNumber()

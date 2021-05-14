@@ -25,12 +25,14 @@ FROM node as builder
 WORKDIR /optimism
 COPY *.json yarn.lock ./
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
+COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
 COPY packages/smock/package.json ./packages/smock/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/batch-submitter/package.json ./packages/batch-submitter/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
+COPY integration-tests/package.json ./integration-tests/package.json
 
 RUN yarn install --frozen-lockfile
 
@@ -44,17 +46,21 @@ WORKDIR /optimism
 # code changes
 COPY --from=builder /optimism/node_modules ./node_modules
 COPY --from=builder /optimism/packages ./packages
+COPY --from=builder /optimism/integration-tests ./integration-tests
 
 # the following steps are cheap
 COPY *.json yarn.lock ./
 # copy over the source
 COPY ./packages ./packages
+COPY ./integration-tests ./integration-tests
 # copy over solc to save time building (35+ seconds vs not doing this step)
 COPY --from=downloader solc /root/.cache/hardhat-nodejs/compilers/linux-amd64/solc-linux-amd64-v0.7.6+commit.7338295f
 COPY --from=downloader ovm-solc /root/.cache/hardhat-nodejs/compilers/ovm/0.7.6.js
 
 # build it!
 RUN yarn build
+# build integration tests' contracts
+RUN yarn workspace @eth-optimism/integration-tests build:integration
 # get the dump
 RUN yarn --cwd ./packages/contracts ts-node bin/take-dump.ts
 

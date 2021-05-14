@@ -26,7 +26,7 @@ interface ERC1820ImplementerInterface {
 /**
  * @title ERC1820 Pseudo-introspection Registry Contract
  * @author Jordi Baylina and Jacques Dafflon
- * @dev This contract is the official implementation of the ERC1820 Registry 
+ * @dev This contract is the official implementation of the ERC1820 Registry
  * For more details, see https://eips.ethereum.org/EIPS/eip-1820
  *
  * Compiler used: optimistic-solc

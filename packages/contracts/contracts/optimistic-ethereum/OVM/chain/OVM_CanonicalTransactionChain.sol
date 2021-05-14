@@ -7,7 +7,6 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
-import { Lib_Math } from "../../libraries/utils/Lib_Math.sol";
 
 /* Interface Imports */
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
@@ -16,6 +15,8 @@ import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageCo
 /* Contract Imports */
 import { OVM_ExecutionManager } from "../execution/OVM_ExecutionManager.sol";
 
+/* External Imports */
+import { Math } from "@openzeppelin/contracts/math/Math.sol";
 
 /**
  * @title OVM_CanonicalTransactionChain
@@ -344,7 +345,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         // TEMPORARY: Disable `appendQueueBatch` for minnet
         revert("appendQueueBatch is currently disabled.");
 
-        // _numQueuedTransactions = Lib_Math.min(_numQueuedTransactions, getNumPendingQueueElements());
+        // _numQueuedTransactions = Math.min(_numQueuedTransactions, getNumPendingQueueElements());
         // require(
         //     _numQueuedTransactions > 0,
         //     "Must append more than zero transactions."

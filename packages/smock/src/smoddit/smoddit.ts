@@ -6,7 +6,7 @@ import { fromHexString } from '@eth-optimism/core-utils'
 import { ModifiableContract, ModifiableContractFactory } from './types'
 import { getStorageLayout, getStorageSlots } from './storage'
 import { toHexString32 } from '../utils'
-import { findBaseHardhatProvider } from '../common'
+import { findBaseHardhatProvider, toFancyAddress } from '../common'
 
 /**
  * Creates a modifiable contract factory.
@@ -29,10 +29,11 @@ export const smoddit = async (
   }
 
   // Pull out a reference to the vm's state manager.
-  const pStateManager = (provider as any)._node._vm.pStateManager
+  const vm: any = (provider as any)._node._vm
+  const pStateManager = vm.pStateManager || vm.stateManager
 
   const layout = await getStorageLayout(name)
-  const factory = (await hre.ethers.getContractFactory(
+  const factory = (await (hre as any).ethers.getContractFactory(
     name,
     signer
   )) as ModifiableContractFactory
@@ -50,7 +51,7 @@ export const smoddit = async (
       const slots = getStorageSlots(layout, storage)
       for (const slot of slots) {
         await pStateManager.putContractStorage(
-          fromHexString(contract.address),
+          toFancyAddress(contract.address),
           fromHexString(slot.hash.toLowerCase()),
           fromHexString(slot.value)
         )
@@ -67,7 +68,7 @@ export const smoddit = async (
         if (
           toHexString32(
             await pStateManager.getContractStorage(
-              fromHexString(contract.address),
+              toFancyAddress(contract.address),
               fromHexString(slot.hash.toLowerCase())
             )
           ) !== slot.value

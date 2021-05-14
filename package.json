@@ -1,11 +1,14 @@
 {
   "name": "optimism",
   "version": "1.0.0",
+  "author": "Optimism PBC",
   "license": "MIT",
   "workspaces": [
     "packages/*",
     "l2geth",
-    "integration-tests"
+    "integration-tests",
+    "specs",
+    "examples/*"
   ],
   "private": true,
   "devDependencies": {
@@ -16,9 +19,9 @@
     "clean": "yarn lerna run clean",
     "build": "yarn lerna run build",
     "test": "yarn lerna run test --parallel",
-    "test:ci": "yarn lerna run test --parallel --since origin/master",
+    "test:coverage": "yarn lerna run test:coverage --parallel",
     "lint": "yarn lerna run lint",
-    "lint:ci": "yarn lerna run lint  --parallel --since origin/master",
+    "lint:check": "yarn lerna run lint:check",
     "lint:fix": "yarn lerna run lint:fix",
     "postinstall": "patch-package",
     "release": "yarn build && yarn changeset publish"

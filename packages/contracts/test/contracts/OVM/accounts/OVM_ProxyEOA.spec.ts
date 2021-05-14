@@ -8,6 +8,7 @@ import { remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { decodeSolidityError } from '../../../helpers'
+import { getContractInterface, getContractFactory } from '../../../../src'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -54,18 +55,18 @@ describe('OVM_ProxyEOA', () => {
     Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
 
     Mock__OVM_ECDSAContractAccount = await smockit(
-      await ethers.getContractFactory('OVM_ECDSAContractAccount')
+      getContractInterface('OVM_ECDSAContractAccount', true)
     )
   })
 
   let OVM_ProxyEOAFactory: ContractFactory
   before(async () => {
-    OVM_ProxyEOAFactory = await ethers.getContractFactory('OVM_ProxyEOA')
+    OVM_ProxyEOAFactory = getContractFactory('OVM_ProxyEOA', wallet, true)
   })
 
   let OVM_ProxyEOA: Contract
   beforeEach(async () => {
-    OVM_ProxyEOA = await OVM_ProxyEOAFactory.deploy(eoaDefaultAddr)
+    OVM_ProxyEOA = await OVM_ProxyEOAFactory.deploy()
 
     Mock__OVM_ExecutionManager.smocked.ovmADDRESS.will.return.with(
       OVM_ProxyEOA.address
@@ -93,7 +94,7 @@ describe('OVM_ProxyEOA', () => {
   })
   describe('upgrade()', () => {
     const implSlotKey =
-      '0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead'
+      '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc' //bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
     it(`should upgrade the proxy implementation`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
       const newImplBytes32 = addrToBytes32(newImpl)

@@ -1,10 +1,13 @@
 #!/bin/bash
-RETRIES=${RETRIES:-20}
+set -e
 
+RETRIES=${RETRIES:-20}
 JSON='{"jsonrpc":"2.0","id":0,"method":"net_version","params":[]}'
 
 # wait for the base layer to be up
 curl \
+    --fail \
+    --show-error \
     --silent \
     -H "Content-Type: application/json" \
     --retry-connrefused \

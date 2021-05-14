@@ -146,14 +146,12 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_L2ToL1MessagePasser',
       'OVM_ProxyEOA',
       'OVM_ECDSAContractAccount',
-      'OVM_ProxySequencerEntrypoint',
       'OVM_SequencerEntrypoint',
       'OVM_L2CrossDomainMessenger',
       'OVM_SafetyChecker',
       'OVM_ExecutionManager',
       'OVM_StateManager',
       'OVM_ETH',
-      'mockOVM_ECDSAContractAccount',
     ],
     deployOverrides: {},
     waitForReceipts: false,
@@ -166,7 +164,10 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_L2CrossDomainMessenger',
     'OVM_SequencerEntrypoint',
     'Lib_AddressManager',
+    'OVM_DeployerWhitelist',
     'OVM_ETH',
+    'OVM_ECDSAContractAccount',
+    'OVM_ProxyEOA',
   ]
 
   const deploymentResult = await deploy(config)

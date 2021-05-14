@@ -32,7 +32,7 @@ export const handleSequencerBlock = {
     let transactionEntry: Partial<TransactionEntry> = {
       // Legacy support.
       index: transactionIndex,
-      value:transaction.value,
+      value: transaction.value,
       batchIndex: null,
       blockNumber: BigNumber.from(transaction.l1BlockNumber).toNumber(),
       timestamp: BigNumber.from(transaction.l1Timestamp).toNumber(),
@@ -48,7 +48,7 @@ export const handleSequencerBlock = {
           r: padHexString(transaction.r, 32),
           s: padHexString(transaction.s, 32),
         },
-        value:transaction.value,
+        value: transaction.value,
         gasLimit: BigNumber.from(transaction.gas).toNumber(),
         gasPrice: BigNumber.from(transaction.gasPrice).toNumber(), // ?
         nonce: BigNumber.from(transaction.nonce).toNumber(),

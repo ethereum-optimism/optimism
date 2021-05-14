@@ -1,5 +1,43 @@
 # @eth-optimism/core-utils
 
+## 0.4.2
+
+### Patch Changes
+
+- b799caa: Update toRpcHexString to accept ethers.BigNumber and add tests
+
+## 0.4.1
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- ce7fa52: Add an additional enum for EthSign transactions as they now are batch submitted with 2 different enum values
+
+## 0.4.0
+
+### Minor Changes
+
+- 28dc442: move metrics, logger, and base-service to new common-ts package
+
+### Patch Changes
+
+- a0a0052: Update toRpcHexString to accept ethers.BigNumber and add tests
+
+## 0.3.2
+
+### Patch Changes
+
+- 6daa408: update hardhat versions so that solc is resolved correctly
+- dee74ef: migrate batch submitter types to core-utils
+- d64b66d: reformat error context for Sentry
+
+## 0.3.1
+
+### Patch Changes
+
+- 5077441: - Use raw transaction in batch submitter -- incompatible with L2Geth v0.1.2.1
+  - Pass through raw transaction in l2context
+
 ## 0.3.0
 
 ### Minor Changes

@@ -1,24 +1,28 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.3.0",
+  "version": "0.4.2",
   "main": "dist/index",
   "files": [
     "dist/*"
   ],
   "types": "dist/index",
   "repository": "git@github.com:ethereum-optimism/core-utils.git",
-  "author": "Kelvin Fichter <kelvinfichter@gmail.com>",
+  "author": "Optimism PBC",
   "license": "MIT",
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
-    "lint": "tslint --format stylish --project .",
-    "lint:fix": "prettier --config prettier-config.json --write '{src,test}/**/*.ts'",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
+    "lint:check": "tslint --format stylish --project .",
     "test": "ts-mocha test/**/*.spec.ts"
   },
   "devDependencies": {
-    "@types/pino": "^6.3.6",
+    "@types/chai": "^4.2.17",
+    "@types/lodash": "^4.14.168",
+    "@types/mocha": "^8.2.2",
+    "@types/prettier": "^2.2.3",
     "chai": "^4.3.0",
     "mocha": "^8.3.0",
     "prettier": "^2.2.1",
@@ -31,13 +35,7 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.0.9",
-    "@sentry/node": "^6.3.0",
-    "@types/pino-multi-stream": "^5.1.1",
     "ethers": "^5.0.31",
-    "lodash": "^4.17.21",
-    "pino": "^6.11.1",
-    "prom-client": "^13.1.0",
-    "pino-multi-stream": "^5.3.0",
-    "pino-sentry": "^0.7.0"
+    "lodash": "^4.17.21"
   }
 }

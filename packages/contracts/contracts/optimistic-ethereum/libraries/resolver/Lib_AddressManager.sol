@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
-/* Contract Imports */
-import { Ownable } from "./Lib_Ownable.sol";
+/* External Imports */
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title Lib_AddressManager
@@ -39,7 +39,7 @@ contract Lib_AddressManager is Ownable {
         string memory _name,
         address _address
     )
-        public
+        external
         onlyOwner
     {
         addresses[_getNameHash(_name)] = _address;
@@ -58,7 +58,7 @@ contract Lib_AddressManager is Ownable {
     function getAddress(
         string memory _name
     )
-        public
+        external
         view
         returns (
             address

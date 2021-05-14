@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/core-utils'
+import { BaseService } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
@@ -115,10 +115,13 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         }
       } catch (err) {
         if (!this.running || this.options.dangerouslyCatchAllErrors) {
-          this.logger.error('Caught an unhandled error', { err })
+          this.logger.error('Caught an unhandled error', {
+            message: err.toString(),
+            stack: err.stack,
+            code: err.code,
+          })
           await sleep(this.options.pollingInterval)
         } else {
-          // TODO: Is this the best thing to do here?
           throw err
         }
       }

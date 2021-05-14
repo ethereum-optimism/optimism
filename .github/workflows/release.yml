@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     branches:
+      - develop
       - master
 
 jobs:
@@ -16,6 +17,7 @@ jobs:
       batch-submitter: ${{ steps.packages.outputs.batch-submitter }}
       message-relayer: ${{ steps.packages.outputs.message-relayer }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
+      contracts: ${{ steps.packages.outputs.contracts }}
 
     steps:
       - name: Checkout Repo
@@ -102,6 +104,8 @@ jobs:
       batch-submitter: ${{ needs.release.outputs.batch-submitter }}
       message-relayer: ${{ needs.release.outputs.message-relayer }}
       data-transport-layer: ${{ needs.release.outputs.data-transport-layer }}
+      contracts: ${{ needs.release.outputs.contracts }}
+      integration-tests: ${{ needs.release.outputs.integration-tests }}
 
     steps:
       - name: Checkout
@@ -200,3 +204,55 @@ jobs:
           file: ./ops/docker/Dockerfile.data-transport-layer
           push: true
           tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.data-transport-layer }}
+
+  contracts:
+    name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
+    needs: builder
+    if: needs.builder.outputs.contracts != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.deployer
+          push: true
+          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.contracts }}
+
+  integration_tests:
+    name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
+    needs: builder
+    if: needs.builder.outputs.integration-tests != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.integration-tests
+          push: true
+          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.integration-tests }}

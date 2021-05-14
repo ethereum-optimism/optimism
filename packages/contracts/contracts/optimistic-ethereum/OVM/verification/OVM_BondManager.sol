@@ -10,11 +10,11 @@ import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.s
 
 /**
  * @title OVM_BondManager
- * @dev The Bond Manager contract handles deposits in the form of an ERC20 token from bonded 
+ * @dev The Bond Manager contract handles deposits in the form of an ERC20 token from bonded
  * Proposers. It also handles the accounting of gas costs spent by a Verifier during the course of a
- * fraud proof. In the event of a successful fraud proof, the fraudulent Proposer's bond is slashed, 
+ * fraud proof. In the event of a successful fraud proof, the fraudulent Proposer's bond is slashed,
  * and the Verifier's gas costs are refunded.
- * 
+ *
  * Compiler used: solc
  * Runtime target: EVM
  */
@@ -109,14 +109,14 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
             bond.earliestTimestamp = timestamp;
         }
 
-        // if the fraud proof's dispute period does not intersect with the 
+        // if the fraud proof's dispute period does not intersect with the
         // withdrawal's timestamp, then the user should not be slashed
         // e.g if a user at day 10 submits a withdrawal, and a fraud proof
         // from day 1 gets published, the user won't be slashed since day 8 (1d + 7d)
         // is before the user started their withdrawal. on the contrary, if the user
         // had started their withdrawal at, say, day 6, they would be slashed
         if (
-            bond.withdrawalTimestamp != 0 && 
+            bond.withdrawalTimestamp != 0 &&
             uint256(bond.withdrawalTimestamp) > timestamp + disputePeriodSeconds &&
             bond.state == State.WITHDRAWING
         ) {
@@ -154,15 +154,15 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
         Bond storage bond = bonds[msg.sender];
 
         require(
-            block.timestamp >= uint256(bond.withdrawalTimestamp) + disputePeriodSeconds, 
+            block.timestamp >= uint256(bond.withdrawalTimestamp) + disputePeriodSeconds,
             Errors.TOO_EARLY
         );
         require(bond.state == State.WITHDRAWING, Errors.SLASHED);
-        
+
         // refunds!
         bond.state = State.NOT_COLLATERALIZED;
         bond.withdrawalTimestamp = 0;
-        
+
         require(
             token.transfer(msg.sender, requiredCollateral),
             Errors.ERC20_ERR

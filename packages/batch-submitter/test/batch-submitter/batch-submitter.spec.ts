@@ -22,22 +22,21 @@ import {
 } from '../helpers'
 import {
   CanonicalTransactionChainContract,
-  QueueOrigin,
   TransactionBatchSubmitter as RealTransactionBatchSubmitter,
   StateBatchSubmitter,
   TX_BATCH_SUBMITTER_LOG_TAG,
   STATE_BATCH_SUBMITTER_LOG_TAG,
-  Batch,
   BatchSubmitter,
 } from '../../src'
 
 import {
+  QueueOrigin,
+  Batch,
   Signature,
   TxType,
-  ctcCoder,
   remove0x,
-  Logger,
 } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const DUMMY_ADDRESS = '0x' + '00'.repeat(20)
@@ -78,6 +77,7 @@ class TransactionBatchSubmitter extends RealTransactionBatchSubmitter {
     return true
   }
 }
+const testMetrics = new Metrics({ prefix: 'bs_test' })
 
 describe('BatchSubmitter', () => {
   let signer: Signer
@@ -216,7 +216,9 @@ describe('BatchSubmitter', () => {
       MAX_GAS_PRICE_IN_GWEI,
       GAS_RETRY_INCREMENT,
       GAS_THRESHOLD_IN_GWEI,
+      1,
       new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
+      testMetrics,
       false
     )
 
@@ -247,18 +249,9 @@ describe('BatchSubmitter', () => {
         const nextQueueElement = await getQueueElement(
           OVM_CanonicalTransactionChain
         )
-        const data = ctcCoder.eip155TxData.encode({
-          sig: DUMMY_SIG,
-          gasLimit: 0,
-          gasPrice: 0,
-          nonce: 0,
-          target: DUMMY_ADDRESS,
-          data: '0x',
-          type: TxType.EIP155,
-        })
         l2Provider.setL2BlockData(
           {
-            data,
+            rawTransaction: '0x1234',
             l1BlockNumber: nextQueueElement.blockNumber - 1,
             txType: TxType.EIP155,
             queueOrigin: QueueOrigin.Sequencer,
@@ -305,18 +298,9 @@ describe('BatchSubmitter', () => {
           OVM_CanonicalTransactionChain,
           2
         )
-        const data = ctcCoder.ethSignTxData.encode({
-          sig: DUMMY_SIG,
-          gasLimit: 0,
-          gasPrice: 0,
-          nonce: 0,
-          target: DUMMY_ADDRESS,
-          data: '0x',
-          type: TxType.EthSign,
-        })
         l2Provider.setL2BlockData(
           {
-            data,
+            rawTransaction: '0x1234',
             l1BlockNumber: nextQueueElement.blockNumber - 1,
             txType: TxType.EthSign,
             queueOrigin: QueueOrigin.Sequencer,
@@ -418,18 +402,9 @@ describe('BatchSubmitter', () => {
       const nextQueueElement = await getQueueElement(
         OVM_CanonicalTransactionChain
       )
-      const data = ctcCoder.eip155TxData.encode({
-        sig: DUMMY_SIG,
-        gasLimit: 0,
-        gasPrice: 0,
-        nonce: 0,
-        target: DUMMY_ADDRESS,
-        data: '0x',
-        type: TxType.EIP155,
-      })
       l2Provider.setL2BlockData(
         {
-          data,
+          rawTransaction: '0x1234',
           l1BlockNumber: nextQueueElement.blockNumber - 1,
           txType: TxType.EIP155,
           queueOrigin: QueueOrigin.Sequencer,
@@ -458,7 +433,9 @@ describe('BatchSubmitter', () => {
         MAX_GAS_PRICE_IN_GWEI,
         GAS_RETRY_INCREMENT,
         GAS_THRESHOLD_IN_GWEI,
+        1,
         new Logger({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
+        testMetrics,
         '0x' + '01'.repeat(20) // placeholder for fraudSubmissionAddress
       )
     })

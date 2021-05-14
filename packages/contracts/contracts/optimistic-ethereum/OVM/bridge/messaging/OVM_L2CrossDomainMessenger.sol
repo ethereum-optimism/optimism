@@ -4,7 +4,6 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_ReentrancyGuard } from "../../../libraries/utils/Lib_ReentrancyGuard.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
@@ -14,6 +13,9 @@ import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/predeploys/iOVM_L2ToL1Me
 /* Contract Imports */
 import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol";
 
+/* External Imports */
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 /**
  * @title OVM_L2CrossDomainMessenger
  * @dev The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point
@@ -22,7 +24,12 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
  * Compiler used: optimistic-solc
  * Runtime target: OVM
   */
-contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L2CrossDomainMessenger is
+    iOVM_L2CrossDomainMessenger,
+    Abs_BaseCrossDomainMessenger,
+    Lib_AddressResolver,
+    ReentrancyGuard
+{
 
     /***************
      * Constructor *
@@ -35,6 +42,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
         address _libAddressManager
     )
         Lib_AddressResolver(_libAddressManager)
+        ReentrancyGuard()
     {}
 
 
@@ -93,6 +101,8 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
         if (success == true) {
             successfulMessages[xDomainCalldataHash] = true;
             emit RelayedMessage(xDomainCalldataHash);
+        } else {
+            emit FailedRelayedMessage(xDomainCalldataHash);
         }
 
         // Store an identifier that can be used to prove that the given message was relayed by some
@@ -104,6 +114,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
                 block.number
             )
         );
+
         relayedMessages[relayId] = true;
     }
 
@@ -124,7 +135,9 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, Abs_BaseCros
         )
     {
         return (
-            iOVM_L1MessageSender(resolve("OVM_L1MessageSender")).getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
+            iOVM_L1MessageSender(
+                resolve("OVM_L1MessageSender")
+            ).getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
         );
     }
 

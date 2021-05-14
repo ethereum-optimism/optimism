@@ -26,11 +26,13 @@ declare module 'hardhat/types/config' {
   interface HardhatNetworkConfig {
     ovm: boolean
     ignoreRxList: string[]
+    interval?: number
   }
 
   interface HttpNetworkConfig {
     ovm: boolean
     ignoreRxList: string[]
+    interval?: number
   }
 }
 

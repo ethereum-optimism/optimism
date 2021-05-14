@@ -286,9 +286,19 @@ func (b *LesApiBackend) SuggestDataPrice(ctx context.Context) (*big.Int, error) 
 	panic("SuggestDataPrice not implemented")
 }
 
+// NB: Non sequencer nodes cannot suggest L2 execution gas prices.
+func (b *LesApiBackend) SuggestExecutionPrice(ctx context.Context) (*big.Int, error) {
+	panic("SuggestExecutionPrice not implemented")
+}
+
 // NB: Non sequencer nodes cannot set L1 gas prices.
-func (b *LesApiBackend) SetL1GasPrice(ctx context.Context, gasPrice *big.Int) {
-	panic("SetL1GasPrice is not implemented")
+func (b *LesApiBackend) SetDataPrice(ctx context.Context, gasPrice *big.Int) {
+	panic("SetDataPrice is not implemented")
+}
+
+// NB: Non sequencer nodes cannot set L2 execution prices.
+func (b *LesApiBackend) SetExecutionPrice(ctx context.Context, gasPrice *big.Int) {
+	panic("SetExecutionPrice is not implemented")
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {

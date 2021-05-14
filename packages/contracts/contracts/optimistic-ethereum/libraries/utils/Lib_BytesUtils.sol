@@ -17,7 +17,9 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         require(_length + 31 >= _length, "slice_overflow");
         require(_start + _length >= _start, "slice_overflow");
@@ -87,9 +89,11 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
-        if (_bytes.length - _start == 0) {
+        if (_start >= _bytes.length) {
             return bytes('');
         }
 
@@ -101,7 +105,9 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         bytes32 ret;
         uint256 len = _bytes.length <= 32 ? _bytes.length : 32;
@@ -116,7 +122,9 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         if (_bytes.length < 32) {
             bytes32 ret;
@@ -134,12 +142,23 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (uint256)
+        returns (
+            uint256
+        )
     {
         return uint256(toBytes32(_bytes));
     }
 
-    function toUint24(bytes memory _bytes, uint256 _start) internal pure returns (uint24) {
+    function toUint24(
+        bytes memory _bytes,
+        uint256 _start
+    )
+        internal
+        pure
+        returns (
+            uint24
+        )
+    {
         require(_start + 3 >= _start, "toUint24_overflow");
         require(_bytes.length >= _start + 3 , "toUint24_outOfBounds");
         uint24 tempUint;
@@ -151,7 +170,16 @@ library Lib_BytesUtils {
         return tempUint;
     }
 
-    function toUint8(bytes memory _bytes, uint256 _start) internal pure returns (uint8) {
+    function toUint8(
+        bytes memory _bytes,
+        uint256 _start
+    )
+        internal
+        pure
+        returns (
+            uint8
+        )
+    {
         require(_start + 1 >= _start, "toUint8_overflow");
         require(_bytes.length >= _start + 1 , "toUint8_outOfBounds");
         uint8 tempUint;
@@ -163,7 +191,16 @@ library Lib_BytesUtils {
         return tempUint;
     }
 
-    function toAddress(bytes memory _bytes, uint256 _start) internal pure returns (address) {
+    function toAddress(
+        bytes memory _bytes,
+        uint256 _start
+    )
+        internal
+        pure
+        returns (
+            address
+        )
+    {
         require(_start + 20 >= _start, "toAddress_overflow");
         require(_bytes.length >= _start + 20, "toAddress_outOfBounds");
         address tempAddress;
@@ -180,7 +217,9 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         bytes memory nibbles = new bytes(_bytes.length * 2);
 
@@ -197,7 +236,9 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         bytes memory ret = new bytes(_bytes.length / 2);
 
@@ -214,7 +255,9 @@ library Lib_BytesUtils {
     )
         internal
         pure
-        returns (bool)
+        returns (
+            bool
+        )
     {
         return keccak256(_bytes) == keccak256(_other);
     }

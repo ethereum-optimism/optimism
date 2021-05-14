@@ -30,24 +30,6 @@ contract TestLib_SecureMerkleTrie {
         );
     }
 
-    function verifyExclusionProof(
-        bytes memory _key,
-        bytes memory _proof,
-        bytes32 _root
-    )
-        public
-        pure
-        returns (
-            bool
-        )
-    {
-        return Lib_SecureMerkleTrie.verifyExclusionProof(
-            _key,
-            _proof,
-            _root
-        );
-    }
-
     function update(
         bytes memory _key,
         bytes memory _value,

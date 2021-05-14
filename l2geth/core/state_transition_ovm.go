@@ -103,7 +103,7 @@ func EncodeSimulatedMessage(msg Message, timestamp, blockNumber *big.Int, execut
 
 	tx := ovmTransaction{
 		timestamp,
-		blockNumber, // TODO (what's the correct block number?)
+		blockNumber,
 		uint8(msg.QueueOrigin().Uint64()),
 		*msg.L1MessageSender(),
 		*to,
@@ -148,7 +148,7 @@ func modMessage(
 		from,
 		to,
 		msg.Nonce(),
-		msg.Value(),
+		common.Big0,
 		gasLimit,
 		msg.GasPrice(),
 		data,

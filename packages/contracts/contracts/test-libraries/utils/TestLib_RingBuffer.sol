@@ -10,7 +10,7 @@ import { Lib_RingBuffer } from "../../optimistic-ethereum/libraries/utils/Lib_Ri
  */
 contract TestLib_RingBuffer {
     using Lib_RingBuffer for Lib_RingBuffer.RingBuffer;
-    
+
     Lib_RingBuffer.RingBuffer internal buf;
 
     function push(
@@ -31,7 +31,7 @@ contract TestLib_RingBuffer {
         public
         view
         returns (
-            bytes32    
+            bytes32
         )
     {
         return buf.get(_index);

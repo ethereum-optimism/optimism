@@ -157,7 +157,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     {
         return buffer.get(uint40(_index));
     }
-    
+
     /**
      * @inheritdoc iOVM_ChainStorageContainer
      */

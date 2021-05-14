@@ -13,7 +13,7 @@ import { Interface } from 'ethers/lib/utils'
 export const getContractDefinition = (name: string, ovm?: boolean): any => {
   const match = glob.sync(
     path.resolve(__dirname, `../artifacts${ovm ? '-ovm' : ''}`) +
-      `/**/${name}.json`
+      `/**/${name.split('-').join(':')}.json`
   )
 
   if (match.length > 0) {

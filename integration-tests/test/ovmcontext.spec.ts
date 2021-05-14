@@ -99,6 +99,37 @@ describe('OVM Context: Layer 2 EVM Context', () => {
     }
   })
 
+  it('should set correct OVM Context for `eth_call`', async () => {
+    const tip = await L2Provider.getBlockWithTransactions('latest')
+    const start = Math.max(0, tip.number - 5)
+
+    for (let i = start; i < tip.number; i++) {
+      const block = await L2Provider.getBlockWithTransactions(i)
+      const [, returnData] = await OVMMulticall.callStatic.aggregate(
+        [
+          [
+            OVMMulticall.address,
+            OVMMulticall.interface.encodeFunctionData(
+              'getCurrentBlockTimestamp'
+            ),
+          ],
+          [
+            OVMMulticall.address,
+            OVMMulticall.interface.encodeFunctionData('getCurrentBlockNumber'),
+          ],
+        ],
+        { blockTag: i }
+      )
+
+      const timestamp = BigNumber.from(returnData[0])
+      const blockNumber = BigNumber.from(returnData[1])
+      const tx = block.transactions[0] as any
+
+      expect(tx.l1BlockNumber).to.deep.equal(blockNumber.toNumber())
+      expect(block.timestamp).to.deep.equal(timestamp.toNumber())
+    }
+  })
+
   /**
    * `rollup_getInfo` is a new RPC endpoint that is used to return the OVM
    * context. The data returned should match what is actually being used as the
@@ -126,8 +157,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
     const timestamp = BigNumber.from(returnData[0])
     const blockNumber = BigNumber.from(returnData[1])
 
-    // TODO: this is a bug and needs to be fixed
-    //expect(info.ethContext.blockNumber).to.deep.equal(blockNumber.toNumber())
+    expect(info.ethContext.blockNumber).to.deep.equal(blockNumber.toNumber())
     expect(info.ethContext.timestamp).to.deep.equal(timestamp.toNumber())
   })
 })

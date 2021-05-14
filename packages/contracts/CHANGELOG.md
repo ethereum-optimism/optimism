@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.3.0
+
+### Minor Changes
+
+- b799caa: Updates to use RLP encoded transactions in batches for the `v0.3.0` release
+
+### Patch Changes
+
+- b799caa: Add value transfer support to ECDSAContractAccount
+- 6132e7a: Move various dependencies from primary deps to dev deps
+- b799caa: Add ExecutionManager return data & RLP encoding
+- b799caa: Makes ProxyEOA compatible with EIP1967, not backwards compatible since the storage slot changes.
+- 20747fd: Set L2MessageRelayer name to L1MultiMessageRelayer when deploying to mainnet
+- b799caa: Update ABI of simulateMessage to match run
+- Updated dependencies [b799caa]
+  - @eth-optimism/core-utils@0.4.2
+
+## 0.2.11
+
+### Patch Changes
+
+- 9599b69: Fixed a bug in package json that stopped artifacts from being published
+
+## 0.2.10
+
+### Patch Changes
+
+- 1d40586: Removed various unused dependencies
+- 6dc1877: Heavily reduces npm package size by excluding unnecessary files.
+- Updated dependencies [1d40586]
+- Updated dependencies [ce7fa52]
+  - @eth-optimism/core-utils@0.4.1
+
+## 0.2.9
+
+### Patch Changes
+
+- d2091d4: Removed verifyExclusionProof function from MerkleTrie library.
+- 0ef3069: Add pause(), blockMessage() and allowMessage() to L1 messenger
+- Updated dependencies [28dc442]
+- Updated dependencies [a0a0052]
+  - @eth-optimism/core-utils@0.4.0
+
+## 0.2.8
+
+### Patch Changes
+
+- 6daa408: update hardhat versions so that solc is resolved correctly
+- ea4041b: Removed two old mock contracts
+- f1f5bf2: Updates deployment files to remove colon filenames
+- 9ec3ec0: Removes copies of OZ contracts in favor of importing from OZ directly
+- 5f376ee: Adds config parsing to the deploy script for local deployments
+- eef1df4: Minor update to package.json to correctly export typechain artifacts"
+- a76cde5: Remove unused logic in ovmEXTCODECOPY
+- e713cd0: Updates the `yarn build` command to not error
+- 572dcbc: Add an extra event to messenger contracts to emit when a message is unsuccessfully relayed
+- 6014ec0: Adds OVM_Sequencer and Deployer to the addresses.json output file
+- Updated dependencies [6daa408]
+- Updated dependencies [dee74ef]
+- Updated dependencies [d64b66d]
+  - @eth-optimism/core-utils@0.3.2
+
+## 0.2.7
+
+### Patch Changes
+
+- e3f55ad: Remove trailing whitespace from many files
+
+## 0.2.6
+
+### Patch Changes
+
+- ce5d596: Ports OVM_ECDSAContractAccount to use optimistic-solc.
+- 1a55f64: Fix bridge contracts upgradeability by changing `Abs_L1TokenGateway.DEFAULT_FINALIZE_DEPOSIT_L2_GAS` from a storage var to an internal constant.
+  Additionally, make some bridge functions virtual so they could be overriden in child contracts.
+- 6e8fe1b: Removes mockOVM_ECDSAContractAccount and OVM_ProxySequencerEntrypoint, two unused contracts.
+- 8d4aae4: Removed Lib_SafeExecutionManagerWrapper since it's no longer being used.
+- c75a0fc: Use optimistic-solc to compile the SequencerEntrypoint. Also introduces a cache invalidation mechanism for hardhat-ovm so that we can push new compiler versions.
+- d4ee2d7: Port OVM_DeployerWhitelist to use optimistic-solc.
+- edb4346: Ports OVM_ProxyEOA to use optimistic-solc instead of the standard solc compiler.
+- Updated dependencies [5077441]
+  - @eth-optimism/core-utils@0.3.1
+
 ## 0.2.5
 
 ### Patch Changes

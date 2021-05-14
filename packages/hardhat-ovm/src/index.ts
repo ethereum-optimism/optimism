@@ -2,7 +2,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import fetch from 'node-fetch'
+import { ethers } from 'ethers'
 import { subtask, extendEnvironment } from 'hardhat/config'
+import { HardhatNetworkHDAccountsConfig } from 'hardhat/types/config'
 import { getCompilersDir } from 'hardhat/internal/util/global-dir'
 import { Artifacts } from 'hardhat/internal/artifacts'
 import {
@@ -23,6 +25,10 @@ const OPTIMISM_SOLC_BIN_URL =
 // default to 0.6.X instead?
 const DEFAULT_OVM_SOLC_VERSION = '0.7.6'
 
+// Poll the node every 50ms, to override ethers.js's default 4000ms causing OVM
+// tests to be slow.
+const OVM_POLLING_INTERVAL = 50
+
 /**
  * Find or generate an OVM soljson.js compiler file and return the path of this file.
  * We pass the path to this file into hardhat.
@@ -41,8 +47,9 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
   const ovmCompilersCache = path.join(await getCompilersDir(), 'ovm')
 
   // Need to create the OVM compiler cache folder if it doesn't already exist.
-  if (!fs.existsSync(ovmCompilersCache))
-    [fs.mkdirSync(ovmCompilersCache, { recursive: true })]
+  if (!fs.existsSync(ovmCompilersCache)) {
+    fs.mkdirSync(ovmCompilersCache, { recursive: true })
+  }
 
   // Pull information about the latest commit in the solc-bin repo. We'll use this to invalidate
   // our compiler cache if necessary.
@@ -97,6 +104,31 @@ const getOvmSolcPath = async (version: string): Promise<string> => {
 
   return cachedCompilerPath
 }
+
+// TODO: implement a more elegant fix for this.
+// Hardhat on M1 Macbooks does not run TASK_COMPILE_SOLIDITY_RUN_SOLC, but instead this runs one,
+// TASK_COMPILE_SOLIDITY_RUN_SOLCJS.  We reroute this task back to the solc task in the case
+// of OVM compilation.
+subtask(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, async (args, hre, runSuper) => {
+  const argsAny = args as any
+  if (argsAny.real || hre.network.ovm !== true) {
+    for (const file of Object.keys(argsAny.input.sources)) {
+      // Ignore any contract that has this tag or in ignore list
+      if (
+        argsAny.input.sources[file].content.includes('// @unsupported: evm') &&
+        hre.network.ovm !== true
+      ) {
+        delete argsAny.input.sources[file]
+      }
+    }
+    return runSuper(args)
+  } else {
+    return hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLC, {
+      ...argsAny,
+      solcPath: argsAny.solcJsPath,
+    })
+  }
+})
 
 subtask(
   TASK_COMPILE_SOLIDITY_RUN_SOLC,
@@ -155,10 +187,15 @@ subtask(
       }
     }
 
+    if (Object.keys(ovmInput.sources).length === 0) {
+      return {}
+    }
+
     // Build both inputs separately.
     const ovmOutput = await hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, {
       input: ovmInput,
       solcJsPath: ovmSolcPath,
+      real: true,
     })
 
     // Just doing this to add some extra useful information to any errors in the OVM compiler output.
@@ -174,7 +211,7 @@ subtask(
   }
 )
 
-extendEnvironment((hre) => {
+extendEnvironment(async (hre) => {
   if (hre.network.config.ovm) {
     hre.network.ovm = hre.network.config.ovm
 
@@ -192,5 +229,58 @@ extendEnvironment((hre) => {
     hre.config.paths.artifacts = artifactsPath
     hre.config.paths.cache = cachePath
     ;(hre as any).artifacts = new Artifacts(artifactsPath)
+
+    // if typechain is present, send the typed bindings to an ovm-specific
+    // directory
+    if ((hre.config as any).typechain) {
+      if (!(hre as any).config.typechain.outDir.endsWith('-ovm')) {
+        ;(hre as any).config.typechain.outDir += '-ovm'
+      }
+    }
+
+    // if ethers is present and the node is running, override the polling interval to not wait the full
+    // duration in tests
+    if ((hre as any).ethers) {
+      const interval = hre.network.config.interval || OVM_POLLING_INTERVAL
+      if ((hre as any).ethers.provider.pollingInterval === interval) {
+        return
+      }
+
+      // override the provider polling interval
+      const provider = new ethers.providers.JsonRpcProvider(
+        (hre as any).ethers.provider.url
+      )
+      provider.pollingInterval = interval
+
+      // the gas price is overriden to the user provided gasPrice or to 0.
+      provider.getGasPrice = async () =>
+        ethers.BigNumber.from(hre.network.config.gasPrice || 0)
+      ;(hre as any).ethers.provider = provider
+
+      // if the node is up, override the getSigners method's signers
+      try {
+        let signers: ethers.Signer[]
+        const accounts = hre.network.config
+          .accounts as HardhatNetworkHDAccountsConfig
+        if (accounts) {
+          const indices = Array.from(Array(20).keys()) // generates array of [0, 1, 2, ..., 18, 19]
+          signers = indices.map((i) =>
+            ethers.Wallet.fromMnemonic(
+              accounts.mnemonic,
+              `${accounts.path}/${i}`
+            ).connect(provider)
+          )
+        } else {
+          signers = await (hre as any).ethers.getSigners()
+          signers = signers.map((s: any) => {
+            s._signer.provider.pollingInterval = interval
+            return s
+          })
+        }
+
+        ;(hre as any).ethers.getSigners = () => signers
+        /* tslint:disable:no-empty */
+      } catch (e) {}
+    }
   }
 })

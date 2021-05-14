@@ -1,5 +1,5 @@
 /* Imports: External */
-import { ethers } from 'hardhat'
+import hre from 'hardhat'
 import { expect } from 'chai'
 import { toPlainObject } from 'lodash'
 import { BigNumber } from 'ethers'
@@ -8,6 +8,8 @@ import { BigNumber } from 'ethers'
 import { MockContract, smockit } from '../../src'
 
 describe('[smock]: function manipulation tests', () => {
+  const ethers = (hre as any).ethers
+
   let mock: MockContract
   beforeEach(async () => {
     mock = await smockit('TestHelpers_BasicReturnContract')

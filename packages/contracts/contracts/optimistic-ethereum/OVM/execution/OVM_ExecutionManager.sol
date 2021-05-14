@@ -15,8 +15,6 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
 
 /* Contract Imports */
-import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
-import { OVM_ProxyEOA } from "../accounts/OVM_ProxyEOA.sol";
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
 
 /**
@@ -163,12 +161,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _ovmStateManager
     )
         override
-        public
+        external
+        returns (
+            bytes memory
+        )
     {
         // Make sure that run() is not re-enterable.  This condition should always be satisfied
         // Once run has been called once, due to the behavior of _isValidInput().
         if (transactionContext.ovmNUMBER != DEFAULT_UINT256) {
-            return;
+            return bytes("");
         }
 
         // Store our OVM_StateManager instance (significantly easier than attempting to pass the
@@ -196,7 +197,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // reverts for INVALID_STATE_ACCESS.
         if (_isValidInput(_transaction) == false) {
             _resetContext();
-            return;
+            return bytes("");
         }
 
         // TEMPORARY: Gas metering is disabled for minnet.
@@ -204,7 +205,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // uint256 gasProvided = gasleft();
 
         // Run the transaction, make sure to meter the gas usage.
-        ovmCALL(
+        (, bytes memory returndata) = ovmCALL(
             _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
             _transaction.entrypoint,
             _transaction.data
@@ -217,6 +218,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Wipe the execution context.
         _resetContext();
+
+        return returndata;
     }
 
 
@@ -230,7 +233,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmCALLER()
         override
-        public
+        external
         view
         returns (
             address _CALLER
@@ -260,7 +263,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmTIMESTAMP()
         override
-        public
+        external
         view
         returns (
             uint256 _TIMESTAMP
@@ -275,7 +278,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmNUMBER()
         override
-        public
+        external
         view
         returns (
             uint256 _NUMBER
@@ -290,7 +293,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmGASLIMIT()
         override
-        public
+        external
         view
         returns (
             uint256 _GASLIMIT
@@ -305,7 +308,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmCHAINID()
         override
-        public
+        external
         view
         returns (
             uint256 _CHAINID
@@ -319,12 +322,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      *********************************/
 
     /**
-     * @notice Specifies from which L1 rollup queue this transaction originated from.
-     * @return _queueOrigin Address of the ovmL1QUEUEORIGIN within the current message context.
+     * @notice Specifies from which source (Sequencer or Queue) this transaction originated from.
+     * @return _queueOrigin Enum indicating the ovmL1QUEUEORIGIN within the current message context.
      */
     function ovmL1QUEUEORIGIN()
         override
-        public
+        external
         view
         returns (
             Lib_OVMCodec.QueueOrigin _queueOrigin
@@ -339,7 +342,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmL1TXORIGIN()
         override
-        public
+        external
         view
         returns (
             address _l1TxOrigin
@@ -419,7 +422,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _salt
     )
         override
-        public
+        external
         notStatic
         fixedGasDiscount(40000)
         returns (
@@ -458,7 +461,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmGETNONCE()
         override
-        public
+        external
         returns (
             uint256 _nonce
         )
@@ -471,7 +474,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmINCREMENTNONCE()
         override
-        public
+        external
         notStatic
     {
         address account = ovmADDRESS();
@@ -534,9 +537,25 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address prevADDRESS = messageContext.ovmADDRESS;
         messageContext.ovmADDRESS = eoa;
 
-        // Now actually create the account and get its bytecode. We're not worried about reverts
-        // (other than out of gas, which we can't capture anyway) because this contract is trusted.
-        OVM_ProxyEOA proxyEOA = new OVM_ProxyEOA(0x4200000000000000000000000000000000000003);
+        // Creates a duplicate of the OVM_ProxyEOA located at 0x42....09. Uses the following
+        // "magic" prefix to deploy an exact copy of the code:
+        // PUSH1 0x0D   # size of this prefix in bytes
+        // CODESIZE
+        // SUB          # subtract prefix size from codesize
+        // DUP1
+        // PUSH1 0x0D
+        // PUSH1 0x00
+        // CODECOPY     # copy everything after prefix into memory at pos 0
+        // PUSH1 0x00
+        // RETURN       # return the copied code
+        address proxyEOA = Lib_EthUtils.createContract(abi.encodePacked(
+            hex"600D380380600D6000396000f3",
+            ovmEXTCODECOPY(
+                0x4200000000000000000000000000000000000009,
+                0,
+                ovmEXTCODESIZE(0x4200000000000000000000000000000000000009)
+            )
+        ));
 
         // Reset the address now that we're done deploying.
         messageContext.ovmADDRESS = prevADDRESS;
@@ -604,7 +623,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        public
+        external
         fixedGasDiscount(80000)
         returns (
             bool _success,
@@ -639,7 +658,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        public
+        external
         fixedGasDiscount(40000)
         returns (
             bool _success,
@@ -671,7 +690,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _key
     )
         override
-        public
+        external
         netGasCost(40000)
         returns (
             bytes32 _value
@@ -696,7 +715,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _value
     )
         override
-        public
+        external
         notStatic
         netGasCost(60000)
     {
@@ -733,17 +752,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _code
         )
     {
-        // `ovmEXTCODECOPY` is the only overridden opcode capable of producing exactly one byte of
-        // return data. By blocking reads of one byte, we're able to use the condition that an
-        // OVM_ExecutionManager function return value having a length of exactly one byte indicates
-        // an error without an explicit revert. If users were able to read a single byte, they
-        // could forcibly trigger behavior that should only be available to this contract.
-        uint256 length = _length == 1 ? 2 : _length;
-
         return Lib_EthUtils.getCode(
             _getAccountEthAddress(_contract),
             _offset,
-            length
+            _length
         );
     }
 
@@ -775,7 +787,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _contract
     )
         override
-        public
+        external
         returns (
             bytes32 _EXTCODEHASH
         )
@@ -1050,9 +1062,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * This function sanitizes the return types for creation messages to match calls (bool, bytes),
      * by being an external function which the EM can call, that mimics the success/fail case of the CREATE.
      * This allows for consistent handling of both types of messages in _handleExternalMessage().
-     * Having this step occur as a separate call frame also allows us to easily revert the 
+     * Having this step occur as a separate call frame also allows us to easily revert the
      * contract deployment in the event that the code is unsafe.
-     * 
+     *
      * @param _gasLimit Amount of gas to be passed into this creation.
      * @param _creationCode Code to pass into CREATE for deployment.
      * @param _address OVM address being deployed to.
@@ -1097,7 +1109,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (ethAddress == address(0)) {
             // If the creation fails, the EVM lets us grab its revert data. This may contain a revert flag
             // to be used above in _handleExternalMessage, so we pass the revert data back up unmodified.
-            assembly { 
+            assembly {
                 returndatacopy(0,0,returndatasize())
                 revert(0, returndatasize())
             }
@@ -1870,7 +1882,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         external
         returns (
-            bool,
             bytes memory
         )
     {
@@ -1887,18 +1898,19 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (isCreate) {
             (address created, bytes memory revertData) = ovmCREATE(_transaction.data);
             if (created == address(0)) {
-                return (false, revertData);
+                return abi.encode(false, revertData);
             } else {
                 // The eth_call RPC endpoint for to = undefined will return the deployed bytecode
                 // in the success case, differing from standard create messages.
-                return (true, Lib_EthUtils.getCode(created));
+                return abi.encode(true, Lib_EthUtils.getCode(created));
             }
         } else {
-            return ovmCALL(
+            (bool success, bytes memory returndata) = ovmCALL(
                 _transaction.gasLimit,
                 _transaction.entrypoint,
                 _transaction.data
             );
+            return abi.encode(success, returndata);
         }
     }
 }

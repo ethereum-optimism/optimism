@@ -16,7 +16,7 @@ interface iOVM_L1TokenGateway {
         address _to,
         uint256 _amount
     );
-  
+
     event WithdrawalFinalized(
         address indexed _to,
         uint256 _amount

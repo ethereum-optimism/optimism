@@ -1,8 +1,10 @@
+import { Direction, waitForXDomainTransaction } from './watcher-utils'
+
 import {
   getContractFactory,
   getContractInterface,
 } from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
+import { remove0x, Watcher } from '@eth-optimism/core-utils'
 import {
   Contract,
   Wallet,
@@ -10,29 +12,35 @@ import {
   providers,
   BigNumberish,
   BigNumber,
+  utils,
 } from 'ethers'
-import { Direction, waitForXDomainTransaction } from './watcher-utils'
+import { cleanEnv, str, num } from 'envalid'
 
 export const GWEI = BigNumber.from(1e9)
 
-// The hardhat instance
-const l1HttpPort = 9545
-export const l1Provider = new providers.JsonRpcProvider(
-  `http://localhost:${l1HttpPort}`
-)
-l1Provider.pollingInterval = 10
+const env = cleanEnv(process.env, {
+  L1_URL: str({ default: 'http://localhost:9545' }),
+  L2_URL: str({ default: 'http://localhost:8545' }),
+  L1_POLLING_INTERVAL: num({ default: 10 }),
+  L2_POLLING_INTERVAL: num({ default: 10 }),
+  PRIVATE_KEY: str({
+    default:
+      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+  }),
+  ADDRESS_MANAGER: str({
+    default: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+  }),
+})
 
-const httpPort = 8545
-export const l2Provider = new providers.JsonRpcProvider(
-  `http://localhost:${httpPort}`
-)
-l2Provider.pollingInterval = 10
+// The hardhat instance
+export const l1Provider = new providers.JsonRpcProvider(env.L1_URL)
+l1Provider.pollingInterval = env.L1_POLLING_INTERVAL
+
+export const l2Provider = new providers.JsonRpcProvider(env.L2_URL)
+l2Provider.pollingInterval = env.L2_POLLING_INTERVAL
 
 // The sequencer private key which is funded on L1
-export const l1Wallet = new Wallet(
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
-  l1Provider
-)
+export const l1Wallet = new Wallet(env.PRIVATE_KEY, l1Provider)
 
 // A random private key which should always be funded with deposits from L1 -> L2
 // if it's using non-0 gas price
@@ -43,14 +51,10 @@ export const PROXY_SEQUENCER_ENTRYPOINT_ADDRESS =
   '0x4200000000000000000000000000000000000004'
 export const OVM_ETH_ADDRESS = '0x4200000000000000000000000000000000000006'
 
-// The address manager is always at the same address in testnet deployments
-export const addressManagerAddress =
-  '0x5FbDB2315678afecb367f032d93F642f64180aa3'
-
 export const getAddressManager = (provider: any) => {
   return getContractFactory('Lib_AddressManager')
     .connect(provider)
-    .attach(addressManagerAddress)
+    .attach(env.ADDRESS_MANAGER)
 }
 
 // Gets the gateway using the proxy if available
@@ -97,3 +101,8 @@ export const fundUser = async (
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+const abiCoder = new utils.AbiCoder()
+export const encodeSolidityRevertMessage = (_reason: string): string => {
+  return '0x08c379a0' + remove0x(abiCoder.encode(['string'], [_reason]))
+}

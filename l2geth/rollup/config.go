@@ -34,7 +34,9 @@ type Config struct {
 	// Interval for updating the timestamp
 	TimestampRefreshThreshold time.Duration
 	// The gas price to use when estimating L1 calldata publishing costs
-	L1GasPrice *big.Int
+	DataPrice *big.Int
+	// The gas price to use for L2 congestion costs
+	ExecutionPrice *big.Int
 	// Represents the source of the transactions that is being synced
 	Backend Backend
 }

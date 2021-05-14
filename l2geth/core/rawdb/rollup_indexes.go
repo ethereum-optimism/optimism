@@ -87,6 +87,6 @@ func WriteHeadBatchIndex(db ethdb.KeyValueWriter, index uint64) {
 		value = []byte{0}
 	}
 	if err := db.Put(headBatchKey, value); err != nil {
-		log.Crit("Failed to store verifier index", "err", err)
+		log.Crit("Failed to store head batch index", "err", err)
 	}
 }

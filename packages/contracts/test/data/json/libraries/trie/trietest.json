@@ -1,0 +1,26 @@
+{
+  "source": "https://github.com/ethereum/tests/blob/develop/TrieTests/trietest.json",
+  "commit": "7d66cbfff1e6561d1046e45df8b7918d186b136f",
+  "date": "2019-01-10",
+  "tests": {
+    "insert-middle-leaf": {
+      "in": [
+        [ "key1aa", "0123456789012345678901234567890123456789xxx"],
+        [ "key1", "0123456789012345678901234567890123456789Very_Long"],
+        [ "key2bb", "aval3"],
+        [ "key2", "short"],
+        [ "key3cc", "aval3"],
+        [ "key3","1234567890123456789012345678901"]
+      ],
+      "root": "0xcb65032e2f76c48b82b5c24b3db8f670ce73982869d38cd39a624f23d62a9e89"
+    },
+    "branch-value-update": {
+      "in": [
+        [ "abc", "123" ],
+        [ "abcd", "abcd" ],
+        [ "abc", "abc" ]
+      ],
+      "root": "0x7a320748f780ad9ad5b0837302075ce0eeba6c26e3d8562c67ccc0f1b273298a"
+    }
+  }
+}

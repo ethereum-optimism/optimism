@@ -78,7 +78,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     /**
      * @dev deposit an amount of the ETH to the caller's balance on L2
      */
-    function deposit() 
+    function deposit()
         external
         override
         payable
@@ -137,7 +137,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     /**
      * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
      * L1 ETH token.
-     * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized. 
+     * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized.
      *
      * @param _to L1 address to credit the withdrawal to
      * @param _amount Amount of the ETH to withdraw
@@ -174,4 +174,25 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         (bool success, ) = _to.call{value: _value}(new bytes(0));
         require(success, 'TransferHelper::safeTransferETH: ETH transfer failed');
     }
+
+    /*****************************
+     * Temporary - Migrating ETH *
+     *****************************/
+
+    /**
+     * @dev Migrates entire ETH balance to another gateway
+     * @param _to Gateway Proxy address to migrate ETH to
+     */
+    function migrateEth(address payable _to) external {
+        address owner = Lib_AddressManager(libAddressManager).owner();
+        require(msg.sender == owner, "Only the owner can migrate ETH");
+        uint256 balance = address(this).balance;
+        OVM_L1ETHGateway(_to).donateETH{value:balance}();
+    }
+
+    /**
+     * @dev Adds ETH balance to the account. This is meant to allow for ETH
+     * to be migrated from an old gateway to a new gateway
+     */
+    function donateETH() external payable {}
 }

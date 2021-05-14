@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: ovm 
+// @unsupported: ovm
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
@@ -27,7 +27,7 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
     /********************************
      * External Contract References *
      ********************************/
-    
+
     iOVM_ERC20 public l1ERC20;
 
     /***************
@@ -41,7 +41,7 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
     constructor(
         iOVM_ERC20 _l1ERC20,
         address _l2DepositedERC20,
-        address _l1messenger 
+        address _l1messenger
     )
         Abs_L1TokenGateway(
             _l2DepositedERC20,

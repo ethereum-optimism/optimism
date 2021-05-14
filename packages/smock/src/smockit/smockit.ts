@@ -6,6 +6,9 @@ import { toHexString, fromHexString } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import {
   isArtifact,
+  isContract,
+  isContractFactory,
+  isInterface,
   MockContract,
   MockContractFunction,
   MockReturnValue,
@@ -33,13 +36,19 @@ const makeContractInterfaceFromSpec = async (
     return spec.interface
   } else if (spec instanceof ethers.utils.Interface) {
     return spec
+  } else if (isInterface(spec)) {
+    return spec as any
+  } else if (isContractFactory(spec)) {
+    return (spec as any).interface
+  } else if (isContract(spec)) {
+    return (spec as any).interface
   } else if (isArtifact(spec)) {
     return new ethers.utils.Interface(spec.abi)
   } else if (typeof spec === 'string') {
     try {
       return new ethers.utils.Interface(spec)
     } catch (err) {
-      return (await hre.ethers.getContractFactory(spec)).interface
+      return (await (hre as any).ethers.getContractFactory(spec)).interface
     }
   } else {
     return new ethers.utils.Interface(spec)
@@ -150,7 +159,7 @@ export const smockit = async (
   const contract = new ethers.Contract(
     opts.address || makeRandomAddress(),
     await makeContractInterfaceFromSpec(spec),
-    opts.provider || hre.ethers.provider // TODO: Probably check that this exists.
+    opts.provider || (hre as any).ethers.provider // TODO: Probably check that this exists.
   ) as MockContract
 
   // Start by smocking the fallback.

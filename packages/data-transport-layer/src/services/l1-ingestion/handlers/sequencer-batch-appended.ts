@@ -5,6 +5,7 @@ import {
   ctcCoder,
   fromHexString,
   toHexString,
+  toRpcHexString,
   TxType,
   EventArgsSequencerBatchAppended,
 } from '@eth-optimism/core-utils'
@@ -120,7 +121,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           data: toHexString(sequencerTransaction),
           queueOrigin: 'sequencer',
           type,
-          value: '0x0',
+          value: decoded ? decoded.value : '0x0',
           queueIndex: null,
           decoded,
           confirmed: true,
@@ -242,31 +243,31 @@ const maybeDecodeSequencerBatchTransaction = (
   decoded: DecodedSequencerBatchTransaction | null
   type: 'EIP155' | 'ETH_SIGN' | null
 } => {
-  let decoded = null
-  let type = null
-
   try {
-    const txType = transaction.slice(0, 1).readUInt8()
-    if (txType === TxType.EIP155) {
-      type = 'EIP155'
-      decoded = ctcCoder.eip155TxData.decode(transaction.toString('hex'))
-    } else if (txType === TxType.EthSign) {
-      type = 'ETH_SIGN'
-      decoded = ctcCoder.ethSignTxData.decode(transaction.toString('hex'))
-    } else {
-      throw new Error(`Unknown sequencer transaction type.`)
-    }
-    // Validate the transaction
-    if (!validateBatchTransaction(type, decoded)) {
-      decoded = null
+    const decodedTx = ethers.utils.parseTransaction(transaction)
+
+    return {
+      type: 'EIP155',
+      decoded: {
+        nonce: BigNumber.from(decodedTx.nonce).toNumber(),
+        gasPrice: BigNumber.from(decodedTx.gasPrice).toNumber(),
+        gasLimit: BigNumber.from(decodedTx.gasLimit).toNumber(),
+        value: toRpcHexString(decodedTx.value),
+        target: toHexString(decodedTx.to), // Maybe null this out for creations?
+        data: toHexString(decodedTx.data),
+        sig: {
+          v: BigNumber.from(decodedTx.v).toNumber(),
+          r: toHexString(decodedTx.r),
+          s: toHexString(decodedTx.s),
+        },
+        type: 0, // EIP155 legacy holdover.
+      },
     }
   } catch (err) {
-    // Do nothing
-  }
-
-  return {
-    decoded,
-    type,
+    return {
+      decoded: null,
+      type: null,
+    }
   }
 }
 

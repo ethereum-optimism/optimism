@@ -55,7 +55,6 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      *
      * @param _l1TokenGateway Address of the corresponding L1 gateway deployed to the main chain
      */
-
     function init(
         iOVM_L1TokenGateway _l1TokenGateway
     )
@@ -64,7 +63,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
         require(address(l1TokenGateway) == address(0), "Contract has already been initialized");
 
         l1TokenGateway = _l1TokenGateway;
-        
+
         emit Initialized(l1TokenGateway);
     }
 
@@ -81,8 +80,8 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * Overridable Accounting logic *
      ********************************/
 
-    // Default gas value which can be overridden if more complex logic runs on L2.
-    uint32 constant DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS = 100000;
+    // Default gas value which can be overridden if more complex logic runs on L1.
+    uint32 internal constant DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS = 100000;
 
     /**
      * @dev Core logic to be performed when a withdrawal from L2 is initialized.
@@ -91,7 +90,6 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * param _to Address being withdrawn to
      * param _amount Amount being withdrawn
      */
-
     function _handleInitiateWithdrawal(
         address, // _to,
         uint // _amount
@@ -122,9 +120,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     /**
      * @dev Overridable getter for the *L1* gas limit of settling the withdrawal, in the case it may be
      * dynamic, and the above public constant does not suffice.
-     *
      */
-
     function getFinalizeWithdrawalL1Gas()
         public
         view
@@ -150,6 +146,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     )
         external
         override
+        virtual
         onlyInitialized()
     {
         _initiateWithdrawal(msg.sender, _amount);
@@ -166,6 +163,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     )
         external
         override
+        virtual
         onlyInitialized()
     {
         _initiateWithdrawal(_to, _amount);
@@ -208,9 +206,9 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      ************************************/
 
     /**
-     * @dev Complete a deposit from L1 to L2, and credits funds to the recipient's balance of this 
-     * L2 token. 
-     * This call will fail if it did not originate from a corresponding deposit in OVM_l1TokenGateway. 
+     * @dev Complete a deposit from L1 to L2, and credits funds to the recipient's balance of this
+     * L2 token.
+     * This call will fail if it did not originate from a corresponding deposit in OVM_l1TokenGateway.
      *
      * @param _to Address to receive the withdrawal at
      * @param _amount Amount of the token to withdraw
@@ -220,7 +218,8 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
         uint _amount
     )
         external
-        override 
+        override
+        virtual
         onlyInitialized()
         onlyFromCrossDomainAccount(address(l1TokenGateway))
     {
