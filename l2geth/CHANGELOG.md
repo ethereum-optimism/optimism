@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+### Patch Changes
+
+- f5185bb: Fix bug with replica syncing where contract creations would fail in replicas but pass in the sequencer. This was due to the change from a custom batched tx serialization to the batch serialzation for txs being regular RLP encoding
+
 ## 0.3.2
 
 ### Patch Changes
