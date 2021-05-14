@@ -20,6 +20,7 @@ CACHE=1024
 RPC_PORT=8545
 WS_PORT=8546
 VERBOSITY=3
+ROLLUP_BACKEND=l1
 
 USAGE="
 Start the Sequencer or Verifier with most configuration pre-set.
@@ -189,6 +190,15 @@ while (( "$#" )); do
                 exit 1
             fi
             ;;
+        --rollup.backend)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                ROLLUP_BACKEND="$2"
+                shift 2
+            else
+                echo "Error: Argument for $1 is missing" >&2
+                exit 1
+            fi
+            ;;
         --cache)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
                 CACHE="$2"
@@ -227,6 +237,7 @@ cmd="$cmd --eth1.l1ethgatewayaddress $ETH1_L1_GATEWAY_ADDRESS"
 cmd="$cmd --rollup.clienthttp $ROLLUP_CLIENT_HTTP"
 cmd="$cmd --rollup.pollinterval $ROLLUP_POLL_INTERVAL"
 cmd="$cmd --rollup.timestamprefresh $ROLLUP_TIMESTAMP_REFRESH"
+cmd="$cmd --rollup.backend $ROLLUP_BACKEND"
 cmd="$cmd --cache $CACHE"
 cmd="$cmd --rpc"
 cmd="$cmd --dev"
