@@ -44,64 +44,6 @@ library Lib_ExecutionManagerWrapper {
     }
 
     /**
-     * Performs a safe ovmGETNONCE call.
-     * @return Result of calling ovmGETNONCE.
-     */
-    function ovmGETNONCE()
-        internal
-        returns (
-            uint256
-        )
-    {
-        bytes memory returndata = _callWrapperContract(
-            abi.encodeWithSignature(
-                "ovmGETNONCE()"
-            )
-        );
-
-        return abi.decode(returndata, (uint256));
-    }
-
-    /**
-     * Performs a safe ovmINCREMENTNONCE call.
-     */
-    function ovmINCREMENTNONCE()
-        internal
-    {
-        _callWrapperContract(
-            abi.encodeWithSignature(
-                "ovmINCREMENTNONCE()"
-            )
-        );
-    }
-
-    /**
-     * Performs a safe ovmCREATEEOA call.
-     * @param _messageHash Message hash which was signed by EOA
-     * @param _v v value of signature (0 or 1)
-     * @param _r r value of signature
-     * @param _s s value of signature
-     */
-    function ovmCREATEEOA(
-        bytes32 _messageHash,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    )
-        internal
-    {
-        _callWrapperContract(
-            abi.encodeWithSignature(
-                "ovmCREATEEOA(bytes32,uint8,bytes32,bytes32)",
-                _messageHash,
-                _v,
-                _r,
-                _s
-            )
-        );
-    }
-
-    /**
      * Calls the ovmL1TXORIGIN opcode.
      * @return Address that sent this message from L1.
      */

@@ -10,7 +10,6 @@ export type ContextOpcode =
   | 'ovmTIMESTAMP'
   | 'ovmGASLIMIT'
   | 'ovmCHAINID'
-  | 'ovmGETNONCE'
 
 type CallOpcode = 'ovmCALL' | 'ovmSTATICCALL' | 'ovmDELEGATECALL'
 
@@ -85,12 +84,6 @@ interface TestStep_SLOAD {
   }
   expectedReturnStatus: boolean
   expectedReturnValue: string | RevertFlagError
-}
-
-interface TestStep_INCREMENTNONCE {
-  functionName: 'ovmINCREMENTNONCE'
-  expectedReturnStatus: boolean
-  expectedReturnValue?: RevertFlagError
 }
 
 export interface TestStep_CALL {
@@ -173,7 +166,6 @@ export type TestStep =
   | TestStep_Context
   | TestStep_SSTORE
   | TestStep_SLOAD
-  | TestStep_INCREMENTNONCE
   | TestStep_CALL
   | TestStep_CREATE
   | TestStep_CREATE2
@@ -219,7 +211,6 @@ export const isTestStep_Context = (
     'ovmGASLIMIT',
     'ovmCHAINID',
     'ovmL1QUEUEORIGIN',
-    'ovmGETNONCE',
   ].includes(step.functionName)
 }
 
@@ -229,12 +220,6 @@ export const isTestStep_SSTORE = (step: TestStep): step is TestStep_SSTORE => {
 
 export const isTestStep_SLOAD = (step: TestStep): step is TestStep_SLOAD => {
   return step.functionName === 'ovmSLOAD'
-}
-
-export const isTestStep_INCREMENTNONCE = (
-  step: TestStep
-): step is TestStep_INCREMENTNONCE => {
-  return step.functionName === 'ovmINCREMENTNONCE'
 }
 
 export const isTestStep_EXTCODESIZE = (

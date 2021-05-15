@@ -224,7 +224,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             messageContext.ovmCALLER = sender;
 
             require(
-                decodedTx.nonce == ovmGETNONCE(),
+                decodedTx.nonce == _getAccountNonce(sender),
                 "Transaction nonce does not match the expected nonce."
             );
 
@@ -255,7 +255,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                     );
                 }
             } else {
-                ovmINCREMENTNONCE();
+                _setAccountNonce(sender, decodedTx.nonce + 1);
 
                 if (decodedTx.value > 0) {
                     ovmCALL(
@@ -526,42 +526,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             contractAddress,
             _bytecode
         );
-    }
-
-
-    /*******************************
-     * Account Abstraction Opcodes *
-     ******************************/
-
-    /**
-     * Retrieves the nonce of the current ovmADDRESS.
-     * @return _nonce Nonce of the current contract.
-     */
-    function ovmGETNONCE()
-        override
-        public
-        returns (
-            uint256 _nonce
-        )
-    {
-        return _getAccountNonce(ovmADDRESS());
-    }
-
-    /**
-     * Bumps the nonce of the current ovmADDRESS by one.
-     */
-    function ovmINCREMENTNONCE()
-        override
-        public
-        notStatic
-    {
-        address account = ovmADDRESS();
-        uint256 nonce = _getAccountNonce(account);
-
-        // Prevent overflow.
-        if (nonce + 1 > nonce) {
-            _setAccountNonce(account, nonce + 1);
-        }
     }
 
 
