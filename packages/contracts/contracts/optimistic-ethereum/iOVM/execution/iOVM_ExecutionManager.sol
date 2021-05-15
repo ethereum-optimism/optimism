@@ -119,7 +119,6 @@ interface iOVM_ExecutionManager {
 
     function ovmGETNONCE() external returns (uint256 _nonce);
     function ovmINCREMENTNONCE() external;
-    function ovmCREATEEOA(bytes32 _messageHash, uint8 _v, bytes32 _r, bytes32 _s) external;
 
 
     /****************************

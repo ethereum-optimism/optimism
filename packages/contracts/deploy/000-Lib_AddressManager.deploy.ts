@@ -23,12 +23,6 @@ const deployFn: DeployFunction = async (hre) => {
 
   await registerAddress({
     hre,
-    name: 'OVM_DecompressionPrecompileAddress',
-    address: predeploys.OVM_SequencerEntrypoint,
-  })
-
-  await registerAddress({
-    hre,
     name: 'OVM_Sequencer',
     address: (hre as any).deployConfig.ovmSequencerAddress,
   })

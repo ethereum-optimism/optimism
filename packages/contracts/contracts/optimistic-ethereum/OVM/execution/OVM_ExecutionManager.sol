@@ -8,6 +8,7 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
+import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 
 /* Interface Imports */
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
@@ -33,6 +34,13 @@ import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
  * Runtime target: EVM
  */
 contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
+
+    /*************
+     * Libraries *
+     *************/
+
+    using Lib_EIP155Tx for Lib_EIP155Tx.EIP155Tx;
+
 
     /********************************
      * External Contract References *
@@ -204,12 +212,82 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // // Check gas right before the call to get total gas consumed by OVM transaction.
         // uint256 gasProvided = gasleft();
 
-        // Run the transaction, make sure to meter the gas usage.
-        (, bytes memory returndata) = ovmCALL(
-            _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
-            _transaction.entrypoint,
-            _transaction.data
-        );
+        bytes memory returndata;
+        if (_transaction.entrypoint == 0x4200000000000000000000000000000000000005) {
+            Lib_EIP155Tx.EIP155Tx memory decodedTx = Lib_EIP155Tx.decode(
+                _transaction.data,
+                ovmCHAINID()
+            );
+
+            address sender = decodedTx.sender();
+            messageContext.ovmADDRESS = sender;
+            messageContext.ovmCALLER = sender;
+
+            require(
+                decodedTx.nonce == ovmGETNONCE(),
+                "Transaction nonce does not match the expected nonce."
+            );
+
+            ovmCALL(
+                gasleft(),
+                0x4200000000000000000000000000000000000006,
+                abi.encodeWithSignature(
+                    "transfer(address,uint256)",
+                    0x4200000000000000000000000000000000000005,
+                    decodedTx.gasLimit * decodedTx.gasPrice
+                )
+            );
+
+            if (decodedTx.isCreate) {
+                (address created, bytes memory revertdata) = ovmCREATE(
+                    decodedTx.data
+                );
+
+                if (created != address(0)) {
+                    returndata = abi.encode(
+                        true,
+                        abi.encode(created)
+                    );
+                } else {
+                    returndata = abi.encode(
+                        false,
+                        revertdata
+                    );
+                }
+            } else {
+                ovmINCREMENTNONCE();
+
+                if (decodedTx.value > 0) {
+                    ovmCALL(
+                        gasleft(),
+                        0x4200000000000000000000000000000000000006,
+                        abi.encodeWithSignature(
+                            "transfer(address,uint256)",
+                            decodedTx.to,
+                            decodedTx.value
+                        )
+                    );
+                }
+
+                (bool success, bytes memory ret) = ovmCALL(
+                    gasleft(),
+                    decodedTx.to,
+                    decodedTx.data
+                );
+
+                returndata = abi.encode(
+                    success,
+                    ret
+                );
+            }
+        } else {
+            // Run the transaction, make sure to meter the gas usage.
+            (, returndata) = ovmCALL(
+                _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
+                _transaction.entrypoint,
+                _transaction.data
+            );
+        }
 
         // TEMPORARY: Gas metering is disabled for minnet.
         // // Update the cumulative gas based on the amount of gas used.
@@ -484,90 +562,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (nonce + 1 > nonce) {
             _setAccountNonce(account, nonce + 1);
         }
-    }
-
-    /**
-     * Creates a new EOA contract account, for account abstraction.
-     * @dev Essentially functions like ovmCREATE or ovmCREATE2, but we can bypass a lot of checks
-     *      because the contract we're creating is trusted (no need to do safety checking or to
-     *      handle unexpected reverts). Doesn't need to return an address because the address is
-     *      assumed to be the user's actual address.
-     * @param _messageHash Hash of a message signed by some user, for verification.
-     * @param _v Signature `v` parameter.
-     * @param _r Signature `r` parameter.
-     * @param _s Signature `s` parameter.
-     */
-    function ovmCREATEEOA(
-        bytes32 _messageHash,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    )
-        override
-        public
-        notStatic
-    {
-        // Recover the EOA address from the message hash and signature parameters. Since we do the
-        // hashing in advance, we don't have handle different message hashing schemes. Even if this
-        // function were to return the wrong address (rather than explicitly returning the zero
-        // address), the rest of the transaction would simply fail (since there's no EOA account to
-        // actually execute the transaction).
-        address eoa = ecrecover(
-            _messageHash,
-            _v + 27,
-            _r,
-            _s
-        );
-
-        // Invalid signature is a case we proactively handle with a revert. We could alternatively
-        // have this function return a `success` boolean, but this is just easier.
-        if (eoa == address(0)) {
-            ovmREVERT(bytes("Signature provided for EOA contract creation is invalid."));
-        }
-
-        // If the user already has an EOA account, then there's no need to perform this operation.
-        if (_hasEmptyAccount(eoa) == false) {
-            return;
-        }
-
-        // We always need to initialize the contract with the default account values.
-        _initPendingAccount(eoa);
-
-        // Temporarily set the current address so it's easier to access on L2.
-        address prevADDRESS = messageContext.ovmADDRESS;
-        messageContext.ovmADDRESS = eoa;
-
-        // Creates a duplicate of the OVM_ProxyEOA located at 0x42....09. Uses the following
-        // "magic" prefix to deploy an exact copy of the code:
-        // PUSH1 0x0D   # size of this prefix in bytes
-        // CODESIZE
-        // SUB          # subtract prefix size from codesize
-        // DUP1
-        // PUSH1 0x0D
-        // PUSH1 0x00
-        // CODECOPY     # copy everything after prefix into memory at pos 0
-        // PUSH1 0x00
-        // RETURN       # return the copied code
-        address proxyEOA = Lib_EthUtils.createContract(abi.encodePacked(
-            hex"600D380380600D6000396000f3",
-            ovmEXTCODECOPY(
-                0x4200000000000000000000000000000000000009,
-                0,
-                ovmEXTCODESIZE(0x4200000000000000000000000000000000000009)
-            )
-        ));
-
-        // Reset the address now that we're done deploying.
-        messageContext.ovmADDRESS = prevADDRESS;
-
-        // Commit the account with its final values.
-        _commitPendingAccount(
-            eoa,
-            address(proxyEOA),
-            keccak256(Lib_EthUtils.getCode(address(proxyEOA)))
-        );
-
-        _setAccountNonce(eoa, 0);
     }
 
 

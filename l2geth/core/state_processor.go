@@ -89,8 +89,8 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 			return nil, err
 		}
 	} else {
-		decompressor := config.StateDump.Accounts["OVM_SequencerEntrypoint"]
-		msg, err = AsOvmMessage(tx, types.MakeSigner(config, header.Number), decompressor.Address, header.GasLimit)
+		decompressor := common.HexToAddress("0x4200000000000000000000000000000000000005")
+		msg, err = AsOvmMessage(tx, types.MakeSigner(config, header.Number), decompressor, header.GasLimit)
 		if err != nil {
 			return nil, err
 		}
