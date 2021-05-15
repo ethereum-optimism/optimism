@@ -689,5 +689,6 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 // trying to create to, and create to it.
 func (evm *EVM) OvmADDRESS() common.Address {
 	slot := common.Hash{31: 0x0f}
-	return common.BytesToAddress(evm.StateDB.GetState(evm.Context.OvmExecutionManager.Address, slot).Bytes())
+	value := evm.StateDB.GetState(evm.Context.OvmExecutionManager.Address, slot)
+	return common.BytesToAddress(value.Bytes())
 }
