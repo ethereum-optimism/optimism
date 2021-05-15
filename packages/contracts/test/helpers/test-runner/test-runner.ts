@@ -54,7 +54,7 @@ export class ExecutionManagerTestRunner {
     OVM_ExecutionManager: undefined,
     Helper_TestRunner: undefined,
     Factory__Helper_TestRunner_CREATE: undefined,
-    OVM_DeployerWhitelist: undefined
+    OVM_DeployerWhitelist: undefined,
   }
 
   // Default pre-state with contract deployer whitelist NOT initialized.
