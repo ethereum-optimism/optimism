@@ -701,6 +701,7 @@ func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*t
 		Difficulty: new(big.Int),
 	}
 
+	statedb.Prepare(tx.Hash(), common.Hash{}, 0)
 	gasUsed := uint64(0)
 	receipt, err := core.ApplyTransaction(config, s.bc, &coinbase, gasPool, statedb, &header, tx, &gasUsed, *vmConfig)
 	if err != nil {
@@ -719,9 +720,6 @@ func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*t
 	receipt.BlockNumber = block.Number()
 	receipt.TransactionIndex = 0
 
-	// TODO:
-	// Logs do not appear to be working
-	//logs := make([]*Logs, len(receipt.Logs))
 	for _, log := range receipt.Logs {
 		log.BlockHash = hash
 	}
