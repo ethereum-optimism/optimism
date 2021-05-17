@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  integration:
+  build_services:
     runs-on: ubuntu-latest
     env:
         DOCKER_BUILDKIT: 1
@@ -36,6 +36,32 @@ jobs:
         working-directory: ./ops
         run: ./scripts/build-ci.sh
 
+      - name: Save the images
+        working-directory: ./ops
+        run: ./scripts/save-images.sh
+
+      - name: Push the artifacts
+      - uses: actions/upload-artifact@v2
+        with:
+          name: images
+          path: /images
+
+  integration_tests:
+    needs: build_services
+    runs-on: ubuntu-latest
+    env:
+        DOCKER_BUILDKIT: 1
+        COMPOSE_DOCKER_CLI_BUILD: 1
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: images
+          path: /images
+
+      - name: Load the images
+        run: ./scripts/load-images.sh
+
       - name: Bring the stack up
         working-directory: ./ops
         run: docker-compose up -d
@@ -44,7 +70,26 @@ jobs:
         working-directory: ./ops
         run: docker-compose run integration_tests
 
-      # Examples Tests
+  examples:
+    needs: build_services
+    runs-on: ubuntu-latest
+    env:
+        DOCKER_BUILDKIT: 1
+        COMPOSE_DOCKER_CLI_BUILD: 1
+
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: images
+          path: /images
+
+      - name: Load the images
+        run: ./scripts/load-images.sh
+
+      - name: Bring the stack up
+        working-directory: ./ops
+        run: docker-compose up -d
+
       - name: Test & deploy hardhat-example on Ethereum (regression)
         working-directory: ./examples/hardhat
         run: |
@@ -85,7 +130,7 @@ jobs:
           yarn compile:ovm
           yarn test:integration:ovm
           yarn deploy:ovm
-      
+
       - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
         working-directory: ./examples/l1-l2-deposit-withdrawal
         run: |
