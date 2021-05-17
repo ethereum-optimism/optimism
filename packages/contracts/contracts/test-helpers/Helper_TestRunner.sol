@@ -17,10 +17,7 @@ contract Helper_TestRunner {
         bool onlyValidateFlag;
     }
 
-    function runSingleTestStep(
-        TestStep memory _step
-    )
-        public
+    function runSingleTestStep(TestStep memory _step) public
     {
         bytes32 namehash = keccak256(abi.encodePacked(_step.functionName));
         if (namehash == keccak256("evmRETURN")) {
@@ -135,19 +132,15 @@ contract Helper_TestRunner {
         }
     }
 
-    function runMultipleTestSteps(
-        TestStep[] memory _steps
-    )
-        public
+    function runMultipleTestSteps(TestStep[] memory _steps)
+    public
     {
         for (uint256 i = 0; i < _steps.length; i++) {
             runSingleTestStep(_steps[i]);
         }
     }
 
-    function _decodeRevertData(
-        bytes memory _revertdata
-    )
+    function _decodeRevertData(bytes memory _revertdata)
         internal
         pure
         returns (
