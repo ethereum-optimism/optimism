@@ -224,7 +224,7 @@ contract OVM_L1CrossDomainMessenger is
         onlyRelayer
         whenNotPaused
         returns (
-            bool
+            bytes memory
         )
     {
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
@@ -278,7 +278,7 @@ contract OVM_L1CrossDomainMessenger is
         );
         relayedMessages[relayId] = true;
 
-        return true;
+        return abi.encode(true, bytes(""));
     }
 
     /**

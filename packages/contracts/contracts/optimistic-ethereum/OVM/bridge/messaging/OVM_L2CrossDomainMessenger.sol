@@ -118,7 +118,7 @@ contract OVM_L2CrossDomainMessenger is
         public
         nonReentrant
         returns (
-            bool
+            bytes memory
         )
     {
         require(
@@ -174,7 +174,7 @@ contract OVM_L2CrossDomainMessenger is
 
         relayedMessages[relayId] = true;
 
-        return true;
+        return abi.encode(true, bytes(""));
     }
 
 
