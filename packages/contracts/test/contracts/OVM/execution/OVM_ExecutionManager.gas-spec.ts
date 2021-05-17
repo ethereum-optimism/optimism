@@ -81,6 +81,8 @@ describe('OVM_ExecutionManager gas consumption', () => {
     MOCK__STATE_MANAGER.smocked.hasAccount.will.return.with(true)
     MOCK__STATE_MANAGER.smocked.testAndSetAccountLoaded.will.return.with(true)
 
+    MOCK__STATE_MANAGER.smocked.hasContractStorage.will.return.with(true)
+
     await AddressManager.setAddress(
       'OVM_StateManagerFactory',
       MOCK__STATE_MANAGER.address
@@ -110,7 +112,7 @@ describe('OVM_ExecutionManager gas consumption', () => {
       )
       console.log(`calculated gas cost of ${gasCost}`)
 
-      const benchmark: number = 106_000
+      const benchmark: number = 117_000
       expect(gasCost).to.be.lte(benchmark)
       expect(gasCost).to.be.gte(
         benchmark - 1_000,
