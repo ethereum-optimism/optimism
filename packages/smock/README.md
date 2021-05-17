@@ -319,7 +319,7 @@ const myContract = await myContractFactory.deploy(...)
 // Smockit!
 const mock = await smockit('MyContract')
 
-await myContract.connect(mock.wallet).doSomeFunction() // msg.sender == MyMockContract.address
+await myContract.connect(mock.wallet).doSomeFunction() // msg.sender == mock.address
 ```
 
 ## Examples (smoddit)
