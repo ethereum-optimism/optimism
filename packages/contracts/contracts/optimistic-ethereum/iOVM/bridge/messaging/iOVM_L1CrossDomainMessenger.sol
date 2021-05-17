@@ -44,7 +44,7 @@ interface iOVM_L1CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
         bytes memory _message,
         uint256 _messageNonce,
         L2MessageInclusionProof memory _proof
-    ) external;
+    ) external returns (bool);
 
     /**
      * Replays a cross domain message to the target messenger.

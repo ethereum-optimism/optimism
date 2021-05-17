@@ -223,6 +223,9 @@ contract OVM_L1CrossDomainMessenger is
         nonReentrant
         onlyRelayer
         whenNotPaused
+        returns (
+            bool
+        )
     {
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
@@ -274,6 +277,8 @@ contract OVM_L1CrossDomainMessenger is
             )
         );
         relayedMessages[relayId] = true;
+
+        return true;
     }
 
     /**

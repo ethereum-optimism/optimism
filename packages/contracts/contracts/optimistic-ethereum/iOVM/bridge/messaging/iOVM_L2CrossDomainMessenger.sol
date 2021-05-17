@@ -26,5 +26,5 @@ interface iOVM_L2CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
         address _sender,
         bytes memory _message,
         uint256 _messageNonce
-    ) external;
+    ) external returns (bool);
 }

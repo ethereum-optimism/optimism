@@ -115,8 +115,11 @@ contract OVM_L2CrossDomainMessenger is
         uint256 _messageNonce
     )
         override
-        nonReentrant
         public
+        nonReentrant
+        returns (
+            bool
+        )
     {
         require(
             _verifyXDomainMessage() == true,
@@ -170,6 +173,8 @@ contract OVM_L2CrossDomainMessenger is
         );
 
         relayedMessages[relayId] = true;
+
+        return true;
     }
 
 
