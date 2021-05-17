@@ -100,7 +100,7 @@ contract L2ChugSplashDeployer is Ownable {
     /***************
      * Constructor *
      ***************/
-    
+
     /**
      * @param _owner Address that will initially own the L2ChugSplashDeployer.
      */

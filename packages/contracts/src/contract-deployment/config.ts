@@ -5,6 +5,7 @@ import { Overrides } from '@ethersproject/contracts'
 
 /* Internal Imports */
 import { getContractFactory } from '../contract-defs'
+import { predeploys } from '../predeploys'
 
 export interface RollupDeployConfig {
   deploymentSigner: Signer
@@ -260,6 +261,10 @@ export const makeContractDeployConfig = async (
       ),
     },
     L2ChugSplashDeployer: {
+      factory: getContractFactory('L2ChugSplashDeployer'),
+      params: [predeploys.L2ChugSplashOwner],
+    },
+    L2ChugSplashOwner: {
       factory: getContractFactory('L2ChugSplashDeployer'),
       params: [config.l2ChugSplashDeployerOwner],
     },
