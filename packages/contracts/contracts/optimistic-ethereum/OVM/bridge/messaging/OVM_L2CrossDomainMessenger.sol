@@ -143,10 +143,10 @@ contract OVM_L2CrossDomainMessenger is
         // Prevent calls to OVM_L2ToL1MessagePasser, which would enable
         // an attacker to maliciously craft the _message to spoof
         // a call from any L2 account.
-        if(_target == resolve("OVM_L2ToL1MessagePasser")){
+        if (_target == resolve("OVM_L2ToL1MessagePasser")){
             // Write to the successfulMessages mapping and return immediately.
             successfulMessages[xDomainCalldataHash] = true;
-            return;
+            return abi.encode(true, bytes(""));
         }
 
         xDomainMsgSender = _sender;
