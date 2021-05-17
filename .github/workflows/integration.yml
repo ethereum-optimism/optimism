@@ -90,43 +90,24 @@ jobs:
         working-directory: ./ops
         run: docker-compose up -d
 
-      - name: Test & deploy hardhat-example on Ethereum (regression)
-        working-directory: ./examples/hardhat
-        run: |
-          yarn
-          yarn deploy
-          yarn test:integration
-
       - name: Test & deploy hardhat-example on Optimistic Ethereum
         working-directory: ./examples/hardhat
         run: |
+          yarn
           yarn deploy:ovm
           yarn test:integration:ovm
-
-      - name: Test & deploy waffle-example on Ethereum (regression)
-        working-directory: ./examples/waffle
-        run: |
-          yarn
-          yarn compile
-          yarn test:integration
 
       - name: Test & deploy waffle-example on Optimistic Ethereum
         working-directory: ./examples/waffle
         run: |
+          yarn
           yarn compile:ovm
           yarn test:integration:ovm
-
-      - name: Test & deploy truffle-example on Ethereum (regression)
-        working-directory: ./examples/truffle
-        run: |
-          yarn
-          yarn compile
-          yarn test:integration
-          yarn deploy
 
       - name: Test & deploy truffle-example on Optimistic Ethereum
         working-directory: ./examples/truffle
         run: |
+          yarn
           yarn compile:ovm
           yarn test:integration:ovm
           yarn deploy:ovm
