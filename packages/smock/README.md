@@ -313,13 +313,13 @@ console.log(await MyMockContract.myFunction('Some return value!')) // Revert!
 import { ethers } from 'hardhat'
 import { smockit } from '@eth-optimism/smock'
 
+const myContractFactory = await ethers.getContractFactory('MyContract')
+const myContract = await myContractFactory.deploy(...)
+
 // Smockit!
-const MyMockContract = await smockit('MyContract')
+const mock = await smockit('MyContract')
 
-const MyContractFactory = await ethers.getContractFactory('MyContract')
-const MyContract = await MyContractFactory.deploy(...)
-
-await MyContract.connect(MyMockContract).doSomeFunction() // msg.sender == MyMockContract.address
+await myContract.connect(mock.wallet).doSomeFunction() // msg.sender == MyMockContract.address
 ```
 
 ## Examples (smoddit)
