@@ -76,7 +76,7 @@ describe('Native ETH Integration Tests', async () => {
       preBalances.l1UserBalance.sub(l1FeePaid.add(depositAmount))
     )
 
-    expect(remoteReceipt.status).to.not.eq(0); // tx should not revert
+    expect(remoteReceipt.status).to.not.eq(0) // tx should not revert
   })
 
   it('depositTo', async () => {
