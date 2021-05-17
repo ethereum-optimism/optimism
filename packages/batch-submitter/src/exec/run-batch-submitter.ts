@@ -465,8 +465,14 @@ export const run = async () => {
     await createMetricsServer({
       logger,
       registry: metrics.registry,
-      port: config.uint('prometheus-port', 7300),
-      hostname: config.str('prometheus-hostname', '127.0.0.1'),
+      port: config.uint(
+        'prometheus-port',
+        parseInt(env.PROMETHEUS_PORT, 10) || 7300
+      ),
+      hostname: config.str(
+        'prometheus-hostname',
+        env.PROMETHEUS_HOSTNAME || '127.0.0.1'
+      ),
     })
   }
 }
