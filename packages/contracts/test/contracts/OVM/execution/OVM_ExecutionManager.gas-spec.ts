@@ -14,10 +14,7 @@ import {
   GasMeasurement,
 } from '../../../helpers'
 
-import {
-  OVM_TX_GAS_LIMIT,
-  RUN_OVM_TEST_GAS,
-} from '../../../helpers/constants'
+import { OVM_TX_GAS_LIMIT, RUN_OVM_TEST_GAS } from '../../../helpers/constants'
 
 const DUMMY_GASMETERCONFIG = {
   minTransactionGasLimit: 0,
@@ -112,13 +109,15 @@ describe('OVM_ExecutionManager gas consumption', () => {
     ).connect(wallet)
 
     await OVM_StateManager.connect(wallet).putAccount(
-      Helper_TestRunner.address, {
+      Helper_TestRunner.address,
+      {
         nonce: BigNumber.from(123),
         balance: BigNumber.from(456),
         storageRoot: NON_NULL_BYTES32,
         codeHash: NON_NULL_BYTES32,
         ethAddress: Helper_TestRunner.address,
-    })
+      }
+    )
 
     Helper_ExecutionManager = (
       await Factory__OVM_ExecutionManager.deploy(
@@ -152,64 +151,120 @@ describe('OVM_ExecutionManager gas consumption', () => {
 
     const dataVariants = [
       {
-        inputData: "0x11",
-        returnData: "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000011100000000000000000000000000000000000000000000000000000000000000"
+        inputData: '0x11',
+        returnData:
+          '0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000011100000000000000000000000000000000000000000000000000000000000000',
       },
       {
-        inputData: "0x1111111111111111111111111111111111111111111111111111111111111111",
-        returnData: "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000201111111111111111111111111111111111111111111111111111111111111111"
+        inputData:
+          '0x1111111111111111111111111111111111111111111111111111111111111111',
+        returnData:
+          '0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000201111111111111111111111111111111111111111111111111111111111111111',
       },
       {
-        inputData: "0x11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-        returnData: "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004011111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+        inputData:
+          '0x11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111',
+        returnData:
+          '0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004011111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111',
       },
       {
-        inputData: "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-        returnData: "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+        inputData:
+          '0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111',
+        returnData:
+          '0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111',
       },
       {
-        inputData: "0x1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-        returnData: "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000801111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
-      }
+        inputData:
+          '0x1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111',
+        returnData:
+          '0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000801111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111',
+      },
     ]
 
-    dataVariants.forEach(
-      async (dataVariant) => {
-        it('Gas cost of ovmCALL', async () => {
-          const ovmCallData = Helper_ExecutionManager.interface.encodeFunctionData(
-            'returnData', [dataVariant.inputData]
-          )
+    dataVariants.forEach(async (dataVariant) => {
+      it('Gas cost of ovmCALL', async () => {
+        const ovmCallData = Helper_ExecutionManager.interface.encodeFunctionData(
+          'returnData',
+          [dataVariant.inputData]
+        )
 
-          const encodedStep = Helper_TestRunner.interface.encodeFunctionData(
-            'runSingleTestStep',
-            [
-              {
-                functionName: "ovmCALL",
-                functionData: ovmCallData,
-                expectedReturnStatus: true,
-                expectedReturnData: dataVariant.returnData,
-                onlyValidateFlag: false
-              }
-            ]
-          )
+        const encodedStep = Helper_TestRunner.interface.encodeFunctionData(
+          'runSingleTestStep',
+          [
+            {
+              functionName: 'ovmCALL',
+              functionData: ovmCallData,
+              expectedReturnStatus: true,
+              expectedReturnData: dataVariant.returnData,
+              onlyValidateFlag: false,
+            },
+          ]
+        )
 
-          const tx = await Helper_ExecutionManager.ovmCALLHelper(
-            OVM_TX_GAS_LIMIT,
-            Helper_TestRunner.address,
-            encodedStep,
-            OVM_StateManager.address,
-            { gasLimit: RUN_OVM_TEST_GAS }
-          )
+        const tx = await Helper_ExecutionManager.ovmCALLHelper(
+          OVM_TX_GAS_LIMIT,
+          Helper_TestRunner.address,
+          encodedStep,
+          OVM_StateManager.address,
+          { gasLimit: RUN_OVM_TEST_GAS }
+        )
 
-          const gasUsed = (
-            await Helper_ExecutionManager.provider.getTransactionReceipt(tx.hash)
-          ).gasUsed
+        const gasUsed = (
+          await Helper_ExecutionManager.provider.getTransactionReceipt(tx.hash)
+        ).gasUsed
 
-          console.log("inputData bytes size", ethers.utils.hexDataLength(dataVariant.inputData))
-          console.log("returnData bytes size", ethers.utils.hexDataLength(dataVariant.returnData))
-          console.log("gasUsed", gasUsed.toString())
-        })
-      }
-    )
+        console.log(
+          'inputData bytes size',
+          ethers.utils.hexDataLength(dataVariant.inputData)
+        )
+        console.log(
+          'returnData bytes size',
+          ethers.utils.hexDataLength(dataVariant.returnData)
+        )
+        console.log('gasUsed', gasUsed.toString())
+      })
+
+      it('Gas cost of ovmDELEGATECALL', async () => {
+        const ovmCallData = Helper_ExecutionManager.interface.encodeFunctionData(
+          'returnData',
+          [dataVariant.inputData]
+        )
+
+        const encodedStep = Helper_TestRunner.interface.encodeFunctionData(
+          'runSingleTestStep',
+          [
+            {
+              functionName: 'ovmDELEGATECALL',
+              functionData: ovmCallData,
+              expectedReturnStatus: true,
+              expectedReturnData: dataVariant.returnData,
+              onlyValidateFlag: false,
+            },
+          ]
+        )
+
+        const tx = await Helper_ExecutionManager.ovmDELEGATECALLHelper(
+          OVM_TX_GAS_LIMIT,
+          Helper_TestRunner.address,
+          encodedStep,
+          OVM_StateManager.address,
+          { gasLimit: RUN_OVM_TEST_GAS }
+        )
+
+        const gasUsed = (
+          await Helper_ExecutionManager.provider.getTransactionReceipt(tx.hash)
+        ).gasUsed
+
+        console.log(
+          'inputData bytes size',
+          ethers.utils.hexDataLength(dataVariant.inputData)
+        )
+        console.log(
+          'returnData bytes size',
+          ethers.utils.hexDataLength(dataVariant.returnData)
+        )
+        console.log('gasUsed', gasUsed.toString())
+      })
+    })
   })
 })

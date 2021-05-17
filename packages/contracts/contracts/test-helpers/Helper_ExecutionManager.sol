@@ -19,6 +19,13 @@ contract Helper_ExecutionManager is OVM_ExecutionManager {
         return ovmCALL(_gasLimit, _address, _calldata);
     }
 
+    function ovmDELEGATECALLHelper(uint256 _gasLimit, address _address, bytes memory _calldata, iOVM_StateManager _ovmStateManager)
+    external returns (bool _success, bytes memory _returndata)
+    {
+        ovmStateManager = _ovmStateManager;
+        return this.ovmDELEGATECALL(_gasLimit, _address, _calldata);
+    }
+
     function returnData(bytes memory _returnData) public pure returns (bytes memory) {
         return _returnData;
     }
