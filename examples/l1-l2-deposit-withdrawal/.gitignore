@@ -1,0 +1,11 @@
+# Packages
+node_modules/
+
+# Hardhat build outputs
+artifacts/
+artifacts-ovm/
+cache/
+cache-ovm/
+optimism
+
+.env
