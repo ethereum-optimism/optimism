@@ -236,13 +236,13 @@ describe('L2ChugSplashDeployer', () => {
       })
 
       it('should change the upgrade status when the bundle is complete', async () => {
-        expect(await L2ChugSplashDeployer.hasActiveBundle()).to.equal(true)
+        expect(await L2ChugSplashDeployer.isUpgrading()).to.equal(true)
 
         for (const action of bundle.actions) {
           await L2ChugSplashDeployer.executeAction(action.action, action.proof)
         }
 
-        expect(await L2ChugSplashDeployer.hasActiveBundle()).to.equal(false)
+        expect(await L2ChugSplashDeployer.isUpgrading()).to.equal(false)
       })
 
       it('should allow the upgrader to submit a new bundle when the previous bundle is complete', async () => {

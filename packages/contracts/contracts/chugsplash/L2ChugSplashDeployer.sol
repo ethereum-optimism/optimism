@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_ExecutionManagerWrapper } from "../optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 import { Lib_MerkleTree } from "../optimistic-ethereum/libraries/utils/Lib_MerkleTree.sol";
+import { Lib_EIP155Tx } from "../optimistic-ethereum/libraries/codec/Lib_EIP155Tx.sol";
 
 /* External Imports */
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -21,6 +22,13 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * contract owner. Only a single upgrade may be active at any given time.
  */
 contract L2ChugSplashDeployer is Ownable {
+
+    /*************
+     * Libraries *
+     *************/
+
+    using Lib_EIP155Tx for Lib_EIP155Tx.EIP155Tx;
+
 
     /*********
      * Enums *
@@ -72,6 +80,14 @@ contract L2ChugSplashDeployer is Ownable {
 
 
     /*************
+     * Constants *
+     *************/
+
+    // bytes32(uint256(keccak256("upgrading")) - 1);
+    bytes32 public constant SLOT_KEY_IS_UPGRADING = 0xac04bb17f7be83a1536e4b894c20a9b8acafb7c35cd304dfa3dabeee91e3c4c2;
+
+
+    /*************
      * Variables *
      *************/
 
@@ -107,6 +123,41 @@ contract L2ChugSplashDeployer is Ownable {
     }
 
 
+    /*********************
+     * Fallback Function *
+     *********************/
+
+    fallback()
+        external
+    {
+        // We use this twice, so it's more gas efficient to store a copy of it (barely).
+        bytes memory encodedTx = msg.data;
+
+        // Decode the tx with the correct chain ID.
+        Lib_EIP155Tx.EIP155Tx memory decodedTx = Lib_EIP155Tx.decode(
+            encodedTx,
+            Lib_ExecutionManagerWrapper.ovmCHAINID()
+        );
+
+        require(
+            decodedTx.to == address(this),
+            "L2ChugSplashDeployer: the system is currently undergoing an upgrade"
+        );
+
+        (bool success, bytes memory returndata) = address(this).call(decodedTx.data);
+
+        if (success) {
+            assembly {
+                return(add(returndata, 0x20), mload(returndata))
+            }
+        } else {
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
+        }
+    }
+
+
     /********************
      * Public Functions *
      ********************/
@@ -114,17 +165,18 @@ contract L2ChugSplashDeployer is Ownable {
     /**
      * @return boolean, whether or not an upgrade is currently being executed.
      */
-    function hasActiveBundle()
+    function isUpgrading()
         public
         view
         returns (
             bool
         )
     {
-        return (
-            currentBundleHash != bytes32(0)
-            && currentBundleTxsExecuted < currentBundleSize
-        );
+        bool status;
+        assembly {
+            status := sload(SLOT_KEY_IS_UPGRADING)
+        }
+        return status;
     }
 
     /**
@@ -150,7 +202,7 @@ contract L2ChugSplashDeployer is Ownable {
         );
 
         require(
-            hasActiveBundle() == false,
+            isUpgrading() == false,
             "ChugSplashDeployer: previous bundle is still active"
         );
 
@@ -180,7 +232,7 @@ contract L2ChugSplashDeployer is Ownable {
         public
     {
         require(
-            hasActiveBundle() == true,
+            isUpgrading() == true,
             "ChugSplashDeployer: there is no active bundle"
         );
 
@@ -258,7 +310,7 @@ contract L2ChugSplashDeployer is Ownable {
     /**********************
      * Internal Functions *
      **********************/
-    
+
     /**
      * Sets the system status to "upgrading" or "done upgrading" depending on the boolean input.
      * @param _upgrading `true` sets status to "upgrading", `false` to "done upgrading."
@@ -268,6 +320,8 @@ contract L2ChugSplashDeployer is Ownable {
     )
         internal
     {
-        // TODO: Requires system status work planned for Ben.
+        assembly {
+            sstore(SLOT_KEY_IS_UPGRADING, _upgrading)
+        }
     }
 }
