@@ -67,7 +67,7 @@ interface RequiredEnvVars {
  * USE_HARDHAT
  * DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
  * DEBUG_IMPERSONATE_PROPOSER_ADDRESS
- * RUN_PROMETHEUS_SERVER
+ * RUN_METRICS_SERVER
  */
 
 export const run = async () => {
@@ -458,15 +458,16 @@ export const run = async () => {
     loop(() => stateBatchSubmitter.submitNextBatch())
   }
 
-  if (
-    config.bool('run-prometheus-server', env.RUN_PROMETHEUS_SERVER === 'true')
-  ) {
+  if (config.bool('run-metrics-server', env.RUN_METRICS_SERVER === 'true')) {
     // Initialize metrics server
     await createMetricsServer({
       logger,
       registry: metrics.registry,
-      port: config.uint('prometheus-port', 7300),
-      hostname: config.str('prometheus-hostname', '127.0.0.1'),
+      port: config.uint('metrics-port', parseInt(env.METRICS_PORT, 10) || 7300),
+      hostname: config.str(
+        'metrics-hostname',
+        env.METRICS_HOSTNAME || '127.0.0.1'
+      ),
     })
   }
 }
