@@ -53,7 +53,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     {
         FRAUD_PROOF_WINDOW = _fraudProofWindow;
         SEQUENCER_PUBLISH_WINDOW = _sequencerPublishWindow;
-        _lastSequencerTimestamp = block.timestamp;
+        batches().setGlobalMetadata(_makeBatchExtraData(0, uint40(block.timestamp)));
     }
 
 
