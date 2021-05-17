@@ -274,6 +274,10 @@ export const makeContractDeployConfig = async (
     },
     L2ChugSplashDeployer: {
       factory: getContractFactory('L2ChugSplashDeployer'),
+      params: [predeploys.L2ChugSplashOwner],
+    },
+    L2ChugSplashOwner: {
+      factory: getContractFactory('L2ChugSplashDeployer'),
       params: [config.l2ChugSplashDeployerOwner],
     },
   }
