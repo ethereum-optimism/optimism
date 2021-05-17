@@ -51,7 +51,7 @@ export const handleSequencerBlock = {
         gasLimit: BigNumber.from(transaction.gas).toNumber(),
         gasPrice: BigNumber.from(transaction.gasPrice).toNumber(), // ?
         nonce: BigNumber.from(transaction.nonce).toNumber(),
-        target: transaction.to || constants.AddressZero, // ?
+        target: transaction.to,
         data: transaction.input,
       }
 
@@ -66,7 +66,7 @@ export const handleSequencerBlock = {
             gasLimit: transaction.gas,
             gasPrice: transaction.gasPrice,
             nonce: transaction.nonce,
-            to: transaction.to || constants.AddressZero,
+            to: transaction.to,
             data: transaction.input,
             chainId,
           },

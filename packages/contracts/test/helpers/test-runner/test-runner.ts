@@ -37,7 +37,7 @@ import {
 } from '../constants'
 import { getStorageXOR } from '../'
 import { UNSAFE_BYTECODE } from '../dummy'
-import { getContractFactory } from '../../../src'
+import { getContractFactory, predeploys } from '../../../src'
 
 export class ExecutionManagerTestRunner {
   private snapshot: string
@@ -64,24 +64,25 @@ export class ExecutionManagerTestRunner {
     StateManager: {
       owner: '$OVM_EXECUTION_MANAGER',
       accounts: {
-        ['0x4200000000000000000000000000000000000002']: {
+        [predeploys.OVM_DeployerWhitelist]: {
           codeHash: NON_NULL_BYTES32,
           ethAddress: '$OVM_DEPLOYER_WHITELIST',
         },
-        ['0x4200000000000000000000000000000000000009']: {
+        [predeploys.OVM_ProxyEOA]: {
           codeHash: NON_NULL_BYTES32,
           ethAddress: '$OVM_PROXY_EOA',
         },
       },
       contractStorage: {
-        ['0x4200000000000000000000000000000000000002']: {
-          '0x0000000000000000000000000000000000000000000000000000000000000000': getStorageXOR(
-            ethers.constants.HashZero
-          ),
+        [predeploys.OVM_DeployerWhitelist]: {
+          '0x0000000000000000000000000000000000000000000000000000000000000000': {
+            getStorageXOR: true,
+            value: ethers.constants.HashZero,
+          },
         },
       },
       verifiedContractStorage: {
-        ['0x4200000000000000000000000000000000000002']: {
+        [predeploys.OVM_DeployerWhitelist]: {
           '0x0000000000000000000000000000000000000000000000000000000000000000': true,
         },
       },
@@ -296,6 +297,14 @@ export class ExecutionManagerTestRunner {
         return this.setPlaceholderStrings(element)
       })
     } else if (typeof ret === 'object' && ret !== null) {
+      if (ret.getStorageXOR) {
+        // Special case allowing us to set prestate with an object which will be
+        // padded to 32 bytes and XORd with STORAGE_XOR_VALUE
+        return getStorageXOR(
+          ethers.utils.hexZeroPad(getReplacementString(ret.value), 32)
+        )
+      }
+
       for (const key of Object.keys(ret)) {
         const replacedKey = getReplacementString(key)
 
