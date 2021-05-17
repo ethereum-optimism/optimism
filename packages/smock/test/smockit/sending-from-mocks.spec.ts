@@ -1,11 +1,10 @@
 /* Imports: External */
 import hre from 'hardhat'
 import { expect } from 'chai'
-import { toPlainObject } from 'lodash'
-import { BigNumber, Contract } from 'ethers'
+import { Contract } from 'ethers'
 
 /* Imports: Internal */
-import { MockContract, smockit } from '../../src'
+import { smockit } from '../../src'
 
 describe('[smock]: sending transactions from smock contracts', () => {
   const ethers = (hre as any).ethers
