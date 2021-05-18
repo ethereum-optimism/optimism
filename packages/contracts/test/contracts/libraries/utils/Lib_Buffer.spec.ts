@@ -30,7 +30,7 @@ describe('Lib_Buffer', () => {
   describe('get', () => {
     for (const len of [1, 2, 4, 8, 32]) {
       describe(`when the array has ${len} element(s)`, () => {
-        let values = []
+        const values = []
         beforeEach(async () => {
           for (let i = 0; i < len; i++) {
             const value = ethers.utils.keccak256(
@@ -61,7 +61,7 @@ describe('Lib_Buffer', () => {
 
     for (const len of [1, 2, 4, 8, 32]) {
       describe(`when the array has ${len} element(s)`, () => {
-        let values = []
+        const values = []
         beforeEach(async () => {
           for (let i = 0; i < len; i++) {
             const value = ethers.utils.keccak256(
@@ -114,7 +114,7 @@ describe('Lib_Buffer', () => {
 
     for (const len of [1, 2, 4, 8, 32]) {
       describe(`when the array has ${len} element(s)`, () => {
-        let values = []
+        const values = []
         beforeEach(async () => {
           for (let i = 0; i < len; i++) {
             const value = ethers.utils.keccak256(
