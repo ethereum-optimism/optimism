@@ -6,25 +6,50 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// RollupBaseTxSize is the encoded rollup transaction's compressed size excluding
-// the variable length data.
-// Ref: https://github.com/ethereum-optimism/optimism/blob/91a9a3dcddf534ae1c906133b6d8e015a23c463b/packages/contracts/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol#L47
-const RollupBaseTxSize uint64 = 96
+// RollupBatchOverhead is the number of additional bytes of overhead that a
+// transaction batch requires in addition to the transactions.
+
+var (
+	// Assuming 200 txs in a batch, 2688 gas per transaction
+	// Assuming 250 stateroots in a batch, 1473 gas per stateroot
+	overhead       = new(big.Int).SetUint64(2688 + 1473)
+	maxGasLimit    = new(big.Int).SetUint64(10_000_000)
+	scalarValue    = new(big.Int).SetUint64(1)
+	scalarDecimals = new(big.Int).SetUint64(0)
+	big10          = new(big.Int).SetUint64(10)
+)
 
 // CalculateFee calculates the fee that must be paid to the Rollup sequencer, taking into
 // account the cost of publishing data to L1.
-// Returns: (4 * zeroDataBytes + 16 * (nonZeroDataBytes + RollupBaseTxSize)) * dataPrice + executionPrice * gasUsed
-func CalculateRollupFee(data []byte, gasUsed uint64, dataPrice, executionPrice *big.Int) *big.Int {
+// The following formula is used:
+// overhead = 2688 + 1473
+// dataCost = (4 * zeroDataBytes) + (16 * nonZeroDataBytes)
+// l1GasCost = dataCost + overhead
+// l1Fee = l1GasCost * l1GasPrice
+// executionFee = executionPrice * gasLimit
+// scalar = scalarValue / 10 ** scalarDecimals
+// estimateGas = scalar * (l1Fee + executionFee) * (maxGasLimit + gasLimit)
+// final fee = estimateGas * gasPrice
+func CalculateRollupFee(data []byte, gasUsed, dataPrice, executionPrice *big.Int) uint64 {
 	zeroes, ones := zeroesAndOnes(data)
 	zeroesCost := new(big.Int).SetUint64(zeroes * params.TxDataZeroGas)
-	onesCost := new(big.Int).SetUint64((RollupBaseTxSize + ones) * params.TxDataNonZeroGasEIP2028)
+	onesCost := new(big.Int).SetUint64(ones * params.TxDataNonZeroGasEIP2028)
 	dataCost := new(big.Int).Add(zeroesCost, onesCost)
+	l1GasCost := new(big.Int).Add(dataCost, overhead)
 
-	// get the data fee
-	dataFee := new(big.Int).Mul(dataPrice, dataCost)
-	executionFee := new(big.Int).Mul(executionPrice, new(big.Int).SetUint64(gasUsed))
-	fee := new(big.Int).Add(dataFee, executionFee)
-	return fee
+	// dataPrice is l1GasPrice
+	l1Fee := new(big.Int).Mul(l1GasCost, dataPrice)
+	executionFee := new(big.Int).Mul(executionPrice, gasUsed)
+
+	fee1 := new(big.Int).Mul(l1Fee, executionFee)
+	fee2 := new(big.Int).Mul(maxGasLimit, gasUsed)
+	fee := new(big.Int).Add(fee1, fee2)
+
+	scalar := new(big.Int).Exp(big10, scalarDecimals, nil)
+	scalar = scalar.Mul(scalar, scalarValue)
+	result := new(big.Int).Mul(fee, scalar)
+
+	return result.Uint64()
 }
 
 func zeroesAndOnes(data []byte) (uint64, uint64) {
