@@ -38,6 +38,16 @@ contract TestLib_Buffer {
     }
 
     function deleteElementsAfterInclusive(
+        uint40 _index
+    )
+        public
+    {
+        return buf.deleteElementsAfterInclusive(
+            _index
+        );
+    }
+
+    function deleteElementsAfterInclusive(
         uint40 _index,
         bytes27 _extraData
     )
@@ -57,6 +67,16 @@ contract TestLib_Buffer {
         )
     {
         return buf.getLength();
+    }
+
+    function setExtraData(
+        bytes27 _extraData
+    )
+        public
+    {
+        return buf.setExtraData(
+            _extraData
+        );
     }
 
     function getExtraData()

@@ -105,11 +105,30 @@ describe('Lib_Buffer', () => {
     })
   })
 
+  describe('setExtraData', () => {
+    it('should modify the extra data', async () => {
+      const extraData = `0x${'11'.repeat(27)}`
+      await Lib_Buffer.setExtraData(extraData)
+
+      expect(await Lib_Buffer.getExtraData()).to.equal(extraData)
+    })
+
+    it('should be able to modify the extra data multiple times', async () => {
+      const extraData1 = `0x${'22'.repeat(27)}`
+      await Lib_Buffer.setExtraData(extraData1)
+      expect(await Lib_Buffer.getExtraData()).to.equal(extraData1)
+
+      const extraData2 = `0x${'11'.repeat(27)}`
+      await Lib_Buffer.setExtraData(extraData2)
+
+      expect(await Lib_Buffer.getExtraData()).to.equal(extraData2)
+    })
+  })
+
   describe('deleteElementsAfterInclusive', () => {
     it('should revert when the array is empty', async () => {
-      await expect(
-        Lib_Buffer.deleteElementsAfterInclusive(0, `0x${'00'.repeat(27)}`)
-      ).to.be.reverted
+      await expect(Lib_Buffer['deleteElementsAfterInclusive(uint40)'](0)).to.be
+        .reverted
     })
 
     for (const len of [1, 2, 4, 8, 32]) {
@@ -127,25 +146,29 @@ describe('Lib_Buffer', () => {
 
         for (let i = len - 1; i > 0; i -= Math.max(1, len / 4)) {
           it(`should be able to delete everything after and including the ${i}th/st/rd/whatever element`, async () => {
-            await expect(
-              Lib_Buffer.deleteElementsAfterInclusive(i, `0x${'00'.repeat(27)}`)
-            ).to.not.be.reverted
+            await expect(Lib_Buffer['deleteElementsAfterInclusive(uint40)'](i))
+              .to.not.be.reverted
 
             expect(await Lib_Buffer.getLength()).to.equal(i)
-
             await expect(Lib_Buffer.get(i)).to.be.reverted
           })
         }
 
-        it(`should be able to modify the extra data`, async () => {
-          const extraData = `0x${'11'.repeat(27)}`
-          await Lib_Buffer.deleteElementsAfterInclusive(
-            Math.floor(len / 2),
-            extraData
-          )
+        for (let i = len - 1; i > 0; i -= Math.max(1, len / 4)) {
+          it(`should be able to delete after and incl. ${i}th/st/rd/whatever element while changing extra data`, async () => {
+            const extraData = `0x${i.toString(16).padStart(54, '0')}`
+            await expect(
+              Lib_Buffer['deleteElementsAfterInclusive(uint40,bytes27)'](
+                i,
+                extraData
+              )
+            ).to.not.be.reverted
 
-          expect(await Lib_Buffer.getExtraData()).to.equal(extraData)
-        })
+            expect(await Lib_Buffer.getLength()).to.equal(i)
+            await expect(Lib_Buffer.get(i)).to.be.reverted
+            expect(await Lib_Buffer.getExtraData()).to.equal(extraData)
+          })
+        }
       })
     }
   })
