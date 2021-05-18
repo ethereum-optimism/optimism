@@ -317,7 +317,7 @@ const myContractFactory = await ethers.getContractFactory('MyContract')
 const myContract = await myContractFactory.deploy(...)
 
 // Smockit!
-const mock = await smockit('MyContract')
+const mock = await smockit('AnotherContract')
 
 await myContract.connect(mock.wallet).doSomeFunction() // msg.sender == mock.address
 ```
