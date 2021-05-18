@@ -41,7 +41,7 @@ contract TestLib_Buffer {
         uint40 _index,
         bytes27 _extraData
     )
-        internal
+        public
     {
         return buf.deleteElementsAfterInclusive(
             _index,
@@ -50,7 +50,7 @@ contract TestLib_Buffer {
     }
 
     function getLength()
-        internal
+        public
         view
         returns (
             uint40
@@ -60,7 +60,7 @@ contract TestLib_Buffer {
     }
 
     function getExtraData()
-        internal
+        public
         view
         returns (
             bytes27
