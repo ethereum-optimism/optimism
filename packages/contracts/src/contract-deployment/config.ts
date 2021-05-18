@@ -36,6 +36,7 @@ export interface RollupDeployConfig {
     allowArbitraryContractDeployment: boolean
   }
   l2ChugSplashDeployerOwner: string
+  congestionPriceOracleOwner: string
   addressManager?: string
   dependencies?: string[]
   deployOverrides: Overrides
@@ -267,6 +268,10 @@ export const makeContractDeployConfig = async (
     L2ChugSplashOwner: {
       factory: getContractFactory('L2ChugSplashDeployer'),
       params: [config.l2ChugSplashDeployerOwner],
+    },
+    OVM_CongestionPriceOracle: {
+      factory: getContractFactory('OVM_CongestionPriceOracle'),
+      params: [config.congestionPriceOracleOwner],
     },
   }
 }
