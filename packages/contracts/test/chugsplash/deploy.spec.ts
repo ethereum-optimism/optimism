@@ -67,22 +67,20 @@ describe('ChugSplash deploy script', () => {
     })
 
     it('should keep retrying until timeout', async () => {
+      setTimeout(async () => {
+        await L2ChugSplashDeployer.connect(signer).approveTransactionBundle(
+          currActionBundle.root,
+          currActionBundle.actions.length
+        )
+      }, 2_000)
+
+      // Automatically retries every second
       const receipts = await executeActionsFromConfig({
         hre,
         signer,
         chugsplashDeployerAddress: L2ChugSplashDeployer.address,
         upgradeConfigPath: CONFIG_PATH,
       })
-
-      await L2ChugSplashDeployer.connect(signer).approveTransactionBundle(
-        currActionBundle.root,
-        currActionBundle.actions.length
-      )
-
-      // setTimeout(async () => {await L2ChugSplashDeployer.connect(signer).approveTransactionBundle(
-      //   currActionBundle.root,
-      //   currActionBundle.actions.length
-      // )}, 2_000)
 
       expect(receipts.length).to.eq(currActionBundle.actions.length)
     })
