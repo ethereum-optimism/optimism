@@ -14,7 +14,8 @@
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\"",
-    "lint:check": "tslint --format stylish --project ."
+    "lint:check": "tslint --format stylish --project .",
+    "test": "hardhat test --show-stack-traces"
   },
   "keywords": [
     "optimism",
@@ -30,9 +31,9 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.2",
-    "bcfg": "^0.1.6",
     "@eth-optimism/contracts": "^0.3.1",
     "@eth-optimism/core-utils": "^0.4.3",
+    "bcfg": "^0.1.6",
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",
     "google-spreadsheet": "^3.1.15",
@@ -40,6 +41,11 @@
     "rlp": "^2.2.6"
   },
   "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@types/chai-as-promised": "^7.1.4",
+    "chai-as-promised": "^7.1.1",
+    "hardhat": "^2.3.0",
     "prettier": "^2.2.1",
     "tslint": "^6.1.3",
     "tslint-config-prettier": "^1.18.0",

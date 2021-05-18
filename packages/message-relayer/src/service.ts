@@ -2,14 +2,14 @@
 import { Contract, ethers, Wallet, BigNumber, providers } from 'ethers'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
-
-/* Imports: Internal */
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
 import { BaseService } from '@eth-optimism/common-ts'
-import SpreadSheet from './spreadsheet'
-
 import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
+
+/* Imports: Internal */
+import SpreadSheet from './spreadsheet'
 import { StateRootBatchHeader, SentMessage, SentMessageProof } from './types'
+import { getSentMessages } from './relay-tools'
 
 interface MessageRelayerOptions {
   // Providers for interacting with L1 and L2.
@@ -216,7 +216,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
             this.state.lastFinalizedTxHeight,
         })
 
-        const messages = await this._getSentMessages(
+        const messages = await getSentMessages(
+          this.state.OVM_L2CrossDomainMessenger,
+          this.options.l2BlockOffset,
           this.state.lastFinalizedTxHeight,
           this.state.nextUnfinalizedTxHeight
         )
@@ -370,50 +372,6 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     return !(await this.state.OVM_StateCommitmentChain.insideFraudProofWindow(
       header.batch
     ))
-  }
-
-  /**
-   * Returns all sent message events between some start height (inclusive) and an end height
-   * (exclusive).
-   * @param startHeight Start height to start finding messages from.
-   * @param endHeight End height to finish finding messages at.
-   * @returns All sent messages between start and end height, sorted by transaction index in
-   * ascending order.
-   */
-  private async _getSentMessages(
-    startHeight: number,
-    endHeight: number
-  ): Promise<SentMessage[]> {
-    const filter = this.state.OVM_L2CrossDomainMessenger.filters.SentMessage()
-    const events = await this.state.OVM_L2CrossDomainMessenger.queryFilter(
-      filter,
-      startHeight + this.options.l2BlockOffset,
-      endHeight + this.options.l2BlockOffset - 1
-    )
-
-    const messages = events.map((event) => {
-      const message = event.args.message
-      const decoded = this.state.OVM_L2CrossDomainMessenger.interface.decodeFunctionData(
-        'relayMessage',
-        message
-      )
-
-      return {
-        target: decoded._target,
-        sender: decoded._sender,
-        message: decoded._message,
-        messageNonce: decoded._messageNonce,
-        encodedMessage: message,
-        encodedMessageHash: ethers.utils.keccak256(message),
-        parentTransactionIndex: event.blockNumber - this.options.l2BlockOffset,
-        parentTransactionHash: event.transactionHash,
-      }
-    })
-
-    // Sort in ascending order based on tx index and return.
-    return messages.sort((a, b) => {
-      return a.parentTransactionIndex - b.parentTransactionIndex
-    })
   }
 
   private async _wasMessageRelayed(message: SentMessage): Promise<boolean> {
