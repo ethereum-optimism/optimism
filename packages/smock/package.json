@@ -17,6 +17,9 @@
     "clean": "rimraf ./artifacts ./cache ./dist ./tsconfig.build.tsbuildinfo"
   },
   "peerDependencies": {
+    "@ethersproject/abi": "^5",
+    "@ethersproject/abstract-provider": "^5",
+    "@ethersproject/abstract-signer": "^5",
     "@nomiclabs/ethereumjs-vm": "^4",
     "@nomiclabs/hardhat-ethers": "^2",
     "ethers": "^5",
@@ -24,11 +27,12 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.4.1",
-    "@ethersproject/abi": "^5.0.13",
-    "@ethersproject/abstract-provider": "^5.0.10",
     "bn.js": "^5.2.0"
   },
   "devDependencies": {
+    "@ethersproject/abi": "^5.1.2",
+    "@ethersproject/abstract-provider": "^5.1.0",
+    "@ethersproject/abstract-signer": "^5.1.0",
     "@nomiclabs/ethereumjs-vm": "^4.2.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
