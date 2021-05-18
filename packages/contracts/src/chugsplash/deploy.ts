@@ -13,50 +13,49 @@ const L2_NODE_URL = process.env.L2_NODE_URL
 const CHUGSPLASH_DEPLOYER_ADDRESS = process.env.CHUGSPLASH_DEPLOYER_ADDRESS
 const UPGRADE_CONFIG_PATH = process.env.UPGRADE_CONFIG_PATH
 
-export const executeActionsFromConfig = async (
-  hre: HardhatRuntimeEnvironment,
-  signer: Signer,
-  chugsplashDeployerAddress: string,
+export interface executeActionArgs {
+  hre: HardhatRuntimeEnvironment
+  signer: Signer
+  chugsplashDeployerAddress: string
   upgradeConfigPath: string
+  timeoutInMs?: number
+  retryIntervalInMs?: number
+}
+
+export const executeActionsFromConfig = async (
+  args: executeActionArgs
 ): Promise<ethers.providers.TransactionReceipt[]> => {
-  const config: ChugSplashConfig = require(upgradeConfigPath)
+  const config: ChugSplashConfig = require(args.upgradeConfigPath)
   console.log('Loaded config', config)
-  const actionBundle = await makeActionBundleFromConfig(hre, config)
+  const actionBundle = await makeActionBundleFromConfig(args.hre, config)
   console.log('Created action bundle', actionBundle)
 
   const deployerContract = getContractFactory(
     'L2ChugSplashDeployer',
-    signer
-  ).attach(chugsplashDeployerAddress)
+    args.signer
+  ).attach(args.chugsplashDeployerAddress)
 
+  const startTime = Date.now()
   while ((await deployerContract.currentBundleHash()) !== actionBundle.root) {
+    const retryIntervalInMs = args.retryIntervalInMs || 1_000 // 1s
+    const timeoutInMs = args.timeoutInMs || 600_000 // 10min
     console.log(
       'Action bundle still not active',
       await deployerContract.currentBundleHash(),
       actionBundle.root
     )
-    await sleep(1_000)
+    if (Date.now() - startTime > timeoutInMs) {
+      console.log('Action bundle not detected, exiting')
+      return
+    }
+    await sleep(retryIntervalInMs)
   }
 
   const receipts = []
   for (const action of actionBundle.actions) {
     const tx = await deployerContract.executeAction(action.action, action.proof)
-    receipts.push(await signer.provider.waitForTransaction(tx.hash))
+    receipts.push(await args.signer.provider.waitForTransaction(tx.hash))
   }
 
   return receipts
-}
-
-const deploy = async () => {
-  const l2Provider = new ethers.providers.JsonRpcProvider(L2_NODE_URL)
-  const signer = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, l2Provider)
-
-  const receipts = []
-  // const receipts = await executeActionsFromConfig(
-  //   signer,
-  //   CHUGSPLASH_DEPLOYER_ADDRESS,
-  //   UPGRADE_CONFIG_PATH
-  // )
-
-  console.log('Executed actions', receipts)
 }

@@ -1,0 +1,8 @@
+{
+  "contracts": {
+      "OVM_L2ToL1MessagePasser": {
+          "address": "0x4200000000000000000000000000000000000000",
+          "bad_source": "OVM_L2ToL1MessagePasser"
+      }
+  }
+}

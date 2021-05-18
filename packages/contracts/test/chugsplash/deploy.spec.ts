@@ -11,6 +11,8 @@ import { Contract, Signer, ContractFactory } from 'ethers'
 
 // relative path to deploy.ts
 const CONFIG_PATH = '../../test/chugsplash/example-configs/deploy-l2.json'
+const INVALID_CONFIG_PATH =
+  '../../test/chugsplash/example-configs/invalid-config.json'
 
 describe('ChugSplash deploy script', () => {
   let signer: Signer
@@ -35,22 +37,65 @@ describe('ChugSplash deploy script', () => {
         require(CONFIG_PATH)
       )
     })
+
     it('should correctly send executeAction transactions', async () => {
       await L2ChugSplashDeployer.connect(signer).approveTransactionBundle(
         currActionBundle.root,
         currActionBundle.actions.length
       )
 
-      const receipts = await executeActionsFromConfig(
+      const receipts = await executeActionsFromConfig({
         hre,
         signer,
-        L2ChugSplashDeployer.address,
-        CONFIG_PATH
-      )
+        chugsplashDeployerAddress: L2ChugSplashDeployer.address,
+        upgradeConfigPath: CONFIG_PATH,
+      })
 
       expect(receipts.length).to.eq(currActionBundle.actions.length)
     })
 
-    it('should retry and wait for the correct bundle hash', () => {})
+    it('should not execute if the bundle is not approved', async () => {
+      const receipts = await executeActionsFromConfig({
+        hre,
+        signer,
+        chugsplashDeployerAddress: L2ChugSplashDeployer.address,
+        upgradeConfigPath: CONFIG_PATH,
+        timeoutInMs: 2_000,
+      })
+
+      expect(receipts).to.be.undefined
+    })
+
+    it('should keep retrying until timeout', async () => {
+      const receipts = await executeActionsFromConfig({
+        hre,
+        signer,
+        chugsplashDeployerAddress: L2ChugSplashDeployer.address,
+        upgradeConfigPath: CONFIG_PATH,
+      })
+
+      await L2ChugSplashDeployer.connect(signer).approveTransactionBundle(
+        currActionBundle.root,
+        currActionBundle.actions.length
+      )
+
+      // setTimeout(async () => {await L2ChugSplashDeployer.connect(signer).approveTransactionBundle(
+      //   currActionBundle.root,
+      //   currActionBundle.actions.length
+      // )}, 2_000)
+
+      expect(receipts.length).to.eq(currActionBundle.actions.length)
+    })
+
+    it('should throw error with invalid config', async () => {
+      expect(async () => {
+        await executeActionsFromConfig({
+          hre,
+          signer,
+          chugsplashDeployerAddress: L2ChugSplashDeployer.address,
+          upgradeConfigPath: INVALID_CONFIG_PATH,
+        })
+      }).to.throw
+    })
   })
 })
