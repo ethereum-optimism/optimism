@@ -109,12 +109,12 @@ describe('OVM_L1CrossDomainMessenger', () => {
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:CTC:batches',
+      'OVM_ChainStorageContainer-CTC-batches',
       batches.address
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:CTC:queue',
+      'OVM_ChainStorageContainer-CTC-queue',
       queue.address
     )
 
