@@ -102,6 +102,29 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
+  it('deposit with a large data argument', async () => {
+    const depositAmount = 10
+    const preBalances = await getBalances(env)
+    const data = `0x` + 'ab'.repeat(32000)
+    const { tx, receipt } = await env.waitForXDomainTransaction(
+      env.gateway.deposit(data, 9_000_000, { value: depositAmount }),
+      Direction.L1ToL2
+    )
+
+    const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
+    const postBalances = await getBalances(env)
+
+    expect(postBalances.l1GatewayBalance).to.deep.eq(
+      preBalances.l1GatewayBalance.add(depositAmount)
+    )
+    expect(postBalances.l2UserBalance).to.deep.eq(
+      preBalances.l2UserBalance.add(depositAmount)
+    )
+    expect(postBalances.l1UserBalance).to.deep.eq(
+      preBalances.l1UserBalance.sub(l1FeePaid.add(depositAmount))
+    )
+  })
+
   it('withdraw', async () => {
     const withdrawAmount = BigNumber.from(3)
     const preBalances = await getBalances(env)

@@ -80,12 +80,15 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
 
     /**
      * @dev Deposit an amount of the ETH to the caller's balance on L2.
-     * @param _data Data to forward to L2.
-     * @param _l2Gas Gas limit for the provided message.
+     * @param _data Optional data to forward to L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about it's content.
+     * @param _l2Gas Optional gas limit to complete the deposit on l2.
+       If not provided, the default amount is passed.
      */
     function deposit(
-        bytes calldata _data,
-        uint32 _l2Gas
+        uint32 _l2Gas,
+        bytes calldata _data
     )
         external
         override
@@ -102,13 +105,16 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     /**
      * @dev Deposit an amount of ETH to a recipient's balance on L2.
      * @param _to L2 address to credit the withdrawal to.
-     * @param _data Data to forward to L2.
-     * @param _l2Gas Gas limit for the provided message.
+     * @param _data Optional data to forward to L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about it's content.
+     * @param _l2Gas Optional gas limit to complete the deposit on l2.
+       If not provided, the default amount is passed.
      */
     function depositTo(
         address _to,
-        bytes calldata _data,
-        uint32 _l2Gas
+        uint32 _l2Gas,
+        bytes calldata _data
     )
         external
         override
@@ -127,14 +133,17 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      *
      * @param _from Account to pull the deposit from on L1
      * @param _to Account to give the deposit to on L2
-     * @param _data Data to forward to L2.
-     * @param _l2Gas Gas limit for the provided message.
+     * @param _data Optional data to forward to L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about it's content.
+     * @param _l2Gas Optional gas limit to complete the deposit on l2.
+       If not provided, the default amount is passed.
      */
     function _initiateDeposit(
         address _from,
         address _to,
-        bytes memory _data,
-        uint32 _l2Gas
+        uint32 _l2Gas,
+        bytes memory _data
     )
         internal
     {

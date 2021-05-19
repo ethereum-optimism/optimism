@@ -114,39 +114,45 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     /**
      * @dev deposit an amount of the ERC20 to the caller's balance on L2
      * @param _amount Amount of the ERC20 to deposit
-     * @param _data Data to forward to L2.
-     * @param _l2Gas Gas limit for the provided message.
+     * @param _l2Gas Optional gas limit to complete the deposit on l2.
+     *  If not provided, the default amount is passed.
+     * @param _data Optional data to forward to L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about it's content.
      */
     function deposit(
-        uint _amount,
-        bytes calldata _data,
-        uint32 _l2Gas
+        uint256 _amount,
+        uint32 _l2Gas,
+        bytes calldata _data
     )
         external
         override
         virtual
     {
-        _initiateDeposit(msg.sender, msg.sender, _amount, _data, _l2Gas);
+        _initiateDeposit(msg.sender, msg.sender, _amount, _l2Gas, _data);
     }
 
     /**
      * @dev deposit an amount of ERC20 to a recipient's balance on L2
      * @param _to L2 address to credit the withdrawal to.
      * @param _amount Amount of the ERC20 to deposit.
-     * @param _data Data to forward to L2.
-     * @param _l2Gas Gas limit for the provided message.
+     * @param _l2Gas Optional gas limit to complete the deposit on l2.
+     *  If not provided, the default amount is passed.
+     * @param _data Optional data to forward to L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about it's content.
      */
     function depositTo(
         address _to,
-        uint _amount,
-        bytes calldata _data,
-        uint32 _l2Gas
+        uint256 _amount,
+        uint32 _l2Gas,
+        bytes calldata _data
     )
         external
         override
         virtual
     {
-        _initiateDeposit(msg.sender, _to, _amount, _data, _l2Gas);
+        _initiateDeposit(msg.sender, _to, _amount, _l2Gas, _data);
     }
 
     /**
@@ -156,15 +162,18 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @param _from Account to pull the deposit from on L1
      * @param _to Account to give the deposit to on L2
      * @param _amount Amount of the ERC20 to deposit.
-     * @param _data Data to forward to L2.
-     * @param _l2Gas Gas limit for the provided message.
+     * @param _data Optional data to forward to L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about it's content.
+     * @param _l2Gas Optional gas limit to complete the deposit on l2.
+     *  If not provided, the default amount is passed.
      */
     function _initiateDeposit(
         address _from,
         address _to,
-        uint _amount,
-        bytes calldata _data,
-        uint32 _l2Gas
+        uint256 _amount,
+        uint32 _l2Gas,
+        bytes calldata _data
     )
         internal
     {
@@ -212,12 +221,14 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
      * @param _from L2 address initiating the transfer.
      * @param _to L1 address to credit the withdrawal to.
      * @param _amount Amount of the ERC20 to deposit.
-     * @param _data Data provided by the sender on L2.
+     * @param _data Data provided by the sender on L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about it's content.
      */
     function finalizeWithdrawal(
         address _from,
         address _to,
-        uint _amount,
+        uint256 _amount,
         bytes calldata _data
     )
         external
