@@ -1,0 +1,23 @@
+.DS_Store
+node_modules
+results
+temp
+.nyc_output
+*.tsbuildinfo
+
+dist
+artifacts
+artifacts-ovm
+cache
+cache-ovm
+
+l2geth/build/bin
+packages/contracts/deployments/custom
+packages/contracts/coverage*
+
+packages/data-transport-layer/db
+
+# vim
+*.swp
+
+.env
