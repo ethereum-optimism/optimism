@@ -22,9 +22,6 @@ contract OVM_GasPriceOracle is Ownable {
 
     // Current execution price
     uint256 internal executionPrice;
-    // Current transaction overhead
-    uint256 internal transactionOverhead;
-
 
     /***************
      * Constructor *
@@ -70,32 +67,5 @@ contract OVM_GasPriceOracle is Ownable {
         onlyOwner
     {
         executionPrice = _executionPrice;
-    }
-
-    /**
-     * @return Current transaction overhead. Represents the gas
-     * used to post the transaction to L1.
-     */
-    function getTransactionOverhead()
-        public
-        view
-        returns (
-            uint256
-        )
-    {
-        return transactionOverhead;
-    }
-
-    /**
-     * Allows the owner to modify the transaction overhead.
-     * @param _transactionOverhead New transaction overhead.
-     */
-    function setTransactionOverhead(
-        uint256 _transactionOverhead
-    )
-        public
-        onlyOwner
-    {
-        transactionOverhead = _transactionOverhead;
     }
 }
