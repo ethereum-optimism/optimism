@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- 4340bb1: Fix: correctly read Batch Submitter env var defaults
+
 ## 0.3.1
 
 ### Patch Changes

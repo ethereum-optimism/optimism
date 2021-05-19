@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- 7dd2f72: Remove incorrect comment.
+
 ## 0.3.1
 
 ### Patch Changes
