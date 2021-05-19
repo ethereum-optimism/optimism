@@ -42,12 +42,6 @@ contract L2ChugSplashDeployer is Ownable {
         address indexed who,
         uint256 bundleSize
     );
-
-    event BundleCancelled(
-        bytes32 indexed bundleHash,
-        uint256 indexed bundleNonce,
-        address indexed who
-    );
     
     event BundleCompleted(
         bytes32 indexed bundleHash,
@@ -172,46 +166,6 @@ contract L2ChugSplashDeployer is Ownable {
             msg.sender,
             _bundleSize
         );
-    }
-
-    /**
-     * Allows the owner to cancel the current active upgrade bundle.
-     */
-    function cancelTransactionBundle()
-        public
-        onlyOwner
-    {
-        require(
-            hasActiveBundle() == true,
-            "ChugSplashDeployer: cannot cancel when there is no active bundle"
-        );
-
-        emit BundleCancelled(
-            currentBundleHash,
-            currentBundleNonce,
-            msg.sender
-        );
-
-        currentBundleHash = bytes32(0);
-        currentBundleSize = 0;
-        currentBundleTxsExecuted = 0;
-        _setUpgradeStatus(false);
-    }
-
-    /**
-     * Allows the owner to cancel a transaction bundle and immediately approve a new one.
-     * @param _bundleHash Root of the Merkle tree of actions in the new bundle.
-     * @param _bundleSize Total number of elements in the new bundle.
-     */
-    function overrideTransactionBundle(
-        bytes32 _bundleHash,
-        uint256 _bundleSize
-    )
-        public
-        onlyOwner
-    {
-        cancelTransactionBundle();
-        approveTransactionBundle(_bundleHash, _bundleSize);
     }
 
     /**
