@@ -98,6 +98,7 @@ type Backend interface {
 	SetDataPrice(context.Context, *big.Int)
 	SuggestExecutionPrice(context.Context) (*big.Int, error)
 	SetExecutionPrice(context.Context, *big.Int)
+	IngestTransactions([]*types.Transaction) error
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

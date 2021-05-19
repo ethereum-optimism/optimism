@@ -87,6 +87,10 @@ func (b *LesApiBackend) SetHead(number uint64) {
 	b.eth.blockchain.SetHead(number)
 }
 
+func (b *LesApiBackend) IngestTransactions([]*types.Transaction) error {
+	panic("not implemented")
+}
+
 func (b *LesApiBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
 	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
 		return b.eth.blockchain.CurrentHeader(), nil
