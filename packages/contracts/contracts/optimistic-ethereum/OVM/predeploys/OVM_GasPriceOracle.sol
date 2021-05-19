@@ -5,7 +5,7 @@ pragma solidity >0.5.0 <0.8.0;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title OVM_CongestionPriceOracle
+ * @title OVM_GasPriceOracle
  * @dev This contract exposes the current congestion price, a measure of how congested the network
  * currently is. This measure is used by the Sequencer to determine what fee to charge for
  * transactions. When the system is more congested, the congestion price will increase and fees

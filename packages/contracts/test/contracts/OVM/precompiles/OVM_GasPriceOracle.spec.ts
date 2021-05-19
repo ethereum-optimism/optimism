@@ -11,55 +11,55 @@ describe('OVM_SequencerEntrypoint', () => {
     ;[signer1, signer2] = await ethers.getSigners()
   })
 
-  let Factory__OVM_CongestionPriceOracle: ContractFactory
+  let Factory__OVM_GasPriceOracle: ContractFactory
   before(async () => {
-    Factory__OVM_CongestionPriceOracle = await ethers.getContractFactory(
-      'OVM_CongestionPriceOracle'
+    Factory__OVM_GasPriceOracle = await ethers.getContractFactory(
+      'OVM_GasPriceOracle'
     )
   })
 
-  let OVM_CongestionPriceOracle: Contract
+  let OVM_GasPriceOracle: Contract
   beforeEach(async () => {
-    OVM_CongestionPriceOracle = await Factory__OVM_CongestionPriceOracle.deploy(
+    OVM_GasPriceOracle = await Factory__OVM_GasPriceOracle.deploy(
       await signer1.getAddress()
     )
   })
 
   describe('owner', () => {
     it('should have an owner', async () => {
-      expect(await OVM_CongestionPriceOracle.owner()).to.equal(
+      expect(await OVM_GasPriceOracle.owner()).to.equal(
         await signer1.getAddress()
       )
     })
   })
 
-  describe('setCongestionPrice', () => {
+  describe('setGasPrice', () => {
     it('should revert if called by someone other than the owner', async () => {
       await expect(
-        OVM_CongestionPriceOracle.connect(signer2).setCongestionPrice(1234)
+        OVM_GasPriceOracle.connect(signer2).setGasPrice(1234)
       ).to.be.reverted
     })
 
     it('should succeed if called by the owner', async () => {
       await expect(
-        OVM_CongestionPriceOracle.connect(signer1).setCongestionPrice(1234)
+        OVM_GasPriceOracle.connect(signer1).setGasPrice(1234)
       ).to.not.be.reverted
     })
   })
 
-  describe('getCongestionPrice', () => {
+  describe('getGasPrice', () => {
     it('should return zero at first', async () => {
-      expect(await OVM_CongestionPriceOracle.getCongestionPrice()).to.equal(0)
+      expect(await OVM_GasPriceOracle.getGasPrice()).to.equal(0)
     })
 
-    it('should change when setCongestionPrice is called', async () => {
+    it('should change when setGasPrice is called', async () => {
       const congestionPrice = 1234
 
-      await OVM_CongestionPriceOracle.connect(signer1).setCongestionPrice(
+      await OVM_GasPriceOracle.connect(signer1).setGasPrice(
         congestionPrice
       )
 
-      expect(await OVM_CongestionPriceOracle.getCongestionPrice()).to.equal(
+      expect(await OVM_GasPriceOracle.getGasPrice()).to.equal(
         congestionPrice
       )
     })
