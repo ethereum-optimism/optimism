@@ -69,7 +69,6 @@ cd ops
 export COMPOSE_DOCKER_CLI_BUILD=1
 export DOCKER_BUILDKIT=1
 docker-compose build
-docker-compose up
 cd ../integration-tests
 yarn build:integration
 yarn test:integration
