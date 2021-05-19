@@ -6,9 +6,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title OVM_GasPriceOracle
- * @dev This contract exposes the current congestion price, a measure of how congested the network
+ * @dev This contract exposes the current execution price, a measure of how congested the network
  * currently is. This measure is used by the Sequencer to determine what fee to charge for
- * transactions. When the system is more congested, the congestion price will increase and fees
+ * transactions. When the system is more congested, the execution price will increase and fees
  * will also increase as a result.
  *
  * Compiler used: optimistic-solc
@@ -22,12 +22,8 @@ contract OVM_GasPriceOracle is Ownable {
 
     // Current execution price
     uint256 internal executionPrice;
-    // Current batch overhead
-    uint256 internal batchOverhead;
-    // Current scalar value
-    uint256 internal scalarValue;
-    // Current scalar decimals
-    uint256 internal scalarDecimals;
+    // Current transaction overhead
+    uint256 internal transactionOverhead;
 
 
     /***************
@@ -77,81 +73,29 @@ contract OVM_GasPriceOracle is Ownable {
     }
 
     /**
-     * @return Current batch overhead. Represents the gas
-     * used to submit the batch on L1.
+     * @return Current transaction overhead. Represents the gas
+     * used to post the transaction to L1.
      */
-    function getBatchOverhead()
+    function getTransactionOverhead()
         public
         view
         returns (
             uint256
         )
     {
-        return batchOverhead;
+        return transactionOverhead;
     }
 
     /**
-     * Allows the owner to modify the congestion price.
-     * @param _batchOverhead New congestion price.
+     * Allows the owner to modify the transaction overhead.
+     * @param _transactionOverhead New transaction overhead.
      */
-    function setBatchOverhead(
-        uint256 _batchOverhead
+    function setTransactionOverhead(
+        uint256 _transactionOverhead
     )
         public
         onlyOwner
     {
-        batchOverhead = _batchOverhead;
-    }
-
-    /**
-     * @return Current scalar value
-     */
-    function getScalarValue()
-        public
-        view
-        returns (
-            uint256
-        )
-    {
-        return scalarValue;
-    }
-
-    /**
-     * Allows the owner to modify the scalar value.
-     * @param _scalarValue New scalar value.
-     */
-    function setScalarValue(
-        uint256 _scalarValue
-    )
-        public
-        onlyOwner
-    {
-        scalarValue = _scalarValue;
-    }
-
-    /**
-     * @return Current scalar decimals
-     */
-    function getScalarDecimals()
-        public
-        view
-        returns (
-            uint256
-        )
-    {
-        return scalarDecimals;
-    }
-
-    /**
-     * Allows the owner to modify the scalar decimals.
-     * @param _scalarDecimals New scalar decimals.
-     */
-    function setScalarDecimals(
-        uint256 _scalarDecimals
-    )
-        public
-        onlyOwner
-    {
-        scalarDecimals = _scalarDecimals;
+        transactionOverhead = _transactionOverhead;
     }
 }

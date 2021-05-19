@@ -33,34 +33,34 @@ describe('OVM_SequencerEntrypoint', () => {
     })
   })
 
-  describe('setGasPrice', () => {
+  describe('setExecutionPrice', () => {
     it('should revert if called by someone other than the owner', async () => {
       await expect(
-        OVM_GasPriceOracle.connect(signer2).setGasPrice(1234)
+        OVM_GasPriceOracle.connect(signer2).setExecutionPrice(1234)
       ).to.be.reverted
     })
 
     it('should succeed if called by the owner', async () => {
       await expect(
-        OVM_GasPriceOracle.connect(signer1).setGasPrice(1234)
+        OVM_GasPriceOracle.connect(signer1).setExecutionPrice(1234)
       ).to.not.be.reverted
     })
   })
 
-  describe('getGasPrice', () => {
+  describe('getExecutionPrice', () => {
     it('should return zero at first', async () => {
-      expect(await OVM_GasPriceOracle.getGasPrice()).to.equal(0)
+      expect(await OVM_GasPriceOracle.getExecutionPrice()).to.equal(0)
     })
 
-    it('should change when setGasPrice is called', async () => {
-      const congestionPrice = 1234
+    it('should change when setExecutionPrice is called', async () => {
+      const executionPrice = 1234
 
-      await OVM_GasPriceOracle.connect(signer1).setGasPrice(
-        congestionPrice
+      await OVM_GasPriceOracle.connect(signer1).setExecutionPrice(
+        executionPrice
       )
 
-      expect(await OVM_GasPriceOracle.getGasPrice()).to.equal(
-        congestionPrice
+      expect(await OVM_GasPriceOracle.getExecutionPrice()).to.equal(
+        executionPrice
       )
     })
   })
