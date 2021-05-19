@@ -42,12 +42,6 @@ contract L2ChugSplashDeployer is Ownable {
         address indexed who,
         uint256 bundleSize
     );
-
-    event BundleCancelled(
-        bytes32 indexed bundleHash,
-        uint256 indexed bundleNonce,
-        address indexed who
-    );
     
     event BundleCompleted(
         bytes32 indexed bundleHash,
