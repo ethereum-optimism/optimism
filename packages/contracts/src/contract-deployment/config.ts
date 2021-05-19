@@ -164,11 +164,7 @@ export const makeContractDeployConfig = async (
     },
     OVM_StateCommitmentChain: {
       factory: getContractFactory('OVM_StateCommitmentChain'),
-      params: [
-        AddressManager.address,
-        config.stateChainConfig.fraudProofWindowSeconds,
-        config.stateChainConfig.sequencerPublishWindowSeconds,
-      ],
+      params: [AddressManager.address],
     },
     OVM_DeployerWhitelist: {
       factory: getContractFactory('OVM_DeployerWhitelist', undefined, true),

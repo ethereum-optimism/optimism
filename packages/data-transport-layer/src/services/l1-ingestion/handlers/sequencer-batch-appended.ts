@@ -245,7 +245,7 @@ const maybeDecodeSequencerBatchTransaction = (
       nonce: BigNumber.from(decodedTx.nonce).toNumber(),
       gasPrice: BigNumber.from(decodedTx.gasPrice).toNumber(),
       gasLimit: BigNumber.from(decodedTx.gasLimit).toNumber(),
-      value: toRpcHexString(decodedTx.value.toNumber()),
+      value: toRpcHexString(decodedTx.value),
       target: toHexString(decodedTx.to), // Maybe null this out for creations?
       data: toHexString(decodedTx.data),
       sig: {

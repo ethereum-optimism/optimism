@@ -44,23 +44,33 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     /**
      * @param _libAddressManager Address of the Address Manager.
      */
-    constructor(
-        address _libAddressManager,
-        uint256 _fraudProofWindow,
-        uint256 _sequencerPublishWindow
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {
-        FRAUD_PROOF_WINDOW = _fraudProofWindow;
-        SEQUENCER_PUBLISH_WINDOW = _sequencerPublishWindow;
-        batches().setGlobalMetadata(_makeBatchExtraData(0, uint40(block.timestamp)));
-    }
+    constructor()
+        Lib_AddressResolver(address(0))
+    {}
 
 
     /********************
      * Public Functions *
      ********************/
 
+    /**
+     * @param _libAddressManager Address of the Address Manager.
+     * @param _fraudProofWindow length of the fraud proof window in seconds
+     * @param _sequencerPublishWindow length of sequencer publish window in seconds
+     */
+    function initialize(
+        address _libAddressManager,
+        uint256 _fraudProofWindow,
+        uint256 _sequencerPublishWindow
+    )
+        public
+        initializer 
+    {
+        require(libAddressManager == Lib_AddressManager(0), "Contract has already been initialized.");
+        FRAUD_PROOF_WINDOW = _fraudProofWindow;
+        SEQUENCER_PUBLISH_WINDOW = _sequencerPublishWindow;
+        batches().setGlobalMetadata(_makeBatchExtraData(0, uint40(block.timestamp)));    
+    }
     /**
      * Accesses the batch storage container.
      * @return Reference to the batch storage container.

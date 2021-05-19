@@ -16,11 +16,7 @@ const deployFn: DeployFunction = async (hre) => {
   await deployAndRegister({
     hre,
     name: 'OVM_StateCommitmentChain',
-    args: [
-      Lib_AddressManager.address,
-      (hre as any).deployConfig.sccFraudProofWindow,
-      (hre as any).deployConfig.sccSequencerPublishWindow,
-    ],
+    args: [Lib_AddressManager.address],
   })
 }
 

@@ -172,6 +172,9 @@ describe('BatchSubmitter', () => {
     )
 
     const unwrapped_OVM_StateCommitmentChain = await Factory__OVM_StateCommitmentChain.deploy(
+      AddressManager.address
+    )
+    await unwrapped_OVM_StateCommitmentChain.initialize(
       AddressManager.address,
       0, // fraudProofWindowSeconds
       0 // sequencerPublishWindowSeconds

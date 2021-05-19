@@ -72,6 +72,9 @@ describe('OVM_StateCommitmentChain', () => {
   let OVM_StateCommitmentChain: Contract
   beforeEach(async () => {
     OVM_StateCommitmentChain = await Factory__OVM_StateCommitmentChain.deploy(
+      AddressManager.address
+    )
+    OVM_StateCommitmentChain.initialize(
       AddressManager.address,
       60 * 60 * 24 * 7, // 1 week fraud proof window
       60 * 30 // 30 minute sequencer publish window
@@ -182,8 +185,7 @@ describe('OVM_StateCommitmentChain', () => {
 
         describe('when outside sequencer publish window', () => {
           beforeEach(async () => {
-            const SEQUENCER_PUBLISH_WINDOW =
-              await OVM_StateCommitmentChain.SEQUENCER_PUBLISH_WINDOW()
+            const SEQUENCER_PUBLISH_WINDOW = await OVM_StateCommitmentChain.SEQUENCER_PUBLISH_WINDOW()
             await increaseEthTime(
               ethers.provider,
               SEQUENCER_PUBLISH_WINDOW.toNumber() + 1
