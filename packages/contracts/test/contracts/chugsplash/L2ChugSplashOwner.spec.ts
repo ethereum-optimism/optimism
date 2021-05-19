@@ -16,13 +16,9 @@ describe('L2ChugSplashDeployer', () => {
     ;[signer1, signer2] = await hre.ethers.getSigners()
   })
 
-  let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_L2CrossDomainMessenger: MockContract
   let Mock__OVM_L2ChugSplashDeployer: MockContract
   before(async () => {
-    Mock__OVM_ExecutionManager = await smockit('OVM_ExecutionManager', {
-      address: predeploys.OVM_ExecutionManagerWrapper,
-    })
     Mock__OVM_L2CrossDomainMessenger = await smockit(
       'OVM_L2CrossDomainMessenger',
       {
@@ -191,41 +187,6 @@ describe('L2ChugSplashDeployer', () => {
 
         expect(
           Mock__OVM_L2ChugSplashDeployer.smocked.approveTransactionBundle
-            .calls[0]
-        ).to.deep.equal([ethers.constants.HashZero, ethers.BigNumber.from(0)])
-      })
-
-      it('should be able to trigger cancelTransactionBundle', async () => {
-        await expect(
-          hre.ethers.provider.call({
-            to: L2ChugSplashOwner.address,
-            from: Mock__OVM_L2CrossDomainMessenger.address,
-            data: Mock__OVM_L2ChugSplashDeployer.interface.encodeFunctionData(
-              'cancelTransactionBundle'
-            ),
-          })
-        ).to.not.be.reverted
-
-        expect(
-          Mock__OVM_L2ChugSplashDeployer.smocked.cancelTransactionBundle
-            .calls[0]
-        ).to.not.be.undefined
-      })
-
-      it('should be able to trigger overrideTransactionBundle', async () => {
-        await expect(
-          hre.ethers.provider.call({
-            to: L2ChugSplashOwner.address,
-            from: Mock__OVM_L2CrossDomainMessenger.address,
-            data: Mock__OVM_L2ChugSplashDeployer.interface.encodeFunctionData(
-              'overrideTransactionBundle',
-              [ethers.constants.HashZero, ethers.BigNumber.from(0)]
-            ),
-          })
-        ).to.not.be.reverted
-
-        expect(
-          Mock__OVM_L2ChugSplashDeployer.smocked.overrideTransactionBundle
             .calls[0]
         ).to.deep.equal([ethers.constants.HashZero, ethers.BigNumber.from(0)])
       })
