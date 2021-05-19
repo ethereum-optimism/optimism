@@ -134,7 +134,7 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly return solidity revert data from a call', async () => {
-      await expect(await provider.call(revertingTx)).to.be.revertedWith(
+      await expect(provider.call(revertingTx)).to.be.revertedWith(
         revertMessage
       )
     })
