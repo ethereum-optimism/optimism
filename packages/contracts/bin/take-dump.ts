@@ -7,7 +7,7 @@ const env = process.env
 const CHAIN_ID = env.CHAIN_ID || '420'
 
 /* Internal Imports */
-import { makeStateDump } from '../src/contract-dumps'
+import { makeStateDump } from '../src/state-dump/make-dump'
 import { RollupDeployConfig } from '../src/contract-deployment'
 ;(async () => {
   const outdir = path.resolve(__dirname, '../dist/dumps')

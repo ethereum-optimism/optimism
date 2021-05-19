@@ -4,6 +4,12 @@ services:
   l2geth:
     command: ["--metrics", "--metrics.influxdb", "--metrics.influxdb.endpoint", "http://influxdb:8086", "--metrics.influxdb.database", "l2geth"]
 
+  batch_submitter:
+    environment:
+      BATCH_SUBMITTER_RUN_METRICS_SERVER: "true"
+      BATCH_SUBMITTER_METRICS_PORT: 7300
+      BATCH_SUBMITTER_METRICS_HOSTNAME: 0.0.0.0
+
   grafana:
     image: grafana/grafana:7.5.5
     env_file:

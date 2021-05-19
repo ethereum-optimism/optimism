@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4
+
+### Patch Changes
+
+- e2b70c1: Don't panic on a monotonicity violation
+
 ## 0.3.3
 
 ### Patch Changes
