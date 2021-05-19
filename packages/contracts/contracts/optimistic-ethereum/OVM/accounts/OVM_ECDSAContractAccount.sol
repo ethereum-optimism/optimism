@@ -100,7 +100,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             "Fee was not transferred to relayer."
         );
 
-        // Contract creations are signalled by sending a transaction to the zero address.
         if (transaction.isCreate) {
             // TEMPORARY: Disable value transfer for contract creations.
             require(

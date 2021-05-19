@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- 7dd2f72: Remove incorrect comment.
+
+## 0.3.1
+
+### Patch Changes
+
+- 775118a: Updated package json with a missing dependency
+- Updated dependencies [96a586e]
+  - @eth-optimism/core-utils@0.4.3
+
 ## 0.3.0
 
 ### Minor Changes

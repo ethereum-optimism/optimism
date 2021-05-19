@@ -10,7 +10,6 @@ export interface DecodedSequencerBatchTransaction {
   nonce: number
   target: string
   data: string
-  type: number
 }
 
 export interface EnqueueEntry {
@@ -35,7 +34,6 @@ export interface TransactionEntry {
   value: string
   queueOrigin: 'sequencer' | 'l1'
   queueIndex: number | null
-  type: 'EIP155' | 'ETH_SIGN' | null
   decoded: DecodedSequencerBatchTransaction | null
   confirmed: boolean
 }

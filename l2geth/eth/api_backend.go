@@ -130,6 +130,16 @@ func (b *EthAPIBackend) SetHead(number uint64) {
 	b.eth.syncService.SetLatestL1BlockNumber(blockNumber.Uint64())
 }
 
+func (b *EthAPIBackend) IngestTransactions(txs []*types.Transaction) error {
+	for _, tx := range txs {
+		err := b.eth.syncService.IngestTransaction(tx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {

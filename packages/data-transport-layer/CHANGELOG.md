@@ -1,5 +1,27 @@
 # data transport layer
 
+## 0.3.2
+
+### Patch Changes
+
+- f5185bb: Fix bug with replica syncing where contract creations would fail in replicas but pass in the sequencer. This was due to the change from a custom batched tx serialization to the batch serialzation for txs being regular RLP encoding
+- Updated dependencies [7dd2f72]
+  - @eth-optimism/contracts@0.3.2
+
+## 0.3.1
+
+### Patch Changes
+
+- e28cec7: Fixes a bug where L2 synced transactions were not RLP encoded
+- 96a586e: Migrate bcfg interface to core-utils
+- fa4898a: Explicitly log error messages so that they do not show as empty objects
+- Updated dependencies [96a586e]
+- Updated dependencies [0c16805]
+- Updated dependencies [775118a]
+  - @eth-optimism/core-utils@0.4.3
+  - @eth-optimism/common-ts@0.1.2
+  - @eth-optimism/contracts@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

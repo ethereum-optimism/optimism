@@ -5,7 +5,7 @@ import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import xor from 'buffer-xor'
 
 /* Internal Imports */
-import { getContractDefinition } from '../../src'
+import { getContractDefinition } from '../../src/contract-defs'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_HARDHAT = defaultAccounts.map((account) => {
