@@ -1,5 +1,11 @@
 # @eth-optimism/smock
 
+## 1.1.4
+
+### Patch Changes
+
+- a656f06: Adds a wallet object to smock contracts that can be used to send transactions
+
 ## 1.1.3
 
 ### Patch Changes

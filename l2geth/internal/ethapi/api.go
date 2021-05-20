@@ -1011,7 +1011,18 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if overrides != nil {
 		accounts = *overrides
 	}
-	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+	result, _, failed, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+	if err != nil {
+		return nil, err
+	}
+	if failed {
+		reason, errUnpack := abi.UnpackRevert(result)
+		err := errors.New("execution reverted")
+		if errUnpack == nil {
+			err = fmt.Errorf("execution reverted: %v", reason)
+		}
+		return (hexutil.Bytes)(result), err
+	}
 	return (hexutil.Bytes)(result), err
 }
 
@@ -2118,6 +2129,53 @@ func (api *PrivateDebugAPI) ChaindbCompact() error {
 // SetHead rewinds the head of the blockchain to a previous block.
 func (api *PrivateDebugAPI) SetHead(number hexutil.Uint64) {
 	api.b.SetHead(uint64(number))
+}
+
+func (api *PrivateDebugAPI) IngestTransactions(txs []*RPCTransaction) error {
+	transactions := make([]*types.Transaction, len(txs))
+
+	for i, tx := range txs {
+		nonce := uint64(tx.Nonce)
+		value := tx.Value.ToInt()
+		gasLimit := uint64(tx.Gas)
+		gasPrice := tx.GasPrice.ToInt()
+		data := tx.Input
+		l1BlockNumber := tx.L1BlockNumber.ToInt()
+		l1Timestamp := uint64(tx.L1Timestamp)
+		rawTransaction := tx.RawTransaction
+
+		sighashType := types.SighashEIP155
+		var queueOrigin types.QueueOrigin
+		switch tx.QueueOrigin {
+		case "sequencer":
+			queueOrigin = types.QueueOriginSequencer
+		case "l1":
+			queueOrigin = types.QueueOriginL1ToL2
+		default:
+			return fmt.Errorf("Transaction with unknown queue origin: %s", tx.TxType)
+		}
+
+		var transaction *types.Transaction
+		if tx.To == nil {
+			transaction = types.NewContractCreation(nonce, value, gasLimit, gasPrice, data)
+		} else {
+			transaction = types.NewTransaction(nonce, *tx.To, value, gasLimit, gasPrice, data)
+		}
+
+		meta := types.TransactionMeta{
+			L1BlockNumber:     l1BlockNumber,
+			L1Timestamp:       l1Timestamp,
+			L1MessageSender:   tx.L1TxOrigin,
+			SignatureHashType: sighashType,
+			QueueOrigin:       big.NewInt(int64(queueOrigin)),
+			Index:             (*uint64)(tx.Index),
+			QueueIndex:        (*uint64)(tx.QueueIndex),
+			RawTransaction:    rawTransaction,
+		}
+		transaction.SetTransactionMeta(&meta)
+		transactions[i] = transaction
+	}
+	return api.b.IngestTransactions(transactions)
 }
 
 // PublicNetAPI offers network related RPC methods
