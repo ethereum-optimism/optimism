@@ -931,7 +931,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 
 	// Create new call message
 	var msg core.Message
-	msg = types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer, 0)
+	msg = types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
 	if vm.UsingOVM {
 		cfg := b.ChainConfig()
 		executionManager := cfg.StateDump.Accounts["OVM_ExecutionManager"]
@@ -1011,7 +1011,18 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if overrides != nil {
 		accounts = *overrides
 	}
-	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+	result, _, failed, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+	if err != nil {
+		return nil, err
+	}
+	if failed {
+		reason, errUnpack := abi.UnpackRevert(result)
+		err := errors.New("execution reverted")
+		if errUnpack == nil {
+			err = fmt.Errorf("execution reverted: %v", reason)
+		}
+		return (hexutil.Bytes)(result), err
+	}
 	return (hexutil.Bytes)(result), err
 }
 
@@ -1353,15 +1364,6 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 			queueIndex := (hexutil.Uint64)(*meta.QueueIndex)
 			result.QueueIndex = &queueIndex
 		}
-
-		switch meta.SignatureHashType {
-		case types.SighashEthSign:
-			result.TxType = "EthSign"
-		case types.SighashEIP155:
-			result.TxType = "EIP155"
-		case types.CreateEOA:
-			result.TxType = "CreateEOA"
-		}
 	}
 	return result
 }
@@ -1594,9 +1596,8 @@ type SendTxArgs struct {
 	Data  *hexutil.Bytes `json:"data"`
 	Input *hexutil.Bytes `json:"input"`
 
-	L1BlockNumber     *big.Int                `json:"l1BlockNumber"`
-	L1MessageSender   *common.Address         `json:"l1MessageSender"`
-	SignatureHashType types.SignatureHashType `json:"signatureHashType"`
+	L1BlockNumber   *big.Int        `json:"l1BlockNumber"`
+	L1MessageSender *common.Address `json:"l1MessageSender"`
 }
 
 // setDefaults is a helper function that fills in default values for unspecified tx fields.
@@ -1669,13 +1670,13 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 	if args.To == nil {
 		tx := types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
 		raw, _ := rlp.EncodeToBytes(tx)
-		txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, raw)
+		txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, nil, types.QueueOriginSequencer, nil, nil, raw)
 		tx.SetTransactionMeta(txMeta)
 		return tx
 	}
 	tx := types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
 	raw, _ := rlp.EncodeToBytes(tx)
-	txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, args.L1MessageSender, args.SignatureHashType, types.QueueOriginSequencer, nil, nil, raw)
+	txMeta := types.NewTransactionMeta(args.L1BlockNumber, 0, args.L1MessageSender, types.QueueOriginSequencer, nil, nil, raw)
 	tx.SetTransactionMeta(txMeta)
 	return tx
 }
@@ -1772,7 +1773,7 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 		return common.Hash{}, err
 	}
 	// L1Timestamp and L1BlockNumber will be set right before execution
-	txMeta := types.NewTransactionMeta(nil, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, encodedTx)
+	txMeta := types.NewTransactionMeta(nil, 0, nil, types.QueueOriginSequencer, nil, nil, encodedTx)
 	tx.SetTransactionMeta(txMeta)
 	return SubmitTransaction(ctx, s.b, tx)
 }
@@ -2114,6 +2115,51 @@ func (api *PrivateDebugAPI) ChaindbCompact() error {
 // SetHead rewinds the head of the blockchain to a previous block.
 func (api *PrivateDebugAPI) SetHead(number hexutil.Uint64) {
 	api.b.SetHead(uint64(number))
+}
+
+func (api *PrivateDebugAPI) IngestTransactions(txs []*RPCTransaction) error {
+	transactions := make([]*types.Transaction, len(txs))
+
+	for i, tx := range txs {
+		nonce := uint64(tx.Nonce)
+		value := tx.Value.ToInt()
+		gasLimit := uint64(tx.Gas)
+		gasPrice := tx.GasPrice.ToInt()
+		data := tx.Input
+		l1BlockNumber := tx.L1BlockNumber.ToInt()
+		l1Timestamp := uint64(tx.L1Timestamp)
+		rawTransaction := tx.RawTransaction
+
+		var queueOrigin types.QueueOrigin
+		switch tx.QueueOrigin {
+		case "sequencer":
+			queueOrigin = types.QueueOriginSequencer
+		case "l1":
+			queueOrigin = types.QueueOriginL1ToL2
+		default:
+			return fmt.Errorf("Transaction with unknown queue origin: %s", tx.TxType)
+		}
+
+		var transaction *types.Transaction
+		if tx.To == nil {
+			transaction = types.NewContractCreation(nonce, value, gasLimit, gasPrice, data)
+		} else {
+			transaction = types.NewTransaction(nonce, *tx.To, value, gasLimit, gasPrice, data)
+		}
+
+		meta := types.TransactionMeta{
+			L1BlockNumber:   l1BlockNumber,
+			L1Timestamp:     l1Timestamp,
+			L1MessageSender: tx.L1TxOrigin,
+			QueueOrigin:     big.NewInt(int64(queueOrigin)),
+			Index:           (*uint64)(tx.Index),
+			QueueIndex:      (*uint64)(tx.QueueIndex),
+			RawTransaction:  rawTransaction,
+		}
+		transaction.SetTransactionMeta(&meta)
+		transactions[i] = transaction
+	}
+	return api.b.IngestTransactions(transactions)
 }
 
 // PublicNetAPI offers network related RPC methods

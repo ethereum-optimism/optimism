@@ -1,30 +1,14 @@
 /* External Imports */
-import * as path from 'path'
 import { ethers } from 'ethers'
 import * as Ganache from 'ganache-core'
 import { keccak256 } from 'ethers/lib/utils'
 import { fromHexString, toHexString, remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { deploy, RollupDeployConfig } from './contract-deployment'
-import { getContractDefinition } from './contract-defs'
-import { predeploys } from './predeploys'
-
-interface StorageDump {
-  [key: string]: string
-}
-
-export interface StateDump {
-  accounts: {
-    [name: string]: {
-      address: string
-      code: string
-      codeHash: string
-      storage: StorageDump
-      abi: any
-    }
-  }
-}
+import { StorageDump, StateDump } from './get-dump'
+import { deploy, RollupDeployConfig } from '../contract-deployment'
+import { getContractDefinition } from '../contract-defs'
+import { predeploys } from '../predeploys'
 
 /**
  * Generates a storage dump for a given address.
@@ -115,7 +99,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     deploymentSigner: signer,
     ovmGasMeteringConfig: {
       minTransactionGasLimit: 0,
-      maxTransactionGasLimit: 10_000_000,
+      maxTransactionGasLimit: 11_000_000,
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 0,
     },
@@ -155,10 +139,12 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_ExecutionManagerWrapper',
       'L2ChugSplashDeployer',
       'L2ChugSplashOwner',
+      'OVM_GasPriceOracle',
     ],
     deployOverrides: {},
     waitForReceipts: false,
     l2ChugSplashDeployerOwner: cfg.l2ChugSplashDeployerOwner,
+    gasPriceOracleOwner: cfg.gasPriceOracleOwner,
   }
 
   config = { ...config, ...cfg }
@@ -175,6 +161,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_ExecutionManagerWrapper',
     'L2ChugSplashDeployer',
     'L2ChugSplashOwner',
+    'OVM_GasPriceOracle',
   ]
 
   const deploymentResult = await deploy(config)
@@ -259,8 +246,4 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   }
 
   return dump
-}
-
-export const getLatestStateDump = (): StateDump => {
-  return require(path.join(__dirname, '../dumps', `state-dump.latest.json`))
 }

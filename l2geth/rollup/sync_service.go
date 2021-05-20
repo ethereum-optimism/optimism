@@ -744,3 +744,9 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 	}
 	return s.applyTransaction(tx)
 }
+
+// IngestTransaction should only be called by trusted parties as it skips all
+// validation and applies the transaction
+func (s *SyncService) IngestTransaction(tx *types.Transaction) error {
+	return s.applyTransaction(tx)
+}

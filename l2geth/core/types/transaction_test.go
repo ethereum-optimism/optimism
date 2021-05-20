@@ -263,8 +263,4 @@ func TestOVMMetaDataHash(t *testing.T) {
 	if emptyTx.Hash() != emptyTxEmptyL1Sender.Hash() {
 		t.Errorf("L1MessageSender, should not affect the hash, want %x, got %x with L1MessageSender", emptyTx.Hash(), emptyTxEmptyL1Sender.Hash())
 	}
-
-	if emptyTx.Hash() != emptyTxSighashEthSign.Hash() {
-		t.Errorf("SignatureHashType, should not affect the hash, want %x, got %x with SighashEthSign", emptyTx.Hash(), emptyTxSighashEthSign.Hash())
-	}
 }

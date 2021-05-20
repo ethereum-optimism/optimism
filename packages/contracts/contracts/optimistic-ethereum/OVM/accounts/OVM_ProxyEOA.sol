@@ -71,14 +71,10 @@ contract OVM_ProxyEOA {
     )
         external
     {
-        // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
-        // so that they don't have to pay any fees to the sequencer. Function will remain disabled
-        // until a robust solution is in place.
-
-        // require(
-        //     msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
-        //     "EOAs can only upgrade their own EOA implementation"
-        // );
+        require(
+            msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
+            "EOAs can only upgrade their own EOA implementation."
+        );
 
         // _setImplementation(_implementation);
         // emit Upgraded(_implementation);
