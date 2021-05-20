@@ -48,6 +48,12 @@ func calculateL1GasLimit(data []byte, overhead uint64) *big.Int {
 }
 
 func RoundL1GasPrice(gasPrice uint64) uint64 {
+	if gasPrice == 0 {
+		return gasPrice
+	}
+	if gasPrice == 1 {
+		return hundredMillion
+	}
 	if gasPrice%hundredMillion < 2 {
 		gasPrice += hundredMillion - 2
 	} else {
@@ -57,10 +63,16 @@ func RoundL1GasPrice(gasPrice uint64) uint64 {
 }
 
 func RoundL2GasPrice(gasPrice uint64) uint64 {
+	if gasPrice == 0 {
+		return gasPrice
+	}
+	if gasPrice == 1 {
+		return hundredMillion + 1
+	}
 	if gasPrice%hundredMillion < 2 {
 		gasPrice += hundredMillion - 2
 	} else {
-		gasPrice += hundredMillion
+		gasPrice += hundredMillion + 1
 	}
 	return gasPrice - gasPrice%hundredMillion + 1
 }
