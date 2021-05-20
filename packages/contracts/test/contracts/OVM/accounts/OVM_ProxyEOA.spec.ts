@@ -8,7 +8,11 @@ import { remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { decodeSolidityError } from '../../../helpers'
-import { getContractInterface, getContractFactory, predeploys } from '../../../../src'
+import {
+  getContractInterface,
+  getContractFactory,
+  predeploys,
+} from '../../../../src'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -76,7 +80,9 @@ describe('OVM_ProxyEOA', () => {
 
   describe('getImplementation()', () => {
     it(`should be created with implementation at predeploy address`, async () => {
-      const eoaDefaultAddrBytes32 = addrToBytes32(predeploys.OVM_ECDSAContractAccount)
+      const eoaDefaultAddrBytes32 = addrToBytes32(
+        predeploys.OVM_ECDSAContractAccount
+      )
       Mock__OVM_ExecutionManager.smocked.ovmSLOAD.will.return.with(
         eoaDefaultAddrBytes32
       )

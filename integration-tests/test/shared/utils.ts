@@ -3,7 +3,7 @@ import { Direction, waitForXDomainTransaction } from './watcher-utils'
 import {
   getContractFactory,
   getContractInterface,
-  predeploys
+  predeploys,
 } from '@eth-optimism/contracts'
 import { remove0x, Watcher } from '@eth-optimism/core-utils'
 import {

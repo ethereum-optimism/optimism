@@ -225,8 +225,11 @@ describe('OVM_L1CrossDomainMessenger', () => {
         stateRoot: toHexString(generator._trie.root),
         stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
         stateRootProof: DUMMY_BATCH_PROOFS[0],
-        stateTrieWitness: (await generator.makeAccountProofTest(predeploys.OVM_L2ToL1MessagePasser))
-          .accountTrieWitness,
+        stateTrieWitness: (
+          await generator.makeAccountProofTest(
+            predeploys.OVM_L2ToL1MessagePasser
+          )
+        ).accountTrieWitness,
         storageTrieWitness: (
           await storageGenerator.makeInclusionProofTest(storageKey)
         ).proof,
