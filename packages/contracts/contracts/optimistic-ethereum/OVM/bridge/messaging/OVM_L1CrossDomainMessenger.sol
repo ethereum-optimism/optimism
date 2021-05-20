@@ -7,6 +7,7 @@ import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManager.sol";
 import { Lib_SecureMerkleTrie } from "../../../libraries/trie/Lib_SecureMerkleTrie.sol";
+import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
@@ -340,7 +341,7 @@ contract OVM_L1CrossDomainMessenger is
             bool exists,
             bytes memory encodedMessagePassingAccount
         ) = Lib_SecureMerkleTrie.get(
-            abi.encodePacked(0x4200000000000000000000000000000000000000),
+            abi.encodePacked(Lib_PredeployAddresses.ovmL2ToL1MessagePasser),
             _proof.stateTrieWitness,
             _proof.stateRoot
         );
