@@ -137,9 +137,11 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_StateManager',
       'OVM_ETH',
       'OVM_ExecutionManagerWrapper',
+      'OVM_GasPriceOracle',
     ],
     deployOverrides: {},
     waitForReceipts: false,
+    gasPriceOracleOwner: cfg.gasPriceOracleOwner,
   }
 
   config = { ...config, ...cfg }
@@ -154,6 +156,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_ECDSAContractAccount',
     'OVM_ProxyEOA',
     'OVM_ExecutionManagerWrapper',
+    'OVM_GasPriceOracle',
   ]
 
   const deploymentResult = await deploy(config)
