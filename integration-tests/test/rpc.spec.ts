@@ -264,7 +264,6 @@ describe('Basic RPC tests', () => {
       await result.wait()
 
       const transaction = (await provider.getTransaction(result.hash)) as any
-      expect(transaction.txType).to.equal('EIP155')
       expect(transaction.queueOrigin).to.equal('sequencer')
       expect(transaction.transactionIndex).to.be.eq(0)
       expect(transaction.gasLimit).to.be.deep.eq(BigNumber.from(tx.gasLimit))
@@ -285,7 +284,6 @@ describe('Basic RPC tests', () => {
       expect(block.number).to.not.equal(0)
       expect(typeof block.stateRoot).to.equal('string')
       expect(block.transactions.length).to.equal(1)
-      expect(block.transactions[0].txType).to.equal('EIP155')
       expect(block.transactions[0].queueOrigin).to.equal('sequencer')
       expect(block.transactions[0].l1TxOrigin).to.equal(null)
     })
