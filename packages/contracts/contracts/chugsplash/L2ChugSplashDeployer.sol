@@ -130,7 +130,15 @@ contract L2ChugSplashDeployer is Ownable {
     fallback()
         external
     {
-        // We use this twice, so it's more gas efficient to store a copy of it (barely).
+        // Fallback function is used as a way to gracefully handle upgrades. When
+        // `isUpgrading() == true`, all transactions are automatically routed to this contract.
+        // msg.data may (or may not) be a properly encoded EIP-155 transaction. However, it’s ok to
+        // assume that the data *is* properly encoded because any improperly encoded transactions
+        // will simply trigger a revert when we try to decode them below. Since L1 => L2 messages
+        // are *not* EIP-155 transactions, they’ll revert here (meaning those messages will fail).
+        // As a result, any L1 => L2 messages executed during an upgrade will have to be replayed.
+
+        // We use this twice, so it’s more gas efficient to store a copy of it (barely).
         bytes memory encodedTx = msg.data;
 
         // Decode the tx with the correct chain ID.
@@ -139,11 +147,16 @@ contract L2ChugSplashDeployer is Ownable {
             Lib_ExecutionManagerWrapper.ovmCHAINID()
         );
 
+        // Make sure that the transaction target is the L2ChugSplashDeployer. Any transactions that
+        // were not intended to be sent to this contract will revert at this point.
         require(
             decodedTx.to == address(this),
             "L2ChugSplashDeployer: the system is currently undergoing an upgrade"
         );
 
+        // Call into this contract with the decoded transaction data. Of course this means that
+        // any functions with onlyOwner cannot be triggered via this fallback, but that’s ok
+        // because we only need to be able to trigger executeAction.
         (bool success, bytes memory returndata) = address(this).call(decodedTx.data);
 
         if (success) {

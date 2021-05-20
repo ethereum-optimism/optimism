@@ -205,7 +205,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // uint256 gasProvided = gasleft();
 
         bytes memory returndata;
-        if (_isUpgrading()) {
+        if (_isUpgrading() == true) {
+            // When we’re in the middle of an upgrade we completely ignore
+            // `transaction._entrypoint` and direct *all* transactions to the L2ChugSplashDeployer
+            // located at 0x42...0D. L1 => L2 messages executed during the middle of an upgrade
+            // will fail. Any transactions *not* intended to be sent to the L2ChugSplashDeployer
+            // will also fail and must be submitted again.
             (bool success, bytes memory ret) = ovmCALL(
                 _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
                 0x420000000000000000000000000000000000000D,
