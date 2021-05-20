@@ -28,12 +28,10 @@ docker-compose \
     up --build --detach
 ```
 
-Do the same to run a verifier along side the regular stack.
+Optionally, run a verifier along the rest of the stack.
 ```
-docker-compose \
-    -f docker-compose.yml \
-    -f docker-compose-verifier.yml \
-    up --build --detach
+docker-compose up --scale verifier=1 \
+    --build --detach
 ```
 
 A Makefile has been provided for convience. The following targets are available.
