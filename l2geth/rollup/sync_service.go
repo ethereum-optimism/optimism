@@ -312,7 +312,7 @@ func (s *SyncService) VerifierLoop() {
 		if err := s.verify(); err != nil {
 			log.Error("Could not verify", "error", err)
 		}
-		if err := s.updateL2GasPrice(); err != nil {
+		if err := s.updateL2GasPrice(nil); err != nil {
 			log.Error("Cannot update L2 gas price", "msg", err)
 		}
 		time.Sleep(s.pollInterval)
@@ -369,7 +369,7 @@ func (s *SyncService) SequencerLoop() {
 		}
 		s.txLock.Unlock()
 
-		if err := s.updateL2GasPrice(); err != nil {
+		if err := s.updateL2GasPrice(nil); err != nil {
 			log.Error("Cannot update L2 gas price", "msg", err)
 		}
 		if s.updateContext() != nil {
