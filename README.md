@@ -45,6 +45,12 @@ is compiled down to javascript:
 yarn build
 ```
 
+When changing branches, be sure to clean the repo before building.
+
+```bash
+yarn clean
+```
+
 ### Unit tests
 
 All tests are run in parallel using `lerna`:
