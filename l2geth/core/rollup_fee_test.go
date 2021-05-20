@@ -72,7 +72,7 @@ func TestL1GasLimit(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got := calculateL1GasLimit(tt.data, tt.overhead)
 			if got.Cmp(tt.expect) != 0 {
-				t.Fatal("Caluculated gas limit does not match")
+				t.Fatal("Calculated gas limit does not match")
 			}
 		})
 	}
