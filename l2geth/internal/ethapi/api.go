@@ -1011,7 +1011,18 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if overrides != nil {
 		accounts = *overrides
 	}
-	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+	result, _, failed, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+	if err != nil {
+		return nil, err
+	}
+	if failed {
+		reason, errUnpack := abi.UnpackRevert(result)
+		err := errors.New("execution reverted")
+		if errUnpack == nil {
+			err = fmt.Errorf("execution reverted: %v", reason)
+		}
+		return (hexutil.Bytes)(result), err
+	}
 	return (hexutil.Bytes)(result), err
 }
 

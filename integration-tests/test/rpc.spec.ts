@@ -2,12 +2,7 @@ import { injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import {
-  sleep,
-  l2Provider,
-  GWEI,
-  encodeSolidityRevertMessage,
-} from './shared/utils'
+import { sleep, l2Provider, GWEI } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
@@ -129,12 +124,6 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_call', () => {
-    let expectedReverterRevertData: string
-
-    before(async () => {
-      expectedReverterRevertData = encodeSolidityRevertMessage(revertMessage)
-    })
-
     it('should correctly identify call out-of-gas', async () => {
       await expect(
         provider.call({
@@ -145,9 +134,7 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly return solidity revert data from a call', async () => {
-      const revertData = await provider.call(revertingTx)
-      const expectedRevertData = encodeSolidityRevertMessage(revertMessage)
-      expect(revertData).to.eq(expectedRevertData)
+      await expect(provider.call(revertingTx)).to.be.revertedWith(revertMessage)
     })
 
     it('should produce error when called from ethers', async () => {
@@ -155,9 +142,9 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly return revert data from contract creation', async () => {
-      const revertData = await provider.call(revertingDeployTx)
-
-      expect(revertData).to.eq(expectedReverterRevertData)
+      await expect(provider.call(revertingDeployTx)).to.be.revertedWith(
+        revertMessage
+      )
     })
 
     it('should correctly identify contract creation out of gas', async () => {
@@ -172,14 +159,14 @@ describe('Basic RPC tests', () => {
     it('should return the correct error message when attempting to deploy unsafe initcode', async () => {
       // PUSH1 0x00 PUSH1 0x00 SSTORE
       const unsafeCode = '0x6000600055'
-      const tx: TransactionRequest = {
-        data: unsafeCode,
-      }
-      const result = await provider.call(tx)
-      const expected = encodeSolidityRevertMessage(
+
+      await expect(
+        provider.call({
+          data: unsafeCode,
+        })
+      ).to.be.revertedWith(
         'Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?'
       )
-      expect(result).to.eq(expected)
     })
   })
 
