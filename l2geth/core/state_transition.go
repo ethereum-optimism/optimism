@@ -78,7 +78,6 @@ type Message interface {
 	L1MessageSender() *common.Address
 	L1BlockNumber() *big.Int
 	QueueOrigin() *big.Int
-	SignatureHashType() types.SignatureHashType
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.

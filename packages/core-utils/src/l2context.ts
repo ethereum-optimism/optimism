@@ -31,7 +31,6 @@ export const injectL2Context = (l1Provider: providers.JsonRpcProvider) => {
         )
       }
       b.transactions[i].l1TxOrigin = block.transactions[i].l1TxOrigin
-      b.transactions[i].txType = block.transactions[i].txType
       b.transactions[i].queueOrigin = block.transactions[i].queueOrigin
       b.transactions[i].rawTransaction = block.transactions[i].rawTransaction
     }
