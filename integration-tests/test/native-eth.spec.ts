@@ -50,7 +50,7 @@ describe('Native ETH Integration Tests', async () => {
 
     it('Should estimate gas for ETH withdraw', async () => {
       const amount = utils.parseEther('0.5')
-      const gas = await env.ovmEth.estimateGas.withdraw(amount, '0xFFFF', 0)
+      const gas = await env.ovmEth.estimateGas.withdraw(amount, 0, '0xFFFF')
       expect(gas).to.be.deep.eq(BigNumber.from(0x207ad91a77b4))
     })
   })
@@ -59,7 +59,7 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit('0xFFFF', 0, { value: depositAmount }),
+      env.gateway.deposit(0, '0xFFFF', { value: depositAmount }),
       Direction.L1ToL2
     )
 
@@ -81,7 +81,7 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const depositReceipts = await env.waitForXDomainTransaction(
-      env.gateway.depositTo(l2Bob.address, '0xFFFF', 0, {
+      env.gateway.depositTo(l2Bob.address, 0, '0xFFFF', {
         value: depositAmount,
       }),
       Direction.L1ToL2
@@ -107,7 +107,7 @@ describe('Native ETH Integration Tests', async () => {
     const preBalances = await getBalances(env)
     const data = `0x` + 'ab'.repeat(32000)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit(data, 9_000_000, { value: depositAmount }),
+      env.gateway.deposit(9_000_000, data, { value: depositAmount }),
       Direction.L1ToL2
     )
 
@@ -134,7 +134,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdraw(withdrawAmount, '0xFFFF', 0),
+      env.ovmEth.withdraw(withdrawAmount, 0, '0xFFFF'),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -163,7 +163,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount, '0xFFFF', 0),
+      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount, 0, '0xFFFF'),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -185,7 +185,7 @@ describe('Native ETH Integration Tests', async () => {
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(
-      env.gateway.deposit('0xFFFF', 0, {
+      env.gateway.deposit(0, '0xFFFF', {
         value: amount,
       }),
       Direction.L1ToL2
@@ -203,7 +203,7 @@ describe('Native ETH Integration Tests', async () => {
     // 3. do withdrawal
     const withdrawnAmount = utils.parseEther('0.95')
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.connect(other).withdraw(withdrawnAmount, '0xFFFF', 0),
+      env.ovmEth.connect(other).withdraw(withdrawnAmount, 0, '0xFFFF'),
       Direction.L2ToL1
     )
 

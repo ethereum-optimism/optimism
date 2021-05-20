@@ -101,8 +101,8 @@ export const fundUser = async (
 ) => {
   const value = BigNumber.from(amount)
   const tx = recipient
-    ? gateway.depositTo(recipient, '0x', 0, { value })
-    : gateway.deposit('0x', 0, { value })
+    ? gateway.depositTo(recipient, 0, '0xFFFF', { value })
+    : gateway.deposit(0, '0xFFFF', { value })
   await waitForXDomainTransaction(watcher, tx, Direction.L1ToL2)
 }
 
