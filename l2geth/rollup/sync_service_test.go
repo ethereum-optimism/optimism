@@ -154,7 +154,6 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 func TestSyncServiceL1GasPrice(t *testing.T) {
 	service, _, _, err := newTestSyncService(true)
 	setupMockClient(service, map[string]interface{}{})
-	service.RollupGpo = gasprice.NewRollupOracle(big.NewInt(0), big.NewInt(0))
 
 	if err != nil {
 		t.Fatal(err)
@@ -179,6 +178,43 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 
 	if gasAfter.Cmp(big.NewInt(100*int64(params.GWei))) != 0 {
 		t.Fatal("expected 100 gas price, got", gasAfter)
+	}
+}
+
+func TestSyncServiceL2GasPrice(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.enableL2GasPolling = true
+	service.gpoAddress = common.HexToAddress("0xF20b338752976878754518183873602902360704")
+
+	price, err := service.RollupGpo.SuggestExecutionPrice(context.Background())
+	if err != nil {
+		t.Fatal("Cannot fetch execution price")
+	}
+
+	if price.Cmp(common.Big0) != 0 {
+		t.Fatal("Incorrect gas price")
+	}
+
+	state, err := service.bc.State()
+	if err != nil {
+		t.Fatal("Cannot get state db")
+	}
+	l2GasPrice := big.NewInt(100000001)
+	state.SetState(service.gpoAddress, l2GasPriceSlot, common.BigToHash(l2GasPrice))
+	root, _ := state.Commit(false)
+
+	service.updateL2GasPrice(&root)
+
+	post, err := service.RollupGpo.SuggestExecutionPrice(context.Background())
+	if err != nil {
+		t.Fatal("Cannot fetch execution price")
+	}
+
+	if l2GasPrice.Cmp(post) != 0 {
+		t.Fatal("Gas price not updated")
 	}
 }
 
@@ -327,6 +363,7 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
 	}
 
+	service.RollupGpo = gasprice.NewRollupOracle(big.NewInt(0), big.NewInt(0))
 	txCh := make(chan core.NewTxsEvent, 1)
 	sub := service.SubscribeNewTxsEvent(txCh)
 

@@ -10,7 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -27,6 +29,10 @@ type OVMContext struct {
 	blockNumber uint64
 	timestamp   uint64
 }
+
+// L2GasPrice slot refers to the storage slot that the execution price is stored
+// in the L2 predeploy contract, the GasPriceOracle
+var l2GasPriceSlot = common.BigToHash(big.NewInt(1))
 
 // SyncService implements the verifier functionality as well as the reorg
 // protection for the sequencer.
@@ -49,6 +55,8 @@ type SyncService struct {
 	confirmationDepth         uint64
 	pollInterval              time.Duration
 	timestampRefreshThreshold time.Duration
+	gpoAddress                common.Address
+	enableL2GasPolling        bool
 }
 
 // NewSyncService returns an initialized sync service
@@ -99,6 +107,8 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		db:                        db,
 		pollInterval:              pollInterval,
 		timestampRefreshThreshold: timestampRefreshThreshold,
+		gpoAddress:                cfg.GasPriceOracleAddress,
+		enableL2GasPolling:        cfg.EnableL2GasPolling,
 	}
 
 	// Initial sync service setup if it is enabled. This code depends on
@@ -302,6 +312,9 @@ func (s *SyncService) VerifierLoop() {
 		if err := s.verify(); err != nil {
 			log.Error("Could not verify", "error", err)
 		}
+		if err := s.updateL2GasPrice(); err != nil {
+			log.Error("Cannot update L2 gas price", "msg", err)
+		}
 		time.Sleep(s.pollInterval)
 	}
 }
@@ -356,6 +369,9 @@ func (s *SyncService) SequencerLoop() {
 		}
 		s.txLock.Unlock()
 
+		if err := s.updateL2GasPrice(); err != nil {
+			log.Error("Cannot update L2 gas price", "msg", err)
+		}
 		if s.updateContext() != nil {
 			log.Error("Could not update execution context", "error", err)
 		}
@@ -448,6 +464,28 @@ func (s *SyncService) updateL1GasPrice() error {
 		return err
 	}
 	s.RollupGpo.SetDataPrice(l1GasPrice)
+	return nil
+}
+
+// updateL2GasPrice will read from the L2 state the current L2 gas price.
+// It must be enabled to function until all nodes are running with the correct
+// contract deployed.
+func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
+	if !s.enableL2GasPolling {
+		return nil
+	}
+	var state *state.StateDB
+	var err error
+	if hash != nil {
+		state, err = s.bc.StateAt(*hash)
+	} else {
+		state, err = s.bc.State()
+	}
+	if err != nil {
+		return err
+	}
+	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
+	s.RollupGpo.SetExecutionPrice(result.Big())
 	return nil
 }
 
