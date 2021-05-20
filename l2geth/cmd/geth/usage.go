@@ -80,6 +80,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupMaxCalldataSizeFlag,
 			utils.RollupDataPriceFlag,
 			utils.RollupExecutionPriceFlag,
+			utils.RollupEnableL2GasPollingFlag,
+			utils.RollupGasPriceOracleAddressFlag,
 		},
 	},
 	{
