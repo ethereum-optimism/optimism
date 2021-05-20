@@ -86,8 +86,6 @@ describe('Queue Ingestion', () => {
       // The `to` addresses are defined in the previous test and
       // increment sequentially.
       expect(tx.to).to.be.equal('0x' + `${i}`.repeat(40))
-      // The transaction type is EIP155
-      expect(tx.txType).to.be.equal('EIP155')
       // The queue origin is Layer 1
       expect(tx.queueOrigin).to.be.equal('l1')
       // the L1TxOrigin is equal to the Layer one from

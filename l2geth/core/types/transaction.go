@@ -76,7 +76,6 @@ func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit u
 	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data)
 }
 
-// TODO: cannot deploy contracts with SighashEthSign right until SighashEIP155 is no longer hardcoded
 func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
 	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, data)
 }
