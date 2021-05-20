@@ -2,7 +2,7 @@ import { expect } from '../../setup'
 
 /* Imports: External */
 import hre from 'hardhat'
-import { ethers, Contract, Signer, ContractFactory } from 'ethers'
+import { ethers, Contract, Signer, ContractFactory, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 
 /* Imports: Internal */
@@ -15,6 +15,11 @@ import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
 import { toPlainObject } from 'lodash'
 
 describe('L2ChugSplashDeployer', () => {
+  let wallet: Wallet
+  before(async () => {
+    ;[wallet] = hre.waffle.provider.getWallets()
+  })
+
   let signer1: Signer
   let signer2: Signer
   before(async () => {
@@ -26,6 +31,8 @@ describe('L2ChugSplashDeployer', () => {
     Mock__OVM_ExecutionManager = await smockit('OVM_ExecutionManager', {
       address: predeploys.OVM_ExecutionManagerWrapper,
     })
+
+    Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
   })
 
   let Factory__L2ChugSplashDeployer: ContractFactory
@@ -236,13 +243,13 @@ describe('L2ChugSplashDeployer', () => {
       })
 
       it('should change the upgrade status when the bundle is complete', async () => {
-        expect(await L2ChugSplashDeployer.hasActiveBundle()).to.equal(true)
+        expect(await L2ChugSplashDeployer.isUpgrading()).to.equal(true)
 
         for (const action of bundle.actions) {
           await L2ChugSplashDeployer.executeAction(action.action, action.proof)
         }
 
-        expect(await L2ChugSplashDeployer.hasActiveBundle()).to.equal(false)
+        expect(await L2ChugSplashDeployer.isUpgrading()).to.equal(false)
       })
 
       it('should allow the upgrader to submit a new bundle when the previous bundle is complete', async () => {
@@ -257,6 +264,74 @@ describe('L2ChugSplashDeployer', () => {
           )
         ).to.not.be.reverted
       })
+    })
+  })
+
+  describe('fallback', () => {
+    it('should revert if not provided a valid EIP155 tx', async () => {
+      await expect(
+        signer1.sendTransaction({
+          to: L2ChugSplashDeployer.address,
+          data: '0x',
+        })
+      ).to.be.reverted
+    })
+
+    it('should revert if the target is not the L2ChugSplashDeployer', async () => {
+      await expect(
+        signer1.sendTransaction({
+          to: L2ChugSplashDeployer.address,
+          data: await wallet.signTransaction({
+            chainId: 420,
+            to: await signer1.getAddress(),
+            data: '0x',
+          }),
+        })
+      ).to.be.reverted
+    })
+
+    it('should revert if trying to call approveTransactionBundle', async () => {
+      await expect(
+        signer1.sendTransaction({
+          to: L2ChugSplashDeployer.address,
+          data: await wallet.signTransaction({
+            chainId: 420,
+            to: L2ChugSplashDeployer.address,
+            data: L2ChugSplashDeployer.interface.encodeFunctionData(
+              'approveTransactionBundle',
+              [ethers.constants.HashZero, 1234]
+            ),
+          }),
+        })
+      ).to.be.reverted
+    })
+
+    it('should be able to trigger executeAction', async () => {
+      const bundle: ChugSplashActionBundle = getChugSplashActionBundle([
+        {
+          target: NON_ZERO_ADDRESS,
+          code: '0x1234',
+        },
+      ])
+
+      await L2ChugSplashDeployer.connect(signer1).approveTransactionBundle(
+        bundle.root,
+        bundle.actions.length
+      )
+
+      await expect(
+        signer1.sendTransaction({
+          to: L2ChugSplashDeployer.address,
+          data: await wallet.signTransaction({
+            chainId: 420,
+            to: L2ChugSplashDeployer.address,
+            data: L2ChugSplashDeployer.interface.encodeFunctionData(
+              'executeAction',
+              [bundle.actions[0].action, bundle.actions[0].proof]
+            ),
+          }),
+        })
+      ).to.not.be.reverted
     })
   })
 })
