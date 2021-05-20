@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// TODO: This is broken for 0 and 1
 var roundingL1GasPriceTests = map[string]struct {
 	input  uint64
 	expect uint64
@@ -16,8 +15,8 @@ var roundingL1GasPriceTests = map[string]struct {
 	"one-under": {pow10(8) - 1, pow10(8)},
 	"small":     {3, pow10(8)},
 	"two":       {2, pow10(8)},
-	//"one":       {1, pow10(8)},
-	//"zero":      {0, pow10(8)},
+	"one":       {1, pow10(8)},
+	"zero":      {0, 0},
 }
 
 func TestRoundL1GasPrice(t *testing.T) {
@@ -41,8 +40,8 @@ var roundingL2GasPriceTests = map[string]struct {
 	"one-under": {pow10(8), pow10(8) + 1},
 	"small":     {3, pow10(8) + 1},
 	"two":       {2, pow10(8) + 1},
-	//"one":       {1, pow10(8) + 1},
-	//"zero":      {0, pow10(8) + 1},
+	"one":       {1, pow10(8) + 1},
+	"zero":      {0, 0},
 }
 
 func TestRoundL2GasPrice(t *testing.T) {
@@ -97,7 +96,7 @@ func TestCalculateRollupFee(t *testing.T) {
 
 			fee, err := CalculateRollupFee(data, l1GasPrice, l2GasLimit, l2GasPrice)
 			if err != nil {
-				t.Fatal("")
+				t.Fatal("Cannot calculate fee")
 			}
 
 			decodedGasLimit := DecodeL2GasLimit(fee)
