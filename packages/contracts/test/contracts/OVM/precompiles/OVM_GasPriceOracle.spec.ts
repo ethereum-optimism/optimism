@@ -61,5 +61,24 @@ describe('OVM_SequencerEntrypoint', () => {
         executionPrice
       )
     })
+
+    it('is the 1st storage slot', async () => {
+      const executionPrice = 1234
+      const slot = 1
+
+      // set the price
+      await OVM_GasPriceOracle.connect(signer1).setExecutionPrice(
+        executionPrice
+      )
+
+      // get the storage slot value
+      const priceAtSlot = await signer1.provider.getStorageAt(
+        OVM_GasPriceOracle.address,
+        slot
+      )
+      expect(await OVM_GasPriceOracle.getExecutionPrice()).to.equal(
+        ethers.BigNumber.from(priceAtSlot)
+      )
+    })
   })
 })
