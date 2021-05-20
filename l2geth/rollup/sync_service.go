@@ -471,6 +471,8 @@ func (s *SyncService) updateL1GasPrice() error {
 // It must be enabled to function until all nodes are running with the correct
 // contract deployed.
 func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
+	// TOOD(mark): this is temporary and will be able to be rmoved when the
+	// OVM_GasPriceOracle is moved into the predeploy contracts
 	if !s.enableL2GasPolling {
 		return nil
 	}
