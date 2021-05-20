@@ -134,9 +134,7 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly return solidity revert data from a call', async () => {
-      await expect(provider.call(revertingTx)).to.be.revertedWith(
-        revertMessage
-      )
+      await expect(provider.call(revertingTx)).to.be.revertedWith(revertMessage)
     })
 
     it('should produce error when called from ethers', async () => {
