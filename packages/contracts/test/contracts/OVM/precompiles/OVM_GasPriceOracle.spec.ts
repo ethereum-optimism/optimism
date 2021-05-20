@@ -35,15 +35,13 @@ describe('OVM_SequencerEntrypoint', () => {
 
   describe('setExecutionPrice', () => {
     it('should revert if called by someone other than the owner', async () => {
-      await expect(
-        OVM_GasPriceOracle.connect(signer2).setExecutionPrice(1234)
-      ).to.be.reverted
+      await expect(OVM_GasPriceOracle.connect(signer2).setExecutionPrice(1234))
+        .to.be.reverted
     })
 
     it('should succeed if called by the owner', async () => {
-      await expect(
-        OVM_GasPriceOracle.connect(signer1).setExecutionPrice(1234)
-      ).to.not.be.reverted
+      await expect(OVM_GasPriceOracle.connect(signer1).setExecutionPrice(1234))
+        .to.not.be.reverted
     })
   })
 
