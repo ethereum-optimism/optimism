@@ -176,5 +176,18 @@ describe('OVM_ECDSAContractAccount', () => {
         OVM_ECDSAContractAccount.execute(encodedTransaction)
       ).to.be.revertedWith('Value is nonzero but input data was provided.')
     })
+
+    // NOTE: Upgrades are disabled for now but will be re-enabled at a later point in time. See
+    // comment in OVM_ECDSAContractAccount.sol for additional information.
+    it(`should revert if trying call itself`, async () => {
+      const transaction = { ...DEFAULT_EIP155_TX, to: wallet.address }
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
+      await expect(
+        OVM_ECDSAContractAccount.execute(encodedTransaction)
+      ).to.be.revertedWith(
+        'Calls to self are disabled until upgradability is re-enabled.'
+      )
+    })
   })
 })

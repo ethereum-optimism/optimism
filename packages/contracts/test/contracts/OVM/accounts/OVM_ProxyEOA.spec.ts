@@ -44,9 +44,7 @@ describe('OVM_ProxyEOA', () => {
     })
   })
 
-  // NOTE: Upgrades are disabled for now but will be re-enabled at a later point in time. See
-  // comment in OVM_ProxyEOA.sol for additional information.
-  describe.skip('upgrade()', () => {
+  describe('upgrade()', () => {
     it(`should upgrade the proxy implementation`, async () => {
       const newImpl = `0x${'81'.repeat(20)}`
       Mock__OVM_ExecutionManager.smocked.ovmADDRESS.will.return.with(

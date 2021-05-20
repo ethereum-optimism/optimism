@@ -140,6 +140,14 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
                 return (true, bytes(""));
             } else {
+                // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
+                // so that they don't have to pay any fees to the sequencer. Function will remain disabled
+                // until a robust solution is in place.
+                require(
+                    transaction.to != Lib_ExecutionManagerWrapper.ovmADDRESS(),
+                    "Calls to self are disabled until upgradability is re-enabled."
+                );
+
                 return transaction.to.call(transaction.data);
             }
         }
