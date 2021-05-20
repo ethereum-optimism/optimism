@@ -75,16 +75,17 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         external
         payable
     {
-        _initiateDeposit(msg.sender, msg.sender, bytes(""), 0);
+        _initiateDeposit(msg.sender, msg.sender, 0, bytes(""));
     }
 
     /**
      * @dev Deposit an amount of the ETH to the caller's balance on L2.
+     * @param _l2Gas Optional gas limit to complete the deposit on L2
+     *        If the default amount is greater than the value provided, the L2 gasLimit will be set
+     *        to the default amount.
      * @param _data Optional data to forward to L2. This data is provided
-     *   solely as a convenience for external contracts. Aside from enforcing a maximum
-     *   length, these contracts provide no guarantees about it's content.
-     * @param _l2Gas Optional gas limit to complete the deposit on l2.
-       If not provided, the default amount is passed.
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function deposit(
         uint32 _l2Gas,
@@ -97,19 +98,20 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         _initiateDeposit(
             msg.sender,
             msg.sender,
-            _data,
-            _l2Gas
+            _l2Gas,
+            _data
         );
     }
 
     /**
      * @dev Deposit an amount of ETH to a recipient's balance on L2.
      * @param _to L2 address to credit the withdrawal to.
+     * @param _l2Gas Optional gas limit to complete the deposit on L2.
+     *        If the default amount is greater than the value provided, the L2 gasLimit will be set
+     *        to the default amount.
      * @param _data Optional data to forward to L2. This data is provided
-     *   solely as a convenience for external contracts. Aside from enforcing a maximum
-     *   length, these contracts provide no guarantees about it's content.
-     * @param _l2Gas Optional gas limit to complete the deposit on l2.
-       If not provided, the default amount is passed.
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function depositTo(
         address _to,
@@ -123,21 +125,21 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         _initiateDeposit(
             msg.sender,
             _to,
-            _data,
-            _l2Gas
+            _l2Gas,
+            _data
         );
     }
 
     /**
      * @dev Performs the logic for deposits by storing the ETH and informing the L2 ETH Gateway of the deposit.
-     *
-     * @param _from Account to pull the deposit from on L1
-     * @param _to Account to give the deposit to on L2
+     * @param _from Account to pull the deposit from on L1.
+     * @param _to Account to give the deposit to on L2.
+     * @param _l2Gas Optional gas limit to complete the deposit on L2.
+     *        If the default amount is greater than the value provided, the L2 gasLimit will be set
+     *        to the default amount.
      * @param _data Optional data to forward to L2. This data is provided
-     *   solely as a convenience for external contracts. Aside from enforcing a maximum
-     *   length, these contracts provide no guarantees about it's content.
-     * @param _l2Gas Optional gas limit to complete the deposit on l2.
-       If not provided, the default amount is passed.
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function _initiateDeposit(
         address _from,
@@ -158,7 +160,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
             );
 
         // Prevent tokens stranded on other side by taking
-        // the max of the user provided gas and DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS
+        // the max of the user provided gas and DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS.
         uint32 defaultGas = getFinalizeDepositL2Gas();
         uint32 l2Gas = _l2Gas > defaultGas ? _l2Gas : defaultGas;
 
@@ -180,11 +182,12 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
      * L1 ETH token.
      * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized.
-     *
      * @param _from L2 address initiating the transfer.
      * @param _to L1 address to credit the withdrawal to.
      * @param _amount Amount of the ERC20 to deposit.
-     * @param _data Data provided by the sender on L2.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function finalizeWithdrawal(
         address _from,
@@ -222,8 +225,8 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     /**
      * @dev Internal accounting function for moving around L1 ETH.
      *
-     * @param _to L1 address to transfer ETH to
-     * @param _value Amount of ETH to send to
+     * @param _to L1 address to transfer ETH to.
+     * @param _value Amount of ETH to transfer.
      */
     function _safeTransferETH(
         address _to,
@@ -240,8 +243,8 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      *****************************/
 
     /**
-     * @dev Migrates entire ETH balance to another gateway
-     * @param _to Gateway Proxy address to migrate ETH to
+     * @dev Migrates entire ETH balance to another gateway.
+     * @param _to Gateway Proxy address to migrate ETH to.
      */
     function migrateEth(address payable _to) external {
         address owner = Lib_AddressManager(libAddressManager).owner();
@@ -252,7 +255,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
 
     /**
      * @dev Adds ETH balance to the account. This is meant to allow for ETH
-     * to be migrated from an old gateway to a new gateway
+     * to be migrated from an old gateway to a new gateway.
      */
     function donateETH() external payable {}
 }

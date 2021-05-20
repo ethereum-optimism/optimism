@@ -40,7 +40,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      ********************************/
 
     /**
-     * @param _l2CrossDomainMessenger L1 Messenger address being used for cross-chain communications.
+     * @param _l2CrossDomainMessenger L2 Messenger address being used for cross-chain communications.
      */
     constructor(
         address _l2CrossDomainMessenger
@@ -50,9 +50,10 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
 
     /**
      * @dev Initialize this contract with the L1 token gateway address.
-     * The flow: 1) this contract gets deployed on L2, 2) the L1
-     * gateway is deployed with addr from (1), 3) L1 gateway address passed here.
-     *
+     *      The flow:
+     *          1) this contract is deployed on L2,
+     *          2) the L1 gateway is deployed with addr from (1),
+     *          3) L1 gateway address passed here.
      * @param _l1TokenGateway Address of the corresponding L1 gateway deployed to the main chain
      */
     function init(
@@ -86,9 +87,8 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     /**
      * @dev Core logic to be performed when a withdrawal from L2 is initialized.
      * In most cases, this will simply burn the withdrawn L2 funds.
-     *
-     * param _to Address being withdrawn to
-     * param _amount Amount being withdrawn
+     * param _to Address being withdrawn to.
+     * param _amount Amount being withdrawn.
      */
     function _handleInitiateWithdrawal(
         address, // _to,
@@ -103,9 +103,8 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     /**
      * @dev Core logic to be performed when a deposit from L2 is finalized on L2.
      * In most cases, this will simply _mint() to credit L2 funds to the recipient.
-     *
-     * param _to Address being deposited to on L2
-     * param _amount Amount which was deposited on L1
+     * param _to Address being deposited to on L2.
+     * param _amount Amount which was deposited on L1.
      */
     function _handleFinalizeDeposit(
         address, // _to
@@ -141,8 +140,12 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     /**
      * @dev initiate a withdraw of some tokens to the caller's account on L1
      * @param _amount Amount of the token to withdraw.
-     * @param _data Data to forward to L1.
-     * @param _l1Gas Gas limit for the provided message.
+     * @param _l1Gas Optional gas limit to complete the deposit on L1.
+     *        If the default amount is greater than the value provided, the L1 gasLimit will be set
+     *        to the default amount.
+     * @param _data Optional data to forward to L1. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function withdraw(
         uint256 _amount,
@@ -167,8 +170,12 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @dev initiate a withdraw of some token to a recipient's account on L1.
      * @param _to L1 adress to credit the withdrawal to.
      * @param _amount Amount of the token to withdraw.
-     * @param _data Data to forward to L1.
-     * @param _l1Gas Gas limit for the provided message.
+     * @param _l1Gas Optional gas limit to complete the deposit on L2.
+     *        If the default amount is greater than the value provided, the L1 gasLimit will be set
+     *        to the default amount.
+     * @param _data Optional data to forward to L1. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function withdrawTo(
         address _to,
@@ -192,15 +199,15 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
 
     /**
      * @dev Performs the logic for deposits by storing the token and informing the L2 token Gateway of the deposit.
-     *
      * @param _from Account to pull the deposit from on L2.
      * @param _to Account to give the withdrawal to on L1.
      * @param _amount Amount of the token to withdraw.
-     * @param _l1Gas Optional gas limit to complete the deposit on l2.
-     *  If not provided, the default amount is passed.
-     * @param _data Optional data to forward to L2. This data is provided
-     *   solely as a convenience for external contracts. Aside from enforcing a maximum
-     *   length, these contracts provide no guarantees about it's content.
+     * @param _l1Gas Optional gas limit to complete the deposit on L2.
+     *        If the default amount is greater than the value provided, the L1 gasLimit will be set
+     *        to the default amount.
+     * @param _data Optional data to forward to L1. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function _initiateWithdrawal(
         address _from,
@@ -245,13 +252,12 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @dev Complete a deposit from L1 to L2, and credits funds to the recipient's balance of this
      * L2 token.
      * This call will fail if it did not originate from a corresponding deposit in OVM_l1TokenGateway.
-     *
      * @param _from Account to pull the deposit from on L2.
      * @param _to Address to receive the withdrawal at
      * @param _amount Amount of the token to withdraw
      * @param _data Data provider by the sender on L1. This data is provided
-     *   solely as a convenience for external contracts. Aside from enforcing a maximum
-     *   length, these contracts provide no guarantees about it's content.
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about it's content.
      */
     function finalizeDeposit(
         address _from,

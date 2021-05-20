@@ -137,7 +137,7 @@ describe('OVM_L2DepositedERC20', () => {
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await SmoddedL2Gateway.withdraw(withdrawAmount, NON_NULL_BYTES32, 0)
+      await SmoddedL2Gateway.withdraw(withdrawAmount, 0, NON_NULL_BYTES32)
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -180,8 +180,8 @@ describe('OVM_L2DepositedERC20', () => {
       const customGasLimit = 10_000_000
       await SmoddedL2Gateway.withdraw(
         withdrawAmount,
+        customGasLimit,
         NON_NULL_BYTES32,
-        customGasLimit
       )
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
@@ -192,8 +192,8 @@ describe('OVM_L2DepositedERC20', () => {
       await SmoddedL2Gateway.withdrawTo(
         await bob.getAddress(),
         withdrawAmount,
+        0,
         NON_NULL_BYTES32,
-        0
       )
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
@@ -238,8 +238,8 @@ describe('OVM_L2DepositedERC20', () => {
       await SmoddedL2Gateway.withdrawTo(
         await bob.getAddress(),
         withdrawAmount,
-        NON_NULL_BYTES32,
-        customGasLimit
+        customGasLimit,
+        NON_NULL_BYTES32
       )
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]

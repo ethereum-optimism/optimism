@@ -35,8 +35,8 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
      ***************/
 
     /**
-     * @param _l1ERC20 L1 ERC20 address this contract stores deposits for
-     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into
+     * @param _l1ERC20 L1 ERC20 address this contract stores deposits for.
+     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into.
      */
     constructor(
         iOVM_ERC20 _l1ERC20,

@@ -126,7 +126,7 @@ describe('OVM_L1ETHGateway', () => {
       )
 
       // thanks Alice
-      await OVM_L1ETHGateway.connect(alice).deposit(NON_NULL_BYTES32, 0, {
+      await OVM_L1ETHGateway.connect(alice).deposit(0, NON_NULL_BYTES32, {
         value: ethers.utils.parseEther('1.0'),
         gasPrice: 0,
       })
@@ -195,7 +195,7 @@ describe('OVM_L1ETHGateway', () => {
       const initialBalance = await ethers.provider.getBalance(depositer)
 
       // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ETHGateway.connect(alice).deposit(NON_NULL_BYTES32, 0, {
+      await OVM_L1ETHGateway.connect(alice).deposit(0, NON_NULL_BYTES32, {
         value: depositAmount,
         gasPrice: 0,
       })
@@ -236,8 +236,8 @@ describe('OVM_L1ETHGateway', () => {
       const customGasLimit = 10_000_000
       // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
       await OVM_L1ETHGateway.connect(alice).deposit(
-        NON_NULL_BYTES32,
         customGasLimit,
+        NON_NULL_BYTES32,
         {
           value: depositAmount,
           gasPrice: 0,
@@ -257,8 +257,8 @@ describe('OVM_L1ETHGateway', () => {
 
       await OVM_L1ETHGateway.connect(alice).depositTo(
         bobsAddress,
-        NON_NULL_BYTES32,
         0,
+        NON_NULL_BYTES32,
         {
           value: depositAmount,
           gasPrice: 0,
@@ -301,8 +301,8 @@ describe('OVM_L1ETHGateway', () => {
       // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
       await OVM_L1ETHGateway.connect(alice).depositTo(
         bobsAddress,
-        NON_NULL_BYTES32,
         customGasLimit,
+        NON_NULL_BYTES32,
         {
           value: depositAmount,
           gasPrice: 0,

@@ -32,16 +32,16 @@ interface iOVM_L2DepositedToken {
 
     function withdraw(
         uint _amount,
-        bytes calldata _data,
-        uint32 _l1Gas
+        uint32 _l1Gas,
+        bytes calldata _data
     )
         external;
 
     function withdrawTo(
         address _to,
         uint _amount,
-        bytes calldata _data,
-        uint32 _l1Gas
+        uint32 _l1Gas,
+        bytes calldata _data
     )
         external;
 

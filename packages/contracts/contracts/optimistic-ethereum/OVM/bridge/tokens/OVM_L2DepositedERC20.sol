@@ -31,8 +31,8 @@ contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
 
     /**
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
-     * @param _name ERC20 name
-     * @param _symbol ERC20 symbol
+     * @param _name ERC20 name.
+     * @param _symbol ERC20 symbol.
      */
     constructor(
         address _l2CrossDomainMessenger,

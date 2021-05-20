@@ -32,16 +32,16 @@ interface iOVM_L1TokenGateway {
 
     function deposit(
         uint _amount,
-        bytes calldata _data,
-        uint32 _l2Gas
+        uint32 _l2Gas,
+        bytes calldata _data
     )
         external;
 
     function depositTo(
         address _to,
         uint _amount,
-        bytes calldata _data,
-        uint32 _l2Gas
+        uint32 _l2Gas,
+        bytes calldata _data
     )
         external;
 
