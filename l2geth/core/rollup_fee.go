@@ -1,55 +1,72 @@
 package core
 
 import (
+	"errors"
+	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// RollupBatchOverhead is the number of additional bytes of overhead that a
-// transaction batch requires in addition to the transactions.
+// overhead represents the fixed cost of batch submission of a single
+// transaction in gas
+const overhead uint64 = 4200
 
-var (
-	// Assuming 200 txs in a batch, 2688 gas per transaction
-	// Assuming 250 stateroots in a batch, 1473 gas per stateroot
-	overhead       = new(big.Int).SetUint64(2688 + 1473)
-	maxGasLimit    = new(big.Int).SetUint64(10_000_000)
-	scalarValue    = new(big.Int).SetUint64(1)
-	scalarDecimals = new(big.Int).SetUint64(0)
-	big10          = new(big.Int).SetUint64(10)
-)
+// hundredMillion is a constant used in the gas encoding formula
+const hundredMillion uint64 = 100_000_000
+
+// errInvalidGasPrice is the error returned when a user submits an incorrect gas
+// price. The gas price must satisfy a particular equation depending on if it
+// is a L1 gas price or a L2 gas price
+var errInvalidGasPrice = errors.New("rollup fee: invalid gas price")
 
 // CalculateFee calculates the fee that must be paid to the Rollup sequencer, taking into
 // account the cost of publishing data to L1.
-// The following formula is used:
-// overhead = 2688 + 1473
-// dataCost = (4 * zeroDataBytes) + (16 * nonZeroDataBytes)
-// l1GasCost = dataCost + overhead
-// l1Fee = l1GasCost * l1GasPrice
-// executionFee = executionPrice * gasLimit
-// scalar = scalarValue / 10 ** scalarDecimals
-// estimateGas = scalar * (l1Fee + executionFee) * (maxGasLimit + gasLimit)
-// final fee = estimateGas * gasPrice
-func CalculateRollupFee(data []byte, gasUsed, dataPrice, executionPrice *big.Int) uint64 {
+// l2_gas_price * l2_gas_limit + l1_gas_price * l1_gas_used
+// where ...
+func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) (uint64, error) {
+	if RoundL1GasPrice(l1GasPrice.Uint64()) != l1GasPrice.Uint64() {
+		return 0, fmt.Errorf("invalid L1 gas price: %w", errInvalidGasPrice)
+	}
+	if RoundL2GasPrice(l2GasPrice.Uint64()) != l2GasPrice.Uint64() {
+		return 0, fmt.Errorf("invalid L2 gas price: %w", errInvalidGasPrice)
+	}
+	l1GasLimit := calculateL1GasLimit(data, overhead)
+	l1Fee := new(big.Int).Mul(l1GasPrice, l1GasLimit)
+	l2Fee := new(big.Int).Mul(l2GasLimit, l2GasPrice)
+	fee := new(big.Int).Add(l1Fee, l2Fee)
+	return fee.Uint64(), nil
+}
+
+func calculateL1GasLimit(data []byte, overhead uint64) *big.Int {
 	zeroes, ones := zeroesAndOnes(data)
-	zeroesCost := new(big.Int).SetUint64(zeroes * params.TxDataZeroGas)
-	onesCost := new(big.Int).SetUint64(ones * params.TxDataNonZeroGasEIP2028)
-	dataCost := new(big.Int).Add(zeroesCost, onesCost)
-	l1GasCost := new(big.Int).Add(dataCost, overhead)
+	zeroesCost := zeroes * params.TxDataZeroGas
+	onesCost := ones * params.TxDataNonZeroGasEIP2028
+	gasLimit := zeroesCost + onesCost + overhead
+	return new(big.Int).SetUint64(gasLimit)
+}
 
-	// dataPrice is l1GasPrice
-	l1Fee := new(big.Int).Mul(l1GasCost, dataPrice)
-	executionFee := new(big.Int).Mul(executionPrice, gasUsed)
+func RoundL1GasPrice(gasPrice uint64) uint64 {
+	if gasPrice%hundredMillion < 2 {
+		gasPrice += hundredMillion - 2
+	} else {
+		gasPrice += hundredMillion
+	}
+	return gasPrice - gasPrice%hundredMillion
+}
 
-	fee1 := new(big.Int).Mul(l1Fee, executionFee)
-	fee2 := new(big.Int).Mul(maxGasLimit, gasUsed)
-	fee := new(big.Int).Add(fee1, fee2)
+func RoundL2GasPrice(gasPrice uint64) uint64 {
+	if gasPrice%hundredMillion < 2 {
+		gasPrice += hundredMillion - 2
+	} else {
+		gasPrice += hundredMillion
+	}
+	return gasPrice - gasPrice%hundredMillion + 1
+}
 
-	scalar := new(big.Int).Exp(big10, scalarDecimals, nil)
-	scalar = scalar.Mul(scalar, scalarValue)
-	result := new(big.Int).Mul(fee, scalar)
-
-	return result.Uint64()
+func DecodeL2GasLimit(gasLimit uint64) uint64 {
+	return gasLimit % hundredMillion
 }
 
 func zeroesAndOnes(data []byte) (uint64, uint64) {
@@ -61,4 +78,8 @@ func zeroesAndOnes(data []byte) (uint64, uint64) {
 	}
 	ones := uint64(len(data)) - zeroes
 	return zeroes, ones
+}
+
+func pow10(x int) uint64 {
+	return uint64(math.Pow10(x))
 }

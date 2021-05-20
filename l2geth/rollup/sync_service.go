@@ -448,7 +448,6 @@ func (s *SyncService) updateL1GasPrice() error {
 		return err
 	}
 	s.RollupGpo.SetDataPrice(l1GasPrice)
-	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
 	return nil
 }
 

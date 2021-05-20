@@ -1033,24 +1033,27 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 
 	// 2a. fetch the data price, depends on how the sequencer has chosen to update their values based on the
 	// l1 gas prices
-	dataPrice, err := b.SuggestDataPrice(ctx)
+	l1GasPrice, err := b.SuggestDataPrice(ctx)
 	if err != nil {
 		return 0, err
 	}
 
 	// 2b. fetch the execution gas price, by the typical mempool dynamics
-	executionPrice, err := b.SuggestExecutionPrice(ctx)
+	l2GasPrice, err := b.SuggestExecutionPrice(ctx)
 	if err != nil {
 		return 0, err
 	}
 
+	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
 	// 3. calculate the fee and normalize by the default gas price
-	fee := core.CalculateRollupFee(*args.Data, new(big.Int).SetUint64(uint64(gasUsed)), dataPrice, executionPrice)
-	normalizedFee := fee / defaultGasPrice
-	if normalizedFee < 21000 {
-		normalizedFee = 21000
+	fee, err := core.CalculateRollupFee(*args.Data, l1GasPrice, l2GasLimit, l2GasPrice)
+	if err != nil {
+		return 0, err
 	}
-	return (hexutil.Uint64)(normalizedFee), nil
+	if fee < 21000 {
+		fee = 21000
+	}
+	return (hexutil.Uint64)(fee), nil
 }
 
 func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
