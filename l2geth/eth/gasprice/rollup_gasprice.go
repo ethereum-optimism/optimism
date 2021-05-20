@@ -34,7 +34,7 @@ func (gpo *RollupOracle) SuggestDataPrice(ctx context.Context) (*big.Int, error)
 func (gpo *RollupOracle) SetDataPrice(dataPrice *big.Int) {
 	gpo.dataPriceLock.Lock()
 	defer gpo.dataPriceLock.Unlock()
-	price := core.RoundL1GasPrice(gpo.dataPrice.Uint64())
+	price := core.RoundL1GasPrice(dataPrice.Uint64())
 	gpo.dataPrice = gpo.dataPrice.SetUint64(price)
 	log.Info("Set L1 Gas Price", "gasprice", gpo.dataPrice)
 }

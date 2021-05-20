@@ -443,5 +443,6 @@ func (m *mockClient) SyncStatus() (*SyncStatus, error) {
 }
 
 func (m *mockClient) GetL1GasPrice() (*big.Int, error) {
-	return big.NewInt(100 * int64(params.GWei)), nil
+	price := core.RoundL1GasPrice(100 * params.GWei)
+	return new(big.Int).SetUint64(price), nil
 }
