@@ -99,7 +99,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     deploymentSigner: signer,
     ovmGasMeteringConfig: {
       minTransactionGasLimit: 0,
-      maxTransactionGasLimit: 10_000_000,
+      maxTransactionGasLimit: 11_000_000,
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 0,
     },
