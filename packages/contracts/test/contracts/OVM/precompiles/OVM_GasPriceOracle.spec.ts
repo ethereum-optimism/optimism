@@ -4,7 +4,7 @@ import { expect } from '../../../setup'
 import { ethers } from 'hardhat'
 import { ContractFactory, Contract, Signer } from 'ethers'
 
-describe('OVM_SequencerEntrypoint', () => {
+describe('OVM_GasPriceOracle', () => {
   let signer1: Signer
   let signer2: Signer
   before(async () => {
