@@ -156,7 +156,6 @@ func modMessage(
 		msg.L1MessageSender(),
 		msg.L1BlockNumber(),
 		queueOrigin,
-		msg.SignatureHashType(),
 	)
 
 	return outmsg, nil
