@@ -10,12 +10,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+defaults:
+  runs-on: ubuntu-latest
+  env:
+    DOCKER_BUILDKIT: 1
+    COMPOSE_DOCKER_CLI_BUILD: 1
+
 jobs:
   build_services:
-    runs-on: ubuntu-latest
-    env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
       # Monorepo tests
       - uses: actions/checkout@v2
@@ -46,12 +48,8 @@ jobs:
           name: images
           path: /images
 
-  integration_tests:
+  integration:
     needs: build_services
-    runs-on: ubuntu-latest
-    env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
 
     steps:
       - uses: actions/download-artifact@v2
@@ -72,10 +70,6 @@ jobs:
 
   examples:
     needs: build_services
-    runs-on: ubuntu-latest
-    env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
 
     steps:
       - uses: actions/download-artifact@v2
