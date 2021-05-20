@@ -19,6 +19,7 @@ import {
   getXDomainCalldata,
 } from '../../../../helpers'
 import { keccak256 } from 'ethers/lib/utils'
+import { predeploys } from '../../../../../src'
 
 const deployProxyXDomainMessenger = async (
   addressManager: Contract,
@@ -192,8 +193,6 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
       calldata = getXDomainCalldata(target, sender, message, 0)
 
-      const precompile = '0x4200000000000000000000000000000000000000'
-
       const storageKey = keccak256(
         keccak256(
           calldata + remove0x(Mock__OVM_L2CrossDomainMessenger.address)
@@ -212,7 +211,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       const generator = await TrieTestGenerator.fromAccounts({
         accounts: [
           {
-            address: precompile,
+            address: predeploys.OVM_L2ToL1MessagePasser,
             nonce: 0,
             balance: 0,
             codeHash: keccak256('0x1234'),
@@ -226,7 +225,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
         stateRoot: toHexString(generator._trie.root),
         stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
         stateRootProof: DUMMY_BATCH_PROOFS[0],
-        stateTrieWitness: (await generator.makeAccountProofTest(precompile))
+        stateTrieWitness: (await generator.makeAccountProofTest(predeploys.OVM_L2ToL1MessagePasser))
           .accountTrieWitness,
         storageTrieWitness: (
           await storageGenerator.makeInclusionProofTest(storageKey)

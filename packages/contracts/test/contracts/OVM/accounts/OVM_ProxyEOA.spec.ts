@@ -8,7 +8,7 @@ import { remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { decodeSolidityError } from '../../../helpers'
-import { getContractInterface, getContractFactory } from '../../../../src'
+import { getContractInterface, getContractFactory, predeploys } from '../../../../src'
 
 const callPredeploy = async (
   Helper_PredeployCaller: Contract,
@@ -30,8 +30,6 @@ const callPredeploy = async (
 }
 
 const addrToBytes32 = (addr: string) => '0x' + '00'.repeat(12) + remove0x(addr)
-
-const eoaDefaultAddr = '0x4200000000000000000000000000000000000003'
 
 describe('OVM_ProxyEOA', () => {
   let wallet: Wallet
@@ -78,7 +76,7 @@ describe('OVM_ProxyEOA', () => {
 
   describe('getImplementation()', () => {
     it(`should be created with implementation at predeploy address`, async () => {
-      const eoaDefaultAddrBytes32 = addrToBytes32(eoaDefaultAddr)
+      const eoaDefaultAddrBytes32 = addrToBytes32(predeploys.OVM_ECDSAContractAccount)
       Mock__OVM_ExecutionManager.smocked.ovmSLOAD.will.return.with(
         eoaDefaultAddrBytes32
       )

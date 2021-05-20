@@ -3,6 +3,7 @@ import { Direction, waitForXDomainTransaction } from './watcher-utils'
 import {
   getContractFactory,
   getContractInterface,
+  predeploys
 } from '@eth-optimism/contracts'
 import { remove0x, Watcher } from '@eth-optimism/core-utils'
 import {
@@ -49,7 +50,7 @@ export const l2Wallet = l1Wallet.connect(l2Provider)
 // Predeploys
 export const PROXY_SEQUENCER_ENTRYPOINT_ADDRESS =
   '0x4200000000000000000000000000000000000004'
-export const OVM_ETH_ADDRESS = '0x4200000000000000000000000000000000000006'
+export const OVM_ETH_ADDRESS = predeploys.OVM_ETH
 
 export const getAddressManager = (provider: any) => {
   return getContractFactory('Lib_AddressManager')
