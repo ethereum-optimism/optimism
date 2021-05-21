@@ -229,8 +229,10 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           }
 
           if (this.options.l1Target !== message.target) {
-            this.logger.info('Message not intended for target, skipping.')
-            continue
+            if (this.options.l1Target !== '0x0') {
+              this.logger.info('Message not intended for target, skipping.')
+              continue
+            }
           }
 
           this.logger.info(

@@ -88,7 +88,6 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCros
     )
         override
         public
-        nonReentrant
         onlyRelayer()
     {
         bytes memory xDomainCalldata = _getXDomainCalldata(
