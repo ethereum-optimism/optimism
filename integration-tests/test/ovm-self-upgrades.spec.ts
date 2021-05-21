@@ -1,121 +1,74 @@
 import { expect } from 'chai'
-import { Wallet, utils, BigNumber, Contract, ContractFactory } from 'ethers'
 
+/* Imports: External */
+import hre, { ethers } from 'hardhat'
+import { Wallet, Contract, ContractFactory } from 'ethers'
+import {
+  getContractInterface,
+  predeploys,
+  ChugSplashAction,
+  getChugSplashActionBundle,
+  isSetStorageAction,
+} from '@eth-optimism/contracts'
+import { getRandomAddress } from '@eth-optimism/core-utils'
+
+/* Imports: Internal */
 import { OptimismEnv } from './shared/env'
+import { fundUser, l2Provider, OVM_ETH_ADDRESS } from './shared/utils'
 
-import { getContractInterface } from '@eth-optimism/contracts'
-import { l2Provider, OVM_ETH_ADDRESS } from './shared/utils'
-import { ethers } from 'hardhat'
+const applyAndVerifyUpgrade = async (
+  L2ChugSplashDeployer: Contract,
+  actions: ChugSplashAction[]
+) => {
+  const bundle = getChugSplashActionBundle(actions)
 
-// TODO: use actual imported Chugsplash type
+  const tx1 = await L2ChugSplashDeployer.approveTransactionBundle(
+    bundle.root,
+    bundle.actions.length
+  )
+  await tx1.wait()
 
-interface SetCodeInstruction {
-  target: string // address
-  code: string // bytes memory
+  for (const action of bundle.actions) {
+    const tx2 = await L2ChugSplashDeployer.executeAction(
+      action.action,
+      action.proof
+    )
+    await tx2.wait()
+  }
+
+  for (const action of actions) {
+    if (isSetStorageAction(action)) {
+      expect(
+        await l2Provider.getStorageAt(action.target, action.key)
+      ).to.deep.equal(action.value)
+    } else {
+      expect(await l2Provider.getCode(action.target)).to.deep.equal(action.code)
+    }
+  }
 }
 
-interface SetStorageInstruction {
-  target: string // address
-  key: string // bytes32
-  value: string // bytes32
-}
-
-type ChugsplashInstruction = SetCodeInstruction | SetStorageInstruction
-
-// Just an array of the above two instruction types.
-type ChugSplashInstructions = Array<ChugsplashInstruction>
-
-const isSetStorageInstruction = (
-  instr: ChugsplashInstruction
-): instr is SetStorageInstruction => {
-  return !instr['code']
-}
-
-describe('OVM Self-Upgrades', async () => {
-  let env: OptimismEnv
+describe.only('OVM Self-Upgrades', async () => {
   let l2Wallet: Wallet
-  let OVM_UpgradeExecutor: Contract
-  let Factory__ReturnOne: ContractFactory
-  let DeployedBytecode__ReturnTwo: string
-  let Factory__SimpleStorage: ContractFactory
-
-  const applyChugsplashInstructions = async (
-    instructions: ChugSplashInstructions
-  ) => {
-    for (const instruction of instructions) {
-      let res
-      if (isSetStorageInstruction(instruction)) {
-        res = await OVM_UpgradeExecutor.setStorage(
-          instruction.target,
-          instruction.key,
-          instruction.value
-        )
-      } else {
-        res = await OVM_UpgradeExecutor.setCode(
-          instruction.target,
-          instruction.code
-        )
-      }
-      await res.wait() // TODO: promise.all
-    }
-  }
-
-  const checkChugsplashInstructionsApplied = async (
-    instructions: ChugSplashInstructions
-  ) => {
-    for (const instruction of instructions) {
-      // TODO: promise.all this for with a map for efficiency
-      if (isSetStorageInstruction(instruction)) {
-        const actualStorage = await l2Provider.getStorageAt(
-          instruction.target,
-          instruction.key
-        )
-        expect(actualStorage).to.deep.eq(instruction.value)
-      } else {
-        const actualCode = await l2Provider.getCode(instruction.target)
-        expect(actualCode).to.deep.eq(instruction.code)
-      }
-    }
-  }
-
-  const applyAndVerifyUpgrade = async (
-    instructions: ChugSplashInstructions
-  ) => {
-    await applyChugsplashInstructions(instructions)
-    await checkChugsplashInstructionsApplied(instructions)
-  }
-
   before(async () => {
-    env = await OptimismEnv.new()
-    l2Wallet = env.l2Wallet
+    const env = await OptimismEnv.new()
+    // For simplicity, this is the default wallet that (at least for now) controls upgrades when
+    // running the system locally.
+    l2Wallet = new ethers.Wallet('0x' + 'FF'.repeat(64), l2Provider)
+    await fundUser(env.watcher, env.gateway, hre.ethers.utils.parseEther('10'), l2Wallet.address)
+  })
 
-    OVM_UpgradeExecutor = new Contract(
-      '0x420000000000000000000000000000000000000a',
-      getContractInterface('OVM_UpgradeExecutor', true),
-      l2Wallet
-    )
-
-    Factory__ReturnOne = await ethers.getContractFactory('ReturnOne', l2Wallet)
-    const Factory__ReturnTwo = await ethers.getContractFactory(
-      'ReturnTwo',
-      l2Wallet
-    )
-    const returnTwo = await (
-      await Factory__ReturnTwo.deploy()
-    ).deployTransaction.wait()
-    DeployedBytecode__ReturnTwo = await l2Provider.getCode(
-      returnTwo.contractAddress
-    )
-
-    Factory__SimpleStorage = await ethers.getContractFactory(
-      'SimpleStorage',
+  let L2ChugSplashDeployer: Contract
+  before(async () => {
+    L2ChugSplashDeployer = new Contract(
+      predeploys.L2ChugSplashDeployer,
+      getContractInterface('L2ChugSplashDeployer'),
       l2Wallet
     )
   })
 
   describe('setStorage and setCode are correctly applied according to geth RPC', () => {
     it('Should execute a basic storage upgrade', async () => {
-      const basicStorageUpgrade: ChugSplashInstructions = [
+      await applyAndVerifyUpgrade(L2ChugSplashDeployer, [
         {
           target: OVM_ETH_ADDRESS,
           key:
@@ -123,79 +76,77 @@ describe('OVM Self-Upgrades', async () => {
           value:
             '0x6789123412341234123412341234123412341234123412341234678967896789',
         },
-      ]
-      await applyAndVerifyUpgrade(basicStorageUpgrade)
+      ])
     })
 
     it('Should execute a basic upgrade overwriting existing deployed code', async () => {
-      const DummyContract = await (
-        await ethers.getContractFactory('SimpleStorage', l2Wallet)
-      ).deploy()
-      await DummyContract.deployTransaction.wait()
+      // Deploy a dummy contract to overwrite.
+      const factory = await hre.ethers.getContractFactory('SimpleStorage')
+      const contract = await factory.connect(l2Wallet).deploy()
+      await contract.deployTransaction.wait()
 
-      const basicCodeUpgrade: ChugSplashInstructions = [
+      await applyAndVerifyUpgrade(L2ChugSplashDeployer, [
         {
-          target: DummyContract.address,
+          target: contract.address,
           code:
             '0x1234123412341234123412341234123412341234123412341234123412341234',
         },
-      ]
-      await applyAndVerifyUpgrade(basicCodeUpgrade)
+      ])
     })
 
     it('Should execute a basic code upgrade which is not overwriting an existing account', async () => {
-      // TODO: fix me?  Currently breaks due to nil pointer dereference; triggerd by evm.StateDB.SetCode(...) in ovm_state_manager.go ?
-      // More recent update: I cannot get this to error out any more.
-      const emptyAccountCodeUpgrade: ChugSplashInstructions = [
+      await applyAndVerifyUpgrade(L2ChugSplashDeployer, [
         {
-          target: '0x5678657856785678567856785678567856785678',
+          target: getRandomAddress(),
           code:
             '0x1234123412341234123412341234123412341234123412341234123412341234',
         },
-      ]
-      await applyAndVerifyUpgrade(emptyAccountCodeUpgrade)
+      ])
     })
   })
 
   describe('Contracts upgraded with setStorage and setCode behave as expected', () => {
     it('code with updated storage returns the new storage', async () => {
-      const SimpleStorage: Contract = await Factory__SimpleStorage.deploy()
-      await SimpleStorage.deployTransaction.wait()
+      const factory = await hre.ethers.getContractFactory('SimpleStorage')
+      const contract = await factory.connect(l2Wallet).deploy()
+      await contract.deployTransaction.wait()
 
-      const valueBefore = await SimpleStorage.value()
-      expect(valueBefore).to.eq(ethers.constants.HashZero)
+      expect(await contract.value()).to.eq(ethers.constants.HashZero)
 
       const newValue = '0x' + '00'.repeat(31) + '01'
-      const storageVarUpgrade: ChugSplashInstructions = [
+
+      await applyAndVerifyUpgrade(L2ChugSplashDeployer, [
         {
-          target: SimpleStorage.address,
+          target: contract.address,
           key: ethers.constants.HashZero,
           value: newValue,
         },
-      ]
+      ])
 
-      await applyAndVerifyUpgrade(storageVarUpgrade)
-
-      const valueAfter = await SimpleStorage.value()
+      const valueAfter = await contract.value()
       expect(valueAfter).to.eq(newValue)
     })
 
     it('code with an updated constant returns the new constant', async () => {
-      const Returner = await Factory__ReturnOne.deploy()
-      await Returner.deployTransaction.wait()
-      const one = await Returner.get()
+      const factory1 = await hre.ethers.getContractFactory('ReturnOne')
+      const contract1 = await factory1.connect(l2Wallet).deploy()
+      await contract1.deployTransaction.wait()
+
+      const factory2 = await hre.ethers.getContractFactory('ReturnTwo')
+      const contract2 = await factory2.connect(l2Wallet).deploy()
+      await contract2.deployTransaction.wait()
+
+      const one = await contract1.get()
       expect(one.toNumber()).to.eq(1)
 
-      const constantUpgrade: ChugSplashInstructions = [
+      await applyAndVerifyUpgrade(L2ChugSplashDeployer, [
         {
-          target: Returner.address,
-          code: DeployedBytecode__ReturnTwo,
+          target: contract1.address,
+          code: await l2Provider.getCode(contract2.address),
         },
-      ]
+      ])
 
-      await applyAndVerifyUpgrade(constantUpgrade)
-
-      const two = await Returner.get()
+      const two = await contract1.get()
       expect(two.toNumber()).to.eq(2)
     })
   })

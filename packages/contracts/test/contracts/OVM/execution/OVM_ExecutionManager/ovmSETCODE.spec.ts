@@ -13,7 +13,7 @@ import {
 } from '../../../../helpers'
 import { predeploys } from '../../../../../src/predeploys'
 
-const UPGRADE_EXECUTOR_ADDRESS = predeploys.OVM_UpgradeExecutor
+const UPGRADE_EXECUTOR_ADDRESS = predeploys.L2ChugSplashDeployer
 const UPGRADED_ADDRESS = '0x1234123412341234123412341234123412341234'
 const UPGRADED_CODE = '0x1234'
 const UPGRADED_CODEHASH = ethers.utils.keccak256(UPGRADED_CODE)

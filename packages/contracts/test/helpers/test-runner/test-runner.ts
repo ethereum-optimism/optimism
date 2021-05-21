@@ -221,11 +221,6 @@ export class ExecutionManagerTestRunner {
       this.contracts.OVM_SafetyChecker.address
     )
 
-    await AddressManager.setAddress(
-      'OVM_UpgradeExecutor',
-      predeploys.OVM_UpgradeExecutor
-    )
-
     const DeployerWhitelist = await getContractFactory(
       'OVM_DeployerWhitelist',
       AddressManager.signer,

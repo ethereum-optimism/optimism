@@ -1929,7 +1929,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         external
-        onlyCallableBy(0x420000000000000000000000000000000000000A)
+        onlyCallableBy(0x420000000000000000000000000000000000000D)
     {
         _checkAccountLoad(_address);
         ovmStateManager.putAccountCode(_address, _code);
@@ -1949,7 +1949,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         external
-        onlyCallableBy(0x420000000000000000000000000000000000000A)
+        onlyCallableBy(0x420000000000000000000000000000000000000D)
     {
         _putContractStorage(
             _address,
