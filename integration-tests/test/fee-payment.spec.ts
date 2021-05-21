@@ -19,9 +19,16 @@ describe('Fee Payment Integration Tests', async () => {
   })
 
   it('Should estimateGas with recoverable L2 gasLimit', async () => {
-    const gas = await env.ovmEth.estimateGas.transfer(other, utils.parseEther('0.5'))
-    const tx = await env.ovmEth.populateTransaction.transfer(other, utils.parseEther('0.5'))
-    const executionGas = await (env.ovmEth.provider as any).send('eth_estimateExecutionGas', [tx])
+    const gas = await env.ovmEth.estimateGas.transfer(
+      other,
+      utils.parseEther('0.5')
+    )
+    const tx = await env.ovmEth.populateTransaction.transfer(
+      other,
+      utils.parseEther('0.5')
+    )
+    const executionGas = await (env.ovmEth
+      .provider as any).send('eth_estimateExecutionGas', [tx])
     const decoded = fees.decode(gas)
     expect(BigNumber.from(executionGas)).deep.eq(decoded)
   })
@@ -32,7 +39,7 @@ describe('Fee Payment Integration Tests', async () => {
     expect(balanceBefore.gt(amount))
 
     const gas = await env.ovmEth.estimateGas.transfer(other, amount)
-    const tx = await env.ovmEth.transfer(other, amount, {gasPrice: 1})
+    const tx = await env.ovmEth.transfer(other, amount, { gasPrice: 1 })
     const receipt = await tx.wait()
     const balanceAfter = await env.l2Wallet.getBalance()
     // The fee paid MUST be the receipt.gasUsed, and not the tx.gasLimit

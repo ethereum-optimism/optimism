@@ -307,7 +307,9 @@ describe('Basic RPC tests', () => {
           from: '0x' + '1234'.repeat(10),
         }
         const estimate = await l2Provider.estimateGas(tx)
-        const l2Gaslimit = await l2Provider.send('eth_estimateExecutionGas', [tx])
+        const l2Gaslimit = await l2Provider.send('eth_estimateExecutionGas', [
+          tx,
+        ])
 
         const decoded = fees.decode(estimate)
         expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
@@ -316,7 +318,12 @@ describe('Basic RPC tests', () => {
         // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
         // but it does not yet exist. Use the default value for now
         const l2GasPrice = BigNumber.from(1)
-        const expected = fees.encode(tx.data, l1GasPrice, BigNumber.from(l2Gaslimit), l2GasPrice)
+        const expected = fees.encode(
+          tx.data,
+          l1GasPrice,
+          BigNumber.from(l2Gaslimit),
+          l2GasPrice
+        )
         expect(expected).to.deep.eq(estimate)
       }
     })

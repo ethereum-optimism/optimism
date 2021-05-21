@@ -10,7 +10,12 @@ const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
 const overhead = 4200
 
-function encode(data: Buffer | string, l1GasPrice: BigNumber, l2GasLimit: BigNumber, l2GasPrice: BigNumber): BigNumber {
+function encode(
+  data: Buffer | string,
+  l1GasPrice: BigNumber,
+  l2GasLimit: BigNumber,
+  l2GasPrice: BigNumber
+): BigNumber {
   const l1GasLimit = calculateL1GasLimit(data)
   const l1Fee = l1GasPrice.mul(l1GasLimit)
   const l2Fee = l2GasLimit.mul(l2GasPrice)
@@ -58,15 +63,15 @@ export function roundL1GasPrice(gasPrice: BigNumber | number): BigNumber {
     gasPrice = BigNumber.from(gasPrice)
   }
   if (gasPrice.eq(0)) {
-	return gasPrice
+    return gasPrice
   }
   if (gasPrice.eq(1)) {
-	return hundredMillion
+    return hundredMillion
   }
   if (gasPrice.mod(hundredMillion).lt(2)) {
-	gasPrice = gasPrice.add(hundredMillion).sub(2)
+    gasPrice = gasPrice.add(hundredMillion).sub(2)
   } else {
-	gasPrice = gasPrice.add(hundredMillion)
+    gasPrice = gasPrice.add(hundredMillion)
   }
   return gasPrice.sub(gasPrice.mod(hundredMillion))
 }
@@ -81,10 +86,10 @@ export function roundL2GasPrice(gasPrice: BigNumber): BigNumber {
   if (gasPrice.eq(1)) {
     return hundredMillion.add(1)
   }
-  if ((gasPrice.mod(hundredMillion)).lt(2)) {
-	gasPrice = gasPrice.add(hundredMillion).sub(2)
+  if (gasPrice.mod(hundredMillion).lt(2)) {
+    gasPrice = gasPrice.add(hundredMillion).sub(2)
   } else {
-	gasPrice = gasPrice.add(hundredMillion)
+    gasPrice = gasPrice.add(hundredMillion)
   }
   return gasPrice.sub(gasPrice.mod(hundredMillion).add(1))
 }
