@@ -143,6 +143,9 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     )
         internal
     {
+
+        require(_data.length < 40_000, "Data is too long to safely forward to L2");
+
         // Construct calldata for l2ETHGateway.finalizeDeposit(_to, _amount)
         bytes memory message =
             abi.encodeWithSelector(

@@ -103,9 +103,12 @@ describe('Native ETH Integration Tests', async () => {
   })
 
   it('deposit with a large data argument', async () => {
+    const MAX_L2_DATA_LENGTH = 40_000
     const depositAmount = 10
     const preBalances = await getBalances(env)
-    const data = `0x` + 'ab'.repeat(32000)
+
+    // Assume 9 MM gas, and add 10% safety factor to hardcoded max length.
+    const data = `0x` + 'ab'.repeat(MAX_L2_DATA_LENGTH * 1.1)
     const { tx, receipt } = await env.waitForXDomainTransaction(
       env.gateway.deposit(9_000_000, data, { value: depositAmount }),
       Direction.L1ToL2

@@ -153,6 +153,9 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     )
         internal
     {
+
+        require(_data.length < 40_000, "Data is too long to safely forward to L2");
+
         // Call our deposit accounting handler implemented by child contracts.
         _handleInitiateDeposit(
             _from,
