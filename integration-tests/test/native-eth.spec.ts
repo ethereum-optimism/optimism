@@ -102,13 +102,36 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit with a large data argument', async () => {
-    const MAX_L2_DATA_LENGTH = 40_000
+  it('deposit passes with a large data argument', async () => {
+    const MAX_L2_DATA_LENGTH = 39_999
     const depositAmount = 10
     const preBalances = await getBalances(env)
 
-    // Assume 9 MM gas, and add 10% safety factor to hardcoded max length.
-    const data = `0x` + 'ab'.repeat(MAX_L2_DATA_LENGTH * 1.1)
+    const data = `0x` + 'ab'.repeat(MAX_L2_DATA_LENGTH)
+    const { tx, receipt } = await env.waitForXDomainTransaction(
+      env.gateway.deposit(9_000_000, data, { value: depositAmount }),
+      Direction.L1ToL2
+    )
+
+    const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
+    const postBalances = await getBalances(env)
+
+    expect(postBalances.l1GatewayBalance).to.deep.eq(
+      preBalances.l1GatewayBalance.add(depositAmount)
+    )
+    expect(postBalances.l2UserBalance).to.deep.eq(
+      preBalances.l2UserBalance.add(depositAmount)
+    )
+    expect(postBalances.l1UserBalance).to.deep.eq(
+      preBalances.l1UserBalance.sub(l1FeePaid.add(depositAmount))
+    )
+  })
+
+  it('deposit fails with a TOO large data argument', async () => {
+    const depositAmount = 10
+    const preBalances = await getBalances(env)
+
+    const data = `0x` + 'ab'.repeat(50_000)
     const { tx, receipt } = await env.waitForXDomainTransaction(
       env.gateway.deposit(9_000_000, data, { value: depositAmount }),
       Direction.L1ToL2
