@@ -24,13 +24,16 @@ var errInvalidGasPrice = errors.New("rollup fee: invalid gas price")
 // CalculateFee calculates the fee that must be paid to the Rollup sequencer, taking into
 // account the cost of publishing data to L1.
 // l2_gas_price * l2_gas_limit + l1_gas_price * l1_gas_used
-// where ...
+// where the l2 gas price must satisfy the equation `x * (10**8)`
+// and the l1 gas price must satisfy the equation `x * (10**8) + 1`
 func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) (uint64, error) {
 	if RoundL1GasPrice(l1GasPrice.Uint64()) != l1GasPrice.Uint64() {
 		return 0, fmt.Errorf("invalid L1 gas price: %w", errInvalidGasPrice)
 	}
-	if RoundL2GasPrice(l2GasPrice.Uint64()) != l2GasPrice.Uint64() {
-		return 0, fmt.Errorf("invalid L2 gas price: %w", errInvalidGasPrice)
+	if l2GasPrice.Uint64() >= 2 {
+		if RoundL2GasPrice(l2GasPrice.Uint64()) != l2GasPrice.Uint64() {
+			return 0, fmt.Errorf("invalid L2 gas price: %w", errInvalidGasPrice)
+		}
 	}
 	l1GasLimit := calculateL1GasLimit(data, overhead)
 	l1Fee := new(big.Int).Mul(l1GasPrice, l1GasLimit)
@@ -64,7 +67,7 @@ func RoundL1GasPrice(gasPrice uint64) uint64 {
 
 func RoundL2GasPrice(gasPrice uint64) uint64 {
 	if gasPrice == 0 {
-		return gasPrice
+		return 1
 	}
 	if gasPrice == 1 {
 		return hundredMillion + 1
@@ -72,7 +75,7 @@ func RoundL2GasPrice(gasPrice uint64) uint64 {
 	if gasPrice%hundredMillion < 2 {
 		gasPrice += hundredMillion - 2
 	} else {
-		gasPrice += hundredMillion + 1
+		gasPrice += hundredMillion
 	}
 	return gasPrice - gasPrice%hundredMillion + 1
 }

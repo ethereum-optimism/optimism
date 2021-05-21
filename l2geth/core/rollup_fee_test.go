@@ -83,7 +83,11 @@ var feeTests = map[string]struct {
 	l2GasLimit uint64
 	l2GasPrice uint64
 }{
-	"simple": {100, RoundL1GasPrice(2000), 437118, RoundL2GasPrice(5000)},
+	"simple":           {100, RoundL1GasPrice(2000), 437118, RoundL2GasPrice(5000)},
+	"zero-l2-gasprice": {10, RoundL1GasPrice(8000000000), 196205, RoundL2GasPrice(0)},
+	"one-l2-gasprice":  {10, RoundL1GasPrice(8000000000), 196205, RoundL2GasPrice(1)},
+	"zero-l1-gasprice": {10, RoundL1GasPrice(0), 196205, RoundL2GasPrice(5555)},
+	"one-l1-gasprice":  {10, RoundL1GasPrice(1), 23254, RoundL2GasPrice(5555)},
 }
 
 func TestCalculateRollupFee(t *testing.T) {
@@ -100,7 +104,6 @@ func TestCalculateRollupFee(t *testing.T) {
 			}
 
 			decodedGasLimit := DecodeL2GasLimit(fee)
-
 			if l2GasLimit.Uint64() != decodedGasLimit {
 				t.Errorf("rollup fee check failed: expected %d, got %d", l2GasLimit.Uint64(), decodedGasLimit)
 			}
