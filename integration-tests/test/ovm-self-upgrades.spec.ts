@@ -54,7 +54,12 @@ describe('OVM Self-Upgrades', async () => {
     // For simplicity, this is the default wallet that (at least for now) controls upgrades when
     // running the system locally.
     l2Wallet = new ethers.Wallet('0x' + 'FF'.repeat(64), l2Provider)
-    await fundUser(env.watcher, env.gateway, hre.ethers.utils.parseEther('10'), l2Wallet.address)
+    await fundUser(
+      env.watcher,
+      env.gateway,
+      hre.ethers.utils.parseEther('10'),
+      l2Wallet.address
+    )
   })
 
   let L2ChugSplashDeployer: Contract
