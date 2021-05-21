@@ -47,7 +47,7 @@ const applyAndVerifyUpgrade = async (
   }
 }
 
-describe.only('OVM Self-Upgrades', async () => {
+describe('OVM Self-Upgrades', async () => {
   let l2Wallet: Wallet
   before(async () => {
     const env = await OptimismEnv.new()
