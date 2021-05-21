@@ -19,7 +19,7 @@ describe('Basic RPC tests', () => {
 
   const DEFAULT_TRANSACTION = {
     to: '0x' + '1234'.repeat(10),
-    gasLimit: 4000000,
+    gasLimit: 33600000000001,
     gasPrice: 0,
     data: '0x',
     value: 0,
@@ -121,6 +121,21 @@ describe('Basic RPC tests', () => {
         'invalid transaction: insufficient funds for gas * price + value'
       )
     })
+
+    it('should reject a transaction with too low of a fee', async () => {
+      const tx = {
+        ...DEFAULT_TRANSACTION,
+        gasLimit: 1,
+      }
+
+      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
+        'fee too low: tx-fee 1, min-fee 33600000000001, l1-gas-price 8000000000, l2-gas-limit 1, l2-gas-price 1, data-size 0'
+      )
+    })
+
+    it.skip('should reject transactions with an incorrect gas price', async () => {
+      // TODO: assert for error that gas price must satisfy particular equation
+    })
   })
 
   describe('eth_call', () => {
@@ -128,7 +143,7 @@ describe('Basic RPC tests', () => {
       await expect(
         provider.call({
           ...revertingTx,
-          gasLimit: 21_000,
+          gasLimit: 1,
         })
       ).to.be.rejectedWith('out of gas')
     })
@@ -151,7 +166,7 @@ describe('Basic RPC tests', () => {
       await expect(
         provider.call({
           ...revertingDeployTx,
-          gasLimit: 30_000,
+          gasLimit: 1,
         })
       ).to.be.rejectedWith('out of gas')
     })
@@ -174,7 +189,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract calls', async () => {
       const req: TransactionRequest = {
         ...revertingTx,
-        gasLimit: 8_999_999, // override gas estimation
+        gasLimit: 151392008999999, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -197,7 +212,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
-        gasLimit: 8_999_999, // override gas estimation
+        gasLimit: 151392008999999, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
