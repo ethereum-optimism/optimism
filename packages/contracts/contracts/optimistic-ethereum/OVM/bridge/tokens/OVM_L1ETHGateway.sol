@@ -80,12 +80,10 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
 
     /**
      * @dev Deposit an amount of the ETH to the caller's balance on L2.
-     * @param _l2Gas Optional gas limit to complete the deposit on L2
-     *        If the default amount is greater than the value provided, the L2 gasLimit will be set
-     *        to the default amount.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function deposit(
         uint32 _l2Gas,
@@ -106,12 +104,10 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     /**
      * @dev Deposit an amount of ETH to a recipient's balance on L2.
      * @param _to L2 address to credit the withdrawal to.
-     * @param _l2Gas Optional gas limit to complete the deposit on L2.
-     *        If the default amount is greater than the value provided, the L2 gasLimit will be set
-     *        to the default amount.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function depositTo(
         address _to,
@@ -134,12 +130,10 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * @dev Performs the logic for deposits by storing the ETH and informing the L2 ETH Gateway of the deposit.
      * @param _from Account to pull the deposit from on L1.
      * @param _to Account to give the deposit to on L2.
-     * @param _l2Gas Optional gas limit to complete the deposit on L2.
-     *        If the default amount is greater than the value provided, the L2 gasLimit will be set
-     *        to the default amount.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function _initiateDeposit(
         address _from,
@@ -159,16 +153,11 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
                 _data
             );
 
-        // Prevent tokens stranded on other side by taking
-        // the max of the user provided gas and DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS.
-        uint32 defaultGas = getFinalizeDepositL2Gas();
-        uint32 l2Gas = _l2Gas > defaultGas ? _l2Gas : defaultGas;
-
         // Send calldata into L2
         sendCrossDomainMessage(
             ovmEth,
             message,
-            l2Gas
+            _l2Gas
         );
 
         emit DepositInitiated(_from, _to, msg.value, _data);
@@ -187,7 +176,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
      * @param _amount Amount of the ERC20 to deposit.
      * @param _data Optional data to forward to L2. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function finalizeWithdrawal(
         address _from,
@@ -202,20 +191,6 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         _safeTransferETH(_to, _amount);
 
         emit WithdrawalFinalized(_from, _to, _amount, _data);
-    }
-
-    /**
-     * @dev Getter for the L2 gas limit.
-     */
-    function getFinalizeDepositL2Gas()
-        public
-        pure
-        override
-        returns(
-            uint32
-        )
-    {
-        return ETH_FINALIZE_L2_GAS;
     }
 
     /**********************************

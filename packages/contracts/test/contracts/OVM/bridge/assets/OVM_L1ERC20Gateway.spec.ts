@@ -9,6 +9,7 @@ import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
 
 const INITIAL_TOTAL_L1_SUPPLY = 3000
+const FINALIZATION_GAS = 1_200_000
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -46,7 +47,6 @@ describe('OVM_L1ERC20Gateway', () => {
 
   let OVM_L1ERC20Gateway: Contract
   let Mock__OVM_L1CrossDomainMessenger: MockContract
-  let finalizeDepositGasLimit: number
   beforeEach(async () => {
     // Create a special signer which will enable us to send messages from the L1Messenger contract
     let l1MessengerImpersonator: Signer
@@ -65,8 +65,6 @@ describe('OVM_L1ERC20Gateway', () => {
       Mock__OVM_L2DepositedERC20.address,
       Mock__OVM_L1CrossDomainMessenger.address
     )
-
-    finalizeDepositGasLimit = await OVM_L1ERC20Gateway.getFinalizeDepositL2Gas()
   })
 
   describe('finalizeWithdrawal', () => {
@@ -138,8 +136,6 @@ describe('OVM_L1ERC20Gateway', () => {
       const OVM_L2DepositedERC20 = await (
         await ethers.getContractFactory('OVM_L2DepositedERC20')
       ).deploy(constants.AddressZero, '', '')
-      const defaultFinalizeWithdrawalGas = await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
-      await expect(gasUsed.gt((defaultFinalizeWithdrawalGas * 11) / 10))
     })
 
     it.skip('finalizeWithdrawalAndCall(): should should credit funds to the withdrawer, and forward from and data', async () => {
@@ -184,7 +180,11 @@ describe('OVM_L1ERC20Gateway', () => {
 
     it('deposit() escrows the deposit amount and sends the correct deposit message', async () => {
       // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ERC20Gateway.deposit(depositAmount, 0, NON_NULL_BYTES32)
+      await OVM_L1ERC20Gateway.deposit(
+        depositAmount,
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32
+      )
       const depositCallToMessenger =
         Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -211,20 +211,7 @@ describe('OVM_L1ERC20Gateway', () => {
           [depositer, depositer, depositAmount, NON_NULL_BYTES32]
         )
       )
-      expect(depositCallToMessenger._gasLimit).to.equal(finalizeDepositGasLimit)
-    })
-
-    it('deposit() uses the user provided gas limit if it is larger than the default value', async () => {
-      const customGasLimit = 10_000_000
-      await OVM_L1ERC20Gateway.deposit(
-        depositAmount,
-        customGasLimit,
-        NON_NULL_BYTES32,
-      )
-
-      const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
-      expect(depositCallToMessenger._gasLimit).to.equal(customGasLimit)
+      expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
 
     it('depositTo() escrows the deposit amount and sends the correct deposit message', async () => {
@@ -233,8 +220,8 @@ describe('OVM_L1ERC20Gateway', () => {
       await OVM_L1ERC20Gateway.depositTo(
         bobsAddress,
         depositAmount,
-        0,
-        NON_NULL_BYTES32,
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32
       )
       const depositCallToMessenger =
         Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
@@ -262,22 +249,7 @@ describe('OVM_L1ERC20Gateway', () => {
           [depositer, bobsAddress, depositAmount, NON_NULL_BYTES32]
         )
       )
-      expect(depositCallToMessenger._gasLimit).to.equal(finalizeDepositGasLimit)
-    })
-
-    it('depositTo() uses the user provided gas limit if it is larger than the default value', async () => {
-      const bobsAddress = await bob.getAddress()
-      const customGasLimit = 10_000_000
-      await OVM_L1ERC20Gateway.depositTo(
-        bobsAddress,
-        depositAmount,
-        customGasLimit,
-        NON_NULL_BYTES32
-      )
-
-      const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
-      expect(depositCallToMessenger._gasLimit).to.equal(customGasLimit)
+      expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
   })
 })

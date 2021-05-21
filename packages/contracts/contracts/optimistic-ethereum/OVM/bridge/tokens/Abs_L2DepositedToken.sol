@@ -116,23 +116,6 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
         revert("Accounting must be implemented by child contract.");
     }
 
-    /**
-     * @dev Overridable getter for the *L1* gas limit of settling the withdrawal, in the case it may be
-     * dynamic, and the above public constant does not suffice.
-     */
-    function getFinalizeWithdrawalL1Gas()
-        public
-        pure
-        override
-        virtual
-        returns(
-            uint32
-        )
-    {
-        return DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS;
-    }
-
-
     /***************
      * Withdrawing *
      ***************/
@@ -140,16 +123,14 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
     /**
      * @dev initiate a withdraw of some tokens to the caller's account on L1
      * @param _amount Amount of the token to withdraw.
-     * @param _l1Gas Optional gas limit to complete the deposit on L1.
-     *        If the default amount is greater than the value provided, the L1 gasLimit will be set
-     *        to the default amount.
+     * param _l1Gas Unused, but included for potential forward compatibility considerations.
      * @param _data Optional data to forward to L1. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function withdraw(
         uint256 _amount,
-        uint32 _l1Gas,
+        uint32, // _l1Gas,
         bytes calldata _data
     )
         external
@@ -161,7 +142,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
             msg.sender,
             msg.sender,
             _amount,
-            _l1Gas,
+            0,
             _data
         );
     }
@@ -170,17 +151,15 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @dev initiate a withdraw of some token to a recipient's account on L1.
      * @param _to L1 adress to credit the withdrawal to.
      * @param _amount Amount of the token to withdraw.
-     * @param _l1Gas Optional gas limit to complete the deposit on L2.
-     *        If the default amount is greater than the value provided, the L1 gasLimit will be set
-     *        to the default amount.
+     * param _l1Gas Unused, but included for potential forward compatibility considerations.
      * @param _data Optional data to forward to L1. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function withdrawTo(
         address _to,
         uint256 _amount,
-        uint32 _l1Gas,
+        uint32, // _l1Gas,
         bytes calldata _data
     )
         external
@@ -192,7 +171,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
             msg.sender,
             _to,
             _amount,
-            _l1Gas,
+            0,
             _data
         );
     }
@@ -202,18 +181,16 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @param _from Account to pull the deposit from on L2.
      * @param _to Account to give the withdrawal to on L1.
      * @param _amount Amount of the token to withdraw.
-     * @param _l1Gas Optional gas limit to complete the deposit on L2.
-     *        If the default amount is greater than the value provided, the L1 gasLimit will be set
-     *        to the default amount.
+     * param _l1Gas Unused, but included for potential forward compatibility considerations.
      * @param _data Optional data to forward to L1. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function _initiateWithdrawal(
         address _from,
         address _to,
         uint256 _amount,
-        uint32 _l1Gas,
+        uint32, // _l1Gas,
         bytes calldata _data
     )
         internal
@@ -230,15 +207,11 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
             _data
         );
 
-        // Prevent tokens stranded on other side by taking
-        // the max of the user provided gas and DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS
-        uint32 defaultGas = getFinalizeWithdrawalL1Gas();
-        uint32 l1Gas = _l1Gas > defaultGas ? _l1Gas : defaultGas;
         // Send message up to L1 gateway
         sendCrossDomainMessage(
             address(l1TokenGateway),
             message,
-            l1Gas
+            0
         );
 
         emit WithdrawalInitiated(msg.sender, _to, _amount, _data);
@@ -257,7 +230,7 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * @param _amount Amount of the token to withdraw
      * @param _data Data provider by the sender on L1. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about it's content.
+     *        length, these contracts provide no guarantees about its content.
      */
     function finalizeDeposit(
         address _from,

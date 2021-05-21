@@ -18,6 +18,7 @@ const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
 const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
+const FINALIZATION_GAS = 1_200_000
 
 describe('OVM_L1ETHGateway', () => {
   // init signers
@@ -42,7 +43,6 @@ describe('OVM_L1ETHGateway', () => {
 
   let OVM_L1ETHGateway: Contract
   let Mock__OVM_L1CrossDomainMessenger: MockContract
-  let finalizeDepositGasLimit: number
   beforeEach(async () => {
     // Get a new mock L1 messenger
     Mock__OVM_L1CrossDomainMessenger = await smockit(
@@ -58,8 +58,6 @@ describe('OVM_L1ETHGateway', () => {
       AddressManager.address,
       Mock__OVM_L2DepositedERC20.address
     )
-
-    finalizeDepositGasLimit = await OVM_L1ETHGateway.getFinalizeDepositL2Gas()
   })
 
   describe('initialize', () => {
@@ -126,10 +124,14 @@ describe('OVM_L1ETHGateway', () => {
       )
 
       // thanks Alice
-      await OVM_L1ETHGateway.connect(alice).deposit(0, NON_NULL_BYTES32, {
-        value: ethers.utils.parseEther('1.0'),
-        gasPrice: 0,
-      })
+      await OVM_L1ETHGateway.connect(alice).deposit(
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32,
+        {
+          value: ethers.utils.parseEther('1.0'),
+          gasPrice: 0,
+        }
+      )
 
       const res = await OVM_L1ETHGateway.finalizeWithdrawal(
         NON_ZERO_ADDRESS,
@@ -151,12 +153,6 @@ describe('OVM_L1ETHGateway', () => {
       const OVM_L2DepositedERC20 = await (
         await ethers.getContractFactory('OVM_L2DepositedERC20')
       ).deploy(constants.AddressZero, '', '')
-
-      await expect(
-        gasUsed.gt(
-          ((await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()) * 11) / 10
-        )
-      )
     })
 
     it.skip('finalizeWithdrawalAndCall(): should should credit funds to the withdrawer, and forward from and data', async () => {
@@ -195,10 +191,14 @@ describe('OVM_L1ETHGateway', () => {
       const initialBalance = await ethers.provider.getBalance(depositer)
 
       // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ETHGateway.connect(alice).deposit(0, NON_NULL_BYTES32, {
-        value: depositAmount,
-        gasPrice: 0,
-      })
+      await OVM_L1ETHGateway.connect(alice).deposit(
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32,
+        {
+          value: depositAmount,
+          gasPrice: 0,
+        }
+      )
 
       const depositCallToMessenger =
         Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
@@ -227,26 +227,7 @@ describe('OVM_L1ETHGateway', () => {
           [depositer, depositer, depositAmount, NON_NULL_BYTES32]
         )
       )
-      expect(depositCallToMessenger._gasLimit).to.equal(finalizeDepositGasLimit)
-    })
-
-    it('deposit() uses the user provided gas limit if it is larger than the default value', async () => {
-      const depositer = await alice.getAddress()
-      const initialBalance = await ethers.provider.getBalance(depositer)
-      const customGasLimit = 10_000_000
-      // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ETHGateway.connect(alice).deposit(
-        customGasLimit,
-        NON_NULL_BYTES32,
-        {
-          value: depositAmount,
-          gasPrice: 0,
-        }
-      )
-
-      const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
-      expect(depositCallToMessenger._gasLimit).to.equal(customGasLimit)
+      expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
 
     it('depositTo() escrows the deposit amount and sends the correct deposit message', async () => {
@@ -257,7 +238,7 @@ describe('OVM_L1ETHGateway', () => {
 
       await OVM_L1ETHGateway.connect(alice).depositTo(
         bobsAddress,
-        0,
+        FINALIZATION_GAS,
         NON_NULL_BYTES32,
         {
           value: depositAmount,
@@ -290,30 +271,10 @@ describe('OVM_L1ETHGateway', () => {
           [aliceAddress, bobsAddress, depositAmount, NON_NULL_BYTES32]
         )
       )
-      expect(depositCallToMessenger._gasLimit).to.equal(finalizeDepositGasLimit)
-    })
-
-    it('depositTo() uses the user provided gas limit if it is larger than the default value', async () => {
-      const bobsAddress = await bob.getAddress()
-      const depositer = await alice.getAddress()
-      const initialBalance = await ethers.provider.getBalance(depositer)
-      const customGasLimit = 10_000_000
-      // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ETHGateway.connect(alice).depositTo(
-        bobsAddress,
-        customGasLimit,
-        NON_NULL_BYTES32,
-        {
-          value: depositAmount,
-          gasPrice: 0,
-        }
-      )
-
-      const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
-      expect(depositCallToMessenger._gasLimit).to.equal(customGasLimit)
+      expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
   })
+
   describe('migrating ETH', () => {
     const migrateAmount = 1_000
 

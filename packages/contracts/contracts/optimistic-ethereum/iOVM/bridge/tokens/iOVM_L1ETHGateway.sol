@@ -56,10 +56,4 @@ interface iOVM_L1ETHGateway {
     )
         external;
 
-    function getFinalizeDepositL2Gas()
-        external
-        view
-        returns(
-            uint32
-        );
 }
