@@ -131,24 +131,13 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
 
-    const data = `0x` + 'ab'.repeat(50_000)
+    const data = `0x` + 'ab'.repeat(40_001)
     const { tx, receipt } = await env.waitForXDomainTransaction(
       env.gateway.deposit(9_000_000, data, { value: depositAmount }),
       Direction.L1ToL2
     )
 
-    const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
-    const postBalances = await getBalances(env)
-
-    expect(postBalances.l1GatewayBalance).to.deep.eq(
-      preBalances.l1GatewayBalance.add(depositAmount)
-    )
-    expect(postBalances.l2UserBalance).to.deep.eq(
-      preBalances.l2UserBalance.add(depositAmount)
-    )
-    expect(postBalances.l1UserBalance).to.deep.eq(
-      preBalances.l1UserBalance.sub(l1FeePaid.add(depositAmount))
-    )
+    expect(receipt.status).to.be.equal(0)
   })
 
   it('withdraw', async () => {
