@@ -894,12 +894,17 @@ var (
 	RollupGasPriceOracleAddressFlag = cli.StringFlag{
 		Name:   "rollup.gaspriceoracleaddress",
 		Usage:  "Address of the rollup gas price oracle",
-		Value:  "0x",
+		Value:  "0x0000000000000000000000000000000000000000",
 		EnvVar: "ROLLUP_GAS_PRICE_ORACLE_ADDRESS",
 	}
 	RollupEnableL2GasPollingFlag = cli.BoolFlag{
 		Name:   "rollup.enablel2gaspolling",
-		Usage:  "",
+		Usage:  "Poll for the L2 gas price from the L2 state",
+		EnvVar: "ROLLUP_ENABLE_L2_GAS_POLLING",
+	}
+	RollupEnforceFeesFlag = cli.BoolFlag{
+		Name:   "rollup.enforcefeesflag",
+		Usage:  "Disable transactions with 0 gas price",
 		EnvVar: "ROLLUP_ENABLE_L2_GAS_POLLING",
 	}
 )

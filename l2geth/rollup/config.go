@@ -40,4 +40,6 @@ type Config struct {
 	DataPrice *big.Int
 	// The gas price to use for L2 congestion costs
 	ExecutionPrice *big.Int
+	// Only accept transactions with fees
+	EnforceFees bool
 }

@@ -51,6 +51,7 @@ type EthAPIBackend struct {
 	gasLimit        uint64
 	UsingOVM        bool
 	MaxCallDataSize int
+	EnforceFees     bool
 }
 
 func (b *EthAPIBackend) IsVerifier() bool {
@@ -328,6 +329,11 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 				if len(signedTx.Data()) > 0 {
 					return errors.New("Cannot send transactions with value and calldata")
 				}
+			}
+		}
+		if b.EnforceFees {
+			if signedTx.GasPrice().Cmp(common.Big0) == 0 {
+				return errors.New("Cannot send transaction with 0 gasPrice")
 			}
 		}
 		return b.eth.syncService.ApplyTransaction(signedTx)

@@ -193,6 +193,8 @@ func (s *SyncService) Start() error {
 		return nil
 	}
 	log.Info("Initializing Sync Service", "eth1-chainid", s.eth1ChainId)
+	s.updateL2GasPrice(nil)
+	s.updateL1GasPrice()
 
 	// When a sequencer, be sure to sync to the tip of the ctc before allowing
 	// user transactions.
@@ -749,12 +751,40 @@ func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 	return nil
 }
 
+func (s *SyncService) verifyFee(tx *types.Transaction) error {
+	// Perhaps this should happen in the mempool but i don't believe
+	// i have the correct things in context there
+	l1GasPrice, err := s.RollupGpo.SuggestDataPrice(context.Background())
+	if err != nil {
+		return err
+	}
+	l2GasPrice, err := s.RollupGpo.SuggestExecutionPrice(context.Background())
+	if err != nil {
+		return err
+	}
+
+	gasUsed := core.DecodeL2GasLimit(tx.Gas())
+	l2GasLimit := new(big.Int).SetUint64(gasUsed)
+	fee, err := core.CalculateRollupFee(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
+	if err != nil {
+		return err
+	}
+	if tx.Gas() < fee {
+		return fmt.Errorf("fee too low: tx-fee %d, min-fee %d, l1-gas-price %d, l2-gas-limit %d, l2-gas-price %d, data-size %d", tx.Gas(), fee, l1GasPrice, l2GasLimit, l2GasPrice, len(tx.Data()))
+	}
+	return nil
+}
+
 // Higher level API for applying transactions. Should only be called for
 // queue origin sequencer transactions, as the contracts on L1 manage the same
 // validity checks that are done here.
 func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 	if tx == nil {
 		return fmt.Errorf("nil transaction passed to ApplyTransaction")
+	}
+
+	if err := s.verifyFee(tx); err != nil {
+		return err
 	}
 
 	log.Debug("Sending transaction to sync service", "hash", tx.Hash().Hex())
