@@ -1,6 +1,15 @@
 # Optimism Regenesis Deployments
 ## LAYER 2
 
+## OPTIMISTIC-KOVAN
+
+Network : __undefined (chain id: 69)__
+
+|Contract|Address|
+|--|--|
+|OVM_GasPriceOracle|[0x668E5b997b9aE88a56cd40409119d4Db9e6d752E](https://undefined.etherscan.io/address/0x668E5b997b9aE88a56cd40409119d4Db9e6d752E)|
+---
+
 ### Chain IDs:
 - Mainnet: 10
 - Kovan: 69
