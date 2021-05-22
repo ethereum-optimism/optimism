@@ -10,7 +10,7 @@ var roundingL1GasPriceTests = map[string]struct {
 	expect uint64
 }{
 	"simple":    {10, pow10(8)},
-	"one-over":  {pow10(8) + 1, pow10(8)},
+	"one-over":  {pow10(8) + 1, 2 * pow10(8)},
 	"exact":     {pow10(8), pow10(8)},
 	"one-under": {pow10(8) - 1, pow10(8)},
 	"small":     {3, pow10(8)},
@@ -35,13 +35,13 @@ var roundingL2GasPriceTests = map[string]struct {
 	expect uint64
 }{
 	"simple":    {10, pow10(8) + 1},
-	"one-over":  {pow10(8), pow10(8) + 1},
+	"one-over":  {pow10(8) + 2, 2*pow10(8) + 1},
 	"exact":     {pow10(8) + 1, pow10(8) + 1},
 	"one-under": {pow10(8), pow10(8) + 1},
 	"small":     {3, pow10(8) + 1},
 	"two":       {2, pow10(8) + 1},
 	"one":       {1, pow10(8) + 1},
-	"zero":      {0, 0},
+	"zero":      {0, 1},
 }
 
 func TestRoundL2GasPrice(t *testing.T) {

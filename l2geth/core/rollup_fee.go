@@ -50,19 +50,16 @@ func calculateL1GasLimit(data []byte, overhead uint64) *big.Int {
 	return new(big.Int).SetUint64(gasLimit)
 }
 
+func ceilModOneHundredMillion(num uint64) uint64 {
+	if num%hundredMillion == 0 {
+		return num
+	}
+	num += hundredMillion
+	return num - num%hundredMillion
+}
+
 func RoundL1GasPrice(gasPrice uint64) uint64 {
-	if gasPrice == 0 {
-		return gasPrice
-	}
-	if gasPrice == 1 {
-		return hundredMillion
-	}
-	if gasPrice%hundredMillion < 2 {
-		gasPrice += hundredMillion - 2
-	} else {
-		gasPrice += hundredMillion
-	}
-	return gasPrice - gasPrice%hundredMillion
+	return ceilModOneHundredMillion(gasPrice)
 }
 
 func RoundL2GasPrice(gasPrice uint64) uint64 {
@@ -72,12 +69,7 @@ func RoundL2GasPrice(gasPrice uint64) uint64 {
 	if gasPrice == 1 {
 		return hundredMillion + 1
 	}
-	if gasPrice%hundredMillion < 2 {
-		gasPrice += hundredMillion - 2
-	} else {
-		gasPrice += hundredMillion
-	}
-	return gasPrice - gasPrice%hundredMillion + 1
+	return ceilModOneHundredMillion(gasPrice-1) + 1
 }
 
 func DecodeL2GasLimit(gasLimit uint64) uint64 {
