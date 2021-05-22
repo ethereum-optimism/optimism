@@ -57,6 +57,7 @@ type SyncService struct {
 	timestampRefreshThreshold time.Duration
 	gpoAddress                common.Address
 	enableL2GasPolling        bool
+	enforceFees               bool
 }
 
 // NewSyncService returns an initialized sync service
@@ -93,6 +94,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	// Initialize the rollup client
 	client := NewClient(cfg.RollupClientHttp, chainID)
 	log.Info("Configured rollup client", "url", cfg.RollupClientHttp, "chain-id", chainID.Uint64(), "ctc-deploy-height", cfg.CanonicalTransactionChainDeployHeight)
+	log.Info("Enforce Fees", cfg.EnforceFees)
 	service := SyncService{
 		ctx:                       ctx,
 		cancel:                    cancel,
@@ -109,6 +111,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		timestampRefreshThreshold: timestampRefreshThreshold,
 		gpoAddress:                cfg.GasPriceOracleAddress,
 		enableL2GasPolling:        cfg.EnableL2GasPolling,
+		enforceFees:               cfg.EnforceFees,
 	}
 
 	// Initial sync service setup if it is enabled. This code depends on
@@ -752,8 +755,9 @@ func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 }
 
 func (s *SyncService) verifyFee(tx *types.Transaction) error {
-	// Perhaps this should happen in the mempool but i don't believe
-	// i have the correct things in context there
+	if tx.GasPrice().Cmp(common.Big0) == 0 {
+		return errors.New("Cannot send transaction with 0 gasPrice")
+	}
 	l1GasPrice, err := s.RollupGpo.SuggestDataPrice(context.Background())
 	if err != nil {
 		return err
@@ -783,8 +787,10 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 		return fmt.Errorf("nil transaction passed to ApplyTransaction")
 	}
 
-	if err := s.verifyFee(tx); err != nil {
-		return err
+	if s.enforceFees {
+		if err := s.verifyFee(tx); err != nil {
+			return err
+		}
 	}
 
 	log.Debug("Sending transaction to sync service", "hash", tx.Hash().Hex())
