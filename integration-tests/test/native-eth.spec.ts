@@ -118,11 +118,11 @@ describe('Native ETH Integration Tests', async () => {
 
     // Set data length slightly less than MAX_ROLLUP_TX_SIZE
     // to allow for encoding and other arguments
-    const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE - 100)
+    const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE - 500)
     const { tx, receipt } = await env.waitForXDomainTransaction(
       env.gateway.deposit(ASSUMED_L2_GAS_LIMIT, data, {
         value: depositAmount,
-        // gasLimit: 5_000_000
+        gasLimit: 4_000_000,
       }),
       Direction.L1ToL2
     )
@@ -143,7 +143,6 @@ describe('Native ETH Integration Tests', async () => {
 
   it('deposit fails with a TOO large data argument', async () => {
     const depositAmount = 10
-    const preBalances = await getBalances(env)
 
     const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE + 1)
     await expect(
@@ -151,7 +150,9 @@ describe('Native ETH Integration Tests', async () => {
         value: depositAmount,
         gasLimit: 4_000_000,
       })
-    ).to.be.revertedWith('Data is too long to safely forward to L2')
+    ).to.be.revertedWith(
+      'Transaction data size exceeds maximum for rollup transaction.'
+    )
   })
 
   it('withdraw', async () => {
