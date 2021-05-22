@@ -155,8 +155,8 @@ services:
         RETRIES: 60
         IS_VERIFIER: "true"
     ports:
-      - ${VERIFIER_HTTP_PORT:-8547}:8547
-      - ${VERIFIER_WS_PORT:-8548}:8548
+      - ${VERIFIER_HTTP_PORT:-8547}:8545
+      - ${VERIFIER_WS_PORT:-8548}:8546
 
   integration_tests:
     image: ethereumoptimism/integration-tests
