@@ -111,7 +111,7 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it.only('deposit passes with a large data argument', async () => {;
+  it('deposit passes with a large data argument', async () => {
     const ASSUMED_L2_GAS_LIMIT = 8_000_000
     const depositAmount = 10
     const preBalances = await getBalances(env)
@@ -121,7 +121,7 @@ describe('Native ETH Integration Tests', async () => {
     const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE - 100)
     const { tx, receipt } = await env.waitForXDomainTransaction(
       env.gateway.deposit(ASSUMED_L2_GAS_LIMIT, data, {
-        value: depositAmount
+        value: depositAmount,
         // gasLimit: 5_000_000
       }),
       Direction.L1ToL2
@@ -141,11 +141,11 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it.only('deposit fails with a TOO large data argument', async () => {
+  it('deposit fails with a TOO large data argument', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
 
-    const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE+1)
+    const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE + 1)
     await expect(
       env.gateway.deposit(DEFAULT_TEST_GAS_L2, data, {
         value: depositAmount,
@@ -192,7 +192,12 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
+      env.ovmEth.withdrawTo(
+        l1Bob.address,
+        withdrawAmount,
+        DEFAULT_TEST_GAS_L1,
+        '0xFFFF'
+      ),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -233,7 +238,9 @@ describe('Native ETH Integration Tests', async () => {
     // 3. do withdrawal
     const withdrawnAmount = utils.parseEther('0.95')
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.connect(other).withdraw(withdrawnAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
+      env.ovmEth
+        .connect(other)
+        .withdraw(withdrawnAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
       Direction.L2ToL1
     )
 
