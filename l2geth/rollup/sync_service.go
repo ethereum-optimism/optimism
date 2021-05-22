@@ -755,9 +755,6 @@ func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 }
 
 func (s *SyncService) verifyFee(tx *types.Transaction) error {
-	if tx.GasPrice().Cmp(common.Big0) == 0 {
-		return errors.New("Cannot send transaction with 0 gasPrice")
-	}
 	l1GasPrice, err := s.RollupGpo.SuggestDataPrice(context.Background())
 	if err != nil {
 		return err
@@ -773,6 +770,11 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	if err != nil {
 		return err
 	}
+
+	if !s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
+		return nil
+	}
+
 	if tx.Gas() < fee {
 		return fmt.Errorf("fee too low: tx-fee %d, min-fee %d, l1-gas-price %d, l2-gas-limit %d, l2-gas-price %d, data-size %d", tx.Gas(), fee, l1GasPrice, l2GasLimit, l2GasPrice, len(tx.Data()))
 	}
@@ -787,10 +789,8 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 		return fmt.Errorf("nil transaction passed to ApplyTransaction")
 	}
 
-	if s.enforceFees {
-		if err := s.verifyFee(tx); err != nil {
-			return err
-		}
+	if err := s.verifyFee(tx); err != nil {
+		return err
 	}
 
 	log.Debug("Sending transaction to sync service", "hash", tx.Hash().Hex())

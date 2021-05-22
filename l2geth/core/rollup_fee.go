@@ -30,7 +30,7 @@ func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int
 	if RoundL1GasPrice(l1GasPrice.Uint64()) != l1GasPrice.Uint64() {
 		return 0, fmt.Errorf("invalid L1 gas price: %w", errInvalidGasPrice)
 	}
-	if l2GasPrice.Uint64() >= 2 {
+	if l2GasPrice.Uint64() > 1 {
 		if RoundL2GasPrice(l2GasPrice.Uint64()) != l2GasPrice.Uint64() {
 			return 0, fmt.Errorf("invalid L2 gas price: %w", errInvalidGasPrice)
 		}
