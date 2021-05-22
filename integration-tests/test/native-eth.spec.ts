@@ -5,6 +5,11 @@ import { Direction } from './shared/watcher-utils'
 import { PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 
+const DEFAULT_TEST_GAS_L1 = 250_000
+const DEFAULT_TEST_GAS_L2 = 825_000
+// TX size enforced by CTC:
+const MAX_ROLLUP_TX_SIZE = 50_000
+
 describe('Native ETH Integration Tests', async () => {
   let env: OptimismEnv
   let l1Bob: Wallet
@@ -59,7 +64,10 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit(0, '0xFFFF', { value: depositAmount }),
+      env.gateway.deposit(DEFAULT_TEST_GAS_L2, '0xFFFF', {
+        value: depositAmount,
+        gasLimit: DEFAULT_TEST_GAS_L1,
+      }),
       Direction.L1ToL2
     )
 
@@ -81,8 +89,9 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const depositReceipts = await env.waitForXDomainTransaction(
-      env.gateway.depositTo(l2Bob.address, 0, '0xFFFF', {
+      env.gateway.depositTo(l2Bob.address, DEFAULT_TEST_GAS_L2, '0xFFFF', {
         value: depositAmount,
+        gasLimit: DEFAULT_TEST_GAS_L1,
       }),
       Direction.L1ToL2
     )
@@ -102,14 +111,19 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit passes with a large data argument', async () => {
-    const MAX_L2_DATA_LENGTH = 39_999
+  it.only('deposit passes with a large data argument', async () => {;
+    const ASSUMED_L2_GAS_LIMIT = 8_000_000
     const depositAmount = 10
     const preBalances = await getBalances(env)
 
-    const data = `0x` + 'ab'.repeat(MAX_L2_DATA_LENGTH)
+    // Set data length slightly less than MAX_ROLLUP_TX_SIZE
+    // to allow for encoding and other arguments
+    const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE - 100)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit(9_000_000, data, { value: depositAmount }),
+      env.gateway.deposit(ASSUMED_L2_GAS_LIMIT, data, {
+        value: depositAmount
+        // gasLimit: 5_000_000
+      }),
       Direction.L1ToL2
     )
 
@@ -127,17 +141,17 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit fails with a TOO large data argument', async () => {
+  it.only('deposit fails with a TOO large data argument', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
 
-    const data = `0x` + 'ab'.repeat(40_001)
-    const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit(9_000_000, data, { value: depositAmount }),
-      Direction.L1ToL2
-    )
-
-    expect(receipt.status).to.be.equal(0)
+    const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE+1)
+    await expect(
+      env.gateway.deposit(DEFAULT_TEST_GAS_L2, data, {
+        value: depositAmount,
+        gasLimit: 4_000_000,
+      })
+    ).to.be.revertedWith('Data is too long to safely forward to L2')
   })
 
   it('withdraw', async () => {
@@ -149,7 +163,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdraw(withdrawAmount, 0, '0xFFFF'),
+      env.ovmEth.withdraw(withdrawAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -178,7 +192,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount, 0, '0xFFFF'),
+      env.ovmEth.withdrawTo(l1Bob.address, withdrawAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -200,8 +214,9 @@ describe('Native ETH Integration Tests', async () => {
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(
-      env.gateway.deposit(0, '0xFFFF', {
+      env.gateway.deposit(DEFAULT_TEST_GAS_L2, '0xFFFF', {
         value: amount,
+        gasLimit: DEFAULT_TEST_GAS_L1,
       }),
       Direction.L1ToL2
     )
@@ -218,7 +233,7 @@ describe('Native ETH Integration Tests', async () => {
     // 3. do withdrawal
     const withdrawnAmount = utils.parseEther('0.95')
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth.connect(other).withdraw(withdrawnAmount, 0, '0xFFFF'),
+      env.ovmEth.connect(other).withdraw(withdrawnAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
       Direction.L2ToL1
     )
 
