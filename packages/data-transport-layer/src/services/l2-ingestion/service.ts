@@ -5,7 +5,7 @@ import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 
 /* Imports: Internal */
-import { TransportDB } from '../../db/transport-db'
+import { TransportDB, TransportDBMapHolder, TransportDBMap} from '../../db/transport-db'
 import { sleep, toRpcHexString, validators } from '../../utils'
 import { L1DataTransportServiceOptions } from '../main/service'
 import { handleSequencerBlock } from './handlers/transaction'
@@ -13,6 +13,7 @@ import { handleSequencerBlock } from './handlers/transaction'
 export interface L2IngestionServiceOptions
   extends L1DataTransportServiceOptions {
   db: LevelUp
+  dbs: TransportDBMapHolder
 }
 
 const optionSettings = {

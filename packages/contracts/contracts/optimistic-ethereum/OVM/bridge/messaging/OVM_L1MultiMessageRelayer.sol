@@ -78,4 +78,27 @@ contract OVM_L1MultiMessageRelayer is iOVM_L1MultiMessageRelayer, Lib_AddressRes
             );
         }
     }
+
+    /**
+     * @notice Forwards multiple cross domain messages to the L1 Cross Domain Messenger for relaying
+     * @param _messages An array of L2 to L1 messages
+     */
+    function batchRelayMessagesViaChainId(uint256 _chainId, L2ToL1Message[] calldata _messages) 
+        override
+        external
+        onlyBatchRelayer 
+    {
+        iOVM_L1CrossDomainMessenger messenger = iOVM_L1CrossDomainMessenger(resolve("Proxy__OVM_L1CrossDomainMessenger"));
+        for (uint256 i = 0; i < _messages.length; i++) {
+            L2ToL1Message memory message = _messages[i];
+            messenger.relayMessageViaChainId(
+                _chainId,
+                message.target,
+                message.sender,
+                message.message,
+                message.messageNonce,
+                message.proof
+            );
+        }
+    }
 }

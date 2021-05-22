@@ -165,10 +165,11 @@ func (c *Client) GetEnqueue(index uint64) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
 		SetPathParams(map[string]string{
-			"index": str,
+			"index":   str,
+			"chainId": c.chainID,
 		}).
 		SetResult(&Enqueue{}).
-		Get("/enqueue/index/{index}")
+		Get("/enqueue/index/{index}/{chainId}")
 
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch enqueue: %w", err)
@@ -253,8 +254,11 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 // transaction with the greatest queue index.
 func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 	response, err := c.client.R().
+		SetPathParams(map[string]string{
+			"chainId": c.chainID,
+		}).
 		SetResult(&Enqueue{}).
-		Get("/enqueue/latest")
+		Get("/enqueue/latest/{chainId}")
 
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch latest enqueue: %w", err)
@@ -368,10 +372,11 @@ func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
 		SetPathParams(map[string]string{
-			"index": str,
+			"index":   str,
+			"chainId": c.chainID,
 		}).
 		SetResult(&TransactionResponse{}).
-		Get("/transaction/index/{index}")
+		Get("/transaction/index/{index}/{chainId}")
 
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch transaction: %w", err)
@@ -387,8 +392,11 @@ func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
 // with the greatest Canonical Transaction Chain index
 func (c *Client) GetLatestTransaction() (*types.Transaction, error) {
 	response, err := c.client.R().
+		SetPathParams(map[string]string{
+			"chainId": c.chainID,
+		}).
 		SetResult(&TransactionResponse{}).
-		Get("/transaction/latest")
+		Get("/transaction/latest/{chainId}")
 
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch latest transactions: %w", err)
@@ -407,6 +415,7 @@ func (c *Client) GetEthContext(blockNumber uint64) (*EthContext, error) {
 	response, err := c.client.R().
 		SetPathParams(map[string]string{
 			"blocknumber": str,
+			"chainId":     c.chainID,
 		}).
 		SetResult(&EthContext{}).
 		Get("/eth/context/blocknumber/{blocknumber}")
@@ -479,8 +488,11 @@ func (c *Client) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 // SyncStatus will query the remote server to determine if it is still syncing
 func (c *Client) SyncStatus() (*SyncStatus, error) {
 	response, err := c.client.R().
+		SetPathParams(map[string]string{
+			"chainId": c.chainID,
+		}).
 		SetResult(&SyncStatus{}).
-		Get("/eth/syncing")
+		Get("/eth/syncing/{chainId}")
 
 	if err != nil {
 		return nil, fmt.Errorf("Cannot fetch sync status: %w", err)

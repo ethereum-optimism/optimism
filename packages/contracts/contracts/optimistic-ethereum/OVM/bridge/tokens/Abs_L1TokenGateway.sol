@@ -124,6 +124,16 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     {
         _initiateDeposit(msg.sender, msg.sender, _amount);
     }
+    function depositByChainId(
+        uint256 _chainId,
+        uint _amount
+    )
+        external
+        override
+	virtual
+    {
+        revert("depositByChainId must be implemented by child contract.");
+    }
 
     /**
      * @dev deposit an amount of ERC20 to a recipients's balance on L2
@@ -140,7 +150,17 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
     {
         _initiateDeposit(msg.sender, _to, _amount);
     }
-
+    function depositToByChainId(
+        uint256 _chainId,
+        address _to,
+        uint _amount
+    )
+        external
+        override
+	virtual
+    {
+        revert("depositToByChainId must be implemented by child contract.");
+    }
     /**
      * @dev Performs the logic for deposits by informing the L2 Deposited Token
      * contract of the deposit and calling a handler to lock the L1 funds. (e.g. transferFrom)

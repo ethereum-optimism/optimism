@@ -1,6 +1,6 @@
 /* Imports: External */
 import { BigNumber, ethers, constants } from 'ethers'
-import { getContractFactory } from '@eth-optimism/contracts'
+import { getContractFactory } from '@metis.io/contracts'
 import {
   ctcCoder,
   fromHexString,

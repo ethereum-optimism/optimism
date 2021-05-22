@@ -85,7 +85,14 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     {
         _initiateDeposit(msg.sender, msg.sender);
     }
-
+    
+    function depositByChainId(uint256 _chainId) 
+        external
+        override
+        payable
+    {
+        _initiateDepositByChainId(_chainId, msg.sender, msg.sender);
+    }
     /**
      * @dev deposit an amount of ETH to a recipients's balance on L2
      * @param _to L2 address to credit the withdrawal to
@@ -99,7 +106,17 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     {
         _initiateDeposit(msg.sender, _to);
     }
-
+    
+    function depositToByChainId(
+        uint256 _chainId,
+        address _to
+    )
+        external
+        override
+        payable
+    {
+        _initiateDepositByChainId(_chainId, msg.sender, _to);
+    }
     /**
      * @dev Performs the logic for deposits by storing the ETH and informing the L2 ETH Gateway of the deposit.
      *
@@ -122,6 +139,32 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
 
         // Send calldata into L2
         sendCrossDomainMessage(
+            ovmEth,
+            data,
+            getFinalizeDepositL2Gas
+        );
+
+        emit DepositInitiated(_from, _to, msg.value);
+    }
+
+    function _initiateDepositByChainId(
+        uint256 _chainId,
+        address _from,
+        address _to
+    )
+        internal
+    {
+        // Construct calldata for l2ETHGateway.finalizeDeposit(_to, _amount)
+        bytes memory data =
+            abi.encodeWithSelector(
+                iOVM_L2DepositedToken.finalizeDeposit.selector,
+                _to,
+                msg.value
+            );
+
+        // Send calldata into L2
+        sendCrossDomainMessageViaChainId(
+            _chainId,
             ovmEth,
             data,
             getFinalizeDepositL2Gas

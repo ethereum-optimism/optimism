@@ -30,6 +30,10 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
 
     using Lib_RingBuffer for Lib_RingBuffer.RingBuffer;
 
+    /**************
+     *  constant  *
+     **************/
+    uint256 constant public DEFAULT_CHAINID = 420;
 
     /*************
      * Variables *
@@ -84,7 +88,21 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         public
         onlyOwner
     {
-        return buffer.setExtraData(_globalMetadata);
+        return setGlobalMetadataByChainId(DEFAULT_CHAINID,_globalMetadata);
+    }
+    
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function setGlobalMetadataByChainId(
+        uint256 _chainId,
+        bytes27 _globalMetadata
+    )
+        override
+        public
+        onlyOwner
+    {
+        return buffers[_chainId].setExtraData(_globalMetadata);
     }
 
     /**
@@ -98,7 +116,21 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
             bytes27
         )
     {
-        return buffer.getExtraData();
+        return getGlobalMetadataByChainId(DEFAULT_CHAINID);
+    }
+    
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function getGlobalMetadataByChainId(uint256 _chainId)
+        override
+        public
+        view
+        returns (
+            bytes27
+        )
+    {
+        return buffers[_chainId].getExtraData();
     }
 
     /**
@@ -112,7 +144,21 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
             uint256
         )
     {
-        return uint256(buffer.getLength());
+        return lengthByChainId(DEFAULT_CHAINID);
+    }
+    
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function lengthByChainId(uint256 _chainId)
+        override
+        public
+        view
+        returns (
+            uint256
+        )
+    {
+        return uint256(buffers[_chainId].getLength());
     }
 
     /**
@@ -125,7 +171,20 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         public
         onlyOwner
     {
-        buffer.push(_object);
+        pushByChainId(DEFAULT_CHAINID,_object);
+    }
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function pushByChainId(
+        uint256 _chainId,
+        bytes32 _object
+    )
+        override
+        public
+        onlyOwner
+    {
+        buffers[_chainId].push(_object);
     }
 
     /**
@@ -139,7 +198,21 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         public
         onlyOwner
     {
-        buffer.push(_object, _globalMetadata);
+        pushByChainId(DEFAULT_CHAINID,_object,_globalMetadata);
+    }
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function pushByChainId(
+        uint256 _chainId,
+        bytes32 _object,
+        bytes27 _globalMetadata
+    )
+        override
+        public
+        onlyOwner
+    {
+        buffers[_chainId].push(_object, _globalMetadata);
     }
 
     /**
@@ -155,7 +228,23 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
             bytes32
         )
     {
-        return buffer.get(uint40(_index));
+        return getByChainId(DEFAULT_CHAINID,_index);
+    }
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function getByChainId(
+        uint256 _chainId,
+        uint256 _index
+    )
+        override
+        public
+        view
+        returns (
+            bytes32
+        )
+    {
+        return buffers[_chainId].get(uint40(_index));
     }
 
     /**
@@ -168,7 +257,21 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         public
         onlyOwner
     {
-        buffer.deleteElementsAfterInclusive(
+       deleteElementsAfterInclusiveByChainId(DEFAULT_CHAINID,_index);
+    }
+    
+        /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function deleteElementsAfterInclusiveByChainId(
+        uint256 _chainId,
+        uint256 _index
+    )
+        override
+        public
+        onlyOwner
+    {
+        buffers[_chainId].deleteElementsAfterInclusive(
             uint40(_index)
         );
     }
@@ -184,7 +287,22 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         public
         onlyOwner
     {
-        buffer.deleteElementsAfterInclusive(
+        deleteElementsAfterInclusiveByChainId(DEFAULT_CHAINID,_index,_globalMetadata);
+    }
+    
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function deleteElementsAfterInclusiveByChainId(
+        uint256 _chainId,
+        uint256 _index,
+        bytes27 _globalMetadata
+    )
+        override
+        public
+        onlyOwner
+    {
+        buffers[_chainId].deleteElementsAfterInclusive(
             uint40(_index),
             _globalMetadata
         );
@@ -200,6 +318,20 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
         public
         onlyOwner
     {
-        buffer.nextOverwritableIndex = _index;
+        setNextOverwritableIndexByChainId(DEFAULT_CHAINID,_index);
+    }
+        
+    /**
+     * @inheritdoc iOVM_ChainStorageContainer
+     */
+    function setNextOverwritableIndexByChainId(
+        uint256 _chainId,
+        uint256 _index
+    )
+        override
+        public
+        onlyOwner
+    {
+        buffers[_chainId].nextOverwritableIndex = _index;
     }
 }

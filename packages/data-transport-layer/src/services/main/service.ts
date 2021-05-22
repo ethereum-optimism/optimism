@@ -8,6 +8,7 @@ import { L1IngestionService } from '../l1-ingestion/service'
 import { L1TransportServer } from '../server/service'
 import { validators } from '../../utils'
 import { L2IngestionService } from '../l2-ingestion/service'
+import { TransportDB, TransportDBMapHolder, TransportDBMap} from '../../db/transport-db'
 
 export interface L1DataTransportServiceOptions {
   nodeEnv: string
@@ -52,6 +53,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
 
   private state: {
     db: LevelUp
+    dbs:TransportDBMapHolder
     l1IngestionService?: L1IngestionService
     l2IngestionService?: L2IngestionService
     l1TransportServer: L1TransportServer
@@ -62,10 +64,13 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
 
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
+    
+    this.state.dbs = new TransportDBMapHolder(this.options.dbPath)
 
     this.state.l1TransportServer = new L1TransportServer({
       ...this.options,
       db: this.state.db,
+      dbs: this.state.dbs,
     })
 
     // Optionally enable sync from L1.
@@ -73,6 +78,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
       this.state.l1IngestionService = new L1IngestionService({
         ...this.options,
         db: this.state.db,
+        dbs: this.state.dbs,
       })
     }
 
@@ -81,6 +87,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
       this.state.l2IngestionService = new L2IngestionService({
         ...(this.options as any), // TODO: Correct thing to do here is to assert this type.
         db: this.state.db,
+        dbs: this.state.dbs,
       })
     }
 

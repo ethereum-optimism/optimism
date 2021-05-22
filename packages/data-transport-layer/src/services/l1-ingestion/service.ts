@@ -5,7 +5,7 @@ import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 
 /* Imports: Internal */
-import { TransportDB } from '../../db/transport-db'
+import { TransportDB, TransportDBMapHolder, TransportDBMap} from '../../db/transport-db'
 import {
   OptimismContracts,
   sleep,
@@ -23,6 +23,7 @@ import { constants } from 'ethers'
 export interface L1IngestionServiceOptions
   extends L1DataTransportServiceOptions {
   db: LevelUp
+  dbs: TransportDBMapHolder
 }
 
 const optionSettings = {
@@ -62,6 +63,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
   private state: {
     db: TransportDB
+    dbs: TransportDBMap
     contracts: OptimismContracts
     l1RpcProvider: JsonRpcProvider
     startingL1BlockNumber: number
@@ -69,7 +71,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
   protected async _init(): Promise<void> {
     this.state.db = new TransportDB(this.options.db)
-
+    this.state.dbs = {}
     this.state.l1RpcProvider =
       typeof this.options.l1RpcProvider === 'string'
         ? new JsonRpcProvider(this.options.l1RpcProvider)
@@ -291,12 +293,21 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         const tick = Date.now()
 
         for (const event of events) {
+          
           const extraData = await handlers.getExtraData(
             event,
             this.state.l1RpcProvider
           )
           const parsedEvent = await handlers.parseEvent(event, extraData)
-          await handlers.storeEvent(parsedEvent, this.state.db)
+          
+          // filter chainId
+          var chainId = event.args._chainId.toNumber()
+          var db=this.state.db
+          if(chainId&&chainId!=0){
+             db = await this.options.dbs.getTransportDbByChainId(chainId)
+          }
+          
+          await handlers.storeEvent(parsedEvent, db)
         }
 
         const tock = Date.now()

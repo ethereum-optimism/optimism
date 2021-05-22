@@ -1,10 +1,10 @@
 /* Imports: External */
-import { getContractFactory } from '@eth-optimism/contracts'
-import { EventArgsStateBatchAppended } from '@eth-optimism/core-utils'
+import { getContractFactory } from '@metis.io/contracts'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
 import {
+  EventArgsStateBatchAppended,
   StateRootBatchEntry,
   StateBatchAppendedExtraData,
   StateBatchAppendedParsedEvent,
@@ -33,7 +33,7 @@ export const handleEventsStateBatchAppended: EventHandlerSet<
     const stateRoots = getContractFactory(
       'OVM_StateCommitmentChain'
     ).interface.decodeFunctionData(
-      'appendStateBatch',
+      'appendStateBatchByChainId',
       extraData.l1TransactionData
     )[0]
 

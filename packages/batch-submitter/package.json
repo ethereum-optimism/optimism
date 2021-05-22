@@ -32,7 +32,6 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.2",
-    "@eth-optimism/contracts": "^0.3.1",
     "@eth-optimism/core-utils": "^0.4.3",
     "@eth-optimism/ynatm": "^0.2.2",
     "@ethersproject/abstract-provider": "^5.0.5",
@@ -41,7 +40,7 @@
     "bluebird": "^3.7.2",
     "dotenv": "^8.2.0",
     "ethers": "5.0.0",
-    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7",
+    "@metis.io/contracts": "^1.0.*",
     "prom-client": "^13.1.0"
   },
   "devDependencies": {

@@ -5,7 +5,7 @@ import { handleSequencerBlock } from '../../../../../src/services/l2-ingestion/h
 describe('Handlers: handleSequencerBlock', () => {
   describe('parseBlock', () => {
     it('should correctly extract key fields from an L2 mainnet transaction', async () => {
-      const input1: [any, number] = [l2Block, 10]
+      const input1: [any, number] = [l2Block, 420]
 
       const output1 = await handleSequencerBlock.parseBlock(...input1)
 

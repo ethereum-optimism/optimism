@@ -16,6 +16,8 @@ export interface DeployResult {
 export const deploy = async (
   config: RollupDeployConfig
 ): Promise<DeployResult> => {
+  //here is the deployed value of ropsten net, remove for new one
+  //config.addressManager="0xFa51A89716C6991Df44116654Fc90d4b246F2ff5"
   let AddressManager: Contract
 
   if (config.addressManager) {
@@ -35,6 +37,7 @@ export const deploy = async (
     if (config.waitForReceipts) {
       await AddressManager.deployTransaction.wait()
     }
+    console.log("deployed address manager:"+AddressManager.address);
   }
 
   const contractDeployConfig = await makeContractDeployConfig(
@@ -54,24 +57,34 @@ export const deploy = async (
       continue
     }
 
-    try {
-      contracts[name] = await contractDeployParameters.factory
-        .connect(config.deploymentSigner)
-        .deploy(
-          ...(contractDeployParameters.params || []),
-          config.deployOverrides
-        )
-      if (config.waitForReceipts) {
-        await contracts[name].deployTransaction.wait()
+    var addr=await AddressManager.getAddress(name);
+    console.log(name+":"+addr);
+    var fac=contractDeployParameters.factory
+                .connect(config.deploymentSigner)
+    if(addr == "0x0000000000000000000000000000000000000000"){
+      try {
+        contracts[name] = await fac
+          .connect(config.deploymentSigner)
+          .deploy(
+            ...(contractDeployParameters.params || [])
+          )
+        if (config.waitForReceipts) {
+          await contracts[name].deployTransaction.wait()
+        }
+        const res = await AddressManager.setAddress(name, contracts[name].address)
+        if (config.waitForReceipts) {
+          await res.wait()
+        }
+        console.log("deployed "+name+" contract.");
+      } catch (err) {
+        console.error(`Error deploying ${name}: ${err}`)
+        failedDeployments.push(name)
       }
-      const res = await AddressManager.setAddress(name, contracts[name].address)
-      if (config.waitForReceipts) {
-        await res.wait()
-      }
-    } catch (err) {
-      console.error(`Error deploying ${name}: ${err}`)
-      failedDeployments.push(name)
+    }else{
+        const d=fac.attach(addr);
+        contracts[name] = d;
     }
+    console.log(name+":"+contracts[name].address);
   }
 
   for (const [name, contractDeployParameters] of Object.entries(

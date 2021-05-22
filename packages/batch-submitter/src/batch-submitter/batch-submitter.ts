@@ -5,7 +5,7 @@ import { Gauge, Histogram } from 'prom-client'
 import * as ynatm from '@eth-optimism/ynatm'
 import { RollupInfo } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
-import { getContractFactory } from 'old-contracts'
+import { getContractFactory } from '@metis.io/contracts'
 
 export interface Range {
   start: number

@@ -1,5 +1,6 @@
 /* Imports: External */
 import { LevelUp } from 'levelup'
+import { level } from 'level'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
@@ -29,6 +30,29 @@ const TRANSPORT_DB_KEYS = {
 
 interface Indexed {
   index: number
+}
+
+export interface TransportDBMap {
+}
+
+export class TransportDBMapHolder {
+  public dbPath:string
+  public dbs:TransportDBMap
+  constructor(dbPath: string) {
+    this.dbPath = dbPath
+    this.dbs={}
+  }
+  
+  public async getTransportDbByChainId(chainId):Promise<TransportDB>{
+    var db=this.dbs[chainId]
+    if (!db) {
+      var leveldb = level(this.dbPath+"_"+chainId)
+      await leveldb.open()
+      db = new TransportDB(leveldb)
+      this.dbs[chainId] = db
+    }
+    return db
+  }
 }
 
 export class TransportDB {

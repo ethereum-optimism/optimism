@@ -61,4 +61,40 @@ interface iOVM_L1CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
         uint256 _messageNonce,
         uint32 _gasLimit
     ) external;
+
+    /**
+     * Relays a cross domain message to a contract with L2 chain id.
+     * @param _chainId L2 chain id.
+     * @param _target Target contract address.
+     * @param _sender Message sender address.
+     * @param _message Message to send to the target.
+     * @param _messageNonce Nonce for the provided message.
+     * @param _proof Inclusion proof for the given message.
+     */
+    function relayMessageViaChainId(
+        uint256 _chainId,
+        address _target,
+        address _sender,
+        bytes memory _message,
+        uint256 _messageNonce,
+        L2MessageInclusionProof memory _proof
+    ) external;
+
+    /**
+     * Replays a cross domain message to the target messenger with L2 chain id.
+     * @param _chainId L2 chain id.
+     * @param _target Target contract address.
+     * @param _sender Original sender address.
+     * @param _message Message to send to the target.
+     * @param _messageNonce Nonce for the provided message.
+     * @param _gasLimit Gas limit for the provided message.
+     */
+    function replayMessageViaChainId(
+        uint256 _chainId,
+        address _target,
+        address _sender,
+        bytes memory _message,
+        uint256 _messageNonce,
+        uint32 _gasLimit
+    ) external;
 }

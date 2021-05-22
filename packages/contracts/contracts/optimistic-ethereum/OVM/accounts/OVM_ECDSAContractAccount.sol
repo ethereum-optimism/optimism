@@ -11,7 +11,7 @@ import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 
 /* Contract Imports */
-import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
+import { MVM_Coinbase } from "../predeploys/MVM_Coinbase.sol";
 
 /* External Imports */
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -41,7 +41,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     // TODO: should be the amount sufficient to cover the gas costs of all of the transactions up
     // to and including the CALL/CREATE which forms the entrypoint of the transaction.
     uint256 constant EXECUTION_VALIDATION_GAS_OVERHEAD = 25000;
-    OVM_ETH constant ovmETH = OVM_ETH(0x4200000000000000000000000000000000000006);
+    MVM_Coinbase constant coinbase = MVM_Coinbase(0x4200000000000000000000000000000000000006);
 
 
     /********************
@@ -93,7 +93,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Transfer fee to relayer.
         require(
-            ovmETH.transfer(
+            coinbase.transfer(
                 msg.sender,
                 SafeMath.mul(transaction.gasLimit, transaction.gasPrice)
             ),

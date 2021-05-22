@@ -58,7 +58,7 @@ contract UniswapV2ERC20 is IUniswapV2ERC20 {
         emit Approval(owner, spender, value);
     }
 
-    function _transfer(address from, address to, uint value) private {
+    function _transfer(address from, address to, uint value) internal virtual {
         balanceOf[from] = balanceOf[from].sub(value);
         balanceOf[to] = balanceOf[to].add(value);
         emit Transfer(from, to, value);

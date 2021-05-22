@@ -253,6 +253,122 @@ contract OVM_L1CrossDomainMessenger is
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
     }
 
+    /**
+     * Relays a cross domain message to a contract.
+     * @inheritdoc iOVM_L1CrossDomainMessenger
+     */
+    function relayMessageViaChainId(
+        uint256 _chainId,
+        address _target,
+        address _sender,
+        bytes memory _message,
+        uint256 _messageNonce,
+        L2MessageInclusionProof memory _proof
+    )
+        override
+        public
+        nonReentrant
+        onlyRelayer
+	whenNotPaused
+    {
+        bytes memory xDomainCalldata = _getXDomainCalldataViaChainId(
+            _chainId,
+            _target,
+            _sender,
+            _message,
+            _messageNonce
+        );
+
+        bytes memory xDomainCalldataRaw = _getXDomainCalldata(
+            _target,
+            _sender,
+            _message,
+            _messageNonce
+        );
+
+        require(
+            _verifyXDomainMessage(
+                xDomainCalldataRaw,
+                _proof
+            ) == true,
+            "Provided message could not be verified."
+        );
+
+        bytes32 xDomainCalldataHash = keccak256(xDomainCalldata);
+
+        require(
+            successfulMessages[xDomainCalldataHash] == false,
+            "Provided message has already been received."
+        );
+
+        require(
+            blockedMessages[xDomainCalldataHash] == false,
+            "Provided message has been blocked."
+        );
+	
+        xDomainMsgSender = _sender;
+        (bool success, ) = _target.call(_message);
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+
+        // Mark the message as received if the call was successful. Ensures that a message can be
+        // relayed multiple times in the case that the call reverted.
+        if (success == true) {
+            successfulMessages[xDomainCalldataHash] = true;
+            emit RelayedMessage(xDomainCalldataHash);
+        } else {
+            emit FailedRelayedMessage(xDomainCalldataHash);
+        }
+
+        // Store an identifier that can be used to prove that the given message was relayed by some
+        // user. Gives us an easy way to pay relayers for their work.
+        bytes32 relayId = keccak256(
+            abi.encodePacked(
+                xDomainCalldataRaw,
+                msg.sender,
+                block.number
+            )
+        );
+        relayedMessages[relayId] = true;
+    }
+
+    /**
+     * Replays a cross domain message to the target messenger.
+     * @inheritdoc iOVM_L1CrossDomainMessenger
+     */
+    function replayMessageViaChainId(
+        uint256 _chainId,
+        address _target,
+        address _sender,
+        bytes memory _message,
+        uint256 _messageNonce,
+        uint32 _gasLimit
+    )
+        override
+        public
+    {
+        bytes memory xDomainCalldata = _getXDomainCalldataViaChainId(
+            _chainId,
+            _target,
+            _sender,
+            _message,
+            _messageNonce
+        );
+
+        bytes memory xDomainCalldataRaw = _getXDomainCalldata(
+            _target,
+            _sender,
+            _message,
+            _messageNonce
+        );
+
+        require(
+            sentMessages[keccak256(xDomainCalldata)] == true,
+            "Provided message has not already been sent."
+        );
+
+        _sendXDomainMessageViaChainId(_chainId, xDomainCalldataRaw, _gasLimit);
+    }
+
 
     /**********************
      * Internal Functions *
@@ -375,6 +491,28 @@ contract OVM_L1CrossDomainMessenger is
         internal
     {
         iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).enqueue(
+            resolve("OVM_L2CrossDomainMessenger"),
+            _gasLimit,
+            _message
+        );
+    }
+
+    /**
+     * Sends a cross domain message via chain id.
+     * @param _chainId L2 chain id.
+     * @param _message Message to send.
+     * @param _gasLimit OVM gas limit for the message.
+     */
+    function _sendXDomainMessageViaChainId(
+        uint256 _chainId,
+        bytes memory _message,
+        uint256 _gasLimit
+    )
+        override
+        internal
+    {
+        iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain")).enqueueByChainId(
+            _chainId,
             resolve("OVM_L2CrossDomainMessenger"),
             _gasLimit,
             _message

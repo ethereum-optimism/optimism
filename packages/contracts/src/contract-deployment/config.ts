@@ -226,13 +226,20 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('mockOVM_BondManager'),
       params: [AddressManager.address],
     },
-    OVM_ETH: {
-      factory: getContractFactory('OVM_ETH'),
+    MVM_Coinbase: {
+      factory: getContractFactory('MVM_Coinbase'),
       params: [
         '0x4200000000000000000000000000000000000007',
         '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
       ],
     },
+    // OVM_ETH: {
+    //   factory: getContractFactory('OVM_ETH'),
+    //   params: [
+    //     '0x4200000000000000000000000000000000000007',
+    //     '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
+    //   ],
+    // },
     'OVM_ChainStorageContainer:CTC:batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],

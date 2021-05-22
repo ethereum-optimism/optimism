@@ -2,7 +2,7 @@
 import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
-import { getContractFactory } from 'old-contracts'
+import { getContractFactory } from '@metis.io/contracts'
 import {
   L2Block,
   RollupInfo,
@@ -119,7 +119,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
   public async _getBatchStartAndEnd(): Promise<Range> {
     this.logger.info('Getting batch start and end for state batch submitter...')
     const startBlock: number =
-      (await this.chainContract.getTotalElements()).toNumber() +
+      (await this.chainContract.getTotalElementsByChainId(this.l2ChainId)).toNumber() +
       this.blockOffset
     this.logger.info('Retrieved start block number from SCC', {
       startBlock,
@@ -127,7 +127,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
 
     // We will submit state roots for txs which have been in the tx chain for a while.
     const totalElements: number =
-      (await this.ctcContract.getTotalElements()).toNumber() + this.blockOffset
+      (await this.ctcContract.getTotalElementsByChainId(this.l2ChainId)).toNumber() + this.blockOffset
     this.logger.info('Retrieved total elements from CTC', {
       totalElements,
     })
@@ -160,8 +160,8 @@ export class StateBatchSubmitter extends BatchSubmitter {
   ): Promise<TransactionReceipt> {
     const batch = await this._generateStateCommitmentBatch(startBlock, endBlock)
     const tx = this.chainContract.interface.encodeFunctionData(
-      'appendStateBatch',
-      [batch, startBlock]
+      'appendStateBatchByChainId',
+      [this.l2ChainId, batch, startBlock]
     )
     const batchSizeInBytes = remove0x(tx).length / 2
     this.logger.debug('State batch generated', {
@@ -178,7 +178,8 @@ export class StateBatchSubmitter extends BatchSubmitter {
 
     const nonce = await this.signer.getTransactionCount()
     const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
-      const contractTx = await this.chainContract.appendStateBatch(
+      const contractTx = await this.chainContract.appendStateBatchByChainId(
+      	this.l2ChainId,
         batch,
         offsetStartsAtIndex,
         { nonce, gasPrice }
@@ -233,15 +234,16 @@ export class StateBatchSubmitter extends BatchSubmitter {
     )
 
     let tx = this.chainContract.interface.encodeFunctionData(
-      'appendStateBatch',
-      [batch, startBlock]
+      'appendStateBatchByChainId',
+      [this.l2ChainId, batch, startBlock]
     )
     while (remove0x(tx).length / 2 > this.maxTxSize) {
       batch.splice(Math.ceil((batch.length * 2) / 3)) // Delete 1/3rd of all of the batch elements
       this.logger.debug('Splicing batch...', {
         batchSizeInBytes: tx.length / 2,
       })
-      tx = this.chainContract.interface.encodeFunctionData('appendStateBatch', [
+      tx = this.chainContract.interface.encodeFunctionData('appendStateBatchByChainId', [
+        this.l2ChainId,
         batch,
         startBlock,
       ])

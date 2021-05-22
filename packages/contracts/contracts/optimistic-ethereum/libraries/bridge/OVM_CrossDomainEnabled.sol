@@ -20,6 +20,8 @@ contract OVM_CrossDomainEnabled {
     // Messenger contract used to send and recieve messages from the other domain.
     address public messenger;
 
+    uint32 public constant DEFAULT_FINALIZE_DEPOSIT_L2_GAS = 8999999;
+    uint32 public constant DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS = 8999999;
 
     /***************
      * Constructor *
@@ -95,5 +97,21 @@ contract OVM_CrossDomainEnabled {
         internal
     {
         getCrossDomainMessenger().sendMessage(_crossDomainTarget, _data, _gasLimit);
+    }
+
+    /**
+     * @notice Sends a message to an account on another domain
+     * @param _chainId L2 chain id.
+     * @param _crossDomainTarget The intended recipient on the destination domain
+     * @param _data The data to send to the target (usually calldata to a function with `onlyFromCrossDomainAccount()`)
+     * @param _gasLimit The gasLimit for the receipt of the message on the target domain.
+     */
+    function sendCrossDomainMessageViaChainId(
+        uint256 _chainId,
+        address _crossDomainTarget,
+        bytes memory _data,
+        uint32 _gasLimit
+    ) internal {
+        getCrossDomainMessenger().sendMessageViaChainId(_chainId, _crossDomainTarget, _data, _gasLimit);
     }
 }

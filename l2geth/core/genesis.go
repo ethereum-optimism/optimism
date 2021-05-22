@@ -299,21 +299,30 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		l1MessengerValue := common.BytesToHash(l1XDomainMessengerAddress.Bytes())
 		statedb.SetState(AddressManager.Address, l1MessengerSlot, l1MessengerValue)
 	}
-	OVM_ETH, ok := stateDump.Accounts["OVM_ETH"]
+	// UsingMVM we are mvm not ovm, so we run mvm coinbase
+	// OVM_ETH, ok := stateDump.Accounts["OVM_ETH"]
+	// if ok {
+	// 	// Set the gateway of OVM_ETH
+	// 	log.Info("Setting OVM_L1WETHGateway in OVM_ETH", "address", l1ETHGatewayAddress.Hex())
+	// 	l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000008")
+	// 	l1GatewayValue := common.BytesToHash(l1ETHGatewayAddress.Bytes())
+	// 	statedb.SetState(OVM_ETH.Address, l1GatewaySlot, l1GatewayValue)
+	// }
+	MVM_Coinbase, ok := stateDump.Accounts["MVM_Coinbase"]
 	if ok {
-		log.Info("Setting OVM_L1ETHGateway in OVM_ETH", "address", l1ETHGatewayAddress.Hex())
-		if strings.Contains(OVM_ETH.Code, "a84ce98") {
-			// Set the gateway of OVM_ETH at new dump
-			log.Info("Detected current OVM_ETH dump, setting slot 0x1 ")
+		log.Info("Setting OVM_L1ETHGateway in MVM_Coinbase", "address", l1ETHGatewayAddress.Hex())
+		if strings.Contains(MVM_Coinbase.Code, "a84ce98") {
+			// Set the gateway of MVM_Coinbase at new dump
+			log.Info("Detected current MVM_Coinbase dump, setting slot 0x1 ")
 			l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 			l1GatewayValue := common.BytesToHash(l1ETHGatewayAddress.Bytes())
-			statedb.SetState(OVM_ETH.Address, l1GatewaySlot, l1GatewayValue)
+			statedb.SetState(MVM_Coinbase.Address, l1GatewaySlot, l1GatewayValue)
 		} else {
-			// Set the gateway of OVM_ETH at legacy slot
-			log.Info("Detected legacy OVM_ETH dump, setting slot 0x8")
+			// Set the gateway of MVM_Coinbase at legacy slot
+			log.Info("Detected legacy MVM_Coinbase dump, setting slot 0x8")
 			l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000008")
 			l1GatewayValue := common.BytesToHash(l1ETHGatewayAddress.Bytes())
-			statedb.SetState(OVM_ETH.Address, l1GatewaySlot, l1GatewayValue)
+			statedb.SetState(MVM_Coinbase.Address, l1GatewaySlot, l1GatewayValue)
 		}
 	}
 	ExecutionManager, ok := stateDump.Accounts["OVM_ExecutionManager"]

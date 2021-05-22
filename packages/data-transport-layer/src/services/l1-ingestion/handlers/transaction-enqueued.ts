@@ -1,8 +1,10 @@
-import { EventArgsTransactionEnqueued } from '@eth-optimism/core-utils'
-
 /* Imports: Internal */
 import { BigNumber } from 'ethers'
-import { EnqueueEntry, EventHandlerSet } from '../../../types'
+import {
+  EnqueueEntry,
+  EventArgsTransactionEnqueued,
+  EventHandlerSet,
+} from '../../../types'
 
 export const handleEventsTransactionEnqueued: EventHandlerSet<
   EventArgsTransactionEnqueued,

@@ -38,7 +38,19 @@ interface iOVM_L1TokenGateway {
     )
         external;
 
+    function depositByChainId(
+        uint256 _chainId,
+        uint _amount
+    )
+        external;
 
+    function depositToByChainId(
+        uint256 _chainId,
+        address _to,
+        uint _amount
+    )
+        external;
+    
     /*************************
      * Cross-chain Functions *
      *************************/

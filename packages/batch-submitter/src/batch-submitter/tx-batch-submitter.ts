@@ -3,7 +3,7 @@ import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { getContractInterface, getContractFactory } from 'old-contracts'
-import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
+import { getContractInterface as getNewContractInterface } from '@metis.io/contracts'
 import {
   L2Block,
   RollupInfo,
@@ -127,7 +127,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   public async _onSync(): Promise<TransactionReceipt> {
-    const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
+    const pendingQueueElements = await this.chainContract.getNumPendingQueueElementsByChainId(this.l2ChainId)
     this.logger.debug('Got number of pending queue elements', {
       pendingQueueElements,
     })
@@ -143,7 +143,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         const contractFunction = async (
           gasPrice
         ): Promise<TransactionReceipt> => {
-          const tx = await this.chainContract.appendQueueBatch(99999999, {
+          const tx = await this.chainContract.appendQueueBatchByChainId(this.l2ChainId,99999999, {
             nonce,
             gasPrice,
           })
@@ -175,7 +175,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       'Getting batch start and end for transaction batch submitter...'
     )
     const startBlock =
-      (await this.chainContract.getTotalElements()).toNumber() +
+      (await this.chainContract.getTotalElementsByChainId(this.l2ChainId)).toNumber() +
       this.blockOffset
     this.logger.info('Retrieved start block number from CTC', {
       startBlock,
@@ -333,7 +333,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
    */
   protected async _validateBatch(batch: Batch): Promise<boolean> {
     // Verify all of the queue elements are what we expect
-    let nextQueueIndex = await this.chainContract.getNextQueueIndex()
+    let nextQueueIndex = await this.chainContract.getNextQueueIndexByChainId(this.l2ChainId)
     for (const ele of batch) {
       this.logger.debug('Verifying batch element', { ele })
       if (!ele.isSequencerTx) {
@@ -384,7 +384,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       queueEleHash,
       timestamp,
       blockNumber,
-    ] = await this.chainContract.getQueueElement(queueIndex)
+    ] = await this.chainContract.getQueueElementByChainId(
+        this.l2ChainId,
+        nextQueueIndex
+      )
 
     // TODO: Verify queue element hash equality. The queue element hash can be computed with:
     // keccak256( abi.encode( msg.sender, _target, _gasLimit, _data))
@@ -418,7 +421,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
    */
   private async _fixBatch(batch: Batch): Promise<Batch> {
     const fixDoublePlayedDeposits = async (b: Batch): Promise<Batch> => {
-      let nextQueueIndex = await this.chainContract.getNextQueueIndex()
+      let nextQueueIndex = await this.chainContract.getNextQueueIndexByChainId(this.l2ChainId)
       const fixedBatch: Batch = []
       for (const ele of b) {
         if (!ele.isSequencerTx) {
@@ -443,13 +446,13 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
     const fixSkippedDeposits = async (b: Batch): Promise<Batch> => {
       this.logger.debug('Fixing skipped deposits...')
-      let nextQueueIndex = await this.chainContract.getNextQueueIndex()
+      let nextQueueIndex = await this.chainContract.getNextQueueIndexByChainId(this.l2ChainId)
       const fixedBatch: Batch = []
       for (const ele of b) {
         // Look for skipped deposits
         while (true) {
-          const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
-          const nextRemoteQueueElements = await this.chainContract.getNextQueueIndex()
+          const pendingQueueElements = await this.chainContract.getNumPendingQueueElementsByChainId(this.l2ChainId)
+          const nextRemoteQueueElements = await this.chainContract.getNextQueueIndexByChainId(this.l2ChainId)
           const totalQueueElements =
             pendingQueueElements + nextRemoteQueueElements
           // No more queue elements so we clearly haven't skipped anything
@@ -460,7 +463,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             queueEleHash,
             timestamp,
             blockNumber,
-          ] = await this.chainContract.getQueueElement(nextQueueIndex)
+          ] = await this.chainContract.getQueueElementByChainId(
+	        this.l2ChainId,
+	        nextQueueIndex
+	      )
 
           if (timestamp < ele.timestamp || blockNumber < ele.blockNumber) {
             this.logger.error('Fixing skipped deposit', {
@@ -508,15 +514,15 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       })
 
       // The latest allowed timestamp/blockNumber is the next queue element!
-      let nextQueueIndex = await this.chainContract.getNextQueueIndex()
+      let nextQueueIndex = await this.chainContract.getNextQueueIndexByChainId(this.l2ChainId)
       let latestTimestamp: number
       let latestBlockNumber: number
 
       // updateLatestTimestampAndBlockNumber is a helper which updates
       // the latest timestamp and block number based on the pending queue elements.
       const updateLatestTimestampAndBlockNumber = async () => {
-        const pendingQueueElements = await this.chainContract.getNumPendingQueueElements()
-        const nextRemoteQueueElements = await this.chainContract.getNextQueueIndex()
+        const pendingQueueElements = await this.chainContract.getNumPendingQueueElementsByChainId(this.l2ChainId)
+        const nextRemoteQueueElements = await this.chainContract.getNextQueueIndexByChainId(this.l2ChainId)
         const totalQueueElements =
           pendingQueueElements + nextRemoteQueueElements
         if (nextQueueIndex < totalQueueElements) {
@@ -524,7 +530,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             queueEleHash,
             queueTimestamp,
             queueBlockNumber,
-          ] = await this.chainContract.getQueueElement(nextQueueIndex)
+          ] = await this.chainContract.getQueueElementByChainId(
+	        this.l2ChainId,
+	        nextQueueIndex
+	      )
           latestTimestamp = queueTimestamp
           latestBlockNumber = queueBlockNumber
         } else {
@@ -653,7 +662,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       queueEleHash,
       timestamp,
       blockNumber,
-    ] = await this.chainContract.getQueueElement(queueIndex)
+    ] = await this.chainContract.getQueueElementByChainId(
+        this.l2ChainId,
+        nextQueueIndex
+      )
 
     if (
       timestamp > queueElement.timestamp &&

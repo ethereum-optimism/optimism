@@ -35,7 +35,20 @@ interface iOVM_L1ETHGateway {
     )
         external
         payable;
+        
+    function depositByChainId(
+        uint256 _chainId
+        )
+        external
+        payable;
 
+    function depositToByChainId(
+        uint256 _chainId,
+        address _to
+    )
+        external
+        payable;
+        
     /*************************
      * Cross-chain Functions *
      *************************/
