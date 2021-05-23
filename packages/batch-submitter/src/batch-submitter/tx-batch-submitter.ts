@@ -2,7 +2,7 @@
 import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
-import { getContractInterface, getContractFactory } from 'old-contracts'
+import { getContractInterface, getContractFactory } from '@metis.io/contracts'
 import { getContractInterface as getNewContractInterface } from '@metis.io/contracts'
 import {
   L2Block,
@@ -386,7 +386,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       blockNumber,
     ] = await this.chainContract.getQueueElementByChainId(
         this.l2ChainId,
-        nextQueueIndex
+        queueIndex
       )
 
     // TODO: Verify queue element hash equality. The queue element hash can be computed with:
@@ -664,7 +664,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       blockNumber,
     ] = await this.chainContract.getQueueElementByChainId(
         this.l2ChainId,
-        nextQueueIndex
+        queueIndex
       )
 
     if (
@@ -767,6 +767,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     return {
+      chainId:this.l2ChainId,
       shouldStartAtElement: shouldStartAtIndex - this.blockOffset,
       totalElementsToAppend,
       contexts,

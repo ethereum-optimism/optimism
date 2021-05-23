@@ -16,7 +16,6 @@ const deployFn: DeployFunction = async (hre) => {
       signerOrProvider: deployer,
     }
   )
-
   const result = await deploy('OVM_L1ETHGateway', {
     from: deployer,
     args: [],
@@ -36,7 +35,7 @@ const deployFn: DeployFunction = async (hre) => {
   // initialize this.
   await OVM_L1ETHGateway.initialize(
     Lib_AddressManager.address,
-    predeploys.OVM_ETH
+    predeploys.MVM_Coinbase
   )
 
   const libAddressManager = await OVM_L1ETHGateway.libAddressManager()

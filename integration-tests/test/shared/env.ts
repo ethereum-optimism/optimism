@@ -1,4 +1,4 @@
-import { getContractFactory } from '@eth-optimism/contracts'
+import { getContractFactory } from '@metis.io/contracts'
 import { Watcher } from '@eth-optimism/core-utils'
 import { Contract, utils, Wallet } from 'ethers'
 import {

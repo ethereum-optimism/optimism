@@ -41,7 +41,7 @@ const callPredeploy = async (
   )
 }
 
-const iOVM_ETH = getContractInterface('OVM_ETH')
+const iOVM_ETH = getContractInterface('MVM_Coinbase')
 
 describe('OVM_ECDSAContractAccount', () => {
   let wallet: Wallet
@@ -86,7 +86,7 @@ describe('OVM_ECDSAContractAccount', () => {
     Mock__OVM_ExecutionManager.smocked.ovmGETNONCE.will.return.with(100)
     Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with(
       (gasLimit, target, data) => {
-        if (target === predeploys.OVM_ETH) {
+        if (target === predeploys.MVM_Coinbase) {
           return [
             true,
             '0x0000000000000000000000000000000000000000000000000000000000000001',
@@ -243,7 +243,7 @@ describe('OVM_ECDSAContractAccount', () => {
 
       Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with(
         (gasLimit, target, data) => {
-          if (target === predeploys.OVM_ETH) {
+          if (target === predeploys.MVM_Coinbase) {
             return [
               true,
               '0x0000000000000000000000000000000000000000000000000000000000000000',
@@ -283,7 +283,7 @@ describe('OVM_ECDSAContractAccount', () => {
 
       // First call transfers fee, second transfers value (since value > 0).
       const ovmCALL: any = Mock__OVM_ExecutionManager.smocked.ovmCALL.calls[1]
-      expect(ovmCALL._address).to.equal(predeploys.OVM_ETH)
+      expect(ovmCALL._address).to.equal(predeploys.MVM_Coinbase)
       expect(ovmCALL._calldata).to.equal(
         iOVM_ETH.encodeFunctionData('transfer', [
           transaction.to,
@@ -298,7 +298,7 @@ describe('OVM_ECDSAContractAccount', () => {
 
       Mock__OVM_ExecutionManager.smocked.ovmCALL.will.return.with(
         (gasLimit, target, data) => {
-          if (target === predeploys.OVM_ETH) {
+          if (target === predeploys.MVM_Coinbase) {
             const [recipient, amount] = iOVM_ETH.decodeFunctionData(
               'transfer',
               data

@@ -87,6 +87,7 @@ services:
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
+        ROLLUP_POLL_INTERVAL_FLAG: 30000ms
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546

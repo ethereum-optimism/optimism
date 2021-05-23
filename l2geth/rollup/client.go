@@ -129,8 +129,9 @@ type RollupClient interface {
 
 // Client is an HTTP based RollupClient
 type Client struct {
-	client *resty.Client
-	signer *types.EIP155Signer
+	client  *resty.Client
+	signer  *types.EIP155Signer
+	chainID string
 }
 
 // TransactionResponse represents the response from the remote server when
@@ -155,8 +156,9 @@ func NewClient(url string, chainID *big.Int) *Client {
 	signer := types.NewEIP155Signer(chainID)
 
 	return &Client{
-		client: client,
-		signer: &signer,
+		client:  client,
+		signer:  &signer,
+		chainID: chainID.String(),
 	}
 }
 

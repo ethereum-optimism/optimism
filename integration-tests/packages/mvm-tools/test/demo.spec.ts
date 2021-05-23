@@ -2,8 +2,8 @@ import { expect } from 'chai'
 import assert = require('assert')
 import { JsonRpcProvider, TransactionResponse } from '@ethersproject/providers'
 import { BigNumber, Contract, Wallet, utils } from 'ethers'
-import { getContractInterface } from 'metiseth-optimism-contracts'
-import { Watcher } from '@eth-optimism/watcher'
+import { getContractInterface } from '@metis.io/contracts'
+import { Watcher } from '@eth-optimism/core-utils'
 import dotenv = require('dotenv')
 import * as path from 'path';
 
@@ -24,7 +24,6 @@ let watcher: Watcher
 
 describe('Fee Payment Integration Tests', async () => {
   const envPath = path.join(__dirname, '/.env');
-  console.log(envPath)
   dotenv.config({ path: envPath })
   
   let OVM_L1ETHGateway: Contract

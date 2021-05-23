@@ -1,5 +1,5 @@
 {
-  "name": "@eth-optimism/contracts",
+  "name": "@metis.io/contracts",
   "version": "0.3.2",
   "main": "dist/index",
   "files": [

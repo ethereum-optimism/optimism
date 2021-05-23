@@ -39,7 +39,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await Proxy__OVM_L1ETHGateway.initialize(
     Lib_AddressManager.address,
-    predeploys.OVM_ETH
+    predeploys.MVM_Coinbase
   )
 
   const libAddressManager = await Proxy__OVM_L1ETHGateway.libAddressManager()

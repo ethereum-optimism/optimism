@@ -80,7 +80,7 @@ export const getGateway = async (wallet: Wallet, AddressManager: Contract) => {
 export const getOvmEth = (wallet: Wallet) => {
   const OVM_ETH = new Contract(
     OVM_ETH_ADDRESS,
-    getContractInterface('OVM_ETH'),
+    getContractInterface('MVM_Coinbase'),
     wallet
   )
 

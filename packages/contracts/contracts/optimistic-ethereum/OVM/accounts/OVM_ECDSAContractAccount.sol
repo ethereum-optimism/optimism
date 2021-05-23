@@ -11,7 +11,7 @@ import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 
 /* Contract Imports */
-import { MVM_Coinbase } from "../predeploys/MVM_Coinbase.sol";
+import { MVM_Coinbase } from "../../MVM/MVM_Coinbase.sol";
 
 /* External Imports */
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -132,7 +132,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                 );
 
                 require(
-                    ovmETH.transfer(
+                    coinbase.transfer(
                         transaction.to,
                         transaction.value
                     ),

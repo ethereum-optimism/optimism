@@ -256,20 +256,27 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
-"@eth-optimism/solc@^0.6.12-alpha.1":
-  version "0.6.12-alpha.1"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/solc/-/solc-0.6.12-alpha.1.tgz#041876f83b34c6afe2f19dfe9626568df6ed8590"
-  integrity sha512-Ky73mo+2iNJs/VTaT751nMeZ7hXns0TBAlffTOxIOsScjAZ/zi/KWsDUo3r89aV2JKXcYAU/bLidxF40MVJeUw==
+"@eth-optimism/contracts@^0.3.0":
+  version "0.3.2"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.3.2.tgz#acc2928d377f17ccaf5c7dc83b92f4ed2af56e09"
+  integrity sha512-8k5vIXgEeKHZSzvISdFk4d/GpFcazcH06PuFRHhXI2grtLhTULAJ36s3YXlNz5x8dnxHnNKO0pPzJicB3CHhNA==
   dependencies:
-    command-exists "^1.2.8"
-    commander "3.0.2"
-    follow-redirects "^1.12.1"
-    fs-extra "^0.30.0"
-    js-sha3 "0.8.0"
-    memorystream "^0.3.1"
-    require-from-string "^2.0.0"
-    semver "^5.5.0"
-    tmp "0.0.33"
+    "@eth-optimism/core-utils" "^0.4.3"
+    "@ethersproject/abstract-provider" "^5.0.8"
+    "@ethersproject/abstract-signer" "^5.1.0"
+    "@ethersproject/contracts" "^5.0.5"
+    glob "^7.1.6"
+
+"@eth-optimism/core-utils@^0.1.10":
+  version "0.1.10"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.1.10.tgz#bbed838cb7c9354e8b90029c47b7556ceaa756bf"
+  integrity sha512-RyZ79yP1gJP8Clx6AqvoDiJzbOVQccsyj0OobwiNfO4gUU1Lpmz37zXsQITSO+3bKWj+ipxg2baZnJwfoTxl5g==
+  dependencies:
+    "@ethersproject/abstract-provider" "^5.0.9"
+    colors "^1.4.0"
+    debug "^4.3.1"
+    ethers "^5.0.31"
+    pino "^6.11.1"
 
 "@eth-optimism/ynatm@^0.2.2":
   version "0.2.2"
@@ -1583,6 +1590,19 @@
     fs-extra "^8.1.0"
     globby "^11.0.0"
     read-yaml-file "^1.1.0"
+
+"@metis.io/contracts@^1.0.*":
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/@metis.io/contracts/-/contracts-1.0.6.tgz#df8b012f243edf6c40e9bb80b8ee592564491a22"
+  integrity sha512-38howSaaRm5KTdTzO5xTDc3sFCu57aFRq8muskkjIK+2jV9if0DvA4XftCI3QHY+W60lpqrKk9comTDI5cydEg==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.1.10"
+    "@ethersproject/abstract-provider" "^5.0.8"
+    "@ethersproject/contracts" "^5.0.5"
+    "@ethersproject/hardware-wallets" "^5.0.8"
+    "@openzeppelin/contracts" "^3.3.0"
+    ganache-core "^2.13.2"
+    glob "^7.1.6"
 
 "@nodelib/fs.scandir@2.1.4":
   version "2.1.4"
@@ -4424,7 +4444,7 @@ colors@1.0.3:
   resolved "https://registry.yarnpkg.com/colors/-/colors-1.0.3.tgz#0433f44d809680fdeb60ed260f1b0c262e82a40b"
   integrity sha1-BDP0TYCWgP3rYO0mDxsMJi6CpAs=
 
-colors@^1.1.2:
+colors@^1.1.2, colors@^1.4.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/colors/-/colors-1.4.0.tgz#c50491479d4c1bdaed2c9ced32cf7c7dc2360f78"
   integrity sha512-a+UqTh4kgZg/SlGvfbzDHpgRu7AAQOmmqRHJnxhRZICKFUT91brVhNNt58CMWU9PsBbv3PDCZUHbVxuDiH2mtA==
@@ -4893,7 +4913,7 @@ debug@3.2.6:
   dependencies:
     ms "^2.1.1"
 
-debug@4, debug@4.3.1, debug@^4.1.0, debug@^4.1.1:
+debug@4, debug@4.3.1, debug@^4.1.0, debug@^4.1.1, debug@^4.3.1:
   version "4.3.1"
   resolved "https://registry.yarnpkg.com/debug/-/debug-4.3.1.tgz#f0d229c505e0c6d8c49ac553d1b13dc183f6b2ee"
   integrity sha512-doEwdvm4PCeK4K3RQN2ZC2BYUBaxwLARCqZmMjtF8a51J2Rb0xpVloFRnCODwqjpwnAoao4pelN8l3RJdv3gRQ==
@@ -6649,7 +6669,7 @@ ganache-cli@^6.11.0:
     source-map-support "0.5.12"
     yargs "13.2.4"
 
-ganache-core@^2.12.1, ganache-core@^2.13.2:
+ganache-core@^2.13.2:
   version "2.13.2"
   resolved "https://registry.yarnpkg.com/ganache-core/-/ganache-core-2.13.2.tgz#27e6fc5417c10e6e76e2e646671869d7665814a3"
   integrity sha512-tIF5cR+ANQz0+3pHWxHjIwHqFXcVo0Mb+kcsNhglNFALcYo49aQpnS9dqHartqPfMFjiHh/qFoD3mYK0d/qGgw==
@@ -10052,18 +10072,6 @@ oboe@2.1.4:
   dependencies:
     http-https "^1.0.0"
 
-"old-contracts@npm:@eth-optimism/contracts@^0.0.2-alpha.7":
-  version "0.0.2-alpha.15"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.0.2-alpha.15.tgz#d602bdb6f1186d111ce9f7c282fc80e023086892"
-  integrity sha512-upJfYHDWQY7nM0AYT9MKQiuOus2uMUhvqS962qiBq3Ly/9GUq5mS0UALynsrZBGbzT6pflOMKFFEv7jQEORGmA==
-  dependencies:
-    "@eth-optimism/solc" "^0.6.12-alpha.1"
-    "@ethersproject/contracts" "^5.0.5"
-    "@ethersproject/hardware-wallets" "^5.0.8"
-    "@openzeppelin/contracts" "^3.3.0"
-    ethers "5.0.0"
-    ganache-core "^2.12.1"
-
 on-finished@^2.3.0, on-finished@~2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/on-finished/-/on-finished-2.3.0.tgz#20f1336481b083cd75337992a16971aa2d906947"
@@ -10614,7 +10622,7 @@ pino-std-serializers@^3.1.0:
   resolved "https://registry.yarnpkg.com/pino-std-serializers/-/pino-std-serializers-3.2.0.tgz#b56487c402d882eb96cd67c257868016b61ad671"
   integrity sha512-EqX4pwDPrt3MuOAAUBMU0Tk5kR/YcCM5fNPEzgCO2zJ5HfX0vbiH9HbJglnyeQsN96Kznae6MWD47pZB5avTrg==
 
-pino@^6.0.0, pino@^6.11.3:
+pino@^6.0.0, pino@^6.11.1, pino@^6.11.3:
   version "6.11.3"
   resolved "https://registry.yarnpkg.com/pino/-/pino-6.11.3.tgz#0c02eec6029d25e6794fdb6bbea367247d74bc29"
   integrity sha512-drPtqkkSf0ufx2gaea3TryFiBHdNIdXKf5LN0hTM82SXI4xVIve2wLwNg92e1MT6m3jASLu6VO7eGY6+mmGeyw==

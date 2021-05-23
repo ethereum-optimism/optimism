@@ -110,3 +110,5 @@ can be hard to filter through. In order to view the logs from a specific service
 ```
 docker-compose logs --follow <service name>
 ```
+
+address manager: 0x5FbDB2315678afecb367f032d93F642f64180aa3

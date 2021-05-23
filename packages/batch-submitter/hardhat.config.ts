@@ -12,7 +12,7 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       accounts: DEFAULT_ACCOUNTS_HARDHAT,
-      blockGasLimit: RUN_OVM_TEST_GAS * 2,
+      blockGasLimit: RUN_OVM_TEST_GAS * 100,
     },
   },
   mocha: {

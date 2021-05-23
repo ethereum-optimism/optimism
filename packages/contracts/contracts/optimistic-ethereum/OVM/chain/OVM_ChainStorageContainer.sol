@@ -40,7 +40,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
      *************/
 
     string public owner;
-    Lib_RingBuffer.RingBuffer internal buffer;
+    mapping(uint256=>Lib_RingBuffer.RingBuffer) internal buffers;
 
 
     /***************

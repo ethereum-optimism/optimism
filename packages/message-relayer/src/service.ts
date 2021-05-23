@@ -8,7 +8,7 @@ import { fromHexString, sleep } from '@eth-optimism/core-utils'
 import { BaseService } from '@eth-optimism/common-ts'
 import SpreadSheet from './spreadsheet'
 
-import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
+import { loadContract, loadContractFromManager } from '@metis.io/contracts'
 import { StateRootBatchHeader, SentMessage, SentMessageProof } from './types'
 
 interface MessageRelayerOptions {
