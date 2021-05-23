@@ -21,8 +21,8 @@ interface iOVM_L1CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
         bytes32 stateRoot;
         Lib_OVMCodec.ChainBatchHeader stateRootBatchHeader;
         Lib_OVMCodec.ChainInclusionProof stateRootProof;
-        bytes stateTrieWitness;
-        bytes storageTrieWitness;
+        bytes[] stateTrieWitness;
+        bytes[] storageTrieWitness;
     }
 
 

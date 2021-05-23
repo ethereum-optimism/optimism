@@ -13,7 +13,7 @@ export interface TrieNode {
 export interface InclusionProofTest {
   key: string
   val: string
-  proof: string
+  proof: string[]
   root: string
 }
 
@@ -167,7 +167,7 @@ export class TrieTestGenerator {
     const val = await trie.get(fromHexString(key))
 
     return {
-      proof: toHexString(rlp.encode(proof)),
+      proof: proof.map(toHexString),
       key: toHexString(key),
       val: toHexString(val),
       root: toHexString(trie.root),
@@ -199,7 +199,7 @@ export class TrieTestGenerator {
     const newRoot = trie.root
 
     return {
-      proof: toHexString(rlp.encode(proof)),
+      proof: proof.map(toHexString),
       key: toHexString(key),
       val: toHexString(val),
       root: toHexString(oldRoot),
@@ -222,7 +222,7 @@ export class TrieTestGenerator {
     return {
       address,
       account: rlpDecodeAccount(toHexString(account)),
-      accountTrieWitness: toHexString(rlp.encode(proof)),
+      accountTrieWitness: proof.map(toHexString),
       accountTrieRoot: toHexString(trie.root),
     }
   }
@@ -249,7 +249,7 @@ export class TrieTestGenerator {
     return {
       address,
       account,
-      accountTrieWitness: toHexString(rlp.encode(proof)),
+      accountTrieWitness: proof.map(toHexString),
       accountTrieRoot: toHexString(oldRoot),
       newAccountTrieRoot: toHexString(newRoot),
     }

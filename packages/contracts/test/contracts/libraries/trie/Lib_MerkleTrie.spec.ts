@@ -58,7 +58,7 @@ describe('Lib_MerkleTrie', () => {
           const out = await Lib_MerkleTrie.update(
             toHexString(key),
             toHexString(val),
-            toHexString(rlp.encode(proof)),
+            proof.map(toHexString),
             root
           )
 
@@ -105,7 +105,7 @@ describe('Lib_MerkleTrie', () => {
           const out = await Lib_MerkleTrie.update(
             toHexString(key),
             toHexString(val),
-            toHexString(rlp.encode(proof)),
+            proof.map(toHexString),
             root
           )
 
@@ -202,7 +202,7 @@ describe('Lib_MerkleTrie', () => {
         await Lib_MerkleTrie.update(
           key,
           val,
-          '0x', // Doesn't require a proof
+          [], // Doesn't require a proof
           ethers.utils.keccak256('0x80') // Empty Merkle trie root hash
         )
       ).to.equal(toHexString(trie.root))
@@ -234,6 +234,7 @@ describe('Lib_MerkleTrie', () => {
               await Lib_MerkleTrie.get(test.key, test.proof, test.root)
             ).to.deep.equal([true, test.val])
           })
+
           if (i > 3) {
             it(`should revert when the proof node does not pass the root check`, async () => {
               const test = await generator.makeInclusionProofTest(i - 1)
@@ -242,15 +243,18 @@ describe('Lib_MerkleTrie', () => {
                 Lib_MerkleTrie.get(test2.key, test.proof, test.root)
               ).to.be.revertedWith('Invalid large internal hash')
             })
+
             it(`should revert when the first proof element is not the root node`, async () => {
               const test = await generator.makeInclusionProofTest(0)
-              const decodedProof = rlp.decode(test.proof)
-              decodedProof[0].write('abcd', 8) // change the 1st element (root) of the proof
-              const badProof = rlp.encode(decodedProof as rlp.Input)
+              const proof = test.proof
+              const badElement = fromHexString(proof[0])
+              badElement.write('abcd', 8)
+              proof[0] = toHexString(badElement) // change the 1st element (root) of the proof
               await expect(
-                Lib_MerkleTrie.get(test.key, badProof, test.root)
+                Lib_MerkleTrie.get(test.key, proof, test.root)
               ).to.be.revertedWith('Invalid root hash')
             })
+
             it(`should be false when calling get on an incorrect key`, async () => {
               const test = await generator.makeInclusionProofTest(i - 1)
               let newKey = test.key.slice(0, test.key.length - 8)
@@ -278,12 +282,13 @@ describe('Lib_MerkleTrie', () => {
 
     it(`should revert on an incorrect proof node prefix`, async () => {
       const test = await generator.makeInclusionProofTest(0)
-      const decodedProof = rlp.decode(test.proof)
-      decodedProof[0].write('a', 3) // change the prefix
-      test.root = ethers.utils.keccak256(toHexString(decodedProof[0]))
-      const badProof = rlp.encode(decodedProof as rlp.Input)
+      const proof = test.proof
+      const badElement = fromHexString(proof[0])
+      badElement.write('a', 3)
+      proof[0] = toHexString(badElement) // change the prefix
+      test.root = ethers.utils.keccak256(toHexString(proof[0]))
       await expect(
-        Lib_MerkleTrie.get(test.key, badProof, test.root)
+        Lib_MerkleTrie.get(test.key, proof, test.root)
       ).to.be.revertedWith('Received a node with an unknown prefix')
     })
   })

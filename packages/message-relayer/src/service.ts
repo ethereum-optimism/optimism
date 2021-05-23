@@ -1,10 +1,9 @@
 /* Imports: External */
 import { Contract, ethers, Wallet, BigNumber, providers } from 'ethers'
-import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
 
 /* Imports: Internal */
-import { fromHexString, sleep } from '@eth-optimism/core-utils'
+import { fromHexString, sleep, toHexString } from '@eth-optimism/core-utils'
 import { BaseService } from '@eth-optimism/common-ts'
 import SpreadSheet from './spreadsheet'
 
@@ -435,8 +434,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         index,
         siblings: treeProof,
       },
-      stateTrieWitness: rlp.encode(proof.accountProof),
-      storageTrieWitness: rlp.encode(proof.storageProof[0].proof),
+      stateTrieWitness: proof.accountProof.map(toHexString),
+      storageTrieWitness: proof.storageProof[0].proof.map(toHexString),
     }
   }
 

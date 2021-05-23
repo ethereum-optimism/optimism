@@ -13,7 +13,7 @@ contract TestLib_SecureMerkleTrie {
     function verifyInclusionProof(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         public
@@ -33,7 +33,7 @@ contract TestLib_SecureMerkleTrie {
     function update(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         public
@@ -52,7 +52,7 @@ contract TestLib_SecureMerkleTrie {
 
     function get(
         bytes memory _key,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         public

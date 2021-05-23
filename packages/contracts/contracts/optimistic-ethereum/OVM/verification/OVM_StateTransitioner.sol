@@ -185,7 +185,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
     function proveContractState(
         address _ovmContractAddress,
         address _ethContractAddress,
-        bytes memory _stateTrieWitness
+        bytes[] memory _stateTrieWitness
     )
         override
         external
@@ -257,7 +257,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
     function proveStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
-        bytes memory _storageTrieWitness
+        bytes[] memory _storageTrieWitness
     )
         override
         external
@@ -371,7 +371,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
      */
     function commitContractState(
         address _ovmContractAddress,
-        bytes memory _stateTrieWitness
+        bytes[] memory _stateTrieWitness
     )
         override
         external
@@ -414,7 +414,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
     function commitStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
-        bytes memory _storageTrieWitness
+        bytes[] memory _storageTrieWitness
     )
         override
         external

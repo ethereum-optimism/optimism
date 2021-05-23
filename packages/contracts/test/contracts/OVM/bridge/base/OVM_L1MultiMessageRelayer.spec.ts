@@ -57,8 +57,8 @@ describe('OVM_L1MultiMessageRelayer', () => {
       stateRoot: NON_NULL_BYTES32,
       stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
       stateRootProof: DUMMY_BATCH_PROOFS[0],
-      stateTrieWitness: toHexString('some bytes'),
-      storageTrieWitness: toHexString('some more bytes'),
+      stateTrieWitness: [],
+      storageTrieWitness: [],
     }
 
     // create a few dummy messages to relay

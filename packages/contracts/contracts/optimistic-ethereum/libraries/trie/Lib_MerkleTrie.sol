@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
+pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
@@ -73,7 +74,7 @@ library Lib_MerkleTrie {
     function verifyInclusionProof(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         internal
@@ -106,7 +107,7 @@ library Lib_MerkleTrie {
     function update(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         internal
@@ -137,7 +138,7 @@ library Lib_MerkleTrie {
      */
     function get(
         bytes memory _key,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         internal
@@ -536,27 +537,25 @@ library Lib_MerkleTrie {
     }
 
     /**
-     * @notice Parses an RLP-encoded proof into something more useful.
-     * @param _proof RLP-encoded proof to parse.
-     * @return _parsed Proof parsed into easily accessible structs.
+     * @notice Parses RLP-encoded proof elements into more useful structs.
+     * @param _proof RLP-encoded proof elements to parse.
+     * @return Parsed proof elements.
      */
     function _parseProof(
-        bytes memory _proof
+        bytes[] memory _proof
     )
         private
         pure
         returns (
-            TrieNode[] memory _parsed
+            TrieNode[] memory
         )
     {
-        Lib_RLPReader.RLPItem[] memory nodes = Lib_RLPReader.readList(_proof);
-        TrieNode[] memory proof = new TrieNode[](nodes.length);
+        TrieNode[] memory proof = new TrieNode[](_proof.length);
 
-        for (uint256 i = 0; i < nodes.length; i++) {
-            bytes memory encoded = Lib_RLPReader.readBytes(nodes[i]);
+        for (uint256 i = 0; i < _proof.length; i++) {
             proof[i] = TrieNode({
-                encoded: encoded,
-                decoded: Lib_RLPReader.readList(encoded)
+                encoded: _proof[i],
+                decoded: Lib_RLPReader.readList(_proof[i])
             });
         }
 

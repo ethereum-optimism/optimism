@@ -40,13 +40,13 @@ interface iOVM_StateTransitioner {
     function proveContractState(
         address _ovmContractAddress,
         address _ethContractAddress,
-        bytes calldata _stateTrieWitness
+        bytes[] calldata _stateTrieWitness
     ) external;
 
     function proveStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
-        bytes calldata _storageTrieWitness
+        bytes[] calldata _storageTrieWitness
     ) external;
 
 
@@ -65,13 +65,13 @@ interface iOVM_StateTransitioner {
 
     function commitContractState(
         address _ovmContractAddress,
-        bytes calldata _stateTrieWitness
+        bytes[] calldata _stateTrieWitness
     ) external;
 
     function commitStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
-        bytes calldata _storageTrieWitness
+        bytes[] calldata _storageTrieWitness
     ) external;
 
 

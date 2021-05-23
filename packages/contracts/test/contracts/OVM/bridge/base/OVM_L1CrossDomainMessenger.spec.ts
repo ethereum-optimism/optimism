@@ -329,8 +329,8 @@ describe('OVM_L1CrossDomainMessenger', () => {
         stateRoot: ethers.constants.HashZero,
         stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
         stateRootProof: DUMMY_BATCH_PROOFS[0],
-        stateTrieWitness: '0x',
-        storageTrieWitness: '0x',
+        stateTrieWitness: [],
+        storageTrieWitness: [],
       }
 
       await expect(
@@ -353,8 +353,8 @@ describe('OVM_L1CrossDomainMessenger', () => {
         stateRoot: ethers.constants.HashZero,
         stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
         stateRootProof: DUMMY_BATCH_PROOFS[0],
-        stateTrieWitness: '0x',
-        storageTrieWitness: '0x',
+        stateTrieWitness: [],
+        storageTrieWitness: [],
       }
 
       await expect(
@@ -372,7 +372,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       await expect(
         OVM_L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
           ...proof,
-          storageTrieWitness: '0x',
+          storageTrieWitness: [],
         })
       ).to.be.reverted
     })
@@ -381,7 +381,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       await expect(
         OVM_L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
           ...proof,
-          stateTrieWitness: '0x',
+          stateTrieWitness: [],
         })
       ).to.be.reverted
     })

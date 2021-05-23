@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
+pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_MerkleTrie } from "../../optimistic-ethereum/libraries/trie/Lib_MerkleTrie.sol";
@@ -12,7 +13,7 @@ contract TestLib_MerkleTrie {
     function verifyInclusionProof(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         public
@@ -32,7 +33,7 @@ contract TestLib_MerkleTrie {
     function update(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         public
@@ -51,7 +52,7 @@ contract TestLib_MerkleTrie {
 
     function get(
         bytes memory _key,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     )
         public

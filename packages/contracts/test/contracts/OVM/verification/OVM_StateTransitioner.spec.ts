@@ -112,7 +112,7 @@ describe('OVM_StateTransitioner', () => {
       })
 
       describe('when provided an invalid account inclusion proof', () => {
-        const proof = '0x'
+        const proof = []
 
         it('should revert', async () => {
           await expect(
@@ -190,7 +190,7 @@ describe('OVM_StateTransitioner', () => {
           OVM_StateTransitioner.proveStorageSlot(
             NON_ZERO_ADDRESS,
             NON_NULL_BYTES32,
-            '0x'
+            []
           )
         ).to.be.revertedWith(
           'Contract must be verified before proving a storage slot.'
@@ -206,7 +206,7 @@ describe('OVM_StateTransitioner', () => {
       describe('when provided an invalid slot inclusion proof', () => {
         const key = ethers.utils.keccak256('0x1234')
         const val = ethers.utils.keccak256('0x5678')
-        const proof = '0x'
+        const proof = []
         beforeEach(async () => {
           const generator = await TrieTestGenerator.fromNodes({
             nodes: [
@@ -239,7 +239,7 @@ describe('OVM_StateTransitioner', () => {
       describe('when provided a valid slot inclusion proof', () => {
         const key = ethers.utils.keccak256('0x1234')
         const val = ethers.utils.keccak256('0x5678')
-        let proof: string
+        let proof: string[]
         beforeEach(async () => {
           const generator = await TrieTestGenerator.fromNodes({
             nodes: [
@@ -359,7 +359,7 @@ describe('OVM_StateTransitioner', () => {
 
       it('should revert', async () => {
         await expect(
-          OVM_StateTransitioner.commitContractState(ovmContractAddress, '0x')
+          OVM_StateTransitioner.commitContractState(ovmContractAddress, [])
         ).to.be.revertedWith(
           `Account state wasn't changed or has already been committed`
         )
@@ -450,7 +450,7 @@ describe('OVM_StateTransitioner', () => {
 
       it('should revert', async () => {
         await expect(
-          OVM_StateTransitioner.commitStorageSlot(ovmContractAddress, key, '0x')
+          OVM_StateTransitioner.commitStorageSlot(ovmContractAddress, key, [])
         ).to.be.revertedWith(
           `Storage slot value wasn't changed or has already been committed.`
         )
@@ -465,7 +465,7 @@ describe('OVM_StateTransitioner', () => {
       })
 
       describe('with a valid proof', () => {
-        let storageTrieProof: string
+        let storageTrieProof: string[]
         beforeEach(async () => {
           const storageGenerator = await TrieTestGenerator.fromNodes({
             nodes: [
