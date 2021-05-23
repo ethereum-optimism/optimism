@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+### Patch Changes
+
+- 5e5d4a1: Separates logic for getting state dumps and making state dumps so we can bundle for browser
+
 ## 0.3.2
 
 ### Patch Changes
