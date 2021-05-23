@@ -5,7 +5,7 @@ import { Direction } from './shared/watcher-utils'
 import { PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 
-const DEFAULT_TEST_GAS_L1 = 250_000
+const DEFAULT_TEST_GAS_L1 = 230_000
 const DEFAULT_TEST_GAS_L2 = 825_000
 // TX size enforced by CTC:
 const MAX_ROLLUP_TX_SIZE = 50_000
