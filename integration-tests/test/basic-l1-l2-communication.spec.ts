@@ -65,11 +65,17 @@ describe('Basic L1<>L2 Communication', async () => {
       5000000
     )
 
-    await env.waitForXDomainTransaction(transaction, Direction.L1ToL2)
+    const { remoteReceipt } = await env.waitForXDomainTransaction(
+      transaction,
+      Direction.L1ToL2
+    )
 
     expect(await L2SimpleStorage.msgSender()).to.equal(env.l2Messenger.address)
     expect(await L2SimpleStorage.xDomainSender()).to.equal(env.l1Wallet.address)
     expect(await L2SimpleStorage.value()).to.equal(value)
     expect((await L2SimpleStorage.totalCount()).toNumber()).to.equal(1)
+
+    // Make sure deposits return a status of 1
+    expect(remoteReceipt.status).to.equal(1)
   })
 })

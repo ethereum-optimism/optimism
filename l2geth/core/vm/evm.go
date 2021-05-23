@@ -191,10 +191,12 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	// OVM_ADDITION
-	EthCallSender       *common.Address
-	OvmExecutionManager dump.OvmDumpAccount
-	OvmStateManager     dump.OvmDumpAccount
-	OvmSafetyChecker    dump.OvmDumpAccount
+	EthCallSender             *common.Address
+	IsOkL1ToL2Message         bool
+	OvmExecutionManager       dump.OvmDumpAccount
+	OvmStateManager           dump.OvmDumpAccount
+	OvmSafetyChecker          dump.OvmDumpAccount
+	OvmL2CrossDomainMessenger dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -245,6 +247,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		ctx.OvmExecutionManager = chainConfig.StateDump.Accounts["OVM_ExecutionManager"]
 		ctx.OvmStateManager = chainConfig.StateDump.Accounts["OVM_StateManager"]
 		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
+		ctx.OvmL2CrossDomainMessenger = chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
 	}
 
 	id := make([]byte, 4)
@@ -323,6 +326,15 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 	}
 
+	// We need to be able to show a status of 1 ("no error") for successful L1 => L2 messages.
+	// Unfortunately, the current way we figure out the success of the transaction (by parsing the
+	// returned data) would require an upgrade to the contracts that we likely won't make for a
+	// while. As a result, we'll use this temporary hack where we set IsOkL1ToL2Message = true if
+	// we detect and L1 => L2 message that didn't revert. Initially we just set the value to false.
+	if evm.depth == 0 {
+		evm.Context.IsOkL1ToL2Message = false
+	}
+
 	var (
 		to       = AccountRef(addr)
 		snapshot = evm.StateDB.Snapshot()
@@ -371,6 +383,14 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	ret, err = run(evm, contract, input, false)
 
+	// Here's where we detect L1 => L2 messages. Based on the current contracts, we're guaranteed
+	// that the target address will only be the OVM_L2CrossDomainMessenger at a depth of 1 if this
+	// is an L1 => L2 message. If this boolean is set then we'll skip the final returndata parsing
+	// step.
+	if evm.depth == 1 && addr == evm.Context.OvmL2CrossDomainMessenger.Address && err == nil {
+		evm.Context.IsOkL1ToL2Message = true
+	}
+
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally
 	// when we're in homestead this also counts for code storage gas errors.
@@ -387,30 +407,35 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			// We're back at the root-level message call, so we'll need to modify the return data
 			// sent to us by the OVM_ExecutionManager to instead be the intended return data.
 
-			// Attempt to decode the returndata as as ExecutionManager.run when
-			// it is not an `eth_call` and as ExecutionManager.simulateMessage
-			// when it is an `eth_call`. If the data is not decodable as ABI
-			// encoded bytes, then return nothing. If the data is able to be
-			// decoded as bytes, then attempt to decode as (bool, bytes)
-			isDecodable := true
-			returnData := runReturnData{}
-			if err := codec.Unpack(&returnData, "blob", ret); err != nil {
-				isDecodable = false
-			}
-
-			switch isDecodable {
-			case true:
-				inner := innerData{}
-				// If this fails to decode, the nil values will be set in
-				// `inner`, meaning that it will be interpreted as reverted
-				// execution with empty returndata
-				_ = codec.Unpack(&inner, "call", returnData.ReturnData)
-				if !inner.Success {
-					err = errExecutionReverted
+			// We skip the parsing step if this was a successful L1 => L2 message. Note that if err
+			// is set (perhaps because of an error in ExecutionManager.run) we'll still return that
+			// error.
+			if !evm.Context.IsOkL1ToL2Message {
+				// Attempt to decode the returndata as as ExecutionManager.run when
+				// it is not an `eth_call` and as ExecutionManager.simulateMessage
+				// when it is an `eth_call`. If the data is not decodable as ABI
+				// encoded bytes, then return nothing. If the data is able to be
+				// decoded as bytes, then attempt to decode as (bool, bytes)
+				isDecodable := true
+				returnData := runReturnData{}
+				if err := codec.Unpack(&returnData, "blob", ret); err != nil {
+					isDecodable = false
 				}
-				ret = inner.ReturnData
-			case false:
-				ret = []byte{}
+
+				switch isDecodable {
+				case true:
+					inner := innerData{}
+					// If this fails to decode, the nil values will be set in
+					// `inner`, meaning that it will be interpreted as reverted
+					// execution with empty returndata
+					_ = codec.Unpack(&inner, "call", returnData.ReturnData)
+					if !inner.Success {
+						err = errExecutionReverted
+					}
+					ret = inner.ReturnData
+				case false:
+					ret = []byte{}
+				}
 			}
 		}
 
