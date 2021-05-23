@@ -121,6 +121,14 @@ describe('Basic RPC tests', () => {
         'invalid transaction: insufficient funds for gas * price + value'
       )
     })
+
+    it('should correctly report OOG for contract creations', async () => {
+      const factory = await ethers.getContractFactory('TestOOG')
+
+      await expect(factory.connect(wallet).deploy()).to.be.rejectedWith(
+        'gas required exceeds allowance'
+      )
+    })
   })
 
   describe('eth_call', () => {
