@@ -2,4 +2,4 @@
 '@eth-optimism/hardhat-ovm': patch
 ---
 
-Fix a bug that broke hardhat-ethers
+Instantiate the harhat ethers provider using the Hardhat network config if no provider URL is set, and set the provider at the end, so that the overridden `getSigner` method is used. 
