@@ -248,14 +248,13 @@ extendEnvironment(async (hre) => {
 
       // override the provider polling interval
       const provider = new ethers.providers.JsonRpcProvider(
-        (hre as any).ethers.provider.url
+        (hre as any).ethers.provider.url || (hre as any).network.config.url
       )
       provider.pollingInterval = interval
 
       // the gas price is overriden to the user provided gasPrice or to 0.
       provider.getGasPrice = async () =>
         ethers.BigNumber.from(hre.network.config.gasPrice || 0)
-      ;(hre as any).ethers.provider = provider
 
       // if the node is up, override the getSigners method's signers
       try {
@@ -281,6 +280,9 @@ extendEnvironment(async (hre) => {
         ;(hre as any).ethers.getSigners = () => signers
         /* tslint:disable:no-empty */
       } catch (e) {}
+
+      // Update the provider at the very end to avoid any weird issues.
+      ;(hre as any).ethers.provider = provider
     }
   }
 })
