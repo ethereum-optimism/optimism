@@ -1,6 +1,6 @@
 /* Imports: External */
 import { LevelUp } from 'levelup'
-import { level } from 'level'
+import level from 'level'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */

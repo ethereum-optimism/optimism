@@ -224,7 +224,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       )
       return
     }
-
     const [
       batchParams,
       wasBatchTruncated,
@@ -388,7 +387,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         this.l2ChainId,
         queueIndex
       )
-
+    if(timestamp==0&&blockNumber==0)
+      return true
     // TODO: Verify queue element hash equality. The queue element hash can be computed with:
     // keccak256( abi.encode( msg.sender, _target, _gasLimit, _data))
 
