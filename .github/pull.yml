@@ -1,0 +1,5 @@
+version: "1"
+rules:
+  - base: develop
+    upstream: ethereum-optimism:develop    # change `wei` to the owner of upstream repo
+    mergeMethod: hardreset
