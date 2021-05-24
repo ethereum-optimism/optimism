@@ -105,7 +105,7 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
     await AddressManager.setAddress(
       'OVM_DecompressionPrecompileAddress',
-      predeploys.Lib_AddressManager
+      predeploys.OVM_SequencerEntrypoint
     )
 
     Mock__OVM_ExecutionManager = await smockit(
@@ -604,7 +604,7 @@ describe('OVM_CanonicalTransactionChain', () => {
     })
 
     it('should successfully verify against a valid sequencer transaction', async () => {
-      const entrypoint = predeploys.Lib_AddressManager
+      const entrypoint = predeploys.OVM_SequencerEntrypoint
       const gasLimit = MAX_GAS_LIMIT
       const data = '0x' + '12'.repeat(1234)
       const timestamp = (await getEthTime(ethers.provider)) - 10

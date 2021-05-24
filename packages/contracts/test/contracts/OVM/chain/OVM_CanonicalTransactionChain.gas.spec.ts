@@ -56,7 +56,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
     )
     await AddressManager.setAddress(
       'OVM_DecompressionPrecompileAddress',
-      predeploys.Lib_AddressManager
+      predeploys.OVM_SequencerEntrypoint
     )
 
     Mock__OVM_ExecutionManager = await smockit(

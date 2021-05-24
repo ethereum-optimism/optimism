@@ -97,7 +97,7 @@ describe('BatchSubmitter', () => {
     )
     await AddressManager.setAddress(
       'OVM_DecompressionPrecompileAddress',
-      predeploys.Lib_AddressManager
+      predeploys.OVM_SequencerEntrypoint
     )
 
     Mock__OVM_ExecutionManager = await smockit(
@@ -483,7 +483,7 @@ describe('Batch Submitter with Ganache', () => {
       gasPrices.push(gasPrice)
 
       const tx = signer.sendTransaction({
-        to: predeploys.Lib_AddressManager,
+        to: predeploys.OVM_SequencerEntrypoint,
         value: 88,
         nonce: 0,
         gasPrice,
