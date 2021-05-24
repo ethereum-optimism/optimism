@@ -59,7 +59,6 @@ jobs:
         run: yarn codechecks
         env:
           CC_SECRET: ${{ secrets.CC_SECRET }}
-          DEBUG: '*'
 
   test-coverage:
     name: Generate test coverage
