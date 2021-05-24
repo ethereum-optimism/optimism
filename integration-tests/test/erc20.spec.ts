@@ -63,11 +63,8 @@ describe('Basic ERC20 interactions', async () => {
     const transfer = await ERC20.transfer(other.address, 100)
     const receipt = await transfer.wait()
 
-    // The expected fee paid is the value returned by eth_estimateGas gas multiplied
-    // by 1 gwei, since that's the value eth_gasPrice always returns
-    const expectedFeePaid = (
-      await ERC20.estimateGas.transfer(other.address, 100)
-    ).mul(GWEI)
+    // The expected fee paid is the value returned by eth_estimateGas
+    const expectedFeePaid = await ERC20.estimateGas.transfer(other.address, 100)
 
     // There are two events from the transfer with the first being
     // the ETH fee paid and the second of the value transfered (100)

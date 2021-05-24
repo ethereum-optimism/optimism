@@ -57,6 +57,7 @@ type SyncService struct {
 	timestampRefreshThreshold time.Duration
 	gpoAddress                common.Address
 	enableL2GasPolling        bool
+	enforceFees               bool
 }
 
 // NewSyncService returns an initialized sync service
@@ -93,6 +94,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	// Initialize the rollup client
 	client := NewClient(cfg.RollupClientHttp, chainID)
 	log.Info("Configured rollup client", "url", cfg.RollupClientHttp, "chain-id", chainID.Uint64(), "ctc-deploy-height", cfg.CanonicalTransactionChainDeployHeight)
+	log.Info("Enforce Fees", "set", cfg.EnforceFees)
 	service := SyncService{
 		ctx:                       ctx,
 		cancel:                    cancel,
@@ -109,6 +111,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		timestampRefreshThreshold: timestampRefreshThreshold,
 		gpoAddress:                cfg.GasPriceOracleAddress,
 		enableL2GasPolling:        cfg.EnableL2GasPolling,
+		enforceFees:               cfg.EnforceFees,
 	}
 
 	// Initial sync service setup if it is enabled. This code depends on
@@ -193,6 +196,8 @@ func (s *SyncService) Start() error {
 		return nil
 	}
 	log.Info("Initializing Sync Service", "eth1-chainid", s.eth1ChainId)
+	s.updateL2GasPrice(nil)
+	s.updateL1GasPrice()
 
 	// When a sequencer, be sure to sync to the tip of the ctc before allowing
 	// user transactions.
@@ -487,7 +492,13 @@ func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 		return err
 	}
 	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
-	s.RollupGpo.SetExecutionPrice(result.Big())
+	gasPrice := result.Big()
+	if err := core.VerifyL2GasPrice(gasPrice); err != nil {
+		gp := core.RoundL2GasPrice(gasPrice)
+		log.Warn("Invalid gas price detected in state", "state", gasPrice, "using", gp)
+		gasPrice = gp
+	}
+	s.RollupGpo.SetExecutionPrice(gasPrice)
 	return nil
 }
 
@@ -749,12 +760,43 @@ func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 	return nil
 }
 
+func (s *SyncService) verifyFee(tx *types.Transaction) error {
+	l1GasPrice, err := s.RollupGpo.SuggestDataPrice(context.Background())
+	if err != nil {
+		return err
+	}
+	l2GasPrice, err := s.RollupGpo.SuggestExecutionPrice(context.Background())
+	if err != nil {
+		return err
+	}
+
+	gasUsed := core.DecodeL2GasLimit(tx.Gas())
+	l2GasLimit := new(big.Int).SetUint64(gasUsed)
+	fee, err := core.CalculateRollupFee(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
+	if err != nil {
+		return err
+	}
+
+	if !s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
+		return nil
+	}
+
+	if tx.Gas() < fee {
+		return fmt.Errorf("fee too low: tx-fee %d, min-fee %d, l1-gas-price %d, l2-gas-limit %d, l2-gas-price %d, data-size %d", tx.Gas(), fee, l1GasPrice, l2GasLimit, l2GasPrice, len(tx.Data()))
+	}
+	return nil
+}
+
 // Higher level API for applying transactions. Should only be called for
 // queue origin sequencer transactions, as the contracts on L1 manage the same
 // validity checks that are done here.
 func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 	if tx == nil {
 		return fmt.Errorf("nil transaction passed to ApplyTransaction")
+	}
+
+	if err := s.verifyFee(tx); err != nil {
+		return err
 	}
 
 	log.Debug("Sending transaction to sync service", "hash", tx.Hash().Hex())

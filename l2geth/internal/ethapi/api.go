@@ -50,7 +50,7 @@ import (
 )
 
 const (
-	defaultGasPrice = params.GWei
+	defaultGasPrice = params.Wei
 )
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
@@ -1033,7 +1033,7 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 // transaction calldata
 func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
 	if args.Data == nil {
-		return 0, errors.New("transaction data cannot be nil")
+		args.Data = &hexutil.Bytes{}
 	}
 
 	// 1. get the gas that would be used by the transaction
@@ -1060,9 +1060,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	fee, err := core.CalculateRollupFee(*args.Data, l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return 0, err
-	}
-	if fee < 21000 {
-		fee = 21000
 	}
 	return (hexutil.Uint64)(fee), nil
 }
@@ -1142,10 +1139,18 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 }
 
 // EstimateGas returns an estimate of the amount of gas needed to execute the
-// given transaction against the current pending block.
+// given transaction against the current pending block. This is modified to
+// encode the fee in wei as gas price is always 1
 func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
 	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
 	return DoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+}
+
+// EstimateExecutionGas returns an estimate of the amount of gas needed to execute the
+// given transaction against the current pending block.
+func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
+	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
+	return legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
 }
 
 // ExecutionResult groups all structured logs emitted by the EVM
