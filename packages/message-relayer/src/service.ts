@@ -287,7 +287,20 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       }
     | undefined
   > {
-    const filter = this.state.OVM_StateCommitmentChain.filters.StateBatchAppended()
+    const getStateBatchAppendedEventForIndex = (
+      txIndex: number
+    ): ethers.Event => {
+      return this.state.eventCache.find((event) => {
+        const prevTotalElements = event.args._prevTotalElements
+        const batchSize = event.args._batchSize
+
+        // Height should be within the bounds of the batch.
+        return (
+          txIndex >= prevTotalElements &&
+          txIndex < prevTotalElements + batchSize
+        )
+      })
+    }
 
     let startingBlock = this.state.lastQueriedL1Block
     while (
@@ -300,7 +313,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       })
 
       const events: ethers.Event[] = await this.state.OVM_StateCommitmentChain.queryFilter(
-        filter,
+        this.state.OVM_StateCommitmentChain.filters.StateBatchAppended(),
         startingBlock,
         startingBlock + this.options.getLogsInterval
       )
@@ -308,58 +321,39 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       this.state.eventCache = this.state.eventCache.concat(events)
       startingBlock += this.options.getLogsInterval
 
-      // tslint:disable-next-line
-      const event = this.state.eventCache.find((event) => {
-        return (
-          event.args._prevTotalElements.toNumber() <= height &&
-          event.args._prevTotalElements.toNumber() +
-            event.args._batchSize.toNumber() >
-            height
-        )
-      })
-
       // We need to stop syncing early once we find the event we're looking for to avoid putting
       // *all* events into memory at the same time. Otherwise we'll get OOM killed.
-      if (event) {
+      if (getStateBatchAppendedEventForIndex(height) !== undefined) {
         break
       }
     }
 
-    // tslint:disable-next-line
-    const event = this.state.eventCache.find((event) => {
-      return (
-        event.args._prevTotalElements.toNumber() <= height &&
-        event.args._prevTotalElements.toNumber() +
-          event.args._batchSize.toNumber() >
-          height
-      )
-    })
-
-    if (event) {
-      const transaction = await this.options.l1RpcProvider.getTransaction(
-        event.transactionHash
-      )
-
-      const [
-        stateRoots,
-      ] = this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
-        'appendStateBatch',
-        transaction.data
-      )
-
-      return {
-        batch: {
-          batchIndex: event.args._batchIndex,
-          batchRoot: event.args._batchRoot,
-          batchSize: event.args._batchSize,
-          prevTotalElements: event.args._prevTotalElements,
-          extraData: event.args._extraData,
-        },
-        stateRoots,
-      }
+    const event = getStateBatchAppendedEventForIndex(height)
+    if (event === undefined) {
+      return undefined
     }
 
-    return
+    const transaction = await this.options.l1RpcProvider.getTransaction(
+      event.transactionHash
+    )
+
+    const [
+      stateRoots,
+    ] = this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
+      'appendStateBatch',
+      transaction.data
+    )
+
+    return {
+      batch: {
+        batchIndex: event.args._batchIndex,
+        batchRoot: event.args._batchRoot,
+        batchSize: event.args._batchSize,
+        prevTotalElements: event.args._prevTotalElements,
+        extraData: event.args._extraData,
+      },
+      stateRoots,
+    }
   }
 
   private async _isTransactionFinalized(height: number): Promise<boolean> {
