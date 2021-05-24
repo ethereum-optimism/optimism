@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 
 /**
  * @title Lib_Buffer
- * @dev Essentially just a fancy array.
+ * @dev This library implements a bytes32 storage array with some additional gas-optimized functionality.  In particular, it encodes its length as a uint40, and tightly packs this with an overwritable "scratch pad" field into a single SSTORE.
  */
 library Lib_Buffer {
 
