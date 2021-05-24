@@ -29,7 +29,7 @@ function decode(fee: BigNumber | number): BigNumber {
   return fee.mod(hundredMillion)
 }
 
-export const fees = {
+export const L2GasLimit = {
   encode,
   decode,
 }
@@ -62,18 +62,15 @@ export function roundL1GasPrice(gasPrice: BigNumber | number): BigNumber {
   if (typeof gasPrice === 'number') {
     gasPrice = BigNumber.from(gasPrice)
   }
-  if (gasPrice.eq(0)) {
-    return gasPrice
+  return ceilModOneHundredMillion(gasPrice)
+}
+
+function ceilModOneHundredMillion(num: BigNumber): BigNumber {
+  if (num.mod(hundredMillion).eq(0)) {
+    return num
   }
-  if (gasPrice.eq(1)) {
-    return hundredMillion
-  }
-  if (gasPrice.mod(hundredMillion).lt(2)) {
-    gasPrice = gasPrice.add(hundredMillion).sub(2)
-  } else {
-    gasPrice = gasPrice.add(hundredMillion)
-  }
-  return gasPrice.sub(gasPrice.mod(hundredMillion))
+  const sum = num.add(hundredMillion)
+  return num.sub(sum.mod(hundredMillion))
 }
 
 export function roundL2GasPrice(gasPrice: BigNumber): BigNumber {
@@ -86,10 +83,7 @@ export function roundL2GasPrice(gasPrice: BigNumber): BigNumber {
   if (gasPrice.eq(1)) {
     return hundredMillion.add(1)
   }
-  if (gasPrice.mod(hundredMillion).lt(2)) {
-    gasPrice = gasPrice.add(hundredMillion).sub(2)
-  } else {
-    gasPrice = gasPrice.add(hundredMillion)
-  }
-  return gasPrice.sub(gasPrice.mod(hundredMillion).add(1))
+  const gp = gasPrice.sub(1)
+  const mod = ceilModOneHundredMillion(gp)
+  return mod.add(1)
 }

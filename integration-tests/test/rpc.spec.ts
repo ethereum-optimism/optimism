@@ -1,4 +1,4 @@
-import { injectL2Context, fees } from '@eth-optimism/core-utils'
+import { injectL2Context, L2GasLimit } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
@@ -323,14 +323,14 @@ describe('Basic RPC tests', () => {
           tx,
         ])
 
-        const decoded = fees.decode(estimate)
+        const decoded = L2GasLimit.decode(estimate)
         expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
         expect(estimate.toString().endsWith(l2Gaslimit.toString()))
 
         // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
         // but it does not yet exist. Use the default value for now
         const l2GasPrice = BigNumber.from(100_000_001)
-        const expected = fees.encode(
+        const expected = L2GasLimit.encode(
           tx.data,
           l1GasPrice,
           BigNumber.from(l2Gaslimit),
