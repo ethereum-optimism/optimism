@@ -1,7 +1,7 @@
-import { expect } from '../setup'
+import { expect } from './setup'
 
 /* Imports: External */
-import { ethers } from 'hardhat'
+import hre from 'hardhat'
 import { Contract } from 'ethers'
 import MerkleTree from 'merkletreejs'
 import { fromHexString } from '@eth-optimism/core-utils'
@@ -11,9 +11,11 @@ import {
   getChugSplashActionBundle,
   getActionHash,
   ChugSplashAction,
-} from '../../src'
+} from '../src'
 
 describe('ChugSplash action bundling', () => {
+  const ethers = (hre as any).ethers // as Ethers (???)
+
   let Helper_ChugSplashMock: Contract
   before(async () => {
     Helper_ChugSplashMock = await (

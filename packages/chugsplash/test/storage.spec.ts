@@ -1,7 +1,7 @@
-import { expect } from '../setup'
+import { expect } from './setup'
 
 /* Imports: External */
-import hre, { ethers } from 'hardhat'
+import hre from 'hardhat'
 import { Contract } from 'ethers'
 import { isObject, toPlainObject } from 'lodash'
 
@@ -10,18 +10,20 @@ import {
   computeStorageSlots,
   getStorageLayout,
   SolidityStorageLayout,
-} from '../../src'
+} from '../src'
 
 describe('ChugSplash storage layout parsing', () => {
+  const ethers = (hre as any).ethers // as Ethers (???)
+
   let layout: SolidityStorageLayout
   before(async () => {
-    layout = await getStorageLayout(hre, 'Helper_StorageHelper')
+    layout = await getStorageLayout('Helper_StorageHelper')
   })
 
   let Helper_StorageHelper: Contract
   beforeEach(async () => {
     Helper_StorageHelper = await (
-      await hre.ethers.getContractFactory('Helper_StorageHelper')
+      await ethers.getContractFactory('Helper_StorageHelper')
     ).deploy()
   })
 
