@@ -128,6 +128,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     Sentry.init({
       dsn: this.options.sentryDsn,
       release: this.options.release,
+      environment: this.options.ethNetworkName,
       integrations: [
         new Sentry.Integrations.Http({ tracing: true }),
         new Tracing.Integrations.Express({
