@@ -4,13 +4,13 @@ import { expect } from '../../setup'
 import hre from 'hardhat'
 import { ethers, Contract, Signer, ContractFactory, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
-
-/* Imports: Internal */
 import {
   ChugSplashActionBundle,
   getChugSplashActionBundle,
-  predeploys,
-} from '../../../src'
+} from '@eth-optimism/chugsplash'
+
+/* Imports: Internal */
+import { predeploys } from '../../../src'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
 import { toPlainObject } from 'lodash'
 
