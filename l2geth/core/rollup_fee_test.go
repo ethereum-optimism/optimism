@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 	"testing"
 )
@@ -102,7 +101,6 @@ func TestCalculateRollupFee(t *testing.T) {
 			l2GasPrice := new(big.Int).SetUint64(tt.l2GasPrice)
 
 			fee, err := CalculateRollupFee(data, l1GasPrice, l2GasLimit, l2GasPrice)
-			fmt.Println(fee)
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("Cannot calculate fee: %s", err)
 			}
