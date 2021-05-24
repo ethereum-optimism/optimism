@@ -106,23 +106,25 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
-    if (this.options.ethNetworkName) {
-      this._initMonitoring()
+    if (this.options.useSentry) {
+      this._initSentry()
+    }
+    if (this.options.enableMetrics) {
+      this._initMetrics()
     }
     this.state.app.use(cors())
     this._registerAllRoutes()
     // Sentry error handling must be after all controllers
     // and before other error middleware
-    if (this.options.ethNetworkName) {
+    if (this.options.useSentry) {
       this.state.app.use(Sentry.Handlers.errorHandler())
     }
   }
 
   /**
-   * Initialize Sentry and Prometheus metrics for deployed instances
+   * Initialize Sentry and related middleware
    */
-  private _initMonitoring() {
-    // Init Sentry options
+  private _initSentry() {
     Sentry.init({
       dsn: this.options.sentryDsn,
       release: this.options.release,
@@ -136,7 +138,12 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     })
     this.state.app.use(Sentry.Handlers.requestHandler())
     this.state.app.use(Sentry.Handlers.tracingHandler())
-    // Init metrics
+  }
+
+  /**
+   * Initialize Prometheus metrics collection and endpoint
+   */
+  private _initMetrics() {
     this.metrics = new Metrics({
       prefix: this.name,
       labels: {
