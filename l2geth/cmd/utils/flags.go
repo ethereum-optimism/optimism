@@ -905,7 +905,7 @@ var (
 	RollupEnforceFeesFlag = cli.BoolFlag{
 		Name:   "rollup.enforcefeesflag",
 		Usage:  "Disable transactions with 0 gas price",
-		EnvVar: "ROLLUP_ENABLE_L2_GAS_POLLING",
+		EnvVar: "ROLLUP_ENFORCE_FEES",
 	}
 )
 
