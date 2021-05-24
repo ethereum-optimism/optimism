@@ -77,7 +77,9 @@ func VerifyL1GasPrice(l1GasPrice *big.Int) error {
 // VerifyL2GasPrice returns an error if the number is an invalid possible L2 gas
 // price
 func VerifyL2GasPrice(l2GasPrice *big.Int) error {
-	if l2GasPrice.Cmp(common.Big0) != 0 && new(big.Int).Mod(l2GasPrice, bigHundredMillion).Cmp(common.Big1) != 0 {
+	isNonZero := l2GasPrice.Cmp(common.Big0) != 0
+	isNotModHundredMillion := new(big.Int).Mod(l2GasPrice, bigHundredMillion).Cmp(common.Big1) != 0
+	if isNonZero && isNotModHundredMillion {
 		return errInvalidGasPrice
 	}
 	if l2GasPrice.Cmp(common.Big0) == 0 {
