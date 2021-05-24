@@ -327,10 +327,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 
 	// We need to be able to show a status of 1 ("no error") for successful L1 => L2 messages.
-	// Unfortunately, the current way we figure out the success of the transaction (by parsing the
+	// The current way we figure out the success of the transaction (by parsing the
 	// returned data) would require an upgrade to the contracts that we likely won't make for a
-	// while. As a result, we'll use this temporary hack where we set IsOkL1ToL2Message = true if
-	// we detect and L1 => L2 message that didn't revert. Initially we just set the value to false.
+	// while. As a result, we'll use this mechanism where we set IsOkL1ToL2Message = true if
+	// we detect an L1 => L2 message that didn't revert. Initially we just set the value to false.
 	if evm.depth == 0 {
 		evm.Context.IsOkL1ToL2Message = false
 	}
