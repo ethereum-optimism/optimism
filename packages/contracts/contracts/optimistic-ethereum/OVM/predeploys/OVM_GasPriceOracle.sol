@@ -26,7 +26,7 @@ contract OVM_GasPriceOracle is Ownable {
     /*************
      * Constants *
      *************/
-    uint256 public constant EXECUTION_PRICE_MULTIPLE = 100000001;
+    uint256 public constant EXECUTION_PRICE_MULTIPLE = 100000000;
 
     /***************
      * Constructor *
@@ -60,7 +60,7 @@ contract OVM_GasPriceOracle is Ownable {
         public
         onlyOwner
     {
-        require(_executionPrice == 1 || _executionPrice % EXECUTION_PRICE_MULTIPLE == 0, "Execution price must be `1` OR a multiple of EXECUTION_PRICE_MULTIPLE.");
+        require(_executionPrice % EXECUTION_PRICE_MULTIPLE == 1, "Execution price must satisfy `price % EXECUTION_PRICE_MULTIPLE == 1`.");
         executionPrice = _executionPrice;
     }
 }
