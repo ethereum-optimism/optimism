@@ -3,7 +3,9 @@ pragma solidity >0.5.0 <0.8.0;
 
 /**
  * @title Lib_Buffer
- * @dev This library implements a bytes32 storage array with some additional gas-optimized functionality.  In particular, it encodes its length as a uint40, and tightly packs this with an overwritable "scratch pad" field into a single SSTORE.
+ * @dev This library implements a bytes32 storage array with some additional gas-optimized
+ * functionality. In particular, it encodes its length as a uint40, and tightly packs this with an
+ * overwritable "extra data" field so we can store more information with a single SSTORE.
  */
 library Lib_Buffer {
 
@@ -24,7 +26,12 @@ library Lib_Buffer {
     }
 
     struct BufferContext {
+        // Stores the length of the array. Uint40 is way more elements than we'll ever reasonably
+        // need in an array and we get an extra 27 bytes of extra data to play with.
         uint40 length;
+
+        // Arbitrary extra data that can be modified whenever the length is updated. Useful for
+        // squeezing out some gas optimizations.
         bytes27 extraData;
     }
 
