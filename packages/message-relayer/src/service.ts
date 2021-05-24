@@ -198,8 +198,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           )
           this.state.nextUnfinalizedTxHeight += size
 
-          // Only deal with 1000 transactions at a time so we can limit the amount of stuff we
-          // need to keep in memory.
+          // Only deal with ~1000 transactions at a time so we can limit the amount of stuff we
+          // need to keep in memory. We operate on full batches at a time so the actual amount
+          // depends on the size of the batches we're processing.
           if (
             this.state.nextUnfinalizedTxHeight -
               this.state.lastFinalizedTxHeight >
@@ -252,15 +253,17 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         } else {
           // Clear the event cache to avoid keeping every single event in memory and eventually
           // getting OOM killed. Messages are already sorted in ascending order so the last message
-          // will have the highest block number. We also know that we will already have dealt with
-          // all messages with a block number equal to or lower than this highest block number. So
-          // we now just need to keep any events with an even higher block number.
+          // will have the highest batch index.
           const lastMessage = messages[messages.length - 1]
+
+          // Find the batch corresponding to the last processed message.
+          const lastProcessedBatch = await this._getStateBatchHeader(
+            lastMessage.parentTransactionIndex
+          )
+
+          // Remove any events from the cache for batches that should've been processed by now.
           this.state.eventCache = this.state.eventCache.filter((event) => {
-            return (
-              event.blockNumber >
-              lastMessage.parentTransactionIndex + this.options.l2BlockOffset
-            )
+            return event.args._batchIndex > lastProcessedBatch.batch.batchIndex
           })
         }
 
@@ -309,6 +312,22 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
       this.state.eventCache = this.state.eventCache.concat(events)
       startingBlock += this.options.getLogsInterval
+
+      // tslint:disable-next-line
+      const event = this.state.eventCache.find((event) => {
+        return (
+          event.args._prevTotalElements.toNumber() <= height &&
+          event.args._prevTotalElements.toNumber() +
+            event.args._batchSize.toNumber() >
+            height
+        )
+      })
+
+      // We need to stop syncing early once we find the event we're looking for to avoid putting
+      // *all* events into memory at the same time. Otherwise we'll get OOM killed.
+      if (event) {
+        break
+      }
     }
 
     // tslint:disable-next-line
@@ -325,6 +344,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       const transaction = await this.options.l1RpcProvider.getTransaction(
         event.transactionHash
       )
+
       const [
         stateRoots,
       ] = this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
