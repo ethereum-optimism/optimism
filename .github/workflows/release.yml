@@ -2,9 +2,9 @@ name: Release
 
 on:
   push:
-    branches:
-      # - develop
-      # - master
+    branches-ignore:
+      - develop
+      - master
 
 jobs:
   release:
