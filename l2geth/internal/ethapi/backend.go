@@ -95,9 +95,9 @@ type Backend interface {
 	GasLimit() uint64
 	GetDiff(*big.Int) (diffdb.Diff, error)
 	SuggestDataPrice(ctx context.Context) (*big.Int, error)
-	SetDataPrice(context.Context, *big.Int)
+	SetDataPrice(context.Context, *big.Int) error
 	SuggestExecutionPrice(context.Context) (*big.Int, error)
-	SetExecutionPrice(context.Context, *big.Int)
+	SetExecutionPrice(context.Context, *big.Int) error
 	IngestTransactions([]*types.Transaction) error
 }
 

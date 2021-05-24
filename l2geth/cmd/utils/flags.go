@@ -1193,6 +1193,9 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(RollupEnableL2GasPollingFlag.Name) {
 		cfg.EnableL2GasPolling = true
 	}
+	if ctx.GlobalIsSet(RollupEnforceFeesFlag.Name) {
+		cfg.EnforceFees = true
+	}
 }
 
 // setLes configures the les server and ultra light client settings from the command line flags.

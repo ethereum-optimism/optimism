@@ -1,4 +1,4 @@
-import { injectL2Context, L2GasLimit } from '@eth-optimism/core-utils'
+import { injectL2Context, L2GasLimit, roundL1GasPrice } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
@@ -130,7 +130,8 @@ describe('Basic RPC tests', () => {
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        'fee too low: tx-fee 1, min-fee 33600100000001, l1-gas-price 8000000000, l2-gas-limit 1, l2-gas-price 100000001, data-size 0'
+        'fee too low: tx-fee 1, min-fee 33600000000001, l1-gas-price 8000000000, l2-gas-limit 1, l2-gas-price 1, data-size 0'
+      )
     })
 
     it('should correctly report OOG for contract creations', async () => {
@@ -317,7 +318,7 @@ describe('Basic RPC tests', () => {
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
-      expect(estimate).to.be.eq(21000)
+      expect(estimate).to.be.eq(33600000119751)
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
@@ -344,10 +345,10 @@ describe('Basic RPC tests', () => {
 
         // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
         // but it does not yet exist. Use the default value for now
-        const l2GasPrice = BigNumber.from(100_000_001)
+        const l2GasPrice = BigNumber.from(1)
         const expected = L2GasLimit.encode(
           tx.data,
-          l1GasPrice,
+          roundL1GasPrice(l1GasPrice),
           BigNumber.from(l2Gaslimit),
           l2GasPrice
         )

@@ -296,12 +296,12 @@ func (b *LesApiBackend) SuggestExecutionPrice(ctx context.Context) (*big.Int, er
 }
 
 // NB: Non sequencer nodes cannot set L1 gas prices.
-func (b *LesApiBackend) SetDataPrice(ctx context.Context, gasPrice *big.Int) {
+func (b *LesApiBackend) SetDataPrice(ctx context.Context, gasPrice *big.Int) error {
 	panic("SetDataPrice is not implemented")
 }
 
 // NB: Non sequencer nodes cannot set L2 execution prices.
-func (b *LesApiBackend) SetExecutionPrice(ctx context.Context, gasPrice *big.Int) {
+func (b *LesApiBackend) SetExecutionPrice(ctx context.Context, gasPrice *big.Int) error {
 	panic("SetExecutionPrice is not implemented")
 }
 

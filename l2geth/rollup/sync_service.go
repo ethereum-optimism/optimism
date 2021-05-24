@@ -476,7 +476,7 @@ func (s *SyncService) updateL1GasPrice() error {
 // It must be enabled to function until all nodes are running with the correct
 // contract deployed.
 func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
-	// TOOD(mark): this is temporary and will be able to be rmoved when the
+	// TODO(mark): this is temporary and will be able to be rmoved when the
 	// OVM_GasPriceOracle is moved into the predeploy contracts
 	if !s.enableL2GasPolling {
 		return nil
@@ -760,7 +760,13 @@ func (s *SyncService) applyTransaction(tx *types.Transaction) error {
 	return nil
 }
 
+// verifyFee will verify that a valid fee is being paid.
 func (s *SyncService) verifyFee(tx *types.Transaction) error {
+	// Exit early if fees are enforced and the gasPrice is set to 0
+	if s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
+		return errors.New("cannot accept 0 gas price transaction")
+	}
+
 	l1GasPrice, err := s.RollupGpo.SuggestDataPrice(context.Background())
 	if err != nil {
 		return err
@@ -769,19 +775,19 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	if err != nil {
 		return err
 	}
-
-	gasUsed := core.DecodeL2GasLimit(tx.Gas())
-	l2GasLimit := new(big.Int).SetUint64(gasUsed)
+	// Calculate the fee based on decoded L2 gas limit
+	gas := new(big.Int).SetUint64(tx.Gas())
+	l2GasLimit := core.DecodeL2GasLimit(gas)
 	fee, err := core.CalculateRollupFee(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return err
 	}
-
+	// If fees are not enforced and the gas price is 0, return early
 	if !s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
 		return nil
 	}
-
-	if tx.Gas() < fee {
+	// Make sure that the fee is paid
+	if tx.Gas() < fee.Uint64() {
 		return fmt.Errorf("fee too low: tx-fee %d, min-fee %d, l1-gas-price %d, l2-gas-limit %d, l2-gas-price %d, data-size %d", tx.Gas(), fee, l1GasPrice, l2GasLimit, l2GasPrice, len(tx.Data()))
 	}
 	return nil
@@ -794,7 +800,6 @@ func (s *SyncService) ApplyTransaction(tx *types.Transaction) error {
 	if tx == nil {
 		return fmt.Errorf("nil transaction passed to ApplyTransaction")
 	}
-
 	if err := s.verifyFee(tx); err != nil {
 		return err
 	}

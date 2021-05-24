@@ -31,12 +31,15 @@ func (gpo *RollupOracle) SuggestDataPrice(ctx context.Context) (*big.Int, error)
 	return gpo.dataPrice, nil
 }
 
-func (gpo *RollupOracle) SetDataPrice(dataPrice *big.Int) {
+func (gpo *RollupOracle) SetDataPrice(dataPrice *big.Int) error {
 	gpo.dataPriceLock.Lock()
 	defer gpo.dataPriceLock.Unlock()
-	price := core.RoundL1GasPrice(dataPrice)
-	gpo.dataPrice = price
+	if err := core.VerifyL1GasPrice(dataPrice); err != nil {
+		return err
+	}
+	gpo.dataPrice = dataPrice
 	log.Info("Set L1 Gas Price", "gasprice", gpo.dataPrice)
+	return nil
 }
 
 /// SuggestExecutionPrice returns the gas price which should be charged per unit of gas
@@ -47,10 +50,13 @@ func (gpo *RollupOracle) SuggestExecutionPrice(ctx context.Context) (*big.Int, e
 	return gpo.executionPrice, nil
 }
 
-func (gpo *RollupOracle) SetExecutionPrice(executionPrice *big.Int) {
+func (gpo *RollupOracle) SetExecutionPrice(executionPrice *big.Int) error {
 	gpo.executionPriceLock.Lock()
 	defer gpo.executionPriceLock.Unlock()
-	price := core.RoundL2GasPrice(executionPrice)
-	gpo.executionPrice = price
+	if err := core.VerifyL2GasPrice(executionPrice); err != nil {
+		return err
+	}
+	gpo.executionPrice = executionPrice
 	log.Info("Set L2 Gas Price", "gasprice", gpo.executionPrice)
+	return nil
 }

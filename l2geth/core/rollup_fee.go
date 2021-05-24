@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -29,18 +28,18 @@ var errInvalidGasPrice = errors.New("rollup fee: invalid gas price")
 // l2_gas_price * l2_gas_limit + l1_gas_price * l1_gas_used
 // where the l2 gas price must satisfy the equation `x * (10**8)` + 1
 // and the l1 gas price must satisfy the equation `x * (10**8)`
-func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) (uint64, error) {
+func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) (*big.Int, error) {
 	if err := VerifyL1GasPrice(l1GasPrice); err != nil {
-		return 0, fmt.Errorf("invalid L1 gas price %d: %w", l1GasPrice, err)
+		return nil, fmt.Errorf("invalid L1 gas price %d: %w", l1GasPrice, err)
 	}
 	if err := VerifyL2GasPrice(l2GasPrice); err != nil {
-		return 0, fmt.Errorf("invalid L2 gas price %d: %w", l2GasPrice, err)
+		return nil, fmt.Errorf("invalid L2 gas price %d: %w", l2GasPrice, err)
 	}
 	l1GasLimit := calculateL1GasLimit(data, overhead)
 	l1Fee := new(big.Int).Mul(l1GasPrice, l1GasLimit)
 	l2Fee := new(big.Int).Mul(l2GasLimit, l2GasPrice)
 	fee := new(big.Int).Add(l1Fee, l2Fee)
-	return fee.Uint64(), nil
+	return fee, nil
 }
 
 // calculateL1GasLimit computes the L1 gasLimit based on the calldata and
@@ -110,8 +109,8 @@ func RoundL2GasPrice(gasPrice *big.Int) *big.Int {
 	return new(big.Int).Add(mod, common.Big1)
 }
 
-func DecodeL2GasLimit(gasLimit uint64) uint64 {
-	return gasLimit % hundredMillion
+func DecodeL2GasLimit(gasLimit *big.Int) *big.Int {
+	return new(big.Int).Mod(gasLimit, bigHundredMillion)
 }
 
 func zeroesAndOnes(data []byte) (uint64, uint64) {
@@ -123,8 +122,4 @@ func zeroesAndOnes(data []byte) (uint64, uint64) {
 	}
 	ones := uint64(len(data)) - zeroes
 	return zeroes, ones
-}
-
-func pow10(x int) uint64 {
-	return uint64(math.Pow10(x))
 }

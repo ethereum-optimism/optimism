@@ -176,7 +176,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if gasAfter.Cmp(big.NewInt(100*int64(params.GWei))) != 0 {
+	if gasAfter.Cmp(core.RoundL1GasPrice(big.NewInt(1))) != 0 {
 		t.Fatal("expected 100 gas price, got", gasAfter)
 	}
 }
@@ -480,6 +480,6 @@ func (m *mockClient) SyncStatus() (*SyncStatus, error) {
 }
 
 func (m *mockClient) GetL1GasPrice() (*big.Int, error) {
-	price := core.RoundL1GasPrice(100 * params.GWei)
-	return new(big.Int).SetUint64(price), nil
+	price := core.RoundL1GasPrice(big.NewInt(2))
+	return price, nil
 }

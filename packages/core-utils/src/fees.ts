@@ -16,6 +16,12 @@ function encode(
   l2GasLimit: BigNumber,
   l2GasPrice: BigNumber
 ): BigNumber {
+  if (!verifyL2GasPrice(l2GasPrice)) {
+    throw new Error(`Invalid L2 Gas Price: ${l2GasPrice.toString()}`)
+  }
+  if (!verifyL1GasPrice(l1GasPrice)) {
+    throw new Error(`Invalid L1 Gas Price: ${l1GasPrice.toString()}`)
+  }
   const l1GasLimit = calculateL1GasLimit(data)
   const l1Fee = l1GasPrice.mul(l1GasLimit)
   const l2Fee = l2GasLimit.mul(l2GasPrice)
@@ -32,6 +38,28 @@ function decode(fee: BigNumber | number): BigNumber {
 export const L2GasLimit = {
   encode,
   decode,
+}
+
+export function verifyL2GasPrice(gasPrice: BigNumber | number): boolean {
+  if (typeof gasPrice === 'number') {
+    gasPrice = BigNumber.from(gasPrice)
+  }
+  // If the gas price is not equal to 0 and the gas price mod
+  // one hundred million is not one
+  if (!gasPrice.eq(0) && !gasPrice.mod(hundredMillion).eq(1)) {
+    return false
+  }
+  if (gasPrice.eq(0)) {
+    return false
+  }
+  return true
+}
+
+export function verifyL1GasPrice(gasPrice: BigNumber | number): boolean {
+  if (typeof gasPrice === 'number') {
+    gasPrice = BigNumber.from(gasPrice)
+  }
+  return gasPrice.mod(hundredMillion).eq(0)
 }
 
 export function calculateL1GasLimit(data: string | Buffer): number {
@@ -70,10 +98,11 @@ function ceilModOneHundredMillion(num: BigNumber): BigNumber {
     return num
   }
   const sum = num.add(hundredMillion)
-  return num.sub(sum.mod(hundredMillion))
+  const mod = num.mod(hundredMillion)
+  return sum.sub(mod)
 }
 
-export function roundL2GasPrice(gasPrice: BigNumber): BigNumber {
+export function roundL2GasPrice(gasPrice: BigNumber | number): BigNumber {
   if (typeof gasPrice === 'number') {
     gasPrice = BigNumber.from(gasPrice)
   }

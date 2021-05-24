@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"math"
 	"math/big"
 	"testing"
 )
@@ -107,10 +108,14 @@ func TestCalculateRollupFee(t *testing.T) {
 
 			if err == nil {
 				decodedGasLimit := DecodeL2GasLimit(fee)
-				if l2GasLimit.Uint64() != decodedGasLimit {
+				if l2GasLimit.Cmp(decodedGasLimit) != 0 {
 					t.Errorf("rollup fee check failed: expected %d, got %d", l2GasLimit.Uint64(), decodedGasLimit)
 				}
 			}
 		})
 	}
+}
+
+func pow10(x int) uint64 {
+	return uint64(math.Pow10(x))
 }

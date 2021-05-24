@@ -41,6 +41,8 @@ describe('Fee Payment Integration Tests', async () => {
     const gas = await env.ovmEth.estimateGas.transfer(other, amount)
     const tx = await env.ovmEth.transfer(other, amount, { gasPrice: 1 })
     const receipt = await tx.wait()
+    expect(receipt.status).to.eq(1)
+
     const balanceAfter = await env.l2Wallet.getBalance()
     // The fee paid MUST be the receipt.gasUsed, and not the tx.gasLimit
     // https://github.com/ethereum-optimism/optimism/blob/0de7a2f9c96a7c4860658822231b2d6da0fefb1d/packages/contracts/contracts/optimistic-ethereum/OVM/accounts/OVM_ECDSAContractAccount.sol#L103
