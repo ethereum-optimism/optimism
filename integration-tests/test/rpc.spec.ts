@@ -131,6 +131,13 @@ describe('Basic RPC tests', () => {
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
         'fee too low: tx-fee 1, min-fee 33600100000001, l1-gas-price 8000000000, l2-gas-limit 1, l2-gas-price 100000001, data-size 0'
+    })
+
+    it('should correctly report OOG for contract creations', async () => {
+      const factory = await ethers.getContractFactory('TestOOG')
+
+      await expect(factory.connect(wallet).deploy()).to.be.rejectedWith(
+        'gas required exceeds allowance'
       )
     })
   })
@@ -305,6 +312,14 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_estimateGas (returns the fee)', () => {
+    it('should return a gas estimate for txs with empty data', async () => {
+      const estimate = await l2Provider.estimateGas({
+        to: DEFAULT_TRANSACTION.to,
+        value: 0,
+      })
+      expect(estimate).to.be.eq(21000)
+    })
+
     it('should return a gas estimate that grows with the size of data', async () => {
       const dataLen = [0, 2, 8, 64, 256]
       const l1GasPrice = await env.l1Wallet.provider.getGasPrice()

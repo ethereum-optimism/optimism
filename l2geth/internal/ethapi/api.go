@@ -1032,10 +1032,6 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 // fees can compensate for the additional costs the sequencer pays for publishing the
 // transaction calldata
 func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
-	if args.Data == nil {
-		args.Data = &hexutil.Bytes{}
-	}
-
 	// 1. get the gas that would be used by the transaction
 	gasUsed, err := legacyDoEstimateGas(ctx, b, args, blockNrOrHash, gasCap)
 	if err != nil {
@@ -1057,6 +1053,13 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 
 	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
 	// 3. calculate the fee and normalize by the default gas price
+
+  var data []byte
+	if args.Data == nil {
+		data = []byte{}
+	} else {
+		data = *args.Data
+	}
 	fee, err := core.CalculateRollupFee(*args.Data, l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return 0, err
@@ -1132,7 +1135,7 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 				}
 				return 0, err
 			}
-			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
+			return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
 		}
 	}
 	return hexutil.Uint64(hi), nil
