@@ -130,7 +130,7 @@ describe('Basic RPC tests', () => {
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        'fee too low: tx-fee 1, min-fee 33600000000001, l1-gas-price 8000000000, l2-gas-limit 1, l2-gas-price 1, data-size 0'
+        'fee too low: tx-fee 1, min-fee 33600100000001, l1-gas-price 8000000000, l2-gas-limit 1, l2-gas-price 100000001, data-size 0',
       )
     })
   })
@@ -186,7 +186,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract calls', async () => {
       const req: TransactionRequest = {
         ...revertingTx,
-        gasLimit: 151392008999999, // override gas estimation
+        gasLimit: 934111908999999, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -209,7 +209,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
-        gasLimit: 151392008999999, // override gas estimation
+        gasLimit: 1051391908999999, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -329,7 +329,7 @@ describe('Basic RPC tests', () => {
 
         // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
         // but it does not yet exist. Use the default value for now
-        const l2GasPrice = BigNumber.from(1)
+        const l2GasPrice = BigNumber.from(100_000_001)
         const expected = fees.encode(
           tx.data,
           l1GasPrice,
