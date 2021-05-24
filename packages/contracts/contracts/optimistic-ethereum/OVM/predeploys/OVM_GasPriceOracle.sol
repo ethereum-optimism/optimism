@@ -41,8 +41,8 @@ contract OVM_GasPriceOracle is Ownable {
     )
         Ownable()
     {
-        transferOwnership(_owner);
         setExecutionPrice(_initialExecutionPrice);
+        transferOwnership(_owner);
     }
 
 
