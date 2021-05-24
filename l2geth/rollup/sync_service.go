@@ -492,7 +492,13 @@ func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 		return err
 	}
 	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
-	s.RollupGpo.SetExecutionPrice(result.Big())
+	gasPrice := result.Big()
+	if err := core.VerifyL2GasPrice(gasPrice); err != nil {
+		gp := core.RoundL2GasPrice(gasPrice)
+		log.Warn("Invalid gas price detected in state", "state", gasPrice, "using", gp)
+		gasPrice = gp
+	}
+	s.RollupGpo.SetExecutionPrice(gasPrice)
 	return nil
 }
 

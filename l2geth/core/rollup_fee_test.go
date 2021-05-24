@@ -1,6 +1,8 @@
 package core
 
 import (
+	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 )
@@ -22,8 +24,8 @@ var roundingL1GasPriceTests = map[string]struct {
 func TestRoundL1GasPrice(t *testing.T) {
 	for name, tt := range roundingL1GasPriceTests {
 		t.Run(name, func(t *testing.T) {
-			got := RoundL1GasPrice(tt.input)
-			if got != tt.expect {
+			got := RoundL1GasPrice(new(big.Int).SetUint64(tt.input))
+			if got.Uint64() != tt.expect {
 				t.Fatalf("Mismatched rounding to nearest, got %d expected %d", got, tt.expect)
 			}
 		})
@@ -47,8 +49,8 @@ var roundingL2GasPriceTests = map[string]struct {
 func TestRoundL2GasPrice(t *testing.T) {
 	for name, tt := range roundingL2GasPriceTests {
 		t.Run(name, func(t *testing.T) {
-			got := RoundL2GasPrice(tt.input)
-			if got != tt.expect {
+			got := RoundL2GasPrice(new(big.Int).SetUint64(tt.input))
+			if got.Uint64() != tt.expect {
 				t.Fatalf("Mismatched rounding to nearest, got %d expected %d", got, tt.expect)
 			}
 		})
@@ -82,12 +84,13 @@ var feeTests = map[string]struct {
 	l1GasPrice uint64
 	l2GasLimit uint64
 	l2GasPrice uint64
+	err        error
 }{
-	"simple":           {100, RoundL1GasPrice(2000), 437118, RoundL2GasPrice(5000)},
-	"zero-l2-gasprice": {10, RoundL1GasPrice(8000000000), 196205, RoundL2GasPrice(0)},
-	"one-l2-gasprice":  {10, RoundL1GasPrice(8000000000), 196205, RoundL2GasPrice(1)},
-	"zero-l1-gasprice": {10, RoundL1GasPrice(0), 196205, RoundL2GasPrice(5555)},
-	"one-l1-gasprice":  {10, RoundL1GasPrice(1), 23254, RoundL2GasPrice(5555)},
+	"simple":           {100, 100_000_000, 437118, 100_000_001, nil},
+	"zero-l2-gasprice": {10, 100_000_000, 196205, 0, errInvalidGasPrice},
+	"one-l2-gasprice":  {10, 100_000_000, 196205, 1, nil},
+	"zero-l1-gasprice": {10, 0, 196205, 100_000_001, nil},
+	"one-l1-gasprice":  {10, 1, 23255, 23254, errInvalidGasPrice},
 }
 
 func TestCalculateRollupFee(t *testing.T) {
@@ -99,13 +102,16 @@ func TestCalculateRollupFee(t *testing.T) {
 			l2GasPrice := new(big.Int).SetUint64(tt.l2GasPrice)
 
 			fee, err := CalculateRollupFee(data, l1GasPrice, l2GasLimit, l2GasPrice)
-			if err != nil {
-				t.Fatal("Cannot calculate fee")
+			fmt.Println(fee)
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("Cannot calculate fee: %s", err)
 			}
 
-			decodedGasLimit := DecodeL2GasLimit(fee)
-			if l2GasLimit.Uint64() != decodedGasLimit {
-				t.Errorf("rollup fee check failed: expected %d, got %d", l2GasLimit.Uint64(), decodedGasLimit)
+			if err == nil {
+				decodedGasLimit := DecodeL2GasLimit(fee)
+				if l2GasLimit.Uint64() != decodedGasLimit {
+					t.Errorf("rollup fee check failed: expected %d, got %d", l2GasLimit.Uint64(), decodedGasLimit)
+				}
 			}
 		})
 	}
