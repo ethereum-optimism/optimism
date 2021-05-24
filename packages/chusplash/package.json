@@ -19,20 +19,20 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.4.3",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "ethereum-waffle": "^3.3.0",
     "ethers": "^5.2.0",
+    "hardhat": "^2.3.0",
     "merkletreejs": "^0.2.18",
     "semver": "^7.3.5"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.0.2",
-    "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@types/chai": "^4.2.18",
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^8.2.2",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "ethereum-waffle": "^3.3.0",
-    "hardhat": "^2.3.0",
     "mocha": "^8.4.0"
   }
 }
