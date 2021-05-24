@@ -27,8 +27,8 @@ var errInvalidGasPrice = errors.New("rollup fee: invalid gas price")
 // CalculateFee calculates the fee that must be paid to the Rollup sequencer, taking into
 // account the cost of publishing data to L1.
 // l2_gas_price * l2_gas_limit + l1_gas_price * l1_gas_used
-// where the l2 gas price must satisfy the equation `x * (10**8)`
-// and the l1 gas price must satisfy the equation `x * (10**8) + 1`
+// where the l2 gas price must satisfy the equation `x * (10**8)` + 1
+// and the l1 gas price must satisfy the equation `x * (10**8)`
 func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) (uint64, error) {
 	if err := VerifyL1GasPrice(l1GasPrice); err != nil {
 		return 0, fmt.Errorf("invalid L1 gas price %d: %w", l1GasPrice, err)
