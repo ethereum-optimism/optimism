@@ -201,11 +201,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           // Only deal with ~1000 transactions at a time so we can limit the amount of stuff we
           // need to keep in memory. We operate on full batches at a time so the actual amount
           // depends on the size of the batches we're processing.
-          if (
+          const numTransactionsToProcess =
             this.state.nextUnfinalizedTxHeight -
-              this.state.lastFinalizedTxHeight >
-            1000
-          ) {
+            this.state.lastFinalizedTxHeight
+
+          if (numTransactionsToProcess > 1000) {
             break
           }
         }
