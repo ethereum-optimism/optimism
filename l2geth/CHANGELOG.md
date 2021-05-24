@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5
+
+### Patch Changes
+
+- d4c9793: Fixed a bug where reverts without data would not be correctly propagated for eth_call
+- 3958644: Adds the `debug_ingestTransactions` endpoint that takes a list of RPC transactions and applies each of them to the state sequentially. This is useful for testing purposes
+- 467d6cb: Adds a test for contract deployments that run out of gas
+
 ## 0.3.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.0.5
+
+### Patch Changes
+
+- 467d6cb: Adds a test for contract deployments that run out of gas
+
 ## 0.0.4
 
 ### Patch Changes
