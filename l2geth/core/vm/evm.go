@@ -192,11 +192,13 @@ type Context struct {
 
 	// OVM_ADDITION
 	EthCallSender             *common.Address
-	IsOkL1ToL2Message         bool
+	IsL1ToL2Message           bool
+	IsSuccessfulL1ToL2Message bool
 	OvmExecutionManager       dump.OvmDumpAccount
 	OvmStateManager           dump.OvmDumpAccount
 	OvmSafetyChecker          dump.OvmDumpAccount
 	OvmL2CrossDomainMessenger dump.OvmDumpAccount
+	OvmL1MessageSender        dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -248,6 +250,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		ctx.OvmStateManager = chainConfig.StateDump.Accounts["OVM_StateManager"]
 		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
 		ctx.OvmL2CrossDomainMessenger = chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
+		ctx.OvmL1MessageSender = chainConfig.StateDump.Accounts["OVM_L1MessageSender"]
 	}
 
 	id := make([]byte, 4)
@@ -329,10 +332,14 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	// We need to be able to show a status of 1 ("no error") for successful L1 => L2 messages.
 	// The current way we figure out the success of the transaction (by parsing the
 	// returned data) would require an upgrade to the contracts that we likely won't make for a
-	// while. As a result, we'll use this mechanism where we set IsOkL1ToL2Message = true if
-	// we detect an L1 => L2 message that didn't revert. Initially we just set the value to false.
+	// while. As a result, we'll use this mechanism where we set IsL1ToL2Message = true if
+	// we detect an L1 => L2 message and then IsSuccessfulL1ToL2Message = true if the message is
+	// successfully executed.
+	// Just to be safe (if the evm object ever gets reused), we set both values to false on the
+	// start of a new EVM execution.
 	if evm.depth == 0 {
-		evm.Context.IsOkL1ToL2Message = false
+		evm.Context.IsL1ToL2Message = false
+		evm.Context.IsSuccessfulL1ToL2Message = false
 	}
 
 	var (
@@ -385,10 +392,17 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	// Here's where we detect L1 => L2 messages. Based on the current contracts, we're guaranteed
 	// that the target address will only be the OVM_L2CrossDomainMessenger at a depth of 1 if this
-	// is an L1 => L2 message. If this boolean is set then we'll skip the final returndata parsing
-	// step.
-	if evm.depth == 1 && addr == evm.Context.OvmL2CrossDomainMessenger.Address && err == nil {
-		evm.Context.IsOkL1ToL2Message = true
+	// is an L1 => L2 message.
+	if evm.depth == 1 && addr == evm.Context.OvmL2CrossDomainMessenger.Address {
+		evm.Context.IsL1ToL2Message = true
+	}
+
+	// If we're inside of an L1 => L2 message AND we're at a depth of 3 AND the target is not the
+	// OVM_L1MessageSender predeploy, then this is the target call that we're interested in. It's
+	// not pretty, but it works. As long as we don't have an error here then we can consider this
+	// a successful L1 => L2 message.
+	if evm.Context.IsL1ToL2Message && evm.depth == 3 && addr != evm.Context.OvmL1MessageSender.Address && err != nil {
+		evm.Context.IsSuccessfulL1ToL2Message = true
 	}
 
 	// When an error was returned by the EVM or when setting the creation code
@@ -410,7 +424,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			// We skip the parsing step if this was a successful L1 => L2 message. Note that if err
 			// is set (perhaps because of an error in ExecutionManager.run) we'll still return that
 			// error.
-			if !evm.Context.IsOkL1ToL2Message {
+			if !evm.Context.IsSuccessfulL1ToL2Message {
 				// Attempt to decode the returndata as as ExecutionManager.run when
 				// it is not an `eth_call` and as ExecutionManager.simulateMessage
 				// when it is an `eth_call`. If the data is not decodable as ABI
