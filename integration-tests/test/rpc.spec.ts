@@ -121,6 +121,14 @@ describe('Basic RPC tests', () => {
         'invalid transaction: insufficient funds for gas * price + value'
       )
     })
+
+    it('should correctly report OOG for contract creations', async () => {
+      const factory = await ethers.getContractFactory('TestOOG')
+
+      await expect(factory.connect(wallet).deploy()).to.be.rejectedWith(
+        'gas required exceeds allowance'
+      )
+    })
   })
 
   describe('eth_call', () => {
@@ -293,6 +301,14 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_estimateGas (returns the fee)', () => {
+    it('should return a gas estimate for txs with empty data', async () => {
+      const estimate = await l2Provider.estimateGas({
+        to: DEFAULT_TRANSACTION.to,
+        value: 0,
+      })
+      expect(estimate).to.be.eq(21000)
+    })
+
     it('should return a gas estimate that grows with the size of data', async () => {
       const dataLen = [0, 2, 8, 64, 256]
       const l1GasPrice = await env.l1Wallet.provider.getGasPrice()
