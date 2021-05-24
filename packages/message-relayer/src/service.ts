@@ -216,15 +216,10 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
             this.state.lastFinalizedTxHeight,
         })
 
-        const messages = (
-          await this._getSentMessages(
-            this.state.lastFinalizedTxHeight,
-            this.state.nextUnfinalizedTxHeight
-          )
-        ).sort((a, b) => {
-          // Sort in ascending order
-          return a.parentTransactionIndex - b.parentTransactionIndex
-        })
+        const messages = await this._getSentMessages(
+          this.state.lastFinalizedTxHeight,
+          this.state.nextUnfinalizedTxHeight
+        )
 
         for (const message of messages) {
           this.logger.info('Found a message sent during transaction', {
@@ -383,6 +378,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     ))
   }
 
+  /**
+   * Returns all sent message events between some start height (inclusive) and an end height
+   * (exclusive).
+   * @param startHeight Start height to start finding messages from.
+   * @param endHeight End height to finish finding messages at.
+   * @returns All sent messages between start and end height, sorted by transaction index in
+   * ascending order.
+   */
   private async _getSentMessages(
     startHeight: number,
     endHeight: number
@@ -394,7 +397,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       endHeight + this.options.l2BlockOffset - 1
     )
 
-    return events.map((event) => {
+    const messages = events.map((event) => {
       const message = event.args.message
       const decoded = this.state.OVM_L2CrossDomainMessenger.interface.decodeFunctionData(
         'relayMessage',
@@ -411,6 +414,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         parentTransactionIndex: event.blockNumber - this.options.l2BlockOffset,
         parentTransactionHash: event.transactionHash,
       }
+    })
+
+    // Sort in ascending order based on tx index and return.
+    return messages.sort((a, b) => {
+      return a.parentTransactionIndex - b.parentTransactionIndex
     })
   }
 
