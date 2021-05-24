@@ -1054,13 +1054,13 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
 	// 3. calculate the fee and normalize by the default gas price
 
-  var data []byte
+	var data []byte
 	if args.Data == nil {
 		data = []byte{}
 	} else {
 		data = *args.Data
 	}
-	fee, err := core.CalculateRollupFee(*args.Data, l1GasPrice, l2GasLimit, l2GasPrice)
+	fee, err := core.CalculateRollupFee(data, l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return 0, err
 	}
