@@ -21,7 +21,12 @@ contract OVM_GasPriceOracle is Ownable {
      *************/
 
     // Current execution price
-    uint256 internal executionPrice;
+    uint256 public executionPrice;
+
+    /*************
+     * Constants *
+     *************/
+    uint256 public constant EXECUTION_PRICE_MULTIPLE = 100000001;
 
     /***************
      * Constructor *
@@ -31,30 +36,19 @@ contract OVM_GasPriceOracle is Ownable {
      * @param _owner Address that will initially own this contract.
      */
     constructor(
-        address _owner
+        address _owner,
+        uint256 _initialExecutionPrice
     )
         Ownable()
     {
         transferOwnership(_owner);
+        setExecutionPrice(_initialExecutionPrice);
     }
 
 
     /********************
      * Public Functions *
      ********************/
-
-    /**
-     * @return Current execution price.
-     */
-    function getExecutionPrice()
-        public
-        view
-        returns (
-            uint256
-        )
-    {
-        return executionPrice;
-    }
 
     /**
      * Allows the owner to modify the execution price.
@@ -66,6 +60,7 @@ contract OVM_GasPriceOracle is Ownable {
         public
         onlyOwner
     {
+        require(_executionPrice == 1 || _executionPrice % EXECUTION_PRICE_MULTIPLE == 0, "Execution price must be `1` OR a multiple of EXECUTION_PRICE_MULTIPLE.");
         executionPrice = _executionPrice;
     }
 }

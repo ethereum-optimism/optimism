@@ -5,6 +5,7 @@ import { ethers } from 'hardhat'
 import { ContractFactory, Contract, Signer } from 'ethers'
 
 describe('OVM_GasPriceOracle', () => {
+  const initialExecutionPrice = 1
   let signer1: Signer
   let signer2: Signer
   before(async () => {
@@ -21,7 +22,8 @@ describe('OVM_GasPriceOracle', () => {
   let OVM_GasPriceOracle: Contract
   beforeEach(async () => {
     OVM_GasPriceOracle = await Factory__OVM_GasPriceOracle.deploy(
-      await signer1.getAddress()
+      await signer1.getAddress(),
+      initialExecutionPrice
     )
   })
 
@@ -39,31 +41,50 @@ describe('OVM_GasPriceOracle', () => {
         .to.be.reverted
     })
 
-    it('should succeed if called by the owner', async () => {
-      await expect(OVM_GasPriceOracle.connect(signer1).setExecutionPrice(1234))
-        .to.not.be.reverted
+    it('should revert if NOT called by the owner and is a multiple of EXECUTION_PRICE_MULTIPLE', async () => {
+      const executionPrice = 1234
+
+      await expect(
+        OVM_GasPriceOracle.connect(signer1).setExecutionPrice(executionPrice)
+      ).to.be.reverted
+    })
+
+    it('should succeed if called by the owner and is a multiple of EXECUTION_PRICE_MULTIPLE', async () => {
+      const executionPriceMultiple = await OVM_GasPriceOracle.EXECUTION_PRICE_MULTIPLE()
+      const executionPrice = 1234 * executionPriceMultiple
+
+      await expect(
+        OVM_GasPriceOracle.connect(signer1).setExecutionPrice(executionPrice)
+      ).to.not.be.reverted
+    })
+
+    it('should succeed if called by the owner and is equal to `1`', async () => {
+      await expect(OVM_GasPriceOracle.connect(signer1).setExecutionPrice(1)).to
+        .not.be.reverted
     })
   })
 
-  describe('getExecutionPrice', () => {
+  describe('get executionPrice', () => {
     it('should return zero at first', async () => {
-      expect(await OVM_GasPriceOracle.getExecutionPrice()).to.equal(0)
+      expect(await OVM_GasPriceOracle.executionPrice()).to.equal(
+        initialExecutionPrice
+      )
     })
 
     it('should change when setExecutionPrice is called', async () => {
-      const executionPrice = 1234
+      const executionPriceMultiple = await OVM_GasPriceOracle.EXECUTION_PRICE_MULTIPLE()
+      const executionPrice = 1234 * executionPriceMultiple
 
       await OVM_GasPriceOracle.connect(signer1).setExecutionPrice(
         executionPrice
       )
 
-      expect(await OVM_GasPriceOracle.getExecutionPrice()).to.equal(
-        executionPrice
-      )
+      expect(await OVM_GasPriceOracle.executionPrice()).to.equal(executionPrice)
     })
 
     it('is the 1st storage slot', async () => {
-      const executionPrice = 1234
+      const executionPriceMultiple = await OVM_GasPriceOracle.EXECUTION_PRICE_MULTIPLE()
+      const executionPrice = 1234 * executionPriceMultiple
       const slot = 1
 
       // set the price
@@ -76,7 +97,7 @@ describe('OVM_GasPriceOracle', () => {
         OVM_GasPriceOracle.address,
         slot
       )
-      expect(await OVM_GasPriceOracle.getExecutionPrice()).to.equal(
+      expect(await OVM_GasPriceOracle.executionPrice()).to.equal(
         ethers.BigNumber.from(priceAtSlot)
       )
     })

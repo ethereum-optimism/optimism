@@ -11,10 +11,17 @@ const deployFn: DeployFunction = async (hre: any) => {
 
   const gasPriceOracle = getContractDefinition('OVM_GasPriceOracle', true)
 
+  const gasOracleOwner = (hre as any).deployConfig.ovmSequencerAddress
+  const initialGasPrice = (hre as any).deployConfig.initialGasPriceOracleGasPrice
+
+  if (!gasOracleOwner || !initialGasPrice) {
+    throw new Error('initialGasPrice & ovmSequencerAddress required to deploy gas price oracle')
+  }
+
   await deploy('OVM_GasPriceOracle', {
     contract: gasPriceOracle,
     from: deployer,
-    args: [(hre as any).deployConfig.ovmSequencerAddress],
+    args: [gasOracleOwner, initialGasPrice],
     log: true,
   });
 }
