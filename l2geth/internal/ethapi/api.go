@@ -1131,7 +1131,7 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 				}
 				return 0, err
 			}
-			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
+			return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
 		}
 	}
 	return hexutil.Uint64(hi), nil
