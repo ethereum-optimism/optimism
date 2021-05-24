@@ -290,9 +290,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const getStateBatchAppendedEventForIndex = (
       txIndex: number
     ): ethers.Event => {
-      return this.state.eventCache.find((event) => {
-        const prevTotalElements = event.args._prevTotalElements
-        const batchSize = event.args._batchSize
+      return this.state.eventCache.find((cachedEvent) => {
+        const prevTotalElements = cachedEvent.args._prevTotalElements.toNumber()
+        const batchSize = cachedEvent.args._batchSize.toNumber()
 
         // Height should be within the bounds of the batch.
         return (
