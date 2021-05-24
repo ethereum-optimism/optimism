@@ -22,7 +22,7 @@ contract OVM_SafetyCache is iOVM_SafetyCache {
      * Contract Variables: Contract References *
      ******************************************/
 
-    iOVM_SafetyChecker internal ovmSafetyChecker;
+    iOVM_SafetyChecker internal ovmSafetyChecker = iOVM_SafetyChecker(0x4200000000000000000000000000000000000010);
 
 
     /****************************************
@@ -30,21 +30,6 @@ contract OVM_SafetyCache is iOVM_SafetyCache {
      ****************************************/
 
     mapping(bytes32 => bool) internal isSafeCodehash;
-
-
-    /***************
-     * Constructor *
-     ***************/
-
-    /**
-     * @param _ovmSafetyChecker Address of the Safety Checker.
-     */
-    constructor(
-        iOVM_SafetyChecker _ovmSafetyChecker
-    )
-    {
-        ovmSafetyChecker = _ovmSafetyChecker;
-    }
 
 
     /**********************
