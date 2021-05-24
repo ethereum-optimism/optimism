@@ -197,6 +197,16 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
             { batchSize: size }
           )
           this.state.nextUnfinalizedTxHeight += size
+
+          // Only deal with 1000 transactions at a time so we can limit the amount of stuff we
+          // need to keep in memory.
+          if (
+            this.state.nextUnfinalizedTxHeight -
+              this.state.lastFinalizedTxHeight >
+            1000
+          ) {
+            break
+          }
         }
 
         this.logger.info('Found finalized transactions', {
@@ -205,16 +215,15 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
             this.state.lastFinalizedTxHeight,
         })
 
-        const messages = await this._getSentMessages(
-          this.state.lastFinalizedTxHeight,
-          this.state.nextUnfinalizedTxHeight
-        )
-
-        if (messages.length === 0) {
-          this.logger.info('Did not find any L2->L1 messages', {
-            retryAgainInS: Math.floor(this.options.pollingInterval / 1000),
-          })
-        }
+        const messages = (
+          await this._getSentMessages(
+            this.state.lastFinalizedTxHeight,
+            this.state.nextUnfinalizedTxHeight
+          )
+        ).sort((a, b) => {
+          // Sort in ascending order
+          return a.parentTransactionIndex - b.parentTransactionIndex
+        })
 
         for (const message of messages) {
           this.logger.info('Found a message sent during transaction', {
@@ -234,6 +243,25 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           )
 
           await this._relayMessageToL1(message, proof)
+        }
+
+        if (messages.length === 0) {
+          this.logger.info('Did not find any L2->L1 messages', {
+            retryAgainInS: Math.floor(this.options.pollingInterval / 1000),
+          })
+        } else {
+          // Clear the event cache to avoid keeping every single event in memory and eventually
+          // getting OOM killed. Messages are already sorted in ascending order so the last message
+          // will have the highest block number. We also know that we will already have dealt with
+          // all messages with a block number equal to or lower than this highest block number. So
+          // we now just need to keep any events with an even higher block number.
+          const lastMessage = messages[messages.length - 1]
+          this.state.eventCache = this.state.eventCache.filter((event) => {
+            return (
+              event.blockNumber >
+              lastMessage.parentTransactionIndex + this.options.l2BlockOffset
+            )
+          })
         }
 
         this.logger.info(
