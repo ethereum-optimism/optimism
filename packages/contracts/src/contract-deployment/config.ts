@@ -35,6 +35,8 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
+  l2ChugSplashDeployerOwner: string
+  gasPriceOracleOwner: string
   addressManager?: string
   dependencies?: string[]
   deployOverrides: Overrides
@@ -234,15 +236,15 @@ export const makeContractDeployConfig = async (
         '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
       ],
     },
-    'OVM_ChainStorageContainer:CTC:batches': {
+    'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
     },
-    'OVM_ChainStorageContainer:CTC:queue': {
+    'OVM_ChainStorageContainer-CTC-queue': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
     },
-    'OVM_ChainStorageContainer:SCC:batches': {
+    'OVM_ChainStorageContainer-SCC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_StateCommitmentChain'],
     },
@@ -251,6 +253,25 @@ export const makeContractDeployConfig = async (
     },
     OVM_ProxyEOA: {
       factory: getContractFactory('OVM_ProxyEOA', undefined, true),
+    },
+    OVM_ExecutionManagerWrapper: {
+      factory: getContractFactory(
+        'OVM_ExecutionManagerWrapper',
+        undefined,
+        true
+      ),
+    },
+    L2ChugSplashDeployer: {
+      factory: getContractFactory('L2ChugSplashDeployer'),
+      params: [predeploys.L2ChugSplashOwner],
+    },
+    L2ChugSplashOwner: {
+      factory: getContractFactory('L2ChugSplashDeployer'),
+      params: [config.l2ChugSplashDeployerOwner],
+    },
+    OVM_GasPriceOracle: {
+      factory: getContractFactory('OVM_GasPriceOracle'),
+      params: [config.gasPriceOracleOwner],
     },
   }
 }

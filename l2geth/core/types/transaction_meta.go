@@ -23,11 +23,10 @@ const (
 //go:generate gencodec -type TransactionMeta -out gen_tx_meta_json.go
 
 type TransactionMeta struct {
-	L1BlockNumber     *big.Int          `json:"l1BlockNumber"`
-	L1Timestamp       uint64            `json:"l1Timestamp"`
-	L1MessageSender   *common.Address   `json:"l1MessageSender" gencodec:"required"`
-	SignatureHashType SignatureHashType `json:"signatureHashType" gencodec:"required"`
-	QueueOrigin       *big.Int          `json:"queueOrigin" gencodec:"required"`
+	L1BlockNumber   *big.Int        `json:"l1BlockNumber"`
+	L1Timestamp     uint64          `json:"l1Timestamp"`
+	L1MessageSender *common.Address `json:"l1MessageSender" gencodec:"required"`
+	QueueOrigin     *big.Int        `json:"queueOrigin" gencodec:"required"`
 	// The canonical transaction chain index
 	Index *uint64 `json:"index" gencodec:"required"`
 	// The queue index, nil for queue origin sequencer transactions
@@ -36,22 +35,20 @@ type TransactionMeta struct {
 }
 
 // NewTransactionMeta creates a TransactionMeta
-func NewTransactionMeta(l1BlockNumber *big.Int, l1timestamp uint64, l1MessageSender *common.Address, sighashType SignatureHashType, queueOrigin QueueOrigin, index *uint64, queueIndex *uint64, rawTransaction []byte) *TransactionMeta {
+func NewTransactionMeta(l1BlockNumber *big.Int, l1timestamp uint64, l1MessageSender *common.Address, queueOrigin QueueOrigin, index *uint64, queueIndex *uint64, rawTransaction []byte) *TransactionMeta {
 	return &TransactionMeta{
-		L1BlockNumber:     l1BlockNumber,
-		L1Timestamp:       l1timestamp,
-		L1MessageSender:   l1MessageSender,
-		SignatureHashType: sighashType,
-		QueueOrigin:       big.NewInt(int64(queueOrigin)),
-		Index:             index,
-		QueueIndex:        queueIndex,
-		RawTransaction:    rawTransaction,
+		L1BlockNumber:   l1BlockNumber,
+		L1Timestamp:     l1timestamp,
+		L1MessageSender: l1MessageSender,
+		QueueOrigin:     big.NewInt(int64(queueOrigin)),
+		Index:           index,
+		QueueIndex:      queueIndex,
+		RawTransaction:  rawTransaction,
 	}
 }
 
 // TxMetaDecode deserializes bytes as a TransactionMeta struct.
 // The schema is:
-//   varbytes(SignatureHashType) ||
 //   varbytes(L1BlockNumber) ||
 //   varbytes(L1MessageSender) ||
 //   varbytes(QueueOrigin) ||
@@ -60,14 +57,6 @@ func TxMetaDecode(input []byte) (*TransactionMeta, error) {
 	var err error
 	meta := TransactionMeta{}
 	b := bytes.NewReader(input)
-
-	sb, err := common.ReadVarBytes(b, 0, 1024, "SignatureHashType")
-	if err != nil {
-		return nil, err
-	}
-	var sighashType SignatureHashType
-	binary.Read(bytes.NewReader(sb), binary.LittleEndian, &sighashType)
-	meta.SignatureHashType = sighashType
 
 	lb, err := common.ReadVarBytes(b, 0, 1024, "l1BlockNumber")
 	if err != nil {
@@ -137,10 +126,6 @@ func TxMetaDecode(input []byte) (*TransactionMeta, error) {
 // TxMetaEncode serializes the TransactionMeta as bytes.
 func TxMetaEncode(meta *TransactionMeta) []byte {
 	b := new(bytes.Buffer)
-
-	s := new(bytes.Buffer)
-	binary.Write(s, binary.LittleEndian, &meta.SignatureHashType)
-	common.WriteVarBytes(b, 0, s.Bytes())
 
 	L1BlockNumber := meta.L1BlockNumber
 	if L1BlockNumber == nil {

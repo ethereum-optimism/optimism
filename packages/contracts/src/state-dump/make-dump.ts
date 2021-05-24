@@ -99,7 +99,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     deploymentSigner: signer,
     ovmGasMeteringConfig: {
       minTransactionGasLimit: 0,
-      maxTransactionGasLimit: 9_000_000,
+      maxTransactionGasLimit: 11_000_000,
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 0,
     },
@@ -135,9 +135,15 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_ExecutionManager',
       'OVM_StateManager',
       'OVM_ETH',
+      'OVM_ExecutionManagerWrapper',
+      'L2ChugSplashDeployer',
+      'L2ChugSplashOwner',
+      'OVM_GasPriceOracle',
     ],
     deployOverrides: {},
     waitForReceipts: false,
+    l2ChugSplashDeployerOwner: cfg.l2ChugSplashDeployerOwner,
+    gasPriceOracleOwner: cfg.gasPriceOracleOwner,
   }
 
   config = { ...config, ...cfg }
@@ -151,6 +157,10 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_ETH',
     'OVM_ECDSAContractAccount',
     'OVM_ProxyEOA',
+    'OVM_ExecutionManagerWrapper',
+    'L2ChugSplashDeployer',
+    'L2ChugSplashOwner',
+    'OVM_GasPriceOracle',
   ]
 
   const deploymentResult = await deploy(config)
@@ -173,7 +183,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   for (let i = 0; i < Object.keys(deploymentResult.contracts).length; i++) {
     const name = Object.keys(deploymentResult.contracts)[i]
     const contract = deploymentResult.contracts[name]
-    let code
+    let code: string
     if (ovmCompiled.includes(name)) {
       const ovmDeployedBytecode = getContractDefinition(name, true)
         .deployedBytecode

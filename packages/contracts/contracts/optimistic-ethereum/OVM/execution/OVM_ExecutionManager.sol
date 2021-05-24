@@ -205,12 +205,31 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // // Check gas right before the call to get total gas consumed by OVM transaction.
         // uint256 gasProvided = gasleft();
 
-        // Run the transaction, make sure to meter the gas usage.
-        (, bytes memory returndata) = ovmCALL(
-            _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
-            _transaction.entrypoint,
-            _transaction.data
-        );
+        bytes memory returndata;
+        if (_isUpgrading() == true) {
+            // When we’re in the middle of an upgrade we completely ignore
+            // `transaction._entrypoint` and direct *all* transactions to the L2ChugSplashDeployer
+            // located at 0x42...0D. L1 => L2 messages executed during the middle of an upgrade
+            // will fail. Any transactions *not* intended to be sent to the L2ChugSplashDeployer
+            // will also fail and must be submitted again.
+            (bool success, bytes memory ret) = ovmCALL(
+                _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
+                0x420000000000000000000000000000000000000D,
+                _transaction.data
+            );
+
+            returndata = abi.encode(
+                success,
+                ret
+            );
+        } else {
+            // Run the transaction, make sure to meter the gas usage.
+            (, returndata) = ovmCALL(
+                _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
+                _transaction.entrypoint,
+                _transaction.data
+            );
+        }
 
         // TEMPORARY: Gas metering is disabled for minnet.
         // // Update the cumulative gas based on the amount of gas used.
@@ -1791,6 +1810,23 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
 
+    /********************************
+     * Internal Functions: Upgrades *
+     ********************************/
+    
+    function _isUpgrading()
+        internal
+        returns (
+            bool
+        )
+    {
+        return uint256(_getContractStorage(
+            0x420000000000000000000000000000000000000D,
+            0xac04bb17f7be83a1536e4b894c20a9b8acafb7c35cd304dfa3dabeee91e3c4c2
+        )) != 0;
+    }
+
+
     /*****************************************
      * Internal Functions: Execution Context *
      *****************************************/
@@ -1865,6 +1901,44 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Reset the ovmStateManager.
         ovmStateManager = iOVM_StateManager(address(0));
     }
+    
+    
+    /*********************
+     * Upgrade Functions *
+     *********************/
+
+    /**
+     * Sets the code of an ovm contract.
+     * @param _address Address to update the code of.
+     * @param _code Bytecode to put into the ovm account.
+     */
+    function ovmSETCODE(
+        address _address,
+        bytes memory _code
+    )
+        override
+        external
+    {
+        // TODO: IMPLEMENT ME
+    }
+
+    /**
+     * Sets the storage slot of an OVM contract.
+     * @param _address OVM account to set storage of.
+     * @param _key Key to set set.
+     * @param _value Value to store at the given key.
+     */
+    function ovmSETSTORAGE(
+        address _address,
+        bytes32 _key,
+        bytes32 _value
+    )
+        override
+        external
+    {
+        // TODO: IMPLEMENT ME
+    }
+
 
     /*****************************
      * L2-only Helper Functions *
