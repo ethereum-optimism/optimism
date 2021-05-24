@@ -60,6 +60,7 @@
   },
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
+    "@eth-optimism/chugsplash": "^0.1.0",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
     "@eth-optimism/smock": "^1.1.6",
     "@ethersproject/transactions": "^5.0.31",
