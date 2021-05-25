@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  integration:
+  integration-sync-test:
     runs-on: ubuntu-latest
     env:
         DOCKER_BUILDKIT: 1
@@ -39,7 +39,13 @@ jobs:
       - name: Bring the stack up
         working-directory: ./ops
         run: docker-compose up -d
+      
+      - name: Add address params and check sequencer
+        working-directory: ./ops
+        run: ./scripts/check-sequencer.sh
 
       - name: Run the sync tests
         working-directory: ./integration-tests
-        run: yarn test:sync 
+        run: |
+          yarn
+          yarn test:sync
