@@ -62,11 +62,46 @@ describe('Fees', () => {
 
   describe('Rollup Fees', () => {
     const rollupFeesTests = [
-      {name: 'simple', dataLen: 10, l1GasPrice: 100_000_000, l2GasPrice: 100_000_001, l2GasLimit: 437118, error: false},
-      {name: 'zero-l2-gasprice', dataLen: 10, l1GasPrice: 100_000_000, l2GasPrice: 0, l2GasLimit: 196205, error: true},
-      {name: 'one-l2-gasprice', dataLen: 10, l1GasPrice: 100_000_000, l2GasPrice: 1, l2GasLimit: 196205, error: false},
-      {name: 'zero-l1-gasprice', dataLen: 10, l1GasPrice: 0, l2GasPrice: 100_000_001, l2GasLimit: 196205, error: false},
-      {name: 'one-l1-gasprice', dataLen: 10, l1GasPrice: 1, l2GasPrice: 23254, l2GasLimit: 23255, error: true},
+      {
+        name: 'simple',
+        dataLen: 10,
+        l1GasPrice: 100_000_000,
+        l2GasPrice: 100_000_001,
+        l2GasLimit: 437118,
+        error: false,
+      },
+      {
+        name: 'zero-l2-gasprice',
+        dataLen: 10,
+        l1GasPrice: 100_000_000,
+        l2GasPrice: 0,
+        l2GasLimit: 196205,
+        error: true,
+      },
+      {
+        name: 'one-l2-gasprice',
+        dataLen: 10,
+        l1GasPrice: 100_000_000,
+        l2GasPrice: 1,
+        l2GasLimit: 196205,
+        error: false,
+      },
+      {
+        name: 'zero-l1-gasprice',
+        dataLen: 10,
+        l1GasPrice: 0,
+        l2GasPrice: 100_000_001,
+        l2GasLimit: 196205,
+        error: false,
+      },
+      {
+        name: 'one-l1-gasprice',
+        dataLen: 10,
+        l1GasPrice: 1,
+        l2GasPrice: 23254,
+        l2GasLimit: 23255,
+        error: true,
+      },
     ]
 
     for (const test of rollupFeesTests) {

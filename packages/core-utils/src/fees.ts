@@ -17,11 +17,9 @@ interface EncodableL2GasLimit {
   l2GasPrice: BigNumber | number
 }
 
-function encode(
-  input: EncodableL2GasLimit
-): BigNumber {
-  const {data} = input
-  let {l1GasPrice, l2GasLimit, l2GasPrice} = input
+function encode(input: EncodableL2GasLimit): BigNumber {
+  const { data } = input
+  let { l1GasPrice, l2GasLimit, l2GasPrice } = input
   if (typeof l1GasPrice === 'number') {
     l1GasPrice = BigNumber.from(l1GasPrice)
   }
