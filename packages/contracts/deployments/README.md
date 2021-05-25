@@ -38,8 +38,6 @@ Network : __mainnet (chain id: 1)__
 |OVM_ChainStorageContainer-SCC-batches|[0x7B8af5f008A7C5eFD319e68Fd5C9A68008519Caf](https://etherscan.io/address/0x7B8af5f008A7C5eFD319e68Fd5C9A68008519Caf)|
 |OVM_ExecutionManager|[0x3f5FA555c434b49D946042955013966Fd108DaC3](https://etherscan.io/address/0x3f5FA555c434b49D946042955013966Fd108DaC3)|
 |OVM_FraudVerifier|[0x169CC2f69Cc16da17B71Df2dce6161ef57991bB9](https://etherscan.io/address/0x169CC2f69Cc16da17B71Df2dce6161ef57991bB9)|
-|OVM_L1CrossDomainMessenger|[0x598F2b19e983910529affAb7D219724a019339CC](https://etherscan.io/address/0x598F2b19e983910529affAb7D219724a019339CC)|
-|OVM_L1ETHGateway|[0x40c9067ec8087EcF101FC10d2673636955b81A32](https://etherscan.io/address/0x40c9067ec8087EcF101FC10d2673636955b81A32)|
 |OVM_L1MultiMessageRelayer|[0xc34F5B7279A9276A9D02491c59630fa725B7c36B](https://etherscan.io/address/0xc34F5B7279A9276A9D02491c59630fa725B7c36B)|
 |OVM_SafetyChecker|[0xD87eFbBb82f1B7d25469641ee2E0E513f144394C](https://etherscan.io/address/0xD87eFbBb82f1B7d25469641ee2E0E513f144394C)|
 |OVM_StateCommitmentChain|[0x6786EB419547a4902d285F70c6acDbC9AefAdB6F](https://etherscan.io/address/0x6786EB419547a4902d285F70c6acDbC9AefAdB6F)|
@@ -48,6 +46,17 @@ Network : __mainnet (chain id: 1)__
 |Proxy__OVM_L1CrossDomainMessenger|[0x902e5fF5A99C4eC1C21bbab089fdabE32EF0A5DF](https://etherscan.io/address/0x902e5fF5A99C4eC1C21bbab089fdabE32EF0A5DF)|
 |Proxy__OVM_L1ETHGateway|[0xe681F80966a8b1fFadECf8068bD6F99034791c95](https://etherscan.io/address/0xe681F80966a8b1fFadECf8068bD6F99034791c95)|
 |mockOVM_BondManager|[0x90c5F8d045bBcCc99d907f30E8707F06D95d065b](https://etherscan.io/address/0x90c5F8d045bBcCc99d907f30E8707F06D95d065b)|
+<!--
+Implementation addresses. DO NOT use these addresses directly.
+Use their proxied counterparts seen above.
+
+OVM_L1CrossDomainMessenger: 
+ - 0x598F2b19e983910529affAb7D219724a019339CC
+ - https://etherscan.io/address/0x598F2b19e983910529affAb7D219724a019339CC)
+OVM_L1ETHGateway: 
+ - 0x40c9067ec8087EcF101FC10d2673636955b81A32
+ - https://etherscan.io/address/0x40c9067ec8087EcF101FC10d2673636955b81A32)
+-->
 ---
 ## KOVAN
 
@@ -62,8 +71,6 @@ Network : __kovan (chain id: 42)__
 |OVM_ChainStorageContainer-SCC-batches|[0xFE1CE27173676A6850ECF4e0536D7C468A4dAfa0](https://kovan.etherscan.io/address/0xFE1CE27173676A6850ECF4e0536D7C468A4dAfa0)|
 |OVM_ExecutionManager|[0xa2EB1961183a04157fF707Fa2Be2249e149c8FAB](https://kovan.etherscan.io/address/0xa2EB1961183a04157fF707Fa2Be2249e149c8FAB)|
 |OVM_FraudVerifier|[0x4B2F74938Ddb8742C33b46aD1a402c85e9dABC44](https://kovan.etherscan.io/address/0x4B2F74938Ddb8742C33b46aD1a402c85e9dABC44)|
-|OVM_L1CrossDomainMessenger|[0xa9D9045E4A753c856Fc0053369E780f23559E0A1](https://kovan.etherscan.io/address/0xa9D9045E4A753c856Fc0053369E780f23559E0A1)|
-|OVM_L1ETHGateway|[0x25bb69ee5665536Ce6aeb51094F0bed9e4DACc30](https://kovan.etherscan.io/address/0x25bb69ee5665536Ce6aeb51094F0bed9e4DACc30)|
 |OVM_L1MultiMessageRelayer|[0x942b1B1CaF9e7654318CbfCfD1bca6727C716638](https://kovan.etherscan.io/address/0x942b1B1CaF9e7654318CbfCfD1bca6727C716638)|
 |OVM_SafetyChecker|[0xf0FaB0ce35a6d3F82b0B42f09A2734065908dB6a](https://kovan.etherscan.io/address/0xf0FaB0ce35a6d3F82b0B42f09A2734065908dB6a)|
 |OVM_StateCommitmentChain|[0xdB1367bB36C34618778D492725C3eD11B508aC54](https://kovan.etherscan.io/address/0xdB1367bB36C34618778D492725C3eD11B508aC54)|
@@ -72,6 +79,17 @@ Network : __kovan (chain id: 42)__
 |Proxy__OVM_L1CrossDomainMessenger|[0x78b88FD62FBdBf67b9C5C6528CF84E9d30BB28e0](https://kovan.etherscan.io/address/0x78b88FD62FBdBf67b9C5C6528CF84E9d30BB28e0)|
 |Proxy__OVM_L1ETHGateway|[0xB191d67F69e823445cD59e5A88953a82be73b9C6](https://kovan.etherscan.io/address/0xB191d67F69e823445cD59e5A88953a82be73b9C6)|
 |mockOVM_BondManager|[0x8ECe272C9f83041bcb1Cd57AC49Ca6494776bE01](https://kovan.etherscan.io/address/0x8ECe272C9f83041bcb1Cd57AC49Ca6494776bE01)|
+<!--
+Implementation addresses. DO NOT use these addresses directly.
+Use their proxied counterparts seen above.
+
+OVM_L1CrossDomainMessenger: 
+ - 0xa9D9045E4A753c856Fc0053369E780f23559E0A1
+ - https://kovan.etherscan.io/address/0xa9D9045E4A753c856Fc0053369E780f23559E0A1)
+OVM_L1ETHGateway: 
+ - 0x25bb69ee5665536Ce6aeb51094F0bed9e4DACc30
+ - https://kovan.etherscan.io/address/0x25bb69ee5665536Ce6aeb51094F0bed9e4DACc30)
+-->
 ---
 ## GOERLI
 
@@ -86,8 +104,6 @@ Network : __goerli (chain id: 5)__
 |OVM_ChainStorageContainer-SCC-batches|[0x2A622E327D7A204b39355202d41BD9B752C8df54](https://goerli.etherscan.io/address/0x2A622E327D7A204b39355202d41BD9B752C8df54)|
 |OVM_ExecutionManager|[0x45B459295d6b08D7dA3B9daae541D5F75E1CF818](https://goerli.etherscan.io/address/0x45B459295d6b08D7dA3B9daae541D5F75E1CF818)|
 |OVM_FraudVerifier|[0xfA590cE7fE1d80D4b286e23f3f6e9f9357D6A90b](https://goerli.etherscan.io/address/0xfA590cE7fE1d80D4b286e23f3f6e9f9357D6A90b)|
-|OVM_L1CrossDomainMessenger|[0x27BdfF69C72d29493bfD2152DbE28657f8Ddd5df](https://goerli.etherscan.io/address/0x27BdfF69C72d29493bfD2152DbE28657f8Ddd5df)|
-|OVM_L1ETHGateway|[0x746E840b94cC75921D1cb620b83CFd0C658B2852](https://goerli.etherscan.io/address/0x746E840b94cC75921D1cb620b83CFd0C658B2852)|
 |OVM_L1MultiMessageRelayer|[0x737557d97f7f2ccb0263C4b55f0D735D52c2D385](https://goerli.etherscan.io/address/0x737557d97f7f2ccb0263C4b55f0D735D52c2D385)|
 |OVM_SafetyChecker|[0x71D4ea896C9a2D4a973CC5c7E347B6707691ECa0](https://goerli.etherscan.io/address/0x71D4ea896C9a2D4a973CC5c7E347B6707691ECa0)|
 |OVM_StateCommitmentChain|[0x5c3e321947C99698027108351ee736823Bd157D8](https://goerli.etherscan.io/address/0x5c3e321947C99698027108351ee736823Bd157D8)|
@@ -96,4 +112,15 @@ Network : __goerli (chain id: 5)__
 |Proxy__OVM_L1CrossDomainMessenger|[0xFec83764acDeEc2ac338d4cc1f12bBE3cCDf551E](https://goerli.etherscan.io/address/0xFec83764acDeEc2ac338d4cc1f12bBE3cCDf551E)|
 |Proxy__OVM_L1ETHGateway|[0xA721CF3e39E5cB4CfEEc0e32EE05B3D05AA9aE39](https://goerli.etherscan.io/address/0xA721CF3e39E5cB4CfEEc0e32EE05B3D05AA9aE39)|
 |mockOVM_BondManager|[0x35a7735F9f517d071d5cFf89D11Ab4488bc5Df8C](https://goerli.etherscan.io/address/0x35a7735F9f517d071d5cFf89D11Ab4488bc5Df8C)|
+<!--
+Implementation addresses. DO NOT use these addresses directly.
+Use their proxied counterparts seen above.
+
+OVM_L1CrossDomainMessenger: 
+ - 0x27BdfF69C72d29493bfD2152DbE28657f8Ddd5df
+ - https://goerli.etherscan.io/address/0x27BdfF69C72d29493bfD2152DbE28657f8Ddd5df)
+OVM_L1ETHGateway: 
+ - 0x746E840b94cC75921D1cb620b83CFd0C658B2852
+ - https://goerli.etherscan.io/address/0x746E840b94cC75921D1cb620b83CFd0C658B2852)
+-->
 ---
