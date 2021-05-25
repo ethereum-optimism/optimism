@@ -2,6 +2,7 @@ import { expect } from 'chai'
 
 /* Imports: External */
 import { Contract, ContractFactory } from 'ethers'
+import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 import { Direction } from './shared/watcher-utils'
 
 /* Imports: Internal */
@@ -117,6 +118,39 @@ describe('Basic L1<>L2 Communication', async () => {
       const transaction = await env.l1Messenger.sendMessage(
         L2Reverter.address,
         L2Reverter.interface.encodeFunctionData('doRevert', []),
+        5000000
+      )
+
+      const { remoteReceipt } = await env.waitForXDomainTransaction(
+        transaction,
+        Direction.L1ToL2
+      )
+
+      expect(remoteReceipt.status).to.equal(0)
+    })
+
+    it('should have a receipt with a status of 0 for messages sent to 0x42... addresses', async () => {
+      // This call is fine but will give a status of 0.
+      const transaction = await env.l1Messenger.sendMessage(
+        predeploys.Lib_AddressManager,
+        getContractInterface(
+          'Lib_AddressManager'
+        ).encodeFunctionData('getAddress', ['whatever']),
+        5000000
+      )
+
+      const { remoteReceipt } = await env.waitForXDomainTransaction(
+        transaction,
+        Direction.L1ToL2
+      )
+
+      expect(remoteReceipt.status).to.equal(0)
+    })
+
+    it('should have a receipt with a status of 0 for messages sent to 0xdead... addresses', async () => {
+      const transaction = await env.l1Messenger.sendMessage(
+        '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
+        '0x',
         5000000
       )
 
