@@ -61,5 +61,6 @@ export const getL2ETHGateway = (wallet: Wallet) => {
   return OVM_ETH
 }
 
+export const l1MessengerAddressAlt = process.env.L1_ALT_MESSENGER
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))

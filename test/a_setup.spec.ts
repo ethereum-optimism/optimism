@@ -110,6 +110,8 @@ describe('System setup', async () => {
 
   before(async () => {
 
+    const l1MessengerAlt= env.altWatcher.l1.messengerAddress
+
     //Set up the L2LP
     L2LiquidityPool = await Factory__L2LiquidityPool.deploy(
       env.watcher.l2.messengerAddress,
@@ -120,6 +122,7 @@ describe('System setup', async () => {
     L1LiquidityPool = await Factory__L1LiquidityPool.deploy(
       L2LiquidityPool.address,
       env.watcher.l1.messengerAddress,
+      l1MessengerAlt,
       env.L2ETHGateway.address,
       3
     )
@@ -433,7 +436,7 @@ describe('System setup', async () => {
     )
     await approveTX.wait()
 
-    await env.waitForXDomainTransaction(
+    await env.waitForXDomainTransactionAlt(
       L2LiquidityPool.clientDepositL2(
         swapAmount,
         env.L2ETHGateway.address

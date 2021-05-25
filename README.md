@@ -39,6 +39,7 @@ TEST_PRIVATE_KEY_1=0xPRIVATE KEY OF THE FIRST TEST WALLET
 TEST_PRIVATE_KEY_2=0xPRIVATE KEY OF THE SECOND TEST WALLET
 TARGET_GAS_LIMIT=9000000000
 CHAIN_ID=28
+L1_ALT_MESSENGER=0xDEPLOYED_ADDRESS // specify default L1_CrossDomainMessengers address to skip using the customized messegner
 
 ```
 
@@ -95,6 +96,18 @@ $ yarn deploy #if needed - this will test and deploy the contracts, and write th
 ```
 
 The information generated during the deploy (e.g the `/deployment/local/addresses.json`) is used by the web wallet to set things up correctly. **The full test suite includes some very slow transactions such as withdrawals, which can take 100 seconds to complete. Please be patient.**
+
+### Running tests with the customized Messenger
+
+The test could be made to run with the Customized cross domain messenger.
+- deploy the customized L1 Messenger and make sure to specify it in the dot_env
+- can use scripts/deploy_l1_alt_messenger.js to deploy the L1 Messenger on L1
+- Keep the custom message relayer on https://github.com/omgnetwork/omgx_alt_messenger running to ensure messages are relayed
+
+```
+$ yarn deploy
+```
+
 
 ## 3. Wallet Specific Smart Contracts
 

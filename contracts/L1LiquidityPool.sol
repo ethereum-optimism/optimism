@@ -6,7 +6,7 @@ pragma experimental ABIEncoderV2;
 import { iL2LiquidityPool } from "./interfaces/iL2LiquidityPool.sol";
 
 /* Library Imports */
-import { OVM_CrossDomainEnabled } from "enyalabs_contracts/build/contracts/libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { OVM_CrossDomainEnabled } from "./OVM_CrossDomainEnabled.sol";
 
 /* External Imports */
 import '@openzeppelin/contracts/math/SafeMath.sol';
@@ -43,11 +43,12 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled {
      ********************/
     constructor(
         address _l2LiquidityPoolAddress,
-        address _l1messenger,
+        address _l1SenderMessenger,
+        address _l1RelayerMessenger,
         address _l2ETHAddress,
         uint256 _fee
     )
-        OVM_CrossDomainEnabled(_l1messenger)
+        OVM_CrossDomainEnabled(_l1SenderMessenger, _l1RelayerMessenger)
     {
         l2LiquidityPoolAddress = _l2LiquidityPoolAddress;
         l2ContractAddress[address(0)] = _l2ETHAddress;

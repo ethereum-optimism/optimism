@@ -26,6 +26,24 @@ export const initWatcher = async (
   })
 }
 
+export const initWatcherAltMessenger = async (
+  l1Provider: JsonRpcProvider,
+  l2Provider: JsonRpcProvider,
+  l1MessengerAddress: string
+) => {
+
+  return new Watcher({
+    l1: {
+      provider: l1Provider,
+      messengerAddress: l1MessengerAddress,
+    },
+    l2: {
+      provider: l2Provider,
+      messengerAddress: "0x4200000000000000000000000000000000000007",
+    },
+  })
+}
+
 export interface CrossDomainMessagePair {
   tx: Transaction
   receipt: TransactionReceipt
