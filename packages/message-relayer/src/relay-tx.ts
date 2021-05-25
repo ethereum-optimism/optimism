@@ -53,6 +53,7 @@ const getMessageByTransactionHash = async (
   l2CrossDomainMessengerAddress: string,
   l2TransactionHash: string
 ): Promise<CrossDomainMessage> => {
+  // Complain if we can't find the given transaction.
   const transaction = await l2RpcProvider.getTransaction(l2TransactionHash)
   if (transaction === null) {
     throw new Error(`unable to find tx with hash: ${l2TransactionHash}`)
@@ -64,22 +65,28 @@ const getMessageByTransactionHash = async (
     l2RpcProvider
   )
 
+  // Find all SentMessage events created in the same block as the given transaction. This is
+  // reliable because we should only have one transaction per block.
   const sentMessageEvents = await l2CrossDomainMessenger.queryFilter(
     l2CrossDomainMessenger.filters.SentMessage(),
     transaction.blockNumber,
     transaction.blockNumber
   )
 
+  // If there were no SentMessage events then this transaction did not send any L2 => L1 messaages.
   if (sentMessageEvents.length === 0) {
     return null
   }
 
+  // Not sure exactly how to handle the special case that more than one message was sent in the
+  // same transaction. For now throwing an error seems fine. We can always deal with this later.
   if (sentMessageEvents.length > 1) {
     throw new Error(
       `can currently only support one message per transaction, found ${sentMessageEvents}`
     )
   }
 
+  // Decode the message and turn it into a nicer struct.
   const encodedMessage = sentMessageEvents[0].args.message
   const decodedMessage = l2CrossDomainMessenger.interface.decodeFunctionData(
     'relayMessage',
@@ -141,11 +148,6 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
     }
   }
 
-  const totalBatches = await l1StateCommitmentChain.getTotalBatches()
-  if (totalBatches === 0) {
-    return null
-  }
-
   const isEventHi = (event: ethers.Event, index: number) => {
     const prevTotalElements = event.args._prevTotalElements.toNumber()
     return index < prevTotalElements
@@ -157,18 +159,28 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
     return index >= prevTotalElements + batchSize
   }
 
-  const lastBatchEvent = await getStateBatchAppendedEventByBatchIndex(
-    totalBatches - 1
-  )
-  if (isEventLo(lastBatchEvent, l2TransactionIndex)) {
+  const totalBatches = await l1StateCommitmentChain.getTotalBatches()
+  if (totalBatches === 0) {
     return null
-  } else if (!isEventHi(lastBatchEvent, l2TransactionIndex)) {
-    return lastBatchEvent
   }
 
   let lowerBound = 0
   let upperBound = totalBatches - 1
-  let batchEvent: ethers.Event | null = lastBatchEvent
+  let batchEvent: ethers.Event | null = await getStateBatchAppendedEventByBatchIndex(
+    upperBound
+  )
+
+  if (isEventLo(batchEvent, l2TransactionIndex)) {
+    // Upper bound is too low, means this transaction doesn't have a corresponding state batch yet.
+    return null
+  } else if (!isEventHi(batchEvent, l2TransactionIndex)) {
+    // Upper bound is not too low and also not too high. This means the upper bound event is the
+    // one we're looking for! Return it.
+    return batchEvent
+  }
+
+  // Binary search to find the right event. The above checks will guarantee that the event does
+  // exist and that we'll find it during this search.
   while (lowerBound < upperBound) {
     const middleOfBounds = Math.floor((lowerBound + upperBound) / 2)
     batchEvent = await getStateBatchAppendedEventByBatchIndex(middleOfBounds)
