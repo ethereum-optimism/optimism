@@ -10,12 +10,28 @@ const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
 const overhead = 4200
 
+interface EncodableL2GasLimit {
+  data: Buffer | string
+  l1GasPrice: BigNumber | number
+  l2GasLimit: BigNumber | number
+  l2GasPrice: BigNumber | number
+}
+
 function encode(
-  data: Buffer | string,
-  l1GasPrice: BigNumber,
-  l2GasLimit: BigNumber,
-  l2GasPrice: BigNumber
+  input: EncodableL2GasLimit
 ): BigNumber {
+  const {data} = input
+  let {l1GasPrice, l2GasLimit, l2GasPrice} = input
+  if (typeof l1GasPrice === 'number') {
+    l1GasPrice = BigNumber.from(l1GasPrice)
+  }
+  if (typeof l2GasLimit === 'number') {
+    l2GasLimit = BigNumber.from(l2GasLimit)
+  }
+  if (typeof l2GasPrice === 'number') {
+    l2GasPrice = BigNumber.from(l2GasPrice)
+  }
+
   if (!verifyL2GasPrice(l2GasPrice)) {
     throw new Error(`Invalid L2 Gas Price: ${l2GasPrice.toString()}`)
   }

@@ -350,12 +350,12 @@ describe('Basic RPC tests', () => {
         // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
         // but it does not yet exist. Use the default value for now
         const l2GasPrice = BigNumber.from(1)
-        const expected = L2GasLimit.encode(
-          tx.data,
-          roundL1GasPrice(l1GasPrice),
-          BigNumber.from(l2Gaslimit),
-          l2GasPrice
-        )
+        const expected = L2GasLimit.encode({
+          data: tx.data,
+          l1GasPrice: roundL1GasPrice(l1GasPrice),
+          l2GasLimit: BigNumber.from(l2Gaslimit),
+          l2GasPrice,
+        })
         expect(expected).to.deep.eq(estimate)
       }
     })
