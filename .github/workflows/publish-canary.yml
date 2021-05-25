@@ -1,13 +1,12 @@
-name: Release
+name: Publish Packages (canary)
 
 on:
-  push:
-    branches:
-      - master
+  # enable users to manually trigger with workflow_dispatch
+  workflow_dispatch: {}
 
 jobs:
-  release:
-    name: Release
+  canary-publish:
+    name: Publish Packages (canary)
     runs-on: ubuntu-latest
     # map the step outputs to job outputs
     outputs:
@@ -19,8 +18,8 @@ jobs:
       contracts: ${{ steps.packages.outputs.contracts }}
 
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@master
+      - name: Check out source code
+        uses: actions/checkout@v2
         with:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
@@ -41,15 +40,21 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
-
+      
       - name: Install Dependencies
         run: yarn
 
-      - name: Publish To NPM or Create Release Pull Request
+      - name: Build
+        run: yarn build
+
+      - name: Setup Canary Snapshot
+        run: yarn changeset version --snapshot
+
+      - name: Publish To NPM
         uses: changesets/action@master
         id: changesets
         with:
-          publish: yarn release
+          publish: yarn changeset publish --tag canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -58,18 +63,18 @@ jobs:
       # job outputs
       - name: Get version tags from each published version
         id: packages
-        if: steps.changesets.outputs.published == 'true'
         run: |
           node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
+
 
   # The below code is duplicated, would be ideal if we could use a matrix with a
   # key/value being dynamically generated from the `publishedPackages` output
   # while also allowing for parallelization (i.e. `l2geth` not depending on `builder`)
   # and all jobs executing in parallel once `builder` is built
   l2geth:
-    name: Publish L2Geth Version ${{ needs.release.outputs.l2geth }}
-    needs: release
-    if: needs.release.outputs.l2geth != ''
+    name: Publish L2Geth Version ${{ needs.canary-publish.outputs.l2geth }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.l2geth != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -90,21 +95,21 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.geth
           push: true
-          tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }}
+          tags: ethereumoptimism/l2geth:${{ needs.canary-publish.outputs.l2geth }}
 
   # pushes the base builder image to dockerhub
   builder:
     name: Prepare the base builder image for the services
-    needs: release
-    if: needs.release.outputs.builder == 'true'
+    needs: canary-publish
+    if: needs.canary-publish.outputs.builder == 'true'
     runs-on: ubuntu-latest
     # we re-output the variables so that the child jobs can access them
     outputs:
-      batch-submitter: ${{ needs.release.outputs.batch-submitter }}
-      message-relayer: ${{ needs.release.outputs.message-relayer }}
-      data-transport-layer: ${{ needs.release.outputs.data-transport-layer }}
-      contracts: ${{ needs.release.outputs.contracts }}
-      integration-tests: ${{ needs.release.outputs.integration-tests }}
+      batch-submitter: ${{ needs.canary-publish.outputs.batch-submitter }}
+      message-relayer: ${{ needs.canary-publish.outputs.message-relayer }}
+      data-transport-layer: ${{ needs.canary-publish.outputs.data-transport-layer }}
+      contracts: ${{ needs.canary-publish.outputs.contracts }}
+      integration-tests: ${{ needs.canary-publish.outputs.integration-tests }}
 
     steps:
       - name: Checkout
