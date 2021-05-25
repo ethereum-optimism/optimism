@@ -75,12 +75,19 @@ export class Watcher {
   ): Promise<TransactionReceipt> {
     const blockNumber = await layer.provider.getBlockNumber()
     const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
-    const filter = {
+    const successFilter = {
       address: layer.messengerAddress,
       topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
       fromBlock: startingBlock,
     }
-    const logs = await layer.provider.getLogs(filter)
+    const failureFilter = {
+      address: layer.messengerAddress,
+      topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`)],
+      fromBlock: startingBlock,
+    }
+    const successLogs = await layer.provider.getLogs(successFilter)
+    const failureLogs = await layer.provider.getLogs(failureFilter)
+    const logs = successLogs.concat(failureLogs)
     const matches = logs.filter((log: any) => log.data === msgHash)
 
     // Message was relayed in the past
@@ -98,19 +105,23 @@ export class Watcher {
 
     // Message has yet to be relayed, poll until it is found
     return new Promise(async (resolve, reject) => {
-      layer.provider.on(filter, async (log: any) => {
+      const handleEvent = async (log: any) => {
         if (log.data === msgHash) {
           try {
             const txReceipt = await layer.provider.getTransactionReceipt(
               log.transactionHash
             )
-            layer.provider.off(filter)
+            layer.provider.off(successFilter)
+            layer.provider.off(failureFilter)
             resolve(txReceipt)
           } catch (e) {
             reject(e)
           }
         }
-      })
+      }
+
+      layer.provider.on(successFilter, handleEvent)
+      layer.provider.on(failureFilter, handleEvent)
     })
   }
 }

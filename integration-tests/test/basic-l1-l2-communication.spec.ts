@@ -95,12 +95,12 @@ describe('Basic L1<>L2 Communication', async () => {
     })
 
     it('should have a receipt with a status of 1 for a successful message', async () => {
+      const value = `0x${'42'.repeat(32)}`
+
       // Send L1 -> L2 message.
       const transaction = await env.l1Messenger.sendMessage(
         L2SimpleStorage.address,
-        L2SimpleStorage.interface.encodeFunctionData('setValue', [
-          `0x${'42'.repeat(32)}`,
-        ]),
+        L2SimpleStorage.interface.encodeFunctionData('setValue', [value]),
         5000000
       )
 

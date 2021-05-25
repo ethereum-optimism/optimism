@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -198,7 +199,7 @@ type Context struct {
 	OvmStateManager           dump.OvmDumpAccount
 	OvmSafetyChecker          dump.OvmDumpAccount
 	OvmL2CrossDomainMessenger dump.OvmDumpAccount
-	OvmL1MessageSender        dump.OvmDumpAccount
+	OvmETH                    dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -250,7 +251,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		ctx.OvmStateManager = chainConfig.StateDump.Accounts["OVM_StateManager"]
 		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
 		ctx.OvmL2CrossDomainMessenger = chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
-		ctx.OvmL1MessageSender = chainConfig.StateDump.Accounts["OVM_L1MessageSender"]
+		ctx.OvmETH = chainConfig.StateDump.Accounts["OVM_ETH"]
 	}
 
 	id := make([]byte, 4)
@@ -388,8 +389,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}()
 	}
 
-	ret, err = run(evm, contract, input, false)
-
 	// Here's where we detect L1 => L2 messages. Based on the current contracts, we're guaranteed
 	// that the target address will only be the OVM_L2CrossDomainMessenger at a depth of 1 if this
 	// is an L1 => L2 message.
@@ -397,12 +396,26 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		evm.Context.IsL1ToL2Message = true
 	}
 
-	// If we're inside of an L1 => L2 message AND we're at a depth of 3 AND the target is not the
-	// OVM_L1MessageSender predeploy, then this is the target call that we're interested in. It's
-	// not pretty, but it works. As long as we don't have an error here then we can consider this
-	// a successful L1 => L2 message.
-	if evm.Context.IsL1ToL2Message && evm.depth == 3 && addr != evm.Context.OvmL1MessageSender.Address && err != nil {
-		evm.Context.IsSuccessfulL1ToL2Message = true
+	ret, err = run(evm, contract, input, false)
+
+	// If all of these very particular conditions hold then we're guaranteed to be in a successful
+	// L1 => L2 message. It's not pretty, but it works. Broke this out into a series of checks to
+	// make it a bit more legible.
+	if evm.Context.IsL1ToL2Message && evm.depth == 3 {
+		var isValidMessageTarget = true
+		// 0x420... addresses are not valid targets except for the ETH predeploy.
+		if bytes.HasPrefix(addr.Bytes(), fortyTwoPrefix) && addr != evm.Context.OvmETH.Address {
+			isValidMessageTarget = false
+		}
+		// 0xdead... addresses are not valid targets.
+		if bytes.HasPrefix(addr.Bytes(), deadPrefix) {
+			isValidMessageTarget = false
+		}
+		// As long as this is a valid target and the message didn't revert then we can consider
+		// this a successful L1 => L2 message.
+		if isValidMessageTarget && err == nil {
+			evm.Context.IsSuccessfulL1ToL2Message = true
+		}
 	}
 
 	// When an error was returned by the EVM or when setting the creation code
