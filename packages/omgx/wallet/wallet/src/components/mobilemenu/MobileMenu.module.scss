@@ -1,0 +1,17 @@
+@import 'index.scss';
+
+.menu {
+  background-color: $gray7;
+  padding: 15px;
+  position: fixed;
+  top: 60px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: none;
+  max-width: initial;
+  z-index: 2;
+  &.open {
+    display: flex;
+  }
+}

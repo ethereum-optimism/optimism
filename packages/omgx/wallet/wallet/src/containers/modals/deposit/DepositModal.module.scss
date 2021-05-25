@@ -1,0 +1,28 @@
+@import 'index.scss';
+
+.buttons {
+  display: flex;
+  flex-direction: row;
+  margin-top: 30px;
+  justify-content: flex-end;
+
+  div:first-child {
+    margin-right: 10px;
+  }
+}
+
+.disclaimer {
+  font-size: 0.8em;
+  margin-top: 10px;
+}
+
+.tabs {
+  margin-top: 20px;
+}
+
+.loader {
+  height: 250px;
+  display: flex;
+  justify-items: center;
+  align-items: center;
+}

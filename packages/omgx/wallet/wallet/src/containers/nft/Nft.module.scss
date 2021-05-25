@@ -1,0 +1,42 @@
+@import 'index.scss';
+
+.container {
+  padding-right: 20px;
+
+  .boxContainer{
+    display: inline-block;
+    max-width: 500px;
+    padding: 20px;
+    padding-top: 0px;
+    vertical-align: top;
+
+    .button {
+      max-width: 500px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    .select {
+      flex: 1 1;
+      background-color: #d2d2d2;
+      color: #565656;
+      font-size: 1em;
+      border: none;
+      outline: none;
+      border: 1px solid #d2d2d2;
+      background-color: #F8F8F8;
+      padding: 10px;
+      width: 100%;
+      max-width: 500px;
+    }
+  }
+}
+
+.NFTroot {
+  flexGrow: 1;
+  padding: 10px;
+  maxWidth: 345;
+}
+
+.NFTmedia {
+  height: 140;
+}

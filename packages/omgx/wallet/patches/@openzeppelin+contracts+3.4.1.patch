@@ -1,0 +1,66 @@
+diff --git a/node_modules/@openzeppelin/contracts/token/ERC721/ERC721.sol b/node_modules/@openzeppelin/contracts/token/ERC721/ERC721.sol
+index 7958fdf..20b8972 100644
+--- a/node_modules/@openzeppelin/contracts/token/ERC721/ERC721.sol
++++ b/node_modules/@openzeppelin/contracts/token/ERC721/ERC721.sol
+@@ -19,6 +19,7 @@ import "../../utils/Strings.sol";
+  * @dev see https://eips.ethereum.org/EIPS/eip-721
+  */
+ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata, IERC721Enumerable {
++    
+     using SafeMath for uint256;
+     using Address for address;
+     using EnumerableSet for EnumerableSet.UintSet;
+@@ -136,18 +137,19 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata, IERC721Enumerable
+         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+ 
+         string memory _tokenURI = _tokenURIs[tokenId];
+-        string memory base = baseURI();
+-
+-        // If there is no base URI, return the token URI.
+-        if (bytes(base).length == 0) {
+-            return _tokenURI;
+-        }
+-        // If both are set, concatenate the baseURI and tokenURI (via abi.encodePacked).
+-        if (bytes(_tokenURI).length > 0) {
+-            return string(abi.encodePacked(base, _tokenURI));
+-        }
+-        // If there is a baseURI but no tokenURI, concatenate the tokenID to the baseURI.
+-        return string(abi.encodePacked(base, tokenId.toString()));
++        //string memory base = baseURI();
++
++        // // If there is no base URI, return the token URI.
++        // if (bytes(base).length == 0) {
++             return _tokenURI;
++        // }
++        // // If both are set, concatenate the baseURI and tokenURI (via abi.encodePacked).
++        // if (bytes(_tokenURI).length > 0) {
++        //     return string(abi.encodePacked(base, _tokenURI));
++        // }
++        // // If there is a baseURI but no tokenURI, concatenate the tokenID to the baseURI.
++        // return string(abi.encodePacked(base, tokenId.toString()));
++        //return "TestTestTest";
+     }
+ 
+     /**
+diff --git a/node_modules/@openzeppelin/contracts/utils/Address.sol b/node_modules/@openzeppelin/contracts/utils/Address.sol
+index 42a9dc1..bb610c2 100644
+--- a/node_modules/@openzeppelin/contracts/utils/Address.sol
++++ b/node_modules/@openzeppelin/contracts/utils/Address.sol
+@@ -51,7 +51,7 @@ library Address {
+      * https://solidity.readthedocs.io/en/v0.5.11/security-considerations.html#use-the-checks-effects-interactions-pattern[checks-effects-interactions pattern].
+      */
+     function sendValue(address payable recipient, uint256 amount) internal {
+-        require(address(this).balance >= amount, "Address: insufficient balance");
++        //require(address(this).balance >= amount, "Address: insufficient balance");
+ 
+         // solhint-disable-next-line avoid-low-level-calls, avoid-call-value
+         (bool success, ) = recipient.call{ value: amount }("");
+@@ -112,7 +112,7 @@ library Address {
+      * _Available since v3.1._
+      */
+     function functionCallWithValue(address target, bytes memory data, uint256 value, string memory errorMessage) internal returns (bytes memory) {
+-        require(address(this).balance >= value, "Address: insufficient balance for call");
++        //require(address(this).balance >= value, "Address: insufficient balance for call");
+         require(isContract(target), "Address: call to non-contract");
+ 
+         // solhint-disable-next-line avoid-low-level-calls

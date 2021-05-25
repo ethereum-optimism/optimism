@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build
+build/
+build-ovm/
+artifacts/
+artifacts-ovm/
+cache/
+cache-ovm/
+deployment/*.json
+wallet/src/deployment
+# IDE
+/.idea
+/.awcache
+/.vscode
+*.iml
+
+# misc
+*.swp
+.DS_Store
+/packages/**/LICENSE.txt
+*.test.tmp
+/**/package-lock.json
+
+/**/.env
+env.js
+
+/**/*.log
+
+*.bytecode
+
+# security
+*.pem
+
+# Local Dockerfiles
+*.mine.yml
+
+yarn.lock
