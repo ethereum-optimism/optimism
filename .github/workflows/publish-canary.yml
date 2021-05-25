@@ -45,13 +45,11 @@ jobs:
         run: yarn
 
       - name: Publish To NPM or Create Release Pull Request
-        uses: changesets/action@master
         id: changesets
-        with:
-          publish: |
-            yarn build
-            yarn changeset version --snapshot
-            yarn changeset publish --tag canary
+        run: |
+          yarn build
+          yarn changeset version --snapshot
+          yarn changeset publish --tag canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -60,7 +58,6 @@ jobs:
       # job outputs
       - name: Get version tags from each published version
         id: packages
-        if: steps.changesets.outputs.published == 'true'
         run: |
           node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
 
