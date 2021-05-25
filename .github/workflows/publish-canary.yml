@@ -47,14 +47,13 @@ jobs:
       - name: Build
         run: yarn build
 
-      - name: Ignore Changesets
-        run: rm -rf .changeset/*.md
+      - name: Setup Canary Snapshot
+        run: yarn changeset version --snapshot
 
-      - name: Publish To NPM or Create Release Pull Request
+      - name: Publish To NPM
         uses: changesets/action@master
         id: changesets
         with:
-          version: yarn changeset version --snapshot
           publish: yarn changeset publish --tag canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
