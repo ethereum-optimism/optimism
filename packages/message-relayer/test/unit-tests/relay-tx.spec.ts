@@ -7,6 +7,5 @@ import { ethers } from 'ethers'
 import { makeRelayTransactionData } from '../../src/relay-tx'
 
 describe('relay transaction generation functions', () => {
-  describe('makeRelayTransactionData', () => {
-  })
+  describe('makeRelayTransactionData', () => {})
 })

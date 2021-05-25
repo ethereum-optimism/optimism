@@ -6,7 +6,7 @@ import {
   toHexString,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
-import { getContractInterface } from '@eth-optimism/contracts'
+import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
 
@@ -293,7 +293,7 @@ export const makeRelayTransactionData = async (
   const stateTrieProof = await getStateTrieProof(
     l2RpcProvider,
     l2Transaction.blockNumber + NUM_L2_GENESIS_BLOCKS,
-    l2CrossDomainMessengerAddress,
+    predeploys.OVM_L2ToL1MessagePasser,
     messageSlot
   )
 
