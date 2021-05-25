@@ -21,12 +21,6 @@ import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManag
  */
 contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_AddressResolver {
 
-    /*************
-     * Constants *
-     ************/
-
-    uint32 constant ETH_FINALIZE_L2_GAS = 1_200_000;
-
     /********************************
      * External Contract References *
      ********************************/
@@ -70,12 +64,14 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     /**
      * @dev This function can be called with no data
      * to deposit an amount of ETH to the caller's balance on L2.
+     * Since the receive function doesn't take data, a conservative
+     * default of 1.2 Million gas is forwarded to L2.
      */
     receive()
         external
         payable
     {
-        _initiateDeposit(msg.sender, msg.sender, 0, bytes(""));
+        _initiateDeposit(msg.sender, msg.sender, 1_200_000, bytes(""));
     }
 
     /**

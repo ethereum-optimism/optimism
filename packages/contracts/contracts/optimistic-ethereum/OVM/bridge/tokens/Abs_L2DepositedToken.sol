@@ -81,9 +81,6 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
      * Overridable Accounting logic *
      ********************************/
 
-    // Default gas value which can be overridden if more complex logic runs on L1.
-    uint32 internal constant DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS = 100_000;
-
     /**
      * @dev Core logic to be performed when a withdrawal from L2 is initialized.
      * In most cases, this will simply burn the withdrawn L2 funds.
