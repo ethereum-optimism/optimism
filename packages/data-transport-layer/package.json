@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.2",
-    
     "@eth-optimism/core-utils": "^0.4.3",
     "@ethersproject/providers": "^5.0.21",
     "@ethersproject/transactions": "^5.0.21",
@@ -38,7 +37,7 @@
     "express-prom-bundle": "^6.3.6",
     "level": "^6.0.1",
     "levelup": "^4.4.0",
-    "@metis.io/contracts": "^1.0.*",
+    "@metis.io/contracts": "^1.1.*",
     "node-fetch": "^2.6.1"
   },
   "devDependencies": {

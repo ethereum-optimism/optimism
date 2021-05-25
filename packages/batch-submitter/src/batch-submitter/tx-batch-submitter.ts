@@ -345,7 +345,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         nextQueueIndex++
       }
     }
-
     // Verify all of the batch elements are monotonic
     let lastTimestamp: number
     let lastBlockNumber: number
@@ -387,6 +386,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         this.l2ChainId,
         queueIndex
       )
+    console.log("test1",timestamp,blockNumber,queueElement)
     if(timestamp==0&&blockNumber==0)
       return true
     // TODO: Verify queue element hash equality. The queue element hash can be computed with:

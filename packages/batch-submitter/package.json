@@ -40,7 +40,7 @@
     "bluebird": "^3.7.2",
     "dotenv": "^8.2.0",
     "ethers": "5.0.0",
-    "@metis.io/contracts": "^1.0.*",
+    "@metis.io/contracts": "^1.1.*",
     "prom-client": "^13.1.0"
   },
   "devDependencies": {

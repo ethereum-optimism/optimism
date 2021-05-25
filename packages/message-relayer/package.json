@@ -31,7 +31,7 @@
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.2",
     "bcfg": "^0.1.6",
-    "@metis.io/contracts": "^1.0.*",
+    "@metis.io/contracts": "^1.1.*",
     "@eth-optimism/core-utils": "^0.4.3",
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",

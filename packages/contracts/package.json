@@ -1,6 +1,6 @@
 {
   "name": "@metis.io/contracts",
-  "version": "0.3.2",
+  "version": "1.1.1",
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
