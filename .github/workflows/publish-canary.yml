@@ -28,7 +28,6 @@ jobs:
         uses: actions/setup-node@master
         with:
           node-version: 12.x
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
@@ -44,6 +43,14 @@ jobs:
       
       - name: Install Dependencies
         run: yarn
+
+      - name: Create .npmrc
+        run: |
+          cat << EOF > "$HOME/.npmrc"
+            //registry.npmjs.org/:_authToken=$NPM_TOKEN
+          EOF
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish To NPM or Create Release Pull Request
         id: changesets
