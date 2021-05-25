@@ -14,7 +14,7 @@ describe('Syncing a verifier', () => {
 
   const provider = injectL2Context(l2Provider)
 
-  /** Helper functions **/
+  /* Helper functions */
 
   const waitForBatchSubmission = async (totalElementsBefore: BigNumber) => {
     // Wait for batch submission to happen by watching the CTC
@@ -65,7 +65,7 @@ describe('Syncing a verifier', () => {
     wallet = env.l2Wallet
   })
 
-  describe('Basic transactions', () => {
+  describe('Basic transactions and ERC20s', () => {
     const initialAmount = 1000
     const tokenName = 'OVM Test'
     const tokenDecimals = 8
@@ -76,8 +76,6 @@ describe('Syncing a verifier', () => {
     let ERC20: Contract
 
     before(async () => {
-      const env = await OptimismEnv.new()
-      wallet = env.l2Wallet
       other = Wallet.createRandom().connect(ethers.provider)
       Factory__ERC20 = await ethers.getContractFactory('ERC20', wallet)
     })

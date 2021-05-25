@@ -48,14 +48,14 @@ export class DockerComposeNetwork {
   }
 
   async logs() {
-    return await compose.logs(this.services, { cwd: OPS_DIRECTORY })
+    return compose.logs(this.services, { cwd: OPS_DIRECTORY })
   }
 
   async stop(service: ServiceNames) {
-    return await compose.stopOne(service, { cwd: OPS_DIRECTORY })
+    return compose.stopOne(service, { cwd: OPS_DIRECTORY })
   }
 
   async rm() {
-    return await compose.rm({ cwd: OPS_DIRECTORY })
+    return compose.rm({ cwd: OPS_DIRECTORY })
   }
 }
