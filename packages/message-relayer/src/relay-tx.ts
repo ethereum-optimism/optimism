@@ -41,6 +41,13 @@ interface StateTrieProof {
   storageProof: string
 }
 
+/**
+ * Finds the L2 => L1 message triggered by a given L2 transaction, if the message exists.
+ * @param l2RpcProvider L2 RPC provider.
+ * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
+ * @param l2TransactionHash Hash of the L2 transaction to find a message for.
+ * @returns Message assocaited with the transaction or null if no such message exists.
+ */
 const getMessageByTransactionHash = async (
   l2RpcProvider: ethers.providers.JsonRpcProvider,
   l2CrossDomainMessengerAddress: string,
@@ -87,6 +94,11 @@ const getMessageByTransactionHash = async (
   }
 }
 
+/**
+ * Encodes a cross domain message.
+ * @param message Message to encode.
+ * @returns Encoded message.
+ */
 const encodeCrossDomainMessage = (message: CrossDomainMessage): string => {
   return getContractInterface(
     'OVM_L2CrossDomainMessenger'
@@ -98,6 +110,13 @@ const encodeCrossDomainMessage = (message: CrossDomainMessage): string => {
   ])
 }
 
+/**
+ * Finds the StateBatchAppended event associated with a given L2 transaction.
+ * @param l1RpcProvider L1 RPC provider.
+ * @param l1StateCommitmentChainAddress Address of the L1StateCommitmentChain.
+ * @param l2TransactionIndex Index of the L2 transaction to find a StateBatchAppended event for.
+ * @returns StateBatchAppended event for the given transaction or null if no such event exists.
+ */
 export const getStateBatchAppendedEventByTransactionIndex = async (
   l1RpcProvider: ethers.providers.JsonRpcProvider,
   l1StateCommitmentChainAddress: string,
@@ -166,7 +185,15 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
   return batchEvent
 }
 
-export const getStateRootBatchByIndex = async (
+/**
+ * Finds the full state root batch associated with a given transaction index.
+ * @param l1RpcProvider L1 RPC provider.
+ * @param l1StateCommitmentChainAddress Address of the L1StateCommitmentChain.
+ * @param l2TransactionIndex Index of the L2 transaction to find a state root batch for.
+ * @returns State root batch associated with the given transaction index or null if no state root
+ * batch exists.
+ */
+export const getStateRootBatchByTransactionIndex = async (
   l1RpcProvider: ethers.providers.JsonRpcProvider,
   l1StateCommitmentChainAddress: string,
   l2TransactionIndex: number
@@ -204,6 +231,12 @@ export const getStateRootBatchByIndex = async (
   }
 }
 
+/**
+ * Generates a Merkle proof (using the particular scheme we use within Lib_MerkleTree).
+ * @param leaves Leaves of the merkle tree.
+ * @param index Index to generate a proof for.
+ * @returns Merkle proof sibling leaves, as hex strings.
+ */
 const getMerkleTreeProof = (leaves: string[], index: number): string[] => {
   const parsedLeaves = []
   for (let i = 0; i < Math.pow(2, Math.ceil(Math.log2(leaves.length))); i++) {
@@ -230,6 +263,14 @@ const getMerkleTreeProof = (leaves: string[], index: number): string[] => {
   return proof
 }
 
+/**
+ * Generates a Merkle-Patricia trie proof for a given account and storage slot.
+ * @param l2RpcProvider L2 RPC provider.
+ * @param blockNumber Block number to generate the proof at.
+ * @param address Address to generate the proof for.
+ * @param slot Storage slot to generate the proof for.
+ * @returns Account proof and storage proof.
+ */
 const getStateTrieProof = async (
   l2RpcProvider: ethers.providers.JsonRpcProvider,
   blockNumber: number,
@@ -251,10 +292,11 @@ const getStateTrieProof = async (
 /**
  * Generates the transaction data to send to the L1CrossDomainMessenger in order to execute an
  * L2 => L1 message.
- * @param l2RpcProviderUrl
- * @param l2CrossDomainMessengerAddress
- * @param l2TransactionHash
- * @param l2BlockOffset
+ * @param l1RpcProviderUrl L1 RPC provider url.
+ * @param l2RpcProviderUrl L2 RPC provider url.
+ * @param l1StateCommitmentChainAddress Address of the StateCommitmentChain.
+ * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
+ * @param l2TransactionHash L2 transaction hash to generate a relay transaction for.
  * @returns 0x-prefixed transaction data as a hex string.
  */
 export const makeRelayTransactionData = async (
@@ -267,11 +309,13 @@ export const makeRelayTransactionData = async (
   const l1RpcProvider = new ethers.providers.JsonRpcProvider(l1RpcProviderUrl)
   const l2RpcProvider = new ethers.providers.JsonRpcProvider(l2RpcProviderUrl)
 
+  // Step 1: Find the transaction.
   const l2Transaction = await l2RpcProvider.getTransaction(l2TransactionHash)
   if (l2Transaction === null) {
     throw new Error(`unable to find tx with hash: ${l2TransactionHash}`)
   }
 
+  // Step 2: Find the message associated with the transaction.
   const message = await getMessageByTransactionHash(
     l2RpcProvider,
     l2CrossDomainMessengerAddress,
@@ -283,13 +327,13 @@ export const makeRelayTransactionData = async (
     )
   }
 
+  // Step 3: Generate a state trie proof for the slot where the message is located.
   const messageSlot = ethers.utils.keccak256(
     ethers.utils.keccak256(
       encodeCrossDomainMessage(message) +
         remove0x(l2CrossDomainMessengerAddress)
     ) + '00'.repeat(32)
   )
-
   const stateTrieProof = await getStateTrieProof(
     l2RpcProvider,
     l2Transaction.blockNumber + NUM_L2_GENESIS_BLOCKS,
@@ -297,20 +341,28 @@ export const makeRelayTransactionData = async (
     messageSlot
   )
 
-  const batch = await getStateRootBatchByIndex(
+  // Step 4: Find the full batch associated with the transaction.
+  const batch = await getStateRootBatchByTransactionIndex(
     l1RpcProvider,
     l1StateCommitmentChainAddress,
     l2Transaction.blockNumber - NUM_L2_GENESIS_BLOCKS
   )
+  if (batch === null) {
+    throw new Error(
+      `unable to find state root batch for tx with hash: ${l2TransactionHash}`
+    )
+  }
 
+  // Step 5: Generate a Merkle proof for the state root associated with the transaction inside of
+  // the Merkle tree of state roots published as a batch.
   const txIndexInBatch =
     l2Transaction.blockNumber - batch.header.prevTotalElements.toNumber()
-
   const stateRootMerkleProof = getMerkleTreeProof(
     batch.stateRoots,
     txIndexInBatch
   )
 
+  // Step 6: Generate the transaction data.
   const relayTransactionData = getContractInterface(
     'OVM_L1CrossDomainMessenger'
   ).encodeFunctionData('relayMessage', [
