@@ -44,15 +44,21 @@ jobs:
       - name: Install Dependencies
         run: yarn
 
-      - name: Build
-        run: yarn build
+      - name: Create .npmrc
+        run: |
+          cat << EOF > "$HOME/.npmrc"
+            //registry.npmjs.org/:_authToken=$NPM_TOKEN
+          EOF
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish To NPM
-        uses: changesets/action@master
+      - name: Publish To NPM or Create Release Pull Request
         id: changesets
-        with:
-          version: yarn changeset version --snapshot
-          publish: yarn changeset publish --tag canary
+        run: |
+          rm -rf .changeset
+          yarn build
+          yarn changeset version --snapshot
+          yarn changeset publish --tag canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
