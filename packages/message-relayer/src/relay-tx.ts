@@ -48,7 +48,7 @@ interface StateTrieProof {
  * @param l2TransactionHash Hash of the L2 transaction to find a message for.
  * @returns Message assocaited with the transaction or null if no such message exists.
  */
-const getMessageByTransactionHash = async (
+export const getMessageByTransactionHash = async (
   l2RpcProvider: ethers.providers.JsonRpcProvider,
   l2CrossDomainMessengerAddress: string,
   l2TransactionHash: string
