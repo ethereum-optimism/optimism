@@ -755,6 +755,8 @@ var (
 	MetricsEnabledFlag = cli.BoolFlag{
 		Name:  "metrics",
 		Usage: "Enable metrics collection and reporting",
+
+		EnvVar: "METRICS_ENABLE",
 	}
 	MetricsEnabledExpensiveFlag = cli.BoolFlag{
 		Name:  "metrics.expensive",
