@@ -8,6 +8,7 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
@@ -570,9 +571,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address proxyEOA = Lib_EthUtils.createContract(abi.encodePacked(
             hex"600D380380600D6000396000f3",
             ovmEXTCODECOPY(
-                0x4200000000000000000000000000000000000009,
+                Lib_PredeployAddresses.ovmProxyEOA,
                 0,
-                ovmEXTCODESIZE(0x4200000000000000000000000000000000000009)
+                ovmEXTCODESIZE(Lib_PredeployAddresses.ovmProxyEOA)
             )
         ));
 
@@ -848,7 +849,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // the deployer ovmCALLing the whitelist.  This is fine--in a sense, we are forcing them to.
         (bool success, bytes memory data) = ovmCALL(
             gasleft(),
-            0x4200000000000000000000000000000000000002,
+            Lib_PredeployAddresses.ovmDeployerWhitelist,
             abi.encodeWithSignature("isDeployerAllowed(address)", _deployerAddress)
         );
         bool isAllowed = abi.decode(data, (bool));
