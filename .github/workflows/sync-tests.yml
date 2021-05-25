@@ -40,12 +40,10 @@ jobs:
         working-directory: ./ops
         run: docker-compose up -d
       
-      - name: Add address params and check sequencer
-        working-directory: ./ops
-        run: ./scripts/check-sequencer.sh
-
       - name: Run the sync tests
         working-directory: ./integration-tests
-        run: |
-          yarn
-          yarn test:sync
+        run: yarn test:sync
+
+      # - name: Run the sync tests
+      #   working-directory: ./ops
+      #   run: docker-compose run sync_tests
