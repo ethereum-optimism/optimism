@@ -107,8 +107,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     },
     ovmGlobalContext: {
       ovmCHAINID: 420,
-      L2CrossDomainMessengerAddress:
-        '0x4200000000000000000000000000000000000007',
+      L2CrossDomainMessengerAddress: predeploys.OVM_L2CrossDomainMessenger,
     },
     transactionChainConfig: {
       sequencer: signer,

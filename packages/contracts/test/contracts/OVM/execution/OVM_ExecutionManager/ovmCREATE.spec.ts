@@ -14,6 +14,7 @@ import {
   getStorageXOR,
   encodeSolidityError,
 } from '../../../../helpers'
+import { predeploys } from '../../../../../src'
 
 const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
 const CREATED_CONTRACT_2 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
@@ -772,7 +773,7 @@ const test_ovmCREATE: TestDefinition = {
             },
           },
           contractStorage: {
-            ['0x4200000000000000000000000000000000000002']: {
+            [predeploys.OVM_DeployerWhitelist]: {
               // initialized? true, allowArbitraryDeployment? false
               '0x0000000000000000000000000000000000000000000000000000000000000000': getStorageXOR(
                 '0x0000000000000000000000000000000000000000000000000000000000000001'
@@ -788,7 +789,7 @@ const test_ovmCREATE: TestDefinition = {
             },
           },
           verifiedContractStorage: {
-            ['0x4200000000000000000000000000000000000002']: {
+            [predeploys.OVM_DeployerWhitelist]: {
               '0x0000000000000000000000000000000000000000000000000000000000000000': 1,
               [NON_WHITELISTED_DEPLOYER_KEY]: 1,
               [WHITELISTED_DEPLOYER_KEY]: 1,
@@ -902,7 +903,7 @@ const test_ovmCREATE: TestDefinition = {
             },
           },
           contractStorage: {
-            ['0x4200000000000000000000000000000000000002']: {
+            [predeploys.OVM_DeployerWhitelist]: {
               // initialized? true, allowArbitraryDeployment? true
               '0x0000000000000000000000000000000000000000000000000000000000000000': getStorageXOR(
                 '0x0000000000000000000000000000000000000000000000000000000000000101'
@@ -918,7 +919,7 @@ const test_ovmCREATE: TestDefinition = {
             },
           },
           verifiedContractStorage: {
-            ['0x4200000000000000000000000000000000000002']: {
+            [predeploys.OVM_DeployerWhitelist]: {
               '0x0000000000000000000000000000000000000000000000000000000000000000': 1,
               [NON_WHITELISTED_DEPLOYER_KEY]: 1,
               [WHITELISTED_DEPLOYER_KEY]: 1,
