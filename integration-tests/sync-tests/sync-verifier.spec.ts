@@ -3,9 +3,9 @@ import { Wallet, BigNumber, Contract, ContractFactory, providers } from 'ethers'
 import { ethers } from 'hardhat'
 import { injectL2Context } from '@eth-optimism/core-utils'
 
-import { sleep, l2Provider } from './shared/utils'
-import { OptimismEnv } from './shared/env'
-import { DockerComposeNetwork } from './shared/docker-compose'
+import { sleep, l2Provider } from '../test/shared/utils'
+import { OptimismEnv } from '../test/shared/env'
+import { DockerComposeNetwork } from '../test/shared/docker-compose'
 
 describe('Syncing a verifier', () => {
   let env: OptimismEnv
