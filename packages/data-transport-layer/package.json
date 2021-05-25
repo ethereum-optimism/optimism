@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.3.2",
+  "version": "0.0.0-2021425171543",
   "private": true,
   "main": "dist/index",
   "files": [
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.2",
-    "@eth-optimism/contracts": "^0.3.2",
+    "@eth-optimism/contracts": "^0.0.0-2021425171543",
     "@eth-optimism/core-utils": "^0.4.3",
     "@ethersproject/providers": "^5.0.21",
     "@ethersproject/transactions": "^5.0.21",

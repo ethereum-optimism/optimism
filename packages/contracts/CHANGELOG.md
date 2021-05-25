@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.0-2021425171543
+
+### Patch Changes
+
+- 5e5d4a1: Separates logic for getting state dumps and making state dumps so we can bundle for browser
+- 7bf5941: Remove colon names from filenames
+
 ## 0.3.2
 
 ### Patch Changes

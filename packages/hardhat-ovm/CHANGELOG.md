@@ -1,5 +1,12 @@
 # @eth-optimism/hardhat-ovm
 
+## 0.0.0-2021425171543
+
+### Patch Changes
+
+- 43c1fae: Allow for private key config option for signers
+- ef2fba1: Instantiate the harhat ethers provider using the Hardhat network config if no provider URL is set, and set the provider at the end, so that the overridden `getSigner` method is used.
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # data transport layer
 
+## 0.0.0-2021425171543
+
+### Patch Changes
+
+- e4c3b4b: Add Sentry and Metrics switches and environment tag to DTL
+- Updated dependencies [5e5d4a1]
+- Updated dependencies [7bf5941]
+  - @eth-optimism/contracts@0.0.0-2021425171543
+
 ## 0.3.2
 
 ### Patch Changes
