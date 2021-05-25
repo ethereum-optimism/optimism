@@ -1,0 +1,9 @@
+{
+  "name": "alt_messenger",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "enyalabs_contracts": "https://github.com/enyalabs/contracts.git"
+  }
+}
