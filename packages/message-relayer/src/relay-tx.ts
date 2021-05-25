@@ -159,7 +159,9 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
     return index >= prevTotalElements + batchSize
   }
 
-  const totalBatches = await l1StateCommitmentChain.getTotalBatches()
+  const totalBatches = (
+    await l1StateCommitmentChain.getTotalBatches()
+  ).toNumber()
   if (totalBatches === 0) {
     return null
   }
@@ -304,23 +306,20 @@ const getStateTrieProof = async (
 /**
  * Generates the transaction data to send to the L1CrossDomainMessenger in order to execute an
  * L2 => L1 message.
- * @param l1RpcProviderUrl L1 RPC provider url.
- * @param l2RpcProviderUrl L2 RPC provider url.
+ * @param l1RpcProvider L1 RPC provider.
+ * @param l2RpcProvider L2 RPC provider.
  * @param l1StateCommitmentChainAddress Address of the StateCommitmentChain.
  * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
  * @param l2TransactionHash L2 transaction hash to generate a relay transaction for.
  * @returns 0x-prefixed transaction data as a hex string.
  */
 export const makeRelayTransactionData = async (
-  l1RpcProviderUrl: string,
-  l2RpcProviderUrl: string,
+  l1RpcProvider: ethers.providers.JsonRpcProvider,
+  l2RpcProvider: ethers.providers.JsonRpcProvider,
   l1StateCommitmentChainAddress: string,
   l2CrossDomainMessengerAddress: string,
   l2TransactionHash: string
 ): Promise<string> => {
-  const l1RpcProvider = new ethers.providers.JsonRpcProvider(l1RpcProviderUrl)
-  const l2RpcProvider = new ethers.providers.JsonRpcProvider(l2RpcProviderUrl)
-
   // Step 1: Find the transaction.
   const l2Transaction = await l2RpcProvider.getTransaction(l2TransactionHash)
   if (l2Transaction === null) {
