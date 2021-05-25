@@ -55,7 +55,7 @@ jobs:
       - name: Publish To NPM or Create Release Pull Request
         id: changesets
         run: |
-          rm -rf .changeset
+          rm -rf .changeset/*.md
           yarn build
           yarn changeset version --snapshot
           yarn changeset publish --tag canary
