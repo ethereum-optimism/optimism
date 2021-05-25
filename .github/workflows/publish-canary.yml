@@ -28,6 +28,7 @@ jobs:
         uses: actions/setup-node@master
         with:
           node-version: 12.x
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
