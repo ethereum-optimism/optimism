@@ -172,8 +172,8 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         // Send calldata into L2
         sendCrossDomainMessage(
             l2DepositedToken,
-            message,
-            _l2Gas
+            _l2Gas,
+            message
         );
 
         // We omit _data here because events only support bytes32 types.

@@ -89,8 +89,8 @@ contract OVM_CrossDomainEnabled {
      */
     function sendCrossDomainMessage(
         address _crossDomainTarget,
-        bytes memory _message,
-        uint32 _gasLimit
+        uint32 _gasLimit,
+        bytes memory _message
     )
         internal
     {

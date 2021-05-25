@@ -207,8 +207,8 @@ abstract contract Abs_L2DepositedToken is iOVM_L2DepositedToken, OVM_CrossDomain
         // Send message up to L1 gateway
         sendCrossDomainMessage(
             address(l1TokenGateway),
-            message,
-            0
+            0,
+            message
         );
 
         emit WithdrawalInitiated(msg.sender, _to, _amount, _data);

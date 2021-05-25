@@ -152,8 +152,8 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         // Send calldata into L2
         sendCrossDomainMessage(
             ovmEth,
-            message,
-            _l2Gas
+            _l2Gas,
+            message
         );
 
         emit DepositInitiated(_from, _to, msg.value, _data);
