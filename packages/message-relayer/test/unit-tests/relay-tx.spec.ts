@@ -9,10 +9,10 @@ import { toPlainObject } from 'lodash'
 
 /* Imports: Internal */
 import {
-  makeRelayTransactionData,
+  getMessagesAndProofsForL2Transaction,
   getStateRootBatchByTransactionIndex,
   getStateBatchAppendedEventByTransactionIndex,
-  getMessageByTransactionHash,
+  getMessagesByTransactionHash,
 } from '../../src/relay-tx'
 
 describe('relay transaction generation functions', () => {
@@ -78,7 +78,7 @@ describe('relay transaction generation functions', () => {
   describe('getMessageByTransactionHash', () => {
     it('should throw an error if a transaction with the given hash does not exist', async () => {
       await expect(
-        getMessageByTransactionHash(
+        getMessagesByTransactionHash(
           l2RpcProvider,
           MockL2CrossDomainMessenger.address,
           ethers.constants.HashZero
@@ -90,39 +90,12 @@ describe('relay transaction generation functions', () => {
       const tx = await MockL2CrossDomainMessenger.doNothing()
 
       expect(
-        await getMessageByTransactionHash(
+        await getMessagesByTransactionHash(
           l2RpcProvider,
           MockL2CrossDomainMessenger.address,
           tx.hash
         )
-      ).to.equal(null)
-    })
-
-    it('should throw an error if the transaction emitted more than one SentMessage event', async () => {
-      const tx = await MockL2CrossDomainMessenger.emitMultipleSentMessageEvents(
-        [
-          {
-            target: ethers.constants.AddressZero,
-            sender: ethers.constants.AddressZero,
-            message: '0x',
-            messageNonce: 0,
-          },
-          {
-            target: ethers.constants.AddressZero,
-            sender: ethers.constants.AddressZero,
-            message: '0x',
-            messageNonce: 1,
-          },
-        ]
-      )
-
-      await expect(
-        getMessageByTransactionHash(
-          l2RpcProvider,
-          MockL2CrossDomainMessenger.address,
-          tx.hash
-        )
-      ).to.be.rejected
+      ).to.deep.equal([])
     })
 
     it('should return the parsed event if the transaction emitted exactly one SentMessage event', async () => {
@@ -135,12 +108,41 @@ describe('relay transaction generation functions', () => {
       const tx = await MockL2CrossDomainMessenger.emitSentMessageEvent(message)
 
       expect(
-        await getMessageByTransactionHash(
+        await getMessagesByTransactionHash(
           l2RpcProvider,
           MockL2CrossDomainMessenger.address,
           tx.hash
         )
-      ).to.deep.equal(message)
+      ).to.deep.equal([message])
+    })
+
+    it('should return the parsed events if the transaction emitted more than one SentMessage event', async () => {
+      const messages = [
+        {
+          target: ethers.constants.AddressZero,
+          sender: ethers.constants.AddressZero,
+          message: '0x',
+          messageNonce: 0,
+        },
+        {
+          target: ethers.constants.AddressZero,
+          sender: ethers.constants.AddressZero,
+          message: '0x',
+          messageNonce: 1,
+        },
+      ]
+
+      const tx = await MockL2CrossDomainMessenger.emitMultipleSentMessageEvents(
+        messages
+      )
+
+      expect(
+        await getMessagesByTransactionHash(
+          l2RpcProvider,
+          MockL2CrossDomainMessenger.address,
+          tx.hash
+        )
+      ).to.deep.equal(messages)
     })
   })
 
@@ -322,7 +324,7 @@ describe('relay transaction generation functions', () => {
   describe('makeRelayTransactionData', () => {
     it('should throw an error if the transaction does not exist', async () => {
       await expect(
-        makeRelayTransactionData(
+        getMessagesAndProofsForL2Transaction(
           l1RpcProvider,
           l2RpcProvider,
           StateCommitmentChain.address,
@@ -336,7 +338,7 @@ describe('relay transaction generation functions', () => {
       const tx = await MockL2CrossDomainMessenger.doNothing()
 
       await expect(
-        makeRelayTransactionData(
+        getMessagesAndProofsForL2Transaction(
           l1RpcProvider,
           l2RpcProvider,
           StateCommitmentChain.address,
@@ -355,7 +357,7 @@ describe('relay transaction generation functions', () => {
       })
 
       await expect(
-        makeRelayTransactionData(
+        getMessagesAndProofsForL2Transaction(
           l1RpcProvider,
           l2RpcProvider,
           StateCommitmentChain.address,

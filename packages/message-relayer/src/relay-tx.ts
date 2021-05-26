@@ -36,23 +36,39 @@ interface CrossDomainMessage {
   messageNonce: number
 }
 
+interface CrossDomainMessageProof {
+  stateRoot: string
+  stateRootBatchHeader: StateRootBatchHeader
+  stateRootProof: {
+    index: number
+    siblings: string[]
+  }
+  stateTrieWitness: string
+  storageTrieWitness: string
+}
+
+interface CrossDomainMessagePair {
+  message: CrossDomainMessage
+  proof: CrossDomainMessageProof
+}
+
 interface StateTrieProof {
   accountProof: string
   storageProof: string
 }
 
 /**
- * Finds the L2 => L1 message triggered by a given L2 transaction, if the message exists.
+ * Finds all L2 => L1 messages triggered by a given L2 transaction, if the message exists.
  * @param l2RpcProvider L2 RPC provider.
  * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
  * @param l2TransactionHash Hash of the L2 transaction to find a message for.
- * @returns Message assocaited with the transaction or null if no such message exists.
+ * @returns Messages associated with the transaction.
  */
-export const getMessageByTransactionHash = async (
+export const getMessagesByTransactionHash = async (
   l2RpcProvider: ethers.providers.JsonRpcProvider,
   l2CrossDomainMessengerAddress: string,
   l2TransactionHash: string
-): Promise<CrossDomainMessage> => {
+): Promise<CrossDomainMessage[]> => {
   // Complain if we can't find the given transaction.
   const transaction = await l2RpcProvider.getTransaction(l2TransactionHash)
   if (transaction === null) {
@@ -73,32 +89,23 @@ export const getMessageByTransactionHash = async (
     transaction.blockNumber
   )
 
-  // If there were no SentMessage events then this transaction did not send any L2 => L1 messaages.
-  if (sentMessageEvents.length === 0) {
-    return null
-  }
-
-  // Not sure exactly how to handle the special case that more than one message was sent in the
-  // same transaction. For now throwing an error seems fine. We can always deal with this later.
-  if (sentMessageEvents.length > 1) {
-    throw new Error(
-      `can currently only support one message per transaction, found ${sentMessageEvents}`
+  // Decode the messages and turn them into a nicer struct.
+  const sentMessages = sentMessageEvents.map((sentMessageEvent) => {
+    const encodedMessage = sentMessageEvent.args.message
+    const decodedMessage = l2CrossDomainMessenger.interface.decodeFunctionData(
+      'relayMessage',
+      encodedMessage
     )
-  }
 
-  // Decode the message and turn it into a nicer struct.
-  const encodedMessage = sentMessageEvents[0].args.message
-  const decodedMessage = l2CrossDomainMessenger.interface.decodeFunctionData(
-    'relayMessage',
-    encodedMessage
-  )
+    return {
+      target: decodedMessage._target,
+      sender: decodedMessage._sender,
+      message: decodedMessage._message,
+      messageNonce: decodedMessage._messageNonce.toNumber(),
+    }
+  })
 
-  return {
-    target: decodedMessage._target,
-    sender: decodedMessage._sender,
-    message: decodedMessage._message,
-    messageNonce: decodedMessage._messageNonce.toNumber(),
-  }
+  return sentMessages
 }
 
 /**
@@ -306,55 +313,29 @@ const getStateTrieProof = async (
 }
 
 /**
- * Generates the transaction data to send to the L1CrossDomainMessenger in order to execute an
- * L2 => L1 message.
+ * Finds all L2 => L1 messages sent in a given L2 transaction and generates proofs for each of
+ * those messages.
  * @param l1RpcProvider L1 RPC provider.
  * @param l2RpcProvider L2 RPC provider.
  * @param l1StateCommitmentChainAddress Address of the StateCommitmentChain.
  * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
  * @param l2TransactionHash L2 transaction hash to generate a relay transaction for.
- * @returns 0x-prefixed transaction data as a hex string.
+ * @returns An array of messages sent in the transaction and a proof of inclusion for each.
  */
-export const makeRelayTransactionData = async (
+export const getMessagesAndProofsForL2Transaction = async (
   l1RpcProvider: ethers.providers.JsonRpcProvider,
   l2RpcProvider: ethers.providers.JsonRpcProvider,
   l1StateCommitmentChainAddress: string,
   l2CrossDomainMessengerAddress: string,
   l2TransactionHash: string
-): Promise<string> => {
-  // Step 1: Find the transaction.
+): Promise<CrossDomainMessagePair[]> => {
   const l2Transaction = await l2RpcProvider.getTransaction(l2TransactionHash)
   if (l2Transaction === null) {
     throw new Error(`unable to find tx with hash: ${l2TransactionHash}`)
   }
 
-  // Step 2: Find the message associated with the transaction.
-  const message = await getMessageByTransactionHash(
-    l2RpcProvider,
-    l2CrossDomainMessengerAddress,
-    l2TransactionHash
-  )
-  if (message === null) {
-    throw new Error(
-      `unable to find a message to relay in tx with hash: ${l2TransactionHash}`
-    )
-  }
-
-  // Step 3: Generate a state trie proof for the slot where the message is located.
-  const messageSlot = ethers.utils.keccak256(
-    ethers.utils.keccak256(
-      encodeCrossDomainMessage(message) +
-        remove0x(l2CrossDomainMessengerAddress)
-    ) + '00'.repeat(32)
-  )
-  const stateTrieProof = await getStateTrieProof(
-    l2RpcProvider,
-    l2Transaction.blockNumber + NUM_L2_GENESIS_BLOCKS,
-    predeploys.OVM_L2ToL1MessagePasser,
-    messageSlot
-  )
-
-  // Step 4: Find the full batch associated with the transaction.
+  // Need to find the state batch for the given transaction. If no state batch has been published
+  // yet then we will not be able to generate a proof.
   const batch = await getStateRootBatchByTransactionIndex(
     l1RpcProvider,
     l1StateCommitmentChainAddress,
@@ -366,34 +347,61 @@ export const makeRelayTransactionData = async (
     )
   }
 
-  // Step 5: Generate a Merkle proof for the state root associated with the transaction inside of
-  // the Merkle tree of state roots published as a batch.
-  const txIndexInBatch =
-    l2Transaction.blockNumber - batch.header.prevTotalElements.toNumber()
-  const stateRootMerkleProof = getMerkleTreeProof(
-    batch.stateRoots,
-    txIndexInBatch
+  const messages = await getMessagesByTransactionHash(
+    l2RpcProvider,
+    l2CrossDomainMessengerAddress,
+    l2TransactionHash
   )
 
-  // Step 6: Generate the transaction data.
-  const relayTransactionData = getContractInterface(
-    'OVM_L1CrossDomainMessenger'
-  ).encodeFunctionData('relayMessage', [
-    message.target,
-    message.sender,
-    message.message,
-    message.messageNonce,
-    {
-      stateRoot: batch.stateRoots[txIndexInBatch],
-      stateRootBatchHeader: batch.header,
-      stateRootProof: {
-        index: txIndexInBatch,
-        siblings: stateRootMerkleProof,
-      },
-      stateTrieWitness: stateTrieProof.accountProof,
-      storageTrieWitness: stateTrieProof.storageProof,
-    },
-  ])
+  const messagePairs: CrossDomainMessagePair[] = []
+  for (const message of messages) {
+    // We need to calculate the specific storage slot that demonstrates that this message was
+    // actually included in the L2 chain. The following calculation is based on the fact that
+    // messages are stored in the following mapping on L2:
+    // https://github.com/ethereum-optimism/optimism/blob/c84d3450225306abbb39b4e7d6d82424341df2be/packages/contracts/contracts/optimistic-ethereum/OVM/predeploys/OVM_L2ToL1MessagePasser.sol#L23
+    // You can read more about how Solidity storage slots are computed for mappings here:
+    // https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#mappings-and-dynamic-arrays
+    const messageSlot = ethers.utils.keccak256(
+      ethers.utils.keccak256(
+        encodeCrossDomainMessage(message) +
+          remove0x(l2CrossDomainMessengerAddress)
+      ) + '00'.repeat(32)
+    )
 
-  return relayTransactionData
+    // We need a Merkle trie proof for the given storage slot. This allows us to prove to L1 that
+    // the message was actually sent on L2.
+    const stateTrieProof = await getStateTrieProof(
+      l2RpcProvider,
+      l2Transaction.blockNumber + NUM_L2_GENESIS_BLOCKS,
+      predeploys.OVM_L2ToL1MessagePasser,
+      messageSlot
+    )
+
+    // State roots are published in batches to L1 and correspond 1:1 to transactions. We compute a
+    // Merkle root for these state roots so that we only need to store the minimum amount of
+    // information on-chain. So we need to create a Merkle proof for the specific state root that
+    // corresponds to this transaction.
+    const txIndexInBatch =
+      l2Transaction.blockNumber - batch.header.prevTotalElements.toNumber()
+    const stateRootMerkleProof = getMerkleTreeProof(
+      batch.stateRoots,
+      txIndexInBatch
+    )
+
+    messagePairs.push({
+      message,
+      proof: {
+        stateRoot: batch.stateRoots[txIndexInBatch],
+        stateRootBatchHeader: batch.header,
+        stateRootProof: {
+          index: txIndexInBatch,
+          siblings: stateRootMerkleProof,
+        },
+        stateTrieWitness: stateTrieProof.accountProof,
+        storageTrieWitness: stateTrieProof.storageProof,
+      },
+    })
+  }
+
+  return messagePairs
 }
