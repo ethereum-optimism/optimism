@@ -1014,7 +1014,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (messageValue > 0) {
             bool transferredOvmEth = _attemptForcedEthTransfer(
                 _nextMessageContext.ovmADDRESS,
-                _nextMessageContext.ovmCALLVALUE
+                messageValue
             );
 
             // If the ETH transfer fails (e.g. due to insufficient balance), then treat this as a revert.
@@ -1059,7 +1059,23 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             (success, returndata) = _contract.call{gas: _gasLimit}(_data);
         }
 
-        // Switch back to the original message context now that we're out of the call.
+        // If the message threw an exception, its value should be returned back to the sender.
+        // So, we force it back, BEFORE returning the messageContext to the previous addresses.
+        if (messageValue > 0 && !success) {
+            bool transferredOvmEth = _attemptForcedEthTransfer(
+                prevMessageContext.ovmADDRESS,
+                messageValue
+            );
+
+            // Since we transferred it in above and the call reverted, the transfer back should always pass.
+            // If it did not, this is an OOG, and we have to make the parent out-of-gas as well.
+            // TODO: should we also enforce there is always enough extra gas to make it past this step?  This would mean this condition is only triggered due to some critical bug in the ERC20 implementation.
+            if (!transferredOvmEth) {
+                _revertWithFlag(RevertFlag.OUT_OF_GAS);
+            }
+        }
+
+        // Switch back to the original message context now that we're out of the call and all OVM_ETH is in the right place.
         _switchMessageContext(_nextMessageContext, prevMessageContext);
 
         // Assuming there were no reverts, the message record should be accurate here. We'll update
