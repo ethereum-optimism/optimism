@@ -2,7 +2,7 @@ import chai, { expect } from 'chai'
 import { Wallet, BigNumber, providers } from 'ethers'
 import { injectL2Context } from '@eth-optimism/core-utils'
 
-import { sleep, l2Provider } from '../test/shared/utils'
+import { sleep, l2Provider, verifierProvider } from '../test/shared/utils'
 import { OptimismEnv } from '../test/shared/env'
 import { DockerComposeNetwork } from '../test/shared/docker-compose'
 
@@ -11,11 +11,11 @@ describe('Syncing a verifier', () => {
   let wallet: Wallet
   let verifier: DockerComposeNetwork
 
-  const provider = injectL2Context(l2Provider)
+  const sequencerProvider = injectL2Context(l2Provider)
 
   /* Helper functions */
 
-  const waitForBatchSubmission = async (totalElementsBefore: BigNumber) => {
+  const waitForBatchSubmission = async (totalElementsBefore: BigNumber) : Promise<BigNumber> => {
     // Wait for batch submission to happen by watching the CTC
     let totalElementsAfter = (await env.ctc.getTotalElements()) as BigNumber
     while (totalElementsBefore.eq(totalElementsAfter)) {
@@ -37,18 +37,18 @@ describe('Syncing a verifier', () => {
       logs = await verifier.logs()
     }
 
-    const verifierProvider = injectL2Context(
-      new providers.JsonRpcProvider('http://localhost:8547')
+    const provider = injectL2Context(
+      verifierProvider
     )
 
     // Wait until verifier has caught up to the sequencer
-    let latestVerifierBlock = (await verifierProvider.getBlock('latest')) as any
+    let latestVerifierBlock = (await provider.getBlock('latest')) as any
     while (latestVerifierBlock.number < sequencerBlockNumber) {
       await sleep(500)
-      latestVerifierBlock = (await verifierProvider.getBlock('latest')) as any
+      latestVerifierBlock = (await provider.getBlock('latest')) as any
     }
 
-    return latestVerifierBlock
+    return provider.getBlock(sequencerBlockNumber)
   }
 
   before(async () => {
@@ -80,11 +80,11 @@ describe('Syncing a verifier', () => {
       )
       expect(totalElementsAfter.gt(totalElementsAfter))
 
-      const latestSequencerBlock = (await provider.getBlock('latest')) as any
+      const latestSequencerBlock = (await sequencerProvider.getBlock('latest')) as any
 
       const matchingVerifierBlock = await startAndSyncVerifier(
         latestSequencerBlock.number
-      )
+      ) as any
 
       expect(matchingVerifierBlock.stateRoot).to.eq(
         latestSequencerBlock.stateRoot
