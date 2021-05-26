@@ -25,6 +25,9 @@ type Config struct {
 	L1CrossDomainMessengerAddress common.Address
 	AddressManagerOwnerAddress    common.Address
 	L1ETHGatewayAddress           common.Address
+	GasPriceOracleAddress         common.Address
+	// Turns on checking of state for L2 gas price
+	EnableL2GasPolling bool
 	// Deployment Height of the canonical transaction chain
 	CanonicalTransactionChainDeployHeight *big.Int
 	// Path to the state dump
@@ -37,4 +40,6 @@ type Config struct {
 	DataPrice *big.Int
 	// The gas price to use for L2 congestion costs
 	ExecutionPrice *big.Int
+	// Only accept transactions with fees
+	EnforceFees bool
 }
