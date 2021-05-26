@@ -166,6 +166,9 @@ var (
 		utils.RollupDataPriceFlag,
 		utils.RollupExecutionPriceFlag,
 		utils.RollupBackendFlag,
+		utils.RollupEnableL2GasPollingFlag,
+		utils.RollupGasPriceOracleAddressFlag,
+		utils.RollupEnforceFeesFlag,
 	}
 
 	rpcFlags = []cli.Flag{

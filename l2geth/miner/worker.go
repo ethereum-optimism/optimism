@@ -872,12 +872,13 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 		if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginSequencer) {
 			tx.SetL1Timestamp(parent.Time())
 			prev := parent.Transactions()
-			if len(prev) != 1 {
-				panic("Cannot recover L1BlockNumber")
+			if len(prev) == 1 {
+				tx.SetL1BlockNumber(prev[0].L1BlockNumber().Uint64())
+			} else {
+				log.Error("Cannot recover L1 Blocknumber")
 			}
-			tx.SetL1BlockNumber(prev[0].L1BlockNumber().Uint64())
 		} else {
-			panic("Monotonicity violation")
+			log.Error("Cannot recover from monotonicity violation")
 		}
 	}
 

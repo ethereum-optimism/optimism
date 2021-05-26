@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.5
+
+### Patch Changes
+
+- d4c9793: Fixed a bug where reverts without data would not be correctly propagated for eth_call
+- 3958644: Adds the `debug_ingestTransactions` endpoint that takes a list of RPC transactions and applies each of them to the state sequentially. This is useful for testing purposes
+- c880043: Fix gas estimation logic for simple ETH transfers
+- 467d6cb: Adds a test for contract deployments that run out of gas
+- 4e6c3f9: add an env var METRICS_ENABLE for MetricsEnabledFlag
+
+## 0.3.4
+
+### Patch Changes
+
+- e2b70c1: Don't panic on a monotonicity violation
+
+## 0.3.3
+
+### Patch Changes
+
+- f5185bb: Fix bug with replica syncing where contract creations would fail in replicas but pass in the sequencer. This was due to the change from a custom batched tx serialization to the batch serialzation for txs being regular RLP encoding
+
+## 0.3.2
+
+### Patch Changes
+
+- 20242af: Fixes a bug in L2geth that causes it to skip the first deposit if there have been no deposits batch-submitted yet
+- cf3cfe4: Allow for dynamically set configuration of the gasLimit in the contracts by setting the storage slot at runtime
+- de5e3dc: Updates `scripts/start.sh` with the mainnet config by default
+
 ## 0.3.1
 
 ### Patch Changes

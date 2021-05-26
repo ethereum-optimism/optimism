@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-ovm
 
+## 0.2.1
+
+### Patch Changes
+
+- ef2fba1: Instantiate the harhat ethers provider using the Hardhat network config if no provider URL is set, and set the provider at the end, so that the overridden `getSigner` method is used.
+
 ## 0.2.0
 
 ### Minor Changes

@@ -18,8 +18,6 @@ import (
 const (
 	sequencer = "sequencer"
 	l1        = "l1"
-	EIP155    = "EIP155"
-	ETH_SIGN  = "ETH_SIGN"
 )
 
 // errElementNotFound represents the error case of the remote element not being
@@ -104,13 +102,13 @@ type signature struct {
 // When this struct exists in other structs and is set to `nil`,
 // it means that the decoding failed.
 type decoded struct {
-	Signature signature      `json:"sig"`
-	Value     hexutil.Uint64 `json:"value"`
-	GasLimit  uint64         `json:"gasLimit"`
-	GasPrice  uint64         `json:"gasPrice"`
-	Nonce     uint64         `json:"nonce"`
-	Target    common.Address `json:"target"`
-	Data      hexutil.Bytes  `json:"data"`
+	Signature signature       `json:"sig"`
+	Value     hexutil.Uint64  `json:"value"`
+	GasLimit  uint64          `json:"gasLimit"`
+	GasPrice  uint64          `json:"gasPrice"`
+	Nonce     uint64          `json:"nonce"`
+	Target    *common.Address `json:"target"`
+	Data      hexutil.Bytes   `json:"data"`
 }
 
 // RollupClient is able to query for information
@@ -344,10 +342,10 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 		data := res.Decoded.Data
 
 		var tx *types.Transaction
-		if to == (common.Address{}) {
+		if to == nil {
 			tx = types.NewContractCreation(nonce, value, gasLimit, gasPrice, data)
 		} else {
-			tx = types.NewTransaction(nonce, to, value, gasLimit, gasPrice, data)
+			tx = types.NewTransaction(nonce, *to, value, gasLimit, gasPrice, data)
 		}
 
 		txMeta := types.NewTransactionMeta(

@@ -1,6 +1,6 @@
 l2geth/                             @smartcontracts @tynes @karlfloersch
 packages/specs/l2geth/              @smartcontracts @tynes @karlfloersch
-packages/contracts/                 @smartcontracts @ben-chain @maurelian
+packages/contracts/                 @smartcontracts @ben-chain @maurelian @elenadimitrova
 packages/specs/protocol/            @smartcontracts @ben-chain @maurelian
 ops/                                @tynes @karlfloersch
 packages/hardhat-ovm/               @smartcontracts

@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "author": "Optimism PBC",
   "license": "MIT",
-  "workspaces": [
-    "packages/*",
-    "l2geth",
-    "integration-tests",
-    "specs",
-    "examples/*"
-  ],
+  "workspaces": {
+      "packages": [
+          "packages/*",
+          "l2geth",
+          "integration-tests",
+          "specs"
+      ],
+        "nohoist": ["examples/*"]
+  },
   "private": true,
   "devDependencies": {
     "lerna": "^4.0.0",

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/common-ts",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "main": "dist/index",
   "files": [
     "dist/*"
@@ -14,13 +14,21 @@
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
-    "lint:check": "tslint --format stylish --project ."
+    "lint:check": "tslint --format stylish --project .",
+    "test": "ts-mocha test/*.spec.ts"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.18",
+    "@types/express": "^4.17.11",
+    "@types/mocha": "^8.2.2",
     "@types/pino": "^6.3.6",
     "@types/pino-multi-stream": "^5.1.1",
     "@types/prettier": "^2.2.3",
+    "chai": "^4.3.4",
+    "mocha": "^8.4.0",
     "prettier": "^2.2.1",
+    "supertest": "^6.1.3",
+    "ts-mocha": "^8.0.0",
     "tslint": "^6.1.3",
     "tslint-config-prettier": "^1.18.0",
     "tslint-no-focused-test": "^0.5.0",
@@ -29,6 +37,7 @@
   },
   "dependencies": {
     "@sentry/node": "^6.2.5",
+    "express": "^4.17.1",
     "pino": "^6.11.3",
     "pino-multi-stream": "^5.3.0",
     "pino-sentry": "^0.7.0",

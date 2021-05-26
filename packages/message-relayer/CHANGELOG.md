@@ -1,5 +1,26 @@
 # @eth-optimism/message-relayer
 
+## 0.1.3
+
+### Patch Changes
+
+- e3b138b: Fix to avoid getting OOM killed when the relayer runs for a long period of time
+- Updated dependencies [5e5d4a1]
+  - @eth-optimism/contracts@0.3.3
+
+## 0.1.2
+
+### Patch Changes
+
+- 96a586e: Migrate bcfg interface to core-utils
+- fa4898a: Explicitly log error messages so that they do not show as empty objects
+- Updated dependencies [96a586e]
+- Updated dependencies [0c16805]
+- Updated dependencies [775118a]
+  - @eth-optimism/core-utils@0.4.3
+  - @eth-optimism/common-ts@0.1.2
+  - @eth-optimism/contracts@0.3.1
+
 ## 0.1.1
 
 ### Patch Changes

@@ -755,6 +755,8 @@ var (
 	MetricsEnabledFlag = cli.BoolFlag{
 		Name:  "metrics",
 		Usage: "Enable metrics collection and reporting",
+
+		EnvVar: "METRICS_ENABLE",
 	}
 	MetricsEnabledExpensiveFlag = cli.BoolFlag{
 		Name:  "metrics.expensive",
@@ -896,6 +898,22 @@ var (
 		Usage:  "The execution gas price to use for the sequencer fees",
 		Value:  eth.DefaultConfig.Rollup.ExecutionPrice,
 		EnvVar: "ROLLUP_EXECUTIONPRICE",
+	}
+	RollupGasPriceOracleAddressFlag = cli.StringFlag{
+		Name:   "rollup.gaspriceoracleaddress",
+		Usage:  "Address of the rollup gas price oracle",
+		Value:  "0x0000000000000000000000000000000000000000",
+		EnvVar: "ROLLUP_GAS_PRICE_ORACLE_ADDRESS",
+	}
+	RollupEnableL2GasPollingFlag = cli.BoolFlag{
+		Name:   "rollup.enablel2gaspolling",
+		Usage:  "Poll for the L2 gas price from the L2 state",
+		EnvVar: "ROLLUP_ENABLE_L2_GAS_POLLING",
+	}
+	RollupEnforceFeesFlag = cli.BoolFlag{
+		Name:   "rollup.enforcefeesflag",
+		Usage:  "Disable transactions with 0 gas price",
+		EnvVar: "ROLLUP_ENFORCE_FEES",
 	}
 )
 
@@ -1184,6 +1202,16 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 			backend, _ = rollup.NewBackend("l1")
 		}
 		cfg.Backend = backend
+    }
+	if ctx.GlobalIsSet(RollupGasPriceOracleAddressFlag.Name) {
+		addr := ctx.GlobalString(RollupGasPriceOracleAddressFlag.Name)
+		cfg.GasPriceOracleAddress = common.HexToAddress(addr)
+	}
+	if ctx.GlobalIsSet(RollupEnableL2GasPollingFlag.Name) {
+		cfg.EnableL2GasPolling = true
+	}
+	if ctx.GlobalIsSet(RollupEnforceFeesFlag.Name) {
+		cfg.EnforceFees = true
 	}
 }
 

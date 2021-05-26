@@ -81,6 +81,9 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupDataPriceFlag,
 			utils.RollupExecutionPriceFlag,
 			utils.RollupBackendFlag,
+			utils.RollupEnableL2GasPollingFlag,
+			utils.RollupGasPriceOracleAddressFlag,
+			utils.RollupEnforceFeesFlag,
 		},
 	},
 	{

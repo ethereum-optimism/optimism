@@ -10,7 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,6 +26,10 @@ import (
 // errShortRemoteTip is an error for when the remote tip is shorter than the
 // local tip
 var errShortRemoteTip = errors.New("Unexpected remote less than tip")
+
+// L2GasPrice slot refers to the storage slot that the execution price is stored
+// in the L2 predeploy contract, the GasPriceOracle
+var l2GasPriceSlot = common.BigToHash(big.NewInt(1))
 
 // SyncService implements the main functionality around pulling in transactions
 // and executing them. It can be configured to run in both sequencer mode and in
@@ -51,6 +57,9 @@ type SyncService struct {
 	timestampRefreshThreshold time.Duration
 	chainHeadCh               chan core.ChainHeadEvent
 	backend                   Backend
+	gpoAddress                common.Address
+	enableL2GasPolling        bool
+	enforceFees               bool
 }
 
 // NewSyncService returns an initialized sync service
@@ -86,7 +95,8 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	}
 	// Initialize the rollup client
 	client := NewClient(cfg.RollupClientHttp, chainID)
-	log.Info("Configured rollup client", "url", cfg.RollupClientHttp, "chain-id", chainID.Uint64())
+	log.Info("Configured rollup client", "url", cfg.RollupClientHttp, "chain-id", chainID.Uint64(), "ctc-deploy-height", cfg.CanonicalTransactionChainDeployHeight)
+	log.Info("Enforce Fees", "set", cfg.EnforceFees)
 	service := SyncService{
 		ctx:                       ctx,
 		cancel:                    cancel,
@@ -103,6 +113,9 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		pollInterval:              pollInterval,
 		timestampRefreshThreshold: timestampRefreshThreshold,
 		backend:                   cfg.Backend,
+		gpoAddress:                cfg.GasPriceOracleAddress,
+		enableL2GasPolling:        cfg.EnableL2GasPolling,
+		enforceFees:               cfg.EnforceFees,
 	}
 
 	// The chainHeadSub is used to synchronize the SyncService with the chain.
@@ -190,6 +203,8 @@ func (s *SyncService) Start() error {
 		return nil
 	}
 	log.Info("Initializing Sync Service", "eth1-chainid", s.eth1ChainId)
+	s.updateL2GasPrice(nil)
+	s.updateL1GasPrice()
 
 	if s.verifier {
 		go s.VerifierLoop()
@@ -308,6 +323,9 @@ func (s *SyncService) VerifierLoop() {
 		if err := s.verify(); err != nil {
 			log.Error("Could not verify", "error", err)
 		}
+		if err := s.updateL2GasPrice(nil); err != nil {
+			log.Error("Cannot update L2 gas price", "msg", err)
+		}
 		time.Sleep(s.pollInterval)
 	}
 }
@@ -341,6 +359,10 @@ func (s *SyncService) SequencerLoop() {
 			log.Error("Could not sequence", "error", err)
 		}
 		s.txLock.Unlock()
+
+		if err := s.updateL2GasPrice(nil); err != nil {
+			log.Error("Cannot update L2 gas price", "msg", err)
+		}
 		if err := s.updateContext(); err != nil {
 			log.Error("Could not update execution context", "error", err)
 		}
@@ -399,8 +421,37 @@ func (s *SyncService) updateL1GasPrice() error {
 	if err != nil {
 		return fmt.Errorf("cannot fetch L1 gas price: %w", err)
 	}
-	s.RollupGpo.SetDataPrice(l1GasPrice)
-	log.Info("Adjusted L1 Gas Price", "gasprice", l1GasPrice)
+	s.RollupGpo.SetL1GasPrice(l1GasPrice)
+	return nil
+}
+
+// updateL2GasPrice accepts a state root and reads the gas price from the gas
+// price oracle at the state that corresponds to the state root. If no state
+// root is passed in, then the tip is used.
+func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
+	// TODO(mark): this is temporary and will be able to be rmoved when the
+	// OVM_GasPriceOracle is moved into the predeploy contracts
+	if !s.enableL2GasPolling {
+		return nil
+	}
+	var state *state.StateDB
+	var err error
+	if hash != nil {
+		state, err = s.bc.StateAt(*hash)
+	} else {
+		state, err = s.bc.State()
+	}
+	if err != nil {
+		return err
+	}
+	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
+	gasPrice := result.Big()
+	if err := core.VerifyL2GasPrice(gasPrice); err != nil {
+		gp := core.RoundL2GasPrice(gasPrice)
+		log.Warn("Invalid gas price detected in state", "state", gasPrice, "using", gp)
+		gasPrice = gp
+	}
+	s.RollupGpo.SetL2GasPrice(gasPrice)
 	return nil
 }
 
@@ -675,6 +726,43 @@ func (s *SyncService) applyBatchedTransaction(tx *types.Transaction) error {
 	return nil
 }
 
+// verifyFee will verify that a valid fee is being paid.
+func (s *SyncService) verifyFee(tx *types.Transaction) error {
+	// Exit early if fees are enforced and the gasPrice is set to 0
+	if s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
+		return errors.New("cannot accept 0 gas price transaction")
+	}
+
+	l1GasPrice, err := s.RollupGpo.SuggestL1GasPrice(context.Background())
+	if err != nil {
+		return err
+	}
+	l2GasPrice, err := s.RollupGpo.SuggestL2GasPrice(context.Background())
+	if err != nil {
+		return err
+	}
+	// Calculate the fee based on decoded L2 gas limit
+	gas := new(big.Int).SetUint64(tx.Gas())
+	l2GasLimit := core.DecodeL2GasLimit(gas)
+	fee, err := core.CalculateRollupFee(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
+	if err != nil {
+		return err
+	}
+	// If fees are not enforced and the gas price is 0, return early
+	if !s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
+		return nil
+	}
+	// This should only happen if the transaction fee is greater than 18.44 ETH
+	if !fee.IsUint64() {
+		return fmt.Errorf("fee overflow: %s", fee.String())
+	}
+	// Make sure that the fee is paid
+	if tx.Gas() < fee.Uint64() {
+		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = 1", tx.Gas(), fee.Uint64())
+	}
+	return nil
+}
+
 // Higher level API for applying transactions. Should only be called for
 // queue origin sequencer transactions, as the contracts on L1 manage the same
 // validity checks that are done here.
@@ -684,6 +772,9 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 	}
 	if tx == nil {
 		return errors.New("nil transaction passed to ValidateAndApplySequencerTransaction")
+	}
+	if err := s.verifyFee(tx); err != nil {
+		return err
 	}
 
 	s.txLock.Lock()
@@ -918,4 +1009,10 @@ func stringify(i *uint64) string {
 		return "<nil>"
 	}
 	return strconv.FormatUint(*i, 10)
+}
+
+// IngestTransaction should only be called by trusted parties as it skips all
+// validation and applies the transaction
+func (s *SyncService) IngestTransaction(tx *types.Transaction) error {
+	return s.applyTransaction(tx)
 }

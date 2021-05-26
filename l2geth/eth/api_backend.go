@@ -130,6 +130,16 @@ func (b *EthAPIBackend) SetHead(number uint64) {
 	b.eth.syncService.SetLatestL1BlockNumber(blockNumber.Uint64())
 }
 
+func (b *EthAPIBackend) IngestTransactions(txs []*types.Transaction) error {
+	for _, tx := range txs {
+		err := b.eth.syncService.IngestTransaction(tx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {
@@ -379,20 +389,20 @@ func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	return b.gpo.SuggestPrice(ctx)
 }
 
-func (b *EthAPIBackend) SuggestDataPrice(ctx context.Context) (*big.Int, error) {
-	return b.rollupGpo.SuggestDataPrice(ctx)
+func (b *EthAPIBackend) SuggestL1GasPrice(ctx context.Context) (*big.Int, error) {
+	return b.rollupGpo.SuggestL1GasPrice(ctx)
 }
 
-func (b *EthAPIBackend) SuggestExecutionPrice(ctx context.Context) (*big.Int, error) {
-	return b.rollupGpo.SuggestExecutionPrice(ctx)
+func (b *EthAPIBackend) SuggestL2GasPrice(ctx context.Context) (*big.Int, error) {
+	return b.rollupGpo.SuggestL2GasPrice(ctx)
 }
 
-func (b *EthAPIBackend) SetDataPrice(ctx context.Context, gasPrice *big.Int) {
-	b.rollupGpo.SetDataPrice(gasPrice)
+func (b *EthAPIBackend) SetL1GasPrice(ctx context.Context, gasPrice *big.Int) error {
+	return b.rollupGpo.SetL1GasPrice(gasPrice)
 }
 
-func (b *EthAPIBackend) SetExecutionPrice(ctx context.Context, gasPrice *big.Int) {
-	b.rollupGpo.SetExecutionPrice(gasPrice)
+func (b *EthAPIBackend) SetL2GasPrice(ctx context.Context, gasPrice *big.Int) error {
+	return b.rollupGpo.SetL2GasPrice(gasPrice)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
