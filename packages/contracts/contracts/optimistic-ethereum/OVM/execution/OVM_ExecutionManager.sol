@@ -13,6 +13,7 @@ import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
+import { IUniswapV2ERC20 } from "../../libraries/standards/IUniswapV2ERC20.sol";
 
 /* Contract Imports */
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
@@ -33,6 +34,8 @@ import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
  * Runtime target: EVM
  */
 contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
+
+    address internal constant ovmEthAddress = 0x4200000000000000000000000000000000000006;
 
     /********************************
      * External Contract References *
@@ -259,7 +262,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     /**
      * @notice Overrides CALLVALUE.
-     * @return _ADDRESS Active ADDRESS within the current message context.
+     * @return _CALLVALUE Value sent along with the call according to the current message context.
      */
     function ovmCALLVALUE()
         override
@@ -590,6 +593,33 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * Opcodes: Contract Interaction *
      *********************************/
 
+    function ovmCALLWITHVALUE(
+        uint256 _gasLimit,
+        address _address,
+        bytes memory _calldata,
+        uint256 _value // TODO: decide if this should go in the same order of stack args in the EVM, or leave ordering as similar to existing as possible
+    )
+        public
+        fixedGasDiscount(100000)
+        returns (
+            bool _success,
+            bytes memory _returndata
+        )
+    {
+        // CALL updates the CALLER and ADDRESS.
+        MessageContext memory nextMessageContext = messageContext;
+        nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
+        nextMessageContext.ovmADDRESS = _address;
+        nextMessageContext.ovmCALLVALUE = _value;
+
+        return _callContract(
+            nextMessageContext,
+            _gasLimit,
+            _address,
+            _calldata
+        );
+    }
+
     /**
      * @notice Overrides CALL.
      * @param _gasLimit Amount of gas to be passed into this call.
@@ -615,6 +645,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
+        // Legacy (value-less) ovmCALLs were presumed to all have no value.
+        nextMessageContext.ovmCALLVALUE = 0;
 
         return _callContract(
             nextMessageContext,
@@ -650,6 +682,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
         nextMessageContext.isStatic = true;
+        // Legacy (value-less) ovmCALLs were presumed to all have no value.
+        nextMessageContext.ovmCALLVALUE = 0;
 
         return _callContract(
             nextMessageContext,
@@ -680,8 +714,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
-        // DELEGATECALL does not change anything about the message context.
+        // DELEGATECALL does not change anything about the message context other than value.
         MessageContext memory nextMessageContext = messageContext;
+        // Legacy (value-less) ovmCALLs were presumed to all have no value.
+        nextMessageContext.ovmCALLVALUE = 0;
 
         return _callContract(
             nextMessageContext,
@@ -1147,6 +1183,44 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             ethAddress,
             Lib_EthUtils.getCodeHash(ethAddress)
         );
+    }
+
+    /******************************************
+     * Internal Functions: Value Manipulation *
+     ******************************************/
+
+    /**
+     * Invokes an ovmCALL to OVM_ETH.transfer on behalf of the current ovmADDRESS, allowing us to force movement of OVM_ETH in correspondence with ETH's native value functionality.
+     * WARNING: this will send on behalf of whatever the messageContext.ovmADDRESS is in storage at the time of the call.
+     * @param _to Amount of OVM_ETH to be sent.
+     * @param _value Amount of OVM_ETH to send.
+     * @return _success Whether or not the transfer worked.
+     */
+    function _attemptForcedOvmEthTransfer(
+        address _to,
+        uint256 _value
+    )
+        internal
+        returns(
+            bool _success
+        )
+    {
+        bytes memory transferCalldata = abi.encodeWithSelector(
+            IUniswapV2ERC20.transfer.selector,
+             _to,
+             _value
+        );
+
+        // OVM_ETH inherits from the UniswapV2ERC20 standard.  In this implementation, its return type
+        // is a boolean.  However, the implementation always returns true if it does not revert.
+        // Thus, success of the call frame is sufficient to infer success of the transfer itself.
+        (bool success, ) = ovmCALL(
+            gasleft(),
+            ovmEthAddress,
+            transferCalldata
+        );
+
+        return success;
     }
 
     /******************************************
