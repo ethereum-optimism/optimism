@@ -1008,6 +1008,21 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory
         )
     {
+        uint256 messageValue = _nextMessageContext.ovmCALLVALUE;
+        // If there is value in this message, we need to transfer the ETH over before switching contexts.
+        // The target is interpreted to be the next message's ovmADDRESS account.
+        if (messageValue > 0) {
+            bool transferredOvmEth = _attemptForcedEthTransfer(
+                _nextMessageContext.ovmADDRESS,
+                _nextMessageContext.ovmCALLVALUE
+            );
+
+            // If the ETH transfer fails (e.g. due to insufficient balance), then treat this as a revert.
+            if (!transferredOvmEth) {
+                return (false, hex"");
+            }
+        }
+
         // We need to switch over to our next message context for the duration of this call.
         MessageContext memory prevMessageContext = messageContext;
         _switchMessageContext(prevMessageContext, _nextMessageContext);
@@ -1196,7 +1211,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * @param _value Amount of OVM_ETH to send.
      * @return _success Whether or not the transfer worked.
      */
-    function _attemptForcedOvmEthTransfer(
+    function _attemptForcedEthTransfer(
         address _to,
         uint256 _value
     )
@@ -1894,19 +1909,22 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         internal
     {
-        // Avoid unnecessary the SSTORE.
+        // These conditionals allow us to avoid unneccessary SSTOREs.  However, they do mean that the current storage
+        // value for the messageContext MUST equal the _prevMessageContext argument, or an SSTORE might be erroneously skipped.
         if (_prevMessageContext.ovmCALLER != _nextMessageContext.ovmCALLER) {
             messageContext.ovmCALLER = _nextMessageContext.ovmCALLER;
         }
 
-        // Avoid unnecessary the SSTORE.
         if (_prevMessageContext.ovmADDRESS != _nextMessageContext.ovmADDRESS) {
             messageContext.ovmADDRESS = _nextMessageContext.ovmADDRESS;
         }
 
-        // Avoid unnecessary the SSTORE.
         if (_prevMessageContext.isStatic != _nextMessageContext.isStatic) {
             messageContext.isStatic = _nextMessageContext.isStatic;
+        }
+
+        if (_prevMessageContext.ovmCALLVALUE != _nextMessageContext.ovmCALLVALUE) {
+            messageContext.ovmCALLVALUE = _nextMessageContext.ovmCALLVALUE;
         }
     }
 
