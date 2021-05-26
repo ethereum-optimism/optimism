@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-ovm
 
+## 0.2.2
+
+### Patch Changes
+
+- 43c1fae: Allow for private key config option for signers
+
 ## 0.2.1
 
 ### Patch Changes

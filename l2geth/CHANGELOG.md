@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.6
+
+### Patch Changes
+
+- f091e86: Fix to ensure that L1 => L2 success status is reflected correctly in receipts
+- f880479: End to end fee integration with recoverable L2 gas limit
+
 ## 0.3.5
 
 ### Patch Changes

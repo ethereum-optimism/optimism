@@ -1,5 +1,12 @@
 # @eth-optimism/integration-tests
 
+## 0.0.6
+
+### Patch Changes
+
+- f091e86: Fix to ensure that L1 => L2 success status is reflected correctly in receipts
+- f880479: End to end fee integration with recoverable L2 gas limit
+
 ## 0.0.5
 
 ### Patch Changes
