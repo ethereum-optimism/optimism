@@ -60,6 +60,7 @@ interface iOVM_ExecutionManager {
     struct MessageContext {
         address ovmCALLER;
         address ovmADDRESS;
+        uint256 ovmCALLVALUE;
         bool isStatic;
     }
 
@@ -84,6 +85,7 @@ interface iOVM_ExecutionManager {
 
     function ovmCALLER() external view returns (address _caller);
     function ovmADDRESS() external view returns (address _address);
+    function ovmCALLVALUE() external view returns (uint _callValue);
     function ovmTIMESTAMP() external view returns (uint256 _timestamp);
     function ovmNUMBER() external view returns (uint256 _number);
     function ovmGASLIMIT() external view returns (uint256 _gasLimit);

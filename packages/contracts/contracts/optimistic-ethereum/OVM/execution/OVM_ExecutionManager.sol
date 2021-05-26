@@ -258,6 +258,21 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
+     * @notice Overrides CALLVALUE.
+     * @return _ADDRESS Active ADDRESS within the current message context.
+     */
+    function ovmCALLVALUE()
+        override
+        public
+        view
+        returns (
+            uint256 _CALLVALUE
+        )
+    {
+        return messageContext.ovmCALLVALUE;
+    }
+
+    /**
      * @notice Overrides TIMESTAMP.
      * @return _TIMESTAMP Value of the TIMESTAMP within the transaction context.
      */
