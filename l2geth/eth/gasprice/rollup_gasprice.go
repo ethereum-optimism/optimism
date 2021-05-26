@@ -4,8 +4,12 @@ import (
 	"context"
 	"math/big"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 )
 
+// RollupOracle holds the L1 and L2 gas prices for fee calculation
 type RollupOracle struct {
 	dataPrice          *big.Int
 	executionPrice     *big.Int
@@ -13,6 +17,7 @@ type RollupOracle struct {
 	executionPriceLock sync.RWMutex
 }
 
+// NewRollupOracle returns an initialized RollupOracle
 func NewRollupOracle(dataPrice *big.Int, executionPrice *big.Int) *RollupOracle {
 	return &RollupOracle{
 		dataPrice:      dataPrice,
@@ -20,32 +25,42 @@ func NewRollupOracle(dataPrice *big.Int, executionPrice *big.Int) *RollupOracle 
 	}
 }
 
-/// SuggestDataPrice returns the gas price which should be charged per byte of published
-/// data by the sequencer.
-func (gpo *RollupOracle) SuggestDataPrice(ctx context.Context) (*big.Int, error) {
+// SuggestL1GasPrice returns the gas price which should be charged per byte of published
+// data by the sequencer.
+func (gpo *RollupOracle) SuggestL1GasPrice(ctx context.Context) (*big.Int, error) {
 	gpo.dataPriceLock.RLock()
-	price := gpo.dataPrice
-	gpo.dataPriceLock.RUnlock()
-	return price, nil
+	defer gpo.dataPriceLock.RUnlock()
+	return gpo.dataPrice, nil
 }
 
-func (gpo *RollupOracle) SetDataPrice(dataPrice *big.Int) {
+// SetL1GasPrice returns the current L1 gas price
+func (gpo *RollupOracle) SetL1GasPrice(dataPrice *big.Int) error {
 	gpo.dataPriceLock.Lock()
+	defer gpo.dataPriceLock.Unlock()
+	if err := core.VerifyL1GasPrice(dataPrice); err != nil {
+		return err
+	}
 	gpo.dataPrice = dataPrice
-	gpo.dataPriceLock.Unlock()
+	log.Info("Set L1 Gas Price", "gasprice", gpo.dataPrice)
+	return nil
 }
 
-/// SuggestExecutionPrice returns the gas price which should be charged per unit of gas
-/// set manually by the sequencer depending on congestion
-func (gpo *RollupOracle) SuggestExecutionPrice(ctx context.Context) (*big.Int, error) {
+// SuggestL2GasPrice returns the gas price which should be charged per unit of gas
+// set manually by the sequencer depending on congestion
+func (gpo *RollupOracle) SuggestL2GasPrice(ctx context.Context) (*big.Int, error) {
 	gpo.executionPriceLock.RLock()
-	price := gpo.executionPrice
-	gpo.executionPriceLock.RUnlock()
-	return price, nil
+	defer gpo.executionPriceLock.RUnlock()
+	return gpo.executionPrice, nil
 }
 
-func (gpo *RollupOracle) SetExecutionPrice(executionPrice *big.Int) {
+// SetL2GasPrice returns the current L2 gas price
+func (gpo *RollupOracle) SetL2GasPrice(executionPrice *big.Int) error {
 	gpo.executionPriceLock.Lock()
+	defer gpo.executionPriceLock.Unlock()
+	if err := core.VerifyL2GasPrice(executionPrice); err != nil {
+		return err
+	}
 	gpo.executionPrice = executionPrice
-	gpo.executionPriceLock.Unlock()
+	log.Info("Set L2 Gas Price", "gasprice", gpo.executionPrice)
+	return nil
 }

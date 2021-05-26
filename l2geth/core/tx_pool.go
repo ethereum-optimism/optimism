@@ -542,7 +542,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// Ensure the transaction doesn't exceed the current block limit gas.
 	// We skip this condition check if the transaction's gasPrice is set to 1gwei,
 	// which indicates a "rollup" transaction that's paying for its data.
-	if pool.currentMaxGas < tx.Gas() && tx.GasPrice().Cmp(gwei) != 0 {
+	if pool.currentMaxGas < tx.L2Gas() && tx.GasPrice().Cmp(gwei) != 0 {
 		return ErrGasLimit
 	}
 
