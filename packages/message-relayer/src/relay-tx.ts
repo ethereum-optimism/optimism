@@ -252,8 +252,12 @@ export const getStateRootBatchByTransactionIndex = async (
  * @returns Merkle proof sibling leaves, as hex strings.
  */
 const getMerkleTreeProof = (leaves: string[], index: number): string[] => {
+  // Our specific Merkle tree implementation requires that the number of leaves is a power of 2.
+  // If the number of given leaves is less than a power of 2, we need to round up to the next
+  // available power of 2. We fill the remaining space with the hash of bytes32(0).
+  const correctedTreeSize = Math.pow(2, Math.ceil(Math.log2(leaves.length)))
   const parsedLeaves = []
-  for (let i = 0; i < Math.pow(2, Math.ceil(Math.log2(leaves.length))); i++) {
+  for (let i = 0; i < correctedTreeSize; i++) {
     if (i < leaves.length) {
       parsedLeaves.push(leaves[i])
     } else {
@@ -261,8 +265,8 @@ const getMerkleTreeProof = (leaves: string[], index: number): string[] => {
     }
   }
 
+  // merkletreejs prefers things to be Buffers.
   const bufLeaves = parsedLeaves.map(fromHexString)
-
   const tree = new MerkleTree(
     bufLeaves,
     (el: Buffer | string): Buffer => {
