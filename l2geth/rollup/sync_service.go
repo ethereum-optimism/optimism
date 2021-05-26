@@ -38,6 +38,7 @@ type SyncService struct {
 	scope                     event.SubscriptionScope
 	txFeed                    event.Feed
 	txLock                    sync.Mutex
+	transitionLock            sync.Mutex
 	loopLock                  sync.Mutex
 	enable                    bool
 	eth1ChainId               uint64
@@ -50,11 +51,10 @@ type SyncService struct {
 	OVMContext                OVMContext
 	pollInterval              time.Duration
 	timestampRefreshThreshold time.Duration
-	chainHeadCh               chan core.ChainHeadEvent
+	chainHeadCh               chan core.ChainEvent
 	backend                   Backend
-	//chainHeadSub              event.Subscription
-	txCh     chan *types.Transaction
-	gasLimit uint64
+	txCh                      chan *types.Transaction
+	gasLimit                  uint64
 }
 
 // NewSyncService returns an initialized sync service
@@ -99,7 +99,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		syncing:                   atomic.Value{},
 		bc:                        bc,
 		txpool:                    txpool,
-		chainHeadCh:               make(chan core.ChainHeadEvent, 1),
+		chainHeadCh:               make(chan core.ChainEvent, 1),
 		txCh:                      make(chan *types.Transaction, 1),
 		eth1ChainId:               cfg.Eth1ChainId,
 		client:                    client,
@@ -117,7 +117,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	// things downstream, it is expected that this channel will halt ingestion
 	// of additional transactions by the SyncService.
 	//service.chainHeadSub = service.bc.SubscribeChainHeadEvent(service.chainHeadCh)
-
+	service.chainHeadSub = service.bc.SubscribeChainEvent(service.chainHeadCh)
 	// Initial sync service setup if it is enabled. This code depends on
 	// a remote server that indexes the layer one contracts. Place this
 	// code behind this if statement so that this can run without the
@@ -182,16 +182,20 @@ func (s *SyncService) transition() {
 	for {
 		select {
 		case tx := <-s.txCh:
-			//log.Info("Received on txCh", "hash", tx.Hash().Hex())
+			s.transitionLock.Lock()
+
 			if block, receipts, logs, statedb, err := s.stateTransition(tx); err == nil {
-				log.Info("New Block", "index", block.Number().Uint64()-1, "tx", tx.Hash().Hex())
+				log.Info("Attempting to add block to chain", "index", block.Number().Uint64()-1)
 				_, err := s.bc.WriteBlockWithState(block, receipts, logs, statedb, false)
+				log.Info("New Block", "index", block.Number().Uint64()-1, "tx", tx.Hash().Hex())
 				if err != nil {
 					log.Error("Cannot write state with block", "msg", err)
 				}
 			} else {
 				log.Error("Cannot state transition", "msg", err)
 			}
+
+			s.transitionLock.Unlock()
 		}
 	}
 }
@@ -675,7 +679,15 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	}
 	// The index was set above so it is safe to dereference
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex())
+	// TODO: experiment with using a https://golang.org/pkg/sync/#WaitGroup
+	// here. We want to make sure that stateful things inside of
+	// SyncService.stateTransition actually get the latest data when doing calls
+	// like `BlockChain.State()` or `BlockChain.CurrentHeader()`.
 	s.txCh <- tx
+
+	<-s.chainHeadCh
+	log.Info("Received chain head added event")
+
 	return nil
 }
 
@@ -683,13 +695,14 @@ func (s *SyncService) stateTransition(tx *types.Transaction) (*types.Block, []*t
 	config := s.bc.Config()
 	coinbase := common.Address{}
 	gasPool := new(core.GasPool).AddGas(s.gasLimit)
-	statedb, err := s.bc.State()
+	current := s.bc.CurrentHeader()
+	log.Info("State transition", "root", current.Root.Hex())
+	statedb, err := s.bc.StateAt(current.Root)
 	snap := statedb.Snapshot()
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf(": %w", err)
 	}
 	vmConfig := s.bc.GetVMConfig()
-	current := s.bc.CurrentHeader()
 
 	header := types.Header{
 		ParentHash: current.Hash(),
