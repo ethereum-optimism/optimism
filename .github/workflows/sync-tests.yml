@@ -38,12 +38,11 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d
+        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
       
       - name: Run the sync tests
         working-directory: ./integration-tests
-        run: yarn test:sync
-
-      # - name: Run the sync tests
-      #   working-directory: ./ops
-      #   run: docker-compose run sync_tests
+        run: |
+          yarn
+          yarn build
+          yarn test:sync
