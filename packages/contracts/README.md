@@ -98,7 +98,7 @@ CONTRACTS_RPC_URL=...
 Then to perform the actual deployment run:
 
 ```bash
-$ npx hardhat deploy \
+npx hardhat deploy \
   --ovm-address-manager-owner ... \
   --ovm-proposer-address ... \
   --ovm-relayer-address ... \
