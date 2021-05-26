@@ -1202,7 +1202,7 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 			backend, _ = rollup.NewBackend("l1")
 		}
 		cfg.Backend = backend
-    }
+	}
 	if ctx.GlobalIsSet(RollupGasPriceOracleAddressFlag.Name) {
 		addr := ctx.GlobalString(RollupGasPriceOracleAddressFlag.Name)
 		cfg.GasPriceOracleAddress = common.HexToAddress(addr)
