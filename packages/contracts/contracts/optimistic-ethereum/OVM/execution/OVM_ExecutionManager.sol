@@ -670,7 +670,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        external
+        public
         fixedGasDiscount(80000)
         returns (
             bool _success,
@@ -846,6 +846,42 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         return Lib_EthUtils.getCodeHash(
             _getAccountEthAddress(_contract)
         );
+    }
+
+    /**
+     * @notice Overrides BALANCE.
+     * @param _contract Address of the contract to query the OVM_ETH balance of.
+     * @return _BALANCE OVM_ETH balance of the requested contract.
+     */
+    function ovmBALANCE(
+        address _contract
+    )
+        override
+        external
+        returns (
+            uint256 _BALANCE
+        )
+    {
+        // Easiest way to get the balance is query OVM_ETH as normal.
+        bytes memory balanceOfCalldata = abi.encodeWithSelector(
+            IUniswapV2ERC20.balanceOf.selector,
+            _contract
+        );
+
+        // Static call because this should be a read-only query.
+        (bool success, bytes memory returndata) = ovmSTATICCALL(
+            gasleft(),
+            ovmEthAddress,
+            balanceOfCalldata
+        );
+
+        // All balanceOf queries should successfully return a uint, otherwise this must be an OOG.
+        if (!success || returndata.length != 32) {
+            _revertWithFlag(RevertFlag.OUT_OF_GAS);
+        }
+
+        // Return the decoded balance.
+        return abi.decode(returndata, (uint256));
     }
 
     /***************************************

@@ -148,6 +148,7 @@ interface iOVM_ExecutionManager {
     function ovmEXTCODECOPY(address _contract, uint256 _offset, uint256 _length) external returns (bytes memory _code);
     function ovmEXTCODESIZE(address _contract) external returns (uint256 _size);
     function ovmEXTCODEHASH(address _contract) external returns (bytes32 _hash);
+    function ovmBALANCE(address _contract) external returns (uint256 _balance); // TODO: where to put this one?
 
 
     /***************************************
