@@ -211,6 +211,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         (, bytes memory returndata) = ovmCALL(
             _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
             _transaction.entrypoint,
+            0,
             _transaction.data
         );
 
@@ -593,37 +594,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * Opcodes: Contract Interaction *
      *********************************/
 
-    function ovmCALLWITHVALUE(
-        uint256 _gasLimit,
-        address _address,
-        bytes memory _calldata,
-        uint256 _value // TODO: decide if this should go in the same order of stack args in the EVM, or leave ordering as similar to existing as possible
-    )
-        public
-        fixedGasDiscount(100000)
-        returns (
-            bool _success,
-            bytes memory _returndata
-        )
-    {
-        // CALL updates the CALLER and ADDRESS.
-        MessageContext memory nextMessageContext = messageContext;
-        nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
-        nextMessageContext.ovmADDRESS = _address;
-        nextMessageContext.ovmCALLVALUE = _value;
-
-        return _callContract(
-            nextMessageContext,
-            _gasLimit,
-            _address,
-            _calldata
-        );
-    }
-
     /**
      * @notice Overrides CALL.
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _address Address of the contract to call.
+     * @param _value ETH value to pass with the call.
      * @param _calldata Data to send along with the call.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
@@ -631,6 +606,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     function ovmCALL(
         uint256 _gasLimit,
         address _address,
+        uint256 _value,
         bytes memory _calldata
     )
         override
@@ -645,8 +621,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
-        // Legacy (value-less) ovmCALLs were presumed to all have no value.
-        nextMessageContext.ovmCALLVALUE = 0;
+        nextMessageContext.ovmCALLVALUE = _value;
 
         return _callContract(
             nextMessageContext,
@@ -677,12 +652,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
-        // STATICCALL updates the CALLER, updates the ADDRESS, and runs in a static context.
+        // STATICCALL updates the CALLER, updates the ADDRESS, and runs in a static, valueless context.
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
         nextMessageContext.isStatic = true;
-        // Legacy (value-less) ovmCALLs were presumed to all have no value.
         nextMessageContext.ovmCALLVALUE = 0;
 
         return _callContract(
@@ -704,6 +678,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     function ovmDELEGATECALL(
         uint256 _gasLimit,
         address _address,
+        uint256 _value,
         bytes memory _calldata
     )
         override
@@ -716,13 +691,41 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         // DELEGATECALL does not change anything about the message context other than value.
         MessageContext memory nextMessageContext = messageContext;
-        // Legacy (value-less) ovmCALLs were presumed to all have no value.
-        nextMessageContext.ovmCALLVALUE = 0;
+        nextMessageContext.ovmCALLVALUE = _value;
 
         return _callContract(
             nextMessageContext,
             _gasLimit,
             _address,
+            _calldata
+        );
+    }
+
+    /**
+     * @notice Legacy ovmCALL function which did not support ETH value; maintains backwards compatibility.
+     * @param _gasLimit Amount of gas to be passed into this call.
+     * @param _address Address of the contract to call.
+     * @param _calldata Data to send along with the call.
+     * @return _success Whether or not the call returned (rather than reverted).
+     * @return _returndata Data returned by the call.
+     */
+    // TODO: replicate this for ovmDELEGATECALL
+    function ovmCALL(
+        uint256 _gasLimit,
+        address _address,
+        bytes memory _calldata
+    )
+        public
+        returns(
+            bool _success,
+            bytes memory _returndata
+        )
+    {
+        // Legacy ovmCALL assumed always-0 value.
+        return ovmCALL(
+            _gasLimit,
+            _address,
+            0,
             _calldata
         );
     }
@@ -917,6 +920,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         (bool success, bytes memory data) = ovmCALL(
             gasleft(),
             0x4200000000000000000000000000000000000002,
+            0,
             abi.encodeWithSignature("isDeployerAllowed(address)", _deployerAddress)
         );
         bool isAllowed = abi.decode(data, (bool));
@@ -1284,6 +1288,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         (bool success, ) = ovmCALL(
             gasleft(),
             ovmEthAddress,
+            0,
             transferCalldata
         );
 
@@ -2067,6 +2072,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             (bool success, bytes memory returndata) = ovmCALL(
                 _transaction.gasLimit,
                 _transaction.entrypoint,
+                0,
                 _transaction.data
             );
             return abi.encode(success, returndata);
