@@ -84,5 +84,39 @@ You can also build specific components as follows:
 yarn build:contracts
 ```
 
+### Deploying the Contracts
+To deploy the contracts first clone, install, and build the contracts package.
+
+Next set the following env vars:
+
+```bash
+CONTRACTS_TARGET_NETWORK=...
+CONTRACTS_DEPLOYER_KEY=...
+CONTRACTS_RPC_URL=...
+```
+
+Then to perform the actual deployment run:
+
+```bash
+$ npx hardhat deploy \
+  --ovm-address-manager-owner ... \
+  --ovm-proposer-address ... \
+  --ovm-relayer-address ... \
+  --ovm-sequencer-address ... \
+  --network ... \
+  --scc-fraud-proof-window ... \
+  --scc-sequencer-publish-window ...
+```
+
+This will deploy the contracts to the network specified in your env and create
+an artifacts directory in `./deployments`.
+
+### Verifying Deployments on Etherscan
+If you are using a network which Etherscan supports you can verify your contracts with:
+
+```bash
+npx hardhat etherscan-verify --api-key ... --network ...
+```
+
 ## Security
 Please refer to our [Security Policy](https://github.com/ethereum-optimism/.github/security/policy) for information about how to disclose security issues with this code.
