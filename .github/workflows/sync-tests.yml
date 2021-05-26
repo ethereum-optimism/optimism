@@ -44,5 +44,4 @@ jobs:
         working-directory: ./integration-tests
         run: |
           yarn
-          yarn build
           yarn test:sync
