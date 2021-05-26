@@ -16,6 +16,7 @@ const config: HardhatUserConfig = {
     optimism: {
       url: process.env.L2_URL || 'http://localhost:8545',
       ovm: true,
+      gasPrice: 0,
     },
   },
   solidity: '0.7.6',
