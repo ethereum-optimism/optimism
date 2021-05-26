@@ -15,7 +15,9 @@ describe('Syncing a verifier', () => {
 
   /* Helper functions */
 
-  const waitForBatchSubmission = async (totalElementsBefore: BigNumber) : Promise<BigNumber> => {
+  const waitForBatchSubmission = async (
+    totalElementsBefore: BigNumber
+  ): Promise<BigNumber> => {
     // Wait for batch submission to happen by watching the CTC
     let totalElementsAfter = (await env.ctc.getTotalElements()) as BigNumber
     while (totalElementsBefore.eq(totalElementsAfter)) {
@@ -37,9 +39,7 @@ describe('Syncing a verifier', () => {
       logs = await verifier.logs()
     }
 
-    const provider = injectL2Context(
-      verifierProvider
-    )
+    const provider = injectL2Context(verifierProvider)
 
     // Wait until verifier has caught up to the sequencer
     let latestVerifierBlock = (await provider.getBlock('latest')) as any
@@ -80,11 +80,13 @@ describe('Syncing a verifier', () => {
       )
       expect(totalElementsAfter.gt(totalElementsAfter))
 
-      const latestSequencerBlock = (await sequencerProvider.getBlock('latest')) as any
+      const latestSequencerBlock = (await sequencerProvider.getBlock(
+        'latest'
+      )) as any
 
-      const matchingVerifierBlock = await startAndSyncVerifier(
+      const matchingVerifierBlock = (await startAndSyncVerifier(
         latestSequencerBlock.number
-      ) as any
+      )) as any
 
       expect(matchingVerifierBlock.stateRoot).to.eq(
         latestSequencerBlock.stateRoot
