@@ -1,0 +1,43 @@
+@import 'index.scss';
+
+.Pager {
+
+  background: $gray6;
+  display: flex;
+  flex-direction: row;
+  min-height: 25px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+
+  .number {
+    font-size: 0.8em;
+    padding-top: 5px;
+  }
+
+  .numberLeft {
+    font-size: 1.0em;
+    margin-left: 10px;
+  }
+
+  .numberRight {
+    display: flex;
+    flex-direction: row;
+    margin-right: 10px;
+  }
+
+  .box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /*margin-left: 3px;*/
+    transition: all 200ms ease-in-out;
+    cursor: pointer;
+  }
+
+  .disabled {
+    pointer-events: none;
+    cursor: initial;
+    opacity: 0.5;
+  }
+}

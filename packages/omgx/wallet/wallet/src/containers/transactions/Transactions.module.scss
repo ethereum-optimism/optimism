@@ -1,0 +1,98 @@
+@import 'index.scss';
+
+.container {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  padding-top: 0px;
+  background: white;
+  max-width: 957px;
+}
+
+.header {
+  h2 {
+    flex: 1;
+    margin-bottom: 0;
+    padding-left: 10px;
+    color: $gray2;
+  }
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  background-color: $bunnyRed;
+  @include mobile {
+    padding-top: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.data {
+  display: flex;
+  flex-direction: row;
+  @include mobile {
+    flex-direction: column;
+  }
+}
+
+.section {
+  flex: 1;
+  &:first-child {
+    margin-right: 20px;
+    @include mobile {
+      margin-right: 0;
+      margin-bottom: 20px;
+    }
+  }
+}
+
+.transactionSection {
+  margin-bottom: 20px;
+}
+
+.disclaimer {
+  color: $gray3;
+  margin-bottom: 20px;
+}
+
+.searchBar {
+  flex: 1;
+  margin-bottom: 0;
+  & > div {
+    border: none !important;
+  }
+  input {
+    
+  }
+}
+
+.transactions {
+  height: 100%;
+  overflow: auto;
+  background-color: white;
+  .transaction {
+    padding: 20px 0;
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+.subTitle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 32px;
+  span {
+    margin-right: 20px;
+  }
+}
+
+.processExitButton {
+  color: $blue;
+  cursor: pointer;
+}

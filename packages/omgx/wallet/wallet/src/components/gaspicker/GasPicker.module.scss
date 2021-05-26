@@ -1,0 +1,42 @@
+@import 'index.scss';
+
+.GasPicker {
+  display: flex;
+  flex-direction: column;
+
+  .label {
+    margin-bottom: 10px;
+  }
+
+  .items {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+  
+    .category {
+      display: flex;
+      cursor: pointer;
+      flex: 1;
+      margin-right: 10px;
+      flex-direction: column;
+      justify-content: center;
+      transition: all 100ms ease-in-out;
+      padding: 10px;
+      color: $gray5;
+      border: 2px solid $gray4;
+      .title {
+        font-weight: bold;
+        color: $gray6;
+        padding-bottom: 5px;
+      }
+      &:last-child {
+        margin-right: 0px;
+      }
+    }
+  
+    .selected {
+      background-color: $gray3;
+      border: 2px solid $blue;
+    }
+  }
+}
