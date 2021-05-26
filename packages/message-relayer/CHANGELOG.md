@@ -1,5 +1,13 @@
 # @eth-optimism/message-relayer
 
+## 0.1.3
+
+### Patch Changes
+
+- e3b138b: Fix to avoid getting OOM killed when the relayer runs for a long period of time
+- Updated dependencies [5e5d4a1]
+  - @eth-optimism/contracts@0.3.3
+
 ## 0.1.2
 
 ### Patch Changes
