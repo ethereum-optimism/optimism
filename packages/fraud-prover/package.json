@@ -1,0 +1,74 @@
+{
+  "name": "@omgx/fraud-prover",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Fraud Prover Service",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist/index"
+  ],
+  "scripts": {
+    "start": "node ./exec/run.js",
+    "build": "yarn run build:typescript",
+    "build:typescript": "tsc -p .",
+    "build:fraud": "./scripts/build.sh",
+    "build:contracts": "hardhat compile",
+    "build:contracts:ovm": "hardhat compile --network omgx",
+    "deploy": "./scripts/build.sh && hardhat --network omgx test",
+    "postinstall": "patch-package"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "fraud-prover"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/fraud-prover#readme",
+  "license": "MIT",
+  "author": "Optimism",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
+  },
+  "dependencies": {
+    "@eth-optimism/contracts": "^0.2.2",
+    "@eth-optimism/core-utils": "^0.2.0",
+    "@eth-optimism/hardhat-ovm": "^0.0.2",
+    "@ethersproject/hardware-wallets": "^5.0.12",
+    "@ethersproject/keccak256": "^5.0.6",
+    "@ethersproject/providers": "^5.0.16",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@types/debug": "^4.1.5",
+    "@types/mocha": "^8.2.2",
+    "chai": "^4.3.3",
+    "chai-as-promised": "^7.1.1",
+    "colors": "^1.4.0",
+    "debug": "^4.3.1",
+    "directory-tree": "^2.2.7",
+    "dotenv": "^8.2.0",
+    "enyalabs_core-utils": "git+https://github.com/enyalabs/core-utils.git",
+    "ethereum-waffle": "^3.3.0",
+    "ethereumjs-util": "^7.0.7",
+    "ethers": "^5.2.0",
+    "hardhat": "^2.1.2",
+    "merkle-patricia-tree": "^4.0.0",
+    "merkletreejs": "^0.2.18",
+    "rimraf": "^3.0.2",
+    "rlp": "^2.2.6",
+    "shx": "^0.3.3",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4"
+  },
+  "devDependencies": {
+    "@eth-optimism/dev": "^1.0.0",
+    "@openzeppelin/contracts": "^3.3.0",
+    "@types/chai": "^4.1.7",
+    "@types/chai-as-promised": "^7.1.0",
+    "@types/node": "^14.14.9",
+    "chai": "^4.3.3",
+    "chai-as-promised": "^7.1.1",
+    "enyalabs_contracts": "git+ssh://git@github.com:enyalabs/contracts.git",
+    "glob": "^7.1.6",
+    "patch-package": "^6.4.7"
+  }
+}
