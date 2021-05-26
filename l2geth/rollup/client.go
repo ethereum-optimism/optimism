@@ -116,14 +116,17 @@ type decoded struct {
 type RollupClient interface {
 	GetEnqueue(index uint64) (*types.Transaction, error)
 	GetLatestEnqueue() (*types.Transaction, error)
-	GetTransaction(uint64) (*types.Transaction, error)
-	GetLatestTransaction() (*types.Transaction, error)
+	GetLatestEnqueueIndex() (*uint64, error)
+	GetTransaction(uint64, Backend) (*types.Transaction, error)
+	GetLatestTransaction(Backend) (*types.Transaction, error)
+	GetLatestTransactionIndex(Backend) (*uint64, error)
 	GetEthContext(uint64) (*EthContext, error)
 	GetLatestEthContext() (*EthContext, error)
 	GetLastConfirmedEnqueue() (*types.Transaction, error)
 	GetLatestTransactionBatch() (*Batch, []*types.Transaction, error)
+	GetLatestTransactionBatchIndex() (*uint64, error)
 	GetTransactionBatch(uint64) (*Batch, []*types.Transaction, error)
-	SyncStatus() (*SyncStatus, error)
+	SyncStatus(Backend) (*SyncStatus, error)
 	GetL1GasPrice() (*big.Int, error)
 }
 
@@ -270,6 +273,43 @@ func (c *Client) GetLatestEnqueue() (*types.Transaction, error) {
 	return tx, nil
 }
 
+// GetLatestEnqueueIndex returns the latest `enqueue()` index
+func (c *Client) GetLatestEnqueueIndex() (*uint64, error) {
+	tx, err := c.GetLatestEnqueue()
+	if err != nil {
+		return nil, err
+	}
+	index := tx.GetMeta().QueueIndex
+	if index == nil {
+		return nil, errors.New("Latest queue index is nil")
+	}
+	return index, nil
+}
+
+// GetLatestTransactionIndex returns the latest CTC index that has been batch
+// submitted or not, depending on the backend
+func (c *Client) GetLatestTransactionIndex(backend Backend) (*uint64, error) {
+	tx, err := c.GetLatestTransaction(backend)
+	if err != nil {
+		return nil, err
+	}
+	index := tx.GetMeta().Index
+	if index == nil {
+		return nil, errors.New("Latest index is nil")
+	}
+	return index, nil
+}
+
+// GetLatestTransactionBatchIndex returns the latest transaction batch index
+func (c *Client) GetLatestTransactionBatchIndex() (*uint64, error) {
+	batch, _, err := c.GetLatestTransactionBatch()
+	if err != nil {
+		return nil, err
+	}
+	index := batch.Index
+	return &index, nil
+}
+
 // batchedTransactionToTransaction converts a transaction into a
 // types.Transaction that can be consumed by the SyncService
 func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signer) (*types.Transaction, error) {
@@ -364,11 +404,14 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 }
 
 // GetTransaction will get a transaction by Canonical Transaction Chain index
-func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
+func (c *Client) GetTransaction(index uint64, backend Backend) (*types.Transaction, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
 		SetPathParams(map[string]string{
 			"index": str,
+		}).
+		SetQueryParams(map[string]string{
+			"backend": backend.String(),
 		}).
 		SetResult(&TransactionResponse{}).
 		Get("/transaction/index/{index}")
@@ -385,9 +428,12 @@ func (c *Client) GetTransaction(index uint64) (*types.Transaction, error) {
 
 // GetLatestTransaction will get the latest transaction, meaning the transaction
 // with the greatest Canonical Transaction Chain index
-func (c *Client) GetLatestTransaction() (*types.Transaction, error) {
+func (c *Client) GetLatestTransaction(backend Backend) (*types.Transaction, error) {
 	response, err := c.client.R().
 		SetResult(&TransactionResponse{}).
+		SetQueryParams(map[string]string{
+			"backend": backend.String(),
+		}).
 		Get("/transaction/latest")
 
 	if err != nil {
@@ -477,9 +523,12 @@ func (c *Client) GetLastConfirmedEnqueue() (*types.Transaction, error) {
 }
 
 // SyncStatus will query the remote server to determine if it is still syncing
-func (c *Client) SyncStatus() (*SyncStatus, error) {
+func (c *Client) SyncStatus(backend Backend) (*SyncStatus, error) {
 	response, err := c.client.R().
 		SetResult(&SyncStatus{}).
+		SetQueryParams(map[string]string{
+			"backend": backend.String(),
+		}).
 		Get("/eth/syncing")
 
 	if err != nil {
@@ -533,8 +582,8 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 // parseTransactionBatchResponse will turn a TransactionBatchResponse into a
 // Batch and its corresponding types.Transactions
 func parseTransactionBatchResponse(txBatch *TransactionBatchResponse, signer *types.EIP155Signer) (*Batch, []*types.Transaction, error) {
-	if txBatch == nil {
-		return nil, nil, nil
+	if txBatch == nil || txBatch.Batch == nil {
+		return nil, nil, errElementNotFound
 	}
 	batch := txBatch.Batch
 	txs := make([]*types.Transaction, len(txBatch.Transactions))

@@ -40,6 +40,8 @@ type Config struct {
 	DataPrice *big.Int
 	// The gas price to use for L2 congestion costs
 	ExecutionPrice *big.Int
+	// Represents the source of the transactions that is being synced
+	Backend Backend
 	// Only accept transactions with fees
 	EnforceFees bool
 }
