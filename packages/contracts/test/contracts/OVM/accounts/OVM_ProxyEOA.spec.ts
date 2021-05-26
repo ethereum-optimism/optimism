@@ -7,7 +7,7 @@ import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
-import { getContractInterface, predeploys } from '../../../../src'
+import { predeploys } from '../../../../src'
 
 describe('OVM_ProxyEOA', () => {
   let signer: Signer
