@@ -1,51 +1,116 @@
-- [Fraud Prover](#fraud-prover)
-  * [1. Building & Running from the command line](#1-building---running-from-the-command-line)
-  * [2. Generating the Fraud Prover Docker](#2-generating-the-fraud-prover-docker)
-  * [3. Running the Fraud Prover Service](#3-running-the-fraud-prover-service)
-  * [4. Injecting Fraudulant State Roots](#4-injecting-fraudulant-state-roots)
-  * [5. Configuration](#5-configuration)
-  * [6. Testing & linting](#6-testing---linting)
-  * [7. Envs (Need to reconcile with the below - ToDo)](#7-envs--need-to-reconcile-with-the-below---todo-)
-  * [8. Local testing](#8-local-testing)
-    + [local.yaml Settings](#localyaml-settings)
-    + [local.env.yaml Settings](#localenvyaml-settings)
-    + [Fraud Prover spinup wait-for-l1-and-l2.sh](#fraud-prover-spinup-wait-for-l1-and-l2sh)
-    + [Fraud Prover Dockerfile.fraud_prover](#fraud-prover-dockerfilefraud-prover)
-
 # Fraud Prover
 
 Contains an executable fraud prover. This repo allows you to:
 
 1. Generate a fraud prover Docker
 2. Run that docker and the associated L2 in Verifier mode, pointed at a local OMGX.
-3. Run that docker and the associated L2 in Verifier mode, pointed at the Rinkeby OMGX.
+3. Inject fraudulant state roots to debug the currently non-operational fraud-prover.
 
-## 1. Building & Running a local System with Fraud Prover
+## 1. FIRST TERMINAL WINDOW: Building & Running a local system with Verifier and Fraud Prover
 
-1. Make sure dependencies are installed - just run `yarn` in the base directory
-2. Build `yarn build`
-
-Then spin up the entire system with the L2, the Verifier, and the Fraud Prover:
+Make sure dependencies are installed - just run `yarn` in the base directory (/packages/fraud-prover). Then spin up the entire system with the L2, the Verifier, and the Fraud Prover:
 
 ```bash
 
 ./up_local.sh #to spin up and verify a local OMGX
 
-#or...
-
-./up_rinkeby.sh #to verify OMGX Rinkeby
-
 ```
 
-Or, you can run just the Fraud Prover from the command line. 
+At this point you will have the *L1*, *L2*, the *Verifier*, the *data_transport_layer*, the *batch_submitter*, *the *message_relayer*, the *deployer*, and the *fraud_prover* all running and talking to one another. So far so good. 
+
+## 2. SECOND TERMINAL WINDOW: Injecting Fraudulant State Roots
+
+The `docker-compose-local.env.yaml` sets:
 
 ```bash
 
+#this is the address that will trigger the batch_submitter to inject fake state roots
+x-var: &FRAUD_SUBMISSION_ADDRESS
+  FRAUD_SUBMISSION_ADDRESS=0xb0dd88dfcc929a78fec13daa1bd77843e267c729
+
+```
+
+Any transactions fron this wallet will cause the `batch_submitter` to submit a bad state root (`0xbad1bad1......`) instead of the correct state root. Normnally, the batch submitter only does this once, but we patched the batch submitter to allow many fraudulant transaction to be submitted. **Open a second terminal** and then:
+
+```bash
+
+yarn build:fraud
+yarn deploy 
+
+```
+
+You will see a few contracts get deployed, and you will see *Mr. Fraud* transferring some funds to Alice. Running `yarn deploy` **does** trigger the batch submitter to inject a bad state root, but then, the system reverts, proably due to indexing and other issues. Note that hardhat needs a `.env` for the deploy - see the `example.env` for working settings.
+
+```bash
+#expected terminal output
+
+  System setup
+L1ERC20 deployed to: 0x196A1b2750D9d39ECcC7667455DdF1b8d5D65696
+L2DepositedERC20 deployed to: 0x3e4CFaa8730092552d9425575E49bB542e329981
+L1ERC20Gateway deployed to: 0x60ba97F7cE0CD19Df71bAd0C3BE9400541f6548E
+L2 ERC20 initialized: 0x2b4793dfe3a8241d776cacd604904c30601f7a895debc59ff66bef1b187d3899
+ Bob Depositing L1 ERC20 to L2...
+ On L1, Bob has: BigNumber { _hex: '0x204fce5e3e25026110000000', _isBigNumber: true }
+ On L2, Bob has: BigNumber { _hex: '0x00', _isBigNumber: true }
+ On L1, Bob now has: BigNumber { _hex: '0x204fce561c79f51cfb680000', _isBigNumber: true }
+ On L2, Bob now has: BigNumber { _hex: '0x0821ab0d4414980000', _isBigNumber: true }
+    ✓ Bob Approve and Deposit ERC20 from L1 to L2 (5233ms)
+    ✓ should transfer ERC20 token to Alice and Fraud (4166ms)
+ On L2, Alice has: 10000000000000000000
+ On L2, Fraud has: 10000000000000000000
+ On L2, Alice now has: 7000000000000000000
+ On L2, Fraud now has: 13000000000000000000
+    ✓ should transfer ERC20 token from Alice to Fraud (4119ms)
+ On L2, Bob has: 130000000000000000000
+ On L2, Fraud has: 13000000000000000000
+ On L2, Bob now has: 131000000000000000000
+ On L2, Fraud now has: 12000000000000000000
+    ✓ should transfer ERC20 token from Fraud to Bob and commit fraud (4123ms)
+
+```
+
+## 3. THIRD TERMINAL WINDOW: Running a local Fraud Prover for rapid debugging purposes
+
+First, *terminate the dockerized fraud-prover service* and then `yarn build` and `yarn start` a fraud-prover from your command line - this makes it much easier and faster to debug, since you get better debug and console.log output, and its easier to make code changes and see what happens. This fraud-prover will also use whatever you set in the .env (which should match of couse with what all the dockerized services are getting from the `docker-compose-local.env.yaml`)
+
+```bash
+
+yarn build
 yarn start
 
 ```
 
-## 2. Generating the Fraud Prover Docker 
+## CURRENTLY BROKEN AT
+
+If you do all of the above, while using the standard contracts, you will get stuck at *EITHER*:
+
+```bash
+# this is in Lib_MerkleTree.sol
+
+require(
+  _siblings.length == _ceilLog2(_totalLeaves),
+  "Lib_MerkleTree: Total siblings does not correctly correspond to total leaves."
+);
+
+```
+
+*OR* you will get through that but then revert at `VM Exception while processing transaction: revert Pre-state root global index must equal to the transaction root global index`:
+
+```bash
+# this is in OVM_FraudVerifier.sol
+
+line 134
+
+require (
+    _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index + 1 == _transactionBatchHeader.prevTotalElements + _transactionProof.index,
+    "Pre-state root global index must equal to the transaction root global index."
+);
+
+```
+
+There are assorted and sundy other ways for this to fail, mostly relating to out of bounds access to various arrays, most notably, in the transactions.
+
+## 4. Generating the Fraud Prover Docker 
 
 To build the Docker:
 
@@ -56,30 +121,15 @@ docker push omgx/fraud-prover:latest
 
 ```
 
-## 3. Injecting Fraudulant State Roots
-
-This will set up some basic smart contracts and transfer some funds. Critically, the Fraud wallet address will be used in a transaction, triggering the Batch_submitter to submit a garbage state root to L1. Unfortunately, right now, if you do that, the system seems completely oblivious to that. Open a second terminal, and then:
-
-```bash
-
-yarn build:fraud
-yarn deploy 
-
-```
-
-Running `yarn deploy` **does** trigger the batch submitter to inject a bad state root, but then, nothing seems to happen in either the Verifier or Fraud_prover.
-
-## 4. TBD
-
-## 5. Configuration
+## NOT UPDATED 5. Configuration
 
 All configuration is done via environment variables. See below for more information.
 
-## 6. Testing & linting
+## NOT UPDATED 6. Testing & linting
 
 - See lint errors with `yarn lint`; auto-fix with `yarn lint --fix`
 
-## 7. Envs (Need to reconcile with the below - ToDo)
+## NOT UPDATED 7. Envs (Need to reconcile with the below - ToDo)
 
 | Environment Variable   | Required? | Default Value         | Description            |
 | -----------            | --------- | -------------         | -----------           |
@@ -94,7 +144,7 @@ All configuration is done via environment variables. See below for more informat
 | `L1_START_OFFSET`      | No        | 0                     | Layer 1 block number to start scanning for transactions from. |
 | `FROM_L2_TRANSACTION_INDEX` | No        | 0                     | Layer 2 block number to start scanning for transactions from. |
 
-## 8. Local testing
+## NOT UPDATED 8. Local testing
 
 The fraud prover will first connect to the relevant chains and then look for mismatched state roots. Note that the *Fraud Prover* does not connect to the *Sequencer*, rather, it connects to the *Verifier*, and the Verifier in turn is looking at the L1. Assuming _your sequencer is not fraudulant_, the standard Fraud Prover output looks like this:
 

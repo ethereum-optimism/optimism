@@ -46,11 +46,11 @@
     "debug": "^4.3.1",
     "directory-tree": "^2.2.7",
     "dotenv": "^8.2.0",
-    "enyalabs_core-utils": "git+https://github.com/enyalabs/core-utils.git",
     "ethereum-waffle": "^3.3.0",
     "ethereumjs-util": "^7.0.7",
     "ethers": "^5.2.0",
     "hardhat": "^2.1.2",
+    "hardhat-typechain": "^0.3.5",
     "merkle-patricia-tree": "^4.0.0",
     "merkletreejs": "^0.2.18",
     "rimraf": "^3.0.2",
@@ -67,8 +67,8 @@
     "@types/node": "^14.14.9",
     "chai": "^4.3.3",
     "chai-as-promised": "^7.1.1",
-    "enyalabs_contracts": "git+ssh://git@github.com:enyalabs/contracts.git",
     "glob": "^7.1.6",
-    "patch-package": "^6.4.7"
+    "patch-package": "^6.4.7",
+    "typechain": "2.0.0"
   }
 }

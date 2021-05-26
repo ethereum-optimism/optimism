@@ -3,6 +3,7 @@ import { HardhatUserConfig } from 'hardhat/types'
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-ovm'
+import 'hardhat-typechain'
 
 const config: HardhatUserConfig = {
   mocha: {
@@ -17,10 +18,7 @@ const config: HardhatUserConfig = {
   solidity: '0.7.6',
   ovm: {
     solcVersion: '0.7.6',
-  },
-  paths: {
-    sources: 'test',
-  },
+  }
 }
 
 export default config
