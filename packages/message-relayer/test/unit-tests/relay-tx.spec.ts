@@ -346,7 +346,7 @@ describe('relay transaction generation functions', () => {
       ).to.be.rejected
     })
 
-    it('should throw an error if the corresponding state batcsenderh has not been submitted', async () => {
+    it('should throw an error if the corresponding state batch has not been submitted', async () => {
       const tx = await MockL2CrossDomainMessenger.emitSentMessageEvent({
         target: ethers.constants.AddressZero,
         sender: ethers.constants.AddressZero,

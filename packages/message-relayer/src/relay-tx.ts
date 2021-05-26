@@ -159,15 +159,13 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
     return index >= prevTotalElements + batchSize
   }
 
-  const totalBatches = (
-    await l1StateCommitmentChain.getTotalBatches()
-  ).toNumber()
-  if (totalBatches === 0) {
+  const totalBatches: ethers.BigNumber = await l1StateCommitmentChain.getTotalBatches()
+  if (totalBatches.eq(0)) {
     return null
   }
 
   let lowerBound = 0
-  let upperBound = totalBatches - 1
+  let upperBound = totalBatches.toNumber() - 1
   let batchEvent: ethers.Event | null = await getStateBatchAppendedEventByBatchIndex(
     upperBound
   )
