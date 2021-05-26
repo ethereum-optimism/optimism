@@ -134,7 +134,7 @@ describe('Basic RPC tests', () => {
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        'fee too low: tx-fee 1, min-fee 33600000000001, l1-gas-price 8000000000, l2-gas-limit 1, l2-gas-price 1, data-size 0'
+        'fee too low: 1, use at least tx.gasLimit = 33600000000001 and tx.gasPrice = 1'
       )
     })
 

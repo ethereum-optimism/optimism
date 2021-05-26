@@ -468,7 +468,7 @@ func (s *SyncService) updateL1GasPrice() error {
 	if err != nil {
 		return err
 	}
-	s.RollupGpo.SetDataPrice(l1GasPrice)
+	s.RollupGpo.SetL1GasPrice(l1GasPrice)
 	return nil
 }
 
@@ -498,7 +498,7 @@ func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 		log.Warn("Invalid gas price detected in state", "state", gasPrice, "using", gp)
 		gasPrice = gp
 	}
-	s.RollupGpo.SetExecutionPrice(gasPrice)
+	s.RollupGpo.SetL2GasPrice(gasPrice)
 	return nil
 }
 
@@ -767,11 +767,11 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 		return errors.New("cannot accept 0 gas price transaction")
 	}
 
-	l1GasPrice, err := s.RollupGpo.SuggestDataPrice(context.Background())
+	l1GasPrice, err := s.RollupGpo.SuggestL1GasPrice(context.Background())
 	if err != nil {
 		return err
 	}
-	l2GasPrice, err := s.RollupGpo.SuggestExecutionPrice(context.Background())
+	l2GasPrice, err := s.RollupGpo.SuggestL2GasPrice(context.Background())
 	if err != nil {
 		return err
 	}
@@ -792,7 +792,7 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	}
 	// Make sure that the fee is paid
 	if tx.Gas() < fee.Uint64() {
-		return fmt.Errorf("fee too low: %d, use tx.gasLimit >= %d and tx.gasPrice = 1", tx.Gas(), fee.Uint64())
+		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = 1", tx.Gas(), fee.Uint64())
 	}
 	return nil
 }

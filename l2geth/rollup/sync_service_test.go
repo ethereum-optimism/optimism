@@ -159,7 +159,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gasBefore, err := service.RollupGpo.SuggestDataPrice(context.Background())
+	gasBefore, err := service.RollupGpo.SuggestL1GasPrice(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 	// Update the gas price
 	service.updateL1GasPrice()
 
-	gasAfter, err := service.RollupGpo.SuggestDataPrice(context.Background())
+	gasAfter, err := service.RollupGpo.SuggestL1GasPrice(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 	service.enableL2GasPolling = true
 	service.gpoAddress = common.HexToAddress("0xF20b338752976878754518183873602902360704")
 
-	price, err := service.RollupGpo.SuggestExecutionPrice(context.Background())
+	price, err := service.RollupGpo.SuggestL2GasPrice(context.Background())
 	if err != nil {
 		t.Fatal("Cannot fetch execution price")
 	}
@@ -208,7 +208,7 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 
 	service.updateL2GasPrice(&root)
 
-	post, err := service.RollupGpo.SuggestExecutionPrice(context.Background())
+	post, err := service.RollupGpo.SuggestL2GasPrice(context.Background())
 	if err != nil {
 		t.Fatal("Cannot fetch execution price")
 	}
