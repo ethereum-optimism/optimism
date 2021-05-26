@@ -10,7 +10,7 @@ const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
 const overhead = 4200
 
-interface EncodableL2GasLimit {
+export interface EncodableL2GasLimit {
   data: Buffer | string
   l1GasPrice: BigNumber | number
   l2GasLimit: BigNumber | number

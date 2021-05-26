@@ -472,9 +472,9 @@ func (s *SyncService) updateL1GasPrice() error {
 	return nil
 }
 
-// updateL2GasPrice will read from the L2 state the current L2 gas price.
-// It must be enabled to function until all nodes are running with the correct
-// contract deployed.
+// updateL2GasPrice accepts a state root and reads the gas price from the gas
+// price oracle at the state that corresponds to the state root. If no state
+// root is passed in, then the tip is used.
 func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 	// TODO(mark): this is temporary and will be able to be rmoved when the
 	// OVM_GasPriceOracle is moved into the predeploy contracts
@@ -786,9 +786,13 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	if !s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
 		return nil
 	}
+	// This should only happen if the transaction fee is greater than 18.44 ETH
+	if !fee.IsUint64() {
+		return fmt.Errorf("fee overflow: %s", fee.String())
+	}
 	// Make sure that the fee is paid
 	if tx.Gas() < fee.Uint64() {
-		return fmt.Errorf("fee too low: tx-fee %d, min-fee %d, l1-gas-price %d, l2-gas-limit %d, l2-gas-price %d, data-size %d", tx.Gas(), fee, l1GasPrice, l2GasLimit, l2GasPrice, len(tx.Data()))
+		return fmt.Errorf("fee too low: %d, use tx.gasLimit >= %d and tx.gasPrice = 1", tx.Gas(), fee.Uint64())
 	}
 	return nil
 }

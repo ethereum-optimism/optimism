@@ -26,8 +26,8 @@ var errInvalidGasPrice = errors.New("rollup fee: invalid gas price")
 // CalculateFee calculates the fee that must be paid to the Rollup sequencer, taking into
 // account the cost of publishing data to L1.
 // l2_gas_price * l2_gas_limit + l1_gas_price * l1_gas_used
-// where the l2 gas price must satisfy the equation `x * (10**8)` + 1
-// and the l1 gas price must satisfy the equation `x * (10**8)`
+// where the l2 gas price must satisfy the equation `x % (10**8) = 1`
+// and the l1 gas price must satisfy the equation `x % (10**8) = 0`
 func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) (*big.Int, error) {
 	if err := VerifyL1GasPrice(l1GasPrice); err != nil {
 		return nil, fmt.Errorf("invalid L1 gas price %d: %w", l1GasPrice, err)
@@ -44,7 +44,8 @@ func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int
 
 // calculateL1GasLimit computes the L1 gasLimit based on the calldata and
 // constant sized overhead. The overhead can be decreased as the cost of the
-// batch submission goes down via contract optimizations.
+// batch submission goes down via contract optimizations. This will not overflow
+// under standard network conditions.
 func calculateL1GasLimit(data []byte, overhead uint64) *big.Int {
 	zeroes, ones := zeroesAndOnes(data)
 	zeroesCost := zeroes * params.TxDataZeroGas
@@ -95,7 +96,7 @@ func RoundL1GasPrice(gasPrice *big.Int) *big.Int {
 
 // RoundL2GasPriceBig implements the algorithm:
 // if gasPrice is 0; return 1
-// if gasPrice is 1; return 1**9 + 1
+// if gasPrice is 1; return 10**8 + 1
 // return ceilModOneHundredMillion(gasPrice-1)+1
 func RoundL2GasPrice(gasPrice *big.Int) *big.Int {
 	if gasPrice.Cmp(common.Big0) == 0 {
