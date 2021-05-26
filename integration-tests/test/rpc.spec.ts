@@ -318,7 +318,7 @@ describe('Basic RPC tests', () => {
 
   describe('eth_estimateGas (returns the fee)', () => {
     it('gas estimation is deterministic', async () => {
-      let lastEstimate: BigNumber;
+      let lastEstimate: BigNumber
       for (let i = 0; i < 10; i++) {
         const estimate = await l2Provider.estimateGas({
           to: DEFAULT_TRANSACTION.to,
