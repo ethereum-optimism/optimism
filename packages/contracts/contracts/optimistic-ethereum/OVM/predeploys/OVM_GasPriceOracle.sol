@@ -60,7 +60,16 @@ contract OVM_GasPriceOracle is Ownable {
         public
         onlyOwner
     {
-        require(_executionPrice % EXECUTION_PRICE_MULTIPLE == 1, "Execution price must satisfy `price % EXECUTION_PRICE_MULTIPLE == 1`.");
+        require(
+            _executionPrice != 0,
+            "OVM_GasPriceOracle: execution price must not be zero"
+        );
+
+        require(
+            _executionPrice % EXECUTION_PRICE_MULTIPLE == 1,
+            "OVM_GasPriceOracle: execution price must satisfy x % (10**8) == 1"
+        );
+
         executionPrice = _executionPrice;
     }
 }
