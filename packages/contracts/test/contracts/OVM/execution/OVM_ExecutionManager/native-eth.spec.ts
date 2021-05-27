@@ -1,4 +1,6 @@
 /* Internal Imports */
+import { remove0x, toHexString } from '@eth-optimism/core-utils'
+import { ethers } from 'ethers'
 import { predeploys } from '../../../../../src'
 import {
   ExecutionManagerTestRunner,
@@ -9,10 +11,21 @@ import {
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 
-const DUMMY_REVERT_DATA =
-  '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
+const uniswapERC20BalanceOfStorageLayoutKey = '0000000000000000000000000000000000000000000000000000000000000005'
+// TODO: use fancy chugsplash storage getter once possible
+const getOvmEthBalanceSlot = (addressOrPlaceholder: string): string => {
+  let address: string
+  if (addressOrPlaceholder.startsWith('$DUMMY_OVM_ADDRESS_')) {
+    address = ExecutionManagerTestRunner.getDummyAddress(addressOrPlaceholder)
+  } else {
+    address = addressOrPlaceholder
+  }
+  const balanceOfSlotPreimage = ethers.utils.hexZeroPad(address, 32) + uniswapERC20BalanceOfStorageLayoutKey
+  const balanceOfSlot = ethers.utils.keccak256(balanceOfSlotPreimage)
+  return balanceOfSlot
+}
 
-const DEAD_ADDRESS = '0xdeaddeaddeaddeaddeaddeaddeaddeaddead1234'
+const INITIAL_BALANCE = 1234
 
 const test_nativeETH: TestDefinition = {
   name: 'Basic tests for ovmCALL',
@@ -40,16 +53,25 @@ const test_nativeETH: TestDefinition = {
           ethAddress: '0x' + '00'.repeat(20),
         },
       },
+      contractStorage: {
+        [predeploys.OVM_ETH]: {
+          [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_1')]: {
+            getStorageXOR: true,
+            value: toHexString(INITIAL_BALANCE),
+          },
+        },
+      },
       verifiedContractStorage: {
-        $DUMMY_OVM_ADDRESS_1: {
-          [NON_NULL_BYTES32]: true,
+        [predeploys.OVM_ETH]: {
+          [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_1')]: true,
         },
       },
     },
   },
   parameters: [
     {
-      name: 'ovmCALL(ADDRESS_1) => ovmADDRESS',
+      name: 'ovmCALL(ADDRESS_1) => ovmBALANCE(ADDRESS_1)',
+      focus: true,
       steps: [
         {
           functionName: 'ovmCALL',
@@ -58,207 +80,16 @@ const test_nativeETH: TestDefinition = {
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
-                functionName: 'ovmADDRESS',
-                expectedReturnValue: '$DUMMY_OVM_ADDRESS_1',
-              },
-            ],
-          },
-          expectedReturnStatus: true,
-        },
-      ],
-    },
-    {
-      name: 'ovmCALL(ADDRESS_1) => ovmSSTORE',
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: '$DUMMY_OVM_ADDRESS_1',
-            subSteps: [
-              {
-                functionName: 'ovmSSTORE',
+                functionName: 'ovmBALANCE',
                 functionParams: {
-                  key: NON_NULL_BYTES32,
-                  value: NON_NULL_BYTES32,
+                  address: '$DUMMY_OVM_ADDRESS_1',
                 },
                 expectedReturnStatus: true,
+                expectedReturnValue: INITIAL_BALANCE,
               },
             ],
           },
           expectedReturnStatus: true,
-        },
-      ],
-    },
-    {
-      name:
-        'ovmCALL(ADDRESS_1) => ovmSSTORE + ovmSLOAD, ovmCALL(ADDRESS_1) => ovmSLOAD',
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: '$DUMMY_OVM_ADDRESS_1',
-            subSteps: [
-              {
-                functionName: 'ovmSSTORE',
-                functionParams: {
-                  key: NON_NULL_BYTES32,
-                  value: NON_NULL_BYTES32,
-                },
-                expectedReturnStatus: true,
-              },
-              {
-                functionName: 'ovmSLOAD',
-                functionParams: {
-                  key: NON_NULL_BYTES32,
-                },
-                expectedReturnStatus: true,
-                expectedReturnValue: NON_NULL_BYTES32,
-              },
-            ],
-          },
-          expectedReturnStatus: true,
-        },
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: '$DUMMY_OVM_ADDRESS_1',
-            subSteps: [
-              {
-                functionName: 'ovmSLOAD',
-                functionParams: {
-                  key: NON_NULL_BYTES32,
-                },
-                expectedReturnStatus: true,
-                expectedReturnValue: NON_NULL_BYTES32,
-              },
-            ],
-          },
-          expectedReturnStatus: true,
-        },
-      ],
-    },
-    {
-      name:
-        'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2) => ovmADDRESS + ovmCALLER',
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: '$DUMMY_OVM_ADDRESS_1',
-            subSteps: [
-              {
-                functionName: 'ovmCALL',
-                functionParams: {
-                  gasLimit: OVM_TX_GAS_LIMIT,
-                  target: '$DUMMY_OVM_ADDRESS_2',
-                  subSteps: [
-                    {
-                      functionName: 'ovmADDRESS',
-                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_2',
-                    },
-                    {
-                      functionName: 'ovmCALLER',
-                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_1',
-                    },
-                  ],
-                },
-                expectedReturnStatus: true,
-              },
-            ],
-          },
-          expectedReturnStatus: true,
-        },
-      ],
-    },
-    {
-      name: 'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_3)',
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: '$DUMMY_OVM_ADDRESS_1',
-            subSteps: [
-              {
-                functionName: 'ovmCALL',
-                functionParams: {
-                  gasLimit: OVM_TX_GAS_LIMIT,
-                  target: '$DUMMY_OVM_ADDRESS_3',
-                  calldata: '0x',
-                },
-                expectedReturnStatus: true,
-              },
-            ],
-          },
-          expectedReturnStatus: true,
-          expectedReturnValue: '0x',
-        },
-      ],
-    },
-    {
-      name: 'ovmCALL(ADDRESS_1) => INTENTIONAL_REVERT',
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: '$DUMMY_OVM_ADDRESS_1',
-            subSteps: [
-              {
-                functionName: 'evmREVERT',
-                returnData: {
-                  flag: REVERT_FLAGS.INTENTIONAL_REVERT,
-                  data: DUMMY_REVERT_DATA,
-                },
-              },
-            ],
-          },
-          expectedReturnStatus: false,
-          expectedReturnValue: DUMMY_REVERT_DATA,
-        },
-      ],
-    },
-    {
-      name: 'ovmCALL(ADDRESS_1) => EXCEEDS_NUISANCE_GAS',
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: '$DUMMY_OVM_ADDRESS_1',
-            subSteps: [
-              {
-                functionName: 'evmREVERT',
-                returnData: {
-                  flag: REVERT_FLAGS.EXCEEDS_NUISANCE_GAS,
-                },
-              },
-            ],
-          },
-          expectedReturnStatus: false,
-          expectedReturnValue: '0x',
-        },
-      ],
-    },
-    {
-      name: 'ovmCALL(0xdeaddeaddead...) returns (true, 0x)',
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: {
-            gasLimit: OVM_TX_GAS_LIMIT,
-            target: DEAD_ADDRESS,
-            subSteps: [],
-          },
-          expectedReturnStatus: true,
-          expectedReturnValue: {
-            ovmSuccess: true,
-            returnData: '0x',
-          },
         },
       ],
     },
