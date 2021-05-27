@@ -32,9 +32,18 @@ docker-compose \
 
 Optionally, run a verifier along the rest of the stack.
 ```
-docker-compose up --scale verifier=1 \
+docker-compose up --scale \
+    verifier=1 \
     --build --detach
 ```
+
+Do the same to run an L2 DTL and replica combo. Note that the L2 DTL is a requirement for the replica!
+```
+docker-compose up --scale \
+    l2_dtl=1 replica=1 \
+    --build --detach
+```
+
 
 A Makefile has been provided for convience. The following targets are available.
 - make up

@@ -158,6 +158,58 @@ services:
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546
+  
+  l2_dtl:
+    depends_on:
+      - l2geth
+    image: ethereumoptimism/data-transport-layer
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.data-transport-layer
+    # override with the dtl script and the env vars required for it
+    entrypoint: ./dtl.sh
+    env_file:
+      -  ./envs/dtl.env
+    # set the rest of the env vars for the network whcih do not
+    # depend on the docker-compose setup
+    environment:
+        # used for setting the address manager address
+        URL: http://deployer:8081/addresses.json
+        # connect to the 2 layers
+        DATA_TRANSPORT_LAYER__SYNC_FROM_L1: 'false'
+        DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
+        DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
+        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
+    ports:
+      - ${L2_DTL_PORT:-7879}:7878
+  
+  replica:
+    depends_on:
+      - l2_dtl
+    image: ethereumoptimism/l2geth
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.geth
+    # override with the geth script and the env vars required for it
+    entrypoint: sh ./geth.sh
+    env_file:
+      - ./envs/geth.env
+    environment:
+        ETH1_HTTP: http://l1_chain:8545
+        ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
+        # used for getting the addresses
+        URL: http://deployer:8081/addresses.json
+        # connecting to the DTL
+        ROLLUP_CLIENT_HTTP: http://l2_dtl:7879
+        ETH1_CTC_DEPLOYMENT_HEIGHT: 8
+        RETRIES: 60
+    ports:
+      - ${L2GETH_HTTP_PORT:-8549}:8545
+      - ${L2GETH_WS_PORT:-8550}:8546
 
   integration_tests:
     image: ethereumoptimism/integration-tests
