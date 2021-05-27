@@ -29,7 +29,7 @@ import {
   isTestStep_EXTCODECOPY,
   isTestStep_BALANCE,
   isTestStep_REVERT,
-  isTestStep_STATICCALL,
+  isTestStep_CALL,
 } from './test.types'
 import { encodeRevertData, REVERT_FLAGS } from '../codec'
 import {
@@ -471,18 +471,18 @@ export class ExecutionManagerTestRunner {
             }),
           ]
         )
-      // ovmSTATICCALL does not accept a value parameter.
-      if (isTestStep_STATICCALL(step)) {
+      // only ovmCALL accepts a value parameter.
+      if (isTestStep_CALL(step)) {
         functionParams = [
           step.functionParams.gasLimit,
           step.functionParams.target,
+          step.functionParams.value || 0,
           innnerCalldata,
         ]
       } else {
         functionParams = [
           step.functionParams.gasLimit,
           step.functionParams.target,
-          step.functionParams.value || 0,
           innnerCalldata,
         ]
       }
@@ -513,8 +513,6 @@ export class ExecutionManagerTestRunner {
     let functionName
     if (step.functionName === 'ovmCALL') {
       functionName = 'ovmCALL(uint256,address,uint256,bytes)'
-    } else if (step.functionName === 'ovmDELEGATECALL') {
-      functionName = 'ovmDELEGATECALL(uint256,address,uint256,bytes)'
     } else {
       functionName = step.functionName
     }
@@ -588,8 +586,6 @@ export class ExecutionManagerTestRunner {
     let functionName
     if (step.functionName === 'ovmCALL') {
       functionName = 'ovmCALL(uint256,address,uint256,bytes)'
-    } else if (step.functionName === 'ovmDELEGATECALL') {
-      functionName = 'ovmDELEGATECALL(uint256,address,uint256,bytes)'
     } else {
       functionName = step.functionName
     }

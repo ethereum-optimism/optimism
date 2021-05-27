@@ -130,7 +130,7 @@ interface iOVM_ExecutionManager {
 
     function ovmCALL(uint256 _gasLimit, address _address, uint _value, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
     function ovmSTATICCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
-    function ovmDELEGATECALL(uint256 _gasLimit, address _address, uint _value, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
+    function ovmDELEGATECALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
 
 
     /****************************

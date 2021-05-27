@@ -678,7 +678,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     function ovmDELEGATECALL(
         uint256 _gasLimit,
         address _address,
-        uint256 _value,
         bytes memory _calldata
     )
         override
@@ -689,9 +688,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
-        // DELEGATECALL does not change anything about the message context other than value.
+        // DELEGATECALL does not change anything about the message context other than value 0.
         MessageContext memory nextMessageContext = messageContext;
-        nextMessageContext.ovmCALLVALUE = _value;
+        nextMessageContext.ovmCALLVALUE = 0;
 
         return _callContract(
             nextMessageContext,
@@ -722,34 +721,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         // Legacy ovmCALL assumed always-0 value.
         return ovmCALL(
-            _gasLimit,
-            _address,
-            0,
-            _calldata
-        );
-    }
-
-    /**
-     * @notice Legacy ovmDELEGATECALL function which did not support ETH value; this maintains backwards compatibility.
-     * @param _gasLimit Amount of gas to be passed into this call.
-     * @param _address Address of the contract containing code to delegate the call to.
-     * @param _calldata Data to send along with the call.
-     * @return _success Whether or not the call returned (rather than reverted).
-     * @return _returndata Data returned by the call.
-     */
-    function ovmDELEGATECALL(
-        uint256 _gasLimit,
-        address _address,
-        bytes memory _calldata
-    )
-        public
-        returns(
-            bool _success,
-            bytes memory _returndata
-        )
-    {
-        // Legacy ovmDELEGATECALL assumed always-0 value.
-        return ovmDELEGATECALL(
             _gasLimit,
             _address,
             0,

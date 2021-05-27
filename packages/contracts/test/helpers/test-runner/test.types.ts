@@ -286,8 +286,8 @@ export const isTestStep_CALLType = (
   )
 }
 
-export const isTestStep_STATICCALL = (step: TestStep): boolean => {
-  return step.functionName === 'ovmSTATICCALL'
+export const isTestStep_CALL = (step: TestStep): boolean => {
+  return step.functionName === 'ovmCALL'
 }
 
 export const isTestStep_CREATE = (step: TestStep): step is TestStep_CREATE => {
