@@ -26,4 +26,4 @@ jobs:
       - name: Run analysis
         working-directory: ./packages/contracts
         shell: bash
-        run: slither . --filter-paths "openzeppelin|test-helpers|test-libraries"
+        run: yarn test:slither

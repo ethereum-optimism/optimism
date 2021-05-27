@@ -6,5 +6,6 @@
   "solc_disable_warnings": false,
   "hardhat_ignore_compile": false,
   "disable_color": false,
-  "filter_paths": "test-helpers,test-libraries"
+  "exclude_dependencies": true,
+  "filter_paths": "@openzeppelin|contracts/test-helpers|contracts/test-libraries"
 }
