@@ -7,49 +7,24 @@ import (
 	"testing"
 )
 
-var roundingL1GasPriceTests = map[string]struct {
+var roundingGasPriceTests = map[string]struct {
 	input  uint64
 	expect uint64
 }{
-	"simple":    {10, pow10(8)},
-	"one-over":  {pow10(8) + 1, 2 * pow10(8)},
-	"exact":     {pow10(8), pow10(8)},
-	"one-under": {pow10(8) - 1, pow10(8)},
-	"small":     {3, pow10(8)},
-	"two":       {2, pow10(8)},
-	"one":       {1, pow10(8)},
+	"simple":    {10, hundredBillion},
+	"one-over":  {hundredBillion + 1, 2 * hundredBillion},
+	"exact":     {hundredBillion, hundredBillion},
+	"one-under": {hundredBillion - 1, hundredBillion},
+	"small":     {3, hundredBillion},
+	"two":       {2, hundredBillion},
+	"one":       {1, hundredBillion},
 	"zero":      {0, 0},
 }
 
-func TestRoundL1GasPrice(t *testing.T) {
-	for name, tt := range roundingL1GasPriceTests {
+func TestRoundGasPrice(t *testing.T) {
+	for name, tt := range roundingGasPriceTests {
 		t.Run(name, func(t *testing.T) {
-			got := RoundL1GasPrice(new(big.Int).SetUint64(tt.input))
-			if got.Uint64() != tt.expect {
-				t.Fatalf("Mismatched rounding to nearest, got %d expected %d", got, tt.expect)
-			}
-		})
-	}
-}
-
-var roundingL2GasPriceTests = map[string]struct {
-	input  uint64
-	expect uint64
-}{
-	"simple":    {10, pow10(8) + 1},
-	"one-over":  {pow10(8) + 2, 2*pow10(8) + 1},
-	"exact":     {pow10(8) + 1, pow10(8) + 1},
-	"one-under": {pow10(8), pow10(8) + 1},
-	"small":     {3, pow10(8) + 1},
-	"two":       {2, pow10(8) + 1},
-	"one":       {1, pow10(8) + 1},
-	"zero":      {0, 1},
-}
-
-func TestRoundL2GasPrice(t *testing.T) {
-	for name, tt := range roundingL2GasPriceTests {
-		t.Run(name, func(t *testing.T) {
-			got := RoundL2GasPrice(new(big.Int).SetUint64(tt.input))
+			got := RoundGasPrice(new(big.Int).SetUint64(tt.input))
 			if got.Uint64() != tt.expect {
 				t.Fatalf("Mismatched rounding to nearest, got %d expected %d", got, tt.expect)
 			}
@@ -86,17 +61,75 @@ var feeTests = map[string]struct {
 	l2GasPrice uint64
 	err        error
 }{
-	"simple":           {100, 100_000_000, 437118, 100_000_001, nil},
-	"zero-l2-gasprice": {10, 100_000_000, 196205, 0, errInvalidGasPrice},
-	"one-l2-gasprice":  {10, 100_000_000, 196205, 1, nil},
-	"zero-l1-gasprice": {10, 0, 196205, 100_000_001, nil},
-	"one-l1-gasprice":  {10, 1, 23255, 23254, errInvalidGasPrice},
+	"simple": {
+		dataLen:    10,
+		l1GasPrice: hundredBillion,
+		l2GasLimit: 437118,
+		l2GasPrice: hundredBillion,
+		err:        nil,
+	},
+	"zero-l2-gasprice": {
+		dataLen:    10,
+		l1GasPrice: hundredBillion,
+		l2GasLimit: 196205,
+		l2GasPrice: 0,
+		err:        nil,
+	},
+	"one-l2-gasprice": {
+		dataLen:    10,
+		l1GasPrice: hundredBillion,
+		l2GasLimit: 196205,
+		l2GasPrice: 1,
+		err:        errInvalidGasPrice,
+	},
+	"zero-l1-gasprice": {
+		dataLen:    10,
+		l1GasPrice: 0,
+		l2GasLimit: 196205,
+		l2GasPrice: hundredBillion,
+		err:        nil,
+	},
+	"one-l1-gasprice": {
+		dataLen:    10,
+		l1GasPrice: 1,
+		l2GasLimit: 23255,
+		l2GasPrice: hundredBillion,
+		err:        errInvalidGasPrice,
+	},
+	"zero-gasprices": {
+		dataLen:    10,
+		l1GasPrice: 0,
+		l2GasLimit: 23255,
+		l2GasPrice: 0,
+		err:        nil,
+	},
+	"bad-l2-gasprice": {
+		dataLen:    10,
+		l1GasPrice: 0,
+		l2GasLimit: 23255,
+		l2GasPrice: hundredBillion - 1,
+		err:        errInvalidGasPrice,
+	},
+	"bad-l1-gasprice": {
+		dataLen:    10,
+		l1GasPrice: hundredBillion - 1,
+		l2GasLimit: 44654,
+		l2GasPrice: hundredBillion,
+		err:        errInvalidGasPrice,
+	},
+	"max-gaslimit": {
+		dataLen:    10,
+		l1GasPrice: hundredBillion,
+		l2GasLimit: 0x4ffffff,
+		l2GasPrice: hundredBillion,
+		err:        nil,
+	},
 }
 
 func TestCalculateRollupFee(t *testing.T) {
 	for name, tt := range feeTests {
 		t.Run(name, func(t *testing.T) {
-			data := make([]byte, 0, tt.dataLen)
+			data := make([]byte, tt.dataLen)
 			l1GasPrice := new(big.Int).SetUint64(tt.l1GasPrice)
 			l2GasLimit := new(big.Int).SetUint64(tt.l2GasLimit)
 			l2GasPrice := new(big.Int).SetUint64(tt.l2GasPrice)
