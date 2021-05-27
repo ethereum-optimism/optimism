@@ -252,6 +252,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       const tx = await this.chainContract.appendSequencerBatch(batchParams, {
         nonce,
         gasPrice,
+        gasLimit:9000000,
       })
       this.logger.info('Submitted appendSequencerBatch transaction', {
         nonce,
@@ -386,7 +387,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         this.l2ChainId,
         queueIndex
       )
-    console.log("test1",timestamp,blockNumber,queueElement)
     if(timestamp==0&&blockNumber==0)
       return true
     // TODO: Verify queue element hash equality. The queue element hash can be computed with:

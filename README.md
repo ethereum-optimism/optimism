@@ -111,4 +111,7 @@ can be hard to filter through. In order to view the logs from a specific service
 docker-compose logs --follow <service name>
 ```
 
-address manager: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+export ADDRESS_MANAGER_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+export L1_NODE_WEB3_URL=http://localhost:9545
+export L2_NODE_WEB3_URL=http://localhost:8545
+export L1_WALLET_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97

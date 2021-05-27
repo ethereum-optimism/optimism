@@ -8,7 +8,7 @@ import {
   getAddressManager,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import { getContractFactory } from '@eth-optimism/contracts'
+import { getContractFactory } from '@metis.io/contracts'
 import { Contract, ContractFactory, Wallet, BigNumber } from 'ethers'
 
 /**

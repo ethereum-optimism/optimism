@@ -205,7 +205,7 @@ func testAndSetContractStorage(evm *EVM, contract *Contract, args map[string]int
 		if err != nil {
 			log.Error("Cannot set diff key", "err", err)
 		}
-		log.Debug("Test and Set Contract Storage", "address", address.Hex(), "key", key.Hex(), "changed", changed)
+		//log.Debug("Test and Set Contract Storage", "address", address.Hex(), "key", key.Hex(), "changed", changed)
 	}
 
 	return []interface{}{true}, nil

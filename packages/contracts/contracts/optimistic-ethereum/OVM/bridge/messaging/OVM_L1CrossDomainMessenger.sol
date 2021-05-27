@@ -20,7 +20,8 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-
+ 
+import "hardhat/console.sol";
 /**
  * @title OVM_L1CrossDomainMessenger
  * @dev The L1 Cross Domain Messenger contract sends messages from L1 to L2, and relays messages
@@ -252,7 +253,22 @@ contract OVM_L1CrossDomainMessenger is
 
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
     }
-
+    function toAscii(bytes1 p) public returns (bytes1) {
+        uint8 a=uint8(p&0x0f);
+        if(a<10)
+            return bytes1(a+48);
+        else
+            return bytes1(a+87);
+    }
+    function byteToAscii(bytes memory b) public returns (bytes memory) {
+        bytes memory names = new bytes(b.length*2);
+        for(uint i = 0; i < b.length; i++) {
+            names[i] = toAscii(b[i]);
+            names[i+1] = toAscii(b[i]>>4);
+        }
+        return names;
+    }
+        
     /**
      * Relays a cross domain message to a contract.
      * @inheritdoc iOVM_L1CrossDomainMessenger
@@ -271,24 +287,15 @@ contract OVM_L1CrossDomainMessenger is
         onlyRelayer
 	whenNotPaused
     {
-        bytes memory xDomainCalldata = _getXDomainCalldataViaChainId(
-            _chainId,
+        bytes memory xDomainCalldata = _getXDomainCalldata(
             _target,
             _sender,
             _message,
             _messageNonce
         );
-
-        bytes memory xDomainCalldataRaw = _getXDomainCalldata(
-            _target,
-            _sender,
-            _message,
-            _messageNonce
-        );
-
         require(
             _verifyXDomainMessage(
-                xDomainCalldataRaw,
+                xDomainCalldata,
                 _proof
             ) == true,
             "Provided message could not be verified."
@@ -323,7 +330,7 @@ contract OVM_L1CrossDomainMessenger is
         // user. Gives us an easy way to pay relayers for their work.
         bytes32 relayId = keccak256(
             abi.encodePacked(
-                xDomainCalldataRaw,
+                xDomainCalldata,
                 msg.sender,
                 block.number
             )

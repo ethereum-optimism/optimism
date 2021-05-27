@@ -1441,7 +1441,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         while(startingGas - gasleft() < gasToConsume) {
             i++;
         }
-
         bytes32 transactionHash = keccak256(
             abi.encode(
                 msg.sender,

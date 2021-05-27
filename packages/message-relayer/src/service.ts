@@ -16,6 +16,7 @@ interface MessageRelayerOptions {
   l1RpcProvider: providers.JsonRpcProvider
   l2RpcProvider: providers.JsonRpcProvider
 
+  l2ChainId: number
   // Address of the AddressManager contract, used to resolve the various addresses we'll need
   // within this service.
   addressManagerAddress: string
@@ -48,6 +49,7 @@ interface MessageRelayerOptions {
 }
 
 const optionSettings = {
+  l2ChainId:{default:420},
   relayGasLimit: { default: 4_000_000 },
   fromL2TransactionIndex: { default: 0 },
   pollingInterval: { default: 5000 },
@@ -79,6 +81,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
   protected async _init(): Promise<void> {
     this.logger.info('Initializing message relayer', {
+      l2ChainId:this.options.l2ChainId,
       relayGasLimit: this.options.relayGasLimit,
       fromL2TransactionIndex: this.options.fromL2TransactionIndex,
       pollingInterval: this.options.pollingInterval,
@@ -286,6 +289,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     // tslint:disable-next-line
     const event = this.state.eventCache.find((event) => {
       return (
+        event.args._chainId == this.options.l2ChainId &&
         event.args._prevTotalElements.toNumber() <= height &&
         event.args._prevTotalElements.toNumber() +
           event.args._batchSize.toNumber() >
@@ -297,13 +301,12 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       const transaction = await this.options.l1RpcProvider.getTransaction(
         event.transactionHash
       )
-      const [
-        stateRoots,
-      ] = this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
-        'appendStateBatch',
+      const x = this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
+        'appendStateBatchByChainId',
         transaction.data
       )
-
+      const stateRoots = x['_batch']
+      
       return {
         batch: {
           batchIndex: event.args._batchIndex,
@@ -381,7 +384,6 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           this.state.OVM_L2CrossDomainMessenger.address.slice(2)
       ) + '00'.repeat(32)
     )
-
     // TODO: Complain if the proof doesn't exist.
     const proof = await this.options.l2RpcProvider.send('eth_getProof', [
       this.state.OVM_L2ToL1MessagePasser.address,
@@ -447,6 +449,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     if (this.options.spreadsheetMode) {
       try {
         await this.options.spreadsheet.addRow({
+          chainId: this.options.l2ChainId,
           target: message.target,
           sender: message.sender,
           message: message.message,
@@ -479,7 +482,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
         await this.state.OVM_L1CrossDomainMessenger.connect(
           this.options.l1Wallet
-        ).callStatic.relayMessage(
+        ).callStatic.relayMessageViaChainId(
+          this.options.l2ChainId,
           message.target,
           message.sender,
           message.message,
@@ -504,7 +508,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
       const result = await this.state.OVM_L1CrossDomainMessenger.connect(
         this.options.l1Wallet
-      ).relayMessage(
+      ).relayMessageViaChainId(
+        this.options.l2ChainId,
         message.target,
         message.sender,
         message.message,

@@ -91,7 +91,6 @@ contract OVM_L2CrossDomainMessenger is
             successfulMessages[xDomainCalldataHash] = true;
             return;
         }
-
         xDomainMsgSender = _sender;
         (bool success, ) = _target.call(_message);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;

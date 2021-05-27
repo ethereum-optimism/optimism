@@ -223,24 +223,26 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		s.SetLatestL1BlockNumber(context.BlockNumber)
 	} else {
 		log.Info("Found latest index", "index", *index)
-		block := s.bc.GetBlockByNumber(*index - 1)
-		if block == nil {
-			block = s.bc.CurrentBlock()
-			idx := block.Number().Uint64()
-			if idx > *index {
-				// This is recoverable with a reorg
-				return fmt.Errorf("Current block height greater than index")
+		if *index > 0 {
+			block := s.bc.GetBlockByNumber(*index - 1)
+			if block == nil {
+				block = s.bc.CurrentBlock()
+				idx := block.Number().Uint64()
+				if idx > *index {
+					// This is recoverable with a reorg
+					return fmt.Errorf("Current block height greater than index")
+				}
+				s.SetLatestIndex(&idx)
+				log.Info("Block not found, resetting index", "new", idx, "old", *index-1)
 			}
-			s.SetLatestIndex(&idx)
-			log.Info("Block not found, resetting index", "new", idx, "old", *index-1)
+			txs := block.Transactions()
+			if len(txs) != 1 {
+				log.Error("Unexpected number of transactions in block: %d", len(txs))
+			}
+			tx := txs[0]
+			s.SetLatestL1Timestamp(tx.L1Timestamp())
+			s.SetLatestL1BlockNumber(tx.L1BlockNumber().Uint64())
 		}
-		txs := block.Transactions()
-		if len(txs) != 1 {
-			log.Error("Unexpected number of transactions in block: %d", len(txs))
-		}
-		tx := txs[0]
-		s.SetLatestL1Timestamp(tx.L1Timestamp())
-		s.SetLatestL1BlockNumber(tx.L1BlockNumber().Uint64())
 	}
 	// Only the sequencer cares about latest queue index
 	if !s.verifier {

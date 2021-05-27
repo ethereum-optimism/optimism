@@ -17,6 +17,10 @@ const main = async () => {
   const env = process.env
   const L2_NODE_WEB3_URL = config.str('l2-node-web3-url', env.L2_NODE_WEB3_URL)
   const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
+  const L2_NODE_CHAIN_ID = config.uint(
+    'l2-node-chain-id',
+    parseInt(env.L2_NODE_CHAIN_ID, 10) || 420
+  )
   const ADDRESS_MANAGER_ADDRESS = config.str(
     'address-manager-address',
     env.ADDRESS_MANAGER_ADDRESS
@@ -103,6 +107,7 @@ const main = async () => {
   const service = new MessageRelayerService({
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
+    l2ChainId: L2_NODE_CHAIN_ID,
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
     l1Wallet: wallet,
     relayGasLimit: RELAY_GAS_LIMIT,

@@ -118,8 +118,20 @@ func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, err
 	if UsingOVM {
 		// OVM_ENABLED
 		// Only log for non `eth_call`s
+
 		if evm.Context.EthCallSender == nil {
-			log.Debug("Calling contract", "ID", evm.Id, "Address", contract.Address().Hex(), "Data", hexutil.Encode(input))
+			for name, account := range evm.chainConfig.StateDump.Accounts {
+				if contract.Address() == account.Address && name != "OVM_StateManager" {
+					abi := &(account.ABI)
+					method, err := abi.MethodById(input)
+					if err != nil {
+						log.Debug("Calling Known Contract Error", "Name", name, "Message", err, "ID", evm.Id, "Address", contract.Address().Hex(), "Data", hexutil.Encode(input))
+					} else {
+						log.Debug("Calling Known Contract", "Name", name, "Method", method.RawName)
+					}
+				}
+			}
+			//log.Debug("Calling contract", "ID", evm.Id, "Address", contract.Address().Hex(), "Data", hexutil.Encode(input))
 		}
 
 		// Uncomment to make Safety checker always returns true.
@@ -414,7 +426,18 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}
 		}
 
-		if evm.Context.EthCallSender == nil {
+		if evm.Context.EthCallSender == nil && err != nil {
+			for name, account := range evm.chainConfig.StateDump.Accounts {
+				if contract.Address() == account.Address && name != "OVM_StateManager" {
+					abi := &(account.ABI)
+					method, err := abi.MethodById(input)
+					if err != nil {
+						log.Debug("Calling Known Contract Error", "Name", name, "Message", err, "ID", evm.Id, "Address", contract.Address().Hex(), "Data", hexutil.Encode(input))
+					} else {
+						log.Debug("Calling Known Contract", "Name", name, "Method", method.RawName)
+					}
+				}
+			}
 			log.Debug("Reached the end of an OVM execution", "ID", evm.Id, "Return Data", hexutil.Encode(ret), "Error", err)
 		}
 	}

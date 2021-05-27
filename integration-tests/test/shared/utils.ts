@@ -3,7 +3,7 @@ import { Direction, waitForXDomainTransaction } from './watcher-utils'
 import {
   getContractFactory,
   getContractInterface,
-} from '@eth-optimism/contracts'
+} from '@metis.io/contracts'
 import { remove0x, Watcher } from '@eth-optimism/core-utils'
 import {
   Contract,

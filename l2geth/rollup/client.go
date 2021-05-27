@@ -420,7 +420,7 @@ func (c *Client) GetEthContext(blockNumber uint64) (*EthContext, error) {
 			"chainId":     c.chainID,
 		}).
 		SetResult(&EthContext{}).
-		Get("/eth/context/blocknumber/{blocknumber}")
+		Get("/eth/context/blocknumber/{blocknumber}/{chainId}")
 
 	if err != nil {
 		return nil, err
@@ -436,8 +436,11 @@ func (c *Client) GetEthContext(blockNumber uint64) (*EthContext, error) {
 // GetLatestEthContext will return the latest EthContext
 func (c *Client) GetLatestEthContext() (*EthContext, error) {
 	response, err := c.client.R().
+		SetPathParams(map[string]string{
+			"chainId": c.chainID,
+		}).
 		SetResult(&EthContext{}).
-		Get("/eth/context/latest")
+		Get("/eth/context/latest/{chainId}")
 
 	if err != nil {
 		return nil, fmt.Errorf("Cannot fetch eth context: %w", err)
@@ -511,8 +514,11 @@ func (c *Client) SyncStatus() (*SyncStatus, error) {
 // GetLatestTransactionBatch will return the latest transaction batch
 func (c *Client) GetLatestTransactionBatch() (*Batch, []*types.Transaction, error) {
 	response, err := c.client.R().
+		SetPathParams(map[string]string{
+			"chainId": c.chainID,
+		}).
 		SetResult(&TransactionBatchResponse{}).
-		Get("/batch/transaction/latest")
+		Get("/batch/transaction/latest/{chainId}")
 
 	if err != nil {
 		return nil, nil, errors.New("Cannot get latest transaction batch")
@@ -530,9 +536,10 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 	response, err := c.client.R().
 		SetResult(&TransactionBatchResponse{}).
 		SetPathParams(map[string]string{
-			"index": str,
+			"index":   str,
+			"chainId": c.chainID,
 		}).
-		Get("/batch/transaction/index/{index}")
+		Get("/batch/transaction/index/{index}/{chainId}")
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("Cannot get transaction batch %d", index)
