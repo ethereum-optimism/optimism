@@ -4,7 +4,7 @@ import { expect } from '../../../setup'
 import { ethers } from 'hardhat'
 import { ContractFactory, Contract, Signer } from 'ethers'
 
-describe.only('OVM_GasPriceOracle', () => {
+describe('OVM_GasPriceOracle', () => {
   const initialGasPrice = 0
   let signer1: Signer
   let signer2: Signer
@@ -37,47 +37,41 @@ describe.only('OVM_GasPriceOracle', () => {
 
   describe('setGasPrice', () => {
     it('should revert if called by someone other than the owner', async () => {
-      await expect(OVM_GasPriceOracle.connect(signer2).setGasPrice(1234))
-        .to.be.reverted
+      await expect(OVM_GasPriceOracle.connect(signer2).setGasPrice(1234)).to.be
+        .reverted
     })
 
     it('should revert if DOES NOT satisfy `price % GAS_PRICE_MULTIPLE == 0`', async () => {
       const gasPrice = 1234
 
-      await expect(
-        OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)
-      ).to.be.reverted
+      await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)).to
+        .be.reverted
     })
 
     it('should revert if DOES NOT satisfy `price % GAS_PRICE_MULTIPLE == 0`', async () => {
       const gasPriceMultiple = await OVM_GasPriceOracle.GAS_PRICE_MULTIPLE()
       const gasPrice = 1234 * gasPriceMultiple
 
-      await expect(
-        OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)
-      ).to.not.be.reverted
+      await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)).to
+        .not.be.reverted
     })
 
     it('should succeed if called by the owner and is equal to `0`', async () => {
-      await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(0)).to
-        .not.be.reverted
+      await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(0)).to.not.be
+        .reverted
     })
   })
 
   describe('get gasPrice', () => {
     it('should return zero at first', async () => {
-      expect(await OVM_GasPriceOracle.gasPrice()).to.equal(
-        initialGasPrice
-      )
+      expect(await OVM_GasPriceOracle.gasPrice()).to.equal(initialGasPrice)
     })
 
     it('should change when setGasPrice is called', async () => {
       const gasPriceMultiple = await OVM_GasPriceOracle.GAS_PRICE_MULTIPLE()
       const gasPrice = 1234 * gasPriceMultiple
 
-      await OVM_GasPriceOracle.connect(signer1).setGasPrice(
-        gasPrice
-      )
+      await OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)
 
       expect(await OVM_GasPriceOracle.gasPrice()).to.equal(gasPrice)
     })
@@ -88,9 +82,7 @@ describe.only('OVM_GasPriceOracle', () => {
       const slot = 1
 
       // set the price
-      await OVM_GasPriceOracle.connect(signer1).setGasPrice(
-        gasPrice
-      )
+      await OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)
 
       // get the storage slot value
       const priceAtSlot = await signer1.provider.getStorageAt(
