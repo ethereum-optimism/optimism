@@ -330,7 +330,7 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 				}
 			}
 		}
-		return b.eth.syncService.ApplyTransaction(signedTx)
+		return b.eth.syncService.ValidateAndApplySequencerTransaction(signedTx)
 	}
 	// OVM Disabled
 	return b.eth.txPool.AddLocal(signedTx)

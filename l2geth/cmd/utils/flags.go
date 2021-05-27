@@ -851,6 +851,12 @@ var (
 		Value:  time.Minute * 3,
 		EnvVar: "ROLLUP_TIMESTAMP_REFRESH",
 	}
+	RollupBackendFlag = cli.StringFlag{
+		Name:   "rollup.backend",
+		Usage:  "Sync backend for verifiers (\"l1\" or \"l2\"), defaults to l1",
+		Value:  "l1",
+		EnvVar: "ROLLUP_BACKEND",
+	}
 	// Flag to enable verifier mode
 	RollupEnableVerifierFlag = cli.BoolFlag{
 		Name:   "rollup.verifier",
@@ -1187,6 +1193,15 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupExecutionPriceFlag.Name) {
 		cfg.ExecutionPrice = GlobalBig(ctx, RollupExecutionPriceFlag.Name)
+	}
+	if ctx.GlobalIsSet(RollupBackendFlag.Name) {
+		val := ctx.GlobalString(RollupBackendFlag.Name)
+		backend, err := rollup.NewBackend(val)
+		if err != nil {
+			log.Error("Configured with unknown sync backend, defaulting to l1", "backend", val)
+			backend, _ = rollup.NewBackend("l1")
+		}
+		cfg.Backend = backend
 	}
 	if ctx.GlobalIsSet(RollupGasPriceOracleAddressFlag.Name) {
 		addr := ctx.GlobalString(RollupGasPriceOracleAddressFlag.Name)

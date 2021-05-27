@@ -69,3 +69,24 @@ func WriteHeadVerifiedIndex(db ethdb.KeyValueWriter, index uint64) {
 		log.Crit("Failed to store verifier index", "err", err)
 	}
 }
+
+// ReadHeadBatchIndex will read the known tip of the processed batches
+func ReadHeadBatchIndex(db ethdb.KeyValueReader) *uint64 {
+	data, _ := db.Get(headBatchKey)
+	if len(data) == 0 {
+		return nil
+	}
+	ret := new(big.Int).SetBytes(data).Uint64()
+	return &ret
+}
+
+// WriteHeadBatchIndex will write the known tip of the processed batches
+func WriteHeadBatchIndex(db ethdb.KeyValueWriter, index uint64) {
+	value := new(big.Int).SetUint64(index).Bytes()
+	if index == 0 {
+		value = []byte{0}
+	}
+	if err := db.Put(headBatchKey, value); err != nil {
+		log.Crit("Failed to store head batch index", "err", err)
+	}
+}

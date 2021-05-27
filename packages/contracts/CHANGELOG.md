@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.4
+
+### Patch Changes
+
+- 7bf5941: Remove colon names from filenames
+- Updated dependencies [f091e86]
+- Updated dependencies [f880479]
+  - @eth-optimism/core-utils@0.4.4
+
 ## 0.3.3
 
 ### Patch Changes
