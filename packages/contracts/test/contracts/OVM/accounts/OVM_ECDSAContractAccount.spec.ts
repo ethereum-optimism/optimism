@@ -86,18 +86,18 @@ describe.skip('OVM_ECDSAContractAccount', () => {
     Mock__OVM_ExecutionManager.smocked.ovmCHAINID.will.return.with(420)
     Mock__OVM_ExecutionManager.smocked.ovmGETNONCE.will.return.with(100)
     // TODO: get this working once smock is fixed
-    Mock__OVM_ExecutionManager.smocked['ovmCALL(uint256,address,bytes)'].will.return.with(
-      (gasLimit, target, data) => {
-        if (target === predeploys.OVM_ETH) {
-          return [
-            true,
-            '0x0000000000000000000000000000000000000000000000000000000000000001',
-          ]
-        } else {
-          return [true, '0x']
-        }
+    Mock__OVM_ExecutionManager.smocked[
+      'ovmCALL(uint256,address,bytes)'
+    ].will.return.with((gasLimit, target, data) => {
+      if (target === predeploys.OVM_ETH) {
+        return [
+          true,
+          '0x0000000000000000000000000000000000000000000000000000000000000001',
+        ]
+      } else {
+        return [true, '0x']
       }
-    )
+    })
     Mock__OVM_ExecutionManager.smocked.ovmSTATICCALL.will.return.with(
       (gasLimit, target, data) => {
         // Duplicating the behavior of the ecrecover precompile.
@@ -144,7 +144,9 @@ describe.skip('OVM_ECDSAContractAccount', () => {
       )
 
       // The ovmCALL is the 2nd call because the first call transfers the fee.
-      const ovmCALL: any = Mock__OVM_ExecutionManager.smocked['ovmCALL(uint256,address,bytes)'].calls[1]
+      const ovmCALL: any =
+        Mock__OVM_ExecutionManager.smocked['ovmCALL(uint256,address,bytes)']
+          .calls[1]
       expect(ovmCALL._address).to.equal(DEFAULT_EIP155_TX.to)
       expect(ovmCALL._calldata).to.equal(DEFAULT_EIP155_TX.data)
     })
@@ -243,18 +245,18 @@ describe.skip('OVM_ECDSAContractAccount', () => {
       const transaction = DEFAULT_EIP155_TX
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      Mock__OVM_ExecutionManager.smocked['ovmCALL(uint256,address,bytes)'].will.return.with(
-        (gasLimit, target, data) => {
-          if (target === predeploys.OVM_ETH) {
-            return [
-              true,
-              '0x0000000000000000000000000000000000000000000000000000000000000000',
-            ]
-          } else {
-            return [true, '0x']
-          }
+      Mock__OVM_ExecutionManager.smocked[
+        'ovmCALL(uint256,address,bytes)'
+      ].will.return.with((gasLimit, target, data) => {
+        if (target === predeploys.OVM_ETH) {
+          return [
+            true,
+            '0x0000000000000000000000000000000000000000000000000000000000000000',
+          ]
+        } else {
+          return [true, '0x']
         }
-      )
+      })
 
       await callPredeploy(
         Helper_PredeployCaller,
@@ -284,7 +286,9 @@ describe.skip('OVM_ECDSAContractAccount', () => {
       )
 
       // First call transfers fee, second transfers value (since value > 0).
-      const ovmCALL: any = Mock__OVM_ExecutionManager.smocked['ovmCALL(uint256,address,bytes)'].calls[1]
+      const ovmCALL: any =
+        Mock__OVM_ExecutionManager.smocked['ovmCALL(uint256,address,bytes)']
+          .calls[1]
       expect(ovmCALL._address).to.equal(predeploys.OVM_ETH)
       expect(ovmCALL._calldata).to.equal(
         iOVM_ETH.encodeFunctionData('transfer', [
@@ -298,29 +302,29 @@ describe.skip('OVM_ECDSAContractAccount', () => {
       const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      Mock__OVM_ExecutionManager.smocked['ovmCALL(uint256,address,bytes)'].will.return.with(
-        (gasLimit, target, data) => {
-          if (target === predeploys.OVM_ETH) {
-            const [recipient, amount] = iOVM_ETH.decodeFunctionData(
-              'transfer',
-              data
-            )
-            if (recipient === transaction.to) {
-              return [
-                true,
-                '0x0000000000000000000000000000000000000000000000000000000000000000',
-              ]
-            } else {
-              return [
-                true,
-                '0x0000000000000000000000000000000000000000000000000000000000000001',
-              ]
-            }
+      Mock__OVM_ExecutionManager.smocked[
+        'ovmCALL(uint256,address,bytes)'
+      ].will.return.with((gasLimit, target, data) => {
+        if (target === predeploys.OVM_ETH) {
+          const [recipient, amount] = iOVM_ETH.decodeFunctionData(
+            'transfer',
+            data
+          )
+          if (recipient === transaction.to) {
+            return [
+              true,
+              '0x0000000000000000000000000000000000000000000000000000000000000000',
+            ]
           } else {
-            return [true, '0x']
+            return [
+              true,
+              '0x0000000000000000000000000000000000000000000000000000000000000001',
+            ]
           }
+        } else {
+          return [true, '0x']
         }
-      )
+      })
 
       await callPredeploy(
         Helper_PredeployCaller,

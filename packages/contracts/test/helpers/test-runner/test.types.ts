@@ -74,7 +74,7 @@ interface TestStep_BALANCE {
     address: string
   }
   expectedReturnStatus: boolean
-  expectedReturnValue: string | RevertFlagError
+  expectedReturnValue: number | RevertFlagError
 }
 
 interface TestStep_SSTORE {
@@ -276,14 +276,16 @@ export const isTestStep_REVERT = (step: TestStep): step is TestStep_REVERT => {
   return step.functionName === 'ovmREVERT'
 }
 
-export const isTestStep_CALLType = (step: TestStep): step is TestStep_CALLType => {
+export const isTestStep_CALLType = (
+  step: TestStep
+): step is TestStep_CALLType => {
   return ['ovmCALL', 'ovmSTATICCALL', 'ovmDELEGATECALL'].includes(
     step.functionName
   )
 }
 
 export const isTestStep_STATICCALL = (step: TestStep): boolean => {
-  return step.functionName == 'ovmSTATICCALL'
+  return step.functionName === 'ovmSTATICCALL'
 }
 
 export const isTestStep_CREATE = (step: TestStep): step is TestStep_CREATE => {

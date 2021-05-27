@@ -380,7 +380,9 @@ export class ExecutionManagerTestRunner {
         await toRun
       }
     } else {
-      await this.contracts.OVM_ExecutionManager['ovmCALL(uint256,address,uint256,bytes)'](
+      await this.contracts.OVM_ExecutionManager[
+        'ovmCALL(uint256,address,uint256,bytes)'
+      ](
         OVM_TX_GAS_LIMIT,
         ExecutionManagerTestRunner.getDummyAddress('$DUMMY_OVM_ADDRESS_1'),
         0,
@@ -459,15 +461,16 @@ export class ExecutionManagerTestRunner {
     ) {
       functionParams = Object.values(step.functionParams)
     } else if (isTestStep_CALLType(step)) {
-      const innnerCalldata = step.functionParams.calldata ||
-      this.contracts.Helper_TestRunner.interface.encodeFunctionData(
-        'runMultipleTestSteps',
-        [
-          step.functionParams.subSteps.map((subStep) => {
-            return this.parseTestStep(subStep)
-          }),
-        ]
-      )
+      const innnerCalldata =
+        step.functionParams.calldata ||
+        this.contracts.Helper_TestRunner.interface.encodeFunctionData(
+          'runMultipleTestSteps',
+          [
+            step.functionParams.subSteps.map((subStep) => {
+              return this.parseTestStep(subStep)
+            }),
+          ]
+        )
       // ovmSTATICCALL does not accept a value parameter.
       if (isTestStep_STATICCALL(step)) {
         functionParams = [
@@ -507,9 +510,10 @@ export class ExecutionManagerTestRunner {
     }
 
     // legacy ovmCALL causes multiple matching functions without the full signature
-    const functionName = step.functionName == 'ovmCALL'
-      ? 'ovmCALL(uint256,address,uint256,bytes)'
-      : step.functionName
+    const functionName =
+      step.functionName === 'ovmCALL'
+        ? 'ovmCALL(uint256,address,uint256,bytes)'
+        : step.functionName
 
     return this.contracts.OVM_ExecutionManager.interface.encodeFunctionData(
       functionName,
@@ -577,9 +581,10 @@ export class ExecutionManagerTestRunner {
     }
 
     // legacy ovmCALL causes multiple matching functions without the full signature
-    const functionName = step.functionName == 'ovmCALL'
-      ? 'ovmCALL(uint256,address,uint256,bytes)'
-      : step.functionName
+    const functionName =
+      step.functionName === 'ovmCALL'
+        ? 'ovmCALL(uint256,address,uint256,bytes)'
+        : step.functionName
 
     return this.contracts.OVM_ExecutionManager.interface.encodeFunctionResult(
       functionName,
