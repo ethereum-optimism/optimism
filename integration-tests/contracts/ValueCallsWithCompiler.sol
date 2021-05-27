@@ -2,16 +2,14 @@
 // @unsupported: evm
 pragma solidity >=0.7.0;
 
-import { Lib_ExecutionManagerWrapper } from "@eth-optimism/contracts/contracts/optimistic-ethereum/libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
-
-contract ValueCalls {
+contract ValueCallsWithCompiler {
 
     receive() external payable { }
 
     function getBalance(
         address _address
     ) external payable returns(uint256) {
-        return Lib_ExecutionManagerWrapper.ovmBALANCE(_address);
+        return _address.balance;
     }
 
     function simpleSend(
@@ -26,7 +24,7 @@ contract ValueCalls {
         uint _value,
         bytes memory _calldata
     ) public returns (bool, bytes memory) {
-        return Lib_ExecutionManagerWrapper.ovmCALL(gasleft(), _address, _value, _calldata);
+        return _address.call{value: _value}(_calldata);
     }
 
     function verifyCallValueAndRevert(
@@ -42,7 +40,7 @@ contract ValueCalls {
     }
 
     function getCallValue() public payable returns(uint256) {
-        return Lib_ExecutionManagerWrapper.ovmCALLVALUE();
+        return msg.value;
     }
 
     function verifyCallValueAndReturn(
