@@ -690,20 +690,19 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     function ovmDELEGATECALL(
         uint256 _gasLimit,
         address _address,
-        uint256 _value,
         bytes memory _calldata
     )
         override
-        external
+        public
         fixedGasDiscount(40000)
         returns (
             bool _success,
             bytes memory _returndata
         )
     {
-        // DELEGATECALL does not change anything about the message context other than value.
+        // DELEGATECALL does not change anything about the message context other than value 0.
         MessageContext memory nextMessageContext = messageContext;
-        nextMessageContext.ovmCALLVALUE = _value;
+        nextMessageContext.ovmCALLVALUE = 0;
 
         return _callContract(
             nextMessageContext,
@@ -714,14 +713,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
-     * @notice Legacy ovmCALL function which did not support ETH value; maintains backwards compatibility.
+     * @notice Legacy ovmCALL function which did not support ETH value; this maintains backwards compatibility.
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _address Address of the contract to call.
      * @param _calldata Data to send along with the call.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
      */
-    // TODO: replicate this for ovmDELEGATECALL
     function ovmCALL(
         uint256 _gasLimit,
         address _address,
@@ -872,7 +870,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _contract
     )
         override
-        external
+        public
         returns (
             uint256 _BALANCE
         )
@@ -897,6 +895,20 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Return the decoded balance.
         return abi.decode(returndata, (uint256));
+    }
+
+    /**
+     * @notice Overrides SELFBALANCE.
+     * @return _BALANCE OVM_ETH balance of the requesting contract.
+     */
+    function ovmSELFBALANCE()
+        override
+        external
+        returns (
+            uint256 _BALANCE
+        )
+    {
+        return ovmBALANCE(ovmADDRESS());
     }
 
     /***************************************

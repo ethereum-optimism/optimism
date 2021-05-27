@@ -106,8 +106,7 @@ const test_nativeETH: TestDefinition = {
       ],
     },
     {
-      name: 'ovmCALL(ADDRESS_1) => ovmCALL(EMPTY_ACCOUNT)',
-      focus: true,
+      name: 'ovmCALL(ADDRESS_1) => ovmCALL(EMPTY_ACCOUNT, value)',
       steps: [
         {
           functionName: 'ovmCALL',
