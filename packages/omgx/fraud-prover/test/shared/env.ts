@@ -1,4 +1,4 @@
-import { getContractInterface, getContractFactory } from 'enyalabs_contracts'
+import { getContractInterface, getContractFactory } from '@eth-optimism/contracts'
 import { Contract, utils, Wallet } from 'ethers'
 import { Watcher } from './watcher'
 

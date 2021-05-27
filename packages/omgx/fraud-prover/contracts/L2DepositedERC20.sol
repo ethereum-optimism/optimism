@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { OVM_L2DepositedERC20 } from "enyalabs_contracts/build/contracts/OVM/bridge/tokens/OVM_L2DepositedERC20.sol";
+import { OVM_L2DepositedERC20 } from '@eth-optimism/contracts/OVM/bridge/tokens/OVM_L2DepositedERC20.sol';
 
 /**
  * @title L2DepositedERC20

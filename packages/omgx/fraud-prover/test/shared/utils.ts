@@ -1,5 +1,5 @@
-import { injectL2Context } from 'enyalabs_core-utils'
-import { getContractFactory, getContractInterface } from 'enyalabs_contracts'
+import { injectL2Context } from '@eth-optimism/core-utils'
+import { getContractInterface, getContractFactory } from '@eth-optimism/contracts'
 import {
   Contract,
   Wallet,

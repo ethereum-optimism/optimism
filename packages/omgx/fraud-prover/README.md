@@ -8,7 +8,7 @@ Contains an executable fraud prover. This repo allows you to:
 
 ## 1. FIRST TERMINAL WINDOW: Building & Running a local system with Verifier and Fraud Prover
 
-Make sure dependencies are installed - just run `yarn` in the base directory (/packages/fraud-prover). Then spin up the entire system with the L2, the Verifier, and the Fraud Prover:
+Make sure dependencies are installed and everything is built - just run `yarn` and `yarn build` in the top directory  (/optimsm). Then spin up the entire system with the L2, the Verifier, and the Fraud Prover:
 
 ```bash
 
@@ -80,7 +80,7 @@ yarn start
 
 ```
 
-## CURRENTLY BROKEN AT
+## CURRENTLY BROKEN AT One of three places - Lib_MerkleTree.sol, OVM_FraudVerifier.sol, or "makeStateTrie for this proof"
 
 If you do all of the above, while using the standard contracts, you will get stuck at *EITHER*:
 
@@ -108,7 +108,7 @@ require (
 
 ```
 
-There are assorted and sundy other ways for this to fail, mostly relating to out of bounds access to various arrays, most notably, in the transactions.
+*OR* you will get stuck at `_makeStateTrie for this proof`. There are also assorted and sundy other ways for this to fail, mostly relating to out of bounds access to various arrays, most notably, in the transactions.
 
 ## 4. Generating the Fraud Prover Docker 
 

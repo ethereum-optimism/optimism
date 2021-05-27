@@ -1,5 +1,5 @@
 {
-  "name": "@enyalabs/OMGX_Wallet",
+  "name": "@omgx/wallet",
   "version": "0.0.1",
   "description": "OMGX Example Wallet and Associated Smart Contracts",
   "private": true,
