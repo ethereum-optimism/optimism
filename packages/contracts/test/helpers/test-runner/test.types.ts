@@ -11,6 +11,7 @@ export type ContextOpcode =
   | 'ovmGASLIMIT'
   | 'ovmCHAINID'
   | 'ovmGETNONCE'
+  | 'ovmCALLVALUE'
 
 type CallOpcode = 'ovmCALL' | 'ovmSTATICCALL' | 'ovmDELEGATECALL'
 
@@ -231,6 +232,7 @@ export const isTestStep_Context = (
     'ovmCHAINID',
     'ovmL1QUEUEORIGIN',
     'ovmGETNONCE',
+    'ovmCALLVALUE',
   ].includes(step.functionName)
 }
 

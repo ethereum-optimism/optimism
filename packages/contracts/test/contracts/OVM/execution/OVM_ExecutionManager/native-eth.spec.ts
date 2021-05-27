@@ -26,6 +26,7 @@ const getOvmEthBalanceSlot = (addressOrPlaceholder: string): string => {
 }
 
 const INITIAL_BALANCE = 1234
+const CALL_VALUE = 69
 
 const test_nativeETH: TestDefinition = {
   name: 'Basic tests for ovmCALL',
@@ -59,11 +60,16 @@ const test_nativeETH: TestDefinition = {
             getStorageXOR: true,
             value: toHexString(INITIAL_BALANCE),
           },
+          [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_2')]: {
+            getStorageXOR: true,
+            value: '0x00',
+          },
         },
       },
       verifiedContractStorage: {
         [predeploys.OVM_ETH]: {
           [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_1')]: true,
+          [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_2')]: true,
         },
       },
     },
@@ -71,7 +77,6 @@ const test_nativeETH: TestDefinition = {
   parameters: [
     {
       name: 'ovmCALL(ADDRESS_1) => ovmBALANCE(ADDRESS_1)',
-      focus: true,
       steps: [
         {
           functionName: 'ovmCALL',
@@ -86,6 +91,198 @@ const test_nativeETH: TestDefinition = {
                 },
                 expectedReturnStatus: true,
                 expectedReturnValue: INITIAL_BALANCE,
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+        },
+      ],
+    },
+    {
+      name:
+        'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2, value) [successful call]',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              // expected initial balances:
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_1'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: INITIAL_BALANCE
+              },
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_2'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: 0
+              },
+              // do the call with some value
+              {
+                functionName: 'ovmCALL',
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  value: CALL_VALUE,
+                  subSteps: [
+                    // check that the ovmCALLVALUE is updated
+                    {
+                      functionName: 'ovmCALLVALUE',
+                      expectedReturnValue: CALL_VALUE
+                    },
+                    // check that the balances have been updated
+                    {
+                      functionName: 'ovmBALANCE',
+                      functionParams: {
+                        address: '$DUMMY_OVM_ADDRESS_1'
+                      },
+                      expectedReturnStatus: true,
+                      expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+                    },
+                    {
+                      functionName: 'ovmBALANCE',
+                      functionParams: {
+                        address: '$DUMMY_OVM_ADDRESS_2'
+                      },
+                      expectedReturnStatus: true,
+                      expectedReturnValue: CALL_VALUE
+                    },
+                  ],
+                },
+                expectedReturnStatus: true,
+              },
+              // check that the ovmCALLVALUE is reset back to 0
+              {
+                functionName: 'ovmCALLVALUE',
+                expectedReturnValue: 0
+              },
+              // check that the balances have persisted
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_1'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+              },
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_2'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: CALL_VALUE
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+        },
+      ],
+    },
+    {
+      name:
+        'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2, value) [reverting call]',
+      focus: true,
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              // expected initial balances:
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_1'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: INITIAL_BALANCE
+              },
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_2'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: 0
+              },
+              // do the call with some value
+              {
+                functionName: 'ovmCALL',
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  value: CALL_VALUE,
+                  subSteps: [
+                    // check that the ovmCALLVALUE is updated
+                    {
+                      functionName: 'ovmCALLVALUE',
+                      expectedReturnValue: CALL_VALUE
+                    },
+                    // check that the balances have been updated
+                    {
+                      functionName: 'ovmBALANCE',
+                      functionParams: {
+                        address: '$DUMMY_OVM_ADDRESS_1'
+                      },
+                      expectedReturnStatus: true,
+                      expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+                    },
+                    {
+                      functionName: 'ovmBALANCE',
+                      functionParams: {
+                        address: '$DUMMY_OVM_ADDRESS_2'
+                      },
+                      expectedReturnStatus: true,
+                      expectedReturnValue: CALL_VALUE
+                    },
+                    // now revert everything
+                    {
+                      functionName: 'ovmREVERT',
+                      expectedReturnStatus: false,
+                      expectedReturnValue: {
+                        flag: REVERT_FLAGS.INTENTIONAL_REVERT,
+                        onlyValidateFlag: true
+                      }
+                    },
+                  ],
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: {
+                  ovmSuccess: false,
+                  returnData: '0x'
+                }
+              },
+              // check that the ovmCALLVALUE is reset back to 0
+              {
+                functionName: 'ovmCALLVALUE',
+                expectedReturnValue: 0
+              },
+              // check that the balances have NOT persisted
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_1'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: INITIAL_BALANCE
+              },
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_2'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: 0
               },
             ],
           },
