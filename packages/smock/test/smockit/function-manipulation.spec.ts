@@ -133,6 +133,23 @@ describe('[smock]: function manipulation tests', () => {
       // TODO
     })
 
+    describe('overloaded functions', () => {
+      it('should be able to modify both versions of an overloaded function', async () => {
+        const expected1 = 1234
+        const expected2 = 5678
+        mock.smocked['overloadedFunction(uint256)'].will.return.with(expected1)
+        mock.smocked['overloadedFunction(uint256,uint256)'].will.return.with(
+          expected2
+        )
+        expect(
+          await mock.callStatic['overloadedFunction(uint256)'](0)
+        ).to.equal(expected1)
+        expect(
+          await mock.callStatic['overloadedFunction(uint256,uint256)'](0, 0)
+        ).to.equal(expected2)
+      })
+    })
+
     describe('returning with data', () => {
       describe('fixed data types', () => {
         describe('default behaviors', () => {
