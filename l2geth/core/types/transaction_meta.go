@@ -160,7 +160,7 @@ func TxMetaEncode(meta *TransactionMeta) []byte {
 		common.WriteVarBytes(b, 0, l.Bytes())
 	}
 
-	queueOrigin := meta.QueueOrigin
+	queueOrigin := uint8(meta.QueueOrigin)
 	q := new(bytes.Buffer)
 	binary.Write(q, binary.LittleEndian, queueOrigin)
 	common.WriteVarBytes(b, 0, q.Bytes())
