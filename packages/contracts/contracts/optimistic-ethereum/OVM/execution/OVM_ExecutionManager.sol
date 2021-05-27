@@ -858,7 +858,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _contract
     )
         override
-        external
+        public
         returns (
             uint256 _BALANCE
         )
@@ -883,6 +883,20 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Return the decoded balance.
         return abi.decode(returndata, (uint256));
+    }
+
+    /**
+     * @notice Overrides SELFBALANCE.
+     * @return _BALANCE OVM_ETH balance of the requesting contract.
+     */
+    function ovmSELFBALANCE()
+        override
+        external
+        returns (
+            uint256 _BALANCE
+        )
+    {
+        return ovmBALANCE(ovmADDRESS());
     }
 
     /***************************************
