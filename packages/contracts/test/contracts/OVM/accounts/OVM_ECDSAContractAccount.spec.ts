@@ -44,6 +44,22 @@ const callPredeploy = async (
 const iOVM_ETH = getContractInterface('OVM_ETH')
 
 // TODO: re-enable once smock bug is merged.  This test has been updated as necessary.
+// UPDATE: half of the smock support has been added, but still fails with:
+          // Error: multiple matching functions (argument="name", value="ovmCALL", code=INVALID_ARGUMENT, version=abi/5.1.0)
+          //     at Logger.makeError (/Users/ben/workspace/optimism/node_modules/@ethersproject/logger/src.ts/index.ts:205:28)
+          //     at Logger.throwError (/Users/ben/workspace/optimism/node_modules/@ethersproject/logger/src.ts/index.ts:217:20)
+          //     at Logger.throwArgumentError (/Users/ben/workspace/optimism/node_modules/@ethersproject/logger/src.ts/index.ts:221:21)
+          //     at Interface.getFunction (/Users/ben/workspace/optimism/node_modules/@ethersproject/abi/src.ts/interface.ts:196:24)
+          //     at Interface.decodeFunctionData (/Users/ben/workspace/optimism/node_modules/@ethersproject/abi/src.ts/interface.ts:277:37)
+          //     at /Users/ben/workspace/optimism/packages/smock/src/smockit/smockit.ts:82:39
+          //     at Array.map (<anonymous>)
+          //     at Object.get calls [as calls] (/Users/ben/workspace/optimism/packages/smock/src/smockit/smockit.ts:76:10)
+          //     at Context.<anonymous> (/Users/ben/workspace/optimism/packages/contracts/test/contracts/OVM/accounts/OVM_ECDSAContractAccount.spec.ts:376:54)
+          //     at processTicksAndRejections (internal/process/task_queues.js:97:5) {
+          //   reason: 'multiple matching functions',
+          //   code: 'INVALID_ARGUMENT',
+          //   argument: 'name',
+          //   value: 'ovmCALL'
 describe.skip('OVM_ECDSAContractAccount', () => {
   let wallet: Wallet
   let badWallet: Wallet
