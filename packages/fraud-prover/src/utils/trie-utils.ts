@@ -1,5 +1,5 @@
 import { BaseTrie } from 'merkle-patricia-tree'
-import { fromHexString } from '@eth-optimism/core-utils'
+import { fromHexString } from './hex-utils'
 
 export const makeTrieFromProofs = (proofs: string[][]): Promise<BaseTrie> => {
   if (

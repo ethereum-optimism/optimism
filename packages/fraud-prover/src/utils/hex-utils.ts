@@ -1,5 +1,4 @@
 import { BigNumber } from 'ethers'
-import { toHexString, fromHexString } from '@eth-optimism/core-utils'
 
 export const toUnpaddedHexString = (buf: Buffer | string | number): string => {
   // prettier-ignore
@@ -59,10 +58,6 @@ export const toUintN = (num: number, n: number): string => {
   )
 }
 
-/*
-
-already in @eth-optimism/core-utils
-
 export const fromHexString = (buf: Buffer | string): Buffer => {
   if (typeof buf === 'string' && buf.startsWith('0x')) {
     return Buffer.from(buf.slice(2), 'hex')
@@ -78,4 +73,3 @@ export const toHexString = (buf: Buffer | string | number | null): string => {
     return '0x' + fromHexString(buf).toString('hex')
   }
 }
-*/

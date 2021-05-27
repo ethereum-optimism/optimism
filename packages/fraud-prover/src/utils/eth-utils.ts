@@ -1,7 +1,7 @@
 import * as rlp from 'rlp'
 import { BigNumber } from 'ethers'
 import { Account, BN } from 'ethereumjs-util'
-import { toHexString, fromHexString } from '@eth-optimism/core-utils'
+import { toHexString, fromHexString } from './hex-utils'
 
 export const encodeAccountState = (state: Partial<any>): Buffer => {
   return new Account(

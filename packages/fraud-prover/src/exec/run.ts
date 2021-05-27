@@ -1,26 +1,61 @@
 import { Wallet, providers } from 'ethers'
 import { FraudProverService } from '../service'
-import { config } from 'dotenv'
+import { Bcfg } from '@eth-optimism/core-utils'
+import * as dotenv from 'dotenv'
+import Config from 'bcfg'
 
-config()
-
-const env = process.env
-const L1_NODE_WEB3_URL = env.L1_NODE_WEB3_URL
-const L2_NODE_WEB3_URL = env.VERIFIER_WEB3_URL
-const ADDRESS_MANAGER_ADDRESS = env.ADDRESS_MANAGER_ADDRESS
-const L1_WALLET_KEY = env.L1_WALLET_KEY
-const MNEMONIC = env.MNEMONIC
-const HD_PATH = env.HD_PATH
-const RELAY_GAS_LIMIT = env.RELAY_GAS_LIMIT || '4000000'
-const RUN_GAS_LIMIT = env.RUN_GAS_LIMIT || '95000000'
-const POLLING_INTERVAL = env.POLLING_INTERVAL || '5000'
-//const GET_LOGS_INTERVAL = env.GET_LOGS_INTERVAL || '2000'
-const L1_BLOCK_OFFSET = env.L1_BLOCK_OFFSET || '0'
-const L1_BLOCK_FINALITY = env.L1_BLOCK_FINALITY || '0'
-const L2_BLOCK_OFFSET = env.L2_BLOCK_OFFSET || '0'
-const FROM_L2_TRANSACTION_INDEX = env.FROM_L2_TRANSACTION_INDEX || '0'
+dotenv.config()
 
 const main = async () => {
+  const config: Bcfg = new Config('fraud-prover')
+  config.load({
+    env: true,
+    argv: true,
+  })
+
+  const env = process.env
+  const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
+  const L2_NODE_WEB3_URL = config.str('verifier-web3-url', env.VERIFIER_WEB3_URL)
+
+  const ADDRESS_MANAGER_ADDRESS = config.str(
+    'address-manager-address',
+    env.ADDRESS_MANAGER_ADDRESS
+  )
+  const L1_WALLET_KEY = config.str('l1-wallet-key', env.L1_WALLET_KEY)
+  const MNEMONIC = config.str('mnemonic', env.MNEMONIC)
+  const HD_PATH = config.str('hd-path', env.HD_PATH)
+  const RELAY_GAS_LIMIT = config.uint(
+    'relay-gas-limit',
+    parseInt(env.RELAY_GAS_LIMIT, 10) || 4000000
+  )
+  const POLLING_INTERVAL = config.uint(
+    'polling-interval',
+    parseInt(env.POLLING_INTERVAL, 10) || 5000
+  )
+  const GET_LOGS_INTERVAL = config.uint(
+    'get-logs-interval',
+    parseInt(env.GET_LOGS_INTERVAL, 10) || 2000
+  )
+  const L2_BLOCK_OFFSET = config.uint(
+    'l2-start-offset',
+    parseInt(env.L2_BLOCK_OFFSET, 10) || 1
+  )
+  const L1_START_OFFSET = config.uint(
+    'l1-start-offset',
+    parseInt(env.L1_BLOCK_OFFSET, 10) || 1
+  )
+  const FROM_L2_TRANSACTION_INDEX = config.uint(
+    'from-l2-transaction-index',
+    parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
+  )
+  const RUN_GAS_LIMIT = config.uint(
+    'run-gas-limit',
+    parseInt(env.RUN_GAS_LIMIT, 10) || 95000000
+  )
+  const L1_BLOCK_FINALITY = config.uint(
+    'l1-block-finality',
+    parseInt(env.L1_BLOCK_FINALITY, 10) || 0
+  )
 
   if (!ADDRESS_MANAGER_ADDRESS) {
     throw new Error('Must pass ADDRESS_MANAGER_ADDRESS')
@@ -52,14 +87,14 @@ const main = async () => {
     l2RpcProvider: l2Provider,
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
     l1Wallet: wallet,
-    deployGasLimit: parseInt(RELAY_GAS_LIMIT, 10), //should reconcile naming
-    runGasLimit: parseInt(RUN_GAS_LIMIT, 10), //should reconcile naming
-    fromL2TransactionIndex: parseInt(FROM_L2_TRANSACTION_INDEX, 10),
-    pollingInterval: parseInt(POLLING_INTERVAL, 10),
-    l2BlockOffset: parseInt(L2_BLOCK_OFFSET, 10),
-    l1StartOffset: parseInt(L1_BLOCK_OFFSET, 10),
-    l1BlockFinality: parseInt(L1_BLOCK_FINALITY, 10),
-    //getLogsInterval: parseInt(GET_LOGS_INTERVAL, 10),
+    deployGasLimit: RELAY_GAS_LIMIT, //should reconcile naming
+    runGasLimit: RUN_GAS_LIMIT, //should reconcile naming
+    fromL2TransactionIndex: FROM_L2_TRANSACTION_INDEX,
+    pollingInterval: POLLING_INTERVAL,
+    l2BlockOffset: L2_BLOCK_OFFSET,
+    l1StartOffset: L1_START_OFFSET,
+    l1BlockFinality: L1_BLOCK_FINALITY,
+    //getLogsInterval: GET_LOGS_INTERVAL,
   })
 
   await service.start()

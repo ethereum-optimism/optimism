@@ -1,8 +1,8 @@
 //import { JsonRpcProvider } from '@ethersproject/providers'
 
 import { providers } from 'ethers'
-import { StateDiffProof } from '../../types'
-import { toUnpaddedHexString } from '../hex-utils'
+import { StateDiffProof } from '../types'
+import { toUnpaddedHexString } from './hex-utils'
 
 export class L2ProviderWrapper {
   

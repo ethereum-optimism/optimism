@@ -2,14 +2,9 @@
 import { Contract, Signer, ethers, Wallet, BigNumber, providers } from 'ethers'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
-import { BaseTrie } from 'merkle-patricia-tree'
 
-import {
-  BaseService,
-  sleep,
-  toHexString,
-  fromHexString,
-} from '@eth-optimism/core-utils'
+import { BaseTrie } from 'merkle-patricia-tree'
+import { BaseService } from '@eth-optimism/common-ts'
 
 import { 
   loadContract, 
@@ -27,6 +22,9 @@ import {
   shuffle,
   toStrippedHexString,
   toBytes32,
+  toHexString,
+  fromHexString,
+  sleep
 } from './utils'
 
 import {
@@ -73,7 +71,7 @@ interface FraudProverOptions {
   l1BlockFinality: number
 
   // Number of blocks within each getLogs query - max is 2000
-  //getLogsInterval?: number
+  getLogsInterval?: number
 }
 
 const optionSettings = {
@@ -81,10 +79,10 @@ const optionSettings = {
   deployGasLimit: { default: 4_000_000 },
   runGasLimit: { default: 9_500_000 },
   fromL2TransactionIndex: { default: 0 },
-  l2BlockOffset: { default: 0 },
+  l2BlockOffset: { default: 1 },
   l1StartOffset: { default: 0 },
   l1BlockFinality: { default: 0 },
-  //getLogsInterval: { default: 2000 },
+  getLogsInterval: { default: 2000 },
 }
 
 export class FraudProverService extends BaseService<FraudProverOptions> {
@@ -114,7 +112,9 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
   protected async _init(): Promise<void> {
     
     this.logger.info('Initializing fraud prover', { options: this.options })
+    
     // Need to improve this, sorry.
+    // haha - cry
     this.state = {} as any
 
     const address = await this.options.l1Wallet.getAddress()
@@ -161,11 +161,13 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
     }
 
     this.logger.info('Connecting to Lib_AddressManager...')
+
     this.state.Lib_AddressManager = loadContract(
       'Lib_AddressManager',
       this.options.addressManagerAddress,
       this.options.l1RpcProvider
     )
+
     this.logger.info('Connected to Lib_AddressManager', {
       address: this.state.Lib_AddressManager.address,
     })
@@ -614,8 +616,8 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
     const OVM_StateTransitioner = loadContract(
       'OVM_StateTransitioner',
       stateTransitionerAddress,
-      this.options.l1RpcProvider
-    ).connect(this.options.l1Wallet)
+      this.options.l1RpcProvider as any
+    ).connect(this.options.l1Wallet as any)
 
     this.logger.info('State transitioner', { stateTransitionerAddress })
 
@@ -628,8 +630,8 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
     const OVM_StateManager = loadContract(
       'OVM_StateManager',
       stateManagerAddress,
-      this.options.l1RpcProvider
-    ).connect(this.options.l1Wallet)
+      this.options.l1RpcProvider as any
+    ).connect(this.options.l1Wallet as any)
 
     this.logger.info('State manager', { stateManagerAddress })
 
@@ -646,7 +648,7 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
    */
   private async _makeStateTrie(proof: StateDiffProof): Promise<BaseTrie> {
 
-    this.logger.info('_makeStateTrie', { proof })
+    this.logger.info('_makeStateTrie for this proof:', { proof })
 
     if(proof.accountStateProofs === null){
       //not sure why this is happening 

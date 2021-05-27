@@ -8,12 +8,12 @@ import {
   TransactionBatchProof,
   TransactionChainElement,
   OvmTransaction,
-} from '../../types'
+} from '../types'
 
 import { 
   fromHexString, 
   toHexString 
-} from '@eth-optimism/core-utils'
+} from './hex-utils'
 
 export class L1ProviderWrapper {
   private eventCache: {

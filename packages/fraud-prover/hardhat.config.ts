@@ -3,7 +3,7 @@ import { HardhatUserConfig } from 'hardhat/types'
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-ovm'
-import 'hardhat-typechain'
+//import 'hardhat-typechain'
 
 const config: HardhatUserConfig = {
   mocha: {
