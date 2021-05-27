@@ -28,6 +28,12 @@ docker-compose \
     up --build --detach
 ```
 
+Optionally, run a verifier along the rest of the stack.
+```
+docker-compose up --scale verifier=1 \
+    --build --detach
+```
+
 A Makefile has been provided for convience. The following targets are available.
 - make up
 - make down
