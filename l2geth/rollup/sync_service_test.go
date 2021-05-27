@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 )
 
 func setupLatestEthContextTest() (*SyncService, *EthContext) {
@@ -507,7 +508,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if gasAfter.Cmp(core.RoundL1GasPrice(big.NewInt(1))) != 0 {
+	if gasAfter.Cmp(fees.RoundGasPrice(big.NewInt(1))) != 0 {
 		t.Fatal("expected 100 gas price, got", gasAfter)
 	}
 }
@@ -533,7 +534,7 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 	if err != nil {
 		t.Fatal("Cannot get state db")
 	}
-	l2GasPrice := big.NewInt(100000001)
+	l2GasPrice := big.NewInt(100000000000)
 	state.SetState(service.gpoAddress, l2GasPriceSlot, common.BigToHash(l2GasPrice))
 	root, _ := state.Commit(false)
 
@@ -824,7 +825,7 @@ func (m *mockClient) SyncStatus(backend Backend) (*SyncStatus, error) {
 }
 
 func (m *mockClient) GetL1GasPrice() (*big.Int, error) {
-	price := core.RoundL1GasPrice(big.NewInt(2))
+	price := fees.RoundGasPrice(big.NewInt(2))
 	return price, nil
 }
 

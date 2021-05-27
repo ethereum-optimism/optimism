@@ -45,15 +45,17 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/tyler-smith/go-bip39"
 )
 
 const (
-	defaultGasPrice = params.Wei
+	defaultGasPrice = params.Wei * fees.FeeScalar
 )
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
+var bigDefaultGasPrice = new(big.Int).SetUint64(defaultGasPrice)
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
@@ -68,7 +70,7 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 
 // GasPrice always returns 1 gwei. See `DoEstimateGas` below for context.
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	return (*hexutil.Big)(big.NewInt(defaultGasPrice)), nil
+	return (*hexutil.Big)(bigDefaultGasPrice), nil
 }
 
 // ProtocolVersion returns the current Ethereum protocol version this node supports
@@ -1059,7 +1061,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	}
 	// 3. calculate the fee
 	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
-	fee, err := core.CalculateRollupFee(data, l1GasPrice, l2GasLimit, l2GasPrice)
+	fee, err := fees.CalculateRollupFee(data, l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return 0, err
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 )
 
 // errShortRemoteTip is an error for when the remote tip is shorter than the
@@ -446,8 +447,11 @@ func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 	}
 	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
 	gasPrice := result.Big()
-	if err := core.VerifyL2GasPrice(gasPrice); err != nil {
-		gp := core.RoundL2GasPrice(gasPrice)
+	if err := fees.VerifyGasPrice(gasPrice); err != nil {
+		// If an invalid gas price is found in the state, then
+		// round it up to the next valid gas price. The contract
+		// should technically never allow for an invalid gas price.
+		gp := fees.RoundGasPrice(gasPrice)
 		log.Warn("Invalid gas price detected in state", "state", gasPrice, "using", gp)
 		gasPrice = gp
 	}
@@ -743,8 +747,8 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	}
 	// Calculate the fee based on decoded L2 gas limit
 	gas := new(big.Int).SetUint64(tx.Gas())
-	l2GasLimit := core.DecodeL2GasLimit(gas)
-	fee, err := core.CalculateRollupFee(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
+	l2GasLimit := fees.DecodeL2GasLimit(gas)
+	fee, err := fees.CalculateRollupFee(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return err
 	}

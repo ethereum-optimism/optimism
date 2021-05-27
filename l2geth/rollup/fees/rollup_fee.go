@@ -1,4 +1,4 @@
-package core
+package fees
 
 import (
 	"errors"
@@ -16,11 +16,11 @@ const overhead uint64 = 4200
 // hundredMillion is a constant used in the gas encoding formula
 const hundredMillion uint64 = 100_000_000
 const hundredBillion uint64 = 100_000_000_000
-const feeScalar uint64 = 1000
+const FeeScalar uint64 = 1000
 
 var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
 var bigHundredBillion = new(big.Int).SetUint64(hundredBillion)
-var bigFeeScalar = new(big.Int).SetUint64(feeScalar)
+var bigFeeScalar = new(big.Int).SetUint64(FeeScalar)
 
 // errInvalidGasPrice is the error returned when a user submits an incorrect gas
 // price. The gas price must satisfy a particular equation depending on if it
@@ -28,7 +28,10 @@ var bigFeeScalar = new(big.Int).SetUint64(feeScalar)
 var errInvalidGasPrice = errors.New("rollup fee: invalid gas price")
 
 // CalculateFee calculates the fee that must be paid to the Rollup sequencer, taking into
+// account both the cost of submitting the transaction to L1 as well as
+// executing the transaction on L2
 // fee = (floor((l1GasLimit*l1GasPrice + l2GasLimit*l2GasPrice) / max(tx.gasPrice, 1)) + l2GasLimit) * tx.gasPrice
+// where tx.gasPrice is hard coded to 1000 * wei
 func CalculateRollupFee(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) (*big.Int, error) {
 	if err := VerifyGasPrice(l1GasPrice); err != nil {
 		return nil, fmt.Errorf("invalid L1 gas price %d: %w", l1GasPrice, err)

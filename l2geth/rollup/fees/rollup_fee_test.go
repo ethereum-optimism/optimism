@@ -1,4 +1,4 @@
-package core
+package fees
 
 import (
 	"errors"
@@ -122,6 +122,13 @@ var feeTests = map[string]struct {
 		l1GasPrice: hundredBillion,
 		l2GasLimit: 0x4ffffff,
 		l2GasPrice: hundredBillion,
+		err:        nil,
+	},
+	"larger-divisor": {
+		dataLen:    10,
+		l1GasPrice: 0,
+		l2GasLimit: 10,
+		l2GasPrice: 0,
 		err:        nil,
 	},
 }
