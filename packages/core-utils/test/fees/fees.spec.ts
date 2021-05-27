@@ -2,6 +2,9 @@ import { expect } from '../setup'
 import * as fees from '../../src/fees'
 import { BigNumber } from 'ethers'
 
+const hundredBillion = 10 ** 11
+const million = 10 ** 6
+
 describe('Fees', () => {
   it('should count zeros and ones', () => {
     const cases = [
@@ -18,42 +21,25 @@ describe('Fees', () => {
     }
   })
 
-  describe('Round L1 Gas Price', () => {
-    const roundL1GasPriceTests = [
-      { input: 10, expect: 10 ** 8, name: 'simple' },
-      { input: 10 ** 8 + 1, expect: 2 * 10 ** 8, name: 'one-over' },
-      { input: 10 ** 8, expect: 10 ** 8, name: 'exact' },
-      { input: 10 ** 8 - 1, expect: 10 ** 8, name: 'one-under' },
-      { input: 3, expect: 10 ** 8, name: 'small' },
-      { input: 2, expect: 10 ** 8, name: 'two' },
-      { input: 1, expect: 10 ** 8, name: 'one' },
+  describe('Round Gas Price', () => {
+    const roundGasPriceTests = [
+      { input: 10, expect: hundredBillion, name: 'simple' },
+      {
+        input: hundredBillion + 1,
+        expect: 2 * hundredBillion,
+        name: 'one-over',
+      },
+      { input: hundredBillion, expect: hundredBillion, name: 'exact' },
+      { input: hundredBillion - 1, expect: hundredBillion, name: 'one-under' },
+      { input: 3, expect: hundredBillion, name: 'small' },
+      { input: 2, expect: hundredBillion, name: 'two' },
+      { input: 1, expect: hundredBillion, name: 'one' },
       { input: 0, expect: 0, name: 'zero' },
     ]
 
-    for (const test of roundL1GasPriceTests) {
+    for (const test of roundGasPriceTests) {
       it(`should pass for ${test.name} case`, () => {
-        const got = fees.roundL1GasPrice(test.input)
-        const expected = BigNumber.from(test.expect)
-        expect(got).to.deep.equal(expected)
-      })
-    }
-  })
-
-  describe('Round L2 Gas Price', () => {
-    const roundL2GasPriceTests = [
-      { input: 10, expect: 10 ** 8 + 1, name: 'simple' },
-      { input: 10 ** 8 + 2, expect: 2 * 10 ** 8 + 1, name: 'one-over' },
-      { input: 10 ** 8 + 1, expect: 10 ** 8 + 1, name: 'exact' },
-      { input: 10 ** 8, expect: 10 ** 8 + 1, name: 'one-under' },
-      { input: 3, expect: 10 ** 8 + 1, name: 'small' },
-      { input: 2, expect: 10 ** 8 + 1, name: 'two' },
-      { input: 1, expect: 10 ** 8 + 1, name: 'one' },
-      { input: 0, expect: 1, name: 'zero' },
-    ]
-
-    for (const test of roundL2GasPriceTests) {
-      it(`should pass for ${test.name} case`, () => {
-        const got = fees.roundL2GasPrice(test.input)
+        const got = fees.roundGasPrice(test.input)
         const expected = BigNumber.from(test.expect)
         expect(got).to.deep.equal(expected)
       })
@@ -65,32 +51,32 @@ describe('Fees', () => {
       {
         name: 'simple',
         dataLen: 10,
-        l1GasPrice: 100_000_000,
-        l2GasPrice: 100_000_001,
+        l1GasPrice: hundredBillion,
+        l2GasPrice: hundredBillion,
         l2GasLimit: 437118,
         error: false,
       },
       {
         name: 'zero-l2-gasprice',
         dataLen: 10,
-        l1GasPrice: 100_000_000,
+        l1GasPrice: hundredBillion,
         l2GasPrice: 0,
         l2GasLimit: 196205,
-        error: true,
+        error: false,
       },
       {
         name: 'one-l2-gasprice',
         dataLen: 10,
-        l1GasPrice: 100_000_000,
+        l1GasPrice: hundredBillion,
         l2GasPrice: 1,
         l2GasLimit: 196205,
-        error: false,
+        error: true,
       },
       {
         name: 'zero-l1-gasprice',
         dataLen: 10,
         l1GasPrice: 0,
-        l2GasPrice: 100_000_001,
+        l2GasPrice: hundredBillion,
         l2GasLimit: 196205,
         error: false,
       },
@@ -98,9 +84,52 @@ describe('Fees', () => {
         name: 'one-l1-gasprice',
         dataLen: 10,
         l1GasPrice: 1,
-        l2GasPrice: 23254,
+        l2GasPrice: hundredBillion,
         l2GasLimit: 23255,
         error: true,
+      },
+      {
+        name: 'zero-gasprices',
+        dataLen: 10,
+        l1GasPrice: 0,
+        l2GasPrice: 0,
+        l2GasLimit: 23255,
+        error: false,
+      },
+      {
+        name: 'bad-l2-gasprice',
+        dataLen: 10,
+        l1GasPrice: 0,
+        l2GasPrice: hundredBillion - 1,
+        l2GasLimit: 23255,
+        error: true,
+      },
+      {
+        name: 'bad-l1-gasprice',
+        dataLen: 10,
+        l1GasPrice: hundredBillion - 1,
+        l2GasPrice: hundredBillion,
+        l2GasLimit: 44654,
+        error: true,
+      },
+      // The largest possible gaslimit that can be represented
+      // is 0x04ffffff which is plenty high enough to cover the
+      // L2 gas limit
+      {
+        name: 'max-gaslimit',
+        dataLen: 10,
+        l1GasPrice: hundredBillion,
+        l2GasPrice: hundredBillion,
+        l2GasLimit: 0x4ffffff,
+        error: false,
+      },
+      {
+        name: 'larger-divisor',
+        dataLen: 10,
+        l1GasPrice: 0,
+        l2GasLimit: 10,
+        l2GasPrice: 0,
+        error: false,
       },
     ]
 
