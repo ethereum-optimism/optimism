@@ -20,7 +20,7 @@ const config: HardhatUserConfig = {
   },
   solidity: '0.7.6',
   ovm: {
-    solcVersion: '0.7.6',
+    solcVersion: '0.7.6-experimental_callvalue',
   },
   gasReporter: {
     enabled: enableGasReport,
