@@ -211,7 +211,7 @@ export const smockit = async (
     let mockFn: any
     if (fn !== null) {
       params = this.interface.decodeFunctionData(fn, toHexString(data))
-      mockFn = this.smocked[fn.name]
+      mockFn = this.smocked[fn.name] || this.smocked[fn.format()]
     } else {
       params = toHexString(data)
       mockFn = this.smocked.fallback
