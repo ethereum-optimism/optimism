@@ -510,10 +510,14 @@ export class ExecutionManagerTestRunner {
     }
 
     // legacy ovmCALL causes multiple matching functions without the full signature
-    const functionName =
-      step.functionName === 'ovmCALL'
-        ? 'ovmCALL(uint256,address,uint256,bytes)'
-        : step.functionName
+    let functionName
+    if (step.functionName === 'ovmCALL') {
+      functionName = 'ovmCALL(uint256,address,uint256,bytes)'
+    } else if (step.functionName === 'ovmDELEGATECALL') {
+      functionName = 'ovmDELEGATECALL(uint256,address,uint256,bytes)'
+    } else {
+      functionName = step.functionName
+    }
 
     return this.contracts.OVM_ExecutionManager.interface.encodeFunctionData(
       functionName,
@@ -581,10 +585,14 @@ export class ExecutionManagerTestRunner {
     }
 
     // legacy ovmCALL causes multiple matching functions without the full signature
-    const functionName =
-      step.functionName === 'ovmCALL'
-        ? 'ovmCALL(uint256,address,uint256,bytes)'
-        : step.functionName
+    let functionName
+    if (step.functionName === 'ovmCALL') {
+      functionName = 'ovmCALL(uint256,address,uint256,bytes)'
+    } else if (step.functionName === 'ovmDELEGATECALL') {
+      functionName = 'ovmDELEGATECALL(uint256,address,uint256,bytes)'
+    } else {
+      functionName = step.functionName
+    }
 
     return this.contracts.OVM_ExecutionManager.interface.encodeFunctionResult(
       functionName,
