@@ -137,6 +137,82 @@ library Lib_ExecutionManagerWrapper {
         return abi.decode(returndata, (uint256));
     }
 
+    /**
+     * Calls the value-enabled ovmCALL opcode.
+     * @param _gasLimit Amount of gas to be passed into this call.
+     * @param _address Address of the contract to call.
+     * @param _value ETH value to pass with the call.
+     * @param _calldata Data to send along with the call.
+     * @return _success Whether or not the call returned (rather than reverted).
+     * @return _returndata Data returned by the call.
+     */
+    function ovmCALL(
+        uint256 _gasLimit,
+        address _address,
+        uint256 _value,
+        bytes memory _calldata
+    )
+        internal
+        returns (
+            bool,
+            bytes memory
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmCALL(uint256,address,uint256,bytes)",
+                _gasLimit,
+                _address,
+                _value,
+                _calldata
+            )
+        );
+
+        return abi.decode(returndata, (bool, bytes));
+    }
+
+    /**
+     * Calls the ovmBALANCE opcode.
+     * @param _address OVM account to query the balance of.
+     * @return Balance of the account.
+     */
+    function ovmBALANCE(
+        address _address
+    )
+        internal
+        returns (
+            uint256
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmBALANCE(address)",
+                _address
+            )
+        );
+
+        return abi.decode(returndata, (uint256));
+    }
+
+    /**
+     * Calls the ovmCALLVALUE opcode.
+     * @return Value of the current call frame.
+     */
+    function ovmCALLVALUE()
+        internal
+        returns (
+            uint256
+        )
+    {
+        bytes memory returndata = _safeExecutionManagerInteraction(
+            abi.encodeWithSignature(
+                "ovmCALLVALUE()"
+            )
+        );
+
+        return abi.decode(returndata, (uint256));
+    }
+
 
     /*********************
      * Private Functions *
