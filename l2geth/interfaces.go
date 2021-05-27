@@ -122,7 +122,7 @@ type CallMsg struct {
 
 	L1MessageSender   *common.Address
 	L1BlockNumber     *big.Int
-	QueueOrigin       *big.Int
+	QueueOrigin       types.QueueOrigin
 	SignatureHashType types.SignatureHashType
 }
 

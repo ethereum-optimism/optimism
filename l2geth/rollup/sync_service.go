@@ -649,7 +649,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// Queue Origin L1 to L2 transactions must have a timestamp that is set by
 	// the L1 block that holds the transaction. This should never happen but is
 	// a sanity check to prevent fraudulent execution.
-	if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginL1ToL2) {
+	if tx.QueueOrigin() == types.QueueOriginL1ToL2 {
 		if tx.L1Timestamp() == 0 {
 			return fmt.Errorf("Queue origin L1 to L2 transaction without a timestamp: %s", tx.Hash().Hex())
 		}
@@ -676,7 +676,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		bn := tx.L1BlockNumber()
 		s.SetLatestL1Timestamp(ts)
 		s.SetLatestL1BlockNumber(bn.Uint64())
-		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64(), "queue-origin", tx.QueueOrigin().Uint64())
+		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64(), "queue-origin", tx.QueueOrigin())
 	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
 		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
 	}
@@ -782,11 +782,8 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex())
 
 	qo := tx.QueueOrigin()
-	if qo == nil {
-		return errors.New("invalid transaction with no queue origin")
-	}
-	if qo.Uint64() != uint64(types.QueueOriginSequencer) {
-		return fmt.Errorf("invalid transaction with queue origin %d", qo.Uint64())
+	if qo != types.QueueOriginSequencer {
+		return fmt.Errorf("invalid transaction with queue origin %d", qo)
 	}
 	err := s.txpool.ValidateTx(tx)
 	if err != nil {

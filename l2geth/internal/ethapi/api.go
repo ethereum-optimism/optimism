@@ -1358,13 +1358,11 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		if meta.L1BlockNumber != nil {
 			result.L1BlockNumber = (*hexutil.Big)(meta.L1BlockNumber)
 		}
-		if meta.QueueOrigin != nil {
-			switch meta.QueueOrigin.Uint64() {
-			case uint64(types.QueueOriginSequencer):
-				result.QueueOrigin = "sequencer"
-			case uint64(types.QueueOriginL1ToL2):
-				result.QueueOrigin = "l1"
-			}
+		switch meta.QueueOrigin {
+		case types.QueueOriginSequencer:
+			result.QueueOrigin = "sequencer"
+		case types.QueueOriginL1ToL2:
+			result.QueueOrigin = "l1"
 		}
 
 		if meta.Index != nil {
@@ -2174,7 +2172,7 @@ func (api *PrivateDebugAPI) IngestTransactions(txs []*RPCTransaction) error {
 			L1Timestamp:       l1Timestamp,
 			L1MessageSender:   tx.L1TxOrigin,
 			SignatureHashType: sighashType,
-			QueueOrigin:       big.NewInt(int64(queueOrigin)),
+			QueueOrigin:       queueOrigin,
 			Index:             (*uint64)(tx.Index),
 			QueueIndex:        (*uint64)(tx.QueueIndex),
 			RawTransaction:    rawTransaction,

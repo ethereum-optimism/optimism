@@ -153,14 +153,7 @@ func isTxMetaEqual(meta1 *TransactionMeta, meta2 *TransactionMeta) bool {
 		return false
 	}
 
-	if meta1.QueueOrigin == nil || meta2.QueueOrigin == nil {
-		// Note: this only works because it is the final comparison
-		if meta1.QueueOrigin == nil && meta2.QueueOrigin == nil {
-			return true
-		}
-	}
-
-	if !bytes.Equal(meta1.QueueOrigin.Bytes(), meta2.QueueOrigin.Bytes()) {
+	if meta1.QueueOrigin != meta2.QueueOrigin {
 		return false
 	}
 

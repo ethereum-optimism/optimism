@@ -16,7 +16,7 @@ func (t TransactionMeta) MarshalJSON() ([]byte, error) {
 		L1BlockNumber     *big.Int          `json:"l1BlockNumber"`
 		L1MessageSender   *common.Address   `json:"l1MessageSender" gencodec:"required"`
 		SignatureHashType SignatureHashType `json:"signatureHashType" gencodec:"required"`
-		QueueOrigin       *big.Int          `json:"queueOrigin" gencodec:"required"`
+		QueueOrigin       QueueOrigin       `json:"queueOrigin" gencodec:"required"`
 		Index             *uint64           `json:"index" gencodec:"required"`
 	}
 	var enc TransactionMeta
@@ -34,7 +34,7 @@ func (t *TransactionMeta) UnmarshalJSON(input []byte) error {
 		L1BlockNumber     *big.Int           `json:"l1BlockNumber"`
 		L1MessageSender   *common.Address    `json:"l1MessageSender" gencodec:"required"`
 		SignatureHashType *SignatureHashType `json:"signatureHashType" gencodec:"required"`
-		QueueOrigin       *big.Int           `json:"queueOrigin" gencodec:"required"`
+		QueueOrigin       *QueueOrigin       `json:"queueOrigin" gencodec:"required"`
 		Index             *uint64            `json:"index" gencodec:"required"`
 	}
 	var dec TransactionMeta
@@ -55,7 +55,7 @@ func (t *TransactionMeta) UnmarshalJSON(input []byte) error {
 	if dec.QueueOrigin == nil {
 		return errors.New("missing required field 'queueOrigin' for TransactionMeta")
 	}
-	t.QueueOrigin = dec.QueueOrigin
+	t.QueueOrigin = *dec.QueueOrigin
 	if dec.Index == nil {
 		return errors.New("missing required field 'index' for TransactionMeta")
 	}

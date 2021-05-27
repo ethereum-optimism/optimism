@@ -603,7 +603,7 @@ func (m callmsg) Data() []byte         { return m.CallMsg.Data }
 
 func (m callmsg) L1MessageSender() *common.Address           { return m.CallMsg.L1MessageSender }
 func (m callmsg) L1BlockNumber() *big.Int                    { return m.CallMsg.L1BlockNumber }
-func (m callmsg) QueueOrigin() *big.Int                      { return m.CallMsg.QueueOrigin }
+func (m callmsg) QueueOrigin() types.QueueOrigin             { return m.CallMsg.QueueOrigin }
 func (m callmsg) SignatureHashType() types.SignatureHashType { return m.CallMsg.SignatureHashType }
 
 // filterBackend implements filters.Backend to support filtering for logs without
