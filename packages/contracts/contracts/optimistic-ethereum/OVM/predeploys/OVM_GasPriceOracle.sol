@@ -6,9 +6,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title OVM_GasPriceOracle
- * @dev This contract exposes the current execution price, a measure of how congested the network
+ * @dev This contract exposes the current l2 gas price, a measure of how congested the network
  * currently is. This measure is used by the Sequencer to determine what fee to charge for
- * transactions. When the system is more congested, the execution price will increase and fees
+ * transactions. When the system is more congested, the l2 gas price will increase and fees
  * will also increase as a result.
  *
  * Compiler used: optimistic-solc
@@ -20,13 +20,13 @@ contract OVM_GasPriceOracle is Ownable {
      * Variables *
      *************/
 
-    // Current execution price
-    uint256 public executionPrice;
+    // Current l2 gas price
+    uint256 public gasPrice;
 
     /*************
      * Constants *
      *************/
-    uint256 public constant EXECUTION_PRICE_MULTIPLE = 100000000;
+    uint256 public constant GAS_PRICE_MULTIPLE = 100000000;
 
     /***************
      * Constructor *
@@ -37,11 +37,11 @@ contract OVM_GasPriceOracle is Ownable {
      */
     constructor(
         address _owner,
-        uint256 _initialExecutionPrice
+        uint256 _initialGasPrice
     )
         Ownable()
     {
-        setExecutionPrice(_initialExecutionPrice);
+        setGasPrice(_initialGasPrice);
         transferOwnership(_owner);
     }
 
@@ -51,25 +51,20 @@ contract OVM_GasPriceOracle is Ownable {
      ********************/
 
     /**
-     * Allows the owner to modify the execution price.
-     * @param _executionPrice New execution price.
+     * Allows the owner to modify the l2 gas price.
+     * @param _gasPrice New l2 gas price.
      */
-    function setExecutionPrice(
-        uint256 _executionPrice
+    function setGasPrice(
+        uint256 _gasPrice
     )
         public
         onlyOwner
     {
         require(
-            _executionPrice != 0,
-            "OVM_GasPriceOracle: execution price must not be zero"
+            _gasPrice % GAS_PRICE_MULTIPLE == 0,
+            "OVM_GasPriceOracle: l2 gas price must satisfy x % (10**8) == 0"
         );
 
-        require(
-            _executionPrice % EXECUTION_PRICE_MULTIPLE == 1,
-            "OVM_GasPriceOracle: execution price must satisfy x % (10**8) == 1"
-        );
-
-        executionPrice = _executionPrice;
+        gasPrice = _gasPrice;
     }
 }
