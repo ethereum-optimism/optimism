@@ -8,7 +8,7 @@ import { sleep } from '../../packages/core-utils/dist'
 
 chai.use(solidity)
 
-describe('OVM calls with native ETH value', async () => {
+describe.only('OVM calls with native ETH value', async () => {
   const initialBalance0 = 42000
 
   let env: OptimismEnv

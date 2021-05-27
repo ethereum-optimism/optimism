@@ -6,21 +6,18 @@ import { Lib_ExecutionManagerWrapper } from "@eth-optimism/contracts/contracts/o
 
 contract ValueCalls {
 
-    // TODO: this is unneccessary without the compiler.
-    // Once we have the compiler, we should add explicit `payable` and `receive` integration tests.
-    // receive() external payable { }
-    fallback() external payable { }
+    receive() external payable { }
 
     function getBalance(
         address _address
-    ) external returns(uint256) {
+    ) external payable returns(uint256) {
         return Lib_ExecutionManagerWrapper.ovmBALANCE(_address);
     }
 
     function simpleSend(
         address _address,
         uint _value
-    ) external returns (bool, bytes memory) {
+    ) external payable returns (bool, bytes memory) {
         return sendWithData(_address, _value, hex"");
     }
 
@@ -34,7 +31,7 @@ contract ValueCalls {
 
     function verifyCallValueAndRevert(
         uint256 _expectedValue
-    ) external {
+    ) external payable {
         bool correct = _checkCallValue(_expectedValue);
         // do the opposite of expected if the value is wrong.
         if (correct) {
@@ -44,13 +41,13 @@ contract ValueCalls {
         }
     }
 
-    function getCallValue() public returns(uint256) {
+    function getCallValue() public payable returns(uint256) {
         return Lib_ExecutionManagerWrapper.ovmCALLVALUE();
     }
 
     function verifyCallValueAndReturn(
         uint256 _expectedValue
-    ) external {
+    ) external payable {
         bool correct = _checkCallValue(_expectedValue);
         // do the opposite of expected if the value is wrong.
         if (correct) {
