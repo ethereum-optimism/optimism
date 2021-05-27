@@ -64,12 +64,17 @@ const test_nativeETH: TestDefinition = {
             getStorageXOR: true,
             value: '0x00',
           },
+          [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_3')]: {
+            getStorageXOR: true,
+            value: '0x00',
+          },
         },
       },
       verifiedContractStorage: {
         [predeploys.OVM_ETH]: {
           [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_1')]: true,
           [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_2')]: true,
+          [getOvmEthBalanceSlot('$DUMMY_OVM_ADDRESS_3')]: true,
         },
       },
     },
@@ -91,6 +96,49 @@ const test_nativeETH: TestDefinition = {
                 },
                 expectedReturnStatus: true,
                 expectedReturnValue: INITIAL_BALANCE,
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+        },
+      ],
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => ovmCALL(EMPTY_ACCOUNT)',
+      focus: true,
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmCALL',
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT,
+                  target: '$DUMMY_OVM_ADDRESS_3',
+                  value: CALL_VALUE,
+                  calldata: '0x',
+                },
+                expectedReturnStatus: true,
+              },
+              // Check balances are still applied:
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_1'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+              },
+              {
+                functionName: 'ovmBALANCE',
+                functionParams: {
+                  address: '$DUMMY_OVM_ADDRESS_3'
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: CALL_VALUE
               },
             ],
           },
@@ -190,7 +238,6 @@ const test_nativeETH: TestDefinition = {
     {
       name:
         'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2, value) [reverting call]',
-      focus: true,
       steps: [
         {
           functionName: 'ovmCALL',

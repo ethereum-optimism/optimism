@@ -1009,6 +1009,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         }
 
         // Both 0x0000... and the EVM precompiles have the same address on L1 and L2 --> no trie lookup needed.
+        // TODO: must we enforce that ovmCALLVALUE is 0 for the EVM precompiles?
         address codeContractAddress =
             uint(_contract) < 100
             ? _contract
