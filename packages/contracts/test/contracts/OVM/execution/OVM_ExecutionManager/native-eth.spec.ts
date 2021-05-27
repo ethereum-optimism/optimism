@@ -11,7 +11,8 @@ import {
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 
-const uniswapERC20BalanceOfStorageLayoutKey = '0000000000000000000000000000000000000000000000000000000000000005'
+const uniswapERC20BalanceOfStorageLayoutKey =
+  '0000000000000000000000000000000000000000000000000000000000000005'
 // TODO: use fancy chugsplash storage getter once possible
 const getOvmEthBalanceSlot = (addressOrPlaceholder: string): string => {
   let address: string
@@ -20,7 +21,8 @@ const getOvmEthBalanceSlot = (addressOrPlaceholder: string): string => {
   } else {
     address = addressOrPlaceholder
   }
-  const balanceOfSlotPreimage = ethers.utils.hexZeroPad(address, 32) + uniswapERC20BalanceOfStorageLayoutKey
+  const balanceOfSlotPreimage =
+    ethers.utils.hexZeroPad(address, 32) + uniswapERC20BalanceOfStorageLayoutKey
   const balanceOfSlot = ethers.utils.keccak256(balanceOfSlotPreimage)
   return balanceOfSlot
 }
@@ -127,18 +129,18 @@ const test_nativeETH: TestDefinition = {
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_1'
+                  address: '$DUMMY_OVM_ADDRESS_1',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+                expectedReturnValue: INITIAL_BALANCE - CALL_VALUE,
               },
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_3'
+                  address: '$DUMMY_OVM_ADDRESS_3',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: CALL_VALUE
+                expectedReturnValue: CALL_VALUE,
               },
             ],
           },
@@ -147,8 +149,7 @@ const test_nativeETH: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2, value) [successful call]',
+      name: 'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2, value) [successful call]',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -160,18 +161,18 @@ const test_nativeETH: TestDefinition = {
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_1'
+                  address: '$DUMMY_OVM_ADDRESS_1',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: INITIAL_BALANCE
+                expectedReturnValue: INITIAL_BALANCE,
               },
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_2'
+                  address: '$DUMMY_OVM_ADDRESS_2',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: 0
+                expectedReturnValue: 0,
               },
               // do the call with some value
               {
@@ -184,24 +185,24 @@ const test_nativeETH: TestDefinition = {
                     // check that the ovmCALLVALUE is updated
                     {
                       functionName: 'ovmCALLVALUE',
-                      expectedReturnValue: CALL_VALUE
+                      expectedReturnValue: CALL_VALUE,
                     },
                     // check that the balances have been updated
                     {
                       functionName: 'ovmBALANCE',
                       functionParams: {
-                        address: '$DUMMY_OVM_ADDRESS_1'
+                        address: '$DUMMY_OVM_ADDRESS_1',
                       },
                       expectedReturnStatus: true,
-                      expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+                      expectedReturnValue: INITIAL_BALANCE - CALL_VALUE,
                     },
                     {
                       functionName: 'ovmBALANCE',
                       functionParams: {
-                        address: '$DUMMY_OVM_ADDRESS_2'
+                        address: '$DUMMY_OVM_ADDRESS_2',
                       },
                       expectedReturnStatus: true,
-                      expectedReturnValue: CALL_VALUE
+                      expectedReturnValue: CALL_VALUE,
                     },
                   ],
                 },
@@ -210,24 +211,24 @@ const test_nativeETH: TestDefinition = {
               // check that the ovmCALLVALUE is reset back to 0
               {
                 functionName: 'ovmCALLVALUE',
-                expectedReturnValue: 0
+                expectedReturnValue: 0,
               },
               // check that the balances have persisted
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_1'
+                  address: '$DUMMY_OVM_ADDRESS_1',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+                expectedReturnValue: INITIAL_BALANCE - CALL_VALUE,
               },
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_2'
+                  address: '$DUMMY_OVM_ADDRESS_2',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: CALL_VALUE
+                expectedReturnValue: CALL_VALUE,
               },
             ],
           },
@@ -236,8 +237,7 @@ const test_nativeETH: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2, value) [reverting call]',
+      name: 'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2, value) [reverting call]',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -249,18 +249,18 @@ const test_nativeETH: TestDefinition = {
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_1'
+                  address: '$DUMMY_OVM_ADDRESS_1',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: INITIAL_BALANCE
+                expectedReturnValue: INITIAL_BALANCE,
               },
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_2'
+                  address: '$DUMMY_OVM_ADDRESS_2',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: 0
+                expectedReturnValue: 0,
               },
               // do the call with some value
               {
@@ -273,24 +273,24 @@ const test_nativeETH: TestDefinition = {
                     // check that the ovmCALLVALUE is updated
                     {
                       functionName: 'ovmCALLVALUE',
-                      expectedReturnValue: CALL_VALUE
+                      expectedReturnValue: CALL_VALUE,
                     },
                     // check that the balances have been updated
                     {
                       functionName: 'ovmBALANCE',
                       functionParams: {
-                        address: '$DUMMY_OVM_ADDRESS_1'
+                        address: '$DUMMY_OVM_ADDRESS_1',
                       },
                       expectedReturnStatus: true,
-                      expectedReturnValue: INITIAL_BALANCE - CALL_VALUE
+                      expectedReturnValue: INITIAL_BALANCE - CALL_VALUE,
                     },
                     {
                       functionName: 'ovmBALANCE',
                       functionParams: {
-                        address: '$DUMMY_OVM_ADDRESS_2'
+                        address: '$DUMMY_OVM_ADDRESS_2',
                       },
                       expectedReturnStatus: true,
-                      expectedReturnValue: CALL_VALUE
+                      expectedReturnValue: CALL_VALUE,
                     },
                     // now revert everything
                     {
@@ -298,38 +298,38 @@ const test_nativeETH: TestDefinition = {
                       expectedReturnStatus: false,
                       expectedReturnValue: {
                         flag: REVERT_FLAGS.INTENTIONAL_REVERT,
-                        onlyValidateFlag: true
-                      }
+                        onlyValidateFlag: true,
+                      },
                     },
                   ],
                 },
                 expectedReturnStatus: true,
                 expectedReturnValue: {
                   ovmSuccess: false,
-                  returnData: '0x'
-                }
+                  returnData: '0x',
+                },
               },
               // check that the ovmCALLVALUE is reset back to 0
               {
                 functionName: 'ovmCALLVALUE',
-                expectedReturnValue: 0
+                expectedReturnValue: 0,
               },
               // check that the balances have NOT persisted
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_1'
+                  address: '$DUMMY_OVM_ADDRESS_1',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: INITIAL_BALANCE
+                expectedReturnValue: INITIAL_BALANCE,
               },
               {
                 functionName: 'ovmBALANCE',
                 functionParams: {
-                  address: '$DUMMY_OVM_ADDRESS_2'
+                  address: '$DUMMY_OVM_ADDRESS_2',
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: 0
+                expectedReturnValue: 0,
               },
             ],
           },
