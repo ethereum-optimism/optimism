@@ -1,3 +1,4 @@
+#!/bin/bash
 # Script for loading all the docker images in CI
 declare -a images=(
     "deployer"

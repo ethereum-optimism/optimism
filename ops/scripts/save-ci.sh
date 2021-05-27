@@ -1,3 +1,4 @@
+#!/bin/bash
 # Script for saving all the docker images in CI
 declare -a images=(
     "deployer"
@@ -9,9 +10,13 @@ declare -a images=(
     "hardhat"
 )
 
+docker images
+
+mkdir -p ./images
+
 for image in "${images[@]}"
 do
-    docker save ethereumoptimism/$image > /images/$image.tar &
+    docker save docker.io/ethereumoptimism/$image > ./images/$image.tar &
 done
 
 wait
