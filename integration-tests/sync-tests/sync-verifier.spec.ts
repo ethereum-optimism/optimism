@@ -10,6 +10,7 @@ describe('Syncing a verifier', () => {
   let env: OptimismEnv
   let wallet: Wallet
   let verifier: DockerComposeNetwork
+  let provider: providers.JsonRpcProvider
 
   const sequencerProvider = injectL2Context(l2Provider)
 
@@ -27,7 +28,7 @@ describe('Syncing a verifier', () => {
     return totalElementsAfter
   }
 
-  const startAndSyncVerifier = async (sequencerBlockNumber: number) => {
+  const startVerifier = async () => {
     // Bring up new verifier
     verifier = new DockerComposeNetwork(['verifier'])
     await verifier.up({ commandOptions: ['--scale', 'verifier=1'] })
@@ -39,8 +40,10 @@ describe('Syncing a verifier', () => {
       logs = await verifier.logs()
     }
 
-    const provider = injectL2Context(verifierProvider)
+    provider = injectL2Context(verifierProvider)
+  }
 
+  const syncVerifier = async (sequencerBlockNumber: number) => {
     // Wait until verifier has caught up to the sequencer
     let latestVerifierBlock = (await provider.getBlock('latest')) as any
     while (latestVerifierBlock.number < sequencerBlockNumber) {
@@ -84,7 +87,9 @@ describe('Syncing a verifier', () => {
         'latest'
       )) as any
 
-      const matchingVerifierBlock = (await startAndSyncVerifier(
+      await startVerifier()
+
+      const matchingVerifierBlock = (await syncVerifier(
         latestSequencerBlock.number
       )) as any
 
