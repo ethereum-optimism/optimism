@@ -682,7 +682,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes memory _calldata
     )
         override
-        external
+        public
         fixedGasDiscount(40000)
         returns (
             bool _success,
@@ -702,14 +702,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
-     * @notice Legacy ovmCALL function which did not support ETH value; maintains backwards compatibility.
+     * @notice Legacy ovmCALL function which did not support ETH value; this maintains backwards compatibility.
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _address Address of the contract to call.
      * @param _calldata Data to send along with the call.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
      */
-    // TODO: replicate this for ovmDELEGATECALL
     function ovmCALL(
         uint256 _gasLimit,
         address _address,
@@ -723,6 +722,34 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         // Legacy ovmCALL assumed always-0 value.
         return ovmCALL(
+            _gasLimit,
+            _address,
+            0,
+            _calldata
+        );
+    }
+
+    /**
+     * @notice Legacy ovmDELEGATECALL function which did not support ETH value; this maintains backwards compatibility.
+     * @param _gasLimit Amount of gas to be passed into this call.
+     * @param _address Address of the contract containing code to delegate the call to.
+     * @param _calldata Data to send along with the call.
+     * @return _success Whether or not the call returned (rather than reverted).
+     * @return _returndata Data returned by the call.
+     */
+    function ovmDELEGATECALL(
+        uint256 _gasLimit,
+        address _address,
+        bytes memory _calldata
+    )
+        public
+        returns(
+            bool _success,
+            bytes memory _returndata
+        )
+    {
+        // Legacy ovmDELEGATECALL assumed always-0 value.
+        return ovmDELEGATECALL(
             _gasLimit,
             _address,
             0,

@@ -28,7 +28,7 @@ describe('OVM calls with native ETH value', async () => {
     env = await OptimismEnv.new()
     wallet = env.l2Wallet
     other = Wallet.createRandom().connect(ethers.provider)
-    Factory__ValueCalls = await ethers.getContractFactory('ERC20', wallet)
+    Factory__ValueCalls = await ethers.getContractFactory('ValueCalls', wallet)
   })
 
   beforeEach(async () => {
