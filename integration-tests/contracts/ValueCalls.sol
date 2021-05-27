@@ -9,6 +9,7 @@ contract ValueCalls {
     // TODO: this is unneccessary without the compiler.
     // Once we have the compiler, we should add explicit `payable` and `receive` integration tests.
     // receive() external payable { }
+    fallback() external payable { }
 
     function getBalance(
         address _address
@@ -28,7 +29,7 @@ contract ValueCalls {
         uint _value,
         bytes memory _calldata
     ) public returns (bool, bytes memory) {
-        (bool success, ) = Lib_ExecutionManagerWrapper.ovmCALL(gasleft(), _address, _value, _calldata);
+        return Lib_ExecutionManagerWrapper.ovmCALL(gasleft(), _address, _value, _calldata);
     }
 
     function verifyCallValueAndRevert(
@@ -37,10 +38,14 @@ contract ValueCalls {
         bool correct = _checkCallValue(_expectedValue);
         // do the opposite of expected if the value is wrong.
         if (correct) {
-            revert();
+            revert("expected revert");
         } else {
             return;
         }
+    }
+
+    function getCallValue() public returns(uint256) {
+        return Lib_ExecutionManagerWrapper.ovmCALLVALUE();
     }
 
     function verifyCallValueAndReturn(
@@ -51,14 +56,13 @@ contract ValueCalls {
         if (correct) {
             return;
         } else {
-            revert();
+            revert("unexpected revert");
         }
     }
 
     function _checkCallValue(
         uint256 _expectedValue
     ) internal returns(bool) {
-        uint256 callValue = Lib_ExecutionManagerWrapper.ovmCALLVALUE();
-        return callValue == _expectedValue;
+        return getCallValue() == _expectedValue;
     }
 }
