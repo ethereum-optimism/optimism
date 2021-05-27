@@ -40,6 +40,9 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
+      - name: Build
+        run: yarn build
+
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
