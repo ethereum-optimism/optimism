@@ -432,8 +432,10 @@ func (s *SyncService) sequence() error {
 			if latest != nil {
 				index = *latest + 1
 			}
+			fmt.Errorf("set latest index %d", index)
 			s.SetLatestIndex(&index)
 		} else {
+			fmt.Errorf("set latest index2 %d", enqueue.GetMeta().Index)
 			s.SetLatestIndex(enqueue.GetMeta().Index)
 		}
 	}

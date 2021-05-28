@@ -70,7 +70,6 @@ describe('OVM Context: Layer 2 EVM Context', () => {
         500_000,
         '0x'
       )
-
       // Wait for the enqueue to be ingested
       while (true) {
         const tip = await L2Provider.getBlock('latest')
@@ -79,7 +78,6 @@ describe('OVM Context: Layer 2 EVM Context', () => {
         }
         await sleep(500)
       }
-
       // Get the receipt
       const receipt = await tx.wait()
       // The transaction did not revert
@@ -87,19 +85,23 @@ describe('OVM Context: Layer 2 EVM Context', () => {
 
       // Get the L1 block that the enqueue transaction was in so that
       // the timestamp can be compared against the layer two contract
+      console.log("test1")
       const block = await l1Provider.getBlock(receipt.blockNumber)
+      console.log("test12")
 
       // The contact is a fallback function that keeps `block.number`
       // and `block.timestamp` in a mapping based on an index that
       // increments each time that there is a transaction.
       const blockNumber = await OVMContextStorage.blockNumbers(i)
       expect(receipt.blockNumber).to.deep.equal(blockNumber.toNumber())
+      console.log("test13")
       const timestamp = await OVMContextStorage.timestamps(i)
       expect(block.timestamp).to.deep.equal(timestamp.toNumber())
+      console.log("test14")
     }
   })
 
-  it('should set correct OVM Context for `eth_call`', async () => {
+  it.skip('should set correct OVM Context for `eth_call`', async () => {
     const tip = await L2Provider.getBlockWithTransactions('latest')
     const start = Math.max(0, tip.number - 5)
 
@@ -136,7 +138,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
    * OVM context.
    */
 
-  it('should return same timestamp and blocknumbers between `eth_call` and `rollup_getInfo`', async () => {
+  it.skip('should return same timestamp and blocknumbers between `eth_call` and `rollup_getInfo`', async () => {
     // As atomically as possible, call `rollup_getInfo` and OVMMulticall for the
     // blocknumber and timestamp. If this is not atomic, then the sequencer can
     // happend to update the timestamp between the `eth_call` and the `rollup_getInfo`

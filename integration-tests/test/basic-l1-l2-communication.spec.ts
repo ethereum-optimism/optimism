@@ -37,7 +37,7 @@ describe('Basic L1<>L2 Communication', async () => {
     await L2SimpleStorage.deployTransaction.wait()
   })
 
-  it.skip('should withdraw from L2 -> L1', async () => {
+  it('should withdraw from L2 -> L1', async () => {
     const value = `0x${'77'.repeat(32)}`
 
     // Send L2 -> L1 message.
