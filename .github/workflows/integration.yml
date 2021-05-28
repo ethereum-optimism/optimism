@@ -64,7 +64,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d
+        run: docker-compose up -d --no-build
 
       - name: Run the integration tests
         working-directory: ./ops
@@ -87,7 +87,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d --no-recreate && ./scripts/wait-for-sequencer.sh
+        run: docker-compose up -d --no-build && ./scripts/wait-for-sequencer.sh
 
       - name: Test & deploy hardhat-example on Optimistic Ethereum
         working-directory: ./examples/hardhat
@@ -153,7 +153,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
+        run: docker-compose up -d --no-build && ./scripts/wait-for-sequencer.sh
 
       # Sync tests cannot be run in docker
       - name: Run the sync tests

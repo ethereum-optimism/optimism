@@ -8,6 +8,7 @@ declare -a images=(
     "integration-tests"
     "l2geth"
     "hardhat"
+    "builder"
 )
 
 ## now loop through the above array

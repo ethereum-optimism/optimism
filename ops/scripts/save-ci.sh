@@ -8,6 +8,7 @@ declare -a images=(
     "integration-tests"
     "l2geth"
     "hardhat"
+    "builder"
 )
 
 mkdir -p /tmp/images
