@@ -5,6 +5,7 @@ import { Overrides } from '@ethersproject/contracts'
 
 /* Internal Imports */
 import { getContractFactory } from '../contract-defs'
+import { predeploys } from '../predeploys'
 
 export interface RollupDeployConfig {
   deploymentSigner: Signer
