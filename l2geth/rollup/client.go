@@ -104,7 +104,7 @@ type signature struct {
 type decoded struct {
 	Signature signature       `json:"sig"`
 	Value     hexutil.Uint64  `json:"value"`
-	GasLimit  uint64          `json:"gasLimit"`
+	GasLimit  uint64          `json:"gasLimit,string"`
 	GasPrice  uint64          `json:"gasPrice"`
 	Nonce     uint64          `json:"nonce"`
 	Target    *common.Address `json:"target"`
