@@ -14,17 +14,23 @@ import (
 func (t TransactionMeta) MarshalJSON() ([]byte, error) {
 	type TransactionMeta struct {
 		L1BlockNumber     *big.Int          `json:"l1BlockNumber"`
+		L1Timestamp       uint64            `json:"l1Timestamp"`
 		L1MessageSender   *common.Address   `json:"l1MessageSender" gencodec:"required"`
 		SignatureHashType SignatureHashType `json:"signatureHashType" gencodec:"required"`
 		QueueOrigin       QueueOrigin       `json:"queueOrigin" gencodec:"required"`
 		Index             *uint64           `json:"index" gencodec:"required"`
+		QueueIndex        *uint64           `json:"queueIndex" gencodec:"required"`
+		RawTransaction    []byte            `json:"rawTransaction" gencodec:"required"`
 	}
 	var enc TransactionMeta
 	enc.L1BlockNumber = t.L1BlockNumber
+	enc.L1Timestamp = t.L1Timestamp
 	enc.L1MessageSender = t.L1MessageSender
 	enc.SignatureHashType = t.SignatureHashType
 	enc.QueueOrigin = t.QueueOrigin
 	enc.Index = t.Index
+	enc.QueueIndex = t.QueueIndex
+	enc.RawTransaction = t.RawTransaction
 	return json.Marshal(&enc)
 }
 
@@ -32,10 +38,13 @@ func (t TransactionMeta) MarshalJSON() ([]byte, error) {
 func (t *TransactionMeta) UnmarshalJSON(input []byte) error {
 	type TransactionMeta struct {
 		L1BlockNumber     *big.Int           `json:"l1BlockNumber"`
+		L1Timestamp       *uint64            `json:"l1Timestamp"`
 		L1MessageSender   *common.Address    `json:"l1MessageSender" gencodec:"required"`
 		SignatureHashType *SignatureHashType `json:"signatureHashType" gencodec:"required"`
 		QueueOrigin       *QueueOrigin       `json:"queueOrigin" gencodec:"required"`
 		Index             *uint64            `json:"index" gencodec:"required"`
+		QueueIndex        *uint64            `json:"queueIndex" gencodec:"required"`
+		RawTransaction    []byte             `json:"rawTransaction" gencodec:"required"`
 	}
 	var dec TransactionMeta
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -43,6 +52,9 @@ func (t *TransactionMeta) UnmarshalJSON(input []byte) error {
 	}
 	if dec.L1BlockNumber != nil {
 		t.L1BlockNumber = dec.L1BlockNumber
+	}
+	if dec.L1Timestamp != nil {
+		t.L1Timestamp = *dec.L1Timestamp
 	}
 	if dec.L1MessageSender == nil {
 		return errors.New("missing required field 'l1MessageSender' for TransactionMeta")
@@ -60,5 +72,13 @@ func (t *TransactionMeta) UnmarshalJSON(input []byte) error {
 		return errors.New("missing required field 'index' for TransactionMeta")
 	}
 	t.Index = dec.Index
+	if dec.QueueIndex == nil {
+		return errors.New("missing required field 'queueIndex' for TransactionMeta")
+	}
+	t.QueueIndex = dec.QueueIndex
+	if dec.RawTransaction == nil {
+		return errors.New("missing required field 'rawTransaction' for TransactionMeta")
+	}
+	t.RawTransaction = dec.RawTransaction
 	return nil
 }

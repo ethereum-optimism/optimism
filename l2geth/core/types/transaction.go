@@ -196,12 +196,12 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
 
 // MarshalJSON encodes the web3 RPC transaction format.
 func (tx *Transaction) MarshalJSON() ([]byte, error) {
-	return tx.data.TransactionMarshalJSON()
+	return tx.data.MarshalJSON()
 }
 
 // UnmarshalJSON decodes the web3 RPC transaction format.
 func (tx *Transaction) UnmarshalJSON(input []byte) error {
-	err := tx.data.TransactionUnmarshalJSON(input)
+	err := tx.data.UnmarshalJSON(input)
 	if err != nil {
 		return err
 	}
