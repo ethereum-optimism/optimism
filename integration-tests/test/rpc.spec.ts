@@ -313,7 +313,9 @@ describe('Basic RPC tests', () => {
 
   describe('eth_gasPrice', () => {
     it('gas price should be the fee scalar', async () => {
-      expect(await provider.getGasPrice()).to.be.deep.equal(L2GasLimit.feeScalar.toNumber())
+      expect(await provider.getGasPrice()).to.be.deep.equal(
+        L2GasLimit.feeScalar.toNumber()
+      )
     })
   })
 
