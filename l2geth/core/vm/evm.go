@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -203,10 +204,14 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	// OVM_ADDITION
-	EthCallSender       *common.Address
-	OvmExecutionManager dump.OvmDumpAccount
-	OvmStateManager     dump.OvmDumpAccount
-	OvmSafetyChecker    dump.OvmDumpAccount
+	EthCallSender             *common.Address
+	IsL1ToL2Message           bool
+	IsSuccessfulL1ToL2Message bool
+	OvmExecutionManager       dump.OvmDumpAccount
+	OvmStateManager           dump.OvmDumpAccount
+	OvmSafetyChecker          dump.OvmDumpAccount
+	OvmL2CrossDomainMessenger dump.OvmDumpAccount
+	OvmETH                    dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -257,6 +262,8 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		ctx.OvmExecutionManager = chainConfig.StateDump.Accounts["OVM_ExecutionManager"]
 		ctx.OvmStateManager = chainConfig.StateDump.Accounts["OVM_StateManager"]
 		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
+		ctx.OvmL2CrossDomainMessenger = chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
+		ctx.OvmETH = chainConfig.StateDump.Accounts["MVM_Coinbase"]
 	}
 
 	id := make([]byte, 4)
@@ -335,6 +342,19 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 	}
 
+	// We need to be able to show a status of 1 ("no error") for successful L1 => L2 messages.
+	// The current way we figure out the success of the transaction (by parsing the
+	// returned data) would require an upgrade to the contracts that we likely won't make for a
+	// while. As a result, we'll use this mechanism where we set IsL1ToL2Message = true if
+	// we detect an L1 => L2 message and then IsSuccessfulL1ToL2Message = true if the message is
+	// successfully executed.
+	// Just to be safe (if the evm object ever gets reused), we set both values to false on the
+	// start of a new EVM execution.
+	if evm.depth == 0 {
+		evm.Context.IsL1ToL2Message = false
+		evm.Context.IsSuccessfulL1ToL2Message = false
+	}
+
 	var (
 		to       = AccountRef(addr)
 		snapshot = evm.StateDB.Snapshot()
@@ -381,7 +401,34 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}()
 	}
 
+	// Here's where we detect L1 => L2 messages. Based on the current contracts, we're guaranteed
+	// that the target address will only be the OVM_L2CrossDomainMessenger at a depth of 1 if this
+	// is an L1 => L2 message.
+	if evm.depth == 1 && addr == evm.Context.OvmL2CrossDomainMessenger.Address {
+		evm.Context.IsL1ToL2Message = true
+	}
+
 	ret, err = run(evm, contract, input, false)
+
+	// If all of these very particular conditions hold then we're guaranteed to be in a successful
+	// L1 => L2 message. It's not pretty, but it works. Broke this out into a series of checks to
+	// make it a bit more legible.
+	if evm.Context.IsL1ToL2Message && evm.depth == 3 {
+		var isValidMessageTarget = true
+		// 0x420... addresses are not valid targets except for the ETH predeploy.
+		if bytes.HasPrefix(addr.Bytes(), fortyTwoPrefix) && addr != evm.Context.OvmETH.Address {
+			isValidMessageTarget = false
+		}
+		// 0xdead... addresses are not valid targets.
+		if bytes.HasPrefix(addr.Bytes(), deadPrefix) {
+			isValidMessageTarget = false
+		}
+		// As long as this is a valid target and the message didn't revert then we can consider
+		// this a successful L1 => L2 message.
+		if isValidMessageTarget && err == nil {
+			evm.Context.IsSuccessfulL1ToL2Message = true
+		}
+	}
 
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally
@@ -399,30 +446,35 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			// We're back at the root-level message call, so we'll need to modify the return data
 			// sent to us by the OVM_ExecutionManager to instead be the intended return data.
 
-			// Attempt to decode the returndata as as ExecutionManager.run when
-			// it is not an `eth_call` and as ExecutionManager.simulateMessage
-			// when it is an `eth_call`. If the data is not decodable as ABI
-			// encoded bytes, then return nothing. If the data is able to be
-			// decoded as bytes, then attempt to decode as (bool, bytes)
-			isDecodable := true
-			returnData := runReturnData{}
-			if err := codec.Unpack(&returnData, "blob", ret); err != nil {
-				isDecodable = false
-			}
-
-			switch isDecodable {
-			case true:
-				inner := innerData{}
-				// If this fails to decode, the nil values will be set in
-				// `inner`, meaning that it will be interpreted as reverted
-				// execution with empty returndata
-				_ = codec.Unpack(&inner, "call", returnData.ReturnData)
-				if !inner.Success {
-					err = errExecutionReverted
+			// We skip the parsing step if this was a successful L1 => L2 message. Note that if err
+			// is set (perhaps because of an error in ExecutionManager.run) we'll still return that
+			// error.
+			if !evm.Context.IsSuccessfulL1ToL2Message {
+				// Attempt to decode the returndata as as ExecutionManager.run when
+				// it is not an `eth_call` and as ExecutionManager.simulateMessage
+				// when it is an `eth_call`. If the data is not decodable as ABI
+				// encoded bytes, then return nothing. If the data is able to be
+				// decoded as bytes, then attempt to decode as (bool, bytes)
+				isDecodable := true
+				returnData := runReturnData{}
+				if err := codec.Unpack(&returnData, "blob", ret); err != nil {
+					isDecodable = false
 				}
-				ret = inner.ReturnData
-			case false:
-				ret = []byte{}
+
+				switch isDecodable {
+				case true:
+					inner := innerData{}
+					// If this fails to decode, the nil values will be set in
+					// `inner`, meaning that it will be interpreted as reverted
+					// execution with empty returndata
+					_ = codec.Unpack(&inner, "call", returnData.ReturnData)
+					if !inner.Success {
+						err = errExecutionReverted
+					}
+					ret = inner.ReturnData
+				case false:
+					ret = []byte{}
+				}
 			}
 		}
 

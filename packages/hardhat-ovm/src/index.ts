@@ -4,7 +4,10 @@ import * as path from 'path'
 import fetch from 'node-fetch'
 import { ethers } from 'ethers'
 import { subtask, extendEnvironment } from 'hardhat/config'
-import { HardhatNetworkHDAccountsConfig } from 'hardhat/types/config'
+import {
+  HardhatNetworkHDAccountsConfig,
+  HardhatNetworkAccountUserConfig,
+} from 'hardhat/types/config'
 import { getCompilersDir } from 'hardhat/internal/util/global-dir'
 import { Artifacts } from 'hardhat/internal/artifacts'
 import {
@@ -248,21 +251,28 @@ extendEnvironment(async (hre) => {
 
       // override the provider polling interval
       const provider = new ethers.providers.JsonRpcProvider(
-        (hre as any).ethers.provider.url
+        (hre as any).ethers.provider.url || (hre as any).network.config.url
       )
       provider.pollingInterval = interval
 
       // the gas price is overriden to the user provided gasPrice or to 0.
       provider.getGasPrice = async () =>
         ethers.BigNumber.from(hre.network.config.gasPrice || 0)
-      ;(hre as any).ethers.provider = provider
 
       // if the node is up, override the getSigners method's signers
       try {
         let signers: ethers.Signer[]
-        const accounts = hre.network.config
-          .accounts as HardhatNetworkHDAccountsConfig
-        if (accounts) {
+        const accounts = hre.network.config.accounts as
+          | HardhatNetworkHDAccountsConfig
+          | HardhatNetworkAccountUserConfig[]
+        if (Array.isArray(accounts)) {
+          signers = (accounts as HardhatNetworkAccountUserConfig[]).map(
+            (account) =>
+              new ethers.Wallet(
+                typeof account === 'string' ? account : account.privateKey
+              ).connect(provider)
+          )
+        } else if (accounts) {
           const indices = Array.from(Array(20).keys()) // generates array of [0, 1, 2, ..., 18, 19]
           signers = indices.map((i) =>
             ethers.Wallet.fromMnemonic(
@@ -281,6 +291,9 @@ extendEnvironment(async (hre) => {
         ;(hre as any).ethers.getSigners = () => signers
         /* tslint:disable:no-empty */
       } catch (e) {}
+
+      // Update the provider at the very end to avoid any weird issues.
+      ;(hre as any).ethers.provider = provider
     }
   }
 })

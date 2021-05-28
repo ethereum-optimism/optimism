@@ -12,7 +12,6 @@ interface iAbs_BaseCrossDomainMessenger {
      **********/
 
     event SentMessage(bytes message);
-    event RelayedMessage2(uint256 indexed chainId, bytes msgHash);
     event RelayedMessage(bytes32 msgHash);
     event FailedRelayedMessage(bytes32 msgHash);
 
