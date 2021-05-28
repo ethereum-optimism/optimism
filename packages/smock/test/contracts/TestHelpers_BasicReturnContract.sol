@@ -131,4 +131,23 @@ contract TestHelpers_BasicReturnContract {
             uint256[] memory _out
         )
     {}
+
+    function overloadedFunction(
+        uint256 _paramA,
+        uint256 _paramB
+    )
+        public
+        returns (
+            uint256
+        )
+    {}
+
+    function overloadedFunction(
+        uint256
+    )
+        public
+        returns (
+            uint256
+        )
+    {}
 }
