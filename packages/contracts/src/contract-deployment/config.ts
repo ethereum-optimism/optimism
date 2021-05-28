@@ -7,7 +7,6 @@ import { Overrides } from '@ethersproject/contracts'
 import { getContractFactory } from '../contract-defs'
 import { predeploys } from '../predeploys'
 
-
 export interface RollupDeployConfig {
   deploymentSigner: Signer
   ovmGasMeteringConfig: {
