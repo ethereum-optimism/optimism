@@ -84,36 +84,6 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         _;
     }
 
-    /**
-     * @dev Core logic to be performed when a withdrawal from L2 is initialized.
-     * When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage
-     * param _to Address being withdrawn to.
-     * param _amount Amount being withdrawn.
-     */
-    function _handleInitiateWithdrawal(
-        address, // _to,
-        uint256 _amount
-    )
-        internal
-    {
-        _burn(msg.sender, _amount);
-    }
-
-    /**
-     * @dev Core logic to be performed when a deposit from L2 is finalized on L2.
-     * When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
-     * param _to Address being deposited to on L2.
-     * param _amount Amount which was deposited on L1.
-     */
-    function _handleFinalizeDeposit(
-        address _to,
-        uint256 _amount
-    )
-        internal
-    {
-        _mint(_to, _amount);
-    }
-
     /***************
      * Withdrawing *
      ***************/
@@ -193,8 +163,8 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
     )
         internal
     {
-        // Call our withdrawal accounting handler implemented by child contracts (usually a _burn)
-        _handleInitiateWithdrawal(_to, _amount);
+        // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage
+        _burn(msg.sender, _amount);
 
         // Construct calldata for l1TokenGateway.finalizeWithdrawal(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
@@ -242,7 +212,8 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         onlyInitialized()
         onlyFromCrossDomainAccount(address(l1TokenGateway))
     {
-        _handleFinalizeDeposit(_to, _amount);
+        // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
+        _mint(_to, _amount);
         emit DepositFinalized(_from, _to, _amount, _data);
     }
 }

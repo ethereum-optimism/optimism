@@ -54,51 +54,6 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         l2DepositedToken = _l2DepositedERC20;
     }
 
-
-    /**************
-     * Accounting *
-     **************/
-
-    /**
-     * @dev When a deposit is initiated on L1, the L1 Gateway
-     * transfers the funds to itself for future withdrawals.
-     *
-     * @param _from L1 address ETH is being deposited from.
-     * param _to L2 address that the ETH is being deposited to.
-     * @param _amount Amount of ERC20 to send.
-     */
-    function _handleInitiateDeposit(
-        address _from,
-        address, // _to,
-        uint256 _amount
-    )
-        internal
-    {
-         // Hold on to the newly deposited funds
-        l1ERC20.transferFrom(
-            _from,
-            address(this),
-            _amount
-        );
-    }
-
-    /**
-     * @dev When a withdrawal is finalized on L1, the L1 Gateway
-     * transfers the funds to the withdrawer.
-     *
-     * @param _to L1 address that the ERC20 is being withdrawn to.
-     * @param _amount Amount of ERC20 to send.
-     */
-    function _handleFinalizeWithdrawal(
-        address _to,
-        uint256 _amount
-    )
-        internal
-    {
-        // Transfer withdrawn funds out to withdrawer
-        l1ERC20.transfer(_to, _amount);
-    }
-
     /**************
      * Depositing *
      **************/
@@ -166,10 +121,10 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
     )
         internal
     {
-        // Call our deposit accounting handler implemented by child contracts.
-        _handleInitiateDeposit(
+        // When a deposit is initiated on L1, the L1 Gateway transfers the funds to itself for future withdrawals.
+        l1ERC20.transferFrom(
             _from,
-            _to,
+            address(this),
             _amount
         );
 
@@ -220,11 +175,9 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         virtual
         onlyFromCrossDomainAccount(l2DepositedToken)
     {
-        // Call our withdrawal accounting handler implemented by child contracts.
-        _handleFinalizeWithdrawal(
-            _to,
-            _amount
-        );
+        // When a withdrawal is finalized on L1, the L1 Gateway transfers the funds to the withdrawer.
+        l1ERC20.transfer(_to, _amount);
+
         emit WithdrawalFinalized(_from, _to, _amount, _data);
     }
 }
