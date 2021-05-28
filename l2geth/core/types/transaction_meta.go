@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type QueueOrigin int64
+type QueueOrigin uint8
 
 const (
 	// Possible `queue_origin` values
@@ -171,7 +171,7 @@ func TxMetaEncode(meta *TransactionMeta) []byte {
 		common.WriteVarBytes(b, 0, l.Bytes())
 	}
 
-	queueOrigin := uint8(meta.QueueOrigin)
+	queueOrigin := meta.QueueOrigin
 	q := new(bytes.Buffer)
 	binary.Write(q, binary.LittleEndian, queueOrigin)
 	common.WriteVarBytes(b, 0, q.Bytes())
