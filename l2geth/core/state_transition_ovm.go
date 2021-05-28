@@ -73,8 +73,7 @@ func AsOvmMessage(tx *types.Transaction, signer types.Signer, decompressor commo
 	// sequencer entrypoint. The calldata is expected to be in the
 	// correct format when deserialized from the EVM events, see
 	// rollup/sync_service.go.
-	qo := msg.QueueOrigin()
-	if qo == types.QueueOriginL1ToL2 {
+	if msg.QueueOrigin() == types.QueueOriginL1ToL2 {
 		return msg, nil
 	}
 
