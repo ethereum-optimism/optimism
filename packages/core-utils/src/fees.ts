@@ -6,11 +6,11 @@ import { BigNumber } from 'ethers'
 import { remove0x } from './common'
 
 const hundredMillion = BigNumber.from(100_000_000)
-const hundredBillion = BigNumber.from(100_000_000_000)
-const feeScalar = BigNumber.from(1000)
+const feeScalar = 1000
+const L2GasPrice = BigNumber.from(feeScalar + (feeScalar / 2))
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
-const overhead = 4200
+const overhead = 4200 + (200 * txDataNonZeroGasEIP2028)
 
 export interface EncodableL2GasLimit {
   data: Buffer | string
@@ -31,32 +31,15 @@ function encode(input: EncodableL2GasLimit): BigNumber {
   if (typeof l2GasPrice === 'number') {
     l2GasPrice = BigNumber.from(l2GasPrice)
   }
-
-  if (!verifyGasPrice(l2GasPrice)) {
-    throw new Error(`Invalid L2 Gas Price: ${l2GasPrice.toString()}`)
-  }
-  if (!verifyGasPrice(l1GasPrice)) {
-    throw new Error(`Invalid L1 Gas Price: ${l1GasPrice.toString()}`)
-  }
   const l1GasLimit = calculateL1GasLimit(data)
   const l1Fee = l1GasLimit.mul(l1GasPrice)
   const l2Fee = l2GasLimit.mul(l2GasPrice)
   const sum = l1Fee.add(l2Fee)
   const scaled = sum.div(feeScalar)
-  return scaled.add(l2GasLimit)
-}
-
-function verifyGasPrice(gasPrice: BigNumber | number): boolean {
-  if (typeof gasPrice === 'number') {
-    gasPrice = BigNumber.from(gasPrice)
-  }
-  if (gasPrice.eq(0)) {
-    return true
-  }
-  if (gasPrice.lt(hundredBillion)) {
-    return false
-  }
-  return gasPrice.mod(hundredMillion).eq(0)
+  const remainder = scaled.mod(hundredMillion)
+  const scaledSum = scaled.add(hundredMillion)
+  const rounded = scaledSum.sub(remainder)
+  return rounded.add(l2GasLimit)
 }
 
 function decode(fee: BigNumber | number): BigNumber {
@@ -69,21 +52,7 @@ function decode(fee: BigNumber | number): BigNumber {
 export const L2GasLimit = {
   encode,
   decode,
-  feeScalar,
-}
-
-export function verifyL2GasPrice(gasPrice: BigNumber | number): boolean {
-  if (typeof gasPrice === 'number') {
-    gasPrice = BigNumber.from(gasPrice)
-  }
-  return gasPrice.mod(hundredMillion).eq(0)
-}
-
-export function verifyL1GasPrice(gasPrice: BigNumber | number): boolean {
-  if (typeof gasPrice === 'number') {
-    gasPrice = BigNumber.from(gasPrice)
-  }
-  return gasPrice.mod(hundredMillion).eq(0)
+  L2GasPrice,
 }
 
 export function calculateL1GasLimit(data: string | Buffer): BigNumber {
@@ -108,19 +77,4 @@ export function zeroesAndOnes(data: Buffer | string): Array<number> {
     }
   }
   return [zeros, ones]
-}
-
-export function roundGasPrice(gasPrice: BigNumber | number): BigNumber {
-  if (typeof gasPrice === 'number') {
-    gasPrice = BigNumber.from(gasPrice)
-  }
-  if (gasPrice.eq(0)) {
-    return gasPrice
-  }
-  if (gasPrice.mod(hundredBillion).eq(0)) {
-    return gasPrice
-  }
-  const sum = gasPrice.add(hundredBillion)
-  const mod = gasPrice.mod(hundredBillion)
-  return sum.sub(mod)
 }
