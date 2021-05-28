@@ -2,6 +2,7 @@ import {
   injectL2Context,
   L2GasLimit,
   roundGasPrice,
+  toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
 import { ethers } from 'hardhat'
@@ -134,7 +135,7 @@ describe('Basic RPC tests', () => {
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        'fee too low: 1, use at least tx.gasLimit = 33600000000001 and tx.gasPrice = 1'
+        'fee too low: 1, use at least tx.gasLimit = 420000000001 and tx.gasPrice = 1000'
       )
     })
 
@@ -311,18 +312,18 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_gasPrice', () => {
-    it('gas price should be 1 gwei', async () => {
-      expect(await provider.getGasPrice()).to.be.deep.equal(1)
+    it('gas price should be the fee scalar', async () => {
+      expect(await provider.getGasPrice()).to.be.deep.equal(L2GasLimit.feeScalar.toNumber())
     })
   })
 
-  describe('eth_estimateGas (returns the fee)', () => {
+  describe('eth_estimateGas (returns the scaled fee)', () => {
     it('should return a gas estimate for txs with empty data', async () => {
       const estimate = await l2Provider.estimateGas({
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
-      expect(estimate).to.be.eq(33600000119751)
+      expect(estimate).to.be.eq(420000119751)
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
@@ -333,7 +334,7 @@ describe('Basic RPC tests', () => {
       for (const data of dataLen) {
         const tx = {
           to: '0x' + '1234'.repeat(10),
-          gasPrice: '0x1',
+          gasPrice: toRpcHexString(100_000_000_000),
           value: '0x0',
           data: '0x' + '00'.repeat(data),
           from: '0x' + '1234'.repeat(10),
@@ -349,7 +350,7 @@ describe('Basic RPC tests', () => {
 
         // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
         // but it does not yet exist. Use the default value for now
-        const l2GasPrice = BigNumber.from(1)
+        const l2GasPrice = BigNumber.from(0)
         const expected = L2GasLimit.encode({
           data: tx.data,
           l1GasPrice: roundGasPrice(l1GasPrice),
