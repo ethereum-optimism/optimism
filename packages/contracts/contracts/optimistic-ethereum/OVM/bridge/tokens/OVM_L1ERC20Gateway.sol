@@ -5,7 +5,11 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
-import { Abs_L1TokenGateway } from "./Abs_L1TokenGateway.sol";
+import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
+
+/* Library Imports */
+import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+
 import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
 
 /**
@@ -22,13 +26,14 @@ import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
+contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
 
     /********************************
      * External Contract References *
      ********************************/
 
     iOVM_ERC20 public l1ERC20;
+    address public l2DepositedToken;
 
     /***************
      * Constructor *
@@ -43,12 +48,10 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
         address _l2DepositedERC20,
         address _l1messenger
     )
-        Abs_L1TokenGateway(
-            _l2DepositedERC20,
-            _l1messenger
-        )
+        OVM_CrossDomainEnabled(_l1messenger)
     {
         l1ERC20 = _l1ERC20;
+        l2DepositedToken = _l2DepositedERC20;
     }
 
 
@@ -70,7 +73,6 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
         uint256 _amount
     )
         internal
-        override
     {
          // Hold on to the newly deposited funds
         l1ERC20.transferFrom(
@@ -92,9 +94,137 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
         uint256 _amount
     )
         internal
-        override
     {
         // Transfer withdrawn funds out to withdrawer
         l1ERC20.transfer(_to, _amount);
+    }
+
+    /**************
+     * Depositing *
+     **************/
+
+    /**
+     * @dev deposit an amount of the ERC20 to the caller's balance on L2.
+     * @param _amount Amount of the ERC20 to deposit
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about its content.
+     */
+    function deposit(
+        uint256 _amount,
+        uint32 _l2Gas,
+        bytes calldata _data
+    )
+        external
+        override
+        virtual
+    {
+        _initiateDeposit(msg.sender, msg.sender, _amount, _l2Gas, _data);
+    }
+
+    /**
+     * @dev deposit an amount of ERC20 to a recipient's balance on L2.
+     * @param _to L2 address to credit the withdrawal to.
+     * @param _amount Amount of the ERC20 to deposit.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about its content.
+     */
+    function depositTo(
+        address _to,
+        uint256 _amount,
+        uint32 _l2Gas,
+        bytes calldata _data
+    )
+        external
+        override
+        virtual
+    {
+        _initiateDeposit(msg.sender, _to, _amount, _l2Gas, _data);
+    }
+
+    /**
+     * @dev Performs the logic for deposits by informing the L2 Deposited Token
+     * contract of the deposit and calling a handler to lock the L1 funds. (e.g. transferFrom)
+     *
+     * @param _from Account to pull the deposit from on L1
+     * @param _to Account to give the deposit to on L2
+     * @param _amount Amount of the ERC20 to deposit.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about its content.
+     */
+    function _initiateDeposit(
+        address _from,
+        address _to,
+        uint256 _amount,
+        uint32 _l2Gas,
+        bytes calldata _data
+    )
+        internal
+    {
+        // Call our deposit accounting handler implemented by child contracts.
+        _handleInitiateDeposit(
+            _from,
+            _to,
+            _amount
+        );
+
+        // Construct calldata for l2DepositedToken.finalizeDeposit(_to, _amount)
+        bytes memory message = abi.encodeWithSelector(
+            iOVM_L2DepositedToken.finalizeDeposit.selector,
+            _from,
+            _to,
+            _amount,
+            _data
+        );
+
+        // Send calldata into L2
+        sendCrossDomainMessage(
+            l2DepositedToken,
+            _l2Gas,
+            message
+        );
+
+        // We omit _data here because events only support bytes32 types.
+        emit DepositInitiated(_from, _to, _amount, _data);
+    }
+
+    /*************************
+     * Cross-chain Functions *
+     *************************/
+
+    /**
+     * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
+     * L1 ERC20 token.
+     * This call will fail if the initialized withdrawal from L2 has not been finalized.
+     *
+     * @param _from L2 address initiating the transfer.
+     * @param _to L1 address to credit the withdrawal to.
+     * @param _amount Amount of the ERC20 to deposit.
+     * @param _data Data provided by the sender on L2. This data is provided
+     *   solely as a convenience for external contracts. Aside from enforcing a maximum
+     *   length, these contracts provide no guarantees about its content.
+     */
+    function finalizeWithdrawal(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes calldata _data
+    )
+        external
+        override
+        virtual
+        onlyFromCrossDomainAccount(l2DepositedToken)
+    {
+        // Call our withdrawal accounting handler implemented by child contracts.
+        _handleFinalizeWithdrawal(
+            _to,
+            _amount
+        );
+        emit WithdrawalFinalized(_from, _to, _amount, _data);
     }
 }
