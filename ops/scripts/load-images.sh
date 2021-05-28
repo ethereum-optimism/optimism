@@ -13,7 +13,7 @@ declare -a images=(
 ## now loop through the above array
 for image in "${images[@]}"
 do
-    docker load --input ethereumoptimism/$image.tar &
+    docker load --input /tmp/images/$image.tar &
 done
 
 wait

@@ -1,4 +1,4 @@
-name: integration
+name: Integration test suites
 
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
           name: images
           path: /tmp/images/*.tar
 
-  integration_tests:
+  integration:
     runs-on: ubuntu-latest
     needs: build_services
     steps:
@@ -87,7 +87,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
+        run: docker-compose up -d --no-recreate && ./scripts/wait-for-sequencer.sh
 
       - name: Test & deploy hardhat-example on Optimistic Ethereum
         working-directory: ./examples/hardhat
@@ -119,7 +119,7 @@ jobs:
           yarn compile:ovm
           yarn test:integration:ovm
     
-  sync_tests:
+  sync:
     runs-on: ubuntu-latest
     needs: build_services
     steps:
