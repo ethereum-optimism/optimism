@@ -51,7 +51,7 @@ import (
 )
 
 const (
-	defaultGasPrice = params.Wei * fees.FeeScalar
+	defaultGasPrice = params.Wei * fees.L2GasPrice
 )
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
@@ -1039,31 +1039,27 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	if err != nil {
 		return 0, err
 	}
-
 	// 2a. fetch the data price, depends on how the sequencer has chosen to update their values based on the
 	// l1 gas prices
 	l1GasPrice, err := b.SuggestL1GasPrice(ctx)
 	if err != nil {
 		return 0, err
 	}
-
 	// 2b. fetch the execution gas price, by the typical mempool dynamics
 	l2GasPrice, err := b.SuggestL2GasPrice(ctx)
 	if err != nil {
 		return 0, err
 	}
-
-	var data []byte
-	if args.Data == nil {
-		data = []byte{}
-	} else {
+	data := []byte{}
+	if args.Data != nil {
 		data = *args.Data
 	}
-	// 3. calculate the fee
+	// 3. calculate the fee using just the calldata. The additional overhead of
+	// RLP encoding is covered inside of EncodeL2GasLimit
 	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
-	fee, err := fees.CalculateRollupFee(data, l1GasPrice, l2GasLimit, l2GasPrice)
-	if err != nil {
-		return 0, err
+	fee := fees.EncodeL2GasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
+	if !fee.IsUint64() {
+		return 0, fmt.Errorf("estimate gas overflow: %s", fee)
 	}
 	return (hexutil.Uint64)(fee.Uint64()), nil
 }
