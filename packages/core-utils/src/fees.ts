@@ -69,6 +69,7 @@ function decode(fee: BigNumber | number): BigNumber {
 export const L2GasLimit = {
   encode,
   decode,
+  feeScalar,
 }
 
 export function verifyL2GasPrice(gasPrice: BigNumber | number): boolean {
