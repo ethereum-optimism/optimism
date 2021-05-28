@@ -2,7 +2,6 @@ package fees
 
 import (
 	"errors"
-	"math"
 	"math/big"
 	"testing"
 )
@@ -154,8 +153,4 @@ func TestCalculateRollupFee(t *testing.T) {
 			}
 		})
 	}
-}
-
-func pow10(x int) uint64 {
-	return uint64(math.Pow10(x))
 }
