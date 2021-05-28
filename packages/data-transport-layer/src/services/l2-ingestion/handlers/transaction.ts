@@ -48,7 +48,7 @@ export const handleSequencerBlock = {
           s: padHexString(transaction.s, 32),
         },
         value: transaction.value,
-        gasLimit: BigNumber.from(transaction.gas).toNumber(),
+        gasLimit: BigNumber.from(transaction.gas).toString(),
         gasPrice: BigNumber.from(transaction.gasPrice).toNumber(), // ?
         nonce: BigNumber.from(transaction.nonce).toNumber(),
         target: transaction.to,
