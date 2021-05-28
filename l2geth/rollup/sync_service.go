@@ -446,16 +446,7 @@ func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 		return err
 	}
 	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
-	gasPrice := result.Big()
-	if err := fees.VerifyGasPrice(gasPrice); err != nil {
-		// If an invalid gas price is found in the state, then
-		// round it up to the next valid gas price. The contract
-		// should technically never allow for an invalid gas price.
-		gp := fees.RoundGasPrice(gasPrice)
-		log.Warn("Invalid gas price detected in state", "state", gasPrice, "using", gp)
-		gasPrice = gp
-	}
-	s.RollupGpo.SetL2GasPrice(gasPrice)
+	s.RollupGpo.SetL2GasPrice(result.Big())
 	return nil
 }
 
@@ -732,11 +723,18 @@ func (s *SyncService) applyBatchedTransaction(tx *types.Transaction) error {
 
 // verifyFee will verify that a valid fee is being paid.
 func (s *SyncService) verifyFee(tx *types.Transaction) error {
-	// Exit early if fees are enforced and the gasPrice is set to 0
-	if s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
-		return errors.New("cannot accept 0 gas price transaction")
+	if tx.GasPrice().Cmp(common.Big0) == 0 {
+		// Exit early if fees are enforced and the gasPrice is set to 0
+		if s.enforceFees {
+			return errors.New("cannot accept 0 gas price transaction")
+		}
+		// If fees are not enforced and the gas price is 0, return early
+		return nil
 	}
-
+	// When the gas price is non zero, it must be equal to the constant
+	if tx.GasPrice().Cmp(fees.BigL2GasPrice) != 0 {
+		return fmt.Errorf("tx.gasPrice must be %d", fees.L2GasPrice)
+	}
 	l1GasPrice, err := s.RollupGpo.SuggestL1GasPrice(context.Background())
 	if err != nil {
 		return err
@@ -748,23 +746,22 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	// Calculate the fee based on decoded L2 gas limit
 	gas := new(big.Int).SetUint64(tx.Gas())
 	l2GasLimit := fees.DecodeL2GasLimit(gas)
-	fee, err := fees.CalculateRollupFee(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
+	// Only count the calldata here as the overhead of the fully encoded
+	// RLP transaction is handled inside of EncodeL2GasLimit
+	fee := fees.EncodeL2GasLimit(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return err
-	}
-	// If fees are not enforced and the gas price is 0, return early
-	if !s.enforceFees && tx.GasPrice().Cmp(common.Big0) == 0 {
-		return nil
 	}
 	// This should only happen if the transaction fee is greater than 18.44 ETH
 	if !fee.IsUint64() {
 		return fmt.Errorf("fee overflow: %s", fee.String())
 	}
+	// Compute the user's fee
 	paying := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
-	expecting := new(big.Int).Mul(fee, fees.BigFeeScalar)
-	// Make sure that the fee is paid
-	if paying.Cmp(expecting) < 0 {
-		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", paying, fee.Uint64(), fees.FeeScalar)
+	// Compute the minimum expected fee
+	expecting := new(big.Int).Mul(fee, fees.BigL2GasPrice)
+	if paying.Cmp(expecting) == -1 {
+		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", paying, fee.Uint64(), fees.BigL2GasPrice)
 	}
 	return nil
 }
