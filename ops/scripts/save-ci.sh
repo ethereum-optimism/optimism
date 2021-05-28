@@ -2,7 +2,7 @@
 # Script for saving all the docker images in CI
 declare -a images=(
     "deployer"
-    "data-trasport-layer"
+    "data-transport-layer"
     "batch-submitter"
     "message-relayer"
     "integration-tests"
@@ -10,13 +10,11 @@ declare -a images=(
     "hardhat"
 )
 
-docker images
-
-mkdir -p ./images
+mkdir -p /tmp/images
 
 for image in "${images[@]}"
 do
-    docker save docker.io/ethereumoptimism/$image > ./images/$image.tar &
+    docker save ethereumoptimism/$image > /tmp/images/$image.tar &
 done
 
 wait
