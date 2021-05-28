@@ -38,8 +38,7 @@ describe('Fee Payment Integration Tests', async () => {
     const balanceBefore = await env.l2Wallet.getBalance()
     expect(balanceBefore.gt(amount))
 
-    const gas = await env.ovmEth.estimateGas.transfer(other, amount)
-    const tx = await env.ovmEth.transfer(other, amount, { gasPrice: 1 })
+    const tx = await env.ovmEth.transfer(other, amount)
     const receipt = await tx.wait()
     expect(receipt.status).to.eq(1)
 
