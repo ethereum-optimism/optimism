@@ -56,7 +56,7 @@ describe('Fees', () => {
         dataLen: 10,
         l1GasPrice: utils.parseUnits('5', 'ether'),
         l2GasPrice: utils.parseUnits('5', 'ether'),
-        l2GasLimit: 10**8-1,
+        l2GasLimit: 10 ** 8 - 1,
       },
       {
         name: 'zero-l2-gasprice',
