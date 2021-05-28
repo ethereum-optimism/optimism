@@ -1,0 +1,23 @@
+FROM node:14-buster as base
+
+RUN apt-get update && apt-get install -y bash curl jq
+
+FROM base as build
+
+RUN apt-get update && apt-get install -y bash git python build-essential
+
+ADD . /opt/fraud-prover
+RUN cd /opt/fraud-prover yarn install yarn build
+
+FROM base
+
+RUN apt-get update && apt-get install -y bash curl jq
+
+COPY --from=build /opt/fraud-prover /opt/fraud-prover
+
+COPY wait-for-l1-and-l2.sh /opt/
+RUN chmod +x /opt/wait-for-l1-and-l2.sh
+RUN chmod +x /opt/fraud-prover/exec/run.js
+RUN ln -s /opt/fraud-prover/exec/run.js /usr/local/bin/
+
+ENTRYPOINT ["/opt/wait-for-l1-and-l2.sh", "run.js"]

@@ -6,6 +6,7 @@
   "workspaces": {
       "packages": [
           "packages/*",
+          "packages/omgx/*",
           "l2geth",
           "integration-tests",
           "specs"

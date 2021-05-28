@@ -1,0 +1,52 @@
+{
+  "name": "@omgx/fraud-prover",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Fraud Prover Service",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist/index"
+  ],
+  "scripts": {
+    "start": "node ./exec/run-fraud-prover.js",
+    "build": "tsc -p ./tsconfig.build.json",
+    "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\"",
+    "lint:check": "tslint --format stylish --project .",
+    "build:contracts": "hardhat compile",
+    "build:contracts:ovm": "hardhat compile --network omgx",
+    "build:fraud": "yarn build:contracts && yarn build:contracts:ovm",
+    "deploy": "yarn build:contracts && yarn build:contracts:ovm && hardhat --network omgx test"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "fraud-prover"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/fraud-prover#readme",
+  "license": "MIT",
+  "author": "Optimism",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
+  },
+  "dependencies": {
+    "@eth-optimism/common-ts": "^0.1.2",
+    "bcfg": "^0.1.6",
+    "@eth-optimism/contracts": "^0.3.4",
+    "@eth-optimism/core-utils": "^0.4.4",
+    "@eth-optimism/hardhat-ovm": "^0.2.2",
+    "dotenv": "^8.2.0",
+    "merkletreejs": "^0.2.18",
+    "rlp": "^2.2.6"
+  },
+  "devDependencies": {
+    "prettier": "^2.2.1",
+    "tslint": "^6.1.3",
+    "tslint-config-prettier": "^1.18.0",
+    "tslint-no-focused-test": "^0.5.0",
+    "tslint-plugin-prettier": "^2.3.0"
+  }
+}
