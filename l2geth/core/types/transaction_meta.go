@@ -20,6 +20,17 @@ const (
 	QueueOriginL1ToL2    QueueOrigin = 1
 )
 
+func (q QueueOrigin) String() string {
+	switch q {
+	case QueueOriginSequencer:
+		return "sequencer"
+	case QueueOriginL1ToL2:
+		return "l1"
+	default:
+		return ""
+	}
+}
+
 //go:generate gencodec -type TransactionMeta -out gen_tx_meta_json.go
 
 type TransactionMeta struct {
