@@ -760,9 +760,11 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	if !fee.IsUint64() {
 		return fmt.Errorf("fee overflow: %s", fee.String())
 	}
+	paying := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
+	expecting := new(big.Int).Mul(fee, fees.BigFeeScalar)
 	// Make sure that the fee is paid
-	if tx.Gas() < fee.Uint64() {
-		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", tx.Gas(), fee.Uint64(), fees.FeeScalar)
+	if paying.Cmp(expecting) < 0 {
+		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", paying, fee.Uint64(), fees.FeeScalar)
 	}
 	return nil
 }
