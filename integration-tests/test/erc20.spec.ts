@@ -67,7 +67,7 @@ describe('Basic ERC20 interactions', async () => {
     // The expected fee paid is the value returned by eth_estimateGas
     const gasLimit = await ERC20.estimateGas.transfer(other.address, 100)
     const gasPrice = await wallet.getGasPrice()
-    expect(gasPrice).to.deep.equal(L2GasLimit.feeScalar)
+    expect(gasPrice).to.deep.equal(L2GasLimit.L2GasPrice)
     const expectedFeePaid = gasLimit.mul(gasPrice)
 
     // There are two events from the transfer with the first being

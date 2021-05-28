@@ -21,7 +21,7 @@ describe('Fee Payment Integration Tests', async () => {
   it('Should estimateGas with recoverable L2 gasLimit', async () => {
     const gas = await env.ovmEth.estimateGas.transfer(
       other,
-      utils.parseEther('0.5')
+      utils.parseEther('0.5'),
     )
     const tx = await env.ovmEth.populateTransaction.transfer(
       other,
