@@ -1,7 +1,7 @@
 import {
   injectL2Context,
   L2GasLimit,
-  roundL1GasPrice,
+  roundGasPrice,
 } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
 import { ethers } from 'hardhat'
@@ -352,7 +352,7 @@ describe('Basic RPC tests', () => {
         const l2GasPrice = BigNumber.from(1)
         const expected = L2GasLimit.encode({
           data: tx.data,
-          l1GasPrice: roundL1GasPrice(l1GasPrice),
+          l1GasPrice: roundGasPrice(l1GasPrice),
           l2GasLimit: BigNumber.from(l2Gaslimit),
           l2GasPrice,
         })
