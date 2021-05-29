@@ -1,6 +1,6 @@
 import { Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
-import { TxGasLimit } from '@eth-optimism/core-utils'
+import { TxGasLimit, TxGasPrice } from '@eth-optimism/core-utils'
 import chai, { expect } from 'chai'
 import { GWEI } from './shared/utils'
 import { OptimismEnv } from './shared/env'
@@ -67,7 +67,7 @@ describe('Basic ERC20 interactions', async () => {
     // The expected fee paid is the value returned by eth_estimateGas
     const gasLimit = await ERC20.estimateGas.transfer(other.address, 100)
     const gasPrice = await wallet.getGasPrice()
-    expect(gasPrice).to.deep.equal(TxGasLimit.L2GasPrice)
+    expect(gasPrice).to.deep.equal(TxGasPrice)
     const expectedFeePaid = gasLimit.mul(gasPrice)
 
     // There are two events from the transfer with the first being
