@@ -20,7 +20,9 @@ describe('Syncing a replica', () => {
   const startReplica = async () => {
     // Bring up new replica
     replica = new DockerComposeNetwork(['l2_dtl', 'replica'])
-    await replica.up({ commandOptions: ['--scale', 'l2_dtl=1', '--scale', 'replica=1'] })
+    await replica.up({
+      commandOptions: ['--scale', 'l2_dtl=1', '--scale', 'replica=1'],
+    })
 
     // Wait for replica to be looping
     let logs = await replica.logs()
@@ -109,7 +111,7 @@ describe('Syncing a replica', () => {
 
       const latestSequencerBlock = (await provider.getBlock('latest')) as any
       console.log(latestSequencerBlock)
-      
+
       const matchingReplicaBlock = (await syncReplica(
         latestSequencerBlock.number
       )) as any
