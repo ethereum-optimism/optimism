@@ -59,12 +59,12 @@ describe('Syncing a replica', () => {
     let Factory__ERC20: ContractFactory
     let ERC20: Contract
 
-    // before(async () => {
-    //   other = Wallet.createRandom().connect(ethers.provider)
-    //   Factory__ERC20 = await ethers.getContractFactory('ERC20', wallet)
-    // })
+    before(async () => {
+      other = Wallet.createRandom().connect(ethers.provider)
+      Factory__ERC20 = await ethers.getContractFactory('ERC20', wallet)
+    })
 
-    afterEach(async () => {
+    after(async () => {
       await replica.stop('l2_dtl')
       await replica.stop('replica')
       await replica.rm()
@@ -96,29 +96,27 @@ describe('Syncing a replica', () => {
       )
     })
 
-    // it('should sync ERC20 deployment and transfer', async () => {
-    //   ERC20 = await Factory__ERC20.deploy(
-    //     initialAmount,
-    //     tokenName,
-    //     tokenDecimals,
-    //     TokenSymbol
-    //   )
+    it('should sync ERC20 deployment and transfer', async () => {
+      ERC20 = await Factory__ERC20.deploy(
+        initialAmount,
+        tokenName,
+        tokenDecimals,
+        TokenSymbol
+      )
 
-    //   const transfer = await ERC20.transfer(other.address, 100)
-    //   await transfer.wait()
+      const transfer = await ERC20.transfer(other.address, 100)
+      await transfer.wait()
 
-    //   const latestSequencerBlock = (await provider.getBlock('latest')) as any
-    //   console.log(latestSequencerBlock)
+      const latestSequencerBlock = (await provider.getBlock('latest')) as any
+      console.log(latestSequencerBlock)
       
-    //   await startReplica()
+      const matchingReplicaBlock = (await syncReplica(
+        latestSequencerBlock.number
+      )) as any
 
-    //   const matchingReplicaBlock = (await syncReplica(
-    //     latestSequencerBlock.number
-    //   )) as any
-
-    //   expect(matchingReplicaBlock.stateRoot).to.eq(
-    //     latestSequencerBlock.stateRoot
-    //   )
-    // })
+      expect(matchingReplicaBlock.stateRoot).to.eq(
+        latestSequencerBlock.stateRoot
+      )
+    })
   })
 })
