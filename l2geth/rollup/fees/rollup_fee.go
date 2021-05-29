@@ -26,7 +26,7 @@ var BigL2GasPrice = new(big.Int).SetUint64(L2GasPrice)
 var bigFeeScalar = new(big.Int).SetUint64(feeScalar)
 var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
 
-// EncodeL2GasLimit computes the `tx.gasLimit` based on the L1/L2 gas prices and
+// EncodeTxGasLimit computes the `tx.gasLimit` based on the L1/L2 gas prices and
 // the L2 gas limit. The L2 gas limit is encoded inside of the lower order bits
 // of the number like so: [          | l2GasLimit ]
 //                        [      tx.gaslimit      ]
@@ -43,7 +43,7 @@ var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
 // function when in reality the RLP encoded transaction should be. The
 // additional cost is added to the overhead constant to prevent the need to RLP
 // encode transactions during calls to `eth_estimateGas`
-func EncodeL2GasLimit(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) *big.Int {
+func EncodeTxGasLimit(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) *big.Int {
 	l1GasLimit := calculateL1GasLimit(data, overhead)
 	l1Fee := new(big.Int).Mul(l1GasPrice, l1GasLimit)
 	l2Fee := new(big.Int).Mul(l2GasLimit, l2GasPrice)

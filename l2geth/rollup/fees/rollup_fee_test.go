@@ -93,7 +93,7 @@ func TestCalculateRollupFee(t *testing.T) {
 			l2GasLimit := new(big.Int).SetUint64(tt.l2GasLimit)
 			l2GasPrice := new(big.Int).SetUint64(tt.l2GasPrice)
 
-			fee := EncodeL2GasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
+			fee := EncodeTxGasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
 			decodedGasLimit := DecodeL2GasLimit(fee)
 			if l2GasLimit.Cmp(decodedGasLimit) != 0 {
 				t.Errorf("rollup fee check failed: expected %d, got %d", l2GasLimit.Uint64(), decodedGasLimit)

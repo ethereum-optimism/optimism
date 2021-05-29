@@ -1,6 +1,6 @@
 import {
   injectL2Context,
-  L2GasLimit,
+  TxGasLimit,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
@@ -130,13 +130,13 @@ describe('Basic RPC tests', () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         gasLimit: 1,
-        gasPrice: L2GasLimit.L2GasPrice,
+        gasPrice: TxGasLimit.L2GasPrice,
       }
       const fee = tx.gasPrice.mul(tx.gasLimit)
       const gasLimit = 59300000001
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        `fee too low: ${fee}, use at least tx.gasLimit = ${gasLimit} and tx.gasPrice = ${L2GasLimit.L2GasPrice}`
+        `fee too low: ${fee}, use at least tx.gasLimit = ${gasLimit} and tx.gasPrice = ${TxGasLimit.L2GasPrice}`
       )
     })
 
@@ -144,11 +144,11 @@ describe('Basic RPC tests', () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         gasLimit: 1,
-        gasPrice: L2GasLimit.L2GasPrice.sub(1),
+        gasPrice: TxGasLimit.L2GasPrice.sub(1),
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        `tx.gasPrice must be ${L2GasLimit.L2GasPrice}`
+        `tx.gasPrice must be ${TxGasLimit.L2GasPrice}`
       )
     })
 
@@ -327,7 +327,7 @@ describe('Basic RPC tests', () => {
   describe('eth_gasPrice', () => {
     it('gas price should be the fee scalar', async () => {
       expect(await provider.getGasPrice()).to.be.deep.equal(
-        L2GasLimit.L2GasPrice.toNumber()
+        TxGasLimit.L2GasPrice.toNumber()
       )
     })
   })
@@ -374,14 +374,14 @@ describe('Basic RPC tests', () => {
           tx,
         ])
 
-        const decoded = L2GasLimit.decode(estimate)
+        const decoded = TxGasLimit.decode(estimate)
         expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
         expect(estimate.toString().endsWith(l2Gaslimit.toString()))
 
         const l2GasPrice = BigNumber.from(0)
         // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
         // but it does not yet exist. Use the default value for now
-        const expected = L2GasLimit.encode({
+        const expected = TxGasLimit.encode({
           data: tx.data,
           l1GasPrice,
           l2GasLimit: BigNumber.from(l2Gaslimit),

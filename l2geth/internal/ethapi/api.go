@@ -1057,7 +1057,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	// 3. calculate the fee using just the calldata. The additional overhead of
 	// RLP encoding is covered inside of EncodeL2GasLimit
 	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
-	fee := fees.EncodeL2GasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
+	fee := fees.EncodeTxGasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
 	if !fee.IsUint64() {
 		return 0, fmt.Errorf("estimate gas overflow: %s", fee)
 	}

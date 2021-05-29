@@ -49,7 +49,7 @@ function decode(fee: BigNumber | number): BigNumber {
   return fee.mod(hundredMillion)
 }
 
-export const L2GasLimit = {
+export const TxGasLimit = {
   encode,
   decode,
   L2GasPrice,

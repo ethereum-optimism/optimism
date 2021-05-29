@@ -748,7 +748,7 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	l2GasLimit := fees.DecodeL2GasLimit(gas)
 	// Only count the calldata here as the overhead of the fully encoded
 	// RLP transaction is handled inside of EncodeL2GasLimit
-	fee := fees.EncodeL2GasLimit(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
+	fee := fees.EncodeTxGasLimit(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
 	if err != nil {
 		return err
 	}
