@@ -105,14 +105,14 @@ describe('Fees', () => {
     for (const test of rollupFeesTests) {
       it(`should pass for ${test.name} case`, () => {
         const data = Buffer.alloc(test.dataLen)
-        const got = fees.L2GasLimit.encode({
+        const got = fees.TxGasLimit.encode({
           data,
           l1GasPrice: test.l1GasPrice,
           l2GasPrice: test.l2GasPrice,
           l2GasLimit: test.l2GasLimit,
         })
 
-        const decoded = fees.L2GasLimit.decode(got)
+        const decoded = fees.TxGasLimit.decode(got)
         expect(decoded).to.deep.eq(BigNumber.from(test.l2GasLimit))
       })
     }
