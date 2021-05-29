@@ -347,6 +347,16 @@ export const getMessagesAndProofsForL2Transaction = async (
     )
   }
 
+  // Adjust the transaction index based on the number of L2 genesis block we have. "Index" here
+  // refers to the position of the transaction within the *Canonical Transaction Chain*.
+  const l2TransactionIndex = l2Transaction.blockNumber - NUM_L2_GENESIS_BLOCKS
+
+  // Here the index refers to the position of the state root that corresponds to this transaction
+  // within the batch of state roots in which that state root was published.
+  const txIndexInBatch =
+    l2TransactionIndex - batch.header.prevTotalElements.toNumber()
+
+  // Find every message that was sent during this transaction. We'll then attach a proof for each.
   const messages = await getMessagesByTransactionHash(
     l2RpcProvider,
     l2CrossDomainMessengerAddress,
@@ -372,7 +382,7 @@ export const getMessagesAndProofsForL2Transaction = async (
     // the message was actually sent on L2.
     const stateTrieProof = await getStateTrieProof(
       l2RpcProvider,
-      l2Transaction.blockNumber + NUM_L2_GENESIS_BLOCKS,
+      l2Transaction.blockNumber,
       predeploys.OVM_L2ToL1MessagePasser,
       messageSlot
     )
@@ -381,25 +391,26 @@ export const getMessagesAndProofsForL2Transaction = async (
     // Merkle root for these state roots so that we only need to store the minimum amount of
     // information on-chain. So we need to create a Merkle proof for the specific state root that
     // corresponds to this transaction.
-    const txIndexInBatch =
-      l2Transaction.blockNumber - batch.header.prevTotalElements.toNumber()
     const stateRootMerkleProof = getMerkleTreeProof(
       batch.stateRoots,
       txIndexInBatch
     )
 
+    // We now have enough information to create the message proof.
+    const proof: CrossDomainMessageProof = {
+      stateRoot: batch.stateRoots[txIndexInBatch],
+      stateRootBatchHeader: batch.header,
+      stateRootProof: {
+        index: txIndexInBatch,
+        siblings: stateRootMerkleProof,
+      },
+      stateTrieWitness: stateTrieProof.accountProof,
+      storageTrieWitness: stateTrieProof.storageProof,
+    }
+
     messagePairs.push({
       message,
-      proof: {
-        stateRoot: batch.stateRoots[txIndexInBatch],
-        stateRootBatchHeader: batch.header,
-        stateRootProof: {
-          index: txIndexInBatch,
-          siblings: stateRootMerkleProof,
-        },
-        stateTrieWitness: stateTrieProof.accountProof,
-        storageTrieWitness: stateTrieProof.storageProof,
-      },
+      proof,
     })
   }
 
