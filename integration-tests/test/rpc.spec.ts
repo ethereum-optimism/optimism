@@ -209,7 +209,7 @@ describe('Basic RPC tests', () => {
     })
   })
 
-  describe.only('eth_getTransactionReceipt', () => {
+  describe('eth_getTransactionReceipt', () => {
     it('correctly exposes revert data for contract calls', async () => {
       const req: TransactionRequest = {
         ...revertingTx,
@@ -236,7 +236,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
-        gasLimit: 177008999999 // override gas estimation
+        gasLimit: 177008999999, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
