@@ -1,6 +1,7 @@
 import {
   injectL2Context,
   TxGasLimit,
+  TxGasPrice,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
@@ -130,13 +131,13 @@ describe('Basic RPC tests', () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         gasLimit: 1,
-        gasPrice: TxGasLimit.L2GasPrice,
+        gasPrice: TxGasPrice.toNumber(),
       }
       const fee = tx.gasPrice.mul(tx.gasLimit)
       const gasLimit = 59300000001
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        `fee too low: ${fee}, use at least tx.gasLimit = ${gasLimit} and tx.gasPrice = ${TxGasLimit.L2GasPrice}`
+        `fee too low: ${fee}, use at least tx.gasLimit = ${gasLimit} and tx.gasPrice = ${TxGasPrice.toString()}`
       )
     })
 
@@ -144,11 +145,11 @@ describe('Basic RPC tests', () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         gasLimit: 1,
-        gasPrice: TxGasLimit.L2GasPrice.sub(1),
+        gasPrice: TxGasPrice.sub(1),
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        `tx.gasPrice must be ${TxGasLimit.L2GasPrice}`
+        `tx.gasPrice must be ${TxGasPrice.toString()}`
       )
     })
 
@@ -327,7 +328,7 @@ describe('Basic RPC tests', () => {
   describe('eth_gasPrice', () => {
     it('gas price should be the fee scalar', async () => {
       expect(await provider.getGasPrice()).to.be.deep.equal(
-        TxGasLimit.L2GasPrice.toNumber()
+        TxGasPrice.toNumber()
       )
     })
   })

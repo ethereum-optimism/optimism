@@ -732,8 +732,8 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 		return nil
 	}
 	// When the gas price is non zero, it must be equal to the constant
-	if tx.GasPrice().Cmp(fees.BigL2GasPrice) != 0 {
-		return fmt.Errorf("tx.gasPrice must be %d", fees.L2GasPrice)
+	if tx.GasPrice().Cmp(fees.BigTxGasPrice) != 0 {
+		return fmt.Errorf("tx.gasPrice must be %d", fees.TxGasPrice)
 	}
 	l1GasPrice, err := s.RollupGpo.SuggestL1GasPrice(context.Background())
 	if err != nil {
@@ -759,9 +759,9 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	// Compute the user's fee
 	paying := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
 	// Compute the minimum expected fee
-	expecting := new(big.Int).Mul(fee, fees.BigL2GasPrice)
+	expecting := new(big.Int).Mul(fee, fees.BigTxGasPrice)
 	if paying.Cmp(expecting) == -1 {
-		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", paying, fee.Uint64(), fees.BigL2GasPrice)
+		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", paying, fee.Uint64(), fees.BigTxGasPrice)
 	}
 	return nil
 }

@@ -7,7 +7,7 @@ import { remove0x } from './common'
 
 const hundredMillion = BigNumber.from(100_000_000)
 const feeScalar = 1000
-const L2GasPrice = BigNumber.from(feeScalar + feeScalar / 2)
+export const TxGasPrice = BigNumber.from(feeScalar + feeScalar / 2)
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
 const overhead = 4200 + 200 * txDataNonZeroGasEIP2028
@@ -52,7 +52,6 @@ function decode(fee: BigNumber | number): BigNumber {
 export const TxGasLimit = {
   encode,
   decode,
-  L2GasPrice,
 }
 
 export function calculateL1GasLimit(data: string | Buffer): BigNumber {

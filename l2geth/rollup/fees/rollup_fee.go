@@ -17,14 +17,14 @@ const hundredMillion uint64 = 100_000_000
 // to prevent them from being too large
 const feeScalar uint64 = 1000
 
-// L2GasPrice is a constant that determines the result of `eth_gasPrice`
+// TxGasPrice is a constant that determines the result of `eth_gasPrice`
 // It is scaled upwards by 50%
 // tx.gasPrice is hard coded to 1500 * wei and all transactions must set that
 // gas price.
-const L2GasPrice uint64 = feeScalar + (feeScalar / 2)
+const TxGasPrice uint64 = feeScalar + (feeScalar / 2)
 
-// BigL2GasPrice is the L2GasPrice as type big.Int
-var BigL2GasPrice = new(big.Int).SetUint64(L2GasPrice)
+// BigTxGasPrice is the L2GasPrice as type big.Int
+var BigTxGasPrice = new(big.Int).SetUint64(TxGasPrice)
 var bigFeeScalar = new(big.Int).SetUint64(feeScalar)
 var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
 

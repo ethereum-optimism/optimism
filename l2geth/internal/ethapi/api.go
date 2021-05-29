@@ -51,7 +51,7 @@ import (
 )
 
 const (
-	defaultGasPrice = params.Wei * fees.L2GasPrice
+	defaultGasPrice = params.Wei * fees.TxGasPrice
 )
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
