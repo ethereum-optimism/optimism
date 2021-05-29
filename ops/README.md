@@ -39,8 +39,8 @@ docker-compose up --scale \
 
 Do the same to run an L2 DTL and replica combo. Note that the L2 DTL is a requirement for the replica!
 ```
-docker-compose up --scale \
-    l2_dtl=1 replica=1 \
+docker-compose up \
+    --scale l2_dtl=1 --scale replica=1 \
     --build --detach
 ```
 

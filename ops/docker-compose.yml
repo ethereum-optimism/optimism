@@ -152,6 +152,7 @@ services:
         URL: http://deployer:8081/addresses.json
         # connecting to the DTL
         ROLLUP_CLIENT_HTTP: http://dtl:7878
+        ROLLUP_BACKEND: 'l1'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
         IS_VERIFIER: "true"
@@ -180,6 +181,7 @@ services:
         # connect to the 2 layers
         DATA_TRANSPORT_LAYER__SYNC_FROM_L1: 'false'
         DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
+        DATA_TRANSPORT_LAYER_DEFAULT_BACKEND: 'l2'
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
         DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
     ports:
@@ -204,7 +206,8 @@ services:
         # used for getting the addresses
         URL: http://deployer:8081/addresses.json
         # connecting to the DTL
-        ROLLUP_CLIENT_HTTP: http://l2_dtl:7879
+        ROLLUP_CLIENT_HTTP: http://l2_dtl:7878
+        ROLLUP_BACKEND: 'l2'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
     ports:
