@@ -131,7 +131,7 @@ describe('Basic RPC tests', () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         gasLimit: 1,
-        gasPrice: TxGasPrice.toNumber(),
+        gasPrice: TxGasPrice,
       }
       const fee = tx.gasPrice.mul(tx.gasLimit)
       const gasLimit = 59300000001
