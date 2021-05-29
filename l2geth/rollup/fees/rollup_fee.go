@@ -19,6 +19,8 @@ const feeScalar uint64 = 1000
 
 // L2GasPrice is a constant that determines the result of `eth_gasPrice`
 // It is scaled upwards by 50%
+// tx.gasPrice is hard coded to 1500 * wei and all transactions must set that
+// gas price.
 const L2GasPrice uint64 = feeScalar + (feeScalar / 2)
 
 // BigL2GasPrice is the L2GasPrice as type big.Int
@@ -37,8 +39,13 @@ var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
 // readable. The entire number is interpreted as the gas limit when computing
 // the fee, so increasing the L2 Gas limit will increase the fee paid.
 // The calculation is:
-// floor((l1GasLimit*l1GasPrice + l2GasLimit*l2GasPrice) / max(tx.gasPrice, 1)) + l2GasLimit
-// where tx.gasPrice is hard coded to 1000 * wei
+// l1GasLimit = zero_count(data) * 4 + non_zero_count(data) * 16 + overhead
+// l1Fee = l1GasPrice * l1GasLimit
+// l2Fee = l2GasPrice * l2GasLimit
+// sum = l1Fee + l2Fee
+// scaled = sum / scalar
+// rounded = ceilmod(scaled, hundredMillion)
+// result = rounded + l2GasLimit
 // Note that for simplicity purposes, only the calldata is passed into this
 // function when in reality the RLP encoded transaction should be. The
 // additional cost is added to the overhead constant to prevent the need to RLP
@@ -46,7 +53,7 @@ var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
 func EncodeTxGasLimit(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) *big.Int {
 	l1GasLimit := calculateL1GasLimit(data, overhead)
 	l1Fee := new(big.Int).Mul(l1GasPrice, l1GasLimit)
-	l2Fee := new(big.Int).Mul(l2GasLimit, l2GasPrice)
+	l2Fee := new(big.Int).Mul(l2GasPrice, l2GasLimit)
 	sum := new(big.Int).Add(l1Fee, l2Fee)
 	scaled := new(big.Int).Div(sum, bigFeeScalar)
 	remainder := new(big.Int).Mod(scaled, bigHundredMillion)
