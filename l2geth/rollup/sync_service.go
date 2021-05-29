@@ -763,6 +763,12 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	if paying.Cmp(expecting) == -1 {
 		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", paying, fee.Uint64(), fees.BigTxGasPrice)
 	}
+	// Protect users from overpaying by too much
+	overpaying := new(big.Int).Sub(paying, expecting)
+	threshold := new(big.Int).Mul(expecting, common.Big3)
+	if overpaying.Cmp(threshold) == 1 {
+		return fmt.Errorf("fee too large: %d", paying)
+	}
 	return nil
 }
 
@@ -779,7 +785,6 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 	if err := s.verifyFee(tx); err != nil {
 		return err
 	}
-
 	s.txLock.Lock()
 	defer s.txLock.Unlock()
 	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex())
