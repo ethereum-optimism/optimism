@@ -5,7 +5,7 @@ export interface DecodedSequencerBatchTransaction {
     v: number
   }
   value: string
-  gasLimit: number
+  gasLimit: string
   gasPrice: number
   nonce: number
   target: string
