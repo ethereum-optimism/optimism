@@ -1,27 +1,12 @@
 {
+  "extends": "../../../tsconfig.build.json",
+
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "es2017",
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "composite": true,
-    "declaration": true,
-    "noImplicitAny": false,
-    "removeComments": true,
-    "noLib": false,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
     "rootDir": "./src",
-    "outDir": "./dist",
-    "typeRoots": [
-      "node_modules/@types"
-    ]
+    "outDir": "./dist"
   },
+
   "include": [
     "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
   ]
 }
