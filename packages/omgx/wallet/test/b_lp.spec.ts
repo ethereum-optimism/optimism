@@ -211,7 +211,7 @@ describe('Liquidity Pool Test', async () => {
     await expect(registerPoolTX.wait()).to.be.eventually.rejected;
   })
 
-  it('should add the L1 liquidity', async () => {
+  it('should add L1 liquidity', async () => {
     const addLiquidityAmount = utils.parseEther("100")
 
     const preBobL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
@@ -241,7 +241,7 @@ describe('Liquidity Pool Test', async () => {
     expect(L1LPERC20Balance).to.deep.eq(addLiquidityAmount)
   })
 
-  it('should add the L2 liquidity', async () => {
+  it('should add L2 liquidity', async () => {
     const addLiquidityAmount = utils.parseEther("100")
 
     const preBobL2ERC20Balance = await L2DepositedERC20.balanceOf(env.bobl2Wallet.address)

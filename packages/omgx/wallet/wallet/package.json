@@ -2,6 +2,19 @@
   "name": "@omgnetwork/wallet_react",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "buildenv-dev": "react-env",
+    "buildenv-prod": "NODE_ENV=production react-env --dest build",
+    "serve": "npm run buildenv-prod && serve -s build -l 3000 -c public/serve.json",
+    "start": "npm run buildenv-dev && react-scripts start",
+    "build": "GENERATE_SOURCEMAP=false react-scripts build",
+    "lint": "eslint . --ext .js,.jsx",
+    "test": "react-scripts test --watchAll=false",
+    "test:coverage": "npm run test --coverage",
+    "audit-check": "audit-ci --moderate",
+    "postinstall": "patch-package",
+    "deploy": "aws s3 rm s3://omgx-wallet --recursive && aws s3 sync build s3://omgx-wallet && aws s3 cp s3://omgx-wallet/index.html s3://omgx-wallet/index.html --metadata-directive REPLACE --cache-control max-age=0"
+  },
   "dependencies": {
     "@eth-optimism/watcher": "^0.0.1-alpha.9",
     "@ethersproject/providers": "^5.0.24",
@@ -46,19 +59,6 @@
     "web3modal": "^1.9.3",
     "workerize-loader": "^1.3.0",
     "enyafhe": "git+https://github.com/enyalabs/EnyaFHE.git#4d0b48e"
-  },
-  "scripts": {
-    "buildenv-dev": "react-env",
-    "buildenv-prod": "NODE_ENV=production react-env --dest build",
-    "serve": "npm run buildenv-prod && serve -s build -l 3000 -c public/serve.json",
-    "start": "npm run buildenv-dev && react-scripts start",
-    "build": "GENERATE_SOURCEMAP=false react-scripts build",
-    "lint": "eslint . --ext .js,.jsx",
-    "test": "react-scripts test --watchAll=false",
-    "test:coverage": "npm run test --coverage",
-    "audit-check": "audit-ci --moderate",
-    "postinstall": "patch-package",
-    "deploy": "aws s3 rm s3://omgx-wallet --recursive && aws s3 sync build s3://omgx-wallet && aws s3 cp s3://omgx-wallet/index.html s3://omgx-wallet/index.html --metadata-directive REPLACE --cache-control max-age=0"
   },
   "eslintConfig": {
     "extends": "react-app"

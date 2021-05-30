@@ -21,3 +21,4 @@ packages/data-transport-layer/db
 *.swp
 
 .env
+.env.js
