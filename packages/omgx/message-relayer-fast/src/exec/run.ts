@@ -21,10 +21,6 @@ const main = async () => {
     'address-manager-address',
     env.ADDRESS_MANAGER_ADDRESS
   )
-  const L1_MESSENGER_ADDRESS = config.str(
-    'l1-messenger-address',
-    env.L1_MESSENGER_ADDRESS
-  )
   const L1_TARGET = config.str(
     'l1-target',
     env.L1_TARGET
@@ -72,9 +68,6 @@ const main = async () => {
   if (!ADDRESS_MANAGER_ADDRESS) {
     throw new Error('Must pass ADDRESS_MANAGER_ADDRESS')
   }
-  if (!L1_MESSENGER_ADDRESS) {
-    throw new Error('Must pass L1_MESSENGER_ADDRESS')
-  }
   if (!L1_TARGET) {
     throw new Error('Must pass L1_TARGET')
   }
@@ -118,7 +111,6 @@ const main = async () => {
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
-    l1MessengerAddress: L1_MESSENGER_ADDRESS,
     l1Target: L1_TARGET,
     l1Wallet: wallet,
     relayGasLimit: RELAY_GAS_LIMIT,

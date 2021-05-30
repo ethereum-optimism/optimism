@@ -3,18 +3,18 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_OVMCodec } from "enyalabs_contracts/contracts/optimistic-ethereum/libraries/codec/Lib_OVMCodec.sol";
-import { Lib_AddressResolver } from "enyalabs_contracts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_AddressManager } from "enyalabs_contracts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol";
-import { Lib_SecureMerkleTrie } from "enyalabs_contracts/contracts/optimistic-ethereum/libraries/trie/Lib_SecureMerkleTrie.sol";
+import { Lib_OVMCodec } from "@eth-optimism/contracts/libraries/codec/Lib_OVMCodec.sol";
+import { Lib_AddressResolver } from "@eth-optimism/contracts/libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_AddressManager } from "@eth-optimism/contracts/libraries/resolver/Lib_AddressManager.sol";
+import { Lib_SecureMerkleTrie } from "@eth-optimism/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /* Interface Imports */
-import { iOVM_L1CrossDomainMessenger } from "enyalabs_contracts/contracts/optimistic-ethereum/iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_CanonicalTransactionChain } from "enyalabs_contracts/contracts/optimistic-ethereum/iOVM/chain/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_StateCommitmentChain } from "enyalabs_contracts/contracts/optimistic-ethereum/iOVM/chain/iOVM_StateCommitmentChain.sol";
+import { iOVM_L1CrossDomainMessenger } from "@eth-optimism/contracts/iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
+import { iOVM_CanonicalTransactionChain } from "@eth-optimism/contracts/iOVM/chain/iOVM_CanonicalTransactionChain.sol";
+import { iOVM_StateCommitmentChain } from "@eth-optimism/contracts/iOVM/chain/iOVM_StateCommitmentChain.sol";
 
 /* Contract Imports */
-import { Abs_BaseCrossDomainMessenger } from "enyalabs_contracts/contracts/optimistic-ethereum/OVM/bridge/messaging/Abs_BaseCrossDomainMessenger.sol";
+import { Abs_BaseCrossDomainMessenger } from "@eth-optimism/contracts/OVM/bridge/messaging/Abs_BaseCrossDomainMessenger.sol";
 
 /**
  * @title OVM_L1CrossDomainMessenger
