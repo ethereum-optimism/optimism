@@ -116,7 +116,7 @@ To build the Docker:
 
 ```bash
 
-docker build . --file Dockerfile.fraud_prover --tag omgx/fraud-prover:latest
+docker build . --file Dockerfile.fraud-prover --tag omgx/fraud-prover:latest
 docker push omgx/fraud-prover:latest
 
 ```

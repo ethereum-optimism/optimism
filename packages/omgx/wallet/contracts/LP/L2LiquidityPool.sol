@@ -4,7 +4,7 @@ pragma solidity >0.5.0;
 import "./interfaces/iL1LiquidityPool.sol";
 
 /* Library Imports */
-import "@eth-optimism/contracts/libraries/bridge/OVM_CrossDomainEnabled.sol";
+import "@eth-optimism/contracts/contracts/optimistic-ethereum/libraries/bridge/OVM_CrossDomainEnabled.sol";
 
 /* External Imports */
 import '@openzeppelin/contracts/math/SafeMath.sol';

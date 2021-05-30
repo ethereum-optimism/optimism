@@ -34,10 +34,10 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.2",
-    "bcfg": "^0.1.6",
     "@eth-optimism/contracts": "^0.3.4",
     "@eth-optimism/core-utils": "^0.4.4",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
+    "bcfg": "^0.1.6",
     "dotenv": "^8.2.0",
     "merkletreejs": "^0.2.18",
     "rlp": "^2.2.6"

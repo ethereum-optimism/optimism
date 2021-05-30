@@ -97,7 +97,7 @@ Note that the integration tests also set up parts of the system that the web wal
 $ yarn install
 $ yarn build  #builds the contracts
 $ yarn deploy #if needed - this will test and deploy the contracts, and write their addresses to /deployments/addresses.json
-              #you do not need to deploy onto Rinkeby (unless you really want to) since all the needed contracts are already #deployed and tested
+              #you do not need to deploy onto Rinkeby (unless you really want to) since all the needed contracts are already deployed and tested
 
 ```
 

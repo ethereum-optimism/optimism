@@ -2,6 +2,7 @@
   "extends": "../../../tsconfig.build.json",
 
   "compilerOptions": {
+    "skipLibCheck": true,
     "rootDir": "./src",
     "outDir": "./dist"
   },

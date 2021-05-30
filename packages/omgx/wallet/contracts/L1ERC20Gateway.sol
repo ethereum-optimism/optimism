@@ -4,8 +4,8 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { OVM_L1ERC20Gateway } from "@eth-optimism/contracts/OVM/bridge/tokens/OVM_L1ERC20Gateway.sol";
-import { iOVM_ERC20 } from "@eth-optimism/contracts/iOVM/predeploys/iOVM_ERC20.sol";
+import { OVM_L1ERC20Gateway } from '@eth-optimism/contracts/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L1ERC20Gateway.sol';
+import { iOVM_ERC20 } from '@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/predeploys/iOVM_ERC20.sol';
 
 /**
  * @title OVM_L1ERC20Gateway

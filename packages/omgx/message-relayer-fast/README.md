@@ -30,3 +30,14 @@ yarn install
 yarn build
 yarn start
 ```
+
+## Build a DockerHub Message Relayer Alt
+
+To build the Message Relayer Alt docker image:
+
+```bash
+
+docker build . --file Dockerfile.message-relayer-alt --tag omgx/custom-message-relayer:latest
+docker push omgx/custom-message-relayer:latest
+
+```
