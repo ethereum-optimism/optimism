@@ -14,21 +14,27 @@ The custom `OVM_L1CrossDomainMessenger` works with the default `OVM_L2CrossDomai
 
 Env Settings -
 
+**THESE MAY BE OUTDATED!!!** The examples in the .env are definitive
+
 ```
+
 ADDRESS_MANAGER_ADDRESS= <address manager contract address>
 L1_NODE_WEB3_URL= <l1 node url>
 L2_NODE_WEB3_URL= <l2 node url>
 L1_WALLET_KEY= <l1 wallet key>
 L1_MESSENGER_ADDRESS= <l1 custom messenger address>
 L1_TARGET= <target contract to allow relays to, set to 0x0 to skip>
+
 ```
 
 Running the message relayer
 ```
+
 cd relayer_service
 yarn install
 yarn build
 yarn start
+
 ```
 
 ## Build a DockerHub Message Relayer Alt
@@ -37,7 +43,7 @@ To build the Message Relayer Alt docker image:
 
 ```bash
 
-docker build . --file Dockerfile.message-relayer-alt --tag omgx/custom-message-relayer:latest
+docker build . --file Dockerfile.message-relayer-fast --tag omgx/custom-message-relayer:latest
 docker push omgx/custom-message-relayer:latest
 
 ```
