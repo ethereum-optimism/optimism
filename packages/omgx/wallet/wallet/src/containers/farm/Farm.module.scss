@@ -1,0 +1,21 @@
+@import 'index.scss';
+
+.Farm {
+  padding: 10px;
+  padding-top: 0px;
+  background: white;
+  
+
+  .Note {
+    font-size: 0.7em;
+    margin-bottom: 5px;
+    color: $gray3;
+  }
+
+  .TableContainer {
+    box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+    border-radius: 10px;
+    max-width: 800px;
+    margin-top: 20px;
+  }
+}

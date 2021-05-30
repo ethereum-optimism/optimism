@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import {
@@ -30,6 +30,8 @@ import Notification from 'containers/notification/Notification';
 import WalletPicker from 'components/walletpicker/WalletPicker';
 import Alert from 'components/alert/Alert';
 
+import oracleService from 'services/oracleService';
+
 import * as styles from './App.module.scss';
 
 function App () {
@@ -43,6 +45,10 @@ function App () {
 
   const handleErrorClose=()=>dispatch(closeError());
   const handleAlertClose=()=>dispatch(closeAlert());
+  
+  useEffect(() => {
+    dispatch(oracleService.initialize());
+  }, [dispatch])
 
   return (
     <Router>

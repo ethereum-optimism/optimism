@@ -25,7 +25,7 @@ const NETWORKS = {
     },
     L2: {
       name: "Local L2",
-      chainId: 420,
+      chainId: 28,
       rpcUrl: "http://" + window.location.hostname + ":8545",
       blockExplorer: "",
     },
@@ -40,7 +40,7 @@ const NETWORKS = {
     L2: {
       name: "Rinkeby L2",
       chainId: 28,
-      rpcUrl: "http://3.85.224.26:8545",
+      rpcUrl: "https://rinkeby.omgx.network",
       blockExplorer: "",
     }
   }

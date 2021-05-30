@@ -13,11 +13,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
+let networkNameCache = localStorage.getItem("networkName");
+
+if (networkNameCache) {
+  networkNameCache = JSON.parse(networkNameCache);
+}
+
 const initialState = {
   walletMethod: null,
-  networkName: 'rinkeby',
+  networkName: networkNameCache ? networkNameCache : 'rinkeby',
   blockexplorerURL: '',
   etherscan: '',
+  minter: false
 };
 
 function setupReducer (state = initialState, action) {
@@ -28,6 +35,7 @@ function setupReducer (state = initialState, action) {
         walletMethod: action.payload 
       }
     case 'SETUP/NETWORK/SET':
+      localStorage.setItem("networkName", JSON.stringify(action.payload));
       return { 
       	...state, 
         networkName: action.payload,
@@ -39,6 +47,11 @@ function setupReducer (state = initialState, action) {
       return { 
         ...state, 
         netLayer: action.payload
+      }
+    case 'SETUP/NFT/MINTER':
+      return { 
+        ...state, 
+        minter: action.payload
       }
     default:
       return state;

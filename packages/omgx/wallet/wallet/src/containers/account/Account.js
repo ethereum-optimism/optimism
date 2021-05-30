@@ -23,7 +23,7 @@ import { selectLoading } from 'selectors/loadingSelector';
 import { selectIsSynced } from 'selectors/statusSelector';
 import { selectChildchainBalance, selectRootchainBalance } from 'selectors/balanceSelector';
 
-import { openModal } from 'actions/uiAction';
+import { openModal, openAlert, openError } from 'actions/uiAction';
 
 import Copy from 'components/copy/Copy';
 import Button from 'components/button/Button';
@@ -82,6 +82,15 @@ function Account () {
     () => dispatch(networkService.depositETHL1()),
     [dispatch]
   );
+
+  const handleGetToken = async () => {
+    const res = await networkService.getTestToken();
+    if (res) {
+      dispatch(openAlert('5 test tokens were sent to your wallet'));
+    } else {
+      dispatch(openError('Your reached the limit'));
+    }
+  }
 
   return (
     <div className={styles.Account}>
@@ -254,6 +263,13 @@ function Account () {
               <span>Balance on Childchain</span>
               <span>OMGX</span>
             </div>
+              <div
+                onClick={()=>handleGetToken()}
+                className={[styles.transfer, networkLayer === 'L1' ? styles.disabled : ''].join(' ')}
+              >
+                <Send />
+                <span>GET JLKN</span>
+              </div>
               <div
                 onClick={()=>handleModalClick('transferModal')}
                 className={[styles.transfer, networkLayer === 'L1' ? styles.disabled : ''].join(' ')}

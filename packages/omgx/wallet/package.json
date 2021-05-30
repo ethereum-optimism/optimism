@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@eth-optimism/hardhat-ovm": "^0.0.2",
+    "@eth-optimism/core-utils": "^0.4.2",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@types/jest": "^26.0.22",
@@ -24,7 +25,6 @@
     "chai": "^4.3.3",
     "chai-as-promised": "^7.1.1",
     "directory-tree": "^2.2.7",
-    "enyalabs_core-utils": "git+https://github.com/enyalabs/core-utils.git",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.32",
     "hardhat": "^2.1.2",
@@ -35,9 +35,10 @@
     "typescript": "^4.2.4"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^3.3.0",
+    "@eth-optimism/contracts": "^0.3.4",
+    "@openzeppelin/contracts": "3.4.1",
+    "chalk": "^4.1.1",
     "dotenv": "^8.2.0",
-    "enyalabs_contracts": "git+ssh://git@github.com:enyalabs/contracts.git",
     "glob": "^7.1.6",
     "patch-package": "^6.4.7"
   }

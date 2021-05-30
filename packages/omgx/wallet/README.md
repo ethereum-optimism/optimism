@@ -4,6 +4,7 @@
   * [1. Basic Setup and Configuration](#1-basic-setup-and-configuration)
     + [1.1 Using Rinkeby Testnet](#11-using-rinkeby-testnet)
     + [1.2 Using Local Testnet](#12-using-local-testnet)
+    + [1.3 Common Wallet Setup Problems](#13-common-wallet-setup-problems)
   * [2. Running the Integration Tests](#2-running-the-integration-tests)
   * [3. Wallet Specific Smart Contracts](#3-wallet-specific-smart-contracts)
     + [3.1 L1liquidityPool.sol](#31-l1liquiditypoolsol)
@@ -33,13 +34,12 @@ The stable general purpose testnet is on Rinkeby (ChainID 4) and AWS. To test on
 
 NODE_ENV=local
 L1_NODE_WEB3_URL=https://rinkeby.infura.io/v3/YOUR_INFURA_KEY_HERE
-L2_NODE_WEB3_URL=http://3.85.224.26:8545
-ETH1_ADDRESS_RESOLVER_ADDRESS=0xa32cf2433ba24595d3aCE5cc9A7079d3f1CC5E0c
+L2_NODE_WEB3_URL=https://rinkeby.omgx.network/
+ETH1_ADDRESS_RESOLVER_ADDRESS=0xAe6E7D7Ea17e7daD1cA83F1F1Ed899019f2209Ec
 TEST_PRIVATE_KEY_1=0xPRIVATE KEY OF THE FIRST TEST WALLET
 TEST_PRIVATE_KEY_2=0xPRIVATE KEY OF THE SECOND TEST WALLET
 TARGET_GAS_LIMIT=9000000000
 CHAIN_ID=28
-L1_ALT_MESSENGER=0xDEPLOYED_ADDRESS // specify default L1_CrossDomainMessengers address to skip using the customized messegner
 
 ```
 
@@ -82,6 +82,12 @@ CHAIN_ID=28
 
 ```
 
+### 1.3 Common Wallet Setup Problems
+
+**Wallet does not show Balances** Did you set the correct ChainIDs in the custom RPC in MetaMask? Please make sure the ChainIDs are correct (Rinkeby = 4, OMGX L2 = 28, local hardhat L1 = 31337).
+
+**I checked that and the wallet still does not show balances** Did you generate a `.env` and provide your `REACT_APP_INFURA_ID` and `REACT_APP_ETHERSCAN_API`? See Section 4.
+
 ## 2. Running the Integration Tests
 
 Note that the integration tests also set up parts of the system that the web wallet will need to work, such as liquidity pools and bridge contracts. 
@@ -96,18 +102,6 @@ $ yarn deploy #if needed - this will test and deploy the contracts, and write th
 ```
 
 The information generated during the deploy (e.g the `/deployment/local/addresses.json`) is used by the web wallet to set things up correctly. **The full test suite includes some very slow transactions such as withdrawals, which can take 100 seconds to complete. Please be patient.**
-
-### Running tests with the customized Messenger
-
-The test could be made to run with the Customized cross domain messenger.
-- deploy the customized L1 Messenger and make sure to specify it in the dot_env
-- can use scripts/deploy_l1_alt_messenger.js to deploy the L1 Messenger on L1
-- Keep the custom message relayer on https://github.com/omgnetwork/omgx_alt_messenger running to ensure messages are relayed
-
-```
-$ yarn deploy
-```
-
 
 ## 3. Wallet Specific Smart Contracts
 
@@ -228,7 +222,7 @@ On the MetaMask side, some set up is needed.
 
 2. You also need to point Metamask at the correct chain. 
   * For work on Rinkeby L1, chose **MetaMask>Networks>Rinkeby Test Network**.
-  * For work on the OMGX Rinkeby L2, chose **MetaMask>Networks>Custom RPC** and enter `http://3.85.224.26:8545` with a ChainID of 28.
+  * For work on the OMGX Rinkeby L2, chose **MetaMask>Networks>Custom RPC** and enter `https://rinkeby.omgx.network/` with a ChainID of 28.
   * For work on a local L1, chose **MetaMask>Networks>Custom RPC** and enter `http://localhost:9545` with a ChainID of 31337.
   * For work on a local OMGX L2, chose **MetaMask>Networks>Custom RPC** and enter `http://localhost:8545` with a ChainID of 28.
 
@@ -239,4 +233,3 @@ On the MetaMask side, some set up is needed.
 1. Open the MetaMask browser extension and select the chain you want to work on.
 
 2. On the top right of the wallet landing page, select either `local` or `rinkeby`. You will then be taken to your account page. Here you can see your balances and move tokens from L1 to L2, and back, for example.
-

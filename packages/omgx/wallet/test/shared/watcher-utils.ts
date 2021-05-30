@@ -26,16 +26,18 @@ export const initWatcher = async (
   })
 }
 
-export const initWatcherAltMessenger = async (
+export const initCustomWatcher = async (
   l1Provider: JsonRpcProvider,
   l2Provider: JsonRpcProvider,
-  l1MessengerAddress: string
+  AddressManager: Contract
 ) => {
+  
+  const l1CustomMessengerAddress = await AddressManager.getAddress('OVM_L1CustomCrossDomainMessenger')
 
   return new Watcher({
     l1: {
       provider: l1Provider,
-      messengerAddress: l1MessengerAddress,
+      messengerAddress: l1CustomMessengerAddress,
     },
     l2: {
       provider: l2Provider,
@@ -55,10 +57,15 @@ export enum Direction {
   L2ToL1,
 }
 
+export enum Relayer {
+  origin,
+  custom,
+}
+
 export const waitForXDomainTransaction = async (
   watcher: Watcher,
   tx: Promise<TransactionResponse> | TransactionResponse,
-  direction: Direction
+  direction: Direction,
 ): Promise<CrossDomainMessagePair> => {
 
   // await it if needed

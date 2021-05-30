@@ -23,6 +23,8 @@ const initialState = {
   wrongNetworkModal: false,
   ledgerConnectModal: false,
   addNewTokenModal: false,
+  farmDepositModal: false,
+  farmWithdrawModal: false,
   ledger: false,
   alert: null,
   error: null,

@@ -89,7 +89,8 @@ class AutoComplete extends React.Component {
     Object.values(selectionList).forEach(val => {
       if (val.symbol !== excludeItem && 
         !excludeList.includes(val.symbol) &&
-        val.symbol !== 'Not found' 
+        val.symbol !== 'Not found' &&
+        val.symbol !== 'ETH'
       ) {
         options.push(val.symbol);
       }

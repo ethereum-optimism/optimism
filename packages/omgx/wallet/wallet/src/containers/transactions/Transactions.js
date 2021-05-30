@@ -125,13 +125,15 @@ function Transactions () {
                   <Transaction
                     key={index}
                     link={ 
-                      (networkService.chainID === 4 || networkService.chainID === 28) ? 
-                        `https://rinkeby.etherscan.io/tx/${i.hash}`:
-                        undefined
+                      networkService.chainID === 4 ? 
+                      `https://rinkeby.etherscan.io/tx/${i.hash}`:
+                      networkService.chainID === 28 ? 
+                      `https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`:
+                      undefined
                     }
                     title={`${truncate(i.hash, 6, 4, '...')}`}
-                    subTitle={moment.unix(i.timeStamp).format('lll')}
-                    subStatus={`Block ${i.blockNumber}`}
+                    midTitle={moment.unix(i.timeStamp).format('lll')}
+                    status={`Block ${i.blockNumber}`}
                   />
                 );
               })}

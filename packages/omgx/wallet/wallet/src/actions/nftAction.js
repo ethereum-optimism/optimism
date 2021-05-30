@@ -15,14 +15,11 @@ limitations under the License. */
 
 import store from 'store';
 
-export async function getNFTs () {
+export function getNFTs () {
   const state = store.getState()
   return state.nftList;
 }
 
-/* 
-Get the token info from networkService.web3.eth.Contract
-*/
 export async function addNFT ( NFTproperties ) {
 
   const state = store.getState();

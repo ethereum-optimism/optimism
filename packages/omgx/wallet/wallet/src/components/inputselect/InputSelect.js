@@ -28,7 +28,7 @@ function InputSelect ({
   onSelect,
   selectValue,
   maxValue,
-  
+  disabledSelect=false
 }) {
   const selected = selectOptions.find(i => i.value === selectValue);
 
@@ -38,6 +38,7 @@ function InputSelect ({
         className={styles.select}
         value={selectValue}
         onChange={onSelect}
+        disabled={disabledSelect}
       >
         {selectOptions.map((i, index) => (
           <option
@@ -53,7 +54,7 @@ function InputSelect ({
           <div className={styles.title}>{selected ? selected.title : ''}</div>
           <div className={styles.subTitle}>{selected ? selected.subTitle : ''}</div>
         </div>
-        <KeyboardArrowDown />
+        {disabledSelect ? <></> : <KeyboardArrowDown />}
       </div>
     </div>
   );

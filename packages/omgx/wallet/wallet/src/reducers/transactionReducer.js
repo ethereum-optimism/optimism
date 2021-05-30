@@ -21,7 +21,7 @@ function transactionReducer (state = initialState, action) {
     case 'TRANSACTION/GETALL/SUCCESS':
       return { ...state, ...keyBy(action.payload, 'hash') };
     case 'TRANSFER/CREATE/SUCCESS':
-      return { ...state, [action.payload.txhash]: action.payload };
+      return { ...state };
     default:
       return state;
   }

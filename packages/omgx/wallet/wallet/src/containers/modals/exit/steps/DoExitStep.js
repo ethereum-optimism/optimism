@@ -53,7 +53,7 @@ function DoExitStep ({
       networkService.L1LPBalance(currency).then((LPBalance)=>{
         setLPBalance(LPBalance)
       })
-      networkService.getL2LPFeeRatio().then((feeRate)=>{
+      networkService.getTotalFeeRate().then((feeRate)=>{
         setFeeRate(feeRate)
       })
     }

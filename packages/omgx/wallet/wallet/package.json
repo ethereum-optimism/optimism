@@ -1,6 +1,6 @@
 {
-  "name": "@enyalabs/wallet",
-  "version": "0.0.10",
+  "name": "@omgnetwork/wallet_react",
+  "version": "0.0.1",
   "private": true,
   "dependencies": {
     "@eth-optimism/watcher": "^0.0.1-alpha.9",
@@ -10,7 +10,6 @@
     "@material-ui/icons": "^4.11.2",
     "@material-ui/lab": "^4.0.0-alpha.57",
     "@metamask/legacy-web3": "^2.0.0",
-    "@omisego/omg-js": "^4.1.2-1.0.4",
     "@sentry/react": "^6.0.2",
     "axios": "^0.21.1",
     "base64-arraybuffer": "^0.2.0",
@@ -18,7 +17,6 @@
     "bn.js": "^5.1.3",
     "buffer": "^6.0.3",
     "dotenv": "^8.2.0",
-    "eth-sig-util": "^3.0.1",
     "ethereumjs-abi": "^0.6.8",
     "ethereumjs-util": "^7.0.5",
     "ethers": "^5.0.32",
@@ -28,7 +26,6 @@
     "md5": "^2.3.0",
     "moment": "^2.24.0",
     "numbro": "^2.1.2",
-    "omg-json-bigint": "^1.0.0",
     "patch-package": "^6.2.2",
     "postinstall-postinstall": "^2.1.0",
     "react": "^16.12.0",
@@ -47,7 +44,8 @@
     "uuid": "^8.3.2",
     "web3": "1.3.4",
     "web3modal": "^1.9.3",
-    "workerize-loader": "^1.3.0"
+    "workerize-loader": "^1.3.0",
+    "enyafhe": "git+https://github.com/enyalabs/EnyaFHE.git#4d0b48e"
   },
   "scripts": {
     "buildenv-dev": "react-env",
@@ -60,7 +58,7 @@
     "test:coverage": "npm run test --coverage",
     "audit-check": "audit-ci --moderate",
     "postinstall": "patch-package",
-    "deploy": "aws s3 rm s3://omgx --recursive && aws s3 sync build s3://omgx && aws s3 cp s3://omgx/index.html s3://omgx/index.html --metadata-directive REPLACE --cache-control max-age=0"
+    "deploy": "aws s3 rm s3://omgx-wallet --recursive && aws s3 sync build s3://omgx-wallet && aws s3 cp s3://omgx-wallet/index.html s3://omgx-wallet/index.html --metadata-directive REPLACE --cache-control max-age=0"
   },
   "eslintConfig": {
     "extends": "react-app"

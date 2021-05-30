@@ -25,7 +25,7 @@ import Modal from 'components/modal/Modal';
 import InputStep from './steps/InputStep';
 import ApproveStep from './steps/ApproveStep';
 
-const ETH0x = networkService.OmgUtil.transaction.ETH_CURRENCY;
+const ETH0x = "0x0000000000000000000000000000000000000000";
 
 function DepositModal ({ open, omgOnly = false, fast = false }) {
 

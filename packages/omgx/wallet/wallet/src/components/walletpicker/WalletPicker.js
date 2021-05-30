@@ -191,6 +191,7 @@ function WalletPicker ({ onEnable }) {
           90 Second Swap-On and Swap-Off<br/>
           Traditional Deposits and 7 Day Exits<br/>
         </div>
+        <div className={styles.MainRightContainer}>
         <div 
           className={styles.MainRight}
           onClick={()=>dispatchSetWalletMethod('browser')}
@@ -203,6 +204,17 @@ function WalletPicker ({ onEnable }) {
               <div className={styles.disabledMM}>Your browser does not have a web3 provider.</div>
             }
           </div>
+        </div>
+        <div 
+          className={styles.MainRightSecond}
+          onClick={()=>networkService.addL2Network()}
+        >
+          <div
+            className={styles.MainButtonSecond}
+          >
+            <span>Add OMGX L2 Provider</span>
+          </div>
+        </div>
         </div>
       </div>
 
@@ -220,6 +232,7 @@ function WalletPicker ({ onEnable }) {
             <span className={styles.B}>Easy to customize.</span>{' '}We have tried to keep the code simple to make it easy to customize and modify.<br/><br/>
             <span className={styles.B}>Requirements.</span>{' '}You will need Metamask and, 
             if you want to test on the Rinkeby testnet, some Rinkeby ETH.<br/><br/>
+            <span className={styles.B}>MetaMask L2 Setup.</span>{' '}Click 'Add OMGX L2 Provider', or, if want to add it manually, go to <span className={styles.B}>MetaMask&#62;Settings&#62;Networks&#62;Add Network</span>.{' '}Specify `http://rinkeby.omgx.network` as the New RPC URL.<br/><br/>
             <br/>
             <br/>
           </div>

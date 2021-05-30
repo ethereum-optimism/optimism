@@ -12,7 +12,7 @@ import { depositETHL2, depositL1LP } from 'actions/networkAction';
 
 import * as styles from '../DepositModal.module.scss';
 
-const ETH0x = networkService.OmgUtil.transaction.ETH_CURRENCY;
+const ETH0x = "0x0000000000000000000000000000000000000000";
 
 function InputStep ({
   onClose,
@@ -44,9 +44,9 @@ function InputStep ({
     if (value > 0 && tokenInfo) {
       let res
       if (fast) {
-        res = await dispatch(depositETHL2(value));
-      } else {
         res = await dispatch(depositL1LP(currency, value))
+      } else {
+        res = await dispatch(depositETHL2(value));
       }
       if (res) {
         dispatch(setActiveHistoryTab1('Deposits'));
@@ -68,7 +68,7 @@ function InputStep ({
     networkService.L2LPBalance(currency).then((LPBalance)=>{
       setLPBalance(LPBalance)
     })
-    networkService.getL1LPFeeRatio().then((feeRate)=>{
+    networkService.getTotalFeeRate().then((feeRate)=>{
       setFeeRate(feeRate)
     })
   }

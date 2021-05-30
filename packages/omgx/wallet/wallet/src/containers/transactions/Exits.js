@@ -85,10 +85,11 @@ function Exits ({ searchHistory }) {
     return (
       <Transaction
         key={`exited-${index}`}
-        link={`http://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`}
+        link={`https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`}
         status='Exited'
         subStatus={`Block ${i.blockNumber}`}
         title={truncate(i.hash, 6, 4, '...')}
+        midTitle={moment.unix(i.timeStamp).format('lll')}
       />
     );
   });

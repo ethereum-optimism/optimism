@@ -36,6 +36,14 @@
   }
 }
 
+.MainRightContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+}
+
+/*the actual button*/
 .MainRight {
   width: 250px;
   border-radius: 5px;
@@ -64,7 +72,45 @@
   }
 }
 
+/*this is just the text*/
 .MainButton {
+  color: white;
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+  padding: 1em;
+  padding-left: 3em;
+  padding-right: 3em;
+  margin: -1em;
+  margin-left: -3em;
+  margin-right: -3em;
+  cursor: pointer;
+  &.disabled {
+    pointer-events: none;
+  }
+}
+
+.MainRightSecond {
+  width: 200px;
+  border-radius: 5px;
+  margin-top: 20px;
+  transition: all 200ms ease-in-out;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  color: white;
+  padding: 5px;
+  background: #4995ff;
+  cursor: pointer;
+  @include mobile {
+    flex-direction: column;
+    width: 70%;
+  }
+  box-shadow: 0 4px 10px 0 rgba(0,0,0,0.2);
+}
+
+.MainButtonSecond {
   color: white;
   display: inline-block;
   position: relative;
@@ -256,3 +302,10 @@
   }
 }
 
+.link {
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

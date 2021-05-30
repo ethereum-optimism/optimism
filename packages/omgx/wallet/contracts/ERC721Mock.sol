@@ -1,23 +1,26 @@
 // SPDX-License-Identifier: MIT
+pragma solidity >0.5.0;
 
-pragma solidity >=0.7.6;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
 /**
  * @title ERC721Mock
  * This mock just provides a public safeMint, mint, and burn functions for testing purposes
  */
-contract ERC721Mock is ERC721 {
+contract ERC721Mock is Ownable, ERC721 {
 
     uint256 tID;
 
-    constructor (string memory name, string memory symbol, uint256 tID_start) 
+    constructor (string memory name, string memory symbol, uint256 tID_start, string memory baseURI) 
         ERC721(name, symbol) {
+        _setBaseURI(baseURI);
         tID = tID_start;
     }
 
-    function mintNFT(address recipient, string memory tokenURI) public returns (uint256)
+    function mintNFT(address recipient, string memory tokenURI) public onlyOwner returns (uint256)
     {
-        safeMint(recipient, tID);
+        mint(recipient, tID);
         setTokenURI(tID, tokenURI);
         tID += 1;
         return tID;

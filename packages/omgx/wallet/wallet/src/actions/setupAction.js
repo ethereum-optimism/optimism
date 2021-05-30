@@ -13,7 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
+import store from 'store';
+
 export function setWalletMethod (methodName) {
+  //console.log("dispatch SWM:", dispatch)
   return function (dispatch) {
     return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: methodName });
   }
@@ -23,4 +26,8 @@ export function setNetwork (network) {
   return function (dispatch) {
     return dispatch({ type: 'SETUP/NETWORK/SET', payload: network });
   }
+}
+
+export function setMinter (minter) {
+  store.dispatch({type: 'SETUP/NFT/MINTER',payload: minter})
 }

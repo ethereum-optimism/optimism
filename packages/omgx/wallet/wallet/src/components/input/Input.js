@@ -23,6 +23,7 @@ function Input ({
   placeholder,
   label,
   type = 'text',
+  disabled,
   icon,
   unit,
   value,
@@ -65,6 +66,7 @@ function Input ({
           type={type}
           value={value}
           onChange={onChange}
+          disabled={disabled}
         />
         {unit && (
           <div className={styles.unit}>
