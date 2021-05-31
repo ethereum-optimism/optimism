@@ -51,6 +51,7 @@ interface iOVM_L2DepositedToken {
      *************************/
 
     function finalizeDeposit(
+        address _l1Token,
         address _from,
         address _to,
         uint _amount,

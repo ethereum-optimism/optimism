@@ -32,26 +32,21 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    iOVM_ERC20 public l1ERC20;
-    address public l2DepositedToken;
+    // Maps L1 token to L2 token to balance of the L1 token escrowed
+    mapping(address => mapping (address => uint256)) l2TokenState;
 
     /***************
      * Constructor *
      ***************/
 
     /**
-     * @param _l1ERC20 L1 ERC20 address this contract stores deposits for.
-     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into.
+     * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      */
     constructor(
-        iOVM_ERC20 _l1ERC20,
-        address _l2DepositedERC20,
         address _l1messenger
     )
         OVM_CrossDomainEnabled(_l1messenger)
     {
-        l1ERC20 = _l1ERC20;
-        l2DepositedToken = _l2DepositedERC20;
     }
 
     /**************
@@ -60,6 +55,8 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
 
     /**
      * @dev deposit an amount of the ERC20 to the caller's balance on L2.
+     * @param _l1Token Address of the L1 ERC20 we are depositing
+     * @param _l2Token Address of the L1 respective L2 ERC20
      * @param _amount Amount of the ERC20 to deposit
      * @param _l2Gas Gas limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided
@@ -67,6 +64,8 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      *        length, these contracts provide no guarantees about its content.
      */
     function deposit(
+        address _l1Token,
+		address _l2Token,
         uint256 _amount,
         uint32 _l2Gas,
         bytes calldata _data
@@ -75,11 +74,13 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         override
         virtual
     {
-        _initiateDeposit(msg.sender, msg.sender, _amount, _l2Gas, _data);
+        _initiateDeposit(_l1Token, _l2Token, msg.sender, msg.sender, _amount, _l2Gas, _data);
     }
 
     /**
      * @dev deposit an amount of ERC20 to a recipient's balance on L2.
+     * @param _l1Token Address of the L1 ERC20 we are depositing
+     * @param _l2Token Address of the L1 respective L2 ERC20
      * @param _to L2 address to credit the withdrawal to.
      * @param _amount Amount of the ERC20 to deposit.
      * @param _l2Gas Gas limit required to complete the deposit on L2.
@@ -88,6 +89,8 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      *        length, these contracts provide no guarantees about its content.
      */
     function depositTo(
+        address _l1Token,
+		address _l2Token,
         address _to,
         uint256 _amount,
         uint32 _l2Gas,
@@ -97,13 +100,15 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         override
         virtual
     {
-        _initiateDeposit(msg.sender, _to, _amount, _l2Gas, _data);
+        _initiateDeposit(_l1Token, _l2Token, msg.sender, _to, _amount, _l2Gas, _data);
     }
 
     /**
      * @dev Performs the logic for deposits by informing the L2 Deposited Token
      * contract of the deposit and calling a handler to lock the L1 funds. (e.g. transferFrom)
      *
+     * @param _l1Token Address of the L1 ERC20 we are depositing
+     * @param _l2Token Address of the L1 respective L2 ERC20
      * @param _from Account to pull the deposit from on L1
      * @param _to Account to give the deposit to on L2
      * @param _amount Amount of the ERC20 to deposit.
@@ -113,6 +118,8 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      *        length, these contracts provide no guarantees about its content.
      */
     function _initiateDeposit(
+        address _l1Token,
+		address _l2Token,
         address _from,
         address _to,
         uint256 _amount,
@@ -122,15 +129,16 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         internal
     {
         // When a deposit is initiated on L1, the L1 Gateway transfers the funds to itself for future withdrawals.
-        l1ERC20.transferFrom(
+        iOVM_ERC20(_l1Token).transferFrom(
             _from,
             address(this),
             _amount
         );
 
-        // Construct calldata for l2DepositedToken.finalizeDeposit(_to, _amount)
+        // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L2DepositedToken.finalizeDeposit.selector,
+            iOVM_L2DepositedToken(_l2Token).finalizeDeposit.selector,
+            _l1Token,
             _from,
             _to,
             _amount,
@@ -139,13 +147,15 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
 
         // Send calldata into L2
         sendCrossDomainMessage(
-            l2DepositedToken,
+            _l2Token,
             _l2Gas,
             message
         );
 
+        l2TokenState[_l1Token][_l2Token] += _amount;
+
         // We omit _data here because events only support bytes32 types.
-        emit DepositInitiated(_from, _to, _amount, _data);
+        emit DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
     /*************************
@@ -157,6 +167,8 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      * L1 ERC20 token.
      * This call will fail if the initialized withdrawal from L2 has not been finalized.
      *
+     * @param _l1Token Address of L1 token to finalizeWithdrawal for.
+     * @param _l2Token Address of L2 token where withdrawal was initiated.
      * @param _from L2 address initiating the transfer.
      * @param _to L1 address to credit the withdrawal to.
      * @param _amount Amount of the ERC20 to deposit.
@@ -165,6 +177,8 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      *   length, these contracts provide no guarantees about its content.
      */
     function finalizeWithdrawal(
+        address _l1Token,
+        address _l2Token,
         address _from,
         address _to,
         uint256 _amount,
@@ -173,11 +187,14 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         external
         override
         virtual
-        onlyFromCrossDomainAccount(l2DepositedToken)
+        onlyFromCrossDomainAccount(_l2Token)
     {
-        // When a withdrawal is finalized on L1, the L1 Gateway transfers the funds to the withdrawer.
-        l1ERC20.transfer(_to, _amount);
+        // todo secure against underflow
+        l2TokenState[_l1Token][_l2Token] -= _amount;
 
-        emit WithdrawalFinalized(_from, _to, _amount, _data);
+        // When a withdrawal is finalized on L1, the L1 Gateway transfers the funds to the withdrawer.
+        iOVM_ERC20(_l1Token).transfer(_to, _amount);
+
+        emit WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 }

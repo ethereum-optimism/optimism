@@ -12,15 +12,19 @@ interface iOVM_L1TokenGateway {
      **********/
 
     event DepositInitiated(
+        address indexed _l1Token,
+        address indexed _l2Token,
         address indexed _from,
-        address indexed _to,
+        address _to,
         uint256 _amount,
         bytes _data
     );
 
     event WithdrawalFinalized(
+        address indexed _l1Token,
+        address indexed _l2Token,
         address indexed _from,
-        address indexed _to,
+        address _to,
         uint256 _amount,
         bytes _data
     );
@@ -31,6 +35,8 @@ interface iOVM_L1TokenGateway {
      ********************/
 
     function deposit(
+        address _l1Token,
+		address _l2Token,
         uint _amount,
         uint32 _l2Gas,
         bytes calldata _data
@@ -38,6 +44,8 @@ interface iOVM_L1TokenGateway {
         external;
 
     function depositTo(
+        address _l1Token,
+		address _l2Token,
         address _to,
         uint _amount,
         uint32 _l2Gas,
@@ -51,6 +59,8 @@ interface iOVM_L1TokenGateway {
      *************************/
 
     function finalizeWithdrawal(
+        address _l1Token,
+		address _l2Token,
         address _from,
         address _to,
         uint _amount,

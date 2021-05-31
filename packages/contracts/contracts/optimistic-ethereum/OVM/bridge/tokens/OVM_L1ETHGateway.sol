@@ -143,6 +143,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
         bytes memory message =
             abi.encodeWithSelector(
                 iOVM_L2DepositedToken.finalizeDeposit.selector,
+                0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
                 _from,
                 _to,
                 msg.value,

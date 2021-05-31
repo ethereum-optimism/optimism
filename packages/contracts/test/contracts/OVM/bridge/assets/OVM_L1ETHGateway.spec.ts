@@ -10,6 +10,7 @@ import {
   NON_ZERO_ADDRESS,
   makeAddressManager,
   NON_NULL_BYTES32,
+  ETH_TOKEN
 } from '../../../../helpers'
 
 const L1_MESSENGER_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
@@ -114,7 +115,7 @@ describe('OVM_L1ETHGateway', () => {
 
     it('should credit funds to the withdrawer and not use too much gas', async () => {
       // make sure no balance at start of test
-      await expect(
+      expect(
         await ethers.provider.getBalance(NON_ZERO_ADDRESS)
       ).to.be.equal(0)
 
@@ -141,18 +142,9 @@ describe('OVM_L1ETHGateway', () => {
         { from: Mock__OVM_L1CrossDomainMessenger.address }
       )
 
-      await expect(
+      expect(
         await ethers.provider.getBalance(NON_ZERO_ADDRESS)
       ).to.be.equal(withdrawalAmount)
-
-      const gasUsed = (
-        await OVM_L1ETHGateway.provider.getTransactionReceipt(res.hash)
-      ).gasUsed
-
-      // Deploy this just for the getter
-      const OVM_L2DepositedERC20 = await (
-        await ethers.getContractFactory('OVM_L2DepositedERC20')
-      ).deploy(constants.AddressZero, '', '')
     })
 
     it.skip('finalizeWithdrawalAndCall(): should should credit funds to the withdrawer, and forward from and data', async () => {
@@ -222,9 +214,9 @@ describe('OVM_L1ETHGateway', () => {
 
       // the L1 gateway sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        await Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
+        Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
           'finalizeDeposit',
-          [depositer, depositer, depositAmount, NON_NULL_BYTES32]
+          [ETH_TOKEN, depositer, depositer, depositAmount, NON_NULL_BYTES32]
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
@@ -266,9 +258,9 @@ describe('OVM_L1ETHGateway', () => {
 
       // the L1 gateway sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        await Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
+        Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
           'finalizeDeposit',
-          [aliceAddress, bobsAddress, depositAmount, NON_NULL_BYTES32]
+          [ETH_TOKEN, aliceAddress, bobsAddress, depositAmount, NON_NULL_BYTES32]
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)

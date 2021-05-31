@@ -3,6 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
+import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
 
@@ -29,13 +30,14 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      * Contract Events *
      *******************/
 
-    event Initialized(iOVM_L1TokenGateway _l1TokenGateway);
+    event Initialized(iOVM_L1TokenGateway _l1TokenGateway, iOVM_ERC20 _l1Token);
 
     /********************************
      * External Contract References *
      ********************************/
 
     iOVM_L1TokenGateway public l1TokenGateway;
+    iOVM_ERC20 public l1Token;
 
     /***************
      * Constructor *
@@ -43,45 +45,23 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
 
     /**
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
+     * @param _l1TokenGateway Address of the L1 gateway deployed to the main chain.
+     * @param _l1Token Address of the corresponding L1 token.
      * @param _name ERC20 name.
      * @param _symbol ERC20 symbol.
      */
     constructor(
         address _l2CrossDomainMessenger,
+        address _l1TokenGateway,
+        address _l1Token,
         string memory _name,
         string memory _symbol
     )
         OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
         UniswapV2ERC20(_name, _symbol)
-    {}
-
-    /**
-     * @dev Initialize this contract with the L1 token gateway address.
-     *      The flow:
-     *          1) this contract is deployed on L2,
-     *          2) the L1 gateway is deployed with addr from (1),
-     *          3) L1 gateway address passed here.
-     * @param _l1TokenGateway Address of the corresponding L1 gateway deployed to the main chain
-     */
-    function init(
-        iOVM_L1TokenGateway _l1TokenGateway
-    )
-        public
     {
-        require(address(l1TokenGateway) == address(0), "Contract has already been initialized");
-
-        l1TokenGateway = _l1TokenGateway;
-
-        emit Initialized(l1TokenGateway);
-    }
-
-    /**********************
-     * Function Modifiers *
-     **********************/
-
-    modifier onlyInitialized() {
-        require(address(l1TokenGateway) != address(0), "Contract has not yet been initialized");
-        _;
+        l1TokenGateway = iOVM_L1TokenGateway(_l1TokenGateway);
+        l1Token = iOVM_ERC20(_l1Token);
     }
 
     /***************
@@ -104,7 +84,6 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         external
         override
         virtual
-        onlyInitialized()
     {
         _initiateWithdrawal(
             msg.sender,
@@ -133,7 +112,6 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         external
         override
         virtual
-        onlyInitialized()
     {
         _initiateWithdrawal(
             msg.sender,
@@ -169,6 +147,8 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         // Construct calldata for l1TokenGateway.finalizeWithdrawal(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
             iOVM_L1TokenGateway.finalizeWithdrawal.selector,
+            l1Token,
+            address(this),
             _from,
             _to,
             _amount,
@@ -193,6 +173,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      * @dev Complete a deposit from L1 to L2, and credits funds to the recipient's balance of this
      * L2 token.
      * This call will fail if it did not originate from a corresponding deposit in OVM_l1TokenGateway.
+     * @param _l1Token Address for the l1 token this is called with
      * @param _from Account to pull the deposit from on L2.
      * @param _to Address to receive the withdrawal at
      * @param _amount Amount of the token to withdraw
@@ -201,6 +182,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      *        length, these contracts provide no guarantees about its content.
      */
     function finalizeDeposit(
+        address _l1Token,
         address _from,
         address _to,
         uint256 _amount,
@@ -209,9 +191,10 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         external
         override
         virtual
-        onlyInitialized()
         onlyFromCrossDomainAccount(address(l1TokenGateway))
     {
+        // todo verify _l1Token matches
+
         // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
         _mint(_to, _amount);
         emit DepositFinalized(_from, _to, _amount, _data);

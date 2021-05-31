@@ -25,10 +25,11 @@ contract OVM_ETH is OVM_L2DepositedERC20 {
     )
         OVM_L2DepositedERC20(
             _l2CrossDomainMessenger,
+            _l1ETHGateway,
+            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
             "Ether",
             "ETH"
         )
     {
-        init(iOVM_L1TokenGateway(_l1ETHGateway));
     }
 }
