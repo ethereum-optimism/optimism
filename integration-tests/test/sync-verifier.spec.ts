@@ -98,4 +98,4 @@ describe('Syncing a verifier', () => {
       )
     })
   })
-})
+}).timeout(100_000)
