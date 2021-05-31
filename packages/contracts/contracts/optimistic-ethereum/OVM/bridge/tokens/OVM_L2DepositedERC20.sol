@@ -193,7 +193,27 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         virtual
         onlyFromCrossDomainAccount(address(l1TokenGateway))
     {
-        // todo verify _l1Token matches
+        // Verify the deposited token on L1 matches the L2 deposited token representation here
+        // Otherwise immediately queue a withdrawal
+        if(_l1Token != address(l1Token)) {
+
+            bytes memory message = abi.encodeWithSelector(
+                iOVM_L1TokenGateway.finalizeWithdrawal.selector,
+                _l1Token,
+                address(this),
+                _from,
+                _to,
+                _amount,
+                _data
+            );
+
+            // Send message up to L1 gateway
+            sendCrossDomainMessage(
+                address(l1TokenGateway),
+                0,
+                message
+            );
+        }
 
         // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
         _mint(_to, _amount);
