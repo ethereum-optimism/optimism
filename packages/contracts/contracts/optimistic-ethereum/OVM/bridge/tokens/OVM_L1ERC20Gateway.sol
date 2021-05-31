@@ -65,7 +65,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      */
     function deposit(
         address _l1Token,
-		address _l2Token,
+        address _l2Token,
         uint256 _amount,
         uint32 _l2Gas,
         bytes calldata _data
@@ -90,7 +90,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      */
     function depositTo(
         address _l1Token,
-		address _l2Token,
+        address _l2Token,
         address _to,
         uint256 _amount,
         uint32 _l2Gas,
@@ -119,7 +119,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
      */
     function _initiateDeposit(
         address _l1Token,
-		address _l2Token,
+        address _l2Token,
         address _from,
         address _to,
         uint256 _amount,
