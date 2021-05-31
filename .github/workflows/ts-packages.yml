@@ -54,11 +54,11 @@ jobs:
       - name: Print gas report
         run: cat packages/contracts/gas-report.txt
 
-      - name: Run codechecks
-        working-directory: ./packages/contracts
-        run: yarn codechecks
-        env:
-          CC_SECRET: ${{ secrets.CC_SECRET }}
+#      - name: Run codechecks
+#        working-directory: ./packages/contracts
+#        run: yarn codechecks
+#        env:
+#          CC_SECRET: ${{ secrets.CC_SECRET }}
 
   test-coverage:
     name: Generate test coverage
