@@ -25,7 +25,7 @@ import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L1CustomCrossDomainMessenger is iOVM_L1CrossDomainMessenger, Abs_BaseCrossDomainMessenger, Lib_AddressResolver {
 
     /***************
      * Constructor *
