@@ -6,12 +6,13 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
 import { UniSafeMath } from "../../../libraries/standards/UniSafeMath.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
 
 /**
  * @title OVM_L1ERC20Gateway
@@ -29,6 +30,7 @@ import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
  */
 contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
     using UniSafeMath for uint;
+    using SafeERC20 for IERC20;
 
     /********************************
      * External Contract References *
@@ -131,7 +133,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         internal
     {
         // When a deposit is initiated on L1, the L1 Gateway transfers the funds to itself for future withdrawals.
-        iOVM_ERC20(_l1Token).transferFrom(
+        IERC20(_l1Token).safeTransferFrom(
             _from,
             address(this),
             _amount
@@ -194,7 +196,7 @@ contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
         l2TokenState[_l1Token][_l2Token] = l2TokenState[_l1Token][_l2Token].sub(_amount);
 
         // When a withdrawal is finalized on L1, the L1 Gateway transfers the funds to the withdrawer.
-        iOVM_ERC20(_l1Token).transfer(_to, _amount);
+        IERC20(_l1Token).safeTransfer(_to, _amount);
 
         emit WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
     }

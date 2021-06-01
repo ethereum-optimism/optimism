@@ -10,7 +10,7 @@ import {
   NON_ZERO_ADDRESS,
   makeAddressManager,
   NON_NULL_BYTES32,
-  ETH_TOKEN
+  ETH_TOKEN,
 } from '../../../../helpers'
 
 const L1_MESSENGER_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
@@ -115,9 +115,7 @@ describe('OVM_L1ETHGateway', () => {
 
     it('should credit funds to the withdrawer and not use too much gas', async () => {
       // make sure no balance at start of test
-      expect(
-        await ethers.provider.getBalance(NON_ZERO_ADDRESS)
-      ).to.be.equal(0)
+      expect(await ethers.provider.getBalance(NON_ZERO_ADDRESS)).to.be.equal(0)
 
       const withdrawalAmount = 100
       Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
@@ -142,9 +140,9 @@ describe('OVM_L1ETHGateway', () => {
         { from: Mock__OVM_L1CrossDomainMessenger.address }
       )
 
-      expect(
-        await ethers.provider.getBalance(NON_ZERO_ADDRESS)
-      ).to.be.equal(withdrawalAmount)
+      expect(await ethers.provider.getBalance(NON_ZERO_ADDRESS)).to.be.equal(
+        withdrawalAmount
+      )
     })
 
     it.skip('finalizeWithdrawalAndCall(): should should credit funds to the withdrawer, and forward from and data', async () => {
@@ -260,7 +258,13 @@ describe('OVM_L1ETHGateway', () => {
       expect(depositCallToMessenger._message).to.equal(
         Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
           'finalizeDeposit',
-          [ETH_TOKEN, aliceAddress, bobsAddress, depositAmount, NON_NULL_BYTES32]
+          [
+            ETH_TOKEN,
+            aliceAddress,
+            bobsAddress,
+            depositAmount,
+            NON_NULL_BYTES32,
+          ]
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)

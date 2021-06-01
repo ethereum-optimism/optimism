@@ -20,8 +20,8 @@ const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
 const MOCK_L1GATEWAY_ADDRESS: string =
   '0x1234123412341234123412341234123412341234'
-  const MOCK_L1TOKEN_ADDRESS: string =
-    '0x2234223412342234223422342234223422342234'
+const MOCK_L1TOKEN_ADDRESS: string =
+  '0x2234223412342234223422342234223422342234'
 
 describe('OVM_L2DepositedERC20', () => {
   let alice: Signer
@@ -51,7 +51,13 @@ describe('OVM_L2DepositedERC20', () => {
     // Deploy the contract under test
     OVM_L2DepositedERC20 = await (
       await ethers.getContractFactory('OVM_L2DepositedERC20')
-    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, MOCK_L1GATEWAY_ADDRESS, MOCK_L1TOKEN_ADDRESS, 'ovmWETH', 'oWETH')
+    ).deploy(
+      Mock__OVM_L2CrossDomainMessenger.address,
+      MOCK_L1GATEWAY_ADDRESS,
+      MOCK_L1TOKEN_ADDRESS,
+      'ovmWETH',
+      'oWETH'
+    )
   })
 
   // test the transfer flow of moving a token from L2 to L1
@@ -60,7 +66,13 @@ describe('OVM_L2DepositedERC20', () => {
       // Deploy new gateway, initialize with random messenger
       OVM_L2DepositedERC20 = await (
         await ethers.getContractFactory('OVM_L2DepositedERC20')
-      ).deploy(NON_ZERO_ADDRESS, MOCK_L1GATEWAY_ADDRESS, MOCK_L1TOKEN_ADDRESS, 'ovmWETH', 'oWETH')
+      ).deploy(
+        NON_ZERO_ADDRESS,
+        MOCK_L1GATEWAY_ADDRESS,
+        MOCK_L1TOKEN_ADDRESS,
+        'ovmWETH',
+        'oWETH'
+      )
 
       await expect(
         OVM_L2DepositedERC20.finalizeDeposit(
@@ -123,7 +135,13 @@ describe('OVM_L2DepositedERC20', () => {
       // Deploy a smodded gateway so we can give some balances to withdraw
       SmoddedL2DepositedToken = await (
         await smoddit('OVM_L2DepositedERC20', alice)
-      ).deploy(Mock__OVM_L2CrossDomainMessenger.address, MOCK_L1GATEWAY_ADDRESS, MOCK_L1TOKEN_ADDRESS, 'ovmWETH', 'oWETH')
+      ).deploy(
+        Mock__OVM_L2CrossDomainMessenger.address,
+        MOCK_L1GATEWAY_ADDRESS,
+        MOCK_L1TOKEN_ADDRESS,
+        'ovmWETH',
+        'oWETH'
+      )
 
       // Populate the initial state with a total supply and some money in alice's balance
       const aliceAddress = await alice.getAddress()

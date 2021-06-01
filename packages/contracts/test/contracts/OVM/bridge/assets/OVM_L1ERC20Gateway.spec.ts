@@ -19,6 +19,7 @@ describe('OVM_L1ERC20Gateway', () => {
   // init signers
   let alice: Signer
   let bob: Signer
+  let bobsAddress
 
   // we can just make up this string since it's on the "other" Layer
   let Mock__OVM_L2DepositedERC20: MockContract
@@ -37,6 +38,7 @@ describe('OVM_L1ERC20Gateway', () => {
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
 
     const aliceAddress = await alice.getAddress()
+    bobsAddress = await bob.getAddress()
     await L1ERC20.smodify.put({
       totalSupply: INITIAL_TOTAL_L1_SUPPLY,
       balanceOf: {
@@ -60,9 +62,7 @@ describe('OVM_L1ERC20Gateway', () => {
     // Deploy the contract under test
     OVM_L1ERC20Gateway = await (
       await ethers.getContractFactory('OVM_L1ERC20Gateway')
-    ).deploy(
-      Mock__OVM_L1CrossDomainMessenger.address
-    )
+    ).deploy(Mock__OVM_L1CrossDomainMessenger.address)
   })
 
   describe('finalizeWithdrawal', () => {
@@ -70,9 +70,7 @@ describe('OVM_L1ERC20Gateway', () => {
       // Deploy new gateway, initialize with random messenger
       OVM_L1ERC20Gateway = await (
         await ethers.getContractFactory('OVM_L1ERC20Gateway')
-      ).deploy(
-        NON_ZERO_ADDRESS
-      )
+      ).deploy(NON_ZERO_ADDRESS)
 
       await expect(
         OVM_L1ERC20Gateway.finalizeWithdrawal(
@@ -126,6 +124,7 @@ describe('OVM_L1ERC20Gateway', () => {
       )
 
       await L1ERC20.transfer(OVM_L1ERC20Gateway.address, withdrawalAmount)
+      console.log('gateway balance')
 
       await OVM_L1ERC20Gateway.finalizeWithdrawal(
         L1ERC20.address,
@@ -165,9 +164,7 @@ describe('OVM_L1ERC20Gateway', () => {
       // Deploy the contract under test:
       OVM_L1ERC20Gateway = await (
         await ethers.getContractFactory('OVM_L1ERC20Gateway')
-      ).deploy(
-        Mock__OVM_L1CrossDomainMessenger.address
-      )
+      ).deploy(Mock__OVM_L1CrossDomainMessenger.address)
 
       // the Signer sets approve for the L1 Gateway
       await L1ERC20.approve(OVM_L1ERC20Gateway.address, depositAmount)
@@ -212,7 +209,13 @@ describe('OVM_L1ERC20Gateway', () => {
       expect(depositCallToMessenger._message).to.equal(
         Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
           'finalizeDeposit',
-          [L1ERC20.address, depositer, depositer, depositAmount, NON_NULL_BYTES32]
+          [
+            L1ERC20.address,
+            depositer,
+            depositer,
+            depositAmount,
+            NON_NULL_BYTES32,
+          ]
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
@@ -220,7 +223,6 @@ describe('OVM_L1ERC20Gateway', () => {
 
     it('depositTo() escrows the deposit amount and sends the correct deposit message', async () => {
       // depositor calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      const bobsAddress = await bob.getAddress()
       await OVM_L1ERC20Gateway.depositTo(
         L1ERC20.address,
         Mock__OVM_L2DepositedERC20.address,
@@ -252,10 +254,86 @@ describe('OVM_L1ERC20Gateway', () => {
       expect(depositCallToMessenger._message).to.equal(
         Mock__OVM_L2DepositedERC20.interface.encodeFunctionData(
           'finalizeDeposit',
-          [L1ERC20.address, depositer, bobsAddress, depositAmount, NON_NULL_BYTES32]
+          [
+            L1ERC20.address,
+            depositer,
+            bobsAddress,
+            depositAmount,
+            NON_NULL_BYTES32,
+          ]
         )
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
+    })
+
+    describe('Handling ERC20.transferFrom() failures that revert ', () => {
+      let MOCK__L1ERC20: MockContract
+      before(async () => {
+        // Deploy the L1 ERC20 token, Alice will receive the full initialSupply
+        MOCK__L1ERC20 = await smockit(
+          await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
+        )
+        MOCK__L1ERC20.smocked.transferFrom.will.revert()
+      })
+      it('deposit(): will revert if ERC20.transferFrom() reverts', async () => {
+        await expect(
+          OVM_L1ERC20Gateway.deposit(
+            MOCK__L1ERC20.address,
+            Mock__OVM_L2DepositedERC20.address,
+            depositAmount,
+            FINALIZATION_GAS,
+            NON_NULL_BYTES32
+          )
+        ).to.be.revertedWith('SafeERC20: low-level call failed')
+      })
+
+      it('depositTo(): will revert if ERC20.transferFrom() reverts', async () => {
+        await expect(
+          OVM_L1ERC20Gateway.depositTo(
+            MOCK__L1ERC20.address,
+            Mock__OVM_L2DepositedERC20.address,
+            bobsAddress,
+            depositAmount,
+            FINALIZATION_GAS,
+            NON_NULL_BYTES32
+          )
+        ).to.be.revertedWith('SafeERC20: low-level call failed')
+      })
+    })
+
+    describe('Handling ERC20.transferFrom failures that return false ', () => {
+      let MOCK__L1ERC20: MockContract
+      before(async () => {
+        MOCK__L1ERC20 = await smockit(
+          await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
+        )
+        MOCK__L1ERC20.smocked.transferFrom.will.return.with(false)
+      })
+
+      it('deposit(): will revert if ERC20.transferFrom() returns false', async () => {
+        await expect(
+          OVM_L1ERC20Gateway.deposit(
+            MOCK__L1ERC20.address,
+            Mock__OVM_L2DepositedERC20.address,
+            depositAmount,
+            FINALIZATION_GAS,
+            NON_NULL_BYTES32
+          )
+        ).to.be.revertedWith('SafeERC20: ERC20 operation did not succeed')
+      })
+
+      it('depositTo(): will revert if ERC20.transferFrom() returns false', async () => {
+        await expect(
+          OVM_L1ERC20Gateway.depositTo(
+            MOCK__L1ERC20.address,
+            Mock__OVM_L2DepositedERC20.address,
+            bobsAddress,
+            depositAmount,
+            FINALIZATION_GAS,
+            NON_NULL_BYTES32
+          )
+        ).to.be.revertedWith('SafeERC20: ERC20 operation did not succeed')
+      })
     })
   })
 })
