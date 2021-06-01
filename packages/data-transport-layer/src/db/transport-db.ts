@@ -379,17 +379,8 @@ export class TransportDB {
     if (index === null) {
       return null
     }
-    const entry = await this.db.get<TEntry>(`${key}:index`, index)
-    if ((entry as any).gasLimit) {
-      ;(entry as any).gasLimit = BigNumber.from(
-        (entry as any).gasLimit
-      ).toString()
-    }
-    if ((entry as any).decoded) {
-      ;(entry as any).decoded.gasLimit = BigNumber.from(
-        (entry as any).decoded.gasLimit
-      ).toString()
-    }
+    let entry = await this.db.get<TEntry>(`${key}:index`, index)
+    entry = stringify(entry)
     return entry
   }
 
@@ -398,6 +389,25 @@ export class TransportDB {
     startIndex: number,
     endIndex: number
   ): Promise<TEntry[] | []> {
-    return this.db.range<TEntry>(`${key}:index`, startIndex, endIndex)
+    const entries = await this.db.range<TEntry>(
+      `${key}:index`,
+      startIndex,
+      endIndex
+    )
+    const results = []
+    for (const entry of entries) {
+      results.push(stringify(entry))
+    }
+    return results
   }
+}
+
+function stringify(entry) {
+  if (entry.gasLimit) {
+    entry.gasLimit = BigNumber.from(entry.gasLimit).toString()
+  }
+  if (entry.decoded) {
+    entry.decoded.gasLimit = BigNumber.from(entry.decoded.gasLimit).toString()
+  }
+  return entry
 }
