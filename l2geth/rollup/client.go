@@ -64,13 +64,12 @@ type L1GasPrice struct {
 // transaction represents the return result of the remote server.
 // It either came from a batch or was replicated from the sequencer.
 type transaction struct {
-	Index       uint64         `json:"index"`
-	BatchIndex  uint64         `json:"batchIndex"`
-	BlockNumber uint64         `json:"blockNumber"`
-	Timestamp   uint64         `json:"timestamp"`
-	Value       hexutil.Uint64 `json:"value"`
-	// Temporary fix
-	GasLimit    interface{}     `json:"gasLimit"`
+	Index       uint64          `json:"index"`
+	BatchIndex  uint64          `json:"batchIndex"`
+	BlockNumber uint64          `json:"blockNumber"`
+	Timestamp   uint64          `json:"timestamp"`
+	Value       hexutil.Uint64  `json:"value"`
+	GasLimit    uint64          `json:"gasLimit,string"`
 	Target      common.Address  `json:"target"`
 	Origin      *common.Address `json:"origin"`
 	Data        hexutil.Bytes   `json:"data"`
@@ -82,11 +81,10 @@ type transaction struct {
 
 // Enqueue represents an `enqueue` transaction or a L1 to L2 transaction.
 type Enqueue struct {
-	Index  *uint64         `json:"ctcIndex"`
-	Target *common.Address `json:"target"`
-	Data   *hexutil.Bytes  `json:"data"`
-	// Temporary fix
-	GasLimit    interface{}     `json:"gasLimit"`
+	Index       *uint64         `json:"ctcIndex"`
+	Target      *common.Address `json:"target"`
+	Data        *hexutil.Bytes  `json:"data"`
+	GasLimit    *uint64         `json:"gasLimit,string"`
 	Origin      *common.Address `json:"origin"`
 	BlockNumber *uint64         `json:"blockNumber"`
 	Timestamp   *uint64         `json:"timestamp"`
@@ -104,14 +102,13 @@ type signature struct {
 // When this struct exists in other structs and is set to `nil`,
 // it means that the decoding failed.
 type decoded struct {
-	Signature signature      `json:"sig"`
-	Value     hexutil.Uint64 `json:"value"`
-	// Temporary fix
-	GasLimit interface{}     `json:"gasLimit"`
-	GasPrice uint64          `json:"gasPrice"`
-	Nonce    uint64          `json:"nonce"`
-	Target   *common.Address `json:"target"`
-	Data     hexutil.Bytes   `json:"data"`
+	Signature signature       `json:"sig"`
+	Value     hexutil.Uint64  `json:"value"`
+	GasLimit  uint64          `json:"gasLimit,string"`
+	GasPrice  uint64          `json:"gasPrice"`
+	Nonce     uint64          `json:"nonce"`
+	Target    *common.Address `json:"target"`
+	Data      hexutil.Bytes   `json:"data"`
 }
 
 // RollupClient is able to query for information
@@ -215,10 +212,7 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 	if enqueue.GasLimit == nil {
 		return nil, errors.New("Gas limit not found for enqueue tx")
 	}
-	gasLimit, err := getUint64(enqueue.GasLimit)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot parse gasLimit: %w", err)
-	}
+	gasLimit := enqueue.GasLimit
 	if enqueue.Origin == nil {
 		return nil, errors.New("Origin not found for enqueue tx")
 	}
@@ -343,10 +337,7 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 		// Note: there are two gas limits, one top level and
 		// another on the raw transaction itself. Maybe maxGasLimit
 		// for the top level?
-		gasLimit, err := getUint64(res.Decoded.GasLimit)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse gasLimit in batchedTransactionToTransaction: %w", err)
-		}
+		gasLimit := res.Decoded.GasLimit
 		gasPrice := new(big.Int).SetUint64(res.Decoded.GasPrice)
 		data := res.Decoded.Data
 
@@ -393,10 +384,7 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 		nonce = *res.QueueIndex
 	}
 	target := res.Target
-	gasLimit, err := getUint64(res.GasLimit)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot parse gasLimit in batchedTransactionToTransaction: %w", err)
-	}
+	gasLimit := res.GasLimit
 	data := res.Data
 	origin := res.Origin
 	value := new(big.Int).SetUint64(uint64(res.Value))
@@ -630,23 +618,4 @@ func (c *Client) GetL1GasPrice() (*big.Int, error) {
 	}
 
 	return gasPrice, nil
-}
-
-func getUint64(v interface{}) (uint64, error) {
-	switch v := v.(type) {
-	case uint64:
-		return v, nil
-	case int:
-		return uint64(v), nil
-	case string:
-		num, ok := new(big.Int).SetString(v, 10)
-		if !ok {
-			return 0, fmt.Errorf("cannot parse type %s", v)
-		}
-		return num.Uint64(), nil
-	case float64:
-		return uint64(v), nil
-	default:
-		return 0, fmt.Errorf("conversion to int from %T not supported", v)
-	}
 }
