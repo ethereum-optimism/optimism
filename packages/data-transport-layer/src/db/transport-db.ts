@@ -403,6 +403,9 @@ export class TransportDB {
 }
 
 function stringify(entry) {
+  if (entry === null || entry === undefined) {
+    return entry
+  }
   if (entry.gasLimit) {
     entry.gasLimit = BigNumber.from(entry.gasLimit).toString()
   }
