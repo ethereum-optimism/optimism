@@ -198,6 +198,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           url: req.url,
           elapsed,
           msg: e.toString(),
+          stack: e.stack,
         })
         return res.status(400).json({
           error: e.toString(),
