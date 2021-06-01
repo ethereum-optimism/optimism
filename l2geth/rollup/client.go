@@ -212,7 +212,7 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 	if enqueue.GasLimit == nil {
 		return nil, errors.New("Gas limit not found for enqueue tx")
 	}
-	gasLimit := enqueue.GasLimit
+	gasLimit := *enqueue.GasLimit
 	if enqueue.Origin == nil {
 		return nil, errors.New("Origin not found for enqueue tx")
 	}
