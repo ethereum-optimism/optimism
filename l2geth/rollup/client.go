@@ -366,7 +366,7 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 		copy(sig[64-len(s):64], s)
 		sig[64] = byte(res.Decoded.Signature.V)
 
-		tx, err = tx.WithSignature(signer, sig[:])
+		tx, err := tx.WithSignature(signer, sig[:])
 		if err != nil {
 			return nil, fmt.Errorf("Cannot add signature to transaction: %w", err)
 		}
