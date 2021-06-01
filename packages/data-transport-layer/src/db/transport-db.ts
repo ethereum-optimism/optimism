@@ -380,9 +380,15 @@ export class TransportDB {
       return null
     }
     const entry = await this.db.get<TEntry>(`${key}:index`, index)
+    if ((entry as any).gasLimit) {
+      ;(entry as any).gasLimit = BigNumber.from(
+        (entry as any).gasLimit
+      ).toString()
+    }
     if ((entry as any).decoded) {
-        (entry as any).decoded.gasLimit =
-          BigNumber.from((entry as any).decoded.gasLimit).toString()
+      ;(entry as any).decoded.gasLimit = BigNumber.from(
+        (entry as any).decoded.gasLimit
+      ).toString()
     }
     return entry
   }
