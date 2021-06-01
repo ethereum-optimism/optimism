@@ -177,7 +177,6 @@ func TestTransactionToTipNoIndex(t *testing.T) {
 		l1BlockNumber,
 		timestamp,
 		&l1TxOrigin,
-		types.SighashEIP155,
 		types.QueueOriginL1ToL2,
 		nil, // The index is `nil`, expect it to be set afterwards
 		nil,
@@ -868,7 +867,6 @@ func mockTx() *types.Transaction {
 		l1BlockNumber,
 		timestamp,
 		&l1TxOrigin,
-		types.SighashEIP155,
 		types.QueueOriginSequencer,
 		nil,
 		nil,
