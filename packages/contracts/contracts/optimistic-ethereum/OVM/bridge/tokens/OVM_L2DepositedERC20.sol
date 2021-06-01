@@ -18,9 +18,7 @@ import { UniswapV2ERC20 } from "../../../libraries/standards/UniswapV2ERC20.sol"
  * @dev The L2 Deposited ERC20 is an ERC20 implementation which represents L1 assets deposited into L2.
  * This contract mints new tokens when it hears about deposits into the L1 ERC20 gateway.
  * This contract also burns the tokens intended for withdrawal, informing the L1 gateway to release L1 funds.
- *
- * NOTE: This contract implements the Abs_L2DepositedToken contract using Uniswap's ERC20 as the implementation.
- * Alternative implementations can be used in this similar manner.
+ * NOTE: This contract uses Uniswap's ERC20 as the implementation.
  *
  * Compiler used: optimistic-solc
  * Runtime target: OVM

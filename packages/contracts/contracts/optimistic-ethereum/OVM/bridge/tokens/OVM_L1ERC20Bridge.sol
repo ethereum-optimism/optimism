@@ -31,8 +31,8 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    // Maps L1 token to L2 token to balance of the L1 token escrowed
-    mapping(address => mapping (address => uint256)) l2TokenState;
+    // Maps L1 token to L2 token to balance of the L1 token deposited
+    mapping(address => mapping (address => uint256)) public deposits;
 
     /***************
      * Constructor *
@@ -151,7 +151,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
             message
         );
 
-        l2TokenState[_l1Token][_l2Token] = l2TokenState[_l1Token][_l2Token].add(_amount);
+        deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].add(_amount);
 
         // We omit _data here because events only support bytes32 types.
         emit DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
@@ -188,7 +188,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
         virtual
         onlyFromCrossDomainAccount(_l2Token)
     {
-        l2TokenState[_l1Token][_l2Token] = l2TokenState[_l1Token][_l2Token].sub(_amount);
+        deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].sub(_amount);
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer.
         IERC20(_l1Token).safeTransfer(_to, _amount);
