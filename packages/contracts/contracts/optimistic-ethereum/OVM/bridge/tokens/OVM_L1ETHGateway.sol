@@ -139,7 +139,7 @@ contract OVM_L1ETHGateway is iOVM_L1ETHGateway, OVM_CrossDomainEnabled, Lib_Addr
     )
         internal
     {
-        // Construct calldata for l2ETHGateway.finalizeDeposit(_to, _amount)
+        // Construct calldata for finalizeDeposit call
         bytes memory message =
             abi.encodeWithSelector(
                 iOVM_L2DepositedToken.finalizeDeposit.selector,

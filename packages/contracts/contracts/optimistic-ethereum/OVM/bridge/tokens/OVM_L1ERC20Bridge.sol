@@ -10,7 +10,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
-import { UniSafeMath } from "../../../libraries/standards/UniSafeMath.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
@@ -24,7 +24,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Runtime target: EVM
  */
 contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
-    using UniSafeMath for uint;
+    using SafeMath for uint;
     using SafeERC20 for IERC20;
 
     /********************************
