@@ -570,7 +570,7 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 		Get("/batch/transaction/index/{index}")
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("Cannot get transaction batch %d", index)
+		return nil, nil, fmt.Errorf("Cannot get transaction batch %d: %w", index, err)
 	}
 	txBatch, ok := response.Result().(*TransactionBatchResponse)
 	if !ok {
