@@ -379,8 +379,12 @@ export class TransportDB {
     if (index === null) {
       return null
     }
-
-    return this.db.get<TEntry>(`${key}:index`, index)
+    const entry = await this.db.get<TEntry>(`${key}:index`, index)
+    if ((entry as any).decoded) {
+        (entry as any).decoded.gasLimit =
+          BigNumber.from((entry as any).decoded.gasLimit).toString()
+    }
+    return entry
   }
 
   private async _getEntries<TEntry extends Indexed>(
