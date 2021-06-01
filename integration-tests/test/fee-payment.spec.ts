@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 import { BigNumber, utils } from 'ethers'
 import { OptimismEnv } from './shared/env'
-import { L2GasLimit } from '@eth-optimism/core-utils'
+import { TxGasLimit } from '@eth-optimism/core-utils'
 
 describe('Fee Payment Integration Tests', async () => {
   let env: OptimismEnv
@@ -29,7 +29,7 @@ describe('Fee Payment Integration Tests', async () => {
     )
     const executionGas = await (env.ovmEth
       .provider as any).send('eth_estimateExecutionGas', [tx])
-    const decoded = L2GasLimit.decode(gas)
+    const decoded = TxGasLimit.decode(gas)
     expect(BigNumber.from(executionGas)).deep.eq(decoded)
   })
 
@@ -38,8 +38,7 @@ describe('Fee Payment Integration Tests', async () => {
     const balanceBefore = await env.l2Wallet.getBalance()
     expect(balanceBefore.gt(amount))
 
-    const gas = await env.ovmEth.estimateGas.transfer(other, amount)
-    const tx = await env.ovmEth.transfer(other, amount, { gasPrice: 1 })
+    const tx = await env.ovmEth.transfer(other, amount)
     const receipt = await tx.wait()
     expect(receipt.status).to.eq(1)
 
