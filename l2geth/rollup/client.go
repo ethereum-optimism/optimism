@@ -69,7 +69,7 @@ type transaction struct {
 	BlockNumber uint64          `json:"blockNumber"`
 	Timestamp   uint64          `json:"timestamp"`
 	Value       hexutil.Uint64  `json:"value"`
-	GasLimit    uint64          `json:"gasLimit"`
+	GasLimit    uint64          `json:"gasLimit,string"`
 	Target      common.Address  `json:"target"`
 	Origin      *common.Address `json:"origin"`
 	Data        hexutil.Bytes   `json:"data"`
@@ -84,7 +84,7 @@ type Enqueue struct {
 	Index       *uint64         `json:"ctcIndex"`
 	Target      *common.Address `json:"target"`
 	Data        *hexutil.Bytes  `json:"data"`
-	GasLimit    *uint64         `json:"gasLimit"`
+	GasLimit    *uint64         `json:"gasLimit,string"`
 	Origin      *common.Address `json:"origin"`
 	BlockNumber *uint64         `json:"blockNumber"`
 	Timestamp   *uint64         `json:"timestamp"`
