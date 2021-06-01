@@ -16,14 +16,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
  * @title OVM_L1ERC20Bridge
- * @dev The L1 ERC20 Gateway is a contract which stores deposited L1 funds that are in use on L2.
- * It synchronizes a corresponding L2 ERC20 Gateway, informing it of deposits, and listening to it
+ * @dev The L1 ERC20 Bridge is a contract which stores deposited L1 funds that are in use on L2.
+ * It synchronizes a corresponding L2 ERC20 Bridge, informing it of deposits, and listening to it
  * for newly finalized withdrawals.
- *
- * NOTE: This contract extends Abs_L1TokenGateway, which is where we
- * takes care of most of the initialization and the cross-chain logic.
- * If you are looking to implement your own deposit/withdrawal contracts, you
- * may also want to extend the abstract contract in a similar manner.
  *
  * Compiler used: solc
  * Runtime target: EVM
@@ -132,7 +127,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
     )
         internal
     {
-        // When a deposit is initiated on L1, the L1 Gateway transfers the funds to itself for future withdrawals.
+        // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future withdrawals.
         IERC20(_l1Token).safeTransferFrom(
             _from,
             address(this),
@@ -195,7 +190,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
     {
         l2TokenState[_l1Token][_l2Token] = l2TokenState[_l1Token][_l2Token].sub(_amount);
 
-        // When a withdrawal is finalized on L1, the L1 Gateway transfers the funds to the withdrawer.
+        // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer.
         IERC20(_l1Token).safeTransfer(_to, _amount);
 
         emit WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);

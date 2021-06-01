@@ -85,7 +85,7 @@ describe('OVM_L2DepositedERC20', () => {
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
 
-    it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1ERC20Gateway)', async () => {
+    it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1ERC20Bridge)', async () => {
       Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         NON_ZERO_ADDRESS
       )
@@ -177,9 +177,9 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       // Assert the correct cross-chain call was sent:
-      // Message should be sent to the L1ERC20Gateway on L1
+      // Message should be sent to the L1ERC20Bridge on L1
       expect(withdrawalCallToMessenger._target).to.equal(MOCK_L1GATEWAY_ADDRESS)
-      // Message data should be a call telling the L1ERC20Gateway to finalize the withdrawal
+      // Message data should be a call telling the L1ERC20Bridge to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
         Factory__OVM_L1ERC20Bridge.interface.encodeFunctionData(
           'finalizeWithdrawal',
@@ -234,9 +234,9 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       // Assert the correct cross-chain call was sent.
-      // Message should be sent to the L1ERC20Gateway on L1
+      // Message should be sent to the L1ERC20Bridge on L1
       expect(withdrawalCallToMessenger._target).to.equal(MOCK_L1GATEWAY_ADDRESS)
-      // The message data should be a call telling the L1ERC20Gateway to finalize the withdrawal
+      // The message data should be a call telling the L1ERC20Bridge to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
         Factory__OVM_L1ERC20Bridge.interface.encodeFunctionData(
           'finalizeWithdrawal',
