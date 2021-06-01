@@ -107,17 +107,27 @@ describe('OVM_L1ERC20Gateway', () => {
     })
 
     it('should credit funds to the withdrawer and not use too much gas', async () => {
+      // First the Signer will 'donate' some tokens so that there's a balance to be withdrawn
+      const withdrawalAmount = 10
+      await L1ERC20.approve(OVM_L1ERC20Gateway.address, withdrawalAmount)
+      await OVM_L1ERC20Gateway.deposit(
+        L1ERC20.address,
+        Mock__OVM_L2DepositedERC20.address,
+        withdrawalAmount,
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32
+      )
+
       // make sure no balance at start of test
       expect(await L1ERC20.balanceOf(NON_ZERO_ADDRESS)).to.be.equal(0)
 
-      const withdrawalAmount = 100
       Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => Mock__OVM_L2DepositedERC20.address
       )
 
       await L1ERC20.transfer(OVM_L1ERC20Gateway.address, withdrawalAmount)
 
-      const res = await OVM_L1ERC20Gateway.finalizeWithdrawal(
+      await OVM_L1ERC20Gateway.finalizeWithdrawal(
         L1ERC20.address,
         Mock__OVM_L2DepositedERC20.address,
         NON_ZERO_ADDRESS,
