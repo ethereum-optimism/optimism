@@ -4,7 +4,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
+import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -28,7 +28,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1ERC20Bridge is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
+contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
     using UniSafeMath for uint;
     using SafeERC20 for IERC20;
 
