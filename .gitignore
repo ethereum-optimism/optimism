@@ -14,6 +14,9 @@ cache-ovm
 l2geth/build/bin
 packages/contracts/deployments/custom
 packages/contracts/coverage*
+packages/contracts/@ens*
+packages/contracts/@openzeppelin*
+packages/contracts/hardhat*
 
 packages/data-transport-layer/db
 
