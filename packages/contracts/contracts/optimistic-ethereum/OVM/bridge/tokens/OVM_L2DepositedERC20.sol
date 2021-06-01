@@ -16,8 +16,8 @@ import { UniswapV2ERC20 } from "../../../libraries/standards/UniswapV2ERC20.sol"
 /**
  * @title OVM_L2DepositedERC20
  * @dev The L2 Deposited ERC20 is an ERC20 implementation which represents L1 assets deposited into L2.
- * This contract mints new tokens when it hears about deposits into the L1 ERC20 gateway.
- * This contract also burns the tokens intended for withdrawal, informing the L1 gateway to release L1 funds.
+ * This contract mints new tokens when it hears about deposits into the L1 ERC20 bridge.
+ * This contract also burns the tokens intended for withdrawal, informing the L1 bridge to release L1 funds.
  * NOTE: This contract uses Uniswap's ERC20 as the implementation.
  *
  * Compiler used: optimistic-solc
@@ -28,13 +28,13 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      * Contract Events *
      *******************/
 
-    event Initialized(iOVM_L1ERC20Bridge _l1TokenGateway, iOVM_ERC20 _l1Token);
+    event Initialized(iOVM_L1ERC20Bridge _l1TokenBridge, iOVM_ERC20 _l1Token);
 
     /********************************
      * External Contract References *
      ********************************/
 
-    iOVM_L1ERC20Bridge public l1TokenGateway;
+    iOVM_L1ERC20Bridge public l1TokenBridge;
     iOVM_ERC20 public l1Token;
 
     /***************
@@ -43,14 +43,14 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
 
     /**
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
-     * @param _l1TokenGateway Address of the L1 gateway deployed to the main chain.
+     * @param _l1TokenBridge Address of the L1 bridge deployed to the main chain.
      * @param _l1Token Address of the corresponding L1 token.
      * @param _name ERC20 name.
      * @param _symbol ERC20 symbol.
      */
     constructor(
         address _l2CrossDomainMessenger,
-        address _l1TokenGateway,
+        address _l1TokenBridge,
         address _l1Token,
         string memory _name,
         string memory _symbol
@@ -58,7 +58,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
         UniswapV2ERC20(_name, _symbol)
     {
-        l1TokenGateway = iOVM_L1ERC20Bridge(_l1TokenGateway);
+        l1TokenBridge = iOVM_L1ERC20Bridge(_l1TokenBridge);
         l1Token = iOVM_ERC20(_l1Token);
     }
 
@@ -142,7 +142,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage
         _burn(msg.sender, _amount);
 
-        // Construct calldata for l1TokenGateway.finalizeWithdrawal(_to, _amount)
+        // Construct calldata for l1TokenBridge.finalizeWithdrawal(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
             iOVM_L1ERC20Bridge.finalizeWithdrawal.selector,
             l1Token,
@@ -153,9 +153,9 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
             _data
         );
 
-        // Send message up to L1 gateway
+        // Send message up to L1 bridge
         sendCrossDomainMessage(
-            address(l1TokenGateway),
+            address(l1TokenBridge),
             0,
             message
         );
@@ -189,7 +189,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         external
         override
         virtual
-        onlyFromCrossDomainAccount(address(l1TokenGateway))
+        onlyFromCrossDomainAccount(address(l1TokenBridge))
     {
         // Verify the deposited token on L1 matches the L2 deposited token representation here
         // Otherwise immediately queue a withdrawal
@@ -205,9 +205,9 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
                 _data
             );
 
-            // Send message up to L1 gateway
+            // Send message up to L1 bridge
             sendCrossDomainMessage(
-                address(l1TokenGateway),
+                address(l1TokenBridge),
                 0,
                 message
             );
