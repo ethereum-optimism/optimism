@@ -26,11 +26,11 @@ const MOCK_L1TOKEN_ADDRESS: string =
 describe('OVM_L2DepositedERC20', () => {
   let alice: Signer
   let bob: Signer
-  let Factory__OVM_L1ERC20Gateway: ContractFactory
+  let Factory__OVM_L1ERC20Bridge: ContractFactory
   before(async () => {
     ;[alice, bob] = await ethers.getSigners()
-    Factory__OVM_L1ERC20Gateway = await ethers.getContractFactory(
-      'OVM_L1ERC20Gateway'
+    Factory__OVM_L1ERC20Bridge = await ethers.getContractFactory(
+      'OVM_L1ERC20Bridge'
     )
   })
 
@@ -181,7 +181,7 @@ describe('OVM_L2DepositedERC20', () => {
       expect(withdrawalCallToMessenger._target).to.equal(MOCK_L1GATEWAY_ADDRESS)
       // Message data should be a call telling the L1ERC20Gateway to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
-        Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
+        Factory__OVM_L1ERC20Bridge.interface.encodeFunctionData(
           'finalizeWithdrawal',
           [
             MOCK_L1TOKEN_ADDRESS,
@@ -238,7 +238,7 @@ describe('OVM_L2DepositedERC20', () => {
       expect(withdrawalCallToMessenger._target).to.equal(MOCK_L1GATEWAY_ADDRESS)
       // The message data should be a call telling the L1ERC20Gateway to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
-        Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
+        Factory__OVM_L1ERC20Bridge.interface.encodeFunctionData(
           'finalizeWithdrawal',
           [
             MOCK_L1TOKEN_ADDRESS,

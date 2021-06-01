@@ -11,7 +11,7 @@ const factory = (name, ovm = false) => {
 }
 const factory__L1_ERC20 = factory('ERC20')
 const factory__L2_ERC20 = factory('L2DepositedERC20', true)
-const factory__L1_ERC20Gateway = getContractFactory('OVM_L1ERC20Gateway')
+const factory__L1_ERC20Gateway = getContractFactory('OVM_L1ERC20Bridge')
 
 
 describe(`L1 <> L2 Deposit and Withdrawal`, () => {

@@ -15,7 +15,7 @@ const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
 
-describe('OVM_L1ERC20Gateway', () => {
+describe('OVM_L1ERC20Bridge', () => {
   // init signers
   let alice: Signer
   let bob: Signer
@@ -47,7 +47,7 @@ describe('OVM_L1ERC20Gateway', () => {
     })
   })
 
-  let OVM_L1ERC20Gateway: Contract
+  let OVM_L1ERC20Bridge: Contract
   let Mock__OVM_L1CrossDomainMessenger: MockContract
   beforeEach(async () => {
     // Create a special signer which will enable us to send messages from the L1Messenger contract
@@ -60,20 +60,20 @@ describe('OVM_L1ERC20Gateway', () => {
     )
 
     // Deploy the contract under test
-    OVM_L1ERC20Gateway = await (
-      await ethers.getContractFactory('OVM_L1ERC20Gateway')
+    OVM_L1ERC20Bridge = await (
+      await ethers.getContractFactory('OVM_L1ERC20Bridge')
     ).deploy(Mock__OVM_L1CrossDomainMessenger.address)
   })
 
   describe('finalizeWithdrawal', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L1 account', async () => {
       // Deploy new gateway, initialize with random messenger
-      OVM_L1ERC20Gateway = await (
-        await ethers.getContractFactory('OVM_L1ERC20Gateway')
+      OVM_L1ERC20Bridge = await (
+        await ethers.getContractFactory('OVM_L1ERC20Bridge')
       ).deploy(NON_ZERO_ADDRESS)
 
       await expect(
-        OVM_L1ERC20Gateway.finalizeWithdrawal(
+        OVM_L1ERC20Bridge.finalizeWithdrawal(
           L1ERC20.address,
           Mock__OVM_L2DepositedERC20.address,
           constants.AddressZero,
@@ -90,7 +90,7 @@ describe('OVM_L1ERC20Gateway', () => {
       )
 
       await expect(
-        OVM_L1ERC20Gateway.finalizeWithdrawal(
+        OVM_L1ERC20Bridge.finalizeWithdrawal(
           L1ERC20.address,
           Mock__OVM_L2DepositedERC20.address,
           constants.AddressZero,
@@ -107,8 +107,8 @@ describe('OVM_L1ERC20Gateway', () => {
     it('should credit funds to the withdrawer and not use too much gas', async () => {
       // First the Signer will 'donate' some tokens so that there's a balance to be withdrawn
       const withdrawalAmount = 10
-      await L1ERC20.approve(OVM_L1ERC20Gateway.address, withdrawalAmount)
-      await OVM_L1ERC20Gateway.deposit(
+      await L1ERC20.approve(OVM_L1ERC20Bridge.address, withdrawalAmount)
+      await OVM_L1ERC20Bridge.deposit(
         L1ERC20.address,
         Mock__OVM_L2DepositedERC20.address,
         withdrawalAmount,
@@ -123,10 +123,10 @@ describe('OVM_L1ERC20Gateway', () => {
         () => Mock__OVM_L2DepositedERC20.address
       )
 
-      await L1ERC20.transfer(OVM_L1ERC20Gateway.address, withdrawalAmount)
+      await L1ERC20.transfer(OVM_L1ERC20Bridge.address, withdrawalAmount)
       console.log('gateway balance')
 
-      await OVM_L1ERC20Gateway.finalizeWithdrawal(
+      await OVM_L1ERC20Bridge.finalizeWithdrawal(
         L1ERC20.address,
         Mock__OVM_L2DepositedERC20.address,
         NON_ZERO_ADDRESS,
@@ -162,12 +162,12 @@ describe('OVM_L1ERC20Gateway', () => {
       )
 
       // Deploy the contract under test:
-      OVM_L1ERC20Gateway = await (
-        await ethers.getContractFactory('OVM_L1ERC20Gateway')
+      OVM_L1ERC20Bridge = await (
+        await ethers.getContractFactory('OVM_L1ERC20Bridge')
       ).deploy(Mock__OVM_L1CrossDomainMessenger.address)
 
       // the Signer sets approve for the L1 Gateway
-      await L1ERC20.approve(OVM_L1ERC20Gateway.address, depositAmount)
+      await L1ERC20.approve(OVM_L1ERC20Bridge.address, depositAmount)
       depositer = await L1ERC20.signer.getAddress()
 
       await L1ERC20.smodify.put({
@@ -179,7 +179,7 @@ describe('OVM_L1ERC20Gateway', () => {
 
     it('deposit() escrows the deposit amount and sends the correct deposit message', async () => {
       // alice calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ERC20Gateway.deposit(
+      await OVM_L1ERC20Bridge.deposit(
         L1ERC20.address,
         Mock__OVM_L2DepositedERC20.address,
         depositAmount,
@@ -195,7 +195,7 @@ describe('OVM_L1ERC20Gateway', () => {
       )
 
       // gateway's balance is increased
-      const gatewayBalance = await L1ERC20.balanceOf(OVM_L1ERC20Gateway.address)
+      const gatewayBalance = await L1ERC20.balanceOf(OVM_L1ERC20Bridge.address)
       expect(gatewayBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
@@ -223,7 +223,7 @@ describe('OVM_L1ERC20Gateway', () => {
 
     it('depositTo() escrows the deposit amount and sends the correct deposit message', async () => {
       // depositor calls deposit on the gateway and the L1 gateway calls transferFrom on the token
-      await OVM_L1ERC20Gateway.depositTo(
+      await OVM_L1ERC20Bridge.depositTo(
         L1ERC20.address,
         Mock__OVM_L2DepositedERC20.address,
         bobsAddress,
@@ -240,7 +240,7 @@ describe('OVM_L1ERC20Gateway', () => {
       )
 
       // gateway's balance is increased
-      const gatewayBalance = await L1ERC20.balanceOf(OVM_L1ERC20Gateway.address)
+      const gatewayBalance = await L1ERC20.balanceOf(OVM_L1ERC20Bridge.address)
       expect(gatewayBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
@@ -277,7 +277,7 @@ describe('OVM_L1ERC20Gateway', () => {
       })
       it('deposit(): will revert if ERC20.transferFrom() reverts', async () => {
         await expect(
-          OVM_L1ERC20Gateway.deposit(
+          OVM_L1ERC20Bridge.deposit(
             MOCK__L1ERC20.address,
             Mock__OVM_L2DepositedERC20.address,
             depositAmount,
@@ -289,7 +289,7 @@ describe('OVM_L1ERC20Gateway', () => {
 
       it('depositTo(): will revert if ERC20.transferFrom() reverts', async () => {
         await expect(
-          OVM_L1ERC20Gateway.depositTo(
+          OVM_L1ERC20Bridge.depositTo(
             MOCK__L1ERC20.address,
             Mock__OVM_L2DepositedERC20.address,
             bobsAddress,
@@ -312,7 +312,7 @@ describe('OVM_L1ERC20Gateway', () => {
 
       it('deposit(): will revert if ERC20.transferFrom() returns false', async () => {
         await expect(
-          OVM_L1ERC20Gateway.deposit(
+          OVM_L1ERC20Bridge.deposit(
             MOCK__L1ERC20.address,
             Mock__OVM_L2DepositedERC20.address,
             depositAmount,
@@ -324,7 +324,7 @@ describe('OVM_L1ERC20Gateway', () => {
 
       it('depositTo(): will revert if ERC20.transferFrom() returns false', async () => {
         await expect(
-          OVM_L1ERC20Gateway.depositTo(
+          OVM_L1ERC20Bridge.depositTo(
             MOCK__L1ERC20.address,
             Mock__OVM_L2DepositedERC20.address,
             bobsAddress,

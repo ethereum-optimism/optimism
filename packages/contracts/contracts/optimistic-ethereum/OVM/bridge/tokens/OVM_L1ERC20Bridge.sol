@@ -15,7 +15,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
 /**
- * @title OVM_L1ERC20Gateway
+ * @title OVM_L1ERC20Bridge
  * @dev The L1 ERC20 Gateway is a contract which stores deposited L1 funds that are in use on L2.
  * It synchronizes a corresponding L2 ERC20 Gateway, informing it of deposits, and listening to it
  * for newly finalized withdrawals.
@@ -28,7 +28,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1ERC20Gateway is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
+contract OVM_L1ERC20Bridge is iOVM_L1TokenGateway, OVM_CrossDomainEnabled {
     using UniSafeMath for uint;
     using SafeERC20 for IERC20;
 
