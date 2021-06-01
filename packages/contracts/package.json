@@ -38,13 +38,13 @@
     "lint:check": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
     "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
-    "deploy": "./bin/deploy.ts && yarn generate-markdown",
+    "deploy": "ts-node \"./bin/deploy.ts\" && yarn generate-markdown",
     "serve": "./bin/serve_dump.sh",
     "prepublishOnly": "yarn copyfiles -u 2 \"contracts/optimistic-ethereum/**/*\" ./",
     "postpublish": "rimraf OVM iOVM libraries mockOVM",
     "prepack": "yarn prepublishOnly",
     "postpack": "yarn postpublish",
-    "generate-markdown": "node scripts/generate-markdown.js"
+    "generate-markdown": "node \"./scripts/generate-markdown.js\""
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.4.4",
