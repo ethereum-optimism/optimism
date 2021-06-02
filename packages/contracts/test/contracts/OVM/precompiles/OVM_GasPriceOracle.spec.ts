@@ -41,13 +41,6 @@ describe('OVM_GasPriceOracle', () => {
         .reverted
     })
 
-    it('should revert if DOES NOT satisfy `price % GAS_PRICE_MULTIPLE == 0`', async () => {
-      const gasPrice = 1234
-
-      await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)).to
-        .be.reverted
-    })
-
     it('should succeed if called by the owner and is equal to `0`', async () => {
       await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(0)).to.not.be
         .reverted
