@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/rollup/dump"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 )
 
 var ZeroAddress = common.HexToAddress("0x0000000000000000000000000000000000000000")
@@ -29,7 +30,7 @@ func toExecutionManagerRun(evm *vm.EVM, msg Message) (Message, error) {
 		uint8(msg.QueueOrigin()),
 		*msg.L1MessageSender(),
 		*msg.To(),
-		big.NewInt(int64(msg.Gas())),
+		new(big.Int).SetUint64(msg.Gas()),
 		msg.Data(),
 	}
 
@@ -44,12 +45,13 @@ func toExecutionManagerRun(evm *vm.EVM, msg Message) (Message, error) {
 		return nil, err
 	}
 
+	gasLimit := fees.DecodeL2GasLimitU64(msg.Gas())
 	outputmsg, err := modMessage(
 		msg,
 		msg.From(),
 		&evm.Context.OvmExecutionManager.Address,
 		ret,
-		evm.Context.GasLimit,
+		gasLimit,
 	)
 	if err != nil {
 		return nil, err
