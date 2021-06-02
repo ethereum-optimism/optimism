@@ -79,18 +79,25 @@ const smockifyFunction = (
 
           let data: any = toHexString(calldataBuf)
           try {
-            data = contract.interface.decodeFunctionData(fragment.name, data)
+            data = contract.interface.decodeFunctionData(
+              fragment.format(),
+              data
+            )
           } catch (e) {
             console.error(e)
           }
 
           return {
             functionName: fragment.name,
+            functionSignature: fragment.format(),
             data,
           }
         })
         .filter((functionResult: any) => {
-          return functionResult.functionName === functionName
+          return (
+            functionResult.functionName === functionName ||
+            functionResult.functionSignature === functionName
+          )
         })
         .map((functionResult: any) => {
           return functionResult.data
