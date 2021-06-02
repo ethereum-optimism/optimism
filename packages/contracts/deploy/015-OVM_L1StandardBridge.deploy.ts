@@ -31,11 +31,14 @@ const deployFn: DeployFunction = async (hre) => {
     signerOrProvider: deployer,
   })
 
+  const l1MessengerAddress = await Lib_AddressManager.getAddress('OVM_L1CrossDomainMessenger')
+
   // NOTE: this initialization is *not* technically required (we only need to initialize the proxy)
   // but it feels safer to initialize this anyway. Otherwise someone else could come along and
   // initialize this.
   await OVM_L1StandardBridge.initialize(
     Lib_AddressManager.address,
+    l1MessengerAddress,
     predeploys.OVM_ETH
   )
 
