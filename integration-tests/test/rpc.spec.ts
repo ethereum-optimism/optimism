@@ -355,7 +355,7 @@ describe('Basic RPC tests', () => {
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
-      expect(estimate).to.be.eq(0x0dce9004c7)
+      expect(estimate).to.be.eq(59300119727)
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
