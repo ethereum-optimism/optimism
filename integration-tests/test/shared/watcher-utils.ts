@@ -37,6 +37,7 @@ export interface CrossDomainMessagePair {
   remoteReceipt: TransactionReceipt
 }
 
+/*eslint no-shadow: "off"*/
 export enum Direction {
   L1ToL2,
   L2ToL1,

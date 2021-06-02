@@ -18,6 +18,7 @@ const DEFAULT_SERVICES: ServiceNames[] = [
 ]
 
 export class DockerComposeNetwork {
+  /*eslint no-empty-function: "off"*/
   constructor(private readonly services: ServiceNames[] = DEFAULT_SERVICES) {}
 
   async up(options?: compose.IDockerComposeOptions) {
