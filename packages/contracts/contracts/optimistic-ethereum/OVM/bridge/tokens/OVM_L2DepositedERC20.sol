@@ -199,8 +199,8 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
                 iOVM_L1StandardBridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
                 address(this),
+                _to,   // switched the _to and _from here to bounce back the deposit to the sender
                 _from,
-                _to,
                 _amount,
                 _data
             );
