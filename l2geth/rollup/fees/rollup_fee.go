@@ -3,6 +3,7 @@ package fees
 import (
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -27,6 +28,7 @@ const TxGasPrice uint64 = feeScalar + (feeScalar / 2)
 var BigTxGasPrice = new(big.Int).SetUint64(TxGasPrice)
 var bigFeeScalar = new(big.Int).SetUint64(feeScalar)
 var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
+var BigTenThousand = new(big.Int).SetUint64(10000)
 
 // EncodeTxGasLimit computes the `tx.gasLimit` based on the L1/L2 gas prices and
 // the L2 gas limit. The L2 gas limit is encoded inside of the lower order bits
@@ -52,20 +54,31 @@ var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
 // encode transactions during calls to `eth_estimateGas`
 func EncodeTxGasLimit(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) *big.Int {
 	l1GasLimit := calculateL1GasLimit(data, overhead)
+	roundedL2GasLimit := Ceilmod(l2GasLimit, BigTenThousand)
 	l1Fee := new(big.Int).Mul(l1GasPrice, l1GasLimit)
-	l2Fee := new(big.Int).Mul(l2GasPrice, l2GasLimit)
+	l2Fee := new(big.Int).Mul(l2GasPrice, roundedL2GasLimit)
 	sum := new(big.Int).Add(l1Fee, l2Fee)
 	scaled := new(big.Int).Div(sum, bigFeeScalar)
-	remainder := new(big.Int).Mod(scaled, bigHundredMillion)
-	scaledSum := new(big.Int).Add(scaled, bigHundredMillion)
-	rounded := new(big.Int).Sub(scaledSum, remainder)
-	result := new(big.Int).Add(rounded, l2GasLimit)
+	rounded := Ceilmod(scaled, bigHundredMillion)
+	roundedScaledL2GasLimit := new(big.Int).Div(roundedL2GasLimit, BigTenThousand)
+	result := new(big.Int).Add(rounded, roundedScaledL2GasLimit)
 	return result
+}
+
+func Ceilmod(a, b *big.Int) *big.Int {
+	remainder := new(big.Int).Mod(a, b)
+	if remainder.Cmp(common.Big0) == 0 {
+		return a
+	}
+	sum := new(big.Int).Add(a, b)
+	rounded := new(big.Int).Sub(sum, remainder)
+	return rounded
 }
 
 // DecodeL2GasLimit decodes the L2 gas limit from an encoded L2 gas limit
 func DecodeL2GasLimit(gasLimit *big.Int) *big.Int {
-	return new(big.Int).Mod(gasLimit, bigHundredMillion)
+	scaled := new(big.Int).Mod(gasLimit, BigTenThousand)
+	return new(big.Int).Mul(scaled, BigTenThousand)
 }
 
 // calculateL1GasLimit computes the L1 gasLimit based on the calldata and

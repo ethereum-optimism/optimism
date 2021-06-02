@@ -74,7 +74,7 @@ var feeTests = map[string]struct {
 	"max-gaslimit": {
 		dataLen:    10,
 		l1GasPrice: params.GWei,
-		l2GasLimit: 99999999,
+		l2GasLimit: 99_970_000,
 		l2GasPrice: params.GWei,
 	},
 	"larger-divisor": {
@@ -95,7 +95,8 @@ func TestCalculateRollupFee(t *testing.T) {
 
 			fee := EncodeTxGasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
 			decodedGasLimit := DecodeL2GasLimit(fee)
-			if l2GasLimit.Cmp(decodedGasLimit) != 0 {
+			roundedL2GasLimit := Ceilmod(l2GasLimit, bigTenThousand)
+			if roundedL2GasLimit.Cmp(decodedGasLimit) != 0 {
 				t.Errorf("rollup fee check failed: expected %d, got %d", l2GasLimit.Uint64(), decodedGasLimit)
 			}
 		})

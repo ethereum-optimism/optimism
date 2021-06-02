@@ -1148,9 +1148,17 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 
 // EstimateExecutionGas returns an estimate of the amount of gas needed to execute the
 // given transaction against the current pending block.
-func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
+func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs, round *bool) (hexutil.Uint64, error) {
 	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
-	return legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+	estimate, err := legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+	if err != nil {
+		return estimate, err
+	}
+	if round != nil && *round {
+		rounded := fees.Ceilmod(new(big.Int).SetUint64(uint64(estimate)), fees.BigTenThousand)
+		estimate = (hexutil.Uint64)(rounded.Uint64())
+	}
+	return estimate, nil
 }
 
 // ExecutionResult groups all structured logs emitted by the EVM
