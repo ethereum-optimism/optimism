@@ -26,7 +26,8 @@ library Lib_ExecutionManagerWrapper {
      * @return Address of the created contract.
      */
     function ovmCREATE(
-        bytes memory _bytecode
+        bytes memory _bytecode,
+        uint256 _gasLimit
     )
         internal
         returns (
@@ -38,7 +39,8 @@ library Lib_ExecutionManagerWrapper {
             abi.encodeWithSignature(
                 "ovmCREATE(bytes)",
                 _bytecode
-            )
+            ),
+            _gasLimit
         );
 
         return abi.decode(returndata, (address, bytes));
@@ -255,11 +257,50 @@ library Lib_ExecutionManagerWrapper {
     {
         (bool success, bytes memory returndata) = Lib_PredeployAddresses.EXECUTION_MANAGER_WRAPPER.delegatecall(_calldata);
 
-        if (success == true) {
-            return returndata;
+        return _handleCallWrapperContract(success, returndata);
+    }
+
+    /**
+     * Performs an ovm interaction and the necessary safety checks while passing
+     * through a specified gas limit for the delegatecall.
+     * @param _calldata Data to send to the OVM_ExecutionManager (encoded with sighash).
+     * @param _gasLimit Gas Limit to make the call with
+     * @return Data sent back by the OVM_ExecutionManager.
+     */
+    function _callWrapperContract(
+        bytes memory _calldata,
+        uint256 _gasLimit
+    )
+        private
+        returns (
+            bytes memory
+        )
+    {
+        (bool success, bytes memory returndata) = 0x420000000000000000000000000000000000000B.delegatecall{gas: _gasLimit}(_calldata);
+
+        return _handleCallWrapperContract(success, returndata);
+    }
+
+    /**
+     * Handles the result of a call and reverts on failure.
+     * @param _success Boolean indicating success of the call.
+     * @param _returndata Bytes returned from the call.
+     * @return Result of the call.
+     */
+    function _handleCallWrapperContract(
+        bool _success,
+        bytes memory _returndata
+    )
+        private
+        returns (
+            bytes memory
+        )
+    {
+        if (_success == true) {
+            return _returndata;
         } else {
             assembly {
-                revert(add(returndata, 0x20), mload(returndata))
+                revert(add(_returndata, 0x20), mload(_returndata))
             }
         }
     }

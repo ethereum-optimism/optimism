@@ -16,6 +16,7 @@ import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
 /* External Imports */
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ECDSA } from "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import { Math } from "@openzeppelin/contracts/math/Math.sol";
 
 /**
  * @title OVM_ECDSAContractAccount
@@ -94,6 +95,14 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             bytes memory
         )
     {
+
+        // Need to make sure that the gas is sufficient to execute the transaction.
+        uint256 gasLimit = SafeMath.mul((transaction.gasLimit % 10000), 10000);
+        require(
+            gasleft() >= gasLimit,
+            "Gas is not sufficient to execute the transaction."
+        );
+
         // Address of this contract within the ovm (ovmADDRESS) should be the same as the
         // recovered address of the user who signed this message. This is how we manage to shim
         // account abstraction even though the user isn't a contract.
@@ -113,13 +122,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             "Transaction nonce does not match the expected nonce."
         );
 
-        // TEMPORARY: Disable gas checks for mainnet.
-        // // Need to make sure that the gas is sufficient to execute the transaction.
-        // require(
-        //    gasleft() >= SafeMath.add(transaction.gasLimit, EXECUTION_VALIDATION_GAS_OVERHEAD),
-        //    "Gas is not sufficient to execute the transaction."
-        // );
-
         // Transfer fee to relayer.
         require(
             OVM_ETH(Lib_PredeployAddresses.OVM_ETH).transfer(
@@ -130,14 +132,9 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         );
 
         if (_transaction.isCreate) {
-            // TEMPORARY: Disable value transfer for contract creations.
-            require(
-                _transaction.value == 0,
-                "Value transfer in contract creation not supported."
-            );
-
             (address created, bytes memory revertdata) = Lib_ExecutionManagerWrapper.ovmCREATE(
                 _transaction.data
+                callGasLimit
             );
 
             // Return true if the contract creation succeeded, false w/ revertdata otherwise.
@@ -160,7 +157,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                 "Calls to self are disabled until upgradability is re-enabled."
             );
 
-            return _transaction.to.call{value: _transaction.value}(_transaction.data);
+            return _transaction.to.call{value: _transaction.value, gas: gasLimit}(_transaction.data);
         }
     }
 }

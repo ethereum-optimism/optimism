@@ -1,0 +1,63 @@
+diff --git a/packages/contracts/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol b/packages/contracts/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol
+index 8581624..144195e 100644
+--- a/packages/contracts/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol
++++ b/packages/contracts/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol
+@@ -7,6 +7,8 @@ import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
+ import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+ import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
+ 
++import "hardhat/console.sol";
++
+ /**
+  * @title OVM_SequencerEntrypoint
+  * @dev The Sequencer Entrypoint is a predeploy which, despite its name, can in fact be called by
+@@ -53,6 +55,8 @@ contract OVM_SequencerEntrypoint {
+             isEmptyContract := iszero(extcodesize(target))
+         }
+ 
++        console.log("empty", isEmptyContract);
++
+         // If the account is empty, deploy the default EOA to that address.
+         if (isEmptyContract) {
+             Lib_ExecutionManagerWrapper.ovmCREATEEOA(
+@@ -63,6 +67,20 @@ contract OVM_SequencerEntrypoint {
+             );
+         }
+ 
++        try iOVM_ECDSAContractAccount(target).execute(transaction) returns (bool success, bytes memory returndata) {
++            //bytes memory ret = abi.encode(success, returndata);
++            console.log("success!");
++            assembly {
++                return(add(returndata, 0x20), mload(returndata))
++            }
++        } catch (bytes memory returndata) {
++            console.log("success!");
++            assembly {
++                revert(add(returndata, 0x20), mload(returndata))
++            }
++        }
++
++       /*
+         // Forward the transaction over to the EOA.
+         (bool success, bytes memory returndata) = target.call(
+             abi.encodeWithSelector(iOVM_ECDSAContractAccount.execute.selector, transaction)
+@@ -77,5 +95,6 @@ contract OVM_SequencerEntrypoint {
+                 revert(add(returndata, 0x20), mload(returndata))
+             }
+         }
++        */
+     }
+ }
+diff --git a/packages/contracts/test/contracts/OVM/precompiles/OVM_SequencerEntrypoint.spec.ts b/packages/contracts/test/contracts/OVM/precompiles/OVM_SequencerEntrypoint.spec.ts
+index 920e007..f1eede1 100644
+--- a/packages/contracts/test/contracts/OVM/precompiles/OVM_SequencerEntrypoint.spec.ts
++++ b/packages/contracts/test/contracts/OVM/precompiles/OVM_SequencerEntrypoint.spec.ts
+@@ -53,7 +53,7 @@ describe('OVM_SequencerEntrypoint', () => {
+   })
+ 
+   describe('fallback()', async () => {
+-    it('should call ovmCREATEEOA when ovmEXTCODESIZE returns 0', async () => {
++    it.only('should call ovmCREATEEOA when ovmEXTCODESIZE returns 0', async () => {
+       const transaction = DEFAULT_EIP155_TX
+       const encodedTransaction = await wallet.signTransaction(transaction)
+ 
