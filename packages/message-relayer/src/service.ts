@@ -361,6 +361,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   /**
    * Returns all sent message events between some start height (inclusive) and an end height
    * (exclusive).
+   *
    * @param startHeight Start height to start finding messages from.
    * @param endHeight End height to finish finding messages at.
    * @returns All sent messages between start and end height, sorted by transaction index in

@@ -35,6 +35,7 @@ describe('OVM_L2DepositedERC20', () => {
   let finalizeWithdrawalGasLimit: number
   beforeEach(async () => {
     // Create a special signer which will enable us to send messages from the L2Messenger contract
+    /*eslint prefer-const: "off"*/
     let l2MessengerImpersonator: Signer
     ;[l2MessengerImpersonator] = await ethers.getSigners()
 

@@ -13,7 +13,7 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write \"{src,test}/**/*.ts\"",
-    "lint:check": "tslint --format stylish --project ."
+    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish ."
   },
   "dependencies": {
     "node-fetch": "^2.6.1"
@@ -25,10 +25,16 @@
   "devDependencies": {
     "@types/mocha": "^8.2.2",
     "@types/node-fetch": "^2.5.10",
-    "prettier": "^2.2.1",
-    "tslint": "^6.1.3",
-    "tslint-config-prettier": "^1.18.0",
-    "tslint-no-focused-test": "^0.5.0",
-    "tslint-plugin-prettier": "^2.3.0"
+    "@typescript-eslint/eslint-plugin": "^4.26.0",
+    "@typescript-eslint/parser": "^4.26.0",
+    "eslint": "^7.27.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-ban": "^1.5.2",
+    "eslint-plugin-import": "^2.23.4",
+    "eslint-plugin-jsdoc": "^35.1.2",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-unicorn": "^32.0.1",
+    "prettier": "^2.2.1"
   }
 }

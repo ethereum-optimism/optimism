@@ -45,7 +45,7 @@ try {
   len = fromHexString(
     getContractDefinition('Helper_TestRunner').deployedBytecode
   ).byteLength
-  /* tslint:disable:no-empty */
+  /* eslint no-empty: ["error", { "allowEmptyCatch": true }] */
 } catch {}
 
 export const Helper_TestRunner_BYTELEN = len

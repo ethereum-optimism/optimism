@@ -82,10 +82,12 @@ main()
 
 function parseEnv() {
   function ensure(env, type) {
-    if (typeof process.env[env] === 'undefined')
+    if (typeof process.env[env] === 'undefined'){
       return undefined
-    if (type === 'number')
+    }
+    if (type === 'number') {
       return parseInt(process.env[env], 10)
+    }
     return process.env[env]
   }
 
