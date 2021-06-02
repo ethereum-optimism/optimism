@@ -564,6 +564,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// cost == V + GP * GL
 	if vm.UsingOVM {
 		if pool.currentState.GetOVMBalance(from).Cmp(tx.Cost()) < 0 {
+			err := fmt.Errorf("Tx poop = %d,%d,%s,end", pool.currentState.GetOVMBalance(from), tx.Cost(), from)
+			log.Info("Tx_pool:", err.Error())
 			return ErrInsufficientFunds
 		}
 	} else {

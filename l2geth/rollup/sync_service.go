@@ -757,8 +757,8 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 		return fmt.Errorf("fee overflow: %s", fee.String())
 	}
 	// Make sure that the fee is paid
-	if tx.Gas() < fee.Uint64() {
-		return fmt.Errorf("fee too low: %d, use at least tx.gasLimit = %d and tx.gasPrice = 1", tx.Gas(), fee.Uint64())
+	if new(big.Int).Mul(gas, tx.GasPrice()).Cmp(fee) < 0 {
+		return fmt.Errorf("fee too low: fee = %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", fee.Uint64(), tx.Gas(), tx.GasPrice())
 	}
 	return nil
 }

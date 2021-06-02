@@ -17,8 +17,8 @@ export const getEnvironment = async (): Promise<{
 }> => {
     const l1Provider = new JsonRpcProvider("http://localhost:9545")
     const l2Provider = new JsonRpcProvider("http://localhost:8545")
-    const l1Wallet = new Wallet("0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97", l1Provider)
-    const l2Wallet = new Wallet("0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97", l2Provider)
+    const l1Wallet = new Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", l1Provider)
+    const l2Wallet = new Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", l2Provider)
 
     const addressManagerInterface = null
     const AddressManager = null
@@ -108,8 +108,7 @@ describe('Fee Payment Integration Tests', async () => {
   })
 
   beforeEach(async () => {
-    const depositAmount = utils.parseEther('1')
-    console.log(await l2Provider.getBalance("0x02F024e0882B310c6734703AB9066EdD3a10C6e0","latest"))
+    const depositAmount = utils.parseEther('100')
     var postBalances = await getBalances()
     console.log(postBalances.l1UserBalance+","+postBalances.l2UserBalance+","+postBalances.l1GatewayBalance+","+postBalances.sequencerBalance)
     // await waitForDepositTypeTransaction(

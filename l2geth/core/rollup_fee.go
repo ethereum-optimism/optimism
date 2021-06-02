@@ -100,7 +100,8 @@ func RoundL1GasPrice(gasPrice *big.Int) *big.Int {
 // return ceilModOneHundredMillion(gasPrice-1)+1
 func RoundL2GasPrice(gasPrice *big.Int) *big.Int {
 	if gasPrice.Cmp(common.Big0) == 0 {
-		return big.NewInt(1)
+		//return big.NewInt(1)
+		return new(big.Int).Add(new(big.Int).SetUint64(8_000_000_000), common.Big1)
 	}
 	if gasPrice.Cmp(common.Big1) == 0 {
 		return new(big.Int).Add(bigHundredMillion, common.Big1)
