@@ -112,17 +112,17 @@ export const makeContractDeployConfig = async (
         )
       },
     },
-    OVM_L1ETHGateway: {
-      factory: getContractFactory('OVM_L1ETHGateway'),
+    OVM_L1StandardBridge: {
+      factory: getContractFactory('OVM_L1StandardBridge'),
       params: [],
     },
-    Proxy__OVM_L1ETHGateway: {
+    Proxy__OVM_L1StandardBridge: {
       factory: getContractFactory('Lib_ResolvedDelegateProxy'),
-      params: [AddressManager.address, 'OVM_L1ETHGateway'],
+      params: [AddressManager.address, 'OVM_L1StandardBridge'],
       afterDeploy: async (contracts): Promise<void> => {
-        const l1EthGateway = getContractFactory('OVM_L1ETHGateway')
+        const l1EthGateway = getContractFactory('OVM_L1StandardBridge')
           .connect(config.deploymentSigner)
-          .attach(contracts.Proxy__OVM_L1ETHGateway.address)
+          .attach(contracts.Proxy__OVM_L1StandardBridge.address)
         await _sendTx(
           l1EthGateway.initialize(
             AddressManager.address,

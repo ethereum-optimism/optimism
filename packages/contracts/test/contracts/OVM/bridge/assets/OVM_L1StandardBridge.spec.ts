@@ -6,12 +6,18 @@ import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { NON_NULL_BYTES32, NON_ZERO_ADDRESS, ETH_TOKEN, makeAddressManager } from '../../../../helpers'
+import {
+  NON_NULL_BYTES32,
+  NON_ZERO_ADDRESS,
+  ETH_TOKEN,
+  makeAddressManager,
+} from '../../../../helpers'
 
 const L1_MESSENGER_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
-const ERR_INVALID_X_DOMAIN_MSG_SENDER = 'OVM_XCHAIN: wrong sender of cross-domain message'
+const ERR_INVALID_X_DOMAIN_MSG_SENDER =
+  'OVM_XCHAIN: wrong sender of cross-domain message'
 const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
 
 const INITIAL_TOTAL_L1_SUPPLY = 3000
@@ -77,7 +83,6 @@ describe('OVM_L1StandardBridge', () => {
     )
   })
 
-
   describe('initialize', () => {
     it('Should only be callable once', async () => {
       await expect(
@@ -122,24 +127,24 @@ describe('OVM_L1StandardBridge', () => {
 
       // Check the correct cross-chain call was sent:
       // Message should be sent to the L2ETHToken on L2
-      expect(depositCallToMessenger._target).to.equal(
-        Mock__OVM_ETH.address
-      )
+      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
       // Message data should be a call telling the L2ETHToken to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData(
-          'finalizeDeposit',
-          [ETH_TOKEN, depositer, depositer, depositAmount, NON_NULL_BYTES32]
-        )
+        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+          ETH_TOKEN,
+          depositer,
+          depositer,
+          depositAmount,
+          NON_NULL_BYTES32,
+        ])
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
 
     it('depositTo() escrows the deposit amount and sends the correct deposit message', async () => {
       // depositor calls deposit on the bridge and the L1 bridge calls transferFrom on the token
-      const bobsAddress = await bob.getAddress()
       const aliceAddress = await alice.getAddress()
       const initialBalance = await ethers.provider.getBalance(aliceAddress)
 
@@ -166,23 +171,18 @@ describe('OVM_L1StandardBridge', () => {
 
       // Check the correct cross-chain call was sent:
       // Message should be sent to the L2ETHToken on L2
-      expect(depositCallToMessenger._target).to.equal(
-        Mock__OVM_ETH.address
-      )
+      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
       // Message data should be a call telling the L2ETHToken to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData(
-          'finalizeDeposit',
-          [
-            ETH_TOKEN,
-            aliceAddress,
-            bobsAddress,
-            depositAmount,
-            NON_NULL_BYTES32,
-          ]
-        )
+        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+          ETH_TOKEN,
+          aliceAddress,
+          bobsAddress,
+          depositAmount,
+          NON_NULL_BYTES32,
+        ])
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
@@ -290,7 +290,9 @@ describe('OVM_L1StandardBridge', () => {
 
     it('should not allow migrating ETH from non-owner', async () => {
       await expect(
-        OVM_L1StandardBridge.connect(bob).migrateEth(New_OVM_L1StandardBridge.address)
+        OVM_L1StandardBridge.connect(bob).migrateEth(
+          New_OVM_L1StandardBridge.address
+        )
       ).to.be.revertedWith('Only the owner can migrate ETH')
     })
   })
@@ -333,28 +335,25 @@ describe('OVM_L1StandardBridge', () => {
       )
 
       // bridge's balance is increased
-      const bridgeBalance = await L1ERC20.balanceOf(OVM_L1StandardBridge.address)
+      const bridgeBalance = await L1ERC20.balanceOf(
+        OVM_L1StandardBridge.address
+      )
       expect(bridgeBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
       // Message should be sent to the L2DepositedERC20 on L2
-      expect(depositCallToMessenger._target).to.equal(
-        Mock__OVM_ETH.address
-      )
+      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
       // Message data should be a call telling the L2DepositedERC20 to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData(
-          'finalizeDeposit',
-          [
-            L1ERC20.address,
-            depositer,
-            depositer,
-            depositAmount,
-            NON_NULL_BYTES32,
-          ]
-        )
+        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+          L1ERC20.address,
+          depositer,
+          depositer,
+          depositAmount,
+          NON_NULL_BYTES32,
+        ])
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
@@ -378,28 +377,25 @@ describe('OVM_L1StandardBridge', () => {
       )
 
       // bridge's balance is increased
-      const bridgeBalance = await L1ERC20.balanceOf(OVM_L1StandardBridge.address)
+      const bridgeBalance = await L1ERC20.balanceOf(
+        OVM_L1StandardBridge.address
+      )
       expect(bridgeBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
       // Message should be sent to the L2DepositedERC20 on L2
-      expect(depositCallToMessenger._target).to.equal(
-        Mock__OVM_ETH.address
-      )
+      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
       // Message data should be a call telling the L2DepositedERC20 to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData(
-          'finalizeDeposit',
-          [
-            L1ERC20.address,
-            depositer,
-            bobsAddress,
-            depositAmount,
-            NON_NULL_BYTES32,
-          ]
-        )
+        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+          L1ERC20.address,
+          depositer,
+          bobsAddress,
+          depositAmount,
+          NON_NULL_BYTES32,
+        ])
       )
       expect(depositCallToMessenger._gasLimit).to.equal(FINALIZATION_GAS)
     })
