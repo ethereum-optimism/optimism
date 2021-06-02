@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 
 /**
  * @title OVM_ProxyEOA
@@ -19,7 +20,7 @@ contract OVM_ProxyEOA {
     /**********
      * Events *
      **********/
-    
+
     event Upgraded(
         address indexed implementation
     );
@@ -29,7 +30,6 @@ contract OVM_ProxyEOA {
      * Constants *
      *************/
 
-    address constant DEFAULT_IMPLEMENTATION = 0x4200000000000000000000000000000000000003;
     bytes32 constant IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc; //bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1);
 
 
@@ -72,8 +72,8 @@ contract OVM_ProxyEOA {
         external
     {
         require(
-            msg.sender == address(this),
-            "EOAs can only upgrade their own EOA implementation"
+            msg.sender == Lib_ExecutionManagerWrapper.ovmADDRESS(),
+            "EOAs can only upgrade their own EOA implementation."
         );
 
         _setImplementation(_implementation);
@@ -86,6 +86,7 @@ contract OVM_ProxyEOA {
      */
     function getImplementation()
         public
+        view
         returns (
             address
         )
@@ -97,7 +98,7 @@ contract OVM_ProxyEOA {
 
         address implementation = Lib_Bytes32Utils.toAddress(addr32);
         if (implementation == address(0)) {
-            return DEFAULT_IMPLEMENTATION;
+            return Lib_PredeployAddresses.ECDSA_CONTRACT_ACCOUNT;
         } else {
             return implementation;
         }

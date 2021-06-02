@@ -123,7 +123,6 @@ type CallMsg struct {
 	L1MessageSender   *common.Address
 	L1BlockNumber     *big.Int
 	QueueOrigin       types.QueueOrigin
-	SignatureHashType types.SignatureHashType
 }
 
 // A ContractCaller provides contract calls, essentially transactions that are executed by

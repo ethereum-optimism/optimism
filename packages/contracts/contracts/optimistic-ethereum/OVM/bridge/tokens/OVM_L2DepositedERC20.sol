@@ -31,8 +31,8 @@ contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
 
     /**
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
-     * @param _name ERC20 name
-     * @param _symbol ERC20 symbol
+     * @param _name ERC20 name.
+     * @param _symbol ERC20 symbol.
      */
     constructor(
         address _l2CrossDomainMessenger,
@@ -46,7 +46,7 @@ contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
     // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage.
     function _handleInitiateWithdrawal(
         address, // _to,
-        uint _amount
+        uint256 _amount
     )
         internal
         override
@@ -57,7 +57,7 @@ contract OVM_L2DepositedERC20 is Abs_L2DepositedToken, UniswapV2ERC20 {
     // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
     function _handleFinalizeDeposit(
         address _to,
-        uint _amount
+        uint256 _amount
     )
         internal
         override

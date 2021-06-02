@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
@@ -74,7 +73,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         // recovered address of the user who signed this message. This is how we manage to shim
         // account abstraction even though the user isn't a contract.
         require(
-            transaction.sender() == address(this),
+            transaction.sender() == Lib_ExecutionManagerWrapper.ovmADDRESS(),
             "Signature provided for EOA transaction execution is invalid."
         );
 
@@ -138,8 +137,17 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                     ),
                     "Value could not be transferred to recipient."
                 );
+
                 return (true, bytes(""));
             } else {
+                // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
+                // so that they don't have to pay any fees to the sequencer. Function will remain disabled
+                // until a robust solution is in place.
+                require(
+                    transaction.to != Lib_ExecutionManagerWrapper.ovmADDRESS(),
+                    "Calls to self are disabled until upgradability is re-enabled."
+                );
+
                 return transaction.to.call(transaction.data);
             }
         }

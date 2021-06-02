@@ -69,12 +69,11 @@ type transaction struct {
 	BlockNumber uint64          `json:"blockNumber"`
 	Timestamp   uint64          `json:"timestamp"`
 	Value       hexutil.Uint64  `json:"value"`
-	GasLimit    uint64          `json:"gasLimit"`
+	GasLimit    uint64          `json:"gasLimit,string"`
 	Target      common.Address  `json:"target"`
 	Origin      *common.Address `json:"origin"`
 	Data        hexutil.Bytes   `json:"data"`
 	QueueOrigin string          `json:"queueOrigin"`
-	Type        string          `json:"type"`
 	QueueIndex  *uint64         `json:"queueIndex"`
 	Decoded     *decoded        `json:"decoded"`
 }
@@ -84,7 +83,7 @@ type Enqueue struct {
 	Index       *uint64         `json:"ctcIndex"`
 	Target      *common.Address `json:"target"`
 	Data        *hexutil.Bytes  `json:"data"`
-	GasLimit    *uint64         `json:"gasLimit"`
+	GasLimit    *uint64         `json:"gasLimit,string"`
 	Origin      *common.Address `json:"origin"`
 	BlockNumber *uint64         `json:"blockNumber"`
 	Timestamp   *uint64         `json:"timestamp"`
@@ -241,7 +240,6 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 		blockNumber,
 		timestamp,
 		&origin,
-		types.SighashEIP155,
 		types.QueueOriginL1ToL2,
 		enqueue.Index,
 		enqueue.QueueIndex,
@@ -327,7 +325,6 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 	} else {
 		return nil, fmt.Errorf("Unknown queue origin: %s", res.QueueOrigin)
 	}
-	sighashType := types.SighashEIP155
 	// Transactions that have been decoded are
 	// Queue Origin Sequencer transactions
 	if res.Decoded != nil {
@@ -352,7 +349,6 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 			new(big.Int).SetUint64(res.BlockNumber),
 			res.Timestamp,
 			res.Origin,
-			sighashType,
 			queueOrigin,
 			&res.Index,
 			res.QueueIndex,
@@ -393,7 +389,6 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 		new(big.Int).SetUint64(res.BlockNumber),
 		res.Timestamp,
 		origin,
-		sighashType,
 		queueOrigin,
 		&res.Index,
 		res.QueueIndex,
@@ -570,7 +565,7 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 		Get("/batch/transaction/index/{index}")
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("Cannot get transaction batch %d", index)
+		return nil, nil, fmt.Errorf("Cannot get transaction batch %d: %w", index, err)
 	}
 	txBatch, ok := response.Result().(*TransactionBatchResponse)
 	if !ok {

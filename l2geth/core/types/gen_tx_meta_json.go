@@ -26,7 +26,6 @@ func (t TransactionMeta) MarshalJSON() ([]byte, error) {
 	enc.L1BlockNumber = t.L1BlockNumber
 	enc.L1Timestamp = t.L1Timestamp
 	enc.L1MessageSender = t.L1MessageSender
-	enc.SignatureHashType = t.SignatureHashType
 	enc.QueueOrigin = t.QueueOrigin
 	enc.Index = t.Index
 	enc.QueueIndex = t.QueueIndex
@@ -60,10 +59,6 @@ func (t *TransactionMeta) UnmarshalJSON(input []byte) error {
 		return errors.New("missing required field 'l1MessageSender' for TransactionMeta")
 	}
 	t.L1MessageSender = dec.L1MessageSender
-	if dec.SignatureHashType == nil {
-		return errors.New("missing required field 'signatureHashType' for TransactionMeta")
-	}
-	t.SignatureHashType = *dec.SignatureHashType
 	if dec.QueueOrigin == nil {
 		return errors.New("missing required field 'queueOrigin' for TransactionMeta")
 	}

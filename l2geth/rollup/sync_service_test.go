@@ -121,7 +121,6 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 		l1BlockNumber,
 		timestamp,
 		&l1TxOrigin,
-		types.SighashEIP155,
 		types.QueueOriginL1ToL2,
 		&index,
 		&queueIndex,
@@ -178,7 +177,6 @@ func TestTransactionToTipNoIndex(t *testing.T) {
 		l1BlockNumber,
 		timestamp,
 		&l1TxOrigin,
-		types.SighashEIP155,
 		types.QueueOriginL1ToL2,
 		nil, // The index is `nil`, expect it to be set afterwards
 		nil,
@@ -507,7 +505,8 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if gasAfter.Cmp(core.RoundL1GasPrice(big.NewInt(1))) != 0 {
+	expect, _ := service.client.GetL1GasPrice()
+	if gasAfter.Cmp(expect) != 0 {
 		t.Fatal("expected 100 gas price, got", gasAfter)
 	}
 }
@@ -533,7 +532,7 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 	if err != nil {
 		t.Fatal("Cannot get state db")
 	}
-	l2GasPrice := big.NewInt(100000001)
+	l2GasPrice := big.NewInt(100000000000)
 	state.SetState(service.gpoAddress, l2GasPriceSlot, common.BigToHash(l2GasPrice))
 	root, _ := state.Commit(false)
 
@@ -570,7 +569,6 @@ func TestSyncServiceSync(t *testing.T) {
 		l1BlockNumber,
 		timestamp,
 		&l1TxOrigin,
-		types.SighashEIP155,
 		types.QueueOriginL1ToL2,
 		&index,
 		&queueIndex,
@@ -622,7 +620,6 @@ func TestInitializeL1ContextPostGenesis(t *testing.T) {
 		l1BlockNumber,
 		timestamp,
 		&l1TxOrigin,
-		types.SighashEIP155,
 		types.QueueOriginL1ToL2,
 		&index,
 		&queueIndex,
@@ -824,7 +821,7 @@ func (m *mockClient) SyncStatus(backend Backend) (*SyncStatus, error) {
 }
 
 func (m *mockClient) GetL1GasPrice() (*big.Int, error) {
-	price := core.RoundL1GasPrice(big.NewInt(2))
+	price := big.NewInt(1)
 	return price, nil
 }
 
@@ -870,7 +867,6 @@ func mockTx() *types.Transaction {
 		l1BlockNumber,
 		timestamp,
 		&l1TxOrigin,
-		types.SighashEIP155,
 		types.QueueOriginSequencer,
 		nil,
 		nil,

@@ -5,6 +5,7 @@ import { Overrides } from '@ethersproject/contracts'
 
 /* Internal Imports */
 import { getContractFactory } from '../contract-defs'
+import { predeploys } from '../predeploys'
 
 export interface RollupDeployConfig {
   deploymentSigner: Signer
@@ -34,6 +35,7 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
+  gasPriceOracleOwner: string
   addressManager?: string
   dependencies?: string[]
   deployOverrides: Overrides
@@ -121,7 +123,7 @@ export const makeContractDeployConfig = async (
         await _sendTx(
           l1EthGateway.initialize(
             AddressManager.address,
-            '0x4200000000000000000000000000000000000006',
+            predeploys.OVM_ETH,
             config.deployOverrides
           )
         )
@@ -148,7 +150,7 @@ export const makeContractDeployConfig = async (
         await _sendTx(
           AddressManager.setAddress(
             'OVM_DecompressionPrecompileAddress',
-            '0x4200000000000000000000000000000000000005'
+            predeploys.OVM_SequencerEntrypoint
           )
         )
         await _sendTx(
@@ -229,19 +231,19 @@ export const makeContractDeployConfig = async (
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
       params: [
-        '0x4200000000000000000000000000000000000007',
+        predeploys.OVM_L2CrossDomainMessenger,
         '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
       ],
     },
-    'OVM_ChainStorageContainer:CTC:batches': {
+    'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
     },
-    'OVM_ChainStorageContainer:CTC:queue': {
+    'OVM_ChainStorageContainer-CTC-queue': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
     },
-    'OVM_ChainStorageContainer:SCC:batches': {
+    'OVM_ChainStorageContainer-SCC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_StateCommitmentChain'],
     },
@@ -250,6 +252,17 @@ export const makeContractDeployConfig = async (
     },
     OVM_ProxyEOA: {
       factory: getContractFactory('OVM_ProxyEOA', undefined, true),
+    },
+    OVM_ExecutionManagerWrapper: {
+      factory: getContractFactory(
+        'OVM_ExecutionManagerWrapper',
+        undefined,
+        true
+      ),
+    },
+    OVM_GasPriceOracle: {
+      factory: getContractFactory('OVM_GasPriceOracle'),
+      params: [config.gasPriceOracleOwner],
     },
   }
 }
