@@ -35,8 +35,8 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
      ***************/
 
     /**
-     * @param _l1ERC20 L1 ERC20 address this contract stores deposits for
-     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into
+     * @param _l1ERC20 L1 ERC20 address this contract stores deposits for.
+     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into.
      */
     constructor(
         iOVM_ERC20 _l1ERC20,
@@ -58,11 +58,11 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
 
     /**
      * @dev When a deposit is initiated on L1, the L1 Gateway
-     * transfers the funds to itself for future withdrawals
+     * transfers the funds to itself for future withdrawals.
      *
-     * @param _from L1 address ETH is being deposited from
-     * param _to L2 address that the ETH is being deposited to
-     * @param _amount Amount of ERC20 to send
+     * @param _from L1 address ETH is being deposited from.
+     * param _to L2 address that the ETH is being deposited to.
+     * @param _amount Amount of ERC20 to send.
      */
     function _handleInitiateDeposit(
         address _from,
@@ -82,14 +82,14 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
 
     /**
      * @dev When a withdrawal is finalized on L1, the L1 Gateway
-     * transfers the funds to the withdrawer
+     * transfers the funds to the withdrawer.
      *
-     * @param _to L1 address that the ERC20 is being withdrawn to
-     * @param _amount Amount of ERC20 to send
+     * @param _to L1 address that the ERC20 is being withdrawn to.
+     * @param _amount Amount of ERC20 to send.
      */
     function _handleFinalizeWithdrawal(
         address _to,
-        uint _amount
+        uint256 _amount
     )
         internal
         override
