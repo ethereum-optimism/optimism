@@ -19,6 +19,9 @@ import { IUniswapV2ERC20 } from "../../libraries/standards/IUniswapV2ERC20.sol";
 /* Contract Imports */
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
 
+/* External Imports */
+import { Math } from "@openzeppelin/contracts/math/Math.sol";
+
 /**
  * @title OVM_ExecutionManager
  * @dev The Execution Manager (EM) is the core of our OVM implementation, and provides a sandboxed
@@ -35,8 +38,6 @@ import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
  * Runtime target: EVM
  */
 contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
-
-    address internal constant ovmEthAddress = 0x4200000000000000000000000000000000000006;
 
     /********************************
      * External Contract References *
@@ -68,6 +69,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     uint256 constant MIN_NUISANCE_GAS_PER_CONTRACT = 30000;
     uint256 constant NUISANCE_GAS_PER_CONTRACT_BYTE = 100;
     uint256 constant MIN_GAS_FOR_INVALID_STATE_ACCESS = 30000;
+
+
+    /**************************
+     * Native Value Constants *
+     **************************/
+
+    address internal constant OVM_ETH_ADDRESS = 0x4200000000000000000000000000000000000006;
+    uint256 internal constant MIN_GAS_FOR_OVM_ETH_TRANSFER = 10; // TODO: parameterize
+    uint256 internal constant CALL_WITH_VALUE_INTRINSIC_GAS = 10; // TODO: parameterize
+
 
     /**************************
      * Default Context Values *
@@ -884,7 +895,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Static call because this should be a read-only query.
         (bool success, bytes memory returndata) = ovmSTATICCALL(
             gasleft(),
-            ovmEthAddress,
+            OVM_ETH_ADDRESS,
             balanceOfCalldata
         );
 
@@ -1033,7 +1044,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         }
 
         // Both 0x0000... and the EVM precompiles have the same address on L1 and L2 --> no trie lookup needed.
-        // TODO: must we enforce that ovmCALLVALUE is 0 for the EVM precompiles?
         address codeContractAddress =
             uint(_contract) < 100
             ? _contract
@@ -1053,7 +1063,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * Ensures that OVM-related measures are enforced, including L2 gas refunds, nuisance gas, and flagged reversions.
      *
      * @param _nextMessageContext Message context to be used for the external message.
-     * @param _gasLimit Amount of gas to be passed into this message.
+     * @param _gasLimit Amount of gas to be passed into this message. NOTE: this argument is overwritten in some cases to avoid stack-too-deep.
      * @param _contract OVM address being called or deployed to
      * @param _data Data for the message (either calldata or creation code)
      * @param _isCreate Whether this is a create-type message.
@@ -1062,6 +1072,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function _handleExternalMessage(
         MessageContext memory _nextMessageContext,
+        // NOTE: this argument is overwritten in some cases to avoid stack-too-deep.
         uint256 _gasLimit,
         address _contract,
         bytes memory _data,
@@ -1075,8 +1086,20 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         uint256 messageValue = _nextMessageContext.ovmCALLVALUE;
         // If there is value in this message, we need to transfer the ETH over before switching contexts.
-        // The target is interpreted to be the next message's ovmADDRESS account.
         if (messageValue > 0) {
+            // Handle out-of-intrinsic gas consistent with EVM behavior -- the subcall "appears to revert"
+            if (gasleft() < CALL_WITH_VALUE_INTRINSIC_GAS) {
+                return (false, hex"");
+            }
+
+            // If not out of intrinsic gas, we guarantee that that intrinsic gas is reserved for consumption by the EM and OVM_ETH.
+            _gasLimit = Math.min(
+                _gasLimit,
+                gasleft() - CALL_WITH_VALUE_INTRINSIC_GAS
+            );
+
+            // Now transfer the value of the call.
+            // The target is interpreted to be the next message's ovmADDRESS account.
             bool transferredOvmEth = _attemptForcedEthTransfer(
                 _nextMessageContext.ovmADDRESS,
                 messageValue
@@ -1112,7 +1135,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             // safeCREATE() is a function which replicates a CREATE message, but uses return values
             // Which match that of CALL (i.e. bool, bytes).  This allows many security checks to be
             // to be shared between untrusted call and create call frames.
-            (success, returndata) = address(this).call(
+            (success, returndata) = address(this).call{gas: _gasLimit}(
                 abi.encodeWithSelector(
                     this.safeCREATE.selector,
                     _gasLimit,
@@ -1312,7 +1335,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Thus, success of the call frame is sufficient to infer success of the transfer itself.
         (bool success, ) = ovmCALL(
             gasleft(),
-            ovmEthAddress,
+            OVM_ETH_ADDRESS,
             0,
             transferCalldata
         );
