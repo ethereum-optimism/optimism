@@ -27,7 +27,6 @@ describe('Syncing a replica', () => {
     // Wait for replica to be looping
     let logs = await replica.logs()
     while (!logs.out.includes('Starting Verifier Loop')) {
-      console.log(logs)
       await sleep(500)
       logs = await replica.logs()
     }
@@ -109,7 +108,6 @@ describe('Syncing a replica', () => {
       await transfer.wait()
 
       const latestSequencerBlock = (await provider.getBlock('latest')) as any
-      console.log(latestSequencerBlock)
 
       const matchingReplicaBlock = (await syncReplica(
         latestSequencerBlock.number

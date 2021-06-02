@@ -9,7 +9,6 @@ type ServiceNames =
   | 'relayer'
   | 'verifier'
   | 'replica'
-  | 'l2_dtl'
 
 const OPS_DIRECTORY = path.join(process.cwd(), '../ops')
 const DEFAULT_SERVICES: ServiceNames[] = [

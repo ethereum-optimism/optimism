@@ -30,17 +30,10 @@ docker-compose \
     up --build --detach
 ```
 
-Optionally, run a verifier along the rest of the stack.
+Optionally, run a verifier along the rest of the stack. Run a replica with the same command by switching the service name!
 ```
 docker-compose up --scale \
     verifier=1 \
-    --build --detach
-```
-
-Do the same to run an L2 DTL and replica combo. Note that the L2 DTL is a requirement for the replica!
-```
-docker-compose up \
-    --scale l2_dtl=1 --scale replica=1 \
     --build --detach
 ```
 
