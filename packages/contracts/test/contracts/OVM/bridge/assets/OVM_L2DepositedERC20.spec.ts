@@ -11,7 +11,9 @@ import {
 } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { NON_ZERO_ADDRESS } from '../../../../helpers'
+import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
+
+const FINALIZATION_GAS = 1_200_000
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -32,7 +34,6 @@ describe('OVM_L2DepositedERC20', () => {
 
   let OVM_L2DepositedERC20: Contract
   let Mock__OVM_L2CrossDomainMessenger: MockContract
-  let finalizeWithdrawalGasLimit: number
   beforeEach(async () => {
     // Create a special signer which will enable us to send messages from the L2Messenger contract
     const [l2MessengerImpersonator] = await ethers.getSigners()
@@ -51,8 +52,6 @@ describe('OVM_L2DepositedERC20', () => {
 
     // initialize the L2 Gateway with the L1G ateway addrss
     await OVM_L2DepositedERC20.init(MOCK_L1GATEWAY_ADDRESS)
-
-    finalizeWithdrawalGasLimit = await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
   })
 
   // test the transfer flow of moving a token from L2 to L1
@@ -65,7 +64,12 @@ describe('OVM_L2DepositedERC20', () => {
       await OVM_L2DepositedERC20.init(NON_ZERO_ADDRESS)
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(constants.AddressZero, 0)
+        OVM_L2DepositedERC20.finalizeDeposit(
+          constants.AddressZero,
+          constants.AddressZero,
+          0,
+          NON_NULL_BYTES32
+        )
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
 
@@ -75,9 +79,15 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       await expect(
-        OVM_L2DepositedERC20.finalizeDeposit(constants.AddressZero, 0, {
-          from: Mock__OVM_L2CrossDomainMessenger.address,
-        })
+        OVM_L2DepositedERC20.finalizeDeposit(
+          constants.AddressZero,
+          constants.AddressZero,
+          0,
+          NON_NULL_BYTES32,
+          {
+            from: Mock__OVM_L2CrossDomainMessenger.address,
+          }
+        )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
 
@@ -88,8 +98,10 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       await OVM_L2DepositedERC20.finalizeDeposit(
+        NON_ZERO_ADDRESS,
         await alice.getAddress(),
         depositAmount,
+        NON_NULL_BYTES32,
         { from: Mock__OVM_L2CrossDomainMessenger.address }
       )
 
@@ -123,7 +135,11 @@ describe('OVM_L2DepositedERC20', () => {
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await SmoddedL2Gateway.withdraw(withdrawAmount)
+      await SmoddedL2Gateway.withdraw(
+        withdrawAmount,
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32
+      )
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -148,17 +164,37 @@ describe('OVM_L2DepositedERC20', () => {
       expect(withdrawalCallToMessenger._message).to.equal(
         await Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
           'finalizeWithdrawal',
-          [await alice.getAddress(), withdrawAmount]
+          [
+            await alice.getAddress(),
+            await alice.getAddress(),
+            withdrawAmount,
+            NON_NULL_BYTES32,
+          ]
         )
       )
-      // Hardcoded gaslimit should be correct
-      expect(withdrawalCallToMessenger._gasLimit).to.equal(
-        finalizeWithdrawalGasLimit
+      // gaslimit should be correct
+      expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
+    })
+
+    it('withdraw() uses the user provided gas limit if it is larger than the default value ', async () => {
+      await SmoddedL2Gateway.withdraw(
+        withdrawAmount,
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32
       )
+      const withdrawalCallToMessenger =
+        Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
+      // gas value is ignored and set to 0.
+      expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
     })
 
     it('withdrawTo() burns and sends the correct withdrawal message', async () => {
-      await SmoddedL2Gateway.withdrawTo(await bob.getAddress(), withdrawAmount)
+      await SmoddedL2Gateway.withdrawTo(
+        await bob.getAddress(),
+        withdrawAmount,
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32
+      )
       const withdrawalCallToMessenger =
         Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
@@ -183,13 +219,30 @@ describe('OVM_L2DepositedERC20', () => {
       expect(withdrawalCallToMessenger._message).to.equal(
         await Factory__OVM_L1ERC20Gateway.interface.encodeFunctionData(
           'finalizeWithdrawal',
-          [await bob.getAddress(), withdrawAmount]
+          [
+            await alice.getAddress(),
+            await bob.getAddress(),
+            withdrawAmount,
+            NON_NULL_BYTES32,
+          ]
         )
       )
-      // Hardcoded gaslimit should be correct
-      expect(withdrawalCallToMessenger._gasLimit).to.equal(
-        finalizeWithdrawalGasLimit
+      // gas value is ignored and set to 0.
+      expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
+    })
+
+    it('withdrawTo() uses the user provided gas limit if it is larger than the default value ', async () => {
+      await SmoddedL2Gateway.withdrawTo(
+        await bob.getAddress(),
+        withdrawAmount,
+        FINALIZATION_GAS,
+        NON_NULL_BYTES32
       )
+      const withdrawalCallToMessenger =
+        Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
+
+      // gas value is ignored and set to 0.
+      expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
     })
   })
 
