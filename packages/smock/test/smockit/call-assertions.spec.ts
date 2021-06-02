@@ -22,8 +22,24 @@ describe('[smock]: call assertion tests', () => {
     mockCaller = await mockCallerFactory.deploy()
   })
 
-  describe('overloaded functions', () => {
-    it('should be able to modify both versions of an overloaded function', async () => {
+  describe('call assertions for functions', () => {
+    it('should be able to make assertions about a non-overloaded function', async () => {
+      mock.smocked.getInputtedUint256.will.return.with(0)
+
+      const expected1 = ethers.BigNumber.from(1234)
+      await mockCaller.callMock(
+        mock.address,
+        mock.interface.encodeFunctionData('getInputtedUint256(uint256)', [
+          expected1,
+        ])
+      )
+
+      expect(mock.smocked.getInputtedUint256.calls[0]).to.deep.equal([
+        expected1,
+      ])
+    })
+
+    it('should be able to make assertions about both versions of an overloaded function', async () => {
       mock.smocked['overloadedFunction(uint256)'].will.return.with(0)
       mock.smocked['overloadedFunction(uint256,uint256)'].will.return.with(0)
 
