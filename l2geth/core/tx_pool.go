@@ -92,9 +92,8 @@ var (
 )
 
 var (
-	evictionInterval    = time.Minute             // Time interval to check for evictable transactions
-	statsReportInterval = 8 * time.Second         // Time interval to report transaction pool stats
-	gwei                = big.NewInt(params.GWei) // 1 gwei, used as a flag for "rollup" transactions
+	evictionInterval    = time.Minute     // Time interval to check for evictable transactions
+	statsReportInterval = 8 * time.Second // Time interval to report transaction pool stats
 )
 
 var (
