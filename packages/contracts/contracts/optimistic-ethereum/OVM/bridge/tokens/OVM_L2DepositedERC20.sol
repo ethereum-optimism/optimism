@@ -24,11 +24,6 @@ import { UniswapV2ERC20 } from "../../../libraries/standards/UniswapV2ERC20.sol"
  * Runtime target: OVM
  */
 contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, UniswapV2ERC20 {
-    /*******************
-     * Contract Events *
-     *******************/
-
-    event Initialized(iOVM_L1StandardBridge _l1TokenBridge, iOVM_ERC20 _l1Token);
 
     /********************************
      * External Contract References *
