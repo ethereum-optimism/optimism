@@ -13,14 +13,13 @@ import (
 // MarshalJSON marshals as JSON.
 func (t TransactionMeta) MarshalJSON() ([]byte, error) {
 	type TransactionMeta struct {
-		L1BlockNumber     *big.Int          `json:"l1BlockNumber"`
-		L1Timestamp       uint64            `json:"l1Timestamp"`
-		L1MessageSender   *common.Address   `json:"l1MessageSender" gencodec:"required"`
-		SignatureHashType SignatureHashType `json:"signatureHashType" gencodec:"required"`
-		QueueOrigin       QueueOrigin       `json:"queueOrigin" gencodec:"required"`
-		Index             *uint64           `json:"index" gencodec:"required"`
-		QueueIndex        *uint64           `json:"queueIndex" gencodec:"required"`
-		RawTransaction    []byte            `json:"rawTransaction" gencodec:"required"`
+		L1BlockNumber   *big.Int        `json:"l1BlockNumber"`
+		L1Timestamp     uint64          `json:"l1Timestamp"`
+		L1MessageSender *common.Address `json:"l1MessageSender" gencodec:"required"`
+		QueueOrigin     QueueOrigin     `json:"queueOrigin" gencodec:"required"`
+		Index           *uint64         `json:"index" gencodec:"required"`
+		QueueIndex      *uint64         `json:"queueIndex" gencodec:"required"`
+		RawTransaction  []byte          `json:"rawTransaction" gencodec:"required"`
 	}
 	var enc TransactionMeta
 	enc.L1BlockNumber = t.L1BlockNumber
@@ -36,14 +35,13 @@ func (t TransactionMeta) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON unmarshals from JSON.
 func (t *TransactionMeta) UnmarshalJSON(input []byte) error {
 	type TransactionMeta struct {
-		L1BlockNumber     *big.Int           `json:"l1BlockNumber"`
-		L1Timestamp       *uint64            `json:"l1Timestamp"`
-		L1MessageSender   *common.Address    `json:"l1MessageSender" gencodec:"required"`
-		SignatureHashType *SignatureHashType `json:"signatureHashType" gencodec:"required"`
-		QueueOrigin       *QueueOrigin       `json:"queueOrigin" gencodec:"required"`
-		Index             *uint64            `json:"index" gencodec:"required"`
-		QueueIndex        *uint64            `json:"queueIndex" gencodec:"required"`
-		RawTransaction    []byte             `json:"rawTransaction" gencodec:"required"`
+		L1BlockNumber   *big.Int        `json:"l1BlockNumber"`
+		L1Timestamp     *uint64         `json:"l1Timestamp"`
+		L1MessageSender *common.Address `json:"l1MessageSender" gencodec:"required"`
+		QueueOrigin     *QueueOrigin    `json:"queueOrigin" gencodec:"required"`
+		Index           *uint64         `json:"index" gencodec:"required"`
+		QueueIndex      *uint64         `json:"queueIndex" gencodec:"required"`
+		RawTransaction  []byte          `json:"rawTransaction" gencodec:"required"`
 	}
 	var dec TransactionMeta
 	if err := json.Unmarshal(input, &dec); err != nil {
