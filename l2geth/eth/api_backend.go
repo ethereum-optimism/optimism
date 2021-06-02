@@ -330,7 +330,7 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 				}
 			}
 		}
-		return b.eth.syncService.ApplyTransaction(signedTx)
+		return b.eth.syncService.ValidateAndApplySequencerTransaction(signedTx)
 	}
 	// OVM Disabled
 	return b.eth.txPool.AddLocal(signedTx)
@@ -389,20 +389,20 @@ func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	return b.gpo.SuggestPrice(ctx)
 }
 
-func (b *EthAPIBackend) SuggestDataPrice(ctx context.Context) (*big.Int, error) {
-	return b.rollupGpo.SuggestDataPrice(ctx)
+func (b *EthAPIBackend) SuggestL1GasPrice(ctx context.Context) (*big.Int, error) {
+	return b.rollupGpo.SuggestL1GasPrice(ctx)
 }
 
-func (b *EthAPIBackend) SuggestExecutionPrice(ctx context.Context) (*big.Int, error) {
-	return b.rollupGpo.SuggestExecutionPrice(ctx)
+func (b *EthAPIBackend) SuggestL2GasPrice(ctx context.Context) (*big.Int, error) {
+	return b.rollupGpo.SuggestL2GasPrice(ctx)
 }
 
-func (b *EthAPIBackend) SetDataPrice(ctx context.Context, gasPrice *big.Int) {
-	b.rollupGpo.SetDataPrice(gasPrice)
+func (b *EthAPIBackend) SetL1GasPrice(ctx context.Context, gasPrice *big.Int) error {
+	return b.rollupGpo.SetL1GasPrice(gasPrice)
 }
 
-func (b *EthAPIBackend) SetExecutionPrice(ctx context.Context, gasPrice *big.Int) {
-	b.rollupGpo.SetExecutionPrice(gasPrice)
+func (b *EthAPIBackend) SetL2GasPrice(ctx context.Context, gasPrice *big.Int) error {
+	return b.rollupGpo.SetL2GasPrice(gasPrice)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

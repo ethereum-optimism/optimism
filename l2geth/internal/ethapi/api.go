@@ -45,15 +45,17 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/tyler-smith/go-bip39"
 )
 
 const (
-	defaultGasPrice = params.GWei
+	defaultGasPrice = params.Wei * fees.TxGasPrice
 )
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
+var bigDefaultGasPrice = new(big.Int).SetUint64(defaultGasPrice)
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
@@ -68,7 +70,7 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 
 // GasPrice always returns 1 gwei. See `DoEstimateGas` below for context.
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	return (*hexutil.Big)(big.NewInt(defaultGasPrice)), nil
+	return (*hexutil.Big)(bigDefaultGasPrice), nil
 }
 
 // ProtocolVersion returns the current Ethereum protocol version this node supports
@@ -1037,32 +1039,29 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	if err != nil {
 		return 0, err
 	}
-
 	// 2a. fetch the data price, depends on how the sequencer has chosen to update their values based on the
 	// l1 gas prices
-	dataPrice, err := b.SuggestDataPrice(ctx)
+	l1GasPrice, err := b.SuggestL1GasPrice(ctx)
 	if err != nil {
 		return 0, err
 	}
-
 	// 2b. fetch the execution gas price, by the typical mempool dynamics
-	executionPrice, err := b.SuggestExecutionPrice(ctx)
+	l2GasPrice, err := b.SuggestL2GasPrice(ctx)
 	if err != nil {
 		return 0, err
 	}
-
-	// 3. calculate the fee and normalize by the default gas price
-	var data []byte
-	if args.Data == nil {
-		data = []byte{}
-	} else {
+	data := []byte{}
+	if args.Data != nil {
 		data = *args.Data
 	}
-	fee := core.CalculateRollupFee(data, uint64(gasUsed), dataPrice, executionPrice).Uint64() / defaultGasPrice
-	if fee < 21000 {
-		fee = 21000
+	// 3. calculate the fee using just the calldata. The additional overhead of
+	// RLP encoding is covered inside of EncodeL2GasLimit
+	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
+	fee := fees.EncodeTxGasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
+	if !fee.IsUint64() {
+		return 0, fmt.Errorf("estimate gas overflow: %s", fee)
 	}
-	return (hexutil.Uint64)(fee), nil
+	return (hexutil.Uint64)(fee.Uint64()), nil
 }
 
 func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
@@ -1140,10 +1139,26 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 }
 
 // EstimateGas returns an estimate of the amount of gas needed to execute the
-// given transaction against the current pending block.
+// given transaction against the current pending block. This is modified to
+// encode the fee in wei as gas price is always 1
 func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
 	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
 	return DoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+}
+
+// EstimateExecutionGas returns an estimate of the amount of gas needed to execute the
+// given transaction against the current pending block.
+func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs, round *bool) (hexutil.Uint64, error) {
+	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
+	estimate, err := legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+	if err != nil {
+		return estimate, err
+	}
+	if round != nil && *round {
+		rounded := fees.Ceilmod(new(big.Int).SetUint64(uint64(estimate)), fees.BigTenThousand)
+		estimate = (hexutil.Uint64)(rounded.Uint64())
+	}
+	return estimate, nil
 }
 
 // ExecutionResult groups all structured logs emitted by the EVM
@@ -1996,15 +2011,15 @@ func NewPrivateRollupAPI(b Backend) *PrivateRollupAPI {
 	return &PrivateRollupAPI{b: b}
 }
 
-// SetDataPrice sets the gas price to be used when quoting calldata publishing costs
+// SetL1GasPrice sets the gas price to be used when quoting calldata publishing costs
 // to users
-func (api *PrivateRollupAPI) SetDataPrice(ctx context.Context, gasPrice hexutil.Big) {
-	api.b.SetDataPrice(ctx, (*big.Int)(&gasPrice))
+func (api *PrivateRollupAPI) SetL1GasPrice(ctx context.Context, gasPrice hexutil.Big) error {
+	return api.b.SetL1GasPrice(ctx, (*big.Int)(&gasPrice))
 }
 
-// SetExecutionPrice sets the gas price to be used when executing transactions on
-func (api *PrivateRollupAPI) SetExecutionPrice(ctx context.Context, gasPrice hexutil.Big) {
-	api.b.SetExecutionPrice(ctx, (*big.Int)(&gasPrice))
+// SetL2GasPrice sets the gas price to be used when executing transactions on
+func (api *PrivateRollupAPI) SetL2GasPrice(ctx context.Context, gasPrice hexutil.Big) error {
+	return api.b.SetL2GasPrice(ctx, (*big.Int)(&gasPrice))
 }
 
 // PublicDebugAPI is the collection of Ethereum APIs exposed over the public

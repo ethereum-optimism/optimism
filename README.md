@@ -23,14 +23,14 @@ Extensive documentation is available [here](http://community.optimism.io/docs/)
     * [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
 * [`l2geth`](./l2geth): Fork of [go-ethereum v1.9.10](https://github.com/ethereum/go-ethereum/tree/v1.9.10) implementing the [OVM](https://research.paradigm.xyz/optimism#optimistic-geth).
 * [`integration-tests`](./integration-tests): Integration tests between a L1 testnet, `l2geth`,
-* [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol, 
+* [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
 as well as a docker-compose file for bringing up local testnets easily
 
 ## Quickstart
 
 ### Installation
 
-Dependency management is done using `yarn`. 
+Dependency management is done using `yarn`.
 
 ```bash
 git clone git@github.com:ethereum-optimism/optimism.git
@@ -67,7 +67,7 @@ you can run `yarn lerna run test --parallel --since master`
 #### Running the integration tests
 
 The integration tests first require bringing up the Optimism stack. This is done via
-a Docker Compose network. For better performance, we also recommend enabling Docker 
+a Docker Compose network. For better performance, we also recommend enabling Docker
 BuildKit
 
 ```bash
@@ -109,4 +109,12 @@ can be hard to filter through. In order to view the logs from a specific service
 
 ```
 docker-compose logs --follow <service name>
+```
+### Static analysis
+
+To run `slither` locally in `./packages/contracts` do
+
+```
+pip3 install slither-analyzer
+yarn test:slither
 ```

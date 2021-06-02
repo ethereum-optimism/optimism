@@ -18,7 +18,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.SequencerBatchAppended',
       submitter: '0xfd7d4de366850c08ee2cba32d851385a3071ec8d',
       l1TransactionHash:
         '0x6effe006836b841205ace4d99d7ae1b74ee96aac499a3f358b97fccd32ee9af2',
-      gasLimit: 548976,
+      gasLimit: '548976',
       prevTotalElements: BigNumber.from(73677),
       batchIndex: BigNumber.from(743),
       batchSize: BigNumber.from(101),

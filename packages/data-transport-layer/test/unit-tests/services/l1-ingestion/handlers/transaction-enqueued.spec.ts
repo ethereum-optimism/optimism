@@ -93,7 +93,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
       }
     })
 
-    it('should have a gasLimit equal to the integer value of the _gasLimit argument', () => {
+    it('should have a gasLimit equal to the string value of the _gasLimit argument', () => {
       for (
         let i = 0;
         i < Number.MAX_SAFE_INTEGER;
@@ -113,7 +113,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
 
         const output1 = handleEventsTransactionEnqueued.parseEvent(...input1)
 
-        const expected1 = BigNumber.from(i).toNumber()
+        const expected1 = BigNumber.from(i).toString()
 
         expect(output1).to.have.property('gasLimit', expected1)
       }
