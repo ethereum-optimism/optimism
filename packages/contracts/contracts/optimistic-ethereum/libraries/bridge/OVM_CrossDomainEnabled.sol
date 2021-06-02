@@ -18,7 +18,7 @@ contract OVM_CrossDomainEnabled {
      *************/
 
     // Messenger contract used to send and recieve messages from the other domain.
-    address public messenger;
+    address public immutable messenger;
 
 
     /***************
