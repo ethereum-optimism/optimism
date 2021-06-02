@@ -48,14 +48,6 @@ describe('OVM_GasPriceOracle', () => {
         .be.reverted
     })
 
-    it('should revert if DOES NOT satisfy `price % GAS_PRICE_MULTIPLE == 0`', async () => {
-      const gasPriceMultiple = await OVM_GasPriceOracle.GAS_PRICE_MULTIPLE()
-      const gasPrice = 1234 * gasPriceMultiple
-
-      await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)).to
-        .not.be.reverted
-    })
-
     it('should succeed if called by the owner and is equal to `0`', async () => {
       await expect(OVM_GasPriceOracle.connect(signer1).setGasPrice(0)).to.not.be
         .reverted
@@ -68,8 +60,7 @@ describe('OVM_GasPriceOracle', () => {
     })
 
     it('should change when setGasPrice is called', async () => {
-      const gasPriceMultiple = await OVM_GasPriceOracle.GAS_PRICE_MULTIPLE()
-      const gasPrice = 1234 * gasPriceMultiple
+      const gasPrice = 1234
 
       await OVM_GasPriceOracle.connect(signer1).setGasPrice(gasPrice)
 
@@ -77,8 +68,7 @@ describe('OVM_GasPriceOracle', () => {
     })
 
     it('is the 1st storage slot', async () => {
-      const gasPriceMultiple = await OVM_GasPriceOracle.GAS_PRICE_MULTIPLE()
-      const gasPrice = 1234 * gasPriceMultiple
+      const gasPrice = 1234
       const slot = 1
 
       // set the price

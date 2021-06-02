@@ -23,11 +23,6 @@ contract OVM_GasPriceOracle is Ownable {
     // Current l2 gas price
     uint256 public gasPrice;
 
-    /*************
-     * Constants *
-     *************/
-    uint256 public constant GAS_PRICE_MULTIPLE = 100000000;
-
     /***************
      * Constructor *
      ***************/
@@ -60,11 +55,6 @@ contract OVM_GasPriceOracle is Ownable {
         public
         onlyOwner
     {
-        require(
-            _gasPrice % GAS_PRICE_MULTIPLE == 0,
-            "OVM_GasPriceOracle: l2 gas price must satisfy x % (10**8) == 0"
-        );
-
         gasPrice = _gasPrice;
     }
 }
