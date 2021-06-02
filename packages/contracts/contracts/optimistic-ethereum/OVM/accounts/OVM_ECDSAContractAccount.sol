@@ -122,34 +122,15 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_ExecutionManagerWrapper.ovmINCREMENTNONCE();
 
-            // Value transfer currently only supported for CALL but not for CREATE.
-            if (transaction.value > 0) {
-                // TEMPORARY: Block value transfer if the transaction has input data.
-                require(
-                    transaction.data.length == 0,
-                    "Value is nonzero but input data was provided."
-                );
+            // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
+            // so that they don't have to pay any fees to the sequencer. Function will remain disabled
+            // until a robust solution is in place.
+            require(
+                transaction.to != Lib_ExecutionManagerWrapper.ovmADDRESS(),
+                "Calls to self are disabled until upgradability is re-enabled."
+            );
 
-                require(
-                    OVM_ETH(Lib_PredeployAddresses.OVM_ETH).transfer(
-                        transaction.to,
-                        transaction.value
-                    ),
-                    "Value could not be transferred to recipient."
-                );
-
-                return (true, bytes(""));
-            } else {
-                // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
-                // so that they don't have to pay any fees to the sequencer. Function will remain disabled
-                // until a robust solution is in place.
-                require(
-                    transaction.to != Lib_ExecutionManagerWrapper.ovmADDRESS(),
-                    "Calls to self are disabled until upgradability is re-enabled."
-                );
-
-                return transaction.to.call(transaction.data);
-            }
+            return transaction.to.call{value: transaction.value}(transaction.data);
         }
     }
 }

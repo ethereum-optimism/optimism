@@ -127,38 +127,6 @@ describe('OVM_ECDSAContractAccount', () => {
       ).to.be.revertedWith('Fee was not transferred to relayer.')
     })
 
-    it(`should transfer value if value is greater than 0`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
-      const encodedTransaction = await wallet.signTransaction(transaction)
-
-      await OVM_ECDSAContractAccount.execute(encodedTransaction)
-
-      // First call transfers fee, second transfers value (since value > 0).
-      expect(
-        toPlainObject(Mock__OVM_ETH.smocked.transfer.calls[1])
-      ).to.deep.include({
-        to: transaction.to,
-        value: BigNumber.from(transaction.value),
-      })
-    })
-
-    it(`should revert if the value is not transferred to the recipient`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
-      const encodedTransaction = await wallet.signTransaction(transaction)
-
-      Mock__OVM_ETH.smocked.transfer.will.return.with((to, value) => {
-        if (to === transaction.to) {
-          return false
-        } else {
-          return true
-        }
-      })
-
-      await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
-      ).to.be.revertedWith('Value could not be transferred to recipient.')
-    })
-
     it(`should revert if trying to send value with a contract creation`, async () => {
       const transaction = { ...DEFAULT_EIP155_TX, value: 1234, to: '' }
       const encodedTransaction = await wallet.signTransaction(transaction)
@@ -166,15 +134,6 @@ describe('OVM_ECDSAContractAccount', () => {
       await expect(
         OVM_ECDSAContractAccount.execute(encodedTransaction)
       ).to.be.revertedWith('Value transfer in contract creation not supported.')
-    })
-
-    it(`should revert if trying to send value with non-empty transaction data`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x1234' }
-      const encodedTransaction = await wallet.signTransaction(transaction)
-
-      await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
-      ).to.be.revertedWith('Value is nonzero but input data was provided.')
     })
 
     // NOTE: Upgrades are disabled for now but will be re-enabled at a later point in time. See
