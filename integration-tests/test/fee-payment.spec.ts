@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 import { BigNumber, utils } from 'ethers'
 import { OptimismEnv } from './shared/env'
-import { TxGasLimit } from '@eth-optimism/core-utils'
+import { TxGasLimit, TxGasPrice } from '@eth-optimism/core-utils'
 
 describe('Fee Payment Integration Tests', async () => {
   let env: OptimismEnv
@@ -13,9 +13,9 @@ describe('Fee Payment Integration Tests', async () => {
     env = await OptimismEnv.new()
   })
 
-  it('Should return a gasPrice of 1500 wei', async () => {
+  it(`Should return a gasPrice of ${TxGasPrice.toString()} wei`, async () => {
     const gasPrice = await env.l2Wallet.getGasPrice()
-    expect(gasPrice).to.deep.eq(BigNumber.from(1500))
+    expect(gasPrice).to.deep.eq(TxGasPrice)
   })
 
   it('Should estimateGas with recoverable L2 gasLimit', async () => {
