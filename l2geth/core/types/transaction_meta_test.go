@@ -112,10 +112,6 @@ func isTxMetaEqual(meta1 *TransactionMeta, meta2 *TransactionMeta) bool {
 		}
 	}
 
-	if meta1.SignatureHashType != meta2.SignatureHashType {
-		return false
-	}
-
 	if meta1.QueueOrigin != meta2.QueueOrigin {
 		return false
 	}
