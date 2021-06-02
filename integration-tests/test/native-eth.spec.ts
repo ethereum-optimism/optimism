@@ -50,13 +50,13 @@ describe('Native ETH Integration Tests', async () => {
       const amount = utils.parseEther('0.5')
       const addr = '0x' + '1234'.repeat(10)
       const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
-      expect(gas).to.be.deep.eq(BigNumber.from(0x0ef897216d))
+      expect(gas).to.be.deep.eq(BigNumber.from(6430020))
     })
 
     it('Should estimate gas for ETH withdraw', async () => {
       const amount = utils.parseEther('0.5')
       const gas = await env.ovmEth.estimateGas.withdraw(amount, 0, '0xFFFF')
-      expect(gas).to.be.deep.eq(BigNumber.from(0x0f5203e9bf))
+      expect(gas).to.be.deep.eq(BigNumber.from(6140049))
     })
   })
 

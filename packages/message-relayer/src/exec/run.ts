@@ -1,7 +1,6 @@
 import { Wallet, providers } from 'ethers'
 import { MessageRelayerService } from '../service'
 import { Bcfg } from '@eth-optimism/core-utils'
-import SpreadSheet from '../spreadsheet'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
 
@@ -49,18 +48,6 @@ const main = async () => {
     parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
   )
 
-  // Spreadsheet configuration
-  const SPREADSHEET_MODE = config.bool(
-    'spreadsheet-mode',
-    !!env.SPREADSHEET_MODE || false
-  )
-  const SHEET_ID = config.str('sheet-id', env.SHEET_ID)
-  const CLIENT_EMAIL = config.str('client-email', env.CLIENT_EMAIL)
-  const CLIENT_PRIVATE_KEY = config.str(
-    'client-private-key',
-    env.CLIENT_PRIVATE_KEY
-  )
-
   if (!ADDRESS_MANAGER_ADDRESS) {
     throw new Error('Must pass ADDRESS_MANAGER_ADDRESS')
   }
@@ -84,22 +71,6 @@ const main = async () => {
     throw new Error('Must pass one of L1_WALLET_KEY or MNEMONIC')
   }
 
-  let spreadsheet = null
-  if (SPREADSHEET_MODE) {
-    if (!SHEET_ID) {
-      throw new Error('Must pass SHEET_ID')
-    }
-    if (!CLIENT_EMAIL) {
-      throw new Error('Must pass CLIENT_EMAIL')
-    }
-    if (!CLIENT_PRIVATE_KEY) {
-      throw new Error('Must pass CLIENT_PRIVATE_KEY')
-    }
-    const privateKey = CLIENT_PRIVATE_KEY.replace(/\\n/g, '\n')
-    spreadsheet = new SpreadSheet(SHEET_ID)
-    await spreadsheet.init(CLIENT_EMAIL, privateKey)
-  }
-
   const service = new MessageRelayerService({
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
@@ -111,8 +82,6 @@ const main = async () => {
     l2BlockOffset: L2_BLOCK_OFFSET,
     l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
-    spreadsheetMode: !!SPREADSHEET_MODE,
-    spreadsheet,
   })
 
   await service.start()
