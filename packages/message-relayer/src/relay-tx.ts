@@ -323,12 +323,19 @@ const getStateTrieProof = async (
  * @returns An array of messages sent in the transaction and a proof of inclusion for each.
  */
 export const getMessagesAndProofsForL2Transaction = async (
-  l1RpcProvider: ethers.providers.JsonRpcProvider,
-  l2RpcProvider: ethers.providers.JsonRpcProvider,
+  l1RpcProvider: ethers.providers.JsonRpcProvider | string,
+  l2RpcProvider: ethers.providers.JsonRpcProvider | string,
   l1StateCommitmentChainAddress: string,
   l2CrossDomainMessengerAddress: string,
   l2TransactionHash: string
 ): Promise<CrossDomainMessagePair[]> => {
+  if (typeof l1RpcProvider === 'string') {
+    l1RpcProvider = new ethers.providers.JsonRpcProvider(l1RpcProvider)
+  }
+  if (typeof l2RpcProvider === 'string') {
+    l2RpcProvider = new ethers.providers.JsonRpcProvider(l2RpcProvider)
+  }
+
   const l2Transaction = await l2RpcProvider.getTransaction(l2TransactionHash)
   if (l2Transaction === null) {
     throw new Error(`unable to find tx with hash: ${l2TransactionHash}`)
