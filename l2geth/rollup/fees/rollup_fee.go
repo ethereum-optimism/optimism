@@ -11,12 +11,9 @@ import (
 // transaction in gas.
 const overhead uint64 = 4200 + 200*params.TxDataNonZeroGasEIP2028
 
-// hundredMillion is a constant used in the gas encoding formula
-const hundredMillion uint64 = 100_000_000
-
 // feeScalar is used to scale the calculations in EncodeL2GasLimit
 // to prevent them from being too large
-const feeScalar uint64 = 1000
+const feeScalar uint64 = 10_000_000
 
 // TxGasPrice is a constant that determines the result of `eth_gasPrice`
 // It is scaled upwards by 50%
@@ -27,8 +24,10 @@ const TxGasPrice uint64 = feeScalar + (feeScalar / 2)
 // BigTxGasPrice is the L2GasPrice as type big.Int
 var BigTxGasPrice = new(big.Int).SetUint64(TxGasPrice)
 var bigFeeScalar = new(big.Int).SetUint64(feeScalar)
-var bigHundredMillion = new(big.Int).SetUint64(hundredMillion)
-var BigTenThousand = new(big.Int).SetUint64(10000)
+
+const tenThousand = 10000
+
+var BigTenThousand = new(big.Int).SetUint64(tenThousand)
 
 // EncodeTxGasLimit computes the `tx.gasLimit` based on the L1/L2 gas prices and
 // the L2 gas limit. The L2 gas limit is encoded inside of the lower order bits
@@ -42,12 +41,14 @@ var BigTenThousand = new(big.Int).SetUint64(10000)
 // the fee, so increasing the L2 Gas limit will increase the fee paid.
 // The calculation is:
 // l1GasLimit = zero_count(data) * 4 + non_zero_count(data) * 16 + overhead
+// roundedL2GasLimit = ceilmod(l2GasLimit, 10_000)
 // l1Fee = l1GasPrice * l1GasLimit
-// l2Fee = l2GasPrice * l2GasLimit
+// l2Fee = l2GasPrice * roundedL2GasLimit
 // sum = l1Fee + l2Fee
 // scaled = sum / scalar
-// rounded = ceilmod(scaled, hundredMillion)
-// result = rounded + l2GasLimit
+// rounded = ceilmod(scaled, tenThousand)
+// roundedScaledL2GasLimit = roundedL2GasLimit / tenThousand
+// result = rounded + roundedScaledL2GasLimit
 // Note that for simplicity purposes, only the calldata is passed into this
 // function when in reality the RLP encoded transaction should be. The
 // additional cost is added to the overhead constant to prevent the need to RLP
@@ -59,7 +60,7 @@ func EncodeTxGasLimit(data []byte, l1GasPrice, l2GasLimit, l2GasPrice *big.Int) 
 	l2Fee := new(big.Int).Mul(l2GasPrice, roundedL2GasLimit)
 	sum := new(big.Int).Add(l1Fee, l2Fee)
 	scaled := new(big.Int).Div(sum, bigFeeScalar)
-	rounded := Ceilmod(scaled, bigHundredMillion)
+	rounded := Ceilmod(scaled, BigTenThousand)
 	roundedScaledL2GasLimit := new(big.Int).Div(roundedL2GasLimit, BigTenThousand)
 	result := new(big.Int).Add(rounded, roundedScaledL2GasLimit)
 	return result
@@ -79,6 +80,11 @@ func Ceilmod(a, b *big.Int) *big.Int {
 func DecodeL2GasLimit(gasLimit *big.Int) *big.Int {
 	scaled := new(big.Int).Mod(gasLimit, BigTenThousand)
 	return new(big.Int).Mul(scaled, BigTenThousand)
+}
+
+func DecodeL2GasLimitU64(gasLimit uint64) uint64 {
+	scaled := gasLimit % tenThousand
+	return scaled * tenThousand
 }
 
 // calculateL1GasLimit computes the L1 gasLimit based on the calldata and

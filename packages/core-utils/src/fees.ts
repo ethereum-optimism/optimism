@@ -6,7 +6,7 @@ import { BigNumber } from 'ethers'
 import { remove0x } from './common'
 
 const hundredMillion = BigNumber.from(100_000_000)
-const feeScalar = 1000
+const feeScalar = 10_000_000
 export const TxGasPrice = BigNumber.from(feeScalar + feeScalar / 2)
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
@@ -38,7 +38,7 @@ function encode(input: EncodableL2GasLimit): BigNumber {
   const l2Fee = roundedL2GasLimit.mul(l2GasPrice)
   const sum = l1Fee.add(l2Fee)
   const scaled = sum.div(feeScalar)
-  const rounded = ceilmod(scaled, hundredMillion)
+  const rounded = ceilmod(scaled, tenThousand)
   const roundedScaledL2GasLimit = roundedL2GasLimit.div(tenThousand)
   return rounded.add(roundedScaledL2GasLimit)
 }
