@@ -62,6 +62,7 @@ services:
         # connect to the 2 layers
         DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
+        DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
         DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
     ports:
       - ${DTL_PORT:-7878}:7878
@@ -157,31 +158,9 @@ services:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546
   
-  l2_dtl:
-    depends_on:
-      - l2geth
-    image: ethereumoptimism/data-transport-layer
-    deploy:
-      replicas: 0
-    build:
-      context: ..
-      dockerfile: ./ops/docker/Dockerfile.data-transport-layer
-    entrypoint: ./dtl.sh
-    env_file:
-      -  ./envs/dtl.env
-    environment:
-        URL: http://deployer:8081/addresses.json
-        DATA_TRANSPORT_LAYER__SYNC_FROM_L1: 'false'
-        DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
-        DATA_TRANSPORT_LAYER_DEFAULT_BACKEND: 'l2'
-        DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
-        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
-    ports:
-      - ${L2_DTL_PORT:-7879}:7878
-  
   replica:
     depends_on:
-      - l2_dtl
+      - dtl
     image: ethereumoptimism/l2geth
     deploy:
       replicas: 0
@@ -195,8 +174,9 @@ services:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
         URL: http://deployer:8081/addresses.json
-        ROLLUP_CLIENT_HTTP: http://l2_dtl:7878
+        ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l2'
+        ROLLUP_VERIFIER_ENABLE: 'true'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
     ports:

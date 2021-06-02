@@ -19,14 +19,14 @@ describe('Syncing a replica', () => {
 
   const startReplica = async () => {
     // Bring up new replica
-    replica = new DockerComposeNetwork(['l2_dtl', 'replica'])
+    replica = new DockerComposeNetwork(['replica'])
     await replica.up({
-      commandOptions: ['--scale', 'l2_dtl=1', '--scale', 'replica=1'],
+      commandOptions: ['--scale', 'replica=1'],
     })
 
     // Wait for replica to be looping
     let logs = await replica.logs()
-    while (!logs.out.includes('Starting Sequencer Loop')) {
+    while (!logs.out.includes('Starting Verifier Loop')) {
       console.log(logs)
       await sleep(500)
       logs = await replica.logs()
@@ -51,6 +51,11 @@ describe('Syncing a replica', () => {
     wallet = env.l2Wallet
   })
 
+  after(async () => {
+    await replica.stop('replica')
+    await replica.rm()
+  })
+
   describe('Basic transactions and ERC20s', () => {
     const initialAmount = 1000
     const tokenName = 'OVM Test'
@@ -64,12 +69,6 @@ describe('Syncing a replica', () => {
     before(async () => {
       other = Wallet.createRandom().connect(ethers.provider)
       Factory__ERC20 = await ethers.getContractFactory('ERC20', wallet)
-    })
-
-    after(async () => {
-      await replica.stop('l2_dtl')
-      await replica.stop('replica')
-      await replica.rm()
     })
 
     it('should sync dummy transaction', async () => {
