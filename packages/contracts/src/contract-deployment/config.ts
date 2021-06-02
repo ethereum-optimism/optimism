@@ -35,7 +35,10 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
-  gasPriceOracleOwner: string
+  gasPriceOracleConfig: {
+    owner: string | Signer
+    initialGasPrice: number
+  }
   addressManager?: string
   dependencies?: string[]
   deployOverrides: Overrides
@@ -262,7 +265,15 @@ export const makeContractDeployConfig = async (
     },
     OVM_GasPriceOracle: {
       factory: getContractFactory('OVM_GasPriceOracle'),
-      params: [config.gasPriceOracleOwner],
+      params: [
+        (() => {
+          if (typeof config.gasPriceOracleConfig.owner !== 'string') {
+            return config.gasPriceOracleConfig.owner.getAddress()
+          }
+          return config.gasPriceOracleConfig.owner
+        })(),
+        config.gasPriceOracleConfig.initialGasPrice,
+      ],
     },
   }
 }

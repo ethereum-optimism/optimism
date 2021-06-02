@@ -142,7 +142,10 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     ],
     deployOverrides: {},
     waitForReceipts: false,
-    gasPriceOracleOwner: cfg.gasPriceOracleOwner,
+    gasPriceOracleConfig: {
+      owner: signer,
+      initialGasPrice: 0,
+    },
   }
 
   config = { ...config, ...cfg }

@@ -19,7 +19,10 @@ import { RollupDeployConfig } from '../src/contract-deployment'
     ovmGlobalContext: {
       ovmCHAINID: parseInt(CHAIN_ID, 10),
     },
-    gasPriceOracleOwner: GAS_PRICE_ORACLE_OWNER
+    gasPriceOracleConfig: {
+      owner: GAS_PRICE_ORACLE_OWNER,
+      initialGasPrice: 0,
+    }
   }
 
   const dump = await makeStateDump(config as RollupDeployConfig)
