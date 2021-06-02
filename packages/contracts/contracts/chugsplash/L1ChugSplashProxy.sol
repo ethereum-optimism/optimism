@@ -5,6 +5,12 @@ pragma solidity >0.5.0 <0.8.0;
  * @title L1ChugSplashProxy
  * @dev Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added
  * functions `setCode` and `setStorage` for changing the code or storage of the contract. Nifty!
+ *
+ * Note for future developers: do NOT make anything in this contract 'public' unless you know what
+ * you're doing. Anything public can potentially have a function signature that conflicts with a
+ * signature attached to the implementation contract. Public functions SHOULD always have the
+ * 'proxyCallIfNotOwner' modifier unless there's some *really* good reason not to have that
+ * modifier. And there almost certainly is not a good reason to not have that modifier. Beware!
  */
 contract L1ChugSplashProxy {
 
@@ -237,16 +243,24 @@ contract L1ChugSplashProxy {
         address implementation = _getImplementation();
 
         assembly {
+            // Copy calldata into memory at 0x0....calldatasize.
             calldatacopy(0x0, 0x0, calldatasize())
-            let result := delegatecall(gas(), implementation, 0x0, calldatasize(), 0x0, 0x0)
+
+            // Perform the delegatecall, make sure to pass all available gas.
+            let success := delegatecall(gas(), implementation, 0x0, calldatasize(), 0x0, 0x0)
+
+            // Copy returndata into memory at 0x0....returndatasize. Note that this *will*
+            // overwrite the calldata that we just copied into memory but that doesn't really
+            // matter because we'll be returning in a second anyway.
             returndatacopy(0x0, 0x0, returndatasize())
-            switch result
-            case 0x0 {
+            
+            // Success == 0 means a revert. We'll revert too and pass the data up.
+            if iszero(success) {
                 revert(0x0, returndatasize())
             }
-            default {
-                return (0x0, returndatasize())
-            }
+
+            // Otherwise we'll just return and pass the data up.
+            return(0x0, returndatasize())
         }
     }
 }
