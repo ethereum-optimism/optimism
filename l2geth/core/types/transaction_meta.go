@@ -34,10 +34,10 @@ func (q QueueOrigin) String() string {
 //go:generate gencodec -type TransactionMeta -out gen_tx_meta_json.go
 
 type TransactionMeta struct {
-	L1BlockNumber     *big.Int          `json:"l1BlockNumber"`
-	L1Timestamp       uint64            `json:"l1Timestamp"`
-	L1MessageSender   *common.Address   `json:"l1MessageSender" gencodec:"required"`
-	QueueOrigin       QueueOrigin       `json:"queueOrigin" gencodec:"required"`
+	L1BlockNumber   *big.Int        `json:"l1BlockNumber"`
+	L1Timestamp     uint64          `json:"l1Timestamp"`
+	L1MessageSender *common.Address `json:"l1MessageSender" gencodec:"required"`
+	QueueOrigin     QueueOrigin     `json:"queueOrigin" gencodec:"required"`
 	// The canonical transaction chain index
 	Index *uint64 `json:"index" gencodec:"required"`
 	// The queue index, nil for queue origin sequencer transactions
@@ -48,13 +48,13 @@ type TransactionMeta struct {
 // NewTransactionMeta creates a TransactionMeta
 func NewTransactionMeta(l1BlockNumber *big.Int, l1timestamp uint64, l1MessageSender *common.Address, queueOrigin QueueOrigin, index *uint64, queueIndex *uint64, rawTransaction []byte) *TransactionMeta {
 	return &TransactionMeta{
-		L1BlockNumber:     l1BlockNumber,
-		L1Timestamp:       l1timestamp,
-		L1MessageSender:   l1MessageSender,
-		QueueOrigin:       queueOrigin,
-		Index:             index,
-		QueueIndex:        queueIndex,
-		RawTransaction:    rawTransaction,
+		L1BlockNumber:   l1BlockNumber,
+		L1Timestamp:     l1timestamp,
+		L1MessageSender: l1MessageSender,
+		QueueOrigin:     queueOrigin,
+		Index:           index,
+		QueueIndex:      queueIndex,
+		RawTransaction:  rawTransaction,
 	}
 }
 

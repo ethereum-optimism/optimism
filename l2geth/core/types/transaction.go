@@ -512,9 +512,9 @@ type Message struct {
 	data       []byte
 	checkNonce bool
 
-	l1MessageSender   *common.Address
-	l1BlockNumber     *big.Int
-	queueOrigin       QueueOrigin
+	l1MessageSender *common.Address
+	l1BlockNumber   *big.Int
+	queueOrigin     QueueOrigin
 }
 
 func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool, l1MessageSender *common.Address, l1BlockNumber *big.Int, queueOrigin QueueOrigin) Message {
@@ -528,9 +528,9 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		data:       data,
 		checkNonce: checkNonce,
 
-		l1BlockNumber:     l1BlockNumber,
-		l1MessageSender:   l1MessageSender,
-		queueOrigin:       queueOrigin,
+		l1BlockNumber:   l1BlockNumber,
+		l1MessageSender: l1MessageSender,
+		queueOrigin:     queueOrigin,
 	}
 }
 
@@ -543,6 +543,6 @@ func (m Message) Nonce() uint64        { return m.nonce }
 func (m Message) Data() []byte         { return m.data }
 func (m Message) CheckNonce() bool     { return m.checkNonce }
 
-func (m Message) L1MessageSender() *common.Address     { return m.l1MessageSender }
-func (m Message) L1BlockNumber() *big.Int              { return m.l1BlockNumber }
-func (m Message) QueueOrigin() QueueOrigin             { return m.queueOrigin }
+func (m Message) L1MessageSender() *common.Address { return m.l1MessageSender }
+func (m Message) L1BlockNumber() *big.Int          { return m.l1BlockNumber }
+func (m Message) QueueOrigin() QueueOrigin         { return m.queueOrigin }

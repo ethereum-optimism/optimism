@@ -2151,13 +2151,13 @@ func (api *PrivateDebugAPI) IngestTransactions(txs []*RPCTransaction) error {
 		}
 
 		meta := types.TransactionMeta{
-			L1BlockNumber:     l1BlockNumber,
-			L1Timestamp:       l1Timestamp,
-			L1MessageSender:   tx.L1TxOrigin,
-			QueueOrigin:       queueOrigin,
-			Index:             (*uint64)(tx.Index),
-			QueueIndex:        (*uint64)(tx.QueueIndex),
-			RawTransaction:    rawTransaction,
+			L1BlockNumber:   l1BlockNumber,
+			L1Timestamp:     l1Timestamp,
+			L1MessageSender: tx.L1TxOrigin,
+			QueueOrigin:     queueOrigin,
+			Index:           (*uint64)(tx.Index),
+			QueueIndex:      (*uint64)(tx.QueueIndex),
+			RawTransaction:  rawTransaction,
 		}
 		transaction.SetTransactionMeta(&meta)
 		transactions[i] = transaction
