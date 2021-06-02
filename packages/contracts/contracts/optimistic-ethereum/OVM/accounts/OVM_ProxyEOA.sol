@@ -98,7 +98,7 @@ contract OVM_ProxyEOA {
 
         address implementation = Lib_Bytes32Utils.toAddress(addr32);
         if (implementation == address(0)) {
-            return Lib_PredeployAddresses.ovmECDSAContractAccount;
+            return Lib_PredeployAddresses.ECDSA_CONTRACT_ACCOUNT;
         } else {
             return implementation;
         }
