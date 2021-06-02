@@ -9,6 +9,8 @@ import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2Deposi
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
+import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManager.sol";
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -23,13 +25,15 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
+contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled, Lib_AddressResolver {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 
     /********************************
      * External Contract References *
      ********************************/
+
+    address public ovmEth;
 
     // Maps L1 token to L2 token to balance of the L1 token deposited
     mapping(address => mapping (address => uint256)) public deposits;
@@ -38,19 +42,136 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
      * Constructor *
      ***************/
 
+    // This contract lives behind a proxy, so the constructor parameters will go unused.
+    constructor()
+        OVM_CrossDomainEnabled(address(0))
+        Lib_AddressResolver(address(0))
+    {}
+
+    /******************
+     * Initialization *
+     ******************/
+
     /**
+     * @param _libAddressManager Address manager for this OE deployment.
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
+     * @param _ovmEth L2 OVM_ETH implementation of iOVM_DepositedToken.
      */
-    constructor(
-        address _l1messenger
+    function initialize(
+        address _libAddressManager,
+        address _l1messenger,
+        address _ovmEth
     )
-        OVM_CrossDomainEnabled(_l1messenger)
+        public
     {
+        require(libAddressManager == Lib_AddressManager(0), "Contract has already been initialized.");
+        libAddressManager = Lib_AddressManager(_libAddressManager);
+        messenger = _l1messenger;
+        ovmEth = _ovmEth;
+        messenger = resolve("Proxy__OVM_L1CrossDomainMessenger");
     }
 
     /**************
      * Depositing *
      **************/
+    /**
+     * @dev This function can be called with no data
+     * to deposit an amount of ETH to the caller's balance on L2.
+     * Since the receive function doesn't take data, a conservative
+     * default of 1.2 Million gas is forwarded to L2.
+     */
+    receive()
+        external
+        payable
+    {
+        _initiateETHDeposit(msg.sender, msg.sender, 1_200_000, bytes(""));
+    }
+
+    /**
+     * @dev Deposit an amount of the ETH to the caller's balance on L2.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about its content.
+     */
+    function depositETH(
+        uint32 _l2Gas,
+        bytes calldata _data
+    )
+        external
+        override
+        payable
+    {
+        _initiateETHDeposit(
+            msg.sender,
+            msg.sender,
+            _l2Gas,
+            _data
+        );
+    }
+
+        /**
+     * @dev Deposit an amount of ETH to a recipient's balance on L2.
+     * @param _to L2 address to credit the withdrawal to.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about its content.
+     */
+    function depositETHTo(
+        address _to,
+        uint32 _l2Gas,
+        bytes calldata _data
+    )
+        external
+        override
+        payable
+    {
+        _initiateETHDeposit(
+            msg.sender,
+            _to,
+            _l2Gas,
+            _data
+        );
+    }
+
+    /**
+     * @dev Performs the logic for deposits by storing the ETH and informing the L2 ETH Gateway of the deposit.
+     * @param _from Account to pull the deposit from on L1.
+     * @param _to Account to give the deposit to on L2.
+     * @param _l2Gas Gas limit required to complete the deposit on L2.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about its content.
+     */
+    function _initiateETHDeposit(
+        address _from,
+        address _to,
+        uint32 _l2Gas,
+        bytes memory _data
+    )
+        internal
+    {
+        // Construct calldata for finalizeDeposit call
+        bytes memory message =
+            abi.encodeWithSelector(
+                iOVM_L2DepositedToken.finalizeDeposit.selector,
+                0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
+                _from,
+                _to,
+                msg.value,
+                _data
+            );
+
+        // Send calldata into L2
+        sendCrossDomainMessage(
+            ovmEth,
+            _l2Gas,
+            message
+        );
+
+        emit ETHDepositInitiated(_from, _to, msg.value, _data);
+    }
 
     /**
      * @dev deposit an amount of the ERC20 to the caller's balance on L2.
@@ -62,7 +183,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function deposit(
+    function depositERC20(
         address _l1Token,
         address _l2Token,
         uint256 _amount,
@@ -73,7 +194,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
         override
         virtual
     {
-        _initiateDeposit(_l1Token, _l2Token, msg.sender, msg.sender, _amount, _l2Gas, _data);
+        _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, msg.sender, _amount, _l2Gas, _data);
     }
 
     /**
@@ -87,7 +208,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function depositTo(
+    function depositERC20To(
         address _l1Token,
         address _l2Token,
         address _to,
@@ -99,7 +220,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
         override
         virtual
     {
-        _initiateDeposit(_l1Token, _l2Token, msg.sender, _to, _amount, _l2Gas, _data);
+        _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, _to, _amount, _l2Gas, _data);
     }
 
     /**
@@ -116,7 +237,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function _initiateDeposit(
+    function _initiateERC20Deposit(
         address _l1Token,
         address _l2Token,
         address _from,
@@ -154,12 +275,39 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].add(_amount);
 
         // We omit _data here because events only support bytes32 types.
-        emit DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
+        emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
     /*************************
      * Cross-chain Functions *
      *************************/
+
+    /**
+     * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
+     * L1 ETH token.
+     * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized.
+     * @param _from L2 address initiating the transfer.
+     * @param _to L1 address to credit the withdrawal to.
+     * @param _amount Amount of the ERC20 to deposit.
+     * @param _data Optional data to forward to L2. This data is provided
+     *        solely as a convenience for external contracts. Aside from enforcing a maximum
+     *        length, these contracts provide no guarantees about its content.
+     */
+    function finalizeETHWithdrawal(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes calldata _data
+    )
+        external
+        override
+        onlyFromCrossDomainAccount(ovmEth)
+    {
+        (bool success, ) = _to.call{value: _amount}(new bytes(0));
+        require(success, 'TransferHelper::safeTransferETH: ETH transfer failed');
+
+        emit ETHWithdrawalFinalized(_from, _to, _amount, _data);
+    }
 
     /**
      * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
@@ -175,7 +323,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
      *   solely as a convenience for external contracts. Aside from enforcing a maximum
      *   length, these contracts provide no guarantees about its content.
      */
-    function finalizeWithdrawal(
+    function finalizeERC20Withdrawal(
         address _l1Token,
         address _l2Token,
         address _from,
@@ -193,6 +341,27 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled {
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer.
         IERC20(_l1Token).safeTransfer(_to, _amount);
 
-        emit WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
+        emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
+
+    /*****************************
+     * Temporary - Migrating ETH *
+     *****************************/
+
+    /**
+     * @dev Migrates entire ETH balance to another gateway.
+     * @param _to Gateway Proxy address to migrate ETH to.
+     */
+    function migrateEth(address payable _to) external {
+        address owner = Lib_AddressManager(libAddressManager).owner();
+        require(msg.sender == owner, "Only the owner can migrate ETH");
+        uint256 balance = address(this).balance;
+        OVM_L1ERC20Bridge(_to).donateETH{value:balance}();
+    }
+
+    /**
+     * @dev Adds ETH balance to the account. This is meant to allow for ETH
+     * to be migrated from an old gateway to a new gateway.
+     */
+    function donateETH() external payable {}
 }

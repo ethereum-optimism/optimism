@@ -142,9 +142,9 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage
         _burn(msg.sender, _amount);
 
-        // Construct calldata for l1TokenBridge.finalizeWithdrawal(_to, _amount)
+        // Construct calldata for l1TokenBridge.finalizeERC20Withdrawal(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L1ERC20Bridge.finalizeWithdrawal.selector,
+            iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
             l1Token,
             address(this),
             _from,
@@ -196,7 +196,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         if(_l1Token != address(l1Token)) {
 
             bytes memory message = abi.encodeWithSelector(
-                iOVM_L1ERC20Bridge.finalizeWithdrawal.selector,
+                iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
                 address(this),
                 _from,

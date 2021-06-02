@@ -10,8 +10,21 @@ interface iOVM_L1ERC20Bridge {
     /**********
      * Events *
      **********/
+    event ETHDepositInitiated(
+        address indexed _from,
+        address indexed _to,
+        uint256 _amount,
+        bytes _data
+    );
 
-    event DepositInitiated(
+    event ETHWithdrawalFinalized(
+        address indexed _from,
+        address indexed _to,
+        uint256 _amount,
+        bytes _data
+    );
+
+    event ERC20DepositInitiated(
         address indexed _l1Token,
         address indexed _l2Token,
         address indexed _from,
@@ -20,7 +33,7 @@ interface iOVM_L1ERC20Bridge {
         bytes _data
     );
 
-    event WithdrawalFinalized(
+    event ERC20WithdrawalFinalized(
         address indexed _l1Token,
         address indexed _l2Token,
         address indexed _from,
@@ -34,7 +47,22 @@ interface iOVM_L1ERC20Bridge {
      * Public Functions *
      ********************/
 
-    function deposit(
+    function depositETH(
+        uint32 _l2Gas,
+        bytes calldata _data
+    )
+        external
+        payable;
+
+    function depositETHTo(
+        address _to,
+        uint32 _l2Gas,
+        bytes calldata _data
+    )
+        external
+        payable;
+
+    function depositERC20(
         address _l1Token,
 		address _l2Token,
         uint _amount,
@@ -43,7 +71,7 @@ interface iOVM_L1ERC20Bridge {
     )
         external;
 
-    function depositTo(
+    function depositERC20To(
         address _l1Token,
 		address _l2Token,
         address _to,
@@ -57,8 +85,15 @@ interface iOVM_L1ERC20Bridge {
     /*************************
      * Cross-chain Functions *
      *************************/
+    function finalizeETHWithdrawal(
+        address _from,
+        address _to,
+        uint _amount,
+        bytes calldata _data
+    )
+        external;
 
-    function finalizeWithdrawal(
+    function finalizeERC20Withdrawal(
         address _l1Token,
 		address _l2Token,
         address _from,
