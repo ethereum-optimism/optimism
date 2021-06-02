@@ -408,7 +408,7 @@ contract OVM_L1CrossDomainMessenger is
             bool exists,
             bytes memory encodedMessagePassingAccount
         ) = Lib_SecureMerkleTrie.get(
-            abi.encodePacked(Lib_PredeployAddresses.ovmL2ToL1MessagePasser),
+            abi.encodePacked(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER),
             _proof.stateTrieWitness,
             _proof.stateRoot
         );
