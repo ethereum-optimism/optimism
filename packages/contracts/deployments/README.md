@@ -7,7 +7,7 @@ Network : __optimistic-kovan (chain id: 69)__
 
 |Contract|Address|
 |--|--|
-|OVM_GasPriceOracle|[0x67B08211026Ef9434a535E2464edA5dc2713F3Ff](https://kovan-optimistic.etherscan.io/address/0x67B08211026Ef9434a535E2464edA5dc2713F3Ff)|
+|OVM_GasPriceOracle|[0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76](https://kovan-optimistic.etherscan.io/address/0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76)|
 ---
 
 ### Chain IDs:
