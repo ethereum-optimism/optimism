@@ -187,12 +187,12 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
 
 // MarshalJSON encodes the web3 RPC transaction format.
 func (tx *Transaction) MarshalJSON() ([]byte, error) {
-	return tx.data.TransactionMarshalJSON()
+	return tx.data.MarshalJSON()
 }
 
 // UnmarshalJSON decodes the web3 RPC transaction format.
 func (tx *Transaction) UnmarshalJSON(input []byte) error {
-	err := tx.data.TransactionUnmarshalJSON(input)
+	err := tx.data.UnmarshalJSON(input)
 	if err != nil {
 		return err
 	}
@@ -254,13 +254,9 @@ func (tx *Transaction) L1BlockNumber() *big.Int {
 	return &l1BlockNumber
 }
 
-// QueueOrigin returns the Queue Origin of the transaction if it exists.
-func (tx *Transaction) QueueOrigin() *big.Int {
-	if tx.meta.QueueOrigin == nil {
-		return nil
-	}
-	queueOrigin := *tx.meta.QueueOrigin
-	return &queueOrigin
+// QueueOrigin returns the Queue Origin of the transaction
+func (tx *Transaction) QueueOrigin() QueueOrigin {
+	return tx.meta.QueueOrigin
 }
 
 // Hash hashes the RLP encoding of tx.
@@ -519,7 +515,7 @@ type Message struct {
 
 	l1MessageSender *common.Address
 	l1BlockNumber   *big.Int
-	queueOrigin     *big.Int
+	queueOrigin     QueueOrigin
 }
 
 func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool, l1MessageSender *common.Address, l1BlockNumber *big.Int, queueOrigin QueueOrigin) Message {
@@ -535,7 +531,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 
 		l1BlockNumber:   l1BlockNumber,
 		l1MessageSender: l1MessageSender,
-		queueOrigin:     big.NewInt(int64(queueOrigin)),
+		queueOrigin:     queueOrigin,
 	}
 }
 
@@ -550,4 +546,4 @@ func (m Message) CheckNonce() bool     { return m.checkNonce }
 
 func (m Message) L1MessageSender() *common.Address { return m.l1MessageSender }
 func (m Message) L1BlockNumber() *big.Int          { return m.l1BlockNumber }
-func (m Message) QueueOrigin() *big.Int            { return m.queueOrigin }
+func (m Message) QueueOrigin() QueueOrigin         { return m.queueOrigin }

@@ -77,7 +77,7 @@ type Message interface {
 	Data() []byte
 	L1MessageSender() *common.Address
 	L1BlockNumber() *big.Int
-	QueueOrigin() *big.Int
+	QueueOrigin() types.QueueOrigin
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
@@ -184,9 +184,7 @@ func (st *StateTransition) preCheck() error {
 		if nonce < st.msg.Nonce() {
 			if vm.UsingOVM {
 				// The nonce never increments for L1ToL2 txs
-				qo := st.msg.QueueOrigin()
-				l1ToL2 := uint64(types.QueueOriginL1ToL2)
-				if qo != nil && qo.Uint64() == l1ToL2 {
+				if st.msg.QueueOrigin() == types.QueueOriginL1ToL2 {
 					return st.buyGas()
 				}
 			}
