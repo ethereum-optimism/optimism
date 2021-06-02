@@ -179,7 +179,7 @@ library Lib_ExecutionManagerWrapper {
             bytes memory
         )
     {
-        bytes memory returndata = _safeExecutionManagerInteraction(
+        bytes memory returndata = _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmCALL(uint256,address,uint256,bytes)",
                 _gasLimit,
@@ -205,7 +205,7 @@ library Lib_ExecutionManagerWrapper {
             uint256
         )
     {
-        bytes memory returndata = _safeExecutionManagerInteraction(
+        bytes memory returndata = _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmBALANCE(address)",
                 _address
@@ -225,7 +225,7 @@ library Lib_ExecutionManagerWrapper {
             uint256
         )
     {
-        bytes memory returndata = _safeExecutionManagerInteraction(
+        bytes memory returndata = _callWrapperContract(
             abi.encodeWithSignature(
                 "ovmCALLVALUE()"
             )
