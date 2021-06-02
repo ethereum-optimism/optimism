@@ -80,6 +80,7 @@ services:
       - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
+        ROLLUP_TIMESTAMP_REFRESH: 5s
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
         # used for getting the addresses
         URL: http://deployer:8081/addresses.json
