@@ -53,7 +53,7 @@ const config: HardhatUserConfig = {
     },
   },
   ovm: {
-    solcVersion: '0.7.6',
+    solcVersion: '0.7.6-experimental_callvalue',
   },
   typechain: {
     outDir: 'dist/types',
