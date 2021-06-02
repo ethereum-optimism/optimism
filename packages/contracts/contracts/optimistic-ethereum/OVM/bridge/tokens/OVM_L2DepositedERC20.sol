@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
-import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
+import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
 
 /* Library Imports */
@@ -28,13 +28,13 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      * Contract Events *
      *******************/
 
-    event Initialized(iOVM_L1ERC20Bridge _l1TokenBridge, iOVM_ERC20 _l1Token);
+    event Initialized(iOVM_L1StandardBridge _l1TokenBridge, iOVM_ERC20 _l1Token);
 
     /********************************
      * External Contract References *
      ********************************/
 
-    iOVM_L1ERC20Bridge public l1TokenBridge;
+    iOVM_L1StandardBridge public l1TokenBridge;
     iOVM_ERC20 public l1Token;
 
     /***************
@@ -58,7 +58,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
         UniswapV2ERC20(_name, _symbol)
     {
-        l1TokenBridge = iOVM_L1ERC20Bridge(_l1TokenBridge);
+        l1TokenBridge = iOVM_L1StandardBridge(_l1TokenBridge);
         l1Token = iOVM_ERC20(_l1Token);
     }
 
@@ -144,7 +144,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
 
         // Construct calldata for l1TokenBridge.finalizeERC20Withdrawal(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
+            iOVM_L1StandardBridge.finalizeERC20Withdrawal.selector,
             l1Token,
             address(this),
             _from,
@@ -196,7 +196,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         if(_l1Token != address(l1Token)) {
 
             bytes memory message = abi.encodeWithSelector(
-                iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
+                iOVM_L1StandardBridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
                 address(this),
                 _from,

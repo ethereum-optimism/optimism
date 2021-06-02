@@ -26,11 +26,11 @@ const MOCK_L1TOKEN_ADDRESS: string =
 describe('OVM_L2DepositedERC20', () => {
   let alice: Signer
   let bob: Signer
-  let Factory__OVM_L1ERC20Bridge: ContractFactory
+  let Factory__OVM_L1StandardBridge: ContractFactory
   before(async () => {
     ;[alice, bob] = await ethers.getSigners()
-    Factory__OVM_L1ERC20Bridge = await ethers.getContractFactory(
-      'OVM_L1ERC20Bridge'
+    Factory__OVM_L1StandardBridge = await ethers.getContractFactory(
+      'OVM_L1StandardBridge'
     )
   })
 
@@ -85,7 +85,7 @@ describe('OVM_L2DepositedERC20', () => {
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
 
-    it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1ERC20Bridge)', async () => {
+    it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1L1StandardBridge)', async () => {
       Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         NON_ZERO_ADDRESS
       )
@@ -177,12 +177,12 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       // Assert the correct cross-chain call was sent:
-      // Message should be sent to the L1ERC20Bridge on L1
+      // Message should be sent to the L1L1StandardBridge on L1
       expect(withdrawalCallToMessenger._target).to.equal(MOCK_L1GATEWAY_ADDRESS)
-      // Message data should be a call telling the L1ERC20Bridge to finalize the withdrawal
+      // Message data should be a call telling the L1L1StandardBridge to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
-        Factory__OVM_L1ERC20Bridge.interface.encodeFunctionData(
-          'finalizeWithdrawal',
+        Factory__OVM_L1StandardBridge.interface.encodeFunctionData(
+          'finalizeERC20Withdrawal',
           [
             MOCK_L1TOKEN_ADDRESS,
             SmoddedL2DepositedToken.address,
@@ -234,12 +234,12 @@ describe('OVM_L2DepositedERC20', () => {
       )
 
       // Assert the correct cross-chain call was sent.
-      // Message should be sent to the L1ERC20Bridge on L1
+      // Message should be sent to the L1L1StandardBridge on L1
       expect(withdrawalCallToMessenger._target).to.equal(MOCK_L1GATEWAY_ADDRESS)
-      // The message data should be a call telling the L1ERC20Bridge to finalize the withdrawal
+      // The message data should be a call telling the L1L1StandardBridge to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
-        Factory__OVM_L1ERC20Bridge.interface.encodeFunctionData(
-          'finalizeWithdrawal',
+        Factory__OVM_L1StandardBridge.interface.encodeFunctionData(
+          'finalizeERC20Withdrawal',
           [
             MOCK_L1TOKEN_ADDRESS,
             SmoddedL2DepositedToken.address,

@@ -4,7 +4,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
+import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -17,7 +17,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
 /**
- * @title OVM_L1ERC20Bridge
+ * @title OVM_L1StandardBridge
  * @dev The L1 ERC20 Bridge is a contract which stores deposited L1 funds that are in use on L2.
  * It synchronizes a corresponding L2 ERC20 Bridge, informing it of deposits, and listening to it
  * for newly finalized withdrawals.
@@ -25,7 +25,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled, Lib_AddressResolver {
+contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, Lib_AddressResolver {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 
@@ -356,7 +356,7 @@ contract OVM_L1ERC20Bridge is iOVM_L1ERC20Bridge, OVM_CrossDomainEnabled, Lib_Ad
         address owner = Lib_AddressManager(libAddressManager).owner();
         require(msg.sender == owner, "Only the owner can migrate ETH");
         uint256 balance = address(this).balance;
-        OVM_L1ERC20Bridge(_to).donateETH{value:balance}();
+        OVM_L1StandardBridge(_to).donateETH{value:balance}();
     }
 
     /**

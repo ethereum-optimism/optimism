@@ -64,8 +64,8 @@ export const getAddressManager = (provider: any) => {
 }
 
 // Gets the gateway using the proxy if available
-export const getGateway = async (wallet: Wallet, AddressManager: Contract) => {
-  const l1GatewayInterface = getContractInterface('OVM_L1ETHGateway')
+export const getBridge = async (wallet: Wallet, AddressManager: Contract) => {
+  const l1BridgeInterface = getContractInterface('OVM_L1ETHGateway')
   const ProxyGatewayAddress = await AddressManager.getAddress(
     'Proxy__OVM_L1ETHGateway'
   )
@@ -76,7 +76,7 @@ export const getGateway = async (wallet: Wallet, AddressManager: Contract) => {
 
   const OVM_L1ETHGateway = new Contract(
     addressToUse,
-    l1GatewayInterface,
+    l1BridgeInterface,
     wallet
   )
 

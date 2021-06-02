@@ -9,7 +9,7 @@ import {
   l2Wallet,
   fundUser,
   getOvmEth,
-  getGateway,
+  getBridge,
 } from './utils'
 import {
   initWatcher,
@@ -53,7 +53,7 @@ export class OptimismEnv {
   static async new(): Promise<OptimismEnv> {
     const addressManager = getAddressManager(l1Wallet)
     const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
-    const gateway = await getGateway(l1Wallet, addressManager)
+    const gateway = await getBridge(l1Wallet, addressManager)
 
     // fund the user if needed
     const balance = await l2Wallet.getBalance()
