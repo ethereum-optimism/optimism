@@ -89,11 +89,15 @@ const smockifyFunction = (
 
           return {
             functionName: fragment.name,
+            functionSignature: fragment.format(),
             data,
           }
         })
         .filter((functionResult: any) => {
-          return functionResult.functionName === functionName
+          return (
+            functionResult.functionName === functionName ||
+            functionResult.functionSignature === functionName
+          )
         })
         .map((functionResult: any) => {
           return functionResult.data
