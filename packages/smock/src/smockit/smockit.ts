@@ -79,7 +79,10 @@ const smockifyFunction = (
 
           let data: any = toHexString(calldataBuf)
           try {
-            data = contract.interface.decodeFunctionData(fragment.name, data)
+            data = contract.interface.decodeFunctionData(
+              fragment.format(),
+              data
+            )
           } catch (e) {
             console.error(e)
           }
