@@ -29,6 +29,7 @@ describe('OVM_L1StandardBridge', () => {
   let alice: Signer
   let bob: Signer
   let bobsAddress
+  let aliceAddress
 
   // we can just make up this string since it's on the "other" Layer
   let AddressManager: Contract
@@ -48,7 +49,7 @@ describe('OVM_L1StandardBridge', () => {
     Factory__L1ERC20 = await smoddit('UniswapV2ERC20')
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
 
-    const aliceAddress = await alice.getAddress()
+    aliceAddress = await alice.getAddress()
     bobsAddress = await bob.getAddress()
     await L1ERC20.smodify.put({
       totalSupply: INITIAL_TOTAL_L1_SUPPLY,
@@ -145,7 +146,6 @@ describe('OVM_L1StandardBridge', () => {
 
     it('depositTo() escrows the deposit amount and sends the correct deposit message', async () => {
       // depositor calls deposit on the bridge and the L1 bridge calls transferFrom on the token
-      const aliceAddress = await alice.getAddress()
       const initialBalance = await ethers.provider.getBalance(aliceAddress)
 
       await OVM_L1StandardBridge.connect(alice).depositETHTo(
