@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
-import { iAbs_BaseCrossDomainMessenger } from "../../iOVM/bridge/messaging/iAbs_BaseCrossDomainMessenger.sol";
+import { iOVM_CrossDomainMessenger } from "../../iOVM/bridge/messaging/iOVM_CrossDomainMessenger.sol";
 
 /**
  * @title OVM_CrossDomainEnabled
@@ -74,10 +74,10 @@ contract OVM_CrossDomainEnabled {
         internal
         virtual
         returns (
-            iAbs_BaseCrossDomainMessenger
+            iOVM_CrossDomainMessenger
         )
     {
-        return iAbs_BaseCrossDomainMessenger(messenger);
+        return iOVM_CrossDomainMessenger(messenger);
     }
 
     /**

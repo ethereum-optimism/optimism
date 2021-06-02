@@ -6,12 +6,12 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
-import { iAbs_BaseCrossDomainMessenger } from "./iAbs_BaseCrossDomainMessenger.sol";
+import { iOVM_CrossDomainMessenger } from "./iOVM_CrossDomainMessenger.sol";
 
 /**
  * @title iOVM_L1CrossDomainMessenger
  */
-interface iOVM_L1CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
+interface iOVM_L1CrossDomainMessenger is iOVM_CrossDomainMessenger {
 
     /*******************
      * Data Structures *
