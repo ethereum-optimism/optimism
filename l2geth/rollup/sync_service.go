@@ -244,8 +244,12 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		s.SetLatestL1Timestamp(context.Timestamp)
 		s.SetLatestL1BlockNumber(context.BlockNumber)
 	} else {
+		// Prevent underflows
+		if *index != 0 {
+			*index = *index - 1
+		}
 		log.Info("Found latest index", "index", *index)
-		block := s.bc.GetBlockByNumber(*index - 1)
+		block := s.bc.GetBlockByNumber(*index)
 		if block == nil {
 			block = s.bc.CurrentBlock()
 			idx := block.Number().Uint64()
@@ -254,11 +258,12 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 				return fmt.Errorf("Current block height greater than index")
 			}
 			s.SetLatestIndex(&idx)
-			log.Info("Block not found, resetting index", "new", idx, "old", *index-1)
+			log.Info("Block not found, resetting index", "new", idx, "old", *index)
 		}
 		txs := block.Transactions()
 		if len(txs) != 1 {
-			log.Error("Unexpected number of transactions in block: %d", len(txs))
+			log.Error("Unexpected number of transactions in block", "count", len(txs))
+			panic("Cannot recover OVM Context")
 		}
 		tx := txs[0]
 		s.SetLatestL1Timestamp(tx.L1Timestamp())
