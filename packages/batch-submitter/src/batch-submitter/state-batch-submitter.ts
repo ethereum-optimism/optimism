@@ -190,7 +190,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       )
       this.logger.info('Submitted appendStateBatch transaction', {
         txHash: contractTx.hash,
-        from: contractTx.from
+        from: contractTx.from,
       })
       this.logger.debug('appendStateBatch transaction data', {
         data: contractTx.data,
