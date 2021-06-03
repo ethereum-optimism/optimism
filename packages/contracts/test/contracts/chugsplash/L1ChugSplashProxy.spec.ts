@@ -119,6 +119,22 @@ describe('L1ChugSplashProxy', () => {
 
       expect(await hre.ethers.provider.getCode(implementation)).to.equal(code)
     })
+
+    it('should not change the implementation if the code does not change', async () => {
+      const code = '0x1234'
+
+      await L1ChugSplashProxy.connect(signer1).setCode(code)
+
+      const implementation = await L1ChugSplashProxy.connect(
+        signer1
+      ).callStatic.getImplementation()
+
+      await L1ChugSplashProxy.connect(signer1).setCode(code)
+
+      expect(
+        await L1ChugSplashProxy.connect(signer1).callStatic.getImplementation()
+      ).to.equal(implementation)
+    })
   })
 
   describe('fallback', () => {
