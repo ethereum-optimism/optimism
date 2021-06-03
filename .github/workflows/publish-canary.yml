@@ -1,0 +1,262 @@
+name: Publish Packages (canary)
+
+on:
+  # enable users to manually trigger with workflow_dispatch
+  workflow_dispatch: {}
+
+jobs:
+  canary-publish:
+    name: Publish Packages (canary)
+    runs-on: ubuntu-latest
+    # map the step outputs to job outputs
+    outputs:
+      builder: ${{ steps.packages.outputs.builder }}
+      l2geth: ${{ steps.packages.outputs.l2geth }}
+      batch-submitter: ${{ steps.packages.outputs.batch-submitter }}
+      message-relayer: ${{ steps.packages.outputs.message-relayer }}
+      data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
+      contracts: ${{ steps.packages.outputs.contracts }}
+
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v2
+        with:
+          # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
+          fetch-depth: 0
+
+      - name: Setup Node.js 12.x
+        uses: actions/setup-node@master
+        with:
+          node-version: 12.x
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - uses: actions/cache@v2
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      
+      - name: Install Dependencies
+        run: yarn
+
+      - name: Build
+        run: yarn build
+
+      - name: Setup Canary Snapshot
+        run: yarn changeset version --snapshot
+
+      - name: Publish To NPM
+        uses: changesets/action@master
+        id: changesets
+        with:
+          publish: yarn changeset publish --tag canary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Conditional on the release being executed, we unbundle the publishedPackages to specific
+      # job outputs
+      - name: Get version tags from each published version
+        id: packages
+        run: |
+          node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
+
+
+  # The below code is duplicated, would be ideal if we could use a matrix with a
+  # key/value being dynamically generated from the `publishedPackages` output
+  # while also allowing for parallelization (i.e. `l2geth` not depending on `builder`)
+  # and all jobs executing in parallel once `builder` is built
+  l2geth:
+    name: Publish L2Geth Version ${{ needs.canary-publish.outputs.l2geth }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.l2geth != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Publish L2Geth
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.geth
+          push: true
+          tags: ethereumoptimism/l2geth:${{ needs.canary-publish.outputs.l2geth }}
+
+  # pushes the base builder image to dockerhub
+  builder:
+    name: Prepare the base builder image for the services
+    needs: canary-publish
+    if: needs.canary-publish.outputs.builder == 'true'
+    runs-on: ubuntu-latest
+    # we re-output the variables so that the child jobs can access them
+    outputs:
+      batch-submitter: ${{ needs.canary-publish.outputs.batch-submitter }}
+      message-relayer: ${{ needs.canary-publish.outputs.message-relayer }}
+      data-transport-layer: ${{ needs.canary-publish.outputs.data-transport-layer }}
+      contracts: ${{ needs.canary-publish.outputs.contracts }}
+      integration-tests: ${{ needs.canary-publish.outputs.integration-tests }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.monorepo
+          push: true
+          tags: ethereumoptimism/builder
+
+  message-relayer:
+    name: Publish Message Relayer Version ${{ needs.builder.outputs.message-relayer }}
+    needs: builder
+    if: needs.builder.outputs.message-relayer != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.message-relayer
+          push: true
+          tags: ethereumoptimism/message-relayer:${{ GITHUB_SHA::8 }}
+
+  batch-submitter:
+    name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
+    needs: builder
+    if: needs.builder.outputs.batch-submitter != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.batch-submitter
+          push: true
+          tags: ethereumoptimism/batch-submitter:${{ GITHUB_SHA::8 }}
+
+  data-transport-layer:
+    name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
+    needs: builder
+    if: needs.builder.outputs.data-transport-layer != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.data-transport-layer
+          push: true
+          tags: ethereumoptimism/data-transport-layer:${{ GITHUB_SHA::8 }}
+
+  contracts:
+    name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
+    needs: builder
+    if: needs.builder.outputs.contracts != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.deployer
+          push: true
+          tags: ethereumoptimism/deployer:${{ GITHUB_SHA::8 }}
+
+  integration_tests:
+    name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
+    needs: builder
+    if: needs.builder.outputs.integration-tests != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.integration-tests
+          push: true
+          tags: ethereumoptimism/integration-tests:${{ GITHUB_SHA::8 }}

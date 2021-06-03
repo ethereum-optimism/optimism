@@ -1,5 +1,3 @@
-#!/usr/bin/env ts-node-script
-
 import { Wallet } from 'ethers'
 import path from 'path'
 import dirtree from 'directory-tree'

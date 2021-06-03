@@ -80,6 +80,7 @@ services:
       - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
+        ROLLUP_TIMESTAMP_REFRESH: 5s
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
         # used for getting the addresses
         URL: http://deployer:8081/addresses.json
@@ -129,6 +130,35 @@ services:
         URL: http://deployer:8081/addresses.json
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 
+  verifier:
+    depends_on:
+      - l1_chain
+      - deployer
+      - dtl
+    image: ethereumoptimism/l2geth
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.geth
+    # override with the geth script and the env vars required for it
+    entrypoint: sh ./geth.sh
+    env_file:
+      - ./envs/geth.env
+    environment:
+        ETH1_HTTP: http://l1_chain:8545
+        ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
+        # used for getting the addresses
+        URL: http://deployer:8081/addresses.json
+        # connecting to the DTL
+        ROLLUP_CLIENT_HTTP: http://dtl:7878
+        ETH1_CTC_DEPLOYMENT_HEIGHT: 8
+        RETRIES: 60
+        IS_VERIFIER: "true"
+    ports:
+      - ${VERIFIER_HTTP_PORT:-8547}:8545
+      - ${VERIFIER_WS_PORT:-8548}:8546
+
   integration_tests:
     image: ethereumoptimism/integration-tests
     deploy:
@@ -143,3 +173,4 @@ services:
       URL: http://deployer:8081/addresses.json
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
+

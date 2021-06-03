@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.6
+
+### Patch Changes
+
+- f091e86: Fix to ensure that L1 => L2 success status is reflected correctly in receipts
+- f880479: End to end fee integration with recoverable L2 gas limit
+
+## 0.3.5
+
+### Patch Changes
+
+- d4c9793: Fixed a bug where reverts without data would not be correctly propagated for eth_call
+- 3958644: Adds the `debug_ingestTransactions` endpoint that takes a list of RPC transactions and applies each of them to the state sequentially. This is useful for testing purposes
+- c880043: Fix gas estimation logic for simple ETH transfers
+- 467d6cb: Adds a test for contract deployments that run out of gas
+- 4e6c3f9: add an env var METRICS_ENABLE for MetricsEnabledFlag
+
 ## 0.3.4
 
 ### Patch Changes

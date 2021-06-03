@@ -1,5 +1,12 @@
 # @eth-optimism/core-utils
 
+## 0.4.4
+
+### Patch Changes
+
+- f091e86: Have watcher correctly handle failed L1 => L2 messages
+- f880479: End to end fee integration with recoverable L2 gas limit
+
 ## 0.4.3
 
 ### Patch Changes

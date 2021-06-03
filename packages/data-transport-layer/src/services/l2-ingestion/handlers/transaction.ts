@@ -48,7 +48,7 @@ export const handleSequencerBlock = {
           s: padHexString(transaction.s, 32),
         },
         value: transaction.value,
-        gasLimit: BigNumber.from(transaction.gas).toNumber(),
+        gasLimit: BigNumber.from(transaction.gas).toString(),
         gasPrice: BigNumber.from(transaction.gasPrice).toNumber(), // ?
         nonce: BigNumber.from(transaction.nonce).toNumber(),
         target: transaction.to,
@@ -57,7 +57,7 @@ export const handleSequencerBlock = {
 
       transactionEntry = {
         ...transactionEntry,
-        gasLimit: SEQUENCER_GAS_LIMIT, // ?
+        gasLimit: `${SEQUENCER_GAS_LIMIT}`, // ?
         target: SEQUENCER_ENTRYPOINT_ADDRESS,
         origin: null,
         data: serialize(
@@ -82,7 +82,7 @@ export const handleSequencerBlock = {
     } else {
       transactionEntry = {
         ...transactionEntry,
-        gasLimit: BigNumber.from(transaction.gas).toNumber(),
+        gasLimit: BigNumber.from(transaction.gas).toString(),
         target: ethers.utils.getAddress(transaction.to),
         origin: ethers.utils.getAddress(transaction.l1TxOrigin),
         data: transaction.input,
