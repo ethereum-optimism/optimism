@@ -14,6 +14,8 @@ The base `docker-compose.yml` file will start the required components for a full
 
 Supplementing the base configuration is an additional metric enabling file, `docker-compose-metrics.yml`. Adding this configuration to the stack will enable metric emission for l2geth and start grafana (for metrics visualisation) and influxdb (for metric collection) instances.
 
+Also available for testing is the `rpc-proxy` service in the `docker-compose-rpc-proxy.yml` file. It can be used to restrict what RPC methods are allowed to the Sequencer.
+
 The base stack can be started and stopped with a command like this (there is no need to specify the default docker-compose.yml)
 ```
 docker-compose \

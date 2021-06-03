@@ -1,8 +1,19 @@
 name: Publish Packages (omgx-develop)
 
-push:
+
+# on:
+#   push:
+#     branches:
+#       - 'develop'
+on:
+  push:
     branches:
+      - 'master'
       - 'develop'
+      - '*rc'
+      - 'regenesis/*'
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   develop-publish:
@@ -76,6 +87,8 @@ jobs:
           file: ./ops/docker/Dockerfile.geth
           push: true
           tags: omgx/l2geth:develop
+          flavor: |
+            latest=true
 
   # pushes the base builder image to dockerhub
   builder:
