@@ -21,9 +21,9 @@ if [[ ! -z "$URL" ]]; then
     envSet ROLLUP_ADDRESS_MANAGER_OWNER_ADDRESS Deployer
 
     # set the address to the proxy gateway if possible
-    envSet ETH1_L1_ETH_GATEWAY_ADDRESS Proxy__OVM_L1ETHGateway
-    if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
-        envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
+    envSet ETH1_L1_STANDARD_BRIDGE_ADDRESS Proxy__OVM_L1StandardBridge
+    if [ $ETH1_L1_STANDARD_BRIDGE_ADDRESS == null ]; then
+        envSet ETH1_L1_STANDARD_BRIDGE_ADDRESS OVM_L1StandardBridge
     fi
 fi
 

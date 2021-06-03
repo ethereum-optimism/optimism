@@ -23,8 +23,9 @@ type Config struct {
 	L1CrossDomainMessengerAddress common.Address
 	L1FeeWalletAddress            common.Address
 	AddressManagerOwnerAddress    common.Address
-	L1ETHGatewayAddress           common.Address
 	GasPriceOracleOwnerAddress    common.Address
+	L1StandardBridgeAddress       common.Address
+	GasPriceOracleAddress         common.Address
 	// Turns on checking of state for L2 gas price
 	EnableL2GasPolling bool
 	// Deployment Height of the canonical transaction chain
