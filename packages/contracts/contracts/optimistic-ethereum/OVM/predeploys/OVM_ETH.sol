@@ -13,9 +13,20 @@ import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
  * Runtime target: OVM
  */
 contract OVM_ETH is L2StandardERC20 {
+
+    /*************
+     * Constants *
+     ************/
+
+    address internal constant L1_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    /***************
+     * Constructor *
+     ***************/
+
     constructor()
         L2StandardERC20(
-            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
+            L1_ETH_ADDRESS,
             "Ether",
             "ETH"
         )

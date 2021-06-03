@@ -29,6 +29,12 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 
+    /*************
+     * Constants *
+     ************/
+
+    address internal constant L1_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     /********************************
      * External Contract References *
      ********************************/
@@ -151,7 +157,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
         bytes memory message =
             abi.encodeWithSelector(
                 iOVM_L2ERC20Bridge.finalizeDeposit.selector,
-                0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
+                L1_ETH_ADDRESS,
                 _from,
                 _to,
                 msg.value,
