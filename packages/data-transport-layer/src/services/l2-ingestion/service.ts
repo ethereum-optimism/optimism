@@ -3,6 +3,8 @@ import { BaseService } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
+import axios from 'axios';
+import bfj from 'bfj';
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
@@ -168,11 +170,27 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         )
       })
     } else {
-      blocks = await this.state.l2RpcProvider.send('eth_getBlockRange', [
-        toRpcHexString(startBlockNumber),
-        toRpcHexString(endBlockNumber),
-        true,
-      ])
+      // This request returns a large response.  Parsing it into JSON inside the ethers library is
+      // quite slow, and can block the event loop for upwards of multiple seconds.  When this happens,
+      // incoming http requests will likely timeout and fail.
+      // Instead, we will parse the incoming http stream directly with the bfj package, which yields
+      // the event loop periodically so that we don't fail to serve requests.
+      const req = {
+        jsonrpc: '2.0',
+        method: 'eth_getBlockRange',
+        params: [
+          toRpcHexString(startBlockNumber),
+          toRpcHexString(endBlockNumber),
+          true,
+        ],
+        id: '1',
+      };
+
+      const resp = await axios.post(this.state.l2RpcProvider.connection.url, req, {responseType: 'stream'});
+      const respJson = await bfj.parse(resp.data, { 
+        yieldRate: 4096 // this yields abit more often than the default of 16384
+      });
+      const blocks = respJson.data;
     }
 
     for (const block of blocks) {
