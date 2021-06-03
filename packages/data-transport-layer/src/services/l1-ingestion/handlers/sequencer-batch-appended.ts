@@ -20,6 +20,7 @@ import {
 import {
   SEQUENCER_ENTRYPOINT_ADDRESS,
   SEQUENCER_GAS_LIMIT,
+  parseSignatureVParam,
 } from '../../../utils'
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<
@@ -249,7 +250,7 @@ const maybeDecodeSequencerBatchTransaction = (
       target: toHexString(decodedTx.to), // Maybe null this out for creations?
       data: toHexString(decodedTx.data),
       sig: {
-        v: BigNumber.from(decodedTx.v).toNumber() - 2 * l2ChainId - 35,
+        v: parseSignatureVParam(decodedTx.v, l2ChainId),
         r: toHexString(decodedTx.r),
         s: toHexString(decodedTx.s),
       },
