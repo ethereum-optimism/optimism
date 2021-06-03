@@ -78,7 +78,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
       batchExtraData: batchSubmissionEvent.args._extraData,
     }
   },
-  parseEvent: (event, extraData) => {
+  parseEvent: (event, extraData, l2ChainId) => {
     const transactionEntries: TransactionEntry[] = []
 
     // It's easier to deal with this data if it's a Buffer.
@@ -105,7 +105,8 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
         )
 
         const decoded = maybeDecodeSequencerBatchTransaction(
-          sequencerTransaction
+          sequencerTransaction,
+          l2ChainId
         )
 
         transactionEntries.push({
@@ -236,7 +237,8 @@ const parseSequencerBatchTransaction = (
 }
 
 const maybeDecodeSequencerBatchTransaction = (
-  transaction: Buffer
+  transaction: Buffer,
+  l2ChainId: number
 ): DecodedSequencerBatchTransaction | null => {
   try {
     const decodedTx = ethers.utils.parseTransaction(transaction)
@@ -249,7 +251,7 @@ const maybeDecodeSequencerBatchTransaction = (
       target: toHexString(decodedTx.to), // Maybe null this out for creations?
       data: toHexString(decodedTx.data),
       sig: {
-        v: BigNumber.from(decodedTx.v).toNumber(),
+        v: BigNumber.from(decodedTx.v).toNumber() - 2 * l2ChainId - 35,
         r: toHexString(decodedTx.r),
         s: toHexString(decodedTx.s),
       },
