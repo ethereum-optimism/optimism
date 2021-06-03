@@ -143,14 +143,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         const contractFunction = async (
           gasPrice
         ): Promise<TransactionReceipt> => {
+          this.logger.info('Submitting appendQueueBatch transaction', {
+            gasPrice,
+            nonce,
+            contractAddr: this.chainContract.address,
+          })
           const tx = await this.chainContract.appendQueueBatch(99999999, {
             nonce,
             gasPrice,
           })
           this.logger.info('Submitted appendQueueBatch transaction', {
-            nonce,
             txHash: tx.hash,
-            contractAddr: this.chainContract.address,
             from: tx.from,
           })
           this.logger.debug('appendQueueBatch transaction data', {
@@ -250,14 +253,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
     const nonce = await this.signer.getTransactionCount()
     const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
+      this.logger.info('Submitting appendSequencerBatch transaction', {
+        gasPrice,
+        nonce,
+        contractAddr: this.chainContract.address,
+      })
       const tx = await this.chainContract.appendSequencerBatch(batchParams, {
         nonce,
         gasPrice,
       })
       this.logger.info('Submitted appendSequencerBatch transaction', {
-        nonce,
         txHash: tx.hash,
-        contractAddr: this.chainContract.address,
         from: tx.from,
       })
       this.logger.debug('appendSequencerBatch transaction data', {
