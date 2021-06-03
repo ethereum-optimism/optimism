@@ -3,19 +3,18 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
 import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
 import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
-import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
+import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Bridge.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
 
 /* Contract Imports */
-import { UniswapV2ERC20 } from "../../../libraries/standards/UniswapV2ERC20.sol";
+import { L2StandardERC20 } from "../../../libraries/standards/L2StandardERC20.sol";
 
 /**
- * @title OVM_L2DepositedERC20
+ * @title OVM_L2StandardBridge
  * @dev The L2 Deposited ERC20 is an ERC20 implementation which represents L1 assets deposited into L2.
  * This contract mints new tokens when it hears about deposits into the L1 ERC20 bridge.
  * This contract also burns the tokens intended for withdrawal, informing the L1 bridge to release L1 funds.
@@ -24,14 +23,13 @@ import { UniswapV2ERC20 } from "../../../libraries/standards/UniswapV2ERC20.sol"
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, UniswapV2ERC20 {
+contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
 
     /********************************
      * External Contract References *
      ********************************/
 
-    iOVM_L1StandardBridge public l1TokenBridge;
-    iOVM_ERC20 public l1Token;
+    iOVM_L1ERC20Bridge public l1TokenBridge;
 
     /***************
      * Constructor *
@@ -40,22 +38,15 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
     /**
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
      * @param _l1TokenBridge Address of the L1 bridge deployed to the main chain.
-     * @param _l1Token Address of the corresponding L1 token.
-     * @param _name ERC20 name.
-     * @param _symbol ERC20 symbol.
+
      */
     constructor(
         address _l2CrossDomainMessenger,
-        address _l1TokenBridge,
-        address _l1Token,
-        string memory _name,
-        string memory _symbol
+        address _l1TokenBridge
     )
         OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
-        UniswapV2ERC20(_name, _symbol)
     {
         l1TokenBridge = iOVM_L1StandardBridge(_l1TokenBridge);
-        l1Token = iOVM_ERC20(_l1Token);
     }
 
     /***************
@@ -71,6 +62,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      *        length, these contracts provide no guarantees about its content.
      */
     function withdraw(
+        address _l2Token,
         uint256 _amount,
         uint32, // _l1Gas,
         bytes calldata _data
@@ -80,6 +72,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         virtual
     {
         _initiateWithdrawal(
+            _l2Token,
             msg.sender,
             msg.sender,
             _amount,
@@ -98,6 +91,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      *        length, these contracts provide no guarantees about its content.
      */
     function withdrawTo(
+        address _l2Token,
         address _to,
         uint256 _amount,
         uint32, // _l1Gas,
@@ -108,6 +102,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         virtual
     {
         _initiateWithdrawal(
+            _l2Token,
             msg.sender,
             _to,
             _amount,
@@ -127,6 +122,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      *        length, these contracts provide no guarantees about its content.
      */
     function _initiateWithdrawal(
+        address _l2Token,
         address _from,
         address _to,
         uint256 _amount,
@@ -136,9 +132,10 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
         internal
     {
         // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage
-        _burn(msg.sender, _amount);
+        L2StandardERC20(_l2Token).burn(msg.sender, _amount);
 
         // Construct calldata for l1TokenBridge.finalizeERC20Withdrawal(_to, _amount)
+        address l1Token = L2StandardERC20(_l2Token).l1Token();
         bytes memory message = abi.encodeWithSelector(
             iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
             l1Token,
@@ -168,6 +165,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      * L2 token.
      * This call will fail if it did not originate from a corresponding deposit in OVM_l1TokenGateway.
      * @param _l1Token Address for the l1 token this is called with
+     * @param _l2Token Address for the l2 token this is called with
      * @param _from Account to pull the deposit from on L2.
      * @param _to Address to receive the withdrawal at
      * @param _amount Amount of the token to withdraw
@@ -177,6 +175,7 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
      */
     function finalizeDeposit(
         address _l1Token,
+        address _l2Token,
         address _from,
         address _to,
         uint256 _amount,
@@ -189,12 +188,12 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
     {
         // Verify the deposited token on L1 matches the L2 deposited token representation here
         // Otherwise immediately queue a withdrawal
-        if(_l1Token != address(l1Token)) {
+        if(_l1Token != L2StandardERC20(_l2Token).l1Token()) {
 
             bytes memory message = abi.encodeWithSelector(
                 iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
-                address(this),
+                _l2Token,
                 _to,   // switched the _to and _from here to bounce back the deposit to the sender
                 _from,
                 _amount,
@@ -207,10 +206,10 @@ contract OVM_L2DepositedERC20 is iOVM_L2DepositedToken, OVM_CrossDomainEnabled, 
                 0,
                 message
             );
+        } else {
+            // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
+            L2StandardERC20(_l2Token).mint(_to, _amount);
+            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
         }
-
-        // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
-        _mint(_to, _amount);
-        emit DepositFinalized(_from, _to, _amount, _data);
     }
 }

@@ -6,7 +6,7 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
 import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
-import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
+import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
@@ -32,6 +32,8 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     /********************************
      * External Contract References *
      ********************************/
+
+    address public l2TokenBridge;
 
     address public ovmEth;
 
@@ -60,6 +62,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     function initialize(
         address _libAddressManager,
         address _l1messenger,
+        address _l2TokenBridge,
         address _ovmEth
     )
         public
@@ -67,6 +70,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
         require(libAddressManager == Lib_AddressManager(0), "Contract has already been initialized.");
         libAddressManager = Lib_AddressManager(_libAddressManager);
         messenger = _l1messenger;
+        l2TokenBridge = _l2TokenBridge;
         ovmEth = _ovmEth;
         messenger = resolve("Proxy__OVM_L1CrossDomainMessenger");
     }
@@ -146,7 +150,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
         // Construct calldata for finalizeDeposit call
         bytes memory message =
             abi.encodeWithSelector(
-                iOVM_L2DepositedToken.finalizeDeposit.selector,
+                iOVM_L2ERC20Bridge.finalizeDeposit.selector,
                 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
                 _from,
                 _to,
@@ -233,7 +237,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
 
         // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L2DepositedToken(_l2Token).finalizeDeposit.selector,
+            iOVM_L2ERC20Bridge(l2TokenBridge).finalizeDeposit.selector,
             _l1Token,
             _from,
             _to,
@@ -290,7 +294,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     )
         external
         override
-        onlyFromCrossDomainAccount(_l2Token)
+        onlyFromCrossDomainAccount(l2TokenBridge)
     {
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].sub(_amount);
 

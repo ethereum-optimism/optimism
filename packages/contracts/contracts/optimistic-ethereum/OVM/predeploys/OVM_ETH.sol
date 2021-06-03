@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
-/* Library Imports */
-import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
-
 /* Contract Imports */
-import { OVM_L2DepositedERC20 } from "../bridge/tokens/OVM_L2DepositedERC20.sol";
+import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
 
 /**
  * @title OVM_ETH
@@ -15,14 +12,9 @@ import { OVM_L2DepositedERC20 } from "../bridge/tokens/OVM_L2DepositedERC20.sol"
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_ETH is OVM_L2DepositedERC20 {
-    constructor(
-        address _l2CrossDomainMessenger,
-        address _l1ETHGateway
-    )
-        OVM_L2DepositedERC20(
-            _l2CrossDomainMessenger,
-            _l1ETHGateway,
+contract OVM_ETH is L2StandardERC20 {
+    constructor()
+        L2StandardERC20(
             0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
             "Ether",
             "ETH"

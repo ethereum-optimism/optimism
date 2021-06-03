@@ -23,7 +23,7 @@ const MOCK_L1GATEWAY_ADDRESS: string =
 const MOCK_L1TOKEN_ADDRESS: string =
   '0x2234223412342234223422342234223422342234'
 
-describe('OVM_L2DepositedERC20', () => {
+describe('OVM_L2StandardBridge', () => {
   let alice: Signer
   let bob: Signer
   let Factory__OVM_L1StandardBridge: ContractFactory

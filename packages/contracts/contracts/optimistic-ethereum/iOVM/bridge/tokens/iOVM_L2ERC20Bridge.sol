@@ -3,9 +3,9 @@ pragma solidity >0.5.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * @title iOVM_L2DepositedToken
+ * @title iOVM_L2ERC20Bridge
  */
-interface iOVM_L2DepositedToken {
+interface iOVM_L2ERC20Bridge {
 
     /**********
      * Events *
@@ -19,8 +19,10 @@ interface iOVM_L2DepositedToken {
     );
 
     event DepositFinalized(
+        address indexed _l1Token,
+        address indexed _l2Token,
         address indexed _from,
-        address indexed _to,
+        address _to,
         uint256 _amount,
         bytes _data
     );
@@ -31,6 +33,7 @@ interface iOVM_L2DepositedToken {
      ********************/
 
     function withdraw(
+        address _l2Token,
         uint _amount,
         uint32 _l1Gas,
         bytes calldata _data
@@ -38,6 +41,7 @@ interface iOVM_L2DepositedToken {
         external;
 
     function withdrawTo(
+        address _l2Token,
         address _to,
         uint _amount,
         uint32 _l1Gas,
@@ -52,6 +56,7 @@ interface iOVM_L2DepositedToken {
 
     function finalizeDeposit(
         address _l1Token,
+        address _l2Token,
         address _from,
         address _to,
         uint _amount,
