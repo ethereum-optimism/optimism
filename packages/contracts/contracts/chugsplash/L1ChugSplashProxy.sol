@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
+import { iL1ChugSplashDeployer } from "./interfaces/iL1ChugSplashDeployer.sol";
+
 /**
  * @title L1ChugSplashProxy
  * @dev Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added
@@ -46,6 +48,39 @@ contract L1ChugSplashProxy {
     /**********************
      * Function Modifiers *
      **********************/
+
+    /**
+     * Blocks a function from being called when the parent signals that the system should be paused
+     * via an isUpgrading function.
+     */
+    modifier onlyWhenNotPaused() {
+        address owner = _getOwner();
+
+        // We do a low-level call because there's no guarantee that the owner actually *is* an
+        // L1ChugSplashDeployer contract and Solidity will throw errors if we do a normal call and
+        // it turns out that it isn't the right type of contract.
+        (bool success, bytes memory returndata) = owner.call(
+            abi.encodeWithSelector(
+                iL1ChugSplashDeployer.isUpgrading.selector
+            )
+        );
+
+        // If the call was unsuccessful then we assume that there's no "isUpgrading" method and we
+        // can just continue as normal. We also expect that the return value is exactly 32 bytes
+        // long. If this isn't the case then we can safely ignore the result.
+        if (success && returndata.length == 32) {
+            // Although the expected value is a *boolean*, it's safer to decode as a uint256 in the
+            // case that the isUpgrading function returned something other than 0 or 1. But we only
+            // really care about the case where this value is 0 (= false).
+            uint256 ret = abi.decode(returndata, (uint256));
+            require(
+                ret == 0,
+                "L1ChugSplashProxy: system is currently being upgraded"
+            );
+        }
+
+        _;
+    }
 
     /**
      * Makes a proxy call instead of triggering the given function when the caller is either the
@@ -253,6 +288,7 @@ contract L1ChugSplashProxy {
      * Performs the proxy call via a delegatecall.
      */
     function _doProxyCall()
+        onlyWhenNotPaused
         internal
     {
         address implementation = _getImplementation();

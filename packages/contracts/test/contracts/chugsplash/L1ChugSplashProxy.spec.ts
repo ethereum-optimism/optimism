@@ -3,6 +3,10 @@ import { expect } from '../../setup'
 /* Imports: External */
 import hre from 'hardhat'
 import { Contract, Signer } from 'ethers'
+import { smockit } from '@eth-optimism/smock'
+
+/* Imports: Internal */
+import { getContractInterface } from '../../../src'
 
 describe('L1ChugSplashProxy', () => {
   let signer1: Signer
@@ -138,6 +142,23 @@ describe('L1ChugSplashProxy', () => {
           data: '0x',
         })
       ).to.not.be.reverted
+    })
+
+    it('should throw an error if the owner has signalled an upgrade', async () => {
+      const owner = await smockit(getContractInterface('iL1ChugSplashDeployer'))
+      const factory = await hre.ethers.getContractFactory('L1ChugSplashProxy')
+      const proxy = await factory.deploy(owner.address)
+
+      owner.smocked.isUpgrading.will.return.with(true)
+
+      await expect(
+        owner.wallet.sendTransaction({
+          to: proxy.address,
+          data: '0x',
+        })
+      ).to.be.revertedWith(
+        'L1ChugSplashProxy: system is currently being upgraded'
+      )
     })
   })
 })
