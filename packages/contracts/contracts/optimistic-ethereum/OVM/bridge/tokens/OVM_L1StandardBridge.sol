@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
+import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
 import { iOVM_L2DepositedToken } from "../../../iOVM/bridge/tokens/iOVM_L2DepositedToken.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -18,9 +19,8 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
  * @title OVM_L1StandardBridge
- * @dev The L1 ERC20 Bridge is a contract which stores deposited L1 funds that are in use on L2.
- * It synchronizes a corresponding L2 ERC20 Bridge, informing it of deposits, and listening to it
- * for newly finalized withdrawals.
+ * @dev The L1 ETH and ERC20 Bridge is a contract which stores deposited L1 funds and standard tokens that are in use on L2.
+ * It synchronizes a corresponding L2 Bridge, informing it of deposits, and listening to it for newly finalized withdrawals.
  *
  * Compiler used: solc
  * Runtime target: EVM
@@ -88,11 +88,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     }
 
     /**
-     * @dev Deposit an amount of the ETH to the caller's balance on L2.
-     * @param _l2Gas Gas limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     * @inheritdoc iOVM_L1StandardBridge
      */
     function depositETH(
         uint32 _l2Gas,
@@ -110,13 +106,8 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
         );
     }
 
-        /**
-     * @dev Deposit an amount of ETH to a recipient's balance on L2.
-     * @param _to L2 address to credit the withdrawal to.
-     * @param _l2Gas Gas limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+    /**
+     * @inheritdoc iOVM_L1StandardBridge
      */
     function depositETHTo(
         address _to,
@@ -174,14 +165,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     }
 
     /**
-     * @dev deposit an amount of the ERC20 to the caller's balance on L2.
-     * @param _l1Token Address of the L1 ERC20 we are depositing
-     * @param _l2Token Address of the L1 respective L2 ERC20
-     * @param _amount Amount of the ERC20 to deposit
-     * @param _l2Gas Gas limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     * @inheritdoc iOVM_L1ERC20Bridge
      */
     function depositERC20(
         address _l1Token,
@@ -197,16 +181,8 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
         _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, msg.sender, _amount, _l2Gas, _data);
     }
 
-    /**
-     * @dev deposit an amount of ERC20 to a recipient's balance on L2.
-     * @param _l1Token Address of the L1 ERC20 we are depositing
-     * @param _l2Token Address of the L1 respective L2 ERC20
-     * @param _to L2 address to credit the withdrawal to.
-     * @param _amount Amount of the ERC20 to deposit.
-     * @param _l2Gas Gas limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     /**
+     * @inheritdoc iOVM_L1ERC20Bridge
      */
     function depositERC20To(
         address _l1Token,
@@ -282,16 +258,8 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
      * Cross-chain Functions *
      *************************/
 
-    /**
-     * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
-     * L1 ETH token.
-     * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized.
-     * @param _from L2 address initiating the transfer.
-     * @param _to L1 address to credit the withdrawal to.
-     * @param _amount Amount of the ERC20 to deposit.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     /**
+     * @inheritdoc iOVM_L1StandardBridge
      */
     function finalizeETHWithdrawal(
         address _from,
@@ -310,18 +278,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     }
 
     /**
-     * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
-     * L1 ERC20 token.
-     * This call will fail if the initialized withdrawal from L2 has not been finalized.
-     *
-     * @param _l1Token Address of L1 token to finalizeWithdrawal for.
-     * @param _l2Token Address of L2 token where withdrawal was initiated.
-     * @param _from L2 address initiating the transfer.
-     * @param _to L1 address to credit the withdrawal to.
-     * @param _amount Amount of the ERC20 to deposit.
-     * @param _data Data provided by the sender on L2. This data is provided
-     *   solely as a convenience for external contracts. Aside from enforcing a maximum
-     *   length, these contracts provide no guarantees about its content.
+     * @inheritdoc iOVM_L1ERC20Bridge
      */
     function finalizeERC20Withdrawal(
         address _l1Token,
@@ -333,7 +290,6 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     )
         external
         override
-        virtual
         onlyFromCrossDomainAccount(_l2Token)
     {
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].sub(_amount);
