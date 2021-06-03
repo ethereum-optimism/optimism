@@ -1,7 +1,7 @@
 import { expect } from '../../setup'
 
 /* Imports: External */
-import hre, { ethers } from 'hardhat'
+import hre from 'hardhat'
 import { Contract, Signer } from 'ethers'
 
 describe('L1ChugSplashProxy', () => {
@@ -61,5 +61,83 @@ describe('L1ChugSplashProxy', () => {
     })
   })
 
-  describe('setStorage', () => {})
+  describe('getImplementation', () => {
+    it('should succeed if called by the owner', async () => {
+      expect(
+        await L1ChugSplashProxy.connect(signer1).callStatic.getImplementation()
+      ).to.equal(hre.ethers.constants.AddressZero)
+    })
+
+    it('should otherwise pass through to the proxied contract', async () => {
+      await expect(
+        L1ChugSplashProxy.connect(signer2).getImplementation()
+      ).to.be.revertedWith('L1ChugSplashProxy: implementation is not set yet')
+    })
+  })
+
+  describe('setStorage', () => {
+    it('should succeed if called by the owner', async () => {
+      const storageKey = hre.ethers.utils.keccak256('0x1234')
+      const storageValue = hre.ethers.utils.keccak256('0x5678')
+
+      await expect(
+        L1ChugSplashProxy.connect(signer1).setStorage(storageKey, storageValue)
+      ).to.not.be.reverted
+
+      expect(
+        await hre.ethers.provider.getStorageAt(
+          L1ChugSplashProxy.address,
+          storageKey
+        )
+      ).to.equal(storageValue)
+    })
+
+    it('should otherwise pass through to the proxied contract', async () => {
+      const storageKey = hre.ethers.utils.keccak256('0x1234')
+      const storageValue = hre.ethers.utils.keccak256('0x5678')
+
+      await expect(
+        L1ChugSplashProxy.connect(signer2).setStorage(storageKey, storageValue)
+      ).to.be.revertedWith('L1ChugSplashProxy: implementation is not set yet')
+    })
+  })
+
+  describe('setCode', () => {
+    it('should succeed if called by the owner', async () => {
+      const code = '0x1234'
+
+      await expect(L1ChugSplashProxy.connect(signer1).setCode(code)).to.not.be
+        .reverted
+
+      const implementation = await L1ChugSplashProxy.connect(
+        signer1
+      ).callStatic.getImplementation()
+
+      expect(await hre.ethers.provider.getCode(implementation)).to.equal(code)
+    })
+  })
+
+  describe('fallback', () => {
+    it('should pass through to the proxied contract', async () => {
+      await expect(
+        signer1.sendTransaction({
+          to: L1ChugSplashProxy.address,
+          data: '0x',
+        })
+      ).to.be.revertedWith('L1ChugSplashProxy: implementation is not set yet')
+    })
+
+    it('should execute the proxied contract when the implementation is set', async () => {
+      const code = '0x00' // STOP
+
+      await L1ChugSplashProxy.connect(signer1).setCode(code)
+
+      await expect(
+        signer1.sendTransaction({
+          to: L1ChugSplashProxy.address,
+          data: '0x',
+        })
+      ).to.not.be.reverted
+    })
+  })
 })

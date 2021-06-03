@@ -165,6 +165,21 @@ contract L1ChugSplashProxy {
         return _getOwner();
     }
 
+    /**
+     * Queries the implementation address. Can only be called by the owner OR by making an
+     * eth_call and setting the "from" address to address(0).
+     * @return Implementation address.
+     */
+    function getImplementation()
+        proxyCallIfNotOwner
+        public
+        returns (
+            address
+        )
+    {
+        return _getImplementation();
+    }
+
 
     /**********************
      * Internal Functions *
