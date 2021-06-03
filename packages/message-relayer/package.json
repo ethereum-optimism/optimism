@@ -8,7 +8,7 @@
     "dist/index"
   ],
   "scripts": {
-    "start": "node ./exec/run-message-relayer.js",
+    "start": "ts-node ./src/exec.ts",
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",

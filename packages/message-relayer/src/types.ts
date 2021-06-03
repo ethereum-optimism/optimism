@@ -1,33 +1,42 @@
-import { BigNumber } from 'ethers'
+import { ethers } from 'ethers'
 
 export interface StateRootBatchHeader {
-  batchIndex: BigNumber
+  batchIndex: ethers.BigNumber
   batchRoot: string
-  batchSize: BigNumber
-  prevTotalElements: BigNumber
+  batchSize: ethers.BigNumber
+  prevTotalElements: ethers.BigNumber
   extraData: string
 }
 
-export interface SentMessage {
+export interface StateRootBatch {
+  header: StateRootBatchHeader
+  stateRoots: string[]
+}
+
+export interface CrossDomainMessage {
   target: string
   sender: string
   message: string
   messageNonce: number
-  encodedMessage: string
-  encodedMessageHash: string
-  parentTransactionIndex: number
-  parentTransactionHash: string
 }
 
-export interface SentMessageProof {
+export interface CrossDomainMessageProof {
   stateRoot: string
   stateRootBatchHeader: StateRootBatchHeader
-  stateRootProof: StateRootProof
-  stateTrieWitness: string | Buffer
-  storageTrieWitness: string | Buffer
+  stateRootProof: {
+    index: number
+    siblings: string[]
+  }
+  stateTrieWitness: string
+  storageTrieWitness: string
 }
 
-export interface StateRootProof {
-  index: number
-  siblings: string[]
+export interface CrossDomainMessagePair {
+  message: CrossDomainMessage
+  proof: CrossDomainMessageProof
+}
+
+export interface StateTrieProof {
+  accountProof: string
+  storageProof: string
 }

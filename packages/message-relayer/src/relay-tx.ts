@@ -5,57 +5,20 @@ import {
   remove0x,
   toHexString,
   toRpcHexString,
+  NUM_L2_GENESIS_BLOCKS,
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
 
-// Number of blocks added to the L2 chain before the first L2 transaction. Genesis are added to the
-// chain to initialize the system. However, they create a discrepancy between the L2 block number
-// the index of the transaction that corresponds to that block number. For example, if there's 1
-// genesis block, then the transaction with an index of 0 corresponds to the block with index 1.
-const NUM_L2_GENESIS_BLOCKS = 1
-
-interface StateRootBatchHeader {
-  batchIndex: ethers.BigNumber
-  batchRoot: string
-  batchSize: ethers.BigNumber
-  prevTotalElements: ethers.BigNumber
-  extraData: string
-}
-
-interface StateRootBatch {
-  header: StateRootBatchHeader
-  stateRoots: string[]
-}
-
-interface CrossDomainMessage {
-  target: string
-  sender: string
-  message: string
-  messageNonce: number
-}
-
-interface CrossDomainMessageProof {
-  stateRoot: string
-  stateRootBatchHeader: StateRootBatchHeader
-  stateRootProof: {
-    index: number
-    siblings: string[]
-  }
-  stateTrieWitness: string
-  storageTrieWitness: string
-}
-
-interface CrossDomainMessagePair {
-  message: CrossDomainMessage
-  proof: CrossDomainMessageProof
-}
-
-interface StateTrieProof {
-  accountProof: string
-  storageProof: string
-}
+/* Imports: Internal */
+import {
+  CrossDomainMessage,
+  CrossDomainMessagePair,
+  CrossDomainMessageProof,
+  StateRootBatch,
+  StateTrieProof,
+} from './types'
 
 /**
  * Finds all L2 => L1 messages triggered by a given L2 transaction, if the message exists.
@@ -113,7 +76,9 @@ export const getMessagesByTransactionHash = async (
  * @param message Message to encode.
  * @returns Encoded message.
  */
-const encodeCrossDomainMessage = (message: CrossDomainMessage): string => {
+export const encodeCrossDomainMessage = (
+  message: CrossDomainMessage
+): string => {
   return getContractInterface(
     'OVM_L2CrossDomainMessenger'
   ).encodeFunctionData('relayMessage', [
@@ -122,6 +87,46 @@ const encodeCrossDomainMessage = (message: CrossDomainMessage): string => {
     message.message,
     message.messageNonce,
   ])
+}
+
+/**
+ * Generates the hash of a cross domain message
+ * @param message Message to hash.
+ * @returns Hash of the message.
+ */
+export const getCrossDomainMessageHash = (
+  message: CrossDomainMessage
+): string => {
+  return ethers.utils.keccak256(encodeCrossDomainMessage(message))
+}
+
+/**
+ * Finds the StateBatchAppended event associated with a given batch index.
+ * @param l1RpcProvider L1 RPC provider.
+ * @param l1StateCommitmentChainAddress Address of the L1StateCommitmentChain.
+ * @param batchIndex Index of the batch to find a StateBatchAppended event for.
+ * @returns StateBatchAppended event for the given index or null if no such event exists.
+ */
+export const getStateBatchAppendedEventByBatchIndex = async (
+  l1RpcProvider: ethers.providers.JsonRpcProvider,
+  l1StateCommitmentChainAddress: string,
+  batchIndex: number
+): Promise<ethers.Event | null> => {
+  const l1StateCommitmentChain = new ethers.Contract(
+    l1StateCommitmentChainAddress,
+    getContractInterface('OVM_StateCommitmentChain'),
+    l1RpcProvider
+  )
+
+  const eventQueryResult = await l1StateCommitmentChain.queryFilter(
+    l1StateCommitmentChain.filters.StateBatchAppended(batchIndex)
+  )
+
+  if (eventQueryResult.length === 0) {
+    return null
+  } else {
+    return eventQueryResult[0]
+  }
 }
 
 /**
@@ -142,19 +147,6 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
     l1RpcProvider
   )
 
-  const getStateBatchAppendedEventByBatchIndex = async (
-    index: number
-  ): Promise<ethers.Event | null> => {
-    const eventQueryResult = await l1StateCommitmentChain.queryFilter(
-      l1StateCommitmentChain.filters.StateBatchAppended(index)
-    )
-    if (eventQueryResult.length === 0) {
-      return null
-    } else {
-      return eventQueryResult[0]
-    }
-  }
-
   const isEventHi = (event: ethers.Event, index: number) => {
     const prevTotalElements = event.args._prevTotalElements.toNumber()
     return index < prevTotalElements
@@ -174,6 +166,8 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
   let lowerBound = 0
   let upperBound = totalBatches.toNumber() - 1
   let batchEvent: ethers.Event | null = await getStateBatchAppendedEventByBatchIndex(
+    l1RpcProvider,
+    l1StateCommitmentChainAddress,
     upperBound
   )
 
@@ -190,7 +184,11 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
   // exist and that we'll find it during this search.
   while (lowerBound < upperBound) {
     const middleOfBounds = Math.floor((lowerBound + upperBound) / 2)
-    batchEvent = await getStateBatchAppendedEventByBatchIndex(middleOfBounds)
+    batchEvent = await getStateBatchAppendedEventByBatchIndex(
+      l1RpcProvider,
+      l1StateCommitmentChainAddress,
+      middleOfBounds
+    )
 
     if (isEventHi(batchEvent, l2TransactionIndex)) {
       upperBound = middleOfBounds
@@ -202,6 +200,52 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
   }
 
   return batchEvent
+}
+
+/**
+ * Finds the full state root batch associated with a given batch index.
+ * @param l1RpcProvider L1 RPC provider.
+ * @param l1StateCommitmentChainAddress Address of the L1StateCommitmentChain.
+ * @param batchIndex Index find a state root batch for.
+ * @returns State root batch associated with the given index or null if no state root
+ * batch exists.
+ */
+export const getStateRootBatchByBatchIndex = async (
+  l1RpcProvider: ethers.providers.JsonRpcProvider,
+  l1StateCommitmentChainAddress: string,
+  batchIndex: number
+): Promise<StateRootBatch | null> => {
+  const l1StateCommitmentChain = new ethers.Contract(
+    l1StateCommitmentChainAddress,
+    getContractInterface('OVM_StateCommitmentChain'),
+    l1RpcProvider
+  )
+
+  const stateBatchAppendedEvent = await getStateBatchAppendedEventByBatchIndex(
+    l1RpcProvider,
+    l1StateCommitmentChainAddress,
+    batchIndex
+  )
+  if (stateBatchAppendedEvent === null) {
+    return null
+  }
+
+  const stateBatchTransaction = await stateBatchAppendedEvent.getTransaction()
+  const [stateRoots] = l1StateCommitmentChain.interface.decodeFunctionData(
+    'appendStateBatch',
+    stateBatchTransaction.data
+  )
+
+  return {
+    header: {
+      batchIndex: stateBatchAppendedEvent.args._batchIndex,
+      batchRoot: stateBatchAppendedEvent.args._batchRoot,
+      batchSize: stateBatchAppendedEvent.args._batchSize,
+      prevTotalElements: stateBatchAppendedEvent.args._prevTotalElements,
+      extraData: stateBatchAppendedEvent.args._extraData,
+    },
+    stateRoots,
+  }
 }
 
 /**
