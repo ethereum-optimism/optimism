@@ -52,11 +52,12 @@ const main = async () => {
     path.resolve(__dirname, `../deployments/custom`)
   ).children.filter((child) => {
     return child.extension === '.json'
-  }).reduce((contracts, child) => {
+  }).reduce((contractsAccumulator, child) => {
     const contractName = child.name.replace('.json', '')
+    // eslint-disable-next-line
     const artifact = require(path.resolve(__dirname, `../deployments/custom/${child.name}`))
-    contracts[nicknames[contractName] || contractName] = artifact.address
-    return contracts
+    contractsAccumulator[nicknames[contractName] || contractName] = artifact.address
+    return contractsAccumulator
   }, {})
 
   contracts.OVM_Sequencer = await sequencer.getAddress()
@@ -80,9 +81,9 @@ main()
     process.exit(1)
   })
 
-function parseEnv() {
-  function ensure(env, type) {
-    if (typeof process.env[env] === 'undefined'){
+const parseEnv = () => {
+  const ensure = (env, type) => {
+    if (typeof process.env[env] === 'undefined') {
       return undefined
     }
     if (type === 'number') {

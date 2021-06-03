@@ -162,6 +162,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
 
   /**
    * Registers a route on the server.
+   *
    * @param method Http method type.
    * @param route Route to register.
    * @param handler Handler called and is expected to return a JSON response.

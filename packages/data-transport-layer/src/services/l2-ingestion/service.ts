@@ -132,6 +132,7 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
 
   /**
    * Synchronizes unconfirmed transactions from a range of sequencer blocks.
+   *
    * @param startBlockNumber Block to start querying from.
    * @param endBlockNumber Block to query to.
    */

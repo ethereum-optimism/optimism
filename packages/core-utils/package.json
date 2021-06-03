@@ -24,7 +24,6 @@
     "@types/mocha": "^8.2.2",
     "@types/prettier": "^2.2.3",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/eslint-plugin-tslint": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "chai": "^4.3.0",
     "eslint": "^7.27.0",

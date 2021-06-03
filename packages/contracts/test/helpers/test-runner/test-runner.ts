@@ -95,10 +95,10 @@ export class ExecutionManagerTestRunner {
   }
 
   public run(test: TestDefinition) {
-    /*eslint no-sequences: "off"*/
     ;(test.preState = merge(
       cloneDeep(this.defaultPreState),
       cloneDeep(test.preState)
+      // eslint-disable-next-line
     )),
       (test.postState = test.postState || {})
 

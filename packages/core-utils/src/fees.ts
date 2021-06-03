@@ -1,6 +1,7 @@
 /**
  * Fee related serialization and deserialization
  */
+/* eslint prefer-arrow/prefer-arrow-functions: "off" */
 
 import { BigNumber } from 'ethers'
 import { remove0x } from './common'

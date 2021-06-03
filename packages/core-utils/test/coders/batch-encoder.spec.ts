@@ -42,6 +42,7 @@ describe('BatchEncoder', () => {
     })
 
     it('should work with mainnet calldata', () => {
+      // eslint-disable-next-line
       const data = require('../fixtures/appendSequencerBatch.json')
       for (const calldata of data.calldata) {
         const decoded = sequencerBatch.decode(calldata)

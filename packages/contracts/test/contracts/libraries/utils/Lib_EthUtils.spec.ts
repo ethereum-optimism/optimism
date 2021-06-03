@@ -1,4 +1,5 @@
-/* tslint:disable:no-empty */
+/* eslint no-empty-function: "off"*/
+/* eslint @typescript-eslint/no-empty-function: "off" */
 import { expect } from '../../../setup'
 
 /* External Imports */
