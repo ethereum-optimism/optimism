@@ -2,7 +2,5 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
       "resolveJsonModule": true
-  },
-  "include": ["./test", "sync-tests/*.ts"],
-  "files": ["./hardhat.config.ts"]
+  }
 }
