@@ -38,7 +38,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d
+        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
 
       # Sync tests have to be run outside of docker since it spins up
       # its own containers
