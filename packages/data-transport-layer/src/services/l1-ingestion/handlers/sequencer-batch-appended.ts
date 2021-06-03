@@ -2,11 +2,9 @@
 import { BigNumber, ethers, constants } from 'ethers'
 import { getContractFactory } from '@eth-optimism/contracts'
 import {
-  ctcCoder,
   fromHexString,
   toHexString,
   toRpcHexString,
-  TxType,
   EventArgsSequencerBatchAppended,
 } from '@eth-optimism/core-utils'
 

@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type QueueOrigin int64
+type QueueOrigin uint8
 
 const (
 	// Possible `queue_origin` values
@@ -20,13 +20,24 @@ const (
 	QueueOriginL1ToL2    QueueOrigin = 1
 )
 
+func (q QueueOrigin) String() string {
+	switch q {
+	case QueueOriginSequencer:
+		return "sequencer"
+	case QueueOriginL1ToL2:
+		return "l1"
+	default:
+		return ""
+	}
+}
+
 //go:generate gencodec -type TransactionMeta -out gen_tx_meta_json.go
 
 type TransactionMeta struct {
 	L1BlockNumber   *big.Int        `json:"l1BlockNumber"`
 	L1Timestamp     uint64          `json:"l1Timestamp"`
 	L1MessageSender *common.Address `json:"l1MessageSender" gencodec:"required"`
-	QueueOrigin     *big.Int        `json:"queueOrigin" gencodec:"required"`
+	QueueOrigin     QueueOrigin     `json:"queueOrigin" gencodec:"required"`
 	// The canonical transaction chain index
 	Index *uint64 `json:"index" gencodec:"required"`
 	// The queue index, nil for queue origin sequencer transactions
@@ -40,7 +51,7 @@ func NewTransactionMeta(l1BlockNumber *big.Int, l1timestamp uint64, l1MessageSen
 		L1BlockNumber:   l1BlockNumber,
 		L1Timestamp:     l1timestamp,
 		L1MessageSender: l1MessageSender,
-		QueueOrigin:     big.NewInt(int64(queueOrigin)),
+		QueueOrigin:     queueOrigin,
 		Index:           index,
 		QueueIndex:      queueIndex,
 		RawTransaction:  rawTransaction,
@@ -83,7 +94,7 @@ func TxMetaDecode(input []byte) (*TransactionMeta, error) {
 	}
 	if !isNullValue(qo) {
 		queueOrigin := new(big.Int).SetBytes(qo)
-		meta.QueueOrigin = queueOrigin
+		meta.QueueOrigin = QueueOrigin(queueOrigin.Uint64())
 	}
 
 	l, err := common.ReadVarBytes(b, 0, 1024, "L1Timestamp")
@@ -146,13 +157,9 @@ func TxMetaEncode(meta *TransactionMeta) []byte {
 	}
 
 	queueOrigin := meta.QueueOrigin
-	if queueOrigin == nil {
-		common.WriteVarBytes(b, 0, getNullValue())
-	} else {
-		q := new(bytes.Buffer)
-		binary.Write(q, binary.LittleEndian, queueOrigin.Bytes())
-		common.WriteVarBytes(b, 0, q.Bytes())
-	}
+	q := new(bytes.Buffer)
+	binary.Write(q, binary.LittleEndian, queueOrigin)
+	common.WriteVarBytes(b, 0, q.Bytes())
 
 	l := new(bytes.Buffer)
 	binary.Write(l, binary.LittleEndian, &meta.L1Timestamp)

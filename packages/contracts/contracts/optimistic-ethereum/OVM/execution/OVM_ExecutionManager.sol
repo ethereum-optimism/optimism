@@ -85,6 +85,17 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     uint256 constant DEFAULT_UINT256 = 0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
     address constant DEFAULT_ADDRESS = 0xdEfa017defA017DeFA017DEfa017DeFA017DeFa0;
 
+
+    /*************************************
+     * Container Contract Address Prefix *
+     *************************************/
+
+    /**
+     * @dev The Execution Manager and State Manager each have this 30 byte prefix, and are uncallable.
+     */
+    address constant CONTAINER_CONTRACT_PREFIX = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
+
+
     /***************
      * Constructor *
      ***************/
@@ -580,9 +591,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address proxyEOA = Lib_EthUtils.createContract(abi.encodePacked(
             hex"600D380380600D6000396000f3",
             ovmEXTCODECOPY(
-                Lib_PredeployAddresses.ovmProxyEOA,
+                Lib_PredeployAddresses.PROXY_EOA,
                 0,
-                ovmEXTCODESIZE(Lib_PredeployAddresses.ovmProxyEOA)
+                ovmEXTCODESIZE(Lib_PredeployAddresses.PROXY_EOA)
             )
         ));
 
@@ -941,7 +952,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // the deployer ovmCALLing the whitelist.  This is fine--in a sense, we are forcing them to.
         (bool success, bytes memory data) = ovmCALL(
             gasleft(),
-            Lib_PredeployAddresses.ovmDeployerWhitelist,
+            Lib_PredeployAddresses.DEPLOYER_WHITELIST,
             0,
             abi.encodeWithSignature("isDeployerAllowed(address)", _deployerAddress)
         );
@@ -1024,7 +1035,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // So, we block calls to these addresses since they are not safe to run as an OVM contract itself.
         if (
             (uint256(_contract) & uint256(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000))
-            == uint256(0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000)
+            == uint256(CONTAINER_CONTRACT_PREFIX)
         ) {
             // EVM does not return data in the success case, see: https://github.com/ethereum/go-ethereum/blob/aae7660410f0ef90279e14afaaf2f429fdc2a186/core/vm/instructions.go#L600-L604
             return (true, hex'');

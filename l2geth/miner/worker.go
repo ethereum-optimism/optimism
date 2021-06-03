@@ -869,7 +869,7 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	// transactions as the timestamp cannot be malleated
 	if parent.Time() > tx.L1Timestamp() {
 		log.Error("Monotonicity violation", "index", num)
-		if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginSequencer) {
+		if tx.QueueOrigin() == types.QueueOriginSequencer {
 			tx.SetL1Timestamp(parent.Time())
 			prev := parent.Transactions()
 			if len(prev) == 1 {

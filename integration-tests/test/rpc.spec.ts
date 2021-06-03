@@ -134,7 +134,7 @@ describe('Basic RPC tests', () => {
         gasPrice: TxGasPrice,
       }
       const fee = tx.gasPrice.mul(tx.gasLimit)
-      const gasLimit = 59300000001
+      const gasLimit = 5920001
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
         `fee too low: ${fee}, use at least tx.gasLimit = ${gasLimit} and tx.gasPrice = ${TxGasPrice.toString()}`
@@ -213,7 +213,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract calls', async () => {
       const req: TransactionRequest = {
         ...revertingTx,
-        gasLimit: 59808999999, // override gas estimation
+        gasLimit: 5980899, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -236,7 +236,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
-        gasLimit: 177008999999, // override gas estimation
+        gasLimit: 17700899, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -353,7 +353,7 @@ describe('Basic RPC tests', () => {
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
-      expect(estimate).to.be.eq(0x0dce9004c7)
+      expect(estimate).to.be.eq(5920012)
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
@@ -371,6 +371,7 @@ describe('Basic RPC tests', () => {
         const estimate = await l2Provider.estimateGas(tx)
         const l2Gaslimit = await l2Provider.send('eth_estimateExecutionGas', [
           tx,
+          true,
         ])
 
         const decoded = TxGasLimit.decode(estimate)

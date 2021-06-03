@@ -1148,9 +1148,17 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (h
 
 // EstimateExecutionGas returns an estimate of the amount of gas needed to execute the
 // given transaction against the current pending block.
-func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
+func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs, round *bool) (hexutil.Uint64, error) {
 	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
-	return legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+	estimate, err := legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+	if err != nil {
+		return estimate, err
+	}
+	if round != nil && *round {
+		rounded := fees.Ceilmod(new(big.Int).SetUint64(uint64(estimate)), fees.BigTenThousand)
+		estimate = (hexutil.Uint64)(rounded.Uint64())
+	}
+	return estimate, nil
 }
 
 // ExecutionResult groups all structured logs emitted by the EVM
@@ -1356,14 +1364,8 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		if meta.L1BlockNumber != nil {
 			result.L1BlockNumber = (*hexutil.Big)(meta.L1BlockNumber)
 		}
-		if meta.QueueOrigin != nil {
-			switch meta.QueueOrigin.Uint64() {
-			case uint64(types.QueueOriginSequencer):
-				result.QueueOrigin = "sequencer"
-			case uint64(types.QueueOriginL1ToL2):
-				result.QueueOrigin = "l1"
-			}
-		}
+
+		result.QueueOrigin = fmt.Sprint(meta.QueueOrigin)
 
 		if meta.Index != nil {
 			index := (hexutil.Uint64)(*meta.Index)
@@ -2160,7 +2162,7 @@ func (api *PrivateDebugAPI) IngestTransactions(txs []*RPCTransaction) error {
 			L1BlockNumber:   l1BlockNumber,
 			L1Timestamp:     l1Timestamp,
 			L1MessageSender: tx.L1TxOrigin,
-			QueueOrigin:     big.NewInt(int64(queueOrigin)),
+			QueueOrigin:     queueOrigin,
 			Index:           (*uint64)(tx.Index),
 			QueueIndex:      (*uint64)(tx.QueueIndex),
 			RawTransaction:  rawTransaction,

@@ -56,7 +56,7 @@ describe('Fees', () => {
         dataLen: 10,
         l1GasPrice: utils.parseUnits('5', 'ether'),
         l2GasPrice: utils.parseUnits('5', 'ether'),
-        l2GasLimit: 10 ** 8 - 1,
+        l2GasLimit: 99_970_000,
       },
       {
         name: 'zero-l2-gasprice',
@@ -113,7 +113,8 @@ describe('Fees', () => {
         })
 
         const decoded = fees.TxGasLimit.decode(got)
-        expect(decoded).to.deep.eq(BigNumber.from(test.l2GasLimit))
+        const roundedL2GasLimit = fees.ceilmod(test.l2GasLimit, 10_000)
+        expect(decoded).to.deep.eq(roundedL2GasLimit)
       })
     }
   })

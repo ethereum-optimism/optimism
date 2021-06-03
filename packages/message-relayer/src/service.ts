@@ -6,7 +6,6 @@ import { MerkleTree } from 'merkletreejs'
 /* Imports: Internal */
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
 import { BaseService } from '@eth-optimism/common-ts'
-import SpreadSheet from './spreadsheet'
 
 import {
   loadContract,
@@ -45,10 +44,6 @@ interface MessageRelayerOptions {
 
   // Number of blocks within each getLogs query - max is 2000
   getLogsInterval?: number
-
-  // Append txs to a spreadsheet instead of submitting transactions
-  spreadsheetMode?: boolean
-  spreadsheet?: SpreadSheet
 }
 
 const optionSettings = {
@@ -58,16 +53,12 @@ const optionSettings = {
   l2BlockOffset: { default: 1 },
   l1StartOffset: { default: 0 },
   getLogsInterval: { default: 2000 },
-  spreadsheetMode: { default: false },
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   constructor(options: MessageRelayerOptions) {
     super('Message_Relayer', options, optionSettings)
   }
-
-  protected spreadsheetMode: boolean
-  protected spreadsheet: SpreadSheet
 
   private state: {
     lastFinalizedTxHeight: number
@@ -88,7 +79,6 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       pollingInterval: this.options.pollingInterval,
       l2BlockOffset: this.options.l2BlockOffset,
       getLogsInterval: this.options.getLogsInterval,
-      spreadSheetMode: this.options.spreadsheetMode,
     })
     // Need to improve this, sorry.
     this.state = {} as any
@@ -144,10 +134,6 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     })
 
     this.logger.info('Connected to all contracts.')
-
-    if (this.options.spreadsheetMode) {
-      this.logger.info('Running in spreadsheet mode')
-    }
 
     this.state.lastQueriedL1Block = this.options.l1StartOffset
     this.state.eventCache = []
@@ -498,67 +484,12 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     message: SentMessage,
     proof: SentMessageProof
   ): Promise<void> {
-    if (this.options.spreadsheetMode) {
-      try {
-        await this.options.spreadsheet.addRow({
-          target: message.target,
-          sender: message.sender,
-          message: message.message,
-          messageNonce: message.messageNonce.toString(),
-          encodedMessage: message.encodedMessage,
-          encodedMessageHash: message.encodedMessageHash,
-          parentTransactionIndex: message.parentTransactionIndex,
-          parentTransactionHash: message.parentTransactionIndex,
-          stateRoot: proof.stateRoot,
-          batchIndex: proof.stateRootBatchHeader.batchIndex.toString(),
-          batchRoot: proof.stateRootBatchHeader.batchRoot,
-          batchSize: proof.stateRootBatchHeader.batchSize.toString(),
-          prevTotalElements: proof.stateRootBatchHeader.prevTotalElements.toString(),
-          extraData: proof.stateRootBatchHeader.extraData,
-          index: proof.stateRootProof.index,
-          siblings: proof.stateRootProof.siblings.join(','),
-          stateTrieWitness: proof.stateTrieWitness.toString('hex'),
-          storageTrieWitness: proof.storageTrieWitness.toString('hex'),
-        })
-        this.logger.info('Submitted relay message to spreadsheet')
-      } catch (e) {
-        this.logger.error('Cannot submit message to spreadsheet')
-        this.logger.error(e.message)
-      }
-    } else {
-      try {
-        this.logger.info(
-          'Dry-run, checking to make sure proof would succeed...'
-        )
+    try {
+      this.logger.info('Dry-run, checking to make sure proof would succeed...')
 
-        await this.state.OVM_L1CrossDomainMessenger.connect(
-          this.options.l1Wallet
-        ).callStatic.relayMessage(
-          message.target,
-          message.sender,
-          message.message,
-          message.messageNonce,
-          proof,
-          {
-            gasLimit: this.options.relayGasLimit,
-          }
-        )
-
-        this.logger.info(
-          'Proof should succeed. Submitting for real this time...'
-        )
-      } catch (err) {
-        this.logger.error('Proof would fail, skipping', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
-        return
-      }
-
-      const result = await this.state.OVM_L1CrossDomainMessenger.connect(
+      await this.state.OVM_L1CrossDomainMessenger.connect(
         this.options.l1Wallet
-      ).relayMessage(
+      ).callStatic.relayMessage(
         message.target,
         message.sender,
         message.message,
@@ -569,29 +500,51 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         }
       )
 
-      this.logger.info('Relay message transaction sent', {
-        transactionHash: result,
+      this.logger.info('Proof should succeed. Submitting for real this time...')
+    } catch (err) {
+      this.logger.error('Proof would fail, skipping', {
+        message: err.toString(),
+        stack: err.stack,
+        code: err.code,
       })
-
-      try {
-        const receipt = await result.wait()
-
-        this.logger.info('Relay message included in block', {
-          transactionHash: receipt.transactionHash,
-          blockNumber: receipt.blockNumber,
-          gasUsed: receipt.gasUsed.toString(),
-          confirmations: receipt.confirmations,
-          status: receipt.status,
-        })
-      } catch (err) {
-        this.logger.error('Real relay attempt failed, skipping.', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
-        return
-      }
-      this.logger.info('Message successfully relayed to Layer 1!')
+      return
     }
+
+    const result = await this.state.OVM_L1CrossDomainMessenger.connect(
+      this.options.l1Wallet
+    ).relayMessage(
+      message.target,
+      message.sender,
+      message.message,
+      message.messageNonce,
+      proof,
+      {
+        gasLimit: this.options.relayGasLimit,
+      }
+    )
+
+    this.logger.info('Relay message transaction sent', {
+      transactionHash: result,
+    })
+
+    try {
+      const receipt = await result.wait()
+
+      this.logger.info('Relay message included in block', {
+        transactionHash: receipt.transactionHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        confirmations: receipt.confirmations,
+        status: receipt.status,
+      })
+    } catch (err) {
+      this.logger.error('Real relay attempt failed, skipping.', {
+        message: err.toString(),
+        stack: err.stack,
+        code: err.code,
+      })
+      return
+    }
+    this.logger.info('Message successfully relayed to Layer 1!')
   }
 }
