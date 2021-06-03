@@ -59,7 +59,7 @@ contract L1ChugSplashProxy {
         // We do a low-level call because there's no guarantee that the owner actually *is* an
         // L1ChugSplashDeployer contract and Solidity will throw errors if we do a normal call and
         // it turns out that it isn't the right type of contract.
-        (bool success, bytes memory returndata) = owner.call(
+        (bool success, bytes memory returndata) = owner.staticcall(
             abi.encodeWithSelector(
                 iL1ChugSplashDeployer.isUpgrading.selector
             )
@@ -88,6 +88,13 @@ contract L1ChugSplashProxy {
      * being called off-chain via eth_call, which is totally fine and can be convenient for
      * client-side tooling. Avoids situations where the proxy and implementation share a sighash
      * and the proxy function ends up being called instead of the implementation one.
+     *
+     * Note: msg.sender == address(0) can ONLY be triggered off-chain via eth_call. If there's a
+     * way for someone to send a transaction with msg.sender == address(0) in any real context then
+     * we have much bigger problems. Primary reason to include this additional allowed sender is
+     * because the owner address can be changed dynamically and we do not want clients to have to
+     * keep track of the current owner in order to make an eth_call that doesn't trigger the
+     * proxied contract.
      */
     modifier proxyCallIfNotOwner() {
         if (msg.sender == _getOwner() || msg.sender == address(0)) {
@@ -105,6 +112,7 @@ contract L1ChugSplashProxy {
 
     fallback()
         external
+        payable
     {
         // Proxy call by default.
         _doProxyCall();
