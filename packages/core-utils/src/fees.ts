@@ -6,11 +6,12 @@ import { BigNumber } from 'ethers'
 import { remove0x } from './common'
 
 const hundredMillion = BigNumber.from(100_000_000)
-const feeScalar = 1000
+const feeScalar = 10_000_000
 export const TxGasPrice = BigNumber.from(feeScalar + feeScalar / 2)
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
 const overhead = 4200 + 200 * txDataNonZeroGasEIP2028
+const tenThousand = BigNumber.from(10_000)
 
 export interface EncodableL2GasLimit {
   data: Buffer | string
@@ -32,26 +33,43 @@ function encode(input: EncodableL2GasLimit): BigNumber {
     l2GasPrice = BigNumber.from(l2GasPrice)
   }
   const l1GasLimit = calculateL1GasLimit(data)
+  const roundedL2GasLimit = ceilmod(l2GasLimit, tenThousand)
   const l1Fee = l1GasLimit.mul(l1GasPrice)
-  const l2Fee = l2GasLimit.mul(l2GasPrice)
+  const l2Fee = roundedL2GasLimit.mul(l2GasPrice)
   const sum = l1Fee.add(l2Fee)
   const scaled = sum.div(feeScalar)
-  const remainder = scaled.mod(hundredMillion)
-  const scaledSum = scaled.add(hundredMillion)
-  const rounded = scaledSum.sub(remainder)
-  return rounded.add(l2GasLimit)
+  const rounded = ceilmod(scaled, tenThousand)
+  const roundedScaledL2GasLimit = roundedL2GasLimit.div(tenThousand)
+  return rounded.add(roundedScaledL2GasLimit)
 }
 
 function decode(fee: BigNumber | number): BigNumber {
   if (typeof fee === 'number') {
     fee = BigNumber.from(fee)
   }
-  return fee.mod(hundredMillion)
+  const scaled = fee.mod(tenThousand)
+  return scaled.mul(tenThousand)
 }
 
 export const TxGasLimit = {
   encode,
   decode,
+}
+
+export function ceilmod(a: BigNumber | number, b: BigNumber | number) {
+  if (typeof a === 'number') {
+    a = BigNumber.from(a)
+  }
+  if (typeof b === 'number') {
+    b = BigNumber.from(b)
+  }
+  const remainder = a.mod(b)
+  if (remainder.eq(0)) {
+    return a
+  }
+  const sum = a.add(b)
+  const rounded = sum.sub(remainder)
+  return rounded
 }
 
 export function calculateL1GasLimit(data: string | Buffer): BigNumber {
