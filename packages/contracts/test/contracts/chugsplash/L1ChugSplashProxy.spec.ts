@@ -138,7 +138,7 @@ describe('L1ChugSplashProxy', () => {
   })
 
   describe('fallback', () => {
-    it('should pass through to the proxied contract', async () => {
+    it('should revert if implementation is not set', async () => {
       await expect(
         signer1.sendTransaction({
           to: L1ChugSplashProxy.address,
