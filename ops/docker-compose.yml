@@ -153,7 +153,6 @@ services:
         ROLLUP_BACKEND: 'l1'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
-        ROLLUP_BACKEND: 'l1'
         ROLLUP_VERIFIER_ENABLE: 'true'
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545

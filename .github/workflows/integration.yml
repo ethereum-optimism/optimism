@@ -44,7 +44,7 @@ jobs:
       # its own containers
       - name: Run the sync tests
         working-directory: ./integration-tests
-        run: yarn test:sync
+        run: yarn build:integration && yarn test:sync
 
       - name: Run the integration tests
         working-directory: ./ops
