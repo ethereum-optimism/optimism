@@ -35,7 +35,7 @@ describe('Syncing a verifier', () => {
 
     // Wait for verifier to be looping
     let logs = await verifier.logs()
-    while (!logs.out.includes('Starting Sequencer Loop')) {
+    while (!logs.out.includes('Starting Verifier Loop')) {
       await sleep(500)
       logs = await verifier.logs()
     }
