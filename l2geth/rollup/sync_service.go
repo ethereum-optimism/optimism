@@ -53,7 +53,6 @@ type SyncService struct {
 	syncing                   atomic.Value
 	chainHeadSub              event.Subscription
 	OVMContext                OVMContext
-	confirmationDepth         uint64
 	pollInterval              time.Duration
 	timestampRefreshThreshold time.Duration
 	chainHeadCh               chan core.ChainHeadEvent
@@ -103,7 +102,6 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		cancel:                    cancel,
 		verifier:                  cfg.IsVerifier,
 		enable:                    cfg.Eth1SyncServiceEnable,
-		confirmationDepth:         cfg.Eth1ConfirmationDepth,
 		syncing:                   atomic.Value{},
 		bc:                        bc,
 		txpool:                    txpool,
