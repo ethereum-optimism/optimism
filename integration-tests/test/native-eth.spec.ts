@@ -64,7 +64,7 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit(DEFAULT_TEST_GAS_L2, '0xFFFF', {
+      env.gateway.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
         value: depositAmount,
         gasLimit: DEFAULT_TEST_GAS_L1,
       }),
@@ -120,7 +120,7 @@ describe('Native ETH Integration Tests', async () => {
     // to allow for encoding and other arguments
     const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE - 500)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.gateway.deposit(ASSUMED_L2_GAS_LIMIT, data, {
+      env.gateway.depositETH(ASSUMED_L2_GAS_LIMIT, data, {
         value: depositAmount,
         gasLimit: 4_000_000,
       }),
@@ -146,7 +146,7 @@ describe('Native ETH Integration Tests', async () => {
 
     const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE + 1)
     await expect(
-      env.gateway.deposit(DEFAULT_TEST_GAS_L2, data, {
+      env.gateway.depositETH(DEFAULT_TEST_GAS_L2, data, {
         value: depositAmount,
         gasLimit: 4_000_000,
       })
@@ -220,7 +220,7 @@ describe('Native ETH Integration Tests', async () => {
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(
-      env.gateway.deposit(DEFAULT_TEST_GAS_L2, '0xFFFF', {
+      env.gateway.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
         value: amount,
         gasLimit: DEFAULT_TEST_GAS_L1,
       }),
