@@ -242,6 +242,11 @@ contract L1ChugSplashProxy {
     {
         address implementation = _getImplementation();
 
+        require(
+            implementation != address(0),
+            "L1ChugSplashProxy: implementation is not set yet"
+        );
+
         assembly {
             // Copy calldata into memory at 0x0....calldatasize.
             calldatacopy(0x0, 0x0, calldatasize())
