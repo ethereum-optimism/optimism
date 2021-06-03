@@ -120,7 +120,7 @@ describe('L1ChugSplashProxy', () => {
       expect(await hre.ethers.provider.getCode(implementation)).to.equal(code)
     })
 
-    it('should not change the implementation if the code does not change', async () => {
+    it('should not change the implementation address if the code does not change', async () => {
       const code = '0x1234'
 
       await L1ChugSplashProxy.connect(signer1).setCode(code)
