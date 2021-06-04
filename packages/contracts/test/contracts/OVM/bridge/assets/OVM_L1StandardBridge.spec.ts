@@ -29,7 +29,7 @@ const DUMMY_L2_BRIDGE_ADDRESS = ethers.utils.getAddress(
 const INITIAL_TOTAL_L1_SUPPLY = 3000
 const FINALIZATION_GAS = 1_200_000
 
-describe.only('OVM_L1StandardBridge', () => {
+describe('OVM_L1StandardBridge', () => {
   // init signers
   let l1MessengerImpersonator: Signer
   let alice: Signer

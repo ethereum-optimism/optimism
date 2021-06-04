@@ -29,7 +29,6 @@ interface iOVM_L1ERC20Bridge {
         bytes _data
     );
 
-
     /********************
      * Public Functions *
      ********************/
