@@ -709,9 +709,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
-        // DELEGATECALL does not change anything about the message context other than value 0.
+        // DELEGATECALL does not change anything about the message context.
         MessageContext memory nextMessageContext = messageContext;
-        nextMessageContext.ovmCALLVALUE = 0;
 
         return _callContract(
             nextMessageContext,
