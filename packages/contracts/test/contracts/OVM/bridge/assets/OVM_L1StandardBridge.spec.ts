@@ -137,8 +137,8 @@ describe('OVM_L1StandardBridge', () => {
       expect(bridgeBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
-      // Message should be sent to the L2ETHToken on L2
-      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
+      // Message should be sent to the L2 bridge
+      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_BRIDGE_ADDRESS)
       // Message data should be a call telling the L2ETHToken to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
@@ -181,8 +181,8 @@ describe('OVM_L1StandardBridge', () => {
       expect(bridgeBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
-      // Message should be sent to the L2ETHToken on L2
-      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
+      // Message should be sent to the L2 bridge
+      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_BRIDGE_ADDRESS)
       // Message data should be a call telling the L2ETHToken to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
@@ -363,8 +363,8 @@ describe('OVM_L1StandardBridge', () => {
       expect(bridgeBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
-      // Message should be sent to the L2DepositedERC20 on L2
-      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_ERC20_ADDRESS)
+      // Message should be sent to the L2 bridge
+      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_BRIDGE_ADDRESS)
       // Message data should be a call telling the L2DepositedERC20 to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
@@ -407,7 +407,7 @@ describe('OVM_L1StandardBridge', () => {
 
       // Check the correct cross-chain call was sent:
       // Message should be sent to the L2DepositedERC20 on L2
-      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_ERC20_ADDRESS)
+      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_BRIDGE_ADDRESS)
       // Message data should be a call telling the L2DepositedERC20 to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger

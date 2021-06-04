@@ -167,7 +167,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
 
         // Send calldata into L2
         sendCrossDomainMessage(
-            ovmEth,
+            l2TokenBridge,
             _l2Gas,
             message
         );
@@ -255,7 +255,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
 
         // Send calldata into L2
         sendCrossDomainMessage(
-            _l2Token,
+            l2TokenBridge,
             _l2Gas,
             message
         );

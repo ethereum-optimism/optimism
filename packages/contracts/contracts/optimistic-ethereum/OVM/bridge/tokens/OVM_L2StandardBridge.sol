@@ -3,11 +3,13 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
+import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
 import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
 import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Bridge.sol";
 
 /* Library Imports */
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
 import { L2StandardERC20 } from "../../../libraries/standards/L2StandardERC20.sol";
@@ -125,15 +127,28 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
 
         // Construct calldata for l1TokenBridge.finalizeERC20Withdrawal(_to, _amount)
         address l1Token = L2StandardERC20(_l2Token).l1Token();
-        bytes memory message = abi.encodeWithSelector(
-            iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
-            l1Token,
-            _l2Token,
-            _from,
-            _to,
-            _amount,
-            _data
-        );
+        bytes memory message;
+
+        if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
+            // do we need to require that the l1 token is 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE ? Probably not
+            message = abi.encodeWithSelector(
+                        iOVM_L1StandardBridge.finalizeETHWithdrawal.selector,
+                        _from,
+                        _to,
+                        _amount,
+                        _data
+                    );
+        } else {
+            message = abi.encodeWithSelector(
+                        iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
+                        l1Token,
+                        _l2Token,
+                        _from,
+                        _to,
+                        _amount,
+                        _data
+                    );
+        }
 
         // Send message up to L1 bridge
         sendCrossDomainMessage(
