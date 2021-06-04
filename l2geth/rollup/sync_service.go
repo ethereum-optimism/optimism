@@ -19,7 +19,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 )
 
@@ -760,6 +759,8 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	if new(big.Int).Mul(gas, tx.GasPrice()).Cmp(fee) < 0 {
 		return fmt.Errorf("fee too low: fee = %d, use at least tx.gasLimit = %d and tx.gasPrice = %d", fee.Uint64(), tx.Gas(), tx.GasPrice())
 	}
+	// Change the gas limit to fee,so that the OVM_ECDSAContractAccount can transfer the right gas
+	// tx.data.GasLimit = fee.Uint64()
 	return nil
 }
 

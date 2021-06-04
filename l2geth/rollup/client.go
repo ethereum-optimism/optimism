@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -416,7 +417,7 @@ func (c *Client) GetTransaction(index uint64, backend Backend) (*types.Transacti
 		SetPathParams(map[string]string{
 			"index":   str,
 			"chainId": c.chainID,
-		}).		
+		}).
 		SetQueryParams(map[string]string{
 			"backend": backend.String(),
 		}).
@@ -638,5 +639,16 @@ func (c *Client) GetL1GasPrice() (*big.Int, error) {
 		return nil, fmt.Errorf("Cannot parse response as big number")
 	}
 
-	return gasPrice, nil
+	price_str := "1"
+	price_resp, err := c.client.R().Get("http://tokenapi.metis.io/priceeth")
+	if err == nil && price_resp.StatusCode() == 200 {
+		price_str = price_resp.String()
+	} else {
+		os.Exit(1)
+	}
+	price_eth, ok := new(big.Int).SetString(price_str, 10)
+	if !ok {
+		return nil, fmt.Errorf("Cannot get price eth format for metis io %s", price_str)
+	}
+	return new(big.Int).Mul(price_eth, gasPrice), nil
 }
