@@ -3,6 +3,7 @@ import { expect } from '../../../../setup'
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
+import { Interface} from 'ethers/lib/utils'
 import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
@@ -12,6 +13,7 @@ import {
   ETH_TOKEN,
   makeAddressManager,
 } from '../../../../helpers'
+import { getContractInterface, predeploys } from '../../../../../src'
 
 const L1_MESSENGER_NAME = 'Proxy__OVM_L1CrossDomainMessenger'
 
@@ -19,6 +21,8 @@ const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
 const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
+const DUMMY_L2_ERC20_ADDRESS = ethers.utils.getAddress('0x' + 'abba'.repeat(10))
+const DUMMY_L2_BRIDGE_ADDRESS = ethers.utils.getAddress('0x' + 'acdc'.repeat(10))
 
 const INITIAL_TOTAL_L1_SUPPLY = 3000
 const FINALIZATION_GAS = 1_200_000
@@ -36,18 +40,22 @@ describe('OVM_L1StandardBridge', () => {
   let Mock__OVM_ETH: MockContract
   let Factory__L1ERC20: ContractFactory
   let L1ERC20: Contract
+  let IL2ERC20Bridge: Interface
   before(async () => {
     ;[l1MessengerImpersonator, alice, bob] = await ethers.getSigners()
 
     AddressManager = await makeAddressManager()
 
     Mock__OVM_ETH = await smockit(
-      await ethers.getContractFactory('OVM_L2DepositedERC20')
+      await ethers.getContractFactory('OVM_ETH')
     )
 
     // deploy an ERC20 contract on L1
     Factory__L1ERC20 = await smoddit('UniswapV2ERC20')
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
+
+    // get an L2ER20Bridge Interface
+    IL2ERC20Bridge = getContractInterface('iOVM_L2ERC20Bridge')
 
     aliceAddress = await alice.getAddress()
     bobsAddress = await bob.getAddress()
@@ -80,6 +88,7 @@ describe('OVM_L1StandardBridge', () => {
     await OVM_L1StandardBridge.initialize(
       AddressManager.address,
       Mock__OVM_L1CrossDomainMessenger.address,
+      DUMMY_L2_BRIDGE_ADDRESS,
       Mock__OVM_ETH.address
     )
   })
@@ -90,6 +99,7 @@ describe('OVM_L1StandardBridge', () => {
         OVM_L1StandardBridge.initialize(
           ethers.constants.AddressZero,
           ethers.constants.AddressZero,
+          DUMMY_L2_BRIDGE_ADDRESS,
           ethers.constants.AddressZero
         )
       ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
@@ -133,8 +143,9 @@ describe('OVM_L1StandardBridge', () => {
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+        IL2ERC20Bridge.encodeFunctionData('finalizeDeposit', [
           ETH_TOKEN,
+          predeploys.OVM_ETH,
           depositer,
           depositer,
           depositAmount,
@@ -176,8 +187,9 @@ describe('OVM_L1StandardBridge', () => {
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+        IL2ERC20Bridge.encodeFunctionData('finalizeDeposit', [
           ETH_TOKEN,
+          predeploys.OVM_ETH,
           aliceAddress,
           bobsAddress,
           depositAmount,
@@ -196,7 +208,10 @@ describe('OVM_L1StandardBridge', () => {
           constants.AddressZero,
           constants.AddressZero,
           1,
-          NON_NULL_BYTES32
+          NON_NULL_BYTES32,
+          {
+            from: aliceAddress
+          }
         )
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
     })
@@ -208,11 +223,12 @@ describe('OVM_L1StandardBridge', () => {
       await OVM_L1StandardBridge.initialize(
         AddressManager.address,
         Mock__OVM_L1CrossDomainMessenger.address,
+        DUMMY_L2_BRIDGE_ADDRESS,
         Mock__OVM_ETH.address
       )
 
       Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
-        NON_ZERO_ADDRESS
+        '0x' + '22'.repeat(20)
       )
 
       await expect(
@@ -220,7 +236,10 @@ describe('OVM_L1StandardBridge', () => {
           constants.AddressZero,
           constants.AddressZero,
           1,
-          NON_NULL_BYTES32
+          NON_NULL_BYTES32,
+          {
+            from: Mock__OVM_L1CrossDomainMessenger.address
+          }
         )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
@@ -276,6 +295,7 @@ describe('OVM_L1StandardBridge', () => {
       await New_OVM_L1StandardBridge.initialize(
         AddressManager.address,
         Mock__OVM_L1CrossDomainMessenger.address,
+        DUMMY_L2_BRIDGE_ADDRESS,
         Mock__OVM_ETH.address
       )
     })
@@ -321,7 +341,7 @@ describe('OVM_L1StandardBridge', () => {
       // alice calls deposit on the bridge and the L1 bridge calls transferFrom on the token
       await OVM_L1StandardBridge.depositERC20(
         L1ERC20.address,
-        Mock__OVM_ETH.address,
+        DUMMY_L2_ERC20_ADDRESS,
         depositAmount,
         FINALIZATION_GAS,
         NON_NULL_BYTES32
@@ -342,13 +362,14 @@ describe('OVM_L1StandardBridge', () => {
 
       // Check the correct cross-chain call was sent:
       // Message should be sent to the L2DepositedERC20 on L2
-      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
+      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_ERC20_ADDRESS)
       // Message data should be a call telling the L2DepositedERC20 to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+        IL2ERC20Bridge.encodeFunctionData('finalizeDeposit', [
           L1ERC20.address,
+          DUMMY_L2_ERC20_ADDRESS,
           depositer,
           depositer,
           depositAmount,
@@ -362,7 +383,7 @@ describe('OVM_L1StandardBridge', () => {
       // depositor calls deposit on the bridge and the L1 bridge calls transferFrom on the token
       await OVM_L1StandardBridge.depositERC20To(
         L1ERC20.address,
-        Mock__OVM_ETH.address,
+        DUMMY_L2_ERC20_ADDRESS,
         bobsAddress,
         depositAmount,
         FINALIZATION_GAS,
@@ -384,13 +405,14 @@ describe('OVM_L1StandardBridge', () => {
 
       // Check the correct cross-chain call was sent:
       // Message should be sent to the L2DepositedERC20 on L2
-      expect(depositCallToMessenger._target).to.equal(Mock__OVM_ETH.address)
+      expect(depositCallToMessenger._target).to.equal(DUMMY_L2_ERC20_ADDRESS)
       // Message data should be a call telling the L2DepositedERC20 to finalize the deposit
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
-        Mock__OVM_ETH.interface.encodeFunctionData('finalizeDeposit', [
+        IL2ERC20Bridge.encodeFunctionData('finalizeDeposit', [
           L1ERC20.address,
+          DUMMY_L2_ERC20_ADDRESS,
           depositer,
           bobsAddress,
           depositAmount,
@@ -413,7 +435,7 @@ describe('OVM_L1StandardBridge', () => {
         await expect(
           OVM_L1StandardBridge.depositERC20(
             MOCK__L1ERC20.address,
-            Mock__OVM_ETH.address,
+            DUMMY_L2_ERC20_ADDRESS,
             depositAmount,
             FINALIZATION_GAS,
             NON_NULL_BYTES32
@@ -425,7 +447,7 @@ describe('OVM_L1StandardBridge', () => {
         await expect(
           OVM_L1StandardBridge.depositERC20To(
             MOCK__L1ERC20.address,
-            Mock__OVM_ETH.address,
+            DUMMY_L2_ERC20_ADDRESS,
             bobsAddress,
             depositAmount,
             FINALIZATION_GAS,
@@ -448,7 +470,7 @@ describe('OVM_L1StandardBridge', () => {
         await expect(
           OVM_L1StandardBridge.depositERC20(
             MOCK__L1ERC20.address,
-            Mock__OVM_ETH.address,
+            DUMMY_L2_ERC20_ADDRESS,
             depositAmount,
             FINALIZATION_GAS,
             NON_NULL_BYTES32
@@ -460,7 +482,7 @@ describe('OVM_L1StandardBridge', () => {
         await expect(
           OVM_L1StandardBridge.depositERC20To(
             MOCK__L1ERC20.address,
-            Mock__OVM_ETH.address,
+            DUMMY_L2_ERC20_ADDRESS,
             bobsAddress,
             depositAmount,
             FINALIZATION_GAS,
@@ -476,7 +498,7 @@ describe('OVM_L1StandardBridge', () => {
       await expect(
         OVM_L1StandardBridge.connect(alice).finalizeERC20Withdrawal(
           L1ERC20.address,
-          Mock__OVM_ETH.address,
+          DUMMY_L2_ERC20_ADDRESS,
           constants.AddressZero,
           constants.AddressZero,
           1,
@@ -487,13 +509,13 @@ describe('OVM_L1StandardBridge', () => {
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L2DepositedERC20)', async () => {
       Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
-        () => NON_ZERO_ADDRESS
+        '0x' + '22'.repeat(20)
       )
 
       await expect(
         OVM_L1StandardBridge.finalizeERC20Withdrawal(
           L1ERC20.address,
-          Mock__OVM_ETH.address,
+          DUMMY_L2_ERC20_ADDRESS,
           constants.AddressZero,
           constants.AddressZero,
           1,
@@ -511,7 +533,7 @@ describe('OVM_L1StandardBridge', () => {
       await L1ERC20.approve(OVM_L1StandardBridge.address, withdrawalAmount)
       await OVM_L1StandardBridge.depositERC20(
         L1ERC20.address,
-        Mock__OVM_ETH.address,
+        DUMMY_L2_ERC20_ADDRESS,
         withdrawalAmount,
         FINALIZATION_GAS,
         NON_NULL_BYTES32
@@ -521,7 +543,7 @@ describe('OVM_L1StandardBridge', () => {
       expect(await L1ERC20.balanceOf(NON_ZERO_ADDRESS)).to.be.equal(0)
 
       Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
-        () => Mock__OVM_ETH.address
+        () => DUMMY_L2_BRIDGE_ADDRESS
       )
 
       await L1ERC20.transfer(OVM_L1StandardBridge.address, withdrawalAmount)
@@ -529,7 +551,7 @@ describe('OVM_L1StandardBridge', () => {
 
       await OVM_L1StandardBridge.finalizeERC20Withdrawal(
         L1ERC20.address,
-        Mock__OVM_ETH.address,
+        DUMMY_L2_ERC20_ADDRESS,
         NON_ZERO_ADDRESS,
         NON_ZERO_ADDRESS,
         withdrawalAmount,

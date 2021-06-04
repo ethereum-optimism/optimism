@@ -13,9 +13,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManager.sol";
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-
 
 /**
  * @title OVM_L1StandardBridge
@@ -158,6 +158,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
             abi.encodeWithSelector(
                 iOVM_L2ERC20Bridge.finalizeDeposit.selector,
                 L1_ETH_ADDRESS,
+                Lib_PredeployAddresses.OVM_ETH,
                 _from,
                 _to,
                 msg.value,
@@ -245,6 +246,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
         bytes memory message = abi.encodeWithSelector(
             iOVM_L2ERC20Bridge(l2TokenBridge).finalizeDeposit.selector,
             _l1Token,
+            _l2Token,
             _from,
             _to,
             _amount,
@@ -279,6 +281,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     )
         external
         override
+        // todo: this should be l2TokenBridge too right?
         onlyFromCrossDomainAccount(ovmEth)
     {
         (bool success, ) = _to.call{value: _amount}(new bytes(0));
