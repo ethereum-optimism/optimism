@@ -82,7 +82,6 @@ if (
   process.env.CONTRACTS_RPC_URL
 ) {
   config.networks[process.env.CONTRACTS_TARGET_NETWORK] = {
-    accounts: [process.env.CONTRACTS_DEPLOYER_KEY],
     url: process.env.CONTRACTS_RPC_URL,
     live: true,
     saveDeployments: true,
