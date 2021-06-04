@@ -51,12 +51,13 @@ const checkSignerType = (signerOrProvider: Signer | Provider) => {
  * @returns l1 contracts connected to signer/provider
  */
 export const connectL1Contracts = async (
-  signerOrProvider,
-  network?: Network
+  signerOrProvider: Signer | Provider,
+  network: Network
 ): Promise<L1Contracts> => {
   checkSignerType(signerOrProvider)
 
-  if (!(network in ['mainnet', 'kovan', 'goerli'])) {
+  console.log(network)
+  if (!['mainnet', 'kovan', 'goerli'].includes(network)) {
     throw Error('Must specify network: mainnet, kovan, or goerli.')
   }
 

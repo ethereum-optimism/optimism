@@ -13,16 +13,12 @@ describe('connectL1Contracts', () => {
     'canonicalTransactionChain',
     'executionManager',
     'fraudVerifier',
-    'xDomainMessenger',
     'ethGateway',
     'multiMessageRelayer',
-    'safetyChecker',
     'stateCommitmentChain',
-    'stateManagerFactory',
-    'stateTransitionerFactory',
     'xDomainMessengerProxy',
     'l1EthGatewayProxy',
-    'mockBondManger',
+    'bondManager',
   ]
 
   const l2ContractNames = [
@@ -45,25 +41,7 @@ describe('connectL1Contracts', () => {
     try {
       await connectL1Contracts(undefined, 'mainnet')
     } catch (err) {
-      expect(err.message).to.be('signerOrProvider argument is undefined')
-    }
-  })
-
-  it(`connectL1Contracts should throw error if network isn't provided.`, async () => {
-    try {
-      await connectL1Contracts({}, 'mainnet')
-    } catch (err) {
-      expect(err.message).to.be('signerOrProvider argument is the wrong type')
-    }
-  })
-
-  it(`connectL1Contracts should throw error if network isn't provided`, async () => {
-    try {
-      await connectL1Contracts(user)
-    } catch (err) {
-      expect(err.message).to.be(
-        'Must specify network: mainnet, kovan, or goerli.'
-      )
+      expect(err.message).to.be.equal('signerOrProvider argument is undefined')
     }
   })
 
