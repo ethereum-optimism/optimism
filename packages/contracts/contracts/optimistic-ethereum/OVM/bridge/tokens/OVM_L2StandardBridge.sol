@@ -139,7 +139,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         bytes memory message = abi.encodeWithSelector(
             iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
             l1Token,
-            address(this),
+            _l2Token,
             _from,
             _to,
             _amount,
