@@ -56,7 +56,7 @@ export const TxGasLimit = {
   decode,
 }
 
-export function ceilmod(a: BigNumber | number, b: BigNumber | number) {
+export const ceilmod = (a: BigNumber | number, b: BigNumber | number) => {
   if (typeof a === 'number') {
     a = BigNumber.from(a)
   }

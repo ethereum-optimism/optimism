@@ -3,8 +3,8 @@ import { BaseService } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
-import axios from 'axios';
-import bfj from 'bfj';
+import axios from 'axios'
+import bfj from 'bfj'
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
@@ -185,13 +185,17 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
           true,
         ],
         id: '1',
-      };
+      }
 
-      const resp = await axios.post(this.state.l2RpcProvider.connection.url, req, {responseType: 'stream'});
-      const respJson = await bfj.parse(resp.data, { 
-        yieldRate: 4096 // this yields abit more often than the default of 16384
-      });
-      const blocks = respJson.data;
+      const resp = await axios.post(
+        this.state.l2RpcProvider.connection.url,
+        req,
+        { responseType: 'stream' }
+      )
+      const respJson = await bfj.parse(resp.data, {
+        yieldRate: 4096, // this yields abit more often than the default of 16384
+      })
+      blocks = respJson.data
     }
 
     for (const block of blocks) {
