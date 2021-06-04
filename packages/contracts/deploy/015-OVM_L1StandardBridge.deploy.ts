@@ -42,7 +42,7 @@ const deployFn: DeployFunction = async (hre) => {
     predeploys.OVM_ETH
   )
 
-  // Todo: remove this adding chugsplash proxy
+  // Todo: remove this after adding chugsplash proxy
   await Lib_AddressManager.setAddress('OVM_L1StandardBridge', result.address)
 }
 
