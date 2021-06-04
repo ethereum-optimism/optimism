@@ -120,17 +120,24 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('Lib_ResolvedDelegateProxy'),
       params: [AddressManager.address, 'OVM_L1StandardBridge'],
       afterDeploy: async (contracts): Promise<void> => {
-        const l1EthGateway = getContractFactory('OVM_L1StandardBridge')
+        const l1StandardBridge = getContractFactory('OVM_L1StandardBridge')
           .connect(config.deploymentSigner)
           .attach(contracts.Proxy__OVM_L1StandardBridge.address)
         await _sendTx(
-          l1EthGateway.initialize(
-            AddressManager.address,
-            predeploys.OVM_ETH,
-            config.deployOverrides
+          l1StandardBridge.initialize(
+            contracts.Proxy__OVM_L1CrossDomainMessenger.address,
+            predeploys.OVM_L2StandardBridge,
+            predeploys.OVM_ETH
           )
         )
       },
+    },
+    OVM_L2StandardBridge: {
+      factory: getContractFactory('OVM_L1StandardBridge'),
+      params: [
+        predeploys.OVM_L2CrossDomainMessenger,
+        contracts.Proxy__OVM_L1StandardBridge.address
+      ],
     },
     OVM_L1MultiMessageRelayer: {
       factory: getContractFactory('OVM_L1MultiMessageRelayer'),
@@ -233,10 +240,7 @@ export const makeContractDeployConfig = async (
     },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
-      params: [
-        predeploys.OVM_L2CrossDomainMessenger,
-        '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
-      ],
+      params: [],
     },
     'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),

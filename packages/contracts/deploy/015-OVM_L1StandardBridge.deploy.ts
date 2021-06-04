@@ -42,17 +42,7 @@ const deployFn: DeployFunction = async (hre) => {
     predeploys.OVM_ETH
   )
 
-  const libAddressManager = await OVM_L1StandardBridge.libAddressManager()
-  if (libAddressManager !== Lib_AddressManager.address) {
-    throw new Error(
-      `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `OVM_L1StandardBridge could not be succesfully initialized.\n` +
-        `Attempted to set Lib_AddressManager to: ${Lib_AddressManager.address}\n` +
-        `Actual address after initialization: ${libAddressManager}\n` +
-        `This could indicate a compromised deployment.`
-    )
-  }
-
+  // Todo: remove this adding chugsplash proxy
   await Lib_AddressManager.setAddress('OVM_L1StandardBridge', result.address)
 }
 
