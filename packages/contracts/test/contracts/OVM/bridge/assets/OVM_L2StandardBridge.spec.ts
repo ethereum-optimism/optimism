@@ -54,10 +54,7 @@ describe('OVM_L2StandardBridge', () => {
     // Deploy the contract under test
     OVM_L2StandardBridge = await (
       await ethers.getContractFactory('OVM_L2StandardBridge')
-    ).deploy(
-      Mock__OVM_L2CrossDomainMessenger.address,
-      DUMMY_L1BRIDGE_ADDRESS
-    )
+    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
   })
 
   // test the transfer flow of moving a token from L2 to L1
@@ -89,7 +86,7 @@ describe('OVM_L2StandardBridge', () => {
           0,
           NON_NULL_BYTES32,
           {
-            from: Mock__OVM_L2CrossDomainMessenger.address
+            from: Mock__OVM_L2CrossDomainMessenger.address,
           }
         )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
@@ -101,18 +98,16 @@ describe('OVM_L2StandardBridge', () => {
       // Deploy an L2 ERC20 owned by the alice, then transfer ownership to the bridge
       L2ERC20 = await (
         await ethers.getContractFactory('L2StandardERC20', alice)
-      ).deploy(
-        DUMMY_L1TOKEN_ADDRESS,
-        'L2Token',
-        'L2T'
-      )
+      ).deploy(DUMMY_L1TOKEN_ADDRESS, 'L2Token', 'L2T')
       await L2ERC20.transferOwnership(OVM_L2StandardBridge.address)
 
       Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => DUMMY_L1BRIDGE_ADDRESS
       )
 
-      await OVM_L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
+      await OVM_L2StandardBridge.connect(
+        l2MessengerImpersonator
+      ).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
         L2ERC20.address,
         aliceAddress,
@@ -120,13 +115,11 @@ describe('OVM_L2StandardBridge', () => {
         depositAmount,
         NON_NULL_BYTES32,
         {
-          from: Mock__OVM_L2CrossDomainMessenger.address
+          from: Mock__OVM_L2CrossDomainMessenger.address,
         }
       )
 
-      const bobsBalance = await L2ERC20.balanceOf(
-        bobsAddress
-      )
+      const bobsBalance = await L2ERC20.balanceOf(bobsAddress)
       bobsBalance.should.equal(depositAmount)
     })
   })
@@ -136,22 +129,19 @@ describe('OVM_L2StandardBridge', () => {
     let SmoddedL2Token: ModifiableContract
     beforeEach(async () => {
       // Deploy a smodded gateway so we can give some balances to withdraw
-      SmoddedL2Token = await (
-        await smoddit('L2StandardERC20', alice)
-      ).deploy(
+      SmoddedL2Token = await (await smoddit('L2StandardERC20', alice)).deploy(
         DUMMY_L1TOKEN_ADDRESS,
         'L2Token',
         'L2T'
       )
 
       // Populate the initial state with a total supply and some money in alice's balance
-      const aliceAddress = await alice.getAddress()
       SmoddedL2Token.smodify.put({
         totalSupply: INITIAL_TOTAL_SUPPLY,
         balanceOf: {
           [aliceAddress]: ALICE_INITIAL_BALANCE,
         },
-        _owner: OVM_L2StandardBridge.address
+        _owner: OVM_L2StandardBridge.address,
       })
     })
 
@@ -197,19 +187,6 @@ describe('OVM_L2StandardBridge', () => {
         )
       )
       // gaslimit should be correct
-      expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
-    })
-
-    it('withdraw() uses the user provided gas limit if it is larger than the default value ', async () => {
-      await OVM_L2StandardBridge.withdraw(
-        SmoddedL2Token.address,
-        withdrawAmount,
-        0,
-        NON_NULL_BYTES32
-      )
-      const withdrawalCallToMessenger =
-        Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
-      // gas value is ignored and set to 0.
       expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
     })
 

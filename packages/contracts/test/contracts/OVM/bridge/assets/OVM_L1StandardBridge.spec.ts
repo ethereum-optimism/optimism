@@ -3,7 +3,7 @@ import { expect } from '../../../../setup'
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
-import { Interface} from 'ethers/lib/utils'
+import { Interface } from 'ethers/lib/utils'
 import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
@@ -22,7 +22,9 @@ const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
 const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
 const DUMMY_L2_ERC20_ADDRESS = ethers.utils.getAddress('0x' + 'abba'.repeat(10))
-const DUMMY_L2_BRIDGE_ADDRESS = ethers.utils.getAddress('0x' + 'acdc'.repeat(10))
+const DUMMY_L2_BRIDGE_ADDRESS = ethers.utils.getAddress(
+  '0x' + 'acdc'.repeat(10)
+)
 
 const INITIAL_TOTAL_L1_SUPPLY = 3000
 const FINALIZATION_GAS = 1_200_000
@@ -46,9 +48,7 @@ describe('OVM_L1StandardBridge', () => {
 
     AddressManager = await makeAddressManager()
 
-    Mock__OVM_ETH = await smockit(
-      await ethers.getContractFactory('OVM_ETH')
-    )
+    Mock__OVM_ETH = await smockit(await ethers.getContractFactory('OVM_ETH'))
 
     // deploy an ERC20 contract on L1
     Factory__L1ERC20 = await smoddit('UniswapV2ERC20')
@@ -210,7 +210,7 @@ describe('OVM_L1StandardBridge', () => {
           1,
           NON_NULL_BYTES32,
           {
-            from: aliceAddress
+            from: aliceAddress,
           }
         )
       ).to.be.revertedWith(ERR_INVALID_MESSENGER)
@@ -238,7 +238,7 @@ describe('OVM_L1StandardBridge', () => {
           1,
           NON_NULL_BYTES32,
           {
-            from: Mock__OVM_L1CrossDomainMessenger.address
+            from: Mock__OVM_L1CrossDomainMessenger.address,
           }
         )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
@@ -263,12 +263,14 @@ describe('OVM_L1StandardBridge', () => {
         }
       )
 
-      const res = await OVM_L1StandardBridge.finalizeETHWithdrawal(
+      await OVM_L1StandardBridge.finalizeETHWithdrawal(
         NON_ZERO_ADDRESS,
         NON_ZERO_ADDRESS,
         withdrawalAmount,
         NON_NULL_BYTES32,
-        { from: Mock__OVM_L1CrossDomainMessenger.address }
+        {
+          from: Mock__OVM_L1CrossDomainMessenger.address,
+        }
       )
 
       expect(await ethers.provider.getBalance(NON_ZERO_ADDRESS)).to.be.equal(
