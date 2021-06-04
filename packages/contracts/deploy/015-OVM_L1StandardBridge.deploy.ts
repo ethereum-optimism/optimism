@@ -37,8 +37,8 @@ const deployFn: DeployFunction = async (hre) => {
   // but it feels safer to initialize this anyway. Otherwise someone else could come along and
   // initialize this.
   await OVM_L1StandardBridge.initialize(
-    Lib_AddressManager.address,
     l1MessengerAddress,
+    predeploys.OVM_L2StandardBridge,
     predeploys.OVM_ETH
   )
 
