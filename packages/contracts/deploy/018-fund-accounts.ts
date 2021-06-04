@@ -22,9 +22,10 @@ const deployFn: DeployFunction = async (hre) => {
      const signers = await ethers.getSigners()
      for (const signer of signers) {
        const to = await signer.getAddress()
+       const l2gas = 8_000_000
        const amount = '100'
        const value = ethers.utils.parseEther(amount)
-       await Proxy__OVM_L1ETHGateway.depositTo(to, { value })
+       await Proxy__OVM_L1ETHGateway.depositTo(to, l2gas, '0x', { value })
        console.log(`✓ Funded ${to} on L2 with ${amount} ETH`)
      }
    }
