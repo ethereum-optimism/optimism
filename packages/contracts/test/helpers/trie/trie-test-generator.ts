@@ -91,7 +91,7 @@ export class TrieTestGenerator {
     public _TrieClass: any,
     public _trie: SecureTrie | BaseTrie,
     public _nodes: TrieNode[],
-    public _subGenerators?: TrieTestGenerator[] // eslint-disable-next-line
+    public _subGenerators?: TrieTestGenerator[]
   ) {}
 
   static async fromNodes(opts: {

@@ -37,7 +37,6 @@ export interface CrossDomainMessagePair {
   remoteReceipt: TransactionReceipt
 }
 
-// eslint-disable-next-line
 export enum Direction {
   L1ToL2,
   L2ToL1,

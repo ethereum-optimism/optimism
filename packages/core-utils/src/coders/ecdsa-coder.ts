@@ -1,4 +1,3 @@
-/* eslint prefer-arrow/prefer-arrow-functions: "off" */
 /* Internal Imports */
 import { add0x, remove0x, toVerifiedBytes, encodeHex, getLen } from '../common'
 import { Coder, Signature, Uint16, Uint8, Uint24, Address } from './types'
@@ -204,7 +203,7 @@ class Eip155TxCoder extends DefaultEcdsaTxCoder {
  * ctcCoder  *
  ************/
 
-function encode(data: EIP155TxData): string {
+const encode = (data: EIP155TxData): string => {
   if (data.type === TxType.EIP155) {
     return new Eip155TxCoder().encode(data)
   }
@@ -214,7 +213,7 @@ function encode(data: EIP155TxData): string {
   return null
 }
 
-function decode(data: string | Buffer): EIP155TxData {
+const decode = (data: string | Buffer): EIP155TxData => {
   if (Buffer.isBuffer(data)) {
     data = data.toString()
   }

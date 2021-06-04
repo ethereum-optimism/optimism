@@ -290,7 +290,7 @@ extendEnvironment(async (hre) => {
         }
 
         ;(hre as any).ethers.getSigners = () => signers
-        // eslint-disable-next-line
+        // eslint-disable-next-line no-empty
       } catch (e) {}
 
       // Update the provider at the very end to avoid any weird issues.

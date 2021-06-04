@@ -54,7 +54,7 @@ const main = async () => {
     return child.extension === '.json'
   }).reduce((contractsAccumulator, child) => {
     const contractName = child.name.replace('.json', '')
-    // eslint-disable-next-line
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const artifact = require(path.resolve(__dirname, `../deployments/custom/${child.name}`))
     contractsAccumulator[nicknames[contractName] || contractName] = artifact.address
     return contractsAccumulator

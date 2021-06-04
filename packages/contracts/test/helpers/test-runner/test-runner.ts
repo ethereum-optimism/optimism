@@ -98,7 +98,7 @@ export class ExecutionManagerTestRunner {
     ;(test.preState = merge(
       cloneDeep(this.defaultPreState),
       cloneDeep(test.preState)
-      // eslint-disable-next-line
+      // eslint-disable-next-line no-sequences
     )),
       (test.postState = test.postState || {})
 
