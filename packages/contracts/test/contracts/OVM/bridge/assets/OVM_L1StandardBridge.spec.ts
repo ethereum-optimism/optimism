@@ -279,46 +279,6 @@ describe('OVM_L1StandardBridge', () => {
     })
   })
 
-  describe('migrating ETH', () => {
-    const migrateAmount = 1_000
-
-    let New_OVM_L1StandardBridge: Contract
-    beforeEach(async () => {
-      await OVM_L1StandardBridge.donateETH({ value: migrateAmount })
-      const bridgeBalance = await ethers.provider.getBalance(
-        OVM_L1StandardBridge.address
-      )
-      expect(bridgeBalance).to.equal(migrateAmount)
-
-      // Setup a new bridge to migrate to
-      New_OVM_L1StandardBridge = await (
-        await ethers.getContractFactory('OVM_L1StandardBridge')
-      ).deploy()
-      await New_OVM_L1StandardBridge.initialize(
-        AddressManager.address,
-        Mock__OVM_L1CrossDomainMessenger.address,
-        DUMMY_L2_BRIDGE_ADDRESS,
-        Mock__OVM_ETH.address
-      )
-    })
-
-    it('should successfully migrate ETH to new bridge', async () => {
-      await OVM_L1StandardBridge.migrateEth(New_OVM_L1StandardBridge.address)
-      const newBridgeBalance = await ethers.provider.getBalance(
-        New_OVM_L1StandardBridge.address
-      )
-      expect(newBridgeBalance).to.equal(migrateAmount)
-    })
-
-    it('should not allow migrating ETH from non-owner', async () => {
-      await expect(
-        OVM_L1StandardBridge.connect(bob).migrateEth(
-          New_OVM_L1StandardBridge.address
-        )
-      ).to.be.revertedWith('Only the owner can migrate ETH')
-    })
-  })
-
   describe('ERC20 deposits', () => {
     const INITIAL_DEPOSITER_BALANCE = 100_000
     let depositer: string

@@ -10,8 +10,6 @@ import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Brid
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
-import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManager.sol";
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -25,7 +23,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, Lib_AddressResolver {
+contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 
@@ -53,7 +51,6 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     // This contract lives behind a proxy, so the constructor parameters will go unused.
     constructor()
         OVM_CrossDomainEnabled(address(0))
-        Lib_AddressResolver(address(0))
     {}
 
     /******************
@@ -73,12 +70,10 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
     )
         public
     {
-        require(libAddressManager == Lib_AddressManager(0), "Contract has already been initialized.");
-        libAddressManager = Lib_AddressManager(_libAddressManager);
+        require(messenger == address(0), "Contract has already been initialized.");
         messenger = _l1messenger;
         l2TokenBridge = _l2TokenBridge;
         ovmEth = _ovmEth;
-        messenger = resolve("Proxy__OVM_L1CrossDomainMessenger");
     }
 
     /**************
@@ -317,19 +312,9 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
      *****************************/
 
     /**
-     * @dev Migrates entire ETH balance to another gateway.
-     * @param _to Gateway Proxy address to migrate ETH to.
-     */
-    function migrateEth(address payable _to) external {
-        address owner = Lib_AddressManager(libAddressManager).owner();
-        require(msg.sender == owner, "Only the owner can migrate ETH");
-        uint256 balance = address(this).balance;
-        OVM_L1StandardBridge(_to).donateETH{value:balance}();
-    }
-
-    /**
      * @dev Adds ETH balance to the account. This is meant to allow for ETH
      * to be migrated from an old gateway to a new gateway.
+     * NOTE: This is left for one upgrade only so we are able to receive the migrated ETH from the old contract
      */
     function donateETH() external payable {}
 }
