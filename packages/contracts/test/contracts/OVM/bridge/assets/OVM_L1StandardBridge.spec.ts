@@ -11,7 +11,6 @@ import {
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
   ETH_TOKEN,
-  makeAddressManager,
 } from '../../../../helpers'
 import { getContractInterface, predeploys } from '../../../../../src'
 
@@ -38,15 +37,12 @@ describe('OVM_L1StandardBridge', () => {
   let aliceAddress
 
   // we can just make up this string since it's on the "other" Layer
-  let AddressManager: Contract
   let Mock__OVM_ETH: MockContract
   let Factory__L1ERC20: ContractFactory
   let L1ERC20: Contract
   let IL2ERC20Bridge: Interface
   before(async () => {
     ;[l1MessengerImpersonator, alice, bob] = await ethers.getSigners()
-
-    AddressManager = await makeAddressManager()
 
     Mock__OVM_ETH = await smockit(await ethers.getContractFactory('OVM_ETH'))
 
@@ -76,17 +72,11 @@ describe('OVM_L1StandardBridge', () => {
       { address: await l1MessengerImpersonator.getAddress() } // This allows us to use an ethers override {from: Mock__OVM_L2CrossDomainMessenger.address} to mock calls
     )
 
-    await AddressManager.setAddress(
-      L1_MESSENGER_NAME,
-      Mock__OVM_L1CrossDomainMessenger.address
-    )
-
     // Deploy the contract under test
     OVM_L1StandardBridge = await (
       await ethers.getContractFactory('OVM_L1StandardBridge')
     ).deploy()
     await OVM_L1StandardBridge.initialize(
-      AddressManager.address,
       Mock__OVM_L1CrossDomainMessenger.address,
       DUMMY_L2_BRIDGE_ADDRESS,
       Mock__OVM_ETH.address
@@ -97,7 +87,6 @@ describe('OVM_L1StandardBridge', () => {
     it('Should only be callable once', async () => {
       await expect(
         OVM_L1StandardBridge.initialize(
-          ethers.constants.AddressZero,
           ethers.constants.AddressZero,
           DUMMY_L2_BRIDGE_ADDRESS,
           ethers.constants.AddressZero
@@ -221,7 +210,6 @@ describe('OVM_L1StandardBridge', () => {
         await ethers.getContractFactory('OVM_L1StandardBridge')
       ).deploy()
       await OVM_L1StandardBridge.initialize(
-        AddressManager.address,
         Mock__OVM_L1CrossDomainMessenger.address,
         DUMMY_L2_BRIDGE_ADDRESS,
         Mock__OVM_ETH.address

@@ -39,7 +39,6 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     /**
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
      * @param _l1TokenBridge Address of the L1 bridge deployed to the main chain.
-
      */
     constructor(
         address _l2CrossDomainMessenger,

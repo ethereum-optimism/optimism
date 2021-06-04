@@ -58,12 +58,10 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
      ******************/
 
     /**
-     * @param _libAddressManager Address manager for this OE deployment.
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      * @param _ovmEth L2 OVM_ETH implementation of iOVM_DepositedToken.
      */
     function initialize(
-        address _libAddressManager,
         address _l1messenger,
         address _l2TokenBridge,
         address _ovmEth
