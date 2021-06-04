@@ -8,16 +8,12 @@ interface L1Contracts {
   canonicalTransactionChain: Contract
   executionManager: Contract
   fraudVerifier: Contract
-  xDomainMessenger: Contract
   ethGateway: Contract
   multiMessageRelayer: Contract
-  safetyChecker: Contract
   stateCommitmentChain: Contract
-  stateManagerFactory: Contract
-  stateTransitionerFactory: Contract
   xDomainMessengerProxy: Contract
   l1EthGatewayProxy: Contract
-  mockBondManger: Contract
+  bondManager: Contract
 }
 
 interface L2Contracts {
@@ -60,14 +56,8 @@ export const connectL1Contracts = async (
 ): Promise<L1Contracts> => {
   checkSignerType(signerOrProvider)
 
-  if (!network) {
-    console.warn(
-      'network argument not provided to connectL1Contracts. Defaulting to mainnet.'
-    )
-    network = 'mainnet'
-  }
-  if (network !== 'mainnet' && network !== 'kovan' && network !== 'goerli') {
-    throw Error('network argument is the wrong type')
+  if (!(network in ['mainnet', 'kovan', 'goerli'])) {
+    throw Error('Must specify network: mainnet, kovan, or goerli.')
   }
 
   const l1ContractData = getL1ContractData(network)
@@ -82,28 +72,19 @@ export const connectL1Contracts = async (
     ),
     executionManager: toEthersContract(l1ContractData.OVM_ExecutionManager),
     fraudVerifier: toEthersContract(l1ContractData.OVM_FraudVerifier),
-    xDomainMessenger: toEthersContract(
-      l1ContractData.OVM_L1CrossDomainMessenger
-    ),
     ethGateway: toEthersContract(l1ContractData.OVM_L1ETHGateway),
     multiMessageRelayer: toEthersContract(
       l1ContractData.OVM_L1MultiMessageRelayer
     ),
-    safetyChecker: toEthersContract(l1ContractData.OVM_SafetyChecker),
     stateCommitmentChain: toEthersContract(
       l1ContractData.OVM_StateCommitmentChain
-    ),
-    stateManagerFactory: toEthersContract(
-      l1ContractData.OVM_StateManagerFactory
-    ),
-    stateTransitionerFactory: toEthersContract(
-      l1ContractData.OVM_StateTransitionerFactory
     ),
     xDomainMessengerProxy: toEthersContract(
       l1ContractData.Proxy__OVM_L1CrossDomainMessenger
     ),
     l1EthGatewayProxy: toEthersContract(l1ContractData.Proxy__OVM_L1ETHGateway),
-    mockBondManger: toEthersContract(l1ContractData.mockOVM_BondManager),
+    // TODO: update this with actual bond manager when its ready
+    bondManager: toEthersContract(l1ContractData.mockOVM_BondManager),
   }
 }
 
