@@ -244,7 +244,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled, 
 
         // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L2ERC20Bridge(l2TokenBridge).finalizeDeposit.selector,
+            iOVM_L2ERC20Bridge.finalizeDeposit.selector,
             _l1Token,
             _l2Token,
             _from,

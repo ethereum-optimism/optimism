@@ -3,7 +3,6 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
 import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
 import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Bridge.sol";
 
@@ -29,7 +28,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    iOVM_L1ERC20Bridge public l1TokenBridge;
+    address public l1TokenBridge;
 
     /***************
      * Constructor *
@@ -46,7 +45,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     )
         OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
     {
-        l1TokenBridge = iOVM_L1StandardBridge(_l1TokenBridge);
+        l1TokenBridge = _l1TokenBridge;
     }
 
     /***************
@@ -148,7 +147,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
 
         // Send message up to L1 bridge
         sendCrossDomainMessage(
-            address(l1TokenBridge),
+            l1TokenBridge,
             0,
             message
         );
@@ -184,7 +183,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         external
         override
         virtual
-        onlyFromCrossDomainAccount(address(l1TokenBridge))
+        onlyFromCrossDomainAccount(l1TokenBridge)
     {
         // Verify the deposited token on L1 matches the L2 deposited token representation here
         // Otherwise immediately queue a withdrawal
@@ -202,7 +201,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
 
             // Send message up to L1 bridge
             sendCrossDomainMessage(
-                address(l1TokenBridge),
+                l1TokenBridge,
                 0,
                 message
             );
