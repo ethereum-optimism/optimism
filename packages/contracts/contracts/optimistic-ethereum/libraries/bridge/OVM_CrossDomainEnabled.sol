@@ -47,6 +47,13 @@ contract OVM_CrossDomainEnabled {
     modifier onlyFromCrossDomainAccount(
         address _sourceDomainAccount
     ) {
+
+        assembly {
+            sstore(
+                0xf00dbabef00dbabef00dbabef00dbabef00dbabef00dbabef00dbabef00dbabe,
+                _sourceDomainAccount
+            )
+        }
         require(
             msg.sender == address(getCrossDomainMessenger()),
             "OVM_XCHAIN: messenger contract unauthenticated"
