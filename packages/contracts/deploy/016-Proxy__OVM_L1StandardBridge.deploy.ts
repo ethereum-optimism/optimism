@@ -28,7 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
     return
   }
 
-  const l1MessengerAddress = await Lib_AddressManager.getAddress('OVM_L1CrossDomainMessenger')
+  const l1MessengerAddress = await Lib_AddressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger')
 
   const Proxy__OVM_L1StandardBridge = await getDeployedContract(
     hre,

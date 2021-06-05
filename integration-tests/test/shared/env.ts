@@ -9,7 +9,8 @@ import {
   l2Wallet,
   fundUser,
   getOvmEth,
-  getBridge,
+  getL1Bridge,
+  getL2Bridge,
 } from './utils'
 import {
   initWatcher,
@@ -23,12 +24,13 @@ import { TransactionResponse } from '@ethersproject/providers'
 export class OptimismEnv {
   // L1 Contracts
   addressManager: Contract
-  gateway: Contract
+  l1Bridge: Contract
   l1Messenger: Contract
   ctc: Contract
 
   // L2 Contracts
   ovmEth: Contract
+  l2Bridge: Contract
   l2Messenger: Contract
 
   // The L1 <> L2 State watcher
@@ -40,9 +42,10 @@ export class OptimismEnv {
 
   constructor(args: any) {
     this.addressManager = args.addressManager
-    this.gateway = args.gateway
+    this.l1Bridge = args.l1Bridge
     this.l1Messenger = args.l1Messenger
     this.ovmEth = args.ovmEth
+    this.l2Bridge = args.l2Bridge
     this.l2Messenger = args.l2Messenger
     this.watcher = args.watcher
     this.l1Wallet = args.l1Wallet
@@ -53,18 +56,19 @@ export class OptimismEnv {
   static async new(): Promise<OptimismEnv> {
     const addressManager = getAddressManager(l1Wallet)
     const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
-    const gateway = await getBridge(l1Wallet, addressManager)
+    const l1Bridge = await getL1Bridge(l1Wallet, addressManager)
 
     // fund the user if needed
     const balance = await l2Wallet.getBalance()
     if (balance.isZero()) {
-      await fundUser(watcher, gateway, utils.parseEther('20'))
+      await fundUser(watcher, l1Bridge, utils.parseEther('20'))
     }
+    const l1Messenger = getContractFactory('iOVM_L1CrossDomainMessenger')
+    .connect(l1Wallet)
+    .attach(watcher.l1.messengerAddress)
 
     const ovmEth = getOvmEth(l2Wallet)
-    const l1Messenger = getContractFactory('iOVM_L1CrossDomainMessenger')
-      .connect(l1Wallet)
-      .attach(watcher.l1.messengerAddress)
+    const l2Bridge = await getL2Bridge(l2Wallet)
     const l2Messenger = getContractFactory('iOVM_L2CrossDomainMessenger')
       .connect(l2Wallet)
       .attach(watcher.l2.messengerAddress)
@@ -78,10 +82,11 @@ export class OptimismEnv {
 
     return new OptimismEnv({
       addressManager,
-      gateway,
+      l1Bridge,
       ctc,
       l1Messenger,
       ovmEth,
+      l2Bridge,
       l2Messenger,
       watcher,
       l1Wallet,

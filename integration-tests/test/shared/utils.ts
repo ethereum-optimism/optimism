@@ -63,24 +63,36 @@ export const getAddressManager = (provider: any) => {
     .attach(env.ADDRESS_MANAGER)
 }
 
-// Gets the gateway using the proxy if available
-export const getBridge = async (wallet: Wallet, AddressManager: Contract) => {
+// Gets the bridge contract
+export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
   const l1BridgeInterface = getContractInterface('OVM_L1StandardBridge')
-  const ProxyGatewayAddress = await AddressManager.getAddress(
+  const ProxyBridgeAddress = await AddressManager.getAddress(
     'Proxy__OVM_L1StandardBridge'
   )
-  const addressToUse =
-    ProxyGatewayAddress !== constants.AddressZero
-      ? ProxyGatewayAddress
-      : await AddressManager.getAddress('OVM_L1StandardBridge')
+
+  if (!utils.isAddress(ProxyBridgeAddress) ||  ProxyBridgeAddress === constants.AddressZero) {
+    throw new Error(
+      'Proxy__OVM_L1StandardBridge not found'
+    )
+  }
 
   const OVM_L1StandardBridge = new Contract(
-    addressToUse,
+    ProxyBridgeAddress,
     l1BridgeInterface,
     wallet
   )
-
   return OVM_L1StandardBridge
+}
+
+export const getL2Bridge = async (wallet: Wallet) => {
+  const L2BridgeInterface = getContractInterface('OVM_L2StandardBridge')
+
+  const OVM_L2StandardBridge = new Contract(
+    predeploys.OVM_L2StandardBridge,
+    L2BridgeInterface,
+    wallet
+  )
+  return OVM_L2StandardBridge
 }
 
 export const getOvmEth = (wallet: Wallet) => {
@@ -95,14 +107,14 @@ export const getOvmEth = (wallet: Wallet) => {
 
 export const fundUser = async (
   watcher: Watcher,
-  gateway: Contract,
+  bridge: Contract,
   amount: BigNumberish,
   recipient?: string
 ) => {
   const value = BigNumber.from(amount)
   const tx = recipient
-    ? gateway.depositETHTo(recipient, 1_000_000, '0xFFFF', { value })
-    : gateway.depositETH(1_000_000, '0xFFFF', { value })
+    ? bridge.depositETHTo(recipient, 1_000_000, '0xFFFF', { value })
+    : bridge.depositETH(1_000_000, '0xFFFF', { value })
 
   await waitForXDomainTransaction(watcher, tx, Direction.L1ToL2)
 }
