@@ -140,28 +140,32 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       )
 
       if (!this.disableQueueBatchAppend) {
-        const nonce = await this.signer.getTransactionCount()
+        // Generate the transaction we will repeatedly submit
+        const tx = await this.chainContract.populateTransaction.appendQueueBatch(
+          ethers.constants.MaxUint256 // Completely empty the queue by appending (up to) an enormous number of queue elements.
+        )
         const contractFunction = async (
           gasPrice
         ): Promise<TransactionReceipt> => {
           this.logger.info('Submitting appendQueueBatch transaction', {
             gasPrice,
-            nonce,
             contractAddr: this.chainContract.address,
           })
-          const tx = await this.chainContract.appendQueueBatch(99999999, {
-            nonce,
-            gasPrice,
-          })
+          const txResponse = await this.chainContract.appendQueueBatch(
+            ethers.constants.MaxUint256, // Completely empty the queue by appending (up to) an enormous number of queue elements.
+            {
+              gasPrice,
+            }
+          )
           this.logger.info('Submitted appendQueueBatch transaction', {
-            txHash: tx.hash,
-            from: tx.from,
+            txHash: txResponse.hash,
+            from: txResponse.from,
           })
           this.logger.debug('appendQueueBatch transaction data', {
-            data: tx.data,
+            data: txResponse.data,
           })
           return this.signer.provider.waitForTransaction(
-            tx.hash,
+            txResponse.hash,
             this.numConfirmations
           )
         }
@@ -250,26 +254,28 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       l1tipHeight,
     })
 
-    const nonce = await this.signer.getTransactionCount()
+    // Generate the transaction we will repeatedly submit
+    const tx = await this.chainContract.customPopulateTransaction.appendSequencerBatch(
+      batchParams
+    )
     const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
       this.logger.info('Submitting appendSequencerBatch transaction', {
         gasPrice,
-        nonce,
         contractAddr: this.chainContract.address,
       })
-      const tx = await this.chainContract.appendSequencerBatch(batchParams, {
-        nonce,
+      const txResponse = await this.signer.sendTransaction({
+        ...tx,
         gasPrice,
       })
       this.logger.info('Submitted appendSequencerBatch transaction', {
-        txHash: tx.hash,
-        from: tx.from,
+        txHash: txResponse.hash,
+        from: txResponse.from,
       })
       this.logger.debug('appendSequencerBatch transaction data', {
-        data: tx.data,
+        data: txResponse.data,
       })
       return this.signer.provider.waitForTransaction(
-        tx.hash,
+        txResponse.hash,
         this.numConfirmations
       )
     }

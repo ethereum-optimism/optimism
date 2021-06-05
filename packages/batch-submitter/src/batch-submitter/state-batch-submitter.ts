@@ -159,14 +159,14 @@ export class StateBatchSubmitter extends BatchSubmitter {
     endBlock: number
   ): Promise<TransactionReceipt> {
     const batch = await this._generateStateCommitmentBatch(startBlock, endBlock)
-    const tx = this.chainContract.interface.encodeFunctionData(
+    const calldata = this.chainContract.interface.encodeFunctionData(
       'appendStateBatch',
       [batch, startBlock]
     )
-    const batchSizeInBytes = remove0x(tx).length / 2
+    const batchSizeInBytes = remove0x(calldata).length / 2
     this.logger.debug('State batch generated', {
       batchSizeInBytes,
-      tx,
+      calldata,
     })
 
     if (!this._shouldSubmitBatch(batchSizeInBytes)) {
@@ -174,29 +174,31 @@ export class StateBatchSubmitter extends BatchSubmitter {
     }
 
     const offsetStartsAtIndex = startBlock - this.blockOffset
-    this.logger.debug('Submitting batch.', { tx })
+    this.logger.debug('Submitting batch.', { calldata })
 
-    const nonce = await this.signer.getTransactionCount()
+    // Generate the transaction we will repeatedly submit
+    const tx = await this.chainContract.populateTransaction.appendStateBatch(
+      batch,
+      offsetStartsAtIndex
+    )
     const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
       this.logger.info('Submitting appendStateBatch transaction', {
         gasPrice,
-        nonce,
         contractAddr: this.chainContract.address,
       })
-      const contractTx = await this.chainContract.appendStateBatch(
-        batch,
-        offsetStartsAtIndex,
-        { nonce, gasPrice }
-      )
+      const txResponse = await this.signer.sendTransaction({
+        ...tx,
+        gasPrice,
+      })
       this.logger.info('Submitted appendStateBatch transaction', {
-        txHash: contractTx.hash,
-        from: contractTx.from,
+        txHash: txResponse.hash,
+        from: txResponse.from,
       })
       this.logger.debug('appendStateBatch transaction data', {
-        data: contractTx.data,
+        data: txResponse.data,
       })
       return this.signer.provider.waitForTransaction(
-        contractTx.hash,
+        txResponse.hash,
         this.numConfirmations
       )
     }
