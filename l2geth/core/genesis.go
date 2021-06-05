@@ -301,17 +301,13 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		l1MessengerValue := common.BytesToHash(l1XDomainMessengerAddress.Bytes())
 		statedb.SetState(AddressManager.Address, l1MessengerSlot, l1MessengerValue)
 	}
-	_, ok := stateDump.Accounts["OVM_ETH"]
-	if !ok {
-		panic("OVM_ETH not in state dump")
-	}
 	OVM_L2StandardBridge, ok := stateDump.Accounts["OVM_L2StandardBridge"]
 	if ok {
 		log.Info("Setting OVM_L1StandardBridge in OVM_L2StandardBridge", "address", l1StandardBridgeAddress.Hex())
-		// Set the L1 bridge at slot 1
+		// Set the gateway of OVM_L2StandardBridge at new dump
 		l1BridgeSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 		l1BridgeValue := common.BytesToHash(l1StandardBridgeAddress.Bytes())
-		statedb.SetState(OVM_ETH.Address, l1BridgeSlot, l1BridgeValue)
+		statedb.SetState(OVM_L2StandardBridge.Address, l1BridgeSlot, l1BridgeValue)
 	}
 	OVM_ETH, ok := stateDump.Accounts["OVM_ETH"]
 	if ok {

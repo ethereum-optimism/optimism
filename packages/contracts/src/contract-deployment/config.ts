@@ -1,5 +1,5 @@
 /* External Imports */
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Overrides } from '@ethersproject/contracts'
 
@@ -119,24 +119,12 @@ export const makeContractDeployConfig = async (
     Proxy__OVM_L1StandardBridge: {
       factory: getContractFactory('Lib_ResolvedDelegateProxy'),
       params: [AddressManager.address, 'OVM_L1StandardBridge'],
-      afterDeploy: async (contracts): Promise<void> => {
-        const l1StandardBridge = getContractFactory('OVM_L1StandardBridge')
-          .connect(config.deploymentSigner)
-          .attach(contracts.Proxy__OVM_L1StandardBridge.address)
-        await _sendTx(
-          l1StandardBridge.initialize(
-            contracts.Proxy__OVM_L1CrossDomainMessenger.address,
-            predeploys.OVM_L2StandardBridge,
-            predeploys.OVM_ETH
-          )
-        )
-      },
     },
     OVM_L2StandardBridge: {
-      factory: getContractFactory('OVM_L1StandardBridge'),
+      factory: getContractFactory('OVM_L2StandardBridge'),
       params: [
         predeploys.OVM_L2CrossDomainMessenger,
-        contracts.Proxy__OVM_L1StandardBridge.address
+        constants.AddressZero // we'll set this to the L1 Bridge address in genesis.go
       ],
     },
     OVM_L1MultiMessageRelayer: {
