@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Enya Datadog Deployment"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: rinkeby-infrastructure-core
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub ecs-tasks.${AWS::URLSuffix}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAccessToSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "cloudwatch:Describe*"
+                  - "cloudwatch:Get*"
+                  - "cloudwatch:List*"
+                  - "logs:TestMetricFilter"
+                  - "logs:PutSubscriptionFilter"
+                  - "logs:DeleteSubscriptionFilter"
+                  - "logs:DescribeSubscriptionFilters"
+                  - "support:*"
+                  - "tag:GetResources"
+                  - "tag:GetTagKeys"
+                  - "tag:GetTagValues"
+                Resource: "*"
+  DatadogLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+      LogGroupName: !Sub "/omgx/${InfrastructureStackName}/datadog/latest"
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Volumes:
+        - Name: docker_sock
+          Host:
+            SourcePath: "/var/run/docker.sock"
+        - Name: docker_logs
+          Host:
+            SourcePath: "/var/lib/docker/containers"
+        - Name: docker_run
+          Host:
+            SourcePath: "/opt/datadog-agent/run"
+        - Name: proc
+          Host:
+            SourcePath: "/proc/"
+        - Name: cgroup
+          Host:
+            SourcePath: "/sys/fs/cgroup/"
+        - Name: password
+          Host:
+            SourcePath: "/etc/passwd"
+      ContainerDefinitions:
+        - Image: datadog/agent:latest
+          Name: datadog
+          Environment:
+            - Name: DD_SITE
+              Value: "datadoghq.com"
+            - Name: DD_PROCESS_AGENT_ENABLED
+              Value: "true"
+            - Name: DD_LOGS_ENABLED
+              Value: "true"
+            - Name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
+              Value: "true"
+            - Name: DD_LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE
+              Value: "true"
+            - Name: DD_CONTAINER_EXCLUDE
+              Value: "name:datadog-agent"
+            - Name: DD_CONTAINER_EXCLUDE
+              Value: "name:amazon-ecs -agent"
+          MountPoints:
+            - ContainerPath: "/var/run/docker.sock"
+              SourceVolume: docker_sock
+            - ContainerPath: "/host/sys/fs/cgroup"
+              SourceVolume: cgroup
+            - ContainerPath: "/host/proc"
+              SourceVolume: proc
+            - ContainerPath: "/opt/datadog-agent/run"
+              SourceVolume: docker_run
+            - ContainerPath: "/var/lib/docker/containers"
+              SourceVolume: docker_logs
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: DatadogLogGroup
+              awslogs-region:
+                Ref: AWS::Region
+          Memory: "256"
+          Cpu: "10"
+      NetworkMode: bridge
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub "Datadog-${EnvironmentName}"
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
+      LaunchType: EC2
+      SchedulingStrategy: REPLICA
+      ServiceName: !Sub "Datadog-${EnvironmentName}"
+      TaskDefinition: !Ref TaskDefinition

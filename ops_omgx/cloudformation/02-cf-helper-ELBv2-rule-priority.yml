@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation helper that gets the next available rule priority from an ELBv2 listener'
+
+Resources:
+  Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: 'Allow'
+          Principal:
+            Service: !Sub "lambda.${AWS::URLSuffix}"
+          Action: 'sts:AssumeRole'
+      Policies:
+      - PolicyName: AllowDescribeRules # DescribeRules doesn't support resource level permissions anyway
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: 'Allow'
+            Action:
+            - 'elasticloadbalancing:DescribeRules'
+            Resource:
+            - '*'
+
+  Policy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: 'Allow'
+          Action: 'lambda:InvokeFunction'
+          Resource: !GetAtt Function.Arn
+
+  Function:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: 'nodejs10.x' # was  nodejs8.10
+      Role: !GetAtt Role.Arn
+      Handler: 'index.handler'
+      FunctionName: !Ref AWS::StackName
+      ReservedConcurrentExecutions: 1 # IMPORTANT: Never set to more than 1, otherwise it won't be consistent
+      Code:
+        ZipFile: |
+          const Response = require('cfn-response');
+          const AWS = require('aws-sdk');
+
+          const ELBv2 = new AWS.ELBv2();
+
+          exports.handler = function (event, context, callback) {
+              let listenerArn = event.ResourceProperties.ListenerArn;
+              ELBv2.describeRules({ListenerArn: listenerArn}, function (err, data) {
+                  if (err) {
+                      console.log(err, err.stack);
+                      callback();
+                      Response.send(event, context, Response.FAILED);
+                  } else {
+                      let result = data.Rules.reduce((max, rule) => Math.max(max, parseInt(rule.Priority) || 0), 0) + 1;
+                      Response.send(event, context, Response.SUCCESS, {Value: result}, listenerArn + ':RulePriority:' + result);
+                  }
+              });
+          };
+
+Outputs:
+  RoleOutput:
+    Value: !GetAtt Role.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}:Role"
+  FunctionOutput:
+    Value: !GetAtt Function.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}:Function"
+  PolicyOutput:
+    Value: !Ref Policy
+    Export:
+      Name: !Sub "${AWS::StackName}:Policy"

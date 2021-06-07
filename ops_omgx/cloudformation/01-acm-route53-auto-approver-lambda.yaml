@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Lambda to create Route 53 resources for automatic ACM approval"
+
+Resources:
+
+  AcmRoute53ApproverLambdaRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: "AcmCfnLambdaPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+              - Effect: "Allow"
+                Action: # TODO: scope these down
+                  - "acm:DescribeCertificate"
+                  - "route53:ChangeResourceRecordSets"
+                  - "route53:GetHostedZone"
+                  - "route53:GetChange"
+                  - "route53:GetChangeRequest"
+                  - "cloudformation:CreateStack"
+                  - "cloudformation:DeleteStack"
+                  - "cloudformation:DescribeStackResources"
+                Resource: "*"
+
+  AcmRoute53ApproverLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Cloudformation Custom Resource for ACM certs using Route53 approval
+      Handler: index.acm_certificate
+      MemorySize: 128
+      Runtime: python3.7
+      Timeout: 300
+      Role:
+        Fn::GetAtt: AcmRoute53ApproverLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import cfnresponse
+          import boto3, json, time
+
+          def acm_certificate(event, context):
+              print(event)
+
+              acm = boto3.client("acm")
+              cfn = boto3.client("cloudformation")
+
+              for i in range(10):
+                  print("Loop number {}".format(i))
+
+                  response = cfn.describe_stack_resources(StackName=event["StackId"], LogicalResourceId=event["ResourceProperties"]["CloudFormationResourceName"])
+                  print("Stack resource:")
+                  print(response)
+
+                  stack_name = "{}-{}-route53-approval".format(event["ResourceProperties"]["CloudFormationStackName"], event["ResourceProperties"]["CloudFormationResourceName"])
+
+                  if event["RequestType"] == "Create":
+
+                      try:
+                          certificate_arn = response["StackResources"][0]["PhysicalResourceId"]
+                          response = acm.describe_certificate(CertificateArn=certificate_arn)
+                          resource_record = response["Certificate"]["DomainValidationOptions"][0]["ResourceRecord"]
+
+                      except:
+                          print("ARN not yet available")
+                          continue
+
+                      resp = cfn.create_stack(
+                          StackName=stack_name,
+                          TemplateBody=json.dumps(
+                              {
+                                  "Description": "ACM verification record for {}".format(response["Certificate"]["DomainName"]),
+                                  "Resources": {
+                                      event["ResourceProperties"]["CloudFormationResourceName"]: {
+                                          "Type": "AWS::Route53::RecordSet",
+                                          "Properties": {
+                                              "Comment": "ACM verification record",
+                                              "Name": resource_record["Name"],
+                                              "ResourceRecords": [resource_record["Value"]],
+                                              "Type": resource_record["Type"],
+                                              "HostedZoneId": event["ResourceProperties"]["HostedZoneId"],
+                                              "TTL": 86400,
+                                          },
+                                      }
+                                  },
+                              },
+                              indent=2,
+                          ),
+                      )
+                      print(resp)
+                      return cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+
+                  elif event["RequestType"] == "Delete":
+                      print("Deleting stack")
+                      resp = cfn.delete_stack(StackName=stack_name)
+                      print(resp)
+                      return cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                  time.sleep(30)
+
+              # if we're not done in 10 tries, fail
+              return cfnresponse.send(event, context, cfnresponse.FAILED, {})
+
+
+Outputs:
+  AcmRoute53ApproverLambdaArn:
+    Value: !GetAtt AcmRoute53ApproverLambda.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}:AcmRoute53ApproverLambdaArn"
