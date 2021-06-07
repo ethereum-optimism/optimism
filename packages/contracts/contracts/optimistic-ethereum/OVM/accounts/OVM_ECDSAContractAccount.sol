@@ -8,6 +8,7 @@ import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContrac
 /* Library Imports */
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
 import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
@@ -40,7 +41,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     // TODO: should be the amount sufficient to cover the gas costs of all of the transactions up
     // to and including the CALL/CREATE which forms the entrypoint of the transaction.
     uint256 constant EXECUTION_VALIDATION_GAS_OVERHEAD = 25000;
-    OVM_ETH constant ovmETH = OVM_ETH(0x4200000000000000000000000000000000000006);
 
 
     /********************
@@ -92,8 +92,8 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Transfer fee to relayer.
         require(
-            ovmETH.transfer(
-                msg.sender,
+            OVM_ETH(Lib_PredeployAddresses.OVM_ETH).transfer(
+                Lib_PredeployAddresses.SEQUENCER_FEE_WALLET,
                 SafeMath.mul(transaction.gasLimit, transaction.gasPrice)
             ),
             "Fee was not transferred to relayer."
@@ -131,7 +131,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                 );
 
                 require(
-                    ovmETH.transfer(
+                    OVM_ETH(Lib_PredeployAddresses.OVM_ETH).transfer(
                         transaction.to,
                         transaction.value
                     ),
