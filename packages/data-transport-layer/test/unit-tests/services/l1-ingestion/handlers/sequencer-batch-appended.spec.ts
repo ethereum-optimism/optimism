@@ -1,9 +1,9 @@
 import { BigNumber, ethers } from 'ethers'
+
+/* Imports: Internal */
 import { expect } from '../../../../setup'
 import { handleEventsSequencerBatchAppended } from '../../../../../src/services/l1-ingestion/handlers/sequencer-batch-appended'
 import { SequencerBatchAppendedExtraData } from '../../../../../src/types'
-import { l1TransactionData } from '../../../examples/l1-data'
-import { blocksOnL2 } from '../../../examples/l2-data'
 
 describe('Event Handlers: OVM_CanonicalTransactionChain.SequencerBatchAppended', () => {
   describe('handleEventsSequencerBatchAppended.parseEvent', () => {
@@ -28,7 +28,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.SequencerBatchAppended',
     }
 
     it('should error on malformed transaction data', async () => {
-      const input1: [any, SequencerBatchAppendedExtraData] = [
+      const input1: [any, SequencerBatchAppendedExtraData, number] = [
         {
           args: {
             _startingQueueIndex: ethers.constants.Zero,
@@ -40,6 +40,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.SequencerBatchAppended',
           l1TransactionData: '0x00000',
           ...exampleExtraData,
         },
+        0,
       ]
 
       expect(() => {
