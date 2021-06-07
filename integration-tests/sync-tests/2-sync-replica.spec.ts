@@ -3,7 +3,12 @@ import { Wallet, Contract, ContractFactory, providers } from 'ethers'
 import { ethers } from 'hardhat'
 import { injectL2Context } from '@eth-optimism/core-utils'
 
-import { sleep, l2Provider, replicaProvider } from '../test/shared/utils'
+import {
+  sleep,
+  l2Provider,
+  replicaProvider,
+  waitForL2Geth,
+} from '../test/shared/utils'
 import { OptimismEnv } from '../test/shared/env'
 import { DockerComposeNetwork } from '../test/shared/docker-compose'
 
@@ -24,14 +29,7 @@ describe('Syncing a replica', () => {
       commandOptions: ['--scale', 'replica=1'],
     })
 
-    // Wait for replica to be looping
-    let logs = await replica.logs()
-    while (!logs.out.includes('Starting Verifier Loop')) {
-      await sleep(500)
-      logs = await replica.logs()
-    }
-
-    provider = injectL2Context(replicaProvider)
+    provider = await waitForL2Geth(replicaProvider)
   }
 
   const syncReplica = async (sequencerBlockNumber: number) => {

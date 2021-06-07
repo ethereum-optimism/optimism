@@ -38,15 +38,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
-
-      # Sync tests have to be run outside of docker since it spins up
-      # its own containers
-      - name: Run the sync tests
-        working-directory: ./integration-tests
-        run: |
-          yarn build:integration
-          yarn test:sync
+        run: docker-compose up -d
 
       - name: Run the integration tests
         working-directory: ./ops

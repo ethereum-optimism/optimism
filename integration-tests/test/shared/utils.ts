@@ -4,7 +4,7 @@ import {
   getContractFactory,
   getContractInterface,
 } from '@eth-optimism/contracts'
-import { remove0x, Watcher } from '@eth-optimism/core-utils'
+import { injectL2Context, remove0x, Watcher } from '@eth-optimism/core-utils'
 import {
   Contract,
   Wallet,
@@ -115,4 +115,19 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const abiCoder = new utils.AbiCoder()
 export const encodeSolidityRevertMessage = (_reason: string): string => {
   return '0x08c379a0' + remove0x(abiCoder.encode(['string'], [_reason]))
+}
+
+export const waitForL2Geth = async (
+  provider: providers.JsonRpcProvider
+): Promise<providers.JsonRpcProvider> => {
+  let ready: boolean = false
+  while (!ready) {
+    try {
+      await provider.getNetwork()
+      ready = true
+    } catch (error) {
+      await sleep(1000)
+    }
+  }
+  return injectL2Context(provider)
 }
