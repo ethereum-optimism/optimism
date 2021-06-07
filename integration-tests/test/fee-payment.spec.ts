@@ -1,9 +1,14 @@
 import chai, { expect } from 'chai'
 import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
+
+/* Imports: External */
 import { BigNumber, utils } from 'ethers'
-import { OptimismEnv } from './shared/env'
 import { TxGasLimit, TxGasPrice } from '@eth-optimism/core-utils'
+import { predeploys } from '@eth-optimism/contracts'
+
+/* Imports: Internal */
+import { OptimismEnv } from './shared/env'
 
 describe('Fee Payment Integration Tests', async () => {
   let env: OptimismEnv
@@ -36,6 +41,9 @@ describe('Fee Payment Integration Tests', async () => {
   it('Paying a nonzero but acceptable gasPrice fee', async () => {
     const amount = utils.parseEther('0.5')
     const balanceBefore = await env.l2Wallet.getBalance()
+    const feeVaultBalanceBefore = await env.l2Wallet.provider.getBalance(
+      predeploys.OVM_SequencerFeeVault
+    )
     expect(balanceBefore.gt(amount))
 
     const tx = await env.ovmEth.transfer(other, amount)
@@ -43,10 +51,18 @@ describe('Fee Payment Integration Tests', async () => {
     expect(receipt.status).to.eq(1)
 
     const balanceAfter = await env.l2Wallet.getBalance()
+    const feeVaultBalanceAfter = await env.l2Wallet.provider.getBalance(
+      predeploys.OVM_SequencerFeeVault
+    )
+    const expectedFeePaid = tx.gasPrice.mul(tx.gasLimit).add(amount)
+
     // The fee paid MUST be the receipt.gasUsed, and not the tx.gasLimit
     // https://github.com/ethereum-optimism/optimism/blob/0de7a2f9c96a7c4860658822231b2d6da0fefb1d/packages/contracts/contracts/optimistic-ethereum/OVM/accounts/OVM_ECDSAContractAccount.sol#L103
-    expect(balanceBefore.sub(balanceAfter)).to.be.deep.eq(
-      tx.gasPrice.mul(tx.gasLimit).add(amount)
+    expect(balanceBefore.sub(balanceAfter)).to.deep.equal(expectedFeePaid)
+
+    // Make sure the fee was transferred to the vault.
+    expect(feeVaultBalanceAfter.sub(feeVaultBalanceBefore)).to.deep.equal(
+      expectedFeePaid
     )
   })
 })
