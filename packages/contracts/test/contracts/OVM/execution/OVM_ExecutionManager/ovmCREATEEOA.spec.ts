@@ -54,10 +54,8 @@ const test_ovmCREATEEOA: TestDefinition = {
             _messageHash:
               '0x92d658d25f963af824e9d4bd533c165773d4a694a67d88135d119d5bca97c001',
             _v: 1,
-            _r:
-              '0x73757c671fae2c3fb6825766c724b7715720bda4b309d3612f2c623364556967',
-            _s:
-              '0x2fc9b7222783390b9f10e22e92a52871beaff2613193d6e2dbf18d0e2d2eb8ff',
+            _r: '0x73757c671fae2c3fb6825766c724b7715720bda4b309d3612f2c623364556967',
+            _s: '0x2fc9b7222783390b9f10e22e92a52871beaff2613193d6e2dbf18d0e2d2eb8ff',
           },
           expectedReturnStatus: true,
           expectedReturnValue: undefined,

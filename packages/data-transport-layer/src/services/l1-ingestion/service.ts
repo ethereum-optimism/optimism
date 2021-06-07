@@ -136,7 +136,8 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     // Store the total number of submitted transactions so the server can tell clients if we're
     // done syncing or not
-    const totalElements = await this.state.contracts.OVM_CanonicalTransactionChain.getTotalElements()
+    const totalElements =
+      await this.state.contracts.OVM_CanonicalTransactionChain.getTotalElements()
     if (totalElements > 0) {
       await this.state.db.putHighestL2BlockNumber(totalElements - 1)
     }
@@ -241,11 +242,13 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     // We need to figure out how to make this work without Infura. Mark and I think that infura is
     // doing some indexing of events beyond Geth's native capabilities, meaning some event logic
     // will only work on Infura and not on a local geth instance. Not great.
-    const addressSetEvents = ((await this.state.contracts.Lib_AddressManager.queryFilter(
-      this.state.contracts.Lib_AddressManager.filters.AddressSet(),
-      fromL1Block,
-      toL1Block
-    )) as TypedEthersEvent<EventArgsAddressSet>[]).filter((event) => {
+    const addressSetEvents = (
+      (await this.state.contracts.Lib_AddressManager.queryFilter(
+        this.state.contracts.Lib_AddressManager.filters.AddressSet(),
+        fromL1Block,
+        toL1Block
+      )) as TypedEthersEvent<EventArgsAddressSet>[]
+    ).filter((event) => {
       return event.args._name === contractName
     })
 

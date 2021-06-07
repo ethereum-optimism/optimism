@@ -197,9 +197,7 @@ export const smockit = async (
   }
 
   // TODO: Make this less of a hack.
-  ;(contract as any)._smockit = async function (
-    data: Buffer
-  ): Promise<{
+  ;(contract as any)._smockit = async function (data: Buffer): Promise<{
     resolve: 'return' | 'revert'
     functionName: string
     rawReturnValue: any

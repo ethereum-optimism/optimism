@@ -10,20 +10,7 @@ import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import { NON_NULL_BYTES32 } from '../../../helpers'
 
 const NODE_COUNTS = [
-  2,
-  3,
-  7,
-  9,
-  13,
-  63,
-  64,
-  123,
-  128,
-  129,
-  255,
-  1021,
-  1023,
-  1024,
+  2, 3, 7, 9, 13, 63, 64, 123, 128, 129, 255, 1021, 1023, 1024,
 ]
 
 const hash = (el: Buffer | string): Buffer => {

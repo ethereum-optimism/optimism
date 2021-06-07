@@ -53,7 +53,8 @@ describe('OVM_L2DepositedERC20', () => {
     // initialize the L2 Gateway with the L1G ateway addrss
     await OVM_L2DepositedERC20.init(MOCK_L1GATEWAY_ADDRESS)
 
-    finalizeWithdrawalGasLimit = await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
+    finalizeWithdrawalGasLimit =
+      await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
   })
 
   // test the transfer flow of moving a token from L2 to L1
