@@ -275,5 +275,8 @@ export const makeContractDeployConfig = async (
         config.gasPriceOracleConfig.initialGasPrice,
       ],
     },
+    OVM_SequencerFeeWallet: {
+      factory: getContractFactory('OVM_SequencerFeeWallet'),
+    },
   }
 }
