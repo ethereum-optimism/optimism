@@ -39,8 +39,6 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
 
     address public l2TokenBridge;
 
-    address public ovmEth;
-
     // Maps L1 token to L2 token to balance of the L1 token deposited
     mapping(address => mapping (address => uint256)) public deposits;
 
@@ -59,19 +57,17 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
 
     /**
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
-     * @param _ovmEth L2 OVM_ETH implementation of iOVM_DepositedToken.
+     * @param _l2TokenBridge L2 standard bridge address.
      */
     function initialize(
         address _l1messenger,
-        address _l2TokenBridge,
-        address _ovmEth
+        address _l2TokenBridge
     )
         public
     {
         require(messenger == address(0), "Contract has already been initialized.");
         messenger = _l1messenger;
         l2TokenBridge = _l2TokenBridge;
-        ovmEth = _ovmEth;
     }
 
     /**************

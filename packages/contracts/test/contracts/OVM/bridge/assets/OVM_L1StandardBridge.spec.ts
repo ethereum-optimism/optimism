@@ -78,8 +78,7 @@ describe('OVM_L1StandardBridge', () => {
     ).deploy()
     await OVM_L1StandardBridge.initialize(
       Mock__OVM_L1CrossDomainMessenger.address,
-      DUMMY_L2_BRIDGE_ADDRESS,
-      Mock__OVM_ETH.address
+      DUMMY_L2_BRIDGE_ADDRESS
     )
   })
 
@@ -88,8 +87,7 @@ describe('OVM_L1StandardBridge', () => {
       await expect(
         OVM_L1StandardBridge.initialize(
           ethers.constants.AddressZero,
-          DUMMY_L2_BRIDGE_ADDRESS,
-          ethers.constants.AddressZero
+          DUMMY_L2_BRIDGE_ADDRESS
         )
       ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
     })
@@ -211,8 +209,7 @@ describe('OVM_L1StandardBridge', () => {
       ).deploy()
       await OVM_L1StandardBridge.initialize(
         Mock__OVM_L1CrossDomainMessenger.address,
-        DUMMY_L2_BRIDGE_ADDRESS,
-        Mock__OVM_ETH.address
+        DUMMY_L2_BRIDGE_ADDRESS
       )
 
       Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(

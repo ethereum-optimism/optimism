@@ -41,8 +41,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await Proxy__OVM_L1StandardBridge.initialize(
     l1MessengerAddress,
-    predeploys.OVM_L2StandardBridge,
-    predeploys.OVM_ETH
+    predeploys.OVM_L2StandardBridge
   )
   // Todo: remove this after adding chugsplash proxy
   await Lib_AddressManager.setAddress('Proxy__OVM_L1StandardBridge', result.address)

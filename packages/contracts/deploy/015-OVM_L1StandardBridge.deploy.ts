@@ -39,7 +39,6 @@ const deployFn: DeployFunction = async (hre) => {
   // initialize this. We'll set all the addresses to 0 so that this copy is unusable.
   await OVM_L1StandardBridge.initialize(
     constants.AddressZero,
-    constants.AddressZero,
     constants.AddressZero
   )
 
