@@ -139,7 +139,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 
 		// Wait until the remote service is done syncing
 		t := time.NewTicker(10 * time.Second)
-		for range t.C {
+		for ; true; <-t.C {
 			status, err := service.client.SyncStatus(service.backend)
 			if err != nil {
 				log.Error("Cannot get sync status")
@@ -322,7 +322,7 @@ func (s *SyncService) Stop() error {
 func (s *SyncService) VerifierLoop() {
 	log.Info("Starting Verifier Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	t := time.NewTicker(s.pollInterval)
-	for range t.C {
+	for ; true; <-t.C {
 		if err := s.updateL1GasPrice(); err != nil {
 			log.Error("Cannot update L1 gas price", "msg", err)
 		}
@@ -356,7 +356,7 @@ func (s *SyncService) verify() error {
 func (s *SyncService) SequencerLoop() {
 	log.Info("Starting Sequencer Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	t := time.NewTicker(s.pollInterval)
-	for range t.C {
+	for ; true; <-t.C {
 		if err := s.updateL1GasPrice(); err != nil {
 			log.Error("Cannot update L1 gas price", "msg", err)
 		}
