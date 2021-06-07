@@ -54,11 +54,13 @@ describe('Fee Payment Integration Tests', async () => {
     const feeVaultBalanceAfter = await env.l2Wallet.provider.getBalance(
       predeploys.OVM_SequencerFeeVault
     )
-    const expectedFeePaid = tx.gasPrice.mul(tx.gasLimit).add(amount)
+    const expectedFeePaid = tx.gasPrice.mul(tx.gasLimit)
 
     // The fee paid MUST be the receipt.gasUsed, and not the tx.gasLimit
     // https://github.com/ethereum-optimism/optimism/blob/0de7a2f9c96a7c4860658822231b2d6da0fefb1d/packages/contracts/contracts/optimistic-ethereum/OVM/accounts/OVM_ECDSAContractAccount.sol#L103
-    expect(balanceBefore.sub(balanceAfter)).to.deep.equal(expectedFeePaid)
+    expect(balanceBefore.sub(balanceAfter)).to.deep.equal(
+      expectedFeePaid.add(amount)
+    )
 
     // Make sure the fee was transferred to the vault.
     expect(feeVaultBalanceAfter.sub(feeVaultBalanceBefore)).to.deep.equal(
