@@ -1,7 +1,10 @@
+import { expect } from '../../../../setup'
+
+/* Imports: External */
 import { BigNumber } from 'ethers'
 import { Block } from '@ethersproject/abstract-provider'
 
-import { expect } from '../../../../setup'
+/* Imports: Internal */
 import { handleEventsStateBatchAppended } from '../../../../../src/services/l1-ingestion/handlers/state-batch-appended'
 import { StateBatchAppendedExtraData } from '../../../../../src/types'
 import { l1StateBatchData } from '../../../examples/l1-data'
@@ -73,7 +76,11 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.StateBatchAppended', () 
         l1TransactionHash:
           '0x4ca72484e93cdb50fe1089984db152258c2bbffc2534dcafbfe032b596bd5b49',
       }
-      const input1: [any, StateBatchAppendedExtraData] = [event, extraData]
+      const input1: [any, StateBatchAppendedExtraData, number] = [
+        event,
+        extraData,
+        0,
+      ]
 
       const output1 = handleEventsStateBatchAppended.parseEvent(...input1)
 
