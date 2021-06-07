@@ -33,6 +33,7 @@ CLI Arguments:
   --eth1.chainid                         - eth1 chain id
   --eth1.ctcdeploymentheight             - eth1 ctc deploy height
   --eth1.l1crossdomainmessengeraddress   - eth1 l1 xdomain messenger address
+  --eth1.l1feewalletaddress              - eth l1 fee wallet address
   --rollup.statedumppath                 - http path to the initial state dump
   --rollup.clienthttp                    - rollup client http
   --rollup.pollinterval                  - polling interval for the rollup client
@@ -121,6 +122,15 @@ while (( "$#" )); do
         --eth1.l1crossdomainmessengeraddress)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
                 ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS="$2"
+                shift 2
+            else
+                echo "Error: Argument for $1 is missing" >&2
+                exit 1
+            fi
+            ;;
+        --eth1.l1feewalletaddress)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                ETH1_L1_FEE_WALLET_ADDRESS="$2"
                 shift 2
             else
                 echo "Error: Argument for $1 is missing" >&2
@@ -230,6 +240,7 @@ if [[ ! -z "$ROLLUP_SYNC_SERVICE_ENABLE" ]]; then
 fi
 cmd="$cmd --datadir $DATADIR"
 cmd="$cmd --eth1.l1crossdomainmessengeraddress $ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS"
+cmd="$cmd --eth1.l1feewalletaddress $ETH1_L1_FEE_WALLET_ADDRESS"
 cmd="$cmd --rollup.addressmanagerowneraddress $ADDRESS_MANAGER_OWNER_ADDRESS"
 cmd="$cmd --rollup.statedumppath $ROLLUP_STATE_DUMP_PATH"
 cmd="$cmd --eth1.ctcdeploymentheight $ETH1_CTC_DEPLOYMENT_HEIGHT"
