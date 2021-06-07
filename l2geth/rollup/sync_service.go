@@ -146,6 +146,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 				continue
 			}
 			if !status.Syncing {
+				t.Stop()
 				break
 			}
 			log.Info("Still syncing", "index", status.CurrentTransactionIndex, "tip", status.HighestKnownTransactionIndex)
