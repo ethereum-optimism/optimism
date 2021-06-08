@@ -124,7 +124,7 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_L2StandardBridge'),
       params: [
         predeploys.OVM_L2CrossDomainMessenger,
-        constants.AddressZero // we'll set this to the L1 Bridge address in genesis.go
+        constants.AddressZero, // we'll set this to the L1 Bridge address in genesis.go
       ],
     },
     OVM_L1MultiMessageRelayer: {

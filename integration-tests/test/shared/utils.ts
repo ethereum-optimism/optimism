@@ -70,10 +70,11 @@ export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
     'Proxy__OVM_L1StandardBridge'
   )
 
-  if (!utils.isAddress(ProxyBridgeAddress) ||  ProxyBridgeAddress === constants.AddressZero) {
-    throw new Error(
-      'Proxy__OVM_L1StandardBridge not found'
-    )
+  if (
+    !utils.isAddress(ProxyBridgeAddress) ||
+    ProxyBridgeAddress === constants.AddressZero
+  ) {
+    throw new Error('Proxy__OVM_L1StandardBridge not found')
   }
 
   const OVM_L1StandardBridge = new Contract(
