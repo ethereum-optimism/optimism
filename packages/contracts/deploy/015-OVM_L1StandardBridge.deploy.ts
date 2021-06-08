@@ -5,7 +5,7 @@ import { constants } from 'ethers'
 /* Imports: Internal */
 import { getDeployedContract } from '../src/hardhat-deploy-ethers'
 import { predeploys } from '../src/predeploys'
-import { NON_ZERO_ADDRESS } from '../test/helpers/index.ts'
+import { NON_ZERO_ADDRESS } from '../test/helpers/constants'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments

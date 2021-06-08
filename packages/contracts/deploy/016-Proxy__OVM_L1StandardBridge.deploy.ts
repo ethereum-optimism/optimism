@@ -44,7 +44,7 @@ const deployFn: DeployFunction = async (hre) => {
     predeploys.OVM_L2StandardBridge
   )
 
-  let messenger = await Proxy__OVM_L1StandardBridge.getCrossDomainMessenger()
+  let messenger = await Proxy__OVM_L1StandardBridge.messenger()
   if(messenger !== l1MessengerAddress) {
     throw new Error(
       'Proxy__OVM_L1StandardBridge failed to initialize'

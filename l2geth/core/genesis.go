@@ -309,13 +309,6 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		l1BridgeValue := common.BytesToHash(l1StandardBridgeAddress.Bytes())
 		statedb.SetState(OVM_L2StandardBridge.Address, l1BridgeSlot, l1BridgeValue)
 	}
-	OVM_ETH, ok := stateDump.Accounts["OVM_ETH"]
-	if ok {
-		log.Info("Setting OVM_L2StandardBridge as owner in OVM_ETH", "address", OVM_L2StandardBridge.Address)
-		ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000007")
-		ownerValue := common.BytesToHash(OVM_L2StandardBridge.Address.Bytes())
-		statedb.SetState(OVM_ETH.Address, ownerSlot, ownerValue)
-	}
 	ExecutionManager, ok := stateDump.Accounts["OVM_ExecutionManager"]
 	if ok {
 		if chainID == nil {

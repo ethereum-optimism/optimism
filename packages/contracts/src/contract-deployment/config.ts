@@ -228,7 +228,9 @@ export const makeContractDeployConfig = async (
     },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
-      params: [], // need to set the owner to the L2 Bridge address in genesis.go
+      params: [
+        predeploys.OVM_L2StandardBridge
+      ],
     },
     'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
