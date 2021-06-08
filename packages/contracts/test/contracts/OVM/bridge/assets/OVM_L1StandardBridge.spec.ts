@@ -45,7 +45,9 @@ describe('OVM_L1StandardBridge', () => {
     Mock__OVM_ETH = await smockit(await ethers.getContractFactory('OVM_ETH'))
 
     // deploy an ERC20 contract on L1
-    Factory__L1ERC20 = await smoddit('@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20')
+    Factory__L1ERC20 = await smoddit(
+      '@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20'
+    )
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
 
     // get an L2ER20Bridge Interface

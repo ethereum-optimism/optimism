@@ -228,9 +228,7 @@ export const makeContractDeployConfig = async (
     },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
-      params: [
-        predeploys.OVM_L2StandardBridge
-      ],
+      params: [predeploys.OVM_L2StandardBridge],
     },
     'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
