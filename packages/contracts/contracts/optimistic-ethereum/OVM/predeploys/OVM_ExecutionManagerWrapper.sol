@@ -22,6 +22,7 @@ contract OVM_ExecutionManagerWrapper {
 
     fallback()
         external
+        payable
     {
         bytes memory data = msg.data;
         assembly {

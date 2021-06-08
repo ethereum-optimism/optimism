@@ -2,15 +2,21 @@
 // @unsupported: evm
 pragma solidity >=0.7.0;
 
-contract ValueCallsWithCompiler {
-
-    receive() external payable { }
-
+contract ValueContext {
     function getBalance(
         address _address
     ) external payable returns(uint256) {
         return _address.balance;
     }
+
+    function getCallValue() public payable returns(uint256) {
+        return msg.value;
+    }
+}
+
+contract ValueCalls is ValueContext {
+
+    receive() external payable { }
 
     function simpleSend(
         address _address,
@@ -39,10 +45,6 @@ contract ValueCallsWithCompiler {
         }
     }
 
-    function getCallValue() public payable returns(uint256) {
-        return msg.value;
-    }
-
     function verifyCallValueAndReturn(
         uint256 _expectedValue
     ) external payable {
@@ -53,6 +55,13 @@ contract ValueCallsWithCompiler {
         } else {
             revert("unexpected revert");
         }
+    }
+
+    function delegateCallToCallValue(
+        address _valueContext
+    ) public payable returns(bool, bytes memory) {
+        bytes memory data = abi.encodeWithSelector(ValueContext.getCallValue.selector);
+        return _valueContext.delegatecall(data);
     }
 
     function _checkCallValue(

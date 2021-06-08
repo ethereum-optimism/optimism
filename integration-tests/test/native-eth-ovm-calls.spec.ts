@@ -4,16 +4,70 @@ import chai, { expect } from 'chai'
 import { GWEI, fundUser, encodeSolidityRevertMessage } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { solidity } from 'ethereum-waffle'
+import { sleep } from '../../packages/core-utils/dist'
 
 chai.use(solidity)
 
-for (const sourceName of ['ValueCallsWithWrapper', 'ValueCallsWithCompiler']) {
-  describe(`OVM calls with native ETH value (${sourceName})`, async () => {
+describe.only('Native ETH value integration tests', () => {
+  let env: OptimismEnv
+  let wallet: Wallet
+  let other: Wallet
+
+  before(async () => {
+    env = await OptimismEnv.new()
+    wallet = env.l2Wallet
+    other = Wallet.createRandom().connect(wallet.provider)
+  })
+
+  it('should allow an L2 EOA to send to a new account and back again', async () => {
+    const getBalances = async (): Promise<BigNumber[]> => {
+      return [
+        await wallet.provider.getBalance(wallet.address),
+        await wallet.provider.getBalance(other.address)
+      ]
+    }
+
+    const checkBalacnes = async (expectedBalances: BigNumber[]): Promise<void> => {
+      const realBalances = await getBalances()
+      expect(realBalances[0]).to.deep.eq(expectedBalances[0])
+      expect(realBalances[1]).to.deep.eq(expectedBalances[1])
+    }
+
+    const value = 10
+    await fundUser(
+      env.watcher,
+      env.gateway,
+      value,
+      wallet.address
+    )
+
+    const initialBalances = await getBalances()
+
+    const there = await wallet.sendTransaction({
+      to: other.address,
+      value,
+      gasPrice: 0
+    })
+    await there.wait()
+
+    await checkBalacnes([
+      initialBalances[0].sub(value),
+      initialBalances[1].add(value)
+    ])
+
+    const backAgain = await other.sendTransaction({
+      to: wallet.address,
+      value,
+      gasPrice: 0
+    })
+    await backAgain.wait()
+
+    await checkBalacnes(initialBalances)
+  })
+
+  describe(`calls between OVM contracts with native ETH value and relevant opcodes`, async () => {
     const initialBalance0 = 42000
 
-    let env: OptimismEnv
-    let wallet: Wallet
-    let other: Wallet
     let Factory__ValueCalls: ContractFactory
     let ValueCalls0: Contract
     let ValueCalls1: Contract
@@ -36,10 +90,7 @@ for (const sourceName of ['ValueCallsWithWrapper', 'ValueCallsWithCompiler']) {
     }
 
     before(async () => {
-      env = await OptimismEnv.new()
-      wallet = env.l2Wallet
-      other = Wallet.createRandom().connect(ethers.provider)
-      Factory__ValueCalls = await ethers.getContractFactory(sourceName, wallet)
+      Factory__ValueCalls = await ethers.getContractFactory('ValueCalls', wallet)
     })
 
     beforeEach(async () => {
@@ -61,6 +112,7 @@ for (const sourceName of ['ValueCallsWithWrapper', 'ValueCallsWithCompiler']) {
         gasPrice: 0,
       })
       await tx.wait()
+
       await checkBalances([initialBalance0 - sendAmount, sendAmount])
     })
 
@@ -110,4 +162,10 @@ for (const sourceName of ['ValueCallsWithWrapper', 'ValueCallsWithCompiler']) {
       expect(returndata).to.eq('0x')
     })
   })
-}
+
+  describe('ovmDELEGATECALLs with value', () => {
+    it('should preserve the msg.value', async () => {
+      // TODO
+    })
+  })
+})
