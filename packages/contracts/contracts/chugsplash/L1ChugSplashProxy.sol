@@ -138,13 +138,9 @@ contract L1ChugSplashProxy {
     {
         // Get the code hash of the current implementation.
         address implementation = _getImplementation();
-        bytes32 currentCodeHash;
-        assembly {
-            currentCodeHash := extcodehash(implementation)
-        }
 
         // If the code hash matches the new implementation then we return early.
-        if (keccak256(_code) == currentCodeHash) {
+        if (keccak256(_code) == _getAccountCodeHash(implementation)) {
             return;
         }
 
@@ -159,6 +155,16 @@ contract L1ChugSplashProxy {
         assembly {
             newImplementation := create(0x0, add(deploycode, 0x20), mload(deploycode))
         }
+
+        // Check that the code was actually deployed correctly. I'm not sure if you can ever
+        // actually fail this check. Should only happen if the contract creation from above runs
+        // out of gas but this parent execution thread does NOT run out of gas. Seems like we
+        // should be doing this check anyway though.
+        require(
+            _getAccountCodeHash(newImplementation) == keccak256(_code),
+            "L1ChugSplashProxy: code was not correctly deployed."
+        );
+
         _setImplementation(newImplementation);
     }
 
@@ -290,6 +296,27 @@ contract L1ChugSplashProxy {
             owner := sload(OWNER_KEY)
         }
         return owner;
+    }
+
+    /**
+     * Gets the code hash for a given account.
+     * @param _account Address of the account to get a code hash for.
+     * @return Code hash for the account.
+     */
+    function _getAccountCodeHash(
+        address _account
+    )
+        internal
+        view
+        returns (
+            bytes32
+        )
+    {
+        bytes32 codeHash;
+        assembly {
+            codeHash := extcodehash(_account)
+        }
+        return codeHash;
     }
 
     /**

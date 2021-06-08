@@ -72,6 +72,16 @@ describe('L1ChugSplashProxy', () => {
       ).to.equal(hre.ethers.constants.AddressZero)
     })
 
+    it('should succeed if called by the zero address in an eth_call', async () => {
+      expect(
+        await L1ChugSplashProxy.connect(
+          hre.ethers.provider
+        ).callStatic.getImplementation({
+          from: hre.ethers.constants.AddressZero,
+        })
+      ).to.equal(hre.ethers.constants.AddressZero)
+    })
+
     it('should otherwise pass through to the proxied contract', async () => {
       await expect(
         L1ChugSplashProxy.connect(signer2).getImplementation()
