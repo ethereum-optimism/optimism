@@ -161,11 +161,34 @@ describe.only('Native ETH value integration tests', () => {
       expect(success).to.be.false
       expect(returndata).to.eq('0x')
     })
-  })
 
-  describe('ovmDELEGATECALLs with value', () => {
-    it('should preserve the msg.value', async () => {
-      // TODO
+    it.only('should preserve msg.value through ovmDELEGATECALLs', async () => {
+      const Factory__ValueContext = await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      const sendAmount = 10
+      
+      const [outerSuccess, outerReturndata] = await ValueCalls0.callStatic.sendWithData(
+        ValueCalls1.address,
+        sendAmount,
+        ValueCalls1.interface.encodeFunctionData(
+          'delegateCallToCallValue',
+          [ValueContext.address]
+        )
+      )
+      const [innerSuccess, innerReturndata] = ValueCalls1.interface.decodeFunctionResult(
+        'delegateCallToCallValue',
+        outerReturndata
+      )
+      const delegatedOvmCALLVALUE = ValueContext.interface.decodeFunctionResult(
+        'getCallValue',
+        innerReturndata
+      )[0]
+
+      expect(outerSuccess).to.be.true
+      expect(innerSuccess).to.be.true
+      expect(delegatedOvmCALLVALUE).to.deep.eq(BigNumber.from(sendAmount))
     })
   })
 })
