@@ -3,6 +3,7 @@ import { fromHexString, EventArgsAddressSet } from '@eth-optimism/core-utils'
 import { BaseService } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
+import { ethers, constants } from 'ethers'
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
@@ -18,7 +19,6 @@ import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
 import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
-import { constants } from 'ethers'
 
 export interface L1IngestionServiceOptions
   extends L1DataTransportServiceOptions {
@@ -65,6 +65,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contracts: OptimismContracts
     l1RpcProvider: JsonRpcProvider
     startingL1BlockNumber: number
+    l2ChainId: number
   } = {} as any
 
   protected async _init(): Promise<void> {
@@ -113,6 +114,10 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       this.state.l1RpcProvider,
       this.options.addressManager
     )
+
+    this.state.l2ChainId = ethers.BigNumber.from(
+      await this.state.contracts.OVM_ExecutionManager.ovmCHAINID()
+    ).toNumber()
 
     const startingL1BlockNumber = await this.state.db.getStartingL1Block()
     if (startingL1BlockNumber) {
@@ -295,7 +300,11 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
             event,
             this.state.l1RpcProvider
           )
-          const parsedEvent = await handlers.parseEvent(event, extraData)
+          const parsedEvent = await handlers.parseEvent(
+            event,
+            extraData,
+            this.state.l2ChainId
+          )
           await handlers.storeEvent(parsedEvent, this.state.db)
         }
 
