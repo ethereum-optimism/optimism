@@ -2,6 +2,6 @@
   "extends": "solhint:recommended",
   "plugins": [],
     "rules": {
-
+      "compiler-version": ["off"]
     }
 }
