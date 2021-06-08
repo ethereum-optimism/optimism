@@ -33,6 +33,22 @@ contract OVM_SequencerFeeVault {
     address l1FeeWallet;
 
 
+    /***************
+     * Constructor *
+     ***************/
+    
+    /**
+     * @param _l1FeeWallet Initial address for the L1 wallet that will hold fees once withdrawn.
+     * Currently HAS NO EFFECT in production because l2geth will mutate this storage slot during
+     * the genesis block. This is ONLY for testing purposes.
+     */
+    constructor(
+        address _l1FeeWallet
+    ) {
+        l1FeeWallet = _l1FeeWallet;
+    }
+
+
     /********************
      * Public Functions *
      ********************/

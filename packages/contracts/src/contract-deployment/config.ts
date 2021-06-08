@@ -1,5 +1,5 @@
 /* External Imports */
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, ethers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Overrides } from '@ethersproject/contracts'
 
@@ -277,6 +277,7 @@ export const makeContractDeployConfig = async (
     },
     OVM_SequencerFeeVault: {
       factory: getContractFactory('OVM_SequencerFeeVault'),
+      params: [ethers.constants.AddressZero],
     },
   }
 }
