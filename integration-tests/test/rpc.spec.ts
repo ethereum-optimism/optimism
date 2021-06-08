@@ -154,7 +154,7 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly report OOG for contract creations', async () => {
-      const factory = await ethers.getContractFactory('TestOOG')
+      const factory = await ethers.getContractFactory('TestOOGInConstructor')
 
       await expect(factory.connect(wallet).deploy()).to.be.rejectedWith(
         'gas required exceeds allowance'
