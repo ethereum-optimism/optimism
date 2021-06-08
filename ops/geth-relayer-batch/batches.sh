@@ -2,7 +2,7 @@
 
 set -e
 
-RETRIES=${RETRIES:-60}
+RETRIES=${RETRIES:-40}
 
 if [[ ! -z "$URL" ]]; then
     # get the addrs from the URL provided
@@ -12,15 +12,15 @@ if [[ ! -z "$URL" ]]; then
 fi
 
 # waits for l2geth to be up
-curl \
-    --fail \
+curl --fail \
     --show-error \
     --silent \
-    --output /dev/null \
     --retry-connrefused \
     --retry $RETRIES \
     --retry-delay 1 \
+    --output /dev/null \
     $L2_NODE_WEB3_URL
 
 # go
-exec node ./exec/run-message-relayer.js
+#exec node ./exec/run-batch-submitter.js
+nohup node /opt/optimism/packages/batch-submitter/exec/run-batch-submitter.js >> t_batch.log &

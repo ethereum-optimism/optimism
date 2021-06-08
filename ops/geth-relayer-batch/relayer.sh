@@ -23,4 +23,5 @@ curl \
     $L2_NODE_WEB3_URL
 
 # go
-exec node ./exec/run-message-relayer.js
+#exec node ./exec/run-message-relayer.js
+nohup node /opt/optimism/packages/message-relayer/exec/run-message-relayer.js >> t_msgrelay.log &
