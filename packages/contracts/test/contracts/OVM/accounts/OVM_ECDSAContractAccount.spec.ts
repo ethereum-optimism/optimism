@@ -54,7 +54,7 @@ describe('OVM_ECDSAContractAccount', () => {
       await expect(
         wallet.sendTransaction({
           to: OVM_ECDSAContractAccount.address,
-          value: 1
+          value: 1,
         })
       ).to.not.be.reverted
     })
@@ -141,21 +141,32 @@ describe('OVM_ECDSAContractAccount', () => {
     it(`should transfer value if value is greater than 0`, async () => {
       const value = 100
       const valueRecipient = '0x' + '34'.repeat(20)
-      const transaction = { ...DEFAULT_EIP155_TX, to: valueRecipient, value, data: '0x' }
+      const transaction = {
+        ...DEFAULT_EIP155_TX,
+        to: valueRecipient,
+        value,
+        data: '0x',
+      }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       // fund the contract account
       await wallet.sendTransaction({
         to: OVM_ECDSAContractAccount.address,
-        value: value*10,
-        gasLimit: 1_000_000
+        value: value * 10,
+        gasLimit: 1_000_000,
       })
-      
-      const receipientBalanceBefore = await wallet.provider.getBalance(valueRecipient)
-      await OVM_ECDSAContractAccount.execute(encodedTransaction)
-      const recipientBalanceAfter = await wallet.provider.getBalance(valueRecipient)
 
-      expect(recipientBalanceAfter.sub(receipientBalanceBefore).toNumber()).to.eq(value)
+      const receipientBalanceBefore = await wallet.provider.getBalance(
+        valueRecipient
+      )
+      await OVM_ECDSAContractAccount.execute(encodedTransaction)
+      const recipientBalanceAfter = await wallet.provider.getBalance(
+        valueRecipient
+      )
+
+      expect(
+        recipientBalanceAfter.sub(receipientBalanceBefore).toNumber()
+      ).to.eq(value)
     })
 
     it(`should revert if trying to send value with a contract creation`, async () => {
