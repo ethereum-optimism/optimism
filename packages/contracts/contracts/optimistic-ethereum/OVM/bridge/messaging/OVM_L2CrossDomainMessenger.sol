@@ -190,20 +190,7 @@ contract OVM_L2CrossDomainMessenger is
 
         address l1MessageSender = iOVM_L1MessageSender(resolve("OVM_L1MessageSender")).getL1MessageSender();
         address l1CrossDomainMessenger = resolve("OVM_L1CrossDomainMessenger");
-        assembly {
-            sstore(
-                0xf00dbabef00dbabef00dbabef00dbabef00dbabef00dbabef00dbabef00dbabe,
-                l1MessageSender // This is wrong. And is coming from what is set on L1. i.e the actual call is coming from here.
-            )
-        }
-        // 0x68b1d87f95878fe05b998f19b66f4baba5de1aed // not the proxy
-        assembly {
-            sstore(
-                0x5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e5ca1ab1e,
-                l1CrossDomainMessenger
-            )
-        }
-        // 0x59b670e9fa9d0a427751af201d676719a970857b // Proxy address
+
         return (
             l1CrossDomainMessenger == l1MessageSender
         );
