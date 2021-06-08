@@ -2,4 +2,4 @@
 '@eth-optimism/data-transport-layer': patch
 ---
 
-Represent gaslimit as a string to avoid an overflow
+incorrect parsing of eth_getBlockRange result

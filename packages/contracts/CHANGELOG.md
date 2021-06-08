@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.5
+
+### Patch Changes
+
+- 4e03f8a9: Update contracts README to add deploy instructions.
+- 8e2bfd07: Introduces the congestion price oracle contract
+- 245136f1: Minor change to how deploy.ts is invoked
+- Updated dependencies [a64f8161]
+- Updated dependencies [750a5021]
+- Updated dependencies [c2b6e14b]
+  - @eth-optimism/core-utils@0.4.5
+
 ## 0.3.4
 
 ### Patch Changes
