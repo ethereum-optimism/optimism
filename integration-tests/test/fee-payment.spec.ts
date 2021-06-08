@@ -86,7 +86,10 @@ describe('Fee Payment Integration Tests', async () => {
     const l1FeeWallet = await ovmSequencerFeeVault.l1FeeWallet()
     const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
 
-    await env.ovmEth.transfer(ovmSequencerFeeVault, utils.parseEther('10'))
+    await env.ovmEth.transfer(
+      ovmSequencerFeeVault.address,
+      utils.parseEther('10')
+    )
 
     const vaultBalance = await env.ovmEth.balanceOf(
       ovmSequencerFeeVault.address
