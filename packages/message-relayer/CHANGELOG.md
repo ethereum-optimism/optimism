@@ -1,5 +1,21 @@
 # @eth-optimism/message-relayer
 
+## 0.1.4
+
+### Patch Changes
+
+- 9d39121b: Adds a README and cleans up the interface for generating messages and proofs
+- 86708bb5: Adds a new set of tools for generating messages to be relayed and their proofs
+- 064c03af: Removes spreadsheet mode from the message relayer
+- Updated dependencies [a64f8161]
+- Updated dependencies [4e03f8a9]
+- Updated dependencies [8e2bfd07]
+- Updated dependencies [750a5021]
+- Updated dependencies [c2b6e14b]
+- Updated dependencies [245136f1]
+  - @eth-optimism/core-utils@0.4.5
+  - @eth-optimism/contracts@0.3.5
+
 ## 0.1.3
 
 ### Patch Changes
