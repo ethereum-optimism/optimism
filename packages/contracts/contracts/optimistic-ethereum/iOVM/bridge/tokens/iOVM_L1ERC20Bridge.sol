@@ -11,7 +11,7 @@ interface iOVM_L1ERC20Bridge {
      * Events *
      **********/
 
-    event ERC20DepositInitiated(
+    event ERC20DepositInitiated (
         address indexed _l1Token,
         address indexed _l2Token,
         address indexed _from,
@@ -20,7 +20,7 @@ interface iOVM_L1ERC20Bridge {
         bytes _data
     );
 
-    event ERC20WithdrawalFinalized(
+    event ERC20WithdrawalFinalized (
         address indexed _l1Token,
         address indexed _l2Token,
         address indexed _from,
@@ -43,9 +43,9 @@ interface iOVM_L1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function depositERC20(
+    function depositERC20 (
         address _l1Token,
-		address _l2Token,
+        address _l2Token,
         uint _amount,
         uint32 _l2Gas,
         bytes calldata _data
@@ -63,9 +63,9 @@ interface iOVM_L1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function depositERC20To(
+    function depositERC20To (
         address _l1Token,
-		address _l2Token,
+        address _l2Token,
         address _to,
         uint _amount,
         uint32 _l2Gas,
@@ -92,7 +92,7 @@ interface iOVM_L1ERC20Bridge {
      *   solely as a convenience for external contracts. Aside from enforcing a maximum
      *   length, these contracts provide no guarantees about its content.
      */
-    function finalizeERC20Withdrawal(
+    function finalizeERC20Withdrawal (
         address _l1Token,
 		address _l2Token,
         address _from,

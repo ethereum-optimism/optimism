@@ -12,14 +12,14 @@ interface iOVM_L1StandardBridge is iOVM_L1ERC20Bridge {
     /**********
      * Events *
      **********/
-    event ETHDepositInitiated(
+    event ETHDepositInitiated (
         address indexed _from,
         address indexed _to,
         uint256 _amount,
         bytes _data
     );
 
-    event ETHWithdrawalFinalized(
+    event ETHWithdrawalFinalized (
         address indexed _from,
         address indexed _to,
         uint256 _amount,
@@ -36,7 +36,7 @@ interface iOVM_L1StandardBridge is iOVM_L1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function depositETH(
+    function depositETH (
         uint32 _l2Gas,
         bytes calldata _data
     )
@@ -51,7 +51,7 @@ interface iOVM_L1StandardBridge is iOVM_L1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function depositETHTo(
+    function depositETHTo (
         address _to,
         uint32 _l2Gas,
         bytes calldata _data
@@ -73,7 +73,7 @@ interface iOVM_L1StandardBridge is iOVM_L1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function finalizeETHWithdrawal(
+    function finalizeETHWithdrawal (
         address _from,
         address _to,
         uint _amount,
