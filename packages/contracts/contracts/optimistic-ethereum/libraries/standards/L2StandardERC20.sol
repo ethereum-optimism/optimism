@@ -21,11 +21,11 @@ contract L2StandardERC20 is UniswapV2ERC20, Ownable {
         l1Token = _l1Token;
     }
 
-    function mint(address to, uint256 value) public onlyOwner {
-        _mint(to, value);
+    function mint(address _to, uint256 _value) public onlyOwner {
+        _mint(_to, _value);
     }
 
-    function burn(address from, uint256 value) public onlyOwner {
-        _burn(from, value);
+    function burn(address _from, uint256 _value) public onlyOwner {
+        _burn(_from, _value);
     }
 }

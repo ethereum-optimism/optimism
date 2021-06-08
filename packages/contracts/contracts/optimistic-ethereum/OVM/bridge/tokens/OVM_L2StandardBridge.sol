@@ -12,7 +12,7 @@ import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomai
 import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
-import { L2StandardERC20 } from "../../../libraries/standards/L2StandardERC20.sol";
+import { IL2StandardERC20 } from "../../../libraries/standards/IL2StandardERC20.sol";
 
 /**
  * @title OVM_L2StandardBridge
@@ -122,10 +122,10 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         internal
     {
         // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage
-        L2StandardERC20(_l2Token).burn(msg.sender, _amount);
+        IL2StandardERC20(_l2Token).burn(msg.sender, _amount);
 
         // Construct calldata for l1TokenBridge.finalizeERC20Withdrawal(_to, _amount)
-        address l1Token = L2StandardERC20(_l2Token).l1Token();
+        address l1Token = IL2StandardERC20(_l2Token).l1Token();
         bytes memory message;
 
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
@@ -181,7 +181,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     {
         // Verify the deposited token on L1 matches the L2 deposited token representation here
         // Otherwise immediately queue a withdrawal
-        if(_l1Token != L2StandardERC20(_l2Token).l1Token()) {
+        if(_l1Token != IL2StandardERC20(_l2Token).l1Token()) {
 
             bytes memory message = abi.encodeWithSelector(
                 iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
@@ -201,7 +201,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
             );
         } else {
             // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
-            L2StandardERC20(_l2Token).mint(_to, _amount);
+            IL2StandardERC20(_l2Token).mint(_to, _amount);
             emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
         }
     }
