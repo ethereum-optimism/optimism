@@ -8,7 +8,7 @@ pragma experimental ABIEncoderV2;
 interface iL2LiquidityPool {
 
     /********************
-     *       Event      *
+     *       Events     *
      ********************/
     
     event AddLiquidity(
@@ -39,7 +39,7 @@ interface iL2LiquidityPool {
         address tokenAddress
     );
 
-    event WithdrawLiqudiity(
+    event WithdrawLiquidity(
         address sender,
         address receiver,
         uint256 amount,

@@ -42,7 +42,8 @@ describe('NFT Test\n', async () => {
       nftSymbol,
       nftName,
       BigNumber.from(String(0)), //starting index for the tokenIDs
-      "" //the base URI is empty in this case
+      "", //the base URI is empty in this case
+      {gasLimit: 800000, gasPrice: 0}
     )
     await L2ERC721.deployTransaction.wait()
     console.log(` 🌕 ${chalk.red('NFT L2ERC721 deployed to:')} ${chalk.green(L2ERC721.address)}`)
@@ -86,7 +87,11 @@ describe('NFT Test\n', async () => {
     console.log(` ⚽️ ${chalk.red(`meta:`)} ${chalk.green(`${meta}`)}`)
 
     //mint one NFT
-    let nft = await L2ERC721.mintNFT(recipient,meta)
+    let nft = await L2ERC721.mintNFT(
+      recipient,
+      meta,
+      {gasLimit: 800000, gasPrice: 0}
+    )
     await nft.wait()
     // console.log("ERC721:",nft)
 
@@ -97,20 +102,27 @@ describe('NFT Test\n', async () => {
     console.log(` ⚽️ ${chalk.red(`balanceRecipient:`)} ${chalk.green(`${balanceRecipient.toString()}`)}`)
 
     //Get the URL
-    let nftURL = await L2ERC721.getTokenURI(BigNumber.from(String(0))) 
+    let nftURL = await L2ERC721.getTokenURI(
+      BigNumber.from(String(0)),
+      {gasLimit: 800000, gasPrice: 0}
+    ) 
     console.log(` ⚽️ ${chalk.red(`nftURL:`)} ${chalk.green(`${nftURL}`)}`)
 
     //Should be 1
-    let TID = await L2ERC721.getLastTID() 
+    let TID = await L2ERC721.getLastTID({gasLimit: 800000, gasPrice: 0}) 
     console.log(` ⚽️ ${chalk.red(`TID:`)} ${chalk.green(`${TID.toString()}`)}`)
 
     //mint a second NFT
     meta = ownerName + '#' + Date.now().toString() + '#' + 'https://www.atcc.org/products/all/CCL-185.aspx';
-    nft = await L2ERC721.mintNFT(recipient,meta)
+    nft = await L2ERC721.mintNFT(
+      recipient,
+      meta,
+      {gasLimit: 800000, gasPrice: 0}
+    )
     await nft.wait()
 
     //Should be 2
-    TID = await L2ERC721.getLastTID() 
+    TID = await L2ERC721.getLastTID({gasLimit: 800000, gasPrice: 0}) 
     console.log(` ⚽️ ${chalk.red(`TID:`)} ${chalk.green(`${TID.toString()}`)}`)
 
     //it('returns the amount of tokens owned by the given address', async function () {

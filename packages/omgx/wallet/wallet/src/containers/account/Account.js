@@ -86,7 +86,7 @@ function Account () {
   const handleGetToken = async () => {
     const res = await networkService.getTestToken();
     if (res) {
-      dispatch(openAlert('5 test tokens were sent to your wallet'));
+      dispatch(openAlert('10 test tokens were sent to your wallet'));
     } else {
       dispatch(openError('Your reached the limit'));
     }

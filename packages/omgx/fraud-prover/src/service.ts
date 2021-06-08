@@ -6,10 +6,7 @@ import { MerkleTree } from 'merkletreejs'
 import { BaseTrie } from 'merkle-patricia-tree'
 import { BaseService } from '@eth-optimism/common-ts'
 
-import { 
-  loadContract, 
-  loadContractFromManager 
-} from '@eth-optimism/contracts'
+import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import {
@@ -24,7 +21,7 @@ import {
   toBytes32,
   toHexString,
   fromHexString,
-  sleep
+  sleep,
 } from './utils'
 
 import {
@@ -86,7 +83,6 @@ const optionSettings = {
 }
 
 export class FraudProverService extends BaseService<FraudProverOptions> {
-  
   constructor(options: FraudProverOptions) {
     super('Fraud_Prover', options, optionSettings)
   }
@@ -110,9 +106,8 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
   }
 
   protected async _init(): Promise<void> {
-    
     this.logger.info('Initializing fraud prover', { options: this.options })
-    
+
     // Need to improve this, sorry.
     // haha - cry
     this.state = {} as any
@@ -223,9 +218,7 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
       this.options.l1BlockFinality
     )
 
-    this.state.l2Provider = new L2ProviderWrapper(
-      this.options.l2RpcProvider
-    )
+    this.state.l2Provider = new L2ProviderWrapper(this.options.l2RpcProvider)
 
     this.logger.info(
       'Caching events for relevant contracts, this might take a while...'
@@ -251,13 +244,14 @@ export class FraudProverService extends BaseService<FraudProverOptions> {
     this.state.lastQueriedL1Block = this.options.l1StartOffset
     this.state.eventCache = []
 
-    this.state.lastFinalizedTxHeight   = this.options.fromL2TransactionIndex || 0
-    this.state.nextUnfinalizedTxHeight = this.options.fromL2TransactionIndex || 0
-    this.state.nextUnverifiedStateRoot = this.options.fromL2TransactionIndex || 0
-
+    this.state.lastFinalizedTxHeight = this.options.fromL2TransactionIndex || 0
+    this.state.nextUnfinalizedTxHeight =
+      this.options.fromL2TransactionIndex || 0
+    this.state.nextUnverifiedStateRoot =
+      this.options.fromL2TransactionIndex || 0
   }
 
-/*
+  /*
 {"level":30,"time":1621896406019,"proof":{"header":{"number":6,"hash":"0xdf2e2dc16c24dcd3385d8965de1ac205e883199af730313915a3b971dc018f68","stateRoot":"0xf121b2f028e2f1810f16e9138712b14532ff6cf5ca101e8b93a2300aa87c2c61","timestamp":1621896367},"accountStateProofs":null},"msg":"_makeStateTrie"}
 
 {"level":50,"time":1621896406019,"err":{"type":"TypeError","message":"
@@ -269,17 +263,15 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
 (/opt/fraud-prover/node_modules/@eth-optimism/core-utils/src/base-service.ts:57:5)\n at main (/opt/fraud-prover/src/exec/run.ts:63:3)\n at /opt/fraud-prover/exec/run.js:6:3"},"msg":"Caught an unhandled error"}
 */
 
-
   protected async _start(): Promise<void> {
-
     while (this.running) {
-    
       await sleep(this.options.pollingInterval)
 
       try {
         this.logger.info('Looking for mismatched state roots...')
-        
-        const fraudulentStateRootIndex = await this._findNextFraudulentStateRoot()
+
+        const fraudulentStateRootIndex =
+          await this._findNextFraudulentStateRoot()
 
         if (fraudulentStateRootIndex === undefined) {
           this.logger.info('Did not find any mismatched state roots', {
@@ -297,8 +289,11 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
         const proof = await this._getFraudProofData(fraudulentStateRootIndex)
 
         this.logger.info('Initializing the fraud verification process...')
-        this.logger.info('The proof:',{pre: proof.preStateRootProof, tra: proof.transactionProof})
-        
+        this.logger.info('The proof:', {
+          pre: proof.preStateRootProof,
+          tra: proof.transactionProof,
+        })
+
         try {
           await this._initializeFraudVerification(
             proof.preStateRootProof,
@@ -315,16 +310,14 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
         }
 
         this.logger.info('Loading fraud proof contracts...')
-        
-        const {
-          OVM_StateTransitioner,
-          OVM_StateManager,
-        } = await this._getFraudProofContracts(
-          await this.state.l1Provider.getStateRoot(
-            fraudulentStateRootIndex - 1
-          ),
-          proof.transactionProof.transaction
-        )
+
+        const { OVM_StateTransitioner, OVM_StateManager } =
+          await this._getFraudProofContracts(
+            await this.state.l1Provider.getStateRoot(
+              fraudulentStateRootIndex - 1
+            ),
+            proof.transactionProof.transaction
+          )
 
         // PRE_EXECUTION phase.
         if (
@@ -484,7 +477,8 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
           }
         }
 
-        this.state.nextUnverifiedStateRoot = proof.preStateRootProof.stateRootBatchHeader.prevTotalElements.toNumber()
+        this.state.nextUnverifiedStateRoot =
+          proof.preStateRootProof.stateRootBatchHeader.prevTotalElements.toNumber()
       } catch (err) {
         this.logger.error('Caught an unhandled error', {
           err,
@@ -498,31 +492,33 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
    * @return Index of the next fraudulent state root, if any.
    */
   private async _findNextFraudulentStateRoot(): Promise<number | undefined> {
-
-    this.logger.info('getStateRootBatchHeader', { nUSR: this.state.nextUnverifiedStateRoot })
+    this.logger.info('getStateRootBatchHeader', {
+      nUSR: this.state.nextUnverifiedStateRoot,
+    })
 
     let nextBatchHeader = await this.state.l1Provider.getStateRootBatchHeader(
       this.state.nextUnverifiedStateRoot
     )
 
-    this.logger.info('_findNextFraudulentStateRoot(): nextBatchHeader', { nextBatchHeader })
+    this.logger.info('_findNextFraudulentStateRoot(): nextBatchHeader', {
+      nextBatchHeader,
+    })
 
     while (nextBatchHeader !== undefined) {
-
       //this.logger.info("ok, let's have a look", { nextBatchHeader })
-      
-      const nextBatchStateRoots = await this.state.l1Provider.getBatchStateRoots(
-        this.state.nextUnverifiedStateRoot
-      )
+
+      const nextBatchStateRoots =
+        await this.state.l1Provider.getBatchStateRoots(
+          this.state.nextUnverifiedStateRoot
+        )
 
       for (let i = 0; i < nextBatchHeader.batchSize.toNumber(); i++) {
-        
         const index = i + nextBatchHeader.prevTotalElements.toNumber()
-        
+
         this.logger.info('Checking state root for mismatch', { index })
 
         const l1StateRoot = nextBatchStateRoots[i]
-        
+
         const l2StateRoot = await this.state.l2Provider.getStateRoot(
           index + this.options.l2BlockOffset
         )
@@ -538,7 +534,9 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
         }
       }
 
-      this.state.nextUnverifiedStateRoot = nextBatchHeader.prevTotalElements.toNumber() + nextBatchHeader.batchSize.toNumber()
+      this.state.nextUnverifiedStateRoot =
+        nextBatchHeader.prevTotalElements.toNumber() +
+        nextBatchHeader.batchSize.toNumber()
 
       nextBatchHeader = await this.state.l1Provider.getStateRootBatchHeader(
         this.state.nextUnverifiedStateRoot
@@ -554,30 +552,35 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
   private async _getFraudProofData(
     transactionIndex: number
   ): Promise<FraudProofData> {
-    
-    this.logger.info('Getting pre-state root inclusion proof for index - 1...',{preIndex: transactionIndex - 1})
-    const preStateRootProof = await this.state.l1Provider.getStateRootBatchProof(
-      transactionIndex - 1
+    this.logger.info(
+      'Getting pre-state root inclusion proof for index - 1...',
+      { preIndex: transactionIndex - 1 }
     )
+    const preStateRootProof =
+      await this.state.l1Provider.getStateRootBatchProof(transactionIndex - 1)
 
-    this.logger.info('Getting post-state root inclusion proof for index...',{postIndex: transactionIndex})
-    const postStateRootProof = await this.state.l1Provider.getStateRootBatchProof(
-      transactionIndex
-    )
+    this.logger.info('Getting post-state root inclusion proof for index...', {
+      postIndex: transactionIndex,
+    })
+    const postStateRootProof =
+      await this.state.l1Provider.getStateRootBatchProof(transactionIndex)
 
     this.logger.info('Getting transaction inclusion proof...')
-    const transactionProof = await this.state.l1Provider.getTransactionBatchProof(
-      transactionIndex
-    )
+    const transactionProof =
+      await this.state.l1Provider.getTransactionBatchProof(transactionIndex)
     //this might be ok at this point?
     //this.logger.info('Transaction inclusion proof...',{transactionProof})
-    
-    console.log("The right index?",transactionIndex + this.options.l2BlockOffset)
-    this.logger.info('Getting state diff proof...')
-    
-    const stateDiffProof: StateDiffProof = await this.state.l2Provider.getStateDiffProof(
+
+    console.log(
+      'The right index?',
       transactionIndex + this.options.l2BlockOffset
     )
+    this.logger.info('Getting state diff proof...')
+
+    const stateDiffProof: StateDiffProof =
+      await this.state.l2Provider.getStateDiffProof(
+        transactionIndex + this.options.l2BlockOffset
+      )
     //this.logger.info('State diff proof...',{stateDiffProof})
 
     const stateTrie = await this._makeStateTrie(stateDiffProof)
@@ -624,8 +627,8 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
     this.logger.info('Loading the corresponding state manager...')
 
     const stateManagerAddress = await OVM_StateTransitioner.ovmStateManager()
-    
-    this.logger.info('stateManagerAddress...',{stateManagerAddress})
+
+    this.logger.info('stateManagerAddress...', { stateManagerAddress })
 
     const OVM_StateManager = loadContract(
       'OVM_StateManager',
@@ -647,14 +650,12 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
    * @return View of the state trie.
    */
   private async _makeStateTrie(proof: StateDiffProof): Promise<BaseTrie> {
-
     this.logger.info('_makeStateTrie for this proof:', { proof })
 
-    if(proof.accountStateProofs === null){
-      //not sure why this is happening 
-      this.logger.info("_makeStateTrie proof.accountStateProofs === null")
+    if (proof.accountStateProofs === null) {
+      //not sure why this is happening
+      this.logger.info('_makeStateTrie proof.accountStateProofs === null')
       return
-
     }
 
     return makeTrieFromProofs(
@@ -669,9 +670,7 @@ FraudProverService._start (/opt/fraud-prover/src/service.ts:283:23)\n at FraudPr
    * @param proof State diff proof to generate tries from.
    * @return View of a set of all account tries.
    */
-  private async _makeAccountTries(
-    proof: StateDiffProof
-  ): Promise<{
+  private async _makeAccountTries(proof: StateDiffProof): Promise<{
     [address: string]: BaseTrie
   }> {
     const accountTries: { [address: string]: BaseTrie } = {}

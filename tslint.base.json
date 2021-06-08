@@ -28,7 +28,8 @@
         "no-focused-test": true,
         "array-type": false,
         "prettier": [true, "./.prettierrc.json"],
-        "curly": true
+        "curly": true,
+        "no-var-requires": false
     },
     "linterOptions": {
         "exclude": [

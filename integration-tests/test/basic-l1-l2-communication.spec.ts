@@ -134,7 +134,7 @@ describe('Basic L1<>L2 Communication', async () => {
       const transaction = await env.l1Messenger.sendMessage(
         predeploys.Lib_AddressManager,
         getContractInterface(
-          'Lib_AddressManager'
+          'Lib_AddressManager' // tslint:disable-line
         ).encodeFunctionData('getAddress', ['whatever']),
         5000000
       )

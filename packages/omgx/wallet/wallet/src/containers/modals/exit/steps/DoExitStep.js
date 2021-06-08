@@ -111,7 +111,7 @@ function DoExitStep ({
   function setExitAmount(value) {
     const transferingBalanceObject = balances.find(i => i.currency === currency);
     const maxTransferValue = Number(logAmount(transferingBalanceObject.amount, transferingBalanceObject.decimals));
-    if (value > 0 && (fast ? value < LPBalance : true) && value < maxTransferValue) {
+    if (Number(value) > 0 && (fast ? Number(value) < Number(LPBalance) : true) && Number(value) < Number(maxTransferValue)) {
       setDisabledSubmit(false);
     } else {
       setDisabledSubmit(true);

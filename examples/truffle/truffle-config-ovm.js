@@ -13,7 +13,7 @@ module.exports = {
           providerOrUrl: 'http://127.0.0.1:8545'
         })
       },
-      network_id: 420,
+      network_id: 28,
       host: '127.0.0.1',
       port: 8545,
       gasPrice: 0,

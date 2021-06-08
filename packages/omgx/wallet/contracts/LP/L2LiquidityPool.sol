@@ -117,7 +117,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         address tokenAddress
     );
 
-    event WithdrawLiqudiity(
+    event WithdrawLiquidity(
         address sender,
         address receiver,
         uint256 amount,
@@ -261,7 +261,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
         
-        require(pool.l2TokenAddress != address(0), "Token Address Not Register");
+        require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
         
         // Update accUserRewardPerShare 
         updateUserRewardPerShare(_tokenAddress);
@@ -304,7 +304,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
     {   
         PoolInfo storage pool = poolInfo[_tokenAddress];
 
-        require(pool.l2TokenAddress != address(0), "Token Address Not Register");
+        require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
 
         //Augment the pool size for this ERC20
         uint256 userRewardFee = (_amount.mul(userRewardFeeRate)).div(1000);
@@ -359,7 +359,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
 
-        require(pool.l2TokenAddress != address(0), "Token Address Not Register");
+        require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
         require(user.amount >= _amount, "Withdraw Error");
 
         // Update accUserRewardPerShare 
@@ -378,7 +378,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         
         IERC20(_tokenAddress).safeTransfer(_to, _amount);
 
-        emit WithdrawLiqudiity(
+        emit WithdrawLiquidity(
             msg.sender,
             _to,
             _amount,
@@ -434,7 +434,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
 
-        require(pool.l2TokenAddress != address(0), "Token Address Not Register");
+        require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
 
         uint256 pendingReward = user.pendingReward.add(
             user.amount.mul(pool.accUserRewardPerShare).div(1e12).sub(user.rewardDebt)

@@ -11,8 +11,9 @@ export const initWatcher = async (
   l2Provider: JsonRpcProvider,
   AddressManager: Contract
 ) => {
-  
-  const l1MessengerAddress = await AddressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger')
+  const l1MessengerAddress = await AddressManager.getAddress(
+    'Proxy__OVM_L1CrossDomainMessenger'
+  )
 
   return new Watcher({
     l1: {
@@ -21,7 +22,7 @@ export const initWatcher = async (
     },
     l2: {
       provider: l2Provider,
-      messengerAddress: "0x4200000000000000000000000000000000000007",
+      messengerAddress: '0x4200000000000000000000000000000000000007',
     },
   })
 }
@@ -42,10 +43,9 @@ export const waitForXDomainTransaction = async (
   tx: Promise<TransactionResponse> | TransactionResponse,
   direction: Direction
 ): Promise<CrossDomainMessagePair> => {
-
   // await it if needed
   tx = await tx
-  
+
   // get the receipt and the full transaction
   const receipt = await tx.wait()
 

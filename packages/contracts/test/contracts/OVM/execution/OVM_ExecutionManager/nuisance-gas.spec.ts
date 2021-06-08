@@ -51,8 +51,7 @@ const test_nuisanceGas: TestDefinition = {
   },
   subTests: [
     {
-      name:
-        'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE',
+      name: 'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE',
       postState: {
         ExecutionManager: {
           messageRecord: {
@@ -88,8 +87,7 @@ const test_nuisanceGas: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE twice for two unique ovmCALLS',
+      name: 'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE twice for two unique ovmCALLS',
       postState: {
         ExecutionManager: {
           messageRecord: {
@@ -140,8 +138,7 @@ const test_nuisanceGas: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCALL consumes all allotted nuisance gas if code contract throws unknown exception',
+      name: 'ovmCALL consumes all allotted nuisance gas if code contract throws unknown exception',
       postState: {
         ExecutionManager: {
           messageRecord: {
@@ -178,8 +175,7 @@ const test_nuisanceGas: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCREATE consumes all allotted nuisance gas if creation code throws data-less exception',
+      name: 'ovmCREATE consumes all allotted nuisance gas if creation code throws data-less exception',
       parameters: [
         {
           name: 'give 1/2 gas to ovmCALL => ovmCREATE, evmINVALID',

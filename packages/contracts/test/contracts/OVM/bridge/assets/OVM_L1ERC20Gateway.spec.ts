@@ -125,7 +125,8 @@ describe('OVM_L1ERC20Gateway', () => {
       const OVM_L2DepositedERC20 = await (
         await ethers.getContractFactory('OVM_L2DepositedERC20')
       ).deploy(constants.AddressZero, '', '')
-      const defaultFinalizeWithdrawalGas = await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
+      const defaultFinalizeWithdrawalGas =
+        await OVM_L2DepositedERC20.getFinalizeWithdrawalL1Gas()
       await expect(gasUsed.gt((defaultFinalizeWithdrawalGas * 11) / 10))
     })
 

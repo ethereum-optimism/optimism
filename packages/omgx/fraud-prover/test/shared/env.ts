@@ -1,4 +1,7 @@
-import { getContractInterface, getContractFactory } from '@eth-optimism/contracts'
+import {
+  getContractInterface,
+  getContractFactory,
+} from '@eth-optimism/contracts'
 import { Contract, utils, Wallet } from 'ethers'
 import { Watcher } from './watcher'
 
@@ -48,7 +51,7 @@ export class OptimismEnv {
   // The wallets
   bobl1Wallet: Wallet
   bobl2Wallet: Wallet
-  
+
   alicel2Wallet: Wallet
   alicel1Wallet: Wallet
 
@@ -74,7 +77,6 @@ export class OptimismEnv {
   }
 
   static async new(): Promise<OptimismEnv> {
-
     const addressManager = getAddressManager(bobl1Wallet)
     const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
 
@@ -85,8 +87,8 @@ export class OptimismEnv {
       .connect(bobl1Wallet)
       .attach(watcher.l1.messengerAddress)
 
-    const l1MessengerAddress = l1Messenger.address;  
-    
+    const l1MessengerAddress = l1Messenger.address
+
     const l2Messenger = getContractFactory('iOVM_L2CrossDomainMessenger')
       .connect(bobl2Wallet)
       .attach(watcher.l2.messengerAddress)
@@ -113,7 +115,7 @@ export class OptimismEnv {
       alicel2Wallet,
       fraudl1Wallet,
       fraudl2Wallet,
-      l2Provider
+      l2Provider,
     })
   }
 

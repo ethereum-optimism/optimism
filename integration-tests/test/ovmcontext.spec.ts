@@ -49,7 +49,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       'OVM_CanonicalTransactionChain'
     )
 
-    CanonicalTransactionChain = CanonicalTransactionChainFactory.connect(
+    CanonicalTransactionChain = CanonicalTransactionChainFactory.connect( // tslint:disable-line
       l1Wallet
     ).attach(ctcAddress)
 

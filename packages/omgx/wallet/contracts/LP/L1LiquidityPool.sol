@@ -4,7 +4,7 @@ pragma solidity >0.5.0;
 pragma experimental ABIEncoderV2;
 
 import "./interfaces/iL2LiquidityPool.sol";
-import "./libraries/OVM_CrossDomainEnabled.sol";
+import "@eth-optimism/contracts/contracts/optimistic-ethereum/libraries/bridge/OVM_CrossDomainEnabled.sol";
 
 /* External Imports */
 import '@openzeppelin/contracts/math/SafeMath.sol';
@@ -117,7 +117,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         address tokenAddress
     );
 
-    event WithdrawLiqudiity(
+    event WithdrawLiquidity(
         address sender,
         address receiver,
         uint256 amount,
@@ -136,13 +136,11 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled, Ownable {
      ********************/
     /**
      * @param _l1CrossDomainMessenger L1 Messenger address being used for sending the cross-chain message.
-     * @param _l1CustomCrossDomainMessenger L1 Messenger address being used for receiving the cross-chain message.
      */
     constructor (
-        address _l1CrossDomainMessenger,
-        address _l1CustomCrossDomainMessenger
+        address _l1CrossDomainMessenger
     )
-        OVM_CrossDomainEnabled(_l1CrossDomainMessenger, _l1CustomCrossDomainMessenger)
+        OVM_CrossDomainEnabled(_l1CrossDomainMessenger)
     {}
 
     /**********************
@@ -199,7 +197,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         // use with caution, can register only once
         PoolInfo storage pool = poolInfo[_l2TokenAddress];
         // l2 token address equal to zero, then pair is not registered.
-        require(pool.l2TokenAddress == address(0), "Token Address Already Registerd");
+        require(pool.l2TokenAddress == address(0), "Token Address Already Registered");
         poolInfo[_l1TokenAddress] =
             PoolInfo({
                 l1TokenAddress: _l1TokenAddress,
@@ -405,7 +403,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled, Ownable {
             require(sent, "Failed to send Ether");
         }
 
-        emit WithdrawLiqudiity(
+        emit WithdrawLiquidity(
             msg.sender,
             _to,
             _amount,
@@ -510,20 +508,52 @@ contract L1LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         external
         onlyFromCrossDomainAccount(address(L2LiquidityPoolAddress))
     {   
-        if (_tokenAddress != address(0)) {
-            IERC20(_tokenAddress).safeTransfer(_to, _amount);
-        } else {
-            //this is ETH
-            // balances[address(0)] = balances[address(0)].sub(_amount);
-            //_to.transfer(_amount); UNSAFE
-            (bool sent,) = _to.call{gas: SAFE_GAS_STIPEND, value: _amount}("");
-            require(sent, "Failed to send Ether");
-        }
+        bool replyNeeded = false;
         
-        emit ClientPayL1(
-          _to,
-          _amount,
-          _tokenAddress
-        );
+        if (_tokenAddress != address(0)) {
+            //IERC20(_tokenAddress).safeTransfer(_to, _amount);
+            if (_amount > IERC20(_tokenAddress).balanceOf(address(this))) {
+                replyNeeded = true;
+            } else {
+                IERC20(_tokenAddress).safeTransfer(_to, _amount);
+            }
+        } else {
+            // //this is ETH
+            // // balances[address(0)] = balances[address(0)].sub(_amount);
+            // //_to.transfer(_amount); UNSAFE
+            // (bool sent,) = _to.call{gas: SAFE_GAS_STIPEND, value: _amount}("");
+            // require(sent, "Failed to send Ether");
+            if (_amount > address(this).balance) {
+                 replyNeeded = true;
+             } else {
+                 //this is ETH
+                 // balances[address(0)] = balances[address(0)].sub(_amount);
+                 //_to.transfer(_amount); UNSAFE
+                 (bool sent,) = _to.call{gas: SAFE_GAS_STIPEND, value: _amount}("");
+                 require(sent, "Failed to send Ether");
+             }
+         }
+
+         if (replyNeeded) {
+             // send cross domain message
+             bytes memory data = abi.encodeWithSelector(
+             iL2LiquidityPool.clientPayL2.selector,
+             _to,
+             _amount,
+             poolInfo[_tokenAddress].l2TokenAddress
+             );
+
+             sendCrossDomainMessage(
+                 address(L2LiquidityPoolAddress),
+                 data,
+                 getFinalizeDepositL2Gas()
+             );
+         } else {
+             emit ClientPayL1(
+             _to,
+             _amount,
+             _tokenAddress
+             );
+         }
     }
 }

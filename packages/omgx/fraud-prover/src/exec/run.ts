@@ -15,7 +15,10 @@ const main = async () => {
 
   const env = process.env
   const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
-  const L2_NODE_WEB3_URL = config.str('verifier-web3-url', env.VERIFIER_WEB3_URL)
+  const L2_NODE_WEB3_URL = config.str(
+    'verifier-web3-url',
+    env.VERIFIER_WEB3_URL
+  )
 
   const ADDRESS_MANAGER_ADDRESS = config.str(
     'address-manager-address',
@@ -67,7 +70,7 @@ const main = async () => {
     throw new Error('Must pass L2_NODE_WEB3_URL')
   }
 
-  console.log("The L2 block offset is:",L2_BLOCK_OFFSET)
+  console.log('The L2 block offset is:', L2_BLOCK_OFFSET)
 
   const l2Provider = new providers.JsonRpcProvider(L2_NODE_WEB3_URL)
   const l1Provider = new providers.JsonRpcProvider(L1_NODE_WEB3_URL)

@@ -104,6 +104,7 @@ npx hardhat deploy \
   --ovm-proposer-address ... \
   --ovm-relayer-address ... \
   --ovm-sequencer-address ... \
+  --ovm-relayer-address ... \
   --scc-fraud-proof-window ... \
   --scc-sequencer-publish-window ...
 ```

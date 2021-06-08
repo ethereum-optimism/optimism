@@ -39,7 +39,7 @@ interface iL1LiquidityPool {
         address tokenAddress
     );
 
-    event WithdrawLiqudiity(
+    event WithdrawLiquidity(
         address sender,
         address receiver,
         uint256 amount,

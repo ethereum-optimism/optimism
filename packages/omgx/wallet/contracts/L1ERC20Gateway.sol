@@ -23,7 +23,6 @@ import { iOVM_ERC20 } from '@eth-optimism/contracts/contracts/optimistic-ethereu
  */
 contract L1ERC20Gateway is OVM_L1ERC20Gateway {
 
-
     constructor(
         iOVM_ERC20 _l1ERC20,
         address _l2DepositedERC20,

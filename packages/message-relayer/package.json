@@ -36,6 +36,7 @@
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",
     "merkletreejs": "^0.2.18",
+    "node-fetch": "^2.6.1",
     "rlp": "^2.2.6"
   },
   "devDependencies": {

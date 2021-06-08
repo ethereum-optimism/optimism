@@ -20,6 +20,6 @@ module.exports = {
     solcVersion: '0.7.6'
   },
   mocha: {
-    timeout: 60000
+    timeout: 300000
   }
 }

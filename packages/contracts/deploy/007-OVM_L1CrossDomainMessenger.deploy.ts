@@ -39,6 +39,10 @@ const deployFn: DeployFunction = async (hre) => {
   // initialize this.
   await OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
 
+  // only allow the relayer to relay message
+  const initializeCustomRelayer = await OVM_L1CrossDomainMessenger.initializeCustomRelayer((hre as any).deployConfig.ovmRelayerAddress)
+  await initializeCustomRelayer.wait()
+  
   const libAddressManager = await OVM_L1CrossDomainMessenger.libAddressManager()
   if (libAddressManager !== Lib_AddressManager.address) {
     throw new Error(

@@ -35,11 +35,6 @@ import {
   isBidOpenOrClosed, 
 } from 'actions/buyAction';
 
-import { 
-  openAlert,
-  openError 
-} from 'actions/uiAction';
-
 import networkService from 'services/networkService';
 
 import * as styles from './Login.module.scss';
@@ -183,23 +178,6 @@ class Login extends React.Component {
     this.props.dispatch(providePassword( FHEseed ));
     //Let's check the invitation code
     // this.props.dispatch(verifyInvitationCode( invitationCode ));
-  }
-
-  async handleGetToken() {
-    // Check the network
-    const networkStatus = networkService.confirmLayer("L2");
-    if (!networkStatus) {
-      this.props.dispatch(openError('Please switch to L2 network'));
-    }
-    // We are on L2 netowrk
-    this.setState({ buttonLoading: true });
-    const res = await networkService.getTestToken();
-    if (res) {
-      this.props.dispatch(openAlert('5 test tokens were sent to your wallet'));
-    } else {
-      this.props.dispatch(openError('Failed to send tokens'));
-    }
-    this.setState({ buttonLoading: false });
   }
 
   render() {

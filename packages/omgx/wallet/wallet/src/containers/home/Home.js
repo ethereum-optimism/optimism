@@ -71,7 +71,7 @@ import logo from 'images/omgx.png';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = 1000; //in milliseconds?
+const POLL_INTERVAL = 10000; //in milliseconds?
 
 function Home () {
 
@@ -119,11 +119,10 @@ function Home () {
 
       // watcher only calls
       dispatch(checkWatcherStatus());
-      dispatch(fetchBalances());
       dispatch(fetchExits());
       dispatch(fetchTransactions());
     });
-  }, POLL_INTERVAL * 5);
+  }, POLL_INTERVAL * 2);
 
   useInterval(() => {
     dispatch(fetchBalances());
