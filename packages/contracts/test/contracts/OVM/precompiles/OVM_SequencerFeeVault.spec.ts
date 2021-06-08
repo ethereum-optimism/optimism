@@ -35,7 +35,7 @@ describe('OVM_SequencerFeeVault', () => {
     })
 
     it('should succeed when the contract has exactly sufficient balance', async () => {
-      const amount = hre.ethers.utils.parseEther('10')
+      const amount = await OVM_SequencerFeeVault.MIN_WITHDRAWAL_AMOUNT
       Mock__OVM_ETH.smocked.balanceOf.will.return.with(amount)
 
       await expect(OVM_SequencerFeeVault.withdraw()).to.not.be.reverted
