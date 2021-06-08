@@ -3,6 +3,14 @@
 pragma solidity >=0.7.0;
 
 contract ValueContext {
+    function getSelfBalance() external view returns(uint256) {
+        uint selfBalance;
+        assembly {
+            selfBalance := selfbalance()
+        }
+        return selfBalance;
+    }
+
     function getBalance(
         address _address
     ) external payable returns(uint256) {
