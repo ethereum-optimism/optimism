@@ -302,19 +302,11 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 	OVM_ETH, ok := stateDump.Accounts["OVM_ETH"]
 	if ok {
 		log.Info("Setting OVM_L1ETHGateway in OVM_ETH", "address", l1ETHGatewayAddress.Hex())
-		if strings.Contains(OVM_ETH.Code, "a84ce98") {
-			// Set the gateway of OVM_ETH at new dump
-			log.Info("Detected current OVM_ETH dump, setting slot 0x1 ")
-			l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-			l1GatewayValue := common.BytesToHash(l1ETHGatewayAddress.Bytes())
-			statedb.SetState(OVM_ETH.Address, l1GatewaySlot, l1GatewayValue)
-		} else {
-			// Set the gateway of OVM_ETH at legacy slot
-			log.Info("Detected legacy OVM_ETH dump, setting slot 0x8")
-			l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000008")
-			l1GatewayValue := common.BytesToHash(l1ETHGatewayAddress.Bytes())
-			statedb.SetState(OVM_ETH.Address, l1GatewaySlot, l1GatewayValue)
-		}
+		// Set the gateway of OVM_ETH at new dump
+		log.Info("Detected current OVM_ETH dump, setting slot 0x1 ")
+		l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+		l1GatewayValue := common.BytesToHash(l1ETHGatewayAddress.Bytes())
+		statedb.SetState(OVM_ETH.Address, l1GatewaySlot, l1GatewayValue)
 	}
 	ExecutionManager, ok := stateDump.Accounts["OVM_ExecutionManager"]
 	if ok {
