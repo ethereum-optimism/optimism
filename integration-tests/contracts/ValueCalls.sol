@@ -33,6 +33,15 @@ contract ValueCalls is ValueContext {
         return sendWithData(_address, _value, hex"");
     }
 
+    function sendWithDataAndGas(
+        address _address,
+        uint _value,
+        uint _gasLimit,
+        bytes memory _calldata
+    ) public returns (bool, bytes memory) {
+        return _address.call{value: _value, gas: _gasLimit}(_calldata);
+    }
+
     function sendWithData(
         address _address,
         uint _value,
@@ -76,5 +85,25 @@ contract ValueCalls is ValueContext {
         uint256 _expectedValue
     ) internal returns(bool) {
         return getCallValue() == _expectedValue;
+    }
+}
+
+contract ValueGasMeasurer {
+    function measureGasOfSend(
+        address target,
+        uint256 value,
+        uint256 gasLimit
+    ) public returns(uint256) {
+        uint256 gasBefore = gasleft();
+        assembly {
+            pop(call(gasLimit, target, value, 0, 0, 0, 0))
+        }
+        return gasBefore - gasleft();
+    }
+}
+
+contract PayableConstant {
+    function returnValue() external payable returns(uint256) {
+        return 42;
     }
 }
