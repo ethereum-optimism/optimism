@@ -5,6 +5,7 @@ import { constants } from 'ethers'
 /* Imports: Internal */
 import { getDeployedContract } from '../src/hardhat-deploy-ethers'
 import { predeploys } from '../src/predeploys'
+import { NON_ZERO_ADDRESS } from '../test/helpers/index.ts'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments
@@ -38,7 +39,7 @@ const deployFn: DeployFunction = async (hre) => {
   // but it feels safer to initialize this anyway. Otherwise someone else could come along and
   // initialize this. We'll set all the addresses to 0 so that this copy is unusable.
   await OVM_L1StandardBridge.initialize(
-    constants.AddressZero,
+    NON_ZERO_ADDRESS,
     constants.AddressZero
   )
 

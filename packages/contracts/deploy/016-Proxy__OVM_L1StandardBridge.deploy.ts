@@ -43,6 +43,13 @@ const deployFn: DeployFunction = async (hre) => {
     l1MessengerAddress,
     predeploys.OVM_L2StandardBridge
   )
+
+  let messenger = await Proxy__OVM_L1StandardBridge.getCrossDomainMessenger()
+  if(messenger !== l1MessengerAddress) {
+    throw new Error(
+      'Proxy__OVM_L1StandardBridge failed to initialize'
+    )
+  }
   // Todo: remove this after adding chugsplash proxy
   await Lib_AddressManager.setAddress('Proxy__OVM_L1StandardBridge', result.address)
 }

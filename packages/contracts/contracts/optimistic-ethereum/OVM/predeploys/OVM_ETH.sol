@@ -30,6 +30,5 @@ contract OVM_ETH is L2StandardERC20 {
             "Ether",
             "ETH"
         )
-    {
-    }
+    {}
 }
