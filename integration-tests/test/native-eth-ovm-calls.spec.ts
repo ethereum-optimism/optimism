@@ -27,7 +27,7 @@ describe.only('Native ETH value integration tests', () => {
       ]
     }
 
-    const checkBalacnes = async (expectedBalances: BigNumber[]): Promise<void> => {
+    const checkBalances = async (expectedBalances: BigNumber[]): Promise<void> => {
       const realBalances = await getBalances()
       expect(realBalances[0]).to.deep.eq(expectedBalances[0])
       expect(realBalances[1]).to.deep.eq(expectedBalances[1])
@@ -50,7 +50,7 @@ describe.only('Native ETH value integration tests', () => {
     })
     await there.wait()
 
-    await checkBalacnes([
+    await checkBalances([
       initialBalances[0].sub(value),
       initialBalances[1].add(value)
     ])
@@ -62,7 +62,7 @@ describe.only('Native ETH value integration tests', () => {
     })
     await backAgain.wait()
 
-    await checkBalacnes(initialBalances)
+    await checkBalances(initialBalances)
   })
 
   describe(`calls between OVM contracts with native ETH value and relevant opcodes`, async () => {
@@ -78,15 +78,20 @@ describe.only('Native ETH value integration tests', () => {
       const balance1 = await wallet.provider.getBalance(ValueCalls1.address)
       expect(balance0).to.deep.eq(BigNumber.from(expectedBalances[0]))
       expect(balance1).to.deep.eq(BigNumber.from(expectedBalances[1]))
-      // also use ovmBALANCE() opcode via eth_call
+      // query ovmBALANCE() opcode via eth_call as another check
       const ovmBALANCE0 = await ValueCalls0.callStatic.getBalance(
         ValueCalls0.address
       )
       const ovmBALANCE1 = await ValueCalls0.callStatic.getBalance(
         ValueCalls1.address
       )
-      expect(ovmBALANCE0).to.deep.eq(BigNumber.from(expectedBalances[0]))
-      expect(ovmBALANCE1).to.deep.eq(BigNumber.from(expectedBalances[1]))
+      expect(ovmBALANCE0).to.deep.eq(BigNumber.from(expectedBalances[0]), 'geth RPC does not match ovmBALANCE')
+      expect(ovmBALANCE1).to.deep.eq(BigNumber.from(expectedBalances[1]), 'geth RPC does not match ovmBALANCE')
+      // query ovmSELFBALANCE() opcode via eth_call as final check
+      const ovmSELFBALANCE0 = await ValueCalls0.callStatic.getSelfBalance()
+      const ovmSELFBALANCE1 = await ValueCalls1.callStatic.getSelfBalance()
+      expect(ovmSELFBALANCE0).to.deep.eq(BigNumber.from(expectedBalances[0]), 'geth RPC does not match ovmSELFBALANCE')
+      expect(ovmSELFBALANCE1).to.deep.eq(BigNumber.from(expectedBalances[1]), 'geth RPC does not match ovmSELFBALANCE')
     }
 
     before(async () => {
@@ -162,7 +167,7 @@ describe.only('Native ETH value integration tests', () => {
       expect(returndata).to.eq('0x')
     })
 
-    it.only('should preserve msg.value through ovmDELEGATECALLs', async () => {
+    it('should preserve msg.value through ovmDELEGATECALLs', async () => {
       const Factory__ValueContext = await ethers.getContractFactory('ValueContext', wallet)
       const ValueContext = await Factory__ValueContext.deploy()
       await ValueContext.deployTransaction.wait()
