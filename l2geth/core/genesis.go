@@ -73,6 +73,7 @@ type Genesis struct {
 	L1CrossDomainMessengerAddress common.Address `json:"-"`
 	AddressManagerOwnerAddress    common.Address `json:"-"`
 	L1ETHGatewayAddress           common.Address `json:"-"`
+	GasPriceOracleOwnerAddress    common.Address `json:"-"`
 	ChainID                       *big.Int       `json:"-"`
 }
 
@@ -267,7 +268,7 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 }
 
 // ApplyOvmStateToState applies the initial OVM state to a state object.
-func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, l1FeeWalletAddress common.Address, chainID *big.Int, gasLimit uint64) {
+func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress, l1ETHGatewayAddress, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, chainID *big.Int, gasLimit uint64) {
 	if len(stateDump.Accounts) == 0 {
 		return
 	}
@@ -305,7 +306,7 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		log.Info("Setting OVM_L1ETHGateway in OVM_ETH", "address", l1ETHGatewayAddress.Hex())
 		if strings.Contains(OVM_ETH.Code, "a84ce98") {
 			// Set the gateway of OVM_ETH at new dump
-			log.Info("Detected current OVM_ETH dump, setting slot 0x1 ")
+			log.Info("Detected current OVM_ETH dump, setting slot 0x1")
 			l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 			l1GatewayValue := common.BytesToHash(l1ETHGatewayAddress.Bytes())
 			statedb.SetState(OVM_ETH.Address, l1GatewaySlot, l1GatewayValue)
@@ -337,6 +338,13 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		l1FeeWalletSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
 		l1FeeWalletValue := common.BytesToHash(l1FeeWalletAddress.Bytes())
 		statedb.SetState(OVM_SequencerFeeVault.Address, l1FeeWalletSlot, l1FeeWalletValue)
+		GasPriceOracle, ok := stateDump.Accounts["OVM_GasPriceOracle"]
+		if ok {
+			ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
+			ownerValue := common.BytesToHash(gpoOwnerAddress.Bytes())
+			statedb.SetState(GasPriceOracle.Address, ownerSlot, ownerValue)
+			log.Info("Setting GasPriceOracle Owner", "owner", gpoOwnerAddress.Hex())
+		}
 	}
 }
 
@@ -350,7 +358,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 
 	if vm.UsingOVM {
 		// OVM_ENABLED
-		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1ETHGatewayAddress, g.AddressManagerOwnerAddress, g.L1FeeWalletAddress, g.ChainID, g.GasLimit)
+		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1ETHGatewayAddress, g.AddressManagerOwnerAddress, g.GasPriceOracleOwnerAddress, g.L1FeeWalletAddress, g.ChainID, g.GasLimit)
 	}
 
 	for addr, account := range g.Alloc {
@@ -477,7 +485,7 @@ func DefaultGoerliGenesisBlock() *Genesis {
 }
 
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.
-func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, l1FeeWalletAddress common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
+func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
 	// Override the default period to the user requested one
 	config := *params.AllCliqueProtocolChanges
 	config.Clique.Period = period
@@ -536,6 +544,7 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 		L1FeeWalletAddress:            l1FeeWalletAddress,
 		AddressManagerOwnerAddress:    addrManagerOwnerAddress,
 		L1ETHGatewayAddress:           l1ETHGatewayAddress,
+		GasPriceOracleOwnerAddress:    gpoOwnerAddress,
 		ChainID:                       config.ChainID,
 	}
 }

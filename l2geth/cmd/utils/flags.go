@@ -897,6 +897,11 @@ var (
 		Usage:  "Disable transactions with 0 gas price",
 		EnvVar: "ROLLUP_ENFORCE_FEES",
 	}
+	GasPriceOracleOwnerAddress = cli.StringFlag{
+		Name:   "rollup.gaspriceoracleowneraddress",
+		Usage:  "Owner of the OVM_GasPriceOracle",
+		EnvVar: "ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1173,6 +1178,10 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupTimstampRefreshFlag.Name) {
 		cfg.TimestampRefreshThreshold = ctx.GlobalDuration(RollupTimstampRefreshFlag.Name)
+	}
+	if ctx.GlobalIsSet(GasPriceOracleOwnerAddress.Name) {
+		addr := ctx.GlobalString(GasPriceOracleOwnerAddress.Name)
+		cfg.GasPriceOracleOwnerAddress = common.HexToAddress(addr)
 	}
 	if ctx.GlobalIsSet(RollupBackendFlag.Name) {
 		val := ctx.GlobalString(RollupBackendFlag.Name)
@@ -1753,8 +1762,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		l1FeeWalletAddress := cfg.Rollup.L1FeeWalletAddress
 		addrManagerOwnerAddress := cfg.Rollup.AddressManagerOwnerAddress
 		l1ETHGatewayAddress := cfg.Rollup.L1ETHGatewayAddress
+		gpoOwnerAddress := cfg.Rollup.GasPriceOracleOwnerAddress
 		stateDumpPath := cfg.Rollup.StateDumpPath
-		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, xdomainAddress, l1ETHGatewayAddress, addrManagerOwnerAddress, l1FeeWalletAddress, stateDumpPath, chainID, gasLimit)
+		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, xdomainAddress, l1ETHGatewayAddress, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress, stateDumpPath, chainID, gasLimit)
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}

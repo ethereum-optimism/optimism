@@ -59,7 +59,6 @@ type SyncService struct {
 	timestampRefreshThreshold time.Duration
 	chainHeadCh               chan core.ChainHeadEvent
 	backend                   Backend
-	gpoAddress                common.Address
 	enforceFees               bool
 }
 
@@ -114,7 +113,6 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		pollInterval:              pollInterval,
 		timestampRefreshThreshold: timestampRefreshThreshold,
 		backend:                   cfg.Backend,
-		gpoAddress:                cfg.GasPriceOracleAddress,
 		enforceFees:               cfg.EnforceFees,
 	}
 

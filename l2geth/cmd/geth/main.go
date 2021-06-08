@@ -166,6 +166,7 @@ var (
 		utils.RollupMaxCalldataSizeFlag,
 		utils.RollupBackendFlag,
 		utils.RollupEnforceFeesFlag,
+		utils.GasPriceOracleOwnerAddress,
 	}
 
 	rpcFlags = []cli.Flag{

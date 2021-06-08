@@ -81,6 +81,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupMaxCalldataSizeFlag,
 			utils.RollupBackendFlag,
 			utils.RollupEnforceFeesFlag,
+			utils.GasPriceOracleOwnerAddress,
 		},
 	},
 	{
