@@ -8,6 +8,7 @@ import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Brid
 import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Bridge.sol";
 
 /* Library Imports */
+import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 
@@ -179,10 +180,19 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         virtual
         onlyFromCrossDomainAccount(l1TokenBridge)
     {
-        // Verify the deposited token on L1 matches the L2 deposited token representation here
-        // Otherwise immediately queue a withdrawal
-        if(_l1Token != IL2StandardERC20(_l2Token).l1Token()) {
-
+        // Check the target token is compliant and
+        // verify the deposited token on L1 matches the L2 deposited token representation here
+        if (
+            ERC165Checker.supportsInterface(_l2Token, 0x1d1d8b63) &&
+            _l1Token == IL2StandardERC20(_l2Token).l1Token()
+        )
+        {
+            // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
+            IL2StandardERC20(_l2Token).mint(_to, _amount);
+            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
+        }
+        else {
+            // Otherwise immediately queue a withdrawal
             bytes memory message = abi.encodeWithSelector(
                 iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
@@ -199,10 +209,6 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
                 0,
                 message
             );
-        } else {
-            // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
-            IL2StandardERC20(_l2Token).mint(_to, _amount);
-            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
         }
     }
 }

@@ -137,8 +137,8 @@ describe('OVM_L2StandardBridge', () => {
 
       // Populate the initial state with a total supply and some money in alice's balance
       SmoddedL2Token.smodify.put({
-        totalSupply: INITIAL_TOTAL_SUPPLY,
-        balanceOf: {
+        _totalSupply: INITIAL_TOTAL_SUPPLY,
+        _balances: {
           [aliceAddress]: ALICE_INITIAL_BALANCE,
         },
         _owner: OVM_L2StandardBridge.address,
