@@ -56,7 +56,6 @@ export const connectL1Contracts = async (
 ): Promise<L1Contracts> => {
   checkSignerType(signerOrProvider)
 
-  console.log(network)
   if (!['mainnet', 'kovan', 'goerli'].includes(network)) {
     throw Error('Must specify network: mainnet, kovan, or goerli.')
   }
