@@ -86,17 +86,25 @@ describe('Fee Payment Integration Tests', async () => {
     const l1FeeWallet = await ovmSequencerFeeVault.l1FeeWallet()
     const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
 
+    // Transfer the minimum required to withdraw.
     await env.ovmEth.transfer(
       ovmSequencerFeeVault.address,
-      utils.parseEther('10')
+      await ovmSequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
     )
 
     const vaultBalance = await env.ovmEth.balanceOf(
       ovmSequencerFeeVault.address
     )
-    const withdrawTx = await ovmSequencerFeeVault.withdraw()
+
+    // Submit the withdrawal.
+    const withdrawTx = await ovmSequencerFeeVault.withdraw({
+      gasPrice: 0, // Need a gasprice of 0 or the balances will include the fee paid during this tx.
+    })
+
+    // Wait for the withdrawal to be relayed to L1.
     await env.waitForXDomainTransaction(withdrawTx, Direction.L2ToL1)
 
+    // Balance difference should be equal to old L2 balance.
     const balanceAfter = await env.l1Wallet.provider.getBalance(l1FeeWallet)
     expect(balanceAfter.sub(balanceBefore)).to.deep.equal(
       BigNumber.from(vaultBalance)
