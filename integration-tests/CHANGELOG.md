@@ -1,5 +1,13 @@
 # @eth-optimism/integration-tests
 
+## 0.0.7
+
+### Patch Changes
+
+- d1680052: Reduce test timeout from 100 to 20 seconds
+- c2b6e14b: Implement the latest fee spec such that the L2 gas limit is scaled and the tx.gasPrice/tx.gasLimit show correctly in metamask
+- 77108d37: Add verifier sync test and extra docker-compose functions
+
 ## 0.0.6
 
 ### Patch Changes

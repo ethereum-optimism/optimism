@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.3
+
+### Patch Changes
+
+- 750a5021: Remove dead imports from core-utils
+- Updated dependencies [a64f8161]
+- Updated dependencies [4e03f8a9]
+- Updated dependencies [8e2bfd07]
+- Updated dependencies [750a5021]
+- Updated dependencies [c2b6e14b]
+- Updated dependencies [245136f1]
+  - @eth-optimism/core-utils@0.4.5
+  - @eth-optimism/contracts@0.3.5
+
 ## 0.3.2
 
 ### Patch Changes
