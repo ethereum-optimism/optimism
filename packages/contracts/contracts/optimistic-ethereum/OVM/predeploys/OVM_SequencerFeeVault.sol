@@ -22,7 +22,7 @@ contract OVM_SequencerFeeVault {
      *************/
 
     // Minimum ETH balance that can be withdrawn in a single withdrawal.
-    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 10 ether;
+    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 15 ether;
 
 
     /*************
