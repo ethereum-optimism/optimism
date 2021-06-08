@@ -3,19 +3,29 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
 /* Imports: External */
-import { BigNumber, utils } from 'ethers'
+import { BigNumber, Contract, utils } from 'ethers'
 import { TxGasLimit, TxGasPrice } from '@eth-optimism/core-utils'
-import { predeploys } from '@eth-optimism/contracts'
+import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import { OptimismEnv } from './shared/env'
+import { Direction } from './shared/watcher-utils'
 
 describe('Fee Payment Integration Tests', async () => {
-  let env: OptimismEnv
   const other = '0x1234123412341234123412341234123412341234'
 
+  let env: OptimismEnv
   before(async () => {
     env = await OptimismEnv.new()
+  })
+
+  let ovmSequencerFeeVault: Contract
+  before(async () => {
+    ovmSequencerFeeVault = new Contract(
+      predeploys.OVM_SequencerFeeVault,
+      getContractInterface('OVM_SequencerFeeVault'),
+      env.l2Wallet
+    )
   })
 
   it(`Should return a gasPrice of ${TxGasPrice.toString()} wei`, async () => {
@@ -42,7 +52,7 @@ describe('Fee Payment Integration Tests', async () => {
     const amount = utils.parseEther('0.5')
     const balanceBefore = await env.l2Wallet.getBalance()
     const feeVaultBalanceBefore = await env.l2Wallet.provider.getBalance(
-      predeploys.OVM_SequencerFeeVault
+      ovmSequencerFeeVault.address
     )
     expect(balanceBefore.gt(amount))
 
@@ -52,7 +62,7 @@ describe('Fee Payment Integration Tests', async () => {
 
     const balanceAfter = await env.l2Wallet.getBalance()
     const feeVaultBalanceAfter = await env.l2Wallet.provider.getBalance(
-      predeploys.OVM_SequencerFeeVault
+      ovmSequencerFeeVault.address
     )
     const expectedFeePaid = tx.gasPrice.mul(tx.gasLimit)
 
@@ -65,6 +75,28 @@ describe('Fee Payment Integration Tests', async () => {
     // Make sure the fee was transferred to the vault.
     expect(feeVaultBalanceAfter.sub(feeVaultBalanceBefore)).to.deep.equal(
       expectedFeePaid
+    )
+  })
+
+  it('should not be able to withdraw fees before the minimum is met', async () => {
+    await expect(ovmSequencerFeeVault.withdraw()).to.be.rejected
+  })
+
+  it('should be able to withdraw fees back to L1 once the minimum is met', async () => {
+    const l1FeeWallet = await ovmSequencerFeeVault.l1FeeWallet()
+    const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
+
+    await env.ovmEth.transfer(ovmSequencerFeeVault, utils.parseEther('10'))
+
+    const vaultBalance = await env.ovmEth.balanceOf(
+      ovmSequencerFeeVault.address
+    )
+    const withdrawTx = await ovmSequencerFeeVault.withdraw()
+    await env.waitForXDomainTransaction(withdrawTx, Direction.L2ToL1)
+
+    const balanceAfter = await env.l1Wallet.provider.getBalance(l1FeeWallet)
+    expect(balanceAfter.sub(balanceBefore)).to.deep.equal(
+      BigNumber.from(vaultBalance)
     )
   })
 })

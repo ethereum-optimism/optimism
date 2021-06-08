@@ -30,7 +30,7 @@ contract OVM_SequencerFeeVault {
      *************/
 
     // Address on L1 that will hold the fees once withdrawn. Dynamically initialized within l2geth.
-    address l1FeeWallet;
+    address public l1FeeWallet;
 
 
     /***************
