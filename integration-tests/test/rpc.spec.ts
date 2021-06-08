@@ -4,10 +4,10 @@ import {
   TxGasPrice,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber, Contract } from 'ethers'
+import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { sleep, l2Provider, l1Provider } from './shared/utils'
+import { sleep, l2Provider, l1Provider, fundUser } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
@@ -206,6 +206,32 @@ describe('Basic RPC tests', () => {
       ).to.be.revertedWith(
         'Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?'
       )
+    })
+
+    it('should allow eth_calls with nonzero value', async () => {
+      // Deploy a contract to check msg.value of the call
+      const Factory__ValueContext: ContractFactory = await ethers.getContractFactory(
+        'ValueContext',
+        wallet
+      )
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      // Fund account to call from
+      const from = wallet.address
+      const value = 15
+      await fundUser(env.watcher, env.gateway, value, from)
+
+      // Do the call and check msg.value
+      const data = ValueContext.interface.encodeFunctionData('getCallValue')
+      const res = await provider.call({
+        to: ValueContext.address,
+        from,
+        data,
+        value,
+      })
+
+      expect(res).to.eq(BigNumber.from(value))
     })
   })
 

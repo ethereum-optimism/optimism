@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
@@ -2084,10 +2085,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * This function will throw an exception in all cases other than when used as a custom entrypoint in L2 Geth to simulate eth_call.
      * @param _transaction the message transaction to simulate.
      * @param _from the OVM account the simulated call should be from.
+     * @param _value the amount of ETH value to send.
+     * @param _ovmStateManager the address of the OVM_StateManager precompile in the L2 state.
      */
     function simulateMessage(
         Lib_OVMCodec.Transaction memory _transaction,
         address _from,
+        uint256 _value,
         iOVM_StateManager _ovmStateManager
     )
         external
@@ -2098,12 +2102,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Prevent this call from having any effect unless in a custom-set VM frame
         require(msg.sender == address(0));
 
+        // Initialize the EM's internal state, ignoring nuisance gas.
         ovmStateManager = _ovmStateManager;
         _initContext(_transaction);
         messageRecord.nuisanceGasLeft = uint(-1);
 
+        // Set the ovmADDRESS to the _from so that the subsequent call frame "comes from" them.
         messageContext.ovmADDRESS = _from;
 
+        // Execute the desired message.
         bool isCreate = _transaction.entrypoint == address(0);
         if (isCreate) {
             (address created, bytes memory revertData) = ovmCREATE(_transaction.data);
@@ -2118,7 +2125,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             (bool success, bytes memory returndata) = ovmCALL(
                 _transaction.gasLimit,
                 _transaction.entrypoint,
-                0,
+                _value,
                 _transaction.data
             );
             return abi.encode(success, returndata);
