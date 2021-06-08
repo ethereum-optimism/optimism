@@ -56,12 +56,9 @@ export const handleSequencerBlock = {
         data: transaction.input,
       }
 
-      transactionEntry = {
-        ...transactionEntry,
-        gasLimit: `${SEQUENCER_GAS_LIMIT}`, // ?
-        target: SEQUENCER_ENTRYPOINT_ADDRESS,
-        origin: null,
-        data: serialize(
+      let serialized
+      try {
+        serialized = serialize(
           {
             value: transaction.value,
             gasLimit: transaction.gas,
@@ -76,7 +73,34 @@ export const handleSequencerBlock = {
             r: padHexString(transaction.r, 32),
             s: padHexString(transaction.s, 32),
           }
-        ),
+        )
+      } catch (e) {
+        let v = parseSignatureVParam(transaction.v, chainId)
+        v = parseSignatureVParam(v, chainId)
+        serialized = serialize(
+          {
+            value: transaction.value,
+            gasLimit: transaction.gas,
+            gasPrice: transaction.gasPrice,
+            nonce: transaction.nonce,
+            to: transaction.to,
+            data: transaction.input,
+            chainId,
+          },
+          {
+            v,
+            r: padHexString(transaction.r, 32),
+            s: padHexString(transaction.s, 32),
+          }
+        )
+      }
+
+      transactionEntry = {
+        ...transactionEntry,
+        gasLimit: `${SEQUENCER_GAS_LIMIT}`, // ?
+        target: SEQUENCER_ENTRYPOINT_ADDRESS,
+        origin: null,
+        data: serialized,
         decoded: decodedTransaction,
         queueIndex: null,
       }
