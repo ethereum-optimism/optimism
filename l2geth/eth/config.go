@@ -81,8 +81,6 @@ var DefaultConfig = Config{
 		// is additional overhead that is unaccounted. Round down to 127000 for
 		// safety.
 		MaxCallDataSize: 127000,
-		DataPrice:       big.NewInt(100 * params.GWei),
-		ExecutionPrice:  big.NewInt(0),
 	},
 	DiffDbCache: 256,
 }
