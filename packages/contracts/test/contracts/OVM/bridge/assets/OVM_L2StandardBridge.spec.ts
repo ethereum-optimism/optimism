@@ -30,7 +30,6 @@ describe('OVM_L2StandardBridge', () => {
   let Factory__OVM_L1StandardBridge: ContractFactory
   const INITIAL_TOTAL_SUPPLY = 100_000
   const ALICE_INITIAL_BALANCE = 50_000
-  let L2ERC20: Contract
   before(async () => {
     // Create a special signer which will enable us to send messages from the L2Messenger contract
     ;[alice, bob, l2MessengerImpersonator] = await ethers.getSigners()
@@ -42,6 +41,7 @@ describe('OVM_L2StandardBridge', () => {
   })
 
   let OVM_L2StandardBridge: Contract
+  let L2ERC20: Contract
   let Mock__OVM_L2CrossDomainMessenger: MockContract
   beforeEach(async () => {
     // Get a new mock L2 messenger
@@ -55,6 +55,16 @@ describe('OVM_L2StandardBridge', () => {
     OVM_L2StandardBridge = await (
       await ethers.getContractFactory('OVM_L2StandardBridge')
     ).deploy(Mock__OVM_L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
+
+    // Deploy an L2 ERC20
+    L2ERC20 = await (
+      await ethers.getContractFactory('L2StandardERC20', alice)
+    ).deploy(
+      OVM_L2StandardBridge.address,
+      DUMMY_L1TOKEN_ADDRESS,
+      'L2Token',
+      'L2T'
+    )
   })
 
   // test the transfer flow of moving a token from L2 to L1
@@ -92,18 +102,66 @@ describe('OVM_L2StandardBridge', () => {
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
 
-    it('should credit funds to the depositor', async () => {
-      const depositAmount = 100
-
-      // Deploy an L2 ERC20 owned by the alice, then transfer ownership to the bridge
-      L2ERC20 = await (
-        await ethers.getContractFactory('L2StandardERC20', alice)
+    it("should initilise a withdrawal if the L2 token is not compliant", async () => {
+      // Deploy a non compliant ERC20
+      let NonCompilantERC20 = await (
+        await ethers.getContractFactory('@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20')
       ).deploy(
-        OVM_L2StandardBridge.address,
-        DUMMY_L1TOKEN_ADDRESS,
         'L2Token',
         'L2T'
       )
+
+      OVM_L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
+        DUMMY_L1TOKEN_ADDRESS,
+        NON_ZERO_ADDRESS,
+        NON_ZERO_ADDRESS,
+        NON_ZERO_ADDRESS,
+        0,
+        NON_NULL_BYTES32,
+        {
+          from: Mock__OVM_L2CrossDomainMessenger.address,
+        }
+      )
+
+      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+        () => DUMMY_L1BRIDGE_ADDRESS
+      )
+
+      await OVM_L2StandardBridge.connect(
+        l2MessengerImpersonator
+      ).finalizeDeposit(
+        DUMMY_L1TOKEN_ADDRESS,
+        NonCompilantERC20.address,
+        aliceAddress,
+        bobsAddress,
+        100,
+        NON_NULL_BYTES32,
+        {
+          from: Mock__OVM_L2CrossDomainMessenger.address,
+        }
+      )
+
+      const withdrawalCallToMessenger =
+        Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
+
+      expect(withdrawalCallToMessenger._target).to.equal(DUMMY_L1BRIDGE_ADDRESS)
+      expect(withdrawalCallToMessenger._message).to.equal(
+        Factory__OVM_L1StandardBridge.interface.encodeFunctionData(
+          'finalizeERC20Withdrawal',
+          [
+            DUMMY_L1TOKEN_ADDRESS,
+            NonCompilantERC20.address,
+            bobsAddress,
+            aliceAddress,
+            100,
+            NON_NULL_BYTES32,
+          ]
+        )
+      )
+    })
+
+    it('should credit funds to the depositor', async () => {
+      const depositAmount = 100
 
       Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => DUMMY_L1BRIDGE_ADDRESS
