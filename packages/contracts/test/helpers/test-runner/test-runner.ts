@@ -40,13 +40,12 @@ import {
 import { getStorageXOR } from '../'
 import { UNSAFE_BYTECODE } from '../dummy'
 import { getContractFactory, predeploys } from '../../../src'
-import { safetyCachePrestate } from './safety-cache-prestate'
+import { safetyCheckerPrestate } from './safety-checker-prestate'
 
 export class ExecutionManagerTestRunner {
   private snapshot: string
   private contracts: {
     OVM_SafetyChecker: Contract
-    OVM_SafetyCache: Contract
     OVM_StateManager: ModifiableContract
     OVM_ExecutionManager: ModifiableContract
     Helper_TestRunner: Contract
@@ -56,7 +55,6 @@ export class ExecutionManagerTestRunner {
     OVM_ETH: Contract
   } = {
     OVM_SafetyChecker: undefined,
-    OVM_SafetyCache: undefined,
     OVM_StateManager: undefined,
     OVM_ExecutionManager: undefined,
     Helper_TestRunner: undefined,
@@ -83,10 +81,6 @@ export class ExecutionManagerTestRunner {
           codeHash: NON_NULL_BYTES32,
           ethAddress: '$OVM_PROXY_EOA',
         },
-        [predeploys.OVM_SafetyCache]: {
-          codeHash: NON_NULL_BYTES32,
-          ethAddress: '$OVM_SAFETY_CACHE',
-        },
         [predeploys.OVM_SafetyChecker]: {
           codeHash: NON_NULL_BYTES32,
           ethAddress: '$OVM_SAFETY_CHECKER',
@@ -104,20 +98,11 @@ export class ExecutionManagerTestRunner {
             value: ethers.constants.HashZero,
           },
         },
-        [predeploys.OVM_SafetyCache]: {
-          [ethers.constants.HashZero]: {
-            getStorageXOR: true,
-            value: predeploys.OVM_SafetyChecker,
-          },
-        },
       },
       verifiedContractStorage: {
         [predeploys.OVM_DeployerWhitelist]: {
           [ethers.constants.HashZero]: true,
-        },
-        [predeploys.OVM_SafetyCache]: {
-          [ethers.constants.HashZero]: true,
-        },
+        }
       },
     },
     ExecutionManager: {
@@ -131,7 +116,7 @@ export class ExecutionManagerTestRunner {
     // tslint:disable-next-line:ban-comma-operator
     ;(test.preState = merge(
       cloneDeep(this.defaultPreState),
-      cloneDeep(safetyCachePrestate),
+      cloneDeep(safetyCheckerPrestate),
       cloneDeep(test.preState)
     )),
       (test.postState = test.postState || {})
@@ -240,7 +225,7 @@ export class ExecutionManagerTestRunner {
     ).deploy()
 
     const MockSafetyChecker = await smockit(SafetyChecker)
-    MockSafetyChecker.smocked.isBytecodeSafe.will.return.with(
+    MockSafetyChecker.smocked.checkAndRegisterSafeBytecode.will.return.with(
       (bytecode: string) => {
         return bytecode !== UNSAFE_BYTECODE
       }
@@ -248,13 +233,6 @@ export class ExecutionManagerTestRunner {
 
     this.contracts.OVM_SafetyChecker = MockSafetyChecker
 
-    const SafetyCache = await getContractFactory(
-      'OVM_SafetyCache',
-      AddressManager.signer,
-      true
-    ).deploy()
-
-    this.contracts.OVM_SafetyCache = SafetyCache
 
     const DeployerWhitelist = await getContractFactory(
       'OVM_DeployerWhitelist',
@@ -323,8 +301,6 @@ export class ExecutionManagerTestRunner {
         return this.contracts.OVM_StateManager.address
       } else if (kv === '$OVM_SAFETY_CHECKER') {
         return this.contracts.OVM_SafetyChecker.address
-      } else if (kv === '$OVM_SAFETY_CACHE') {
-        return this.contracts.OVM_SafetyCache.address
       } else if (kv === '$OVM_CALL_HELPER') {
         return this.contracts.Helper_TestRunner.address
       } else if (kv === '$OVM_DEPLOYER_WHITELIST') {

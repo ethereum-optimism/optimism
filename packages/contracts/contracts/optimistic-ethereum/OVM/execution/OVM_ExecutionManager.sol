@@ -17,8 +17,7 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 
 /* Contract Imports */
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
-import { OVM_SafetyCache } from "../predeploys/OVM_SafetyCache.sol";
-
+import { OVM_SafetyChecker } from "../predeploys/OVM_SafetyChecker.sol";
 
 /* External Imports */
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
@@ -998,7 +997,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             gasleft(),
             0x420000000000000000000000000000000000000c,
             abi.encodeWithSelector(
-                OVM_SafetyCache.checkAndRegisterSafeBytecode.selector,
+                OVM_SafetyChecker.checkAndRegisterSafeBytecode.selector,
                 _code
             )
         );

@@ -2,16 +2,16 @@ import { predeploys } from '../../../src'
 import { getStorageXOR } from '../constants'
 import { ethers } from 'hardhat'
 
-// These prestate values correspond to the storage slots in the SafetyCache's `isSafeCodeHash` mapping.
+// These prestate values correspond to the storage slots in the SafetyChecker's `isSafeCodeHash` mapping.
 // They were obtained using hardhat's console.log in the StateManager's getContractStorage() function.
 // They can also be predicted using Solidity's storage layout, formula: keccak256(k . p),
 // where k is the bytes32 codehash value, and p is the slot position (in this case bytes32(1)).
 // The codehash values correspond to the creation and deployed bytecode of the various contracts which are
 // deployed by other test-runner tests.
-export const safetyCachePrestate = {
+export const safetyCheckerPrestate = {
   StateManager: {
     contractStorage: {
-      [predeploys.OVM_SafetyCache]: {
+      [predeploys.OVM_SafetyChecker]: {
         ['0x5b26a3fd2ea7ce31730a8ef708aaf7a0c9ae3f5179055dc2c176c069db1a973b']: getStorageXOR(
           ethers.constants.HashZero
         ),
@@ -93,7 +93,7 @@ export const safetyCachePrestate = {
       },
     },
     verifiedContractStorage: {
-      [predeploys.OVM_SafetyCache]: {
+      [predeploys.OVM_SafetyChecker]: {
         ['0x5b26a3fd2ea7ce31730a8ef708aaf7a0c9ae3f5179055dc2c176c069db1a973b']: true,
         ['0x682f8199f8dafbf6ed36a88b49fe30d1345a0b265381e21ae1ed322ce403790f']: true,
         ['0xf817571abebfe38a35d602c0cf654831de55d8c0a92475bb6158c96479b06c4b']: true,
