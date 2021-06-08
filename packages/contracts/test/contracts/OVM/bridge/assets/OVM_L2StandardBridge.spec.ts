@@ -98,8 +98,7 @@ describe('OVM_L2StandardBridge', () => {
       // Deploy an L2 ERC20 owned by the alice, then transfer ownership to the bridge
       L2ERC20 = await (
         await ethers.getContractFactory('L2StandardERC20', alice)
-      ).deploy(DUMMY_L1TOKEN_ADDRESS, 'L2Token', 'L2T')
-      await L2ERC20.transferOwnership(OVM_L2StandardBridge.address)
+      ).deploy(OVM_L2StandardBridge.address, DUMMY_L1TOKEN_ADDRESS, 'L2Token', 'L2T')
 
       Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => DUMMY_L1BRIDGE_ADDRESS
@@ -130,6 +129,7 @@ describe('OVM_L2StandardBridge', () => {
     beforeEach(async () => {
       // Deploy a smodded gateway so we can give some balances to withdraw
       SmoddedL2Token = await (await smoddit('L2StandardERC20', alice)).deploy(
+        OVM_L2StandardBridge.address,
         DUMMY_L1TOKEN_ADDRESS,
         'L2Token',
         'L2T'
@@ -141,7 +141,7 @@ describe('OVM_L2StandardBridge', () => {
         _balances: {
           [aliceAddress]: ALICE_INITIAL_BALANCE,
         },
-        _owner: OVM_L2StandardBridge.address,
+        l2Bridge: OVM_L2StandardBridge.address,
       })
     })
 

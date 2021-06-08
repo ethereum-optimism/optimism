@@ -24,8 +24,9 @@ contract OVM_ETH is L2StandardERC20 {
      * Constructor *
      ***************/
 
-    constructor()
+    constructor(address _l2Bridge)
         L2StandardERC20(
+            _l2Bridge,
             L1_ETH_ADDRESS,
             "Ether",
             "ETH"
