@@ -49,7 +49,18 @@ describe('OVM_ECDSAContractAccount', () => {
     Mock__OVM_ETH.smocked.transfer.will.return.with(true)
   })
 
-  describe('fallback()', () => {
+  describe('fallback', async () => {
+    it('should successfully accept value sent to it', async () => {
+      await expect(
+        wallet.sendTransaction({
+          to: OVM_ECDSAContractAccount.address,
+          value: 1
+        })
+      ).to.not.be.reverted
+    })
+  })
+
+  describe('execute()', () => {
     it(`should successfully execute an EIP155Transaction`, async () => {
       const transaction = DEFAULT_EIP155_TX
       const encodedTransaction = await wallet.signTransaction(transaction)
@@ -129,6 +140,26 @@ describe('OVM_ECDSAContractAccount', () => {
       await expect(OVM_ECDSAContractAccount.execute(tx)).to.be.revertedWith(
         'Fee was not transferred to relayer.'
       )
+    })
+
+    it(`should transfer value if value is greater than 0`, async () => {
+      const value = 100
+      const valueRecipient = '0x' + '34'.repeat(20)
+      const transaction = { ...DEFAULT_EIP155_TX, to: valueRecipient, value, data: '0x' }
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
+      // fund the contract account
+      await wallet.sendTransaction({
+        to: OVM_ECDSAContractAccount.address,
+        value: value*10,
+        gasLimit: 1_000_000
+      })
+      
+      const receipientBalanceBefore = await wallet.provider.getBalance(valueRecipient)
+      await OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
+      const recipientBalanceAfter = await wallet.provider.getBalance(valueRecipient)
+
+      expect(recipientBalanceAfter.sub(receipientBalanceBefore).toNumber()).to.eq(value)
     })
 
     it(`should revert if trying to send value with a contract creation`, async () => {

@@ -48,6 +48,16 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
      ********************/
 
     /**
+     * No-op fallback mirrors behavior of calling an EOA on L1.
+     */
+    fallback()
+        external
+        payable
+    {
+        return;
+    }
+
+    /**
      * Executes a signed transaction.
      * @param _transaction Signed EIP155 transaction.
      * @return Whether or not the call returned (rather than reverted).
