@@ -114,8 +114,8 @@ export const fundUser = async (
 ) => {
   const value = BigNumber.from(amount)
   const tx = recipient
-    ? bridge.depositETHTo(recipient, 1_200_000, '', { value })
-    : bridge.depositETH(1_200_000, '', { value })
+    ? bridge.depositETHTo(recipient, 1_200_000, '0x', { value })
+    : bridge.depositETH(1_200_000, '0x', { value })
 
   await waitForXDomainTransaction(watcher, tx, Direction.L1ToL2)
 }
