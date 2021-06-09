@@ -14,12 +14,6 @@ import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
  */
 contract OVM_ETH is L2StandardERC20 {
 
-    /*************
-     * Constants *
-     ************/
-
-    address internal constant L1_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
     /***************
      * Constructor *
      ***************/
@@ -27,7 +21,7 @@ contract OVM_ETH is L2StandardERC20 {
     constructor(address _l2Bridge)
         L2StandardERC20(
             _l2Bridge,
-            L1_ETH_ADDRESS,
+            address(0),
             "Ether",
             "ETH"
         )

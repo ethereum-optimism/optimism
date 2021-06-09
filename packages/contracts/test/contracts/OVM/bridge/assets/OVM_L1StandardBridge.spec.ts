@@ -10,7 +10,6 @@ import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 import {
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
-  ETH_TOKEN,
 } from '../../../../helpers'
 import { getContractInterface, predeploys } from '../../../../../src'
 
@@ -133,7 +132,7 @@ describe('OVM_L1StandardBridge', () => {
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
         IL2ERC20Bridge.encodeFunctionData('finalizeDeposit', [
-          ETH_TOKEN,
+          constants.AddressZero,
           predeploys.OVM_ETH,
           depositer,
           depositer,
@@ -177,7 +176,7 @@ describe('OVM_L1StandardBridge', () => {
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger._message).to.equal(
         IL2ERC20Bridge.encodeFunctionData('finalizeDeposit', [
-          ETH_TOKEN,
+          constants.AddressZero,
           predeploys.OVM_ETH,
           aliceAddress,
           bobsAddress,
