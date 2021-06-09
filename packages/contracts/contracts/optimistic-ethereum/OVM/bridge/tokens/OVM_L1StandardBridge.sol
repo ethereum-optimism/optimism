@@ -13,6 +13,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
@@ -73,6 +74,14 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     /**************
      * Depositing *
      **************/
+
+    /// @dev Modifier requiring sender to be EOA
+    modifier onlyEOA() {
+        // Used to stop deposits from contracts (avoid accidentally lost tokens)
+        require(!Address.isContract(msg.sender), "Account not EOA");
+        _;
+    }
+
     /**
      * @dev This function can be called with no data
      * to deposit an amount of ETH to the caller's balance on L2.
@@ -96,6 +105,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
         external
         override
         payable
+        onlyEOA()
     {
         _initiateETHDeposit(
             msg.sender,
@@ -177,6 +187,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
         external
         override
         virtual
+        onlyEOA()
     {
         _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, msg.sender, _amount, _l2Gas, _data);
     }
