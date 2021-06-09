@@ -7,10 +7,7 @@ import { Interface } from 'ethers/lib/utils'
 import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import {
-  NON_NULL_BYTES32,
-  NON_ZERO_ADDRESS,
-} from '../../../../helpers'
+import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
 import { getContractInterface, predeploys } from '../../../../../src'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
@@ -52,7 +49,6 @@ describe('OVM_L1StandardBridge', () => {
 
     aliceAddress = await alice.getAddress()
     bobsAddress = await bob.getAddress()
-
   })
 
   let L1ERC20: Contract
@@ -189,14 +185,11 @@ describe('OVM_L1StandardBridge', () => {
 
     it('cannot depositETH from a contract account', async () => {
       expect(
-        OVM_L1StandardBridge.depositETH(
-          FINALIZATION_GAS,
-          NON_NULL_BYTES32,
-          {
-            value: depositAmount,
-            gasPrice: 0,
-          }
-        )).to.be.revertedWith('Account not EOA')
+        OVM_L1StandardBridge.depositETH(FINALIZATION_GAS, NON_NULL_BYTES32, {
+          value: depositAmount,
+          gasPrice: 0,
+        })
+      ).to.be.revertedWith('Account not EOA')
     })
   })
 
@@ -281,7 +274,10 @@ describe('OVM_L1StandardBridge', () => {
     const depositAmount = 1_000
 
     beforeEach(async () => {
-      await L1ERC20.connect(alice).approve(OVM_L1StandardBridge.address, depositAmount)
+      await L1ERC20.connect(alice).approve(
+        OVM_L1StandardBridge.address,
+        depositAmount
+      )
     })
 
     it('depositERC20() escrows the deposit amount and sends the correct deposit message', async () => {
@@ -299,9 +295,7 @@ describe('OVM_L1StandardBridge', () => {
 
       const depositerBalance = await L1ERC20.balanceOf(aliceAddress)
 
-      expect(depositerBalance).to.equal(
-        INITIAL_TOTAL_L1_SUPPLY - depositAmount
-      )
+      expect(depositerBalance).to.equal(INITIAL_TOTAL_L1_SUPPLY - depositAmount)
 
       // bridge's balance is increased
       const bridgeBalance = await L1ERC20.balanceOf(
@@ -342,9 +336,7 @@ describe('OVM_L1StandardBridge', () => {
         Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       const depositerBalance = await L1ERC20.balanceOf(aliceAddress)
-      expect(depositerBalance).to.equal(
-        INITIAL_TOTAL_L1_SUPPLY - depositAmount
-      )
+      expect(depositerBalance).to.equal(INITIAL_TOTAL_L1_SUPPLY - depositAmount)
 
       // bridge's balance is increased
       const bridgeBalance = await L1ERC20.balanceOf(
@@ -379,7 +371,8 @@ describe('OVM_L1StandardBridge', () => {
           depositAmount,
           FINALIZATION_GAS,
           NON_NULL_BYTES32
-        )).to.be.revertedWith('Account not EOA')
+        )
+      ).to.be.revertedWith('Account not EOA')
     })
 
     describe('Handling ERC20.transferFrom() failures that revert ', () => {
@@ -490,7 +483,10 @@ describe('OVM_L1StandardBridge', () => {
     it('should credit funds to the withdrawer and not use too much gas', async () => {
       // First Alice will 'donate' some tokens so that there's a balance to be withdrawn
       const withdrawalAmount = 10
-      await L1ERC20.connect(alice).approve(OVM_L1StandardBridge.address, withdrawalAmount)
+      await L1ERC20.connect(alice).approve(
+        OVM_L1StandardBridge.address,
+        withdrawalAmount
+      )
 
       await OVM_L1StandardBridge.connect(alice).depositERC20(
         L1ERC20.address,
@@ -500,7 +496,9 @@ describe('OVM_L1StandardBridge', () => {
         NON_NULL_BYTES32
       )
 
-      expect(await L1ERC20.balanceOf(OVM_L1StandardBridge.address)).to.be.equal(withdrawalAmount)
+      expect(await L1ERC20.balanceOf(OVM_L1StandardBridge.address)).to.be.equal(
+        withdrawalAmount
+      )
 
       // make sure no balance at start of test
       expect(await L1ERC20.balanceOf(NON_ZERO_ADDRESS)).to.be.equal(0)

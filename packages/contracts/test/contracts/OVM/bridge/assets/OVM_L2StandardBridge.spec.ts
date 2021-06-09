@@ -109,14 +109,13 @@ describe('OVM_L2StandardBridge', () => {
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
 
-    it("should initilise a withdrawal if the L2 token is not compliant", async () => {
+    it('should initilise a withdrawal if the L2 token is not compliant', async () => {
       // Deploy a non compliant ERC20
       let NonCompilantERC20 = await (
-        await ethers.getContractFactory('@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20')
-      ).deploy(
-        'L2Token',
-        'L2T'
-      )
+        await ethers.getContractFactory(
+          '@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20'
+        )
+      ).deploy('L2Token', 'L2T')
 
       OVM_L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
@@ -309,15 +308,21 @@ describe('OVM_L2StandardBridge', () => {
 
   describe('standard erc20', () => {
     it('should not allow anyone but the L2 bridge to mint and burn', async () => {
-      expect(L2ERC20.connect(alice).mint(aliceAddress, 100)).to.be.revertedWith('Only L2 Bridge can mint and burn');
-      expect(L2ERC20.connect(alice).burn(aliceAddress, 100)).to.be.revertedWith('Only L2 Bridge can mint and burn');
+      expect(L2ERC20.connect(alice).mint(aliceAddress, 100)).to.be.revertedWith(
+        'Only L2 Bridge can mint and burn'
+      )
+      expect(L2ERC20.connect(alice).burn(aliceAddress, 100)).to.be.revertedWith(
+        'Only L2 Bridge can mint and burn'
+      )
     })
 
     it('should return the correct interface support', async () => {
       const supportsERC165 = await L2ERC20.supportsInterface(0x01ffc9a7)
       expect(supportsERC165).to.be.true
 
-      const supportsL2TokenInterface = await L2ERC20.supportsInterface(0x1d1d8b63)
+      const supportsL2TokenInterface = await L2ERC20.supportsInterface(
+        0x1d1d8b63
+      )
       expect(supportsL2TokenInterface).to.be.true
 
       const badSupports = await L2ERC20.supportsInterface(0xffffffff)
