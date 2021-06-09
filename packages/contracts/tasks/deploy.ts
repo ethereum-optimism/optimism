@@ -99,12 +99,6 @@ task('deploy')
     undefined,
     types.string
   )
-  .addOptionalParam(
-    'initialGasPriceOracleGasPrice',
-    'The initial execution price for the gas price oracle.',
-    undefined,
-    types.int
-  )
   .setAction(async (args, hre: any, runSuper) => {
     // Necessary because hardhat doesn't let us attach non-optional parameters to existing tasks.
     const validateAddressArg = (argName: string) => {
