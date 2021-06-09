@@ -1,3 +1,5 @@
+import { predeploys } from '@eth-optimism/contracts'
+
 import { expect } from 'chai'
 import { Wallet, utils, BigNumber } from 'ethers'
 import { Direction } from './shared/watcher-utils'
@@ -51,28 +53,29 @@ describe('Native ETH Integration Tests', async () => {
       const amount = utils.parseEther('0.5')
       const addr = '0x' + '1234'.repeat(10)
       const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
-      expect(gas).to.be.deep.eq(BigNumber.from(0x0ef8972157))
+      expect(gas).to.be.deep.eq(BigNumber.from(0x0ef8972242))
     })
 
     it('Should estimate gas for ETH withdraw', async () => {
       const amount = utils.parseEther('0.5')
       const gas = await env.l2Bridge.estimateGas.withdraw(
-        ETH_TOKEN,
+        predeploys.OVM_ETH,
         amount,
         0,
         '0xFFFF'
       )
-      expect(gas).to.be.deep.eq(BigNumber.from(0x0f5203e9bf))
+      expect(gas).to.be.deep.eq(BigNumber.from(0x0f998bdeca))
     })
   })
 
-  it.only('depositETH', async () => {
+  it('depositETH', async () => {
+
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
+       env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L1, '0xFFFF', {
         value: depositAmount,
-        gasLimit: DEFAULT_TEST_GAS_L1,
+        gasLimit: DEFAULT_TEST_GAS_L2,
       }),
       Direction.L1ToL2
     )
@@ -170,9 +173,9 @@ describe('Native ETH Integration Tests', async () => {
 
     const receipts = await env.waitForXDomainTransaction(
       env.l2Bridge.withdraw(
-        ETH_TOKEN,
+        predeploys.OVM_ETH,
         withdrawAmount,
-        DEFAULT_TEST_GAS_L1,
+        DEFAULT_TEST_GAS_L2,
         '0xFFFF'
       ),
       Direction.L2ToL1
@@ -204,11 +207,12 @@ describe('Native ETH Integration Tests', async () => {
 
     const receipts = await env.waitForXDomainTransaction(
       env.l2Bridge.withdrawTo(
-        ETH_TOKEN,
+        predeploys.OVM_ETH,
         l1Bob.address,
         withdrawAmount,
-        DEFAULT_TEST_GAS_L1,
-        '0xFFFF'
+        DEFAULT_TEST_GAS_L2,
+        '0xFFFF',
+
       ),
       Direction.L2ToL1
     )
@@ -250,9 +254,9 @@ describe('Native ETH Integration Tests', async () => {
     // 3. do withdrawal
     const withdrawnAmount = utils.parseEther('0.95')
     const receipts = await env.waitForXDomainTransaction(
-      env.ovmEth
+      env.l2Bridge
         .connect(other)
-        .withdraw(withdrawnAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
+        .withdraw(predeploys.OVM_ETH, withdrawnAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
       Direction.L2ToL1
     )
 
