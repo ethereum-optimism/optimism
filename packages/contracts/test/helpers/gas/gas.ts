@@ -1,5 +1,6 @@
 import { ethers } from 'hardhat'
-import { Contract, Signer } from 'ethers'
+import { Contract, Signer, BigNumber } from 'ethers'
+import { expect } from 'chai'
 
 export class GasMeasurement {
   GasMeasurementContract: Contract
@@ -22,4 +23,20 @@ export class GasMeasurement {
 
     return gasCost
   }
+}
+
+// Utility function which checks
+export const expectApproxGasCost = (
+  expectedGas: BigNumber,
+  actualGas: BigNumber,
+  maxPercentIncrease: number,
+  maxPercentDecrease: number
+): void => {
+
+  expect(actualGas).to.be.lessThanOrEqual(
+    expectedGas.mul(1 + maxPercentIncrease / 100)
+  )
+  expect(actualGas).to.be.greaterThanOrEqual(
+    expectedGas.mul(1 - (maxPercentDecrease / 100))
+  )
 }
