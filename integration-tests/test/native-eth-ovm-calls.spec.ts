@@ -230,9 +230,8 @@ describe('Native ETH value integration tests', () => {
           getContractInterface('OVM_ExecutionManager', false),
           env.l1Wallet.provider
         )
-        CALL_WITH_VALUE_INTRINSIC_GAS = (
-          await OVM_ExecutionManager.CALL_WITH_VALUE_INTRINSIC_GAS()
-        ).toNumber()
+        const CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM = await OVM_ExecutionManager.CALL_WITH_VALUE_INTRINSIC_GAS()
+        CALL_WITH_VALUE_INTRINSIC_GAS = CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM.toNumber()
 
         const Factory__ValueGasMeasurer = await ethers.getContractFactory(
           'ValueGasMeasurer',
@@ -246,13 +245,11 @@ describe('Native ETH value integration tests', () => {
         const value = 1
         const gasLimit = 1_000_000
         // sending to 0x0000... should consume the minimal possible gas for a nonzero ETH send
-        const minimalSendGas = (
-          await ValueGasMeasurer.callStatic.measureGasOfSend(
-            ethers.constants.AddressZero,
-            value,
-            gasLimit
-          )
-        ).toNumber()
+        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfSend(
+          ethers.constants.AddressZero,
+          value,
+          gasLimit
+        )
 
         const buffer = 1.2
         expect(minimalSendGas * buffer).to.be.lte(CALL_WITH_VALUE_INTRINSIC_GAS)

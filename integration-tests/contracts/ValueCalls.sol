@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: evm
 pragma solidity >=0.7.0;
 
 contract ValueContext {
