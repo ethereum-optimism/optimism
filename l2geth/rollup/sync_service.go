@@ -31,6 +31,7 @@ var errShortRemoteTip = errors.New("Unexpected remote less than tip")
 // L2GasPrice slot refers to the storage slot that the execution price is stored
 // in the L2 predeploy contract, the GasPriceOracle
 var l2GasPriceSlot = common.BigToHash(big.NewInt(1))
+var l2GasPriceOracleAddress = common.HexToAddress("0x420000000000000000000000000000000000000F")
 
 // SyncService implements the main functionality around pulling in transactions
 // and executing them. It can be configured to run in both sequencer mode and in
@@ -58,8 +59,6 @@ type SyncService struct {
 	timestampRefreshThreshold time.Duration
 	chainHeadCh               chan core.ChainHeadEvent
 	backend                   Backend
-	gpoAddress                common.Address
-	enableL2GasPolling        bool
 	enforceFees               bool
 }
 
@@ -114,8 +113,6 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		pollInterval:              pollInterval,
 		timestampRefreshThreshold: timestampRefreshThreshold,
 		backend:                   cfg.Backend,
-		gpoAddress:                cfg.GasPriceOracleAddress,
-		enableL2GasPolling:        cfg.EnableL2GasPolling,
 		enforceFees:               cfg.EnforceFees,
 	}
 
@@ -430,11 +427,6 @@ func (s *SyncService) updateL1GasPrice() error {
 // price oracle at the state that corresponds to the state root. If no state
 // root is passed in, then the tip is used.
 func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
-	// TODO(mark): this is temporary and will be able to be rmoved when the
-	// OVM_GasPriceOracle is moved into the predeploy contracts
-	if !s.enableL2GasPolling {
-		return nil
-	}
 	var state *state.StateDB
 	var err error
 	if hash != nil {
@@ -445,7 +437,7 @@ func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 	if err != nil {
 		return err
 	}
-	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
+	result := state.GetState(l2GasPriceOracleAddress, l2GasPriceSlot)
 	s.RollupGpo.SetL2GasPrice(result.Big())
 	return nil
 }
