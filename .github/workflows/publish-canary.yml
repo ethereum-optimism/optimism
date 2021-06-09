@@ -2,7 +2,12 @@ name: Publish Packages (canary)
 
 on:
   # enable users to manually trigger with workflow_dispatch
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+    canaryImageName:
+      description: 'Docker Image Tag (keep empty for git hash) — DANGER: This can override public images, be careful!'
+      required: false
+      default: '0.0.0-rc-0'
 
 jobs:
   canary-publish:
@@ -155,7 +160,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.message-relayer
           push: true
-          tags: ethereumoptimism/message-relayer:${{ GITHUB_SHA::8 }}
+          tags: ethereumoptimism/message-relayer:${{ github.event.inputs.canaryImageName == '' && GITHUB_SHA::8 || github.event.inputs.canaryImageName }}
 
   batch-submitter:
     name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
@@ -181,7 +186,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.batch-submitter
           push: true
-          tags: ethereumoptimism/batch-submitter:${{ GITHUB_SHA::8 }}
+          tags: ethereumoptimism/batch-submitter:${{ github.event.inputs.canaryImageName == '' && GITHUB_SHA::8 || github.event.inputs.canaryImageName }}
 
   data-transport-layer:
     name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
@@ -207,7 +212,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.data-transport-layer
           push: true
-          tags: ethereumoptimism/data-transport-layer:${{ GITHUB_SHA::8 }}
+          tags: ethereumoptimism/data-transport-layer:${{ github.event.inputs.canaryImageName == '' && GITHUB_SHA::8 || github.event.inputs.canaryImageName }}
 
   contracts:
     name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
@@ -233,7 +238,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.deployer
           push: true
-          tags: ethereumoptimism/deployer:${{ GITHUB_SHA::8 }}
+          tags: ethereumoptimism/deployer:${{ github.event.inputs.canaryImageName == '' && GITHUB_SHA::8 || github.event.inputs.canaryImageName }}
 
   integration_tests:
     name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
@@ -259,4 +264,4 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.integration-tests
           push: true
-          tags: ethereumoptimism/integration-tests:${{ GITHUB_SHA::8 }}
+          tags: ethereumoptimism/integration-tests:${{ github.event.inputs.canaryImageName == '' && GITHUB_SHA::8 || github.event.inputs.canaryImageName }}
