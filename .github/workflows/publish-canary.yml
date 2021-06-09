@@ -76,12 +76,11 @@ jobs:
         run: |
           if [ $CUSTOM_IMAGE_NAME == '' ]
           then
-              echo "::set-output name=canary-docker-tag::$GITHUB_SHA_PREFIX"
+              echo "::set-output name=canary-docker-tag::${GITHUB_SHA::8}"
           else
               echo "::set-output name=canary-docker-tag::prerelease-$CUSTOM_IMAGE_NAME"
           fi
         env:
-          GITHUB_SHA_PREFIX: ${{ GITHUB_SHA::8 }}
           CUSTOM_IMAGE_NAME: ${{ github.event.inputs.customImageName }}
 
 
