@@ -27,23 +27,17 @@ contract OVM_EOACodeHashSet is Ownable {
     // Declare a Bytes32Set of code hashes
     EnumerableSet.Bytes32Set private s_codeHasheSet;
 
-    // Declare the genesis OVM_ProxyEOA.sol EXTCODEHASH
-    bytes32 constant OVM_EOA_CODE_HASH_V0 = 0x93bb081a7dd92bde63b4d0aa9b8612352b2ec585176a80efc0a2a277ecfc010e;
-    bytes32 constant OVM_EOA_CODE_HASH_V1 = 0x8b4ea2cb36c232a7bab9d385b7054ff04752ec4c0fad5dc2ed4b1c18d982154c;
-    bytes32 constant OVM_EOA_CODE_HASH_V2 = 0xb6268ee2707994607682cc0e3b288cdd71acc63df8de0e6baa39a31a2b91d0ad;
-    bytes32 constant OVM_EOA_CODE_HASH_V3 = 0x93fae832274ff6aa942fa0c287fc0d8fe180f26b36c92e83d9be7e39309d3464;
     // Optimism v0.3.0-rc
-    bytes32 constant OVM_EOA_CODE_HASH_V4 = 0xef2ab076db773ffc554c9f287134123439a5228e92f5b3194a28fec0a0afafe3;
+    // bytes32 constant OVM_EOA_CODE_HASH_V4 = 0xef2ab076db773ffc554c9f287134123439a5228e92f5b3194a28fec0a0afafe3;
+    bytes32 constant OVM_EOA_CODE_HASH = 0x881e7151bb0e6b1201ba610c71c284dd70339caf3ab30596618a37916c978b78;
 
     constructor() {
-        s_codeHasheSet.add(OVM_EOA_CODE_HASH_V0);
-        s_codeHasheSet.add(OVM_EOA_CODE_HASH_V1);
-        s_codeHasheSet.add(OVM_EOA_CODE_HASH_V2);
-        s_codeHasheSet.add(OVM_EOA_CODE_HASH_V3);
-        s_codeHasheSet.add(OVM_EOA_CODE_HASH_V4);
+        s_codeHasheSet.add(OVM_EOA_CODE_HASH);
     }
 
-    /// @notice Reverts if called by anyone other than whitelisted EOA contracts.
+    /**
+    * @notice Reverts if called by anyone other than whitelisted EOA contracts.
+    */
     modifier onlyEOAContract() {
         require(_isEOAContract(msg.sender), "Only callable by whitelisted EOA");
         _;
