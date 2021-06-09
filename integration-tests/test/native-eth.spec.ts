@@ -69,11 +69,10 @@ describe('Native ETH Integration Tests', async () => {
   })
 
   it('depositETH', async () => {
-
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-       env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L1, '0xFFFF', {
+      env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L1, '0xFFFF', {
         value: depositAmount,
         gasLimit: DEFAULT_TEST_GAS_L2,
       }),
@@ -211,8 +210,7 @@ describe('Native ETH Integration Tests', async () => {
         l1Bob.address,
         withdrawAmount,
         DEFAULT_TEST_GAS_L2,
-        '0xFFFF',
-
+        '0xFFFF'
       ),
       Direction.L2ToL1
     )
@@ -256,7 +254,12 @@ describe('Native ETH Integration Tests', async () => {
     const receipts = await env.waitForXDomainTransaction(
       env.l2Bridge
         .connect(other)
-        .withdraw(predeploys.OVM_ETH, withdrawnAmount, DEFAULT_TEST_GAS_L1, '0xFFFF'),
+        .withdraw(
+          predeploys.OVM_ETH,
+          withdrawnAmount,
+          DEFAULT_TEST_GAS_L1,
+          '0xFFFF'
+        ),
       Direction.L2ToL1
     )
 
