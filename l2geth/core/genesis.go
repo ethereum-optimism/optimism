@@ -69,6 +69,7 @@ type Genesis struct {
 
 	// OVM Specific, used to initialize the l1XDomainMessengerAddress
 	// in the genesis state
+	L1FeeWalletAddress            common.Address `json:"-"`
 	L1CrossDomainMessengerAddress common.Address `json:"-"`
 	AddressManagerOwnerAddress    common.Address `json:"-"`
 	L1ETHGatewayAddress           common.Address `json:"-"`
@@ -266,7 +267,7 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 }
 
 // ApplyOvmStateToState applies the initial OVM state to a state object.
-func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, chainID *big.Int, gasLimit uint64) {
+func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, l1FeeWalletAddress common.Address, chainID *big.Int, gasLimit uint64) {
 	if len(stateDump.Accounts) == 0 {
 		return
 	}
@@ -330,6 +331,13 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		maxTxGasLimitValue := common.BytesToHash(new(big.Int).SetUint64(gasLimit).Bytes())
 		statedb.SetState(ExecutionManager.Address, maxTxGasLimitSlot, maxTxGasLimitValue)
 	}
+	OVM_SequencerFeeVault, ok := stateDump.Accounts["OVM_SequencerFeeVault"]
+	if ok {
+		log.Info("Setting l1FeeWallet in OVM_SequencerFeeVault", "wallet", l1FeeWalletAddress.Hex())
+		l1FeeWalletSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
+		l1FeeWalletValue := common.BytesToHash(l1FeeWalletAddress.Bytes())
+		statedb.SetState(OVM_SequencerFeeVault.Address, l1FeeWalletSlot, l1FeeWalletValue)
+	}
 }
 
 // ToBlock creates the genesis block and writes state of a genesis specification
@@ -342,7 +350,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 
 	if vm.UsingOVM {
 		// OVM_ENABLED
-		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1ETHGatewayAddress, g.AddressManagerOwnerAddress, g.ChainID, g.GasLimit)
+		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1ETHGatewayAddress, g.AddressManagerOwnerAddress, g.L1FeeWalletAddress, g.ChainID, g.GasLimit)
 	}
 
 	for addr, account := range g.Alloc {
@@ -469,7 +477,7 @@ func DefaultGoerliGenesisBlock() *Genesis {
 }
 
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.
-func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
+func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress common.Address, l1ETHGatewayAddress common.Address, addrManagerOwnerAddress common.Address, l1FeeWalletAddress common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
 	// Override the default period to the user requested one
 	config := *params.AllCliqueProtocolChanges
 	config.Clique.Period = period
@@ -525,6 +533,7 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
 		},
 		L1CrossDomainMessengerAddress: l1XDomainMessengerAddress,
+		L1FeeWalletAddress:            l1FeeWalletAddress,
 		AddressManagerOwnerAddress:    addrManagerOwnerAddress,
 		L1ETHGatewayAddress:           l1ETHGatewayAddress,
 		ChainID:                       config.ChainID,

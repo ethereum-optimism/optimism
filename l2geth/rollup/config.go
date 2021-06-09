@@ -23,6 +23,7 @@ type Config struct {
 	// HTTP endpoint of the data transport layer
 	RollupClientHttp              string
 	L1CrossDomainMessengerAddress common.Address
+	L1FeeWalletAddress            common.Address
 	AddressManagerOwnerAddress    common.Address
 	L1ETHGatewayAddress           common.Address
 	GasPriceOracleAddress         common.Address
