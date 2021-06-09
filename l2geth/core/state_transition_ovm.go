@@ -106,7 +106,7 @@ func EncodeSimulatedMessage(msg Message, timestamp, blockNumber *big.Int, execut
 		uint8(msg.QueueOrigin()),
 		*msg.L1MessageSender(),
 		*to,
-		big.NewInt(int64(msg.Gas())),
+		new(big.Int).SetUint64(msg.Gas()),
 		msg.Data(),
 	}
 
