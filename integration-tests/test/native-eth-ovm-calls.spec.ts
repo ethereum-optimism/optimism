@@ -94,7 +94,7 @@ describe('Native ETH value integration tests', () => {
         BigNumber.from(expectedBalances[1]),
         'geth RPC does not match ovmBALANCE'
       )
-      // query ovmSELFBALANCE() opcode via eth_call as final check
+      // query ovmSELFBALANCE() opcode via eth_call as another check
       const ovmSELFBALANCE0 = await ValueCalls0.callStatic.getSelfBalance()
       const ovmSELFBALANCE1 = await ValueCalls1.callStatic.getSelfBalance()
       expect(ovmSELFBALANCE0).to.deep.eq(
@@ -104,6 +104,17 @@ describe('Native ETH value integration tests', () => {
       expect(ovmSELFBALANCE1).to.deep.eq(
         BigNumber.from(expectedBalances[1]),
         'geth RPC does not match ovmSELFBALANCE'
+      )
+      // query address(this).balance solidity via eth_call as final check
+      const ovmAddressThisBalance0 = await ValueCalls0.callStatic.getAddressThisBalance()
+      const ovmAddressThisBalance01 = await ValueCalls1.callStatic.getAddressThisBalance()
+      expect(ovmAddressThisBalance0).to.deep.eq(
+        BigNumber.from(expectedBalances[0]),
+        'geth RPC does not match address(this).balance'
+      )
+      expect(ovmAddressThisBalance01).to.deep.eq(
+        BigNumber.from(expectedBalances[1]),
+        'geth RPC does not match address(this).balance'
       )
     }
 
@@ -137,6 +148,18 @@ describe('Native ETH value integration tests', () => {
       await checkBalances([initialBalance0 - sendAmount, sendAmount])
     })
 
+    it('should revert if a function is nonpayable', async () => {
+      const sendAmount = 15
+      const [success, returndata] = await ValueCalls0.callStatic.sendWithData(
+        ValueCalls1.address,
+        sendAmount,
+        ValueCalls1.interface.encodeFunctionData('nonPayable')
+      )
+
+      expect(success).to.be.false
+      expect(returndata).to.eq('0x')
+    })
+
     it('should allow ETH to be sent and have the correct ovmCALLVALUE', async () => {
       const sendAmount = 15
       const [success, returndata] = await ValueCalls0.callStatic.sendWithData(
@@ -147,6 +170,29 @@ describe('Native ETH value integration tests', () => {
 
       expect(success).to.be.true
       expect(BigNumber.from(returndata)).to.deep.eq(BigNumber.from(sendAmount))
+    })
+
+    it('should have the correct ovmSELFBALANCE which includes the msg.value', async () => {
+      // give an initial balance which the ovmCALLVALUE should be added to when calculating ovmSELFBALANCE
+      const initialBalance = 10
+      await fundUser(
+        env.watcher,
+        env.gateway,
+        initialBalance,
+        ValueCalls1.address
+      )
+
+      const sendAmount = 15
+      const [success, returndata] = await ValueCalls0.callStatic.sendWithData(
+        ValueCalls1.address,
+        sendAmount,
+        ValueCalls1.interface.encodeFunctionData('getSelfBalance')
+      )
+
+      expect(success).to.be.true
+      expect(BigNumber.from(returndata)).to.deep.eq(
+        BigNumber.from(initialBalance + sendAmount)
+      )
     })
 
     it('should have the correct callvalue but not persist the transfer if the target reverts', async () => {
