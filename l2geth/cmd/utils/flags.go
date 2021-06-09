@@ -823,6 +823,12 @@ var (
 		Value:  "0x0000000000000000000000000000000000000000",
 		EnvVar: "ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS",
 	}
+	Eth1L1FeeWalletAddressFlag = cli.StringFlag{
+		Name:   "eth1.l1feewalletaddress",
+		Usage:  "Address of the L1 wallet that will collect fees",
+		Value:  "0x0000000000000000000000000000000000000000",
+		EnvVar: "ETH1_L1_FEE_WALLET_ADDRESS",
+	}
 	Eth1ETHGatewayAddressFlag = cli.StringFlag{
 		Name:   "eth1.l1ethgatewayaddress",
 		Usage:  "Deployment address of the Ethereum gateway",
@@ -1148,6 +1154,10 @@ func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(Eth1L1CrossDomainMessengerAddressFlag.Name) {
 		addr := ctx.GlobalString(Eth1L1CrossDomainMessengerAddressFlag.Name)
 		cfg.L1CrossDomainMessengerAddress = common.HexToAddress(addr)
+	}
+	if ctx.GlobalIsSet(Eth1L1FeeWalletAddressFlag.Name) {
+		addr := ctx.GlobalString(Eth1L1FeeWalletAddressFlag.Name)
+		cfg.L1FeeWalletAddress = common.HexToAddress(addr)
 	}
 	if ctx.GlobalIsSet(Eth1ETHGatewayAddressFlag.Name) {
 		addr := ctx.GlobalString(Eth1ETHGatewayAddressFlag.Name)
@@ -1778,10 +1788,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			gasLimit = params.GenesisGasLimit
 		}
 		xdomainAddress := cfg.Rollup.L1CrossDomainMessengerAddress
+		l1FeeWalletAddress := cfg.Rollup.L1FeeWalletAddress
 		addrManagerOwnerAddress := cfg.Rollup.AddressManagerOwnerAddress
 		l1ETHGatewayAddress := cfg.Rollup.L1ETHGatewayAddress
 		stateDumpPath := cfg.Rollup.StateDumpPath
-		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, xdomainAddress, l1ETHGatewayAddress, addrManagerOwnerAddress, stateDumpPath, chainID, gasLimit)
+		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, xdomainAddress, l1ETHGatewayAddress, addrManagerOwnerAddress, l1FeeWalletAddress, stateDumpPath, chainID, gasLimit)
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
