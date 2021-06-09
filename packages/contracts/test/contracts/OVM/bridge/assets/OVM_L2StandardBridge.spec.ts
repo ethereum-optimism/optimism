@@ -2,7 +2,8 @@ import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, constants } from 'ethers'
+import { Signer, ContractFactory, Contract } from 'ethers'
+import { Interface } from 'ethers/lib/utils'
 import {
   smockit,
   MockContract,
@@ -12,6 +13,8 @@ import {
 
 /* Internal Imports */
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
+
+import { getContractInterface } from '../../../../../src'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -28,6 +31,7 @@ describe('OVM_L2StandardBridge', () => {
   let bobsAddress: string
   let l2MessengerImpersonator: Signer
   let Factory__OVM_L1StandardBridge: ContractFactory
+  let IL2ERC20Bridge: Interface
   const INITIAL_TOTAL_SUPPLY = 100_000
   const ALICE_INITIAL_BALANCE = 50_000
   before(async () => {
@@ -38,6 +42,9 @@ describe('OVM_L2StandardBridge', () => {
     Factory__OVM_L1StandardBridge = await ethers.getContractFactory(
       'OVM_L1StandardBridge'
     )
+
+    // get an L2ER20Bridge Interface
+    IL2ERC20Bridge = getContractInterface('iOVM_L2ERC20Bridge')
   })
 
   let OVM_L2StandardBridge: Contract
@@ -297,6 +304,24 @@ describe('OVM_L2StandardBridge', () => {
       )
       // gas value is ignored and set to 0.
       expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
+    })
+  })
+
+  describe('standard erc20', () => {
+    it('should not allow anyone but the L2 bridge to mint and burn', async () => {
+      expect(L2ERC20.connect(alice).mint(aliceAddress, 100)).to.be.revertedWith('Only L2 Bridge can mint and burn');
+      expect(L2ERC20.connect(alice).burn(aliceAddress, 100)).to.be.revertedWith('Only L2 Bridge can mint and burn');
+    })
+
+    it('should return the correct interface support', async () => {
+      const supportsERC165 = await L2ERC20.supportsInterface(0x01ffc9a7)
+      expect(supportsERC165).to.be.true
+
+      const supportsL2TokenInterface = await L2ERC20.supportsInterface(0x1d1d8b63)
+      expect(supportsL2TokenInterface).to.be.true
+
+      const badSupports = await L2ERC20.supportsInterface(0xffffffff)
+      expect(badSupports).to.be.false
     })
   })
 })

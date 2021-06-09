@@ -130,7 +130,6 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         bytes memory message;
 
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
-            // do we need to require that the l1 token is 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE ? Probably not
             message = abi.encodeWithSelector(
                         iOVM_L1StandardBridge.finalizeETHWithdrawal.selector,
                         _from,

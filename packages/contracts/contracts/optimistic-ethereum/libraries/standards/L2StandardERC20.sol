@@ -31,6 +31,8 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
     }
 
     function supportsInterface(bytes4 _interfaceId) public override pure returns (bool) {
+        // 0x01ffc9a7 = bytes4(keccak256("supportsInterface(bytes4)")) (ERC165)
+        // 0x1d1d8b63 = bytes4(keccak256("l1Token()")) ^ bytes4(keccak256("mint(address,uint256)")) ^ bytes4(keccak256("burn(address,uint256)"))
         return _interfaceId == 0x01ffc9a7 || _interfaceId == 0x1d1d8b63;
     }
 
