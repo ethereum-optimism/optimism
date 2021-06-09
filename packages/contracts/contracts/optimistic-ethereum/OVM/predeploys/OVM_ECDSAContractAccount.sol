@@ -40,9 +40,11 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
      * Constants *
      *************/
 
-    // TODO: should be the amount sufficient to cover the gas costs of all of the transactions up
-    // to and including the CALL/CREATE which forms the entrypoint of the transaction.
-    uint256 constant EXECUTION_VALIDATION_GAS_OVERHEAD = 25000;
+    // A value that is large enought to account for the gas usage of the transaction
+    // to and INCLUDING the containerization cost of CALL/CREATE, but EXCLUDING
+    // the subcall made by the Execution Manager, which will consume at most gasLimit
+    // additional gas.
+    uint256 constant EXECUTE_INTRINSIC_GAS = 1647299;
 
 
     /********************
@@ -95,14 +97,14 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             bytes memory
         )
     {
-
         // Decode the L2 gas limit. It is scaled and serialized in the lower
         // order bits of transaction.gasLimit. See:
         // https://github.com/ethereum-optimism/optimism/blob/0c18e1903f8a33a607f782c0081a8fb5071b71ef/l2geth/rollup/fees/rollup_fee.go#L56
         uint256 gasLimit = SafeMath.mul((transaction.gasLimit % 10000), 10000);
+
         // Need to make sure that the gas is sufficient to execute the transaction.
         require(
-            gasleft() >= gasLimit + intrinsicGas,
+            gasleft() >= gasLimit + EXECUTE_INTRINSIC_GAS,
             "Gas is not sufficient to execute the transaction."
         );
 
