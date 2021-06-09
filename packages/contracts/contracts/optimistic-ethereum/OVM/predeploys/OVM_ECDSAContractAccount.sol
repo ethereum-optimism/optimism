@@ -96,10 +96,13 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         )
     {
 
-        // Need to make sure that the gas is sufficient to execute the transaction.
+        // Decode the L2 gas limit. It is scaled and serialized in the lower
+        // order bits of transaction.gasLimit. See:
+        // https://github.com/ethereum-optimism/optimism/blob/0c18e1903f8a33a607f782c0081a8fb5071b71ef/l2geth/rollup/fees/rollup_fee.go#L56
         uint256 gasLimit = SafeMath.mul((transaction.gasLimit % 10000), 10000);
+        // Need to make sure that the gas is sufficient to execute the transaction.
         require(
-            gasleft() >= gasLimit,
+            gasleft() >= gasLimit + intrinsicGas,
             "Gas is not sufficient to execute the transaction."
         );
 
@@ -133,8 +136,8 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         if (_transaction.isCreate) {
             (address created, bytes memory revertdata) = Lib_ExecutionManagerWrapper.ovmCREATE(
-                _transaction.data
-                callGasLimit
+                _transaction.data,
+                gasLimit
             );
 
             // Return true if the contract creation succeeded, false w/ revertdata otherwise.
