@@ -2,7 +2,7 @@ import { expect } from '../../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { Interface } from 'ethers/lib/utils'
 import {
   smockit,
@@ -14,7 +14,7 @@ import {
 /* Internal Imports */
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
 
-import { getContractInterface } from '../../../../../src'
+import { getContractInterface, predeploys } from '../../../../../src'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -111,7 +111,7 @@ describe('OVM_L2StandardBridge', () => {
 
     it('should initilise a withdrawal if the L2 token is not compliant', async () => {
       // Deploy a non compliant ERC20
-      let NonCompilantERC20 = await (
+      const NonCompilantERC20 = await (
         await ethers.getContractFactory(
           '@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20'
         )
@@ -215,7 +215,12 @@ describe('OVM_L2StandardBridge', () => {
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await OVM_L2StandardBridge.withdraw(
+      // whitelist Alice's EOA contract in the Bridge for withdraw
+      const codeHash = await OVM_L2StandardBridge.getCodeHash(aliceAddress)
+      await OVM_L2StandardBridge.addEOACodeHash(codeHash)
+
+      // call withdraw
+      await OVM_L2StandardBridge.connect(alice).withdraw(
         SmoddedL2Token.address,
         withdrawAmount,
         0,
@@ -257,6 +262,17 @@ describe('OVM_L2StandardBridge', () => {
       )
       // gaslimit should be correct
       expect(withdrawalCallToMessenger._gasLimit).to.equal(0)
+    })
+
+    it('withdraw() cannot be called by a non whitelisted EOA', async () => {
+      expect(
+        OVM_L2StandardBridge.connect(alice).withdraw(
+          SmoddedL2Token.address,
+          withdrawAmount,
+          0,
+          NON_NULL_BYTES32
+        )
+      ).to.be.revertedWith('Only callable by whitelisted EOA')
     })
 
     it('withdrawTo() burns and sends the correct withdrawal message', async () => {

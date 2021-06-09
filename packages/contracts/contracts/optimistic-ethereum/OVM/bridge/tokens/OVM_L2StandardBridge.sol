@@ -10,6 +10,7 @@ import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Brid
 /* Library Imports */
 import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
 import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { OVM_EOACodeHashSet } from "../../../libraries/bridge/OVM_EOACodeHashSet.sol";
 import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
@@ -25,7 +26,7 @@ import { IL2StandardERC20 } from "../../../libraries/standards/IL2StandardERC20.
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
+contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_EOACodeHashSet, OVM_CrossDomainEnabled {
 
     /********************************
      * External Contract References *
@@ -66,6 +67,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         external
         override
         virtual
+        onlyEOAContract()
     {
         _initiateWithdrawal(
             _l2Token,
