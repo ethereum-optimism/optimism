@@ -114,10 +114,13 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             transaction.isCreate
         );
 
-        // Need to make sure that the gas is sufficient to execute the transaction.
+        // Decode the L2 gas limit. It is scaled and serialized in the lower
+        // order bits of transaction.gasLimit. See:
+        // https://github.com/ethereum-optimism/optimism/blob/0c18e1903f8a33a607f782c0081a8fb5071b71ef/l2geth/rollup/fees/rollup_fee.go#L56
         uint256 gasLimit = SafeMath.mul((transaction.gasLimit % 10000), 10000);
+        // Need to make sure that the gas is sufficient to execute the transaction.
         require(
-            gasleft() >= gasLimit,
+            gasleft() >= gasLimit + intrinsicGas,
             "Gas is not sufficient to execute the transaction."
         );
 
@@ -144,12 +147,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             "Fee was not transferred to relayer."
         );
 
-        // Compute the gas limit passed to the sub call
-        uint256 callGasLimit = SafeMath.sub(
-            Math.max(gasLimit, intrinsicGas),
-            intrinsicGas
-        );
-
         if (transaction.isCreate) {
             // TEMPORARY: Disable value transfer for contract creations.
             require(
@@ -159,7 +156,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
             (address created, bytes memory revertdata) = Lib_ExecutionManagerWrapper.ovmCREATE(
                 transaction.data,
-                callGasLimit
+                gasLimit
             );
 
             // Return true if the contract creation succeeded, false w/ revertdata otherwise.
@@ -200,7 +197,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                     "Calls to self are disabled until upgradability is re-enabled."
                 );
 
-                return transaction.to.call{gas: callGasLimit}(transaction.data);
+                return transaction.to.call{gas: gasLimit}(transaction.data);
             }
         }
     }
