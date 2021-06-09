@@ -4,10 +4,10 @@ on:
   # enable users to manually trigger with workflow_dispatch
   workflow_dispatch:
     inputs:
-    customImageName:
-      description: 'Custom Docker Image Tag (keep empty for git hash)'
-      required: false
-      default: '0.0.0-rc-0'
+      customImageName:
+        description: 'Custom Docker Image Tag (keep empty for git hash)'
+        required: false
+        default: '0.0.0-rc-0'
 
 jobs:
   canary-publish:
