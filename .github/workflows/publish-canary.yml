@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
     customImageName:
-      description: 'Cusotm Docker Image Tag (keep empty for git hash)'
+      description: 'Custom Docker Image Tag (keep empty for git hash)'
       required: false
       default: '0.0.0-rc-0'
 
