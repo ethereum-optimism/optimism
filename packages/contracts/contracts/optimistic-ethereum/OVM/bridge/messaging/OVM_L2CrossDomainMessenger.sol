@@ -182,17 +182,16 @@ contract OVM_L2CrossDomainMessenger is
      * @return _valid Whether or not the message is valid.
      */
     function _verifyXDomainMessage()
+        view
         internal
         returns (
             bool _valid
         )
     {
-
-        address l1MessageSender = iOVM_L1MessageSender(resolve("OVM_L1MessageSender")).getL1MessageSender();
-        address l1CrossDomainMessenger = resolve("OVM_L1CrossDomainMessenger");
-
         return (
-            l1CrossDomainMessenger == l1MessageSender
+            iOVM_L1MessageSender(
+                resolve("OVM_L1MessageSender")
+            ).getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
         );
     }
 
