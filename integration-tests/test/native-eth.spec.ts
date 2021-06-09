@@ -52,7 +52,7 @@ describe('Native ETH Integration Tests', async () => {
       const amount = utils.parseEther('0.5')
       const addr = '0x' + '1234'.repeat(10)
       const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
-      expect(gas).to.be.deep.eq(BigNumber.from(0x0ef8972242))
+      expect(gas).to.be.deep.eq(BigNumber.from(0x621d44))
     })
 
     it('Should estimate gas for ETH withdraw', async () => {
@@ -63,7 +63,7 @@ describe('Native ETH Integration Tests', async () => {
         0,
         '0xFFFF'
       )
-      expect(gas).to.be.deep.eq(BigNumber.from(0x0f998bdeca))
+      expect(gas).to.be.deep.eq(BigNumber.from(0x663c1c))
     })
   })
 
