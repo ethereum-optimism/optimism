@@ -85,6 +85,13 @@ contract ValueCalls is ValueContext {
         return _valueContext.delegatecall(data);
     }
 
+    function delegateCallToAddressThisBalance(
+        address _valueContext
+    ) public payable returns(bool, bytes memory) {
+        bytes memory data = abi.encodeWithSelector(ValueContext.getAddressThisBalance.selector);
+        return _valueContext.delegatecall(data);
+    }
+
     function _checkCallValue(
         uint256 _expectedValue
     ) internal returns(bool) {

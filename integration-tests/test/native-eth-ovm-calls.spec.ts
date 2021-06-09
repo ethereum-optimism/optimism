@@ -266,6 +266,37 @@ describe('Native ETH value integration tests', () => {
       expect(delegatedOvmCALLVALUE).to.deep.eq(BigNumber.from(sendAmount))
     })
 
+    it('should have correct address(this).balance through ovmDELEGATECALLs to another account', async () => {
+      const Factory__ValueContext = await ethers.getContractFactory(
+        'ValueContext',
+        wallet
+      )
+      const ValueContext = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      const [
+        delegatedSuccess,
+        delegatedReturndata,
+      ] = await ValueCalls0.callStatic.delegateCallToAddressThisBalance(
+        ValueContext.address
+      )
+
+      expect(delegatedSuccess).to.be.true
+      expect(delegatedReturndata).to.deep.eq(BigNumber.from(initialBalance0))
+    })
+
+    it('should have correct address(this).balance through ovmDELEGATECALLs to same account', async () => {
+      const [
+        delegatedSuccess,
+        delegatedReturndata,
+      ] = await ValueCalls0.callStatic.delegateCallToAddressThisBalance(
+        ValueCalls0.address
+      )
+
+      expect(delegatedSuccess).to.be.true
+      expect(delegatedReturndata).to.deep.eq(BigNumber.from(initialBalance0))
+    })
+
     describe('Intrinsic gas for ovmCALL types', async () => {
       let CALL_WITH_VALUE_INTRINSIC_GAS
       let ValueGasMeasurer: Contract
