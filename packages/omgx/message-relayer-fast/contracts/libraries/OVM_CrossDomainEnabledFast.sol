@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 /* Interface Imports */
-import { iAbs_BaseCrossDomainMessenger } from "@eth-optimism/contracts/iOVM/bridge/messaging/iAbs_BaseCrossDomainMessenger.sol";
+import { iAbs_BaseCrossDomainMessenger } from "@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/bridge/messaging/iAbs_BaseCrossDomainMessenger.sol";
 
 /**
- * @title OVM_CrossDomainEnabled
+ * @title OVM_CrossDomainEnabledFast
  * @dev Helper contract for contracts performing cross-domain communications
  *
  * Compiler used: defined by inheriting contract
  * Runtime target: defined by inheriting contract
  */
-contract OVM_CrossDomainEnabled {
-    // Messenger contract used to send and recieve messages from the other domain.
+contract OVM_CrossDomainEnabledFast {
+    
+    // Messenger contract used to send and receive messages from the other domain.
     address public senderMessenger;
     address public relayerMessenger;
 

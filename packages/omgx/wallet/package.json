@@ -17,7 +17,6 @@
   },
   "devDependencies": {
     "@eth-optimism/hardhat-ovm": "^0.0.2",
-    "@eth-optimism/core-utils": "^0.4.2",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@types/jest": "^26.0.22",
@@ -35,7 +34,6 @@
     "typescript": "^4.2.4"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "^0.3.4",
     "@openzeppelin/contracts": "3.4.1",
     "chalk": "^4.1.1",
     "dotenv": "^8.2.0",

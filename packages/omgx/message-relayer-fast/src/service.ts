@@ -21,6 +21,8 @@ interface MessageRelayerOptions {
 
   l1Target: string
 
+  l1MessengerFast: string
+
   // Wallet instance, used to sign and send the L1 relay transactions.
   l1Wallet: Wallet
 
@@ -101,7 +103,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     })
 
     this.logger.info('Connecting to OVM_L1CrossDomainMessenger...')
-    const l1MessengerAddress = await this.state.Lib_AddressManager.getAddress(
+    const l1MessengerAddress = this.options.l1MessengerFast || await this.state.Lib_AddressManager.getAddress(
       'OVM_L1CustomCrossDomainMessenger'
     )
     this.state.OVM_L1CrossDomainMessenger = loadContract(
