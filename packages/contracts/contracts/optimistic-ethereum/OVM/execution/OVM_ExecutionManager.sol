@@ -418,7 +418,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         return _createContract(
             contractAddress,
-            _bytecode
+            _bytecode,
+            gasleft()
         );
     }
 
@@ -458,10 +459,50 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         return _createContract(
             contractAddress,
-            _bytecode
+            _bytecode,
+            gasleft()
         );
     }
 
+    /**
+     * @notice CREATE but accepts a gas limit.
+     * @param _bytecode Code to be used to CREATE a new contract.
+     * @param _gasLimit Gas limit to be used with CREATE.
+     * @return Address of the created contract.
+     * @return Revert data, if and only if the creation threw an exception.
+     */
+    function ovmCREATEWITHGASLIMIT(
+        bytes memory _bytecode,
+        uint256 _gasLimit
+    )
+        override
+        public
+        notStatic
+        fixedGasDiscount(40000)
+        returns (
+            address,
+            bytes memory
+        )
+    {
+        // Creator is always the current ADDRESS.
+        address creator = ovmADDRESS();
+
+        // Check that the deployer is whitelisted, or
+        // that arbitrary contract deployment has been enabled.
+        _checkDeployerAllowed(creator);
+
+        // Generate the correct CREATE address.
+        address contractAddress = Lib_EthUtils.getAddressForCREATE(
+            creator,
+            _getAccountNonce(creator)
+        );
+
+        return _createContract(
+            contractAddress,
+            _bytecode,
+            _gasLimit
+        );
+    }
 
     /*******************************
      * Account Abstraction Opcodes *
@@ -864,7 +905,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function _createContract(
         address _contractAddress,
-        bytes memory _bytecode
+        bytes memory _bytecode,
+        uint256 _gasLimit
     )
         internal
         returns (
@@ -885,7 +927,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // passing in the creation bytecode and `true` to trigger create-specific logic.
         (bool success, bytes memory data) = _handleExternalMessage(
             nextMessageContext,
-            gasleft(),
+            _gasLimit,
             _contractAddress,
             _bytecode,
             true
