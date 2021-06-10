@@ -7,7 +7,10 @@ import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
-import { DEFAULT_EIP155_TX } from '../../../helpers'
+import {
+  LibEIP155TxStruct,
+  DEFAULT_EIP155_TX,
+} from '../../../helpers'
 import { predeploys } from '../../../../src'
 
 describe('OVM_ECDSAContractAccount', () => {
@@ -54,14 +57,14 @@ describe('OVM_ECDSAContractAccount', () => {
       const transaction = DEFAULT_EIP155_TX
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      await OVM_ECDSAContractAccount.execute(encodedTransaction)
+      await OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
     })
 
     it(`should ovmCREATE if EIP155Transaction.to is zero address`, async () => {
       const transaction = { ...DEFAULT_EIP155_TX, to: '' }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      await OVM_ECDSAContractAccount.execute(encodedTransaction)
+      await OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
 
       const ovmCREATE: any =
         Mock__OVM_ExecutionManager.smocked.ovmCREATE.calls[0]
@@ -76,7 +79,7 @@ describe('OVM_ECDSAContractAccount', () => {
       )
 
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith(
         'Signature provided for EOA transaction execution is invalid.'
       )
@@ -87,7 +90,7 @@ describe('OVM_ECDSAContractAccount', () => {
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith(
         'Transaction nonce does not match the expected nonce.'
       )
@@ -98,9 +101,9 @@ describe('OVM_ECDSAContractAccount', () => {
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith(
-        'Lib_EIP155Tx: Transaction signed with wrong chain ID'
+        'Transaction signed with wrong chain ID'
       )
     })
 
@@ -109,8 +112,9 @@ describe('OVM_ECDSAContractAccount', () => {
       const transaction = { ...DEFAULT_EIP155_TX, gasLimit: 200000000 }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
+      const tx = LibEIP155TxStruct(encodedTransaction)
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction, {
+        OVM_ECDSAContractAccount.execute(tx, {
           gasLimit: 40000000,
         })
       ).to.be.revertedWith('Gas is not sufficient to execute the transaction.')
@@ -122,8 +126,9 @@ describe('OVM_ECDSAContractAccount', () => {
 
       Mock__OVM_ETH.smocked.transfer.will.return.with(false)
 
+      const tx = LibEIP155TxStruct(encodedTransaction)
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(tx)
       ).to.be.revertedWith('Fee was not transferred to relayer.')
     })
 
@@ -131,7 +136,7 @@ describe('OVM_ECDSAContractAccount', () => {
       const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      await OVM_ECDSAContractAccount.execute(encodedTransaction)
+      await OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
 
       // First call transfers fee, second transfers value (since value > 0).
       expect(
@@ -155,7 +160,7 @@ describe('OVM_ECDSAContractAccount', () => {
       })
 
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith('Value could not be transferred to recipient.')
     })
 
@@ -164,7 +169,7 @@ describe('OVM_ECDSAContractAccount', () => {
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith('Value transfer in contract creation not supported.')
     })
 
@@ -173,7 +178,7 @@ describe('OVM_ECDSAContractAccount', () => {
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith('Value is nonzero but input data was provided.')
     })
 
@@ -184,7 +189,7 @@ describe('OVM_ECDSAContractAccount', () => {
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       await expect(
-        OVM_ECDSAContractAccount.execute(encodedTransaction)
+        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith(
         'Calls to self are disabled until upgradability is re-enabled.'
       )

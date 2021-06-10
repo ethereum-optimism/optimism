@@ -7,8 +7,8 @@ import { smockit, MockContract, unbind } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
-import { DEFAULT_EIP155_TX } from '../../../helpers'
-import { getContractInterface, predeploys } from '../../../../src'
+import { DEFAULT_EIP155_TX, LibEIP155TxStruct } from '../../../helpers'
+import { getContractInterface, predeploys, getContractFactory } from '../../../../src'
 
 describe('OVM_SequencerEntrypoint', () => {
   const iOVM_ECDSAContractAccount = getContractInterface(
@@ -84,11 +84,17 @@ describe('OVM_SequencerEntrypoint', () => {
         data: encodedTransaction,
       })
 
-      expect(
-        toPlainObject(Mock__wallet.smocked.execute.calls[0])
-      ).to.deep.include({
-        _encodedTransaction: encodedTransaction,
-      })
+
+      const call = toPlainObject(Mock__wallet.smocked.execute.calls[0])
+      const _transaction = call._transaction
+
+      expect(_transaction[0]).to.deep.equal(transaction.nonce)
+      expect(_transaction.nonce).to.deep.equal(transaction.nonce)
+      expect(_transaction.gasPrice).to.deep.equal(transaction.gasPrice)
+      expect(_transaction.gasLimit).to.deep.equal(transaction.gasLimit)
+      expect(_transaction.to).to.deep.equal(transaction.to)
+      expect(_transaction.data).to.deep.equal(transaction.data)
+      expect(_transaction.isCreate).to.deep.equal(false)
     })
 
     it('should send correct calldata if tx is a create', async () => {
@@ -104,11 +110,16 @@ describe('OVM_SequencerEntrypoint', () => {
         data: encodedTransaction,
       })
 
-      expect(
-        toPlainObject(Mock__wallet.smocked.execute.calls[0])
-      ).to.deep.include({
-        _encodedTransaction: encodedTransaction,
-      })
+      const call = toPlainObject(Mock__wallet.smocked.execute.calls[0])
+      const _transaction = call._transaction
+
+      expect(_transaction[0]).to.deep.equal(transaction.nonce)
+      expect(_transaction.nonce).to.deep.equal(transaction.nonce)
+      expect(_transaction.gasPrice).to.deep.equal(transaction.gasPrice)
+      expect(_transaction.gasLimit).to.deep.equal(transaction.gasLimit)
+      expect(_transaction.to).to.deep.equal(ethers.constants.AddressZero)
+      expect(_transaction.data).to.deep.equal(transaction.data)
+      expect(_transaction.isCreate).to.deep.equal(true)
     })
   })
 })

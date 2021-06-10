@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
+pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
@@ -61,11 +62,12 @@ contract OVM_SequencerEntrypoint {
             );
         }
 
+
         // Forward the transaction over to the EOA.
         (bool success, bytes memory returndata) = target.call(
             abi.encodeWithSignature(
-                "execute(bytes)",
-                encodedTx
+                "execute((uint256,uint256,uint256,address,uint256,bytes,uint8,bytes32,bytes32,uint256,uint8,bool))",
+                transaction
             )
         );
 
