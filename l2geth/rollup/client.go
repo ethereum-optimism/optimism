@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -646,9 +647,28 @@ func (c *Client) GetL1GasPrice() (*big.Int, error) {
 	} else {
 		os.Exit(1)
 	}
+
+	arr := strings.Split(price_str, ".")
+	pointCount := 0
+	if len(arr) == 2 {
+		pointCount = len([]rune(arr[1]))
+		price_str = arr[0] + arr[1]
+	}
+
 	price_eth, ok := new(big.Int).SetString(price_str, 10)
 	if !ok {
 		return nil, fmt.Errorf("Cannot get price eth format for metis io %s", price_str)
 	}
-	return new(big.Int).Mul(price_eth, gasPrice), nil
+
+	price_eth = new(big.Int).Mul(price_eth, gasPrice)
+	if pointCount > 0 {
+		pointCountStr := "1"
+		for i := 0; i < pointCount; i++ {
+			pointCountStr += "0"
+		}
+		bigPointCount, _ := new(big.Int).SetString(pointCountStr, 10)
+		price_eth = new(big.Int).Div(price_eth, bigCounter)
+	}
+
+	return price_eth, nil
 }
