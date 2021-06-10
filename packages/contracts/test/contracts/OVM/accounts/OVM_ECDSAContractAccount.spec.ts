@@ -76,7 +76,10 @@ describe('OVM_ECDSAContractAccount', () => {
     // define the OVM_ECDSAContractAccount.EXECUTE_INTRINSIC_GAS value by
     // observing gasleft at the beginning and end of `execute`
     it(`should successfully execute a giant EIP155Transaction`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, data: '0x' + Buffer.alloc(127000).toString('hex') }
+      const transaction = {
+        ...DEFAULT_EIP155_TX,
+        data: '0x' + Buffer.alloc(127000).toString('hex'),
+      }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       await OVM_ECDSAContractAccount.execute(
