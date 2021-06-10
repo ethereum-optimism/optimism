@@ -87,7 +87,6 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  // todo: get this from the AddressManager
   // transfer ownership to Address Manager owner
   const addressManagerOwner = Lib_AddressManager.callStatic.owner()
   await Proxy__WithChugSplashInterface.setOwner(addressManagerOwner)

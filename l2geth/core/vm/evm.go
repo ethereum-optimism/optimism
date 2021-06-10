@@ -406,7 +406,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.Context.IsL1ToL2Message && evm.depth == 3 {
 		var isValidMessageTarget = true
 		// 0x420... addresses are not valid targets except for the ETH predeploy.
-		if bytes.HasPrefix(addr.Bytes(), fortyTwoPrefix) && addr != evm.Context.OvmETH.Address && addr != evm.Context.OvmL2StandardBridge.Address {
+		if bytes.HasPrefix(addr.Bytes(), fortyTwoPrefix) && addr != evm.Context.OvmL2StandardBridge.Address {
 			isValidMessageTarget = false
 		}
 		// 0xdead... addresses are not valid targets.
