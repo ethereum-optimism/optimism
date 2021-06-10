@@ -28,12 +28,12 @@ const deployFn: DeployFunction = async (hre) => {
     log: true,
   })
 
-
   if (!result.newlyDeployed) {
     return
   }
 
-  const Proxy__OVM_L1StandardBridge = await getDeployedContract(
+  // Create a contract object at the Proxy address with the proxy interface.
+  const Proxy__WithChugSplashInterface = await getDeployedContract(
     hre,
     'Proxy__OVM_L1StandardBridge',
     {
@@ -41,50 +41,62 @@ const deployFn: DeployFunction = async (hre) => {
       iface: 'L1ChugSplashProxy',
     }
   )
-  console.log('deployer:', deployer)
-  console.log("Proxy__OVM_L1StandardBridge.signer.address", await Proxy__OVM_L1StandardBridge.signer.getAddress())
+
+  // Create a contract object at the Proxy address with the brige implementation interface.
+  const Proxy__WithBridgeInterface = await getDeployedContract(
+    hre,
+    'Proxy__OVM_L1StandardBridge',
+    {
+      signerOrProvider: deployer,
+      iface: 'OVM_L1StandardBridge',
+    }
+  )
+
   // Set the implementation code
   const bridgeCode = l1StandardBridgeJson.deployedBytecode
-  await Proxy__OVM_L1StandardBridge.setCode(bridgeCode)
-
+  await Proxy__WithChugSplashInterface.setCode(bridgeCode)
 
   // Set slot 0 to the L1 Messenger Address
-  const l1MessengerAddress = await Lib_AddressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger')
-  await Proxy__OVM_L1StandardBridge.setStorage(
+  const l1MessengerAddress = await Lib_AddressManager.getAddress(
+    'Proxy__OVM_L1CrossDomainMessenger'
+  )
+  await Proxy__WithChugSplashInterface.setStorage(
     hre.ethers.constants.HashZero,
     hre.ethers.utils.hexZeroPad(l1MessengerAddress, 32)
+  )
+  // Verify that the slot was set correctly
+  const l1MessengerStored = await Proxy__WithBridgeInterface.callStatic.messenger()
+  console.log('l1MessengerStored:', l1MessengerStored)
+  if (l1MessengerStored !== l1MessengerAddress) {
+    throw new Error(
+      'L1 messenger address was not correctly set, check the key value used in setStorage'
     )
+  }
 
-    // Set Slot 1 to the L2 Standard Bridge Address
-    await Proxy__OVM_L1StandardBridge.setStorage(
-      hre.ethers.utils.hexZeroPad("0x01", 32),
-      hre.ethers.utils.hexZeroPad(predeploys.OVM_L2StandardBridge, 32)
-      )
+  // Set Slot 1 to the L2 Standard Bridge Address
+  await Proxy__WithChugSplashInterface.setStorage(
+    hre.ethers.utils.hexZeroPad('0x01', 32),
+    hre.ethers.utils.hexZeroPad(predeploys.OVM_L2StandardBridge, 32)
+  )
+  // Verify that the slot was set correctly
+  const l2TokenBridgeStored = await Proxy__WithBridgeInterface.callStatic.l2TokenBridge()
+  console.log('l2TokenBridgeStored:', l2TokenBridgeStored)
+  if (l2TokenBridgeStored !== predeploys.OVM_L2StandardBridge) {
+    throw new Error(
+      'L2 bridge address was not correctly set, check the key value used in setStorage'
+    )
+  }
 
-  // Get and initialize the implementation to disable it.
-  const bridgeImplAddress = await Proxy__OVM_L1StandardBridge.getImplementation()
-  console.log('bridgeImplAddress:', bridgeImplAddress)
-
-  // const bridgeImplAddress = await Proxy__OVM_L1StandardBridge.connect(
-  //   hre.ethers.getDefaultProvider() // connect to a provider to make an eth_call
-  // ).getImplementation()
-  // const bridgeImplementation = await getContractFactory(
-  //   'OVM_L1StandardBridge',
-  //   // deploy/015-Proxy__OVM_L1StandardBridge.deploy.ts(70,5): error TS2345: Argument of type 'string' is not assignable to parameter of type 'Signer'.
-  //   deployer
-  // ).attach(bridgeImplAddress)
-
-  // await bridgeImplementation.initialize(
-  //   NON_ZERO_ADDRESS,
-  //   NON_ZERO_ADDRESS
-  // )
-
+  // todo: get this from the AddressManager
   // transfer ownership to Address Manager owner
-  const addressManagerOwner = '0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A'
-  await Proxy__OVM_L1StandardBridge.setOwner(addressManagerOwner)
+  const addressManagerOwner = Lib_AddressManager.callStatic.owner()
+  await Proxy__WithChugSplashInterface.setOwner(addressManagerOwner)
 
   // Todo: remove this after adding chugsplash proxy
-  await Lib_AddressManager.setAddress('Proxy__OVM_L1StandardBridge', result.address)
+  await Lib_AddressManager.setAddress(
+    'Proxy__OVM_L1StandardBridge',
+    result.address
+  )
 }
 
 deployFn.dependencies = ['Lib_AddressManager', 'OVM_L1StandardBridge']
