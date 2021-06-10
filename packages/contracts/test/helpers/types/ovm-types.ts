@@ -1,6 +1,6 @@
 /* External Imports */
 import { BigNumber, constants } from 'ethers'
-import { parse } from '@ethersproject/transactions'
+import { parse, Transaction } from '@ethersproject/transactions'
 
 export interface OVMAccount {
   nonce: number | BigNumber
@@ -10,7 +10,7 @@ export interface OVMAccount {
   ethAddress: string
 }
 
-export function LibEIP155TxStruct(tx) {
+export const LibEIP155TxStruct = (tx: Transaction | string): Array<any> => {
   if (typeof tx === 'string') {
     tx = parse(tx)
   }
