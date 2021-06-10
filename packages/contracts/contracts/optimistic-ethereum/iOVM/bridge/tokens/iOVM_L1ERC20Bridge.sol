@@ -94,7 +94,7 @@ interface iOVM_L1ERC20Bridge {
      */
     function finalizeERC20Withdrawal (
         address _l1Token,
-		address _l2Token,
+        address _l2Token,
         address _from,
         address _to,
         uint _amount,

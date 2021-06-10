@@ -29,6 +29,7 @@ interface iOVM_L1StandardBridge is iOVM_L1ERC20Bridge {
     /********************
      * Public Functions *
      ********************/
+     
     /**
      * @dev Deposit an amount of the ETH to the caller's balance on L2.
      * @param _l2Gas Gas limit required to complete the deposit on L2.
@@ -62,7 +63,8 @@ interface iOVM_L1StandardBridge is iOVM_L1ERC20Bridge {
     /*************************
      * Cross-chain Functions *
      *************************/
-     /**
+
+    /**
      * @dev Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the
      * L1 ETH token.
      * Since only the xDomainMessenger can call this function, it will never be called before the withdrawal is finalized.
