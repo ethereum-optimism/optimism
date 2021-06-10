@@ -25,9 +25,11 @@ const deployFn: DeployFunction = async (hre) => {
       }
     )
 
+    // Default has 20 accounts but we restrict to 20 accounts manually as well just to prevent
+    // future problems if the number of default accounts increases for whatever reason.
     const accounts = normalizeHardhatNetworkAccountsConfig(
       defaultHardhatNetworkHdAccountsConfigParams
-    )
+    ).slice(0, 20)
 
     // Fund the accounts in parallel to speed things up.
     await Promise.all(
