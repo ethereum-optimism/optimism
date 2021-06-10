@@ -1,0 +1,13 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: data-transport-layer
+  labels:
+    app: data-transport-layer
+spec:
+  endpoints:
+    - port: http
+  selector:
+    matchLabels:
+      app: data-transport-layer

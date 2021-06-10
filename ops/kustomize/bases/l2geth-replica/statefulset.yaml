@@ -1,0 +1,61 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: l2geth-replica
+spec:
+  replicas: 1
+  serviceName: l2geth-replica
+  template:
+    spec:
+      terminationGracePeriodSeconds: 10
+      restartPolicy: Always
+      initContainers:
+        - name: wait-for-dtl
+          image: nicolaka/netshoot
+          command: ['bash', '-c', '/script/wait/wait-for-dtl.sh']
+          envFrom:
+            - configMapRef:
+                name: l2geth-replica
+          volumeMounts:
+          - name: wait-scripts
+            mountPath: /script/wait
+      containers:
+      - name: l2geth-replica
+        image: ethereumoptimism/l2geth
+        command:
+          - geth
+          - --datadir=/geth
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8545
+            protocol: TCP
+          - containerPort: 8546
+            protocol: TCP
+        resources: {}
+        envFrom:
+          - configMapRef:
+              name: l2geth-replica
+        volumeMounts:
+          - name: liveliness-script
+            mountPath: /script/liveliness
+          - name: l2geth-replica-data
+            mountPath: /geth
+        livenessProbe:
+          exec:
+            command:
+              - /script/liveliness/test.sh
+              - geth
+          initialDelaySeconds: 15
+          periodSeconds: 10
+      volumes:
+        - name: liveliness-script
+          configMap:
+            name: liveliness-script
+            defaultMode: 0777
+        - name: wait-scripts
+          configMap:
+            name: wait-scripts
+            defaultMode: 0777
+        - name: l2geth-replica-data
+          emptyDir: {}

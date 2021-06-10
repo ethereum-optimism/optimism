@@ -1,0 +1,15 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: l2geth-replica
+spec:
+  template:
+    spec:
+      containers:
+        - name: l2geth-replica
+          resources:
+            limits:
+              memory: 6Gi
+            requests:
+              memory: 6Gi
