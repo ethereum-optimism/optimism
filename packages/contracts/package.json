@@ -60,6 +60,7 @@
     "@codechecks/client": "0.1.10-beta",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
     "@eth-optimism/smock": "^1.1.3",
+    "@ethersproject/transactions": "^5.0.31",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^3.3.0",
