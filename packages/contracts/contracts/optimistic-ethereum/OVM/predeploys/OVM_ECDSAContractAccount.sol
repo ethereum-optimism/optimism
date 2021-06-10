@@ -104,7 +104,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Need to make sure that the gas is sufficient to execute the transaction.
         require(
-            gasleft() >= gasLimit + EXECUTE_INTRINSIC_GAS,
+            gasleft() >= SafeMath.add(gasLimit, EXECUTE_INTRINSIC_GAS),
             "Gas is not sufficient to execute the transaction."
         );
 
