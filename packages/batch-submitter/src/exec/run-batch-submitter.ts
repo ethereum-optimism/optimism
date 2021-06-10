@@ -441,11 +441,15 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        logger.error('Error submitting batch', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
+        logger.error(
+          // Tag with status or unknown error
+          `Error submitting batch: ${err.status ? err.status : 520}`,
+          {
+            message: err.toString(),
+            stack: err.stack,
+            code: err.code,
+          }
+        )
         logger.info('Retrying...')
       }
       // Sleep
