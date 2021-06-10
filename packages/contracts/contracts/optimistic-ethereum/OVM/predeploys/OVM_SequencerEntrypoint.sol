@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
-import { OVM_ECDSAContractAccount } from "../../OVM/accounts/OVM_ECDSAContractAccount.sol";
+import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
 
 /**
  * @title OVM_SequencerEntrypoint
@@ -65,7 +65,7 @@ contract OVM_SequencerEntrypoint {
 
         // Forward the transaction over to the EOA.
         (bool success, bytes memory returndata) = target.call(
-            abi.encodeWithSelector(OVM_ECDSAContractAccount.execute.selector, transaction)
+            abi.encodeWithSelector(iOVM_ECDSAContractAccount.execute.selector, transaction)
         );
 
         if (success) {
