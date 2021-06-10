@@ -77,7 +77,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      **************************/
 
     address internal constant OVM_ETH_ADDRESS = 0x4200000000000000000000000000000000000006;
-    uint256 public constant CALL_WITH_VALUE_INTRINSIC_GAS = 80000; // Public so we can access and make assertions in integration tests.
+    uint256 public constant CALL_WITH_VALUE_INTRINSIC_GAS = 90000; // Public so we can access and make assertions in integration tests.
 
 
     /**************************

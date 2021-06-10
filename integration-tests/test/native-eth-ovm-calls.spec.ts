@@ -9,6 +9,7 @@ import {
   getContractFactory,
   getContractInterface,
 } from '../../packages/contracts/dist'
+import { Interface } from 'ethers/lib/utils'
 
 chai.use(solidity)
 
@@ -345,9 +346,32 @@ describe('Native ETH value integration tests', () => {
       it('a call with value to an empty account consumes <= the intrinsic gas including a buffer', async () => {
         const value = 1
         const gasLimit = 1_000_000
-        // sending to 0x0000... should consume the minimal possible gas for a nonzero ETH send
         const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfSend(
           ethers.constants.AddressZero,
+          value,
+          gasLimit
+        )
+
+        const buffer = 1.2
+        expect(minimalSendGas * buffer).to.be.lte(CALL_WITH_VALUE_INTRINSIC_GAS)
+      })
+
+      it('a call with value to an reverting account consumes <= the intrinsic gas including a buffer', async () => {
+        // [magic deploy prefix] . [MSTORE] (will throw exception from no stack args)
+        const AutoRevertInitcode = '0x600D380380600D6000396000f3' + '52'
+        const Factory__AutoRevert = new ContractFactory(
+          new Interface([]),
+          AutoRevertInitcode,
+          wallet
+        )
+        const AutoRevert: Contract = await Factory__AutoRevert.deploy()
+        await AutoRevert.deployTransaction.wait()
+
+        const value = 1
+        const gasLimit = 1_000_000
+        // A revert, causing the ETH to be sent back, should consume the minimal possible gas for a nonzero ETH send
+        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfSend(
+          AutoRevert.address,
           value,
           gasLimit
         )
