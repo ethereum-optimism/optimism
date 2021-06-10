@@ -17,8 +17,8 @@ const main = async () => {
 
   const env = process.env
 
-  const SENTRY_DSN = config.str('use-sentry', env.SENTRY_DSN)
-  const USE_SENTRY = config.str('sentry-dsn', env.USE_SENTRY)
+  const SENTRY_DSN = config.str('sentry-dsn', env.SENTRY_DSN)
+  const USE_SENTRY = config.bool('use-sentry', env.USE_SENTRY === 'true')
   const ETH_NETWORK_NAME = config.str('eth-network-name', env.ETH_NETWORK_NAME)
 
   let loggerOptions = {
