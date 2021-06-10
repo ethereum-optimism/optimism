@@ -116,7 +116,7 @@ export const run = async () => {
     logger = new Logger({ name })
   }
 
-  const useHardhat = config.bool('use-hardhat', !!env.USE_HARDAT)
+  const useHardhat = config.bool('use-hardhat', !!env.USE_HARDHAT)
   const DEBUG_IMPERSONATE_SEQUENCER_ADDRESS = config.str(
     'debug-impersonate-sequencer-address',
     env.DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
