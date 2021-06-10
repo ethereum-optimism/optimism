@@ -1,7 +1,7 @@
 import { Wallet, providers } from 'ethers'
 import { MessageRelayerService } from '../service'
 import { Bcfg } from '@eth-optimism/core-utils'
-import { Logger } from '@eth-optimism/common-ts'
+import { Logger, LoggerOptions } from '@eth-optimism/common-ts'
 import * as Sentry from '@sentry/node'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
@@ -21,7 +21,7 @@ const main = async () => {
   const USE_SENTRY = config.bool('use-sentry', env.USE_SENTRY === 'true')
   const ETH_NETWORK_NAME = config.str('eth-network-name', env.ETH_NETWORK_NAME)
 
-  let loggerOptions = {
+  let loggerOptions: LoggerOptions = {
     name: 'Message_Relayer',
   }
 
@@ -31,7 +31,7 @@ const main = async () => {
       dsn: SENTRY_DSN,
       environment: ETH_NETWORK_NAME,
     }
-    loggerOptions['sentryOptions'] = sentryOptions
+    loggerOptions.sentryOptions = sentryOptions
     Sentry.init(sentryOptions)
   }
 
