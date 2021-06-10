@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kovan-replica-0-3-0
+
+resources:
+  - ../bases/data-transport-layer
+  - ../bases/l2geth-replica
+  - ../bases/configmaps
+  - ./sentry-secret.yaml
+  - ./l2geth-volume.yaml
+
+configMapGenerator:
+  - name: data-transport-layer
+    envs:
+      - replica-data-transport-layer.env
+  - name: l2geth-replica
+    envs:
+      - replica-l2geth.env
+
+images:
+  - name: ethereumoptimism/data-transport-layer
+    newName: ethereumoptimism/data-transport-layer
+    newTag: 0.3.5
+  - name: ethereumoptimism/l2geth
+    newName: ethereumoptimism/l2geth
+    newTag: 0.3.7
+
+patchesStrategicMerge:
+  - patch-l2geth-resources.yaml
+  - patch-dtl-remove-init.yaml
+
+patches:
+  - path: patch-l2geth-volumes.yaml
+    target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      name: l2geth-replica
