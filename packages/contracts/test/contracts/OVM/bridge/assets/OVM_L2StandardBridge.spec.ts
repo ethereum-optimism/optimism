@@ -109,9 +109,9 @@ describe('OVM_L2StandardBridge', () => {
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
     })
 
-    it('should initilise a withdrawal if the L2 token is not compliant', async () => {
+    it('should initialize a withdrawal if the L2 token is not compliant', async () => {
       // Deploy a non compliant ERC20
-      let NonCompilantERC20 = await (
+      const NonCompliantERC20 = await (
         await ethers.getContractFactory(
           '@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20'
         )
@@ -137,7 +137,7 @@ describe('OVM_L2StandardBridge', () => {
         l2MessengerImpersonator
       ).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
-        NonCompilantERC20.address,
+        NonCompliantERC20.address,
         aliceAddress,
         bobsAddress,
         100,
@@ -156,7 +156,7 @@ describe('OVM_L2StandardBridge', () => {
           'finalizeERC20Withdrawal',
           [
             DUMMY_L1TOKEN_ADDRESS,
-            NonCompilantERC20.address,
+            NonCompliantERC20.address,
             bobsAddress,
             aliceAddress,
             100,
