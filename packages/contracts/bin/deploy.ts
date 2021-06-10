@@ -18,8 +18,32 @@ import hre from 'hardhat'
 const sequencer = new Wallet(process.env.SEQUENCER_PRIVATE_KEY)
 const deployer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY)
 
-const main = async () => {
+const parseEnv = () => {
+  const ensure = (env, type) => {
+    if (typeof process.env[env] === 'undefined') {
+      return undefined
+    }
+    if (type === 'number') {
+      return parseInt(process.env[env], 10)
+    }
+    return process.env[env]
+  }
 
+  return {
+    l1BlockTimeSeconds: ensure('BLOCK_TIME_SECONDS', 'number'),
+    ctcForceInclusionPeriodSeconds: ensure('FORCE_INCLUSION_PERIOD_SECONDS', 'number'),
+    ctcMaxTransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
+    emMinTransactionGasLimit: ensure('MIN_TRANSACTION_GAS_LIMIT', 'number'),
+    emMaxtransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
+    emMaxGasPerQueuePerEpoch: ensure('MAX_GAS_PER_QUEUE_PER_EPOCH', 'number'),
+    emSecondsPerEpoch: ensure('ECONDS_PER_EPOCH', 'number'),
+    emOvmChainId: ensure('CHAIN_ID', 'number'),
+    sccFraudProofWindow: ensure('FRAUD_PROOF_WINDOW_SECONDS', 'number'),
+    sccSequencerPublishWindow: ensure('SEQUENCER_PUBLISH_WINDOW_SECONDS', 'number'),
+  }
+}
+
+const main = async () => {
   const config = parseEnv()
 
   await hre.run('deploy', {
@@ -80,28 +104,3 @@ main()
     )
     process.exit(1)
   })
-
-const parseEnv = () => {
-  const ensure = (env, type) => {
-    if (typeof process.env[env] === 'undefined') {
-      return undefined
-    }
-    if (type === 'number') {
-      return parseInt(process.env[env], 10)
-    }
-    return process.env[env]
-  }
-
-  return {
-    l1BlockTimeSeconds: ensure('BLOCK_TIME_SECONDS', 'number'),
-    ctcForceInclusionPeriodSeconds: ensure('FORCE_INCLUSION_PERIOD_SECONDS', 'number'),
-    ctcMaxTransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
-    emMinTransactionGasLimit: ensure('MIN_TRANSACTION_GAS_LIMIT', 'number'),
-    emMaxtransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
-    emMaxGasPerQueuePerEpoch: ensure('MAX_GAS_PER_QUEUE_PER_EPOCH', 'number'),
-    emSecondsPerEpoch: ensure('ECONDS_PER_EPOCH', 'number'),
-    emOvmChainId: ensure('CHAIN_ID', 'number'),
-    sccFraudProofWindow: ensure('FRAUD_PROOF_WINDOW_SECONDS', 'number'),
-    sccSequencerPublishWindow: ensure('SEQUENCER_PUBLISH_WINDOW_SECONDS', 'number'),
-  }
-}
