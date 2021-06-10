@@ -2,7 +2,7 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers, waffle } from 'hardhat'
-import { ContractFactory, Contract, Signer, BigNumber, utils } from 'ethers'
+import { ContractFactory, Contract, Wallet, BigNumber, utils } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
@@ -11,9 +11,10 @@ import { LibEIP155TxStruct, DEFAULT_EIP155_TX } from '../../../helpers'
 import { predeploys } from '../../../../src'
 
 describe('OVM_ECDSAContractAccount', () => {
-  let wallet: Signer
+  let wallet: Wallet
   before(async () => {
-    ;[wallet] = await ethers.getSigners()
+    const provider = waffle.provider
+    ;[wallet] = provider.getWallets()
   })
 
   let Mock__OVM_ExecutionManager: MockContract
@@ -188,7 +189,7 @@ describe('OVM_ECDSAContractAccount', () => {
     it(`should revert if trying call itself`, async () => {
       const transaction = {
         ...DEFAULT_EIP155_TX,
-        to: await wallet.getAddress(),
+        to: wallet.address,
       }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
