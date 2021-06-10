@@ -321,14 +321,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 			if len(signedTx.Data()) > b.MaxCallDataSize {
 				return fmt.Errorf("Calldata cannot be larger than %d, sent %d", b.MaxCallDataSize, len(signedTx.Data()))
 			}
-			// If there is a value field set then reject transactions that
-			// contain calldata. The feature of sending transactions with value
-			// and calldata will be added in the future.
-			if signedTx.Value().Cmp(common.Big0) != 0 {
-				if len(signedTx.Data()) > 0 {
-					return errors.New("Cannot send transactions with value and calldata")
-				}
-			}
 		}
 		return b.eth.syncService.ValidateAndApplySequencerTransaction(signedTx)
 	}

@@ -49,7 +49,18 @@ describe('OVM_ECDSAContractAccount', () => {
     Mock__OVM_ETH.smocked.transfer.will.return.with(true)
   })
 
-  describe('fallback()', () => {
+  describe('fallback', async () => {
+    it('should successfully accept value sent to it', async () => {
+      await expect(
+        wallet.sendTransaction({
+          to: OVM_ECDSAContractAccount.address,
+          value: 1,
+        })
+      ).to.not.be.reverted
+    })
+  })
+
+  describe('execute()', () => {
     it(`should successfully execute an EIP155Transaction`, async () => {
       const transaction = DEFAULT_EIP155_TX
       const encodedTransaction = await wallet.signTransaction(transaction)
@@ -132,37 +143,36 @@ describe('OVM_ECDSAContractAccount', () => {
     })
 
     it(`should transfer value if value is greater than 0`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
+      const value = 100
+      const valueRecipient = '0x' + '34'.repeat(20)
+      const transaction = {
+        ...DEFAULT_EIP155_TX,
+        to: valueRecipient,
+        value,
+        data: '0x',
+      }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
+      // fund the contract account
+      await wallet.sendTransaction({
+        to: OVM_ECDSAContractAccount.address,
+        value: value * 10,
+        gasLimit: 1_000_000,
+      })
+
+      const receipientBalanceBefore = await wallet.provider.getBalance(
+        valueRecipient
+      )
       await OVM_ECDSAContractAccount.execute(
         LibEIP155TxStruct(encodedTransaction)
       )
+      const recipientBalanceAfter = await wallet.provider.getBalance(
+        valueRecipient
+      )
 
-      // First call transfers fee, second transfers value (since value > 0).
       expect(
-        toPlainObject(Mock__OVM_ETH.smocked.transfer.calls[1])
-      ).to.deep.include({
-        to: transaction.to,
-        value: BigNumber.from(transaction.value),
-      })
-    })
-
-    it(`should revert if the value is not transferred to the recipient`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
-      const encodedTransaction = await wallet.signTransaction(transaction)
-
-      Mock__OVM_ETH.smocked.transfer.will.return.with((to, value) => {
-        if (to === transaction.to) {
-          return false
-        } else {
-          return true
-        }
-      })
-
-      await expect(
-        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
-      ).to.be.revertedWith('Value could not be transferred to recipient.')
+        recipientBalanceAfter.sub(receipientBalanceBefore).toNumber()
+      ).to.eq(value)
     })
 
     it(`should revert if trying to send value with a contract creation`, async () => {
@@ -172,15 +182,6 @@ describe('OVM_ECDSAContractAccount', () => {
       await expect(
         OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
       ).to.be.revertedWith('Value transfer in contract creation not supported.')
-    })
-
-    it(`should revert if trying to send value with non-empty transaction data`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x1234' }
-      const encodedTransaction = await wallet.signTransaction(transaction)
-
-      await expect(
-        OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
-      ).to.be.revertedWith('Value is nonzero but input data was provided.')
     })
 
     // NOTE: Upgrades are disabled for now but will be re-enabled at a later point in time. See

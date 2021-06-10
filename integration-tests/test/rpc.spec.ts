@@ -4,10 +4,10 @@ import {
   TxGasPrice,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber, Contract } from 'ethers'
+import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { sleep, l2Provider, l1Provider } from './shared/utils'
+import { sleep, l2Provider, l1Provider, fundUser } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
@@ -154,7 +154,7 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly report OOG for contract creations', async () => {
-      const factory = await ethers.getContractFactory('TestOOG')
+      const factory = await ethers.getContractFactory('TestOOGInConstructor')
 
       await expect(factory.connect(wallet).deploy()).to.be.rejectedWith(
         'gas required exceeds allowance'
@@ -207,6 +207,32 @@ describe('Basic RPC tests', () => {
         'Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?'
       )
     })
+
+    it('should allow eth_calls with nonzero value', async () => {
+      // Deploy a contract to check msg.value of the call
+      const Factory__ValueContext: ContractFactory = await ethers.getContractFactory(
+        'ValueContext',
+        wallet
+      )
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      // Fund account to call from
+      const from = wallet.address
+      const value = 15
+      await fundUser(env.watcher, env.gateway, value, from)
+
+      // Do the call and check msg.value
+      const data = ValueContext.interface.encodeFunctionData('getCallValue')
+      const res = await provider.call({
+        to: ValueContext.address,
+        from,
+        data,
+        value,
+      })
+
+      expect(res).to.eq(BigNumber.from(value))
+    })
   })
 
   describe('eth_getTransactionReceipt', () => {
@@ -236,7 +262,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
-        gasLimit: 17700899, // override gas estimation
+        gasLimit: 27700899, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -353,7 +379,7 @@ describe('Basic RPC tests', () => {
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
-      expect(estimate).to.be.eq(5920012)
+      expect(estimate).to.be.eq(5920013)
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {

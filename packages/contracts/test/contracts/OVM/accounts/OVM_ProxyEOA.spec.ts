@@ -7,7 +7,7 @@ import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
-import { getContractInterface, predeploys } from '../../../../src'
+import { predeploys } from '../../../../src'
 import { DEFAULT_EIP155_TX, LibEIP155TxStruct } from '../../../helpers'
 
 describe('OVM_ProxyEOA', () => {

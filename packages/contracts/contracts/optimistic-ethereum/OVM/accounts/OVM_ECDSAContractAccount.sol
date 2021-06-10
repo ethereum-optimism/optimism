@@ -48,6 +48,16 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
      ********************/
 
     /**
+     * No-op fallback mirrors behavior of calling an EOA on L1.
+     */
+    fallback()
+        external
+        payable
+    {
+        return;
+    }
+
+    /**
      * Executes a signed transaction.
      * @param _transaction Signed EIP155 transaction.
      * @return Whether or not the call returned (rather than reverted).
@@ -121,34 +131,15 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_ExecutionManagerWrapper.ovmINCREMENTNONCE();
 
-            // Value transfer currently only supported for CALL but not for CREATE.
-            if (_transaction.value > 0) {
-                // TEMPORARY: Block value transfer if the transaction has input data.
-                require(
-                    _transaction.data.length == 0,
-                    "Value is nonzero but input data was provided."
-                );
+            // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
+            // so that they don't have to pay any fees to the sequencer. Function will remain disabled
+            // until a robust solution is in place.
+            require(
+                _transaction.to != Lib_ExecutionManagerWrapper.ovmADDRESS(),
+                "Calls to self are disabled until upgradability is re-enabled."
+            );
 
-                require(
-                    OVM_ETH(Lib_PredeployAddresses.OVM_ETH).transfer(
-                        _transaction.to,
-                        _transaction.value
-                    ),
-                    "Value could not be transferred to recipient."
-                );
-
-                return (true, bytes(""));
-            } else {
-                // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
-                // so that they don't have to pay any fees to the sequencer. Function will remain disabled
-                // until a robust solution is in place.
-                require(
-                    _transaction.to != Lib_ExecutionManagerWrapper.ovmADDRESS(),
-                    "Calls to self are disabled until upgradability is re-enabled."
-                );
-
-                return _transaction.to.call(_transaction.data);
-            }
+            return _transaction.to.call{value: _transaction.value}(_transaction.data);
         }
     }
 }
