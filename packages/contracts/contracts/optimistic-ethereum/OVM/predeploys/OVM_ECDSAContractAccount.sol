@@ -44,7 +44,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     // to and INCLUDING the containerization cost of CALL/CREATE, but EXCLUDING
     // the subcall made by the Execution Manager, which will consume at most gasLimit
     // additional gas.
-    uint256 constant EXECUTE_INTRINSIC_GAS = 1647299;
+    uint256 constant EXECUTE_INTRINSIC_GAS = 1455558;
 
 
     /********************
@@ -100,7 +100,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         // Decode the L2 gas limit. It is scaled and serialized in the lower
         // order bits of transaction.gasLimit. See:
         // https://github.com/ethereum-optimism/optimism/blob/0c18e1903f8a33a607f782c0081a8fb5071b71ef/l2geth/rollup/fees/rollup_fee.go#L56
-        uint256 gasLimit = SafeMath.mul((transaction.gasLimit % 10000), 10000);
+        uint256 gasLimit = SafeMath.mul((_transaction.gasLimit % 10000), 10000);
 
         // Need to make sure that the gas is sufficient to execute the transaction.
         require(
@@ -137,6 +137,12 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         );
 
         if (_transaction.isCreate) {
+            // TEMPORARY: Disable value transfer for contract creations.
+             require(
+                _transaction.value == 0,
+                "Value transfer in contract creation not supported."
+            );
+
             (address created, bytes memory revertdata) = Lib_ExecutionManagerWrapper.ovmCREATE(
                 _transaction.data,
                 gasLimit

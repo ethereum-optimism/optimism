@@ -70,6 +70,20 @@ describe('OVM_ECDSAContractAccount', () => {
       )
     })
 
+    // Send a transaction with the maximum calldata size accepted by the
+    // sequencer. Going larger would risk the batch including the transaction
+    // not being able to be sent over the P2P network. This test is also used to
+    // define the OVM_ECDSAContractAccount.EXECUTE_INTRINSIC_GAS value by
+    // observing gasleft at the beginning and end of `execute`
+    it(`should successfully execute a giant EIP155Transaction`, async () => {
+      const transaction = { ...DEFAULT_EIP155_TX, data: '0x' + Buffer.alloc(127000).toString('hex') }
+      const encodedTransaction = await wallet.signTransaction(transaction)
+
+      await OVM_ECDSAContractAccount.execute(
+        LibEIP155TxStruct(encodedTransaction)
+      )
+    })
+
     it(`should ovmCREATE if EIP155Transaction.to is zero address`, async () => {
       const transaction = { ...DEFAULT_EIP155_TX, to: '' }
       const encodedTransaction = await wallet.signTransaction(transaction)
