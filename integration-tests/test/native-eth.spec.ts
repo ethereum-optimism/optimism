@@ -67,13 +67,39 @@ describe('Native ETH Integration Tests', async () => {
     })
   })
 
+  it('receive', async () => {
+    const depositAmount = 10
+    const preBalances = await getBalances(env)
+    const { tx, receipt } = await env.waitForXDomainTransaction(
+      env.l1Wallet.sendTransaction({
+        to: env.l1Bridge.address,
+        value: depositAmount,
+        gasLimit: DEFAULT_TEST_GAS_L1,
+      }),
+      Direction.L1ToL2
+    )
+
+    const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
+    const postBalances = await getBalances(env)
+
+    expect(postBalances.l1BridgeBalance).to.deep.eq(
+      preBalances.l1BridgeBalance.add(depositAmount)
+    )
+    expect(postBalances.l2UserBalance).to.deep.eq(
+      preBalances.l2UserBalance.add(depositAmount)
+    )
+    expect(postBalances.l1UserBalance).to.deep.eq(
+      preBalances.l1UserBalance.sub(l1FeePaid.add(depositAmount))
+    )
+  })
+
   it('depositETH', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L1, '0xFFFF', {
+      env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
         value: depositAmount,
-        gasLimit: DEFAULT_TEST_GAS_L2,
+        gasLimit: DEFAULT_TEST_GAS_L1,
       }),
       Direction.L1ToL2
     )

@@ -80,13 +80,13 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
      * @dev This function can be called with no data
      * to deposit an amount of ETH to the caller's balance on L2.
      * Since the receive function doesn't take data, a conservative
-     * default of 1.2 Million gas is forwarded to L2.
+     * default amount is forwarded to L2.
      */
     receive()
         external
         payable
     {
-        _initiateETHDeposit(msg.sender, msg.sender, 500_000, bytes(""));
+        _initiateETHDeposit(msg.sender, msg.sender, 5_000_000, bytes(""));
     }
 
     /**
