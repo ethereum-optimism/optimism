@@ -198,11 +198,11 @@ describe('OVM_ECDSAContractAccount', () => {
       )
     })
   })
-
+  
   describe('isValidSignature()', () => {
     // NOTE: There is no good way to unit test verifying a valid signature
     // An integration test exists testing this instead
-    
+
     it(`should revert for a malformed signature`, async () => {
       const messageHash = keccak256('0x42')
       let messageHashBinary = ethers.utils.arrayify(messageHash);
