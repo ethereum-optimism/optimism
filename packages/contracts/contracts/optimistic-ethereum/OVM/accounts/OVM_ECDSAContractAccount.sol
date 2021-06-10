@@ -73,7 +73,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             bytes4 magicValue
         )
     {
-        return ECDSA.recover(hash, signature) == msg.sender ?
+        return ECDSA.recover(hash, signature) == address(this) ?
             this.isValidSignature.selector :
             bytes4(0);
     }

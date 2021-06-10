@@ -113,3 +113,11 @@ const abiCoder = new utils.AbiCoder()
 export const encodeSolidityRevertMessage = (_reason: string): string => {
   return '0x08c379a0' + remove0x(abiCoder.encode(['string'], [_reason]))
 }
+
+export const DEFAULT_TRANSACTION = {
+  to: '0x' + '1234'.repeat(10),
+  gasLimit: 33600000000001,
+  gasPrice: 0,
+  data: '0x',
+  value: 0,
+}

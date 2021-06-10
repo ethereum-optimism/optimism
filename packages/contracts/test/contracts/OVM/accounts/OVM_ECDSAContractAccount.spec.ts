@@ -2,7 +2,7 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers, waffle } from 'hardhat'
-import { ContractFactory, Contract, Wallet, BigNumber, utils } from 'ethers'
+import { ContractFactory, Contract, Signer, BigNumber, utils } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
@@ -11,10 +11,9 @@ import { LibEIP155TxStruct, DEFAULT_EIP155_TX } from '../../../helpers'
 import { predeploys } from '../../../../src'
 
 describe('OVM_ECDSAContractAccount', () => {
-  let wallet: Wallet
+  let wallet: Signer
   before(async () => {
-    const provider = waffle.provider
-    ;[wallet] = provider.getWallets()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let Mock__OVM_ExecutionManager: MockContract
@@ -187,7 +186,10 @@ describe('OVM_ECDSAContractAccount', () => {
     // NOTE: Upgrades are disabled for now but will be re-enabled at a later point in time. See
     // comment in OVM_ECDSAContractAccount.sol for additional information.
     it(`should revert if trying call itself`, async () => {
-      const transaction = { ...DEFAULT_EIP155_TX, to: wallet.address }
+      const transaction = {
+        ...DEFAULT_EIP155_TX,
+        to: await wallet.getAddress(),
+      }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
       await expect(
@@ -199,24 +201,23 @@ describe('OVM_ECDSAContractAccount', () => {
   })
   
   describe('isValidSignature()', () => {
-    // NOTE: There is no good way to unit test verifying a valid signature
-    // An integration test exists testing this instead
-
+    const message = '0x42'
+    const messageHash = ethers.utils.hashMessage(message)
     it(`should revert for a malformed signature`, async () => {
-      const messageHash = utils.keccak256('0x42')
       await expect(
         OVM_ECDSAContractAccount.isValidSignature(messageHash, '0xdeadbeef')
       ).to.be.revertedWith('ECDSA: invalid signature length')
     })
 
     it(`should return 0 for an invalid signature`, async () => {
-      const messageHash = utils.keccak256('0x42')
-      const signature = await wallet.signMessage('0x42')
+      const signature = await wallet.signMessage(message)
       const bytes = await OVM_ECDSAContractAccount.isValidSignature(
         messageHash,
         signature
       )
       expect(bytes).to.equal('0x00000000')
     })
+    // NOTE: There is no good way to unit test verifying a valid signature
+    // An integration test exists testing this instead
   })
 })
