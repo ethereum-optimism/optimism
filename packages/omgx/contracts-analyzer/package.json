@@ -6,17 +6,16 @@
     "build": "TARGET=ovm hardhat compile --network omgx ",
     "deploy": "TARGET=ovm hardhat --network omgx run scripts/deploy.js",
     "analyze": "TARGET=ovm hardhat run scripts/analyze.js",
-    "test": "hardhat test",
-    "lint": "eslint --ignore-path .gitignore",
-    "postinstall": "patch-package"
+    "test": "hardhat test"
   },
   "dependencies": {
-    "@eth-optimism/hardhat-ovm": "^0.0.3",
+    "@eth-optimism/hardhat-ovm": "^0.0.3"
+  },
+  "devDependencies": {
     "@eth-optimism/plugins": "^0.0.16",
     "@ethersproject/providers": "^5.1.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@openzeppelin/contracts": "^3.1.0",
     "@tenderly/hardhat-tenderly": "^1.0.12",
     "chai-as-promised": "^7.1.1",
     "chalk": "^4.1.1",
@@ -25,11 +24,7 @@
     "ethers": "^5.1.4",
     "expect": "^26.6.2",
     "hardhat": "2.0.6",
-    "patch-package": "^6.4.7",
-    "postinstall-postinstall": "^2.1.0",
-    "ramda": "^0.27.1"
-  },
-  "devDependencies": {
+    "ramda": "^0.27.1",
     "@boringcrypto/boring-solidity": "boringcrypto/BoringSolidity#e06e943",
     "@openzeppelin/contracts": "^3.1.0",
     "eslint": "^7.25.0",

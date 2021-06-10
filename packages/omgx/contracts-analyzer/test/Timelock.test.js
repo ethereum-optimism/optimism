@@ -14,7 +14,7 @@ const TimelockJSON = require('../artifacts/contracts/governance/Timelock.sol/Tim
 
 /******************************************************************/
 /*************   evm_increaseTime is not supported ****************/
-/**** this could be something Optimism add in the near future! ****/
+/**** this could be something Optimism adds in the near future! ***/
 /******************************************************************/
 
 describe("Timelock", function () {
@@ -74,7 +74,7 @@ describe("Timelock", function () {
 
   /******************************************************************/
   /*************   evm_increaseTime is not supported ****************/
-  /**** this could be something Optimism add in the near future! ****/
+  /**** this could be something Optimism adds in the near future! ***/
   /******************************************************************/
 
   // it("should do the timelock thing", async function () {
