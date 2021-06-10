@@ -469,7 +469,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           ] = await this.chainContract.getQueueElement(nextQueueIndex)
 
           if (timestamp < ele.timestamp || blockNumber < ele.blockNumber) {
-            this.logger.error('Fixing skipped deposit', {
+            this.logger.warn('Fixing skipped deposit', {
               badTimestamp: ele.timestamp,
               skippedQueueTimestamp: timestamp,
               badBlockNumber: ele.blockNumber,
@@ -563,7 +563,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           ele.timestamp < earliestTimestamp ||
           ele.blockNumber < earliestBlockNumber
         ) {
-          this.logger.error('Fixing timestamp/blockNumber too small', {
+          this.logger.warn('Fixing timestamp/blockNumber too small', {
             oldTimestamp: ele.timestamp,
             newTimestamp: earliestTimestamp,
             oldBlockNumber: ele.blockNumber,
@@ -581,7 +581,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           ele.timestamp > latestTimestamp ||
           ele.blockNumber > latestBlockNumber
         ) {
-          this.logger.error('Fixing timestamp/blockNumber too large.', {
+          this.logger.warn('Fixing timestamp/blockNumber too large.', {
             oldTimestamp: ele.timestamp,
             newTimestamp: latestTimestamp,
             oldBlockNumber: ele.blockNumber,
