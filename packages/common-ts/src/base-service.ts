@@ -26,12 +26,18 @@ export class BaseService<T> {
   protected initialized: boolean = false
   protected running: boolean = false
 
-  constructor(name: string, options: BaseServiceOptions<T>, optionSettings: OptionSettings<T>) {
+  constructor(
+    name: string,
+    options: BaseServiceOptions<T>,
+    optionSettings: OptionSettings<T>
+  ) {
     validateOptions(options, optionSettings)
     this.name = name
     this.options = mergeDefaultOptions(options, optionSettings)
     this.logger = options.logger || new Logger({ name })
-    if (options.metrics) this.metrics = options.metrics
+    if (options.metrics) {
+      this.metrics = options.metrics
+    }
   }
 
   /**
