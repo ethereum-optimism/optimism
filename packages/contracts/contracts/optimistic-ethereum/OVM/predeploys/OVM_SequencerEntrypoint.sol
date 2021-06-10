@@ -62,7 +62,6 @@ contract OVM_SequencerEntrypoint {
             );
         }
 
-
         // Forward the transaction over to the EOA.
         (bool success, bytes memory returndata) = target.call(
             abi.encodeWithSignature(
