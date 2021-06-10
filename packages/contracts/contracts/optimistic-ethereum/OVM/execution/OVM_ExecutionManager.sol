@@ -76,8 +76,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * Native Value Constants *
      **************************/
 
-    address internal constant OVM_ETH_ADDRESS = 0x4200000000000000000000000000000000000006;
-    uint256 public constant CALL_WITH_VALUE_INTRINSIC_GAS = 90000; // Public so we can access and make assertions in integration tests.
+    // Public so we can access and make assertions in integration tests.
+    uint256 public constant CALL_WITH_VALUE_INTRINSIC_GAS = 90000;
 
 
     /**************************
@@ -740,6 +740,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _address,
         bytes memory _calldata
     )
+        override
         public
         returns(
             bool _success,
@@ -883,6 +884,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     /**
      * @notice Overrides BALANCE.
+     * NOTE: In the future, this could be optimized to directly invoke EM._getContractStorage(...).
      * @param _contract Address of the contract to query the OVM_ETH balance of.
      * @return _BALANCE OVM_ETH balance of the requested contract.
      */
@@ -904,7 +906,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Static call because this should be a read-only query.
         (bool success, bytes memory returndata) = ovmSTATICCALL(
             gasleft(),
-            OVM_ETH_ADDRESS,
+            Lib_PredeployAddresses.OVM_ETH,
             balanceOfCalldata
         );
 
@@ -962,11 +964,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         // From an OVM semantics perspective, this will appear identical to
         // the deployer ovmCALLing the whitelist.  This is fine--in a sense, we are forcing them to.
-        (bool success, bytes memory data) = ovmCALL(
+        (bool success, bytes memory data) = ovmSTATICCALL(
             gasleft(),
             Lib_PredeployAddresses.DEPLOYER_WHITELIST,
-            0,
-            abi.encodeWithSignature("isDeployerAllowed(address)", _deployerAddress)
+            abi.encodeWithSelector(
+                OVM_DeployerWhitelist.isDeployerAllowed.selector,
+                _deployerAddress
+            )
         );
         bool isAllowed = abi.decode(data, (bool));
 
@@ -1160,7 +1164,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             (success, returndata) = address(this).call{gas: _gasLimit}(
                 abi.encodeWithSelector(
                     this.safeCREATE.selector,
-                    _gasLimit,
                     _data,
                     _contract
                 )
@@ -1265,12 +1268,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * Having this step occur as a separate call frame also allows us to easily revert the
      * contract deployment in the event that the code is unsafe.
      *
-     * @param _gasLimit Amount of gas to be passed into this creation.
      * @param _creationCode Code to pass into CREATE for deployment.
      * @param _address OVM address being deployed to.
      */
     function safeCREATE(
-        uint _gasLimit,
         bytes memory _creationCode,
         address _address
     )
@@ -1286,8 +1287,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             // Note: in the EVM, this case burns all allotted gas.  For improved
             // developer experience, we do return the remaining gas.
             _revertWithFlag(
-                RevertFlag.CREATE_COLLISION,
-                Lib_ErrorUtils.encodeRevertString("A contract has already been deployed to this address")
+                RevertFlag.CREATE_COLLISION
             );
         }
 
@@ -1343,6 +1343,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     /**
      * Invokes an ovmCALL to OVM_ETH.transfer on behalf of the current ovmADDRESS, allowing us to force movement of OVM_ETH in correspondence with ETH's native value functionality.
      * WARNING: this will send on behalf of whatever the messageContext.ovmADDRESS is in storage at the time of the call.
+     * NOTE: In the future, this could be optimized to directly invoke EM._setContractStorage(...).
      * @param _to Amount of OVM_ETH to be sent.
      * @param _value Amount of OVM_ETH to send.
      * @return _success Whether or not the transfer worked.
@@ -1367,7 +1368,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Thus, success of the call frame is sufficient to infer success of the transfer itself.
         (bool success, ) = ovmCALL(
             gasleft(),
-            OVM_ETH_ADDRESS,
+            Lib_PredeployAddresses.OVM_ETH,
             0,
             transferCalldata
         );
@@ -2146,10 +2147,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bool
         )
     {
-        // Only static and delegate calls NEVER require transferring funds.
+        // ovmSTATICCALL and ovmDELEGATECALL types do not accept or transfer value.
         return (
-            _messageType != MessageType.ovmSTATICCALL
-            && _messageType != MessageType.ovmDELEGATECALL
+            _messageType == MessageType.ovmCALL
+            || _messageType == MessageType.ovmCREATE
+            || _messageType == MessageType.ovmCREATE2
         );
     }
 

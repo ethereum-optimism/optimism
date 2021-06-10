@@ -100,7 +100,7 @@ contract ValueCalls is ValueContext {
 }
 
 contract ValueGasMeasurer {
-    function measureGasOfSend(
+    function measureGasOfTransferingEthViaCall(
         address target,
         uint256 value,
         uint256 gasLimit

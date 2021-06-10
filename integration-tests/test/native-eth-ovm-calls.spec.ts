@@ -106,6 +106,17 @@ describe('Native ETH value integration tests', () => {
         BigNumber.from(expectedBalances[1]),
         'geth RPC does not match ovmSELFBALANCE'
       )
+      // query ovmSELFBALANCE() opcode via eth_call as another check
+      const ovmEthBalanceOf0 = await env.ovmEth.balanceOf(ValueCalls0.address)
+      const ovmEthBalanceOf1 = await env.ovmEth.balanceOf(ValueCalls1.address)
+      expect(ovmEthBalanceOf0).to.deep.eq(
+        BigNumber.from(expectedBalances[0]),
+        'geth RPC does not match OVM_ETH.balanceOf'
+      )
+      expect(ovmEthBalanceOf1).to.deep.eq(
+        BigNumber.from(expectedBalances[1]),
+        'geth RPC does not match OVM_ETH.balanceOf'
+      )
       // query address(this).balance solidity via eth_call as final check
       const ovmAddressThisBalance0 = await ValueCalls0.callStatic.getAddressThisBalance()
       const ovmAddressThisBalance01 = await ValueCalls1.callStatic.getAddressThisBalance()
@@ -346,10 +357,13 @@ describe('Native ETH value integration tests', () => {
       it('a call with value to an empty account consumes <= the intrinsic gas including a buffer', async () => {
         const value = 1
         const gasLimit = 1_000_000
-        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfSend(
+        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
           ethers.constants.AddressZero,
           value,
-          gasLimit
+          gasLimit,
+          {
+            gasLimit: 2_000_000,
+          }
         )
 
         const buffer = 1.2
@@ -370,10 +384,13 @@ describe('Native ETH value integration tests', () => {
         const value = 1
         const gasLimit = 1_000_000
         // A revert, causing the ETH to be sent back, should consume the minimal possible gas for a nonzero ETH send
-        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfSend(
+        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
           AutoRevert.address,
           value,
-          gasLimit
+          gasLimit,
+          {
+            gasLimit: 2_000_000,
+          }
         )
 
         const buffer = 1.2
@@ -396,7 +413,10 @@ describe('Native ETH value integration tests', () => {
           PayableConstant.address,
           sendAmount,
           PayableConstant.interface.encodeFunctionData('returnValue'),
-          CALL_WITH_VALUE_INTRINSIC_GAS - 1
+          CALL_WITH_VALUE_INTRINSIC_GAS - 1,
+          {
+            gasLimit: 2_000_000,
+          }
         )
 
         expect(success).to.eq(false)
@@ -420,7 +440,10 @@ describe('Native ETH value integration tests', () => {
           TestOOG.address,
           sendAmount,
           TestOOG.interface.encodeFunctionData('runOutOfGas'),
-          CALL_WITH_VALUE_INTRINSIC_GAS * 2
+          CALL_WITH_VALUE_INTRINSIC_GAS * 2,
+          {
+            gasLimit: 2_000_000,
+          }
         )
 
         expect(success).to.eq(false)
