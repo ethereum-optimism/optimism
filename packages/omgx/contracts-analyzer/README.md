@@ -3,7 +3,7 @@
   * [Setting Up](#setting-up)
   * [Add Contracts](#add-contracts)
   * [Notes](#notes)
-  * [Deploying Contracts to LOCAL TEST SYSTEM](#deploying-contracts-to-local-test-system)
+  * [Deploying Contracts to LOCAL L2](#deploying-contracts-to-local-l2)
   * [Deploying Contracts to OMGX RINKEBY](#deploying-contracts-to-omgx-rinkeby)
   * [Test](#test)
 
@@ -43,7 +43,7 @@ You will probably have to `yarn add` multiple packages, and change/update pragma
 
 The code compliles the contracts, which will typically provide extensive debug information and warnings/errors, and also checks for contract size and inline assembly. The second contract size check is superfluous, since the compiler already does that.
 
-## Deploying Contracts to LOCAL TEST SYSTEM
+## Deploying Contracts to LOCAL L2
 
 First, make sure you have a `.env` in `packages/omgx/contracts-analyzer`. The five TEST_PRIVATE_KEYs are used for testing. The DEPLOYER_PRIVATE_KEY is used to deploy contracts. Since (right now) we don't charge oWETH to deploy contracts on L2, the wallets do not need any funds in them.
 
@@ -73,7 +73,7 @@ Make sure you have a `.env` in `packages/omgx/contracts-analyzer`. Then, set you
 L2_NODE_WEB3_URL=https://rinkeby.omgx.network
 DEPLOYER_PRIVATE_KEY=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
 TEST_PRIVATE_KEY_1=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
-TEST_PRIVATE_KEY_=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+TEST_PRIVATE_KEY_2=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
 TEST_PRIVATE_KEY_3=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
 TEST_PRIVATE_KEY_4=0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
 TEST_PRIVATE_KEY_5=0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
