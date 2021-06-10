@@ -256,7 +256,6 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
 
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].add(_amount);
 
-        // We omit _data here because events only support bytes32 types.
         emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
