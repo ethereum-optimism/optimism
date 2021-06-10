@@ -7,10 +7,7 @@ import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
-import {
-  LibEIP155TxStruct,
-  DEFAULT_EIP155_TX,
-} from '../../../helpers'
+import { LibEIP155TxStruct, DEFAULT_EIP155_TX } from '../../../helpers'
 import { predeploys } from '../../../../src'
 
 describe('OVM_ECDSAContractAccount', () => {
@@ -57,14 +54,18 @@ describe('OVM_ECDSAContractAccount', () => {
       const transaction = DEFAULT_EIP155_TX
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      await OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
+      await OVM_ECDSAContractAccount.execute(
+        LibEIP155TxStruct(encodedTransaction)
+      )
     })
 
     it(`should ovmCREATE if EIP155Transaction.to is zero address`, async () => {
       const transaction = { ...DEFAULT_EIP155_TX, to: '' }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      await OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
+      await OVM_ECDSAContractAccount.execute(
+        LibEIP155TxStruct(encodedTransaction)
+      )
 
       const ovmCREATE: any =
         Mock__OVM_ExecutionManager.smocked.ovmCREATE.calls[0]
@@ -102,9 +103,7 @@ describe('OVM_ECDSAContractAccount', () => {
 
       await expect(
         OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
-      ).to.be.revertedWith(
-        'Transaction signed with wrong chain ID'
-      )
+      ).to.be.revertedWith('Transaction signed with wrong chain ID')
     })
 
     // TEMPORARY: Skip gas checks for minnet.
@@ -127,16 +126,18 @@ describe('OVM_ECDSAContractAccount', () => {
       Mock__OVM_ETH.smocked.transfer.will.return.with(false)
 
       const tx = LibEIP155TxStruct(encodedTransaction)
-      await expect(
-        OVM_ECDSAContractAccount.execute(tx)
-      ).to.be.revertedWith('Fee was not transferred to relayer.')
+      await expect(OVM_ECDSAContractAccount.execute(tx)).to.be.revertedWith(
+        'Fee was not transferred to relayer.'
+      )
     })
 
     it(`should transfer value if value is greater than 0`, async () => {
       const transaction = { ...DEFAULT_EIP155_TX, value: 1234, data: '0x' }
       const encodedTransaction = await wallet.signTransaction(transaction)
 
-      await OVM_ECDSAContractAccount.execute(LibEIP155TxStruct(encodedTransaction))
+      await OVM_ECDSAContractAccount.execute(
+        LibEIP155TxStruct(encodedTransaction)
+      )
 
       // First call transfers fee, second transfers value (since value > 0).
       expect(

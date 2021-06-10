@@ -10,7 +10,6 @@ export interface OVMAccount {
   ethAddress: string
 }
 
-
 export function LibEIP155TxStruct(tx) {
   if (typeof tx === 'string') {
     tx = parse(tx)
@@ -26,8 +25,8 @@ export function LibEIP155TxStruct(tx) {
     tx.r,
     tx.s,
     tx.chainId,
-    tx.v === 0 ? 0 : tx.v - (2 * tx.chainId) - 35,
-    tx.to === null
+    tx.v === 0 ? 0 : tx.v - 2 * tx.chainId - 35,
+    tx.to === null,
   ]
   return values
 }

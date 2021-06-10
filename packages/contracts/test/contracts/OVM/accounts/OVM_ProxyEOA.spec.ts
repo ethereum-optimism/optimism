@@ -84,7 +84,9 @@ describe('OVM_ProxyEOA', () => {
         data,
       })
 
-      const call = toPlainObject(Mock__OVM_ECDSAContractAccount.smocked.execute.calls[0])
+      const call = toPlainObject(
+        Mock__OVM_ECDSAContractAccount.smocked.execute.calls[0]
+      )
       const _transaction = call._transaction
 
       expect(_transaction[0]).to.deep.equal(transaction.nonce)

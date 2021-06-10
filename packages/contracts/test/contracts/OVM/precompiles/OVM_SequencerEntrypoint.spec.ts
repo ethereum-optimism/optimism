@@ -8,7 +8,11 @@ import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
 import { DEFAULT_EIP155_TX, LibEIP155TxStruct } from '../../../helpers'
-import { getContractInterface, predeploys, getContractFactory } from '../../../../src'
+import {
+  getContractInterface,
+  predeploys,
+  getContractFactory,
+} from '../../../../src'
 
 describe('OVM_SequencerEntrypoint', () => {
   const iOVM_ECDSAContractAccount = getContractInterface(
@@ -83,7 +87,6 @@ describe('OVM_SequencerEntrypoint', () => {
         to: OVM_SequencerEntrypoint.address,
         data: encodedTransaction,
       })
-
 
       const call = toPlainObject(Mock__wallet.smocked.execute.calls[0])
       const _transaction = call._transaction
