@@ -94,10 +94,10 @@ type Backend interface {
 	GetRollupContext() (uint64, uint64, uint64)
 	GasLimit() uint64
 	GetDiff(*big.Int) (diffdb.Diff, error)
-	SuggestDataPrice(ctx context.Context) (*big.Int, error)
-	SetDataPrice(context.Context, *big.Int)
-	SuggestExecutionPrice(context.Context) (*big.Int, error)
-	SetExecutionPrice(context.Context, *big.Int)
+	SuggestL1GasPrice(ctx context.Context) (*big.Int, error)
+	SetL1GasPrice(context.Context, *big.Int) error
+	SuggestL2GasPrice(context.Context) (*big.Int, error)
+	SetL2GasPrice(context.Context, *big.Int) error
 	IngestTransactions([]*types.Transaction) error
 }
 

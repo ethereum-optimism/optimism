@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/integration-tests",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "description": "[Optimism] Integration Tests",
   "private": true,
   "author": "Optimism PBC",
@@ -17,8 +17,8 @@
   },
   "devDependencies": {
     "@metis.io/contracts": "^1.1.*",
-    "@eth-optimism/core-utils": "^0.4.2",
-    "@eth-optimism/hardhat-ovm": "^0.2.0",
+    "@eth-optimism/core-utils": "^0.4.4",
+    "@eth-optimism/hardhat-ovm": "^0.2.2",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",

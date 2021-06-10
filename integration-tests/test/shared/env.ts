@@ -58,7 +58,7 @@ export class OptimismEnv {
     // fund the user if needed
     const balance = await l2Wallet.getBalance()
     if (balance.isZero()) {
-      await fundUser(watcher, gateway, utils.parseEther('100'))
+      await fundUser(watcher, gateway, utils.parseEther('10'))
     }
 
     const ovmEth = getOvmEth(l2Wallet)

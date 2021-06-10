@@ -165,13 +165,11 @@ export const smockit = async (
   // We attach a wallet to the contract so that users can send transactions *from* a smock.
   await hre.network.provider.request({
     method: 'hardhat_impersonateAccount',
-    params: [contract.address]
+    params: [contract.address],
   })
 
   // Now we actually get the signer and attach it to the mock.
-  contract.wallet = await (hre as any).ethers.getSigner(
-    contract.address
-  )
+  contract.wallet = await (hre as any).ethers.getSigner(contract.address)
 
   // Start by smocking the fallback.
   contract.smocked = {
@@ -213,7 +211,7 @@ export const smockit = async (
     let mockFn: any
     if (fn !== null) {
       params = this.interface.decodeFunctionData(fn, toHexString(data))
-      mockFn = this.smocked[fn.name]
+      mockFn = this.smocked[fn.name] || this.smocked[fn.format()]
     } else {
       params = toHexString(data)
       mockFn = this.smocked.fallback

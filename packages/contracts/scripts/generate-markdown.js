@@ -39,6 +39,7 @@ const networks = {
 |Contract|Address|
 |--|--|
 |MVM_Coinbase: | \`0x4200000000000000000000000000000000000006\`
+|OVM_ETH: | \`0x420000000000000000000000000000000000000A\`
 |OVM_L2CrossDomainMessenger: | \`0x4200000000000000000000000000000000000007\`
 |OVM_L2ToL1MessagePasser: | \`0x4200000000000000000000000000000000000000\`
 |OVM_L1MessageSender: | \`0x4200000000000000000000000000000000000001\`
@@ -74,6 +75,14 @@ const networks = {
         return child.name.replace(".json", "");
       });
 
+    proxiedContracts = [];
+    for (let i = 0; i < contracts.length; i++) {
+      if (contracts[i] == 'OVM_L1CrossDomainMessenger')
+      proxiedContracts.push(contracts.splice(i, 1)[0]);
+      if (contracts[i] == 'OVM_L1ETHGateway')
+      proxiedContracts.push(contracts.splice(i, 1)[0]);
+    }
+
     for (const contract of contracts) {
       const colonizedName = contract.split(':').join('-');
 
@@ -83,6 +92,20 @@ const networks = {
       const etherscanUrl = `https://${escPrefix}etherscan.io/address/${deploymentInfo.address}`;
       md += `|${colonizedName}|[${deploymentInfo.address}](${etherscanUrl})|\n`;
     }
+
+    md += `<!--\nImplementation addresses. DO NOT use these addresses directly.\nUse their proxied counterparts seen above.\n\n`;
+
+    for (const proxy of proxiedContracts) {
+      const colonizedName = proxy.split(':').join('-');
+
+      const deploymentInfo = require(`../deployments/${deployment}/${proxy}.json`);
+
+      const escPrefix = chainId !== 1 ? `${network}.` : "";
+      const etherscanUrl = `https://${escPrefix}etherscan.io/address/${deploymentInfo.address}`;
+      md += `${colonizedName}: \n - ${deploymentInfo.address}\n - ${etherscanUrl})\n`;
+    }
+
+    md += `-->\n`;
     md += `---\n`;
   }
 

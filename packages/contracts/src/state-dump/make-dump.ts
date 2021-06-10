@@ -136,6 +136,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_ExecutionManager',
       'OVM_StateManager',
       'MVM_Coinbase',
+      'OVM_ETH',
     ],
     deployOverrides: {},
     waitForReceipts: false,
@@ -152,6 +153,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'MVM_Coinbase',
     'OVM_ECDSAContractAccount',
     'OVM_ProxyEOA',
+    'OVM_ETH',
   ]
 
   const deploymentResult = await deploy(config)

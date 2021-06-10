@@ -11,16 +11,14 @@ describe('[smock]: sending transactions from smock contracts', () => {
 
   let TestHelpers_SenderAssertions: Contract
   before(async () => {
-    TestHelpers_SenderAssertions = await(
-      await ethers.getContractFactory(
-        'TestHelpers_SenderAssertions'
-      )
+    TestHelpers_SenderAssertions = await (
+      await ethers.getContractFactory('TestHelpers_SenderAssertions')
     ).deploy()
   })
 
   it('should attach a signer for a mock with a random address', async () => {
     const mock = await smockit('TestHelpers_BasicReturnContract')
-    
+
     expect(
       await TestHelpers_SenderAssertions.connect(mock.wallet).getSender()
     ).to.equal(mock.address)
@@ -28,7 +26,7 @@ describe('[smock]: sending transactions from smock contracts', () => {
 
   it('should attach a signer for a mock with a fixed address', async () => {
     const mock = await smockit('TestHelpers_BasicReturnContract', {
-      address: '0x1234123412341234123412341234123412341234'
+      address: '0x1234123412341234123412341234123412341234',
     })
 
     expect(

@@ -29,8 +29,10 @@ export interface L1DataTransportServiceOptions {
   syncFromL2?: boolean
   transactionsPerPollingInterval: number
   legacySequencerCompatibility: boolean
+  useSentry?: boolean
   sentryDsn?: string
   sentryTraceRate?: number
+  enableMetrics?: boolean
   defaultBackend: string
 }
 
