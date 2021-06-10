@@ -448,7 +448,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         return _createContract(
             contractAddress,
-            _bytecode
+            _bytecode,
+            MessageType.ovmCREATE
         );
     }
 
@@ -488,7 +489,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         return _createContract(
             contractAddress,
-            _bytecode
+            _bytecode,
+            MessageType.ovmCREATE2
         );
     }
 
@@ -650,7 +652,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata
+            _calldata,
+            MessageType.ovmCALL
         );
     }
 
@@ -686,7 +689,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata
+            _calldata,
+            MessageType.ovmSTATICCALL
         );
     }
 
@@ -718,7 +722,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata
+            _calldata,
+            MessageType.ovmDELEGATECALL
         );
     }
 
@@ -983,7 +988,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function _createContract(
         address _contractAddress,
-        bytes memory _bytecode
+        bytes memory _bytecode,
+        MessageType _messageType
     )
         internal
         returns (
@@ -1007,7 +1013,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             gasleft(),
             _contractAddress,
             _bytecode,
-            true
+            _messageType
         );
 
         // Yellow paper requires that address returned is zero if the contract deployment fails.
@@ -1030,7 +1036,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory _nextMessageContext,
         uint256 _gasLimit,
         address _contract,
-        bytes memory _calldata
+        bytes memory _calldata,
+        MessageType _messageType
     )
         internal
         returns (
@@ -1059,7 +1066,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             _gasLimit,
             codeContractAddress,
             _calldata,
-            false
+            _messageType
         );
     }
 
@@ -1071,7 +1078,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * @param _gasLimit Amount of gas to be passed into this message. NOTE: this argument is overwritten in some cases to avoid stack-too-deep.
      * @param _contract OVM address being called or deployed to
      * @param _data Data for the message (either calldata or creation code)
-     * @param _isCreate Whether this is a create-type message.
+     * @param _messageType What type of ovmOPCODE this message corresponds to.
      * @return Whether or not the message (either a call or deployment) succeeded.
      * @return Data returned by the message.
      */
@@ -1081,7 +1088,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         uint256 _gasLimit,
         address _contract,
         bytes memory _data,
-        bool _isCreate
+        MessageType _messageType
     )
         internal
         returns (
@@ -1091,7 +1098,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         uint256 messageValue = _nextMessageContext.ovmCALLVALUE;
         // If there is value in this message, we need to transfer the ETH over before switching contexts.
-        if (messageValue > 0) {
+        if (
+            messageValue > 0
+            && _isValueType(_messageType)
+        ) {
             // Handle out-of-intrinsic gas consistent with EVM behavior -- the subcall "appears to revert" if we don't have enough gas to transfer the ETH.
             // Similar to dynamic gas cost of value exceeding gas here:
             // https://github.com/ethereum/go-ethereum/blob/c503f98f6d5e80e079c1d8a3601d188af2a899da/core/vm/interpreter.go#L268-L273 
@@ -1143,7 +1153,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         bool success;
         bytes memory returndata;
-        if (_isCreate) {
+        if (_isCreateType(_messageType)) {
             // safeCREATE() is a function which replicates a CREATE message, but uses return values
             // Which match that of CALL (i.e. bool, bytes).  This allows many security checks to be
             // to be shared between untrusted call and create call frames.
@@ -1162,7 +1172,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // If the message threw an exception, its value should be returned back to the sender.
         // So, we force it back, BEFORE returning the messageContext to the previous addresses.
         // This operation is part of the reason we "reserved the intrinsic gas" above.
-        if (messageValue > 0 && !success) {
+        if (
+            messageValue > 0
+            && _isValueType(_messageType)
+            && !success
+        ) {
             bool transferredOvmEth = _attemptForcedEthTransfer(
                 prevMessageContext.ovmADDRESS,
                 messageValue
@@ -1214,10 +1228,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             }
 
             // INTENTIONAL_REVERT needs to pass up the user-provided return data encoded into the
-            // flag, *not* the full encoded flag. All other revert types return no data.
+            // flag, *not* the full encoded flag.  Additionally, we surface custom error messages
+            // to developers in the case of unsafe creations for improved devex.
+            // All other revert types return no data.
             if (
                 flag == RevertFlag.INTENTIONAL_REVERT
-                || _isCreate
+                || flag == RevertFlag.UNSAFE_BYTECODE
             ) {
                 returndata = returndataFromFlag;
             } else {
@@ -1277,6 +1293,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Check the creation bytecode against the OVM_SafetyChecker.
         if (ovmSafetyChecker.isBytecodeSafe(_creationCode) == false) {
+            // Note: in the EVM, this case burns all allotted gas.  For improved
+            // developer experience, we do return the remaining gas.
             _revertWithFlag(
                 RevertFlag.UNSAFE_BYTECODE,
                 Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?")
@@ -2090,6 +2108,51 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // Reset the ovmStateManager.
         ovmStateManager = iOVM_StateManager(address(0));
     }
+
+
+    /******************************************
+     * Internal Functions: Message Typechecks *
+     ******************************************/
+
+    /**
+     * Returns whether or not the given message type is a CREATE-type.
+     * @param _messageType the message type in question.
+     */
+    function _isCreateType(
+        MessageType _messageType
+    )
+        internal
+        pure
+        returns(
+            bool
+        )
+    {
+        return (
+            _messageType == MessageType.ovmCREATE
+            || _messageType == MessageType.ovmCREATE2
+        );
+    }
+
+    /**
+     * Returns whether or not the given message type (potentially) requires the transfer of ETH value along with the message.
+     * @param _messageType the message type in question.
+     */
+    function _isValueType(
+        MessageType _messageType
+    )
+        internal
+        pure
+        returns(
+            bool
+        )
+    {
+        // Only static and delegate calls NEVER require transferring funds.
+        return (
+            _messageType != MessageType.ovmSTATICCALL
+            && _messageType != MessageType.ovmDELEGATECALL
+        );
+    }
+
 
     /*****************************
      * L2-only Helper Functions *

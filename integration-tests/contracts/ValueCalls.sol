@@ -118,3 +118,14 @@ contract PayableConstant {
         return 42;
     }
 }
+
+contract SendETHAwayAndDelegateCall {
+    function emptySelfAndDelegateCall(
+        address _delegateTo,
+        bytes memory _data
+    ) public payable returns (bool, bytes memory) {
+        address(0).call{value: address(this).balance}(_data);
+
+        return _delegateTo.delegatecall(_data);
+    }
+}
