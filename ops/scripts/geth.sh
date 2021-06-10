@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # FIXME: Cannot use set -e since bash is not installed in Dockerfile
 # set -e

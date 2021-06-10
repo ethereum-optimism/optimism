@@ -2,6 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 contract MVM_GasOracle{
+
     uint _l2price;
     address _setter;
     constructor() {

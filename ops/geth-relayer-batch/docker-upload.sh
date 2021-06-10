@@ -12,6 +12,6 @@ echo 'Pushing metis_l2_geth'
 tag=$(docker tag metis_l2_geth:latest 950087689901.dkr.ecr.us-east-2.amazonaws.com/metis-l2-geth:latest)
 push=$(docker push  950087689901.dkr.ecr.us-east-2.amazonaws.com/metis-l2-geth:latest)
 
-# echo 'Pushing data-transport-layer'
-# tag=$(docker tag ethereumoptimism/data-transport-layer:latest 950087689901.dkr.ecr.us-east-2.amazonaws.com/metis-dtl:latest)
-# push=$(docker push 950087689901.dkr.ecr.us-east-2.amazonaws.com/metis-dtl:latest)
+echo 'Pushing data-transport-layer'
+tag=$(docker tag ethereumoptimism/data-transport-layer:latest 950087689901.dkr.ecr.us-east-2.amazonaws.com/metis-dtl:latest)
+push=$(docker push 950087689901.dkr.ecr.us-east-2.amazonaws.com/metis-dtl:latest)
