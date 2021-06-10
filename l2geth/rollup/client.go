@@ -667,7 +667,7 @@ func (c *Client) GetL1GasPrice() (*big.Int, error) {
 			pointCountStr += "0"
 		}
 		bigPointCount, _ := new(big.Int).SetString(pointCountStr, 10)
-		price_eth = new(big.Int).Div(price_eth, bigCounter)
+		price_eth = new(big.Int).Div(price_eth, bigPointCount)
 	}
 
 	return price_eth, nil
