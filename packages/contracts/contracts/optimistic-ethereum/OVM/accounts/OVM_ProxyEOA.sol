@@ -39,6 +39,7 @@ contract OVM_ProxyEOA {
 
     fallback()
         external
+        payable
     {
         (bool success, bytes memory returndata) = getImplementation().delegatecall(msg.data);
 

@@ -5,8 +5,8 @@ import { Direction } from './shared/watcher-utils'
 import { PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 
-const DEFAULT_TEST_GAS_L1 = 230_000
-const DEFAULT_TEST_GAS_L2 = 825_000
+const DEFAULT_TEST_GAS_L1 = 330_000
+const DEFAULT_TEST_GAS_L2 = 1_000_000
 // TX size enforced by CTC:
 const MAX_ROLLUP_TX_SIZE = 50_000
 
@@ -50,7 +50,7 @@ describe('Native ETH Integration Tests', async () => {
       const amount = utils.parseEther('0.5')
       const addr = '0x' + '1234'.repeat(10)
       const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
-      expect(gas).to.be.deep.eq(BigNumber.from(6430020))
+      expect(gas).to.be.deep.eq(BigNumber.from(6430021))
     })
 
     it('Should estimate gas for ETH withdraw', async () => {
