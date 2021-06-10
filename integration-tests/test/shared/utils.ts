@@ -113,9 +113,11 @@ export const fundUser = async (
   recipient?: string
 ) => {
   const value = BigNumber.from(amount)
+  // 1.2 MM is close to the lower bound required (1.0 MM fails).
   const tx = recipient
-    ? bridge.depositETHTo(recipient, 500_000, '0x', { value })
-    : bridge.depositETH(500_000, '0x', { value })
+    ?
+      bridge.depositETHTo(recipient, 1_200_000, '0x', { value })
+    : bridge.depositETH(1_200_000, '0x', { value })
 
   await waitForXDomainTransaction(watcher, tx, Direction.L1ToL2)
 }
