@@ -6,6 +6,7 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 
 /* Contract Imports */
 import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
+import { OVM_L2StandardBridge } from "../bridge/tokens/OVM_L2StandardBridge.sol";
 
 /**
  * @title OVM_SequencerFeeVault
@@ -36,7 +37,7 @@ contract OVM_SequencerFeeVault {
     /***************
      * Constructor *
      ***************/
-    
+
     /**
      * @param _l1FeeWallet Initial address for the L1 wallet that will hold fees once withdrawn.
      * Currently HAS NO EFFECT in production because l2geth will mutate this storage slot during
@@ -63,7 +64,8 @@ contract OVM_SequencerFeeVault {
             "OVM_SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
 
-        OVM_ETH(Lib_PredeployAddresses.OVM_ETH).withdrawTo(
+        OVM_L2StandardBridge(Lib_PredeployAddresses.L2_STANDARD_BRIDGE).withdrawTo(
+            Lib_PredeployAddresses.OVM_ETH,
             l1FeeWallet,
             balance,
             0,

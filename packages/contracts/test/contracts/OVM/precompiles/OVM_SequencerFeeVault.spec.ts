@@ -3,10 +3,11 @@ import { expect } from '../../../setup'
 /* Imports: External */
 import hre from 'hardhat'
 import { MockContract, smockit } from '@eth-optimism/smock'
-import { Contract, Signer } from 'ethers'
+import { Contract, Signer, constants } from 'ethers'
 
 /* Imports: Internal */
 import { predeploys } from '../../../../src'
+import { getContractFactory } from '@nomiclabs/hardhat-ethers/types'
 
 describe('OVM_SequencerFeeVault', () => {
   let signer1: Signer
@@ -15,10 +16,15 @@ describe('OVM_SequencerFeeVault', () => {
   })
 
   let Mock__OVM_ETH: MockContract
+  let Mock__OVM_L2StandardBridge: MockContract
   before(async () => {
     Mock__OVM_ETH = await smockit('OVM_ETH', {
       address: predeploys.OVM_ETH,
     })
+    Mock__OVM_L2StandardBridge = await smockit('OVM_L2StandardBridge', {
+      address: predeploys.OVM_L2StandardBridge,
+    })
+    console.log(await Mock__OVM_L2StandardBridge.getAddress)
   })
 
   let OVM_SequencerFeeVault: Contract
@@ -40,7 +46,10 @@ describe('OVM_SequencerFeeVault', () => {
 
       await expect(OVM_SequencerFeeVault.withdraw()).to.not.be.reverted
 
-      expect(Mock__OVM_ETH.smocked.withdrawTo.calls[0]).to.deep.equal([
+      expect(
+        Mock__OVM_L2StandardBridge.smocked.withdrawTo.calls[0]
+      ).to.deep.equal([
+        predeploys.OVM_ETH,
         await signer1.getAddress(),
         amount,
         0,
@@ -54,7 +63,10 @@ describe('OVM_SequencerFeeVault', () => {
 
       await expect(OVM_SequencerFeeVault.withdraw()).to.not.be.reverted
 
-      expect(Mock__OVM_ETH.smocked.withdrawTo.calls[0]).to.deep.equal([
+      expect(
+        Mock__OVM_L2StandardBridge.smocked.withdrawTo.calls[0]
+      ).to.deep.equal([
+        predeploys.OVM_ETH,
         await signer1.getAddress(),
         amount,
         0,
