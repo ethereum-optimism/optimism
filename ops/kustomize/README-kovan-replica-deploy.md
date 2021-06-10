@@ -1,6 +1,6 @@
 # kovan-replica-deploy
 
-## Prerequisits
+## Prerequisites
 
 - `kubectl`
 - `kustomize` from a recent [kustomize release](https://github.com/kubernetes-sigs/kustomize/releases/)
@@ -35,4 +35,3 @@ kubectl -n kovan-replica-0-3-0 get pods -w
 ```
 kubectl -n kovan-replica-0-3-0 logs -f l2geth-replica-0
 ```
-
