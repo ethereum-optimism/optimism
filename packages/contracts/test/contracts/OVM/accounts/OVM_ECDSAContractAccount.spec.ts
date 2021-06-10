@@ -9,6 +9,7 @@ import { toPlainObject } from 'lodash'
 /* Internal Imports */
 import { LibEIP155TxStruct, DEFAULT_EIP155_TX } from '../../../helpers'
 import { predeploys } from '../../../../src'
+import { keccak256 } from '@ethersproject/keccak256'
 
 describe('OVM_ECDSAContractAccount', () => {
   let wallet: Wallet
@@ -197,4 +198,29 @@ describe('OVM_ECDSAContractAccount', () => {
       )
     })
   })
+
+  describe('isValidSignature()', () => {
+    // NOTE: There is no good way to unit test verifying a valid signature
+    // An integration test exists testing this instead
+    
+    it(`should revert for a malformed signature`, async () => {
+      const messageHash = keccak256('0x42')
+      let messageHashBinary = ethers.utils.arrayify(messageHash);
+      await expect(
+        OVM_ECDSAContractAccount.isValidSignature(messageHashBinary, '0xdeadbeef')
+      ).to.be.revertedWith(
+        'ECDSA: invalid signature length'
+      )
+    })
+
+    it(`should return 0 for an invalid signature`, async () => {
+      const messageHash = keccak256('0x42')
+      let messageHashBinary = ethers.utils.arrayify(messageHash);
+      const signature = await wallet.signMessage(messageHashBinary)
+      const bytes = await OVM_ECDSAContractAccount.isValidSignature(messageHashBinary, signature)
+      expect(bytes).to.equal('0x00000000')
+    })
+  })
+
+
 })
