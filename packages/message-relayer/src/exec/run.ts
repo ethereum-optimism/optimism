@@ -21,7 +21,7 @@ const main = async () => {
   const USE_SENTRY = config.bool('use-sentry', env.USE_SENTRY === 'true')
   const ETH_NETWORK_NAME = config.str('eth-network-name', env.ETH_NETWORK_NAME)
 
-  let loggerOptions: LoggerOptions = {
+  const loggerOptions: LoggerOptions = {
     name: 'Message_Relayer',
   }
 
