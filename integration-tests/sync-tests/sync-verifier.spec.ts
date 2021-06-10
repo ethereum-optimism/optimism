@@ -60,7 +60,7 @@ describe('Syncing a verifier', () => {
   })
 
   describe('Basic transactions', () => {
-    afterEach(async () => {
+    after(async () => {
       await verifier.stop('verifier')
       await verifier.rm()
     })
@@ -96,6 +96,14 @@ describe('Syncing a verifier', () => {
       expect(matchingVerifierBlock.stateRoot).to.eq(
         latestSequencerBlock.stateRoot
       )
+    })
+
+    it('should have matching block data', async () => {
+      const sequencerTip = await sequencerProvider.getBlock('latest')
+      const verifierTip = await provider.getBlock('latest')
+
+      expect(sequencerTip.number).to.deep.eq(verifierTip.number)
+      expect(sequencerTip.hash).to.deep.eq(verifierTip.hash)
     })
   })
 })

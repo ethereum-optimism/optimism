@@ -195,7 +195,7 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
       const respJson = await bfj.parse(resp.data, {
         yieldRate: 4096, // this yields abit more often than the default of 16384
       })
-      blocks = respJson.data
+      blocks = respJson.result
     }
 
     for (const block of blocks) {
