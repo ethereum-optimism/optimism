@@ -9,6 +9,11 @@ type OptionSettings<TOptions> = {
   }
 }
 
+type BaseServiceOptions<T> = T & {
+  logger?: Logger
+  metrics?: Metrics
+}
+
 /**
  * Base for other "Service" objects. Handles your standard initialization process, can dynamically
  * start and stop.
@@ -21,11 +26,12 @@ export class BaseService<T> {
   protected initialized: boolean = false
   protected running: boolean = false
 
-  constructor(name: string, options: T, optionSettings: OptionSettings<T>) {
+  constructor(name: string, options: BaseServiceOptions<T>, optionSettings: OptionSettings<T>) {
     validateOptions(options, optionSettings)
     this.name = name
     this.options = mergeDefaultOptions(options, optionSettings)
-    this.logger = new Logger({ name })
+    this.logger = options.logger || new Logger({ name })
+    if (options.metrics) this.metrics = options.metrics
   }
 
   /**
