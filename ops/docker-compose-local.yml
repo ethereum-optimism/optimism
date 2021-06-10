@@ -73,7 +73,7 @@ services:
     image: ethereumoptimism/l2geth
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.geth
+      dockerfile: ./ops/docker/Dockerfile.geth.bak
     # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
     env_file:

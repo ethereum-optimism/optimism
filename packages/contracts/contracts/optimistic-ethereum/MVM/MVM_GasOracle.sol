@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
-contract MVM_GasOracle
+contract MVM_GasOracle {
     uint _l2price;
     address _setter;
     constructor(uint price, address setter) {
@@ -9,12 +9,12 @@ contract MVM_GasOracle
       _setter = setter;
     }
 
-    function setPrice(uint price) {
+    function setPrice(uint price) public {
        require (msg.sender == _setter, "NOT ALLOWED");
        _l2price = price;
     }
 
-    function transferSetter(address newsetter) {
+    function transferSetter(address newsetter) public {
        require (msg.sender == _setter, "NOT ALLOWED");
        _setter = newsetter;
     }
