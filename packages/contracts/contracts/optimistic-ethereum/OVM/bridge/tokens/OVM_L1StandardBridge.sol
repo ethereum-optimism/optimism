@@ -86,7 +86,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
         external
         payable
     {
-        _initiateETHDeposit(msg.sender, msg.sender, 1_200_000, bytes(""));
+        _initiateETHDeposit(msg.sender, msg.sender, 500_000, bytes(""));
     }
 
     /**
