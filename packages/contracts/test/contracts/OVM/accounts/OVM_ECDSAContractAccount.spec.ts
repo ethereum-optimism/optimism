@@ -2,14 +2,13 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers, waffle } from 'hardhat'
-import { ContractFactory, Contract, Wallet, BigNumber } from 'ethers'
+import { ContractFactory, Contract, Wallet, BigNumber, utils } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
 import { LibEIP155TxStruct, DEFAULT_EIP155_TX } from '../../../helpers'
 import { predeploys } from '../../../../src'
-import { keccak256 } from '@ethersproject/keccak256'
 
 describe('OVM_ECDSAContractAccount', () => {
   let wallet: Wallet
@@ -204,23 +203,20 @@ describe('OVM_ECDSAContractAccount', () => {
     // An integration test exists testing this instead
 
     it(`should revert for a malformed signature`, async () => {
-      const messageHash = keccak256('0x42')
-      let messageHashBinary = ethers.utils.arrayify(messageHash);
+      const messageHash = utils.keccak256('0x42')
       await expect(
-        OVM_ECDSAContractAccount.isValidSignature(messageHashBinary, '0xdeadbeef')
-      ).to.be.revertedWith(
-        'ECDSA: invalid signature length'
-      )
+        OVM_ECDSAContractAccount.isValidSignature(messageHash, '0xdeadbeef')
+      ).to.be.revertedWith('ECDSA: invalid signature length')
     })
 
     it(`should return 0 for an invalid signature`, async () => {
-      const messageHash = keccak256('0x42')
-      let messageHashBinary = ethers.utils.arrayify(messageHash);
-      const signature = await wallet.signMessage(messageHashBinary)
-      const bytes = await OVM_ECDSAContractAccount.isValidSignature(messageHashBinary, signature)
+      const messageHash = utils.keccak256('0x42')
+      const signature = await wallet.signMessage('0x42')
+      const bytes = await OVM_ECDSAContractAccount.isValidSignature(
+        messageHash,
+        signature
+      )
       expect(bytes).to.equal('0x00000000')
     })
   })
-
-
 })
