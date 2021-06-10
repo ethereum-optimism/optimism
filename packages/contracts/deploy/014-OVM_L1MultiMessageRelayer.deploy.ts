@@ -30,7 +30,7 @@ const deployFn: DeployFunction = async (hre) => {
     await registerAddress({
       hre,
       name: 'OVM_L2MessageRelayer',
-      address: OVM_L1MultiMessageRelayer.address
+      address: OVM_L1MultiMessageRelayer.address,
     })
   }
 }
