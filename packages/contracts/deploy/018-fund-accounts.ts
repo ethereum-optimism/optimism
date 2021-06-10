@@ -1,4 +1,5 @@
 /* Imports: External */
+import { sleep } from '@eth-optimism/core-utils'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import {
   defaultHardhatNetworkHdAccountsConfigParams,
@@ -30,7 +31,11 @@ const deployFn: DeployFunction = async (hre) => {
 
     // Fund the accounts in parallel to speed things up.
     await Promise.all(
-      accounts.map(async (account) => {
+      accounts.map(async (account, index) => {
+        // Add a sleep here to avoid any potential issues with spamming hardhat. Not sure if this
+        // is strictly necessary but it can't hurt.
+        await sleep(100 * index)
+
         const wallet = new hre.ethers.Wallet(
           account.privateKey,
           hre.ethers.provider
