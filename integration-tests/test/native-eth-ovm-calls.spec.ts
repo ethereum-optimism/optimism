@@ -297,6 +297,30 @@ describe('Native ETH value integration tests', () => {
       expect(delegatedReturndata).to.deep.eq(BigNumber.from(initialBalance0))
     })
 
+    it('should allow delegate calls which preserve msg.value even with no balance going into the inner call', async () => {
+      const Factory__SendETHAwayAndDelegateCall: ContractFactory = await ethers.getContractFactory(
+        'SendETHAwayAndDelegateCall',
+        wallet
+      )
+      const SendETHAwayAndDelegateCall: Contract = await Factory__SendETHAwayAndDelegateCall.deploy()
+      await SendETHAwayAndDelegateCall.deployTransaction.wait()
+
+      const value = 17
+      const [
+        delegatedSuccess,
+        delegatedReturndata,
+      ] = await SendETHAwayAndDelegateCall.callStatic.emptySelfAndDelegateCall(
+        ValueCalls0.address,
+        ValueCalls0.interface.encodeFunctionData('getCallValue'),
+        {
+          value,
+        }
+      )
+
+      expect(delegatedSuccess).to.be.true
+      expect(delegatedReturndata).to.deep.eq(BigNumber.from(value))
+    })
+
     describe('Intrinsic gas for ovmCALL types', async () => {
       let CALL_WITH_VALUE_INTRINSIC_GAS
       let ValueGasMeasurer: Contract

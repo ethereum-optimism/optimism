@@ -29,6 +29,14 @@ interface iOVM_ExecutionManager {
         PREV_EPOCH_L1TOL2_QUEUE_GAS
     }
 
+    enum MessageType {
+        ovmCALL,
+        ovmSTATICCALL,
+        ovmDELEGATECALL,
+        ovmCREATE,
+        ovmCREATE2
+    }
+
     /***********
      * Structs *
      ***********/
