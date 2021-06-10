@@ -34,7 +34,7 @@ const deployFn: DeployFunction = async (hre) => {
       accounts.map(async (account, index) => {
         // Add a sleep here to avoid any potential issues with spamming hardhat. Not sure if this
         // is strictly necessary but it can't hurt.
-        await sleep(100 * index)
+        await sleep(200 * index)
 
         const wallet = new hre.ethers.Wallet(
           account.privateKey,
@@ -42,14 +42,10 @@ const deployFn: DeployFunction = async (hre) => {
         )
         const balance = await wallet.getBalance()
         const depositAmount = balance.div(2) // Deposit half of the wallet's balance into L2.
-        await Proxy__OVM_L1ETHGateway.connect(wallet).depositTo(
-          wallet.address,
-          8_000_000,
-          '0x',
-          {
-            value: depositAmount,
-          }
-        )
+        await Proxy__OVM_L1ETHGateway.connect(wallet).deposit(8_000_000, '0x', {
+          value: depositAmount,
+          gasLimit: 2_000_000, // Idk, gas estimation was broken and this fixes it.
+        })
         console.log(
           `✓ Funded ${wallet.address} on L2 with ${hre.ethers.utils.formatEther(
             depositAmount
