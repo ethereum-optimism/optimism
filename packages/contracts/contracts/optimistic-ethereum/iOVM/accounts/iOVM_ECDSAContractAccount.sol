@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 
 /**
  * @title iOVM_ECDSAContractAccount
@@ -15,7 +15,7 @@ interface iOVM_ECDSAContractAccount {
      ********************/
 
     function execute(
-        bytes memory _encodedTransaction
+        Lib_EIP155Tx.EIP155Tx memory _transaction
     )
         external
         returns (
