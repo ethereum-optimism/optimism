@@ -7,7 +7,12 @@ import {
 import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { sleep, l2Provider, DEFAULT_TRANSACTION } from './shared/utils'
+import {
+  sleep,
+  l2Provider,
+  DEFAULT_TRANSACTION,
+  fundUser,
+} from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
