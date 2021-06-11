@@ -232,11 +232,30 @@ export abstract class BatchSubmitter {
       gasRetryIncrement: this.gasRetryIncrement,
     }
 
-    const receipt = await BatchSubmitter.getReceiptWithResubmission(
-      txFunc,
-      resubmissionConfig,
-      this.logger
-    )
+    let receipt: TransactionReceipt
+    try {
+      receipt = await BatchSubmitter.getReceiptWithResubmission(
+        txFunc,
+        resubmissionConfig,
+        this.logger
+      )
+    } catch (err) {
+      if (err.reason) {
+        this.logger.error(`Transaction invalid: ${err.reason}, aborting`, {
+          message: err.toString(),
+          stack: err.stack,
+          code: err.code,
+        })
+        return
+      }
+
+      this.logger.error('Encountered error at submission, aborting', {
+        message: err.toString(),
+        stack: err.stack,
+        code: err.code,
+      })
+      return
+    }
 
     this.logger.info('Received transaction receipt', { receipt })
     this.logger.info(successMessage)

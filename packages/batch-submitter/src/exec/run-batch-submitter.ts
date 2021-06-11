@@ -456,13 +456,6 @@ export const run = async () => {
               code: err.code,
             })
             break
-          case 'UNPREDICTABLE_GAS_LIMIT':
-            logger.error('Cannot estimate gas, transaction likely reverted', {
-              message: err.toString(),
-              stack: err.stack,
-              code: err.code,
-            })
-            break
           default:
             logger.error('Unhandled exception during batch submission', {
               message: err.toString(),
