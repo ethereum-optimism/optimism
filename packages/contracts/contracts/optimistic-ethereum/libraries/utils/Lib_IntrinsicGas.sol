@@ -9,6 +9,13 @@ import { Lib_OVMCodec } from "../codec/Lib_OVMCodec.sol";
  * @title Lib_IntrinsicGas
  */
 library Lib_IntrinsicGas {
+
+    /**
+     * Computes the intrinsic gas of the OVM_ECDSAContractAccount
+     * execute method.
+     * @param _datalength Size of the calldata
+     * @return Amount of intrinsic gas used
+     */
     function ecdsaContractAccount(
         uint256 _datalength
     )
