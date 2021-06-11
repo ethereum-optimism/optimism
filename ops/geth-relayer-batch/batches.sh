@@ -23,4 +23,4 @@ curl --fail \
 
 # go
 #exec node ./exec/run-batch-submitter.js
-nohup node /opt/optimism/packages/batch-submitter/exec/run-batch-submitter.js >> t_batch.log &
+nohup node /opt/optimism/packages/batch-submitter/exec/run-batch-submitter.js >> /app/log/t_batch.log &

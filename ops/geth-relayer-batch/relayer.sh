@@ -24,4 +24,4 @@ curl \
 
 # go
 #exec node ./exec/run-message-relayer.js
-nohup node /opt/optimism/packages/message-relayer/exec/run-message-relayer.js >> t_msgrelay.log &
+nohup node /opt/optimism/packages/message-relayer/exec/run-message-relayer.js >> /app/log/t_msgrelay.log &
