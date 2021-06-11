@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService, Metrics } from '@eth-optimism/common-ts'
+import { BaseService, Logger, Metrics } from '@eth-optimism/common-ts'
 import express, { Request, Response } from 'express'
 import promBundle from 'express-prom-bundle'
 import cors from 'cors'
@@ -125,10 +125,17 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
    * Initialize Sentry and related middleware
    */
   private _initSentry() {
-    Sentry.init({
+    const sentryOptions = {
       dsn: this.options.sentryDsn,
       release: this.options.release,
       environment: this.options.ethNetworkName,
+    }
+    this.logger = new Logger({
+      name: this.name,
+      sentryOptions,
+    })
+    Sentry.init({
+      ...sentryOptions,
       integrations: [
         new Sentry.Integrations.Http({ tracing: true }),
         new Tracing.Integrations.Express({
