@@ -200,7 +200,7 @@ describe('OVM_ECDSAContractAccount', () => {
       )
     })
   })
-  
+
   describe('isValidSignature()', () => {
     const message = '0x42'
     const messageHash = ethers.utils.hashMessage(message)
