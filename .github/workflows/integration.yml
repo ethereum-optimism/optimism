@@ -45,18 +45,18 @@ jobs:
         run: docker-compose run integration_tests
 
       # Examples Tests
-      - name: Test & deploy hardhat-example on Ethereum (regression)
-        working-directory: ./examples/hardhat
-        run: |
-          yarn
-          yarn deploy
-          yarn test:integration
+      #- name: Test & deploy hardhat-example on Ethereum (regression)
+      #  working-directory: ./examples/hardhat
+      #  run: |
+      #    yarn
+      #    yarn deploy
+      #    yarn test:integration
 
-      - name: Test & deploy hardhat-example on Optimistic Ethereum
-        working-directory: ./examples/hardhat
-        run: |
-          yarn deploy:ovm
-          yarn test:integration:ovm
+      #- name: Test & deploy hardhat-example on Optimistic Ethereum
+      #  working-directory: ./examples/hardhat
+      #  run: |
+      #    yarn deploy:ovm
+      #    yarn test:integration:ovm
 
       - name: Test & deploy waffle-example on Ethereum (regression)
         working-directory: ./examples/waffle
