@@ -44,7 +44,8 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     // to and INCLUDING the containerization cost of CALL/CREATE, but EXCLUDING
     // the subcall made by the Execution Manager, which will consume at most gasLimit
     // additional gas.
-    uint256 constant EXECUTE_INTRINSIC_GAS = 1455558;
+    // NOTE: This value is made public for reading in integration tests.
+    uint256 constant public EXECUTE_INTRINSIC_GAS = 1455558;
 
 
     /********************

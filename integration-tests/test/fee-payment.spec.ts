@@ -3,20 +3,33 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
 /* Imports: External */
-import { BigNumber, Contract, utils } from 'ethers'
-import { TxGasLimit, TxGasPrice } from '@eth-optimism/core-utils'
+import { ethers } from 'hardhat'
+import { BigNumber, Contract, utils, Wallet, constants, ContractFactory } from 'ethers'
+import { TxGasLimit, TxGasPrice, LibEIP155TxStruct } from '@eth-optimism/core-utils'
 import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
+// TODO: import me from core-utils via kevin's incoming PR
+const DEFAULT_EIP155_TX = {
+  to: `0x${'12'.repeat(20)}`,
+  nonce: 100,
+  gasLimit: 1000000,
+  gasPrice: 100000000,
+  data: `0x${'99'.repeat(10)}`,
+  chainId: 420,
+}
+
 describe('Fee Payment Integration Tests', async () => {
   const other = '0x1234123412341234123412341234123412341234'
 
   let env: OptimismEnv
+  let wallet: Wallet
   before(async () => {
     env = await OptimismEnv.new()
+    wallet = env.l2Wallet
   })
 
   let ovmSequencerFeeVault: Contract
@@ -109,5 +122,49 @@ describe('Fee Payment Integration Tests', async () => {
     expect(balanceAfter.sub(balanceBefore)).to.deep.equal(
       BigNumber.from(vaultBalance)
     )
+  })
+
+  it.only('should use gas not exceeding EXECUTE_INTRINSIC_GAS for a 0-gas transaction', async () => {
+    // Make test path independent by sending a random transaction, causing the ovmCREATEEOA to occur
+    const res = await env.ovmEth.connect(wallet).transfer(constants.AddressZero, 0)
+
+    const iOVM_ECDSAContractAccount = getContractInterface('OVM_ECDSAContractAccount', true)
+
+    const Factory__GasMeasurer: ContractFactory = await ethers.getContractFactory('GasMeasurer', wallet)
+    const GasMeasurer: Contract = await Factory__GasMeasurer.deploy()
+    await GasMeasurer.deployTransaction.wait()
+
+    const queryConstantData = iOVM_ECDSAContractAccount.encodeFunctionData('EXECUTE_INTRINSIC_GAS')
+    const EXECUTE_INTRINSIC_GAS = await wallet.provider.call({
+      to: wallet.address,
+      from: constants.AddressZero,
+      data: queryConstantData
+    })
+
+    const transaction = {
+      ...DEFAULT_EIP155_TX,
+      to: constants.AddressZero, // this will consume the minimal gas possible
+      data: '0x' + Buffer.alloc(127000).toString('hex'),
+    }
+    const executableTransaction = LibEIP155TxStruct(await wallet.signTransaction(transaction))
+    const calldataToContractAccount = iOVM_ECDSAContractAccount.encodeFunctionData(
+      'execute',
+      [executableTransaction]
+    )
+
+    console.log('here')
+
+    const gasCost = await GasMeasurer.callStatic.measureGasCostOfCall(
+      wallet.address,
+      calldataToContractAccount,
+      {
+        gasLimit: 4_000_000
+      }
+    )
+
+    console.log('intrinsic gas constant:')
+    console.log(EXECUTE_INTRINSIC_GAS)
+    console.log('observed gas cost:')
+    console.log(gasCost)
   })
 })
