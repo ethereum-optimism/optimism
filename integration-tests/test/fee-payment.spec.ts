@@ -124,7 +124,7 @@ describe('Fee Payment Integration Tests', async () => {
     )
   })
 
-  it.only('should use gas not exceeding EXECUTE_INTRINSIC_GAS for a 0-gas transaction', async () => {
+  it.skip('should use gas not exceeding EXECUTE_INTRINSIC_GAS for a 0-gas transaction', async () => {
     // Make test path independent by sending a random transaction, causing the ovmCREATEEOA to occur
     const res = await env.ovmEth.connect(wallet).transfer(constants.AddressZero, 0)
 
