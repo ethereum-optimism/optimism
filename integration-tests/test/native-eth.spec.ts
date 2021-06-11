@@ -11,7 +11,7 @@ import {
 import { OptimismEnv } from './shared/env'
 
 const DEFAULT_TEST_GAS_L1 = 330_000
-const DEFAULT_TEST_GAS_L2 = 1_000_000
+const DEFAULT_TEST_GAS_L2 = 1_300_000
 // TX size enforced by CTC:
 const MAX_ROLLUP_TX_SIZE = 50_000
 
