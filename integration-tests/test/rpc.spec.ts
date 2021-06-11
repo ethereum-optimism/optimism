@@ -7,7 +7,12 @@ import {
 import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { sleep, l2Provider, l1Provider, fundUser } from './shared/utils'
+import {
+  sleep,
+  l2Provider,
+  DEFAULT_TRANSACTION,
+  fundUser,
+} from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
@@ -21,14 +26,6 @@ chai.use(solidity)
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
   let wallet: Wallet
-
-  const DEFAULT_TRANSACTION = {
-    to: '0x' + '1234'.repeat(10),
-    gasLimit: 33600000000001,
-    gasPrice: 0,
-    data: '0x',
-    value: 0,
-  }
 
   const provider = injectL2Context(l2Provider)
 
