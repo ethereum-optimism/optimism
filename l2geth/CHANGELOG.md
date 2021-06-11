@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.8
+
+### Patch Changes
+
+- 989a3027: Optimize main polling loops
+- cc6c7f07: Bump golang version to 1.15
+
 ## 0.3.7
 
 ### Patch Changes
