@@ -85,8 +85,14 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     receive()
         external
         payable
+        onlyEOA()
     {
-        _initiateETHDeposit(msg.sender, msg.sender, 1_300_000, bytes(""));
+        _initiateETHDeposit(
+            msg.sender,
+            msg.sender,
+            1_300_000,
+            bytes("")
+        );
     }
 
     /**
@@ -150,7 +156,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
         bytes memory message =
             abi.encodeWithSelector(
                 iOVM_L2ERC20Bridge.finalizeDeposit.selector,
-                0,
+                address(0),
                 Lib_PredeployAddresses.OVM_ETH,
                 _from,
                 _to,
@@ -230,6 +236,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
         internal
     {
         // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future withdrawals.
+        // safeTransferFrom also checks if the contract has code, so this will fail if _from is an EOA or address(0).
         IERC20(_l1Token).safeTransferFrom(
             _from,
             address(this),

@@ -18,7 +18,6 @@ import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol"
 
 /* Contract Imports */
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
-import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
 
 /* External Imports */
 import { Math } from "@openzeppelin/contracts/math/Math.sol";

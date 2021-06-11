@@ -60,7 +60,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     function withdraw(
         address _l2Token,
         uint256 _amount,
-        uint32, // _l1Gas,
+        uint32 _l1Gas,
         bytes calldata _data
     )
         external
@@ -72,7 +72,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
             msg.sender,
             msg.sender,
             _amount,
-            0,
+            _l1Gas,
             _data
         );
     }
@@ -84,7 +84,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         address _l2Token,
         address _to,
         uint256 _amount,
-        uint32, // _l1Gas,
+        uint32 _l1Gas,
         bytes calldata _data
     )
         external
@@ -96,7 +96,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
             msg.sender,
             _to,
             _amount,
-            0,
+            _l1Gas,
             _data
         );
     }
@@ -117,7 +117,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         address _from,
         address _to,
         uint256 _amount,
-        uint32, // _l1Gas,
+        uint32 _l1Gas,
         bytes calldata _data
     )
         internal
@@ -152,7 +152,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         // Send message up to L1 bridge
         sendCrossDomainMessage(
             l1TokenBridge,
-            0,
+            _l1Gas,
             message
         );
 
@@ -184,13 +184,11 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         if (
             ERC165Checker.supportsInterface(_l2Token, 0x1d1d8b63) &&
             _l1Token == IL2StandardERC20(_l2Token).l1Token()
-        )
-        {
+        ) {
             // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
             IL2StandardERC20(_l2Token).mint(_to, _amount);
             emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
-        }
-        else {
+        } else {
             // Either the L2 token which is being deposited-into disagrees about the correct address
             // of its L1 token, or does not support the correct interface.
             // This should only happen if there is a  malicious L2 token, or if a user somehow
@@ -215,6 +213,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
                 0,
                 message
             );
+            emit DepositFailed(_l1Token, _l2Token, _from, _to, _amount, _data);
         }
     }
 }

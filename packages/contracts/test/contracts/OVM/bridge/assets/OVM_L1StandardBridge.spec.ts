@@ -377,6 +377,7 @@ describe('OVM_L1StandardBridge', () => {
 
     describe('Handling ERC20.transferFrom() failures that revert ', () => {
       let MOCK__L1ERC20: MockContract
+
       before(async () => {
         // Deploy the L1 ERC20 token, Alice will receive the full initialSupply
         MOCK__L1ERC20 = await smockit(
@@ -384,6 +385,7 @@ describe('OVM_L1StandardBridge', () => {
         )
         MOCK__L1ERC20.smocked.transferFrom.will.revert()
       })
+
       it('depositERC20(): will revert if ERC20.transferFrom() reverts', async () => {
         await expect(
           OVM_L1StandardBridge.connect(alice).depositERC20(
@@ -407,6 +409,19 @@ describe('OVM_L1StandardBridge', () => {
             NON_NULL_BYTES32
           )
         ).to.be.revertedWith('SafeERC20: low-level call failed')
+      })
+
+      it('depositERC20To(): will revert if the L1 ERC20 has no code or is zero address', async () => {
+        await expect(
+          OVM_L1StandardBridge.connect(alice).depositERC20To(
+            ethers.constants.AddressZero,
+            DUMMY_L2_ERC20_ADDRESS,
+            bobsAddress,
+            depositAmount,
+            FINALIZATION_GAS,
+            NON_NULL_BYTES32
+          )
+        ).to.be.revertedWith('Address: call to non-contract')
       })
     })
 

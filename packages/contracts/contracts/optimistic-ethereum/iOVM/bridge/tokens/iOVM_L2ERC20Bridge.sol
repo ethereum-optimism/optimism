@@ -29,6 +29,15 @@ interface iOVM_L2ERC20Bridge {
         bytes _data
     );
 
+    event DepositFailed (
+        address indexed _l1Token,
+        address indexed _l2Token,
+        address indexed _from,
+        address _to,
+        uint256 _amount,
+        bytes _data
+    );
+
 
     /********************
      * Public Functions *

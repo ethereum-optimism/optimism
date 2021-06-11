@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
+/* Library Imports */
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+
 /* Contract Imports */
 import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
 
@@ -18,9 +21,9 @@ contract OVM_ETH is L2StandardERC20 {
      * Constructor *
      ***************/
 
-    constructor(address _l2Bridge)
+    constructor()
         L2StandardERC20(
-            _l2Bridge,
+            Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
             address(0),
             "Ether",
             "ETH"
