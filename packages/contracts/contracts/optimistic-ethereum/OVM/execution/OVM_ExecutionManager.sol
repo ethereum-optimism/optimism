@@ -643,11 +643,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
-<<<<<<< HEAD
         nextMessageContext.ovmCALLVALUE = _value;
 
-=======
->>>>>>> 9ede4837 (feat(contracts): add safety cache)
         return _callContract(
             nextMessageContext,
             _gasLimit,
