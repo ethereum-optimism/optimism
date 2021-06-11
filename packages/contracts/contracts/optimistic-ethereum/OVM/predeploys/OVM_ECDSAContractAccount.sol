@@ -109,7 +109,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             "Gas is not sufficient to execute the transaction."
         );
 
-        uint256 intrinsicGas = Lib_IntrinsicGas.ecdsaContractAccount(_transaction);
+        uint256 intrinsicGas = Lib_IntrinsicGas.ecdsaContractAccount(_transaction.data.length);
         uint256 subCallGasLimit = SafeMath.sub(gasLimit, intrinsicGas);
 
         // Address of this contract within the ovm (ovmADDRESS) should be the same as the
