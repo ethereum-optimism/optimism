@@ -15,10 +15,10 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
-import { IUniswapV2ERC20 } from "../../libraries/standards/IUniswapV2ERC20.sol";
 
 /* Contract Imports */
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
+import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
 
 /* External Imports */
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
@@ -898,8 +898,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         )
     {
         // Easiest way to get the balance is query OVM_ETH as normal.
-        bytes memory balanceOfCalldata = abi.encodeWithSelector(
-            IUniswapV2ERC20.balanceOf.selector,
+        bytes memory balanceOfCalldata = abi.encodeWithSignature(
+            "balanceOf(address)",
             _contract
         );
 
@@ -1108,7 +1108,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         ) {
             // Handle out-of-intrinsic gas consistent with EVM behavior -- the subcall "appears to revert" if we don't have enough gas to transfer the ETH.
             // Similar to dynamic gas cost of value exceeding gas here:
-            // https://github.com/ethereum/go-ethereum/blob/c503f98f6d5e80e079c1d8a3601d188af2a899da/core/vm/interpreter.go#L268-L273 
+            // https://github.com/ethereum/go-ethereum/blob/c503f98f6d5e80e079c1d8a3601d188af2a899da/core/vm/interpreter.go#L268-L273
             if (gasleft() < CALL_WITH_VALUE_INTRINSIC_GAS) {
                 return (false, hex"");
             }
@@ -1357,10 +1357,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bool _success
         )
     {
-        bytes memory transferCalldata = abi.encodeWithSelector(
-            IUniswapV2ERC20.transfer.selector,
-             _to,
-             _value
+        bytes memory transferCalldata = abi.encodeWithSignature(
+            "transfer(address,uint256)",
+            _to,
+            _value
         );
 
         // OVM_ETH inherits from the UniswapV2ERC20 standard.  In this implementation, its return type
