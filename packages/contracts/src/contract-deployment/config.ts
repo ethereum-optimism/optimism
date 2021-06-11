@@ -233,6 +233,10 @@ export const makeContractDeployConfig = async (
         '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
       ],
     },
+    MVM_GasOracle: {
+      factory: getContractFactory('MVM_GasOracle'),
+      params: [],
+    },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
       params: [

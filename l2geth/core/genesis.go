@@ -339,6 +339,23 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 			statedb.SetState(MVM_Coinbase.Address, l1GatewaySlot, l1GatewayValue)
 		}
 	}
+	MVM_GasOracle, ok := stateDump.Accounts["MVM_GasOracle"]
+	if ok {
+		log.Info("Setting OVM_L1ETHGateway in MVM_GasOracle", "address", gateway.Hex())
+		if strings.Contains(MVM_GasOracle.Code, "a84ce98") {
+			// Set the gateway of MVM_GasOracle at new dump
+			log.Info("Detected current MVM_GasOracle dump, setting slot 0x1 ")
+			l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+			l1GatewayValue := common.BytesToHash(gateway.Bytes())
+			statedb.SetState(MVM_GasOracle.Address, l1GatewaySlot, l1GatewayValue)
+		} else {
+			// Set the gateway of MVM_GasOracle at legacy slot
+			log.Info("Detected legacy MVM_GasOracle dump, setting slot 0x8")
+			l1GatewaySlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000008")
+			l1GatewayValue := common.BytesToHash(gateway.Bytes())
+			statedb.SetState(MVM_GasOracle.Address, l1GatewaySlot, l1GatewayValue)
+		}
+	}
 	ExecutionManager, ok := stateDump.Accounts["OVM_ExecutionManager"]
 	if ok {
 		if chainID == nil {
