@@ -5,10 +5,11 @@ import { ethers, waffle } from 'hardhat'
 import { ContractFactory, Contract, Signer, Wallet } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
+import { LibEIP155TxStruct } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { predeploys } from '../../../../src'
-import { DEFAULT_EIP155_TX, LibEIP155TxStruct } from '../../../helpers'
+import { DEFAULT_EIP155_TX } from '../../../helpers'
 
 describe('OVM_ProxyEOA', () => {
   let signer: Signer

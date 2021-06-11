@@ -5,9 +5,10 @@ import { ethers, waffle } from 'hardhat'
 import { ContractFactory, Contract, Wallet, BigNumber, utils } from 'ethers'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
+import { LibEIP155TxStruct } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { LibEIP155TxStruct, DEFAULT_EIP155_TX } from '../../../helpers'
+import { DEFAULT_EIP155_TX } from '../../../helpers'
 import { predeploys } from '../../../../src'
 
 describe('OVM_ECDSAContractAccount', () => {

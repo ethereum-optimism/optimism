@@ -7,11 +7,10 @@ import { smockit, MockContract, unbind } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
-import { DEFAULT_EIP155_TX, LibEIP155TxStruct } from '../../../helpers'
+import { DEFAULT_EIP155_TX } from '../../../helpers'
 import {
   getContractInterface,
   predeploys,
-  getContractFactory,
 } from '../../../../src'
 
 describe('OVM_SequencerEntrypoint', () => {
