@@ -32,6 +32,7 @@
     "@eth-optimism/common-ts": "^0.1.2",
     "@eth-optimism/contracts": "^0.3.5",
     "@eth-optimism/core-utils": "^0.4.5",
+    "@sentry/node": "6.2.5",
     "bcfg": "^0.1.6",
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",
