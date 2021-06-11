@@ -13,6 +13,7 @@ import {
   padHexString,
   SEQUENCER_ENTRYPOINT_ADDRESS,
   SEQUENCER_GAS_LIMIT,
+  parseSignatureVParam,
 } from '../../../utils'
 
 export const handleSequencerBlock = {
@@ -43,7 +44,7 @@ export const handleSequencerBlock = {
     if (transaction.queueOrigin === 'sequencer') {
       const decodedTransaction: DecodedSequencerBatchTransaction = {
         sig: {
-          v: BigNumber.from(transaction.v).toNumber() - 2 * chainId - 35,
+          v: parseSignatureVParam(transaction.v, chainId),
           r: padHexString(transaction.r, 32),
           s: padHexString(transaction.s, 32),
         },

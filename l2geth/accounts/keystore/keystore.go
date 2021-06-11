@@ -21,6 +21,7 @@
 package keystore
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"errors"
@@ -36,8 +37,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -80,6 +83,21 @@ func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 	keydir, _ = filepath.Abs(keydir)
 	ks := &KeyStore{storage: &keyStorePassphrase{keydir, scryptN, scryptP, false}}
 	ks.init(keydir)
+	if vm.UsingOVM {
+		// Add a deterministic key to the key store so that
+		// all clique blocks are signed with the same key
+		input := make([]byte, 65)
+		rng := bytes.NewReader(input)
+		key, err := newKey(rng)
+		log.Info("Adding key to keyring", "address", key.Address.Hex())
+		if err != nil {
+			panic(fmt.Sprintf("cannot create key: %s", err))
+		}
+		_, err = ks.importKey(key, "")
+		if err != nil {
+			panic(fmt.Sprintf("cannot import key: %s", err))
+		}
+	}
 	return ks
 }
 

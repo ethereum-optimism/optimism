@@ -1,5 +1,16 @@
 # @eth-optimism/smock
 
+## 1.1.5
+
+### Patch Changes
+
+- 5e3c5d1c: Fixes a bug that would break call assertions for overloaded smocked functions
+- e6e87ae1: Fix a bug where overloaded functions would not be handled correctly
+- Updated dependencies [a64f8161]
+- Updated dependencies [750a5021]
+- Updated dependencies [c2b6e14b]
+  - @eth-optimism/core-utils@0.4.5
+
 ## 1.1.4
 
 ### Patch Changes

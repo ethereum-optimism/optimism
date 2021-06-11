@@ -1,5 +1,30 @@
 # data transport layer
 
+## 0.3.5
+
+### Patch Changes
+
+- 1b692415: incorrect parsing of eth_getBlockRange result
+
+## 0.3.4
+
+### Patch Changes
+
+- f1b27318: Represent gaslimit as a string to avoid an overflow
+- 750a5021: Remove dead imports from core-utils
+- 1293825c: Fix gasLimit overflow
+- a75f05b7: Fixes a bug that prevented verifiers from syncing properly with the DTL
+- e52ccd98: Logs the error stacktrace for a failed HTTP request
+- 8ac4c74c: improve slow blocking JSON parsing that occurs during l2 sync
+- Updated dependencies [a64f8161]
+- Updated dependencies [4e03f8a9]
+- Updated dependencies [8e2bfd07]
+- Updated dependencies [750a5021]
+- Updated dependencies [c2b6e14b]
+- Updated dependencies [245136f1]
+  - @eth-optimism/core-utils@0.4.5
+  - @eth-optimism/contracts@0.3.5
+
 ## 0.3.3
 
 ### Patch Changes
