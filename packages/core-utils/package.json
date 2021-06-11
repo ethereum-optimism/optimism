@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.0.9",
+    "@ethersproject/transactions": "^5.0.31",
     "ethers": "^5.0.31",
     "lodash": "^4.17.21"
   }

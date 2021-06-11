@@ -8,10 +8,7 @@ import { toPlainObject } from 'lodash'
 
 /* Internal Imports */
 import { DEFAULT_EIP155_TX } from '../../../helpers'
-import {
-  getContractInterface,
-  predeploys,
-} from '../../../../src'
+import { getContractInterface, predeploys } from '../../../../src'
 
 describe('OVM_SequencerEntrypoint', () => {
   const iOVM_ECDSAContractAccount = getContractInterface(
