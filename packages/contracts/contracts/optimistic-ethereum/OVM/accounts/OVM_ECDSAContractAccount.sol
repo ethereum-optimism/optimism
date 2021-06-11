@@ -15,6 +15,7 @@ import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
 
 /* External Imports */
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { ECDSA } from "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
 /**
  * @title OVM_ECDSAContractAccount
@@ -55,6 +56,26 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         payable
     {
         return;
+    }
+
+   /**
+    * @dev Should return whether the signature provided is valid for the provided data
+    * @param hash      Hash of the data to be signed
+    * @param signature Signature byte array associated with _data
+    */
+    function isValidSignature(
+        bytes32 hash,
+        bytes memory signature
+    )
+        public
+        view
+        returns (
+            bytes4 magicValue
+        )
+    {
+        return ECDSA.recover(hash, signature) == address(this) ?
+            this.isValidSignature.selector :
+            bytes4(0);
     }
 
     /**
