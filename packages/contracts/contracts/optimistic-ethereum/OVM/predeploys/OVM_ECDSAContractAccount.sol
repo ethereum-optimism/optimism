@@ -9,6 +9,7 @@ import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContrac
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import { Lib_IntrinsicGas } from "../../libraries/utils/Lib_IntrinsicGas.sol";
 
 /* Contract Imports */
 import { OVM_ETH } from "../predeploys/OVM_ETH.sol";
@@ -104,9 +105,12 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         // Need to make sure that the gas is sufficient to execute the transaction.
         require(
-            gasleft() >= SafeMath.add(gasLimit, EXECUTE_INTRINSIC_GAS),
+            gasleft() >= gasLimit,
             "Gas is not sufficient to execute the transaction."
         );
+
+        uint256 intrinsicGas = Lib_IntrinsicGas.ecdsaContractAccount(_transaction);
+        uint256 subCallGasLimit = SafeMath.sub(gasLimit, intrinsicGas);
 
         // Address of this contract within the ovm (ovmADDRESS) should be the same as the
         // recovered address of the user who signed this message. This is how we manage to shim
@@ -145,7 +149,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
             (address created, bytes memory revertdata) = Lib_ExecutionManagerWrapper.ovmCREATE(
                 _transaction.data,
-                gasLimit
+                subCallGasLimit
             );
 
             // Return true if the contract creation succeeded, false w/ revertdata otherwise.
@@ -168,7 +172,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
                 "Calls to self are disabled until upgradability is re-enabled."
             );
 
-            return _transaction.to.call{value: _transaction.value, gas: gasLimit}(_transaction.data);
+            return _transaction.to.call{value: _transaction.value, gas: subCallGasLimit}(_transaction.data);
         }
     }
 }

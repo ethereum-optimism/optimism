@@ -9,6 +9,7 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
+import { Lib_IntrinsicGas } from "../../libraries/utils/Lib_IntrinsicGas.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
@@ -2188,6 +2189,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Set the ovmADDRESS to the _from so that the subsequent call frame "comes from" them.
         messageContext.ovmADDRESS = _from;
+
+        // Burn gas to account for the OVM_ECDSAContractAccount `execute` code
+        // that is skipped during `eth_call`
+        uint256 i;
+        uint256 initialGas = gasleft();
+        uint256 gasToConsume = Lib_IntrinsicGas.ecdsaContractAccount(_transaction.data.length);
+        while(initialGas - gasleft() < gasToConsume) {
+            i++;
+        }
 
         // Execute the desired message.
         bool isCreate = _transaction.entrypoint == address(0);
