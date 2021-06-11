@@ -41,7 +41,7 @@ describe('Native ETH value integration tests', () => {
     }
 
     const value = 10
-    await fundUser(env.watcher, env.gateway, value, wallet.address)
+    await fundUser(env.watcher, env.l1Bridge, value, wallet.address)
 
     const initialBalances = await getBalances()
 
@@ -142,7 +142,7 @@ describe('Native ETH value integration tests', () => {
       ValueCalls1 = await Factory__ValueCalls.deploy()
       await fundUser(
         env.watcher,
-        env.gateway,
+        env.l1Bridge,
         initialBalance0,
         ValueCalls0.address
       )
@@ -189,7 +189,7 @@ describe('Native ETH value integration tests', () => {
       const initialBalance = 10
       await fundUser(
         env.watcher,
-        env.gateway,
+        env.l1Bridge,
         initialBalance,
         ValueCalls1.address
       )

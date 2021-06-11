@@ -239,7 +239,7 @@ export class ExecutionManagerTestRunner {
       'OVM_ETH',
       AddressManager.signer,
       true
-    ).deploy(ethers.constants.AddressZero, ethers.constants.AddressZero)
+    ).deploy(ethers.constants.AddressZero)
 
     this.contracts.OVM_ETH = OvmEth
 
