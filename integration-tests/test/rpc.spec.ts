@@ -12,6 +12,7 @@ import {
   l2Provider,
   DEFAULT_TRANSACTION,
   fundUser,
+  expectApprox,
 } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
@@ -376,7 +377,8 @@ describe('Basic RPC tests', () => {
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
-      expect(estimate).to.be.eq(5920012)
+      // Expect gas to be less than or equal to the target plus 1%
+      expectApprox(estimate, 5920012, 1)
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
