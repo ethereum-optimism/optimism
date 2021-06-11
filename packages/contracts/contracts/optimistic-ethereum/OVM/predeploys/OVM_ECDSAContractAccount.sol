@@ -138,7 +138,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
         if (_transaction.isCreate) {
             // TEMPORARY: Disable value transfer for contract creations.
-             require(
+            require(
                 _transaction.value == 0,
                 "Value transfer in contract creation not supported."
             );
