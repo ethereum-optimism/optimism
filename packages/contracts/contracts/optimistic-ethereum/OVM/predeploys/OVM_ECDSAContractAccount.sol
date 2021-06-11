@@ -45,8 +45,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     // the subcall made by the Execution Manager, which will consume at most gasLimit
     // additional gas.
     // NOTE: This value is made public for reading in integration tests.
-    uint256 constant public EXECUTE_INTRINSIC_GAS = 1455558;
-
+    uint256 constant public EXECUTE_INTRINSIC_GAS = 2789889;
 
     /********************
      * Public Functions *

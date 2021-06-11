@@ -129,17 +129,25 @@ describe('Fee Payment Integration Tests', async () => {
     const res = await env.ovmEth.connect(wallet).transfer(constants.AddressZero, 0)
 
     const iOVM_ECDSAContractAccount = getContractInterface('OVM_ECDSAContractAccount', true)
+    const iOVM_ProxyEOA = getContractInterface('OVM_ProxyEOA', true)
+
+    const OVM_ECDSAContractAccount = new Contract(
+      await wallet.getAddress(),
+      iOVM_ECDSAContractAccount,
+      wallet
+    )
+
+    const OVM_ProxyEOA = new Contract(
+      await wallet.getAddress(),
+      iOVM_ProxyEOA,
+      wallet
+    )
+
+    const EXECUTE_INTRINSIC_GAS = await OVM_ECDSAContractAccount.callStatic.EXECUTE_INTRINSIC_GAS()
 
     const Factory__GasMeasurer: ContractFactory = await ethers.getContractFactory('GasMeasurer', wallet)
     const GasMeasurer: Contract = await Factory__GasMeasurer.deploy()
     await GasMeasurer.deployTransaction.wait()
-
-    const queryConstantData = iOVM_ECDSAContractAccount.encodeFunctionData('EXECUTE_INTRINSIC_GAS')
-    const EXECUTE_INTRINSIC_GAS = await wallet.provider.call({
-      to: wallet.address,
-      from: constants.AddressZero,
-      data: queryConstantData
-    })
 
     const transaction = {
       ...DEFAULT_EIP155_TX,
@@ -152,8 +160,6 @@ describe('Fee Payment Integration Tests', async () => {
       [executableTransaction]
     )
 
-    console.log('here')
-
     const gasCost = await GasMeasurer.callStatic.measureGasCostOfCall(
       wallet.address,
       calldataToContractAccount,
@@ -162,9 +168,15 @@ describe('Fee Payment Integration Tests', async () => {
       }
     )
 
-    console.log('intrinsic gas constant:')
-    console.log(EXECUTE_INTRINSIC_GAS)
-    console.log('observed gas cost:')
-    console.log(gasCost)
+    const proxy = await GasMeasurer.callStatic.measureGasCostOfCall(
+      wallet.address,
+      iOVM_ProxyEOA.encodeFunctionData('getImplementation'),
+      []
+    )
+
+    console.log(EXECUTE_INTRINSIC_GAS.toString())
+    console.log(gasCost.toString())
+    //expect(gasCost).instanceof(BigNumber)
+    //expect(gasCost.sub(proxy).lte(EXECUTE_INTRINSIC_GAS)).to.be.true
   })
 })
