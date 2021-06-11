@@ -356,13 +356,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // Verify all of the batch elements are monotonic
     let lastTimestamp: number
     let lastBlockNumber: number
-    for (const ele of batch) {
+    for (const [idx, ele] of batch.entries()) {
       if (ele.timestamp < lastTimestamp) {
-        this.logger.error('Timestamp monotonicity violated! Element', { ele })
+        this.logger.error('Timestamp monotonicity violated! Element', {
+          idx,
+          ele,
+        })
         return false
       }
       if (ele.blockNumber < lastBlockNumber) {
         this.logger.error('Block Number monotonicity violated! Element', {
+          idx,
           ele,
         })
         return false
