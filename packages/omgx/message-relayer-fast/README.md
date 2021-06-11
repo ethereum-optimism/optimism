@@ -19,7 +19,7 @@ yarn start
 
 - To run tests
 ```
-yarn test
+yarn test:integration
 ```
 
 ## env settings

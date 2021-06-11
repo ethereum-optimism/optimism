@@ -6,7 +6,7 @@
     "build": "TARGET=ovm hardhat compile --network omgx ",
     "deploy": "TARGET=ovm hardhat --network omgx run scripts/deploy.js",
     "analyze": "TARGET=ovm hardhat run scripts/analyze.js",
-    "test": "hardhat test"
+    "test:contracts": "hardhat test"
   },
   "dependencies": {
     "@eth-optimism/hardhat-ovm": "^0.0.3"

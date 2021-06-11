@@ -114,7 +114,7 @@ You should then see a list of contract addresses.
 ## Testing
 
 ```bash
-yarn test
+yarn test:contracts
 ```
 
 If you get `Error: insufficient funds for intrinsic transaction cost`, this means you need to explicitely set `{gasPrice: 0, gasLimit: 800000}` when you call contracts, such as in `await this.Factory__MasterChef.deploy`.
