@@ -226,9 +226,9 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
         // Send calldata into L2
         sendCrossDomainMessageViaChainId(
             _chainId,
-            ovmEth,
+            l2DepositedToken,
             data,
-            getFinalizeDepositL2Gas
+            getFinalizeDepositL2Gas()
         );
 
         emit DepositInitiated(_from, _to, _amount);

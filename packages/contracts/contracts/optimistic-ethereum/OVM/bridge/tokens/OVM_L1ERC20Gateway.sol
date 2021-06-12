@@ -48,7 +48,8 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway, Lib_AddressResolver {
 
     /**
      * @param _libAddressManager Address manager for this OE deployment
-     * @param _ovmEth L2 OVM_ETH implementation of iOVM_DepositedToken
+     * @param _l2DepositedERC20 L2 ERC20 implementation of iOVM_DepositedToken
+     * @param _l1ERC20 L1 ERC20 Contract
      */
     function initialize(
         address _libAddressManager,
