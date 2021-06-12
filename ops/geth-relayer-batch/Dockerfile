@@ -4,6 +4,7 @@ RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
 RUN apt-get -y install nodejs
 RUN apt-get -y install git binutils
 RUN mkdir -p /efs
+RUN mkdir -p /root/.ethereum
 
 WORKDIR /efs
 RUN git clone https://github.com/aws/efs-utils

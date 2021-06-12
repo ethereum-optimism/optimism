@@ -38,6 +38,7 @@ def update_chain():
     if efs_id is not None and access_point_id is not None:
         output=_try_cmd(['mount', '-t', 'efs', '-o', f'tls,accesspoint={access_point_id}',f'{efs_id}:', the_path])
         logging.warn(f'mount to ap: {efs_id},{access_point_id},{output}')
+        _try_cmd(['mkdir', '-p', f'{the_path}/.ethereum'])
         _try_cmd(['mount','--bind',f'{the_path}/.ethereum','/root/.ethereum'])
         logging.warn(f"mount to root ethereum: mount --bind {the_path}/.ethereum /root/.ethereum")
     if output is None or len(output)<=0:
