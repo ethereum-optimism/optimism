@@ -8,8 +8,3 @@ export type Uint16 = number
 export type Uint8 = number
 export type Uint24 = number
 export type Address = string
-
-export interface Coder {
-  encode: Function
-  decode: Function
-}

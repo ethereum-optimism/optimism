@@ -1,8 +1,10 @@
 import { expect } from 'chai'
 
 /* Imports: External */
+
 import { Contract, ContractFactory, utils } from 'ethers'
 import { predeploys, getContractInterface } from '@metis.io/contracts'
+
 import { Direction } from './shared/watcher-utils'
 
 /* Imports: Internal */
@@ -76,6 +78,7 @@ describe('Basic L1<>L2 Communication', async () => {
     it('should deposit from L1 -> L2', async () => {
       const value = `0x${'42'.repeat(32)}`
 
+<<<<<<< HEAD
     // Send L1 -> L2 message.
     const transaction = await env.l1Messenger.sendMessageViaChainId(
       420,
@@ -159,6 +162,86 @@ describe('Basic L1<>L2 Communication', async () => {
         5000000
       )
 
+=======
+      // Send L1 -> L2 message.
+      const transaction = await env.l1Messenger.sendMessage(
+        L2SimpleStorage.address,
+        L2SimpleStorage.interface.encodeFunctionData('setValue', [value]),
+        5000000
+      )
+
+      await env.waitForXDomainTransaction(transaction, Direction.L1ToL2)
+
+      expect(await L2SimpleStorage.msgSender()).to.equal(
+        env.l2Messenger.address
+      )
+      expect(await L2SimpleStorage.xDomainSender()).to.equal(
+        env.l1Wallet.address
+      )
+      expect(await L2SimpleStorage.value()).to.equal(value)
+      expect((await L2SimpleStorage.totalCount()).toNumber()).to.equal(1)
+    })
+
+    it('should have a receipt with a status of 1 for a successful message', async () => {
+      const value = `0x${'42'.repeat(32)}`
+
+      // Send L1 -> L2 message.
+      const transaction = await env.l1Messenger.sendMessage(
+        L2SimpleStorage.address,
+        L2SimpleStorage.interface.encodeFunctionData('setValue', [value]),
+        5000000
+      )
+
+      const { remoteReceipt } = await env.waitForXDomainTransaction(
+        transaction,
+        Direction.L1ToL2
+      )
+
+      expect(remoteReceipt.status).to.equal(1)
+    })
+
+    it('should have a receipt with a status of 0 for a failed message', async () => {
+      // Send L1 -> L2 message.
+      const transaction = await env.l1Messenger.sendMessage(
+        L2Reverter.address,
+        L2Reverter.interface.encodeFunctionData('doRevert', []),
+        5000000
+      )
+
+      const { remoteReceipt } = await env.waitForXDomainTransaction(
+        transaction,
+        Direction.L1ToL2
+      )
+
+      expect(remoteReceipt.status).to.equal(0)
+    })
+
+    it('should have a receipt with a status of 0 for messages sent to 0x42... addresses', async () => {
+      // This call is fine but will give a status of 0.
+      const transaction = await env.l1Messenger.sendMessage(
+        predeploys.Lib_AddressManager,
+        getContractInterface(
+          'Lib_AddressManager'
+        ).encodeFunctionData('getAddress', ['whatever']),
+        5000000
+      )
+
+      const { remoteReceipt } = await env.waitForXDomainTransaction(
+        transaction,
+        Direction.L1ToL2
+      )
+
+      expect(remoteReceipt.status).to.equal(0)
+    })
+
+    it('should have a receipt with a status of 0 for messages sent to 0xdead... addresses', async () => {
+      const transaction = await env.l1Messenger.sendMessage(
+        '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
+        '0x',
+        5000000
+      )
+
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
       const { remoteReceipt } = await env.waitForXDomainTransaction(
         transaction,
         Direction.L1ToL2

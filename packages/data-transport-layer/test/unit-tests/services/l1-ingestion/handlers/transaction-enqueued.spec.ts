@@ -1,6 +1,9 @@
+import { expect } from '../../../../setup'
+
+/* Imports: External */
 import { ethers, BigNumber } from 'ethers'
 
-import { expect } from '../../../../setup'
+/* Imports: Internal */
 import { handleEventsTransactionEnqueued } from '../../../../../src/services/l1-ingestion/handlers/transaction-enqueued'
 
 const MAX_ITERATIONS = 128
@@ -21,9 +24,8 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
     // to test. We could add a lot more tests that guarantee the correctness of the provided input,
     // but it's probably better to get wider test coverage first.
 
-    //no test data now
-    it.skip('should have a ctcIndex equal to null', () => {
-      const input1: [any, any] = [
+    it('should have a ctcIndex equal to null', () => {
+      const input1: [any, any, number] = [
         {
           blockNumber: 0,
           args: {
@@ -33,6 +35,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
           },
         },
         null,
+        0,
       ]
 
       const output1 = handleEventsTransactionEnqueued.parseEvent(...input1)
@@ -48,7 +51,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
         i < Number.MAX_SAFE_INTEGER;
         i += Math.floor(Number.MAX_SAFE_INTEGER / MAX_ITERATIONS)
       ) {
-        const input1: [any, any] = [
+        const input1: [any, any, number] = [
           {
             blockNumber: i,
             args: {
@@ -58,6 +61,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
             },
           },
           null,
+          0,
         ]
 
         const output1 = handleEventsTransactionEnqueued.parseEvent(...input1)
@@ -74,7 +78,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
         i < Number.MAX_SAFE_INTEGER;
         i += Math.floor(Number.MAX_SAFE_INTEGER / MAX_ITERATIONS)
       ) {
-        const input1: [any, any] = [
+        const input1: [any, any, number] = [
           {
             blockNumber: 0,
             args: {
@@ -84,6 +88,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
             },
           },
           null,
+          0,
         ]
 
         const output1 = handleEventsTransactionEnqueued.parseEvent(...input1)
@@ -94,13 +99,13 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
       }
     })
 
-    it('should have a gasLimit equal to the integer value of the _gasLimit argument', () => {
+    it('should have a gasLimit equal to the string value of the _gasLimit argument', () => {
       for (
         let i = 0;
         i < Number.MAX_SAFE_INTEGER;
         i += Math.floor(Number.MAX_SAFE_INTEGER / MAX_ITERATIONS)
       ) {
-        const input1: [any, any] = [
+        const input1: [any, any, number] = [
           {
             blockNumber: 0,
             args: {
@@ -110,11 +115,12 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
             },
           },
           null,
+          0,
         ]
 
         const output1 = handleEventsTransactionEnqueued.parseEvent(...input1)
 
-        const expected1 = BigNumber.from(i).toNumber()
+        const expected1 = BigNumber.from(i).toString()
 
         expect(output1).to.have.property('gasLimit', expected1)
       }
@@ -126,7 +132,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
         i < Number.MAX_SAFE_INTEGER;
         i += Math.floor(Number.MAX_SAFE_INTEGER / MAX_ITERATIONS)
       ) {
-        const input1: [any, any] = [
+        const input1: [any, any, number] = [
           {
             blockNumber: 0,
             args: {
@@ -136,6 +142,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', ()
             },
           },
           null,
+          0,
         ]
 
         const output1 = handleEventsTransactionEnqueued.parseEvent(...input1)

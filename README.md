@@ -23,14 +23,14 @@ Extensive documentation is available [here](http://community.optimism.io/docs/)
     * [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
 * [`l2geth`](./l2geth): Fork of [go-ethereum v1.9.10](https://github.com/ethereum/go-ethereum/tree/v1.9.10) implementing the [OVM](https://research.paradigm.xyz/optimism#optimistic-geth).
 * [`integration-tests`](./integration-tests): Integration tests between a L1 testnet, `l2geth`,
-* [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol, 
+* [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
 as well as a docker-compose file for bringing up local testnets easily
 
 ## Quickstart
 
 ### Installation
 
-Dependency management is done using `yarn`. 
+Dependency management is done using `yarn`.
 
 ```bash
 git clone git@github.com:ethereum-optimism/optimism.git
@@ -67,7 +67,7 @@ you can run `yarn lerna run test --parallel --since master`
 #### Running the integration tests
 
 The integration tests first require bringing up the Optimism stack. This is done via
-a Docker Compose network. For better performance, we also recommend enabling Docker 
+a Docker Compose network. For better performance, we also recommend enabling Docker
 BuildKit
 
 ```bash
@@ -111,26 +111,11 @@ can be hard to filter through. In order to view the logs from a specific service
 docker-compose logs --follow <service name>
 ```
 
-export ADDRESS_MANAGER_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
-export L1_NODE_WEB3_URL=http://localhost:9545
-export L2_NODE_WEB3_URL=http://localhost:8545
-export L1_WALLET_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
-export SEQUENCER_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+### Static analysis
 
-export DEBUG=info*,error*,warn*,debug*
+To run `slither` locally in `./packages/contracts` do
 
-export MAX_L1_TX_SIZE=90000
-export MIN_L1_TX_SIZE=0
-export MAX_TX_BATCH_COUNT=50
-export MAX_STATE_BATCH_COUNT=50
-
-export POLL_INTERVAL=500
-export NUM_CONFIRMATIONS=0
-export RESUBMISSION_TIMEOUT=1
-export FINALITY_CONFIRMATIONS=0
-export RUN_TX_BATCH_SUBMITTER=true
-export RUN_STATE_BATCH_SUBMITTER=true
-export MAX_BATCH_SUBMISSION_TIME=0
-export SAFE_MINIMUM_ETHER_BALANCE=0
-export CLEAR_PENDING_TXS=false
-export RETRIES=80
+```
+pip3 install slither-analyzer
+yarn test:slither
+```

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/integration-tests",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "[Optimism] Integration Tests",
   "private": true,
   "author": "Optimism PBC",
@@ -13,10 +13,12 @@
     "build:contracts": "hardhat compile",
     "build:contracts:ovm": "hardhat compile --network optimism",
     "test:integration": "hardhat --network optimism test",
+    "test:sync": "hardhat --network optimism test sync-tests/*.spec.ts --no-compile",
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
-    "@eth-optimism/core-utils": "^0.4.4",
+    "@eth-optimism/contracts": "^0.3.5",
+    "@eth-optimism/core-utils": "^0.4.5",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
     "@ethersproject/providers": "^5.0.24",
     "@metis.io/contracts": "^1.1.*",

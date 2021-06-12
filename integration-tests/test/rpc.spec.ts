@@ -1,12 +1,13 @@
 import {
   injectL2Context,
-  L2GasLimit,
-  roundL1GasPrice,
+  TxGasLimit,
+  TxGasPrice,
+  toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { sleep, l2Provider, GWEI } from './shared/utils'
+import { sleep, l2Provider, l1Provider } from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
@@ -130,11 +131,33 @@ describe('Basic RPC tests', () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         gasLimit: 1,
+<<<<<<< HEAD
         gasPrice: 1,
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
         'fee too low: 1, use at least tx.gasLimit = 33600000000001 and tx.gasPrice = 1'
+=======
+        gasPrice: TxGasPrice,
+      }
+      const fee = tx.gasPrice.mul(tx.gasLimit)
+      const gasLimit = 5920001
+
+      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
+        `fee too low: ${fee}, use at least tx.gasLimit = ${gasLimit} and tx.gasPrice = ${TxGasPrice.toString()}`
+      )
+    })
+
+    it('should reject a transaction with an incorrect gas price', async () => {
+      const tx = {
+        ...DEFAULT_TRANSACTION,
+        gasLimit: 1,
+        gasPrice: TxGasPrice.sub(1),
+      }
+
+      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
+        `tx.gasPrice must be ${TxGasPrice.toString()}`
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
       )
     })
 
@@ -198,7 +221,11 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract calls', async () => {
       const req: TransactionRequest = {
         ...revertingTx,
+<<<<<<< HEAD
         gasLimit: 934111908999999, // override gas estimation
+=======
+        gasLimit: 5980899, // override gas estimation
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -221,7 +248,11 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
+<<<<<<< HEAD
         gasLimit: 1051391908999999, // override gas estimation
+=======
+        gasLimit: 17700899, // override gas estimation
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -311,12 +342,23 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_gasPrice', () => {
+<<<<<<< HEAD
     it('gas price should be 1 gwei', async () => {
       expect(await provider.getGasPrice()).to.be.deep.equal(1)
     })
   })
 
   describe('eth_estimateGas (returns the fee)', () => {
+=======
+    it('gas price should be the fee scalar', async () => {
+      expect(await provider.getGasPrice()).to.be.deep.equal(
+        TxGasPrice.toNumber()
+      )
+    })
+  })
+
+  describe('eth_estimateGas (returns the scaled fee)', () => {
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
     it('gas estimation is deterministic', async () => {
       let lastEstimate: BigNumber
       for (let i = 0; i < 10; i++) {
@@ -338,7 +380,11 @@ describe('Basic RPC tests', () => {
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
+<<<<<<< HEAD
       expect(estimate).to.be.eq(33600000119751)
+=======
+      expect(estimate).to.be.eq(5920012)
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
@@ -349,7 +395,10 @@ describe('Basic RPC tests', () => {
       for (const data of dataLen) {
         const tx = {
           to: '0x' + '1234'.repeat(10),
+<<<<<<< HEAD
           gasPrice: '0x1',
+=======
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
           value: '0x0',
           data: '0x' + '00'.repeat(data),
           from: '0x' + '1234'.repeat(10),
@@ -357,6 +406,7 @@ describe('Basic RPC tests', () => {
         const estimate = await l2Provider.estimateGas(tx)
         const l2Gaslimit = await l2Provider.send('eth_estimateExecutionGas', [
           tx,
+<<<<<<< HEAD
         ])
 
         const decoded = L2GasLimit.decode(estimate)
@@ -369,6 +419,21 @@ describe('Basic RPC tests', () => {
         const expected = L2GasLimit.encode({
           data: tx.data,
           l1GasPrice: roundL1GasPrice(l1GasPrice),
+=======
+          true,
+        ])
+
+        const decoded = TxGasLimit.decode(estimate)
+        expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
+        expect(estimate.toString().endsWith(l2Gaslimit.toString()))
+
+        const l2GasPrice = BigNumber.from(0)
+        // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
+        // but it does not yet exist. Use the default value for now
+        const expected = TxGasLimit.encode({
+          data: tx.data,
+          l1GasPrice,
+>>>>>>> e389ba105fa167d195444d047cdeae29182d1e45
           l2GasLimit: BigNumber.from(l2Gaslimit),
           l2GasPrice,
         })

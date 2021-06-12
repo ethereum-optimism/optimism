@@ -23,7 +23,6 @@ import (
 	"io"
 	"math/big"
 	"math/rand"
-	"os"
 	"sync"
 	"time"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -249,7 +249,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	}
 	number := header.Number.Uint64()
 
-	if os.Getenv("USING_OVM") != "true" {
+	if vm.UsingOVM {
 		// Don't waste time checking blocks from the future
 		if header.Time > uint64(time.Now().Unix()) {
 			return consensus.ErrFutureBlock
@@ -631,7 +631,7 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 
 		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
 	}
-	if os.Getenv("USING_OVM") == "true" {
+	if vm.UsingOVM {
 		delay = 0
 	}
 	// Sign all the things!

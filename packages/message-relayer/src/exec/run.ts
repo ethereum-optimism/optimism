@@ -1,7 +1,8 @@
 import { Wallet, providers } from 'ethers'
 import { MessageRelayerService } from '../service'
 import { Bcfg } from '@eth-optimism/core-utils'
-import SpreadSheet from '../spreadsheet'
+import { Logger, LoggerOptions } from '@eth-optimism/common-ts'
+import * as Sentry from '@sentry/node'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
 
@@ -15,6 +16,27 @@ const main = async () => {
   })
 
   const env = process.env
+
+  const SENTRY_DSN = config.str('sentry-dsn', env.SENTRY_DSN)
+  const USE_SENTRY = config.bool('use-sentry', env.USE_SENTRY === 'true')
+  const ETH_NETWORK_NAME = config.str('eth-network-name', env.ETH_NETWORK_NAME)
+
+  const loggerOptions: LoggerOptions = {
+    name: 'Message_Relayer',
+  }
+
+  if (USE_SENTRY) {
+    const sentryOptions = {
+      release: `message-relayer@${process.env.npm_package_version}`,
+      dsn: SENTRY_DSN,
+      environment: ETH_NETWORK_NAME,
+    }
+    loggerOptions.sentryOptions = sentryOptions
+    Sentry.init(sentryOptions)
+  }
+
+  const logger = new Logger(loggerOptions)
+
   const L2_NODE_WEB3_URL = config.str('l2-node-web3-url', env.L2_NODE_WEB3_URL)
   const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
   const L2_NODE_CHAIN_ID = config.uint(
@@ -53,18 +75,6 @@ const main = async () => {
     parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
   )
 
-  // Spreadsheet configuration
-  const SPREADSHEET_MODE = config.bool(
-    'spreadsheet-mode',
-    !!env.SPREADSHEET_MODE || false
-  )
-  const SHEET_ID = config.str('sheet-id', env.SHEET_ID)
-  const CLIENT_EMAIL = config.str('client-email', env.CLIENT_EMAIL)
-  const CLIENT_PRIVATE_KEY = config.str(
-    'client-private-key',
-    env.CLIENT_PRIVATE_KEY
-  )
-
   if (!ADDRESS_MANAGER_ADDRESS) {
     throw new Error('Must pass ADDRESS_MANAGER_ADDRESS')
   }
@@ -88,22 +98,6 @@ const main = async () => {
     throw new Error('Must pass one of L1_WALLET_KEY or MNEMONIC')
   }
 
-  let spreadsheet = null
-  if (SPREADSHEET_MODE) {
-    if (!SHEET_ID) {
-      throw new Error('Must pass SHEET_ID')
-    }
-    if (!CLIENT_EMAIL) {
-      throw new Error('Must pass CLIENT_EMAIL')
-    }
-    if (!CLIENT_PRIVATE_KEY) {
-      throw new Error('Must pass CLIENT_PRIVATE_KEY')
-    }
-    const privateKey = CLIENT_PRIVATE_KEY.replace(/\\n/g, '\n')
-    spreadsheet = new SpreadSheet(SHEET_ID)
-    await spreadsheet.init(CLIENT_EMAIL, privateKey)
-  }
-
   const service = new MessageRelayerService({
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
@@ -116,8 +110,7 @@ const main = async () => {
     l2BlockOffset: L2_BLOCK_OFFSET,
     l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
-    spreadsheetMode: !!SPREADSHEET_MODE,
-    spreadsheet,
+    logger,
   })
 
   await service.start()
