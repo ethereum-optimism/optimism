@@ -1,5 +1,7 @@
 # Build Geth in a stock Go builder container
-FROM golang:1.14-buster as builder
+
+FROM golang:1.15-alpine as builder
+
 
 RUN apt-get update && apt-get install -y build-essential
 RUN apt-get install -y make gcc musl-dev git

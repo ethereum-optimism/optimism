@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/common-ts'
+import { BaseService, Logger } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
 import level from 'level'
 

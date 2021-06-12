@@ -3,7 +3,7 @@
   "files": [
     "dist/src/*"
   ],
-  "version": "1.1.4",
+  "version": "1.1.5",
   "main": "dist/src/index",
   "types": "dist/src/index",
   "author": "Optimism PBC",
@@ -26,7 +26,7 @@
     "hardhat": "^2.2.1"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.4.1",
+    "@eth-optimism/core-utils": "^0.4.5",
     "bn.js": "^5.2.0"
   },
   "devDependencies": {

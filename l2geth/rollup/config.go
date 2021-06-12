@@ -10,8 +10,6 @@ import (
 type Config struct {
 	// Maximum calldata size for a Queue Origin Sequencer Tx
 	MaxCallDataSize int
-	// Number of confs before applying a L1 to L2 tx
-	Eth1ConfirmationDepth uint64
 	// Verifier mode
 	IsVerifier bool
 	// Enable the sync service

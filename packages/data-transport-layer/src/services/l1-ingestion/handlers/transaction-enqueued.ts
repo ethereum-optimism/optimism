@@ -19,7 +19,7 @@ export const handleEventsTransactionEnqueued: EventHandlerSet<
       index: event.args._queueIndex.toNumber(),
       target: event.args._target,
       data: event.args._data,
-      gasLimit: event.args._gasLimit.toNumber(),
+      gasLimit: event.args._gasLimit.toString(),
       origin: event.args._l1TxOrigin,
       blockNumber: BigNumber.from(event.blockNumber).toNumber(),
       timestamp: event.args._timestamp.toNumber(),

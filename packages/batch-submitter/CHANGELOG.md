@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.4
+
+### Patch Changes
+
+- baa3b761: Improve Sentry support, initializing as needed and ensuring ERROR logs route to Sentry
+- cc742715: Fix typo in USE_HARDHAT config
+- 98b7839f: Change monotonicity band-aid code to log warnings not errors
+- c520100d: Fix a bug in fixMonotonicity auto healer
+- 85362d44: Log additional data in monotonicity violation
+- Updated dependencies [baa3b761]
+  - @eth-optimism/common-ts@0.1.3
+
+## 0.3.3
+
+### Patch Changes
+
+- 750a5021: Remove dead imports from core-utils
+- Updated dependencies [a64f8161]
+- Updated dependencies [4e03f8a9]
+- Updated dependencies [8e2bfd07]
+- Updated dependencies [750a5021]
+- Updated dependencies [c2b6e14b]
+- Updated dependencies [245136f1]
+  - @eth-optimism/core-utils@0.4.5
+  - @eth-optimism/contracts@0.3.5
+
 ## 0.3.2
 
 ### Patch Changes

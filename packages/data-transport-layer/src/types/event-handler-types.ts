@@ -20,7 +20,8 @@ export type GetExtraDataHandler<TEventArgs, TExtraData> = (
 
 export type ParseEventHandler<TEventArgs, TExtraData, TParsedEvent> = (
   event: TypedEthersEvent<TEventArgs>,
-  extraData: TExtraData
+  extraData: TExtraData,
+  l2ChainId: number
 ) => TParsedEvent
 
 export type StoreEventHandler<TParsedEvent> = (
@@ -40,7 +41,7 @@ export interface SequencerBatchAppendedExtraData {
   submitter: string
   l1TransactionData: string
   l1TransactionHash: string
-  gasLimit: number
+  gasLimit: string
 
   // Stuff from TransactionBatchAppended.
   prevTotalElements: BigNumber

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.3.8
+
+### Patch Changes
+
+- 989a3027: Optimize main polling loops
+- cc6c7f07: Bump golang version to 1.15
+
+## 0.3.7
+
+### Patch Changes
+
+- cb4a928b: Make block hashes deterministic by using the same clique signer key
+- f1b27318: Fixes incorrect type parsing in the RollupClient. The gasLimit became greater than the largest safe JS number so it needs to be represented as a string
+- a64f8161: Implement the next fee spec in both geth and in core-utils
+- 5e4eaea1: fix potential underflow when launching the chain when the last verified index is 0
+- 1293825c: Fix gasLimit overflow
+- a25acbbd: Refactor the SyncService to more closely implement the specification. This includes using query params to select the backend from the DTL, trailing syncing of batches for the sequencer, syncing by batches as the verifier as well as unified code paths for transaction ingestion to prevent double ingestion or missed ingestion
+- c2b6e14b: Implement the latest fee spec such that the L2 gas limit is scaled and the tx.gasPrice/tx.gasLimit show correctly in metamask
+
+## 0.3.6
+
+### Patch Changes
+
+- f091e86: Fix to ensure that L1 => L2 success status is reflected correctly in receipts
+- f880479: End to end fee integration with recoverable L2 gas limit
+
+## 0.3.5
+
+### Patch Changes
+
+- d4c9793: Fixed a bug where reverts without data would not be correctly propagated for eth_call
+- 3958644: Adds the `debug_ingestTransactions` endpoint that takes a list of RPC transactions and applies each of them to the state sequentially. This is useful for testing purposes
+- c880043: Fix gas estimation logic for simple ETH transfers
+- 467d6cb: Adds a test for contract deployments that run out of gas
+- 4e6c3f9: add an env var METRICS_ENABLE for MetricsEnabledFlag
+
 ## 0.3.4
 
 ### Patch Changes

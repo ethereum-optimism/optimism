@@ -1,4 +1,6 @@
 import { expect } from '../../../../setup'
+
+/* Imports: Internal */
 import { l2Block } from '../../../examples/l2-data'
 import { handleSequencerBlock } from '../../../../../src/services/l2-ingestion/handlers/transaction'
 
