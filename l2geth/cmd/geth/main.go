@@ -154,7 +154,7 @@ var (
 		utils.Eth1CanonicalTransactionChainDeployHeightFlag,
 		utils.Eth1L1CrossDomainMessengerAddressFlag,
 		utils.Eth1L1FeeWalletAddressFlag,
-		utils.Eth1ETHGatewayAddressFlag,
+		utils.Eth1StandardBridgeAddressFlag,
 		utils.Eth1ChainIdFlag,
 		utils.RollupClientHttpFlag,
 		utils.RollupEnableVerifierFlag,

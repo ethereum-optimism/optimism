@@ -3,9 +3,9 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * @title iAbs_BaseCrossDomainMessenger
+ * @title iOVM_CrossDomainMessenger
  */
-interface iAbs_BaseCrossDomainMessenger {
+interface iOVM_CrossDomainMessenger {
 
     /**********
      * Events *

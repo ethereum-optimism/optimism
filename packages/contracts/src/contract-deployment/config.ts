@@ -1,5 +1,5 @@
 /* External Imports */
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Overrides } from '@ethersproject/contracts'
 
@@ -112,25 +112,20 @@ export const makeContractDeployConfig = async (
         )
       },
     },
-    OVM_L1ETHGateway: {
-      factory: getContractFactory('OVM_L1ETHGateway'),
+    OVM_L1StandardBridge: {
+      factory: getContractFactory('OVM_L1StandardBridge'),
       params: [],
     },
-    Proxy__OVM_L1ETHGateway: {
+    Proxy__OVM_L1StandardBridge: {
       factory: getContractFactory('Lib_ResolvedDelegateProxy'),
-      params: [AddressManager.address, 'OVM_L1ETHGateway'],
-      afterDeploy: async (contracts): Promise<void> => {
-        const l1EthGateway = getContractFactory('OVM_L1ETHGateway')
-          .connect(config.deploymentSigner)
-          .attach(contracts.Proxy__OVM_L1ETHGateway.address)
-        await _sendTx(
-          l1EthGateway.initialize(
-            AddressManager.address,
-            predeploys.OVM_ETH,
-            config.deployOverrides
-          )
-        )
-      },
+      params: [AddressManager.address, 'OVM_L1StandardBridge'],
+    },
+    OVM_L2StandardBridge: {
+      factory: getContractFactory('OVM_L2StandardBridge'),
+      params: [
+        predeploys.OVM_L2CrossDomainMessenger,
+        constants.AddressZero, // we'll set this to the L1 Bridge address in genesis.go
+      ],
     },
     OVM_L1MultiMessageRelayer: {
       factory: getContractFactory('OVM_L1MultiMessageRelayer'),
@@ -233,10 +228,7 @@ export const makeContractDeployConfig = async (
     },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
-      params: [
-        predeploys.OVM_L2CrossDomainMessenger,
-        '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
-      ],
+      params: [],
     },
     'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),

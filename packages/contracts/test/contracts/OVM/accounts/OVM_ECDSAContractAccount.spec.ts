@@ -117,7 +117,7 @@ describe('OVM_ECDSAContractAccount', () => {
       ).to.be.revertedWith('Transaction signed with wrong chain ID')
     })
 
-    // TEMPORARY: Skip gas checks for minnet.
+    // TEMPORARY: Skip gas checks for mainnet.
     it.skip(`should revert on insufficient gas`, async () => {
       const transaction = { ...DEFAULT_EIP155_TX, gasLimit: 200000000 }
       const encodedTransaction = await wallet.signTransaction(transaction)

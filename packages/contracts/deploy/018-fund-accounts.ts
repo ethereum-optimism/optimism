@@ -17,11 +17,11 @@ const deployFn: DeployFunction = async (hre) => {
   // Only execute this step if we're on the hardhat chain ID.
   const { chainId } = await hre.ethers.provider.getNetwork()
   if (chainId === defaultHardhatNetworkParams.chainId) {
-    const Proxy__OVM_L1ETHGateway = await getDeployedContract(
+    const OVM_L1StandardBridge = await getDeployedContract(
       hre,
-      'Proxy__OVM_L1ETHGateway',
+      'Proxy__OVM_L1StandardBridge',
       {
-        iface: 'OVM_L1ETHGateway',
+        iface: 'OVM_L1StandardBridge',
       }
     )
 
@@ -44,7 +44,7 @@ const deployFn: DeployFunction = async (hre) => {
         )
         const balance = await wallet.getBalance()
         const depositAmount = balance.div(2) // Deposit half of the wallet's balance into L2.
-        await Proxy__OVM_L1ETHGateway.connect(wallet).deposit(8_000_000, '0x', {
+        await OVM_L1StandardBridge.connect(wallet).depositETH(8_000_000, '0x', {
           value: depositAmount,
           gasLimit: 2_000_000, // Idk, gas estimation was broken and this fixes it.
         })
