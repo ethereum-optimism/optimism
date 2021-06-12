@@ -199,6 +199,40 @@ abstract contract Abs_L1TokenGateway is iOVM_L1TokenGateway, OVM_CrossDomainEnab
 
         emit DepositInitiated(_from, _to, _amount);
     }
+    
+    function _initiateDepositByChainId(
+        uint256 _chainId,
+        address _from,
+        address _to,
+        uint _amount
+    )
+        internal
+    {
+        // Call our deposit accounting handler implemented by child contracts.
+        _handleInitiateDeposit(
+            _from,
+            _to,
+            _amount
+        );
+        
+        // Construct calldata for l2ETHGateway.finalizeDeposit(_to, _amount)
+        bytes memory data =
+            abi.encodeWithSelector(
+                iOVM_L2DepositedToken.finalizeDeposit.selector,
+                _to,
+                _amount
+            );
+
+        // Send calldata into L2
+        sendCrossDomainMessageViaChainId(
+            _chainId,
+            ovmEth,
+            data,
+            getFinalizeDepositL2Gas
+        );
+
+        emit DepositInitiated(_from, _to, _amount);
+    }
 
     /*************************
      * Cross-chain Functions *

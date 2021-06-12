@@ -7,6 +7,8 @@ pragma experimental ABIEncoderV2;
 import { iOVM_L1TokenGateway } from "../../../iOVM/bridge/tokens/iOVM_L1TokenGateway.sol";
 import { Abs_L1TokenGateway } from "./Abs_L1TokenGateway.sol";
 import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
+import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_AddressManager } from "../../../libraries/resolver/Lib_AddressManager.sol";
 
 /**
  * @title OVM_L1ERC20Gateway
@@ -66,7 +68,24 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway, Lib_AddressResolver {
     /**************
      * Accounting *
      **************/
-
+    function depositByChainId(uint256 _chainId, uint256 _amount) 
+        external
+        override
+    {
+        _initiateDepositByChainId(_chainId, msg.sender, msg.sender, _amount);
+    }
+    
+    function depositToByChainId(
+        uint256 _chainId,
+        address _to,
+        uint256 _amount
+    )
+        external
+        override
+    {
+        _initiateDepositByChainId(_chainId, msg.sender, _to, _amount);
+    }
+    
     /**
      * @dev When a deposit is initiated on L1, the L1 Gateway
      * transfers the funds to itself for future withdrawals
