@@ -52,6 +52,7 @@
     "@types/mocha": "^8.2.2",
     "@types/node-fetch": "^2.5.8",
     "@types/workerpool": "^6.0.0",
+    "bfj": "^7.0.2",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "hardhat": "^2.2.1",

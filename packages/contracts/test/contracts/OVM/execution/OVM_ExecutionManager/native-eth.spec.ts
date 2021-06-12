@@ -11,8 +11,8 @@ import {
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 
-const uniswapERC20BalanceOfStorageLayoutKey =
-  '0000000000000000000000000000000000000000000000000000000000000005'
+const ovmEthBalanceOfStorageLayoutKey =
+  '0000000000000000000000000000000000000000000000000000000000000000'
 // TODO: use fancy chugsplash storage getter once possible
 const getOvmEthBalanceSlot = (addressOrPlaceholder: string): string => {
   let address: string
@@ -22,7 +22,7 @@ const getOvmEthBalanceSlot = (addressOrPlaceholder: string): string => {
     address = addressOrPlaceholder
   }
   const balanceOfSlotPreimage =
-    ethers.utils.hexZeroPad(address, 32) + uniswapERC20BalanceOfStorageLayoutKey
+    ethers.utils.hexZeroPad(address, 32) + ovmEthBalanceOfStorageLayoutKey
   const balanceOfSlot = ethers.utils.keccak256(balanceOfSlotPreimage)
   return balanceOfSlot
 }

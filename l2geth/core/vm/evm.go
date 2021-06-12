@@ -200,6 +200,7 @@ type Context struct {
 	OvmSafetyChecker          dump.OvmDumpAccount
 	OvmL2CrossDomainMessenger dump.OvmDumpAccount
 	OvmETH                    dump.OvmDumpAccount
+	OvmL2StandardBridge       dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -252,6 +253,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
 		ctx.OvmL2CrossDomainMessenger = chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
 		ctx.OvmETH = chainConfig.StateDump.Accounts["OVM_ETH"]
+		ctx.OvmL2StandardBridge = chainConfig.StateDump.Accounts["OVM_L2StandardBridge"]
 	}
 
 	id := make([]byte, 4)
@@ -404,7 +406,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.Context.IsL1ToL2Message && evm.depth == 3 {
 		var isValidMessageTarget = true
 		// 0x420... addresses are not valid targets except for the ETH predeploy.
-		if bytes.HasPrefix(addr.Bytes(), fortyTwoPrefix) && addr != evm.Context.OvmETH.Address {
+		if bytes.HasPrefix(addr.Bytes(), fortyTwoPrefix) && addr != evm.Context.OvmL2StandardBridge.Address {
 			isValidMessageTarget = false
 		}
 		// 0xdead... addresses are not valid targets.
