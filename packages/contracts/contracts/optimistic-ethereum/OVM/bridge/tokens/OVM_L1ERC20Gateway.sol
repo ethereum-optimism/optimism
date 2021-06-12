@@ -22,7 +22,7 @@ import { iOVM_ERC20 } from "../../../iOVM/predeploys/iOVM_ERC20.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
+contract OVM_L1ERC20Gateway is Abs_L1TokenGateway, Lib_AddressResolver {
 
     /********************************
      * External Contract References *
@@ -34,21 +34,32 @@ contract OVM_L1ERC20Gateway is Abs_L1TokenGateway {
      * Constructor *
      ***************/
 
+    constructor()
+        Abs_L1TokenGateway(address(0), address(0))
+        Lib_AddressResolver(address(0))
+        public
+    {}
+    
+    /******************
+     * Initialization *
+     ******************/
+
     /**
-     * @param _l1ERC20 L1 ERC20 address this contract stores deposits for
-     * @param _l2DepositedERC20 L2 Gateway address on the chain being deposited into
+     * @param _libAddressManager Address manager for this OE deployment
+     * @param _ovmEth L2 OVM_ETH implementation of iOVM_DepositedToken
      */
-    constructor(
-        iOVM_ERC20 _l1ERC20,
+    function initialize(
+        address _libAddressManager,
         address _l2DepositedERC20,
-        address _l1messenger
+        address _l1ERC20
     )
-        Abs_L1TokenGateway(
-            _l2DepositedERC20,
-            _l1messenger
-        )
+        public
     {
-        l1ERC20 = _l1ERC20;
+        require(libAddressManager == Lib_AddressManager(0), "Contract has already been initialized.");
+        libAddressManager = Lib_AddressManager(_libAddressManager);
+        l2DepositedToken = _l2DepositedERC20;
+        l1ERC20 = iOVM_ERC20(_l1ERC20);
+        messenger = resolve("Proxy__OVM_L1CrossDomainMessenger");
     }
 
 

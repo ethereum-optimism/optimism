@@ -343,7 +343,7 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 	gasOracleAddress := common.HexToAddress(os.Getenv("MVM_GAS_ORACLE_ADDRESS"))
 	MVM_GasOracle, ok := stateDump.Accounts["MVM_GasOracle"]
 	if ok {
-		log.Info("Setting OVM_L1ETHGateway in MVM_GasOracle", "price", gasOraclePrice.Uint64(), "address", gasOracleAddress.Hex())
+		log.Info("Setting MVM_GasOracle", "price", gasOraclePrice.Uint64(), "address", gasOracleAddress.Hex())
 		if strings.Contains(MVM_GasOracle.Code, "a84ce98") {
 			// Set the gateway of MVM_GasOracle at new dump
 			log.Info("Detected current MVM_GasOracle dump, setting slot 0x1 ")
