@@ -344,25 +344,12 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 	MVM_GasOracle, ok := stateDump.Accounts["MVM_GasOracle"]
 	if ok {
 		log.Info("Setting MVM_GasOracle", "price", gasOraclePrice.Uint64(), "address", gasOracleAddress.Hex())
-		if strings.Contains(MVM_GasOracle.Code, "a84ce98") {
-			// Set the gateway of MVM_GasOracle at new dump
-			log.Info("Detected current MVM_GasOracle dump, setting slot 0x1 ")
-			l1Slot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-			l1Value := common.BytesToHash(gasOraclePrice.Bytes())
-			statedb.SetState(MVM_GasOracle.Address, l1Slot, l1Value)
-			l2Slot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002")
-			l2Value := common.BytesToHash(gasOracleAddress.Bytes())
-			statedb.SetState(MVM_GasOracle.Address, l2Slot, l2Value)
-		} else {
-			// Set the gateway of MVM_GasOracle at legacy slot
-			log.Info("Detected legacy MVM_GasOracle dump, setting slot 0x8")
-			l1Slot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000008")
-			l1Value := common.BytesToHash(gasOraclePrice.Bytes())
-			statedb.SetState(MVM_GasOracle.Address, l1Slot, l1Value)
-			l2Slot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000009")
-			l2Value := common.BytesToHash(gasOracleAddress.Bytes())
-			statedb.SetState(MVM_GasOracle.Address, l2Slot, l2Value)
-		}
+		l1Slot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
+		l1Value := common.BytesToHash(gasOraclePrice.Bytes())
+		statedb.SetState(MVM_GasOracle.Address, l1Slot, l1Value)
+		l2Slot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+		l2Value := common.BytesToHash(gasOracleAddress.Bytes())
+		statedb.SetState(MVM_GasOracle.Address, l2Slot, l2Value)
 	}
 	ExecutionManager, ok := stateDump.Accounts["OVM_ExecutionManager"]
 	if ok {

@@ -105,7 +105,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
 
         const decoded = maybeDecodeSequencerBatchTransaction(
           sequencerTransaction,
-          l2ChainId
+          event.args._chainId
         )
 
         transactionEntries.push({

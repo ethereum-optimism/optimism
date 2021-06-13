@@ -1464,7 +1464,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         // The underlying queue data structure stores 2 elements
         // per insertion, so to get the real queue length we need
         // to divide by 2 and subtract 1.
-        uint256 queueIndex = queueRef.length() / 2 - 1;
+        uint256 queueIndex = queueRef.lengthByChainId(_chainId) / 2 - 1;
         emit TransactionEnqueued(
             _chainId,
             msg.sender,

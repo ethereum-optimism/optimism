@@ -40,7 +40,7 @@ const deployFn: DeployFunction = async (hre) => {
   await Proxy__MVM_L1MetisGateway.initialize(
     Lib_AddressManager.address,
     predeploys.MVM_Coinbase,
-    '0x4200000000000000000000000000000000000006'   //TODO: rinkeby change mainnet
+    '0xe552Fb52a4F19e44ef5A967632DBc320B0820639'   //TODO: rinkeby change mainnet
          
   )
 

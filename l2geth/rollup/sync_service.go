@@ -450,7 +450,8 @@ func (s *SyncService) updateL2GasPrice(hash *common.Hash) error {
 	if err != nil {
 		return err
 	}
-	result := state.GetState(s.gpoAddress, l2GasPriceSlot)
+	result := state.GetState(s.gpoAddress, common.BigToHash(big.NewInt(0)))
+
 	s.RollupGpo.SetL2GasPrice(result.Big())
 
 	return nil
