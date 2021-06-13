@@ -30,6 +30,7 @@ def update_chain():
     mount_path = request.args.get("mount_path")
     efs_id = request.args.get("efs_id")
     access_point_id = request.args.get("access_point_id")
+    kill_pids()
     the_path = mount_path or '/metis'
     logging.warn(f'update_chain mount_path:{mount_path},efs_id:{efs_id},access_point_id:{access_point_id}')
     _try_cmd(['umount', the_path])
@@ -49,12 +50,23 @@ def update_chain():
     }
     return response
 
+def kill_pids():
+    output = _try_cmd_string("/app/process_kill.sh")
+    logging.warn(output)
+
 def _try_cmd(cmds):
     try:
         return subprocess.check_output(cmds)
     except Exception as e:
         logging.warn(f'exce cmd in update chain error {cmds}')
         return ""
+        
+def _try_cmd_string(cmd):
+    try:
+        return subprocess.check_output(cmd, shell=True)
+    except Exception as e:
+        logging.warn(f'exce cmd string in update chain error {cmd}')
+        return "" 
         
 def _update_chain(body):
     logging.warn(f'update_chain to file:{body}')
@@ -71,6 +83,16 @@ def _update_chain(body):
     output = _try_cmd([f'/app/restart.sh','/app/env.sh'])
     logging.warn(output)
     return output
+
+@app.route('/v1/chain/stop',methods=['POST'])
+def stop_chain():
+    logging.warn('stop_chain...')
+    kill_pids()
+    response = {
+        'data': "success"
+    }
+    logging.warn(response)
+    return response 
     
 @app.route('/v1/shell/exec',methods=['POST'])
 def exec_shell():

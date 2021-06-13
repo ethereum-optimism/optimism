@@ -38,6 +38,10 @@ EXPOSE 8543 8545 8546 8547
 COPY src /app
 COPY settings/restart.sh /app/restart.sh
 RUN chmod +x /app/restart.sh
+COPY settings/process_monitor.sh /app/process_monitor.sh
+RUN chmod +x /app/process_monitor.sh
+COPY settings/process_kill.sh /app/process_kill.sh
+RUN chmod +x /app/process_kill.sh
 COPY settings/efs-utils.conf /etc/amazon/efs/efs-utils.conf
 COPY settings/uwsgi.ini /usr/local/etc/uwsgi/uwsgi.ini
 COPY settings/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

@@ -1,15 +1,11 @@
 #!/bin/bash
-#export env
 while IFS== read -r key value; do
     if [[ -n "$key" ]]; then
         export $key=$value
     fi
 done < $1
-#kill all
-ps -ef | grep geth | grep verbosity | grep -v grep | awk '{print $2}' | xargs kill # -9
-ps -ef | grep run-batch-submitter.js | grep -v grep | awk '{print $2}' | xargs kill
-ps -ef | grep run.js | grep -v grep | awk '{print $2}' | xargs kill
-#start all
+
+# start all
 t1=$(($(date +%s%N)/1000000))
 echo "starting at $t1 .."
 
@@ -34,6 +30,9 @@ echo "batches at $t2 ..">>/app/log/t_supervisord.log
 takes=`expr $t2 - $t1`
 echo "batches takes $takes ms">>/app/log/t_supervisord.log
 
+t2=$(($(date +%s%N)/1000000))
 echo "end at $t2 ..">>/app/log/t_supervisord.log
 takes=`expr $t2 - $t1`
 echo "restart takes $takes ms">>/app/log/t_supervisord.log
+
+nohup /app/process_monitor.sh >>/app/log/t_supervisord.log 2>&1 &
