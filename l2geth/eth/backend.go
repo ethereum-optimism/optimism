@@ -223,8 +223,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist); err != nil {
 		return nil, err
 	}
-	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
-	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
+	if !vm.UsingOVM {
+		eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
+		eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
+	}
 
 	log.Info("Backend Config", "max-calldata-size", config.Rollup.MaxCallDataSize, "gas-limit", config.Rollup.GasLimit, "is-verifier", config.Rollup.IsVerifier, "using-ovm", vm.UsingOVM, "data-price", config.Rollup.DataPrice, "execution-price", config.Rollup.ExecutionPrice)
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth, nil, nil, config.Rollup.IsVerifier, config.Rollup.GasLimit, vm.UsingOVM, config.Rollup.MaxCallDataSize}
@@ -440,6 +442,9 @@ func (s *Ethereum) shouldPreserve(block *types.Block) bool {
 
 // SetEtherbase sets the mining reward address.
 func (s *Ethereum) SetEtherbase(etherbase common.Address) {
+	if vm.UsingOVM {
+		panic("Miner not used in OVM mode")
+	}
 	s.lock.Lock()
 	s.etherbase = etherbase
 	s.lock.Unlock()
@@ -451,6 +456,10 @@ func (s *Ethereum) SetEtherbase(etherbase common.Address) {
 // is already running, this method adjust the number of threads allowed to use
 // and updates the minimum price required by the transaction pool.
 func (s *Ethereum) StartMining(threads int) error {
+	if vm.UsingOVM {
+		panic("Miner not used in OVM mode")
+	}
+
 	// Update the thread count within the consensus engine
 	type threaded interface {
 		SetThreads(threads int)
