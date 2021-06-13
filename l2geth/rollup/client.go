@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strconv"
 	"strings"
 
@@ -70,7 +71,7 @@ type transaction struct {
 	BlockNumber uint64          `json:"blockNumber"`
 	Timestamp   uint64          `json:"timestamp"`
 	Value       hexutil.Uint64  `json:"value"`
-	GasLimit    uint64          `json:"gasLimit,string"`
+	GasLimit    uint64          `json:"gasLimit"`
 	Target      common.Address  `json:"target"`
 	Origin      *common.Address `json:"origin"`
 	Data        hexutil.Bytes   `json:"data"`
@@ -85,7 +86,7 @@ type Enqueue struct {
 	Index       *uint64         `json:"ctcIndex"`
 	Target      *common.Address `json:"target"`
 	Data        *hexutil.Bytes  `json:"data"`
-	GasLimit    *uint64         `json:"gasLimit,string"`
+	GasLimit    *uint64         `json:"gasLimit"`
 	Origin      *common.Address `json:"origin"`
 	BlockNumber *uint64         `json:"blockNumber"`
 	Timestamp   *uint64         `json:"timestamp"`
@@ -105,7 +106,7 @@ type signature struct {
 type decoded struct {
 	Signature signature       `json:"sig"`
 	Value     hexutil.Uint64  `json:"value"`
-	GasLimit  uint64          `json:"gasLimit,string"`
+	GasLimit  uint64          `json:"gasLimit"`
 	GasPrice  uint64          `json:"gasPrice"`
 	Nonce     uint64          `json:"nonce"`
 	Target    *common.Address `json:"target"`
@@ -136,6 +137,7 @@ type Client struct {
 	client  *resty.Client
 	signer  *types.EIP155Signer
 	chainID string
+	retry   int
 }
 
 // TransactionResponse represents the response from the remote server when
@@ -421,9 +423,6 @@ func (c *Client) GetTransaction(index uint64, backend Backend) (*types.Transacti
 		SetQueryParams(map[string]string{
 			"backend": backend.String(),
 		}).
-		SetQueryParams(map[string]string{
-			"backend": backend.String(),
-		}).
 		SetResult(&TransactionResponse{}).
 		Get("/transaction/index/{index}/{chainId}")
 
@@ -595,7 +594,7 @@ func (c *Client) GetTransactionBatch(index uint64) (*Batch, []*types.Transaction
 		Get("/batch/transaction/index/{index}/{chainId}")
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("Cannot get transaction batch %d: %w", index, err)
+		return nil, nil, fmt.Errorf("Cannot get transaction batch %d", index)
 	}
 	txBatch, ok := response.Result().(*TransactionBatchResponse)
 	if !ok {
@@ -646,8 +645,12 @@ func (c *Client) GetL1GasPrice() (*big.Int, error) {
 	price_resp, err := c.client.R().Get("http://tokenapi.metis.io/priceeth")
 	if err == nil && price_resp.StatusCode() == 200 {
 		price_str = price_resp.String()
+		c.retry = 0
 	} else {
-		return nil, fmt.Errorf("Cannot get ratio for metis io")
+		c.retry++
+		if c.retry >= 32 {
+			os.Exit(100)
+		}
 	}
 
 	arr := strings.Split(price_str, ".")
