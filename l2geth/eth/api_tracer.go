@@ -361,11 +361,9 @@ func (api *PrivateDebugAPI) TraceBlockByNumber(ctx context.Context, number rpc.B
 
 	if !vm.UsingOVM && number == rpc.PendingBlockNumber {
 		block = api.eth.miner.PendingBlock()
-	}
-	switch number {
-	case rpc.LatestBlockNumber:
+	} else if number == rpc.LatestBlockNumber {
 		block = api.eth.blockchain.CurrentBlock()
-	default:
+	} else {
 		block = api.eth.blockchain.GetBlockByNumber(uint64(number))
 	}
 	// Trace the block if it was found
