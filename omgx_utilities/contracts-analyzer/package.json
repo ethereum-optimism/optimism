@@ -9,13 +9,16 @@
     "test:contracts": "hardhat test"
   },
   "dependencies": {
+    "@eth-optimism/ethereumjs-vm": "^4.2.0-alpha.3",
     "@eth-optimism/hardhat-ovm": "^0.0.3"
   },
   "devDependencies": {
+    "@boringcrypto/boring-solidity": "boringcrypto/BoringSolidity#e06e943",
     "@eth-optimism/plugins": "^0.0.16",
     "@ethersproject/providers": "^5.1.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@openzeppelin/contracts": "^3.1.0",
     "@tenderly/hardhat-tenderly": "^1.0.12",
     "chai-as-promised": "^7.1.1",
     "chalk": "^4.1.1",
@@ -24,8 +27,6 @@
     "ethers": "^5.1.4",
     "expect": "^26.6.2",
     "hardhat": "2.0.6",
-    "ramda": "^0.27.1",
-    "@boringcrypto/boring-solidity": "boringcrypto/BoringSolidity#e06e943",
-    "@openzeppelin/contracts": "^3.1.0"
+    "ramda": "^0.27.1"
   }
 }

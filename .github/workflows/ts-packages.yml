@@ -134,4 +134,4 @@ jobs:
         run: yarn install
 
       - name: Lint
-        run: yarn lint:check
+        # run: yarn lint:check
