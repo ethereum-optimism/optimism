@@ -17,7 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
     }
   )
 
-  const result = await deploy('Proxy__OVM_L1MetisGateway', {
+  const result = await deploy('Proxy__MVM_L1MetisGateway', {
     contract: 'Lib_ResolvedDelegateProxy',
     from: deployer,
     args: [Lib_AddressManager.address, 'MVM_L1MetisGateway'],
@@ -40,7 +40,8 @@ const deployFn: DeployFunction = async (hre) => {
   await Proxy__MVM_L1MetisGateway.initialize(
     Lib_AddressManager.address,
     predeploys.MVM_Coinbase,
-    '0xe552Fb52a4F19e44ef5A967632DBc320B0820639'   //TODO: rinkeby change mainnet
+    '0x4200000000000000000000000000000000000006'   //TODO: rinkeby change mainnet
+         
   )
 
   const libAddressManager = await Proxy__MVM_L1MetisGateway.libAddressManager()

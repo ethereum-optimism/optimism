@@ -243,10 +243,10 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		s.SetLatestL1BlockNumber(context.BlockNumber)
 	} else {
 		// Prevent underflows
+		log.Info("Found latest index", "index", *index)
 		if *index != 0 {
 			*index = *index - 1
 		}
-		log.Info("Found latest index", "index", *index)
 		block := s.bc.GetBlockByNumber(*index)
 		if block == nil {
 			block = s.bc.CurrentBlock()
