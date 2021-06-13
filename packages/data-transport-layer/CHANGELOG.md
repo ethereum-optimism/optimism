@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.3.5
+
+### Patch Changes
+
+- 1b692415: incorrect parsing of eth_getBlockRange result
+
 ## 0.3.4
 
 ### Patch Changes

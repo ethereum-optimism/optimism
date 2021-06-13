@@ -23,12 +23,6 @@ const main = async () => {
   const L1_WALLET_KEY = config.str('l1-wallet-key', env.L1_WALLET_KEY)
   const MNEMONIC = config.str('mnemonic', env.MNEMONIC)
   const HD_PATH = config.str('hd-path', env.HD_PATH)
-  const WHITELIST_ENDPOINT =
-    config.str('whitlist-endpoint', env.WHITELIST_ENDPOINT) || ''
-  const WHITELIST_POLLING_INTERVAL = config.uint(
-    'whitlist-polling-interval',
-    parseInt(env.WHITELIST_POLLING_INTERVAL, 10) || 60000
-  )
   const RELAY_GAS_LIMIT = config.uint(
     'relay-gas-limit',
     parseInt(env.RELAY_GAS_LIMIT, 10) || 4000000
@@ -88,8 +82,6 @@ const main = async () => {
     l2BlockOffset: L2_BLOCK_OFFSET,
     l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
-    whitelistEndpoint: WHITELIST_ENDPOINT,
-    whitelistPollingInterval: WHITELIST_POLLING_INTERVAL,
   })
 
   await service.start()

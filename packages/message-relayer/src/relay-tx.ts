@@ -114,10 +114,14 @@ export const getMessagesByTransactionHash = async (
  * @returns Encoded message.
  */
 const encodeCrossDomainMessage = (message: CrossDomainMessage): string => {
-  return getContractInterface('OVM_L2CrossDomainMessenger').encodeFunctionData(
-    'relayMessage',
-    [message.target, message.sender, message.message, message.messageNonce]
-  )
+  return getContractInterface(
+    'OVM_L2CrossDomainMessenger'
+  ).encodeFunctionData('relayMessage', [
+    message.target,
+    message.sender,
+    message.message,
+    message.messageNonce,
+  ])
 }
 
 /**
@@ -162,16 +166,16 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
     return index >= prevTotalElements + batchSize
   }
 
-  const totalBatches: ethers.BigNumber =
-    await l1StateCommitmentChain.getTotalBatches()
+  const totalBatches: ethers.BigNumber = await l1StateCommitmentChain.getTotalBatches()
   if (totalBatches.eq(0)) {
     return null
   }
 
   let lowerBound = 0
   let upperBound = totalBatches.toNumber() - 1
-  let batchEvent: ethers.Event | null =
-    await getStateBatchAppendedEventByBatchIndex(upperBound)
+  let batchEvent: ethers.Event | null = await getStateBatchAppendedEventByBatchIndex(
+    upperBound
+  )
 
   if (isEventLo(batchEvent, l2TransactionIndex)) {
     // Upper bound is too low, means this transaction doesn't have a corresponding state batch yet.
@@ -219,12 +223,11 @@ export const getStateRootBatchByTransactionIndex = async (
     l1RpcProvider
   )
 
-  const stateBatchAppendedEvent =
-    await getStateBatchAppendedEventByTransactionIndex(
-      l1RpcProvider,
-      l1StateCommitmentChainAddress,
-      l2TransactionIndex
-    )
+  const stateBatchAppendedEvent = await getStateBatchAppendedEventByTransactionIndex(
+    l1RpcProvider,
+    l1StateCommitmentChainAddress,
+    l2TransactionIndex
+  )
   if (stateBatchAppendedEvent === null) {
     return null
   }
@@ -269,9 +272,12 @@ const getMerkleTreeProof = (leaves: string[], index: number): string[] => {
 
   // merkletreejs prefers things to be Buffers.
   const bufLeaves = parsedLeaves.map(fromHexString)
-  const tree = new MerkleTree(bufLeaves, (el: Buffer | string): Buffer => {
-    return fromHexString(ethers.utils.keccak256(el))
-  })
+  const tree = new MerkleTree(
+    bufLeaves,
+    (el: Buffer | string): Buffer => {
+      return fromHexString(ethers.utils.keccak256(el))
+    }
+  )
 
   const proof = tree.getProof(bufLeaves[index], index).map((element: any) => {
     return toHexString(element.data)
