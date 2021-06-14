@@ -710,6 +710,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	_, err = s.bc.WriteBlockWithState(block, receipts, logs, statedb, false)
 	if err != nil {
 		log.Error("Cannot write state with block", "msg", err)
+        return err
 	}
 	log.Info("New Block", "index", block.Number().Uint64()-1, "tx", tx.Hash().Hex())
 
