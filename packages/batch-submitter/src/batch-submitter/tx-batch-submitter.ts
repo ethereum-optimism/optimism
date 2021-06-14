@@ -356,13 +356,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // Verify all of the batch elements are monotonic
     let lastTimestamp: number
     let lastBlockNumber: number
-    for (const ele of batch) {
+    for (const [idx, ele] of batch.entries()) {
       if (ele.timestamp < lastTimestamp) {
-        this.logger.error('Timestamp monotonicity violated! Element', { ele })
+        this.logger.error('Timestamp monotonicity violated! Element', {
+          idx,
+          ele,
+        })
         return false
       }
       if (ele.blockNumber < lastBlockNumber) {
         this.logger.error('Block Number monotonicity violated! Element', {
+          idx,
           ele,
         })
         return false
@@ -569,12 +573,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             oldBlockNumber: ele.blockNumber,
             newBlockNumber: earliestBlockNumber,
           })
-          fixedBatch.push({
-            ...ele,
-            timestamp: earliestTimestamp,
-            blockNumber: earliestBlockNumber,
-          })
-          continue
+          ele.timestamp = earliestTimestamp
+          ele.blockNumber = earliestBlockNumber
         }
         // Fix the element if its timestammp/blockNumber is too large
         if (
@@ -587,14 +587,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             oldBlockNumber: ele.blockNumber,
             newBlockNumber: latestBlockNumber,
           })
-          fixedBatch.push({
-            ...ele,
-            timestamp: latestTimestamp,
-            blockNumber: latestBlockNumber,
-          })
-          continue
+          ele.timestamp = latestTimestamp
+          ele.blockNumber = latestBlockNumber
         }
-        // No fixes needed!
+        earliestTimestamp = ele.timestamp
+        earliestBlockNumber = ele.blockNumber
         fixedBatch.push(ele)
       }
       return fixedBatch
