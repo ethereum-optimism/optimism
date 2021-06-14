@@ -37,17 +37,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     using Lib_EIP155Tx for Lib_EIP155Tx.EIP155Tx;
 
 
-    /*************
-     * Constants *
-     *************/
-
-    // A value that is large enought to account for the gas usage of the transaction
-    // to and INCLUDING the containerization cost of CALL/CREATE, but EXCLUDING
-    // the subcall made by the Execution Manager, which will consume at most gasLimit
-    // additional gas.
-    // NOTE: This value is made public for reading in integration tests.
-    uint256 constant public EXECUTE_INTRINSIC_GAS = 2789889;
-
     /********************
      * Public Functions *
      ********************/

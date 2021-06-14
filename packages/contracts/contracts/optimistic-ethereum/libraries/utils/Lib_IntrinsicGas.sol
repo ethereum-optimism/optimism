@@ -16,10 +16,15 @@ library Lib_IntrinsicGas {
         uint256 _datalength
     )
         internal
+        pure
         returns (
             uint256
         )
     {
-       return 50000 + (_datalength + 109) * 16;
+        // This curve fit was calculated empirically via integration tests.
+        // See integration-tests/test/fee-payment.spec.ts "should use the correctly estimated intrinsic gas for transactions of varying lengths"
+        return 383213
+            + (161 * _datalength) / 10
+            + (762 * (_datalength ** 2)) / 10000000;
     }
 }
