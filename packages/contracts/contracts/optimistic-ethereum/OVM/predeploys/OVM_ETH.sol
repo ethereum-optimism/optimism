@@ -6,6 +6,7 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 
 /* Contract Imports */
 import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
+import { IWETH9NoERC20 } from "../../libraries/standards/IWETH9NoERC20.sol";
 
 /**
  * @title OVM_ETH
@@ -15,7 +16,7 @@ import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_ETH is L2StandardERC20 {
+contract OVM_ETH is L2StandardERC20, IWETH9NoERC20 {
 
     /***************
      * Constructor *
@@ -29,4 +30,48 @@ contract OVM_ETH is L2StandardERC20 {
             "ETH"
         )
     {}
+
+
+    /******************************
+     * Custom WETH9 Functionality *
+     ******************************/
+
+    /**
+     * Implements the WETH9 deposit() function as a no-op.
+     * WARNING: this function does NOT have to do with cross-chain asset bridging. The
+     * relevant deposit and withdraw functions for that use case can be found at L2StandardBridge.sol.
+     * This function allows developers to treat OVM_ETH as WETH without any modifications to their code.
+     */
+    function deposit()
+        public
+        payable
+        override
+    {
+        // Calling deposit() with nonzero value will send the ETH to this contract address.  Once recieved here,
+        // We transfer it back by sending to the msg.sender.
+        _transfer(address(this), msg.sender, msg.value);
+
+        emit Deposit(msg.sender, msg.value);
+    }
+
+    /**
+     * Implements the WETH9 withdraw() function as a no-op.
+     * WARNING: this function does NOT have to do with cross-chain asset bridging. The
+     * relevant deposit and withdraw functions for that use case can be found at L2StandardBridge.sol.
+     * This function allows developers to treat OVM_ETH as WETH without any modifications to their code.
+     * @param wad Amount being withdrawn
+     */
+    function withdraw(
+        uint256 wad
+    )
+        public
+        payable
+        override
+    {
+        // Calling withdraw() with value exceeding the withdrawer's ovmBALANCE should revert, as in WETH9.
+        require(_balances[msg.sender] >= wad);
+
+        // Other than emitting an event, OVM_ETH already is native ETH, so we don't need to do anything else.
+        emit Withdrawal(msg.sender, wad);
+    }
 }
