@@ -712,6 +712,7 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 		// The client needs to be mocked with a mockClient
 		RollupClientHttp: "",
 		Backend:          BackendL2,
+		GasLimit:         12_000_000,
 	}
 
 	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db)

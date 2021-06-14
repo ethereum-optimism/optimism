@@ -77,6 +77,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	} else {
 		log.Info("Running in sequencer mode", "sync-backend", cfg.Backend.String())
 	}
+	log.Info("Sync service gas limit", "gas-limit", cfg.GasLimit)
 
 	pollInterval := cfg.PollInterval
 	if pollInterval == 0 {
@@ -113,7 +114,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		pollInterval:              pollInterval,
 		timestampRefreshThreshold: timestampRefreshThreshold,
 		backend:                   cfg.Backend,
-		gasLimit:                  9_000_000,
+		gasLimit:                  cfg.GasLimit,
 		gpoAddress:                cfg.GasPriceOracleAddress,
 		enableL2GasPolling:        cfg.EnableL2GasPolling,
 		enforceFees:               cfg.EnforceFees,
@@ -710,7 +711,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	_, err = s.bc.WriteBlockWithState(block, receipts, logs, statedb, false)
 	if err != nil {
 		log.Error("Cannot write state with block", "msg", err)
-        return err
+		return err
 	}
 	log.Info("New Block", "index", block.Number().Uint64()-1, "tx", tx.Hash().Hex())
 
