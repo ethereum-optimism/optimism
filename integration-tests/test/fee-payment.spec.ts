@@ -22,16 +22,7 @@ import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 /* Imports: Internal */
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
-
-// TODO: import me from core-utils via kevin's incoming PR
-const DEFAULT_EIP155_TX = {
-  to: `0x${'12'.repeat(20)}`,
-  nonce: 100,
-  gasLimit: 1000000,
-  gasPrice: 100000000,
-  data: `0x${'99'.repeat(10)}`,
-  chainId: 420,
-}
+import { DEFAULT_TRANSACTION } from './shared/utils'
 
 describe('Fee Payment Integration Tests', async () => {
   const other = '0x1234123412341234123412341234123412341234'
@@ -169,7 +160,7 @@ describe('Fee Payment Integration Tests', async () => {
     await GasMeasurer.deployTransaction.wait()
 
     const transaction = {
-      ...DEFAULT_EIP155_TX,
+      ...DEFAULT_TRANSACTION,
       to: constants.AddressZero, // this will consume the minimal gas possible
       data: '0x' + Buffer.alloc(127000).toString('hex'),
     }
