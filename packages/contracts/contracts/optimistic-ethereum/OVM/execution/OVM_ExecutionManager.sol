@@ -15,6 +15,7 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
+import { IWETH9NoERC20 } from "../../libraries/standards/IWETH9NoERC20.sol";
 
 /* Contract Imports */
 import { OVM_DeployerWhitelist } from "../predeploys/OVM_DeployerWhitelist.sol";
@@ -647,6 +648,43 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         nextMessageContext.ovmADDRESS = _address;
         nextMessageContext.ovmCALLVALUE = _value;
 
+        // OVM_ETH serves as native ETH which "is already wrapped," i.e. accessible as
+        // an ERC20.  If we see the WETH functions deposit() or withdraw()
+        // (NOT the asset bridging functions for depositing and withdrawing,
+        // which should be invoked on the L2StandardBridge), then we make it a no-op.
+        if (
+            _address == Lib_PredeployAddresses.OVM_ETH
+            && _calldata.length >= 4
+        ) {
+            bytes4 methodId;
+            assembly {
+                let firstWord := mload(add(_calldata, 0x20))
+                methodId := shr(224, firstWord)
+            }
+
+            if (
+                methodId == IWETH9NoERC20.deposit.selector
+            ) {
+                return (
+                    _value <= ovmSELFBALANCE(),
+                    hex""
+                );
+            }
+
+            if (
+                methodId == IWETH9NoERC20.withdraw.selector
+            ) {
+                uint256 amount;
+                assembly {
+                    amount := mload(add(_calldata, 0x24))
+                }
+                return (
+                    amount <= ovmSELFBALANCE(),
+                    hex""
+                );
+            }
+        }
+
         return _callContract(
             nextMessageContext,
             _gasLimit,
@@ -924,7 +962,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      */
     function ovmSELFBALANCE()
         override
-        external
+        public
         returns (
             uint256 _BALANCE
         )
