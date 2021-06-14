@@ -110,7 +110,10 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         );
 
         uint256 intrinsicGas = Lib_IntrinsicGas.ecdsaContractAccount(_transaction.data.length);
-        uint256 subCallGasLimit = SafeMath.sub(gasLimit, intrinsicGas);
+        uint256 subCallGasLimit = SafeMath.sub(
+            Math.max(gasLimit, intrinsicGas),
+            intrinsicGas
+        );
 
         // Address of this contract within the ovm (ovmADDRESS) should be the same as the
         // recovered address of the user who signed this message. This is how we manage to shim
