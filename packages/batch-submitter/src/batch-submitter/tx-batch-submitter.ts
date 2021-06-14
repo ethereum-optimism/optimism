@@ -573,12 +573,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             oldBlockNumber: ele.blockNumber,
             newBlockNumber: earliestBlockNumber,
           })
-          fixedBatch.push({
-            ...ele,
-            timestamp: earliestTimestamp,
-            blockNumber: earliestBlockNumber,
-          })
-          continue
+          ele.timestamp = earliestTimestamp
+          ele.blockNumber = earliestBlockNumber
         }
         // Fix the element if its timestammp/blockNumber is too large
         if (
@@ -591,14 +587,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             oldBlockNumber: ele.blockNumber,
             newBlockNumber: latestBlockNumber,
           })
-          fixedBatch.push({
-            ...ele,
-            timestamp: latestTimestamp,
-            blockNumber: latestBlockNumber,
-          })
-          continue
+          ele.timestamp = latestTimestamp
+          ele.blockNumber = latestBlockNumber
         }
-        // No fixes needed!
+        earliestTimestamp = ele.timestamp
+        earliestBlockNumber = ele.blockNumber
         fixedBatch.push(ele)
       }
       return fixedBatch
