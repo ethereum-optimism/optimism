@@ -65,11 +65,10 @@ contract OVM_ETH is L2StandardERC20, IWETH9NoERC20 {
         uint256 wad
     )
         public
-        payable
         override
     {
         // Calling withdraw() with value exceeding the withdrawer's ovmBALANCE should revert, as in WETH9.
-        require(_balances[msg.sender] >= wad);
+        require(balanceOf(msg.sender) >= wad);
 
         // Other than emitting an event, OVM_ETH already is native ETH, so we don't need to do anything else.
         emit Withdrawal(msg.sender, wad);
