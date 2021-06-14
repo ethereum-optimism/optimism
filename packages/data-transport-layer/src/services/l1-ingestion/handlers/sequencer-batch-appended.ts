@@ -22,6 +22,7 @@ import {
   SEQUENCER_GAS_LIMIT,
   parseSignatureVParam,
 } from '../../../utils'
+import { MissingElementError } from './errors'
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<
   EventArgsSequencerBatchAppended,
@@ -181,6 +182,18 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     }
   },
   storeEvent: async (entry, db) => {
+    // Defend against situations where we missed an event because the RPC provider
+    // (infura/alchemy/whatever) is missing an event.
+    if (entry.transactionBatchEntry.index > 0) {
+      if (
+        (await db.getTransactionBatchByIndex(
+          entry.transactionBatchEntry.index - 1
+        )) === null
+      ) {
+        throw new MissingElementError('SequencerBatchAppended')
+      }
+    }
+
     await db.putTransactionBatchEntries([entry.transactionBatchEntry])
     await db.putTransactionEntries(entry.transactionEntries)
 
