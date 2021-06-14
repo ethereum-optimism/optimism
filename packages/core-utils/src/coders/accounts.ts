@@ -6,6 +6,9 @@ export const LibEIP155TxStruct = (tx: Transaction | string): Array<any> => {
   if (typeof tx === 'string') {
     tx = parse(tx)
   }
+  if (tx.chainId == 0) {
+    throw new Error('Not an EIP155 compatible transaction')
+  }
   const values = [
     tx.nonce,
     tx.gasPrice,
@@ -17,8 +20,15 @@ export const LibEIP155TxStruct = (tx: Transaction | string): Array<any> => {
     tx.r,
     tx.s,
     tx.chainId,
-    tx.v === 0 ? 0 : tx.v - 2 * tx.chainId - 35,
+    parseV(tx.v, tx.chainId),
     tx.to === null,
   ]
   return values
+}
+
+const parseV = (orig: number, chainId: number): number => {
+  if ([0, 1].includes(orig)) {
+    return orig
+  }
+  return orig - 2 * chainId - 35
 }
