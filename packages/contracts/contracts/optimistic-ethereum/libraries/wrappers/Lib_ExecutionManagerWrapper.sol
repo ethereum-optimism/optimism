@@ -3,6 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
 import { Lib_ErrorUtils } from "../utils/Lib_ErrorUtils.sol";
+import { Lib_PredeployAddresses } from "../constants/Lib_PredeployAddresses.sol";
 
 /**
  * @title Lib_ExecutionManagerWrapper
@@ -252,7 +253,7 @@ library Lib_ExecutionManagerWrapper {
             bytes memory
         )
     {
-        (bool success, bytes memory returndata) = 0x420000000000000000000000000000000000000B.delegatecall(_calldata);
+        (bool success, bytes memory returndata) = Lib_PredeployAddresses.EXECUTION_MANAGER_WRAPPER.delegatecall(_calldata);
 
         if (success == true) {
             return returndata;
