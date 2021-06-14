@@ -1,5 +1,19 @@
 # data transport layer
 
+## 0.3.6
+
+### Patch Changes
+
+- baa3b761: Improve Sentry support, initializing as needed and ensuring ERROR logs route to Sentry
+- Updated dependencies [baa3b761]
+  - @eth-optimism/common-ts@0.1.3
+
+## 0.3.5
+
+### Patch Changes
+
+- 1b692415: incorrect parsing of eth_getBlockRange result
+
 ## 0.3.4
 
 ### Patch Changes

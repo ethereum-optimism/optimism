@@ -1,6 +1,8 @@
 import { Wallet, providers } from 'ethers'
 import { MessageRelayerService } from '../service'
 import { Bcfg } from '@eth-optimism/core-utils'
+import { Logger, LoggerOptions } from '@eth-optimism/common-ts'
+import * as Sentry from '@sentry/node'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
 
@@ -14,6 +16,27 @@ const main = async () => {
   })
 
   const env = process.env
+
+  const SENTRY_DSN = config.str('sentry-dsn', env.SENTRY_DSN)
+  const USE_SENTRY = config.bool('use-sentry', env.USE_SENTRY === 'true')
+  const ETH_NETWORK_NAME = config.str('eth-network-name', env.ETH_NETWORK_NAME)
+
+  const loggerOptions: LoggerOptions = {
+    name: 'Message_Relayer',
+  }
+
+  if (USE_SENTRY) {
+    const sentryOptions = {
+      release: `message-relayer@${process.env.npm_package_version}`,
+      dsn: SENTRY_DSN,
+      environment: ETH_NETWORK_NAME,
+    }
+    loggerOptions.sentryOptions = sentryOptions
+    Sentry.init(sentryOptions)
+  }
+
+  const logger = new Logger(loggerOptions)
+
   const L2_NODE_WEB3_URL = config.str('l2-node-web3-url', env.L2_NODE_WEB3_URL)
   const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
   const ADDRESS_MANAGER_ADDRESS = config.str(
@@ -82,6 +105,7 @@ const main = async () => {
     l2BlockOffset: L2_BLOCK_OFFSET,
     l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
+    logger,
   })
 
   await service.start()
