@@ -6,7 +6,7 @@ export const LibEIP155TxStruct = (tx: Transaction | string): Array<any> => {
   if (typeof tx === 'string') {
     tx = parse(tx)
   }
-  if (tx.chainId == 0) {
+  if (tx.chainId === 0) {
     throw new Error('Not an EIP155 compatible transaction')
   }
   const values = [
