@@ -69,7 +69,10 @@ describe('Native ETH value integration tests', () => {
     })
 
     it('should allow ETH to be burned by sending to zero address', async () => {
-      const Factory__EthBurner: ContractFactory = await ethers.getContractFactory('EthBurner', wallet)
+      const Factory__EthBurner: ContractFactory = await ethers.getContractFactory(
+        'EthBurner',
+        wallet
+      )
       const EthBurner: Contract = await Factory__EthBurner.deploy()
       await EthBurner.deployTransaction.wait()
 
