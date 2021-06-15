@@ -304,19 +304,21 @@ describe('Native ETH Integration Tests', async () => {
     expect(l2BalanceAfter).to.deep.eq(amount.sub(withdrawnAmount).sub(fee))
   })
 
-  describe('WETH functionality', async () => {
+  describe('WETH9 functionality', async () => {
+    let initialBalance: BigNumber
     const value = 10
 
     beforeEach(async () => {
       await fundUser(env.watcher, env.l1Bridge, value, env.l2Wallet.address)
-    })
-
-    it('deposit', async () => {
-      const initialBalance = await env.l2Wallet.provider.getBalance(
+      initialBalance = await env.l2Wallet.provider.getBalance(
         env.l2Wallet.address
       )
+    })
+
+    it('successfully deposits', async () => {
       const depositTx = await env.ovmEth.deposit({ value, gasPrice: 0 })
       const receipt = await depositTx.wait()
+
       expect(
         await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
       ).to.equal(initialBalance)
@@ -345,10 +347,20 @@ describe('Native ETH Integration Tests', async () => {
       expect(depositEvent.args.wad).to.equal(value)
     })
 
-    it('withdraw', async () => {
-      const initialBalance = await env.l2Wallet.provider.getBalance(
-        env.l2Wallet.address
-      )
+    it('successfully deposits on fallback', async () => {
+      const fallbackTx = await env.l2Wallet.sendTransaction({
+        to: env.ovmEth.address,
+        value,
+        gasPrice: 0,
+      })
+      const receipt = await fallbackTx.wait()
+      expect(receipt.status).to.equal(1)
+      expect(
+        await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
+      ).to.equal(initialBalance)
+    })
+
+    it('successfully withdraws', async () => {
       const withdrawTx = await env.ovmEth.withdraw(value, { gasPrice: 0 })
       const receipt = await withdrawTx.wait()
       expect(
@@ -361,6 +373,11 @@ describe('Native ETH Integration Tests', async () => {
       expect(depositEvent.event).to.equal('Withdrawal')
       expect(depositEvent.args.src).to.equal(env.l2Wallet.address)
       expect(depositEvent.args.wad).to.equal(value)
+    })
+
+    it('reverts on invalid withdraw', async () => {
+      await expect(env.ovmEth.withdraw(initialBalance.add(1), { gasPrice: 0 }))
+        .to.be.reverted
     })
   })
 })
