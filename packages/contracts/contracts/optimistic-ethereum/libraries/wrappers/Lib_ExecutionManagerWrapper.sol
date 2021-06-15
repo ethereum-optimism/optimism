@@ -255,9 +255,7 @@ library Lib_ExecutionManagerWrapper {
             bytes memory
         )
     {
-        (bool success, bytes memory returndata) = Lib_PredeployAddresses.EXECUTION_MANAGER_WRAPPER.delegatecall(_calldata);
-
-        return _handleCallWrapperContract(success, returndata);
+        return _callWrapperContract(_calldata, gasleft());
     }
 
     /**
@@ -276,7 +274,7 @@ library Lib_ExecutionManagerWrapper {
             bytes memory
         )
     {
-        (bool success, bytes memory returndata) = 0x420000000000000000000000000000000000000B.delegatecall{gas: _gasLimit}(_calldata);
+        (bool success, bytes memory returndata) = Lib_PredeployAddresses.EXECUTION_MANAGER_WRAPPER.delegatecall{gas: _gasLimit}(_calldata);
 
         return _handleCallWrapperContract(success, returndata);
     }
