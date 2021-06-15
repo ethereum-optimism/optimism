@@ -441,11 +441,29 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        logger.error('Error submitting batch', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
+        switch (err.code) {
+          case 'SERVER_ERROR':
+            logger.error(`Encountered server error with status ${err.status}`, {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          case 'NETWORK_ERROR':
+            logger.error('Could not detect network', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          default:
+            logger.error('Unhandled exception during batch submission', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+        }
         logger.info('Retrying...')
       }
       // Sleep
