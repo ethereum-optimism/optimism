@@ -25,6 +25,11 @@ if [[ ! -z "$URL" ]]; then
     if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
         envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
     fi
+    
+    envSet MVM_L1GATEWAY_ADDRESS Proxy__OVM_L1ETHGateway
+    if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
+        envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
+    fi
 fi
 
 # wait for the dtl to be up, else geth will crash if it cannot connect

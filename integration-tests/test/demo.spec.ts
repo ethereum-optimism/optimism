@@ -92,8 +92,8 @@ describe('Fee Payment Integration Tests', async () => {
     
     console.log(await MVM_Coinbase.l1TokenGateway(),
     await AddressManager.getAddress('Proxy__OVM_L1ETHGateway'),
-    await AddressManager.getAddress('OVM_L1ERC20Gateway'),
-    await AddressManager.getAddress('OVM_L2MessageRelayer'))
+    await AddressManager.getAddress('OVM_L1ETHGateway'),
+    await AddressManager.getAddress('OVM_L2BatchMessageRelayer'))
     const l1GatewayInterface = getContractInterface('OVM_L1ETHGateway')
     OVM_L1ETHGateway = new Contract(
       await AddressManager.getAddress('Proxy__OVM_L1ETHGateway'),
@@ -112,54 +112,66 @@ describe('Fee Payment Integration Tests', async () => {
     var postBalances = await getBalances()
     console.log(postBalances.l1UserBalance+","+postBalances.l2UserBalance+","+postBalances.l1GatewayBalance+","+postBalances.sequencerBalance)
     // await waitForDepositTypeTransaction(
-    await  OVM_L1ETHGateway.depositTo(l1Wallet.address,{
+    const tx2 =await  OVM_L1ETHGateway.depositToByChainId(429,l2Wallet.address,{
         value: depositAmount,
-        gasLimit: '8999999',
+        gasLimit: '9400000',
         gasPrice: 0
       })
     //   watcher, l1Provider, l2Provider
     // )
+    const res=await tx2.wait()
+    console.log(res)
     postBalances = await getBalances()
     console.log(postBalances.l1UserBalance+","+postBalances.l2UserBalance+","+postBalances.l1GatewayBalance+","+postBalances.sequencerBalance)
   })
   
 
   it('Paying a nonzero but acceptable gasPrice fee', async () => {
-    // const preBalances = await getBalances()
+    const preBalances = await getBalances()
 
-    // const gasPrice = BigNumber.from(0_000_000)
-    // const gasLimit = BigNumber.from(8_000_000)
+    const gasPrice = BigNumber.from(15000000)
+    const gasLimit = BigNumber.from(165920000)
 
-    // // transfer with 0 value to easily pay a gas fee
-    // const res: TransactionResponse = await MVM_Coinbase.transfer(
-    //   PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
-    //   0,
-    //   {
-    //     gasPrice,
-    //     gasLimit
-    //   }
-    // )
-    // await res.wait()
-    // var postBalances = await getBalances()
-    // console.log("l1 wallet balance:"+postBalances.l1UserBalance+",l2 wallet balance"+postBalances.l2UserBalance+",l1gateway balance"+postBalances.l1GatewayBalance+",seq balance"+postBalances.sequencerBalance)
-    // const taxBalance = await MVM_Coinbase.balanceOf(TAX_ADDRESS)
-    // console.log("tax balance:"+taxBalance)
+    // transfer with 0 value to easily pay a gas fee
+    let res: TransactionResponse = await MVM_Coinbase.transfer(
+      PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
+      100,
+      {
+        gasPrice,
+        gasLimit
+      }
+    )
+    await res.wait()
+    var postBalances = await getBalances()
+    console.log("l1 wallet balance:"+postBalances.l1UserBalance+",l2 wallet balance"+postBalances.l2UserBalance+",l1gateway balance"+postBalances.l1GatewayBalance+",seq balance"+postBalances.sequencerBalance)
+    const taxBalance = await MVM_Coinbase.balanceOf(TAX_ADDRESS)
+    console.log("tax balance:"+taxBalance)
+    res = await MVM_Coinbase.withdrawByChainId(429,
+      1000,
+      {
+        gasPrice,
+        gasLimit
+      }
+    )
+    await res.wait()
+    var postBalances = await getBalances()
+    console.log("l1 wallet balance:"+postBalances.l1UserBalance+",l2 wallet balance"+postBalances.l2UserBalance+",l1gateway balance"+postBalances.l1GatewayBalance+",seq balance"+postBalances.sequencerBalance)
+    
+    // make sure stored and served correctly by geth
+    expect(res.gasPrice.eq(gasPrice)).to.be.true
+    expect(res.gasLimit.eq(gasLimit)).to.be.true
 
-    // // make sure stored and served correctly by geth
-    // expect(res.gasPrice.eq(gasPrice)).to.be.true
-    // expect(res.gasLimit.eq(gasLimit)).to.be.true
+    postBalances = await getBalances()
+    const feePaid = preBalances.l2UserBalance.sub(
+      postBalances.l2UserBalance
+    )
 
-    // postBalances = await getBalances()
-    // const feePaid = preBalances.l2UserBalance.sub(
-    //   postBalances.l2UserBalance
-    // )
-
-    // expect(
-    //   feePaid.
-    //     eq(
-    //       gasLimit.mul(gasPrice)
-    //     )
-    // ).to.be.true
+    expect(
+      feePaid.
+        eq(
+          gasLimit.mul(gasPrice)
+        )
+    ).to.be.true
   })
 
   it.skip('sequencer rejects transaction with a non-multiple-of-1M gasPrice', async () => {
