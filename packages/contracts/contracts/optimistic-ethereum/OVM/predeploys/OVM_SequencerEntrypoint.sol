@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
-import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
+import { iOVM_ECDSAContractAccount } from "../../iOVM/predeploys/iOVM_ECDSAContractAccount.sol";
 
 /**
  * @title OVM_SequencerEntrypoint
