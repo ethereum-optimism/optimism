@@ -6,7 +6,7 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 
 /* Contract Imports */
 import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
-import { IWETH9NoERC20 } from "../../libraries/standards/IWETH9NoERC20.sol";
+import { IWETH9 } from "../../libraries/standards/IWETH9.sol";
 
 /**
  * @title OVM_ETH
@@ -16,7 +16,7 @@ import { IWETH9NoERC20 } from "../../libraries/standards/IWETH9NoERC20.sol";
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract OVM_ETH is L2StandardERC20, IWETH9NoERC20 {
+contract OVM_ETH is L2StandardERC20, IWETH9 {
 
     /***************
      * Constructor *
@@ -59,18 +59,18 @@ contract OVM_ETH is L2StandardERC20, IWETH9NoERC20 {
      * WARNING: this function does NOT have to do with cross-chain asset bridging. The
      * relevant deposit and withdraw functions for that use case can be found at L2StandardBridge.sol.
      * This function allows developers to treat OVM_ETH as WETH without any modifications to their code.
-     * @param wad Amount being withdrawn
+     * @param _wad Amount being withdrawn
      */
     function withdraw(
-        uint256 wad
+        uint256 _wad
     )
         public
         override
     {
         // Calling withdraw() with value exceeding the withdrawer's ovmBALANCE should revert, as in WETH9.
-        require(balanceOf(msg.sender) >= wad);
+        require(balanceOf(msg.sender) >= _wad);
 
         // Other than emitting an event, OVM_ETH already is native ETH, so we don't need to do anything else.
-        emit Withdrawal(msg.sender, wad);
+        emit Withdrawal(msg.sender, _wad);
     }
 }
