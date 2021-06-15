@@ -73,11 +73,11 @@ jobs:
 
       - name: Custom Docker Image Name
         if: github.event.inputs.customImageName != ''
-        run: echo "::set-env name=CANARY_DOCKER_TAG::${{ github.event.inputs.customImageName }}"
+        run: echo "name=docker_tag::${{ github.event.inputs.customImageName }} >> $GITHUB_ENV"
 
       - name: Short Git SHA Docker Image Name
         if: github.event.inputs.customImageName == ''
-        run: echo "::set-env name=CANARY_DOCKER_TAG::${{ github.sha }}"
+        run: echo "name=docker_tag::${{ github.sha }} >> $GITHUB_ENV"
 
   # The below code is duplicated, would be ideal if we could use a matrix with a
   # key/value being dynamically generated from the `publishedPackages` output
@@ -107,7 +107,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.geth
           push: true
-          tags: ethereumoptimism/l2geth:${{ env.CANARY_DOCKER_TAG }}
+          tags: ethereumoptimism/l2geth:${{ env.docker_tag }}
 
   # pushes the base builder image to dockerhub
   builder:
@@ -167,7 +167,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.message-relayer
           push: true
-          tags: ethereumoptimism/message-relayer:${{ env.CANARY_DOCKER_TAG }}
+          tags: ethereumoptimism/message-relayer:${{ env.docker_tag }}
 
   batch-submitter:
     name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
@@ -193,7 +193,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.batch-submitter
           push: true
-          tags: ethereumoptimism/batch-submitter:${{ env.CANARY_DOCKER_TAG }}
+          tags: ethereumoptimism/batch-submitter:${{ env.docker_tag }}
 
   data-transport-layer:
     name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
@@ -219,7 +219,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.data-transport-layer
           push: true
-          tags: ethereumoptimism/data-transport-layer:${{ env.CANARY_DOCKER_TAG }}
+          tags: ethereumoptimism/data-transport-layer:${{ env.docker_tag }}
 
   contracts:
     name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
@@ -245,7 +245,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.deployer
           push: true
-          tags: ethereumoptimism/deployer:${{ env.CANARY_DOCKER_TAG }}
+          tags: ethereumoptimism/deployer:${{ env.docker_tag }}
 
   integration_tests:
     name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
@@ -271,4 +271,4 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.integration-tests
           push: true
-          tags: ethereumoptimism/integration-tests:${{ env.CANARY_DOCKER_TAG }}
+          tags: ethereumoptimism/integration-tests:${{ env.docker_tag }}
