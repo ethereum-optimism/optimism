@@ -1,5 +1,13 @@
 # @eth-optimism/message-relayer
 
+## 0.1.5
+
+### Patch Changes
+
+- baa3b761: Improve Sentry support, initializing as needed and ensuring ERROR logs route to Sentry
+- Updated dependencies [baa3b761]
+  - @eth-optimism/common-ts@0.1.3
+
 ## 0.1.4
 
 ### Patch Changes

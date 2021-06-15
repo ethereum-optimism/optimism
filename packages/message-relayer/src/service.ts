@@ -5,7 +5,7 @@ import { MerkleTree } from 'merkletreejs'
 
 /* Imports: Internal */
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
-import { BaseService } from '@eth-optimism/common-ts'
+import { Logger, BaseService, Metrics } from '@eth-optimism/common-ts'
 
 import {
   loadContract,
@@ -44,6 +44,12 @@ interface MessageRelayerOptions {
 
   // Number of blocks within each getLogs query - max is 2000
   getLogsInterval?: number
+
+  // A custom logger to transport logs via; default STDOUT
+  logger?: Logger
+
+  // A custom metrics tracker to manage metrics; default undefined
+  metrics?: Metrics
 }
 
 const optionSettings = {

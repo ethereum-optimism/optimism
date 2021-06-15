@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.9
+
+### Patch Changes
+
+- f409ce75: Fixes an off-by-one error that would sometimes break replica syncing when stopping and restarting geth.
+- d9fd67d2: Correctly log 'end of OVM execution' message.
+
+## 0.3.8
+
+### Patch Changes
+
+- 989a3027: Optimize main polling loops
+- cc6c7f07: Bump golang version to 1.15
+
 ## 0.3.7
 
 ### Patch Changes

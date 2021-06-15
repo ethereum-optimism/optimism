@@ -1,5 +1,6 @@
 /* External Imports */
 import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
+import * as Sentry from '@sentry/node'
 import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
@@ -101,15 +102,17 @@ export const run = async () => {
   let logger
 
   if (config.bool('use-sentry', env.USE_SENTRY === 'true')) {
+    const sentryOptions = {
+      release,
+      dsn: sentryDsn,
+      tracesSampleRate: sentryTraceRate,
+      environment: network,
+    }
+    Sentry.init(sentryOptions)
     // Initialize Sentry for Batch Submitter deployed to a network
     logger = new Logger({
       name,
-      sentryOptions: {
-        release,
-        dsn: sentryDsn,
-        tracesSampleRate: sentryTraceRate,
-        environment: network,
-      },
+      sentryOptions,
     })
   } else {
     // Skip initializing Sentry
@@ -438,11 +441,29 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        logger.error('Error submitting batch', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
+        switch (err.code) {
+          case 'SERVER_ERROR':
+            logger.error(`Encountered server error with status ${err.status}`, {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          case 'NETWORK_ERROR':
+            logger.error('Could not detect network', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          default:
+            logger.error('Unhandled exception during batch submission', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+        }
         logger.info('Retrying...')
       }
       // Sleep

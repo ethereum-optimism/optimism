@@ -466,10 +466,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 					ret = []byte{}
 				}
 			}
-		}
-
-		if evm.Context.EthCallSender == nil {
-			log.Debug("Reached the end of an OVM execution", "ID", evm.Id, "Return Data", hexutil.Encode(ret), "Error", err)
+			if evm.Context.EthCallSender == nil {
+				log.Debug("Reached the end of an OVM execution", "ID", evm.Id, "Return Data", hexutil.Encode(ret), "Error", err)
+			}
 		}
 	}
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.5
+
+### Patch Changes
+
+- 7cce55a9: Add status to generic error log to disambiguate errors
+
+## 0.3.4
+
+### Patch Changes
+
+- baa3b761: Improve Sentry support, initializing as needed and ensuring ERROR logs route to Sentry
+- cc742715: Fix typo in USE_HARDHAT config
+- 98b7839f: Change monotonicity band-aid code to log warnings not errors
+- c520100d: Fix a bug in fixMonotonicity auto healer
+- 85362d44: Log additional data in monotonicity violation
+- Updated dependencies [baa3b761]
+  - @eth-optimism/common-ts@0.1.3
+
 ## 0.3.3
 
 ### Patch Changes
