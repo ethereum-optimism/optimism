@@ -243,6 +243,7 @@ export abstract class BatchSubmitter {
         this.logger
       )
     } catch (err) {
+      this.metrics.failedSubmissions.inc()
       if (err.reason) {
         this.logger.error(`Transaction invalid: ${err.reason}, aborting`, {
           message: err.toString(),
