@@ -100,13 +100,6 @@ describe('OVM_L1MultiMessageRelayer', () => {
       AddressManager.address
     )
 
-    // set the address of the OVM_L1MultiMessageRelayer, which the OVM_L1CrossDomainMessenger will
-    // check in its onlyRelayer modifier.
-    // The string currently used in the AddressManager is 'OVM_L2MessageRelayer'
-    await AddressManager.setAddress(
-      'OVM_L2MessageRelayer',
-      OVM_L1MultiMessageRelayer.address
-    )
     // set the mock return value
     Mock__OVM_L1CrossDomainMessenger.smocked.relayMessage.will.return()
   })
