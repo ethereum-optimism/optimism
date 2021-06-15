@@ -211,8 +211,7 @@ contract('ERC20', (accounts) => {
     const balance02 = await token.balanceOf.call(accounts[ 0 ])
     assert.strictEqual(balance02.toNumber(), 9980)
   })
-
-  /* eslint-disable no-underscore-dangle */
+  
   it('events: should fire Transfer event properly', async () => {
     const res = await token.transfer(accounts[ 1 ], '2666', { from: accounts[ 0 ], gasPrice: 0 })
     const transferLog = res.logs.find(

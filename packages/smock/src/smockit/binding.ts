@@ -7,11 +7,11 @@ import BN from 'bn.js'
 // Handle hardhat ^2.2.0
 let TransactionExecutionError: any
 try {
-  // tslint:disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   TransactionExecutionError = require('hardhat/internal/hardhat-network/provider/errors')
     .TransactionExecutionError
 } catch (err) {
-  // tslint:disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   TransactionExecutionError = require('hardhat/internal/core/providers/errors')
     .TransactionExecutionError
 }
@@ -23,6 +23,7 @@ import { fromFancyAddress, toFancyAddress } from '../common'
 /**
  * Checks to see if smock has been initialized already. Basically just checking to see if we've
  * attached smock state to the VM already.
+ *
  * @param provider Base hardhat network provider to check.
  * @return Whether or not the provider has already been modified to support smock.
  */
@@ -32,6 +33,7 @@ const isSmockInitialized = (provider: HardhatNetworkProvider): boolean => {
 
 /**
  * Modifies a hardhat provider to be compatible with smock.
+ *
  * @param provider Base hardhat network provider to modify.
  */
 const initializeSmock = (provider: HardhatNetworkProvider): void => {
@@ -156,6 +158,7 @@ const initializeSmock = (provider: HardhatNetworkProvider): void => {
 /**
  * Attaches a smocked contract to a hardhat network provider. Will also modify the provider to be
  * compatible with smock if not done already.
+ *
  * @param mock Smocked contract to attach to a provider.
  * @param provider Hardhat network provider to attach the contract to.
  */
