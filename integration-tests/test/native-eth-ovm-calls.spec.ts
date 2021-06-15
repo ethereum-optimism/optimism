@@ -24,47 +24,65 @@ describe('Native ETH value integration tests', () => {
     other = Wallet.createRandom().connect(wallet.provider)
   })
 
-  it('should allow an L2 EOA to send to a new account and back again', async () => {
-    const getBalances = async (): Promise<BigNumber[]> => {
-      return [
-        await wallet.provider.getBalance(wallet.address),
-        await wallet.provider.getBalance(other.address),
-      ]
-    }
+  describe('Basic behavior', () => {
+    it('should allow an L2 EOA to send to a new account and back again', async () => {
+      const getBalances = async (): Promise<BigNumber[]> => {
+        return [
+          await wallet.provider.getBalance(wallet.address),
+          await wallet.provider.getBalance(other.address),
+        ]
+      }
 
-    const checkBalances = async (
-      expectedBalances: BigNumber[]
-    ): Promise<void> => {
-      const realBalances = await getBalances()
-      expect(realBalances[0]).to.deep.eq(expectedBalances[0])
-      expect(realBalances[1]).to.deep.eq(expectedBalances[1])
-    }
+      const checkBalances = async (
+        expectedBalances: BigNumber[]
+      ): Promise<void> => {
+        const realBalances = await getBalances()
+        expect(realBalances[0]).to.deep.eq(expectedBalances[0])
+        expect(realBalances[1]).to.deep.eq(expectedBalances[1])
+      }
 
-    const value = 10
-    await fundUser(env.watcher, env.l1Bridge, value, wallet.address)
+      const value = 10
+      await fundUser(env.watcher, env.l1Bridge, value, wallet.address)
 
-    const initialBalances = await getBalances()
+      const initialBalances = await getBalances()
 
-    const there = await wallet.sendTransaction({
-      to: other.address,
-      value,
-      gasPrice: 0,
+      const there = await wallet.sendTransaction({
+        to: other.address,
+        value,
+        gasPrice: 0,
+      })
+      await there.wait()
+
+      await checkBalances([
+        initialBalances[0].sub(value),
+        initialBalances[1].add(value),
+      ])
+
+      const backAgain = await other.sendTransaction({
+        to: wallet.address,
+        value,
+        gasPrice: 0,
+      })
+      await backAgain.wait()
+
+      await checkBalances(initialBalances)
     })
-    await there.wait()
 
-    await checkBalances([
-      initialBalances[0].sub(value),
-      initialBalances[1].add(value),
-    ])
+    it('should allow ETH to be burned by sending to zero address', async () => {
+      const Factory__EthBurner: ContractFactory = await ethers.getContractFactory('EthBurner', wallet)
+      const EthBurner: Contract = await Factory__EthBurner.deploy()
+      await EthBurner.deployTransaction.wait()
 
-    const backAgain = await other.sendTransaction({
-      to: wallet.address,
-      value,
-      gasPrice: 0,
+      const amount = 10
+      await fundUser(env.watcher, env.l1Bridge, amount, EthBurner.address)
+      const initialBalance = await wallet.provider.getBalance(EthBurner.address)
+
+      const tx = await EthBurner.burnETH(amount)
+      await tx.wait()
+
+      const postBalance = await wallet.provider.getBalance(EthBurner.address)
+      expect(initialBalance.sub(postBalance)).to.eq(amount)
     })
-    await backAgain.wait()
-
-    await checkBalances(initialBalances)
   })
 
   describe(`calls between OVM contracts with native ETH value and relevant opcodes`, async () => {

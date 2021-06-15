@@ -129,3 +129,9 @@ contract SendETHAwayAndDelegateCall {
         return _delegateTo.delegatecall(_data);
     }
 }
+
+contract EthBurner {
+    function burnETH(uint _amount) public {
+        address(0).call{value: _amount}(hex"");
+    }
+}
