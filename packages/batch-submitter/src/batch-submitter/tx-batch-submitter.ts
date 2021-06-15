@@ -301,8 +301,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // Fix our batches if we are configured to. TODO: Remove this.
     batch = await this._fixBatch(batch)
     if (!(await this._validateBatch(batch))) {
-      this.logger.error('Batch is malformed! Cannot submit next batch!')
-      throw new Error('Batch is malformed! Cannot submit next batch!')
+      return
     }
     let sequencerBatchParams = await this._getSequencerBatchParams(
       startBlock,
