@@ -294,7 +294,8 @@ contract OVM_L1CrossDomainMessenger is
             _messageNonce
         );
         require(
-            _verifyXDomainMessage(
+            _verifyXDomainMessageByChainId(
+                _chainId,
                 xDomainCalldata,
                 _proof
             ) == true,
@@ -504,6 +505,115 @@ contract OVM_L1CrossDomainMessenger is
         );
     }
 
+
+    /**
+     * Verifies that the given message is valid.
+     * @param _xDomainCalldata Calldata to verify.
+     * @param _proof Inclusion proof for the message.
+     * @return Whether or not the provided message is valid.
+     */
+    function _verifyXDomainMessageByChainId(
+        uint256 _chainId,
+        bytes memory _xDomainCalldata,
+        L2MessageInclusionProof memory _proof
+    )
+        internal
+        view
+        returns (
+            bool
+        )
+    {
+        return (
+            _verifyStateRootProofByChainId(_chainId,_proof)
+            && _verifyStorageProofByChainId(_chainId,_xDomainCalldata, _proof)
+        );
+    }
+
+    /**
+     * Verifies that the state root within an inclusion proof is valid.
+     * @param _proof Message inclusion proof.
+     * @return Whether or not the provided proof is valid.
+     */
+    function _verifyStateRootProofByChainId(
+        uint256 _chainId,
+        L2MessageInclusionProof memory _proof
+    )
+        internal
+        view
+        returns (
+            bool
+        )
+    {
+        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(
+            resolve("OVM_StateCommitmentChain")
+        );
+
+        return (
+            ovmStateCommitmentChain.insideFraudProofWindowByChainId(_chainId,_proof.stateRootBatchHeader) == false
+            && ovmStateCommitmentChain.verifyStateCommitmentByChainId(
+                _chainId,
+                _proof.stateRoot,
+                _proof.stateRootBatchHeader,
+                _proof.stateRootProof
+            )
+        );
+    }
+
+    /**
+     * Verifies that the storage proof within an inclusion proof is valid.
+     * @param _xDomainCalldata Encoded message calldata.
+     * @param _proof Message inclusion proof.
+     * @return Whether or not the provided proof is valid.
+     */
+    function _verifyStorageProofByChainId(
+        uint256 _chainId,
+        bytes memory _xDomainCalldata,
+        L2MessageInclusionProof memory _proof
+    )
+        internal
+        view
+        returns (
+            bool
+        )
+    {
+        bytes32 storageKey = keccak256(
+            abi.encodePacked(
+                keccak256(
+                    abi.encodePacked(
+                        _xDomainCalldata,
+                        resolve("OVM_L2CrossDomainMessenger")
+                    )
+                ),
+                uint256(0)
+            )
+        );
+
+        (
+            bool exists,
+            bytes memory encodedMessagePassingAccount
+        ) = Lib_SecureMerkleTrie.get(
+            abi.encodePacked(0x4200000000000000000000000000000000000000),
+            _proof.stateTrieWitness,
+            _proof.stateRoot
+        );
+
+        require(
+            exists == true,
+            "Message passing predeploy has not been initialized or invalid proof provided."
+        );
+
+        Lib_OVMCodec.EVMAccount memory account = Lib_OVMCodec.decodeEVMAccount(
+            encodedMessagePassingAccount
+        );
+
+        return Lib_SecureMerkleTrie.verifyInclusionProof(
+            abi.encodePacked(storageKey),
+            abi.encodePacked(uint8(1)),
+            _proof.storageTrieWitness,
+            account.storageRoot
+        );
+    }
+    
     /**
      * Sends a cross domain message via chain id.
      * @param _chainId L2 chain id.

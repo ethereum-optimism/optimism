@@ -41,7 +41,7 @@ const main = async () => {
   const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
   const L2_NODE_CHAIN_ID = config.uint(
     'l2-node-chain-id',
-    parseInt(env.L2_NODE_CHAIN_ID, 10) || 420
+    parseInt(env.L2_NODE_CHAIN_ID, 10) || 0
   )
   const ADDRESS_MANAGER_ADDRESS = config.str(
     'address-manager-address',
@@ -97,11 +97,15 @@ const main = async () => {
   } else {
     throw new Error('Must pass one of L1_WALLET_KEY or MNEMONIC')
   }
-
+  var chainId=L2_NODE_CHAIN_ID
+  if(!chainId || chainId==0){
+    chainId = await l2Provider.send('eth_chainId', [])
+  }
+  console.log("test",chainId)
   const service = new MessageRelayerService({
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
-    l2ChainId: L2_NODE_CHAIN_ID,
+    l2ChainId: chainId,
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
     l1Wallet: wallet,
     relayGasLimit: RELAY_GAS_LIMIT,
