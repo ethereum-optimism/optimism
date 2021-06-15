@@ -90,7 +90,7 @@ jobs:
   # while also allowing for parallelization (i.e. `l2geth` not depending on `builder`)
   # and all jobs executing in parallel once `builder` is built
   l2geth:
-    name: Publish L2Geth Version ${{ needs.canary-publish.outputs.l2geth }}
+    name: Publish L2Geth Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
     if: needs.canary-publish.outputs.l2geth != ''
     runs-on: ubuntu-latest
@@ -150,7 +150,7 @@ jobs:
           tags: ethereumoptimism/builder
 
   message-relayer:
-    name: Publish Message Relayer Version ${{ needs.builder.outputs.message-relayer }}
+    name: Publish Message Relayer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.message-relayer != ''
     runs-on: ubuntu-latest
@@ -176,7 +176,7 @@ jobs:
           tags: ethereumoptimism/message-relayer:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   batch-submitter:
-    name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
+    name: Publish Batch Submitter Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.batch-submitter != ''
     runs-on: ubuntu-latest
@@ -202,7 +202,7 @@ jobs:
           tags: ethereumoptimism/batch-submitter:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   data-transport-layer:
-    name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
+    name: Publish Data Transport Layer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.data-transport-layer != ''
     runs-on: ubuntu-latest
@@ -228,7 +228,7 @@ jobs:
           tags: ethereumoptimism/data-transport-layer:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   contracts:
-    name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
+    name: Publish Deployer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.contracts != ''
     runs-on: ubuntu-latest
