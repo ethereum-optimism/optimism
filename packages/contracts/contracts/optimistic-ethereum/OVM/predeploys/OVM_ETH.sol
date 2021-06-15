@@ -35,6 +35,9 @@ contract OVM_ETH is L2StandardERC20, IWETH9 {
     /******************************
      * Custom WETH9 Functionality *
      ******************************/
+    fallback() external payable {
+        deposit();
+    }
 
     /**
      * Implements the WETH9 deposit() function as a no-op.
@@ -64,7 +67,7 @@ contract OVM_ETH is L2StandardERC20, IWETH9 {
     function withdraw(
         uint256 _wad
     )
-        public
+        external
         override
     {
         // Calling withdraw() with value exceeding the withdrawer's ovmBALANCE should revert, as in WETH9.
