@@ -117,20 +117,20 @@ export class StateBatchSubmitter extends BatchSubmitter {
   }
 
   public async _getBatchStartAndEnd(): Promise<Range> {
-    this.logger.info('Getting batch start and end for state batch submitter...')
+    //this.logger.info('Getting batch start and end for state batch submitter...')
     const startBlock: number =
       (await this.chainContract.getTotalElementsByChainId(this.l2ChainId)).toNumber() +
       this.blockOffset
-    this.logger.info('Retrieved start block number from SCC', {
-      startBlock,
-    })
+    //this.logger.info('Retrieved start block number from SCC', {
+    //  startBlock,
+    //})
 
     // We will submit state roots for txs which have been in the tx chain for a while.
     const totalElements: number =
       (await this.ctcContract.getTotalElementsByChainId(this.l2ChainId)).toNumber() + this.blockOffset
-    this.logger.info('Retrieved total elements from CTC', {
-      totalElements,
-    })
+    //this.logger.info('Retrieved total elements from CTC', {
+    //  totalElements,
+    //})
 
     const endBlock: number = Math.min(
       startBlock + this.maxBatchSize,
@@ -143,9 +143,9 @@ export class StateBatchSubmitter extends BatchSubmitter {
           'State commitment chain is larger than transaction chain. This should never happen!'
         )
       }
-      this.logger.info(
-        'No state commitments to submit. Skipping batch submission...'
-      )
+      //this.logger.info(
+      //  'No state commitments to submit. Skipping batch submission...'
+      //)
       return
     }
     return {

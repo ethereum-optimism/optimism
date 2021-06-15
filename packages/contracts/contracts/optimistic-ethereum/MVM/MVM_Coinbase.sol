@@ -30,8 +30,8 @@ contract MVM_Coinbase is OVM_L2DepositedERC20 {
     ) 
         OVM_L2DepositedERC20(
             _l2CrossDomainMessenger,
-            "MVMEther",
-            "METH"
+            "Metis Token",
+            "Metis"
         )
     {
         init(iOVM_L1TokenGateway(_l1ETHGateway));

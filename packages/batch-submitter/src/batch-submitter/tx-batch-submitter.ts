@@ -175,24 +175,24 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }
 
   public async _getBatchStartAndEnd(): Promise<Range> {
-    this.logger.info(
-      'Getting batch start and end for transaction batch submitter...'
-    )
+    //this.logger.info(
+    //  'Getting batch start and end for transaction batch submitter...'
+    //)
     const startBlock =
       (await this.chainContract.getTotalElementsByChainId(this.l2ChainId)).toNumber() +
       this.blockOffset
-    this.logger.info('Retrieved start block number from CTC', {
-      startBlock,
-    })
+    //this.logger.info('Retrieved start block number from CTC', {
+    //  startBlock,
+    //})
 
     const endBlock =
       Math.min(
         startBlock + this.maxBatchSize,
         await this.l2Provider.getBlockNumber()
       ) + 1 // +1 because the `endBlock` is *exclusive*
-    this.logger.info('Retrieved end block number from L2 sequencer', {
-      endBlock,
-    })
+    //this.logger.info('Retrieved end block number from L2 sequencer', {
+    //  endBlock,
+    //})
 
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {
@@ -200,7 +200,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           .error(`More chain elements in L1 (${startBlock}) than in the L2 node (${endBlock}).
                    This shouldn't happen because we don't submit batches if the sequencer is syncing.`)
       }
-      this.logger.info('No txs to submit. Skipping batch submission...')
+    //  this.logger.info('No txs to submit. Skipping batch submission...')
       return
     }
     return {

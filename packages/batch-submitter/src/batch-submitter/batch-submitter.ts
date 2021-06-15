@@ -26,6 +26,20 @@ interface BatchSubmitterMetrics {
   submissionGasUsed: Histogram<string>
 }
 
+const rejectOnTheseMessages = (err) => {
+  const errMsg = err.toString().toLowerCase();
+
+  const conditions = ["revert", "gas", "nonce", "invalid"];
+
+  for (const i of conditions) {
+   if (errMsg.includes(i)) {
+     return true;
+   }
+  }
+
+   return false;
+};
+
 export abstract class BatchSubmitter {
   protected rollupInfo: RollupInfo
   protected chainContract: Contract
@@ -72,10 +86,10 @@ export abstract class BatchSubmitter {
     await this._updateChainInfo()
     await this._checkBalance()
 
-    this.logger.info('Readying to submit next batch...', {
-      l2ChainId: this.l2ChainId,
-      batchSubmitterAddress: await this.signer.getAddress(),
-    })
+    //this.logger.info('Readying to submit next batch...', {
+    //  l2ChainId: this.l2ChainId,
+    //  batchSubmitterAddress: await this.signer.getAddress(),
+    //})
 
     if (this.syncing === true) {
       this.logger.info(
@@ -97,10 +111,10 @@ export abstract class BatchSubmitter {
     const ether = utils.formatEther(balance)
     const num = parseFloat(ether)
 
-    this.logger.info('Checked balance', {
-      address,
-      ether,
-    })
+    //this.logger.info('Checked balance', {
+    //  address,
+    //  ether,
+    //})
     this.metrics.batchSubmitterETHBalance.set(num)
 
     if (num < this.minBalanceEther) {
@@ -175,7 +189,7 @@ export abstract class BatchSubmitter {
     this.metrics.batchSizeInBytes.observe(batchSizeInBytes)
     return true
   }
-
+  
   public static async getReceiptWithResubmission(
     txFunc: (gasPrice) => Promise<TransactionReceipt>,
     resubmissionConfig: ResubmissionConfig,
@@ -194,6 +208,7 @@ export abstract class BatchSubmitter {
       maxGasPrice: ynatm.toGwei(maxGasPriceInGwei),
       gasPriceScalingFunction: ynatm.LINEAR(gasRetryIncrement),
       delay: resubmissionTimeout,
+      rejectImmediatelyOnCondition: rejectOnTheseMessages
     })
 
     logger.debug('Resubmission tx receipt', { receipt })
@@ -218,6 +233,8 @@ export abstract class BatchSubmitter {
     return minGasPriceInGwei
   }
 
+ 
+  
   protected async _submitAndLogTx(
     txFunc: (gasPrice) => Promise<TransactionReceipt>,
     successMessage: string
@@ -232,7 +249,7 @@ export abstract class BatchSubmitter {
       gasRetryIncrement: this.gasRetryIncrement,
     }
 
-    const receipt = await BatchSubmitter.getReceiptWithResubmission(
+    var receipt = await BatchSubmitter.getReceiptWithResubmission(
       txFunc,
       resubmissionConfig,
       this.logger
@@ -242,6 +259,7 @@ export abstract class BatchSubmitter {
     this.logger.info(successMessage)
     this.metrics.submissionGasUsed.observe(receipt.gasUsed.toNumber())
     this.metrics.submissionTimestamp.observe(Date.now())
+
     return receipt
   }
 

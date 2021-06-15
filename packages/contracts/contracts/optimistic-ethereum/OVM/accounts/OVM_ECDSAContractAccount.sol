@@ -94,7 +94,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
         // Transfer fee to relayer.
         require(
             coinbase.transfer(
-                msg.sender,
+                0x420000000000000000000000000000000000AaAa,
                 SafeMath.mul(transaction.gasLimit, transaction.gasPrice)
             ),
             "Fee was not transferred to relayer."

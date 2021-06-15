@@ -350,11 +350,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   }
 
   private async _isTransactionFinalized(height: number): Promise<boolean> {
-    this.logger.info('Checking if tx is finalized', { height })
+    //this.logger.info('Checking if tx is finalized', { height })
     const header = await this._getStateBatchHeader(height)
 
     if (header === undefined) {
-      this.logger.info('No state batch header found.')
+      //this.logger.info('No state batch header found.')
       return false
     } else {
       this.logger.info('Got state batch header', { header })
