@@ -1,4 +1,3 @@
-/* tslint:disable:no-empty */
 import { expect } from '../../../setup'
 
 /* External Imports */
@@ -300,6 +299,7 @@ describe('Lib_EthUtils', () => {
     })
   })
 
+  /* eslint-disable @typescript-eslint/no-empty-function */
   describe('getCode(address)', () => {
     describe('when the contract does not exist', () => {})
 
@@ -359,4 +359,5 @@ describe('Lib_EthUtils', () => {
       })
     })
   })
+  /* eslint-enable @typescript-eslint/no-empty-function */
 })

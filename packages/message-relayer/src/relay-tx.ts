@@ -59,6 +59,7 @@ interface StateTrieProof {
 
 /**
  * Finds all L2 => L1 messages triggered by a given L2 transaction, if the message exists.
+ *
  * @param l2RpcProvider L2 RPC provider.
  * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
  * @param l2TransactionHash Hash of the L2 transaction to find a message for.
@@ -110,6 +111,7 @@ export const getMessagesByTransactionHash = async (
 
 /**
  * Encodes a cross domain message.
+ *
  * @param message Message to encode.
  * @returns Encoded message.
  */
@@ -126,6 +128,7 @@ const encodeCrossDomainMessage = (message: CrossDomainMessage): string => {
 
 /**
  * Finds the StateBatchAppended event associated with a given L2 transaction.
+ *
  * @param l1RpcProvider L1 RPC provider.
  * @param l1StateCommitmentChainAddress Address of the L1StateCommitmentChain.
  * @param l2TransactionIndex Index of the L2 transaction to find a StateBatchAppended event for.
@@ -206,6 +209,7 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
 
 /**
  * Finds the full state root batch associated with a given transaction index.
+ *
  * @param l1RpcProvider L1 RPC provider.
  * @param l1StateCommitmentChainAddress Address of the L1StateCommitmentChain.
  * @param l2TransactionIndex Index of the L2 transaction to find a state root batch for.
@@ -252,6 +256,7 @@ export const getStateRootBatchByTransactionIndex = async (
 
 /**
  * Generates a Merkle proof (using the particular scheme we use within Lib_MerkleTree).
+ *
  * @param leaves Leaves of the merkle tree.
  * @param index Index to generate a proof for.
  * @returns Merkle proof sibling leaves, as hex strings.
@@ -288,6 +293,7 @@ const getMerkleTreeProof = (leaves: string[], index: number): string[] => {
 
 /**
  * Generates a Merkle-Patricia trie proof for a given account and storage slot.
+ *
  * @param l2RpcProvider L2 RPC provider.
  * @param blockNumber Block number to generate the proof at.
  * @param address Address to generate the proof for.
@@ -315,6 +321,7 @@ const getStateTrieProof = async (
 /**
  * Finds all L2 => L1 messages sent in a given L2 transaction and generates proofs for each of
  * those messages.
+ *
  * @param l1RpcProvider L1 RPC provider.
  * @param l2RpcProvider L2 RPC provider.
  * @param l1StateCommitmentChainAddress Address of the StateCommitmentChain.

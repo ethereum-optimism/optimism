@@ -402,7 +402,7 @@ export class TransportDB {
   }
 }
 
-function stringify(entry) {
+const stringify = (entry) => {
   if (entry === null || entry === undefined) {
     return entry
   }
