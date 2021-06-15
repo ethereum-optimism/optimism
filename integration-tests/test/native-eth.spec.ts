@@ -6,6 +6,7 @@ import { Direction } from './shared/watcher-utils'
 
 import {
   expectApprox,
+  fundUser,
   PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
@@ -301,5 +302,65 @@ describe('Native ETH Integration Tests', async () => {
     const l2BalanceAfter = await other.getBalance()
     expect(l1BalanceAfter).to.deep.eq(l1BalanceBefore.add(withdrawnAmount))
     expect(l2BalanceAfter).to.deep.eq(amount.sub(withdrawnAmount).sub(fee))
+  })
+
+  describe('WETH functionality', async () => {
+    const value = 10
+
+    beforeEach(async () => {
+      await fundUser(env.watcher, env.l1Bridge, value, env.l2Wallet.address)
+    })
+
+    it('deposit', async () => {
+      const initialBalance = await env.l2Wallet.provider.getBalance(
+        env.l2Wallet.address
+      )
+      const depositTx = await env.ovmEth.deposit({ value, gasPrice: 0 })
+      const receipt = await depositTx.wait()
+      expect(
+        await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
+      ).to.equal(initialBalance)
+      expect(receipt.events.length).to.equal(4)
+
+      // The first transfer event is fee payment
+      const [
+        ,
+        firstTransferEvent,
+        secondTransferEvent,
+        depositEvent,
+      ] = receipt.events
+
+      expect(firstTransferEvent.event).to.equal('Transfer')
+      expect(firstTransferEvent.args.from).to.equal(env.l2Wallet.address)
+      expect(firstTransferEvent.args.to).to.equal(env.ovmEth.address)
+      expect(firstTransferEvent.args.value).to.equal(value)
+
+      expect(secondTransferEvent.event).to.equal('Transfer')
+      expect(secondTransferEvent.args.from).to.equal(env.ovmEth.address)
+      expect(secondTransferEvent.args.to).to.equal(env.l2Wallet.address)
+      expect(secondTransferEvent.args.value).to.equal(value)
+
+      expect(depositEvent.event).to.equal('Deposit')
+      expect(depositEvent.args.dst).to.equal(env.l2Wallet.address)
+      expect(depositEvent.args.wad).to.equal(value)
+    })
+
+    it('withdraw', async () => {
+      const initialBalance = await env.l2Wallet.provider.getBalance(
+        env.l2Wallet.address
+      )
+      const withdrawTx = await env.ovmEth.withdraw(value, { gasPrice: 0 })
+      const receipt = await withdrawTx.wait()
+      expect(
+        await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
+      ).to.equal(initialBalance)
+      expect(receipt.events.length).to.equal(2)
+
+      // The first transfer event is fee payment
+      const depositEvent = receipt.events[1]
+      expect(depositEvent.event).to.equal('Withdrawal')
+      expect(depositEvent.args.src).to.equal(env.l2Wallet.address)
+      expect(depositEvent.args.wad).to.equal(value)
+    })
   })
 })
