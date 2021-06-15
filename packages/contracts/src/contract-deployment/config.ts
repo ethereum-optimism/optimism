@@ -78,16 +78,6 @@ export const makeContractDeployConfig = async (
     OVM_L1CrossDomainMessenger: {
       factory: getContractFactory('OVM_L1CrossDomainMessenger'),
       params: [],
-      afterDeploy: async (contracts): Promise<void> => {
-        if (config.l1CrossDomainMessengerConfig.relayerAddress) {
-          const relayer = config.l1CrossDomainMessengerConfig.relayerAddress
-          const address =
-            typeof relayer === 'string' ? relayer : await relayer.getAddress()
-          await _sendTx(
-            AddressManager.setAddress('OVM_L2MessageRelayer', address)
-          )
-        }
-      },
     },
     Proxy__OVM_L1CrossDomainMessenger: {
       factory: getContractFactory('Lib_ResolvedDelegateProxy'),
