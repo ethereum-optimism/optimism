@@ -29,7 +29,10 @@ export const handleEventsTransactionEnqueued: EventHandlerSet<
     // Defend against situations where we missed an event because the RPC provider
     // (infura/alchemy/whatever) is missing an event.
     if (entry.index > 0) {
-      if ((await db.getEnqueueByIndex(entry.index - 1)) === null) {
+      const prevEnqueueEntry = await db.getEnqueueByIndex(entry.index - 1)
+
+      // We should *alwaus* have a previous enqueue entry here.
+      if (prevEnqueueEntry === null) {
         throw new MissingElementError('TransactionEnqueued')
       }
     }

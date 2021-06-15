@@ -71,11 +71,12 @@ export const handleEventsStateBatchAppended: EventHandlerSet<
     // Defend against situations where we missed an event because the RPC provider
     // (infura/alchemy/whatever) is missing an event.
     if (entry.stateRootBatchEntry.index > 0) {
-      if (
-        (await db.getStateRootBatchByIndex(
-          entry.stateRootBatchEntry.index - 1
-        )) === null
-      ) {
+      const prevStateRootBatchEntry = await db.getStateRootBatchByIndex(
+        entry.stateRootBatchEntry.index - 1
+      )
+
+      // We should *always* have a previous batch entry here.
+      if (prevStateRootBatchEntry === null) {
         throw new MissingElementError('StateBatchAppended')
       }
     }

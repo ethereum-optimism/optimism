@@ -185,11 +185,12 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     // Defend against situations where we missed an event because the RPC provider
     // (infura/alchemy/whatever) is missing an event.
     if (entry.transactionBatchEntry.index > 0) {
-      if (
-        (await db.getTransactionBatchByIndex(
-          entry.transactionBatchEntry.index - 1
-        )) === null
-      ) {
+      const prevTransactionBatchEntry = await db.getTransactionBatchByIndex(
+        entry.transactionBatchEntry.index - 1
+      )
+
+      // We should *always* have a previous transaction batch here.
+      if (prevTransactionBatchEntry === null) {
         throw new MissingElementError('SequencerBatchAppended')
       }
     }
