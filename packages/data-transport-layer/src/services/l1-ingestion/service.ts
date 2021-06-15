@@ -218,6 +218,12 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           // last good element. Will resync other event types too but we have no issues with
           // syncing the same events more than once.
           const eventName = err.name
+          if (!(eventName in handlers)) {
+            throw new Error(
+              `unable to recover from missing event, no handler for ${eventName}`
+            )
+          }
+
           const lastGoodElement: {
             blockNumber: number
           } = await handlers[eventName]()
