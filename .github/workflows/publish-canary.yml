@@ -128,6 +128,8 @@ jobs:
       data-transport-layer: ${{ needs.canary-publish.outputs.data-transport-layer }}
       contracts: ${{ needs.canary-publish.outputs.contracts }}
       integration-tests: ${{ needs.canary-publish.outputs.integration-tests }}
+      canary-docker-tag: ${{ needs.canary-publish.outputs.canary-docker-tag }}
+
 
     steps:
       - name: Checkout
@@ -150,7 +152,7 @@ jobs:
           tags: ethereumoptimism/builder
 
   message-relayer:
-    name: Publish Message Relayer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    name: Publish Message Relayer Version ${{ needs.builder.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.message-relayer != ''
     runs-on: ubuntu-latest
@@ -173,10 +175,10 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.message-relayer
           push: true
-          tags: ethereumoptimism/message-relayer:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.canary-docker-tag }}
 
   batch-submitter:
-    name: Publish Batch Submitter Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    name: Publish Batch Submitter Version ${{ needs.builder.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.batch-submitter != ''
     runs-on: ubuntu-latest
@@ -199,10 +201,10 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.batch-submitter
           push: true
-          tags: ethereumoptimism/batch-submitter:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.canary-docker-tag }}
 
   data-transport-layer:
-    name: Publish Data Transport Layer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    name: Publish Data Transport Layer Version ${{ needs.builder.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.data-transport-layer != ''
     runs-on: ubuntu-latest
@@ -225,10 +227,10 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.data-transport-layer
           push: true
-          tags: ethereumoptimism/data-transport-layer:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.canary-docker-tag }}
 
   contracts:
-    name: Publish Deployer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    name: Publish Deployer Version ${{ needs.builder.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.contracts != ''
     runs-on: ubuntu-latest
@@ -251,7 +253,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.deployer
           push: true
-          tags: ethereumoptimism/deployer:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.canary-docker-tag }}
 
   integration_tests:
     name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
@@ -277,4 +279,4 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.integration-tests
           push: true
-          tags: ethereumoptimism/integration-tests:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.canary-docker-tag }}
