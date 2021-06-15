@@ -74,11 +74,11 @@ jobs:
       - name: Docker Image Name
         id: docker_image_name
         run: |
-          if [ $CUSTOM_IMAGE_NAME == '' ]
+          if [ -z "${CUSTOM_IMAGE_NAME}" ]
           then
               echo "::set-output name=canary-docker-tag::${GITHUB_SHA::8}"
           else
-              echo "::set-output name=canary-docker-tag::prerelease-$CUSTOM_IMAGE_NAME"
+              echo "::set-output name=canary-docker-tag::prerelease-${CUSTOM_IMAGE_NAME}"
           fi
         env:
           CUSTOM_IMAGE_NAME: ${{ github.event.inputs.customImageName }}
@@ -112,7 +112,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.geth
           push: true
-          tags: ethereumoptimism/l2geth:${{ needs.canary-publish.outputs.l2geth }}
+          tags: ethereumoptimism/l2geth:${{ steps.docker_image_name.outputs.canary-docker-tag }}
 
   # pushes the base builder image to dockerhub
   builder:
