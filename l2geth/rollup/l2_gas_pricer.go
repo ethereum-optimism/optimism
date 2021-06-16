@@ -27,7 +27,7 @@ func NewGasPricer(curPrice float64, floorPrice float64, getTargetGasPerSecond Ge
 func (p *L2GasPricer) CalcNextGasPrice(avgGasPerSecondLastEpoch float64) float64 {
 	avgGasPerSecondLastEpoch = math.Max(0, avgGasPerSecondLastEpoch)
 	// The percent difference between our current average gas & our target gas
-	proportionOfTarget := float64(avgGasPerSecondLastEpoch / p.getTargetGasPerSecond())
+	proportionOfTarget := avgGasPerSecondLastEpoch / p.getTargetGasPerSecond()
 	// The percent that we should adjust the gas price to reach our target gas
 	proportionToChangeBy := float64(0)
 	if proportionOfTarget >= 1 { // If average avgGasPerSecondLastEpoch is GREATER than our target

@@ -122,7 +122,7 @@ func TestGasPricerDynamicTarget(t *testing.T) {
 	endTimestamp := float64(100)
 	endGasPerSecond := float64(100)
 
-	// Helper function for calculating the current gas per second that we are targetting
+	// Helper function for calculating the current gas per second that we are targeting
 	linearInterpolation := func(x float64, x1 float64, x2 float64, y1 float64, y2 float64) float64 {
 		return math.Min(y1+((x-x1)/(x2-x1))*(y2-y1), endGasPerSecond)
 	}
