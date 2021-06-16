@@ -24,7 +24,7 @@ if [[ ! -z "$URL" ]]; then
         envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
     fi
     envSet MVM_L1GATEWAY_ADDRESS Proxy__MVM_L1MetisGateway
-    if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
+    if [ $MVM_L1GATEWAY_ADDRESS == null ]; then
         envSet MVM_L1GATEWAY_ADDRESS MVM_L1MetisGateway
     fi
 fi
