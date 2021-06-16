@@ -17,7 +17,7 @@ func returnConstFn(retVal float64) func() float64 {
 
 func runCalcGasPriceTests(gp L2GasPricer, tcs []CalcGasPriceTestCase, t *testing.T) {
 	for _, tc := range tcs {
-		if tc.expectedNextGasPrice != gp.CalcNextGasPrice(tc.avgGasPerSecondLastEpoch) {
+		if tc.expectedNextGasPrice != gp.CalcNextEpochGasPrice(tc.avgGasPerSecondLastEpoch) {
 			t.Fatalf("failed on test: %s", tc.name)
 		}
 	}
@@ -106,7 +106,7 @@ func TestGasPricerUpdates(t *testing.T) {
 		getTargetGasPerSecond:    returnConstFn(10),
 		maxPercentChangePerEpoch: 0.5,
 	}
-	gp.UpdateGasPrice(12.5)
+	gp.CompleteEpoch(12.5)
 	if gp.curPrice != 125 {
 		t.Fatalf("gp.curPrice not updated correctly. Got: %v, expected: %v", gp.curPrice, 125)
 	}
@@ -142,7 +142,7 @@ func TestGasPricerDynamicTarget(t *testing.T) {
 	for i := 0; i < 10; i += 1 {
 		mockTimestamp = float64(i * 10)
 		expectedPrice := math.Ceil(gp.curPrice * math.Max(0.5, gasPerSecondDemanded()/dynamicGetTarget()))
-		gp.UpdateGasPrice(gasPerSecondDemanded())
+		gp.CompleteEpoch(gasPerSecondDemanded())
 		if gp.curPrice != expectedPrice {
 			t.Fatalf("gp.curPrice not updated correctly. Got: %v expected: %v", gp.curPrice, expectedPrice)
 		}
