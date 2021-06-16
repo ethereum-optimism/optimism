@@ -35,6 +35,7 @@ const OVM_POLLING_INTERVAL = 50
 /**
  * Find or generate an OVM soljson.js compiler file and return the path of this file.
  * We pass the path to this file into hardhat.
+ *
  * @param version Solidity compiler version to get a path for in the format `X.Y.Z`.
  * @return Path to the downloaded soljson.js file.
  */
@@ -289,7 +290,7 @@ extendEnvironment(async (hre) => {
         }
 
         ;(hre as any).ethers.getSigners = () => signers
-        /* tslint:disable:no-empty */
+        // eslint-disable-next-line no-empty
       } catch (e) {}
 
       // Update the provider at the very end to avoid any weird issues.

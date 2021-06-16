@@ -10,6 +10,7 @@ import { findBaseHardhatProvider, toFancyAddress } from '../common'
 
 /**
  * Creates a modifiable contract factory.
+ *
  * @param name Name of the contract to smoddify.
  * @param signer Optional signer to attach to the factory.
  * @returns Smoddified contract factory.

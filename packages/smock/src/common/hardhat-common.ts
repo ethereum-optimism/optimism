@@ -13,6 +13,7 @@ import { fromHexString, toHexString } from '@eth-optimism/core-utils'
  * This object has direct access to the node (provider._node), which in turn has direct access to
  * the ethereumjs-vm instance (provider._node._vm). So it's quite useful to be able to find this
  * object reliably!
+ *
  * @param hre hardhat runtime environment to pull the base provider from.
  * @return base hardhat network provider
  */
@@ -49,6 +50,7 @@ export const findBaseHardhatProvider = (
 /**
  * Converts a string into the fancy new address thing that ethereumjs-vm v5 expects while also
  * maintaining backwards compatibility with ethereumjs-vm v4.
+ *
  * @param address String address to convert into the fancy new address type.
  * @returns Fancified address.
  */
@@ -67,6 +69,7 @@ export const toFancyAddress = (address: string): any => {
 
 /**
  * Same as toFancyAddress but in the opposite direction.
+ *
  * @param fancyAddress Fancy address to turn into a string.
  * @returns Way more boring address.
  */
