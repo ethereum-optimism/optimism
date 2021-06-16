@@ -1,0 +1,22 @@
+diff --git a/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol b/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol
+index 1f3e400..19e13a9 100644
+--- a/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol
++++ b/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol
+@@ -33,14 +33,14 @@ import "../../math/SafeMath.sol";
+ contract ERC20 is Context, IERC20 {
+     using SafeMath for uint256;
+ 
+-    mapping (address => uint256) private _balances;
+-
+     mapping (address => mapping (address => uint256)) private _allowances;
+ 
+     uint256 private _totalSupply;
+-
+     string private _name;
+     string private _symbol;
++
++    mapping (address => uint256) private _balances;
++    
+     uint8 private _decimals;
+ 
+     /**
