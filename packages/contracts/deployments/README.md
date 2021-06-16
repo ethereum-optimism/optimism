@@ -77,28 +77,29 @@ Network : __kovan (chain id: 42)__
 
 |Contract|Address|
 |--|--|
-|Lib_AddressManager|[0xd56F695e73286ac252A37593DD4E7c14270eC1Df](https://kovan.etherscan.io/address/0xd56F695e73286ac252A37593DD4E7c14270eC1Df)|
-|OVM_CanonicalTransactionChain|[0x895eabB95D684c15fa46Dc00a6b7557450083DEF](https://kovan.etherscan.io/address/0x895eabB95D684c15fa46Dc00a6b7557450083DEF)|
-|OVM_ChainStorageContainer-CTC-batches|[0xeb335a8A5e8bA008cF7Cb02D5C3432f4fDB576da](https://kovan.etherscan.io/address/0xeb335a8A5e8bA008cF7Cb02D5C3432f4fDB576da)|
-|OVM_ChainStorageContainer-CTC-queue|[0x207fa9Aa7Dee9AA790A8DF64778D3E3B6273BC90](https://kovan.etherscan.io/address/0x207fa9Aa7Dee9AA790A8DF64778D3E3B6273BC90)|
-|OVM_ChainStorageContainer-SCC-batches|[0xFE1CE27173676A6850ECF4e0536D7C468A4dAfa0](https://kovan.etherscan.io/address/0xFE1CE27173676A6850ECF4e0536D7C468A4dAfa0)|
-|OVM_ExecutionManager|[0xa2EB1961183a04157fF707Fa2Be2249e149c8FAB](https://kovan.etherscan.io/address/0xa2EB1961183a04157fF707Fa2Be2249e149c8FAB)|
-|OVM_FraudVerifier|[0x4B2F74938Ddb8742C33b46aD1a402c85e9dABC44](https://kovan.etherscan.io/address/0x4B2F74938Ddb8742C33b46aD1a402c85e9dABC44)|
-|OVM_L1MultiMessageRelayer|[0x942b1B1CaF9e7654318CbfCfD1bca6727C716638](https://kovan.etherscan.io/address/0x942b1B1CaF9e7654318CbfCfD1bca6727C716638)|
+|Lib_AddressManager|[0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a](https://kovan.etherscan.io/address/0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a)|
+|OVM_CanonicalTransactionChain|[0xe28c499EB8c36C0C18d1bdCdC47a51585698cb93](https://kovan.etherscan.io/address/0xe28c499EB8c36C0C18d1bdCdC47a51585698cb93)|
+|OVM_ChainStorageContainer-CTC-batches|[0xF95D79298FD12e5ED778CCf717aA30f638b060E1](https://kovan.etherscan.io/address/0xF95D79298FD12e5ED778CCf717aA30f638b060E1)|
+|OVM_ChainStorageContainer-CTC-queue|[0x2BE00E5F043a0f62c3e4d775F3235E28A0239395](https://kovan.etherscan.io/address/0x2BE00E5F043a0f62c3e4d775F3235E28A0239395)|
+|OVM_ChainStorageContainer-SCC-batches|[0x50DA41A2A185fb917aecEFfa1CB4534dC5C264b4](https://kovan.etherscan.io/address/0x50DA41A2A185fb917aecEFfa1CB4534dC5C264b4)|
+|OVM_ExecutionManager|[0xC68795aC9d96374eaE746DAcC1334ba54798e17D](https://kovan.etherscan.io/address/0xC68795aC9d96374eaE746DAcC1334ba54798e17D)|
+|OVM_FraudVerifier|[0xaeEd60e029Eb435f960d78C355786060589738B3](https://kovan.etherscan.io/address/0xaeEd60e029Eb435f960d78C355786060589738B3)|
+|OVM_L1MultiMessageRelayer|[0x5818840763Ee28ff0A3E3e8CB9eDeDd07Fb1Cd3f](https://kovan.etherscan.io/address/0x5818840763Ee28ff0A3E3e8CB9eDeDd07Fb1Cd3f)|
 |OVM_SafetyChecker|[0xf0FaB0ce35a6d3F82b0B42f09A2734065908dB6a](https://kovan.etherscan.io/address/0xf0FaB0ce35a6d3F82b0B42f09A2734065908dB6a)|
-|OVM_StateCommitmentChain|[0xdB1367bB36C34618778D492725C3eD11B508aC54](https://kovan.etherscan.io/address/0xdB1367bB36C34618778D492725C3eD11B508aC54)|
-|OVM_StateManagerFactory|[0x3b96673C9e24D362501e87B239F60543e20beD50](https://kovan.etherscan.io/address/0x3b96673C9e24D362501e87B239F60543e20beD50)|
-|OVM_StateTransitionerFactory|[0xd6eDb16a89A2EE4484fa8fdCDb11B8B5633c3687](https://kovan.etherscan.io/address/0xd6eDb16a89A2EE4484fa8fdCDb11B8B5633c3687)|
-|Proxy__OVM_L1CrossDomainMessenger|[0x78b88FD62FBdBf67b9C5C6528CF84E9d30BB28e0](https://kovan.etherscan.io/address/0x78b88FD62FBdBf67b9C5C6528CF84E9d30BB28e0)|
+|OVM_StateCommitmentChain|[0xa2487713665AC596b0b3E4881417f276834473d2](https://kovan.etherscan.io/address/0xa2487713665AC596b0b3E4881417f276834473d2)|
+|OVM_StateManagerFactory|[0xBcca22E9F5579193E27dD39aD821A03778C44EFA](https://kovan.etherscan.io/address/0xBcca22E9F5579193E27dD39aD821A03778C44EFA)|
+|OVM_StateTransitionerFactory|[0xFD7B9268e790837d393Fd371Ddeb42FE5EC45B54](https://kovan.etherscan.io/address/0xFD7B9268e790837d393Fd371Ddeb42FE5EC45B54)|
+|Proxy__OVM_L1CrossDomainMessenger|[0x4361d0F75A0186C05f971c566dC6bEa5957483fD](https://kovan.etherscan.io/address/0x4361d0F75A0186C05f971c566dC6bEa5957483fD)|
 |Proxy__OVM_L1ETHGateway|[0xB191d67F69e823445cD59e5A88953a82be73b9C6](https://kovan.etherscan.io/address/0xB191d67F69e823445cD59e5A88953a82be73b9C6)|
-|mockOVM_BondManager|[0x8ECe272C9f83041bcb1Cd57AC49Ca6494776bE01](https://kovan.etherscan.io/address/0x8ECe272C9f83041bcb1Cd57AC49Ca6494776bE01)|
+|Proxy__OVM_L1StandardBridge|[0x22F24361D548e5FaAfb36d1437839f080363982B](https://kovan.etherscan.io/address/0x22F24361D548e5FaAfb36d1437839f080363982B)|
+|mockOVM_BondManager|[0xD6143943447DFf503d948Fba3D8af3d4Df28f45c](https://kovan.etherscan.io/address/0xD6143943447DFf503d948Fba3D8af3d4Df28f45c)|
 <!--
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
 
 OVM_L1CrossDomainMessenger: 
- - 0xa9D9045E4A753c856Fc0053369E780f23559E0A1
- - https://kovan.etherscan.io/address/0xa9D9045E4A753c856Fc0053369E780f23559E0A1)
+ - 0xa172330C2E6Ec2bF04662Bb9b67ae857910b7f7f
+ - https://kovan.etherscan.io/address/0xa172330C2E6Ec2bF04662Bb9b67ae857910b7f7f)
 OVM_L1ETHGateway: 
  - 0x25bb69ee5665536Ce6aeb51094F0bed9e4DACc30
  - https://kovan.etherscan.io/address/0x25bb69ee5665536Ce6aeb51094F0bed9e4DACc30)
