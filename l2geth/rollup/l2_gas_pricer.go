@@ -13,14 +13,13 @@ type L2GasPricer struct {
 	maxPercentChangePerEpoch float64
 }
 
-func NewGasPricer(curPrice float64, floorPrice float64, getTargetGasPerSecond GetTargetGasPerSecond, maxPercentChangePerEpoch float64) (L2GasPricer, error) {
-	p := L2GasPricer{
+func NewGasPricer(curPrice float64, floorPrice float64, getTargetGasPerSecond GetTargetGasPerSecond, maxPercentChangePerEpoch float64) *L2GasPricer {
+	return &L2GasPricer{
 		curPrice:                 math.Max(curPrice, floorPrice),
 		floorPrice:               floorPrice,
 		getTargetGasPerSecond:    getTargetGasPerSecond,
 		maxPercentChangePerEpoch: maxPercentChangePerEpoch,
 	}
-	return p, nil
 }
 
 // Calculate the next gas price given some average gas per second over the last epoch
