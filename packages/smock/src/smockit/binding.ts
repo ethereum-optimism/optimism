@@ -1,20 +1,32 @@
 /* Imports: External */
 import { HardhatNetworkProvider } from 'hardhat/internal/hardhat-network/provider/provider'
-import { decodeRevertReason } from 'hardhat/internal/hardhat-network/stack-traces/revert-reasons'
 import { VmError } from '@nomiclabs/ethereumjs-vm/dist/exceptions'
 import BN from 'bn.js'
 
+/* eslint-disable @typescript-eslint/no-var-requires */
+// Handle hardhat ^2.4.0
+let decodeRevertReason: (value: Buffer) => string
+try {
+  decodeRevertReason = require('hardhat/internal/hardhat-network/stack-traces/revert-reasons')
+    .decodeRevertReason
+} catch (err) {
+  const {
+    ReturnData,
+  } = require('hardhat/internal/hardhat-network/provider/return-data')
+  decodeRevertReason = (value: Buffer) => {
+    return new ReturnData(value).decodeError()
+  }
+}
 // Handle hardhat ^2.2.0
 let TransactionExecutionError: any
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   TransactionExecutionError = require('hardhat/internal/hardhat-network/provider/errors')
     .TransactionExecutionError
 } catch (err) {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   TransactionExecutionError = require('hardhat/internal/core/providers/errors')
     .TransactionExecutionError
 }
+/* eslint-enable @typescript-eslint/no-var-requires */
 
 /* Imports: Internal */
 import { MockContract, SmockedVM } from './types'
