@@ -21,10 +21,10 @@ configMapGenerator:
 images:
   - name: ethereumoptimism/data-transport-layer
     newName: ethereumoptimism/data-transport-layer
-    newTag: 0.3.5
+    newTag: prerelease-0.4.0-rc-0
   - name: ethereumoptimism/l2geth
     newName: ethereumoptimism/l2geth
-    newTag: 0.3.7
+    newTag: prerelease-0.4.0-rc-0
 
 patchesStrategicMerge:
   - patch-l2geth-resources.yaml
