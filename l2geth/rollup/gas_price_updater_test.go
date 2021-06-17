@@ -5,6 +5,11 @@ import (
 	"testing"
 )
 
+type MockEpoch struct {
+	timestamp float64
+	numBlocks uint64
+}
+
 // WIP
 func TestUsageOfGasPriceUpdater(t *testing.T) {
 	startTimestamp := float64(0)
@@ -26,8 +31,52 @@ func TestUsageOfGasPriceUpdater(t *testing.T) {
 	// Example loop usage
 	startBlock, _ := getLatestBlockNumber()
 	gasUpdater := NewGasPriceUpdater(gasPricer, startBlock, 1, getLatestBlockNumber, updateL2GasPrice)
-	fmt.Println("First gas price:", gasUpdater.gasPricer.curPrice)
-	curBlock += 100
-	gasUpdater.UpdateGasPrice()
-	fmt.Println("Second gas price:", gasUpdater.gasPricer.curPrice)
+	// In these mock epochs the gas price shold go up and then down again after the time has passed
+	mockEpochs := []MockEpoch{
+		MockEpoch{
+			timestamp: 0,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 0,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 0,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 0,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 0,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 50,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 50,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 50,
+			numBlocks: 5,
+		},
+		MockEpoch{
+			timestamp: 50,
+			numBlocks: 5,
+		},
+	}
+	loop := func(epoch MockEpoch) {
+		mockTimestamp = epoch.timestamp
+		curBlock += epoch.numBlocks
+		gasUpdater.UpdateGasPrice()
+		fmt.Println("gas price:", gasUpdater.gasPricer.curPrice)
+	}
+	for _, epoch := range mockEpochs {
+		loop(epoch)
+	}
 }
