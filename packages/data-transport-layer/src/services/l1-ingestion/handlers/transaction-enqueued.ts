@@ -3,6 +3,7 @@ import { EventArgsTransactionEnqueued } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import { BigNumber } from 'ethers'
 import { EnqueueEntry, EventHandlerSet } from '../../../types'
+import { MissingElementError } from './errors'
 
 export const handleEventsTransactionEnqueued: EventHandlerSet<
   EventArgsTransactionEnqueued,
@@ -25,6 +26,17 @@ export const handleEventsTransactionEnqueued: EventHandlerSet<
     }
   },
   storeEvent: async (entry, db) => {
+    // Defend against situations where we missed an event because the RPC provider
+    // (infura/alchemy/whatever) is missing an event.
+    if (entry.index > 0) {
+      const prevEnqueueEntry = await db.getEnqueueByIndex(entry.index - 1)
+
+      // We should *alwaus* have a previous enqueue entry here.
+      if (prevEnqueueEntry === null) {
+        throw new MissingElementError('TransactionEnqueued')
+      }
+    }
+
     await db.putEnqueueEntries([entry])
   },
 }
