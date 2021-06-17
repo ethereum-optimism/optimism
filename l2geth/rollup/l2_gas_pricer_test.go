@@ -112,6 +112,22 @@ func TestGasPricerUpdates(t *testing.T) {
 	}
 }
 
+func TestGetLinearInterpolationFn(t *testing.T) {
+	mockTimestamp := float64(0) // start at timestamp 0
+	// TargetGasPerSecond is dynamic based on the current "mocktimestamp"
+	mockTimeNow := func() float64 {
+		return mockTimestamp
+	}
+	l := GetLinearInterpolationFn(mockTimeNow, 0, 10, 0, 100)
+	for expected := 0.0; expected < 100; expected += 10 {
+		mockTimestamp = expected / 10 // To prove this is not identity function, divide by 10
+		got := l()
+		if got != expected {
+			t.Fatalf("linear interpolation incorrect. Got: %v expected: %v", got, expected)
+		}
+	}
+}
+
 func TestGasPricerDynamicTarget(t *testing.T) {
 	// In prod we will be committing to a gas per second schedule in order to
 	// meter usage over time. This linear interpolation between a start time, end time,
@@ -122,16 +138,14 @@ func TestGasPricerDynamicTarget(t *testing.T) {
 	endTimestamp := float64(100)
 	endGasPerSecond := float64(100)
 
-	// Helper function for calculating the current gas per second that we are targeting
-	linearInterpolation := func(x float64, x1 float64, x2 float64, y1 float64, y2 float64) float64 {
-		return math.Min(y1+((x-x1)/(x2-x1))*(y2-y1), endGasPerSecond)
-	}
-
 	mockTimestamp := float64(0) // start at timestamp 0
 	// TargetGasPerSecond is dynamic based on the current "mocktimestamp"
-	dynamicGetTarget := func() float64 {
-		return linearInterpolation(mockTimestamp, startTimestamp, endTimestamp, startGasPerSecond, endGasPerSecond)
+	mockTimeNow := func() float64 {
+		return mockTimestamp
 	}
+	// TargetGasPerSecond is dynamic based on the current "mocktimestamp"
+	dynamicGetTarget := GetLinearInterpolationFn(mockTimeNow, startTimestamp, endTimestamp, startGasPerSecond, endGasPerSecond)
+
 	gp := L2GasPricer{
 		curPrice:                 100,
 		floorPrice:               1,

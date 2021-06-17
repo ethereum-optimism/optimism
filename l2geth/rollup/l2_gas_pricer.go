@@ -13,6 +13,13 @@ type L2GasPricer struct {
 	maxPercentChangePerEpoch float64
 }
 
+// LinearInterpolation can be used to dynamically update target gas per second
+func GetLinearInterpolationFn(getX func() float64, x1 float64, x2 float64, y1 float64, y2 float64) func() float64 {
+	return func() float64 {
+		return y1 + ((getX()-x1)/(x2-x1))*(y2-y1)
+	}
+}
+
 func NewGasPricer(curPrice float64, floorPrice float64, getTargetGasPerSecond GetTargetGasPerSecond, maxPercentChangePerEpoch float64) *L2GasPricer {
 	return &L2GasPricer{
 		curPrice:                 math.Max(curPrice, floorPrice),
