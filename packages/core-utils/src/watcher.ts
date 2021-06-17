@@ -73,22 +73,31 @@ export class Watcher {
     msgHash: string,
     pollForPending: boolean = true
   ): Promise<TransactionReceipt> {
-    const blockNumber = await layer.provider.getBlockNumber()
-    const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
-    const successFilter = {
+    let matches: ethers.providers.Log[] = []
+    const successFilter: ethers.providers.Filter = {
       address: layer.messengerAddress,
       topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
-      fromBlock: startingBlock,
     }
-    const failureFilter = {
+    const failureFilter: ethers.providers.Filter = {
       address: layer.messengerAddress,
       topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`)],
-      fromBlock: startingBlock,
     }
-    const successLogs = await layer.provider.getLogs(successFilter)
-    const failureLogs = await layer.provider.getLogs(failureFilter)
-    const logs = successLogs.concat(failureLogs)
-    const matches = logs.filter((log: any) => log.data === msgHash)
+
+    // scan for transaction with specified message
+    while (matches.length === 0) {
+      const blockNumber = await layer.provider.getBlockNumber()
+      const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
+      successFilter.fromBlock = startingBlock
+      failureFilter.fromBlock = startingBlock
+      const successLogs = await layer.provider.getLogs(successFilter)
+      const failureLogs = await layer.provider.getLogs(failureFilter)
+      const logs = successLogs.concat(failureLogs)
+      matches = logs.filter((log: ethers.providers.Log) => log.data === msgHash)
+      // exit loop after first iteration if not polling
+      if (!pollForPending) {
+        break
+      }
+    }
 
     // Message was relayed in the past
     if (matches.length > 0) {
@@ -98,30 +107,8 @@ export class Watcher {
         )
       }
       return layer.provider.getTransactionReceipt(matches[0].transactionHash)
-    }
-    if (!pollForPending) {
+    } else {
       return Promise.resolve(undefined)
     }
-
-    // Message has yet to be relayed, poll until it is found
-    return new Promise(async (resolve, reject) => {
-      const handleEvent = async (log: any) => {
-        if (log.data === msgHash) {
-          try {
-            const txReceipt = await layer.provider.getTransactionReceipt(
-              log.transactionHash
-            )
-            layer.provider.off(successFilter)
-            layer.provider.off(failureFilter)
-            resolve(txReceipt)
-          } catch (e) {
-            reject(e)
-          }
-        }
-      }
-
-      layer.provider.on(successFilter, handleEvent)
-      layer.provider.on(failureFilter, handleEvent)
-    })
   }
 }
