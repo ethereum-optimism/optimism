@@ -10,6 +10,7 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
     address public l2Bridge;
 
     /**
+     * @param _l2Bridge Address of the L2 standard bridge.
      * @param _l1Token Address of the corresponding L1 token.
      * @param _name ERC20 name.
      * @param _symbol ERC20 symbol.
