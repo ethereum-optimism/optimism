@@ -1086,6 +1086,132 @@ describe('OVM_CanonicalTransactionChain', () => {
             })
           })
         })
+
+        describe('when trying to add elements which are older than already existing CTC elements', () => {
+          let timestamp
+          let blockNumber
+          describe('when the most recent CTC element is a sequencer transaction', () => {
+            beforeEach(async () => {
+              timestamp = await getEthTime(ethers.provider)
+              blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
+              await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+                transactions: ['0x1234'],
+                contexts: [
+                  {
+                    numSequencedTransactions: 1,
+                    numSubsequentQueueTransactions: 0,
+                    timestamp,
+                    blockNumber,
+                  },
+                ],
+                shouldStartAtElement: 0,
+                totalElementsToAppend: 1,
+              })
+            })
+
+            it('reverts if timestamp is older than previous one', async () => {
+              await expect(
+                appendSequencerBatch(OVM_CanonicalTransactionChain, {
+                  transactions: ['0x1234'],
+                  contexts: [
+                    {
+                      numSequencedTransactions: 1,
+                      numSubsequentQueueTransactions: 0,
+                      timestamp: timestamp - 1,
+                      blockNumber,
+                    },
+                  ],
+                  shouldStartAtElement: 1,
+                  totalElementsToAppend: 1,
+                })
+              ).to.be.revertedWith(
+                'Context timestamp is lower than last submitted.'
+              )
+            })
+
+            it('reverts if block number is older than previous one', async () => {
+              await expect(
+                appendSequencerBatch(OVM_CanonicalTransactionChain, {
+                  transactions: ['0x1234'],
+                  contexts: [
+                    {
+                      numSequencedTransactions: 1,
+                      numSubsequentQueueTransactions: 0,
+                      timestamp,
+                      blockNumber: blockNumber - 1,
+                    },
+                  ],
+                  shouldStartAtElement: 1,
+                  totalElementsToAppend: 1,
+                })
+              ).to.be.revertedWith(
+                'Context block number is lower than last submitted.'
+              )
+            })
+          })
+
+          describe('when the previous transaction is a queue transaction', () => {
+            beforeEach(async () => {
+              // enqueue
+              timestamp = await getEthTime(ethers.provider)
+              blockNumber = await getNextBlockNumber(ethers.provider)
+              await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+              await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+                transactions: ['0x1234'],
+                contexts: [
+                  {
+                    numSequencedTransactions: 1,
+                    numSubsequentQueueTransactions: 1, // final element will be CTC
+                    timestamp,
+                    blockNumber,
+                  },
+                ],
+                shouldStartAtElement: 0,
+                totalElementsToAppend: 2,
+              })
+            })
+
+            it('reverts if timestamp is older than previous one', async () => {
+              await expect(
+                appendSequencerBatch(OVM_CanonicalTransactionChain, {
+                  transactions: ['0x1234'],
+                  contexts: [
+                    {
+                      numSequencedTransactions: 1,
+                      numSubsequentQueueTransactions: 0,
+                      timestamp: timestamp - 1,
+                      blockNumber,
+                    },
+                  ],
+                  shouldStartAtElement: 2,
+                  totalElementsToAppend: 1,
+                })
+              ).to.be.revertedWith(
+                'Context timestamp is lower than last submitted.'
+              )
+            })
+
+            it('reverts if block number is older than previous one', async () => {
+              await expect(
+                appendSequencerBatch(OVM_CanonicalTransactionChain, {
+                  transactions: ['0x1234'],
+                  contexts: [
+                    {
+                      numSequencedTransactions: 1,
+                      numSubsequentQueueTransactions: 0,
+                      timestamp,
+                      blockNumber: blockNumber - 1,
+                    },
+                  ],
+                  shouldStartAtElement: 2,
+                  totalElementsToAppend: 1,
+                })
+              ).to.be.revertedWith(
+                'Context block number is lower than last submitted.'
+              )
+            })
+          })
+        })
       })
 
       describe('when the sequencer attempts to add transactions with out-of-bounds times', async () => {
@@ -1212,131 +1338,6 @@ describe('OVM_CanonicalTransactionChain', () => {
         })
       })
 
-      describe('when trying to add elements which are older than already existing CTC elements', () => {
-        let timestamp
-        let blockNumber
-        describe('when the most recent CTC element is a sequencer transaction', () => {
-          beforeEach(async () => {
-            timestamp = await getEthTime(ethers.provider)
-            blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
-            await appendSequencerBatch(OVM_CanonicalTransactionChain, {
-              transactions: ['0x1234'],
-              contexts: [
-                {
-                  numSequencedTransactions: 1,
-                  numSubsequentQueueTransactions: 0,
-                  timestamp,
-                  blockNumber,
-                },
-              ],
-              shouldStartAtElement: 0,
-              totalElementsToAppend: 1,
-            })
-          })
-
-          it('reverts if timestamp is older than previous one', async () => {
-            await expect(
-              appendSequencerBatch(OVM_CanonicalTransactionChain, {
-                transactions: ['0x1234'],
-                contexts: [
-                  {
-                    numSequencedTransactions: 1,
-                    numSubsequentQueueTransactions: 0,
-                    timestamp: timestamp - 1,
-                    blockNumber,
-                  },
-                ],
-                shouldStartAtElement: 1,
-                totalElementsToAppend: 1,
-              })
-            ).to.be.revertedWith(
-              'Context timestamp is lower than last submitted.'
-            )
-          })
-
-          it('reverts if block number is older than previous one', async () => {
-            await expect(
-              appendSequencerBatch(OVM_CanonicalTransactionChain, {
-                transactions: ['0x1234'],
-                contexts: [
-                  {
-                    numSequencedTransactions: 1,
-                    numSubsequentQueueTransactions: 0,
-                    timestamp,
-                    blockNumber: blockNumber - 1,
-                  },
-                ],
-                shouldStartAtElement: 1,
-                totalElementsToAppend: 1,
-              })
-            ).to.be.revertedWith(
-              'Context block number is lower than last submitted.'
-            )
-          })
-        })
-
-        describe('when the previous transaction is a queue transaction', () => {
-          beforeEach(async () => {
-            // enqueue
-            timestamp = await getEthTime(ethers.provider)
-            blockNumber = await getNextBlockNumber(ethers.provider)
-            await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
-            await appendSequencerBatch(OVM_CanonicalTransactionChain, {
-              transactions: ['0x1234'],
-              contexts: [
-                {
-                  numSequencedTransactions: 1,
-                  numSubsequentQueueTransactions: 1, // final element will be CTC
-                  timestamp,
-                  blockNumber,
-                },
-              ],
-              shouldStartAtElement: 0,
-              totalElementsToAppend: 2,
-            })
-          })
-
-          it('reverts if timestamp is older than previous one', async () => {
-            await expect(
-              appendSequencerBatch(OVM_CanonicalTransactionChain, {
-                transactions: ['0x1234'],
-                contexts: [
-                  {
-                    numSequencedTransactions: 1,
-                    numSubsequentQueueTransactions: 0,
-                    timestamp: timestamp - 1,
-                    blockNumber,
-                  },
-                ],
-                shouldStartAtElement: 2,
-                totalElementsToAppend: 1,
-              })
-            ).to.be.revertedWith(
-              'Context timestamp is lower than last submitted.'
-            )
-          })
-
-          it('reverts if block number is older than previous one', async () => {
-            await expect(
-              appendSequencerBatch(OVM_CanonicalTransactionChain, {
-                transactions: ['0x1234'],
-                contexts: [
-                  {
-                    numSequencedTransactions: 1,
-                    numSubsequentQueueTransactions: 0,
-                    timestamp,
-                    blockNumber: blockNumber - 1,
-                  },
-                ],
-                shouldStartAtElement: 2,
-                totalElementsToAppend: 1,
-              })
-            ).to.be.revertedWith(
-              'Context block number is lower than last submitted.'
-            )
-          })
-        })
-      })
 
       it('should revert if a queue element has expired and needs to be included', async () => {
         // enqueue a tx
