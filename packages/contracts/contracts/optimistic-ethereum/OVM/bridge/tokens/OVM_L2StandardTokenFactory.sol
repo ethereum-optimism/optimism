@@ -30,6 +30,8 @@ contract OVM_L2StandardTokenFactory {
     )
         external
     {
+        require (_l1Token != address(0), "Must provide L1 token address");
+
         L2StandardERC20 l2Token = new L2StandardERC20(
             Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
             _l1Token,
