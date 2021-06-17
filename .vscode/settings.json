@@ -1,12 +1,11 @@
 {
+  "editor.formatOnSave": true,
   "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
     "editor.formatOnSave": true,
   },
-  "prettier.configPath": "./.prettierrc.json",
-  "prettier.ignorePath": "",
-  "prettier.prettierPath": "./.node_modules/prettier",
-  "prettier.useEditorConfig": true,
+  "eslint.nodePath": "./node_modules/eslint/bin/",
+  "eslint.format.enable": true,
   "editorconfig.generateAuto": false,
   "files.trimTrailingWhitespace": true,
 }
