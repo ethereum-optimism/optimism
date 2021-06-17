@@ -9,7 +9,7 @@ import { Server } from 'net'
 import { Logger } from './logger'
 
 export interface MetricsOptions {
-  prefix: string
+  prefix?: string
   labels?: Object
 }
 

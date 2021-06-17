@@ -153,11 +153,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
    */
   private _initMetrics() {
     this.metrics = new Metrics({
-      prefix: this.name,
       labels: {
         environment: this.options.nodeEnv,
         network: this.options.ethNetworkName,
         release: this.options.release,
+        service: this.name,
       },
     })
     const metricsMiddleware = promBundle({
