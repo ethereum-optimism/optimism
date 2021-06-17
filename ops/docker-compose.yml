@@ -64,6 +64,7 @@ services:
         DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
         DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
+        DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
     ports:
       - ${DTL_PORT:-7878}:7878
 
@@ -156,7 +157,9 @@ services:
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
-        IS_VERIFIER: "true"
+        # IS_VERIFIER: "true"
+        ROLLUP_BACKEND: 'l2'
+        ROLLUP_VERIFIER_ENABLE: 'true'
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546

@@ -35,7 +35,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
+        run: docker-compose up -d && ./scripts/wait-for-verifier.sh
 
       - name: Run the sync tests
         working-directory: ./integration-tests
