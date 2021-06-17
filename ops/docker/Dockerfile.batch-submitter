@@ -30,4 +30,5 @@ COPY --from=builder /optimism/packages/batch-submitter/node_modules ./node_modul
 
 # copy this over in case you want to run alongside other services
 COPY ./ops/scripts/batches.sh .
-ENTRYPOINT ["npm", "run", "start"]
+# ENTRYPOINT ["npm", "run", "start"]
+ENTRYPOINT ["./batches.sh"]

@@ -27,5 +27,11 @@ $l2geth_push
 echo 'Pushing data-transport-layer'
 dtl="docker tag ethereumoptimism/data-transport-layer:latest 950087689901.dkr.ecr.$region.amazonaws.com/metis-dtl:latest"
 $dtl
-dtl_pupsh="docker push 950087689901.dkr.ecr.$region.amazonaws.com/metis-dtl:latest"
-$dtl_pupsh
+dtl_push="docker push 950087689901.dkr.ecr.$region.amazonaws.com/metis-dtl:latest"
+$dtl_push
+
+echo 'Pushing data-transport-layer'
+bs="docker tag ethereumoptimism/batch-submitter:latest 950087689901.dkr.ecr.$region.amazonaws.com/metis-l2-bs:latest"
+$bs
+bs_push="docker push 950087689901.dkr.ecr.$region.amazonaws.com/metis-l2-bs:latest"
+$bs_push
