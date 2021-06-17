@@ -7,7 +7,6 @@ import { smoddit } from '@eth-optimism/smock'
 import { getContractInterface } from '@eth-optimism/contracts'
 
 /* Internal Imports */
-import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
 import { predeploys } from '../../../../../src'
 
 describe('OVM_L2StandardTokenFactory', () => {
@@ -53,6 +52,14 @@ describe('OVM_L2StandardTokenFactory', () => {
       expect(await l2Token.l1Token()).to.equal(L1ERC20.address)
       expect(await l2Token.name()).to.equal('L2ERC20')
       expect(await l2Token.symbol()).to.equal('ERC')
+    })
+
+    it('should not be able to create a standard token with a 0 address for l1 token', async () => {
+      await expect(OVM_L2StandardTokenFactory.createStandardL2Token(
+        ethers.constants.AddressZero,
+        'L2ERC20',
+        'ERC'
+      )).to.be.revertedWith('Must provide L1 token address')
     })
   })
 })
