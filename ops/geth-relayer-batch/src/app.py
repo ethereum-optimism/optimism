@@ -61,7 +61,7 @@ def _try_cmd(cmds):
     try:
         return subprocess.check_output(cmds)
     except Exception as e:
-        logging.warning(f'exce cmd in update chain error {cmds}')
+        logging.warning(f'exce cmd in update chain error => {cmds}')
         return ""
         
 
@@ -69,7 +69,7 @@ def _try_cmd_string(cmd):
     try:
         return subprocess.check_output(cmd, shell=True)
     except Exception as e:
-        logging.warning(f'exce cmd string in update chain error {cmd}')
+        logging.warning(f'exce cmd string in update chain error => {cmd}')
         return "" 
         
 
@@ -92,10 +92,10 @@ def _update_chain(body):
 
 @app.route('/v1/chain/stop',methods=['POST'])
 def stop_chain():
+    _kill_pids()
     mount_path = request.args.get("mount_path")
     the_path = mount_path or '/metis'
     logging.warning('stop_chain...')
-    _kill_pids()
     _umount_path(the_path)
     return {
         'data': "success"
