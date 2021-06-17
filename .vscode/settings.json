@@ -8,4 +8,5 @@
   "prettier.prettierPath": "./.node_modules/prettier",
   "prettier.useEditorConfig": true,
   "editorconfig.generateAuto": false,
+  "files.trimTrailingWhitespace": true,
 }
