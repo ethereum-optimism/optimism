@@ -1,5 +1,40 @@
 # OMGX Web Wallet, Related Smart Contracts, and Integration Tests
 
+## New Wallet contract changes
+
+There is now a completely different system for spinning up the system and contracts needed for the wallet. 
+
+* Spin up the test system and deploy all the right wallet contracts:
+
+```
+
+$ cd ops
+$ docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml up
+
+```
+
+Or,
+
+```bash
+- name: Bring the stack up + OMGX
+        working-directory: ./ops
+        env:
+          BUILD: 1
+          DAEMON: 1
+        run: ./up_local.sh
+```
+
+NOTE - the `up_local.sh` taps into ethereumoptimism dockers, be advised. 
+
+To get the contract addresses:
+
+```bash
+curl http://127.0.0.1:8078/addresses.json | jq
+curl http://127.0.0.1:8080/addresses.json | jq
+```
+
+**ALERT - the old testing system and the documention below are currently broken, but are being fixed.**
+
 ## 1. Set up the repo
 
 At the top level (`/optimism`), run `yarn` and `yarn build`.
