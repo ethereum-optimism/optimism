@@ -1,7 +1,10 @@
+import { expect } from 'chai'
+
+/* Imports: External */
+import { Wallet, utils, BigNumber } from 'ethers'
 import { predeploys } from '@eth-optimism/contracts'
 
-import { expect } from 'chai'
-import { Wallet, utils, BigNumber } from 'ethers'
+/* Imports: Internal */
 import { Direction } from './shared/watcher-utils'
 
 import {
@@ -9,7 +12,7 @@ import {
   fundUser,
   PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
 } from './shared/utils'
-import { OptimismEnv } from './shared/env'
+import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
 
 const DEFAULT_TEST_GAS_L1 = 330_000
 const DEFAULT_TEST_GAS_L2 = 1_300_000
@@ -53,7 +56,7 @@ describe('Native ETH Integration Tests', async () => {
 
   describe('estimateGas', () => {
     it('Should estimate gas for ETH transfer', async () => {
-      const amount = utils.parseEther('0.5')
+      const amount = utils.parseEther('0.0000001')
       const addr = '0x' + '1234'.repeat(10)
       const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
       // Expect gas to be less than or equal to the target plus 1%
@@ -61,7 +64,7 @@ describe('Native ETH Integration Tests', async () => {
     })
 
     it('Should estimate gas for ETH withdraw', async () => {
-      const amount = utils.parseEther('0.5')
+      const amount = utils.parseEther('0.0000001')
       const gas = await env.l2Bridge.estimateGas.withdraw(
         predeploys.OVM_ETH,
         amount,
@@ -186,14 +189,13 @@ describe('Native ETH Integration Tests', async () => {
     await expect(
       env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, data, {
         value: depositAmount,
-        gasLimit: 4_000_000,
       })
-    ).to.be.revertedWith(
-      'Transaction data size exceeds maximum for rollup transaction.'
-    )
+    ).to.be.reverted
   })
 
-  it('withdraw', async () => {
+  it('withdraw', async function () {
+    await useDynamicTimeoutForWithdrawals(this, env)
+
     const withdrawAmount = BigNumber.from(3)
     const preBalances = await getBalances(env)
     expect(
@@ -201,31 +203,43 @@ describe('Native ETH Integration Tests', async () => {
       'Cannot run withdrawal test before any deposits...'
     )
 
+    const transaction = await env.l2Bridge.withdraw(
+      predeploys.OVM_ETH,
+      withdrawAmount,
+      DEFAULT_TEST_GAS_L2,
+      '0xFFFF'
+    )
+    await transaction.wait()
+    await env.relayXDomainMessages(transaction)
     const receipts = await env.waitForXDomainTransaction(
-      env.l2Bridge.withdraw(
-        predeploys.OVM_ETH,
-        withdrawAmount,
-        DEFAULT_TEST_GAS_L2,
-        '0xFFFF'
-      ),
+      transaction,
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
 
     const postBalances = await getBalances(env)
 
-    expect(postBalances.l1BridgeBalance).to.deep.eq(
-      preBalances.l1BridgeBalance.sub(withdrawAmount)
+    // Approximate because there's a fee related to relaying the L2 => L1 message and it throws off the math.
+    expectApprox(
+      postBalances.l1BridgeBalance,
+      preBalances.l1BridgeBalance.sub(withdrawAmount),
+      { upperPercentDeviation: 1 }
     )
-    expect(postBalances.l2UserBalance).to.deep.eq(
-      preBalances.l2UserBalance.sub(withdrawAmount.add(fee))
+    expectApprox(
+      postBalances.l2UserBalance,
+      preBalances.l2UserBalance.sub(withdrawAmount.add(fee)),
+      { upperPercentDeviation: 1 }
     )
-    expect(postBalances.l1UserBalance).to.deep.eq(
-      preBalances.l1UserBalance.add(withdrawAmount)
+    expectApprox(
+      postBalances.l1UserBalance,
+      preBalances.l1UserBalance.add(withdrawAmount),
+      { upperPercentDeviation: 1 }
     )
   })
 
-  it('withdrawTo', async () => {
+  it('withdrawTo', async function () {
+    await useDynamicTimeoutForWithdrawals(this, env)
+
     const withdrawAmount = BigNumber.from(3)
 
     const preBalances = await getBalances(env)
@@ -235,14 +249,17 @@ describe('Native ETH Integration Tests', async () => {
       'Cannot run withdrawal test before any deposits...'
     )
 
+    const transaction = await env.l2Bridge.withdrawTo(
+      predeploys.OVM_ETH,
+      l1Bob.address,
+      withdrawAmount,
+      DEFAULT_TEST_GAS_L2,
+      '0xFFFF'
+    )
+    await transaction.wait()
+    await env.relayXDomainMessages(transaction)
     const receipts = await env.waitForXDomainTransaction(
-      env.l2Bridge.withdrawTo(
-        predeploys.OVM_ETH,
-        l1Bob.address,
-        withdrawAmount,
-        DEFAULT_TEST_GAS_L2,
-        '0xFFFF'
-      ),
+      transaction,
       Direction.L2ToL1
     )
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
@@ -260,7 +277,9 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit, transfer, withdraw', async () => {
+  it('deposit, transfer, withdraw', async function () {
+    await useDynamicTimeoutForWithdrawals(this, env)
+
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(
@@ -282,15 +301,18 @@ describe('Native ETH Integration Tests', async () => {
 
     // 3. do withdrawal
     const withdrawnAmount = utils.parseEther('0.95')
+    const transaction = await env.l2Bridge
+      .connect(other)
+      .withdraw(
+        predeploys.OVM_ETH,
+        withdrawnAmount,
+        DEFAULT_TEST_GAS_L1,
+        '0xFFFF'
+      )
+    await transaction.wait()
+    await env.relayXDomainMessages(transaction)
     const receipts = await env.waitForXDomainTransaction(
-      env.l2Bridge
-        .connect(other)
-        .withdraw(
-          predeploys.OVM_ETH,
-          withdrawnAmount,
-          DEFAULT_TEST_GAS_L1,
-          '0xFFFF'
-        ),
+      transaction,
       Direction.L2ToL1
     )
 

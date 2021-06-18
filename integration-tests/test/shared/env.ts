@@ -1,6 +1,11 @@
+/* Imports: External */
+import { Contract, utils, Wallet } from 'ethers'
+import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
 import { Watcher } from '@eth-optimism/core-utils'
-import { Contract, utils, Wallet } from 'ethers'
+import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
+
+/* Imports: Internal */
 import {
   getAddressManager,
   l1Provider,
@@ -11,6 +16,8 @@ import {
   getOvmEth,
   getL1Bridge,
   getL2Bridge,
+  IS_LIVE_NETWORK,
+  sleep,
 } from './utils'
 import {
   initWatcher,
@@ -18,7 +25,6 @@ import {
   Direction,
   waitForXDomainTransaction,
 } from './watcher-utils'
-import { TransactionResponse } from '@ethersproject/providers'
 
 /// Helper class for instantiating a test environment with a funded account
 export class OptimismEnv {
@@ -27,6 +33,7 @@ export class OptimismEnv {
   l1Bridge: Contract
   l1Messenger: Contract
   ctc: Contract
+  scc: Contract
 
   // L2 Contracts
   ovmEth: Contract
@@ -53,6 +60,7 @@ export class OptimismEnv {
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
     this.ctc = args.ctc
+    this.scc = args.scc
   }
 
   static async new(): Promise<OptimismEnv> {
@@ -85,10 +93,18 @@ export class OptimismEnv {
       .connect(l2Wallet)
       .attach(predeploys.OVM_GasPriceOracle)
 
+    const sccAddress = await addressManager.getAddress(
+      'OVM_StateCommitmentChain'
+    )
+    const scc = getContractFactory('OVM_StateCommitmentChain')
+      .connect(l1Wallet)
+      .attach(sccAddress)
+
     return new OptimismEnv({
       addressManager,
       l1Bridge,
       ctc,
+      scc,
       l1Messenger,
       ovmEth,
       gasPriceOracle,
@@ -106,4 +122,94 @@ export class OptimismEnv {
   ): Promise<CrossDomainMessagePair> {
     return waitForXDomainTransaction(this.watcher, tx, direction)
   }
+
+  /**
+   * Relays all L2 => L1 messages found in a given L2 transaction.
+   *
+   * @param tx Transaction to find messages in.
+   */
+  async relayXDomainMessages(
+    tx: Promise<TransactionResponse> | TransactionResponse
+  ): Promise<void> {
+    tx = await tx
+
+    let messagePairs = []
+    while (true) {
+      try {
+        messagePairs = await getMessagesAndProofsForL2Transaction(
+          l1Provider,
+          l2Provider,
+          this.scc.address,
+          predeploys.OVM_L2CrossDomainMessenger,
+          tx.hash
+        )
+        break
+      } catch (err) {
+        if (err.message.includes('unable to find state root batch for tx')) {
+          await sleep(5000)
+        } else {
+          throw err
+        }
+      }
+    }
+
+    for (const { message, proof } of messagePairs) {
+      while (true) {
+        try {
+          const result = await this.l1Messenger
+            .connect(this.l1Wallet)
+            .relayMessage(
+              message.target,
+              message.sender,
+              message.message,
+              message.messageNonce,
+              proof
+            )
+          await result.wait()
+          break
+        } catch (err) {
+          if (err.message.includes('execution failed due to an exception')) {
+            await sleep(5000)
+          } else if (
+            err.message.includes('message has already been received')
+          ) {
+            break
+          } else {
+            throw err
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Sets the timeout of a test based on the challenge period of the current network. If the
+ * challenge period is greater than 60s (e.g., on Mainnet) then we skip this test entirely.
+ *
+ * @param testctx Function context of the test to modify (i.e. `this` when inside a test).
+ * @param env Optimism environment used to resolve the StateCommitmentChain.
+ */
+export const useDynamicTimeoutForWithdrawals = async (
+  testctx: any,
+  env: OptimismEnv
+) => {
+  if (!IS_LIVE_NETWORK) {
+    return
+  }
+
+  const challengePeriod = await env.scc.FRAUD_PROOF_WINDOW()
+  if (challengePeriod.gt(60)) {
+    console.log(
+      `WARNING: challenge period is greater than 60s (${challengePeriod.toString()}s), skipping test`
+    )
+    testctx.skip()
+  }
+
+  // 60s for state root batch to be published + (challenge period x 4)
+  const timeoutMs = 60000 + challengePeriod.toNumber() * 1000 * 4
+  console.log(
+    `NOTICE: inside a withdrawal test on a prod network, dynamically setting timeout to ${timeoutMs}ms`
+  )
+  testctx.timeout(timeoutMs)
 }
