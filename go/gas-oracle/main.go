@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/go/gas-oracle/bindings"
 	"github.com/ethereum-optimism/optimism/go/gas-oracle/flags"
+	"github.com/ethereum-optimism/optimism/go/gas-oracle/gasprices"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -30,6 +33,7 @@ type GasPriceOracle struct {
 	privateKey *ecdsa.PrivateKey
 	client     *ethclient.Client
 	gasPrice   *big.Int
+	gasPricer  *gasprices.L2GasPricer
 }
 
 // Import the contract binding
@@ -56,6 +60,65 @@ func (g *GasPriceOracle) Start() {
 		}
 		opts.Context = g.ctx
 
+		tip, err := g.client.HeaderByNumber(g.ctx, nil)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		epochStartBlockNumber := float64(tip.Number.Uint64())
+		averageBlockGasLimit := float64(11_000_000)
+
+		getLatestBlockNumberFn := func() (uint64, error) {
+			tip, err := g.client.HeaderByNumber(g.ctx, nil)
+			if err != nil {
+				return 0, err
+			}
+			return tip.Number.Uint64(), nil
+		}
+
+		updateL2GasPriceFn := func(num float64) error {
+			if g.gasPrice == nil {
+				gasPrice, err := g.client.SuggestGasPrice(g.ctx)
+				if err == nil {
+					fmt.Println(err)
+				}
+				opts.GasPrice = gasPrice
+			} else {
+				opts.GasPrice = g.gasPrice
+			}
+
+			updatedGasPrice := uint64(num)
+			updatedGasPrice = 0
+
+			tx, err := g.contract.SetGasPrice(opts, new(big.Int).SetUint64(updatedGasPrice))
+			if err != nil {
+				return err
+			}
+
+			fmt.Println("tx sent:", tx.Hash().Hex())
+			ticker := time.NewTicker(100 * time.Millisecond)
+		loop:
+			for range ticker.C {
+				_, err := g.client.TransactionReceipt(g.ctx, tx.Hash())
+				if errors.Is(err, ethereum.NotFound) {
+					continue
+				}
+				if err == nil {
+					break loop
+				}
+			}
+			fmt.Println("tx confirmed: ", tx.Hash().Hex())
+			return nil
+		}
+
+		gasPriceUpdater := gasprices.NewGasPriceUpdater(
+			g.gasPricer,
+			uint64(epochStartBlockNumber),
+			uint64(averageBlockGasLimit),
+			getLatestBlockNumberFn,
+			updateL2GasPriceFn,
+		)
+
 		for {
 			select {
 			case <-timer.C:
@@ -69,23 +132,9 @@ func (g *GasPriceOracle) Start() {
 				}
 				fmt.Println("got gas price:", l2GasPrice)
 
-				if g.gasPrice == nil {
-					gasPrice, err := g.client.SuggestGasPrice(g.ctx)
-					if err == nil {
-						fmt.Println(err)
-					}
-					opts.GasPrice = gasPrice
-				} else {
-					opts.GasPrice = g.gasPrice
-				}
-
-				// import tool and use here
-
-				tx, err := g.contract.SetGasPrice(opts, new(big.Int))
-				if err != nil {
+				if err := gasPriceUpdater.UpdateGasPrice(); err != nil {
 					fmt.Println(err)
 				}
-				fmt.Println("set gas price:", tx.Hash().Hex())
 
 			case <-g.ctx.Done():
 				g.Stop()
@@ -107,6 +156,15 @@ func NewGasPriceOracle(cfg *config) *GasPriceOracle {
 	if err != nil {
 		fmt.Println("cannot dial")
 	}
+
+	///
+	currentPrice := float64(0)
+	floorPrice := float64(0)
+	getTargetGasPerSecond := func() float64 {
+		return float64(0)
+	}
+	maxPercentChangePerEpoch := float64(0)
+	gasPricer := gasprices.NewGasPricer(currentPrice, floorPrice, getTargetGasPerSecond, maxPercentChangePerEpoch)
 
 	chainID := cfg.chainID
 	if chainID == nil {
@@ -134,6 +192,7 @@ func NewGasPriceOracle(cfg *config) *GasPriceOracle {
 		privateKey: privateKey,
 		client:     client,
 		gasPrice:   cfg.gasPrice,
+		gasPricer:  gasPricer,
 	}
 }
 

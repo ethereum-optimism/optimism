@@ -1,10 +1,10 @@
-package rollup
+package gasprices
 
 type GetLatestBlockNumberFn func() (uint64, error)
 type UpdateL2GasPriceFn func(float64) error
 
 type GasPriceUpdater struct {
-	gasPricer              L2GasPricer
+	gasPricer              *L2GasPricer
 	epochStartBlockNumber  uint64
 	averageBlockGasLimit   uint64
 	getLatestBlockNumberFn GetLatestBlockNumberFn
@@ -19,7 +19,7 @@ func NewGasPriceUpdater(
 	updateL2GasPriceFn UpdateL2GasPriceFn,
 ) *GasPriceUpdater {
 	return &GasPriceUpdater{
-		gasPricer:              *gasPricer,
+		gasPricer:              gasPricer,
 		epochStartBlockNumber:  epochStartBlockNumber,
 		averageBlockGasLimit:   averageBlockGasLimit,
 		getLatestBlockNumberFn: getLatestBlockNumberFn,

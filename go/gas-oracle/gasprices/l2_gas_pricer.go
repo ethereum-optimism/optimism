@@ -1,4 +1,4 @@
-package rollup
+package gasprices
 
 import (
 	"math"
@@ -45,6 +45,7 @@ func (p *L2GasPricer) CalcNextEpochGasPrice(avgGasPerSecondLastEpoch float64) fl
 }
 
 // End the current epoch and update the current gas price for the next epoch.
-func (p *L2GasPricer) CompleteEpoch(avgGasPerSecondLastEpoch float64) {
+func (p *L2GasPricer) CompleteEpoch(avgGasPerSecondLastEpoch float64) uint64 {
 	p.curPrice = p.CalcNextEpochGasPrice(avgGasPerSecondLastEpoch)
+	return uint64(p.curPrice)
 }
