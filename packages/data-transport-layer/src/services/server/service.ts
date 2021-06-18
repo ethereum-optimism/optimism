@@ -2,6 +2,7 @@
 import { BaseService, Logger, Metrics } from '@eth-optimism/common-ts'
 import express, { Request, Response } from 'express'
 import promBundle from 'express-prom-bundle'
+import { Gauge } from 'prom-client'
 import cors from 'cors'
 import { BigNumber } from 'ethers'
 import { JsonRpcProvider } from '@ethersproject/providers'
@@ -27,6 +28,7 @@ import { L1DataTransportServiceOptions } from '../main/service'
 export interface L1TransportServerOptions
   extends L1DataTransportServiceOptions {
   db: LevelUp
+  metrics: Metrics
 }
 
 const optionSettings = {
@@ -74,6 +76,14 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       await this.options.db.open()
     }
 
+    if (this.metrics) {
+      const metricsMiddleware = promBundle({
+        includeMethod: true,
+        includePath: true,
+      })
+      this.state.app.use(metricsMiddleware)
+    }
+
     this.state.db = new TransportDB(this.options.db)
     this.state.l1RpcProvider =
       typeof this.options.l1RpcProvider === 'string'
@@ -109,9 +119,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     if (this.options.useSentry) {
       this._initSentry()
     }
-    if (this.options.enableMetrics) {
-      this._initMetrics()
-    }
     this.state.app.use(cors())
     this._registerAllRoutes()
     // Sentry error handling must be after all controllers
@@ -146,25 +153,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     })
     this.state.app.use(Sentry.Handlers.requestHandler())
     this.state.app.use(Sentry.Handlers.tracingHandler())
-  }
-
-  /**
-   * Initialize Prometheus metrics collection and endpoint
-   */
-  private _initMetrics() {
-    this.metrics = new Metrics({
-      labels: {
-        environment: this.options.nodeEnv,
-        network: this.options.ethNetworkName,
-        release: this.options.release,
-        service: this.name,
-      },
-    })
-    const metricsMiddleware = promBundle({
-      includeMethod: true,
-      includePath: true,
-    })
-    this.state.app.use(metricsMiddleware)
   }
 
   /**

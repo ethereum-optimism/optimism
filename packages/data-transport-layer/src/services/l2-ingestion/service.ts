@@ -5,12 +5,17 @@ import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 import axios from 'axios'
 import bfj from 'bfj'
+import { Gauge } from 'prom-client'
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
 import { sleep, toRpcHexString, validators } from '../../utils'
 import { L1DataTransportServiceOptions } from '../main/service'
 import { handleSequencerBlock } from './handlers/transaction'
+
+interface L2IngestionMetrics {
+  highestSyncedL2Block: Gauge<string>
+}
 
 export interface L2IngestionServiceOptions
   extends L1DataTransportServiceOptions {
@@ -52,6 +57,8 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
     super('L2_Ingestion_Service', options, optionSettings)
   }
 
+  private l2IngestionMetrics: L2IngestionMetrics
+
   private state: {
     db: TransportDB
     l2RpcProvider: JsonRpcProvider
@@ -62,6 +69,16 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
       this.logger.info(
         'Using legacy sync, this will be quite a bit slower than normal'
       )
+    }
+
+    if (this.metrics) {
+      this.l2IngestionMetrics = {
+        highestSyncedL2Block: new this.metrics.client.Gauge({
+          name: 'data_transport_layer_highest_synced_l2_block',
+          help: 'Highest Synced L2 Block Number',
+          registers: [this.metrics.registry],
+        }),
+      }
     }
 
     this.state.db = new TransportDB(this.options.db)
@@ -112,6 +129,8 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         )
 
         await this.state.db.setHighestSyncedUnconfirmedBlock(targetL2Block)
+
+        this.l2IngestionMetrics.highestSyncedL2Block.set(targetL2Block)
 
         if (
           currentL2Block - highestSyncedL2BlockNumber <
