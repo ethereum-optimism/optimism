@@ -17,12 +17,15 @@ interface L2IngestionMetrics {
   highestSyncedL2Block: Gauge<string>
 }
 
-const registerMetrics = ({client, registry}: Metrics): L2IngestionMetrics => ({
+const registerMetrics = ({
+  client,
+  registry,
+}: Metrics): L2IngestionMetrics => ({
   highestSyncedL2Block: new client.Gauge({
     name: 'data_transport_layer_highest_synced_l2_block',
     help: 'Highest Synced L2 Block Number',
     registers: [registry],
-  })
+  }),
 })
 
 export interface L2IngestionServiceOptions
@@ -78,7 +81,7 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         'Using legacy sync, this will be quite a bit slower than normal'
       )
     }
-    
+
     this.l2IngestionMetrics = registerMetrics(this.metrics)
 
     this.state.db = new TransportDB(this.options.db)

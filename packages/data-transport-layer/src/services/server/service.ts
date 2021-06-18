@@ -76,10 +76,12 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       await this.options.db.open()
     }
 
-    this.state.app.use(promBundle({
-      includeMethod: true,
-      includePath: true,
-    }))
+    this.state.app.use(
+      promBundle({
+        includeMethod: true,
+        includePath: true,
+      })
+    )
 
     this.state.db = new TransportDB(this.options.db)
     this.state.l1RpcProvider =

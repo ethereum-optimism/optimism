@@ -26,12 +26,15 @@ interface L1IngestionMetrics {
   highestSyncedL1Block: Gauge<string>
 }
 
-const registerMetrics = ({client, registry}: Metrics): L1IngestionMetrics => ({
+const registerMetrics = ({
+  client,
+  registry,
+}: Metrics): L1IngestionMetrics => ({
   highestSyncedL1Block: new client.Gauge({
     name: 'data_transport_layer_highest_synced_l1_block',
     help: 'Highest Synced L1 Block Number',
     registers: [registry],
-  })
+  }),
 })
 
 export interface L1IngestionServiceOptions
