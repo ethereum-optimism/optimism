@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/common-ts'
+import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
@@ -16,6 +16,14 @@ import { handleSequencerBlock } from './handlers/transaction'
 interface L2IngestionMetrics {
   highestSyncedL2Block: Gauge<string>
 }
+
+const registerMetrics = ({client, registry}: Metrics): L2IngestionMetrics => ({
+  highestSyncedL2Block: new client.Gauge({
+    name: 'data_transport_layer_highest_synced_l2_block',
+    help: 'Highest Synced L2 Block Number',
+    registers: [registry],
+  })
+})
 
 export interface L2IngestionServiceOptions
   extends L1DataTransportServiceOptions {
@@ -71,13 +79,7 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
       )
     }
     
-    this.l2IngestionMetrics = {
-      highestSyncedL2Block: new this.metrics.client.Gauge({
-        name: 'data_transport_layer_highest_synced_l2_block',
-        help: 'Highest Synced L2 Block Number',
-        registers: [this.metrics.registry],
-      }),
-    }
+    this.l2IngestionMetrics = registerMetrics(this.metrics)
 
     this.state.db = new TransportDB(this.options.db)
 
