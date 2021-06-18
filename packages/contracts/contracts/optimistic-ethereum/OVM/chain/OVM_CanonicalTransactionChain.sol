@@ -1009,7 +1009,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     }
 
     /**
-     * Checks that a given batch context is valid based on its previous context, and the next queue elemtent.
+     * Checks that a given batch context is valid based on its previous context, and the next queue element.
      * @param _prevContext The previously validated batch context.
      * @param _nextContext The batch context to validate with this call.
      * @param _nextQueueIndex Index of the next queue element to process for the _nextContext's subsequentQueueElements.
@@ -1034,6 +1034,25 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             _nextContext.blockNumber >= _prevContext.blockNumber,
             "Context blockNumber values must monotonically increase."
         );
+
+        // All sequencer transactions' times must also be greater than or equal to previously
+        // appended queueElements.
+        if (_nextQueueIndex > 0) {
+            Lib_OVMCodec.QueueElement memory lastQueueElement = _getQueueElement(
+                _nextQueueIndex - 1,
+                _queueRef
+            );
+            require(
+                _nextContext.timestamp >= lastQueueElement.timestamp,
+                "Context timestamp value must be greater than last queue element appended."
+            );
+
+            require(
+                _nextContext.blockNumber >= lastQueueElement.blockNumber,
+                "Context block number value must be greater than last queue element appended."
+            );
+        }
+
 
         // If there is going to be a queue element pulled in from this context:
         if (_nextContext.numSubsequentQueueTransactions > 0) {

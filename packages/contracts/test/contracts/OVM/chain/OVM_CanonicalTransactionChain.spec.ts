@@ -1155,7 +1155,11 @@ describe('OVM_CanonicalTransactionChain', () => {
               // enqueue
               timestamp = await getEthTime(ethers.provider)
               blockNumber = await getNextBlockNumber(ethers.provider)
-              await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+              await OVM_CanonicalTransactionChain.enqueue(
+                target,
+                gasLimit,
+                data
+              )
               await appendSequencerBatch(OVM_CanonicalTransactionChain, {
                 transactions: ['0x1234'],
                 contexts: [
@@ -1211,6 +1215,119 @@ describe('OVM_CanonicalTransactionChain', () => {
               )
             })
           })
+        })
+      })
+
+      describe("should revert when a queue element's context is greater than a subsequent sequencer tx context, within the same batch", () => {
+        let queueElement
+        let firstContext: { timestamp: number; blockNumber: number }
+        let secondContext: { timestamp: number; blockNumber: number }
+        beforeEach(async () => {
+          // Pre-populate the queue with a transaction to append later
+          await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+          queueElement = await OVM_CanonicalTransactionChain.getQueueElement(0)
+
+          // Set the first context sufficiently below the QueueElement's context
+          // so that there is space for the second context to fit between them.
+          firstContext = {
+            timestamp: queueElement.timestamp - 10,
+            blockNumber: queueElement.blockNumber - 2,
+          }
+        })
+
+        it('should revert with unordered timestamps', async () => {
+          secondContext = {
+            timestamp: queueElement.timestamp - 5,
+            blockNumber: queueElement.blockNumber + 1,
+          }
+          const unorderedTimestampContexts = [
+            {
+              numSequencedTransactions: 1,
+              numSubsequentQueueTransactions: 1,
+              // set batch context timestamp below the timestamp of the last queue element
+              timestamp: firstContext.timestamp,
+              blockNumber: firstContext.blockNumber,
+            },
+            {
+              numSequencedTransactions: 1,
+              numSubsequentQueueTransactions: 1,
+              // set batch context timestamp below the timestamp of the last queue element
+              timestamp: secondContext.timestamp,
+              blockNumber: secondContext.blockNumber,
+            },
+          ]
+
+          // Check to make sure the values are set up as expected.
+          // Timestamps should be out of order.
+          expect(
+            firstContext.timestamp < secondContext.timestamp &&
+              secondContext.timestamp < queueElement.timestamp,
+            'timestamps are not properly ordered for this test'
+          ).to.be.true
+          // BlockNumbers should be in order.
+          expect(
+            firstContext.blockNumber < queueElement.blockNumber &&
+              queueElement.blockNumber < secondContext.blockNumber,
+            'blockNumbers are not properly ordered for this test'
+          ).to.be.true
+
+          await expect(
+            appendSequencerBatch(OVM_CanonicalTransactionChain, {
+              transactions: ['0x1234', '0x5678'],
+              contexts: unorderedTimestampContexts,
+              shouldStartAtElement: 0,
+              totalElementsToAppend: 4,
+            })
+          ).to.be.revertedWith(
+            'Context timestamp value must be greater than last queue element appended.'
+          )
+        })
+
+        it('should revert with unordered block numbers', async () => {
+          secondContext = {
+            timestamp: queueElement.timestamp + 10,
+            blockNumber: queueElement.blockNumber - 1,
+          }
+
+          // Check to make sure the values are set up as expected.
+          // BlockNumbers should be out of order.
+          expect(
+            firstContext.blockNumber < secondContext.blockNumber &&
+              secondContext.blockNumber < queueElement.blockNumber,
+            'blockNumbers are not properly ordered for this test'
+          ).to.be.true
+          // Timestamps should be in order.
+          expect(
+            firstContext.timestamp < queueElement.timestamp &&
+              queueElement.timestamp < secondContext.timestamp,
+            'timestamps are not properly ordered for this test'
+          ).to.be.true
+
+          const unorderedBlockContexts = [
+            {
+              numSequencedTransactions: 1,
+              numSubsequentQueueTransactions: 1,
+              timestamp: firstContext.timestamp,
+              blockNumber: firstContext.blockNumber,
+            },
+            {
+              numSequencedTransactions: 1,
+              numSubsequentQueueTransactions: 1,
+              timestamp: secondContext.timestamp,
+              blockNumber: secondContext.blockNumber,
+            },
+          ]
+
+          await expect(
+            appendSequencerBatch(OVM_CanonicalTransactionChain, {
+              transactions: ['0x1234', '0x5678'],
+              contexts: unorderedBlockContexts,
+              shouldStartAtElement: 0,
+              totalElementsToAppend: 4,
+            })
+          ).to.be.revertedWith(
+            'Context block number value must be greater than last queue element appended.'
+          )
         })
       })
 
@@ -1338,7 +1455,6 @@ describe('OVM_CanonicalTransactionChain', () => {
         })
       })
 
-
       it('should revert if a queue element has expired and needs to be included', async () => {
         // enqueue a tx
         await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
@@ -1420,6 +1536,7 @@ describe('OVM_CanonicalTransactionChain', () => {
         })
 
         describe('when inserting queue elements in between', () => {
+          const queueElements = []
           beforeEach(async () => {
             for (let i = 0; i < size; i++) {
               await OVM_CanonicalTransactionChain.enqueue(
@@ -1427,6 +1544,9 @@ describe('OVM_CanonicalTransactionChain', () => {
                 gasLimit,
                 data
               )
+              queueElements[
+                i
+              ] = await OVM_CanonicalTransactionChain.getQueueElement(i)
             }
           })
 
@@ -1438,12 +1558,12 @@ describe('OVM_CanonicalTransactionChain', () => {
               const blockNumber =
                 (await getNextBlockNumber(ethers.provider)) - 50
 
-              contexts = [...Array(size)].map(() => {
+              contexts = [...Array(size)].map((el, idx) => {
                 return {
                   numSequencedTransactions: 1,
                   numSubsequentQueueTransactions: 1,
-                  timestamp,
-                  blockNumber: Math.max(blockNumber, 0),
+                  timestamp: queueElements[idx].timestamp,
+                  blockNumber: queueElements[idx].blockNumber,
                 }
               })
 
@@ -1478,12 +1598,12 @@ describe('OVM_CanonicalTransactionChain', () => {
               const blockNumber =
                 (await getNextBlockNumber(ethers.provider)) - 50
 
-              contexts = [...Array(spacing)].map(() => {
+              contexts = [...Array(spacing)].map((el, idx) => {
                 return {
                   numSequencedTransactions: size / spacing,
                   numSubsequentQueueTransactions: 1,
-                  timestamp,
-                  blockNumber: Math.max(blockNumber, 0),
+                  timestamp: queueElements[idx].timestamp,
+                  blockNumber: queueElements[idx].blockNumber,
                 }
               })
 
