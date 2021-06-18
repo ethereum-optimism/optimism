@@ -52,6 +52,7 @@ func (g *GasPriceOracle) Start() {
 		fmt.Println("key mismatch")
 	}
 
+	// TODO: break this up into smaller functions
 	go func() {
 		timer := time.NewTicker(5 * time.Second)
 		opts, err := bind.NewKeyedTransactorWithChainID(g.privateKey, g.chainID)
@@ -65,9 +66,11 @@ func (g *GasPriceOracle) Start() {
 			fmt.Println(err)
 		}
 
+		// TODO: handle types correctly - they are cast to uint64 below
 		epochStartBlockNumber := float64(tip.Number.Uint64())
 		averageBlockGasLimit := float64(11_000_000)
 
+		// TODO: don't define inline
 		getLatestBlockNumberFn := func() (uint64, error) {
 			tip, err := g.client.HeaderByNumber(g.ctx, nil)
 			if err != nil {
@@ -76,6 +79,7 @@ func (g *GasPriceOracle) Start() {
 			return tip.Number.Uint64(), nil
 		}
 
+		// TODO: don't define inline
 		updateL2GasPriceFn := func(num float64) error {
 			if g.gasPrice == nil {
 				gasPrice, err := g.client.SuggestGasPrice(g.ctx)
@@ -122,7 +126,7 @@ func (g *GasPriceOracle) Start() {
 		for {
 			select {
 			case <-timer.C:
-				fmt.Println("Polling...")
+				fmt.Println("Polling")
 
 				l2GasPrice, err := g.contract.GasPrice(&bind.CallOpts{
 					Context: g.ctx,
@@ -157,7 +161,7 @@ func NewGasPriceOracle(cfg *config) *GasPriceOracle {
 		fmt.Println("cannot dial")
 	}
 
-	///
+	// TODO: parse from config
 	currentPrice := float64(0)
 	floorPrice := float64(0)
 	getTargetGasPerSecond := func() float64 {
