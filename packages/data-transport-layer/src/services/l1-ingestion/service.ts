@@ -19,6 +19,7 @@ import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
 import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
+import { MissingElementError, EventName } from './handlers/errors'
 
 export interface L1IngestionServiceOptions
   extends L1DataTransportServiceOptions {
@@ -136,8 +137,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     // Store the total number of submitted transactions so the server can tell clients if we're
     // done syncing or not
-    const totalElements =
-      await this.state.contracts.OVM_CanonicalTransactionChain.getTotalElements()
+    const totalElements = await this.state.contracts.OVM_CanonicalTransactionChain.getTotalElements()
     if (totalElements > 0) {
       await this.state.db.putHighestL2BlockNumber(totalElements - 1)
     }
@@ -206,7 +206,46 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           await sleep(this.options.pollingInterval)
         }
       } catch (err) {
-        if (!this.running || this.options.dangerouslyCatchAllErrors) {
+        if (err instanceof MissingElementError) {
+          // Different functions for getting the last good element depending on the event type.
+          const handlers = {
+            SequencerBatchAppended: this.state.db.getLatestTransactionBatch,
+            StateBatchAppended: this.state.db.getLatestStateRootBatch,
+            TransactionEnqueued: this.state.db.getLatestEnqueue,
+          }
+
+          // Find the last good element and reset the highest synced L1 block to go back to the
+          // last good element. Will resync other event types too but we have no issues with
+          // syncing the same events more than once.
+          const eventName = err.name
+          if (!(eventName in handlers)) {
+            throw new Error(
+              `unable to recover from missing event, no handler for ${eventName}`
+            )
+          }
+
+          const lastGoodElement: {
+            blockNumber: number
+          } = await handlers[eventName]()
+
+          // Erroring out here seems fine. An error like this is only likely to occur quickly after
+          // this service starts up so someone will be here to deal with it. Automatic recovery is
+          // nice but not strictly necessary. Could be a good feature for someone to implement.
+          if (lastGoodElement === null) {
+            throw new Error(`unable to recover from missing event`)
+          }
+
+          // Rewind back to the block number that the last good element was in.
+          await this.state.db.setHighestSyncedL1Block(
+            lastGoodElement.blockNumber
+          )
+
+          // Something we should be keeping track of.
+          this.logger.warn('recovering from a missing event', {
+            eventName,
+            lastGoodBlockNumber: lastGoodElement.blockNumber,
+          })
+        } else if (!this.running || this.options.dangerouslyCatchAllErrors) {
           this.logger.error('Caught an unhandled error', {
             message: err.toString(),
             stack: err.stack,
@@ -242,13 +281,11 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     // We need to figure out how to make this work without Infura. Mark and I think that infura is
     // doing some indexing of events beyond Geth's native capabilities, meaning some event logic
     // will only work on Infura and not on a local geth instance. Not great.
-    const addressSetEvents = (
-      (await this.state.contracts.Lib_AddressManager.queryFilter(
-        this.state.contracts.Lib_AddressManager.filters.AddressSet(),
-        fromL1Block,
-        toL1Block
-      )) as TypedEthersEvent<EventArgsAddressSet>[]
-    ).filter((event) => {
+    const addressSetEvents = ((await this.state.contracts.Lib_AddressManager.queryFilter(
+      this.state.contracts.Lib_AddressManager.filters.AddressSet(),
+      fromL1Block,
+      toL1Block
+    )) as TypedEthersEvent<EventArgsAddressSet>[]).filter((event) => {
       return event.args._name === contractName
     })
 
@@ -324,6 +361,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
   /**
    * Gets the address of a contract at a particular block in the past.
+   *
    * @param contractName Name of the contract to get an address for.
    * @param blockNumber Block at which to get an address.
    * @return Contract address.

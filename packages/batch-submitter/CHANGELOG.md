@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5
+
+### Patch Changes
+
+- 7cce55a9: Add status to generic error log to disambiguate errors
+
 ## 0.3.4
 
 ### Patch Changes
