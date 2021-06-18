@@ -53,6 +53,9 @@ const optionSettings = {
       return validators.isUrl(val) || validators.isJsonRpcProvider(val)
     },
   },
+  l2ChainId: {
+    validate: validators.isInteger,
+  },
 }
 
 export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
@@ -65,7 +68,6 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contracts: OptimismContracts
     l1RpcProvider: JsonRpcProvider
     startingL1BlockNumber: number
-    l2ChainId: number
   } = {} as any
 
   protected async _init(): Promise<void> {
@@ -114,10 +116,6 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       this.state.l1RpcProvider,
       this.options.addressManager
     )
-
-    this.state.l2ChainId = ethers.BigNumber.from(
-      await this.state.contracts.OVM_ExecutionManager.ovmCHAINID()
-    ).toNumber()
 
     const startingL1BlockNumber = await this.state.db.getStartingL1Block()
     if (startingL1BlockNumber) {
@@ -301,7 +299,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           const parsedEvent = await handlers.parseEvent(
             event,
             extraData,
-            this.state.l2ChainId
+            this.options.l2ChainId
           )
           await handlers.storeEvent(parsedEvent, this.state.db)
         }
