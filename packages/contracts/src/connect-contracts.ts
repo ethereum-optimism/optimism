@@ -30,6 +30,7 @@ interface L2Contracts {
 
 /**
  * Validates user provided a singer or provider & throws error if not
+ *
  * @param signerOrProvider
  */
 const checkSignerType = (signerOrProvider: Signer | Provider) => {
@@ -46,6 +47,7 @@ const checkSignerType = (signerOrProvider: Signer | Provider) => {
 
 /**
  * Connects a signer/provider to layer 1 contracts on a given network
+ *
  * @param signerOrProvider ethers signer or provider
  * @param network string denoting network
  * @returns l1 contracts connected to signer/provider
@@ -90,6 +92,7 @@ export const connectL1Contracts = async (
 
 /**
  * Connects a signer/provider to layer 2 contracts (network agnostic)
+ *
  * @param signerOrProvider ethers signer or provider
  * @returns l2 contracts connected to signer/provider
  */

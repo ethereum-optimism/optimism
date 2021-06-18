@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 import { predeploys as l2Addresses } from './predeploys'
 import { Network } from './connect-contracts'
 
