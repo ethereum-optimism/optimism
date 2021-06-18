@@ -52,8 +52,6 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     super('L1_Data_Transport_Service', options, optionSettings)
   }
 
-  
-
   private state: {
     db: LevelUp
     l1IngestionService?: L1IngestionService
@@ -67,9 +65,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
 
-
     const metrics = this.options.enableMetrics ?
-    
        new Metrics({
         labels: {
           environment: this.options.nodeEnv,
@@ -77,8 +73,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
           release: this.options.release,
           service: this.name,
         }
-      }) : undefined
-    
+      }) : undefined;
 
     this.state.l1TransportServer = new L1TransportServer({
       ...this.options,
