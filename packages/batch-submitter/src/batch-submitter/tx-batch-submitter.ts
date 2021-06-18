@@ -301,6 +301,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // Fix our batches if we are configured to. TODO: Remove this.
     batch = await this._fixBatch(batch)
     if (!(await this._validateBatch(batch))) {
+      this.metrics.malformedBatches.inc()
       return
     }
     let sequencerBatchParams = await this._getSequencerBatchParams(

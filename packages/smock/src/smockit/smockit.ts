@@ -23,6 +23,7 @@ import { findBaseHardhatProvider } from '../common'
 /**
  * Generates an ethers Interface instance when given a smock spec. Meant for standardizing the
  * various input types we might reasonably want to support.
+ *
  * @param spec Smock specification object. Thing you want to base the interface on.
  * @param hre Hardhat runtime environment. Used so we can
  * @return Interface generated from the spec.
@@ -57,6 +58,7 @@ const makeContractInterfaceFromSpec = async (
 
 /**
  * Creates a mock contract function from a real contract function.
+ *
  * @param contract Contract object to make a mock function for.
  * @param functionName Name of the function to mock.
  * @param vm Virtual machine reference, necessary for call assertions to work.
@@ -137,6 +139,7 @@ const smockifyFunction = (
 
 /**
  * Turns a specification into a mock contract.
+ *
  * @param spec Smock contract specification.
  * @param opts Optional additional settings.
  */
@@ -314,6 +317,7 @@ export const smockit = async (
 
 /**
  * Unbinds a mock contract (meaning the contract will no longer behave as a mock).
+ *
  * @param mock Mock contract or address to unbind.
  */
 export const unbind = async (mock: MockContract | string): Promise<void> => {

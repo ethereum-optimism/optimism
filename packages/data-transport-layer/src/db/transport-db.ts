@@ -387,6 +387,27 @@ export class TransportDB {
     startIndex: number,
     endIndex: number
   ): Promise<TEntry[] | []> {
-    return this.db.range<TEntry>(`${key}:index`, startIndex, endIndex)
+    const entries = await this.db.range<TEntry>(
+      `${key}:index`,
+      startIndex,
+      endIndex
+    )
+    const results = []
+    for (const entry of entries) {
+      results.push(stringify(entry))
+    }
+    return results
+  }
+}
+
+const stringify = (entry) => {
+  if (entry === null || entry === undefined) {
+    return entry
+  }
+  if (entry.gasLimit) {
+    entry.gasLimit = BigNumber.from(entry.gasLimit).toString()
+  }
+  if (entry.decoded) {
+    entry.decoded.gasLimit = BigNumber.from(entry.decoded.gasLimit).toString()
   }
 }

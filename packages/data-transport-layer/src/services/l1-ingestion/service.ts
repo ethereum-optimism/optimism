@@ -319,6 +319,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
   /**
    * Gets the address of a contract at a particular block in the past.
+   *
    * @param contractName Name of the contract to get an address for.
    * @param blockNumber Block at which to get an address.
    * @return Contract address.

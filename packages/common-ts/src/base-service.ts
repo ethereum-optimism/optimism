@@ -109,10 +109,10 @@ export class BaseService<T> {
 /**
  * Combines user provided and default options.
  */
-function mergeDefaultOptions<T>(
+const mergeDefaultOptions = <T>(
   options: T,
   optionSettings: OptionSettings<T>
-): T {
+): T => {
   for (const optionName of Object.keys(optionSettings)) {
     const optionDefault = optionSettings[optionName].default
     if (optionDefault === undefined) {
@@ -132,7 +132,7 @@ function mergeDefaultOptions<T>(
 /**
  * Performs option validation against the option settings
  */
-function validateOptions<T>(options: T, optionSettings: OptionSettings<T>) {
+const validateOptions = <T>(options: T, optionSettings: OptionSettings<T>) => {
   for (const optionName of Object.keys(optionSettings)) {
     const optionValidationFunction = optionSettings[optionName].validate
     if (optionValidationFunction === undefined) {
