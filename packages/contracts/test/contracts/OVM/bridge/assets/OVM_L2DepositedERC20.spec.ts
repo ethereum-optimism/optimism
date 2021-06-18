@@ -35,8 +35,7 @@ describe('OVM_L2DepositedERC20', () => {
   let finalizeWithdrawalGasLimit: number
   beforeEach(async () => {
     // Create a special signer which will enable us to send messages from the L2Messenger contract
-    let l2MessengerImpersonator: Signer
-    ;[l2MessengerImpersonator] = await ethers.getSigners()
+    const [l2MessengerImpersonator] = await ethers.getSigners()
 
     // Get a new mock L2 messenger
     Mock__OVM_L2CrossDomainMessenger = await smockit(

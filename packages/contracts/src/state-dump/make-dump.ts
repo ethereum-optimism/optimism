@@ -12,6 +12,7 @@ import { predeploys } from '../predeploys'
 
 /**
  * Generates a storage dump for a given address.
+ *
  * @param cStateManager Instance of the callback-based internal vm StateManager.
  * @param address Address to generate a state dump for.
  */
@@ -44,6 +45,7 @@ const getStorageDump = async (
 
 /**
  * Replaces old addresses found in a storage dump with new ones.
+ *
  * @param storageDump Storage dump to sanitize.
  * @param accounts Set of accounts to sanitize with.
  * @returns Sanitized storage dump.

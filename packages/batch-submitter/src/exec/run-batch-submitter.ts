@@ -84,6 +84,7 @@ export const run = async () => {
   const env = process.env
   const environment = config.str('node-env', env.NODE_ENV)
   const network = config.str('eth-network-name', env.ETH_NETWORK_NAME)
+  const service = `batch-submitter`
   const release = `batch-submitter@${env.npm_package_version}`
   const sentryDsn = config.str('sentry-dsn', env.SENTRY_DSN)
   const sentryTraceRate = config.ufloat(
@@ -181,8 +182,7 @@ export const run = async () => {
 
   /* Metrics */
   const metrics = new Metrics({
-    prefix: name,
-    labels: { environment, release, network },
+    labels: { environment, release, network, service },
   })
 
   const FRAUD_SUBMISSION_ADDRESS = config.str(
@@ -441,11 +441,29 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        logger.error('Error submitting batch', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
+        switch (err.code) {
+          case 'SERVER_ERROR':
+            logger.error(`Encountered server error with status ${err.status}`, {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          case 'NETWORK_ERROR':
+            logger.error('Could not detect network', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          default:
+            logger.error('Unhandled exception during batch submission', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+        }
         logger.info('Retrying...')
       }
       // Sleep

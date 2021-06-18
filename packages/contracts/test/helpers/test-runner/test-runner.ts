@@ -97,10 +97,10 @@ export class ExecutionManagerTestRunner {
   }
 
   public run(test: TestDefinition) {
-    // tslint:disable-next-line:ban-comma-operator
     ;(test.preState = merge(
       cloneDeep(this.defaultPreState),
       cloneDeep(test.preState)
+      // eslint-disable-next-line no-sequences
     )),
       (test.postState = test.postState || {})
 
