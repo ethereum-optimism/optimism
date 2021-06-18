@@ -74,21 +74,21 @@ export class Watcher {
     pollForPending: boolean = true
   ): Promise<TransactionReceipt> {
     let matches: ethers.providers.Log[] = []
-    const successFilter: ethers.providers.Filter = {
-      address: layer.messengerAddress,
-      topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
-    }
-    const failureFilter: ethers.providers.Filter = {
-      address: layer.messengerAddress,
-      topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`)],
-    }
 
     // scan for transaction with specified message
     while (matches.length === 0) {
       const blockNumber = await layer.provider.getBlockNumber()
       const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
-      successFilter.fromBlock = startingBlock
-      failureFilter.fromBlock = startingBlock
+      const successFilter: ethers.providers.Filter = {
+        address: layer.messengerAddress,
+        topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
+        fromBlock: startingBlock
+      }
+      const failureFilter: ethers.providers.Filter = {
+        address: layer.messengerAddress,
+        topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`)],
+        fromBlock: startingBlock
+      }
       const successLogs = await layer.provider.getLogs(successFilter)
       const failureLogs = await layer.provider.getLogs(failureFilter)
       const logs = successLogs.concat(failureLogs)
