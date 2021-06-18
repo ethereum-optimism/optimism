@@ -55,11 +55,13 @@ describe('OVM_L2StandardTokenFactory', () => {
     })
 
     it('should not be able to create a standard token with a 0 address for l1 token', async () => {
-      await expect(OVM_L2StandardTokenFactory.createStandardL2Token(
-        ethers.constants.AddressZero,
-        'L2ERC20',
-        'ERC'
-      )).to.be.revertedWith('Must provide L1 token address')
+      await expect(
+        OVM_L2StandardTokenFactory.createStandardL2Token(
+          ethers.constants.AddressZero,
+          'L2ERC20',
+          'ERC'
+        )
+      ).to.be.revertedWith('Must provide L1 token address')
     })
   })
 })
