@@ -81,6 +81,9 @@ func AsOvmMessage(tx *types.Transaction, signer types.Signer, decompressor commo
 	// Sequencer transactions get sent to the "sequencer entrypoint," a contract that decompresses
 	// the incoming transaction data.
 	raw, err := rlp.EncodeToBytes(tx)
+	if err != nil {
+		return msg, fmt.Errorf("Cannot rlp encode ovm message: %w", err)
+	}
 	outmsg, err := modMessage(
 		msg,
 		msg.From(),
