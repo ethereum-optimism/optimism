@@ -1,12 +1,13 @@
+<div align="center">
+  <a href="https://community.optimism.io"><img alt="Optimism" src="https://user-images.githubusercontent.com/14298799/122151157-0b197500-ce2d-11eb-89d8-6240e3ebe130.png" width=280></a>
+  <br />
+  <h1> The Optimism Monorepo</h1>
+</div>
 <p align="center">
-    <img src="https://user-images.githubusercontent.com/14298799/122151157-0b197500-ce2d-11eb-89d8-6240e3ebe130.png" width=280>
-<p>
-
-# <h1 align="center"> The Optimism Monorepo </h1>
-
-[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/typescript%20/%20contracts/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/ts-packages.yml?query=branch%3Amaster)
-[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/integration/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/integration.yml?query=branch%3Amaster)
-[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/geth%20unit%20tests/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/geth.yml?query=branch%3Amaster)
+  <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/ts-packages.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/typescript%20/%20contracts/badge.svg" /></a>
+  <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/integration.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/integration/badge.svg" /></a>
+  <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/geth.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/geth%20unit%20tests/badge.svg" /></a>
+</p>
 
 ## TL;DR
 
@@ -15,6 +16,10 @@ This is the primary place where [Optimism](https://optimism.io) works on stuff r
 ## Documentation
 
 Extensive documentation is available [here](http://community.optimism.io/docs/).
+
+## Community
+
+* [Come hang on discord](https://discord.optimism.io)
 
 ## Directory Structure
 
@@ -34,9 +39,19 @@ as well as a docker-compose file for bringing up local testnets easily
 
 ## Development Quick Start
 
+### Dependencies
+
+You'll need the following:
+
+* [Git](https://git-scm.com/downloads)
+* [NodeJS](https://nodejs.org/en/download/)
+* [Yarn](https://classic.yarnpkg.com/en/docs/install)
+* [Docker](https://docs.docker.com/get-docker/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
+
 ### Setup
 
-Clone the repository, open it, and install dependencies:
+Clone the repository, open it, and install nodejs packages with `yarn`:
 
 ```bash
 git clone git@github.com:ethereum-optimism/optimism.git
@@ -61,7 +76,7 @@ Use the above commands to recompile the packages.
 
 If you want to run an Optimistic Ethereum node OR **if you want to run the integration tests**, you'll need to build the rest of the system.
 
-```
+```bash
 cd ops
 export COMPOSE_DOCKER_CLI_BUILD=1 # these environment variables significantly speed up build time
 export DOCKER_BUILDKIT=1
@@ -102,7 +117,7 @@ docker-compose start batch_submitter
 Source code changes can have an impact on more than one container.
 **If you're unsure about which containers to rebuild, just rebuild them all**:
 
-```
+```bash
 cd ops
 docker-compose down
 docker-compose build
@@ -111,7 +126,7 @@ docker-compose up
 
 Finally, **if you're running into weird problems and nothing seems to be working**, run:
 
-```
+```bash
 cd optimism
 yarn clean
 yarn build
@@ -125,7 +140,7 @@ docker-compose up
 By default, the `docker-compose up` command will show logs from all services, and that
 can be hard to filter through. In order to view the logs from a specific service, you can run:
 
-```
+```bash
 docker-compose logs --follow <service name>
 ```
 
@@ -171,3 +186,7 @@ cd packages/contracts
 pip3 install slither-analyzer
 yarn test:slither
 ```
+
+## License
+
+Files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
