@@ -70,15 +70,13 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         'Using legacy sync, this will be quite a bit slower than normal'
       )
     }
-
-    if (this.metrics) {
-      this.l2IngestionMetrics = {
-        highestSyncedL2Block: new this.metrics.client.Gauge({
-          name: 'data_transport_layer_highest_synced_l2_block',
-          help: 'Highest Synced L2 Block Number',
-          registers: [this.metrics.registry],
-        }),
-      }
+    
+    this.l2IngestionMetrics = {
+      highestSyncedL2Block: new this.metrics.client.Gauge({
+        name: 'data_transport_layer_highest_synced_l2_block',
+        help: 'Highest Synced L2 Block Number',
+        registers: [this.metrics.registry],
+      }),
     }
 
     this.state.db = new TransportDB(this.options.db)

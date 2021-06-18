@@ -80,14 +80,12 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
   protected async _init(): Promise<void> {
     this.state.db = new TransportDB(this.options.db)
 
-    if (this.metrics) {
-      this.l1IngestionMetrics = {
-        highestSyncedL1Block: new this.metrics.client.Gauge({
-          name: 'data_transport_layer_highest_synced_l1_block',
-          help: 'Highest Synced L1 Block Number',
-          registers: [this.metrics.registry],
-        }),
-      }
+    this.l1IngestionMetrics = {
+      highestSyncedL1Block: new this.metrics.client.Gauge({
+        name: 'data_transport_layer_highest_synced_l1_block',
+        help: 'Highest Synced L1 Block Number',
+        registers: [this.metrics.registry],
+      }),
     }
 
     this.state.l1RpcProvider =
