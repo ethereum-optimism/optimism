@@ -13,6 +13,7 @@
     "build:contracts": "hardhat compile",
     "build:contracts:ovm": "hardhat compile --network optimism",
     "test:integration": "hardhat --network optimism test",
+    "test:integration:live": "IS_LIVE_NETWORK=true hardhat --network optimism-live test",
     "test:sync": "hardhat --network optimism test sync-tests/*.spec.ts --no-compile",
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
@@ -20,6 +21,7 @@
     "@eth-optimism/contracts": "^0.4.1",
     "@eth-optimism/core-utils": "^0.4.6",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
+    "@eth-optimism/message-relayer": "^0.1.6",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -33,6 +35,7 @@
     "chai": "^4.3.3",
     "chai-as-promised": "^7.1.1",
     "docker-compose": "^0.23.8",
+    "dotenv": "^10.0.0",
     "envalid": "^7.1.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
