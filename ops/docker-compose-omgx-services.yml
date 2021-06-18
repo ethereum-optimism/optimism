@@ -1,0 +1,32 @@
+# TODO: Prefix all env vars with service name
+# TODO: Allow specifing the image tag to use
+version: "3"
+
+services:
+  # base service builder
+  omgx_wallet_builder:
+    image: omgx/wallet_builder
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.omgx_monorepo
+
+  wallet_deployer:
+    depends_on:
+      - l1_chain
+      - deployer
+      - l2geth
+    image: omgx/wallet_deployer
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.wallet_deployer
+    environment:
+        TEST: 1
+        L1_NODE_WEB3_URL: http://l1_chain:8545
+        L2_NODE_WEB3_URL: http://l2geth:8545
+        URL: http://deployer:8081/addresses.json
+        # these keys are hardhat's first 3 accounts, DO NOT use in production
+        DEPLOYER_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        NO_COMPILE: 1
+    ports:
+        # expose the service to the host for getting the contract addrs
+      - ${WALLET_DEPLOYER_PORT:-8078}:8079

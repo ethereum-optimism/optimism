@@ -1,0 +1,146 @@
+name: omgx_integration
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'develop'
+      - '*rc'
+      - 'regenesis/*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  omgx_integration:
+    runs-on: ubuntu-latest
+    env:
+        DOCKER_BUILDKIT: 1
+        COMPOSE_DOCKER_CLI_BUILD: 1
+    steps:
+      # Monorepo tests
+      - uses: actions/checkout@v2
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - uses: actions/cache@v2
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install yq
+        run: sudo snap install yq
+
+      - name: Bring the stack up + OMGX
+        working-directory: ./ops
+        env:
+          BUILD: 1
+          DAEMON: 1
+        run: ./up_local.sh
+
+      - name: Background logs
+        working-directory: ./ops
+        run: docker-compose -f docker-compose-omgx.yml -f docker-compose-omgx-services.yml logs --follow &
+
+      - name: Run the integration tests
+        working-directory: ./ops
+        run: docker-compose run integration_tests
+
+      # Examples Tests
+      - name: Test & deploy hardhat-example on Ethereum (regression)
+        working-directory: ./examples/hardhat
+        run: |
+          yarn
+          yarn deploy
+          yarn test:integration
+
+      - name: Test & deploy hardhat-example on Optimistic Ethereum
+        working-directory: ./examples/hardhat
+        run: |
+          yarn deploy:ovm
+          yarn test:integration:ovm
+
+      - name: Test & deploy waffle-example on Ethereum (regression)
+        working-directory: ./examples/waffle
+        run: |
+          yarn
+          yarn compile
+          yarn test:integration
+
+      - name: Test & deploy waffle-example on Optimistic Ethereum
+        working-directory: ./examples/waffle
+        run: |
+          yarn compile:ovm
+          yarn test:integration:ovm
+
+      - name: Test & deploy truffle-example on Ethereum (regression)
+        working-directory: ./examples/truffle
+        run: |
+          yarn
+          yarn compile
+          yarn test:integration
+          yarn deploy
+
+      - name: Test & deploy truffle-example on Optimistic Ethereum
+        working-directory: ./examples/truffle
+        run: |
+          yarn compile:ovm
+          yarn test:integration:ovm
+          yarn deploy:ovm
+
+      - name: Test serving Wallet contracts
+        working-directory: ./
+        run: |
+          RETRIES=60
+          URL=http://127.0.0.1:8078/addresses.json
+          until $(curl --silent --fail --output /dev/null "$URL"); do
+            sleep 20s
+            echo "Will wait $((RETRIES--)) more times for $URL to be up..."
+
+            if [ "$RETRIES" -lt 0 ]; then
+              echo "Timeout waiting for contract deployment"
+              exit 1
+            fi
+          done
+          echo "Wallet contracts are deployed"
+          L2LIQUIDITY_POOL=$(curl --silent $URL | jq -r .L2LiquidityPool)
+          echo $L2LIQUIDITY_POOL
+          if [[ $L2LIQUIDITY_POOL =~ "0x" ]]; then
+            exit 0
+          else
+            exit 1
+          fi
+
+      - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
+        working-directory: ./examples/l1-l2-deposit-withdrawal
+        run: |
+          yarn
+          yarn compile
+          yarn compile:ovm
+          yarn test:integration:ovm
+
+      - name: List all built images
+        if: failure()
+        run: docker images
+
+      - name: Collect docker logs on failure
+        if: failure()
+        uses: jwalton/gh-docker-logs@v1
+        with:
+          images: 'omgx/builder,omgx/hardhat,omgx/deployer,omgx/data-transport-layer,omgx/l2geth,omgx/message-relayer,omgx/batch-submitter,omgx/l2geth,omgx/integration-tests,omgx/wallet_builder,omgx/wallet_deployer'
+          dest: './logs'
+
+      - name: Tar logs
+        if: failure()
+        run: tar cvzf ./logs.tgz ./logs
+
+      - name: Upload logs to GitHub
+        if: failure()
+        uses: actions/upload-artifact@master
+        with:
+          name: logs.tgz
+          path: ./logs.tgz

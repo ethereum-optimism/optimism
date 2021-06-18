@@ -11,11 +11,13 @@
   "scripts": {
     "build": "./scripts/build.sh",
     "build:contracts": "hardhat compile",
-    "build:contracts:ovm": "hardhat compile --network omgx",
-    "deploy": "./scripts/build.sh && hardhat --network omgx test && ./scripts/copy.sh",
-    "postinstall": "patch-package"
+    "build:contracts:ovm": "hardhat compile --network optimism",
+    "postinstall": "patch-package",
+    "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
+    "deploy": "ts-node \"./bin/deploy.ts\""
   },
   "devDependencies": {
+    "@eth-optimism/core-utils": "^0.4.2",
     "@eth-optimism/hardhat-ovm": "^0.0.2",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
@@ -26,7 +28,8 @@
     "directory-tree": "^2.2.7",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.32",
-    "hardhat": "^2.1.2",
+    "hardhat": "^2.2.1",
+    "hardhat-deploy": "^0.7.10",
     "mocha": "^8.3.1",
     "rimraf": "^3.0.2",
     "shx": "^0.3.3",

@@ -1,0 +1,54 @@
+FROM ethereumoptimism/builder AS builder
+FROM omgx/wallet_builder AS wallet_builder
+FROM node:14-alpine
+
+RUN apk add --no-cache git curl python bash jq
+WORKDIR /opt/optimism/
+
+COPY --from=builder /optimism/*.json /optimism/yarn.lock ./
+COPY --from=builder /optimism/node_modules ./node_modules
+
+# copy deps (would have been nice if docker followed the symlinks required)
+COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
+COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
+
+COPY --from=builder /optimism/packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
+COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/dist
+
+# get the needed built artifacts
+WORKDIR /opt/optimism/packages/contracts
+COPY --from=builder /optimism/packages/contracts/dist ./dist
+COPY --from=builder /optimism/packages/contracts/*.json ./
+COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
+COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
+COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
+
+# get non-build artifacts from the host
+COPY packages/contracts/bin ./bin
+COPY packages/contracts/contracts ./contracts
+COPY packages/contracts/hardhat.config.ts ./
+COPY packages/contracts/deploy ./deploy
+COPY packages/contracts/tasks ./tasks
+COPY packages/contracts/src ./src
+COPY packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
+COPY packages/contracts/scripts ./scripts
+
+# get the needed built artifacts
+WORKDIR /opt/optimism/packages/omgx/wallet
+COPY --from=wallet_builder /optimism/packages/omgx/wallet/tsconfig.json ./tsconfig.json
+COPY --from=wallet_builder /optimism/packages/omgx/wallet/package-lock.json ./package-lock.json
+COPY --from=wallet_builder /optimism/packages/omgx/wallet/package.json ./package.json
+COPY --from=wallet_builder /optimism/packages/omgx/wallet/node_modules ./node_modules
+COPY --from=wallet_builder /optimism/packages/omgx/wallet/artifacts ./artifacts
+COPY --from=wallet_builder /optimism/packages/omgx/wallet/artifacts-ovm ./artifacts-ovm
+
+
+# get non-build artifacts from the host
+COPY packages/omgx/wallet/bin ./bin
+COPY packages/omgx/wallet/contracts ./contracts
+COPY packages/omgx/wallet/hardhat.config.ts ./
+COPY packages/omgx/wallet/deploy ./deploy
+COPY packages/omgx/wallet/tasks ./tasks
+COPY packages/omgx/wallet/scripts ./scripts
+
+ENTRYPOINT ["./scripts/wait-for-l1-and-l2.sh", "./scripts/deployer.sh"]

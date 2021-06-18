@@ -56,7 +56,6 @@ contract OVM_L1CrossDomainMessenger is
      **********************/
 
     mapping (bytes32 => bool) public blockedMessages;
-    address public customRelayer;
 
     /***************
      * Constructor *
@@ -116,18 +115,6 @@ contract OVM_L1CrossDomainMessenger is
         __Ownable_init_unchained();
         __Pausable_init_unchained();
         __ReentrancyGuard_init_unchained();
-    }
-
-    /**
-     * @param _customRelayer Address of the Address Manager.
-     */
-    function initializeCustomRelayer(
-        address _customRelayer
-    )
-        public
-        onlyOwner()
-    {
-        customRelayer = _customRelayer;
     }
 
     /**
@@ -310,16 +297,6 @@ contract OVM_L1CrossDomainMessenger is
         iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(
             resolve("OVM_StateCommitmentChain")
         );
-
-        if (msg.sender == customRelayer) {
-            return (
-                ovmStateCommitmentChain.verifyStateCommitment(
-                    _proof.stateRoot,
-                    _proof.stateRootBatchHeader,
-                    _proof.stateRootProof
-                )
-            );
-        }
 
         return (
             ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) == false
