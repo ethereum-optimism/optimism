@@ -42,6 +42,10 @@ jobs:
           DAEMON: 1
         run: ./up_local.sh
 
+      - name: Apply patch
+        working-directory: ./
+        run: yarn
+
       - name: Background logs
         working-directory: ./ops
         run: docker-compose -f docker-compose-omgx.yml -f docker-compose-omgx-services.yml logs --follow &
@@ -114,6 +118,12 @@ jobs:
           else
             exit 1
           fi
+
+      - name: Wallet integration tests
+        working-directory: ./packages/omgx/wallet
+        run: |
+          yarn build
+          yarn test:integration
 
       - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
         working-directory: ./examples/l1-l2-deposit-withdrawal

@@ -13,6 +13,7 @@
     "build:contracts": "hardhat compile",
     "build:contracts:ovm": "hardhat compile --network optimism",
     "postinstall": "patch-package",
+    "test:integration": "hardhat --network optimism test",
     "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
     "deploy": "ts-node \"./bin/deploy.ts\""
   },
