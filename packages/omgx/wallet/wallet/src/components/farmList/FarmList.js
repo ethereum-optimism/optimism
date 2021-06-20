@@ -165,7 +165,7 @@ class FarmList extends React.Component {
             </div>
           </div>
           <div className={styles.Table6}>
-            <div className={styles.LinkText}>Details</div>
+            <div className={styles.LinkText}>Staking</div>
             <ExpandMoreIcon className={styles.LinkButton} />
           </div>
         </div>

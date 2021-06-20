@@ -137,7 +137,7 @@ function ApproveStep ({
       {allowance === '0' && (
         <>
           <p>
-            {`To deposit ${value.toString()} ${tokenName}, you first need to approve this amount. Click below to submit an approval transaction.`}
+            {`To deposit ${value.toString()} ${tokenName}, you first need to allow us to hold ${value.toString()} of your ${tokenName}. Click below to submit an approval transaction.`}
           </p>
           {renderGasPicker}
           <div className={styles.buttons}>

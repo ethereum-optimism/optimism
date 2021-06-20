@@ -3,7 +3,7 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 chai.use(chaiAsPromised);
 import { Contract, BigNumber, utils } from 'ethers'
-import { Direction, Relayer } from './shared/watcher-utils'
+import { Direction } from './shared/watcher-utils'
 
 import L1ERC20Json from '../artifacts/contracts/L1ERC20.sol/L1ERC20.json'
 import L1ERC20GatewayJson from '../artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
@@ -89,7 +89,10 @@ describe('Liquidity Pool Test', async () => {
     await approveL1ERC20TX.wait()
 
     await env.waitForXDomainTransaction(
-      L1ERC20Gateway.deposit(depositL2ERC20Amount, {gasLimit: 800000, gasPrice: 0}),
+      L1ERC20Gateway.deposit(
+        depositL2ERC20Amount, 
+        {gasLimit: 800000, gasPrice: 0}
+      ),
       Direction.L1ToL2
     )
     
@@ -330,7 +333,7 @@ describe('Liquidity Pool Test', async () => {
     )
     await approveKateL2TX.wait()
 
-    await env.waitForXDomainTransaction(
+    await env.waitForXFastDomainTransaction(
       L2LiquidityPool.connect(env.katel2Wallet).clientDepositL2(
         fastExitAmount,
         L2DepositedERC20.address,
@@ -507,7 +510,7 @@ describe('Liquidity Pool Test', async () => {
      )
      await approveBobL2TX.wait()
 
-     await env.waitForRevertXDomainTransaction(
+     await env.waitForRevertXFastDomainTransaction(
        L2LiquidityPool.connect(env.bobl2Wallet).clientDepositL2(
          fastExitAmount,
          L2DepositedERC20.address,

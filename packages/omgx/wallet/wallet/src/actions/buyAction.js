@@ -17,6 +17,7 @@
   along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { ethers } from 'ethers';
 import networkService from 'services/networkService';
 import cryptoWorker from 'workerize-loader!../cryptoWorker/cryptoWorker'; // eslint-disable-line import/no-webpack-loader-syntax
 import md5 from 'md5';
@@ -389,7 +390,7 @@ export const acceptSellerSwap = (cMD) => async (dispatch) => {
   dispatch(buyerApproveSwapBegin(cMD.bidID));
 
   try {
-    const swapID = networkService.l2Web3Provider.utils.soliditySha3(cMD.UUID);
+    const swapID = ethers.utils.soliditySha3(cMD.UUID);
     const swapStatus = await networkService.AtomicSwapContract.close(
       swapID,
     );

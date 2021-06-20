@@ -83,8 +83,6 @@ class Farm extends React.Component {
 
   render() {
     const { 
-      // Fee
-      totalFeeRate, userRewardFeeRate,
       // Pool
       poolInfo,
       // user
@@ -97,11 +95,6 @@ class Farm extends React.Component {
         <div className={styles.Note}>
           Your tokens will be deposited into the liquidity pool. 
           Meanwhile, you are rewarded with a portion of the fees collected from the swap users.
-        </div>
-        <div className={styles.Note}>
-          The current reward rate is {userRewardFeeRate}%. 
-          Whenever someone fast exists, the user pays a {totalFeeRate}% fee, 
-          of which {userRewardFeeRate}% is added to the liquidity pool of the token they used. 
         </div>
         <h3>L1 Liquidity Pool</h3>
         <div className={styles.TableContainer}>

@@ -19,6 +19,7 @@
 
 import cryptoWorker from 'workerize-loader!../cryptoWorker/cryptoWorker'; // eslint-disable-line import/no-webpack-loader-syntax
 import { encode, decode } from 'base64-arraybuffer';
+import { ethers } from 'ethers';
 import md5 from 'md5';
 import BN from 'bn.js';
 import store from 'store';
@@ -547,7 +548,7 @@ export const acceptBid = ( cMD ) => async (dispatch) => {
 
           try {
             const UUID = uuidv4();
-            const swapID = networkService.l2Web3Provider.utils.soliditySha3(UUID);
+            const swapID = ethers.utils.soliditySha3(UUID);
             const openValue = sellerItemToSendAgreeAmount;
             const openContractAddress = cMD.sellerItemToSend.currency;
             const closeValue = sellerItemToReceiveAmount;

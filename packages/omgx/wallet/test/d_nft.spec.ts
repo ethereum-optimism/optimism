@@ -122,7 +122,7 @@ describe('NFT Test\n', async () => {
     await nft.wait()
 
     //Should be 2
-    TID = await L2ERC721.getLastTID({gasLimit: 800000, gasPrice: 0}) 
+    TID = await L2ERC721.getLastTID({ gasLimit: 800000, gasPrice: 0 }) 
     console.log(` ⚽️ ${chalk.red(`TID:`)} ${chalk.green(`${TID.toString()}`)}`)
 
     //it('returns the amount of tokens owned by the given address', async function () {

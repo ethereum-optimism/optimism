@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { ethers } from 'ethers';
 import { useDispatch } from 'react-redux';
 
 import { closeModal } from 'actions/uiAction';
 import { getToken } from 'actions/tokenAction';
-import networkService from 'services/networkService';
 
 import Modal from 'components/modal/Modal';
 
@@ -39,7 +39,7 @@ function DepositModal ({ open, omgOnly = false, fast = false }) {
   useEffect(() => {
     async function getTokenInfo () {
       const _currency = currency.toLowerCase();
-      if (_currency && networkService.l1Web3Provider.utils.isAddress(_currency)) {
+      if (_currency && ethers.utils.isAddress(_currency)) {
         const tokenInfo = await getToken(_currency);
         setTokenInfo(tokenInfo);
       } else {
@@ -57,7 +57,7 @@ function DepositModal ({ open, omgOnly = false, fast = false }) {
   }, [ dispatch ]);
 
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal open={open}>
       {step === 'INPUT_STEP' && (
         <InputStep
           onClose={handleClose}

@@ -30,7 +30,7 @@ function ExitModal ({ open, fast }) {
   }
 
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal open={open}>
       <DoExitStep 
         handleClose={handleClose}
         fast={fast}

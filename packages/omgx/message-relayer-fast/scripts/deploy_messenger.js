@@ -19,7 +19,7 @@ await L1_Messenger_Deployed.initialize(
     process.env.ADDRESS_MANAGER_ADDRESS
 )
 
-console.log('Custom L1 Messenger Initialized')
+console.log('Fast L1 Messenger Initialized')
 
 const [deployer] = await ethers.getSigners();
 
@@ -33,11 +33,11 @@ const Lib_AddressManager = await myContract.attach(process.env.ADDRESS_MANAGER_A
 // this will fail for non deployer account
 console.log('Registering L1 Messenger...')
 await Lib_AddressManager.setAddress(
-  'OVM_L1CustomCrossDomainMessenger',
+  'OVM_L1FastCrossDomainMessenger',
   L1_Messenger.address
 )
 
-console.log('Custom L1 Messenger registered in AddressManager')
+console.log('Fast L1 Messenger registered in AddressManager')
 }
 main()
 .then(() => process.exit(0))

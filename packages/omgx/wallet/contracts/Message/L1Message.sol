@@ -2,10 +2,10 @@
 pragma solidity >0.5.0;
 
 /* Library Imports */
-import "@eth-optimism/contracts/contracts/optimistic-ethereum/libraries/bridge/OVM_CrossDomainEnabled.sol";
+import "../libraries/OVM_FastCrossDomainEnabled.sol";
 import { L2Message } from "./L2Message.sol";
 
-contract L1Message is OVM_CrossDomainEnabled {
+contract L1Message is OVM_FastCrossDomainEnabled {
 
     address L2MessageAddress;
     string crossDomainMessage;
@@ -18,9 +18,13 @@ contract L1Message is OVM_CrossDomainEnabled {
      *    Constructor   *
      ********************/    
     constructor (
-        address _l1CrossDomainMessenger
+        address _l1CrossDomainMessenger,
+        address _l1CustomCrossDomainMessenger
     )
-        OVM_CrossDomainEnabled(_l1CrossDomainMessenger)
+        OVM_FastCrossDomainEnabled(
+            _l1CrossDomainMessenger, 
+            _l1CustomCrossDomainMessenger
+        )
     {}
 
     function init (

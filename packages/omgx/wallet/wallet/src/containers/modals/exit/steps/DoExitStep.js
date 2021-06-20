@@ -15,18 +15,19 @@ limitations under the License. */
 
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { BigNumber } from 'ethers';
 import { isEqual } from 'lodash';
 
 import { selectChildchainBalance } from 'selectors/balanceSelector';
 
-import { exitOMGX, depositL2LP } from 'actions/networkAction';
+import { exitOMGX, depositL2LP, approveErc20 } from 'actions/networkAction';
 import { openAlert } from 'actions/uiAction';
 import { selectLoading } from 'selectors/loadingSelector';
 
 import InputSelect from 'components/inputselect/InputSelect';
 import Button from 'components/button/Button';
 
-import { logAmount } from 'util/amountConvert';
+import { logAmount, powAmount } from 'util/amountConvert';
 import networkService from 'services/networkService';
 
 import * as styles from '../ExitModal.module.scss';
@@ -41,10 +42,13 @@ function DoExitStep ({
   const [ value, setValue ] = useState('');
   const [ LPBalance, setLPBalance ] = useState(0);
   const [ feeRate, setFeeRate ] = useState(0);
+  const [ allowance, setAllowance ] = useState(0);
   const [ disabledSubmit, setDisabledSubmit ] = useState(true);
 
   const balances = useSelector(selectChildchainBalance, isEqual);
-
+  const exitLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]))
+  const approveLoading = useSelector(selectLoading([ 'APPROVE/CREATE' ]))
+  
   useEffect(() => {
     if (balances.length && !currency) {
       setCurrency(balances[0].currency);
@@ -56,8 +60,16 @@ function DoExitStep ({
       networkService.getTotalFeeRate().then((feeRate)=>{
         setFeeRate(feeRate)
       })
+      if (!exitLoading) {
+        networkService.checkAllowance(
+          currency, 
+          networkService.L2LPAddress
+        ).then((allowance) => {
+          setAllowance(allowance)
+        })
+      }
     }
-  }, [ balances, currency, fast ]);
+  }, [ balances, currency, fast, exitLoading ]);
 
   const selectOptions = balances.map(i => ({
     title: i.symbol,
@@ -70,12 +82,24 @@ function DoExitStep ({
     return acc;
   }, {})
 
-  const submitLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
+  async function doApprove() {
+    const res = await dispatch(approveErc20(
+      powAmount(value, 18), 
+      currency, 
+      networkService.L2LPAddress
+    ));
+    if (res) {
+      dispatch(openAlert(`Transaction was approved`));
+      const allowance = await networkService.checkAllowance(
+        currency, 
+        networkService.L2LPAddress
+      )
+      setAllowance(allowance)
+    }
+  }
 
   async function doExit () {
-
     let res;
-
     if (fast) {
       res = await dispatch(depositL2LP(currency, value));
     } else {
@@ -170,6 +194,21 @@ function DoExitStep ({
         </h3>
       }
 
+      {fast && BigNumber.from(allowance).lt(BigNumber.from(powAmount(value ? value: 0, 18))) &&
+        <h3>
+          To deposit {value.toString()} {currencySymbols[currency] === 'oETH' ? 'ETH':currencySymbols[currency]}, 
+          you first need to allow us to hold {value.toString()} of your{" "}
+          {currencySymbols[currency] === 'oETH' ? 'ETH':currencySymbols[currency]}. 
+          Click below to submit an approval transaction.
+        </h3>
+      }
+
+      {fast && Number(LPBalance) < Number(value) && 
+        <h3 style={{color: 'red'}}>
+          The L1 liquidity pool doesn't have enough balance to cover your swap.
+        </h3>
+      }
+
       <div className={styles.buttons}>
         <Button
           onClick={handleClose}
@@ -179,17 +218,30 @@ function DoExitStep ({
         >
           CANCEL
         </Button>
-        <Button
-          onClick={doExit}
-          type='primary'
-          style={{ flex: 0 }}
-          loading={submitLoading}
-          className={styles.button}
-          tooltip='Your exit is still pending. Please wait for confirmation.'
-          disabled={disabledSubmit}
-        >
-          EXIT
-        </Button>
+        {fast && BigNumber.from(allowance).lt(BigNumber.from(powAmount(value ? value: 0, 18))) ? 
+          <Button
+            onClick={doApprove}
+            type='primary'
+            style={{ flex: 0 }}
+            loading={approveLoading}
+            className={styles.button}
+            tooltip='Your exit is still pending. Please wait for confirmation.'
+            disabled={disabledSubmit}
+          >
+            APPROVE
+          </Button>:
+          <Button
+            onClick={doExit}
+            type='primary'
+            style={{ flex: 0 }}
+            loading={exitLoading}
+            className={styles.button}
+            tooltip='Your exit is still pending. Please wait for confirmation.'
+            disabled={disabledSubmit}
+          >
+            EXIT
+          </Button>
+        }
       </div>
     </>
   );

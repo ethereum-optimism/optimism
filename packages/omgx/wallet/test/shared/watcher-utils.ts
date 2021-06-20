@@ -15,10 +15,7 @@ export const initWatcher = async (
   
   const l1MessengerAddress = await AddressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger')
   console.log("l1MessengerAddress:",l1MessengerAddress)
-  
-  const SCC = await AddressManager.getAddress('OVM_StateCommitmentChain')
-  console.log(SCC)
-  
+
   return new Watcher({
     l1: {
       provider: l1Provider,
@@ -27,6 +24,28 @@ export const initWatcher = async (
     l2: {
       provider: l2Provider,
       messengerAddress: "0x4200000000000000000000000000000000000007"
+    },
+  })
+}
+
+
+export const initFastWatcher = async (
+  l1Provider: JsonRpcProvider,
+  l2Provider: JsonRpcProvider,
+  AddressManager: Contract,
+) => {
+
+  const l1MessengerAddress = await AddressManager.getAddress('OVM_L1FastCrossDomainMessenger')
+  console.log("l1FastMessengerAddress:",l1MessengerAddress)
+  
+  return new Watcher({
+    l1: {
+      provider: l1Provider,
+      messengerAddress: l1MessengerAddress,
+    },
+    l2: {
+      provider: l2Provider,
+      messengerAddress: "0x4200000000000000000000000000000000000007",
     },
   })
 }
@@ -40,11 +59,6 @@ export interface CrossDomainMessagePair {
 export enum Direction {
   L1ToL2,
   L2ToL1,
-}
-
-export enum Relayer {
-  origin,
-  custom,
 }
 
 export const waitForXDomainTransaction = async (

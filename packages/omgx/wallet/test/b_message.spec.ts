@@ -4,7 +4,7 @@ chai.use(chaiAsPromised);
 import { Contract, ContractFactory, utils } from 'ethers'
 import chalk from 'chalk';
 
-import { Direction, Relayer } from './shared/watcher-utils'
+import { Direction } from './shared/watcher-utils'
 
 import L1MessageJson from '../artifacts/contracts/Message/L1Message.sol/L1Message.json'
 import L2MessageJson from '../artifacts-ovm/contracts/Message/L2Message.sol/L2Message.json'
@@ -39,20 +39,11 @@ describe('Messenge Relayer Test', async () => {
       env.bobl2Wallet
     )
 
-    const accountNonceBob1 = await env.l1Provider.getTransactionCount(env.bobl1Wallet.address)
-    console.log(`accountNonceBob1:`,accountNonceBob1)
-
-    const accountNonceBob2 = await env.l2Provider.getTransactionCount(env.bobl2Wallet.address)
-    console.log(`accountNonceBob2:`,accountNonceBob2)
-
   })
   
   it('should send message from L2 to L1', async () => {
-    await env.waitForXDomainTransaction(
-      L2Message.sendMessageL2ToL1({
-        gasLimit: 800000, 
-        gasPrice: 0
-      }),
+    await env.waitForXFastDomainTransaction(
+      L2Message.sendMessageL2ToL1({ gasLimit: 800000, gasPrice: 0 }),
       Direction.L2ToL1
     )
   })
