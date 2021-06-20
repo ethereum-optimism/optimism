@@ -2,6 +2,7 @@
 import { Contract, ethers, Wallet, BigNumber, providers } from 'ethers'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
+import fetch from 'node-fetch';
 
 /* Imports: Internal */
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
@@ -18,8 +19,6 @@ interface MessageRelayerOptions {
   // Address of the AddressManager contract, used to resolve the various addresses we'll need
   // within this service.
   addressManagerAddress: string
-
-  l1Target: string
 
   l1MessengerFast: string
 
@@ -44,6 +43,11 @@ interface MessageRelayerOptions {
 
   // Number of blocks within each getLogs query - max is 2000
   getLogsInterval?: number
+
+  // whitelist
+  whitelistEndpoint?: string
+  
+  whitelistPollingInterval?: number
 }
 
 const optionSettings = {
@@ -53,6 +57,7 @@ const optionSettings = {
   l2BlockOffset: { default: 1 },
   l1StartOffset: { default: 0 },
   getLogsInterval: { default: 2000 },
+  whitelistPollingInterval: { default: 60000 }
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
@@ -70,6 +75,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     OVM_L1CrossDomainMessenger: Contract
     OVM_L2CrossDomainMessenger: Contract
     OVM_L2ToL1MessagePasser: Contract
+    whitelist: Array<any>
+    lastWhitelistPollingTimestamp: number
   }
 
   protected async _init(): Promise<void> {
@@ -79,6 +86,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       pollingInterval: this.options.pollingInterval,
       l2BlockOffset: this.options.l2BlockOffset,
       getLogsInterval: this.options.getLogsInterval,
+      whitelistPollingInterval: this.options.whitelistPollingInterval,
     })
     // Need to improve this, sorry.
     this.state = {} as any
@@ -143,11 +151,13 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.state.lastFinalizedTxHeight = this.options.fromL2TransactionIndex || 0
     this.state.nextUnfinalizedTxHeight =
       this.options.fromL2TransactionIndex || 0
+    this.state.lastWhitelistPollingTimestamp = 0
   }
 
   protected async _start(): Promise<void> {
     while (this.running) {
       await sleep(this.options.pollingInterval)
+      await this._getWhitelist();
 
       try {
         // Check that the correct address is set in the address manager
@@ -222,11 +232,9 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
             continue
           }
 
-          if (this.options.l1Target !== message.target) {
-            if (this.options.l1Target !== '0x0') {
-              this.logger.info('Message not intended for target, skipping.')
-              continue
-            }
+          if (!this.state.whitelist.includes(message.target)) {
+            this.logger.info('Message not intended for target, skipping.')
+            continue
           }
 
           this.logger.info(
@@ -556,5 +564,26 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       return
     }
     this.logger.info('Message successfully relayed to Layer 1!')
+  }
+
+  private async _getWhitelist(): Promise<void> {
+    try {
+      if (this.options.whitelistEndpoint) {
+        if (this.state.lastWhitelistPollingTimestamp === 0 || 
+          new Date().getTime() > this.state.lastWhitelistPollingTimestamp + this.options.whitelistPollingInterval
+        ) {
+          const response = await fetch(this.options.whitelistEndpoint);
+          const whitelist = await response.json();
+          this.state.lastWhitelistPollingTimestamp = new Date().getTime();
+          this.state.whitelist = whitelist;
+          this.logger.info('Found the whitelist', { whitelist: whitelist })
+        }
+      } else {
+        this.state.whitelist = [];
+      }
+    } catch {
+      this.logger.info('Failed to fetch the whitelist')
+      this.state.whitelist = [];
+    }
   }
 }

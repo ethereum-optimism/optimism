@@ -20,10 +20,6 @@ const main = async () => {
     'address-manager-address',
     env.ADDRESS_MANAGER_ADDRESS
   )
-  const L1_TARGET = config.str(
-    'l1-target',
-    env.L1_TARGET
-  )
   const L1_MESSENGER_FAST = config.str('l1-messenger-fast', env.L1_MESSENGER_FAST)
   const L1_WALLET_KEY = config.str('l1-wallet-key', env.L1_WALLET_KEY)
   const MNEMONIC = config.str('mnemonic', env.MNEMONIC)
@@ -52,12 +48,17 @@ const main = async () => {
     'from-l2-transaction-index',
     parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
   )
+  const WHITELIST_ENDPOINT = config.str(
+    'whitlist-endpoint', 
+    env.WHITELIST_ENDPOINT
+  ) || ''
+  const WHITELIST_POLLING_INTERVAL = config.uint(
+    'whitlist-polling-interval',
+    parseInt(env.WHITELIST_POLLING_INTERVAL, 10) || 60000
+  )
 
   if (!ADDRESS_MANAGER_ADDRESS) {
     throw new Error('Must pass ADDRESS_MANAGER_ADDRESS')
-  }
-  if (!L1_TARGET) {
-    throw new Error('Must pass L1_TARGET')
   }
   if (!L1_NODE_WEB3_URL) {
     throw new Error('Must pass L1_NODE_WEB3_URL')
@@ -83,7 +84,6 @@ const main = async () => {
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
-    l1Target: L1_TARGET,
     l1MessengerFast: L1_MESSENGER_FAST,
     l1Wallet: wallet,
     relayGasLimit: RELAY_GAS_LIMIT,
@@ -92,6 +92,8 @@ const main = async () => {
     l2BlockOffset: L2_BLOCK_OFFSET,
     l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
+    whitelistEndpoint: WHITELIST_ENDPOINT,
+    whitelistPollingInterval: WHITELIST_POLLING_INTERVAL
   })
 
   await service.start()

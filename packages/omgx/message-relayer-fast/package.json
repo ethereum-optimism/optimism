@@ -58,7 +58,8 @@
     "tslint-config-prettier": "^1.18.0",
     "tslint-no-focused-test": "^0.5.0",
     "tslint-plugin-prettier": "^2.3.0",
-    "typescript": "^4.2.4"
+    "typescript": "^4.2.4",
+    "node-fetch": "^2.6.1"
   },
   "dependencies": {
     "@eth-optimism/hardhat-ovm": "^0.0.2",
