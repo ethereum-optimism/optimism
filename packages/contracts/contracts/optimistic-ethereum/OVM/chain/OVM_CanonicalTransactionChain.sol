@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { MVM_AddressResolver } from "../../libraries/resolver/MVM_AddressResolver.sol";
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
@@ -31,7 +32,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_AddressResolver {
+contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_AddressResolver, MVM_AddressResolver {
 
     /*************
      * Constants *
@@ -67,11 +68,13 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
      ***************/
 
     constructor(
+        address _mvmAddressManager,
         address _libAddressManager,
         uint256 _forceInclusionPeriodSeconds,
         uint256 _forceInclusionPeriodBlocks,
         uint256 _maxTransactionGasLimit
     )
+        MVM_AddressResolver(_mvmAddressManager)
         Lib_AddressResolver(_libAddressManager)
     {
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
@@ -1555,10 +1558,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         public
     {
         uint256 ptrStart = 0;
-        require(
-            msg.sender == resolve("OVM_Sequencer"),
-            "Function can only be called by the Sequencer."
-        );
         
         while(ptrStart < msg.data.length){
             uint256 _chainId;
@@ -1572,6 +1571,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
                 numContexts           := shr(232, calldataload(add(ptrStart, 44)))
             }
         
+            require(
+                msg.sender == resolve(makeChainSeq(_chainId)),
+                "Function can only be called by the Sequencer."
+            );
+            
             require(
                 shouldStartAtElement == getTotalElementsByChainId(_chainId),
                 "Actual batch start index does not match expected start index."
@@ -1753,6 +1757,30 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
      * .param _contexts Array of batch contexts.
      * .param _transactionDataFields Array of raw transaction data.
      */
+     
+     function makeChainSeq(uint256 i) internal returns (string memory c) {
+        if (i == 0) return "0";
+        uint j = i;
+        uint length;
+        
+        while (j != 0){
+            length++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(length+14);
+        uint k = length - 1;
+        while (i != 0){
+            bstr[k--] = byte(uint8(48 + i % 10));
+            i /= 10;
+        }
+        string memory s="_MVM_Sequencer";
+        bytes memory _bb=bytes(s);
+        k = length;
+        for (i = 0; i < 14; i++)
+            bstr[k++] = _bb[i];
+        c = string(bstr);
+    }
+    
     function appendSequencerBatchByChainId()
         override
         public
@@ -1772,9 +1800,9 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             shouldStartAtElement == getTotalElementsByChainId(_chainId),
             "Actual batch start index does not match expected start index."
         );
-
+        string memory ch=makeChainSeq(_chainId);
         require(
-            msg.sender == resolve("OVM_Sequencer"),
+            msg.sender == resolveFromMvm(ch),
             "Function can only be called by the Sequencer."
         );
 

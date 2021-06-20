@@ -8,7 +8,7 @@ import 'hardhat-gas-reporter'
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 
-const config: HardhatUserConfig = {
+const config = {
   mocha: {
     timeout: 20000,
   },

@@ -120,7 +120,7 @@ describe('Fee Payment Integration Tests', async () => {
     //   watcher, l1Provider, l2Provider
     // )
     const res=await tx2.wait()
-    console.log(res)
+    //console.log(res)
     postBalances = await getBalances()
     console.log(postBalances.l1UserBalance+","+postBalances.l2UserBalance+","+postBalances.l1GatewayBalance+","+postBalances.sequencerBalance)
   })
@@ -130,7 +130,7 @@ describe('Fee Payment Integration Tests', async () => {
     const preBalances = await getBalances()
 
     const gasPrice = BigNumber.from(15000000)
-    const gasLimit = BigNumber.from(165920000)
+    const gasLimit = BigNumber.from(167060000)
 
     // transfer with 0 value to easily pay a gas fee
     let res: TransactionResponse = await MVM_Coinbase.transfer(
@@ -146,7 +146,7 @@ describe('Fee Payment Integration Tests', async () => {
     console.log("l1 wallet balance:"+postBalances.l1UserBalance+",l2 wallet balance"+postBalances.l2UserBalance+",l1gateway balance"+postBalances.l1GatewayBalance+",seq balance"+postBalances.sequencerBalance)
     const taxBalance = await MVM_Coinbase.balanceOf(TAX_ADDRESS)
     console.log("tax balance:"+taxBalance)
-    res = await MVM_Coinbase.withdrawByChainId(429,
+    res = await MVM_Coinbase.withdraw(
       1000,
       {
         gasPrice,

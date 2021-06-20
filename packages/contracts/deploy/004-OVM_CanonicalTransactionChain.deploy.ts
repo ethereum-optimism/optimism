@@ -12,11 +12,16 @@ const deployFn: DeployFunction = async (hre) => {
     hre,
     'Lib_AddressManager'
   )
+  const MVM_AddressManager = await getDeployedContract(
+    hre,
+    'MVM_AddressManager'
+  )
 
   await deployAndRegister({
     hre,
     name: 'OVM_CanonicalTransactionChain',
     args: [
+      MVM_AddressManager.address,
       Lib_AddressManager.address,
       (hre as any).deployConfig.ctcForceInclusionPeriodSeconds,
       (hre as any).deployConfig.ctcForceInclusionPeriodBlocks,
@@ -25,7 +30,7 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
+deployFn.dependencies = ['Lib_AddressManager','MVM_AddressManager']
 deployFn.tags = ['OVM_CanonicalTransactionChain']
 
 export default deployFn

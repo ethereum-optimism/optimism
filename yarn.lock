@@ -256,6 +256,17 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
+"@eth-optimism/contracts@^0.3.5":
+  version "0.3.5"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.3.5.tgz#f63ff93bffde7310a5b990aea599dbb8395d2c0e"
+  integrity sha512-tjRadNBjbB/5uj5Boidl0d8f3k6pB+N7jP0JH6LQOk59aAGL4oY1F4Tetr0Igz+r7PZMjulen5rSP1UbCHPbNw==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.4.5"
+    "@ethersproject/abstract-provider" "^5.0.8"
+    "@ethersproject/abstract-signer" "^5.1.0"
+    "@ethersproject/contracts" "^5.0.5"
+    glob "^7.1.6"
+
 "@eth-optimism/ynatm@^0.2.2":
   version "0.2.2"
   resolved "https://registry.yarnpkg.com/@eth-optimism/ynatm/-/ynatm-0.2.2.tgz#b1f165c3149188f184b66329228746260ae18677"
@@ -6700,12 +6711,6 @@ gitconfiglocal@^1.0.0:
   integrity sha1-QdBF84UaXqiPA/JMocYXgRRGS5s=
   dependencies:
     ini "^1.3.2"
-
-
-github-from-package@0.0.0:
-  version "0.0.0"
-  resolved "https://registry.yarnpkg.com/github-from-package/-/github-from-package-0.0.0.tgz#97fb5d96bfde8973313f20e8288ef9a167fa64ce"
-  integrity sha1-l/tdlr/eiXMxPyDoKI75oWf6ZM4=
 
 glob-parent@^5.1.0, glob-parent@^5.1.1, glob-parent@~5.1.0:
   version "5.1.2"

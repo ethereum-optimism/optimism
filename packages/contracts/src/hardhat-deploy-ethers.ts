@@ -3,6 +3,47 @@ import { Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 
+export const registerAddressToMvm = async ({
+  hre,
+  name,
+  address,
+}): Promise<void> => {
+  // TODO: Cache these 2 across calls?
+  const { deployer } = await hre.getNamedAccounts()
+  const MVM_AddressManager = await getDeployedContract(
+    hre,
+    'MVM_AddressManager',
+    {
+      signerOrProvider: deployer,
+    }
+  )
+
+  const currentAddress = await MVM_AddressManager.getAddress(name)
+  if (address === currentAddress) {
+    console.log(
+      `✓ Not registering MVM address for ${name} because it's already been correctly registered`
+    )
+    return
+  }
+
+  console.log(`MVM Registering address for ${name} to ${address}...`)
+  const tx = await MVM_AddressManager.setAddress(name, address)
+  await tx.wait()
+
+  const remoteAddress = await MVM_AddressManager.getAddress(name)
+  if (remoteAddress !== address) {
+    throw new Error(
+      `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
+        `Call to MVM_AddressManager.setAddress(${name}) was unsuccessful.\n` +
+        `Attempted to set address to: ${address}\n` +
+        `Actual address was set to: ${remoteAddress}\n` +
+        `This could indicate a compromised deployment.`
+    )
+  }
+
+  console.log(`✓ Registered address to MVM for ${name}`)
+}
+
 export const registerAddress = async ({
   hre,
   name,
