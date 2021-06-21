@@ -176,6 +176,11 @@ yarn test:integration
 We generally follow [this Git branching model](https://nvie.com/posts/a-successful-git-branching-model/).
 Please read the linked post if you're planning to make frequent PRs into this repository (e.g., people working at/with Optimism).
 
+### The `master` branch
+
+The `master` branch contains the code for our latest "stable" releases.
+Changes to master currently MUST come from the `develop` branch.
+
 ### The `develop` branch
 
 Our primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
@@ -186,11 +191,6 @@ If you're making a backwards compatible change, please direct your pull request 
 Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a release candidate branch has already been fully deployed.
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using the latest release candidate branch.
 See below for info about release candidate branches.
-
-### The `master` branch
-
-The `master` branch contains the code for our latest "stable" releases.
-Changes to master currently MUST come from the `develop` branch.
 
 ### Release candidate branches
 
