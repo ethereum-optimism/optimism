@@ -19,10 +19,10 @@ import {
 import './type-extensions'
 
 const OPTIMISM_SOLC_VERSION_URL =
-  'https://api.github.com/repos/ethereum-optimism/solc-bin/git/refs/heads/gh-pages'
+  'https://mvm-solc.s3.us-east-2.amazonaws.com/version.json'
 
 const OPTIMISM_SOLC_BIN_URL =
-  'https://raw.githubusercontent.com/ethereum-optimism/solc-bin/gh-pages/bin'
+  'https://mvm-solc.s3.us-east-2.amazonaws.com'
 
 // I figured this was a reasonably modern default, but not sure if this is too new. Maybe we can
 // default to 0.6.X instead?
