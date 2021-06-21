@@ -194,7 +194,7 @@ Please read the linked post if you're planning to make frequent PRs into this re
 ### The `master` branch
 
 The `master` branch contains the code for our latest "stable" releases.
-Changes to master currently MUST come from the `develop` branch.
+We only ever update the `master` branch after code has been deployed to mainnet.
 
 ### The `develop` branch
 
