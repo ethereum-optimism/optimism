@@ -88,7 +88,11 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         )
 
         // We're already at the head, so no point in attempting to sync.
-        if (highestSyncedL2BlockNumber === targetL2Block) {
+        // Also wait on edge case of no L2 transactions
+        if (
+          highestSyncedL2BlockNumber === targetL2Block ||
+          currentL2Block === 0
+        ) {
           await sleep(this.options.pollingInterval)
           continue
         }
