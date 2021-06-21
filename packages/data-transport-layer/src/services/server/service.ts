@@ -114,6 +114,18 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     }
 
     this.state.app.use(cors())
+
+    // Add prometheus middleware to express BEFORE route registering
+    this.state.app.use(
+      // This also serves metrics on port 3000 at /metrics
+      promBundle({
+        // Provide metrics registry that other metrics uses
+        promRegistry: this.metrics.registry,
+        includeMethod: true,
+        includePath: true,
+      })
+    )
+
     this._registerAllRoutes()
 
     // Sentry error handling must be after all controllers
@@ -121,14 +133,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     if (this.options.useSentry) {
       this.state.app.use(Sentry.Handlers.errorHandler())
     }
-
-    // Add prometheus middleware to express
-    this.state.app.use(
-      promBundle({
-        includeMethod: true,
-        includePath: true,
-      })
-    )
   }
 
   /**
