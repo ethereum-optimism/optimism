@@ -50,6 +50,9 @@ const deployFn: DeployFunction = async (hre) => {
 
     L1Message = await Factory__L1Message.deploy(
       (hre as any).deployConfig.l1MessengerAddress,
+      /* ALERT - this code will need to be changed once the new message-relayer-fast is autodeployed */
+      /*Specifically, the second line will need to be replaced with (hre as any).deployConfig.l1MessengerFastAddress*/
+      (hre as any).deployConfig.l1MessengerAddress
     )
     await L1Message.deployTransaction.wait()
     const L1MessageDeploymentSubmission: DeploymentSubmission = {

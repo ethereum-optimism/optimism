@@ -87,13 +87,6 @@ export class Watcher {
     const blockNumber = await layer.provider.getBlockNumber()
     const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
 
-
-    //console.log("Layer:", layer)
-
-    //console.log("Address:", layer.messengerAddress)
-    //console.log("topic:", ethers.utils.id(`RelayedMessage(bytes32)`))
-    //console.log("fromBlock:", startingBlock)
-
     const filter = {
       address: layer.messengerAddress,
       topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],

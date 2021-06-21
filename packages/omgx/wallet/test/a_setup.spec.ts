@@ -18,7 +18,6 @@ import AtomicSwapJson from '../artifacts-ovm/contracts/AtomicSwap.sol/AtomicSwap
 import L1MessageJson from '../artifacts/contracts/Message/L1Message.sol/L1Message.json'
 import L2MessageJson from '../artifacts-ovm/contracts/Message/L2Message.sol/L2Message.json'
 
-
 import { OptimismEnv } from './shared/env'
 
 import { promises as fs } from 'fs'
@@ -125,7 +124,7 @@ describe('System setup', async () => {
     // Deploy L1 liquidity pool
     L1LiquidityPool = await Factory__L1LiquidityPool.deploy(
       env.watcher.l1.messengerAddress,
-      env.fastWatcher.l1.messengerAddress,
+      env.watcherFast.l1.messengerAddress,
     )
     await L1LiquidityPool.deployTransaction.wait()
     console.log(`🌕 ${chalk.red('L1LiquidityPool deployed to:')} ${chalk.green(L1LiquidityPool.address)}`)
@@ -210,7 +209,7 @@ describe('System setup', async () => {
 
     L1Message = await Factory__L1Message.deploy(
       env.watcher.l1.messengerAddress,
-      env.fastWatcher.l1.messengerAddress,
+      env.watcherFast.l1.messengerAddress,
     )
     await L1Message.deployTransaction.wait()
     console.log(`🌕 ${chalk.red('L1 Message deployed to:')} ${chalk.green(L1Message.address)}`)

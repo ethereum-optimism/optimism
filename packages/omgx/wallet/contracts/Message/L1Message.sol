@@ -2,10 +2,10 @@
 pragma solidity >0.5.0;
 
 /* Library Imports */
-import "../libraries/OVM_FastCrossDomainEnabled.sol";
+import "../libraries/OVM_CrossDomainEnabledFast.sol";
 import { L2Message } from "./L2Message.sol";
 
-contract L1Message is OVM_FastCrossDomainEnabled {
+contract L1Message is OVM_CrossDomainEnabledFast {
 
     address L2MessageAddress;
     string crossDomainMessage;
@@ -19,11 +19,11 @@ contract L1Message is OVM_FastCrossDomainEnabled {
      ********************/    
     constructor (
         address _l1CrossDomainMessenger,
-        address _l1CustomCrossDomainMessenger
+        address _l1CrossDomainMessengerFast
     )
-        OVM_FastCrossDomainEnabled(
+        OVM_CrossDomainEnabledFast(
             _l1CrossDomainMessenger, 
-            _l1CustomCrossDomainMessenger
+            _l1CrossDomainMessengerFast
         )
     {}
 

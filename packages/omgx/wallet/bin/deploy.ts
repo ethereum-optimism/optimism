@@ -1,5 +1,6 @@
 import { Wallet, providers } from 'ethers'
 import { getContractFactory } from '@eth-optimism/contracts'
+require('dotenv').config()
 
 process.env.CONTRACTS_DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY
 process.env.CONTRACTS_RPC_URL =

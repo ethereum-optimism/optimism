@@ -42,6 +42,9 @@ const deployFn: DeployFunction = async (hre) => {
 
     // Deploy L1 liquidity pool
     L1LiquidityPool = await Factory__L1LiquidityPool.deploy(
+      (hre as any).deployConfig.l1MessengerAddress,
+      /* ALERT - this code will need to be changed once the new message-relayer-fast is autodeployed */
+      /*Specifically, the second line will need to be replaced with (hre as any).deployConfig.l1MessengerFastAddress*/
       (hre as any).deployConfig.l1MessengerAddress
     )
     await L1LiquidityPool.deployTransaction.wait()

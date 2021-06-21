@@ -928,7 +928,7 @@ class NetworkService {
     let withdrawAmount = powAmount(value, decimals);
     try {
       // Deposit
-      const withdrawLiquidityTX = await await (L1orL2Pool === 'L1LP' ? this.L1LPContract : this.L2LPContract).withdrawLiqudity(
+      const withdrawLiquidityTX = await await (L1orL2Pool === 'L1LP' ? this.L1LPContract : this.L2LPContract).withdrawLiquidity(
         withdrawAmount,
         currency,
         this.account

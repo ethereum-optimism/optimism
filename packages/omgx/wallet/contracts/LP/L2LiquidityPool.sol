@@ -349,7 +349,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
      * @param _tokenAddress L2 token address
      * @param _to receiver to get the funds
      */
-    function withdrawLiqudity(
+    function withdrawLiquidity(
         uint256 _amount,
         address _tokenAddress,
         address payable _to

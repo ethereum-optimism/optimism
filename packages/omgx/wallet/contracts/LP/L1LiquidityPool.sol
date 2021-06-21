@@ -4,7 +4,7 @@ pragma solidity >0.5.0;
 pragma experimental ABIEncoderV2;
 
 import "./interfaces/iL2LiquidityPool.sol";
-import "../libraries/OVM_FastCrossDomainEnabled.sol";
+import "../libraries/OVM_CrossDomainEnabledFast.sol";
 
 /* External Imports */
 import '@openzeppelin/contracts/math/SafeMath.sol';
@@ -14,7 +14,7 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 /**
  * @dev An L1 LiquidityPool implementation
  */
-contract L1LiquidityPool is OVM_FastCrossDomainEnabled, Ownable {
+contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -136,15 +136,15 @@ contract L1LiquidityPool is OVM_FastCrossDomainEnabled, Ownable {
      ********************/
     /**
      * @param _l1CrossDomainMessenger L1 Messenger address being used for sending the cross-chain message.
-     * @param _l1CustomCrossDomainMessenger L1 Messenger address being used for relaying the cross-chain message.
+     * @param _l1CrossDomainMessengerFast L1 Messenger address being used for relaying cross-chain messages quickly.
      */
     constructor (
         address _l1CrossDomainMessenger,
-        address _l1CustomCrossDomainMessenger
+        address _l1CrossDomainMessengerFast
     )
-        OVM_FastCrossDomainEnabled(
+        OVM_CrossDomainEnabledFast(
             _l1CrossDomainMessenger,
-            _l1CustomCrossDomainMessenger
+            _l1CrossDomainMessengerFast
         )
     {}
 
@@ -374,7 +374,7 @@ contract L1LiquidityPool is OVM_FastCrossDomainEnabled, Ownable {
      * @param _tokenAddress L1 token address
      * @param _to receiver to get the funds
      */
-    function withdrawLiqudity(
+    function withdrawLiquidity(
         uint256 _amount,
         address _tokenAddress,
         address payable _to
