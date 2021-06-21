@@ -167,10 +167,10 @@ yarn test:integration
 
 | Branch          | Status                                                                           |
 | --------------- | -------------------------------------------------------------------------------- |
-| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs ONLY from `develop`                                                  |
-| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis-X.X.X` branches |
-| [regenesis-0.4.0](https://github.com/ethereum-optimism/optimism/tree/regenesis-0.4.0/) | Deployed to Goerli + Kovan. **Branch frozen**. Merge to `develop` pending tests. |
-| [regenesis-0.5.0](https://github.com/ethereum-optimism/optimism/tree/regenesis-0.5.0/) | Active branch for next set of non-backwards-compatible changes.                  |
+| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs ONLY from `develop`                                                                      |
+| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis-X.X.X` branches                     |
+| regenesis-X.X.X                                                                        | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
+
 
 ### The `develop` branch
 
