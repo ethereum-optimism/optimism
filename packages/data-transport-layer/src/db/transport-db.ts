@@ -400,14 +400,18 @@ export class TransportDB {
   }
 }
 
-const stringify = (entry) => {
+const stringify = (entry: any): any => {
   if (entry === null || entry === undefined) {
     return entry
   }
+
   if (entry.gasLimit) {
     entry.gasLimit = BigNumber.from(entry.gasLimit).toString()
   }
+
   if (entry.decoded) {
     entry.decoded.gasLimit = BigNumber.from(entry.decoded.gasLimit).toString()
   }
+
+  return entry
 }
