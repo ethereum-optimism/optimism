@@ -7,7 +7,7 @@ import {
   getContractInterface,
   predeploys,
 } from '@eth-optimism/contracts'
-import { remove0x, Watcher } from '@eth-optimism/core-utils'
+import { injectL2Context, remove0x, Watcher } from '@eth-optimism/core-utils'
 import {
   Contract,
   Wallet,
@@ -25,9 +25,11 @@ const env = cleanEnv(process.env, {
   L1_URL: str({ default: 'http://localhost:9545' }),
   L2_URL: str({ default: 'http://localhost:8545' }),
   VERIFIER_URL: str({ default: 'http://localhost:8547' }),
+  REPLICA_URL: str({ default: 'http://localhost:8549' }),
   L1_POLLING_INTERVAL: num({ default: 10 }),
   L2_POLLING_INTERVAL: num({ default: 10 }),
   VERIFIER_POLLING_INTERVAL: num({ default: 10 }),
+  REPLICA_POLLING_INTERVAL: num({ default: 10 }),
   PRIVATE_KEY: str({
     default:
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -46,6 +48,9 @@ l2Provider.pollingInterval = env.L2_POLLING_INTERVAL
 
 export const verifierProvider = new providers.JsonRpcProvider(env.VERIFIER_URL)
 verifierProvider.pollingInterval = env.VERIFIER_POLLING_INTERVAL
+
+export const replicaProvider = new providers.JsonRpcProvider(env.REPLICA_URL)
+replicaProvider.pollingInterval = env.REPLICA_POLLING_INTERVAL
 
 // The sequencer private key which is funded on L1
 export const l1Wallet = new Wallet(env.PRIVATE_KEY, l1Provider)
@@ -167,4 +172,19 @@ export const expectApprox = (
     actual.gte(lower),
     `Actual value is more than ${lowerDeviation}% less than target`
   ).to.be.true
+}
+
+export const waitForL2Geth = async (
+  provider: providers.JsonRpcProvider
+): Promise<providers.JsonRpcProvider> => {
+  let ready: boolean = false
+  while (!ready) {
+    try {
+      await provider.getNetwork()
+      ready = true
+    } catch (error) {
+      await sleep(1000)
+    }
+  }
+  return injectL2Context(provider)
 }
