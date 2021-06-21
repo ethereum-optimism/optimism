@@ -2,7 +2,12 @@ import chai, { expect } from 'chai'
 import { Wallet, BigNumber, providers } from 'ethers'
 import { injectL2Context } from '@eth-optimism/core-utils'
 
-import { sleep, l2Provider, verifierProvider } from '../test/shared/utils'
+import {
+  sleep,
+  l2Provider,
+  verifierProvider,
+  waitForL2Geth,
+} from '../test/shared/utils'
 import { OptimismEnv } from '../test/shared/env'
 import { DockerComposeNetwork } from '../test/shared/docker-compose'
 
@@ -33,14 +38,7 @@ describe('Syncing a verifier', () => {
     verifier = new DockerComposeNetwork(['verifier'])
     await verifier.up({ commandOptions: ['--scale', 'verifier=1'] })
 
-    // Wait for verifier to be looping
-    let logs = await verifier.logs()
-    while (!logs.out.includes('Starting Sequencer Loop')) {
-      await sleep(500)
-      logs = await verifier.logs()
-    }
-
-    provider = injectL2Context(verifierProvider)
+    provider = await waitForL2Geth(verifierProvider)
   }
 
   const syncVerifier = async (sequencerBlockNumber: number) => {
