@@ -76,13 +76,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       await this.options.db.open()
     }
 
-    this.state.app.use(
-      promBundle({
-        includeMethod: true,
-        includePath: true,
-      })
-    )
-
     this.state.db = new TransportDB(this.options.db)
     this.state.l1RpcProvider =
       typeof this.options.l1RpcProvider === 'string'
@@ -115,16 +108,27 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
   private _initializeApp() {
     // TODO: Maybe pass this in as a parameter instead of creating it here?
     this.state.app = express()
+
     if (this.options.useSentry) {
       this._initSentry()
     }
+
     this.state.app.use(cors())
     this._registerAllRoutes()
+
     // Sentry error handling must be after all controllers
     // and before other error middleware
     if (this.options.useSentry) {
       this.state.app.use(Sentry.Handlers.errorHandler())
     }
+
+    // Add prometheus middleware to express
+    this.state.app.use(
+      promBundle({
+        includeMethod: true,
+        includePath: true,
+      })
+    )
   }
 
   /**
