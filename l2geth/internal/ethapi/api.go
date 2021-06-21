@@ -1983,6 +1983,27 @@ func (api *PublicRollupAPI) GetInfo(ctx context.Context) rollupInfo {
 	}
 }
 
+type gasPrices struct {
+	L1GasPrice *hexutil.Big `json:"l1GasPrice"`
+	L2GasPrice *hexutil.Big `json:"l2GasPrice"`
+}
+
+// GasPrices returns the L1 and L2 gas price known by the node
+func (api *PublicRollupAPI) GasPrices(ctx context.Context) (*gasPrices, error) {
+	l1GasPrice, err := api.b.SuggestL1GasPrice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	l2GasPrice, err := api.b.SuggestL2GasPrice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &gasPrices{
+		L1GasPrice: (*hexutil.Big)(l1GasPrice),
+		L2GasPrice: (*hexutil.Big)(l2GasPrice),
+	}, nil
+}
+
 // PrivatelRollupAPI provides private RPC methods to control the sequencer.
 // These methods can be abused by external users and must be considered insecure for use by untrusted users.
 type PrivateRollupAPI struct {

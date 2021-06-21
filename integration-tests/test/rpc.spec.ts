@@ -426,4 +426,15 @@ describe('Basic RPC tests', () => {
         .reverted
     })
   })
+
+  describe('rollup_gasPrices', () => {
+    it('should return the L1 and L2 gas prices', async () => {
+      const result = await provider.send('rollup_gasPrices', []);
+      const l1GasPrice = await env.l1Wallet.provider.getGasPrice()
+      const l2GasPrice = await env.gasPriceOracle.gasPrice()
+
+      expect(BigNumber.from(result.l1GasPrice)).to.deep.eq(l1GasPrice)
+      expect((BigNumber.from(result.l2GasPrice))).to.deep.eq(l2GasPrice)
+    })
+  })
 })
