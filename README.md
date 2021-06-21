@@ -168,9 +168,13 @@ yarn test:integration
 | Branch          | Status                                                                           |
 | --------------- | -------------------------------------------------------------------------------- |
 | [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs ONLY from `develop`                                                                      |
-| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis-X.X.X` branches                     |
-| regenesis-X.X.X                                                                        | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
+| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis/X.X.X` branches                     |
+| regenesis/X.X.X                                                                        | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
 
+### Overview
+
+We generally follow [this Git branching model](https://nvie.com/posts/a-successful-git-branching-model/).
+Please read the linked post if you're planning to make frequent PRs into this repository (e.g., people working at/with Optimism).
 
 ### The `develop` branch
 
@@ -189,7 +193,7 @@ Changes to master currently MUST come from the `develop` branch.
 Branches marked `regenesis/X.X.X` are **release candidate branches**.
 Changes that are not backwards compatible and all changes to contracts within `packages/contracts/contracts/optimistic-ethereum` MUST be directed towards a release candidate branch.
 Release candidates are merged into `develop` and then into `master` once they've been fully deployed.
-We may sometimes have more than one active `regenesis-X.X.X` branch if we're in the middle of a deployment.
+We may sometimes have more than one active `regenesis/X.X.X` branch if we're in the middle of a deployment.
 See table in the **Active Branches** section above to find the right branch to target.
 
 ## Additional Reference Material
