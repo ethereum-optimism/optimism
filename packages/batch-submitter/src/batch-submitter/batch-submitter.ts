@@ -143,15 +143,16 @@ export abstract class BatchSubmitter {
 
   protected _shouldSubmitBatch(batchSizeInBytes: number): boolean {
     const currentTimestamp = Date.now()
-    const isTimeoutReached =
-      this.lastBatchSubmissionTimestamp + this.maxBatchSubmissionTime <=
-      currentTimestamp
     if (batchSizeInBytes < this.minTxSize) {
-      if (!isTimeoutReached) {
+      const timeSinceLastSubmission =
+        currentTimestamp - this.lastBatchSubmissionTimestamp
+      if (timeSinceLastSubmission < this.maxBatchSubmissionTime) {
         this.logger.info(
           'Skipping batch submission. Batch too small & max submission timeout not reached.',
           {
             batchSizeInBytes,
+            timeSinceLastSubmission,
+            maxBatchSubmissionTime: this.maxBatchSubmissionTime,
             minTxSize: this.minTxSize,
             lastBatchSubmissionTimestamp: this.lastBatchSubmissionTimestamp,
             currentTimestamp,
@@ -161,6 +162,8 @@ export abstract class BatchSubmitter {
       }
       this.logger.info('Timeout reached, proceeding with batch submission.', {
         batchSizeInBytes,
+        timeSinceLastSubmission,
+        maxBatchSubmissionTime: this.maxBatchSubmissionTime,
         lastBatchSubmissionTimestamp: this.lastBatchSubmissionTimestamp,
         currentTimestamp,
       })
