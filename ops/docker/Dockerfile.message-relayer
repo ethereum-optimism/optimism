@@ -18,6 +18,7 @@ COPY --from=builder /optimism/packages/common-ts/package.json ./packages/common-
 COPY --from=builder /optimism/packages/common-ts/dist ./packages/common-ts/dist
 
 COPY --from=builder /optimism/packages/contracts/package.json ./packages/contracts/package.json
+COPY --from=builder /optimism/packages/contracts/deployments ./packages/contracts/deployments
 COPY --from=builder /optimism/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder /optimism/packages/contracts/artifacts ./packages/contracts/artifacts
 COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./packages/contracts/artifacts-ovm
