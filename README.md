@@ -181,6 +181,7 @@ Please read the linked post if you're planning to make frequent PRs into this re
 Our primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
 `develop` contains the most up-to-date software that remains backwards compatible with our latest experimental [network deployments](https://community.optimism.io/docs/developers/networks.html).
 If you're making a backwards compatible change, please direct your pull request towards `develop`.
+
 **Changes to contracts within `packages/contracts/contracts/optimistic-ethereum` are usually NOT considered backwards compatible and SHOULD be made against a release candidate branch**.
 Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a release candidate branch has already been fully deployed.
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using the latest release candidate branch.
