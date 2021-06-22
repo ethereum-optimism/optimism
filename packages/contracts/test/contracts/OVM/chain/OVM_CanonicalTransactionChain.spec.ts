@@ -556,6 +556,67 @@ describe('OVM_CanonicalTransactionChain', () => {
       ).to.equal(true)
     })
 
+    it('should reject a valid queue transaction if QueueOrigin is modified to SEQUENCER_QUEUE', async () => {
+      const entrypoint = NON_ZERO_ADDRESS
+      const gasLimit = 500_000
+      const data = '0x' + '12'.repeat(1234)
+
+      const timestamp = (await getEthTime(ethers.provider)) + 100
+      await setEthTime(ethers.provider, timestamp)
+      await OVM_CanonicalTransactionChain.enqueue(entrypoint, gasLimit, data)
+
+      const blockNumber = await ethers.provider.getBlockNumber()
+
+      await appendSequencerBatch(
+        OVM_CanonicalTransactionChain.connect(sequencer),
+        {
+          shouldStartAtElement: 0,
+          totalElementsToAppend: 1,
+          contexts: [
+            {
+              numSequencedTransactions: 0,
+              numSubsequentQueueTransactions: 1,
+              timestamp,
+              blockNumber,
+            },
+          ],
+          transactions: [],
+        }
+      )
+
+      await expect(
+        OVM_CanonicalTransactionChain.verifyTransaction(
+          {
+            timestamp,
+            blockNumber,
+            l1QueueOrigin: 0, // QueueOrigin.SEQUENCER_QUEUE = 0
+            l1TxOrigin: await OVM_CanonicalTransactionChain.signer.getAddress(),
+            entrypoint,
+            gasLimit,
+            data,
+          },
+          {
+            isSequenced: false,
+            queueIndex: 0,
+            timestamp: 0,
+            blockNumber: 0,
+            txData: '0x',
+          },
+          {
+            batchIndex: 0,
+            batchRoot: getQueueLeafHash(0),
+            batchSize: 1,
+            prevTotalElements: 0,
+            extraData: '0x',
+          },
+          {
+            index: 0,
+            siblings: [],
+          }
+        )
+      ).to.be.revertedWith('Invalid QueueOrigin.')
+    })
+
     it.skip('should successfully verify against a valid queue transaction appended by force', async () => {
       const entrypoint = NON_ZERO_ADDRESS
       const gasLimit = 500_000

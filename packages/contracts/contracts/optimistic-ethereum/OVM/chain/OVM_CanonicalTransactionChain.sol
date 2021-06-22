@@ -1177,6 +1177,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             "Invalid Queue transaction inclusion proof."
         );
 
+        require(
+            _transaction.l1QueueOrigin == Lib_OVMCodec.QueueOrigin.L1TOL2_QUEUE,
+            "Invalid QueueOrigin."
+        );
+
         bytes32 transactionHash = keccak256(
             abi.encode(
                 _transaction.l1TxOrigin,
