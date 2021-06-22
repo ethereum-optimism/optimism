@@ -33,7 +33,7 @@ const Lib_AddressManager = await myContract.attach(process.env.ADDRESS_MANAGER_A
 // this will fail for non deployer account
 console.log('Registering L1 Messenger...')
 await Lib_AddressManager.setAddress(
-  'OVM_L1FastCrossDomainMessenger',
+  'OVM_L1CrossDomainMessengerFast',
   L1_Messenger.address
 )
 

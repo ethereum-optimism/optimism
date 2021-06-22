@@ -112,7 +112,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
     this.logger.info('Connecting to OVM_L1CrossDomainMessenger...')
     const l1MessengerAddress = this.options.l1MessengerFast || await this.state.Lib_AddressManager.getAddress(
-      'OVM_L1CustomCrossDomainMessenger'
+      'OVM_L1CrossDomainMessengerFast'
     )
     this.state.OVM_L1CrossDomainMessenger = loadContract(
       'OVM_L1CrossDomainMessenger',
