@@ -33,7 +33,7 @@ export class Watcher {
     l2ToL1MsgHash: string,
     pollForPending: boolean = true
   ): Promise<TransactionReceipt> {
-    return this.getTransactionReceipt(this.l2, l2ToL1MsgHash, pollForPending)
+    return this.getTransactionReceipt(this.l1, l2ToL1MsgHash, pollForPending)
   }
 
   public async getL2TransactionReceipt(
