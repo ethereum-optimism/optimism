@@ -412,7 +412,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     for (let i = 0; i < currentL1Block; i += 1000000) {
       const events = await this.state.contracts.Lib_AddressManager.queryFilter(
-        this.state.contracts.Lib_AddressManager.filters.AddressSet(),
+        this.state.contracts.Lib_AddressManager.filters.OwnershipTransferred(),
         i,
         Math.min(i + 1000000, currentL1Block)
       )
