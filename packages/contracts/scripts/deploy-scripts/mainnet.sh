@@ -1,3 +1,5 @@
+#!/bin/bash
+
 ### All available deploy options at the time of deployment: ###
 #  --ctc-force-inclusion-period-seconds  Number of seconds that the sequencer has to include transactions before the L1 queue. (default: 2592000)
 #  --ctc-max-transaction-gas-limit       Max gas limit for L1 queue transactions. (default: 11000000)
@@ -29,9 +31,20 @@
 ### DEPLOYMENT SCRIPT ###
 # To be called from root of contracts dir #
 
+# Required env vars
+if [[ -z "$CONTRACTS_DEPLOYER_KEY" ]]; then
+  echo "Must pass CONTRACTS_DEPLOYER_KEY"
+  exit 1
+fi
+if [[ -z "$CONTRACTS_RPC_URL" ]]; then
+  echo "Must pass CONTRACTS_RPC_URL"
+  exit 1
+fi
+if [[ -z "$ETHERSCAN_API_KEY" ]]; then
+  echo "Must pass ETHERSCAN_API_KEY"
+  exit 1
+fi
 
-CONTRACTS_DEPLOYER_KEY= \
-CONTRACTS_RPC_URL= \
 CONTRACTS_TARGET_NETWORK=mainnet \
 npx hardhat deploy \
  --ctc-force-inclusion-period-seconds 12592000 \
@@ -50,3 +63,6 @@ npx hardhat deploy \
  --scc-fraud-proof-window 604800 \
  --scc-sequencer-publish-window 12592000 \
  --network mainnet
+
+CONTRACTS_TARGET_NETWORK=mainnet \
+npx hardhat etherscan-verify --network mainnet
