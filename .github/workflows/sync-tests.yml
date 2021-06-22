@@ -1,13 +1,6 @@
 name: sync-tests
 
-on:
-  push:
-    branches:
-      - 'master'
-      - 'develop'
-      - 'regenesis/*'
-  pull_request:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   integration-sync-test:
@@ -41,6 +34,7 @@ jobs:
         working-directory: ./integration-tests
         run: |
           yarn
+          yarn build:integration
           yarn test:sync
 
       - name: Collect docker logs on failure

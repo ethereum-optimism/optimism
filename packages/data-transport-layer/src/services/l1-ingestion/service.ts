@@ -1,9 +1,10 @@
 /* Imports: External */
 import { fromHexString, EventArgsAddressSet } from '@eth-optimism/core-utils'
-import { BaseService } from '@eth-optimism/common-ts'
+import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 import { ethers, constants } from 'ethers'
+import { Gauge } from 'prom-client'
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
@@ -21,9 +22,25 @@ import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
 import { MissingElementError, EventName } from './handlers/errors'
 
+interface L1IngestionMetrics {
+  highestSyncedL1Block: Gauge<string>
+}
+
+const registerMetrics = ({
+  client,
+  registry,
+}: Metrics): L1IngestionMetrics => ({
+  highestSyncedL1Block: new client.Gauge({
+    name: 'data_transport_layer_highest_synced_l1_block',
+    help: 'Highest Synced L1 Block Number',
+    registers: [registry],
+  }),
+})
+
 export interface L1IngestionServiceOptions
   extends L1DataTransportServiceOptions {
   db: LevelUp
+  metrics: Metrics
 }
 
 const optionSettings = {
@@ -61,6 +78,8 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     super('L1_Ingestion_Service', options, optionSettings)
   }
 
+  private l1IngestionMetrics: L1IngestionMetrics
+
   private state: {
     db: TransportDB
     contracts: OptimismContracts
@@ -71,6 +90,8 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
   protected async _init(): Promise<void> {
     this.state.db = new TransportDB(this.options.db)
+
+    this.l1IngestionMetrics = registerMetrics(this.metrics)
 
     this.state.l1RpcProvider =
       typeof this.options.l1RpcProvider === 'string'
@@ -199,6 +220,8 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
         await this.state.db.setHighestSyncedL1Block(targetL1Block)
 
+        this.l1IngestionMetrics.highestSyncedL1Block.set(targetL1Block)
+
         if (
           currentL1Block - highestSyncedL1Block <
           this.options.logsPerPollingInterval
@@ -237,6 +260,10 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
           // Rewind back to the block number that the last good element was in.
           await this.state.db.setHighestSyncedL1Block(
+            lastGoodElement.blockNumber
+          )
+
+          this.l1IngestionMetrics.highestSyncedL1Block.set(
             lastGoodElement.blockNumber
           )
 
