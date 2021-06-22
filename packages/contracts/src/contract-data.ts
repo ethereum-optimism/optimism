@@ -13,14 +13,12 @@ const Mainnet__OVM_CanonicalTransactionChain = require('../deployments/mainnet/O
 const Mainnet__OVM_ExecutionManager = require('../deployments/mainnet/OVM_ExecutionManager.json')
 const Mainnet__OVM_FraudVerifier = require('../deployments/mainnet/OVM_FraudVerifier.json')
 const Mainnet__OVM_L1CrossDomainMessenger = require('../deployments/mainnet/OVM_L1CrossDomainMessenger.json')
-const Mainnet__OVM_L1ETHGateway = require('../deployments/mainnet/OVM_L1ETHGateway.json')
 const Mainnet__OVM_L1MultiMessageRelayer = require('../deployments/mainnet/OVM_L1MultiMessageRelayer.json')
 const Mainnet__OVM_SafetyChecker = require('../deployments/mainnet/OVM_SafetyChecker.json')
 const Mainnet__OVM_StateCommitmentChain = require('../deployments/mainnet/OVM_StateCommitmentChain.json')
 const Mainnet__OVM_StateManagerFactory = require('../deployments/mainnet/OVM_StateManagerFactory.json')
 const Mainnet__OVM_StateTransitionerFactory = require('../deployments/mainnet/OVM_StateTransitionerFactory.json')
 const Mainnet__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/mainnet/Proxy__OVM_L1CrossDomainMessenger.json')
-const Mainnet__Proxy__OVM_L1ETHGateway = require('../deployments/mainnet/Proxy__OVM_L1ETHGateway.json')
 const Mainnet__mockOVM_BondManager = require('../deployments/mainnet/mockOVM_BondManager.json')
 
 const Kovan__Lib_AddressManager = require('../deployments/kovan/Lib_AddressManager.json')
@@ -28,14 +26,12 @@ const Kovan__OVM_CanonicalTransactionChain = require('../deployments/kovan/OVM_C
 const Kovan__OVM_ExecutionManager = require('../deployments/kovan/OVM_ExecutionManager.json')
 const Kovan__OVM_FraudVerifier = require('../deployments/kovan/OVM_FraudVerifier.json')
 const Kovan__OVM_L1CrossDomainMessenger = require('../deployments/kovan/OVM_L1CrossDomainMessenger.json')
-const Kovan__OVM_L1ETHGateway = require('../deployments/kovan/OVM_L1ETHGateway.json')
 const Kovan__OVM_L1MultiMessageRelayer = require('../deployments/kovan/OVM_L1MultiMessageRelayer.json')
 const Kovan__OVM_SafetyChecker = require('../deployments/kovan/OVM_SafetyChecker.json')
 const Kovan__OVM_StateCommitmentChain = require('../deployments/kovan/OVM_StateCommitmentChain.json')
 const Kovan__OVM_StateManagerFactory = require('../deployments/kovan/OVM_StateManagerFactory.json')
 const Kovan__OVM_StateTransitionerFactory = require('../deployments/kovan/OVM_StateTransitionerFactory.json')
 const Kovan__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/kovan/Proxy__OVM_L1CrossDomainMessenger.json')
-const Kovan__Proxy__OVM_L1ETHGateway = require('../deployments/kovan/Proxy__OVM_L1ETHGateway.json')
 const Kovan__mockOVM_BondManager = require('../deployments/kovan/mockOVM_BondManager.json')
 
 const Goerli__Lib_AddressManager = require('../deployments/goerli/Lib_AddressManager.json')
@@ -43,14 +39,12 @@ const Goerli__OVM_CanonicalTransactionChain = require('../deployments/goerli/OVM
 const Goerli__OVM_ExecutionManager = require('../deployments/goerli/OVM_ExecutionManager.json')
 const Goerli__OVM_FraudVerifier = require('../deployments/goerli/OVM_FraudVerifier.json')
 const Goerli__OVM_L1CrossDomainMessenger = require('../deployments/goerli/OVM_L1CrossDomainMessenger.json')
-const Goerli__OVM_L1ETHGateway = require('../deployments/goerli/OVM_L1ETHGateway.json')
 const Goerli__OVM_L1MultiMessageRelayer = require('../deployments/goerli/OVM_L1MultiMessageRelayer.json')
 const Goerli__OVM_SafetyChecker = require('../deployments/goerli/OVM_SafetyChecker.json')
 const Goerli__OVM_StateCommitmentChain = require('../deployments/goerli/OVM_StateCommitmentChain.json')
 const Goerli__OVM_StateManagerFactory = require('../deployments/goerli/OVM_StateManagerFactory.json')
 const Goerli__OVM_StateTransitionerFactory = require('../deployments/goerli/OVM_StateTransitionerFactory.json')
 const Goerli__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/goerli/Proxy__OVM_L1CrossDomainMessenger.json')
-const Goerli__Proxy__OVM_L1ETHGateway = require('../deployments/goerli/Proxy__OVM_L1ETHGateway.json')
 const Goerli__mockOVM_BondManager = require('../deployments/goerli/mockOVM_BondManager.json')
 
 export const getL1ContractData = (network: Network) => {
@@ -79,11 +73,6 @@ export const getL1ContractData = (network: Network) => {
       mainnet: Mainnet__OVM_L1CrossDomainMessenger,
       kovan: Kovan__OVM_L1CrossDomainMessenger,
       goerli: Goerli__OVM_L1CrossDomainMessenger,
-    }[network],
-    OVM_L1ETHGateway: {
-      mainnet: Mainnet__OVM_L1ETHGateway,
-      kovan: Kovan__OVM_L1ETHGateway,
-      goerli: Goerli__OVM_L1ETHGateway,
     }[network],
     OVM_L1MultiMessageRelayer: {
       mainnet: Mainnet__OVM_L1MultiMessageRelayer,
@@ -114,11 +103,6 @@ export const getL1ContractData = (network: Network) => {
       mainnet: Mainnet__Proxy__OVM_L1CrossDomainMessenger,
       kovan: Kovan__Proxy__OVM_L1CrossDomainMessenger,
       goerli: Goerli__Proxy__OVM_L1CrossDomainMessenger,
-    }[network],
-    Proxy__OVM_L1ETHGateway: {
-      mainnet: Mainnet__Proxy__OVM_L1ETHGateway,
-      kovan: Kovan__Proxy__OVM_L1ETHGateway,
-      goerli: Goerli__Proxy__OVM_L1ETHGateway,
     }[network],
     mockOVM_BondManager: {
       mainnet: Mainnet__mockOVM_BondManager,
