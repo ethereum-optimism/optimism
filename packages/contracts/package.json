@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
@@ -37,7 +37,7 @@
     "posttest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "yarn run lint:fix:typescript",
-    "lint:fix:typescript": "prettier --config .prettierrc.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
+    "lint:fix:typescript": "prettier --config .prettierrc.json --write \"hardhat.config.ts\" \"{src,test,deploy}/**/*.ts\"",
     "lint:check": "yarn run lint:typescript",
     "lint:typescript": "eslint -c .eslintrc.js --ext .ts --format stylish .",
     "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
@@ -50,7 +50,7 @@
     "generate-markdown": "node \"./scripts/generate-markdown.js\""
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.4.5",
+    "@eth-optimism/core-utils": "^0.4.6",
     "@ethersproject/abstract-provider": "^5.0.8",
     "@ethersproject/abstract-signer": "^5.1.0",
     "@ethersproject/contracts": "^5.0.5",
@@ -59,7 +59,8 @@
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
-    "@eth-optimism/smock": "^1.1.5",
+    "@eth-optimism/smock": "^1.1.6",
+    "@ethersproject/transactions": "^5.0.31",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^3.3.0",

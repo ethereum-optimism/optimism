@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: evm
 pragma solidity >0.5.0 <0.8.0;
+pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
 import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+import { iOVM_ECDSAContractAccount } from "../../iOVM/predeploys/iOVM_ECDSAContractAccount.sol";
 
 /**
  * @title OVM_SequencerEntrypoint
@@ -64,10 +65,7 @@ contract OVM_SequencerEntrypoint {
 
         // Forward the transaction over to the EOA.
         (bool success, bytes memory returndata) = target.call(
-            abi.encodeWithSignature(
-                "execute(bytes)",
-                encodedTx
-            )
+            abi.encodeWithSelector(iOVM_ECDSAContractAccount.execute.selector, transaction)
         );
 
         if (success) {

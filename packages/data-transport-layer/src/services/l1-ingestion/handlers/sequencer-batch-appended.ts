@@ -257,8 +257,8 @@ const maybeDecodeSequencerBatchTransaction = (
     const decodedTx = ethers.utils.parseTransaction(transaction)
 
     return {
-      nonce: BigNumber.from(decodedTx.nonce).toNumber(),
-      gasPrice: BigNumber.from(decodedTx.gasPrice).toNumber(),
+      nonce: BigNumber.from(decodedTx.nonce).toString(),
+      gasPrice: BigNumber.from(decodedTx.gasPrice).toString(),
       gasLimit: BigNumber.from(decodedTx.gasLimit).toString(),
       value: toRpcHexString(decodedTx.value),
       target: toHexString(decodedTx.to), // Maybe null this out for creations?

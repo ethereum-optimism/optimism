@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
-import { Lib_RingBuffer } from "../../libraries/utils/Lib_RingBuffer.sol";
+import { Lib_Buffer } from "../../libraries/utils/Lib_Buffer.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
@@ -28,7 +28,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
      * Libraries *
      *************/
 
-    using Lib_RingBuffer for Lib_RingBuffer.RingBuffer;
+    using Lib_Buffer for Lib_Buffer.Buffer;
 
 
     /*************
@@ -36,7 +36,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
      *************/
 
     string public owner;
-    Lib_RingBuffer.RingBuffer internal buffer;
+    Lib_Buffer.Buffer internal buffer;
 
 
     /***************
@@ -188,18 +188,5 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
             uint40(_index),
             _globalMetadata
         );
-    }
-
-    /**
-     * @inheritdoc iOVM_ChainStorageContainer
-     */
-    function setNextOverwritableIndex(
-        uint256 _index
-    )
-        override
-        public
-        onlyOwner
-    {
-        buffer.nextOverwritableIndex = _index;
     }
 }

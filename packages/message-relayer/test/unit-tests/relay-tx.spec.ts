@@ -58,7 +58,7 @@ describe('relay transaction generation functions', () => {
       .deploy(AddressManager.address, 0, 0)
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:SCC:batches',
+      'OVM_ChainStorageContainer-SCC-batches',
       ChainStorageContainer.address
     )
 
