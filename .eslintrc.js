@@ -3,10 +3,8 @@ module.exports = {
         "browser": true,
         "es6": true
     },
-    "extends": [
-        "prettier",
-    ],
     "ignorePatterns": ["dist/**/*.ts", "packages/contracts/hardhat"],
+    "extends": ["plugin:prettier/recommended"],
     "parser": "@typescript-eslint/parser",
     "parserOptions": {
         "project": "tsconfig.json",
@@ -21,6 +19,7 @@ module.exports = {
         "@typescript-eslint",
     ],
     "rules": {
+        "prettier/prettier": "warn",
         "@typescript-eslint/adjacent-overload-signatures": "error",
         "@typescript-eslint/array-type": "off",
         "@typescript-eslint/ban-types": "off",
