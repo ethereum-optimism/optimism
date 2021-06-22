@@ -3,6 +3,7 @@ import { ethers } from 'ethers'
 export interface EventArgsAddressSet {
   _name: string
   _newAddress: string
+  _oldAddress: string
 }
 
 export interface EventArgsTransactionEnqueued {

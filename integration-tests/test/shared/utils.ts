@@ -1,8 +1,11 @@
+import { expect } from 'chai'
+
 import { Direction, waitForXDomainTransaction } from './watcher-utils'
 
 import {
   getContractFactory,
   getContractInterface,
+  predeploys,
 } from '@eth-optimism/contracts'
 import { injectL2Context, remove0x, Watcher } from '@eth-optimism/core-utils'
 import {
@@ -59,7 +62,7 @@ export const l2Wallet = l1Wallet.connect(l2Provider)
 // Predeploys
 export const PROXY_SEQUENCER_ENTRYPOINT_ADDRESS =
   '0x4200000000000000000000000000000000000004'
-export const OVM_ETH_ADDRESS = '0x4200000000000000000000000000000000000006'
+export const OVM_ETH_ADDRESS = predeploys.OVM_ETH
 
 export const getAddressManager = (provider: any) => {
   return getContractFactory('Lib_AddressManager')
@@ -67,24 +70,37 @@ export const getAddressManager = (provider: any) => {
     .attach(env.ADDRESS_MANAGER)
 }
 
-// Gets the gateway using the proxy if available
-export const getGateway = async (wallet: Wallet, AddressManager: Contract) => {
-  const l1GatewayInterface = getContractInterface('OVM_L1ETHGateway')
-  const ProxyGatewayAddress = await AddressManager.getAddress(
-    'Proxy__OVM_L1ETHGateway'
+// Gets the bridge contract
+export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
+  const l1BridgeInterface = getContractInterface('OVM_L1StandardBridge')
+  const ProxyBridgeAddress = await AddressManager.getAddress(
+    'Proxy__OVM_L1StandardBridge'
   )
-  const addressToUse =
-    ProxyGatewayAddress !== constants.AddressZero
-      ? ProxyGatewayAddress
-      : await AddressManager.getAddress('OVM_L1ETHGateway')
 
-  const OVM_L1ETHGateway = new Contract(
-    addressToUse,
-    l1GatewayInterface,
+  if (
+    !utils.isAddress(ProxyBridgeAddress) ||
+    ProxyBridgeAddress === constants.AddressZero
+  ) {
+    throw new Error('Proxy__OVM_L1StandardBridge not found')
+  }
+
+  const OVM_L1StandardBridge = new Contract(
+    ProxyBridgeAddress,
+    l1BridgeInterface,
     wallet
   )
+  return OVM_L1StandardBridge
+}
 
-  return OVM_L1ETHGateway
+export const getL2Bridge = async (wallet: Wallet) => {
+  const L2BridgeInterface = getContractInterface('OVM_L2StandardBridge')
+
+  const OVM_L2StandardBridge = new Contract(
+    predeploys.OVM_L2StandardBridge,
+    L2BridgeInterface,
+    wallet
+  )
+  return OVM_L2StandardBridge
 }
 
 export const getOvmEth = (wallet: Wallet) => {
@@ -99,14 +115,15 @@ export const getOvmEth = (wallet: Wallet) => {
 
 export const fundUser = async (
   watcher: Watcher,
-  gateway: Contract,
+  bridge: Contract,
   amount: BigNumberish,
   recipient?: string
 ) => {
   const value = BigNumber.from(amount)
   const tx = recipient
-    ? gateway.depositTo(recipient, { value })
-    : gateway.deposit({ value })
+    ? bridge.depositETHTo(recipient, 1_300_000, '0x', { value })
+    : bridge.depositETH(1_300_000, '0x', { value })
+
   await waitForXDomainTransaction(watcher, tx, Direction.L1ToL2)
 }
 
@@ -115,6 +132,46 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const abiCoder = new utils.AbiCoder()
 export const encodeSolidityRevertMessage = (_reason: string): string => {
   return '0x08c379a0' + remove0x(abiCoder.encode(['string'], [_reason]))
+}
+
+export const DEFAULT_TRANSACTION = {
+  to: '0x' + '1234'.repeat(10),
+  gasLimit: 33600000000001,
+  gasPrice: 0,
+  data: '0x',
+  value: 0,
+}
+
+export const expectApprox = (
+  actual: BigNumber | number,
+  target: BigNumber | number,
+  upperDeviation: number,
+  lowerDeviation: number = 100
+) => {
+  actual = BigNumber.from(actual)
+  target = BigNumber.from(target)
+
+  const validDeviations =
+    upperDeviation >= 0 &&
+    upperDeviation <= 100 &&
+    lowerDeviation >= 0 &&
+    lowerDeviation <= 100
+  if (!validDeviations) {
+    throw new Error(
+      'Upper and lower deviation percentage arguments should be between 0 and 100'
+    )
+  }
+  const upper = target.mul(100 + upperDeviation).div(100)
+  const lower = target.mul(100 - lowerDeviation).div(100)
+
+  expect(
+    actual.lte(upper),
+    `Actual value is more than ${upperDeviation}% greater than target`
+  ).to.be.true
+  expect(
+    actual.gte(lower),
+    `Actual value is more than ${lowerDeviation}% less than target`
+  ).to.be.true
 }
 
 export const waitForL2Geth = async (

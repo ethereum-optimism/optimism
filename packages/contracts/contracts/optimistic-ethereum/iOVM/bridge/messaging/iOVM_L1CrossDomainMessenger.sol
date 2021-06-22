@@ -6,12 +6,12 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
-import { iAbs_BaseCrossDomainMessenger } from "./iAbs_BaseCrossDomainMessenger.sol";
+import { iOVM_CrossDomainMessenger } from "./iOVM_CrossDomainMessenger.sol";
 
 /**
  * @title iOVM_L1CrossDomainMessenger
  */
-interface iOVM_L1CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
+interface iOVM_L1CrossDomainMessenger is iOVM_CrossDomainMessenger {
 
     /*******************
      * Data Structures *
@@ -51,14 +51,14 @@ interface iOVM_L1CrossDomainMessenger is iAbs_BaseCrossDomainMessenger {
      * @param _target Target contract address.
      * @param _sender Original sender address.
      * @param _message Message to send to the target.
-     * @param _messageNonce Nonce for the provided message.
+     * @param _queueIndex CTC Queue index for the message to replay.
      * @param _gasLimit Gas limit for the provided message.
      */
     function replayMessage(
         address _target,
         address _sender,
         bytes memory _message,
-        uint256 _messageNonce,
+        uint256 _queueIndex,
         uint32 _gasLimit
     ) external;
 }

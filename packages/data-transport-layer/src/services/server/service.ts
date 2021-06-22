@@ -196,7 +196,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         return res.json(json)
       } catch (e) {
         const elapsed = Date.now() - start
-        this.logger.info('Failed HTTP Request', {
+        this.logger.error('Failed HTTP Request', {
           method: req.method,
           url: req.url,
           elapsed,

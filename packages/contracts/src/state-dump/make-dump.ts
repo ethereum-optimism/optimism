@@ -101,14 +101,13 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     deploymentSigner: signer,
     ovmGasMeteringConfig: {
       minTransactionGasLimit: 0,
-      maxTransactionGasLimit: 9_000_000,
+      maxTransactionGasLimit: 11_000_000,
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 0,
     },
     ovmGlobalContext: {
       ovmCHAINID: 420,
-      L2CrossDomainMessengerAddress:
-        '0x4200000000000000000000000000000000000007',
+      L2CrossDomainMessengerAddress: predeploys.OVM_L2CrossDomainMessenger,
     },
     transactionChainConfig: {
       sequencer: signer,
@@ -138,9 +137,17 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       'OVM_ExecutionManager',
       'OVM_StateManager',
       'OVM_ETH',
+      'OVM_ExecutionManagerWrapper',
+      'OVM_GasPriceOracle',
+      'OVM_SequencerFeeVault',
+      'OVM_L2StandardBridge',
     ],
     deployOverrides: {},
     waitForReceipts: false,
+    gasPriceOracleConfig: {
+      owner: signer,
+      initialGasPrice: 0,
+    },
   }
 
   config = { ...config, ...cfg }
@@ -154,6 +161,10 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     'OVM_ETH',
     'OVM_ECDSAContractAccount',
     'OVM_ProxyEOA',
+    'OVM_ExecutionManagerWrapper',
+    'OVM_GasPriceOracle',
+    'OVM_SequencerFeeVault',
+    'OVM_L2StandardBridge',
   ]
 
   const deploymentResult = await deploy(config)
@@ -176,7 +187,7 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   for (let i = 0; i < Object.keys(deploymentResult.contracts).length; i++) {
     const name = Object.keys(deploymentResult.contracts)[i]
     const contract = deploymentResult.contracts[name]
-    let code
+    let code: string
     if (ovmCompiled.includes(name)) {
       const ovmDeployedBytecode = getContractDefinition(name, true)
         .deployedBytecode

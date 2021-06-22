@@ -73,15 +73,15 @@ func TestLookupStorage(t *testing.T) {
 			l1BlockNumber2 := big.NewInt(2)
 
 			tx1 := types.NewTransaction(1, common.BytesToAddress([]byte{0x11}), big.NewInt(111), 1111, big.NewInt(11111), []byte{0x11, 0x11, 0x11})
-			tx1Meta := types.NewTransactionMeta(l1BlockNumber1, 0, &sender1, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, nil)
+			tx1Meta := types.NewTransactionMeta(l1BlockNumber1, 0, &sender1, types.QueueOriginSequencer, nil, nil, nil)
 			tx1.SetTransactionMeta(tx1Meta)
 
 			tx2 := types.NewTransaction(2, common.BytesToAddress([]byte{0x22}), big.NewInt(222), 2222, big.NewInt(22222), []byte{0x22, 0x22, 0x22})
-			tx2Meta := types.NewTransactionMeta(l1BlockNumber2, 0, &sender2, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, nil)
+			tx2Meta := types.NewTransactionMeta(l1BlockNumber2, 0, &sender2, types.QueueOriginSequencer, nil, nil, nil)
 			tx2.SetTransactionMeta(tx2Meta)
 
 			tx3 := types.NewTransaction(3, common.BytesToAddress([]byte{0x33}), big.NewInt(333), 3333, big.NewInt(33333), []byte{0x33, 0x33, 0x33})
-			tx3Meta := types.NewTransactionMeta(l1BlockNumber1, 0, nil, types.SighashEIP155, types.QueueOriginSequencer, nil, nil, nil)
+			tx3Meta := types.NewTransactionMeta(l1BlockNumber1, 0, nil, types.QueueOriginSequencer, nil, nil, nil)
 			tx3.SetTransactionMeta(tx3Meta)
 
 			txs := []*types.Transaction{tx1, tx2, tx3}

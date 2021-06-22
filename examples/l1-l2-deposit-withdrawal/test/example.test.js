@@ -11,7 +11,7 @@ const factory = (name, ovm = false) => {
 }
 const factory__L1_ERC20 = factory('ERC20')
 const factory__L2_ERC20 = factory('L2DepositedERC20', true)
-const factory__L1_ERC20Gateway = getContractFactory('OVM_L1ERC20Gateway')
+const factory__L1StandardBridge = getContractFactory('OVM_L1StandardBridge')
 
 
 describe(`L1 <> L2 Deposit and Withdrawal`, () => {
@@ -50,7 +50,7 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
 
   let L1_ERC20,
     L2_ERC20,
-    L1_ERC20Gateway
+    L1StandardBridge
 
   before(`deploy contracts`, async () => {
     // Deploy an ERC20 token on L1.
@@ -75,8 +75,8 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
 
     await L2_ERC20.deployTransaction.wait()
 
-    // Create a gateway that connects the two contracts.
-    L1_ERC20Gateway = await factory__L1_ERC20Gateway.connect(l1Wallet).deploy(
+    // Create a bridge that connects the two contracts.
+    L1StandardBridge = await factory__L1StandardBridge.connect(l1Wallet).deploy(
       L1_ERC20.address,
       L2_ERC20.address,
       l1MessengerAddress,
@@ -85,12 +85,12 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
       }
     )
 
-    await L1_ERC20Gateway.deployTransaction.wait()
+    await L1StandardBridge.deployTransaction.wait()
   })
 
   describe('Initialization and initial balances', async () => {
     it(`should initialize L2 ERC20`, async () => {
-      const tx = await L2_ERC20.init(L1_ERC20Gateway.address, { gasPrice: 0 })
+      const tx = await L2_ERC20.init(L1StandardBridge.address, { gasPrice: 0 })
       await tx.wait()
       const txHashPrefix = tx.hash.slice(0, 2)
       expect(txHashPrefix).to.eq('0x')
@@ -107,15 +107,15 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
   describe('L1 to L2 deposit', async () => {
     let l1Tx1
 
-    it(`should approve 1234 tokens for ERC20 gateway`, async () => {
-      const tx = await L1_ERC20.approve(L1_ERC20Gateway.address, 1234)
+    it(`should approve 1234 tokens for ERC20 bridge`, async () => {
+      const tx = await L1_ERC20.approve(L1StandardBridge.address, 1234)
       await tx.wait()
       const txHashPrefix = tx.hash.slice(0, 2)
       expect(txHashPrefix).to.eq('0x')
     })
 
     it(`should deposit 1234 tokens into L2 ERC20`, async () => {
-      l1Tx1 = await L1_ERC20Gateway.deposit(1234, { gasPrice: 0 })
+      l1Tx1 = await L1StandardBridge.deposit(1234, { gasPrice: 0 })
       await l1Tx1.wait()
       const txHashPrefix = l1Tx1.hash.slice(0, 2)
       expect(txHashPrefix).to.eq('0x')

@@ -11,7 +11,7 @@ import {
   setProxyTarget,
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
-  getXDomainCalldata,
+  encodeXDomainCalldata,
   getNextBlockNumber,
 } from '../../../../helpers'
 import { solidityKeccak256 } from 'ethers/lib/utils'
@@ -89,7 +89,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       expect(
         Mock__OVM_L2ToL1MessagePasser.smocked.passMessageToL1.calls[0]
       ).to.deep.equal([
-        getXDomainCalldata(target, await signer.getAddress(), message, 0),
+        encodeXDomainCalldata(target, await signer.getAddress(), message, 0),
       ])
     })
 
@@ -193,7 +193,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
         await OVM_L2CrossDomainMessenger.successfulMessages(
           solidityKeccak256(
             ['bytes'],
-            [getXDomainCalldata(target, sender, message, 0)]
+            [encodeXDomainCalldata(target, sender, message, 0)]
           )
         )
       ).to.be.true
@@ -211,7 +211,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
 
       // Calculate xDomainCallData used for indexing
       // (within the first call to the L2 Messenger).
-      const xDomainCallData = getXDomainCalldata(
+      const xDomainCallData = encodeXDomainCalldata(
         OVM_L2CrossDomainMessenger.address,
         sender,
         reentrantMessage,

@@ -52,6 +52,7 @@
     "@types/mocha": "^8.2.2",
     "@types/node-fetch": "^2.5.8",
     "@types/workerpool": "^6.0.0",
+    "bfj": "^7.0.2",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "chai": "^4.3.4",
