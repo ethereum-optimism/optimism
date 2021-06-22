@@ -1,5 +1,14 @@
 # @eth-optimism/smock
 
+## 1.1.6
+
+### Patch Changes
+
+- 71349a4e: Minor smock patch to add support for hardhat 2.4.0 and up
+- Updated dependencies [d9644c34]
+- Updated dependencies [df5ff890]
+  - @eth-optimism/core-utils@0.4.6
+
 ## 1.1.5
 
 ### Patch Changes

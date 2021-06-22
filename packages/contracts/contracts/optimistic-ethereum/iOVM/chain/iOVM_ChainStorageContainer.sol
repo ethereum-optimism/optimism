@@ -99,13 +99,4 @@ interface iOVM_ChainStorageContainer {
         bytes27 _globalMetadata
     )
         external;
-
-    /**
-     * Marks an index as overwritable, meaing the underlying buffer can start to write values over
-     * any objects before and including the given index.
-     */
-    function setNextOverwritableIndex(
-        uint256 _index
-    )
-        external;
 }

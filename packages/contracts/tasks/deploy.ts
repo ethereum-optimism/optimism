@@ -5,9 +5,9 @@ import * as types from 'hardhat/internal/core/params/argumentTypes'
 
 const DEFAULT_L1_BLOCK_TIME_SECONDS = 15
 const DEFAULT_CTC_FORCE_INCLUSION_PERIOD_SECONDS = 60 * 60 * 24 * 30 // 30 days
-const DEFAULT_CTC_MAX_TRANSACTION_GAS_LIMIT = 9_000_000
+const DEFAULT_CTC_MAX_TRANSACTION_GAS_LIMIT = 11_000_000
 const DEFAULT_EM_MIN_TRANSACTION_GAS_LIMIT = 50_000
-const DEFAULT_EM_MAX_TRANSACTION_GAS_LIMIT = 9_000_000
+const DEFAULT_EM_MAX_TRANSACTION_GAS_LIMIT = 11_000_000
 const DEFAULT_EM_MAX_GAS_PER_QUEUE_PER_EPOCH = 250_000_000
 const DEFAULT_EM_SECONDS_PER_EPOCH = 0
 const DEFAULT_EM_OVM_CHAIN_ID = 420
@@ -98,12 +98,6 @@ task('deploy')
     'Address that will own the Lib_AddressManager. Must be provided or this deployment will fail.',
     undefined,
     types.string
-  )
-  .addOptionalParam(
-    'initialGasPriceOracleGasPrice',
-    'The initial execution price for the gas price oracle.',
-    undefined,
-    types.int
   )
   .setAction(async (args, hre: any, runSuper) => {
     // Necessary because hardhat doesn't let us attach non-optional parameters to existing tasks.

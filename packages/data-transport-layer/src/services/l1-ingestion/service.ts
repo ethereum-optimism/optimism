@@ -1,9 +1,10 @@
 /* Imports: External */
 import { fromHexString, EventArgsAddressSet } from '@eth-optimism/core-utils'
-import { BaseService } from '@eth-optimism/common-ts'
+import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 import { ethers, constants } from 'ethers'
+import { Gauge } from 'prom-client'
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
@@ -21,9 +22,25 @@ import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
 import { MissingElementError, EventName } from './handlers/errors'
 
+interface L1IngestionMetrics {
+  highestSyncedL1Block: Gauge<string>
+}
+
+const registerMetrics = ({
+  client,
+  registry,
+}: Metrics): L1IngestionMetrics => ({
+  highestSyncedL1Block: new client.Gauge({
+    name: 'data_transport_layer_highest_synced_l1_block',
+    help: 'Highest Synced L1 Block Number',
+    registers: [registry],
+  }),
+})
+
 export interface L1IngestionServiceOptions
   extends L1DataTransportServiceOptions {
   db: LevelUp
+  metrics: Metrics
 }
 
 const optionSettings = {
@@ -54,6 +71,9 @@ const optionSettings = {
       return validators.isUrl(val) || validators.isJsonRpcProvider(val)
     },
   },
+  l2ChainId: {
+    validate: validators.isInteger,
+  },
 }
 
 export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
@@ -61,16 +81,19 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     super('L1_Ingestion_Service', options, optionSettings)
   }
 
+  private l1IngestionMetrics: L1IngestionMetrics
+
   private state: {
     db: TransportDB
     contracts: OptimismContracts
     l1RpcProvider: JsonRpcProvider
     startingL1BlockNumber: number
-    l2ChainId: number
   } = {} as any
 
   protected async _init(): Promise<void> {
     this.state.db = new TransportDB(this.options.db)
+
+    this.l1IngestionMetrics = registerMetrics(this.metrics)
 
     this.state.l1RpcProvider =
       typeof this.options.l1RpcProvider === 'string'
@@ -115,10 +138,6 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       this.state.l1RpcProvider,
       this.options.addressManager
     )
-
-    this.state.l2ChainId = ethers.BigNumber.from(
-      await this.state.contracts.OVM_ExecutionManager.ovmCHAINID()
-    ).toNumber()
 
     const startingL1BlockNumber = await this.state.db.getStartingL1Block()
     if (startingL1BlockNumber) {
@@ -199,6 +218,8 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
         await this.state.db.setHighestSyncedL1Block(targetL1Block)
 
+        this.l1IngestionMetrics.highestSyncedL1Block.set(targetL1Block)
+
         if (
           currentL1Block - highestSyncedL1Block <
           this.options.logsPerPollingInterval
@@ -237,6 +258,10 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
           // Rewind back to the block number that the last good element was in.
           await this.state.db.setHighestSyncedL1Block(
+            lastGoodElement.blockNumber
+          )
+
+          this.l1IngestionMetrics.highestSyncedL1Block.set(
             lastGoodElement.blockNumber
           )
 
@@ -281,13 +306,11 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     // We need to figure out how to make this work without Infura. Mark and I think that infura is
     // doing some indexing of events beyond Geth's native capabilities, meaning some event logic
     // will only work on Infura and not on a local geth instance. Not great.
-    const addressSetEvents = ((await this.state.contracts.Lib_AddressManager.queryFilter(
-      this.state.contracts.Lib_AddressManager.filters.AddressSet(),
+    const addressSetEvents = await this.state.contracts.Lib_AddressManager.queryFilter(
+      this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
       fromL1Block,
       toL1Block
-    )) as TypedEthersEvent<EventArgsAddressSet>[]).filter((event) => {
-      return event.args._name === contractName
-    })
+    )
 
     // We're going to parse things out in ranges because the address of a given contract may have
     // changed in the range provided by the user.
@@ -343,7 +366,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           const parsedEvent = await handlers.parseEvent(
             event,
             extraData,
-            this.state.l2ChainId
+            this.options.l2ChainId
           )
           await handlers.storeEvent(parsedEvent, this.state.db)
         }
@@ -370,21 +393,14 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contractName: string,
     blockNumber: number
   ): Promise<string> {
-    // TODO: Should be much easier than this. Need to change the params of this event.
-    const relevantAddressSetEvents = (
-      await this.state.contracts.Lib_AddressManager.queryFilter(
-        this.state.contracts.Lib_AddressManager.filters.AddressSet(),
-        this.state.startingL1BlockNumber
-      )
-    ).filter((event) => {
-      return (
-        event.args._name === contractName && event.blockNumber < blockNumber
-      )
-    })
+    const events = await this.state.contracts.Lib_AddressManager.queryFilter(
+      this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
+      this.state.startingL1BlockNumber,
+      blockNumber
+    )
 
-    if (relevantAddressSetEvents.length > 0) {
-      return relevantAddressSetEvents[relevantAddressSetEvents.length - 1].args
-        ._newAddress
+    if (events.length > 0) {
+      return events[events.length - 1].args._newAddress
     } else {
       // Address wasn't set before this.
       return constants.AddressZero
@@ -396,7 +412,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     for (let i = 0; i < currentL1Block; i += 1000000) {
       const events = await this.state.contracts.Lib_AddressManager.queryFilter(
-        this.state.contracts.Lib_AddressManager.filters.AddressSet(),
+        this.state.contracts.Lib_AddressManager.filters.OwnershipTransferred(),
         i,
         Math.min(i + 1000000, currentL1Block)
       )

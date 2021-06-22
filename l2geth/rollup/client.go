@@ -74,7 +74,6 @@ type transaction struct {
 	Origin      *common.Address `json:"origin"`
 	Data        hexutil.Bytes   `json:"data"`
 	QueueOrigin string          `json:"queueOrigin"`
-	Type        string          `json:"type"`
 	QueueIndex  *uint64         `json:"queueIndex"`
 	Decoded     *decoded        `json:"decoded"`
 }
@@ -105,8 +104,8 @@ type decoded struct {
 	Signature signature       `json:"sig"`
 	Value     hexutil.Uint64  `json:"value"`
 	GasLimit  uint64          `json:"gasLimit,string"`
-	GasPrice  uint64          `json:"gasPrice"`
-	Nonce     uint64          `json:"nonce"`
+	GasPrice  uint64          `json:"gasPrice,string"`
+	Nonce     uint64          `json:"nonce,string"`
 	Target    *common.Address `json:"target"`
 	Data      hexutil.Bytes   `json:"data"`
 }
@@ -241,7 +240,6 @@ func enqueueToTransaction(enqueue *Enqueue) (*types.Transaction, error) {
 		blockNumber,
 		timestamp,
 		&origin,
-		types.SighashEIP155,
 		types.QueueOriginL1ToL2,
 		enqueue.Index,
 		enqueue.QueueIndex,
@@ -327,7 +325,6 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 	} else {
 		return nil, fmt.Errorf("Unknown queue origin: %s", res.QueueOrigin)
 	}
-	sighashType := types.SighashEIP155
 	// Transactions that have been decoded are
 	// Queue Origin Sequencer transactions
 	if res.Decoded != nil {
@@ -352,7 +349,6 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 			new(big.Int).SetUint64(res.BlockNumber),
 			res.Timestamp,
 			res.Origin,
-			sighashType,
 			queueOrigin,
 			&res.Index,
 			res.QueueIndex,
@@ -393,7 +389,6 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 		new(big.Int).SetUint64(res.BlockNumber),
 		res.Timestamp,
 		origin,
-		sighashType,
 		queueOrigin,
 		&res.Index,
 		res.QueueIndex,

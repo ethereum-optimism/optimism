@@ -4,14 +4,15 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_CrossDomainUtils } from "../../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
 import { iOVM_L1MessageSender } from "../../../iOVM/predeploys/iOVM_L1MessageSender.sol";
 import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/predeploys/iOVM_L2ToL1MessagePasser.sol";
 
-/* Contract Imports */
-import { Abs_BaseCrossDomainMessenger } from "./Abs_BaseCrossDomainMessenger.sol";
+/* External Imports */
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /* External Imports */
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -26,10 +27,28 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
   */
 contract OVM_L2CrossDomainMessenger is
     iOVM_L2CrossDomainMessenger,
-    Abs_BaseCrossDomainMessenger,
     Lib_AddressResolver,
     ReentrancyGuard
 {
+
+    /*************
+     * Constants *
+     *************/
+
+    // The default x-domain message sender being set to a non-zero value makes
+    // deployment a bit more expensive, but in exchange the refund on every call to
+    // `relayMessage` by the L1 and L2 messengers will be higher.
+    address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
+
+    /*************
+     * Variables *
+     *************/
+
+    mapping (bytes32 => bool) public relayedMessages;
+    mapping (bytes32 => bool) public successfulMessages;
+    mapping (bytes32 => bool) public sentMessages;
+    uint256 public messageNonce;
+    address internal xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
     /***************
      * Constructor *
@@ -38,17 +57,52 @@ contract OVM_L2CrossDomainMessenger is
     /**
      * @param _libAddressManager Address of the Address Manager.
      */
-    constructor(
-        address _libAddressManager
-    )
-        Lib_AddressResolver(_libAddressManager)
-        ReentrancyGuard()
-    {}
+    constructor(address _libAddressManager) Lib_AddressResolver(_libAddressManager) ReentrancyGuard() {}
 
 
     /********************
      * Public Functions *
      ********************/
+
+    function xDomainMessageSender()
+        public
+        override
+        view
+        returns (
+            address
+        )
+    {
+        require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
+        return xDomainMsgSender;
+    }
+
+    /**
+     * Sends a cross domain message to the target messenger.
+     * @param _target Target contract address.
+     * @param _message Message to send to the target.
+     * @param _gasLimit Gas limit for the provided message.
+     */
+    function sendMessage(
+        address _target,
+        bytes memory _message,
+        uint32 _gasLimit
+    )
+        override
+        public
+    {
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
+            _target,
+            msg.sender,
+            _message,
+            messageNonce
+        );
+
+        messageNonce += 1;
+        sentMessages[keccak256(xDomainCalldata)] = true;
+
+        _sendXDomainMessage(xDomainCalldata, _gasLimit);
+        emit SentMessage(xDomainCalldata);
+    }
 
     /**
      * Relays a cross domain message to a contract.
@@ -69,7 +123,7 @@ contract OVM_L2CrossDomainMessenger is
             "Provided message could not be verified."
         );
 
-        bytes memory xDomainCalldata = _getXDomainCalldata(
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
             _message,
@@ -150,7 +204,6 @@ contract OVM_L2CrossDomainMessenger is
         bytes memory _message,
         uint256 // _gasLimit
     )
-        override
         internal
     {
         iOVM_L2ToL1MessagePasser(resolve("OVM_L2ToL1MessagePasser")).passMessageToL1(_message);

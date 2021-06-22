@@ -869,7 +869,7 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	// transactions as the timestamp cannot be malleated
 	if parent.Time() > tx.L1Timestamp() {
 		log.Error("Monotonicity violation", "index", num)
-		if tx.QueueOrigin().Uint64() == uint64(types.QueueOriginSequencer) {
+		if tx.QueueOrigin() == types.QueueOriginSequencer {
 			tx.SetL1Timestamp(parent.Time())
 			prev := parent.Transactions()
 			if len(prev) == 1 {
@@ -1073,7 +1073,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 				bn = new(big.Int)
 			}
 			log.Info("New block", "index", block.Number().Uint64()-uint64(1), "l1-timestamp", tx.L1Timestamp(), "l1-blocknumber", bn.Uint64(), "tx-hash", tx.Hash().Hex(),
-				"queue-orign", tx.QueueOrigin(), "type", tx.SignatureHashType(), "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
+				"queue-orign", tx.QueueOrigin(), "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
 
 		case <-w.exitCh:
 			log.Info("Worker has exited")

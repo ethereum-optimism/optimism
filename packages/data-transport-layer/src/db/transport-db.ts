@@ -379,9 +379,7 @@ export class TransportDB {
     if (index === null) {
       return null
     }
-    let entry = await this.db.get<TEntry>(`${key}:index`, index)
-    entry = stringify(entry)
-    return entry
+    return this.db.get<TEntry>(`${key}:index`, index)
   }
 
   private async _getEntries<TEntry extends Indexed>(
@@ -389,28 +387,6 @@ export class TransportDB {
     startIndex: number,
     endIndex: number
   ): Promise<TEntry[] | []> {
-    const entries = await this.db.range<TEntry>(
-      `${key}:index`,
-      startIndex,
-      endIndex
-    )
-    const results = []
-    for (const entry of entries) {
-      results.push(stringify(entry))
-    }
-    return results
+    return this.db.range<TEntry>(`${key}:index`, startIndex, endIndex)
   }
-}
-
-const stringify = (entry) => {
-  if (entry === null || entry === undefined) {
-    return entry
-  }
-  if (entry.gasLimit) {
-    entry.gasLimit = BigNumber.from(entry.gasLimit).toString()
-  }
-  if (entry.decoded) {
-    entry.decoded.gasLimit = BigNumber.from(entry.decoded.gasLimit).toString()
-  }
-  return entry
 }

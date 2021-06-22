@@ -17,7 +17,6 @@ var (
 		l1BlockNumber  *big.Int
 		l1Timestamp    uint64
 		msgSender      *common.Address
-		sighashType    SignatureHashType
 		queueOrigin    QueueOrigin
 		rawTransaction []byte
 	}{
@@ -25,7 +24,6 @@ var (
 			l1BlockNumber:  l1BlockNumber,
 			l1Timestamp:    100,
 			msgSender:      &addr,
-			sighashType:    SighashEthSign,
 			queueOrigin:    QueueOriginL1ToL2,
 			rawTransaction: []byte{255, 255, 255, 255},
 		},
@@ -33,7 +31,6 @@ var (
 			l1BlockNumber:  nil,
 			l1Timestamp:    45,
 			msgSender:      &addr,
-			sighashType:    SighashEthSign,
 			queueOrigin:    QueueOriginL1ToL2,
 			rawTransaction: []byte{42, 69, 42, 69},
 		},
@@ -41,7 +38,6 @@ var (
 			l1BlockNumber:  l1BlockNumber,
 			l1Timestamp:    0,
 			msgSender:      nil,
-			sighashType:    SighashEthSign,
 			queueOrigin:    QueueOriginSequencer,
 			rawTransaction: []byte{0, 0, 0, 0},
 		},
@@ -49,7 +45,6 @@ var (
 			l1BlockNumber:  l1BlockNumber,
 			l1Timestamp:    0,
 			msgSender:      &addr,
-			sighashType:    SighashEthSign,
 			queueOrigin:    QueueOriginSequencer,
 			rawTransaction: []byte{0, 0, 0, 0},
 		},
@@ -57,7 +52,6 @@ var (
 			l1BlockNumber:  nil,
 			l1Timestamp:    0,
 			msgSender:      nil,
-			sighashType:    SighashEthSign,
 			queueOrigin:    QueueOriginL1ToL2,
 			rawTransaction: []byte{0, 0, 0, 0},
 		},
@@ -65,30 +59,15 @@ var (
 			l1BlockNumber:  l1BlockNumber,
 			l1Timestamp:    0,
 			msgSender:      &addr,
-			sighashType:    SighashEthSign,
 			queueOrigin:    QueueOriginL1ToL2,
 			rawTransaction: []byte{0, 0, 0, 0},
-		},
-	}
-
-	txMetaSighashEncodeTests = []struct {
-		input  SignatureHashType
-		output SignatureHashType
-	}{
-		{
-			input:  SighashEIP155,
-			output: SighashEIP155,
-		},
-		{
-			input:  SighashEthSign,
-			output: SighashEthSign,
 		},
 	}
 )
 
 func TestTransactionMetaEncode(t *testing.T) {
 	for _, test := range txMetaSerializationTests {
-		txmeta := NewTransactionMeta(test.l1BlockNumber, test.l1Timestamp, test.msgSender, test.sighashType, test.queueOrigin, nil, nil, test.rawTransaction)
+		txmeta := NewTransactionMeta(test.l1BlockNumber, test.l1Timestamp, test.msgSender, test.queueOrigin, nil, nil, test.rawTransaction)
 
 		encoded := TxMetaEncode(txmeta)
 		decoded, err := TxMetaDecode(encoded)
@@ -99,22 +78,6 @@ func TestTransactionMetaEncode(t *testing.T) {
 
 		if !isTxMetaEqual(txmeta, decoded) {
 			t.Fatal("Encoding/decoding mismatch")
-		}
-	}
-}
-
-func TestTransactionSighashEncode(t *testing.T) {
-	for _, test := range txMetaSighashEncodeTests {
-		txmeta := NewTransactionMeta(l1BlockNumber, 0, &addr, test.input, QueueOriginSequencer, nil, nil, nil)
-		encoded := TxMetaEncode(txmeta)
-		decoded, err := TxMetaDecode(encoded)
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if decoded.SignatureHashType != test.output {
-			t.Fatal("SighashTypes do not match")
 		}
 	}
 }
@@ -149,18 +112,7 @@ func isTxMetaEqual(meta1 *TransactionMeta, meta2 *TransactionMeta) bool {
 		}
 	}
 
-	if meta1.SignatureHashType != meta2.SignatureHashType {
-		return false
-	}
-
-	if meta1.QueueOrigin == nil || meta2.QueueOrigin == nil {
-		// Note: this only works because it is the final comparison
-		if meta1.QueueOrigin == nil && meta2.QueueOrigin == nil {
-			return true
-		}
-	}
-
-	if !bytes.Equal(meta1.QueueOrigin.Bytes(), meta2.QueueOrigin.Bytes()) {
+	if meta1.QueueOrigin != meta2.QueueOrigin {
 		return false
 	}
 
