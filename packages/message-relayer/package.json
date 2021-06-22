@@ -7,6 +7,9 @@
   "files": [
     "dist/*"
   ],
+  "bin": {
+    "withdraw": "./src/exec/withdraw.ts"
+  },
   "scripts": {
     "start": "node ./exec/run-message-relayer.js",
     "build": "tsc -p ./tsconfig.build.json",
