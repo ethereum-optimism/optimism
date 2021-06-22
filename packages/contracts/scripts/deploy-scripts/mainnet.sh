@@ -41,7 +41,6 @@ npx hardhat deploy \
  --em-min-transaction-gas-limit 50000 \
  --em-ovm-chain-id 10 \
  --em-seconds-per-epoch 0 \
- --gasprice 0 \
  --l1-block-time-seconds 15 \
  --ovm-address-manager-owner 0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A \
  --ovm-proposer-address 0x473300df21D047806A082244b417f96b32f13A33 \
