@@ -4,16 +4,19 @@
   "author": "Optimism PBC",
   "license": "MIT",
   "workspaces": {
-      "packages": [
-          "packages/*",
-          "l2geth",
-          "integration-tests",
-          "specs"
-      ],
-        "nohoist": ["examples/*"]
+    "packages": [
+      "packages/*",
+      "l2geth",
+      "integration-tests",
+      "specs"
+    ],
+    "nohoist": [
+      "examples/*"
+    ]
   },
   "private": true,
   "devDependencies": {
+    "husky": "^6.0.0",
     "lerna": "^4.0.0",
     "patch-package": "^6.4.7"
   },
@@ -27,6 +30,7 @@
     "lint:fix": "yarn lerna run lint:fix",
     "postinstall": "patch-package",
     "ready": "yarn lint && yarn test",
+    "prepare": "husky install",
     "release": "yarn build && yarn changeset publish"
   },
   "dependencies": {
