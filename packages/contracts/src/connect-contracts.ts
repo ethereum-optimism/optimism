@@ -8,11 +8,9 @@ interface L1Contracts {
   canonicalTransactionChain: Contract
   executionManager: Contract
   fraudVerifier: Contract
-  ethGateway: Contract
   multiMessageRelayer: Contract
   stateCommitmentChain: Contract
   xDomainMessengerProxy: Contract
-  l1EthGatewayProxy: Contract
   bondManager: Contract
 }
 
@@ -74,7 +72,6 @@ export const connectL1Contracts = async (
     ),
     executionManager: toEthersContract(l1ContractData.OVM_ExecutionManager),
     fraudVerifier: toEthersContract(l1ContractData.OVM_FraudVerifier),
-    ethGateway: toEthersContract(l1ContractData.OVM_L1ETHGateway),
     multiMessageRelayer: toEthersContract(
       l1ContractData.OVM_L1MultiMessageRelayer
     ),
@@ -84,7 +81,6 @@ export const connectL1Contracts = async (
     xDomainMessengerProxy: toEthersContract(
       l1ContractData.Proxy__OVM_L1CrossDomainMessenger
     ),
-    l1EthGatewayProxy: toEthersContract(l1ContractData.Proxy__OVM_L1ETHGateway),
     // TODO: update this with actual bond manager when its ready
     bondManager: toEthersContract(l1ContractData.mockOVM_BondManager),
   }
