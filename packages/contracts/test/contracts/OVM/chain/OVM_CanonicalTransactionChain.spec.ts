@@ -26,6 +26,7 @@ import {
   increaseEthTime,
   getBlockTime,
   mineBlock,
+  QUEUE_ORIGIN,
 } from '../../../helpers'
 import { predeploys } from '../../../../src'
 
@@ -528,7 +529,7 @@ describe('OVM_CanonicalTransactionChain', () => {
           {
             timestamp,
             blockNumber,
-            l1QueueOrigin: 1,
+            l1QueueOrigin: QUEUE_ORIGIN.L1TOL2_QUEUE,
             l1TxOrigin: await OVM_CanonicalTransactionChain.signer.getAddress(),
             entrypoint,
             gasLimit,
@@ -589,7 +590,7 @@ describe('OVM_CanonicalTransactionChain', () => {
           {
             timestamp,
             blockNumber,
-            l1QueueOrigin: 0, // QueueOrigin.SEQUENCER_QUEUE = 0
+            l1QueueOrigin: QUEUE_ORIGIN.SEQUENCER_QUEUE,
             l1TxOrigin: await OVM_CanonicalTransactionChain.signer.getAddress(),
             entrypoint,
             gasLimit,
@@ -636,7 +637,7 @@ describe('OVM_CanonicalTransactionChain', () => {
           {
             timestamp,
             blockNumber,
-            l1QueueOrigin: 1,
+            l1QueueOrigin: QUEUE_ORIGIN.L1TOL2_QUEUE,
             l1TxOrigin: await OVM_CanonicalTransactionChain.signer.getAddress(),
             entrypoint,
             gasLimit,
@@ -693,7 +694,7 @@ describe('OVM_CanonicalTransactionChain', () => {
           {
             timestamp,
             blockNumber,
-            l1QueueOrigin: 0,
+            l1QueueOrigin: QUEUE_ORIGIN.SEQUENCER_QUEUE,
             l1TxOrigin: constants.AddressZero,
             entrypoint,
             gasLimit,
