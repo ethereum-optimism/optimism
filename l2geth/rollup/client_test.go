@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -8,8 +9,9 @@ import (
 	"github.com/jarcoal/httpmock"
 )
 
+const url = "http://localhost:9999"
+
 func TestRollupClientGetL1GasPrice(t *testing.T) {
-	url := "http://localhost:9999"
 	endpoint := fmt.Sprintf("%s/eth/gasprice", url)
 	// url/chain-id does not matter, we'll mock the responses
 	client := NewClient(url, big.NewInt(1))
@@ -39,5 +41,30 @@ func TestRollupClientGetL1GasPrice(t *testing.T) {
 
 	if gasPrice.Cmp(expectedGasPrice) != 0 {
 		t.Fatal("gasPrice is not parsed properly in the client")
+	}
+}
+
+func TestRollupClientCannotConnect(t *testing.T) {
+	endpoint := fmt.Sprintf("%s/eth/context/latest", url)
+	client := NewClient(url, big.NewInt(1))
+
+	httpmock.ActivateNonDefault(client.client.GetClient())
+
+	response, _ := httpmock.NewJsonResponder(
+		400,
+		map[string]interface{}{},
+	)
+	httpmock.RegisterResponder(
+		"GET",
+		endpoint,
+		response,
+	)
+
+	context, err := client.GetLatestEthContext()
+	if context != nil {
+		t.Fatal("returned value is not nil")
+	}
+	if !errors.Is(err, errHTTPError) {
+		t.Fatalf("Incorrect error returned: %s", err)
 	}
 }
