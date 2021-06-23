@@ -12,6 +12,7 @@ import {
   NON_ZERO_ADDRESS,
   NON_NULL_BYTES32,
   GasMeasurement,
+  QUEUE_ORIGIN,
 } from '../../../helpers'
 
 const DUMMY_GASMETERCONFIG = {
@@ -23,11 +24,6 @@ const DUMMY_GASMETERCONFIG = {
 
 const DUMMY_GLOBALCONTEXT = {
   ovmCHAINID: 420,
-}
-
-const QUEUE_ORIGIN = {
-  SEQUENCER_QUEUE: 0,
-  L1TOL2_QUEUE: 1,
 }
 
 const DUMMY_TRANSACTION = {

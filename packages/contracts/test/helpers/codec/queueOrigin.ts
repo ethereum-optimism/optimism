@@ -1,0 +1,4 @@
+export const QUEUE_ORIGIN = {
+  SEQUENCER_QUEUE: 0,
+  L1TOL2_QUEUE: 1,
+}
