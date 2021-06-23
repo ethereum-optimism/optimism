@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/integration-tests",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "[Optimism] Integration Tests",
   "private": true,
   "author": "Optimism PBC",
@@ -17,7 +17,7 @@
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "^0.4.0",
+    "@eth-optimism/contracts": "^0.4.1",
     "@eth-optimism/core-utils": "^0.4.6",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
     "@ethersproject/providers": "^5.0.24",
