@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Patch Changes
+
+- 40b99a6e: Add new RPC endpoint `rollup_gasPrices`
+
 ## 0.4.0
 
 ### Minor Changes

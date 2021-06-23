@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.1.1
+
+### Patch Changes
+
+- 40b99a6e: Add new RPC endpoint `rollup_gasPrices`
+
 ## 0.1.0
 
 ### Minor Changes
