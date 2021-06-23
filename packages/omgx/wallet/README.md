@@ -2,7 +2,7 @@
 
 ## New Wallet contract changes
 
-There is now a completely different system for spinning up the system and contracts needed for the wallet. 
+There is now a completely different system for spinning up the system and contracts needed for the wallet.
 
 * Spin up the test system and deploy all the right wallet contracts:
 
@@ -24,7 +24,7 @@ Or,
         run: ./up_local.sh
 ```
 
-NOTE - the `up_local.sh` taps into ethereumoptimism dockers, be advised. 
+NOTE - the `up_local.sh` taps into ethereumoptimism dockers, be advised.
 
 To get the contract addresses:
 
@@ -35,17 +35,16 @@ curl http://127.0.0.1:8080/addresses.json | jq
 
 **ALERT - the old testing system and the documention below are currently broken, but are being fixed.**
 
+# Working Steps for local setup.
 ## 1. Set up the repo
 
 At the top level (`/optimism`), run `yarn` and `yarn build`.
 
 ```bash
-
 $ git clone git@github.com:omgnetwork/optimism.git
 $ cd optimism
 $ yarn
 $ yarn build
-
 ```
 
 ## 2. Spin up OMGX
@@ -56,8 +55,19 @@ $ cd /ops
 $ docker-compose up --build
 
 ```
+ OR
 
-## 3. Basic Setup and Configuration - Contracts
+ Spin up the test system and deploy all the right wallet contracts:
+
+```bash
+
+$ cd ops
+$ docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml up
+
+```
+
+
+## 3. Web wallet setup and Configuration - Contracts
 
 Next, open a *second* terminal window and navigate to the wallet folder:
 
@@ -67,11 +77,13 @@ $ cd /optimism/packages/omgx/wallet
 
 ```
 
-Create a `.env` file in the root directory of this wallet project. Add environment-specific variables on new lines in the form of `NAME=VALUE`. Examples are given in the `.env.example` file. Just pick which net you want to work on and copy either the "Rinkeby" _or_ the "Local" envs to your `.env`.
+Create a `.env` file in the root directory `/optimism/packages/omgx/wallet` of this wallet project. Add environment-specific variables on new lines in the form of `NAME=VALUE`. Examples are given in the `.env.example` file. Just pick which net you want to work on and copy either the "Rinkeby" _or_ the "Local" envs to your `.env`.
+
+Or,
+
+Use below env params.
 
 ```bash
-
-# Local
 NODE_ENV=local
 L1_NODE_WEB3_URL=http://localhost:9545
 L2_NODE_WEB3_URL=http://localhost:8545
@@ -84,7 +96,7 @@ CHAIN_ID=28
 
 ```
 
-Now, build and deploy all the needed contracts:
+Now, build and deploy all the needed contracts from wallet:
 
 ```bash
 
@@ -213,29 +225,37 @@ l1MessengerAddress: 0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
 
 ## 4. Firing up the wallet
 
-The web wallet is a react front end that makes it easy to see your balances, transfer funds, and build on for your own uses. The code is deliberately basic, to make it easy for you to repurpose it for your own needs. It's a work in progress - for example, we are adding some basic support for NFTs and and an interface for people to contribute to the conjoined liquidity pools that live on the L1 and L2. 
+The web wallet is a react front end that makes it easy to see your balances, transfer funds, and build on for your own uses. The code is deliberately basic, to make it easy for you to repurpose it for your own needs. It's a work in progress - for example, we are adding some basic support for NFTs and an interface for people to contribute to the conjoined liquidity pools that live on the L1 and L2.
 
-First, create a `.env` in `/wallets` and provide your Infura and Etherscan keys:
+Now navigate to child wallet folder
 
 ```bash
+$ cd /optimism/packages/omgx/wallet/wallet
+```
 
+First create `.env` file and provide your Infura and Etherscan keys: along with below environment parameters
+
+```bash
 REACT_APP_INFURA_ID=
 REACT_APP_ETHERSCAN_API=
-
+REACT_APP_POLL_INTERVAL=20000
+SKIP_PREFLIGHT_CHECK=true
 ```
 
 Then,
 
 ```bash
 
-$ cd wallet
+
 $ yarn start
 
 ```
 
-At that point, the wallet will start when you run `$ yarn start`. You can interact with the wallet at `http://localhost:3000.` 
+At that point, the wallet will start when you run `$ yarn start`. You can interact with the wallet at `http://localhost:3000.`
 
-### Common Wallet Setup Problems
+Install metamask by following the instruction on login page connect it with metamask so you can access the wallet.
+
+# Common Wallet Setup Problems
 
 **Nothing works** Rebuild the stack.
 
@@ -252,7 +272,7 @@ $ docker-compose up --build
 
 ### Integration Tests
 
-Note that the integration tests also set up parts of the system that the web wallet will need to work, such as liquidity pools and bridge contracts. 
+Note that the integration tests also set up parts of the system that the web wallet will need to work, such as liquidity pools and bridge contracts.
 
 ```bash
 
@@ -272,9 +292,9 @@ These contracts instantiate a simple swap on/off system for fast entry/exit, as 
 
 The Layer 1 liquidity pool accepts ERC20 and ETH. `L1liquidityPool.sol` charges a convenience fee to the user for quickly getting on to the L2.
 
-**L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.  
+**L1->L2**: When users **deposit into this contract**, then (1) the pool size grows and (2) corresponding funds are sent to them on the L2 side.
 
-**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet (minus the fee). 
+**L2->L1**: When users **deposit into the corresponding L2 contract**, then (1) the pool size shrinks and (2) corresponding tokens are sent to them at their L1 wallet (minus the fee).
 
 #### Known Gaps/Problems
 
@@ -283,9 +303,9 @@ The Layer 1 liquidity pool accepts ERC20 and ETH. `L1liquidityPool.sol` charges 
 
 #### Initial values
 
-* _l2LiquidityPoolAddress_. The address of the Layer 2 liquidity pool 
-* _l1messenger_. The address of the Layer 1 messenger  
-* _l2ETHAddress_. The address of the oWETH contract on the L2 
+* _l2LiquidityPoolAddress_. The address of the Layer 2 liquidity pool
+* _l1messenger_. The address of the Layer 1 messenger
+* _l2ETHAddress_. The address of the oWETH contract on the L2
 * _fee_. The convenience fee. The data type of `_fee` is `uint256`. If the fee is 3%, then `_fee` is 3.
 
 #### Events
@@ -354,9 +374,9 @@ This contract sets up a very rudimentary interface to the @OpenZeppelin ERC721 c
 
 On the MetaMask side, some set up is needed.
 
-1. Add your two test accounts to MetaMask (through **MetaMask>Import Account**). In the test code, PK_1 is the `Bob` account, and PK_2 is the `Alice`  account. 
+1. Add your two test accounts to MetaMask (through **MetaMask>Import Account**). In the test code, PK_1 is the `Bob` account, and PK_2 is the `Alice`  account.
 
-2. You also need to point Metamask at the correct chain. 
+2. You also need to point Metamask at the correct chain.
   * For work on Rinkeby L1, chose **MetaMask>Networks>Rinkeby Test Network**.
   * For work on the OMGX Rinkeby L2, chose **MetaMask>Networks>Custom RPC** and enter `https://rinkeby.omgx.network/` with a ChainID of 28.
   * For work on a local L1, chose **MetaMask>Networks>Custom RPC** and enter `http://localhost:9545` with a ChainID of 31337.
