@@ -13,11 +13,9 @@ describe('connectL1Contracts', () => {
     'canonicalTransactionChain',
     'executionManager',
     'fraudVerifier',
-    'ethGateway',
     'multiMessageRelayer',
     'stateCommitmentChain',
     'xDomainMessengerProxy',
-    'l1EthGatewayProxy',
     'bondManager',
   ]
 
