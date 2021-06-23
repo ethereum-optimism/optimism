@@ -1,4 +1,4 @@
-import { getContractFactory } from '@eth-optimism/contracts'
+import { getContractFactory, predeploys } from '@eth-optimism/contracts'
 import { Watcher } from '@eth-optimism/core-utils'
 import { Contract, utils, Wallet } from 'ethers'
 import {
@@ -32,6 +32,7 @@ export class OptimismEnv {
   ovmEth: Contract
   l2Bridge: Contract
   l2Messenger: Contract
+  gasPriceOracle: Contract
 
   // The L1 <> L2 State watcher
   watcher: Watcher
@@ -47,6 +48,7 @@ export class OptimismEnv {
     this.ovmEth = args.ovmEth
     this.l2Bridge = args.l2Bridge
     this.l2Messenger = args.l2Messenger
+    this.gasPriceOracle = args.gasPriceOracle
     this.watcher = args.watcher
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
@@ -79,12 +81,17 @@ export class OptimismEnv {
       .connect(l1Wallet)
       .attach(ctcAddress)
 
+    const gasPriceOracle = getContractFactory('OVM_GasPriceOracle')
+      .connect(l2Wallet)
+      .attach(predeploys.OVM_GasPriceOracle)
+
     return new OptimismEnv({
       addressManager,
       l1Bridge,
       ctc,
       l1Messenger,
       ovmEth,
+      gasPriceOracle,
       l2Bridge,
       l2Messenger,
       watcher,
