@@ -6,7 +6,8 @@ import {
   toHexString,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
-import { getContractInterface, predeploys } from '@eth-optimism/contracts'
+import { predeploys } from '@eth-optimism/contracts'
+import { getL1ContractData, getL2ContractData } from '@eth-optimism/contracts/dist/contract-data'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
 
@@ -55,6 +56,12 @@ interface CrossDomainMessagePair {
 interface StateTrieProof {
   accountProof: string
   storageProof: string
+}
+
+const getContractInterface = (name: string): any => {
+  const l1Contracts = getL1ContractData('kovan')
+  const l2Contracts = getL2ContractData()
+  return (l1Contracts[name] || l2Contracts[name]).abi
 }
 
 /**
