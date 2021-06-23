@@ -1,0 +1,11 @@
+{
+  "editor.formatOnSave": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true,
+  },
+  "eslint.nodePath": "./node_modules/eslint/bin/",
+  "eslint.format.enable": true,
+  "editorconfig.generateAuto": false,
+  "files.trimTrailingWhitespace": true,
+}

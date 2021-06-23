@@ -2,4 +2,4 @@
 '@eth-optimism/contracts': patch
 ---
 
-Apply consistent styling to constants
+Add 0.4.0 deployment artifacts
