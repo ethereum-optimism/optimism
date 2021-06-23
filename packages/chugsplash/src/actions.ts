@@ -40,6 +40,7 @@ export interface ChugSplashActionBundle {
 
 /**
  * Checks whether a given action is a SetStorage action.
+ *
  * @param action ChugSplash action to check.
  * @return `true` if the action is a SetStorage action, `false` otherwise.
  */
@@ -55,6 +56,7 @@ export const isSetStorageAction = (
 /**
  * Converts the "nice" action structs into a "raw" action struct (better for Solidity but
  * worse for users here).
+ *
  * @param action ChugSplash action to convert.
  * @return Converted "raw" ChugSplash action.
  */
@@ -81,6 +83,7 @@ export const toRawChugSplashAction = (
 
 /**
  * Computes the hash of an action.
+ *
  * @param action Action to compute the hash of.
  * @return Hash of the action.
  */
@@ -96,6 +99,7 @@ export const getActionHash = (action: RawChugSplashAction): string => {
 /**
  * Generates an action bundle from a set of actions. Effectively encodes the inputs that will be
  * provided to the ChugSplashDeployer contract.
+ *
  * @param actions Series of SetCode or SetStorage actions to bundle.
  * @return Bundled actions.
  */

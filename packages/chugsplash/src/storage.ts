@@ -45,6 +45,7 @@ interface StorageSlotPair {
 
 /**
  * Takes a slot value (in hex), left-pads it with zeros, and displaces it by a given offset.
+ *
  * @param val Hex string value to pad.
  * @param offset Number of bytes to offset from the right.
  * @return Padded hex string.
@@ -62,6 +63,7 @@ const padHexSlotValue = (val: string, offset: number): string => {
 /**
  * Retrieves the storageLayout portion of the compiler artifact for a given contract by name. This
  * function is hardhat specific.
+ *
  * @param hre HardhatRuntimeEnvironment, required for the readArtifactSync function.
  * @param name Name of the contract to retrieve the storage layout for.
  * @return Storage layout object from the compiler output.
@@ -92,11 +94,12 @@ export const getStorageLayout = async (
  * Encodes a single variable as a series of key/value storage slot pairs using some storage layout
  * as instructions for how to perform this encoding. Works recursively with struct types.
  * ref: https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#layout-of-state-variables-in-storage
+ *
  * @param variable Variable to encode as key/value slot pairs.
  * @param storageObj Solidity compiler JSON output describing the layout for this
  * @param storageTypes Full list of storage types allowed for this encoding.
  * @param nestedSlotOffset For nested data structures, keeps track of a value to be added onto the
- *  keys for nested values.
+ * keys for nested values.
  * @returns Variable encoded as a series of key/value slot pairs.
  */
 const encodeVariable = (
@@ -251,6 +254,7 @@ const encodeVariable = (
 /**
  * Computes the key/value storage slot pairs that would be used if a given set of variable values
  * were applied to a given contract.
+ *
  * @param storageLayout Solidity storage layout to use as a template for determining storage slots.
  * @param variables Variable values to apply against the given storage layout.
  * @returns An array of key/value storage slot pairs that would result in the desired state.

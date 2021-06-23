@@ -34,6 +34,7 @@ export interface ChugSplashConfig {
 
 /**
  * Validates a ChugSplash config file.
+ *
  * @param config Config file to validate.
  */
 const validateChugSplashConfig = (config: ChugSplashConfig) => {
@@ -72,6 +73,7 @@ const validateChugSplashConfig = (config: ChugSplashConfig) => {
 
 /**
  * Parses a ChugSplash config file by replacing template values.
+ *
  * @param config Unparsed config file to parse.
  * @param env Environment variables to inject into the file.
  * @return Parsed config file with template variables replaced.
@@ -119,6 +121,7 @@ export const parseChugSplashConfig = (
 
 /**
  * Generates a ChugSplash action bundle from a config file.
+ *
  * @param config Config file to convert into a bundle.
  * @param env Environment variables to inject into the config file.
  * @returns Action bundle generated from the parsed config file.
