@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Patch Changes
+
+- 98e02cfa: Add 0.4.0 deployment artifacts
+
 ## 0.4.0
 
 ### Minor Changes
