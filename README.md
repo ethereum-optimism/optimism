@@ -174,6 +174,49 @@ yarn build:integration
 yarn test:integration
 ```
 
+## Branching Model and Releases
+
+<!-- TODO: explain about changesets + how we do npm publishing + docker publishing -->
+
+### Active Branches
+
+| Branch          | Status                                                                           |
+| --------------- | -------------------------------------------------------------------------------- |
+| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs from `develop` when we intend to deploy to mainnet.                                      |
+| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis/X.X.X` branches.                    |
+| regenesis/X.X.X                                                                        | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
+
+### Overview
+
+We generally follow [this Git branching model](https://nvie.com/posts/a-successful-git-branching-model/).
+Please read the linked post if you're planning to make frequent PRs into this repository (e.g., people working at/with Optimism).
+
+### The `master` branch
+
+The `master` branch contains the code for our latest "stable" releases.
+Updates from `master` always come from the `develop` branch.
+We only ever update the `master` branch when we intend to deploy code within the `develop` to the Optimistic Ethereum mainnet.
+Our update process takes the form of a PR merging the `develop` branch into the `master` branch.
+
+### The `develop` branch
+
+Our primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
+`develop` contains the most up-to-date software that remains backwards compatible with our latest experimental [network deployments](https://community.optimism.io/docs/developers/networks.html).
+If you're making a backwards compatible change, please direct your pull request towards `develop`.
+
+**Changes to contracts within `packages/contracts/contracts/optimistic-ethereum` are usually NOT considered backwards compatible and SHOULD be made against a release candidate branch**.
+Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a release candidate branch has already been fully deployed.
+If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using the latest release candidate branch.
+See below for info about release candidate branches.
+
+### Release candidate branches
+
+Branches marked `regenesis/X.X.X` are **release candidate branches**.
+Changes that are not backwards compatible and all changes to contracts within `packages/contracts/contracts/optimistic-ethereum` MUST be directed towards a release candidate branch.
+Release candidates are merged into `develop` and then into `master` once they've been fully deployed.
+We may sometimes have more than one active `regenesis/X.X.X` branch if we're in the middle of a deployment.
+See table in the **Active Branches** section above to find the right branch to target.
+
 ## Additional Reference Material
 ### Running contract static analysis
 
