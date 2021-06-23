@@ -182,8 +182,8 @@ yarn test:integration
 
 | Branch          | Status                                                                           |
 | --------------- | -------------------------------------------------------------------------------- |
-| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Does not accept PRs. Changes are force-pushed from `develop` when we intend to deploy to mainnet.            |
-| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis/X.X.X` branches                                |
+| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs from `develop` when we intend to deploy to mainnet.                                      |
+| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis/X.X.X` branches.                    |
 | regenesis/X.X.X                                                                        | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
 
 ### Overview
@@ -195,8 +195,8 @@ Please read the linked post if you're planning to make frequent PRs into this re
 
 The `master` branch contains the code for our latest "stable" releases.
 Updates from `master` always come from the `develop` branch.
-We only ever update the `master` branch after code within the `develop` branch has been successfully deployed to the Optimistic Ethereum mainnet.
-Our update process typically takes the form of a forced push of the `develop` branch into the `master` branch.
+We only ever update the `master` branch when we intend to deploy code within the `develop` to the Optimistic Ethereum mainnet.
+Our update process takes the form of a PR merging the `develop` branch into the `master` branch.
 
 ### The `develop` branch
 
