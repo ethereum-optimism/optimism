@@ -1,5 +1,27 @@
 # @eth-optimism/integration-tests
 
+## 0.1.1
+
+### Patch Changes
+
+- 40b99a6e: Add new RPC endpoint `rollup_gasPrices`
+
+## 0.1.0
+
+### Minor Changes
+
+- e04de624: Add support for ovmCALL with nonzero ETH value
+
+### Patch Changes
+
+- 25f09abd: Adds ERC1271 support to default contract account
+- 5fc728da: Add a new Standard Token Bridge, to handle deposits and withdrawals of any ERC20 token.
+  For projects developing a custom bridge, if you were previously importing `iAbs_BaseCrossDomainMessenger`, you should now
+  import `iOVM_CrossDomainMessenger`.
+- c43b33ec: Add WETH9 compatible deposit and withdraw functions to OVM_ETH
+- e045f582: Adds new SequencerFeeVault contract to store generated fees
+- b8e2d685: Add replica sync test to integration tests; handle 0 L2 blocks in DTL
+
 ## 0.0.7
 
 ### Patch Changes

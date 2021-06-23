@@ -18,9 +18,8 @@ Also available for testing is the `rpc-proxy` service in the `docker-compose-rpc
 
 The base stack can be started and stopped with a command like this (there is no need to specify the default docker-compose.yml)
 ```
-
-docker-compose up --build --detach
-
+docker-compose \
+    up --build --detach
 ```
 
 To start the stack with monitoring enabled, just add the metric composition file.
@@ -31,29 +30,19 @@ docker-compose \
     up --build --detach
 ```
 
-Optionally, run a verifier along the rest of the stack.
+Optionally, run a verifier along the rest of the stack. Run a replica with the same command by switching the service name!
+```
+docker-compose up --scale \
+    verifier=1 \
+    --build --detach
 ```
 
-docker-compose up --scale verifier=1 --build --detach
-
-```
 
 A Makefile has been provided for convience. The following targets are available.
 - make up
 - make down
 - make up-metrics
 - make down-metrics
-
-Running the integration tests
-
-```
-
-docker-compose run integration_tests
-
-```
-
-```
-
 
 ## Authentication
 

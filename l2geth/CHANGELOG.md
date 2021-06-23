@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.1
+
+### Patch Changes
+
+- 40b99a6e: Add new RPC endpoint `rollup_gasPrices`
+
+## 0.4.0
+
+### Minor Changes
+
+- e04de624: Add support for ovmCALL with nonzero ETH value
+
+### Patch Changes
+
+- 01646a0a: Add new config `ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS` to set the owner of the gas price oracle at runtime
+- 8fee7bed: Add extra overflow protection for the DTL types
+- 5fc728da: Add a new Standard Token Bridge, to handle deposits and withdrawals of any ERC20 token.
+  For projects developing a custom bridge, if you were previously importing `iAbs_BaseCrossDomainMessenger`, you should now
+  import `iOVM_CrossDomainMessenger`.
+- 257deb70: Prevent overflows in abi encoding of ovm codec transaction from geth types.Transaction
+- 08873674: Update queueOrigin type
+- 01646a0a: Removes config options that are no longer required. `ROLLUP_DATAPRICE`, `ROLLUP_EXECUTION_PRICE`, `ROLLUP_GAS_PRICE_ORACLE_ADDRESS` and `ROLLUP_ENABLE_L2_GAS_POLLING`. The oracle was moved to a predeploy 0x42.. address and polling is always enabled as it no longer needs to be backwards compatible
+- 0a7f5a46: Removes the gas refund for unused gas in geth since it is instead managed in the smart contracts
+- e045f582: Adds new SequencerFeeVault contract to store generated fees
+- 25a5dbdd: Removes the SignatureHashType from l2geth as it is deprecated and no longer required.
+
 ## 0.3.9
 
 ### Patch Changes

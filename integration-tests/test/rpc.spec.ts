@@ -4,10 +4,16 @@ import {
   TxGasPrice,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber, Contract } from 'ethers'
+import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { sleep, l2Provider, l1Provider } from './shared/utils'
+import {
+  sleep,
+  l2Provider,
+  DEFAULT_TRANSACTION,
+  fundUser,
+  expectApprox,
+} from './shared/utils'
 import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
@@ -21,14 +27,6 @@ chai.use(solidity)
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
   let wallet: Wallet
-
-  const DEFAULT_TRANSACTION = {
-    to: '0x' + '1234'.repeat(10),
-    gasLimit: 33600000000001,
-    gasPrice: 0,
-    data: '0x',
-    value: 0,
-  }
 
   const provider = injectL2Context(l2Provider)
 
@@ -154,7 +152,7 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly report OOG for contract creations', async () => {
-      const factory = await ethers.getContractFactory('TestOOG')
+      const factory = await ethers.getContractFactory('TestOOGInConstructor')
 
       await expect(factory.connect(wallet).deploy()).to.be.rejectedWith(
         'gas required exceeds allowance'
@@ -207,6 +205,32 @@ describe('Basic RPC tests', () => {
         'Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?'
       )
     })
+
+    it('should allow eth_calls with nonzero value', async () => {
+      // Deploy a contract to check msg.value of the call
+      const Factory__ValueContext: ContractFactory = await ethers.getContractFactory(
+        'ValueContext',
+        wallet
+      )
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      // Fund account to call from
+      const from = wallet.address
+      const value = 15
+      await fundUser(env.watcher, env.l1Bridge, value, from)
+
+      // Do the call and check msg.value
+      const data = ValueContext.interface.encodeFunctionData('getCallValue')
+      const res = await provider.call({
+        to: ValueContext.address,
+        from,
+        data,
+        value,
+      })
+
+      expect(res).to.eq(BigNumber.from(value))
+    })
   })
 
   describe('eth_getTransactionReceipt', () => {
@@ -236,7 +260,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
-        gasLimit: 17700899, // override gas estimation
+        gasLimit: 27700899, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -264,7 +288,6 @@ describe('Basic RPC tests', () => {
       await result.wait()
 
       const transaction = (await provider.getTransaction(result.hash)) as any
-      expect(transaction.txType).to.equal('EIP155')
       expect(transaction.queueOrigin).to.equal('sequencer')
       expect(transaction.transactionIndex).to.be.eq(0)
       expect(transaction.gasLimit).to.be.deep.eq(BigNumber.from(tx.gasLimit))
@@ -285,7 +308,6 @@ describe('Basic RPC tests', () => {
       expect(block.number).to.not.equal(0)
       expect(typeof block.stateRoot).to.equal('string')
       expect(block.transactions.length).to.equal(1)
-      expect(block.transactions[0].txType).to.equal('EIP155')
       expect(block.transactions[0].queueOrigin).to.equal('sequencer')
       expect(block.transactions[0].l1TxOrigin).to.equal(null)
     })
@@ -321,7 +343,7 @@ describe('Basic RPC tests', () => {
   describe('eth_chainId', () => {
     it('should get the correct chainid', async () => {
       const { chainId } = await provider.getNetwork()
-      expect(chainId).to.be.eq(28)
+      expect(chainId).to.be.eq(420)
     })
   })
 
@@ -355,7 +377,8 @@ describe('Basic RPC tests', () => {
         to: DEFAULT_TRANSACTION.to,
         value: 0,
       })
-      expect(estimate).to.be.eq(5920012)
+      // Expect gas to be less than or equal to the target plus 1%
+      expectApprox(estimate, 5920012, 1)
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
@@ -401,6 +424,17 @@ describe('Basic RPC tests', () => {
     it('should fail for a reverting deploy transaction', async () => {
       await expect(provider.send('eth_estimateGas', [revertingDeployTx])).to.be
         .reverted
+    })
+  })
+
+  describe('rollup_gasPrices', () => {
+    it('should return the L1 and L2 gas prices', async () => {
+      const result = await provider.send('rollup_gasPrices', []);
+      const l1GasPrice = await env.l1Wallet.provider.getGasPrice()
+      const l2GasPrice = await env.gasPriceOracle.gasPrice()
+
+      expect(BigNumber.from(result.l1GasPrice)).to.deep.eq(l1GasPrice)
+      expect((BigNumber.from(result.l2GasPrice))).to.deep.eq(l2GasPrice)
     })
   })
 })

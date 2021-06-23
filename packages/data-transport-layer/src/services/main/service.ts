@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService, Logger } from '@eth-optimism/common-ts'
+import { BaseService, Logger, Metrics } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
 import level from 'level'
 
@@ -31,7 +31,6 @@ export interface L1DataTransportServiceOptions {
   useSentry?: boolean
   sentryDsn?: string
   sentryTraceRate?: number
-  enableMetrics?: boolean
   defaultBackend: string
 }
 
@@ -65,8 +64,18 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
 
+    const metrics = new Metrics({
+      labels: {
+        environment: this.options.nodeEnv,
+        network: this.options.ethNetworkName,
+        release: this.options.release,
+        service: this.name,
+      }
+    })
+
     this.state.l1TransportServer = new L1TransportServer({
       ...this.options,
+      metrics,
       db: this.state.db,
     })
 
@@ -74,6 +83,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     if (this.options.syncFromL1) {
       this.state.l1IngestionService = new L1IngestionService({
         ...this.options,
+        metrics,
         db: this.state.db,
       })
     }
@@ -82,6 +92,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     if (this.options.syncFromL2) {
       this.state.l2IngestionService = new L2IngestionService({
         ...(this.options as any), // TODO: Correct thing to do here is to assert this type.
+        metrics,
         db: this.state.db,
       })
     }
