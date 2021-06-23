@@ -21,8 +21,8 @@ import networkService from 'services/networkService';
 
 import { selectModalState } from 'selectors/uiSelector';
 
-import { 
-  selectWalletMethod, 
+import {
+  selectWalletMethod,
   selectNetwork,
 } from 'selectors/setupSelector';
 
@@ -34,9 +34,9 @@ import logo from 'images/omgx.png';
 import chevron from 'images/chevron.svg';
 
 import * as styles from './WalletPicker.module.scss';
+import { isChangingChain } from 'util/changeChain';
 
-function WalletPicker ({ onEnable }) {
-
+function WalletPicker ({ onEnable, enabled }) {
   const dispatch = useDispatch();
   const dropdownNode = useRef(null);
 
@@ -47,11 +47,12 @@ function WalletPicker ({ onEnable }) {
 
   const walletMethod = useSelector(selectWalletMethod())
   const networkName = useSelector(selectNetwork())
-  
+
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
   const dispatchSetWalletMethod = useCallback((methodName) => {
     //console.log("dispatchSetWalletMethod:",methodName)
+
     dispatch(setWalletMethod(methodName));
   }, [ dispatch ])
 
@@ -96,7 +97,7 @@ function WalletPicker ({ onEnable }) {
         setAccountsEnabled(false);
         return setWrongNetwork(true);
       }
-      
+
       if (initialized === 'enabled') {
         return setAccountsEnabled(true);
       }
@@ -116,6 +117,7 @@ function WalletPicker ({ onEnable }) {
   useEffect(() => {
     if (walletEnabled && wrongNetwork) {
       dispatch(openModal('wrongNetworkModal'));
+      localStorage.setItem('changeChain', false);
     }
   }, [ dispatch, walletEnabled, wrongNetwork ]);
 
@@ -132,6 +134,10 @@ function WalletPicker ({ onEnable }) {
 
   let allNetworks = [];
   for (var prop in networks) allNetworks.push(prop)
+
+  if (!wrongNetwork && !enabled && isChangingChain) {
+    return <div className={styles.loading}>Switching Chain...</div>
+  }
 
   return (
     <>
@@ -166,8 +172,8 @@ function WalletPicker ({ onEnable }) {
               )}
             </div>
 
-            <div 
-              ref={dropdownNode} 
+            <div
+              ref={dropdownNode}
               className={styles.dropdown}
             >
               {!!allNetworks.length && showAllNetworks && allNetworks.map((network, index) => (
@@ -180,7 +186,7 @@ function WalletPicker ({ onEnable }) {
                 </div>))
               }
             </div>
-           
+
           </div>
         </div>
       </div>
@@ -192,7 +198,7 @@ function WalletPicker ({ onEnable }) {
           Traditional Deposits and 7 Day Exits<br/>
         </div>
         <div className={styles.MainRightContainer}>
-        <div 
+        <div
           className={styles.MainRight}
           onClick={()=>dispatchSetWalletMethod('browser')}
         >
@@ -200,12 +206,12 @@ function WalletPicker ({ onEnable }) {
             className={[styles.MainButton, !browserEnabled ? styles.disabled : ''].join(' ')}
           >
             <span>Connect to MetaMask</span>
-            {!browserEnabled && 
+            {!browserEnabled &&
               <div className={styles.disabledMM}>Your browser does not have a web3 provider.</div>
             }
           </div>
         </div>
-        <div 
+        <div
           className={styles.MainRightSecond}
           onClick={()=>networkService.addL2Network()}
         >
@@ -223,14 +229,14 @@ function WalletPicker ({ onEnable }) {
         <div className={styles.directive}>
 
           <div className={styles.Title}>
-            <span className={styles.B}>Demo of Traditional Deposit and Exit.</span>{' '}Note - for testing, we have turned off the 7 day exit delay.<br/><br/> 
-            <span className={styles.B}>NEW.</span>{' '}Fast (90 second) Swap-On and Swap-Off, from L1 to L2, and back from L2 to L1. Despositing ETH on L1 
+            <span className={styles.B}>Demo of Traditional Deposit and Exit.</span>{' '}Note - for testing, we have turned off the 7 day exit delay.<br/><br/>
+            <span className={styles.B}>NEW.</span>{' '}Fast (90 second) Swap-On and Swap-Off, from L1 to L2, and back from L2 to L1. Despositing ETH on L1
             transfers oETH to you on the L2, and vice versa. No more waiting to exit.<br/><br/>
-            <span className={styles.B}>Staking and Community-provided Liquidity.</span>{' '}This fast on/off capability is 
-            based on paired Liquidity Pools on L1 and L2 provided by the operator and the broader community, 
-            who can earn rewards for providing liquidity.<br/><br/>  
+            <span className={styles.B}>Staking and Community-provided Liquidity.</span>{' '}This fast on/off capability is
+            based on paired Liquidity Pools on L1 and L2 provided by the operator and the broader community,
+            who can earn rewards for providing liquidity.<br/><br/>
             <span className={styles.B}>Easy to customize.</span>{' '}We have tried to keep the code simple to make it easy to customize and modify.<br/><br/>
-            <span className={styles.B}>Requirements.</span>{' '}You will need Metamask and, 
+            <span className={styles.B}>Requirements.</span>{' '}You will need Metamask and,
             if you want to test on the Rinkeby testnet, some Rinkeby ETH.<br/><br/>
             <span className={styles.B}>MetaMask L2 Setup.</span>{' '}Click 'Add OMGX L2 Provider', or, if want to add it manually, go to <span className={styles.B}>MetaMask&#62;Settings&#62;Networks&#62;Add Network</span>.{' '}Specify `https://rinkeby.omgx.network` as the New RPC URL.<br/><br/>
             <br/>

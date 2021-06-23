@@ -6,6 +6,7 @@ import Button from 'components/button/Button';
 import { openError, openAlert } from 'actions/uiAction';
 import networkService from 'services/networkService';
 import { Grid } from '@material-ui/core/'
+import { isEqual } from 'lodash';
 
 import * as styles from './Nft.module.scss';
 
@@ -36,7 +37,10 @@ class Nft extends React.Component {
   }
 
   componentDidUpdate(prevState) {
-    //ToDo
+    const { nftList } = this.props;
+    if (!isEqual(prevState.nftList, nftList)) {
+      this.setState({ NFTs: nftList });
+    }
   }
 
   async handleMintAndSend() {

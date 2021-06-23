@@ -33,6 +33,8 @@ import Alert from 'components/alert/Alert';
 import oracleService from 'services/oracleService';
 
 import * as styles from './App.module.scss';
+import { setWalletMethod } from 'actions/setupAction';
+import { isChangingChain } from 'util/changeChain';
 
 function App () {
 
@@ -45,10 +47,16 @@ function App () {
 
   const handleErrorClose=()=>dispatch(closeError());
   const handleAlertClose=()=>dispatch(closeAlert());
-  
+
   useEffect(() => {
     dispatch(oracleService.initialize());
-  }, [dispatch])
+    if (isChangingChain) {
+      dispatch(setWalletMethod('browser'));
+    }
+    if (enabled) {
+      localStorage.setItem('changeChain', false)
+    }
+  }, [dispatch, enabled])
 
   return (
     <Router>
@@ -77,7 +85,7 @@ function App () {
         <Notification/>
 
         <Switch>
-          <Route exact path="/" component={enabled ? Home : ()=> <WalletPicker onEnable={setEnabled} />}>
+          <Route exact path="/" component={enabled ? Home : ()=> <WalletPicker enabled={enabled} onEnable={setEnabled} />}>
           </Route>
         </Switch>
 

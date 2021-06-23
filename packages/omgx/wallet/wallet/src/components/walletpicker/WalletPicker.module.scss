@@ -25,7 +25,7 @@
   width: 490px;
   font-size: 1.3em;
   color: $gray3;
-  margin-top: 5px; 
+  margin-top: 5px;
   margin-bottom: 5px;
   padding: 3px;
   @include mobile {
@@ -168,7 +168,7 @@
     font-size: 1.0em;
     font-style: italic;
     color: $gray4;
-    margin-top: 5px; 
+    margin-top: 5px;
     padding: 8px;
   }
 
@@ -182,7 +182,7 @@
   font-size: 0.8em;
   font-style: italic;
   color: $gray4;
-  margin-top: 5px; 
+  margin-top: 5px;
   margin-bottom: 5px;
   padding: 3px;
 }
@@ -191,7 +191,7 @@
   font-family: 'Messina';
   font-size: 0.9em;
   color: $gray4;
-  margin-top: 5px; 
+  margin-top: 5px;
   margin-bottom: 5px;
   padding: 3px;
 }
@@ -308,4 +308,13 @@
   &:hover {
     text-decoration: underline;
   }
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 20px;
+  color: $gray4;
 }
