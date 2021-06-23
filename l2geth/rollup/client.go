@@ -24,6 +24,10 @@ const (
 // found. It applies to transactions, queue elements and batches
 var errElementNotFound = errors.New("element not found")
 
+// errHttpError represents the error case of when the remote server
+// returns a 400 or greater error
+var errHTTPError = errors.New("http error")
+
 // Batch represents the data structure that is submitted with
 // a series of transactions to layer one
 type Batch struct {
@@ -154,6 +158,15 @@ func NewClient(url string, chainID *big.Int) *Client {
 	client := resty.New()
 	client.SetHostURL(url)
 	client.SetHeader("User-Agent", "sequencer")
+	client.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
+		statusCode := r.StatusCode()
+		if statusCode >= 400 {
+			method := r.Request.Method
+			url := r.Request.URL
+			return fmt.Errorf("%d cannot %s %s: %w", statusCode, method, url, errHTTPError)
+		}
+		return nil
+	})
 	signer := types.NewEIP155Signer(chainID)
 
 	return &Client{
