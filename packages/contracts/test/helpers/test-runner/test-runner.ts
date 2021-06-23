@@ -12,12 +12,12 @@ import {
   ParsedTestStep,
   TestParameter,
   TestStep,
-  TestStep_CALL,
+  TestStep_CALLType,
   TestStep_Run,
   isRevertFlagError,
   isTestStep_SSTORE,
   isTestStep_SLOAD,
-  isTestStep_CALL,
+  isTestStep_CALLType,
   isTestStep_CREATE,
   isTestStep_CREATE2,
   isTestStep_CREATEEOA,
@@ -27,7 +27,9 @@ import {
   isTestStep_EXTCODESIZE,
   isTestStep_EXTCODEHASH,
   isTestStep_EXTCODECOPY,
+  isTestStep_BALANCE,
   isTestStep_REVERT,
+  isTestStep_CALL,
 } from './test.types'
 import { encodeRevertData, REVERT_FLAGS } from '../codec'
 import {
@@ -49,6 +51,7 @@ export class ExecutionManagerTestRunner {
     Factory__Helper_TestRunner_CREATE: ContractFactory
     OVM_DeployerWhitelist: Contract
     OVM_ProxyEOA: Contract
+    OVM_ETH: Contract
   } = {
     OVM_SafetyChecker: undefined,
     OVM_StateManager: undefined,
@@ -57,6 +60,7 @@ export class ExecutionManagerTestRunner {
     Factory__Helper_TestRunner_CREATE: undefined,
     OVM_DeployerWhitelist: undefined,
     OVM_ProxyEOA: undefined,
+    OVM_ETH: undefined,
   }
 
   // Default pre-state with contract deployer whitelist NOT initialized.
@@ -67,6 +71,10 @@ export class ExecutionManagerTestRunner {
         [predeploys.OVM_DeployerWhitelist]: {
           codeHash: NON_NULL_BYTES32,
           ethAddress: '$OVM_DEPLOYER_WHITELIST',
+        },
+        [predeploys.OVM_ETH]: {
+          codeHash: NON_NULL_BYTES32,
+          ethAddress: '$OVM_ETH',
         },
         [predeploys.OVM_ProxyEOA]: {
           codeHash: NON_NULL_BYTES32,
@@ -229,6 +237,14 @@ export class ExecutionManagerTestRunner {
 
     this.contracts.OVM_DeployerWhitelist = DeployerWhitelist
 
+    const OvmEth = await getContractFactory(
+      'OVM_ETH',
+      AddressManager.signer,
+      true
+    ).deploy()
+
+    this.contracts.OVM_ETH = OvmEth
+
     this.contracts.OVM_ProxyEOA = await getContractFactory(
       'OVM_ProxyEOA',
       AddressManager.signer,
@@ -283,6 +299,8 @@ export class ExecutionManagerTestRunner {
         return this.contracts.Helper_TestRunner.address
       } else if (kv === '$OVM_DEPLOYER_WHITELIST') {
         return this.contracts.OVM_DeployerWhitelist.address
+      } else if (kv === '$OVM_ETH') {
+        return this.contracts.OVM_ETH.address
       } else if (kv === '$OVM_PROXY_EOA') {
         return this.contracts.OVM_ProxyEOA.address
       } else if (kv.startsWith('$DUMMY_OVM_ADDRESS_')) {
@@ -329,7 +347,7 @@ export class ExecutionManagerTestRunner {
       if (step.functionParams.data) {
         calldata = step.functionParams.data
       } else {
-        const runStep: TestStep_CALL = {
+        const runStep: TestStep_CALLType = {
           functionName: 'ovmCALL',
           functionParams: {
             gasLimit: OVM_TX_GAS_LIMIT,
@@ -363,9 +381,12 @@ export class ExecutionManagerTestRunner {
         await toRun
       }
     } else {
-      await this.contracts.OVM_ExecutionManager.ovmCALL(
+      await this.contracts.OVM_ExecutionManager[
+        'ovmCALL(uint256,address,uint256,bytes)'
+      ](
         OVM_TX_GAS_LIMIT,
         ExecutionManagerTestRunner.getDummyAddress('$DUMMY_OVM_ADDRESS_1'),
+        0,
         this.contracts.Helper_TestRunner.interface.encodeFunctionData(
           'runSingleTestStep',
           [this.parseTestStep(step)]
@@ -399,7 +420,7 @@ export class ExecutionManagerTestRunner {
       return false
     } else if (isTestStep_Context(step)) {
       return true
-    } else if (isTestStep_CALL(step)) {
+    } else if (isTestStep_CALLType(step)) {
       if (
         isRevertFlagError(step.expectedReturnValue) &&
         (step.expectedReturnValue.flag === REVERT_FLAGS.INVALID_STATE_ACCESS ||
@@ -436,23 +457,36 @@ export class ExecutionManagerTestRunner {
       isTestStep_EXTCODESIZE(step) ||
       isTestStep_EXTCODEHASH(step) ||
       isTestStep_EXTCODECOPY(step) ||
+      isTestStep_BALANCE(step) ||
       isTestStep_CREATEEOA(step)
     ) {
       functionParams = Object.values(step.functionParams)
-    } else if (isTestStep_CALL(step)) {
-      functionParams = [
-        step.functionParams.gasLimit,
-        step.functionParams.target,
+    } else if (isTestStep_CALLType(step)) {
+      const innnerCalldata =
         step.functionParams.calldata ||
-          this.contracts.Helper_TestRunner.interface.encodeFunctionData(
-            'runMultipleTestSteps',
-            [
-              step.functionParams.subSteps.map((subStep) => {
-                return this.parseTestStep(subStep)
-              }),
-            ]
-          ),
-      ]
+        this.contracts.Helper_TestRunner.interface.encodeFunctionData(
+          'runMultipleTestSteps',
+          [
+            step.functionParams.subSteps.map((subStep) => {
+              return this.parseTestStep(subStep)
+            }),
+          ]
+        )
+      // only ovmCALL accepts a value parameter.
+      if (isTestStep_CALL(step)) {
+        functionParams = [
+          step.functionParams.gasLimit,
+          step.functionParams.target,
+          step.functionParams.value || 0,
+          innnerCalldata,
+        ]
+      } else {
+        functionParams = [
+          step.functionParams.gasLimit,
+          step.functionParams.target,
+          innnerCalldata,
+        ]
+      }
     } else if (isTestStep_CREATE(step)) {
       functionParams = [
         this.contracts.Factory__Helper_TestRunner_CREATE.getDeployTransaction(
@@ -476,8 +510,16 @@ export class ExecutionManagerTestRunner {
       functionParams = [step.revertData || '0x']
     }
 
+    // legacy ovmCALL causes multiple matching functions without the full signature
+    let functionName
+    if (step.functionName === 'ovmCALL') {
+      functionName = 'ovmCALL(uint256,address,uint256,bytes)'
+    } else {
+      functionName = step.functionName
+    }
+
     return this.contracts.OVM_ExecutionManager.interface.encodeFunctionData(
-      step.functionName,
+      functionName,
       functionParams
     )
   }
@@ -501,7 +543,7 @@ export class ExecutionManagerTestRunner {
     }
 
     let returnData: any[] = []
-    if (isTestStep_CALL(step)) {
+    if (isTestStep_CALLType(step)) {
       if (step.expectedReturnValue === '0x00') {
         return step.expectedReturnValue
       } else if (
@@ -541,8 +583,16 @@ export class ExecutionManagerTestRunner {
       }
     }
 
+    // legacy ovmCALL causes multiple matching functions without the full signature
+    let functionName
+    if (step.functionName === 'ovmCALL') {
+      functionName = 'ovmCALL(uint256,address,uint256,bytes)'
+    } else {
+      functionName = step.functionName
+    }
+
     return this.contracts.OVM_ExecutionManager.interface.encodeFunctionResult(
-      step.functionName,
+      functionName,
       returnData
     )
   }

@@ -26,7 +26,7 @@ func toExecutionManagerRun(evm *vm.EVM, msg Message) (Message, error) {
 	tx := ovmTransaction{
 		evm.Context.Time,
 		msg.L1BlockNumber(),
-		uint8(msg.QueueOrigin().Uint64()),
+		uint8(msg.QueueOrigin()),
 		*msg.L1MessageSender(),
 		*msg.To(),
 		big.NewInt(int64(msg.Gas())),
@@ -73,8 +73,7 @@ func AsOvmMessage(tx *types.Transaction, signer types.Signer, decompressor commo
 	// sequencer entrypoint. The calldata is expected to be in the
 	// correct format when deserialized from the EVM events, see
 	// rollup/sync_service.go.
-	qo := msg.QueueOrigin()
-	if qo != nil && qo.Uint64() == uint64(types.QueueOriginL1ToL2) {
+	if msg.QueueOrigin() == types.QueueOriginL1ToL2 {
 		return msg, nil
 	}
 
@@ -101,13 +100,18 @@ func EncodeSimulatedMessage(msg Message, timestamp, blockNumber *big.Int, execut
 		to = &common.Address{0}
 	}
 
+	value := msg.Value()
+	if value == nil {
+		value = common.Big0
+	}
+
 	tx := ovmTransaction{
 		timestamp,
 		blockNumber,
-		uint8(msg.QueueOrigin().Uint64()),
+		uint8(msg.QueueOrigin()),
 		*msg.L1MessageSender(),
 		*to,
-		big.NewInt(int64(msg.Gas())),
+		new(big.Int).SetUint64(msg.Gas()),
 		msg.Data(),
 	}
 
@@ -115,6 +119,7 @@ func EncodeSimulatedMessage(msg Message, timestamp, blockNumber *big.Int, execut
 	var args = []interface{}{
 		tx,
 		from,
+		value,
 		stateManager.Address,
 	}
 
@@ -139,11 +144,6 @@ func modMessage(
 	data []byte,
 	gasLimit uint64,
 ) (Message, error) {
-	queueOrigin, err := getQueueOrigin(msg.QueueOrigin())
-	if err != nil {
-		return nil, err
-	}
-
 	outmsg := types.NewMessage(
 		from,
 		to,
@@ -155,23 +155,8 @@ func modMessage(
 		false,
 		msg.L1MessageSender(),
 		msg.L1BlockNumber(),
-		queueOrigin,
-		msg.SignatureHashType(),
+		msg.QueueOrigin(),
 	)
 
 	return outmsg, nil
-}
-
-func getQueueOrigin(
-	queueOrigin *big.Int,
-) (types.QueueOrigin, error) {
-	if queueOrigin.Cmp(big.NewInt(0)) == 0 {
-		return types.QueueOriginSequencer, nil
-	} else if queueOrigin.Cmp(big.NewInt(1)) == 0 {
-		return types.QueueOriginL1ToL2, nil
-	} else if queueOrigin.Cmp(big.NewInt(2)) == 0 {
-		return types.QueueOriginL1ToL2, nil
-	} else {
-		return types.QueueOriginSequencer, fmt.Errorf("invalid queue origin: %d", queueOrigin)
-	}
 }

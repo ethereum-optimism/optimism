@@ -1,10 +1,11 @@
 /* External Imports */
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Overrides } from '@ethersproject/contracts'
 
 /* Internal Imports */
 import { getContractFactory } from '../contract-defs'
+import { predeploys } from '../predeploys'
 
 export interface RollupDeployConfig {
   deploymentSigner: Signer
@@ -33,6 +34,10 @@ export interface RollupDeployConfig {
   whitelistConfig: {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
+  }
+  gasPriceOracleConfig: {
+    owner: string | Signer
+    initialGasPrice: number
   }
   addressManager?: string
   dependencies?: string[]
@@ -107,25 +112,20 @@ export const makeContractDeployConfig = async (
         )
       },
     },
-    OVM_L1ETHGateway: {
-      factory: getContractFactory('OVM_L1ETHGateway'),
+    OVM_L1StandardBridge: {
+      factory: getContractFactory('OVM_L1StandardBridge'),
       params: [],
     },
-    Proxy__OVM_L1ETHGateway: {
+    Proxy__OVM_L1StandardBridge: {
       factory: getContractFactory('Lib_ResolvedDelegateProxy'),
-      params: [AddressManager.address, 'OVM_L1ETHGateway'],
-      afterDeploy: async (contracts): Promise<void> => {
-        const l1EthGateway = getContractFactory('OVM_L1ETHGateway')
-          .connect(config.deploymentSigner)
-          .attach(contracts.Proxy__OVM_L1ETHGateway.address)
-        await _sendTx(
-          l1EthGateway.initialize(
-            AddressManager.address,
-            '0x4200000000000000000000000000000000000006',
-            config.deployOverrides
-          )
-        )
-      },
+      params: [AddressManager.address, 'OVM_L1StandardBridge'],
+    },
+    OVM_L2StandardBridge: {
+      factory: getContractFactory('OVM_L2StandardBridge'),
+      params: [
+        predeploys.OVM_L2CrossDomainMessenger,
+        constants.AddressZero, // we'll set this to the L1 Bridge address in genesis.go
+      ],
     },
     OVM_L1MultiMessageRelayer: {
       factory: getContractFactory('OVM_L1MultiMessageRelayer'),
@@ -148,7 +148,7 @@ export const makeContractDeployConfig = async (
         await _sendTx(
           AddressManager.setAddress(
             'OVM_DecompressionPrecompileAddress',
-            '0x4200000000000000000000000000000000000005'
+            predeploys.OVM_SequencerEntrypoint
           )
         )
         await _sendTx(
@@ -228,20 +228,17 @@ export const makeContractDeployConfig = async (
     },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
-      params: [
-        '0x4200000000000000000000000000000000000007',
-        '0x0000000000000000000000000000000000000000', // will be overridden by geth when state dump is ingested.  Storage key: 0x0000000000000000000000000000000000000000000000000000000000000008
-      ],
+      params: [],
     },
-    'OVM_ChainStorageContainer:CTC:batches': {
+    'OVM_ChainStorageContainer-CTC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
     },
-    'OVM_ChainStorageContainer:CTC:queue': {
+    'OVM_ChainStorageContainer-CTC-queue': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
     },
-    'OVM_ChainStorageContainer:SCC:batches': {
+    'OVM_ChainStorageContainer-SCC-batches': {
       factory: getContractFactory('OVM_ChainStorageContainer'),
       params: [AddressManager.address, 'OVM_StateCommitmentChain'],
     },
@@ -250,6 +247,29 @@ export const makeContractDeployConfig = async (
     },
     OVM_ProxyEOA: {
       factory: getContractFactory('OVM_ProxyEOA', undefined, true),
+    },
+    OVM_ExecutionManagerWrapper: {
+      factory: getContractFactory(
+        'OVM_ExecutionManagerWrapper',
+        undefined,
+        true
+      ),
+    },
+    OVM_GasPriceOracle: {
+      factory: getContractFactory('OVM_GasPriceOracle'),
+      params: [
+        (() => {
+          if (typeof config.gasPriceOracleConfig.owner !== 'string') {
+            return config.gasPriceOracleConfig.owner.getAddress()
+          }
+          return config.gasPriceOracleConfig.owner
+        })(),
+        config.gasPriceOracleConfig.initialGasPrice,
+      ],
+    },
+    OVM_SequencerFeeVault: {
+      factory: getContractFactory('OVM_SequencerFeeVault'),
+      params: [`0x${'11'.repeat(20)}`],
     },
   }
 }

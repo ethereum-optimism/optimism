@@ -27,9 +27,9 @@ import {
   getBlockTime,
   mineBlock,
 } from '../../../helpers'
+import { predeploys } from '../../../../src'
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
-const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
 
 const getQueueLeafHash = (index: number): string => {
@@ -105,7 +105,7 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
     await AddressManager.setAddress(
       'OVM_DecompressionPrecompileAddress',
-      DECOMPRESSION_ADDRESS
+      predeploys.OVM_SequencerEntrypoint
     )
 
     Mock__OVM_ExecutionManager = await smockit(
@@ -165,12 +165,12 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:CTC:batches',
+      'OVM_ChainStorageContainer-CTC-batches',
       batches.address
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:CTC:queue',
+      'OVM_ChainStorageContainer-CTC-queue',
       queue.address
     )
 
@@ -608,7 +608,7 @@ describe('OVM_CanonicalTransactionChain', () => {
     })
 
     it('should successfully verify against a valid sequencer transaction', async () => {
-      const entrypoint = DECOMPRESSION_ADDRESS
+      const entrypoint = predeploys.OVM_SequencerEntrypoint
       const gasLimit = MAX_GAS_LIMIT
       const data = '0x' + '12'.repeat(1234)
       const timestamp = (await getEthTime(ethers.provider)) - 10

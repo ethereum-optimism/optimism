@@ -22,7 +22,6 @@ contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
 
     mapping (bytes32 => bool) public sentMessages;
 
-
     /********************
      * Public Functions *
      ********************/

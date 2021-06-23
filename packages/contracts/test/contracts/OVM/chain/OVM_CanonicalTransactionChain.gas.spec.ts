@@ -20,10 +20,11 @@ import {
   getNextBlockNumber,
 } from '../../../helpers'
 
+import { predeploys } from '../../../../src'
+
 // Still have some duplication from OVM_CanonicalTransactionChain.spec.ts, but it's so minimal that
 // this is probably cleaner for now. Particularly since we're planning to move all of this out into
 // core-utils soon anyway.
-const DECOMPRESSION_ADDRESS = '0x4200000000000000000000000000000000000008'
 const MAX_GAS_LIMIT = 8_000_000
 
 const appendSequencerBatch = async (
@@ -55,7 +56,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
     )
     await AddressManager.setAddress(
       'OVM_DecompressionPrecompileAddress',
-      DECOMPRESSION_ADDRESS
+      predeploys.OVM_SequencerEntrypoint
     )
 
     Mock__OVM_ExecutionManager = await smockit(
@@ -115,12 +116,12 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:CTC:batches',
+      'OVM_ChainStorageContainer-CTC-batches',
       batches.address
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer:CTC:queue',
+      'OVM_ChainStorageContainer-CTC-queue',
       queue.address
     )
 
