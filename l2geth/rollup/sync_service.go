@@ -128,22 +128,29 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	// requirement of the remote server being up.
 	if service.enable {
 		// Ensure that the rollup client can connect to a remote server
-		// before starting.
-		err := service.ensureClient()
-		if err != nil {
-			return nil, fmt.Errorf("Rollup client unable to connect: %w", err)
+		// before starting. Retry until it can connect.
+		t1 := time.NewTicker(10 * time.Second)
+		for ; true; <-t1.C {
+			err := service.ensureClient()
+			if err != nil {
+				log.Info("Cannot connect to upstream service", "msg", err)
+			} else {
+				log.Info("Connected to upstream service")
+				t1.Stop()
+				break
+			}
 		}
 
 		// Wait until the remote service is done syncing
-		t := time.NewTicker(10 * time.Second)
-		for ; true; <-t.C {
+		t2 := time.NewTicker(10 * time.Second)
+		for ; true; <-t2.C {
 			status, err := service.client.SyncStatus(service.backend)
 			if err != nil {
 				log.Error("Cannot get sync status")
 				continue
 			}
 			if !status.Syncing {
-				t.Stop()
+				t2.Stop()
 				break
 			}
 			log.Info("Still syncing", "index", status.CurrentTransactionIndex, "tip", status.HighestKnownTransactionIndex)
@@ -153,7 +160,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		// it happens before the RPC endpoints open up
 		// Only do it if the sync service is enabled so that this
 		// can be ran without needing to have a configured RollupClient.
-		err = service.initializeLatestL1(cfg.CanonicalTransactionChainDeployHeight)
+		err := service.initializeLatestL1(cfg.CanonicalTransactionChainDeployHeight)
 		if err != nil {
 			return nil, fmt.Errorf("Cannot initialize latest L1 data: %w", err)
 		}
