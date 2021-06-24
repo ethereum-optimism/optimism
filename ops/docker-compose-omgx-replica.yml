@@ -38,7 +38,7 @@ services:
         DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://host.docker.internal:9545
         # PRODUCTION: https://rinkeby.omgx.network
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://host.docker.internal:8545
-        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
+        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28 #Note - this parameter may not be connected to anything anymore
         DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
         # Port
         DATA_TRANSPORT_LAYER__SERVER_PORT: 7879

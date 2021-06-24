@@ -1,4 +1,4 @@
-name: sync-tests
+name: omgx_sync-tests
 
 on:
   push:
