@@ -252,6 +252,11 @@ contract OVM_L1CrossDomainMessenger is
             "Provided message has been blocked."
         );
 
+        require(
+            _target != resolve("OVM_CanonicalTransactionChain"),
+            "Cannot send L2->L1 messages to L1 system contracts."
+        );
+
         xDomainMsgSender = _sender;
         (bool success, ) = _target.call(_message);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
