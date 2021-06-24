@@ -105,8 +105,7 @@ export class Watcher {
       }
 
       // pause awhile before trying again
-      const callback = (r) => setTimeout(r, this.pollInterval)
-      await new Promise(callback.bind(Watcher))
+      await new Promise(r => setTimeout(r, this.pollInterval))
     }
 
     // Message was relayed in the past
