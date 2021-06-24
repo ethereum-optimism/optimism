@@ -26,6 +26,7 @@ const deployFn: DeployFunction = async (hre) => {
       (hre as any).deployConfig.deployer_l2
     )
     // Deploy L2 liquidity pool
+    console.log("Deploying...")
     L2LiquidityPool = await Factory__L2LiquidityPool.deploy(
       (hre as any).deployConfig.l2MessengerAddress,
       {gasLimit: 800000, gasPrice: 0}

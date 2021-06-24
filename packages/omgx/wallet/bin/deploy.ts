@@ -32,9 +32,19 @@ const main = async () => {
     'OVM_L2CrossDomainMessenger'
   )
 
+  const L1StandardBridgeAddress = await addressManager.getAddress(
+    'Proxy__OVM_L1StandardBridge'
+  )
+  const L1StandardBridge = getContractFactory('OVM_L1StandardBridge')
+    .connect(deployer_1)
+    .attach(L1StandardBridgeAddress)
+  const L2StandardBridgeAddress = await L1StandardBridge.l2TokenBridge()
+
   await hre.run('deploy', {
     l1MessengerAddress: l1MessengerAddress,
     l2MessengerAddress: l2MessengerAddress,
+    L1StandardBridgeAddress: L1StandardBridgeAddress,
+    L2StandardBridgeAddress: L2StandardBridgeAddress,
     l1provider: l1Provider,
     l2provider: l2Provider,
     deployer_l1: deployer_1,
