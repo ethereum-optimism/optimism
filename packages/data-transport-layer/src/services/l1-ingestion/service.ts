@@ -228,6 +228,10 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         }
       } catch (err) {
         if (err instanceof MissingElementError) {
+          this.logger.warn('recovering from a missing event', {
+            message: err.toString(),
+          })
+
           // Different functions for getting the last good element depending on the event type.
           const handlers = {
             SequencerBatchAppended: this.state.db.getLatestTransactionBatch.bind(this),
@@ -266,7 +270,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           )
 
           // Something we should be keeping track of.
-          this.logger.warn('recovering from a missing event', {
+          this.logger.warn('recovered from a missing event', {
             eventName,
             lastGoodBlockNumber: lastGoodElement.blockNumber,
           })
