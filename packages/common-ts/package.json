@@ -14,9 +14,9 @@
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
     "test": "ts-mocha test/*.spec.ts",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "lint:check": "eslint -c .eslintrc.js --ext .ts  ."
   },
   "devDependencies": {
     "@types/chai": "^4.2.18",
