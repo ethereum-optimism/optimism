@@ -343,6 +343,8 @@ describe('Basic RPC tests', () => {
   describe('eth_chainId', () => {
     it('should get the correct chainid', async () => {
       const { chainId } = await provider.getNetwork()
+      console.log("Got chainID from provider:", chainId)
+      console.log("This should be 28")
       expect(chainId).to.be.eq(28)
     })
   })

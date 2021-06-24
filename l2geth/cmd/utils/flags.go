@@ -175,7 +175,7 @@ var (
 	ChainIdFlag = cli.Uint64Flag{
 		Name:   "chainid",
 		Usage:  "Chain ID identifier",
-		Value:  420,
+		Value:  28,
 		EnvVar: "CHAIN_ID",
 	}
 	TestnetFlag = cli.BoolFlag{
