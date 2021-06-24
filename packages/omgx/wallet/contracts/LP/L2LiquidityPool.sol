@@ -328,8 +328,8 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         // Send calldata into L1
         sendCrossDomainMessage(
             address(L1LiquidityPoolAddress),
-            data,
-            getFinalizeDepositL1Gas()
+            getFinalizeDepositL1Gas(),
+            data
         );
 
         emit ClientDepositL2(

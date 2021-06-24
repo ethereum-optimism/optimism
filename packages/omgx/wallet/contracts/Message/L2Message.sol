@@ -43,10 +43,16 @@ contract L2Message is OVM_CrossDomainEnabled {
         // Send calldata into L1
         sendCrossDomainMessage(
             address(L1MessageAddress),
-            data,
-            100000
+            100000,
+            data
         );
     }
+
+    /*
+            address _crossDomainTarget,
+        uint32 _gasLimit,
+        bytes memory _message
+        */
 
     /*************************
      * Cross-chain Functions *

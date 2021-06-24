@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { OVM_L2DepositedERC20 } from '@eth-optimism/contracts/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L2DepositedERC20.sol';
+// import { OVM_L2DepositedERC20 } from '@eth-optimism/contracts/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L2DepositedERC20.sol';
 
 /**
  * @title L2DepositedERC20
@@ -14,14 +14,14 @@ import { OVM_L2DepositedERC20 } from '@eth-optimism/contracts/contracts/optimist
  * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
-contract L2DepositedERC20 is OVM_L2DepositedERC20 {
+// contract L2DepositedERC20 is OVM_L2DepositedERC20 {
 
-    constructor(
-        address _l2CrossDomainMessenger,
-        string memory _name,
-        string memory _symbol
-    )
-        OVM_L2DepositedERC20(_l2CrossDomainMessenger, _name, _symbol)
-    {}
+//     constructor(
+//         address _l2CrossDomainMessenger,
+//         string memory _name,
+//         string memory _symbol
+//     )
+//         OVM_L2DepositedERC20(_l2CrossDomainMessenger, _name, _symbol)
+//     {}
 
-}
+// }

@@ -6,13 +6,13 @@ import { Contract, BigNumber, utils } from 'ethers'
 import { Direction } from './shared/watcher-utils'
 
 import L1ERC20Json from '../artifacts/contracts/L1ERC20.sol/L1ERC20.json'
-import L1ERC20GatewayJson from '../artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
-import L2DepositedERC20Json from '../artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
+// import L1ERC20GatewayJson from '../artifacts/contracts/L1ERC20Gateway.sol/L1ERC20Gateway.json'
+// import L2DepositedERC20Json from '../artifacts-ovm/contracts/L2DepositedERC20.sol/L2DepositedERC20.json'
 
 import L1LiquidityPoolJson from '../artifacts/contracts/LP/L1LiquidityPool.sol/L1LiquidityPool.json'
 import L2LiquidityPoolJson from '../artifacts-ovm/contracts/LP/L2LiquidityPool.sol/L2LiquidityPool.json'
 
-import L2TokenPoolJson from '../artifacts-ovm/contracts/TokenPool.sol/TokenPool.json'
+// import L2TokenPoolJson from '../artifacts-ovm/contracts/TokenPool.sol/TokenPool.json'
 
 import { OptimismEnv } from './shared/env'
 
@@ -55,23 +55,23 @@ describe('Liquidity Pool Test', async () => {
       env.bobl1Wallet
     )
 
-    L2DepositedERC20 = new Contract(
-      addressArray.L2DepositedERC20,
-      L2DepositedERC20Json.abi,
-      env.bobl2Wallet
-    )
+    // L2DepositedERC20 = new Contract(
+    //   addressArray.L2DepositedERC20,
+    //   L2DepositedERC20Json.abi,
+    //   env.bobl2Wallet
+    // )
 
-    L1ERC20Gateway = new Contract(
-      addressArray.L1ERC20Gateway,
-      L1ERC20GatewayJson.abi,
-      env.bobl1Wallet,
-    )
+    // L1ERC20Gateway = new Contract(
+    //   addressArray.L1ERC20Gateway,
+    //   L1ERC20GatewayJson.abi,
+    //   env.bobl1Wallet,
+    // )
 
-    L2TokenPool = new Contract(
-      addressArray.L2TokenPool,
-      L2TokenPoolJson.abi,
-      env.bobl2Wallet,
-    )
+    // L2TokenPool = new Contract(
+    //   addressArray.L2TokenPool,
+    //   L2TokenPoolJson.abi,
+    //   env.bobl2Wallet,
+    // )
   })
 
   it('should deposit ERC20 token to L2', async () => {

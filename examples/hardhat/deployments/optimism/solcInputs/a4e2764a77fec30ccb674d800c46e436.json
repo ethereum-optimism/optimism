@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/ERC20.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity >0.6.0 <0.8.0;\n\n/**\n * @title ERC20\n * @dev A super simple ERC20 implementation!\n */\ncontract ERC20 {\n\n    /**********\n     * Events *\n     **********/\n\n    event Transfer(\n        address indexed _from,\n        address indexed _to,\n        uint256 _value\n    );\n\n    event Approval(\n        address indexed _owner,\n        address indexed _spender,\n        uint256 _value\n    );\n\n\n    /*************\n     * Variables *\n     *************/\n\n    mapping (address => uint256) public balances;\n    mapping (address => mapping (address => uint256)) public allowances;\n\n    // Some optional extra goodies.\n    uint256 public totalSupply;\n    string public name;\n\n\n    /***************\n     * Constructor *\n     ***************/\n\n    /**\n     * @param _initialSupply Initial maximum token supply.\n     * @param _name A name for our ERC20 (technically optional, but it's fun ok jeez).\n     */\n    constructor(\n        uint256 _initialSupply,\n        string memory _name\n    )\n        public\n    {\n        balances[msg.sender] = _initialSupply;\n        totalSupply = _initialSupply;\n        name = _name;\n    }\n\n\n    /********************\n     * Public Functions *\n     ********************/\n\n    /**\n     * Checks the balance of an address.\n     * @param _owner Address to check a balance for.\n     * @return Balance of the address.\n     */\n    function balanceOf(\n        address _owner\n    )\n        external\n        view\n        returns (\n            uint256\n        )\n    {\n        return balances[_owner];\n    }\n\n    /**\n     * Transfers a balance from your account to someone else's account!\n     * @param _to Address to transfer a balance to.\n     * @param _amount Amount to transfer to the other account.\n     * @return true if the transfer was successful.\n     */\n    function transfer(\n        address _to,\n        uint256 _amount\n    )\n        external\n        returns (\n            bool\n        )\n    {\n        require(\n            balances[msg.sender] >= _amount,\n            \"You don't have enough balance to make this transfer!\"\n        );\n\n        balances[msg.sender] -= _amount;\n        balances[_to] += _amount;\n\n        emit Transfer(\n            msg.sender,\n            _to,\n            _amount\n        );\n\n        return true;\n    }\n\n    /**\n     * Transfers a balance from someone else's account to another account. You need an allowance\n     * from the sending account for this to work!\n     * @param _from Account to transfer a balance from.\n     * @param _to Account to transfer a balance to.\n     * @param _amount Amount to transfer to the other account.\n     * @return true if the transfer was successful.\n     */\n    function transferFrom(\n        address _from,\n        address _to,\n        uint256 _amount\n    )\n        external\n        returns (\n            bool\n        )\n    {\n        require(\n            balances[_from] >= _amount,\n            \"Can't transfer from the desired account because it doesn't have enough balance.\"\n        );\n\n        require(\n            allowances[_from][msg.sender] >= _amount,\n            \"Can't transfer from the desired account because you don't have enough of an allowance.\"\n        );\n\n        balances[_to] += _amount;\n        balances[_from] -= _amount;\n\n        emit Transfer(\n            _from,\n            _to,\n            _amount\n        );\n\n        return true;\n    }\n\n    /**\n     * Approves an account to spend some amount from your account.\n     * @param _spender Account to approve a balance for.\n     * @param _amount Amount to allow the account to spend from your account.\n     * @return true if the allowance was successful.\n     */\n    function approve(\n        address _spender,\n        uint256 _amount\n    )\n        external\n        returns (\n            bool\n        )\n    {\n        allowances[msg.sender][_spender] = _amount;\n\n        emit Approval(\n            msg.sender,\n            _spender,\n            _amount\n        );\n\n        return true;\n    }\n\n    /**\n     * Checks how much a given account is allowed to spend from another given account.\n     * @param _owner Address of the account to check an allowance from.\n     * @param _spender Address of the account trying to spend from the owner.\n     * @return Allowance for the spender from the owner.\n     */\n    function allowance(\n        address _owner,\n        address _spender\n    )\n        external\n        view\n        returns (\n            uint256\n        )\n    {\n        return allowances[_owner][_spender];\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

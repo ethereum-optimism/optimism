@@ -4,8 +4,8 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { OVM_L1ERC20Gateway } from '@eth-optimism/contracts/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L1ERC20Gateway.sol';
-import { iOVM_ERC20 } from '@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/predeploys/iOVM_ERC20.sol';
+// import { OVM_L1ERC20Gateway } from '@eth-optimism/contracts/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L1ERC20Gateway.sol';
+// import { iOVM_ERC20 } from '@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/predeploys/iOVM_ERC20.sol';
 
 /**
  * @title OVM_L1ERC20Gateway
@@ -21,19 +21,19 @@ import { iOVM_ERC20 } from '@eth-optimism/contracts/contracts/optimistic-ethereu
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract L1ERC20Gateway is OVM_L1ERC20Gateway {
+// contract L1ERC20Gateway is OVM_L1ERC20Gateway {
 
-    constructor(
-        iOVM_ERC20 _l1ERC20,
-        address _l2DepositedERC20,
-        address _l1messenger
-    )
-        OVM_L1ERC20Gateway(
-            _l1ERC20,
-            _l2DepositedERC20,
-            _l1messenger
-        )
-    {
-    }
+//     constructor(
+//         iOVM_ERC20 _l1ERC20,
+//         address _l2DepositedERC20,
+//         address _l1messenger
+//     )
+//         OVM_L1ERC20Gateway(
+//             _l1ERC20,
+//             _l2DepositedERC20,
+//             _l1messenger
+//         )
+//     {
+//     }
 
-}
+// }

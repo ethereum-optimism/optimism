@@ -100,6 +100,12 @@ docker-compose build
 docker-compose up
 ```
 
+In another terminal window, you can run the integration tests
+
+```bash
+docker-compose run integration_tests
+```
+
 #### Viewing docker container logs
 By default, the `docker-compose up` command will show logs from all services, and that
 can be hard to filter through. In order to view the logs from a specific service, you can run:

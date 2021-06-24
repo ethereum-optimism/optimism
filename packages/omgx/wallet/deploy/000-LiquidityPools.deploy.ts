@@ -57,7 +57,6 @@ const deployFn: DeployFunction = async (hre) => {
     await hre.deployments.save('L1LiquidityPool', L1LiquidityPoolDeploymentSubmission)
     console.log(`🌕 ${chalk.red('L1LiquidityPool deployed to:')} ${chalk.green(L1LiquidityPool.address)}`)
 
-
     // Initialize L1 liquidity pool
     const L1LiquidityPoolTX = await L1LiquidityPool.init(
       /* userRewardFeeRate 3.5% */ 35,
