@@ -8,7 +8,7 @@ import { L1IngestionService } from '../l1-ingestion/service'
 import { L1TransportServer } from '../server/service'
 import { validators } from '../../utils'
 import { L2IngestionService } from '../l2-ingestion/service'
-import { Gauge } from 'prom-client'
+import { Counter } from 'prom-client'
 
 export interface L1DataTransportServiceOptions {
   nodeEnv: string
@@ -59,7 +59,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     l2IngestionService?: L2IngestionService
     l1TransportServer: L1TransportServer
     metrics: Metrics
-    failureGauge: Gauge<string>
+    failureCounter: Counter<string>
   } = {} as any
 
   protected async _init(): Promise<void> {
@@ -77,7 +77,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
       }
     })
 
-    this.state.failureGauge = new this.state.metrics.client.Gauge({
+    this.state.failureCounter = new this.state.metrics.client.Counter({
       name: 'data_transport_layer_main_service_failures',
       help: 'Counts the number of times that the main service fails',
       registers: [this.state.metrics.registry],
@@ -126,7 +126,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
         this.options.syncFromL2 ? this.state.l2IngestionService.start() : null,
       ])
     } catch (e) {
-      this.state.failureGauge.inc()
+      this.state.failureCounter.inc()
       throw e
     }
   }
@@ -141,7 +141,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
 
       await this.state.db.close()
     } catch (e) {
-      this.state.failureGauge.inc()
+      this.state.failureCounter.inc()
       throw e
     }
   }
