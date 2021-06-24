@@ -195,9 +195,9 @@ func TestGenerateBlockAndImportEthash(t *testing.T) {
 	testGenerateBlockAndImport(t, false)
 }
 
-func TestGenerateBlockAndImportClique(t *testing.T) {
-	testGenerateBlockAndImport(t, true)
-}
+// func TestGenerateBlockAndImportClique(t *testing.T) {
+// 	testGenerateBlockAndImport(t, true)
+// }
 
 func testGenerateBlockAndImport(t *testing.T, isClique bool) {
 	var (
