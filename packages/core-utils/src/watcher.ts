@@ -87,12 +87,12 @@ export class Watcher {
       const successFilter: ethers.providers.Filter = {
         address: layer.messengerAddress,
         topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
-        fromBlock: startingBlock
+        fromBlock: startingBlock,
       }
       const failureFilter: ethers.providers.Filter = {
         address: layer.messengerAddress,
         topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`)],
-        fromBlock: startingBlock
+        fromBlock: startingBlock,
       }
       const successLogs = await layer.provider.getLogs(successFilter)
       const failureLogs = await layer.provider.getLogs(failureFilter)
