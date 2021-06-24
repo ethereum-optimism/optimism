@@ -43,7 +43,7 @@ Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our 
 
 ### Good First Issues
 You can find good first issues by filtering for the ["good first issue" tag on our issues page](https://github.com/ethereum-optimism/optimism/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or alternatively by taking a look at our [Good First Issues project board](https://github.com/orgs/ethereum-optimism/projects/23).
-If you'd like to tackle one of these issues, please leave a note on the issue.
+If you'd like to tackle one of these issues, please leave a comment and [assign yourself to the issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/assigning-issues-and-pull-requests-to-other-github-users#assigning-an-individual-issue-or-pull-request).
 This helps prevent two people accidentally working on the same task at the same time.
 
 ## Development Quick Start
