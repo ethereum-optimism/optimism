@@ -230,9 +230,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         if (err instanceof MissingElementError) {
           // Different functions for getting the last good element depending on the event type.
           const handlers = {
-            SequencerBatchAppended: this.state.db.getLatestTransactionBatch,
-            StateBatchAppended: this.state.db.getLatestStateRootBatch,
-            TransactionEnqueued: this.state.db.getLatestEnqueue,
+            SequencerBatchAppended: this.state.db.getLatestTransactionBatch.bind(this),
+            StateBatchAppended: this.state.db.getLatestStateRootBatch.bind(this),
+            TransactionEnqueued: this.state.db.getLatestEnqueue.bind(this),
           }
 
           // Find the last good element and reset the highest synced L1 block to go back to the
