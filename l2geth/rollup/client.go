@@ -483,16 +483,12 @@ func (c *Client) GetEthContext(blockNumber uint64) (*EthContext, error) {
 // GetLatestEthContext will return the latest EthContext
 func (c *Client) GetLatestEthContext() (*EthContext, error) {
 	response, err := c.client.R().
-		SetPathParams(map[string]string{
-			"chainId": c.chainID,
-		}).
 		SetResult(&EthContext{}).
-		Get("/eth/context/latest/{chainId}")
+		Get("/eth/context/latest")
 
 	if err != nil {
 		return nil, fmt.Errorf("Cannot fetch eth context: %w", err)
 	}
-
 	context, ok := response.Result().(*EthContext)
 	if !ok {
 		return nil, errors.New("Cannot parse EthContext")

@@ -101,7 +101,6 @@ const main = async () => {
   if(!chainId || chainId==0){
     chainId = await l2Provider.send('eth_chainId', [])
   }
-  console.log("test",chainId)
   const service = new MessageRelayerService({
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
