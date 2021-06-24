@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config ./.prettierrc.json --write 'test/**/*.ts'",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
+    "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
     "build:integration": "./scripts/build.sh",
     "build:contracts": "hardhat compile",
     "build:contracts:ovm": "hardhat compile --network optimism",

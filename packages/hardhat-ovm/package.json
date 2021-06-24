@@ -13,7 +13,7 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write \"{src,test}/**/*.ts\"",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
+    "lint:check": "eslint -c .eslintrc.js --ext .ts .",
     "pre-commit": "lint-staged"
   },
   "dependencies": {
