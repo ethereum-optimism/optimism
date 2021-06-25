@@ -7,11 +7,7 @@ import { MerkleTree } from 'merkletreejs'
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
 import { Logger, BaseService, Metrics } from '@eth-optimism/common-ts'
 
-import {
-  loadContract,
-  loadContractFromManager,
-  predeploys,
-} from '@eth-optimism/contracts'
+import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
 import { StateRootBatchHeader, SentMessage, SentMessageProof } from './types'
 
 interface MessageRelayerOptions {
@@ -50,6 +46,11 @@ interface MessageRelayerOptions {
 
   // A custom metrics tracker to manage metrics; default undefined
   metrics?: Metrics
+
+  // blacklist
+  blacklistEndpoint?: string
+  
+  blacklistPollingInterval?: number
 }
 
 const optionSettings = {
@@ -59,6 +60,7 @@ const optionSettings = {
   l2BlockOffset: { default: 1 },
   l1StartOffset: { default: 0 },
   getLogsInterval: { default: 2000 },
+  blacklistPollingInterval: { default: 60000 }
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
@@ -76,6 +78,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     OVM_L1CrossDomainMessenger: Contract
     OVM_L2CrossDomainMessenger: Contract
     OVM_L2ToL1MessagePasser: Contract
+    blacklist: Array<any>
+    lastBlacklistPollingTimestamp: number
   }
 
   protected async _init(): Promise<void> {
@@ -85,6 +89,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       pollingInterval: this.options.pollingInterval,
       l2BlockOffset: this.options.l2BlockOffset,
       getLogsInterval: this.options.getLogsInterval,
+      blacklistPollingInterval: this.options.blacklistPollingInterval,
     })
     // Need to improve this, sorry.
     this.state = {} as any
@@ -132,7 +137,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.logger.info('Connecting to OVM_L2ToL1MessagePasser...')
     this.state.OVM_L2ToL1MessagePasser = loadContract(
       'OVM_L2ToL1MessagePasser',
-      predeploys.OVM_L2ToL1MessagePasser,
+      '0x4200000000000000000000000000000000000000',
       this.options.l2RpcProvider
     )
     this.logger.info('Connected to OVM_L2ToL1MessagePasser', {
@@ -147,11 +152,13 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.state.lastFinalizedTxHeight = this.options.fromL2TransactionIndex || 0
     this.state.nextUnfinalizedTxHeight =
       this.options.fromL2TransactionIndex || 0
+    this.state.lastBlacklistPollingTimestamp = 0  
   }
 
   protected async _start(): Promise<void> {
     while (this.running) {
       await sleep(this.options.pollingInterval)
+      await this._getBlacklist()
 
       try {
         // Check that the correct address is set in the address manager
@@ -223,6 +230,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           })
           if (await this._wasMessageRelayed(message)) {
             this.logger.info('Message has already been relayed, skipping.')
+            continue
+          }
+
+          if (this.state.blacklist.includes(message.target)) {
+            this.logger.info('Message not intended for target, skipping.')
             continue
           }
 
@@ -553,5 +565,26 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       return
     }
     this.logger.info('Message successfully relayed to Layer 1!')
+  }
+
+  private async _getBlacklist(): Promise<void> {
+    try {
+      if (this.options.blacklistEndpoint) {
+        if (this.state.lastBlacklistPollingTimestamp === 0 || 
+          new Date().getTime() > this.state.lastBlacklistPollingTimestamp + this.options.blacklistPollingInterval
+        ) {
+          const response = await fetch(this.options.blacklistEndpoint);
+          const blacklist = await response.json();
+          this.state.lastBlacklistPollingTimestamp = new Date().getTime();
+          this.state.blacklist = blacklist;
+          this.logger.info('Found the blacklist', { blacklist })
+        }
+      } else {
+        this.state.blacklist = [];
+      }
+    } catch {
+      this.logger.info('Failed to fetch the blacklist')
+      this.state.blacklist = [];
+    }
   }
 }
