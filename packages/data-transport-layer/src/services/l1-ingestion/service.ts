@@ -4,7 +4,7 @@ import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 import { ethers, constants } from 'ethers'
-import { Gauge } from 'prom-client'
+import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
 import { TransportDB } from '../../db/transport-db'
@@ -24,6 +24,8 @@ import { MissingElementError, EventName } from './handlers/errors'
 
 interface L1IngestionMetrics {
   highestSyncedL1Block: Gauge<string>
+  missingElementCount: Counter<string>
+  unhandledErrorCount: Counter<string>
 }
 
 const registerMetrics = ({
@@ -35,6 +37,16 @@ const registerMetrics = ({
     help: 'Highest Synced L1 Block Number',
     registers: [registry],
   }),
+  missingElementCount: new client.Counter({
+    name: 'data_transport_layer_missing_element_count',
+    help: 'Number of times recovery from missing elements happens',
+    registers: [registry],
+  }),
+  unhandledErrorCount: new client.Counter({
+    name: 'data_transport_layer_l1_unhandled_error_count',
+    help: 'Number of times recovered from unhandled errors',
+    registers: [registry],
+  })
 })
 
 export interface L1IngestionServiceOptions
@@ -228,11 +240,15 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         }
       } catch (err) {
         if (err instanceof MissingElementError) {
+          this.logger.warn('recovering from a missing event', {
+            message: err.toString(),
+          })
+
           // Different functions for getting the last good element depending on the event type.
           const handlers = {
-            SequencerBatchAppended: this.state.db.getLatestTransactionBatch,
-            StateBatchAppended: this.state.db.getLatestStateRootBatch,
-            TransactionEnqueued: this.state.db.getLatestEnqueue,
+            SequencerBatchAppended: this.state.db.getLatestTransactionBatch.bind(this),
+            StateBatchAppended: this.state.db.getLatestStateRootBatch.bind(this),
+            TransactionEnqueued: this.state.db.getLatestEnqueue.bind(this),
           }
 
           // Find the last good element and reset the highest synced L1 block to go back to the
@@ -266,11 +282,14 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           )
 
           // Something we should be keeping track of.
-          this.logger.warn('recovering from a missing event', {
+          this.logger.warn('recovered from a missing event', {
             eventName,
             lastGoodBlockNumber: lastGoodElement.blockNumber,
           })
+
+          this.l1IngestionMetrics.missingElementCount.inc()
         } else if (!this.running || this.options.dangerouslyCatchAllErrors) {
+          this.l1IngestionMetrics.unhandledErrorCount.inc()
           this.logger.error('Caught an unhandled error', {
             message: err.toString(),
             stack: err.stack,

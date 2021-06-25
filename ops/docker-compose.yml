@@ -34,8 +34,6 @@ services:
         # these keys are hardhat's first 2 accounts, DO NOT use in production
         DEPLOYER_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-        PROPOSER_PRIVATE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
-        RELAYER_PRIVATE_KEY: "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
         # skip compilation when run in docker-compose, since the contracts
         # were already compiled in the builder step
         NO_COMPILE: 1
@@ -65,7 +63,7 @@ services:
         DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
         DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
-        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
+        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
     ports:
       - ${DTL_PORT:-7878}:7878
 
@@ -132,7 +130,6 @@ services:
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-        PROPOSER_PRIVATE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
 
   verifier:
     depends_on:
