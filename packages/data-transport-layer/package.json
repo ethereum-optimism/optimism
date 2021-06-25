@@ -13,7 +13,7 @@
     "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
     "clean:db": "rimraf ./db",
     "lint": "yarn run lint:fix && yarn run lint:check",
-    "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\"",
+    "lint:fix": "prettier --config .prettierrc.js --write \"{src,exec,test}/**/*.ts\"",
     "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
     "start": "ts-node ./src/services/run.ts",
     "start:local": "ts-node ./src/services/run.ts | pino-pretty",

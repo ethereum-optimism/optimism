@@ -3,6 +3,9 @@
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
     "editor.formatOnSave": true,
   },
+  "eslint.workingDirectories": [
+    {"directory": "packages/batch-submitter", "changeProcessCWD": true },
+  ],
   "eslint.nodePath": "./node_modules/eslint/bin/",
   "eslint.format.enable": true,
   "editorconfig.generateAuto": false,

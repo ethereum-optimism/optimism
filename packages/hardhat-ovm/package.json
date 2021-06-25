@@ -12,9 +12,9 @@
     "clean": "rimraf tsconfig.build.tsbuildinfo dist",
     "build": "tsc -p tsconfig.build.json",
     "lint": "yarn run lint:fix && yarn run lint:check",
-    "lint:fix": "prettier --config .prettierrc.json --write \"{src,test}/**/*.ts\"",
     "lint:check": "eslint -c .eslintrc.js --ext .ts .",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "lint:fix": "prettier --config .prettierrc.js --write \"{src,test}/**/*.ts\""
   },
   "dependencies": {
     "node-fetch": "^2.6.1"
