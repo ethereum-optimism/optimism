@@ -25,3 +25,11 @@ packages/data-transport-layer/db
 
 .env
 *.log
+
+env.js
+env.yml
+env.js
+packages/omgx/wallet/wallet/build
+.serverless
+packages/omgx/wallet/deployment/local/addresses.json
+packages/omgx/wallet/wallet/src/deployment/local/addresses.json
