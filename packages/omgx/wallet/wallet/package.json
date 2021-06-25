@@ -1,5 +1,5 @@
 {
-  "name": "@omgnetwork/wallet_react",
+  "name": "@omgx/wallet_react",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@eth-optimism/watcher": "^0.0.1-alpha.9",
+    "@eth-optimism/contracts": "^0.4.1",
     "@ethersproject/providers": "^5.0.24",
     "@ethersproject/units": "^5.0.11",
     "@material-ui/core": "^4.11.3",

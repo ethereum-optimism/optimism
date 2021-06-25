@@ -20,29 +20,29 @@ const initialState = {
   userRewardFeeRate: 0,
   poolInfo: {
     L1LP: {
-      [networkService.l1ETHAddress]: {},
+      [networkService.L1ETHAddress]: {},
     },
     L2LP: {
-      [networkService.l2ETHGatewayAddress]: {},
+      [networkService.L2ETHAddress]: {},
     }
   },
   userInfo: {
     L1LP: {
-      [networkService.l1ETHAddress]: {},
+      [networkService.L1ETHAddress]: {},
     },
     L2LP: {
-      [networkService.l2ETHGatewayAddress]: {},
+      [networkService.L2ETHAddress]: {},
     }
   },
   stakeToken: {
     symbol: "ETH",
-    currency: networkService.l1ETHAddress,
+    currency: networkService.L1ETHAddress,
     LPAddress: networkService.L1LPAddress,
     L1orL2Pool: 'L1LP'
   },
   withdrawToken: {
     symbol: "ETH",
-    currency: networkService.l1ETHAddress,
+    currency: networkService.L1ETHAddress,
     LPAddress: networkService.L1LPAddress,
     L1orL2Pool: 'L1LP'
   }

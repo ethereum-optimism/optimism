@@ -78,7 +78,7 @@ class Farm extends React.Component {
   }
 
   isETH(address) {
-    return [networkService.l2ETHGatewayAddress, networkService.l1ETHAddress].includes(address);
+    return [networkService.L2ETHAddress, networkService.L1ETHAddress].includes(address);
   }
 
   render() {
