@@ -134,11 +134,14 @@ func (g *GasPriceOracle) Start() error {
 			log.Crit("Cannot fetch tip", "message", err)
 		}
 		epochStartBlockNumber := float64(tip.Number.Uint64())
+		// TODO: flagify
+		epochLengthSeconds := float64(0)
 
 		gasPriceUpdater := gasprices.NewGasPriceUpdater(
 			g.gasPricer,
 			epochStartBlockNumber,
 			g.averageBlockGasLimitPerEpoch,
+			epochLengthSeconds,
 			getLatestBlockNumberFn,
 			updateL2GasPriceFn,
 		)
