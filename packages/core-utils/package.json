@@ -14,8 +14,8 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:fix": "prettier --config .prettierrc.json --write '{src,test}/**/*.ts'",
     "pre-commit": "lint-staged",
+    "lint:fix": "prettier --config .prettierrc.js --write '{src,test}/**/*.ts'",
     "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
     "test": "ts-mocha test/**/*.spec.ts"
   },
