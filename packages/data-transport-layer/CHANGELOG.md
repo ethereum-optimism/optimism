@@ -1,5 +1,13 @@
 # data transport layer
 
+## 0.4.1
+
+### Patch Changes
+
+- 67eedaf6: Correctly bind the event handlers to the correct `this` in the missing event error path
+- Updated dependencies [224b04c0]
+  - @eth-optimism/core-utils@0.4.7
+
 ## 0.4.0
 
 ### Minor Changes
