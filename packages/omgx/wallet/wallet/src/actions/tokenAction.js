@@ -65,7 +65,7 @@ export async function addToken ( tokenContractAddress ) {
     const tokenContract = new ethers.Contract(
       _tokenContractAddress, 
       erc20abi,
-      networkService.L1orL2 === 'L1' ? networkService.l1Provider: networkService.l2Provider,
+      networkService.L1orL2 === 'L1' ? networkService.L1Provider: networkService.L2Provider,
     );
 
     const [ _symbol, _decimals, _name ] = await Promise.all([

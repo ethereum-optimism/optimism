@@ -109,7 +109,7 @@ services:
       URL: http://deployer:8081/addresses.json
       WHITELIST_ENDPOINT: https://api-message-relayer.rinkeby.omgx.network/get.whitelist
       # a funded hardhat account
-      L1_WALLET_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
+      L1_WALLET_KEY: "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
       RETRIES: 60
       POLLING_INTERVAL: 1500
       GET_LOGS_INTERVAL: 500
