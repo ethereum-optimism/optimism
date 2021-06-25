@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"strings"
@@ -39,9 +40,11 @@ type GasPriceOracle struct {
 	gasPrice                     *big.Int
 	gasPricer                    *gasprices.L2GasPricer
 	averageBlockGasLimitPerEpoch float64
+	epochLengthSeconds           float64
+	significantFactor            float64
 }
 
-// Import the contract binding
+// Start runs the GasPriceOracle
 func (g *GasPriceOracle) Start() error {
 	if g.chainID == nil {
 		return errNoChainID
@@ -72,7 +75,6 @@ func (g *GasPriceOracle) Start() error {
 	// TODO: Errors in this goroutine should write to an error channel
 	// and be handled externally
 	go func() {
-		timer := time.NewTicker(5 * time.Second)
 		// There should never be an error here as long as a chain id is passed in
 		opts, _ := bind.NewKeyedTransactorWithChainID(g.privateKey, g.chainID)
 		// Once https://github.com/ethereum/go-ethereum/pull/23062 is released
@@ -94,16 +96,42 @@ func (g *GasPriceOracle) Start() error {
 		updateL2GasPriceFn := func(num float64) error {
 			if g.gasPrice == nil {
 				gasPrice, err := g.client.SuggestGasPrice(g.ctx)
-				if err == nil {
-					fmt.Println(err)
+				if err != nil {
+					log.Error("cannot fetch gas price", "message", err)
+					return err
 				}
+				log.Debug("fetched gas price", "gas-price", gasPrice)
 				opts.GasPrice = gasPrice
 			} else {
 				opts.GasPrice = g.gasPrice
 			}
 
+			// If the currentPrice is only within...
+			currentPrice, err := g.contract.GasPrice(&bind.CallOpts{
+				Context: context.Background(),
+			})
+			if err != nil {
+				log.Error("cannot fetch current gas price", "message", err)
+			}
+
+			// Only update the gas price when it must be changed by at least
+			// a paramaterizable amount. If the param is greater than the result
+			// of 1 - (min/max) where min and max are the gas prices then do not
+			// update the gas price
+			max := math.Max(float64(currentPrice.Uint64()), num)
+			min := math.Min(float64(currentPrice.Uint64()), num)
+			factor := 1 - (min / max)
+			if g.significantFactor > factor {
+				log.Info("gas price did not significantly change", "factor", factor)
+				return nil
+			}
+
 			updatedGasPrice := uint64(num)
-			updatedGasPrice = 0
+			// no need to update when they are the same
+			if currentPrice.Uint64() == updatedGasPrice {
+				log.Info("gas price did not change", "gas-price", updatedGasPrice)
+				return nil
+			}
 
 			tx, err := g.contract.SetGasPrice(opts, new(big.Int).SetUint64(updatedGasPrice))
 			if err != nil {
@@ -134,18 +162,17 @@ func (g *GasPriceOracle) Start() error {
 			log.Crit("Cannot fetch tip", "message", err)
 		}
 		epochStartBlockNumber := float64(tip.Number.Uint64())
-		// TODO: flagify
-		epochLengthSeconds := float64(0)
 
 		gasPriceUpdater := gasprices.NewGasPriceUpdater(
 			g.gasPricer,
 			epochStartBlockNumber,
 			g.averageBlockGasLimitPerEpoch,
-			epochLengthSeconds,
+			g.epochLengthSeconds,
 			getLatestBlockNumberFn,
 			updateL2GasPriceFn,
 		)
 
+		timer := time.NewTicker(time.Duration(g.epochLengthSeconds) * time.Second)
 		for {
 			select {
 			case <-timer.C:
@@ -171,7 +198,6 @@ func (g *GasPriceOracle) Start() error {
 			}
 		}
 	}()
-
 	return nil
 }
 
@@ -212,10 +238,7 @@ func NewGasPriceOracle(cfg *config) (*GasPriceOracle, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: ?
-	maxPercentChangePerEpoch := float64(0)
-	//
+	log.Info("Starting gas price", "price", currentPrice)
 
 	gasPricer := gasprices.NewGasPricer(
 		float64(currentPrice.Uint64()),
@@ -223,7 +246,7 @@ func NewGasPriceOracle(cfg *config) (*GasPriceOracle, error) {
 		func() float64 {
 			return cfg.targetGasPerSecond
 		},
-		maxPercentChangePerEpoch,
+		cfg.maxPercentChangePerEpoch,
 	)
 
 	chainID := cfg.chainID
@@ -251,6 +274,7 @@ func NewGasPriceOracle(cfg *config) (*GasPriceOracle, error) {
 		gasPrice:                     cfg.gasPrice,
 		gasPricer:                    gasPricer,
 		averageBlockGasLimitPerEpoch: cfg.averageBlockGasLimitPerEpoch,
+		epochLengthSeconds:           cfg.epochLengthSeconds,
 	}, nil
 }
 
@@ -262,13 +286,16 @@ type config struct {
 	gasPrice                     *big.Int
 	floorPrice                   float64
 	targetGasPerSecond           float64
-	maxPercentChangePerSecond    float64
+	maxPercentChangePerEpoch     float64
 	averageBlockGasLimitPerEpoch float64
+	epochLengthSeconds           float64
+	significantFactor            float64
 }
 
 func newConfig(ctx *cli.Context) *config {
 	cfg := config{
 		gasPriceOracleAddress: common.HexToAddress("0x420000000000000000000000000000000000000F"),
+		significantFactor:     0.05,
 	}
 	if ctx.GlobalIsSet(flags.EthereumHttpUrlFlag.Name) {
 		cfg.ethereumHttpUrl = ctx.GlobalString(flags.EthereumHttpUrlFlag.Name)
@@ -288,7 +315,7 @@ func newConfig(ctx *cli.Context) *config {
 		}
 		key, err := crypto.HexToECDSA(hex)
 		if err != nil {
-			fmt.Printf("Option %q: %v", flags.PrivateKeyFlag.Name, err)
+			log.Error(fmt.Sprintf("Option %q: %v", flags.PrivateKeyFlag.Name, err))
 		}
 		cfg.privateKey = key
 	}
@@ -304,15 +331,23 @@ func newConfig(ctx *cli.Context) *config {
 	} else {
 		log.Crit("Missing config option", "option", flags.TargetGasPerSecondFlag.Name)
 	}
-	if ctx.GlobalIsSet(flags.MaxPercentChangePerSecondFlag.Name) {
-		cfg.maxPercentChangePerSecond = ctx.GlobalFloat64(flags.MaxPercentChangePerSecondFlag.Name)
+	if ctx.GlobalIsSet(flags.MaxPercentChangePerEpochFlag.Name) {
+		cfg.maxPercentChangePerEpoch = ctx.GlobalFloat64(flags.MaxPercentChangePerEpochFlag.Name)
 	} else {
-		log.Crit("Missing config option", "option", flags.MaxPercentChangePerSecondFlag.Name)
+		log.Crit("Missing config option", "option", flags.MaxPercentChangePerEpochFlag.Name)
 	}
 	if ctx.GlobalIsSet(flags.AverageBlockGasLimitPerEpochFlag.Name) {
 		cfg.averageBlockGasLimitPerEpoch = ctx.GlobalFloat64(flags.AverageBlockGasLimitPerEpochFlag.Name)
 	} else {
 		log.Crit("Missing config option", "option", flags.AverageBlockGasLimitPerEpochFlag.Name)
+	}
+	if ctx.GlobalIsSet(flags.EpochLengthSecondsFlag.Name) {
+		cfg.epochLengthSeconds = ctx.GlobalFloat64(flags.EpochLengthSecondsFlag.Name)
+	} else {
+		log.Crit("Missing config option", "option", flags.EpochLengthSecondsFlag.Name)
+	}
+	if ctx.GlobalIsSet(flags.SignificantFactorFlag.Name) {
+		cfg.significantFactor = ctx.GlobalFloat64(flags.SignificantFactorFlag.Name)
 	}
 	return &cfg
 }

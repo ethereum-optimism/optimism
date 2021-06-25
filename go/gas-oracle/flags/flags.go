@@ -54,9 +54,8 @@ var TargetGasPerSecondFlag = cli.Float64Flag{
 	Usage: "target gas per second",
 }
 
-var MaxPercentChangePerSecondFlag = cli.Float64Flag{
-	Name:  "max-percent-change-per-second",
-	Value: 0,
+var MaxPercentChangePerEpochFlag = cli.Float64Flag{
+	Name:  "max-percent-change-per-epoch",
 	Usage: "max percent change of gas price per second",
 }
 
@@ -64,6 +63,17 @@ var AverageBlockGasLimitPerEpochFlag = cli.Float64Flag{
 	Name:  "average-block-gas-limit-per-epoch",
 	Value: 11_000_000,
 	Usage: "average block gas limit per epoch",
+}
+
+var EpochLengthSecondsFlag = cli.Float64Flag{
+	Name:  "epoch-length-seconds",
+	Usage: "length of epochs in seconds",
+}
+
+var SignificantFactorFlag = cli.Float64Flag{
+	Name:  "significant-factor",
+	Value: 0.05,
+	Usage: "only update when the gas price changes by more than this factor",
 }
 
 var Flags = []cli.Flag{
@@ -75,6 +85,8 @@ var Flags = []cli.Flag{
 	LogLevelFlag,
 	FloorPriceFlag,
 	TargetGasPerSecondFlag,
-	MaxPercentChangePerSecondFlag,
+	MaxPercentChangePerEpochFlag,
 	AverageBlockGasLimitPerEpochFlag,
+	EpochLengthSecondsFlag,
+	SignificantFactorFlag,
 }

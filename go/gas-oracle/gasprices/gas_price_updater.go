@@ -1,6 +1,10 @@
 package gasprices
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/ethereum/go-ethereum/log"
+)
 
 type GetLatestBlockNumberFn func() (uint64, error)
 type UpdateL2GasPriceFn func(float64) error
@@ -24,6 +28,7 @@ func NewGasPriceUpdater(
 	updateL2GasPriceFn UpdateL2GasPriceFn,
 ) *GasPriceUpdater {
 	return &GasPriceUpdater{
+		mu:                     new(sync.RWMutex),
 		gasPricer:              gasPricer,
 		epochStartBlockNumber:  epochStartBlockNumber,
 		epochLengthSeconds:     epochLengthSeconds,
@@ -44,6 +49,7 @@ func (g *GasPriceUpdater) UpdateGasPrice() error {
 	averageGasPerSecond := (float64(latestBlockNumber) - g.epochStartBlockNumber) * g.averageBlockGasLimit / g.epochLengthSeconds
 	g.gasPricer.CompleteEpoch(averageGasPerSecond)
 	g.epochStartBlockNumber = float64(latestBlockNumber)
+	log.Debug("UpdateGasPrice", "averageGasPerSecond", averageGasPerSecond, "current-price", g.gasPricer.curPrice)
 	return g.updateL2GasPriceFn(g.gasPricer.curPrice)
 }
 
