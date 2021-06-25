@@ -6,6 +6,7 @@ import (
 
 type GetTargetGasPerSecond func() float64
 
+// This is not thread safe
 type L2GasPricer struct {
 	curPrice                 float64
 	floorPrice               float64

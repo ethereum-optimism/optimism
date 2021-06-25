@@ -42,6 +42,30 @@ var LogLevelFlag = cli.IntFlag{
 	Usage: "log level to emit to the screen",
 }
 
+var FloorPriceFlag = cli.Float64Flag{
+	Name:  "floor-price",
+	Value: 0,
+	Usage: "gas price floor",
+}
+
+var TargetGasPerSecondFlag = cli.Float64Flag{
+	Name:  "target-gas-per-second",
+	Value: 0,
+	Usage: "target gas per second",
+}
+
+var MaxPercentChangePerSecondFlag = cli.Float64Flag{
+	Name:  "max-percent-change-per-second",
+	Value: 0,
+	Usage: "max percent change of gas price per second",
+}
+
+var AverageBlockGasLimitPerEpochFlag = cli.Float64Flag{
+	Name:  "average-block-gas-limit-per-epoch",
+	Value: 11_000_000,
+	Usage: "average block gas limit per epoch",
+}
+
 var Flags = []cli.Flag{
 	EthereumHttpUrlFlag,
 	ChainIDFlag,
@@ -49,4 +73,8 @@ var Flags = []cli.Flag{
 	PrivateKeyFlag,
 	TransactionGasPriceFlag,
 	LogLevelFlag,
+	FloorPriceFlag,
+	TargetGasPerSecondFlag,
+	MaxPercentChangePerSecondFlag,
+	AverageBlockGasLimitPerEpochFlag,
 }
