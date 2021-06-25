@@ -129,28 +129,28 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	if service.enable {
 		// Ensure that the rollup client can connect to a remote server
 		// before starting. Retry until it can connect.
-		t1 := time.NewTicker(10 * time.Second)
-		for ; true; <-t1.C {
+		tEnsure := time.NewTicker(10 * time.Second)
+		for ; true; <-tEnsure.C {
 			err := service.ensureClient()
 			if err != nil {
 				log.Info("Cannot connect to upstream service", "msg", err)
 			} else {
 				log.Info("Connected to upstream service")
-				t1.Stop()
+				tEnsure.Stop()
 				break
 			}
 		}
 
 		// Wait until the remote service is done syncing
-		t2 := time.NewTicker(10 * time.Second)
-		for ; true; <-t2.C {
+		tStatus := time.NewTicker(10 * time.Second)
+		for ; true; <-tStatus.C {
 			status, err := service.client.SyncStatus(service.backend)
 			if err != nil {
 				log.Error("Cannot get sync status")
 				continue
 			}
 			if !status.Syncing {
-				t2.Stop()
+				tStatus.Stop()
 				break
 			}
 			log.Info("Still syncing", "index", status.CurrentTransactionIndex, "tip", status.HighestKnownTransactionIndex)
