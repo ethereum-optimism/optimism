@@ -9,7 +9,7 @@
       "l2geth",
       "integration-tests",
       "specs",
-      "packages/omgx/*",
+      "packages/omgx/*"
     ],
     "nohoist": [
       "examples/*"
