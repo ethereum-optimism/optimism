@@ -343,8 +343,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     let l1BlockRangeStart = fromL1Block
     for (const addressSetEvent of addressSetEvents) {
       eventRanges.push({
-        address: await this._getContractAddressAtBlock(
+        address: await this._findLatestNewAddressBetweenBlockRange(
           contractName,
+          l1BlockRangeStart,
           addressSetEvent.blockNumber
         ),
         fromBlock: l1BlockRangeStart,
@@ -356,7 +357,11 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     // Add one more range to get us to the end of the user-provided block range.
     eventRanges.push({
-      address: await this._getContractAddressAtBlock(contractName, toL1Block),
+      address: await this._findLatestNewAddressBetweenBlockRange(
+        contractName,
+        fromL1Block,
+        toL1Block
+      ),
       fromBlock: l1BlockRangeStart,
       toBlock: toL1Block,
     })
@@ -402,20 +407,23 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
   }
 
   /**
-   * Gets the address of a contract at a particular block in the past.
+   * Gets the address of a contract at a particular block in the past through
+   * searching between a block range for AddressSet events.
    *
    * @param contractName Name of the contract to get an address for.
-   * @param blockNumber Block at which to get an address.
+   * @param fromL1Block Block at which to start the search
+   * @param toL1Block Block at which to stop the search
    * @return Contract address.
    */
-  private async _getContractAddressAtBlock(
+  private async _findLatestNewAddressBetweenBlockRange(
     contractName: string,
-    blockNumber: number
+    fromL1Block: number,
+    toL1Block: number
   ): Promise<string> {
     const events = await this.state.contracts.Lib_AddressManager.queryFilter(
       this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
-      this.state.startingL1BlockNumber,
-      blockNumber
+      fromL1Block,
+      toL1Block
     )
 
     if (events.length > 0) {
