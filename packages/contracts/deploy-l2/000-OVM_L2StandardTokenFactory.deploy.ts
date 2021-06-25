@@ -20,8 +20,8 @@ const deployFn: DeployFunction = async (hre: any) => {
 
   await deploy('OVM_L2StandardTokenFactory', {
     contract: l2TokenFactory,
+    args: [],
     from: deployer,
-    args: [factoryOwner, initialGasPrice],
     log: true,
   });
 }
