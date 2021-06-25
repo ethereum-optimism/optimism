@@ -1,0 +1,29 @@
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: kovan-sequencer
+spec:
+  domains:
+    - kovan-sequencer.optimism.io
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kovan-sequencer
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: kovan-sequencer
+    networking.gke.io/managed-certificates: kovan-sequencer
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+    - host: kovan-sequencer.optimism.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix  # (all paths)
+            backend:
+              service:
+                name: rpc-proxy
+                port: 
+                  name: http

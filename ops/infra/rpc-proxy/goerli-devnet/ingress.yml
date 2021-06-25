@@ -1,0 +1,29 @@
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: goerli-sequencer
+spec:
+  domains:
+    - goerli-sequencer.optimism.io
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: goerli-sequencer
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: goerli-sequencer
+    networking.gke.io/managed-certificates: goerli-sequencer
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+    - host: goerli-sequencer.optimism.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix  # (all paths)
+            backend:
+              service:
+                name: rpc-proxy
+                port: 
+                  name: http

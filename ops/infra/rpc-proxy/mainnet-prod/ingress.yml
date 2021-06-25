@@ -1,0 +1,29 @@
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: mainnet-sequencer
+spec:
+  domains:
+    - mainnet-sequencer.optimism.io
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mainnet-sequencer
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: mainnet-sequencer
+    networking.gke.io/managed-certificates: mainnet-sequencer
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+    - host: mainnet-sequencer.optimism.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix  # (all paths)
+            backend:
+              service:
+                name: rpc-proxy
+                port: 
+                  name: http
