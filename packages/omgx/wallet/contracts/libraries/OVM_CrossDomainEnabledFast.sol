@@ -13,14 +13,14 @@ import { iOVM_CrossDomainMessenger } from "@eth-optimism/contracts/contracts/opt
  * Runtime target: defined by inheriting contract
  */
 contract OVM_CrossDomainEnabledFast {
-    
+
     // Messenger contract used to send and receive messages from the other domain.
     address public senderMessenger;
     address public relayerMessenger;
 
     /***************
      * Constructor *
-     ***************/    
+     ***************/
     constructor(
         address _senderMessenger,
         address _relayerMessenger
@@ -52,14 +52,14 @@ contract OVM_CrossDomainEnabledFast {
 
         _;
     }
-    
+
     /**********************
      * Internal Functions *
      **********************/
 
     /**
      * @notice Gets the messenger, usually from storage.  This function is exposed in case a child contract needs to override.
-     * @return The address of the cross-domain messenger contract which should be used. 
+     * @return The address of the cross-domain messenger contract which should be used.
      */
     function getCrossDomainSenderMessenger()
         internal
@@ -73,7 +73,7 @@ contract OVM_CrossDomainEnabledFast {
 
     /**
      * @notice Gets the messenger, usually from storage.  This function is exposed in case a child contract needs to override.
-     * @return The address of the cross-domain messenger contract which should be used. 
+     * @return The address of the cross-domain messenger contract which should be used.
      */
     function getCrossDomainRelayerMessenger()
         internal
@@ -93,8 +93,8 @@ contract OVM_CrossDomainEnabledFast {
      */
     function sendCrossDomainMessage(
         address _crossDomainTarget,
-        bytes memory _data,
-        uint32 _gasLimit
+        uint32 _gasLimit,
+        bytes memory _data
     ) internal {
         getCrossDomainSenderMessenger().sendMessage(_crossDomainTarget, _data, _gasLimit);
     }

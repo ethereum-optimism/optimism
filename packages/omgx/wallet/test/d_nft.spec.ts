@@ -14,7 +14,7 @@ describe('NFT Test\n', async () => {
 
   let Factory__L2ERC721: ContractFactory
   let L2ERC721: Contract
-  
+
   let env: OptimismEnv
 
   const nftName = 'TestNFT'
@@ -55,15 +55,15 @@ describe('NFT Test\n', async () => {
   before(async () => {
 
     fs.readFile('./deployment/local/addresses.json', 'utf8' , (err, data) => {
-      
+
       if (err) {
         console.error(err)
         return
       }
 
-      const addressArray = JSON.parse(data);      
-      
-      //this will either update or overwrite, depending, but either is fine 
+      const addressArray = JSON.parse(data);
+
+      //this will either update or overwrite, depending, but either is fine
       addressArray['L2ERC721'] = L2ERC721.address;
 
       fs.writeFile('./deployment/local/addresses.json', JSON.stringify(addressArray, null, 2), err => {
@@ -78,11 +78,11 @@ describe('NFT Test\n', async () => {
   })
 
   it('should mint a new ERC721 and transfer it from Bob to Alice', async () => {
-    
+
     const owner = env.bobl2Wallet.address;
     const recipient = env.alicel2Wallet.address;
     const ownerName = "Henrietta Lacks"
-    
+
     let meta = ownerName + '#' + Date.now().toString() + '#' + 'https://www.atcc.org/products/all/CCL-2.aspx';
     console.log(` ⚽️ ${chalk.red(`meta:`)} ${chalk.green(`${meta}`)}`)
 
@@ -105,11 +105,11 @@ describe('NFT Test\n', async () => {
     let nftURL = await L2ERC721.getTokenURI(
       BigNumber.from(String(0)),
       {gasLimit: 800000, gasPrice: 0}
-    ) 
+    )
     console.log(` ⚽️ ${chalk.red(`nftURL:`)} ${chalk.green(`${nftURL}`)}`)
 
     //Should be 1
-    let TID = await L2ERC721.getLastTID({gasLimit: 800000, gasPrice: 0}) 
+    let TID = await L2ERC721.getLastTID({gasLimit: 800000, gasPrice: 0})
     console.log(` ⚽️ ${chalk.red(`TID:`)} ${chalk.green(`${TID.toString()}`)}`)
 
     //mint a second NFT
@@ -122,7 +122,7 @@ describe('NFT Test\n', async () => {
     await nft.wait()
 
     //Should be 2
-    TID = await L2ERC721.getLastTID({ gasLimit: 800000, gasPrice: 0 }) 
+    TID = await L2ERC721.getLastTID({ gasLimit: 800000, gasPrice: 0 })
     console.log(` ⚽️ ${chalk.red(`TID:`)} ${chalk.green(`${TID.toString()}`)}`)
 
     //it('returns the amount of tokens owned by the given address', async function () {

@@ -30,8 +30,8 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         //
         // We do some fancy math here. Basically, any point in time, the amount of rewards
         // entitled to a user but is pending to be distributed is:
-        //   
-        //   Update Reward Per Share:    
+        //
+        //   Update Reward Per Share:
         //   accUserRewardPerShare = accUserRewardPerShare + (accUserReward - lastAccUserReward) / userDepositAmount
         //
         //  LP Provider:
@@ -88,7 +88,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
     /********************
      *       Event      *
      ********************/
-    
+
     event AddLiquidity(
         address sender,
         uint256 amount,
@@ -181,7 +181,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
     /***
      * @dev Add the new token pair to the pool
      * DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-     * 
+     *
      * @param _l1TokenAddress
      * @param _l2TokenAddress
      *
@@ -208,7 +208,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
                 accOwnerReward: 0,
                 startTime: block.timestamp
             });
-    } 
+    }
 
     /**
      * @dev Overridable getter for the L1 gas limit of settling the deposit, in the case it may be
@@ -232,7 +232,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
      */
     function updateUserRewardPerShare(
         address _tokenAddress
-    ) 
+    )
         public
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
@@ -255,15 +255,15 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
      function addLiquidity(
         uint256 _amount,
         address _tokenAddress
-    ) 
+    )
         external
-    {   
+    {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
-        
+
         require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
-        
-        // Update accUserRewardPerShare 
+
+        // Update accUserRewardPerShare
         updateUserRewardPerShare(_tokenAddress);
 
         // if the user has already deposited token, we move the rewards to
@@ -279,7 +279,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
 
         // transfer funds
         IERC20(_tokenAddress).safeTransferFrom(msg.sender, address(this), _amount);
-        
+
         // update amounts
         user.amount = user.amount.add(_amount);
         pool.userDepositAmount = pool.userDepositAmount.add(_amount);
@@ -301,7 +301,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         address _tokenAddress
     )
         external
-    {   
+    {
         PoolInfo storage pool = poolInfo[_tokenAddress];
 
         require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
@@ -355,14 +355,14 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         address payable _to
     )
         external
-    {   
+    {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
 
         require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
         require(user.amount >= _amount, "Withdraw Error");
 
-        // Update accUserRewardPerShare 
+        // Update accUserRewardPerShare
         updateUserRewardPerShare(_tokenAddress);
 
         // calculate all the rewards and set it as pending rewards
@@ -375,7 +375,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         user.rewardDebt = user.amount.mul(pool.accUserRewardPerShare).div(1e12);
         // update total user deposit amount
         pool.userDepositAmount = pool.userDepositAmount.sub(_amount);
-        
+
         IERC20(_tokenAddress).safeTransfer(_to, _amount);
 
         emit WithdrawLiquidity(
@@ -473,15 +473,15 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         external
         onlyInitialized()
         onlyFromCrossDomainAccount(address(L1LiquidityPoolAddress))
-    {   
+    {
 
         IERC20(_tokenAddress).safeTransfer(_to, _amount);
 
         emit ClientPayL2(
-          _to,
-          _amount,
-          _tokenAddress
+            _to,
+            _amount,
+            _tokenAddress
         );
     }
-     
+
 }
