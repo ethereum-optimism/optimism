@@ -2,6 +2,8 @@ FROM ethereumoptimism/builder:latest
 RUN apt-get update && apt-get install -y bash git python build-essential
 
 WORKDIR /optimism
+RUN yarn
+RUN yarn build
 COPY packages/omgx/wallet/package.json ./packages/omgx/wallet/package.json
 COPY ./packages/omgx ./packages/omgx
 
