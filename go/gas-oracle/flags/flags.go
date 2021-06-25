@@ -30,10 +30,16 @@ var PrivateKeyFlag = cli.StringFlag{
 	EnvVar: "GAS_PRICE_ORACLE_PRIVATE_KEY",
 }
 
-var TransactionGasPrice = cli.Uint64Flag{
+var TransactionGasPriceFlag = cli.Uint64Flag{
 	Name:   "transaction-gas-price",
 	Usage:  "",
 	EnvVar: "GAS_PRICE_ORACLE_TRANSACTION_GAS_PRICE",
+}
+
+var LogLevelFlag = cli.IntFlag{
+	Name:  "loglevel",
+	Value: 3,
+	Usage: "log level to emit to the screen",
 }
 
 var Flags = []cli.Flag{
@@ -41,5 +47,6 @@ var Flags = []cli.Flag{
 	ChainIDFlag,
 	GasPriceOracleAddressFlag,
 	PrivateKeyFlag,
-	TransactionGasPrice,
+	TransactionGasPriceFlag,
+	LogLevelFlag,
 }

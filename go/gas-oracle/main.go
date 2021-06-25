@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"log"
 	"math/big"
 	"os"
 	"strings"
@@ -20,8 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 )
+
+var errInvalidSigningKey = errors.New("invalid signing key")
+var errNoChainID = errors.New("no chain id provided")
+var errNoPrivateKey = errors.New("no private key provided")
 
 // GasPriceOracle manages a hot key that can update the L2 Gas Price
 type GasPriceOracle struct {
@@ -36,25 +40,45 @@ type GasPriceOracle struct {
 	gasPricer  *gasprices.L2GasPricer
 }
 
+func (g *GasPriceOracle) ensureClient() {
+	t := time.NewTicker(5 * time.Second)
+	for ; true; <-t.C {
+		chainID, err := g.client.ChainID()
+	}
+
+}
+
 // Import the contract binding
-func (g *GasPriceOracle) Start() {
-	fmt.Println("starting...")
+func (g *GasPriceOracle) Start() error {
+	if g.chainID == nil {
+		return errNoChainID
+	}
+	if g.privateKey == nil {
+		return errNoPrivateKey
+	}
 
 	address := crypto.PubkeyToAddress(g.privateKey.PublicKey)
+	log.Info("Starting Gas Price Oracle", "chain-id", g.chainID, "address", address.Hex())
+
+	// ensureClient()
+
+	// Fetch the owner of the contract to check that the
 	owner, err := g.contract.Owner(&bind.CallOpts{
 		Context: g.ctx,
 	})
 
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	if address != owner {
-		fmt.Println("key mismatch")
+		log.Error("Signing key does not match contract owner", "signer", address.Hex(), "owner", owner.Hex())
+		return errInvalidSigningKey
 	}
 
 	// TODO: break this up into smaller functions
 	go func() {
 		timer := time.NewTicker(5 * time.Second)
+		// There should never be an error here as long as a chain id is passed in
 		opts, err := bind.NewKeyedTransactorWithChainID(g.privateKey, g.chainID)
 		if err != nil {
 			fmt.Println(err)
@@ -155,10 +179,10 @@ func (g *GasPriceOracle) Wait() {
 	<-g.stop
 }
 
-func NewGasPriceOracle(cfg *config) *GasPriceOracle {
+func NewGasPriceOracle(cfg *config) (*GasPriceOracle, error) {
 	client, err := ethclient.Dial(cfg.ethereumHttpUrl)
 	if err != nil {
-		fmt.Println("cannot dial")
+		return nil, err
 	}
 
 	// TODO: parse from config
@@ -172,20 +196,25 @@ func NewGasPriceOracle(cfg *config) *GasPriceOracle {
 
 	chainID := cfg.chainID
 	if chainID == nil {
-		fmt.Println("chainid is nil, fetching remote")
+		log.Info("ChainID unset, fetching remote")
 		chainID, err = client.ChainID(context.Background())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	address := cfg.gasPriceOracleAddress
 	contract, err := bindings.NewGasPriceOracle(address, client)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 
 	privateKey := cfg.privateKey
 	if privateKey == nil {
-		fmt.Println("private key cannot be nil")
+		return nil, errNoPrivateKey
 	}
+
+	// these error checks should go in here instead of in Start
 
 	return &GasPriceOracle{
 		signer:     types.NewEIP155Signer(chainID),
@@ -197,7 +226,7 @@ func NewGasPriceOracle(cfg *config) *GasPriceOracle {
 		client:     client,
 		gasPrice:   cfg.gasPrice,
 		gasPricer:  gasPricer,
-	}
+	}, nil
 }
 
 type config struct {
@@ -234,8 +263,8 @@ func newConfig(ctx *cli.Context) *config {
 		}
 		cfg.privateKey = key
 	}
-	if ctx.GlobalIsSet(flags.TransactionGasPrice.Name) {
-		gasPrice := ctx.GlobalUint64(flags.TransactionGasPrice.Name)
+	if ctx.GlobalIsSet(flags.TransactionGasPriceFlag.Name) {
+		gasPrice := ctx.GlobalUint64(flags.TransactionGasPriceFlag.Name)
 		cfg.gasPrice = new(big.Int).SetUint64(gasPrice)
 	}
 	return &cfg
@@ -245,14 +274,27 @@ func main() {
 	app := cli.NewApp()
 	app.Flags = flags.Flags
 
+	app.Before = func(ctx *cli.Context) error {
+		loglevel := ctx.GlobalUint64(flags.LogLevelFlag.Name)
+		log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(loglevel), log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+		return nil
+	}
+
 	app.Action = func(ctx *cli.Context) error {
 		if args := ctx.Args(); len(args) > 0 {
 			return fmt.Errorf("invalid command: %q", args[0])
 		}
 
 		config := newConfig(ctx)
-		gpo := NewGasPriceOracle(config)
-		gpo.Start()
+		gpo, err := NewGasPriceOracle(config)
+		if err != nil {
+			return err
+		}
+
+		// This shouldn't return an error ... ?
+		if err := gpo.Start(); err != nil {
+			return err
+		}
 		gpo.Wait()
 
 		return nil
@@ -260,6 +302,6 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		log.Fatal(err)
+		log.Crit("application failed", "message", err)
 	}
 }
