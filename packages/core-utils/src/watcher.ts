@@ -22,7 +22,7 @@ export class Watcher {
   constructor(opts: WatcherOptions) {
     this.l1 = opts.l1
     this.l2 = opts.l2
-    if (opts.pollInterval) {
+    if(opts.pollInterval) {
       this.pollInterval = opts.pollInterval
     }
   }
@@ -87,12 +87,12 @@ export class Watcher {
       const successFilter: ethers.providers.Filter = {
         address: layer.messengerAddress,
         topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
-        fromBlock: startingBlock,
+        fromBlock: startingBlock
       }
       const failureFilter: ethers.providers.Filter = {
         address: layer.messengerAddress,
         topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`)],
-        fromBlock: startingBlock,
+        fromBlock: startingBlock
       }
       const successLogs = await layer.provider.getLogs(successFilter)
       const failureLogs = await layer.provider.getLogs(failureFilter)
@@ -105,7 +105,7 @@ export class Watcher {
       }
 
       // pause awhile before trying again
-      await new Promise((r) => setTimeout(r, this.pollInterval))
+      await new Promise(r => setTimeout(r, this.pollInterval))
     }
 
     // Message was relayed in the past
