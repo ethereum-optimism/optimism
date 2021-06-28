@@ -10,7 +10,7 @@ Both are configured through environmental variables.
 ```
 - name: SEQUENCER
   value: sequencer:8545
-- name: ETH_CALLS_ALLOWED
+- name: RPC_METHODS_ALLOWED
   value: eth_blockNumber,eth_getBlockByNumber,eth_getBlockRange,eth_sendRawTransaction
 ```
 

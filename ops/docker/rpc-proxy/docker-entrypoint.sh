@@ -7,8 +7,8 @@ if [ -z "$SEQUENCER" ];then
   exit 1
 fi
 
-if [ -z "$ETH_CALLS_ALLOWED" ];then
-  echo "ETH_CALLS_ALLOWED env must be set, exiting"
+if [ -z "$RPC_METHODS_ALLOWED" ];then
+  echo "RPC_METHODS_ALLOWED env must be set, exiting"
   exit 1
 fi
 

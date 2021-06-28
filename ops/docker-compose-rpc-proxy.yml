@@ -11,7 +11,7 @@ services:
       dockerfile: ./ops/docker/Dockerfile.rpc-proxy
     environment:
       SEQUENCER: l2geth:8545
-      ETH_CALLS_ALLOWED: eth_blockNumber,eth_sendRawTransaction
+      RPC_METHODS_ALLOWED: eth_blockNumber,eth_sendRawTransaction
     ports:
       - 9546:8080
       - 9145:9145
