@@ -12,8 +12,8 @@ interface iOVM_CrossDomainMessenger {
      **********/
 
     event SentMessage(bytes message);
-    event RelayedMessage(bytes32 msgHash);
-    event FailedRelayedMessage(bytes32 msgHash);
+    event RelayedMessage(bytes32 indexed msgHash);
+    event FailedRelayedMessage(bytes32 indexed msgHash);
 
 
     /*************

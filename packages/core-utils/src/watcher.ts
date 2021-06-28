@@ -81,18 +81,17 @@ export class Watcher {
       const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
       const successFilter: ethers.providers.Filter = {
         address: layer.messengerAddress,
-        topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
-        fromBlock: startingBlock
+        topics: [ethers.utils.id(`RelayedMessage(bytes32)`), msgHash],
+        fromBlock: startingBlock,
       }
       const failureFilter: ethers.providers.Filter = {
         address: layer.messengerAddress,
-        topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`)],
-        fromBlock: startingBlock
+        topics: [ethers.utils.id(`FailedRelayedMessage(bytes32)`), msgHash],
+        fromBlock: startingBlock,
       }
       const successLogs = await layer.provider.getLogs(successFilter)
       const failureLogs = await layer.provider.getLogs(failureFilter)
-      const logs = successLogs.concat(failureLogs)
-      matches = logs.filter((log: ethers.providers.Log) => log.data === msgHash)
+      matches = successLogs.concat(failureLogs)
       // exit loop after first iteration if not polling
       if (!pollForPending) {
         break
