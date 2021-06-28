@@ -1,4 +1,2 @@
-src/**/*.ts:
-  - eslint
-test/**/*.ts:
+"*.{ts,js}":
   - eslint
