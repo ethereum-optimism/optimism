@@ -1,4 +1,3 @@
-/* tslint:disable:no-empty */
 import { expect } from '../../../setup'
 
 /* External Imports */

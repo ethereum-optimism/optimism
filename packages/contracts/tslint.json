@@ -1,8 +1,0 @@
-{
-  "extends": "../../tslint.base.json",
-  "rules": {
-    "array-type": false,
-    "class-name": false,
-    "no-var-requires": false
-  }
-}

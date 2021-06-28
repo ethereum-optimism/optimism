@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService } from '@eth-optimism/common-ts'
+import { BaseService, Logger, Metrics } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
 import level from 'level'
 
@@ -8,6 +8,7 @@ import { L1IngestionService } from '../l1-ingestion/service'
 import { L1TransportServer } from '../server/service'
 import { validators } from '../../utils'
 import { L2IngestionService } from '../l2-ingestion/service'
+import { Counter } from 'prom-client'
 
 export interface L1DataTransportServiceOptions {
   nodeEnv: string
@@ -20,6 +21,7 @@ export interface L1DataTransportServiceOptions {
   l1RpcProvider: string
   l2ChainId: number
   l2RpcProvider: string
+  metrics?: Metrics
   dbPath: string
   logsPerPollingInterval: number
   pollingInterval: number
@@ -31,7 +33,6 @@ export interface L1DataTransportServiceOptions {
   useSentry?: boolean
   sentryDsn?: string
   sentryTraceRate?: number
-  enableMetrics?: boolean
   defaultBackend: string
 }
 
@@ -57,6 +58,8 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     l1IngestionService?: L1IngestionService
     l2IngestionService?: L2IngestionService
     l1TransportServer: L1TransportServer
+    metrics: Metrics
+    failureCounter: Counter<string>
   } = {} as any
 
   protected async _init(): Promise<void> {
@@ -65,8 +68,24 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
 
+    this.state.metrics = new Metrics({
+      labels: {
+        environment: this.options.nodeEnv,
+        network: this.options.ethNetworkName,
+        release: this.options.release,
+        service: this.name,
+      }
+    })
+
+    this.state.failureCounter = new this.state.metrics.client.Counter({
+      name: 'data_transport_layer_main_service_failures',
+      help: 'Counts the number of times that the main service fails',
+      registers: [this.state.metrics.registry],
+    })
+
     this.state.l1TransportServer = new L1TransportServer({
       ...this.options,
+      metrics: this.state.metrics,
       db: this.state.db,
     })
 
@@ -74,6 +93,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     if (this.options.syncFromL1) {
       this.state.l1IngestionService = new L1IngestionService({
         ...this.options,
+        metrics: this.state.metrics,
         db: this.state.db,
       })
     }
@@ -82,6 +102,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     if (this.options.syncFromL2) {
       this.state.l2IngestionService = new L2IngestionService({
         ...(this.options as any), // TODO: Correct thing to do here is to assert this type.
+        metrics: this.state.metrics,
         db: this.state.db,
       })
     }
@@ -98,20 +119,30 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
   }
 
   protected async _start(): Promise<void> {
-    await Promise.all([
-      this.state.l1TransportServer.start(),
-      this.options.syncFromL1 ? this.state.l1IngestionService.start() : null,
-      this.options.syncFromL2 ? this.state.l2IngestionService.start() : null,
-    ])
+    try {
+      await Promise.all([
+        this.state.l1TransportServer.start(),
+        this.options.syncFromL1 ? this.state.l1IngestionService.start() : null,
+        this.options.syncFromL2 ? this.state.l2IngestionService.start() : null,
+      ])
+    } catch (e) {
+      this.state.failureCounter.inc()
+      throw e
+    }
   }
 
   protected async _stop(): Promise<void> {
-    await Promise.all([
-      this.state.l1TransportServer.stop(),
-      this.options.syncFromL1 ? this.state.l1IngestionService.stop() : null,
-      this.options.syncFromL2 ? this.state.l2IngestionService.stop() : null,
-    ])
+    try {
+      await Promise.all([
+        this.state.l1TransportServer.stop(),
+        this.options.syncFromL1 ? this.state.l1IngestionService.stop() : null,
+        this.options.syncFromL2 ? this.state.l2IngestionService.stop() : null,
+      ])
 
-    await this.state.db.close()
+      await this.state.db.close()
+    } catch (e) {
+      this.state.failureCounter.inc()
+      throw e
+    }
   }
 }

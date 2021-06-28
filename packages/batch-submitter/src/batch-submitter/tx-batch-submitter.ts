@@ -301,8 +301,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // Fix our batches if we are configured to. TODO: Remove this.
     batch = await this._fixBatch(batch)
     if (!(await this._validateBatch(batch))) {
-      this.logger.error('Batch is malformed! Cannot submit next batch!')
-      throw new Error('Batch is malformed! Cannot submit next batch!')
+      this.metrics.malformedBatches.inc()
+      return
     }
     let sequencerBatchParams = await this._getSequencerBatchParams(
       startBlock,
@@ -356,13 +356,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // Verify all of the batch elements are monotonic
     let lastTimestamp: number
     let lastBlockNumber: number
-    for (const ele of batch) {
+    for (const [idx, ele] of batch.entries()) {
       if (ele.timestamp < lastTimestamp) {
-        this.logger.error('Timestamp monotonicity violated! Element', { ele })
+        this.logger.error('Timestamp monotonicity violated! Element', {
+          idx,
+          ele,
+        })
         return false
       }
       if (ele.blockNumber < lastBlockNumber) {
         this.logger.error('Block Number monotonicity violated! Element', {
+          idx,
           ele,
         })
         return false
@@ -469,7 +473,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           ] = await this.chainContract.getQueueElement(nextQueueIndex)
 
           if (timestamp < ele.timestamp || blockNumber < ele.blockNumber) {
-            this.logger.error('Fixing skipped deposit', {
+            this.logger.warn('Fixing skipped deposit', {
               badTimestamp: ele.timestamp,
               skippedQueueTimestamp: timestamp,
               badBlockNumber: ele.blockNumber,
@@ -563,38 +567,31 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           ele.timestamp < earliestTimestamp ||
           ele.blockNumber < earliestBlockNumber
         ) {
-          this.logger.error('Fixing timestamp/blockNumber too small', {
+          this.logger.warn('Fixing timestamp/blockNumber too small', {
             oldTimestamp: ele.timestamp,
             newTimestamp: earliestTimestamp,
             oldBlockNumber: ele.blockNumber,
             newBlockNumber: earliestBlockNumber,
           })
-          fixedBatch.push({
-            ...ele,
-            timestamp: earliestTimestamp,
-            blockNumber: earliestBlockNumber,
-          })
-          continue
+          ele.timestamp = earliestTimestamp
+          ele.blockNumber = earliestBlockNumber
         }
         // Fix the element if its timestammp/blockNumber is too large
         if (
           ele.timestamp > latestTimestamp ||
           ele.blockNumber > latestBlockNumber
         ) {
-          this.logger.error('Fixing timestamp/blockNumber too large.', {
+          this.logger.warn('Fixing timestamp/blockNumber too large.', {
             oldTimestamp: ele.timestamp,
             newTimestamp: latestTimestamp,
             oldBlockNumber: ele.blockNumber,
             newBlockNumber: latestBlockNumber,
           })
-          fixedBatch.push({
-            ...ele,
-            timestamp: latestTimestamp,
-            blockNumber: latestBlockNumber,
-          })
-          continue
+          ele.timestamp = latestTimestamp
+          ele.blockNumber = latestBlockNumber
         }
-        // No fixes needed!
+        earliestTimestamp = ele.timestamp
+        earliestBlockNumber = ele.blockNumber
         fixedBatch.push(ele)
       }
       return fixedBatch
@@ -625,7 +622,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     )
 
     const addr = await manager.getAddress(
-      'OVM_ChainStorageContainer:CTC:batches'
+      'OVM_ChainStorageContainer-CTC-batches'
     )
     const container = new Contract(
       addr,

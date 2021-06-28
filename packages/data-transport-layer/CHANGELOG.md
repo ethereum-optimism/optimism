@@ -1,5 +1,82 @@
 # data transport layer
 
+## 0.4.2
+
+### Patch Changes
+
+- 70b8ae84: Attach correct TransportDB object to method handler
+
+## 0.4.1
+
+### Patch Changes
+
+- 67eedaf6: Correctly bind the event handlers to the correct `this` in the missing event error path
+- Updated dependencies [224b04c0]
+  - @eth-optimism/core-utils@0.4.7
+
+## 0.4.0
+
+### Minor Changes
+
+- 2e72fd90: Update AddressSet event to speed search up a bit. Breaks AddressSet API.
+- 8582fc16: Define L1 Starting block via OwnershipTransferred (occurring on block 1) rather than AddressSet (occuring on block 2 onwards)
+
+### Patch Changes
+
+- 0b91df42: Adds additional code into the DTL to defend against situations where an RPC provider might be missing an event.
+- 8fee7bed: Add extra overflow protection for the DTL types
+- ca7d65db: Removes a function that was previously used for backwards compatibility but is no longer necessary
+- 16f68159: Have DTL log failed HTTP requests as ERROR instead of INFO
+- a415d017: Updates the DTL to use the same L2 chain ID everywhere
+- 29431d6a: Add highest L1 and L2 block number Gauge metrics to DTL
+- 5c89c45f: Move the metric prefix string to a label #1047
+- b8e2d685: Add replica sync test to integration tests; handle 0 L2 blocks in DTL
+- Updated dependencies [25f09abd]
+- Updated dependencies [dd8edc7b]
+- Updated dependencies [c87e4c74]
+- Updated dependencies [db0dbfb2]
+- Updated dependencies [7f5936a8]
+- Updated dependencies [f87a2d00]
+- Updated dependencies [85da4979]
+- Updated dependencies [57ca21a2]
+- Updated dependencies [5fc728da]
+- Updated dependencies [2e72fd90]
+- Updated dependencies [c43b33ec]
+- Updated dependencies [26bc63ad]
+- Updated dependencies [a0d9e565]
+- Updated dependencies [2bd49730]
+- Updated dependencies [38355a3b]
+- Updated dependencies [3c2c32e1]
+- Updated dependencies [d9644c34]
+- Updated dependencies [48ece14c]
+- Updated dependencies [e04de624]
+- Updated dependencies [014dea71]
+- Updated dependencies [fa29b03e]
+- Updated dependencies [6b46c8ba]
+- Updated dependencies [e045f582]
+- Updated dependencies [5c89c45f]
+- Updated dependencies [df5ff890]
+- Updated dependencies [e29fab10]
+- Updated dependencies [c2a04893]
+- Updated dependencies [baacda34]
+  - @eth-optimism/contracts@0.4.0
+  - @eth-optimism/core-utils@0.4.6
+  - @eth-optimism/common-ts@0.1.4
+
+## 0.3.6
+
+### Patch Changes
+
+- baa3b761: Improve Sentry support, initializing as needed and ensuring ERROR logs route to Sentry
+- Updated dependencies [baa3b761]
+  - @eth-optimism/common-ts@0.1.3
+
+## 0.3.5
+
+### Patch Changes
+
+- 1b692415: incorrect parsing of eth_getBlockRange result
+
 ## 0.3.4
 
 ### Patch Changes

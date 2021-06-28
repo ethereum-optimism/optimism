@@ -1,5 +1,17 @@
 # @eth-optimism/common-ts
 
+## 0.1.4
+
+### Patch Changes
+
+- 5c89c45f: Move the metric prefix string to a label #1047
+
+## 0.1.3
+
+### Patch Changes
+
+- baa3b761: Improve Sentry support, initializing as needed and ensuring ERROR logs route to Sentry
+
 ## 0.1.2
 
 ### Patch Changes

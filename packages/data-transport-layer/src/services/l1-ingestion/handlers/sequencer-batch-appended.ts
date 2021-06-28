@@ -22,6 +22,7 @@ import {
   SEQUENCER_GAS_LIMIT,
   parseSignatureVParam,
 } from '../../../utils'
+import { MissingElementError } from './errors'
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<
   EventArgsSequencerBatchAppended,
@@ -181,6 +182,19 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     }
   },
   storeEvent: async (entry, db) => {
+    // Defend against situations where we missed an event because the RPC provider
+    // (infura/alchemy/whatever) is missing an event.
+    if (entry.transactionBatchEntry.index > 0) {
+      const prevTransactionBatchEntry = await db.getTransactionBatchByIndex(
+        entry.transactionBatchEntry.index - 1
+      )
+
+      // We should *always* have a previous transaction batch here.
+      if (prevTransactionBatchEntry === null) {
+        throw new MissingElementError('SequencerBatchAppended')
+      }
+    }
+
     await db.putTransactionBatchEntries([entry.transactionBatchEntry])
     await db.putTransactionEntries(entry.transactionEntries)
 
@@ -243,8 +257,8 @@ const maybeDecodeSequencerBatchTransaction = (
     const decodedTx = ethers.utils.parseTransaction(transaction)
 
     return {
-      nonce: BigNumber.from(decodedTx.nonce).toNumber(),
-      gasPrice: BigNumber.from(decodedTx.gasPrice).toNumber(),
+      nonce: BigNumber.from(decodedTx.nonce).toString(),
+      gasPrice: BigNumber.from(decodedTx.gasPrice).toString(),
       gasLimit: BigNumber.from(decodedTx.gasLimit).toString(),
       value: toRpcHexString(decodedTx.value),
       target: toHexString(decodedTx.to), // Maybe null this out for creations?

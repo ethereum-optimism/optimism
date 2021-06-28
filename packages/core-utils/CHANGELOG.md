@@ -1,5 +1,18 @@
 # @eth-optimism/core-utils
 
+## 0.4.7
+
+### Patch Changes
+
+- 224b04c0: Adds a pollInterval delay to watcher.ts
+
+## 0.4.6
+
+### Patch Changes
+
+- d9644c34: Minor fix on watchers to pick up finalization of transactions on L1
+- df5ff890: improved watcher ability to find transactions during periods of high load
+
 ## 0.4.5
 
 ### Patch Changes

@@ -153,7 +153,8 @@ var (
 		utils.Eth1SyncServiceEnable,
 		utils.Eth1CanonicalTransactionChainDeployHeightFlag,
 		utils.Eth1L1CrossDomainMessengerAddressFlag,
-		utils.Eth1ETHGatewayAddressFlag,
+		utils.Eth1L1FeeWalletAddressFlag,
+		utils.Eth1StandardBridgeAddressFlag,
 		utils.Eth1ChainIdFlag,
 		utils.RollupClientHttpFlag,
 		utils.RollupEnableVerifierFlag,
@@ -163,12 +164,9 @@ var (
 		utils.RollupStateDumpPathFlag,
 		utils.RollupDiffDbFlag,
 		utils.RollupMaxCalldataSizeFlag,
-		utils.RollupDataPriceFlag,
-		utils.RollupExecutionPriceFlag,
 		utils.RollupBackendFlag,
-		utils.RollupEnableL2GasPollingFlag,
-		utils.RollupGasPriceOracleAddressFlag,
 		utils.RollupEnforceFeesFlag,
+		utils.GasPriceOracleOwnerAddress,
 	}
 
 	rpcFlags = []cli.Flag{

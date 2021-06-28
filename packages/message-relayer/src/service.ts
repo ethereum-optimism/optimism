@@ -5,9 +5,13 @@ import { MerkleTree } from 'merkletreejs'
 
 /* Imports: Internal */
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
-import { BaseService } from '@eth-optimism/common-ts'
+import { Logger, BaseService, Metrics } from '@eth-optimism/common-ts'
 
-import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
+import {
+  loadContract,
+  loadContractFromManager,
+  predeploys,
+} from '@eth-optimism/contracts'
 import { StateRootBatchHeader, SentMessage, SentMessageProof } from './types'
 
 interface MessageRelayerOptions {
@@ -40,6 +44,12 @@ interface MessageRelayerOptions {
 
   // Number of blocks within each getLogs query - max is 2000
   getLogsInterval?: number
+
+  // A custom logger to transport logs via; default STDOUT
+  logger?: Logger
+
+  // A custom metrics tracker to manage metrics; default undefined
+  metrics?: Metrics
 }
 
 const optionSettings = {
@@ -122,7 +132,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.logger.info('Connecting to OVM_L2ToL1MessagePasser...')
     this.state.OVM_L2ToL1MessagePasser = loadContract(
       'OVM_L2ToL1MessagePasser',
-      '0x4200000000000000000000000000000000000000',
+      predeploys.OVM_L2ToL1MessagePasser,
       this.options.l2RpcProvider
     )
     this.logger.info('Connected to OVM_L2ToL1MessagePasser', {
@@ -361,6 +371,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   /**
    * Returns all sent message events between some start height (inclusive) and an end height
    * (exclusive).
+   *
    * @param startHeight Start height to start finding messages from.
    * @param endHeight End height to finish finding messages at.
    * @returns All sent messages between start and end height, sorted by transaction index in

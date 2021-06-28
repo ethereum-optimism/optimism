@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.4.1
+
+### Patch Changes
+
+- 98e02cfa: Add 0.4.0 deployment artifacts
+
+## 0.4.0
+
+### Minor Changes
+
+- db0dbfb2: Disables EOA contract upgrades until further notice
+- 5fc728da: Add a new Standard Token Bridge, to handle deposits and withdrawals of any ERC20 token.
+  For projects developing a custom bridge, if you were previously importing `iAbs_BaseCrossDomainMessenger`, you should now
+  import `iOVM_CrossDomainMessenger`.
+- 2e72fd90: Update AddressSet event to speed search up a bit. Breaks AddressSet API.
+- e04de624: Add support for ovmCALL with nonzero ETH value
+
+### Patch Changes
+
+- 25f09abd: Adds ERC1271 support to default contract account
+- dd8edc7b: Update the ECDSAContractAccount import path in the `contract-data.ts` file for connecting ethers contracts to the L2 contracts
+- c87e4c74: Migrated from tslint to eslint. The preference for lint exceptions is as follows: line level, block level, file level, package level.
+- 7f5936a8: Apply consistent styling to constants
+- f87a2d00: Use dashes instead of colons in contract names
+- 85da4979: Replaces RingBuffer with a simpler Buffer library
+- 57ca21a2: "Adds connectL1Contracts and connectL2Contracts utility functions"
+- c43b33ec: Add WETH9 compatible deposit and withdraw functions to OVM_ETH
+- 26bc63ad: Deploy new Goerli contracts at d3e743aa7a406c583f7d76f4fda607f592d03e47
+- a0d9e565: ECDSA account interface contract moved to predeploys dir
+- 2bd49730: Deploy v0.4.0 rc to Kovan
+- 38355a3b: Moved contracts in the "accounts" folder into the "predeploys" folder
+- 3c2c32e1: Use predeploy constants lib for EM wrapper
+- 48ece14c: Adds a temporary way to fund hardhat accounts when testing locally
+- 014dea71: Removes one-off GasPriceOracle deployment file
+- fa29b03e: Updates the deployment of the L1MultiMessageRelayer to NOT set the OVM_L2MessageRelayer address in the AddressManager
+- 6b46c8ba: Disable upgradability from the ECDSA account instead of the EOA proxy.
+- e045f582: Adds new SequencerFeeVault contract to store generated fees
+- e29fab10: Token gateways pass additional information: sender and arbitrary data.
+- c2a04893: Do not RLP decode the transaction in the OVM_ECDSAContractAccount
+- baacda34: Introduce the L1ChugSplashProxy contract
+- Updated dependencies [d9644c34]
+- Updated dependencies [df5ff890]
+  - @eth-optimism/core-utils@0.4.6
+
 ## 0.3.5
 
 ### Patch Changes

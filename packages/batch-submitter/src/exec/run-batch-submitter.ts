@@ -1,5 +1,6 @@
 /* External Imports */
 import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
+import * as Sentry from '@sentry/node'
 import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
@@ -83,6 +84,7 @@ export const run = async () => {
   const env = process.env
   const environment = config.str('node-env', env.NODE_ENV)
   const network = config.str('eth-network-name', env.ETH_NETWORK_NAME)
+  const service = `batch-submitter`
   const release = `batch-submitter@${env.npm_package_version}`
   const sentryDsn = config.str('sentry-dsn', env.SENTRY_DSN)
   const sentryTraceRate = config.ufloat(
@@ -101,22 +103,24 @@ export const run = async () => {
   let logger
 
   if (config.bool('use-sentry', env.USE_SENTRY === 'true')) {
+    const sentryOptions = {
+      release,
+      dsn: sentryDsn,
+      tracesSampleRate: sentryTraceRate,
+      environment: network,
+    }
+    Sentry.init(sentryOptions)
     // Initialize Sentry for Batch Submitter deployed to a network
     logger = new Logger({
       name,
-      sentryOptions: {
-        release,
-        dsn: sentryDsn,
-        tracesSampleRate: sentryTraceRate,
-        environment: network,
-      },
+      sentryOptions,
     })
   } else {
     // Skip initializing Sentry
     logger = new Logger({ name })
   }
 
-  const useHardhat = config.bool('use-hardhat', !!env.USE_HARDAT)
+  const useHardhat = config.bool('use-hardhat', !!env.USE_HARDHAT)
   const DEBUG_IMPERSONATE_SEQUENCER_ADDRESS = config.str(
     'debug-impersonate-sequencer-address',
     env.DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
@@ -178,8 +182,7 @@ export const run = async () => {
 
   /* Metrics */
   const metrics = new Metrics({
-    prefix: name,
-    labels: { environment, release, network },
+    labels: { environment, release, network, service },
   })
 
   const FRAUD_SUBMISSION_ADDRESS = config.str(
@@ -438,11 +441,29 @@ export const run = async () => {
       try {
         await func()
       } catch (err) {
-        logger.error('Error submitting batch', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
+        switch (err.code) {
+          case 'SERVER_ERROR':
+            logger.error(`Encountered server error with status ${err.status}`, {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          case 'NETWORK_ERROR':
+            logger.error('Could not detect network', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+          default:
+            logger.error('Unhandled exception during batch submission', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+            break
+        }
         logger.info('Retrying...')
       }
       // Sleep

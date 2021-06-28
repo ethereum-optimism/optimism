@@ -62,6 +62,7 @@ services:
         # connect to the 2 layers
         DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
+        DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
         DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
     ports:
       - ${DTL_PORT:-7878}:7878
@@ -141,23 +142,46 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
-    # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
     env_file:
       - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        # used for getting the addresses
         URL: http://deployer:8081/addresses.json
-        # connecting to the DTL
         ROLLUP_CLIENT_HTTP: http://dtl:7878
+        ROLLUP_BACKEND: 'l1'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
-        IS_VERIFIER: "true"
+        ROLLUP_VERIFIER_ENABLE: 'true'
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546
+  
+  replica:
+    depends_on:
+      - dtl
+    image: ethereumoptimism/l2geth
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.geth
+    entrypoint: sh ./geth.sh
+    env_file:
+      - ./envs/geth.env
+    environment:
+        ETH1_HTTP: http://l1_chain:8545
+        ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
+        URL: http://deployer:8081/addresses.json
+        ROLLUP_CLIENT_HTTP: http://dtl:7878
+        ROLLUP_BACKEND: 'l2'
+        ROLLUP_VERIFIER_ENABLE: 'true'
+        ETH1_CTC_DEPLOYMENT_HEIGHT: 8
+        RETRIES: 60
+    ports:
+      - ${L2GETH_HTTP_PORT:-8549}:8545
+      - ${L2GETH_WS_PORT:-8550}:8546
 
   integration_tests:
     image: ethereumoptimism/integration-tests

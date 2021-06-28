@@ -29,6 +29,14 @@ interface iOVM_ExecutionManager {
         PREV_EPOCH_L1TOL2_QUEUE_GAS
     }
 
+    enum MessageType {
+        ovmCALL,
+        ovmSTATICCALL,
+        ovmDELEGATECALL,
+        ovmCREATE,
+        ovmCREATE2
+    }
+
     /***********
      * Structs *
      ***********/
@@ -60,6 +68,7 @@ interface iOVM_ExecutionManager {
     struct MessageContext {
         address ovmCALLER;
         address ovmADDRESS;
+        uint256 ovmCALLVALUE;
         bool isStatic;
     }
 
@@ -84,6 +93,7 @@ interface iOVM_ExecutionManager {
 
     function ovmCALLER() external view returns (address _caller);
     function ovmADDRESS() external view returns (address _address);
+    function ovmCALLVALUE() external view returns (uint _callValue);
     function ovmTIMESTAMP() external view returns (uint256 _timestamp);
     function ovmNUMBER() external view returns (uint256 _number);
     function ovmGASLIMIT() external view returns (uint256 _gasLimit);
@@ -126,7 +136,9 @@ interface iOVM_ExecutionManager {
      * Contract Calling Opcodes *
      ****************************/
 
+    // Valueless ovmCALL for maintaining backwards compatibility with legacy OVM bytecode.
     function ovmCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
+    function ovmCALL(uint256 _gasLimit, address _address, uint256 _value, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
     function ovmSTATICCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
     function ovmDELEGATECALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
 
@@ -146,6 +158,14 @@ interface iOVM_ExecutionManager {
     function ovmEXTCODECOPY(address _contract, uint256 _offset, uint256 _length) external returns (bytes memory _code);
     function ovmEXTCODESIZE(address _contract) external returns (uint256 _size);
     function ovmEXTCODEHASH(address _contract) external returns (bytes32 _hash);
+
+
+    /*********************
+     * ETH Value Opcodes *
+     *********************/
+
+    function ovmBALANCE(address _contract) external returns (uint256 _balance);
+    function ovmSELFBALANCE() external returns (uint256 _balance);
 
 
     /***************************************

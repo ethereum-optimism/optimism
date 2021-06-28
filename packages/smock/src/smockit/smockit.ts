@@ -16,13 +16,14 @@ import {
   SmockOptions,
   SmockSpec,
 } from './types'
-import { bindSmock } from './binding'
+import { bindSmock, unbindSmock } from './binding'
 import { makeRandomAddress } from '../utils'
 import { findBaseHardhatProvider } from '../common'
 
 /**
  * Generates an ethers Interface instance when given a smock spec. Meant for standardizing the
  * various input types we might reasonably want to support.
+ *
  * @param spec Smock specification object. Thing you want to base the interface on.
  * @param hre Hardhat runtime environment. Used so we can
  * @return Interface generated from the spec.
@@ -57,6 +58,7 @@ const makeContractInterfaceFromSpec = async (
 
 /**
  * Creates a mock contract function from a real contract function.
+ *
  * @param contract Contract object to make a mock function for.
  * @param functionName Name of the function to mock.
  * @param vm Virtual machine reference, necessary for call assertions to work.
@@ -137,6 +139,7 @@ const smockifyFunction = (
 
 /**
  * Turns a specification into a mock contract.
+ *
  * @param spec Smock contract specification.
  * @param opts Optional additional settings.
  */
@@ -310,4 +313,24 @@ export const smockit = async (
   await bindSmock(contract, provider)
 
   return contract
+}
+
+/**
+ * Unbinds a mock contract (meaning the contract will no longer behave as a mock).
+ *
+ * @param mock Mock contract or address to unbind.
+ */
+export const unbind = async (mock: MockContract | string): Promise<void> => {
+  // Only support native hardhat runtime, haven't bothered to figure it out for anything else.
+  if (hre.network.name !== 'hardhat') {
+    throw new Error(
+      `[smock]: smock is only compatible with the "hardhat" network, got: ${hre.network.name}`
+    )
+  }
+
+  // Find the provider object. See comments for `findBaseHardhatProvider`
+  const provider = findBaseHardhatProvider(hre)
+
+  // Unbind the contract.
+  await unbindSmock(mock, provider)
 }

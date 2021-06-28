@@ -11,6 +11,7 @@ import {
   StateRootEntry,
   EventHandlerSet,
 } from '../../../types'
+import { MissingElementError } from './errors'
 
 export const handleEventsStateBatchAppended: EventHandlerSet<
   EventArgsStateBatchAppended,
@@ -67,6 +68,19 @@ export const handleEventsStateBatchAppended: EventHandlerSet<
     }
   },
   storeEvent: async (entry, db) => {
+    // Defend against situations where we missed an event because the RPC provider
+    // (infura/alchemy/whatever) is missing an event.
+    if (entry.stateRootBatchEntry.index > 0) {
+      const prevStateRootBatchEntry = await db.getStateRootBatchByIndex(
+        entry.stateRootBatchEntry.index - 1
+      )
+
+      // We should *always* have a previous batch entry here.
+      if (prevStateRootBatchEntry === null) {
+        throw new MissingElementError('StateBatchAppended')
+      }
+    }
+
     await db.putStateRootBatchEntries([entry.stateRootBatchEntry])
     await db.putStateRootEntries(entry.stateRootEntries)
   },

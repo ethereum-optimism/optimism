@@ -30,11 +30,13 @@ docker-compose \
     up --build --detach
 ```
 
-Optionally, run a verifier along the rest of the stack.
+Optionally, run a verifier along the rest of the stack. Run a replica with the same command by switching the service name!
 ```
-docker-compose up --scale verifier=1 \
+docker-compose up --scale \
+    verifier=1 \
     --build --detach
 ```
+
 
 A Makefile has been provided for convience. The following targets are available.
 - make up

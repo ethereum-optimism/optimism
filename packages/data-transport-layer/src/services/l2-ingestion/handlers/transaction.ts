@@ -50,8 +50,8 @@ export const handleSequencerBlock = {
         },
         value: transaction.value,
         gasLimit: BigNumber.from(transaction.gas).toString(),
-        gasPrice: BigNumber.from(transaction.gasPrice).toNumber(), // ?
-        nonce: BigNumber.from(transaction.nonce).toNumber(),
+        gasPrice: BigNumber.from(transaction.gasPrice).toString(),
+        nonce: BigNumber.from(transaction.nonce).toString(),
         target: transaction.to,
         data: transaction.input,
       }
