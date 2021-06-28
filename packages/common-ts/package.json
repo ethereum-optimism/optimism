@@ -12,11 +12,11 @@
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
+    "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
+    "lint:fix": "yarn lint:check --fix",
     "lint": "yarn lint:fix && yarn lint:check",
-    "test": "ts-mocha test/*.spec.ts",
     "pre-commit": "lint-staged",
-    "lint:fix": "prettier --config .prettierrc.js --write '{src,test}/**/*.ts'",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts  ."
+    "test": "ts-mocha test/*.spec.ts"
   },
   "devDependencies": {
     "@types/chai": "^4.2.18",

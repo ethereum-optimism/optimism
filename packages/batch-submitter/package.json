@@ -14,7 +14,7 @@
     "clean": "rimraf cache/ dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
-    "lint:fix": "prettier --config .prettierrc.js --write \"hardhat.config.ts\" \"{src,exec,test}/**/*.ts\"",
+    "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
     "test": "hardhat test --show-stack-traces"
   },
