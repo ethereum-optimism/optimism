@@ -1,0 +1,28 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rpc-proxy-rules
+  namespace: monitoring
+  labels:
+    prometheus: k8s ### These labels are required for the operator
+    role: alert-rules # to pick up the new rules
+    app: rpc-proxy
+spec:
+  groups:
+    - name: rpc-proxy
+      rules:
+        - alert: RPCProxyHighErrorRate
+          annotations:
+            description: The rpc proxy is generating a high number of errors.
+          expr: sum by (namespace) (nginx_metric_errors_total) > 0
+          for: 10m
+          labels:
+            severity: critical
+        - alert: RPCProxyHighStatusErrorRate
+          annotations:
+            description: The rpc proxy is received a high rate of errors contacting the sequencer.
+          expr: sum by (status, namespace) (rate(nginx_http_requests_total{status=~"5.*"}[1m])) > 0.05
+          for: 3m
+          labels:
+            severity: critical

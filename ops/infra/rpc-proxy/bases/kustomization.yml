@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - rpc-proxy.yml
+  - alerts.yaml
