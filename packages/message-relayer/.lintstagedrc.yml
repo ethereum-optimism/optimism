@@ -1,6 +1,6 @@
 src/**/*.ts:
-  - eslint --fix
+  - eslint
 test/**/*.ts:
-  - eslint --fix
+  - eslint
 exec/*.js:
-  - eslint --fix
+  - eslint

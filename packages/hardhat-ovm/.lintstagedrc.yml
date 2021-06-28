@@ -1,2 +1,2 @@
 src/**/*.ts:
-  - eslint --fix
+  - eslint
