@@ -197,7 +197,9 @@ describe('OVM_L2StandardBridge', () => {
     let SmoddedL2Token: ModifiableContract
     beforeEach(async () => {
       // Deploy a smodded gateway so we can give some balances to withdraw
-      SmoddedL2Token = await (await smoddit('L2StandardERC20', alice)).deploy(
+      SmoddedL2Token = await (
+        await smoddit('L2StandardERC20', alice)
+      ).deploy(
         OVM_L2StandardBridge.address,
         DUMMY_L1TOKEN_ADDRESS,
         'L2Token',

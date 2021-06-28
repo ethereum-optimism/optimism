@@ -328,7 +328,7 @@ function parseSequencerBatchAppendedEvent(
         l1TxOrigin: 0x0000000000000000000000000000000000000000,
         entrypoint: 0x4200000000000000000000000000000000000005,
         gasLimit: OVM_ExecutionManager.getMaxTransactionGasLimit(),
-        data: params.transactions[sequencerTransactionCount]
+        data: params.transactions[sequencerTransactionCount],
       });
 
       sequencerTransactionCount = sequencerTransactionCount + 1;
@@ -338,9 +338,10 @@ function parseSequencerBatchAppendedEvent(
       // Note that this places an assumption on how events are parsed. This
       // only works if enqueued transactions are parsed before
       // `appendQueueBatch` events.
-      const enqueuedTransaction: EnqueuedTransaction = getEnqueuedTransactionByIndex(
-        event.startingQueueIndex + queueTransactionCount
-      );
+      const enqueuedTransaction: EnqueuedTransaction =
+        getEnqueuedTransactionByIndex(
+          event.startingQueueIndex + queueTransactionCount
+        );
 
       transactions.push({
         l1QueueOrigin: QueueOrigin.L1TOL2_QUEUE,
@@ -349,7 +350,7 @@ function parseSequencerBatchAppendedEvent(
         l1TxOrigin: enqueuedTransaction.l1TxOrigin,
         entrypoint: enqueuedTransaction.entrypoint,
         gasLimit: enqueuedTransaction.gasLimit,
-        data: enqueuedTransaction.data
+        data: enqueuedTransaction.data,
       });
 
       queueTransactionCount = queueTransactionCount + 1;

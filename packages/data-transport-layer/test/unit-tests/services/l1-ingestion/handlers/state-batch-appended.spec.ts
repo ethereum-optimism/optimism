@@ -14,8 +14,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.StateBatchAppended', () 
     it('should return event block and transaction', async () => {
       // Source: https://etherscan.io/tx/0x4ca72484e93cdb50fe1089984db152258c2bbffc2534dcafbfe032b596bd5b49
       const l1Transaction = {
-        hash:
-          '0x4ca72484e93cdb50fe1089984db152258c2bbffc2534dcafbfe032b596bd5b49',
+        hash: '0x4ca72484e93cdb50fe1089984db152258c2bbffc2534dcafbfe032b596bd5b49',
         from: '0xfd7d4de366850c08ee2cba32d851385a3071ec8d',
         data: l1StateBatchData,
       }
@@ -23,8 +22,7 @@ describe('Event Handlers: OVM_CanonicalTransactionChain.StateBatchAppended', () 
       const eventBlock: Block = {
         timestamp: 1616680530,
         number: 12106615,
-        hash:
-          '0x9c40310e19e943ad38e170329465c4489f6aba5895e9cacdac236be181aea31f',
+        hash: '0x9c40310e19e943ad38e170329465c4489f6aba5895e9cacdac236be181aea31f',
         parentHash:
           '0xc7707a04c287a22ff4e43e5d9316e45ab342dcd405e7e0284eb51ce71a3a29ac',
         miner: '0xea674fdde714fd979de3edf0f56aa9716b898ec8',

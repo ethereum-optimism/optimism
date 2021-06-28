@@ -67,10 +67,9 @@ describe('OVM_BondManager', () => {
     token = await (await deployer.getContractFactory('TestERC20')).deploy()
     await token.mint(sender, ethers.utils.parseEther('100'))
 
-    bondManager = await (await smoddit('OVM_BondManager')).deploy(
-      token.address,
-      manager.address
-    )
+    bondManager = await (
+      await smoddit('OVM_BondManager')
+    ).deploy(token.address, manager.address)
     await manager.setAddress('OVM_BondManager', bondManager.address)
     await fraudVerifier.setBondManager(bondManager.address)
   })

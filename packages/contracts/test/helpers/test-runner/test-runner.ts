@@ -83,15 +83,17 @@ export class ExecutionManagerTestRunner {
       },
       contractStorage: {
         [predeploys.OVM_DeployerWhitelist]: {
-          '0x0000000000000000000000000000000000000000000000000000000000000000': {
-            getStorageXOR: true,
-            value: ethers.constants.HashZero,
-          },
+          '0x0000000000000000000000000000000000000000000000000000000000000000':
+            {
+              getStorageXOR: true,
+              value: ethers.constants.HashZero,
+            },
         },
       },
       verifiedContractStorage: {
         [predeploys.OVM_DeployerWhitelist]: {
-          '0x0000000000000000000000000000000000000000000000000000000000000000': true,
+          '0x0000000000000000000000000000000000000000000000000000000000000000':
+            true,
         },
       },
     },
@@ -275,9 +277,8 @@ export class ExecutionManagerTestRunner {
       await ethers.getContractFactory('Helper_TestRunner')
     ).deploy()
 
-    this.contracts.Factory__Helper_TestRunner_CREATE = await ethers.getContractFactory(
-      'Helper_TestRunner_CREATE'
-    )
+    this.contracts.Factory__Helper_TestRunner_CREATE =
+      await ethers.getContractFactory('Helper_TestRunner_CREATE')
 
     this.snapshot = await ethers.provider.send('evm_snapshot', [])
   }

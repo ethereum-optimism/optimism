@@ -38,7 +38,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   await Proxy__OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
 
-  const libAddressManager = await Proxy__OVM_L1CrossDomainMessenger.libAddressManager()
+  const libAddressManager =
+    await Proxy__OVM_L1CrossDomainMessenger.libAddressManager()
   if (libAddressManager !== Lib_AddressManager.address) {
     throw new Error(
       `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +

@@ -192,8 +192,7 @@ const test_ovmSTATICCALL: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSSTORE',
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSSTORE',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -240,8 +239,7 @@ const test_ovmSTATICCALL: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSLOAD',
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSLOAD',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -284,8 +282,7 @@ const test_ovmSTATICCALL: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmCREATE',
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmCREATE',
       steps: [
         {
           functionName: 'ovmCALL',
