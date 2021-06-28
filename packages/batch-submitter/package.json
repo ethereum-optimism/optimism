@@ -15,7 +15,8 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write \"hardhat.config.ts\" \"{src,exec,test}/**/*.ts\"",
     "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
-    "test": "hardhat test --show-stack-traces"
+    "test": "hardhat test --show-stack-traces",
+    "pre-commit": "lint-staged"
   },
   "keywords": [
     "optimism",
@@ -73,6 +74,7 @@
     "hardhat": "^2.2.1",
     "mocha": "^6.1.4",
     "prettier": "^2.2.1",
+    "lint-staged": "11.0.0",
     "rimraf": "^2.6.3",
     "sinon": "^9.2.4",
     "sinon-chai": "^3.5.0",
