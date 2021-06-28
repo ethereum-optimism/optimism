@@ -93,12 +93,13 @@ describe('OVM_L1CrossDomainMessenger', () => {
     Factory__OVM_L1CrossDomainMessenger = await ethers.getContractFactory(
       'OVM_L1CrossDomainMessenger'
     )
-    OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
-      AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS,
-      FORCE_INCLUSION_PERIOD_BLOCKS,
-      MAX_GAS_LIMIT
-    )
+    OVM_CanonicalTransactionChain =
+      await Factory__OVM_CanonicalTransactionChain.deploy(
+        AddressManager.address,
+        FORCE_INCLUSION_PERIOD_SECONDS,
+        FORCE_INCLUSION_PERIOD_BLOCKS,
+        MAX_GAS_LIMIT
+      )
 
     const batches = await Factory__OVM_ChainStorageContainer.deploy(
       AddressManager.address,
@@ -127,7 +128,8 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
   let OVM_L1CrossDomainMessenger: Contract
   beforeEach(async () => {
-    const xDomainMessengerImpl = await Factory__OVM_L1CrossDomainMessenger.deploy()
+    const xDomainMessengerImpl =
+      await Factory__OVM_L1CrossDomainMessenger.deploy()
     // We use an upgradable proxy for the XDomainMessenger--deploy & set up the proxy.
     OVM_L1CrossDomainMessenger = await deployProxyXDomainMessenger(
       AddressManager,
@@ -469,9 +471,8 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     describe('blockMessage and allowMessage', () => {
       it('should revert if called by an account other than the owner', async () => {
-        const OVM_L1CrossDomainMessenger2 = OVM_L1CrossDomainMessenger.connect(
-          signer2
-        )
+        const OVM_L1CrossDomainMessenger2 =
+          OVM_L1CrossDomainMessenger.connect(signer2)
         await expect(
           OVM_L1CrossDomainMessenger2.blockMessage(keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')

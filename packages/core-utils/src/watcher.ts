@@ -22,7 +22,7 @@ export class Watcher {
   constructor(opts: WatcherOptions) {
     this.l1 = opts.l1
     this.l2 = opts.l2
-    if(opts.pollInterval) {
+    if (opts.pollInterval) {
       this.pollInterval = opts.pollInterval
     }
   }
@@ -105,7 +105,7 @@ export class Watcher {
       }
 
       // pause awhile before trying again
-      await new Promise(r => setTimeout(r, this.pollInterval))
+      await new Promise((r) => setTimeout(r, this.pollInterval))
     }
 
     // Message was relayed in the past

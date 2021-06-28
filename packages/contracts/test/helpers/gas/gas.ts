@@ -16,10 +16,11 @@ export class GasMeasurement {
     methodName: string,
     methodArgs: Array<any> = []
   ): Promise<number> {
-    const gasCost: number = await this.GasMeasurementContract.callStatic.measureCallGas(
-      targetContract.address,
-      targetContract.interface.encodeFunctionData(methodName, methodArgs)
-    )
+    const gasCost: number =
+      await this.GasMeasurementContract.callStatic.measureCallGas(
+        targetContract.address,
+        targetContract.interface.encodeFunctionData(methodName, methodArgs)
+      )
 
     return gasCost
   }

@@ -401,8 +401,7 @@ const test_ovmCREATE: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCREATE => ovmSSTORE, ovmCALL(CREATED) => ovmSLOAD(EXIST) + ovmSLOAD(NONEXIST)',
+      name: 'ovmCREATE => ovmSSTORE, ovmCALL(CREATED) => ovmSLOAD(EXIST) + ovmSLOAD(NONEXIST)',
       steps: [
         {
           functionName: 'ovmCREATE',
@@ -450,8 +449,7 @@ const test_ovmCREATE: TestDefinition = {
       ],
     },
     {
-      name:
-        'ovmCREATE => ovmCALL(ADDRESS_1) => ovmSSTORE, ovmCALL(ADDRESS_1) => ovmSLOAD',
+      name: 'ovmCREATE => ovmCALL(ADDRESS_1) => ovmSSTORE, ovmCALL(ADDRESS_1) => ovmSLOAD',
       steps: [
         {
           functionName: 'ovmCREATE',
@@ -503,8 +501,7 @@ const test_ovmCREATE: TestDefinition = {
     {
       // TODO: appears to be failing due to a smoddit issue
       skip: true,
-      name:
-        'ovmCREATE => (ovmCALL(ADDRESS_2) => ovmSSTORE) + ovmREVERT, ovmCALL(ADDRESS_2) => ovmSLOAD',
+      name: 'ovmCREATE => (ovmCALL(ADDRESS_2) => ovmSSTORE) + ovmREVERT, ovmCALL(ADDRESS_2) => ovmSLOAD',
       steps: [
         {
           functionName: 'ovmCREATE',
@@ -775,9 +772,10 @@ const test_ovmCREATE: TestDefinition = {
           contractStorage: {
             [predeploys.OVM_DeployerWhitelist]: {
               // initialized? true, allowArbitraryDeployment? false
-              '0x0000000000000000000000000000000000000000000000000000000000000000': getStorageXOR(
-                '0x0000000000000000000000000000000000000000000000000000000000000001'
-              ),
+              '0x0000000000000000000000000000000000000000000000000000000000000000':
+                getStorageXOR(
+                  '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
               // non-whitelisted deployer is whitelisted? false
               [NON_WHITELISTED_DEPLOYER_KEY]: getStorageXOR(
                 ethers.constants.HashZero
@@ -905,9 +903,10 @@ const test_ovmCREATE: TestDefinition = {
           contractStorage: {
             [predeploys.OVM_DeployerWhitelist]: {
               // initialized? true, allowArbitraryDeployment? true
-              '0x0000000000000000000000000000000000000000000000000000000000000000': getStorageXOR(
-                '0x0000000000000000000000000000000000000000000000000000000000000101'
-              ),
+              '0x0000000000000000000000000000000000000000000000000000000000000000':
+                getStorageXOR(
+                  '0x0000000000000000000000000000000000000000000000000000000000000101'
+                ),
               // non-whitelisted deployer is whitelisted? false
               [NON_WHITELISTED_DEPLOYER_KEY]: getStorageXOR(
                 ethers.constants.HashZero
@@ -946,7 +945,8 @@ const test_ovmCREATE: TestDefinition = {
                           subSteps: [],
                         },
                         expectedReturnStatus: true,
-                        expectedReturnValue: CREATED_BY_NON_WHITELISTED_DEPLOYER,
+                        expectedReturnValue:
+                          CREATED_BY_NON_WHITELISTED_DEPLOYER,
                       },
                     ],
                   },

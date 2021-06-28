@@ -208,10 +208,8 @@ describe('Basic RPC tests', () => {
 
     it('should allow eth_calls with nonzero value', async () => {
       // Deploy a contract to check msg.value of the call
-      const Factory__ValueContext: ContractFactory = await ethers.getContractFactory(
-        'ValueContext',
-        wallet
-      )
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
       const ValueContext: Contract = await Factory__ValueContext.deploy()
       await ValueContext.deployTransaction.wait()
 
