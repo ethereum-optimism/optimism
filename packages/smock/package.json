@@ -13,7 +13,7 @@
     "test": "hardhat test --show-stack-traces",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
-    "lint:fix": "prettier --config ./.prettierrc.js --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
+    "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
     "clean": "rimraf ./artifacts ./cache ./dist ./tsconfig.build.tsbuildinfo"
   },

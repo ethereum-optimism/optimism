@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:fix": "prettier --config ./.prettierrc.js --write 'test/**/*.ts'",
+    "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
     "build:integration": "./scripts/build.sh",
     "build:contracts": "hardhat compile",
