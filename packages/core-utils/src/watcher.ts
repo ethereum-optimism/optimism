@@ -10,16 +10,21 @@ export interface Layer {
 export interface WatcherOptions {
   l1: Layer
   l2: Layer
+  pollInterval?: number
 }
 
 export class Watcher {
   public l1: Layer
   public l2: Layer
+  public pollInterval: number = 3000
   public NUM_BLOCKS_TO_FETCH: number = 10_000_000
 
   constructor(opts: WatcherOptions) {
     this.l1 = opts.l1
     this.l2 = opts.l2
+    if(opts.pollInterval) {
+      this.pollInterval = opts.pollInterval
+    }
   }
 
   public async getMessageHashesFromL1Tx(l1TxHash: string): Promise<string[]> {
@@ -93,10 +98,14 @@ export class Watcher {
       const failureLogs = await layer.provider.getLogs(failureFilter)
       const logs = successLogs.concat(failureLogs)
       matches = logs.filter((log: ethers.providers.Log) => log.data === msgHash)
+
       // exit loop after first iteration if not polling
       if (!pollForPending) {
         break
       }
+
+      // pause awhile before trying again
+      await new Promise(r => setTimeout(r, this.pollInterval))
     }
 
     // Message was relayed in the past
