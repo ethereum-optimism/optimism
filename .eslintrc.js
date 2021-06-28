@@ -6,7 +6,7 @@ module.exports = {
     "extends": [
         "prettier",
     ],
-    "ignorePatterns": ["dist/**/*.ts"],
+    "ignorePatterns": ["dist/**/*.ts", "packages/contracts/hardhat"],
     "parser": "@typescript-eslint/parser",
     "parserOptions": {
         "project": "tsconfig.json",
