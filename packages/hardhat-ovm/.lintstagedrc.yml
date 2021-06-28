@@ -1,2 +1,2 @@
-src/**/*.ts:
+"*.{ts,js}":
   - eslint
