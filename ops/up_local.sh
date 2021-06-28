@@ -3,6 +3,11 @@ if ! [ -x "$(command -v yq)" ]; then
   echo 'Error: yq is not installed. brew install yq' >&2
   exit 1
 fi
+
+# Build dependencies
+yarn
+yarn build
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 ORIGINAL_DOCKERFILE="docker-compose.yml"
 DOCKERFILE=docker-compose-omgx.yml

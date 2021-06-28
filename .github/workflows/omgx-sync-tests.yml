@@ -1,12 +1,6 @@
 name: omgx_sync-tests
 
 on:
-  push:
-    branches:
-      - 'master'
-      - 'develop'
-      - 'regenesis/*'
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -41,6 +35,7 @@ jobs:
         working-directory: ./integration-tests
         run: |
           yarn
+          yarn build:integration
           yarn test:sync
 
       # - name: Collect docker logs on failure

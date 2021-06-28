@@ -3,7 +3,7 @@ pragma solidity >0.6.0 <0.8.0;
 
 /**
  * @title ERC20
- * @dev A super simple ERC20 implementation!
+ * @dev A super simple ERC20 implementation! Also *very* insecure. Do not use in prod.
  */
 contract ERC20 {
 
@@ -34,7 +34,7 @@ contract ERC20 {
     // Some optional extra goodies.
     uint256 public totalSupply;
     string public name;
-
+    string public symbol;
 
     /***************
      * Constructor *
@@ -43,16 +43,19 @@ contract ERC20 {
     /**
      * @param _initialSupply Initial maximum token supply.
      * @param _name A name for our ERC20 (technically optional, but it's fun ok jeez).
+     * @param _symbol A symbol for our ERC20
      */
     constructor(
         uint256 _initialSupply,
-        string memory _name
+        string memory _name,
+        string memory _symbol
     )
         public
     {
         balances[msg.sender] = _initialSupply;
         totalSupply = _initialSupply;
         name = _name;
+        symbol = _symbol;
     }
 
 
@@ -192,5 +195,47 @@ contract ERC20 {
         )
     {
         return allowances[_owner][_spender];
+    }
+
+    /**
+     * Internal minting function.
+     * @param _who Address to mint tokens for.
+     * @param _amount Number of tokens to mint.
+     */
+    function _mint(
+        address _who,
+        uint256 _amount
+    )
+        internal
+    {
+        totalSupply += _amount;
+        balances[_who] += _amount;
+        emit Transfer(address(0), _who, _amount);
+    }
+
+    /**
+     * Internal burning function.
+     * @param _who Address to burn tokens from.
+     * @param _amount Number of tokens to burn.
+     */
+    function _burn(
+        address _who,
+        uint256 _amount
+    )
+        internal
+    {
+        require(
+            totalSupply >= _amount,
+            "Can't burn more than total supply."
+        );
+
+        require(
+            balances[_who] >= _amount,
+            "Account does not have enough to burn."
+        );
+
+        totalSupply -= _amount;
+        balances[_who] -= _amount;
+        emit Transfer(_who, address(0), _amount);
     }
 }

@@ -20,6 +20,8 @@ packages/contracts/hardhat*
 
 packages/data-transport-layer/db
 
+packages/omgx/wallet/wallet/build
+
 # vim
 *.swp
 

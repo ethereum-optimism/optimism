@@ -2,10 +2,10 @@
 pragma solidity >=0.5.16 <0.8.0;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-//import { IL2StandardERC20 } from "@eth-optimism/contracts/libraries/standards/IL2StandardERC20.sol";
-import './IL2StandardERC20.sol';
 
-contract L2CustomERC20 is IL2StandardERC20, ERC20 {
+import './interfaces/IL2StandardERC20.sol';
+
+contract L2StandardERC20 is IL2StandardERC20, ERC20 {
     address public override l1Token;
     address public l2Bridge;
 
@@ -31,9 +31,11 @@ contract L2CustomERC20 is IL2StandardERC20, ERC20 {
     }
 
     function supportsInterface(bytes4 _interfaceId) public override pure returns (bool) {
-        // 0x01ffc9a7 = bytes4(keccak256("supportsInterface(bytes4)")) (ERC165)
-        // 0x1d1d8b63 = bytes4(keccak256("l1Token()")) ^ bytes4(keccak256("mint(address,uint256)")) ^ bytes4(keccak256("burn(address,uint256)"))
-        return _interfaceId == 0x01ffc9a7 || _interfaceId == 0x1d1d8b63;
+        bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
+        bytes4 secondSupportedInterface = IL2StandardERC20.l1Token.selector
+            ^ IL2StandardERC20.mint.selector
+            ^ IL2StandardERC20.burn.selector;
+        return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 
     function mint(address _to, uint256 _amount) public override onlyL2Bridge {

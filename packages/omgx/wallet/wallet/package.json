@@ -7,10 +7,7 @@
     "buildenv-prod": "NODE_ENV=production react-env --dest build",
     "serve": "npm run buildenv-prod && serve -s build -l 3000 -c public/serve.json",
     "start": "npm run buildenv-dev && react-scripts start",
-    "build": "GENERATE_SOURCEMAP=false react-scripts build",
-    "lint": "eslint . --ext .js,.jsx",
-    "test": "react-scripts test --watchAll=false",
-    "test:coverage": "npm run test --coverage",
+    "build:deploy": "GENERATE_SOURCEMAP=false react-scripts build",
     "audit-check": "audit-ci --moderate",
     "postinstall": "patch-package",
     "deploy": "aws s3 rm s3://omgx-wallet --recursive && aws s3 sync build s3://omgx-wallet && aws s3 cp s3://omgx-wallet/index.html s3://omgx-wallet/index.html --metadata-directive REPLACE --cache-control max-age=0"

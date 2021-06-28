@@ -22,6 +22,7 @@ COPY --from=builder /optimism/packages/contracts/*.json ./
 COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
 COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
 COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
+COPY --from=builder /optimism/packages/contracts/deployments ./deployments
 
 # get non-build artifacts from the host
 COPY packages/contracts/bin ./bin
@@ -36,7 +37,6 @@ COPY packages/contracts/scripts ./scripts
 # get the needed built artifacts
 WORKDIR /opt/optimism/packages/omgx/wallet
 COPY --from=wallet_builder /optimism/packages/omgx/wallet/tsconfig.json ./tsconfig.json
-COPY --from=wallet_builder /optimism/packages/omgx/wallet/package-lock.json ./package-lock.json
 COPY --from=wallet_builder /optimism/packages/omgx/wallet/package.json ./package.json
 COPY --from=wallet_builder /optimism/packages/omgx/wallet/node_modules ./node_modules
 COPY --from=wallet_builder /optimism/packages/omgx/wallet/artifacts ./artifacts

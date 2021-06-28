@@ -10,8 +10,7 @@
       "packages/omgx/wallet/*",
       "l2geth",
       "integration-tests",
-      "specs",
-      "packages/omgx/*"
+      "specs"
     ],
     "nohoist": [
       "examples/*"

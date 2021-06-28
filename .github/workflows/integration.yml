@@ -85,29 +85,29 @@ jobs:
           yarn compile:ovm
           yarn test:integration:ovm
           yarn deploy:ovm
-      
-      # - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
-      #   working-directory: ./examples/l1-l2-deposit-withdrawal
-      #   run: |
-      #     yarn
-      #     yarn compile
-      #     yarn compile:ovm
-      #     yarn test:integration:ovm
 
-      # - name: Collect docker logs on failure
-      #   if: failure()
-      #   uses: jwalton/gh-docker-logs@v1
-      #   with:
-      #     images: 'ethereumoptimism/builder,ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
-      #     dest: './logs'
+      - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
+        working-directory: ./examples/l1-l2-deposit-withdrawal
+        run: |
+          yarn
+          yarn compile
+          yarn compile:ovm
+          yarn test:integration:ovm
 
-      # - name: Tar logs
-      #   if: failure()
-      #   run: tar cvzf ./logs.tgz ./logs
+      - name: Collect docker logs on failure
+        if: failure()
+        uses: jwalton/gh-docker-logs@v1
+        with:
+          images: 'ethereumoptimism/builder,ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
+          dest: './logs'
 
-      # - name: Upload logs to GitHub
-      #   if: failure()
-      #   uses: actions/upload-artifact@master
-      #   with:
-      #     name: logs.tgz
-      #     path: ./logs.tgz
+      - name: Tar logs
+        if: failure()
+        run: tar cvzf ./logs.tgz ./logs
+
+      - name: Upload logs to GitHub
+        if: failure()
+        uses: actions/upload-artifact@master
+        with:
+          name: logs.tgz
+          path: ./logs.tgz

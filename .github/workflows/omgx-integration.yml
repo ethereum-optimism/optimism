@@ -123,24 +123,24 @@ jobs:
           yarn compile:ovm
           yarn test:integration:ovm
 
-      # - name: List all built images
-      #   if: failure()
-      #   run: docker images
+      - name: List all built images
+        if: failure()
+        run: docker images
 
-      # - name: Collect docker logs on failure
-      #   if: failure()
-      #   uses: jwalton/gh-docker-logs@v1
-      #   with:
-      #     images: 'omgx/builder,omgx/hardhat,omgx/deployer,omgx/data-transport-layer,omgx/l2geth,omgx/message-relayer,omgx/batch-submitter,omgx/l2geth,omgx/integration-tests,omgx/wallet_builder,omgx/wallet_deployer'
-      #     dest: './logs'
+      - name: Collect docker logs on failure
+        if: failure()
+        uses: jwalton/gh-docker-logs@v1
+        with:
+          images: 'omgx/builder,omgx/hardhat,omgx/deployer,omgx/data-transport-layer,omgx/l2geth,omgx/message-relayer,omgx/batch-submitter,omgx/l2geth,omgx/integration-tests,omgx/wallet_builder,omgx/wallet_deployer'
+          dest: './logs'
 
-      # - name: Tar logs
-      #   if: failure()
-      #   run: tar cvzf ./logs.tgz ./logs
+      - name: Tar logs
+        if: failure()
+        run: tar cvzf ./logs.tgz ./logs
 
-      # - name: Upload logs to GitHub
-      #   if: failure()
-      #   uses: actions/upload-artifact@master
-      #   with:
-      #     name: logs.tgz
-      #     path: ./logs.tgz
+      - name: Upload logs to GitHub
+        if: failure()
+        uses: actions/upload-artifact@master
+        with:
+          name: logs.tgz
+          path: ./logs.tgz

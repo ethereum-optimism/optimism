@@ -2,7 +2,6 @@
 const { ethers } = require('hardhat')
 const { expect } = require('chai')
 const { Watcher } = require('@eth-optimism/watcher')
-const { getContractFactory } = require('@eth-optimism/contracts')
 
 /* Internal Imports */
 const factory = (name, ovm = false) => {
@@ -10,9 +9,9 @@ const factory = (name, ovm = false) => {
   return new ethers.ContractFactory(artifact.abi, artifact.bytecode)
 }
 const factory__L1_ERC20 = factory('ERC20')
-const factory__L2_ERC20 = getContractFactory('L2StandardERC20')
-const factory__L1StandardBridge = getContractFactory('OVM_L1StandardBridge')
-const factory__L2StandardBridge = getContractFactory('OVM_L2StandardBridge')
+const factory__L2_ERC20 = factory('L2StandardERC20', true)
+const factory__L1StandardBridge = factory('OVM_L1StandardBridge')
+const factory__L2StandardBridge = factory('OVM_L2StandardBridge', true)
 
 describe(`L1 <> L2 Deposit and Withdrawal`, () => {
   // Set up our RPC provider connections.
@@ -28,6 +27,11 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
   const L1StandardBridgeAddress = '0x851356ae760d987E095750cCeb3bC6014560891C'
   // L2 standard bridge address is always the same.
   const L2StandardBridgeAddress = '0x4200000000000000000000000000000000000010'
+  // L1 messenger address depends on the deployment, this is default for our local deployment.
+  const l1MessengerAddress = '0x59b670e9fA9D0A427751Af201D676719a970857b'
+  // L2 messenger address is always the same.
+  const l2MessengerAddress = '0x4200000000000000000000000000000000000007'
+
   const L2_ERC20_NAME = 'L2 ERC20'
   const L2_ERC20_SYMBOL = 'L2 ERC20'
 
@@ -70,7 +74,7 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
     // Deploy the paired ERC20 token to L2.
     L2_ERC20 = await factory__L2_ERC20.connect(l2Wallet).deploy(
       L2StandardBridgeAddress,
-      L2_ERC20.address,
+      L1_ERC20.address,
       L2_ERC20_NAME,
       L2_ERC20_SYMBOL,
       {
@@ -106,6 +110,7 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
         L2_ERC20.address,
         1234,
         L2GasLimit,
+        ethers.utils.formatBytes32String('0'),
         { gasPrice: 0 }
       )
       await l1Tx1.wait()
@@ -144,6 +149,7 @@ describe(`L1 <> L2 Deposit and Withdrawal`, () => {
         L2_ERC20.address,
         1234,
         L1GasLimit,
+        ethers.utils.formatBytes32String('0'),
         { gasPrice: 0 }
       )
       await l2Tx1.wait()
