@@ -868,7 +868,7 @@ describe('OVM_CanonicalTransactionChain', () => {
               shouldStartAtElement: 0,
               totalElementsToAppend: 1,
             })
-          ).to.be.revertedWith('Index out of bounds.')
+          ).to.be.revertedWith('Not enough queued transactions to append.')
         })
 
         it('reverts when there are insufficient (but nonzero) transactions in the queue', async () => {
@@ -1063,7 +1063,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   totalElementsToAppend: 2 * numQueuedTransactions,
                 })
               ).to.be.revertedWith(
-                'Sequencer transaction timestamp exceeds that of next queue element.'
+                'Context timestamp values must monotonically increase.'
               )
             })
 
@@ -1081,7 +1081,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   totalElementsToAppend: 2 * numQueuedTransactions,
                 })
               ).to.be.revertedWith(
-                'Sequencer transaction blockNumber exceeds that of next queue element.'
+                'Context blockNumber values must monotonically increase.'
               )
             })
           })
@@ -1223,8 +1223,10 @@ describe('OVM_CanonicalTransactionChain', () => {
         let firstContext: { timestamp: number; blockNumber: number }
         let secondContext: { timestamp: number; blockNumber: number }
         beforeEach(async () => {
-          // Pre-populate the queue with a transaction to append later
+          // Pre-populate the queue with a couple transaction to append later
           await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+          await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+          // Get the first queue element, which we'll set our test contexts relative to.
           queueElement = await OVM_CanonicalTransactionChain.getQueueElement(0)
 
           // Set the first context sufficiently below the QueueElement's context
