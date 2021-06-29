@@ -46,7 +46,7 @@ const registerMetrics = ({
     name: 'data_transport_layer_l1_unhandled_error_count',
     help: 'Number of times recovered from unhandled errors',
     registers: [registry],
-  })
+  }),
 })
 
 export interface L1IngestionServiceOptions
@@ -168,7 +168,8 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     // Store the total number of submitted transactions so the server can tell clients if we're
     // done syncing or not
-    const totalElements = await this.state.contracts.OVM_CanonicalTransactionChain.getTotalElements()
+    const totalElements =
+      await this.state.contracts.OVM_CanonicalTransactionChain.getTotalElements()
     if (totalElements > 0) {
       await this.state.db.putHighestL2BlockNumber(totalElements - 1)
     }
@@ -246,9 +247,14 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
           // Different functions for getting the last good element depending on the event type.
           const handlers = {
-            SequencerBatchAppended: this.state.db.getLatestTransactionBatch.bind(this.state.db),
-            StateBatchAppended: this.state.db.getLatestStateRootBatch.bind(this.state.db),
-            TransactionEnqueued: this.state.db.getLatestEnqueue.bind(this.state.db),
+            SequencerBatchAppended:
+              this.state.db.getLatestTransactionBatch.bind(this.state.db),
+            StateBatchAppended: this.state.db.getLatestStateRootBatch.bind(
+              this.state.db
+            ),
+            TransactionEnqueued: this.state.db.getLatestEnqueue.bind(
+              this.state.db
+            ),
           }
 
           // Find the last good element and reset the highest synced L1 block to go back to the
@@ -325,11 +331,14 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     // We need to figure out how to make this work without Infura. Mark and I think that infura is
     // doing some indexing of events beyond Geth's native capabilities, meaning some event logic
     // will only work on Infura and not on a local geth instance. Not great.
-    const addressSetEvents = await this.state.contracts.Lib_AddressManager.queryFilter(
-      this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
-      fromL1Block,
-      toL1Block
-    )
+    const addressSetEvents =
+      await this.state.contracts.Lib_AddressManager.queryFilter(
+        this.state.contracts.Lib_AddressManager.filters.AddressSet(
+          contractName
+        ),
+        fromL1Block,
+        toL1Block
+      )
 
     // We're going to parse things out in ranges because the address of a given contract may have
     // changed in the range provided by the user.

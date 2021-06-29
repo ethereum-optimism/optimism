@@ -12,8 +12,9 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "hardhat test --show-stack-traces",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:fix": "prettier --config ./.prettierrc.json --write \"hardhat.config.ts\" \"{src,test}/**/*.ts\"",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
+    "pre-commit": "lint-staged",
+    "lint:fix": "yarn lint:check --fix",
+    "lint:check": "eslint .",
     "clean": "rimraf ./artifacts ./cache ./dist ./tsconfig.build.tsbuildinfo"
   },
   "peerDependencies": {
@@ -44,7 +45,9 @@
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "chai": "^4.3.0",
+    "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
+    "eslint-plugin-prettier": "^3.4.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-ban": "^1.5.2",
     "eslint-plugin-import": "^2.23.4",
@@ -56,6 +59,8 @@
     "ethers": "^5.0.31",
     "hardhat": "^2.4.0",
     "lodash": "^4.17.20",
-    "prettier": "^2.2.1"
+    "prettier": "^2.2.1",
+    "lint-staged": "11.0.0",
+    "typescript": "^4.2.3"
   }
 }

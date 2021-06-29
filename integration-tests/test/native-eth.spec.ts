@@ -325,12 +325,8 @@ describe('Native ETH Integration Tests', async () => {
       expect(receipt.events.length).to.equal(4)
 
       // The first transfer event is fee payment
-      const [
-        ,
-        firstTransferEvent,
-        secondTransferEvent,
-        depositEvent,
-      ] = receipt.events
+      const [, firstTransferEvent, secondTransferEvent, depositEvent] =
+        receipt.events
 
       expect(firstTransferEvent.event).to.equal('Transfer')
       expect(firstTransferEvent.args.from).to.equal(env.l2Wallet.address)

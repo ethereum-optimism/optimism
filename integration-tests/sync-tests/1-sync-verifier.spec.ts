@@ -64,7 +64,8 @@ describe('Syncing a verifier', () => {
     })
 
     it('should sync dummy transaction', async () => {
-      const totalElementsBefore = (await env.ctc.getTotalElements()) as BigNumber
+      const totalElementsBefore =
+        (await env.ctc.getTotalElements()) as BigNumber
 
       const tx = {
         to: '0x' + '1234'.repeat(10),

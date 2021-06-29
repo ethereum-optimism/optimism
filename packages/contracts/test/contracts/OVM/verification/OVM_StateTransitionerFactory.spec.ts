@@ -35,9 +35,8 @@ describe('OVM_StateTransitionerFactory', () => {
   let OVM_StateTransitionerFactory: Contract
   let Mock__OVM_StateManagerFactory: MockContract
   beforeEach(async () => {
-    OVM_StateTransitionerFactory = await Factory__OVM_StateTransitionerFactory.deploy(
-      AddressManager.address
-    )
+    OVM_StateTransitionerFactory =
+      await Factory__OVM_StateTransitionerFactory.deploy(AddressManager.address)
 
     Mock__OVM_StateManagerFactory = await smockit('OVM_StateManagerFactory')
     Mock__OVM_StateManagerFactory.smocked.create.will.return.with(

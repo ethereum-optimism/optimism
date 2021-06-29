@@ -23,8 +23,8 @@ export class BaseService<T> {
   protected options: T
   protected logger: Logger
   protected metrics: Metrics
-  protected initialized: boolean = false
-  protected running: boolean = false
+  protected initialized = false
+  protected running = false
 
   constructor(
     name: string,

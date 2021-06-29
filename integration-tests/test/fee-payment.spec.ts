@@ -42,8 +42,10 @@ describe('Fee Payment Integration Tests', async () => {
       other,
       utils.parseEther('0.5')
     )
-    const executionGas = await (env.ovmEth
-      .provider as any).send('eth_estimateExecutionGas', [tx, true])
+    const executionGas = await (env.ovmEth.provider as any).send(
+      'eth_estimateExecutionGas',
+      [tx, true]
+    )
     const decoded = TxGasLimit.decode(gas)
     expect(BigNumber.from(executionGas)).deep.eq(decoded)
   })

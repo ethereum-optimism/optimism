@@ -274,9 +274,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     }
   }
 
-  private async _getStateBatchHeader(
-    height: number
-  ): Promise<
+  private async _getStateBatchHeader(height: number): Promise<
     | {
         batch: StateRootBatchHeader
         stateRoots: string[]
@@ -308,11 +306,12 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
         endBlock: startingBlock + this.options.getLogsInterval,
       })
 
-      const events: ethers.Event[] = await this.state.OVM_StateCommitmentChain.queryFilter(
-        this.state.OVM_StateCommitmentChain.filters.StateBatchAppended(),
-        startingBlock,
-        startingBlock + this.options.getLogsInterval
-      )
+      const events: ethers.Event[] =
+        await this.state.OVM_StateCommitmentChain.queryFilter(
+          this.state.OVM_StateCommitmentChain.filters.StateBatchAppended(),
+          startingBlock,
+          startingBlock + this.options.getLogsInterval
+        )
 
       this.state.eventCache = this.state.eventCache.concat(events)
       startingBlock += this.options.getLogsInterval
@@ -333,12 +332,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       event.transactionHash
     )
 
-    const [
-      stateRoots,
-    ] = this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
-      'appendStateBatch',
-      transaction.data
-    )
+    const [stateRoots] =
+      this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
+        'appendStateBatch',
+        transaction.data
+      )
 
     return {
       batch: {
@@ -390,10 +388,11 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
     const messages = events.map((event) => {
       const message = event.args.message
-      const decoded = this.state.OVM_L2CrossDomainMessenger.interface.decodeFunctionData(
-        'relayMessage',
-        message
-      )
+      const decoded =
+        this.state.OVM_L2CrossDomainMessenger.interface.decodeFunctionData(
+          'relayMessage',
+          message
+        )
 
       return {
         target: decoded._target,

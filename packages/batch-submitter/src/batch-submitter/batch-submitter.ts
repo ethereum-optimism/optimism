@@ -3,11 +3,11 @@ import { Contract, Signer, utils, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 import { Gauge, Histogram, Counter } from 'prom-client'
 import * as ynatm from '@eth-optimism/ynatm'
-import { RollupInfo } from '@eth-optimism/core-utils'
+import { RollupInfo, sleep } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { getContractFactory } from 'old-contracts'
 
-export interface Range {
+export interface BlockRange {
   start: number
   end: number
 }
@@ -65,7 +65,7 @@ export abstract class BatchSubmitter {
     endBlock: number
   ): Promise<TransactionReceipt>
   public abstract _onSync(): Promise<TransactionReceipt>
-  public abstract _getBatchStartAndEnd(): Promise<Range>
+  public abstract _getBatchStartAndEnd(): Promise<BlockRange>
   public abstract _updateChainInfo(): Promise<void>
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
@@ -73,7 +73,11 @@ export abstract class BatchSubmitter {
       this.l2ChainId = await this._getL2ChainId()
     }
     await this._updateChainInfo()
-    await this._checkBalance()
+
+    if (!(await this._hasEnoughETHToCoverGasCosts())) {
+      await sleep(this.resubmissionTimeout)
+      return
+    }
 
     this.logger.info('Readying to submit next batch...', {
       l2ChainId: this.l2ChainId,
@@ -94,7 +98,7 @@ export abstract class BatchSubmitter {
     return this._submitBatch(range.start, range.end)
   }
 
-  protected async _checkBalance(): Promise<void> {
+  protected async _hasEnoughETHToCoverGasCosts(): Promise<boolean> {
     const address = await this.signer.getAddress()
     const balance = await this.signer.getBalance()
     const ether = utils.formatEther(balance)
@@ -104,6 +108,7 @@ export abstract class BatchSubmitter {
       address,
       ether,
     })
+
     this.metrics.batchSubmitterETHBalance.set(num)
 
     if (num < this.minBalanceEther) {
@@ -111,7 +116,10 @@ export abstract class BatchSubmitter {
         current: num,
         safeBalance: this.minBalanceEther,
       })
+      return false
     }
+
+    return true
   }
 
   protected async _getRollupInfo(): Promise<RollupInfo> {

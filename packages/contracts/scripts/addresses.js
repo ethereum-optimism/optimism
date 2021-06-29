@@ -34,8 +34,8 @@ const argv = yargs(hideBin(process.argv)).argv
   for (const name of Object.keys(addresses)) {
     if (addresses[name] !== ethers.constants.AddressZero) {
       table.push({
-        name: name,
-        address: addresses[name]
+        name,
+        address: addresses[name],
       })
     }
   }
