@@ -15,7 +15,7 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
+    "lint:check": "eslint .",
     "test": "hardhat test --show-stack-traces"
   },
   "keywords": [
@@ -61,6 +61,7 @@
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "chai": "^4.2.0",
+    "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
     "eslint-plugin-prettier": "^3.4.0",
     "eslint-config-prettier": "^8.3.0",
