@@ -36,7 +36,8 @@ contract OVM_L2StandardTokenFactory {
             Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
             _l1Token,
             _name,
-            _symbol);
+            _symbol
+        );
 
         emit StandardL2TokenCreated(_l1Token, address(l2Token));
     }
