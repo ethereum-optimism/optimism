@@ -2,6 +2,16 @@
   "extends": "solhint:recommended",
   "plugins": [],
     "rules": {
-      "compiler-version": ["off"]
+      "compiler-version": "off",
+      "code-complexity": ["warn", 5],
+      "max-line-length": ["error", 100],
+      "func-param-name-mixedcase": "error",
+      "modifier-name-mixedcase": "error",
+      "private-vars-leading-underscore": "error",
+      "ordering": "warn",
+      "not-rely-on-time": "off",
+      "no-complex-fallback": "off",
+      "not-rely-on-block-hash": "off",
+      "reentrancy": "off"
     }
 }
