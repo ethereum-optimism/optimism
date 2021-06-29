@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT LICENSE
 /* Implements ERC20 token standard: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md */
-pragma solidity ^0.7.6;
+pragma solidity ^0.6.12;
 
 import "./IERC20.sol";
 
@@ -24,7 +24,7 @@ contract ERC20 is IERC20 {
         string memory _tokenName,
         uint8 _decimalUnits,
         string memory _tokenSymbol
-    ) {
+    ) public {
         balances[msg.sender] = _initialAmount; // Give the creator all initial tokens
         totalSupply = _initialAmount; // Update total supply
         name = _tokenName; // Set the name for display purposes

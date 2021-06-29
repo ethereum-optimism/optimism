@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT LICENSE
 // Abstract contract for the full ERC20 Token standard
 // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
-pragma solidity ^0.7.6;
+pragma solidity ^0.6.12;
 
 interface IERC20 {
     /// @param _owner The address from which the balance will be retrieved
