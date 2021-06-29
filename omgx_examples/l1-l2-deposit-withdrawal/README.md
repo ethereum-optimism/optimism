@@ -2,31 +2,12 @@
 
 ## 1. To deploy on a LOCAL system
 
-First, spin up a local system as usual:
+First, spin up a local system as usual (see the top-level Readme.md). Then, run:
 
 ```bash
-$ cd optimism
-$ yarn clean
-$ yarn
-$ yarn build
-$ cd ops
-```
-Make sure you have the docker app running!
-
-```
-$ docker-compose down -v
-$ docker-compose build
-$ docker-compose up
-```
-
-Second, in this folder run:
-
-```bash
-$ yarn
+$ yarn compile
 $ yarn compile:ovm
 ```
-
-This will compile the contract
 
 ```
 $ hardhat compile --network optimism
@@ -68,7 +49,7 @@ $ hardhat test --network optimism
 ✨  Done in 5.48s.
 ```
 
-## 2. To deploy on RINKEBY
+## 2. To test on OMGX Rinkeby
 
 First, run:
 
@@ -81,7 +62,6 @@ This will compile the contract, Now, see if it works
 ```bash
 $ yarn test:integration:omgx
 ```
-
 
 ```bash
 yarn run v1.22.10

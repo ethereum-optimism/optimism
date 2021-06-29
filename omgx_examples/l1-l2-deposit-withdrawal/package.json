@@ -10,10 +10,8 @@
     "compile:omgx": "hardhat compile --network omgx_rinkeby",
     "test:integration": "hardhat test",
     "test:integration:ovm": "hardhat test --network optimism",
-    "test:integration:omgx": "hardhat test --network omgx_rinkeby",
-    "deploy": "hardhat deploy",
-    "deploy:ovm": "hardhat deploy --network optimism",
-    "deploy:omgx": "hardhat deploy --network omgx_rinkeby"  },
+    "test:integration:omgx": "hardhat test --network omgx_rinkeby", 
+  },
   "devDependencies": {
     "@eth-optimism/contracts": "^0.2.4",
     "@eth-optimism/core-utils": "^0.2.1",
