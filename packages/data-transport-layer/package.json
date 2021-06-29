@@ -18,7 +18,8 @@
     "start": "ts-node ./src/services/run.ts",
     "start:local": "ts-node ./src/services/run.ts | pino-pretty",
     "test": "hardhat --config test/config/hardhat.config.ts test",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "pre-commit": "lint-staged"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.4",
@@ -69,6 +70,7 @@
     "mocha": "^8.3.2",
     "pino-pretty": "^4.7.1",
     "prettier": "^2.2.1",
+    "lint-staged": "11.0.0",
     "prom-client": "^13.1.0",
     "rimraf": "^3.0.2",
     "ts-node": "^9.1.1",

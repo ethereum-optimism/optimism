@@ -7,6 +7,9 @@
   "files": [
     "dist/*"
   ],
+  "bin": {
+    "withdraw": "./src/exec/withdraw.ts"
+  },
   "scripts": {
     "start": "node ./exec/run-message-relayer.js",
     "build": "tsc -p ./tsconfig.build.json",
@@ -14,7 +17,8 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\"",
     "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
-    "test": "hardhat test --show-stack-traces"
+    "test": "hardhat test --show-stack-traces",
+    "pre-commit": "lint-staged"
   },
   "keywords": [
     "optimism",
@@ -62,6 +66,7 @@
     "lodash": "^4.17.21",
     "mocha": "^8.4.0",
     "eslint": "^7.27.0",
-    "prettier": "^2.2.1"
+    "prettier": "^2.2.1",
+    "lint-staged": "11.0.0"
   }
 }

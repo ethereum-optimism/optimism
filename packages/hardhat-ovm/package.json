@@ -13,7 +13,8 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write \"{src,test}/**/*.ts\"",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish ."
+    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
+    "pre-commit": "lint-staged"
   },
   "dependencies": {
     "node-fetch": "^2.6.1"
@@ -35,6 +36,7 @@
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
-    "prettier": "^2.2.1"
+    "prettier": "^2.2.1",
+    "lint-staged": "11.0.0"
   }
 }
