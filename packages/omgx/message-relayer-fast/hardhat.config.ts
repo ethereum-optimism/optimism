@@ -28,9 +28,9 @@ const config: HardhatUserConfig = {
   ovm: {
     solcVersion: '0.7.6',
   },
-  namedAccounts: {
-    deployer: 0
-  }
+  // namedAccounts: {
+  //   deployer: 0
+  // }
 }
 
 export default config

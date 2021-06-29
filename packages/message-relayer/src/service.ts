@@ -2,6 +2,7 @@
 import { Contract, ethers, Wallet, BigNumber, providers } from 'ethers'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
+import fetch from 'node-fetch';
 
 /* Imports: Internal */
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
@@ -49,7 +50,7 @@ interface MessageRelayerOptions {
 
   // blacklist
   blacklistEndpoint?: string
-  
+
   blacklistPollingInterval?: number
 }
 
@@ -152,7 +153,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.state.lastFinalizedTxHeight = this.options.fromL2TransactionIndex || 0
     this.state.nextUnfinalizedTxHeight =
       this.options.fromL2TransactionIndex || 0
-    this.state.lastBlacklistPollingTimestamp = 0  
+    this.state.lastBlacklistPollingTimestamp = 0
   }
 
   protected async _start(): Promise<void> {
@@ -570,7 +571,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   private async _getBlacklist(): Promise<void> {
     try {
       if (this.options.blacklistEndpoint) {
-        if (this.state.lastBlacklistPollingTimestamp === 0 || 
+        if (this.state.lastBlacklistPollingTimestamp === 0 ||
           new Date().getTime() > this.state.lastBlacklistPollingTimestamp + this.options.blacklistPollingInterval
         ) {
           const response = await fetch(this.options.blacklistEndpoint);

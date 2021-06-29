@@ -3,8 +3,6 @@ pragma solidity >0.5.0 <0.8.0;
 /* Interface Imports */
 import { iOVM_CrossDomainMessenger } from "@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/bridge/messaging/iOVM_CrossDomainMessenger.sol";
 
-//Also renames gateway -> bridge for consistency as well as iAbs_BaseCrossDomainMessenger -> iOVM_CrossDomainMessenger
-
 /**
  * @title OVM_CrossDomainEnabledFast
  * @dev Helper contract for contracts performing cross-domain communications

@@ -36,7 +36,7 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "^0.3.4",
+    "@eth-optimism/contracts": "^0.4.1",
     "@eth-optimism/core-utils": "^0.4.2",
     "@eth-optimism/hardhat-ovm": "^0.0.2",
     "@ethersproject/providers": "^5.0.24",

@@ -16,7 +16,7 @@ contract L1Message is OVM_CrossDomainEnabledFast {
 
     /********************
      *    Constructor   *
-     ********************/    
+     ********************/
     constructor (
         address _l1CrossDomainMessenger,
         address _l1CrossDomainMessengerFast
@@ -26,8 +26,8 @@ contract L1Message is OVM_CrossDomainEnabledFast {
 
     function init (
        address _L2MessageAddress
-    ) 
-       public 
+    )
+       public
     {
        L2MessageAddress = _L2MessageAddress;
     }
@@ -41,8 +41,8 @@ contract L1Message is OVM_CrossDomainEnabledFast {
         // Send calldata into L1
         sendCrossDomainMessage(
             address(L2MessageAddress),
-            data,
-            1200000
+            1200000,
+            data
         );
     }
 
@@ -59,7 +59,7 @@ contract L1Message is OVM_CrossDomainEnabledFast {
     )
         external
         onlyFromCrossDomainAccount(address(L2MessageAddress))
-    {   
+    {
         crossDomainMessage = _message;
         emit ReceiveL2Message(_message);
     }
