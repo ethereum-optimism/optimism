@@ -37,7 +37,7 @@
     "posttest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat",
     "lint:check": "eslint .",
     "lint:fix": "yarn lint:check --fix",
-    "lint:contracts": "yarn solhint contracts/optimistic-ethereum/**/*.sol",
+    "lint:contracts": "yarn solhint -f table contracts/optimistic-ethereum/**/*.sol",
     "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
     "deploy": "ts-node \"./bin/deploy.ts\" && yarn generate-markdown",
     "serve": "./bin/serve_dump.sh",
