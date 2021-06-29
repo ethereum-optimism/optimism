@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
+    "lint:check": "eslint .",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "ts-mocha test/**/*.spec.ts"
@@ -27,6 +27,7 @@
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "chai": "^4.3.0",
+    "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
     "eslint-plugin-prettier": "^3.4.0",
     "eslint-config-prettier": "^8.3.0",

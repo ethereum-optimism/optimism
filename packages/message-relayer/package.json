@@ -14,7 +14,7 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts  .",
+    "lint:check": "eslint .",
     "test": "hardhat test --show-stack-traces"
   },
   "keywords": [
@@ -63,6 +63,7 @@
     "hardhat": "^2.3.0",
     "lodash": "^4.17.21",
     "mocha": "^8.4.0",
+    "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
     "lint-staged": "11.0.0",
     "prettier": "^2.2.1",

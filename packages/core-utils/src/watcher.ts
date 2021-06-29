@@ -16,8 +16,8 @@ export interface WatcherOptions {
 export class Watcher {
   public l1: Layer
   public l2: Layer
-  public pollInterval: number = 3000
-  public NUM_BLOCKS_TO_FETCH: number = 10_000_000
+  public pollInterval = 3000
+  public NUM_BLOCKS_TO_FETCH = 10_000_000
 
   constructor(opts: WatcherOptions) {
     this.l1 = opts.l1
@@ -36,14 +36,14 @@ export class Watcher {
 
   public async getL1TransactionReceipt(
     l2ToL1MsgHash: string,
-    pollForPending: boolean = true
+    pollForPending = true
   ): Promise<TransactionReceipt> {
     return this.getTransactionReceipt(this.l1, l2ToL1MsgHash, pollForPending)
   }
 
   public async getL2TransactionReceipt(
     l1ToL2MsgHash: string,
-    pollForPending: boolean = true
+    pollForPending = true
   ): Promise<TransactionReceipt> {
     return this.getTransactionReceipt(this.l2, l1ToL2MsgHash, pollForPending)
   }
@@ -76,7 +76,7 @@ export class Watcher {
   public async getTransactionReceipt(
     layer: Layer,
     msgHash: string,
-    pollForPending: boolean = true
+    pollForPending = true
   ): Promise<TransactionReceipt> {
     let matches: ethers.providers.Log[] = []
 
