@@ -11,13 +11,6 @@ const deployFn: DeployFunction = async (hre: any) => {
 
   const l2TokenFactory = getContractDefinition('OVM_L2StandardTokenFactory', true)
 
-  const factoryOwner = (hre as any).deployConfig.ovmSequencerAddress
-  const initialGasPrice = (hre as any).deployConfig.initialGasPriceOracleGasPrice
-
-  if (!factoryOwner || !initialGasPrice) {
-    throw new Error('initialGasPrice & ovmSequencerAddress required to deploy gas price oracle')
-  }
-
   await deploy('OVM_L2StandardTokenFactory', {
     contract: l2TokenFactory,
     args: [],
