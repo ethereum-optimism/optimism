@@ -1,0 +1,35 @@
+{
+  "name": "@omgx/hardhat-example",
+  "private": true,
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Optimism PBC",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rimraf ./cache-ovm ./cache ./artifacts-ovm ./artifacts ./deployments",
+    "compile": "hardhat compile",
+    "compile:ovm": "hardhat compile --network optimism",
+    "compile:omgx": "hardhat compile --network omgx_rinkeby",
+    "test:integration": "hardhat test",
+    "test:integration:ovm": "hardhat test --network optimism",
+    "test:integration:omgx": "hardhat test --network omgx_rinkeby",
+    "deploy": "hardhat deploy",
+    "deploy:ovm": "hardhat deploy --network optimism",
+    "deploy:omgx": "hardhat deploy --network omgx_rinkeby"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@types/chai": "4.2.17",
+    "@types/mocha": "^8.2.2",
+    "chai": "4.3.4",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.1.4",
+    "hardhat": "^2.2.0",
+    "hardhat-deploy": "^0.7.5",
+    "mocha": "^8.2.1"
+  },
+  "dependencies": {
+    "@eth-optimism/hardhat-ovm": "^0.2.0"
+  }
+}
