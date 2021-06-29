@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@eth-optimism/ethereumjs-vm": "^4.2.0-alpha.3",
-    "@eth-optimism/hardhat-ovm": "^0.0.3"
+    "@eth-optimism/hardhat-ovm": "^0.0.3",
+    "patch-package": "^6.4.7"
   },
   "devDependencies": {
     "@boringcrypto/boring-solidity": "boringcrypto/BoringSolidity#e06e943",

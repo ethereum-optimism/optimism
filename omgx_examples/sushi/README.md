@@ -19,15 +19,6 @@ Please make sure you've installed:
 - [Node.js](https://nodejs.org/en/download/)
 - [Yarn](https://classic.yarnpkg.com/en/docs/install#mac-stable)
 
-## Setting Up
-
-Set up the project by running:
-
-```bash
-yarn install
-cd packages/omgx/contracts-analyzer
-```
-
 ## Add Contracts
 
 Copy your contracts into `/contracts` and run:
@@ -41,11 +32,11 @@ You will probably have to `yarn add` multiple packages, and change/update pragma
 
 ## Notes
 
-The code compliles the contracts, which will typically provide extensive debug information and warnings/errors, and also checks for contract size and inline assembly. The second contract size check is superfluous, since the compiler already does that.
+The code compliles the contracts, which will typically provide extensive debug information and warnings/errors, and also checks for contract size and inline assembly.
 
 ## Deploying Contracts to LOCAL L2
 
-First, make sure you have a `.env` in `packages/omgx/contracts-analyzer`. The five TEST_PRIVATE_KEYs are used for testing. The DEPLOYER_PRIVATE_KEY is used to deploy contracts. Since (right now) we don't charge oWETH to deploy contracts on L2, the wallets do not need any funds in them.
+First, make sure you have a `.env`. The five TEST_PRIVATE_KEYs are used for testing. The DEPLOYER_PRIVATE_KEY is used to deploy contracts. Since (right now) we don't charge oWETH to deploy contracts on L2, the wallets do not need any funds in them.
 
 ```javascript
 L2_NODE_WEB3_URL=http://localhost:8545
@@ -67,7 +58,7 @@ You should then see a list of contract addresses.
 
 ## Deploying Contracts to OMGX RINKEBY
 
-Make sure you have a `.env` in `packages/omgx/contracts-analyzer`. Then, set your variables similar to this:
+Make sure you have a `.env`, and that the `L2_NODE_WEB3_URL` is set correctly. Then, set your variables similar to this:
 
 ```javascript
 L2_NODE_WEB3_URL=https://rinkeby.omgx.network
