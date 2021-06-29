@@ -12,6 +12,7 @@
       "not-rely-on-time": "off",
       "no-complex-fallback": "off",
       "not-rely-on-block-hash": "off",
-      "reentrancy": "off"
+      "reentrancy": "off",
+      "contract-name-camelcase": "off"
     }
 }
