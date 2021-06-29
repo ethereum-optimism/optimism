@@ -34,12 +34,12 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.4",
-    "@eth-optimism/contracts": "^0.4.0",
-    "@eth-optimism/core-utils": "^0.4.6",
-    "@sentry/node": "6.2.5",
+    "@eth-optimism/contracts": "0.4.1",
+    "@eth-optimism/core-utils": "0.4.7",
+    "@sentry/node": "^6.3.1",
     "bcfg": "^0.1.6",
     "dotenv": "^8.2.0",
-    "ethers": "^5.1.0",
+    "ethers": "^5.1.4",
     "merkletreejs": "^0.2.18",
     "rlp": "^2.2.6"
   },
@@ -63,13 +63,13 @@
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "^3.3.0",
-    "hardhat": "^2.3.0",
+    "hardhat": "^2.4.0",
     "lodash": "^4.17.21",
     "mocha": "^8.4.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
     "lint-staged": "11.0.0",
-    "prettier": "^2.2.1",
+    "prettier": "^2.3.1",
     "typescript": "^4.2.3"
   }
 }

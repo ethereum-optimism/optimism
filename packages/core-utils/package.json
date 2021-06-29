@@ -20,13 +20,13 @@
     "test": "ts-mocha test/**/*.spec.ts"
   },
   "devDependencies": {
-    "@types/chai": "^4.2.17",
+    "@types/chai": "^4.2.18",
     "@types/lodash": "^4.14.168",
     "@types/mocha": "^8.2.2",
     "@types/prettier": "^2.2.3",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
-    "chai": "^4.3.0",
+    "chai": "^4.3.4",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
     "eslint-plugin-prettier": "^3.4.0",
@@ -37,15 +37,15 @@
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
-    "mocha": "^8.3.0",
-    "prettier": "^2.2.1",
+    "mocha": "^8.4.0",
+    "prettier": "^2.3.1",
     "lint-staged": "11.0.0",
     "ts-mocha": "^8.0.0",
     "typescript": "^4.2.3"
   },
   "dependencies": {
-    "@ethersproject/abstract-provider": "^5.0.9",
-    "ethers": "^5.0.31",
+    "@ethersproject/abstract-provider": "^5.1.0",
+    "ethers": "^5.1.4",
     "lodash": "^4.17.21"
   }
 }
