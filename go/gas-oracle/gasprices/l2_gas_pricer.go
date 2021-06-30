@@ -36,7 +36,7 @@ func NewGasPricer(curPrice, floorPrice uint64, getTargetGasPerSecond GetTargetGa
 		curPrice:              max(curPrice, floorPrice),
 		floorPrice:            floorPrice,
 		getTargetGasPerSecond: getTargetGasPerSecond,
-		maxChangePerEpoch:     maxPercentChangePerEpoch / 100,
+		maxChangePerEpoch:     maxPercentChangePerEpoch,
 	}, nil
 }
 

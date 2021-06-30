@@ -8,7 +8,8 @@
       "packages/*",
       "l2geth",
       "integration-tests",
-      "specs"
+      "specs",
+      "go/gas-oracle"
     ],
     "nohoist": [
       "examples/*"
