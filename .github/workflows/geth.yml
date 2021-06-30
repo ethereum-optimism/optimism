@@ -1,6 +1,5 @@
 name: geth unit tests
 
-
 on:
   push:
     paths:
