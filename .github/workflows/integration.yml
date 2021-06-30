@@ -40,6 +40,10 @@ jobs:
         working-directory: ./ops
         run: docker-compose up -d
 
+      - name: Log stats
+        working-directory: ./ops
+        run: ./scripts/stats.sh
+
       - name: Run the integration tests
         working-directory: ./ops
         run: docker-compose run integration_tests
@@ -85,7 +89,7 @@ jobs:
           yarn compile:ovm
           yarn test:integration:ovm
           yarn deploy:ovm
-      
+
       # - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
       #   working-directory: ./examples/l1-l2-deposit-withdrawal
       #   run: |
