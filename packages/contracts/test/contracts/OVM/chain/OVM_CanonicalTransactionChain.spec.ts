@@ -1281,7 +1281,7 @@ describe('OVM_CanonicalTransactionChain', () => {
               totalElementsToAppend: 4,
             })
           ).to.be.revertedWith(
-            'Context timestamp value must be greater than last queue element appended.'
+            'Sequencer transaction timestamp is less than that of last queue element appended.'
           )
         })
 
@@ -1328,7 +1328,7 @@ describe('OVM_CanonicalTransactionChain', () => {
               totalElementsToAppend: 4,
             })
           ).to.be.revertedWith(
-            'Context block number value must be greater than last queue element appended.'
+            'Sequencer transaction block number must be greater than last queue element appended.'
           )
         })
       })
