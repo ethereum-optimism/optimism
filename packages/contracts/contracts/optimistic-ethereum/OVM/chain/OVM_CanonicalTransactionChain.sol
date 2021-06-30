@@ -9,7 +9,8 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
-import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
+import { iOVM_CanonicalTransactionChain } from
+    "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageContainer.sol";
 
 /* Contract Imports */
@@ -23,8 +24,8 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
  * @dev The Canonical Transaction Chain (CTC) contract is an append-only log of transactions
  * which must be applied to the rollup state. It defines the ordering of rollup transactions by
  * writing them to the 'CTC:batches' instance of the Chain Storage Container.
- * The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the Sequencer
- * will eventually append it to the rollup state.
+ * The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the
+ * Sequencer will eventually append it to the rollup state.
  * If the Sequencer does not include an enqueued transaction within the 'force inclusion period',
  * then any account may force it to be included by calling appendQueueBatch().
  *
@@ -359,7 +360,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         //         Lib_OVMCodec.QueueElement memory el = getQueueElement(nextQueueIndex);
         //         require(
         //             el.timestamp + forceInclusionPeriodSeconds < block.timestamp,
-        //             "Queue transactions cannot be submitted during the sequencer inclusion period."
+        //           "Queue transactions cannot be submitted during the sequencer inclusion period."
         //         );
         //     }
         //     leaves[i] = _getQueueLeafHash(nextQueueIndex);
@@ -424,7 +425,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             "Must append at least one element."
         );
 
-        uint40 nextTransactionPtr = uint40(BATCH_CONTEXT_START_POS + BATCH_CONTEXT_SIZE * numContexts);
+        uint40 nextTransactionPtr = uint40(BATCH_CONTEXT_START_POS +
+            BATCH_CONTEXT_SIZE * numContexts);
 
         require(
             msg.data.length >= nextTransactionPtr,
@@ -533,14 +535,16 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         uint40 blockTimestamp;
         uint40 blockNumber;
         if (curContext.numSubsequentQueueTransactions == 0) {
-            // The last element is a sequencer tx, therefore pull timestamp and block number from the last context.
+            // The last element is a sequencer tx, therefore pull timestamp and block number from
+            // the last context.
             blockTimestamp = uint40(curContext.timestamp);
             blockNumber = uint40(curContext.blockNumber);
         } else {
-            // The last element is a queue tx, therefore pull timestamp and block number from the queue element.
-            // curContext.numSubsequentQueueTransactions > 0 which means that we've processed at least one queue element.
-            // We increment nextQueueIndex after processing each queue element,
-            // so the index of the last element we processed is nextQueueIndex - 1.
+            // The last element is a queue tx, therefore pull timestamp and block number from the
+            // queue element.
+            // curContext.numSubsequentQueueTransactions > 0 which means that we've processed at
+            // least one queue element. We increment nextQueueIndex after processing each queue
+            // element, so the index of the last element we processed is nextQueueIndex - 1.
             Lib_OVMCodec.QueueElement memory lastElement = _getQueueElement(
                 nextQueueIndex - 1,
                 queueRef
@@ -667,6 +671,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         uint40 nextQueueIndex;
         uint40 lastTimestamp;
         uint40 lastBlockNumber;
+
+        // solhint-disable max-line-length
         assembly {
             extraData       :=  shr(40, extraData)
             totalElements   :=  and(extraData, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
@@ -674,6 +680,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             lastTimestamp   :=  shr(80, and(extraData, 0x0000000000000000000000000000000000FFFFFFFFFF00000000000000000000))
             lastBlockNumber :=  shr(120, and(extraData, 0x000000000000000000000000FFFFFFFFFF000000000000000000000000000000))
         }
+        // solhint-enable max-line-length
 
         return (
             totalElements,
@@ -764,10 +771,12 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
 
         uint40 elementTimestamp;
         uint40 elementBlockNumber;
+        // solhint-disable max-line-length
         assembly {
             elementTimestamp   :=         and(timestampAndBlockNumber, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
             elementBlockNumber := shr(40, and(timestampAndBlockNumber, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000))
         }
+        // solhint-enable max-line-length
 
         return Lib_OVMCodec.QueueElement({
             transactionHash: transactionHash,
@@ -835,7 +844,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             mstore(add(chainElementStart, 1), ctxTimestamp)
             mstore(add(chainElementStart, 33), ctxBlockNumber)
 
-            calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_nextTransactionPtr, 3), _txDataLength)
+            calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_nextTransactionPtr, 3), _txDataLength) // solhint-disable-line max-line-length
 
             leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, _txDataLength))
         }
@@ -877,7 +886,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             mstore(add(chainElementStart, 1), ctxTimestamp)
             mstore(add(chainElementStart, 33), ctxBlockNumber)
 
-            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, BYTES_TILL_TX_DATA), txDataLength))
+            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, BYTES_TILL_TX_DATA), txDataLength)) // solhint-disable-line max-line-length
 
             leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, txDataLength))
         }
@@ -989,10 +998,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
                 _queueRef
             );
 
-            // If the force inclusion period has passed for an enqueued transaction, it MUST be the next chain element.
+            // If the force inclusion period has passed for an enqueued transaction, it MUST be the
+            // next chain element.
             require(
                 block.timestamp < nextQueueElement.timestamp + forceInclusionPeriodSeconds,
-                "Previously enqueued batches have expired and must be appended before a new sequencer batch."
+                "Previously enqueued batches have expired and must be appended before a new sequencer batch." // solhint-disable-line max-line-length
             );
 
             // Just like sequencer transaction times must be increasing relative to each other,
@@ -1009,10 +1019,12 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     }
 
     /**
-     * Checks that a given batch context is valid based on its previous context, and the next queue elemtent.
+     * Checks that a given batch context is valid based on its previous context, and the next queue
+     * elemtent.
      * @param _prevContext The previously validated batch context.
      * @param _nextContext The batch context to validate with this call.
-     * @param _nextQueueIndex Index of the next queue element to process for the _nextContext's subsequentQueueElements.
+     * @param _nextQueueIndex Index of the next queue element to process for the _nextContext's
+     * subsequentQueueElements.
      * @param _queueRef The storage container for the queue.
      */
     function _validateNextBatchContext(
@@ -1061,17 +1073,22 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         internal
         view
     {
-        // If the queue is not now empty, check the mononoticity of whatever the next batch that will come in is.
-        if (_queueLength - _nextQueueIndex > 0 && _finalContext.numSubsequentQueueTransactions == 0) {
+        // If the queue is not now empty, check the mononoticity of whatever the next batch that
+        // will come in is.
+        if (_queueLength - _nextQueueIndex > 0 && _finalContext.numSubsequentQueueTransactions == 0)
+        {
             _validateContextBeforeEnqueue(
                 _finalContext,
                 _nextQueueIndex,
                 _queueRef
             );
         }
-        // Batches cannot be added from the future, or subsequent enqueue() contexts would violate monotonicity.
-        require(_finalContext.timestamp <= block.timestamp, "Context timestamp is from the future.");
-        require(_finalContext.blockNumber <= block.number, "Context block number is from the future.");
+        // Batches cannot be added from the future, or subsequent enqueue() contexts would violate
+        // monotonicity.
+        require(_finalContext.timestamp <= block.timestamp,
+            "Context timestamp is from the future.");
+        require(_finalContext.blockNumber <= block.number,
+            "Context block number is from the future.");
     }
 
     /**
@@ -1119,7 +1136,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             bool
         )
     {
-        OVM_ExecutionManager ovmExecutionManager = OVM_ExecutionManager(resolve("OVM_ExecutionManager"));
+        OVM_ExecutionManager ovmExecutionManager =
+            OVM_ExecutionManager(resolve("OVM_ExecutionManager"));
         uint256 gasLimit = ovmExecutionManager.getMaxTransactionGasLimit();
         bytes32 leafHash = _getSequencerLeafHash(_txChainElement);
 
@@ -1151,7 +1169,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
      * @param _transaction The transaction we are verifying inclusion of.
      * @param _queueIndex The queueIndex of the queued transaction.
      * @param _batchHeader Header of the batch the transaction was included in.
-     * @param _inclusionProof An inclusion proof into the CTC at a particular index (should point to queue tx).
+     * @param _inclusionProof An inclusion proof into the CTC at a particular index (should point to
+     * queue tx).
      * @return True if the transaction was included in the specified location, else false.
      */
     function _verifyQueueTransaction(
@@ -1215,7 +1234,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         )
     {
         require(
-            Lib_OVMCodec.hashBatchHeader(_batchHeader) == batches().get(uint32(_batchHeader.batchIndex)),
+            Lib_OVMCodec.hashBatchHeader(_batchHeader) ==
+                batches().get(uint32(_batchHeader.batchIndex)),
             "Invalid batch header."
         );
 

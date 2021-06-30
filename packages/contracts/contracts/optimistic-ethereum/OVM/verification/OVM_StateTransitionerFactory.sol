@@ -7,7 +7,8 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 
 /* Interface Imports */
 import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
-import { iOVM_StateTransitionerFactory } from "../../iOVM/verification/iOVM_StateTransitionerFactory.sol";
+import { iOVM_StateTransitionerFactory } from
+    "../../iOVM/verification/iOVM_StateTransitionerFactory.sol";
 import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.sol";
 
 /* Contract Imports */

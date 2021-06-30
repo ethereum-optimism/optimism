@@ -51,8 +51,10 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
             uint256(0x0000000000000000000000000000000000000000000000000000000000000000)
         ];
         // Mask to gate opcode specific cases
+        // solhint-disable-next-line max-line-length
         uint256 opcodeGateMask = ~uint256(0xffffffffffffffffffffffe000000000fffffffff070ffff9c0ffffec000f001);
         // Halting opcodes
+        // solhint-disable-next-line max-line-length
         uint256 opcodeHaltingMask = ~uint256(0x4008000000000000000000000000000000000000004000000000000000000001);
         // PUSH opcodes
         uint256 opcodePushMask = ~uint256(0xffffffff000000000000000000000000);
@@ -67,6 +69,7 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
             // current opcode: 0x00...0xff
             uint256 opNum;
 
+            /* solhint-disable max-line-length */
             // inline assembly removes the extra add + bounds check
             assembly {
                 let word := mload(_pc) //load the next 32 bytes at pc into word
@@ -86,6 +89,7 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
 
                 opNum := byte(indexInWord, word)
             }
+            /* solhint-disable max-line-length */
 
             // + push opcodes
             // + stop opcodes [STOP(0x00),JUMP(0x56),RETURN(0xf3),INVALID(0xfe)]

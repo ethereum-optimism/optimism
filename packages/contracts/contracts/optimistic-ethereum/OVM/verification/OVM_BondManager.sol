@@ -75,9 +75,12 @@ contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
      ********************/
 
     /// Adds `who` to the list of witnessProviders for the provided `preStateRoot`.
-    function recordGasSpent(bytes32 _preStateRoot, bytes32 _txHash, address who, uint256 gasSpent) override public {
+    function recordGasSpent(bytes32 _preStateRoot, bytes32 _txHash, address who, uint256 gasSpent)
+    override public {
         // The sender must be the transitioner that corresponds to the claimed pre-state root
-        address transitioner = address(iOVM_FraudVerifier(resolve("OVM_FraudVerifier")).getStateTransitioner(_preStateRoot, _txHash));
+        address transitioner =
+            address(iOVM_FraudVerifier(resolve("OVM_FraudVerifier"))
+            .getStateTransitioner(_preStateRoot, _txHash));
         require(transitioner == msg.sender, Errors.ONLY_TRANSITIONER);
 
         witnessProviders[_preStateRoot].total += gasSpent;

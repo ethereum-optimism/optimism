@@ -14,8 +14,8 @@ library Lib_MerkleTree {
     /**
      * Calculates a merkle root for a list of 32-byte leaf hashes.  WARNING: If the number
      * of leaves passed in is not a power of two, it pads out the tree with zero hashes.
-     * If you do not know the original length of elements for the tree you are verifying,
-     * then this may allow empty leaves past _elements.length to pass a verification check down the line.
+     * If you do not know the original length of elements for the tree you are verifying, then
+     * this may allow empty leaves past _elements.length to pass a verification check down the line.
      * Note that the _elements argument is modified, therefore it must not be used again afterwards
      * @param _elements Array of hashes from which to generate a merkle root.
      * @return Merkle root of the leaves, with zero hashes for non-powers-of-two (see above).
@@ -114,7 +114,8 @@ library Lib_MerkleTree {
      * @param _root The Merkle root to verify against.
      * @param _leaf The leaf hash to verify inclusion of.
      * @param _index The index in the tree of this leaf.
-     * @param _siblings Array of sibline nodes in the inclusion proof, starting from depth 0 (bottom of the tree).
+     * @param _siblings Array of sibline nodes in the inclusion proof, starting from depth 0
+     * (bottom of the tree).
      * @param _totalLeaves The total number of leaves originally passed into.
      * @return Whether or not the merkle branch and leaf passes verification.
      */

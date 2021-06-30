@@ -4,8 +4,10 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_L1MultiMessageRelayer } from "../../../iOVM/bridge/messaging/iOVM_L1MultiMessageRelayer.sol";
+import { iOVM_L1CrossDomainMessenger } from
+    "../../../iOVM/bridge/messaging/iOVM_L1CrossDomainMessenger.sol";
+import { iOVM_L1MultiMessageRelayer } from
+    "../../../iOVM/bridge/messaging/iOVM_L1MultiMessageRelayer.sol";
 
 /* Library Imports */
 import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
@@ -42,7 +44,7 @@ contract OVM_L1MultiMessageRelayer is iOVM_L1MultiMessageRelayer, Lib_AddressRes
     modifier onlyBatchRelayer() {
         require(
             msg.sender == resolve("OVM_L2BatchMessageRelayer"),
-            "OVM_L1MultiMessageRelayer: Function can only be called by the OVM_L2BatchMessageRelayer"
+            "OVM_L1MultiMessageRelayer: Function can only be called by the OVM_L2BatchMessageRelayer" // solhint-disable-line max-line-length
         );
         _;
     }
@@ -58,7 +60,7 @@ contract OVM_L1MultiMessageRelayer is iOVM_L1MultiMessageRelayer, Lib_AddressRes
      */
     function batchRelayMessages(
         L2ToL1Message[] calldata _messages
-    ) 
+    )
         override
         external
         onlyBatchRelayer

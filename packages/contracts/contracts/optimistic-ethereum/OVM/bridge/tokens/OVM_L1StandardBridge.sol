@@ -18,8 +18,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
  * @title OVM_L1StandardBridge
- * @dev The L1 ETH and ERC20 Bridge is a contract which stores deposited L1 funds and standard tokens that are in use on L2.
- * It synchronizes a corresponding L2 Bridge, informing it of deposits, and listening to it for newly finalized withdrawals.
+ * @dev The L1 ETH and ERC20 Bridge is a contract which stores deposited L1 funds and standard
+ * tokens that are in use on L2. It synchronizes a corresponding L2 Bridge, informing it of deposits
+ * and listening to it for newly finalized withdrawals.
  *
  * Compiler used: solc
  * Runtime target: EVM
@@ -69,7 +70,8 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
      * Depositing *
      **************/
 
-    /// @dev Modifier requiring sender to be EOA.  This check could be bypassed by a malicious contract via initcode, but it takes care of the user error we want to avoid.
+    /// @dev Modifier requiring sender to be EOA.  This check could be bypassed by a malicious
+    //  contract via initcode, but it takes care of the user error we want to avoid.
     modifier onlyEOA() {
         // Used to stop deposits from contracts (avoid accidentally lost tokens)
         require(!Address.isContract(msg.sender), "Account not EOA");
@@ -136,7 +138,8 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @dev Performs the logic for deposits by storing the ETH and informing the L2 ETH Gateway of the deposit.
+     * @dev Performs the logic for deposits by storing the ETH and informing the L2 ETH Gateway of
+     * the deposit.
      * @param _from Account to pull the deposit from on L1.
      * @param _to Account to give the deposit to on L2.
      * @param _l2Gas Gas limit required to complete the deposit on L2.
@@ -235,8 +238,9 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     )
         internal
     {
-        // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future withdrawals.
-        // safeTransferFrom also checks if the contract has code, so this will fail if _from is an EOA or address(0).
+        // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future
+        // withdrawals. safeTransferFrom also checks if the contract has code, so this will fail if
+        // _from is an EOA or address(0).
         IERC20(_l1Token).safeTransferFrom(
             _from,
             address(this),
@@ -306,7 +310,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     {
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].sub(_amount);
 
-        // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer.
+        // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer
         IERC20(_l1Token).safeTransfer(_to, _amount);
 
         emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
@@ -319,7 +323,8 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     /**
      * @dev Adds ETH balance to the account. This is meant to allow for ETH
      * to be migrated from an old gateway to a new gateway.
-     * NOTE: This is left for one upgrade only so we are able to receive the migrated ETH from the old contract
+     * NOTE: This is left for one upgrade only so we are able to receive the migrated ETH from the
+     * old contract
      */
     function donateETH() external payable {}
 }

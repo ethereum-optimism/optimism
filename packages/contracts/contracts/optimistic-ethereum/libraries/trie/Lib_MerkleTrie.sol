@@ -148,7 +148,8 @@ library Lib_MerkleTrie {
         )
     {
         TrieNode[] memory proof = _parseProof(_proof);
-        (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = _walkNodePath(proof, _key, _root);
+        (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) =
+            _walkNodePath(proof, _key, _root);
 
         bool exists = keyRemainder.length == 0;
 
@@ -253,7 +254,8 @@ library Lib_MerkleTrie {
 
             if (currentNode.decoded.length == BRANCH_NODE_LENGTH) {
                 if (currentKeyIndex == key.length) {
-                    // We've hit the end of the key, meaning the value should be within this branch node.
+                    // We've hit the end of the key
+                    // meaning the value should be within this branch node.
                     break;
                 } else {
                     // We're not at the end of the key yet.
@@ -288,7 +290,8 @@ library Lib_MerkleTrie {
                 } else if (prefix == PREFIX_EXTENSION_EVEN || prefix == PREFIX_EXTENSION_ODD) {
                     if (sharedNibbleLength != pathRemainder.length) {
                         // Our extension node is not identical to the remainder.
-                        // We've hit the end of this path, updates will need to modify this extension.
+                        // We've hit the end of this path
+                        // updates will need to modify this extension.
                         currentNodeID = bytes32(RLP_NULL);
                         break;
                     } else {
@@ -348,6 +351,7 @@ library Lib_MerkleTrie {
         TrieNode[] memory newNodes = new TrieNode[](3);
         uint256 totalNewNodes = 0;
 
+        // solhint-disable-next-line max-line-length
         // Reference: https://github.com/ethereumjs/merkle-patricia-tree/blob/c0a10395aab37d42c175a47114ebfcbd7efcf059/src/baseTrie.ts#L294-L313
         bool matchLeaf = false;
         if (lastNodeType == NodeType.LeafNode) {
@@ -391,7 +395,8 @@ library Lib_MerkleTrie {
                 totalNewNodes += 1;
                 // Create a new leaf node, slicing our remainder since the first byte points
                 // to our branch node.
-                newNodes[totalNewNodes] = _makeLeafNode(Lib_BytesUtils.slice(keyRemainder, 1), _value);
+                newNodes[totalNewNodes] =
+                    _makeLeafNode(Lib_BytesUtils.slice(keyRemainder, 1), _value);
                 totalNewNodes += 1;
             }
         } else {
@@ -429,13 +434,23 @@ library Lib_MerkleTrie {
                 if (lastNodeType == NodeType.LeafNode) {
                     // We're dealing with a leaf node.
                     // We'll modify the key and insert the old leaf node into the branch index.
-                    TrieNode memory modifiedLastNode = _makeLeafNode(lastNodeKey, _getNodeValue(lastNode));
-                    newBranch = _editBranchIndex(newBranch, branchKey, _getNodeHash(modifiedLastNode.encoded));
+                    TrieNode memory modifiedLastNode =
+                        _makeLeafNode(lastNodeKey, _getNodeValue(lastNode));
+                    newBranch =
+                        _editBranchIndex(
+                                newBranch,
+                                branchKey,
+                                _getNodeHash(modifiedLastNode.encoded));
                 } else if (lastNodeKey.length != 0) {
                     // We're dealing with a shrinking extension node.
                     // We need to modify the node to decrease the size of the key.
-                    TrieNode memory modifiedLastNode = _makeExtensionNode(lastNodeKey, _getNodeValue(lastNode));
-                    newBranch = _editBranchIndex(newBranch, branchKey, _getNodeHash(modifiedLastNode.encoded));
+                    TrieNode memory modifiedLastNode =
+                        _makeExtensionNode(lastNodeKey, _getNodeValue(lastNode));
+                    newBranch =
+                        _editBranchIndex(
+                            newBranch,
+                            branchKey,
+                            _getNodeHash(modifiedLastNode.encoded));
                 } else {
                     // We're dealing with an unnecessary extension node.
                     // We're going to delete the node entirely.

@@ -83,7 +83,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * Default Context Values *
      **************************/
 
-    uint256 constant DEFAULT_UINT256 = 0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
+    uint256 constant DEFAULT_UINT256 =
+        0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
     address constant DEFAULT_ADDRESS = 0xdEfa017defA017DeFA017DEfa017DeFA017DeFa0;
 
 
@@ -92,7 +93,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      *************************************/
 
     /**
-     * @dev The Execution Manager and State Manager each have this 30 byte prefix, and are uncallable.
+     * @dev The Execution Manager and State Manager each have this 30 byte prefix,
+     * and are uncallable.
      */
     address constant CONTAINER_CONTRACT_PREFIX = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
 
@@ -205,7 +207,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // OVM_StateManager (expected to be an OVM_StateTransitioner). We can revert here because
         // this would make the `run` itself invalid.
         require(
-            // This method may return false during fraud proofs, but always returns true in L2 nodes' State Manager precompile.
+            // This method may return false during fraud proofs, but always returns true in
+            // L2 nodes' State Manager precompile.
             ovmStateManager.isAuthenticated(msg.sender),
             "Only authenticated addresses in ovmStateManager can call this function"
         );
@@ -677,7 +680,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
-        // STATICCALL updates the CALLER, updates the ADDRESS, and runs in a static, valueless context.
+        // STATICCALL updates the CALLER, updates the ADDRESS, and runs in a static,
+        // valueless context.
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
@@ -727,7 +731,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
-     * @notice Legacy ovmCALL function which did not support ETH value; this maintains backwards compatibility.
+     * @notice Legacy ovmCALL function which did not support ETH value; this maintains backwards
+     * compatibility.
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _address Address of the contract to call.
      * @param _calldata Data to send along with the call.
@@ -953,7 +958,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      ********************************************/
 
     /**
-     * Checks whether the given address is on the whitelist to ovmCREATE/ovmCREATE2, and reverts if not.
+     * Checks whether the given address is on the whitelist to ovmCREATE/ovmCREATE2,
+     * and reverts if not.
      * @param _deployerAddress Address attempting to deploy a contract.
      */
     function _checkDeployerAllowed(
@@ -1048,17 +1054,21 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
-        // We reserve addresses of the form 0xdeaddeaddead...NNNN for the container contracts in L2 geth.
-        // So, we block calls to these addresses since they are not safe to run as an OVM contract itself.
+        // We reserve addresses of the form 0xdeaddeaddead...NNNN for the container contracts in L2
+        // geth. So, we block calls to these addresses since they are not safe to run as an OVM
+        // contract itself.
         if (
-            (uint256(_contract) & uint256(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000))
+            (uint256(_contract) &
+            uint256(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000))
             == uint256(CONTAINER_CONTRACT_PREFIX)
         ) {
+            // solhint-disable-next-line max-line-length
             // EVM does not return data in the success case, see: https://github.com/ethereum/go-ethereum/blob/aae7660410f0ef90279e14afaaf2f429fdc2a186/core/vm/instructions.go#L600-L604
             return (true, hex'');
         }
 
-        // Both 0x0000... and the EVM precompiles have the same address on L1 and L2 --> no trie lookup needed.
+        // Both 0x0000... and the EVM precompiles have the same address on L1 and L2 -->
+        // no trie lookup needed.
         address codeContractAddress =
             uint(_contract) < 100
             ? _contract
@@ -1074,11 +1084,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
-     * Handles all interactions which involve the execution manager calling out to untrusted code (both calls and creates).
-     * Ensures that OVM-related measures are enforced, including L2 gas refunds, nuisance gas, and flagged reversions.
+     * Handles all interactions which involve the execution manager calling out to untrusted code
+     * (both calls and creates). Ensures that OVM-related measures are enforced, including L2 gas
+     * refunds, nuisance gas, and flagged reversions.
      *
      * @param _nextMessageContext Message context to be used for the external message.
-     * @param _gasLimit Amount of gas to be passed into this message. NOTE: this argument is overwritten in some cases to avoid stack-too-deep.
+     * @param _gasLimit Amount of gas to be passed into this message. NOTE: this argument is
+     * overwritten in some cases to avoid stack-too-deep.
      * @param _contract OVM address being called or deployed to
      * @param _data Data for the message (either calldata or creation code)
      * @param _messageType What type of ovmOPCODE this message corresponds to.
@@ -1100,23 +1112,28 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         )
     {
         uint256 messageValue = _nextMessageContext.ovmCALLVALUE;
-        // If there is value in this message, we need to transfer the ETH over before switching contexts.
+        // If there is value in this message, we need to transfer the ETH over before switching
+        // contexts.
         if (
             messageValue > 0
             && _isValueType(_messageType)
         ) {
-            // Handle out-of-intrinsic gas consistent with EVM behavior -- the subcall "appears to revert" if we don't have enough gas to transfer the ETH.
+            // Handle out-of-intrinsic gas consistent with EVM behavior -- the subcall "appears to
+            // revert" if we don't have enough gas to transfer the ETH.
             // Similar to dynamic gas cost of value exceeding gas here:
+            // solhint-disable-next-line max-line-length
             // https://github.com/ethereum/go-ethereum/blob/c503f98f6d5e80e079c1d8a3601d188af2a899da/core/vm/interpreter.go#L268-L273
             if (gasleft() < CALL_WITH_VALUE_INTRINSIC_GAS) {
                 return (false, hex"");
             }
 
-            // If there *is* enough gas to transfer ETH, then we need to make sure this amount of gas is reserved (i.e. not
-            // given to the _contract.call below) to guarantee that _handleExternalMessage can't run out of gas.
-            // In particular, in the event that the call fails, we will need to transfer the ETH back to the sender.
-            // Taking the lesser of _gasLimit and gasleft() - CALL_WITH_VALUE_INTRINSIC_GAS guarantees that the second
-            // _attemptForcedEthTransfer below, if needed, always has enough gas to succeed.
+            // If there *is* enough gas to transfer ETH, then we need to make sure this amount of
+            // gas is reserved (i.e. not given to the _contract.call below) to guarantee that
+            // _handleExternalMessage can't run out of gas. In particular, in the event that
+            // the call fails, we will need to transfer the ETH back to the sender.
+            // Taking the lesser of _gasLimit and gasleft() - CALL_WITH_VALUE_INTRINSIC_GAS
+            // guarantees that the second _attemptForcedEthTransfer below, if needed, always has
+            // enough gas to succeed.
             _gasLimit = Math.min(
                 _gasLimit,
                 gasleft() - CALL_WITH_VALUE_INTRINSIC_GAS // Cannot overflow due to the above check.
@@ -1129,8 +1146,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 messageValue
             );
 
-            // If the ETH transfer fails (should only be possible in the case of insufficient balance), then treat this as a revert.
-            // This mirrors EVM behavior, see https://github.com/ethereum/go-ethereum/blob/2dee31930c9977af2a9fcb518fb9838aa609a7cf/core/vm/evm.go#L298
+            // If the ETH transfer fails (should only be possible in the case of insufficient
+            // balance), then treat this as a revert. This mirrors EVM behavior, see
+            // solhint-disable-next-line max-line-length
+            // https://github.com/ethereum/go-ethereum/blob/2dee31930c9977af2a9fcb518fb9838aa609a7cf/core/vm/evm.go#L298
             if (!transferredOvmEth) {
                 return (false, hex"");
             }
@@ -1184,16 +1203,18 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 messageValue
             );
 
-            // Since we transferred it in above and the call reverted, the transfer back should always pass.
-            // This code path should NEVER be triggered since we sent `messageValue` worth of OVM_ETH into the target
-            // and reserved sufficient gas to execute the transfer, but in case there is some edge case which has
-            // been missed, we revert the entire frame (and its parent) to make sure the ETH gets sent back.
+            // Since we transferred it in above and the call reverted, the transfer back should
+            // always pass. This code path should NEVER be triggered since we sent `messageValue`
+            // worth of OVM_ETH into the target and reserved sufficient gas to execute the transfer,
+            // but in case there is some edge case which has been missed, we revert the entire frame
+            // (and its parent) to make sure the ETH gets sent back.
             if (!transferredOvmEth) {
                 _revertWithFlag(RevertFlag.OUT_OF_GAS);
             }
         }
 
-        // Switch back to the original message context now that we're out of the call and all OVM_ETH is in the right place.
+        // Switch back to the original message context now that we're out of the call and all
+        // OVM_ETH is in the right place.
         _switchMessageContext(_nextMessageContext, prevMessageContext);
 
         // Assuming there were no reverts, the message record should be accurate here. We'll update
@@ -1218,8 +1239,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             }
 
             // INTENTIONAL_REVERT, UNSAFE_BYTECODE, STATIC_VIOLATION, and CREATOR_NOT_ALLOWED aren't
-            // dependent on the input state, so we can just handle them like standard reverts. Our only change here
-            // is to record the gas refund reported by the call (enforced by safety checking).
+            // dependent on the input state, so we can just handle them like standard reverts.
+            // Our only change here is to record the gas refund reported by the call (enforced by
+            // safety checking).
             if (
                 flag == RevertFlag.INTENTIONAL_REVERT
                 || flag == RevertFlag.UNSAFE_BYTECODE
@@ -1262,7 +1284,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     /**
      * Handles the creation-specific safety measures required for OVM contract deployment.
      * This function sanitizes the return types for creation messages to match calls (bool, bytes),
-     * by being an external function which the EM can call, that mimics the success/fail case of the CREATE.
+     * by being an external function which the EM can call, that mimics the success/fail case of the
+     * CREATE.
      * This allows for consistent handling of both types of messages in _handleExternalMessage().
      * Having this step occur as a separate call frame also allows us to easily revert the
      * contract deployment in the event that the code is unsafe.
@@ -1296,7 +1319,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             // developer experience, we do return the remaining gas.
             _revertWithFlag(
                 RevertFlag.UNSAFE_BYTECODE,
-                Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?")
+                Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?") // solhint-disable-line max-line-length
             );
         }
 
@@ -1304,12 +1327,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         _initPendingAccount(_address);
 
         // Actually execute the EVM create message.
-        // NOTE: The inline assembly below means we can NOT make any evm calls between here and then.
+        // NOTE: The inline assembly below means we can NOT make any evm calls between here and then
         address ethAddress = Lib_EthUtils.createContract(_creationCode);
 
         if (ethAddress == address(0)) {
-            // If the creation fails, the EVM lets us grab its revert data. This may contain a revert flag
-            // to be used above in _handleExternalMessage, so we pass the revert data back up unmodified.
+            // If the creation fails, the EVM lets us grab its revert data. This may contain a
+            // revert flag to be used above in _handleExternalMessage, so we pass the revert data
+            // back up unmodified.
             assembly {
                 returndatacopy(0,0,returndatasize())
                 revert(0, returndatasize())
@@ -1322,7 +1346,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (ovmSafetyChecker.isBytecodeSafe(deployedCode) == false) {
             _revertWithFlag(
                 RevertFlag.UNSAFE_BYTECODE,
-                Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.")
+                Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.") // solhint-disable-line max-line-length
             );
         }
 
@@ -1340,8 +1364,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      ******************************************/
 
     /**
-     * Invokes an ovmCALL to OVM_ETH.transfer on behalf of the current ovmADDRESS, allowing us to force movement of OVM_ETH in correspondence with ETH's native value functionality.
-     * WARNING: this will send on behalf of whatever the messageContext.ovmADDRESS is in storage at the time of the call.
+     * Invokes an ovmCALL to OVM_ETH.transfer on behalf of the current ovmADDRESS, allowing us to
+     * force movement of OVM_ETH in correspondence with ETH's native value functionality.
+     * WARNING: this will send on behalf of whatever the messageContext.ovmADDRESS is in storage
+     * at the time of the call.
      * NOTE: In the future, this could be optimized to directly invoke EM._setContractStorage(...).
      * @param _to Amount of OVM_ETH to be sent.
      * @param _value Amount of OVM_ETH to send.
@@ -1362,8 +1388,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             _value
         );
 
-        // OVM_ETH inherits from the UniswapV2ERC20 standard.  In this implementation, its return type
-        // is a boolean.  However, the implementation always returns true if it does not revert.
+        // OVM_ETH inherits from the UniswapV2ERC20 standard.  In this implementation, its return
+        // type is a boolean.  However, the implementation always returns true if it does not revert
         // Thus, success of the call frame is sufficient to infer success of the transfer itself.
         (bool success, ) = ovmCALL(
             gasleft(),
@@ -1576,7 +1602,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // on the size of the contract code.
         if (_wasAccountAlreadyLoaded == false) {
             _useNuisanceGas(
-                (Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE) + MIN_NUISANCE_GAS_PER_CONTRACT
+                (Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address))
+                * NUISANCE_GAS_PER_CONTRACT_BYTE) + MIN_NUISANCE_GAS_PER_CONTRACT
             );
         }
     }
@@ -1606,7 +1633,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (_wasAccountAlreadyChanged == false) {
             ovmStateManager.incrementTotalUncommittedAccounts();
             _useNuisanceGas(
-                (Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE) + MIN_NUISANCE_GAS_PER_CONTRACT
+                (Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address))
+                * NUISANCE_GAS_PER_CONTRACT_BYTE) + MIN_NUISANCE_GAS_PER_CONTRACT
             );
         }
     }
@@ -1708,7 +1736,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _revertdata
         )
     {
-        // Out of gas and create exceptions will fundamentally return no data, so simulating it shouldn't either.
+        // Out of gas and create exceptions will fundamentally return no data, so simulating it
+        // shouldn't either.
         if (
             _flag == RevertFlag.OUT_OF_GAS
         ) {
@@ -1903,9 +1932,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // This check prevents calling run with the default ovmNumber.
         // Combined with the first check in run():
         //      if (transactionContext.ovmNUMBER != DEFAULT_UINT256) { return; }
-        // It should be impossible to re-enter since run() returns before any other call frames are created.
-        // Since this value is already being written to storage, we save much gas compared to
-        // using the standard nonReentrant pattern.
+        // It should be impossible to re-enter since run() returns before any other call frames are
+        // created. Since this value is already being written to storage, we save much gas compared
+        // to using the standard nonReentrant pattern.
         if (_transaction.blockNumber == DEFAULT_UINT256)  {
             return false;
         }
@@ -2046,8 +2075,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         internal
     {
-        // These conditionals allow us to avoid unneccessary SSTOREs.  However, they do mean that the current storage
-        // value for the messageContext MUST equal the _prevMessageContext argument, or an SSTORE might be erroneously skipped.
+        // These conditionals allow us to avoid unneccessary SSTOREs.  However, they do mean that
+        // the current storage value for the messageContext MUST equal the _prevMessageContext
+        // argument, or an SSTORE might be erroneously skipped.
         if (_prevMessageContext.ovmCALLER != _nextMessageContext.ovmCALLER) {
             messageContext.ovmCALLER = _nextMessageContext.ovmCALLER;
         }
@@ -2134,7 +2164,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
-     * Returns whether or not the given message type (potentially) requires the transfer of ETH value along with the message.
+     * Returns whether or not the given message type (potentially) requires the transfer of ETH
+     * value along with the message.
      * @param _messageType the message type in question.
      */
     function _isValueType(
@@ -2161,7 +2192,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     /**
      * Unreachable helper function for simulating eth_calls with an OVM message context.
-     * This function will throw an exception in all cases other than when used as a custom entrypoint in L2 Geth to simulate eth_call.
+     * This function will throw an exception in all cases other than when used as a custom
+     * entrypoint in L2 Geth to simulate eth_call.
      * @param _transaction the message transaction to simulate.
      * @param _from the OVM account the simulated call should be from.
      * @param _value the amount of ETH value to send.
