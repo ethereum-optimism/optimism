@@ -93,12 +93,13 @@ describe('OVM_L1CrossDomainMessenger', () => {
     Factory__OVM_L1CrossDomainMessenger = await ethers.getContractFactory(
       'OVM_L1CrossDomainMessenger'
     )
-    OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
-      AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS,
-      FORCE_INCLUSION_PERIOD_BLOCKS,
-      MAX_GAS_LIMIT
-    )
+    OVM_CanonicalTransactionChain =
+      await Factory__OVM_CanonicalTransactionChain.deploy(
+        AddressManager.address,
+        FORCE_INCLUSION_PERIOD_SECONDS,
+        FORCE_INCLUSION_PERIOD_BLOCKS,
+        MAX_GAS_LIMIT
+      )
 
     const batches = await Factory__OVM_ChainStorageContainer.deploy(
       AddressManager.address,
@@ -256,10 +257,71 @@ describe('OVM_L1CrossDomainMessenger', () => {
     })
   })
 
+  const generateMockRelayMessageProof = async (
+    target: string,
+    sender: string,
+    message: string,
+    messageNonce: number = 0
+  ): Promise<{
+    calldata: string
+    proof: any
+  }> => {
+    const calldata = encodeXDomainCalldata(
+      target,
+      sender,
+      message,
+      messageNonce
+    )
+
+    const storageKey = keccak256(
+      keccak256(calldata + remove0x(Mock__OVM_L2CrossDomainMessenger.address)) +
+        '00'.repeat(32)
+    )
+    const storageGenerator = await TrieTestGenerator.fromNodes({
+      nodes: [
+        {
+          key: storageKey,
+          val: '0x' + '01'.padStart(2, '0'),
+        },
+      ],
+      secure: true,
+    })
+
+    const generator = await TrieTestGenerator.fromAccounts({
+      accounts: [
+        {
+          address: predeploys.OVM_L2ToL1MessagePasser,
+          nonce: 0,
+          balance: 0,
+          codeHash: keccak256('0x1234'),
+          storageRoot: toHexString(storageGenerator._trie.root),
+        },
+      ],
+      secure: true,
+    })
+
+    const proof = {
+      stateRoot: toHexString(generator._trie.root),
+      stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
+      stateRootProof: DUMMY_BATCH_PROOFS[0],
+      stateTrieWitness: (
+        await generator.makeAccountProofTest(predeploys.OVM_L2ToL1MessagePasser)
+      ).accountTrieWitness,
+      storageTrieWitness: (
+        await storageGenerator.makeInclusionProofTest(storageKey)
+      ).proof,
+    }
+
+    return {
+      calldata,
+      proof,
+    }
+  }
+
   describe('relayMessage', () => {
     let target: string
-    let message: string
     let sender: string
+    let message: string
     let proof: any
     let calldata: string
     before(async () => {
@@ -269,49 +331,13 @@ describe('OVM_L1CrossDomainMessenger', () => {
       ])
       sender = await signer.getAddress()
 
-      calldata = encodeXDomainCalldata(target, sender, message, 0)
-
-      const storageKey = keccak256(
-        keccak256(
-          calldata + remove0x(Mock__OVM_L2CrossDomainMessenger.address)
-        ) + '00'.repeat(32)
+      const mockProof = await generateMockRelayMessageProof(
+        target,
+        sender,
+        message
       )
-      const storageGenerator = await TrieTestGenerator.fromNodes({
-        nodes: [
-          {
-            key: storageKey,
-            val: '0x' + '01'.padStart(2, '0'),
-          },
-        ],
-        secure: true,
-      })
-
-      const generator = await TrieTestGenerator.fromAccounts({
-        accounts: [
-          {
-            address: predeploys.OVM_L2ToL1MessagePasser,
-            nonce: 0,
-            balance: 0,
-            codeHash: keccak256('0x1234'),
-            storageRoot: toHexString(storageGenerator._trie.root),
-          },
-        ],
-        secure: true,
-      })
-
-      proof = {
-        stateRoot: toHexString(generator._trie.root),
-        stateRootBatchHeader: DUMMY_BATCH_HEADERS[0],
-        stateRootProof: DUMMY_BATCH_PROOFS[0],
-        stateTrieWitness: (
-          await generator.makeAccountProofTest(
-            predeploys.OVM_L2ToL1MessagePasser
-          )
-        ).accountTrieWitness,
-        storageTrieWitness: (
-          await storageGenerator.makeInclusionProofTest(storageKey)
-        ).proof,
-      }
+      proof = mockProof.proof
+      calldata = mockProof.calldata
     })
 
     beforeEach(async () => {
@@ -345,6 +371,26 @@ describe('OVM_L1CrossDomainMessenger', () => {
           proof1
         )
       ).to.be.revertedWith('Provided message could not be verified.')
+    })
+
+    it('should revert if attempting to relay a message sent to an L1 system contract', async () => {
+      const maliciousProof = await generateMockRelayMessageProof(
+        OVM_CanonicalTransactionChain.address,
+        sender,
+        message
+      )
+
+      await expect(
+        OVM_L1CrossDomainMessenger.relayMessage(
+          OVM_CanonicalTransactionChain.address,
+          sender,
+          message,
+          0,
+          maliciousProof.proof
+        )
+      ).to.be.revertedWith(
+        'Cannot send L2->L1 messages to L1 system contracts.'
+      )
     })
 
     it('should revert if provided an invalid state root proof', async () => {

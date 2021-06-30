@@ -13,10 +13,10 @@
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf cache/ dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:fix": "prettier --config .prettierrc.json --write \"hardhat.config.ts\" \"{src,exec,test}/**/*.ts\"",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
-    "test": "hardhat test --show-stack-traces",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "lint:fix": "yarn lint:check --fix",
+    "lint:check": "eslint .",
+    "test": "hardhat test --show-stack-traces"
   },
   "keywords": [
     "optimism",
@@ -61,7 +61,9 @@
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "chai": "^4.2.0",
+    "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
+    "eslint-plugin-prettier": "^3.4.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-ban": "^1.5.2",
     "eslint-plugin-import": "^2.23.4",

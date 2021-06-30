@@ -118,8 +118,10 @@ describe('Native ETH value integration tests', () => {
         'geth RPC does not match OVM_ETH.balanceOf'
       )
       // query address(this).balance solidity via eth_call as final check
-      const ovmAddressThisBalance0 = await ValueCalls0.callStatic.getAddressThisBalance()
-      const ovmAddressThisBalance01 = await ValueCalls1.callStatic.getAddressThisBalance()
+      const ovmAddressThisBalance0 =
+        await ValueCalls0.callStatic.getAddressThisBalance()
+      const ovmAddressThisBalance01 =
+        await ValueCalls1.callStatic.getAddressThisBalance()
       expect(ovmAddressThisBalance0).to.deep.eq(
         BigNumber.from(expectedBalances[0]),
         'geth RPC does not match address(this).balance'
@@ -251,23 +253,19 @@ describe('Native ETH value integration tests', () => {
 
       const sendAmount = 10
 
-      const [
-        outerSuccess,
-        outerReturndata,
-      ] = await ValueCalls0.callStatic.sendWithData(
-        ValueCalls1.address,
-        sendAmount,
-        ValueCalls1.interface.encodeFunctionData('delegateCallToCallValue', [
-          ValueContext.address,
-        ])
-      )
-      const [
-        innerSuccess,
-        innerReturndata,
-      ] = ValueCalls1.interface.decodeFunctionResult(
-        'delegateCallToCallValue',
-        outerReturndata
-      )
+      const [outerSuccess, outerReturndata] =
+        await ValueCalls0.callStatic.sendWithData(
+          ValueCalls1.address,
+          sendAmount,
+          ValueCalls1.interface.encodeFunctionData('delegateCallToCallValue', [
+            ValueContext.address,
+          ])
+        )
+      const [innerSuccess, innerReturndata] =
+        ValueCalls1.interface.decodeFunctionResult(
+          'delegateCallToCallValue',
+          outerReturndata
+        )
       const delegatedOvmCALLVALUE = ValueContext.interface.decodeFunctionResult(
         'getCallValue',
         innerReturndata
@@ -286,48 +284,41 @@ describe('Native ETH value integration tests', () => {
       const ValueContext = await Factory__ValueContext.deploy()
       await ValueContext.deployTransaction.wait()
 
-      const [
-        delegatedSuccess,
-        delegatedReturndata,
-      ] = await ValueCalls0.callStatic.delegateCallToAddressThisBalance(
-        ValueContext.address
-      )
+      const [delegatedSuccess, delegatedReturndata] =
+        await ValueCalls0.callStatic.delegateCallToAddressThisBalance(
+          ValueContext.address
+        )
 
       expect(delegatedSuccess).to.be.true
       expect(delegatedReturndata).to.deep.eq(BigNumber.from(initialBalance0))
     })
 
     it('should have correct address(this).balance through ovmDELEGATECALLs to same account', async () => {
-      const [
-        delegatedSuccess,
-        delegatedReturndata,
-      ] = await ValueCalls0.callStatic.delegateCallToAddressThisBalance(
-        ValueCalls0.address
-      )
+      const [delegatedSuccess, delegatedReturndata] =
+        await ValueCalls0.callStatic.delegateCallToAddressThisBalance(
+          ValueCalls0.address
+        )
 
       expect(delegatedSuccess).to.be.true
       expect(delegatedReturndata).to.deep.eq(BigNumber.from(initialBalance0))
     })
 
     it('should allow delegate calls which preserve msg.value even with no balance going into the inner call', async () => {
-      const Factory__SendETHAwayAndDelegateCall: ContractFactory = await ethers.getContractFactory(
-        'SendETHAwayAndDelegateCall',
-        wallet
-      )
-      const SendETHAwayAndDelegateCall: Contract = await Factory__SendETHAwayAndDelegateCall.deploy()
+      const Factory__SendETHAwayAndDelegateCall: ContractFactory =
+        await ethers.getContractFactory('SendETHAwayAndDelegateCall', wallet)
+      const SendETHAwayAndDelegateCall: Contract =
+        await Factory__SendETHAwayAndDelegateCall.deploy()
       await SendETHAwayAndDelegateCall.deployTransaction.wait()
 
       const value = 17
-      const [
-        delegatedSuccess,
-        delegatedReturndata,
-      ] = await SendETHAwayAndDelegateCall.callStatic.emptySelfAndDelegateCall(
-        ValueCalls0.address,
-        ValueCalls0.interface.encodeFunctionData('getCallValue'),
-        {
-          value,
-        }
-      )
+      const [delegatedSuccess, delegatedReturndata] =
+        await SendETHAwayAndDelegateCall.callStatic.emptySelfAndDelegateCall(
+          ValueCalls0.address,
+          ValueCalls0.interface.encodeFunctionData('getCallValue'),
+          {
+            value,
+          }
+        )
 
       expect(delegatedSuccess).to.be.true
       expect(delegatedReturndata).to.deep.eq(BigNumber.from(value))
@@ -343,8 +334,10 @@ describe('Native ETH value integration tests', () => {
           getContractInterface('OVM_ExecutionManager', false),
           env.l1Wallet.provider
         )
-        const CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM = await OVM_ExecutionManager.CALL_WITH_VALUE_INTRINSIC_GAS()
-        CALL_WITH_VALUE_INTRINSIC_GAS = CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM.toNumber()
+        const CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM =
+          await OVM_ExecutionManager.CALL_WITH_VALUE_INTRINSIC_GAS()
+        CALL_WITH_VALUE_INTRINSIC_GAS =
+          CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM.toNumber()
 
         const Factory__ValueGasMeasurer = await ethers.getContractFactory(
           'ValueGasMeasurer',
@@ -357,14 +350,15 @@ describe('Native ETH value integration tests', () => {
       it('a call with value to an empty account consumes <= the intrinsic gas including a buffer', async () => {
         const value = 1
         const gasLimit = 1_000_000
-        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
-          ethers.constants.AddressZero,
-          value,
-          gasLimit,
-          {
-            gasLimit: 2_000_000,
-          }
-        )
+        const minimalSendGas =
+          await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
+            ethers.constants.AddressZero,
+            value,
+            gasLimit,
+            {
+              gasLimit: 2_000_000,
+            }
+          )
 
         const buffer = 1.2
         expect(minimalSendGas * buffer).to.be.lte(CALL_WITH_VALUE_INTRINSIC_GAS)
@@ -384,67 +378,61 @@ describe('Native ETH value integration tests', () => {
         const value = 1
         const gasLimit = 1_000_000
         // A revert, causing the ETH to be sent back, should consume the minimal possible gas for a nonzero ETH send
-        const minimalSendGas = await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
-          AutoRevert.address,
-          value,
-          gasLimit,
-          {
-            gasLimit: 2_000_000,
-          }
-        )
+        const minimalSendGas =
+          await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
+            AutoRevert.address,
+            value,
+            gasLimit,
+            {
+              gasLimit: 2_000_000,
+            }
+          )
 
         const buffer = 1.2
         expect(minimalSendGas * buffer).to.be.lte(CALL_WITH_VALUE_INTRINSIC_GAS)
       })
 
       it('a value call passing less than the intrinsic gas should appear to revert', async () => {
-        const Factory__PayableConstant: ContractFactory = await ethers.getContractFactory(
-          'PayableConstant',
-          wallet
-        )
-        const PayableConstant: Contract = await Factory__PayableConstant.deploy()
+        const Factory__PayableConstant: ContractFactory =
+          await ethers.getContractFactory('PayableConstant', wallet)
+        const PayableConstant: Contract =
+          await Factory__PayableConstant.deploy()
         await PayableConstant.deployTransaction.wait()
 
         const sendAmount = 15
-        const [
-          success,
-          returndata,
-        ] = await ValueCalls0.callStatic.sendWithDataAndGas(
-          PayableConstant.address,
-          sendAmount,
-          PayableConstant.interface.encodeFunctionData('returnValue'),
-          CALL_WITH_VALUE_INTRINSIC_GAS - 1,
-          {
-            gasLimit: 2_000_000,
-          }
-        )
+        const [success, returndata] =
+          await ValueCalls0.callStatic.sendWithDataAndGas(
+            PayableConstant.address,
+            sendAmount,
+            PayableConstant.interface.encodeFunctionData('returnValue'),
+            CALL_WITH_VALUE_INTRINSIC_GAS - 1,
+            {
+              gasLimit: 2_000_000,
+            }
+          )
 
         expect(success).to.eq(false)
         expect(returndata).to.eq('0x')
       })
 
       it('a value call which runs out of gas does not out-of-gas the parent', async () => {
-        const Factory__TestOOG: ContractFactory = await ethers.getContractFactory(
-          'TestOOG',
-          wallet
-        )
+        const Factory__TestOOG: ContractFactory =
+          await ethers.getContractFactory('TestOOG', wallet)
         const TestOOG: Contract = await Factory__TestOOG.deploy()
         await TestOOG.deployTransaction.wait()
 
         const sendAmount = 15
         // Implicitly test that this call is not rejected
-        const [
-          success,
-          returndata,
-        ] = await ValueCalls0.callStatic.sendWithDataAndGas(
-          TestOOG.address,
-          sendAmount,
-          TestOOG.interface.encodeFunctionData('runOutOfGas'),
-          CALL_WITH_VALUE_INTRINSIC_GAS * 2,
-          {
-            gasLimit: 2_000_000,
-          }
-        )
+        const [success, returndata] =
+          await ValueCalls0.callStatic.sendWithDataAndGas(
+            TestOOG.address,
+            sendAmount,
+            TestOOG.interface.encodeFunctionData('runOutOfGas'),
+            CALL_WITH_VALUE_INTRINSIC_GAS * 2,
+            {
+              gasLimit: 2_000_000,
+            }
+          )
 
         expect(success).to.eq(false)
         expect(returndata).to.eq('0x')

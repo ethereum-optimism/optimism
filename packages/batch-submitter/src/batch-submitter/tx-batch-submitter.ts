@@ -21,7 +21,7 @@ import {
   AppendSequencerBatchParams,
 } from '../transaction-chain-contract'
 
-import { Range, BatchSubmitter } from '.'
+import { BlockRange, BatchSubmitter } from '.'
 
 export interface AutoFixBatchOptions {
   fixDoublePlayedDeposits: boolean
@@ -174,7 +174,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     return
   }
 
-  public async _getBatchStartAndEnd(): Promise<Range> {
+  public async _getBatchStartAndEnd(): Promise<BlockRange> {
     this.logger.info(
       'Getting batch start and end for transaction batch submitter...'
     )

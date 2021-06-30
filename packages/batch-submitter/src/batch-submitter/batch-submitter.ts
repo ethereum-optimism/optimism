@@ -7,7 +7,7 @@ import { RollupInfo, sleep } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { getContractFactory } from 'old-contracts'
 
-export interface Range {
+export interface BlockRange {
   start: number
   end: number
 }
@@ -65,7 +65,7 @@ export abstract class BatchSubmitter {
     endBlock: number
   ): Promise<TransactionReceipt>
   public abstract _onSync(): Promise<TransactionReceipt>
-  public abstract _getBatchStartAndEnd(): Promise<Range>
+  public abstract _getBatchStartAndEnd(): Promise<BlockRange>
   public abstract _updateChainInfo(): Promise<void>
 
   public async submitNextBatch(): Promise<TransactionReceipt> {
