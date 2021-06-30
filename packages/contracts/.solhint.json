@@ -7,7 +7,6 @@
       "max-line-length": ["error", 100],
       "func-param-name-mixedcase": "error",
       "modifier-name-mixedcase": "error",
-      "private-vars-leading-underscore": "error",
       "ordering": "warn",
       "not-rely-on-time": "off",
       "no-complex-fallback": "off",
