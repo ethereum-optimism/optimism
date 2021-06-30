@@ -288,7 +288,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
         onlyFromCrossDomainAccount(l2TokenBridge)
     {
         (bool success, ) = _to.call{value: _amount}(new bytes(0));
-        require(success, 'TransferHelper::safeTransferETH: ETH transfer failed');
+        require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
 
         emit ETHWithdrawalFinalized(_from, _to, _amount, _data);
     }

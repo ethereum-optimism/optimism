@@ -1741,7 +1741,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (
             _flag == RevertFlag.OUT_OF_GAS
         ) {
-            return bytes('');
+            return bytes("");
         }
 
         // INVALID_STATE_ACCESS doesn't need to return any data other than the flag.
@@ -1750,7 +1750,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 _flag,
                 0,
                 0,
-                bytes('')
+                bytes("")
             );
         }
 
@@ -1789,7 +1789,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 RevertFlag.OUT_OF_GAS,
                 0,
                 0,
-                bytes('')
+                bytes("")
             );
         }
 
@@ -1828,7 +1828,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         internal
     {
-        _revertWithFlag(_flag, bytes(''));
+        _revertWithFlag(_flag, bytes(""));
     }
 
 

@@ -158,7 +158,7 @@ library Lib_MerkleTrie {
             "Provided proof is invalid."
         );
 
-        bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes('');
+        bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes("");
 
         return (
             exists,
