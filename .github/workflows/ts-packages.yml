@@ -55,6 +55,7 @@ jobs:
         run: cat packages/contracts/gas-report.txt
 
       - name: Run codechecks
+        if: ${{ github.repository == 'ethereum-optimism/optimism' }}
         working-directory: ./packages/contracts
         run: yarn codechecks
         env:
