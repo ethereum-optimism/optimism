@@ -46,7 +46,9 @@ jobs:
 
       - name: Run the integration tests
         working-directory: ./ops
-        run: docker-compose run integration_tests
+        run: |
+          ./scripts/stats.sh &
+          docker-compose run integration_tests
 
       # Examples Tests
       # - name: Test & deploy hardhat-example on Ethereum (regression)
