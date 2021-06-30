@@ -2,23 +2,7 @@ import { expect } from '../setup'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
-import { getRandomHexString, toRpcHexString } from '../../src'
-
-describe('getRandomHexString', () => {
-  const random = global.Math.random
-
-  before(async () => {
-    global.Math.random = () => 0.5
-  })
-
-  after(async () => {
-    global.Math.random = random
-  })
-
-  it('returns a random address string of the specified length', () => {
-    expect(getRandomHexString(8)).to.equal('0x' + '88'.repeat(8))
-  })
-})
+import { toRpcHexString } from '../../src'
 
 describe('toRpcHexString', () => {
   it('should parse 0', () => {

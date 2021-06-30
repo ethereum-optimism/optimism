@@ -1,5 +1,5 @@
 /* Imports: External */
-import { fromHexString, EventArgsAddressSet } from '@eth-optimism/core-utils'
+import { fromHexString } from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
