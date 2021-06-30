@@ -214,7 +214,8 @@ contract OVM_L1CrossDomainMessenger is
             ovmCanonicalTransactionChain,
             l2CrossDomainMessenger,
             xDomainCalldata,
-            _gasLimit);
+            _gasLimit
+        );
         emit SentMessage(xDomainCalldata);
     }
 
@@ -338,7 +339,8 @@ contract OVM_L1CrossDomainMessenger is
             canonicalTransactionChain,
             l2CrossDomainMessenger,
             xDomainCalldata,
-            _gasLimit);
+            _gasLimit
+        );
     }
 
 

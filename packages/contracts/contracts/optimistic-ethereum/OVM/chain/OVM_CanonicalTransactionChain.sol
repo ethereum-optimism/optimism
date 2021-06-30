@@ -346,6 +346,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         // TEMPORARY: Disable `appendQueueBatch` for minnet
         revert("appendQueueBatch is currently disabled.");
 
+        // solhint-disable max-line-length
         // _numQueuedTransactions = Math.min(_numQueuedTransactions, getNumPendingQueueElements());
         // require(
         //     _numQueuedTransactions > 0,
@@ -360,7 +361,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         //         Lib_OVMCodec.QueueElement memory el = getQueueElement(nextQueueIndex);
         //         require(
         //             el.timestamp + forceInclusionPeriodSeconds < block.timestamp,
-        //           "Queue transactions cannot be submitted during the sequencer inclusion period."
+        //             "Queue transactions cannot be submitted during the sequencer inclusion period."
         //         );
         //     }
         //     leaves[i] = _getQueueLeafHash(nextQueueIndex);
@@ -382,6 +383,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         //     _numQueuedTransactions,
         //     getTotalElements()
         // );
+        // solhint-enable max-line-length
     }
 
     /**

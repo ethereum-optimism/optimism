@@ -70,8 +70,9 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
      * Depositing *
      **************/
 
-    /// @dev Modifier requiring sender to be EOA.  This check could be bypassed by a malicious
-    //  contract via initcode, but it takes care of the user error we want to avoid.
+    /** @dev Modifier requiring sender to be EOA.  This check could be bypassed by a malicious
+     *  contract via initcode, but it takes care of the user error we want to avoid.
+     */
     modifier onlyEOA() {
         // Used to stop deposits from contracts (avoid accidentally lost tokens)
         require(!Address.isContract(msg.sender), "Account not EOA");
