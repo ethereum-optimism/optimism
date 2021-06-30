@@ -49,9 +49,8 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       'OVM_CanonicalTransactionChain'
     )
 
-    CanonicalTransactionChain = CanonicalTransactionChainFactory.connect( // tslint:disable-line
-      l1Wallet
-    ).attach(ctcAddress)
+    CanonicalTransactionChain =
+      CanonicalTransactionChainFactory.connect(l1Wallet).attach(ctcAddress)
 
     const OVMMulticallFactory = await ethers.getContractFactory(
       'OVMMulticall',
@@ -139,7 +138,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
   it('should return same timestamp and blocknumbers between `eth_call` and `rollup_getInfo`', async () => {
     // As atomically as possible, call `rollup_getInfo` and OVMMulticall for the
     // blocknumber and timestamp. If this is not atomic, then the sequencer can
-    // happen to update the timestamp between the `eth_call` and the `rollup_getInfo`
+    // happend to update the timestamp between the `eth_call` and the `rollup_getInfo`
     const [info, [, returnData]] = await Promise.all([
       L2Provider.send('rollup_getInfo', []),
       OVMMulticall.callStatic.aggregate([
