@@ -2,5 +2,5 @@
 
 while true; do
   docker stats --no-stream
-  sleep 10;
+  sleep 1;
 done
