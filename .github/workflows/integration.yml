@@ -40,10 +40,6 @@ jobs:
         working-directory: ./ops
         run: docker-compose up -d
 
-      - name: Log stats
-        working-directory: ./ops
-        run: ./scripts/stats.sh
-
       - name: Run the integration tests
         working-directory: ./ops
         run: |
