@@ -1,48 +1,58 @@
 # Optimism Regenesis Deployments
+
 ## LAYER 2
 
 ### Chain IDs:
+
 - Mainnet: 10
 - Kovan: 69
 - Goerli: 420
-*The contracts relevant for the majority of developers are `OVM_ETH` and the cross-domain messengers. The L2 addresses don't change.*
+  _The contracts relevant for the majority of developers are `OVM_ETH` and the cross-domain messengers. The L2 addresses don't change._
 
 ### Predeploy contracts:
-| Contract                    | Address                                      |
-| --------------------------- | -------------------------------------------- |
-| OVM_ETH:                    | `0x4200000000000000000000000000000000000006` |
-| OVM_L2StandardBridge:       | `0x4200000000000000000000000000000000000010` |
-| OVM_L2CrossDomainMessenger: | `0x4200000000000000000000000000000000000007` |
-| OVM_L2ToL1MessagePasser:    | `0x4200000000000000000000000000000000000000` |
-| OVM_L1MessageSender:        | `0x4200000000000000000000000000000000000001` |
-| OVM_DeployerWhitelist:      | `0x4200000000000000000000000000000000000002` |
-| OVM_ECDSAContractAccount:   | `0x4200000000000000000000000000000000000003` |
-| OVM_SequencerEntrypoint:    | `0x4200000000000000000000000000000000000005` |
-| Lib_AddressManager:         | `0x4200000000000000000000000000000000000008` |
-| OVM_SequencerFeeVault:      | `0x4200000000000000000000000000000000000011` |
-| ERC1820Registry:            | `0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24` |
+
+| Contract                    | Address                                    |
+| --------------------------- | ------------------------------------------ |
+| OVM_L2ToL1MessagePasser     | 0x4200000000000000000000000000000000000000 |
+| OVM_L1MessageSender         | 0x4200000000000000000000000000000000000001 |
+| OVM_DeployerWhitelist       | 0x4200000000000000000000000000000000000002 |
+| OVM_ECDSAContractAccount    | 0x4200000000000000000000000000000000000003 |
+| OVM_SequencerEntrypoint     | 0x4200000000000000000000000000000000000005 |
+| OVM_ETH                     | 0x4200000000000000000000000000000000000006 |
+| OVM_L2CrossDomainMessenger  | 0x4200000000000000000000000000000000000007 |
+| Lib_AddressManager          | 0x4200000000000000000000000000000000000008 |
+| OVM_ProxyEOA                | 0x4200000000000000000000000000000000000009 |
+| OVM_ExecutionManagerWrapper | 0x420000000000000000000000000000000000000B |
+| OVM_GasPriceOracle          | 0x420000000000000000000000000000000000000F |
+| OVM_SequencerFeeVault       | 0x4200000000000000000000000000000000000011 |
+| OVM_L2StandardBridge        | 0x4200000000000000000000000000000000000010 |
+| ERC1820Registry             | 0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24 |
 
 ---
+
 ---
 
 ## LAYER 1
 
 ## OPTIMISTIC-KOVAN
 
-Network : __undefined (chain id: 69)__
+Network : **undefined (chain id: 69)**
 
 | Contract           | Address                                                                                                                         |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | OVM_GasPriceOracle | [0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76](https://undefined.etherscan.io/address/0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76) |
+
 <!--
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
 
 -->
+
 ---
+
 ## MAINNET
 
-Network : __mainnet (chain id: 1)__
+Network : **mainnet (chain id: 1)**
 
 | Contract                              | Address                                                                                                               |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -58,9 +68,10 @@ Network : __mainnet (chain id: 1)__
 | OVM_StateCommitmentChain              | [0xE969C2724d2448F1d1A6189d3e2aA1F37d5998c1](https://etherscan.io/address/0xE969C2724d2448F1d1A6189d3e2aA1F37d5998c1) |
 | OVM_StateManagerFactory               | [0xd0e3e318154716BD9d007E1E6B021Eab246ff98d](https://etherscan.io/address/0xd0e3e318154716BD9d007E1E6B021Eab246ff98d) |
 | OVM_StateTransitionerFactory          | [0x38A6ed6fd76035684caDef38cF49a2FffA782B67](https://etherscan.io/address/0x38A6ed6fd76035684caDef38cF49a2FffA782B67) |
-| Proxy__OVM_L1CrossDomainMessenger     | [0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1](https://etherscan.io/address/0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1) |
-| Proxy__OVM_L1StandardBridge           | [0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1](https://etherscan.io/address/0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1) |
+| Proxy\_\_OVM_L1CrossDomainMessenger   | [0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1](https://etherscan.io/address/0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1) |
+| Proxy\_\_OVM_L1StandardBridge         | [0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1](https://etherscan.io/address/0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1) |
 | mockOVM_BondManager                   | [0xCd76de5C57004d47d0216ec7dAbd3c72D8c49057](https://etherscan.io/address/0xCd76de5C57004d47d0216ec7dAbd3c72D8c49057) |
+
 <!--
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
@@ -68,15 +79,13 @@ Use their proxied counterparts seen above.
 OVM_L1CrossDomainMessenger:
  - 0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0
  - https://etherscan.io/address/0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0)
-
-OVM_L1ETHGateway:
- - 0x40c9067ec8087EcF101FC10d2673636955b81A32
- - https://etherscan.io/address/0x40c9067ec8087EcF101FC10d2673636955b81A32
 -->
+
 ---
+
 ## KOVAN
 
-Network : __kovan (chain id: 42)__
+Network : **kovan (chain id: 42)**
 
 | Contract                              | Address                                                                                                                     |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -92,9 +101,10 @@ Network : __kovan (chain id: 42)__
 | OVM_StateCommitmentChain              | [0xa2487713665AC596b0b3E4881417f276834473d2](https://kovan.etherscan.io/address/0xa2487713665AC596b0b3E4881417f276834473d2) |
 | OVM_StateManagerFactory               | [0xBcca22E9F5579193E27dD39aD821A03778C44EFA](https://kovan.etherscan.io/address/0xBcca22E9F5579193E27dD39aD821A03778C44EFA) |
 | OVM_StateTransitionerFactory          | [0xFD7B9268e790837d393Fd371Ddeb42FE5EC45B54](https://kovan.etherscan.io/address/0xFD7B9268e790837d393Fd371Ddeb42FE5EC45B54) |
-| Proxy__OVM_L1CrossDomainMessenger     | [0x4361d0F75A0186C05f971c566dC6bEa5957483fD](https://kovan.etherscan.io/address/0x4361d0F75A0186C05f971c566dC6bEa5957483fD) |
-| Proxy__OVM_L1StandardBridge           | [0x22F24361D548e5FaAfb36d1437839f080363982B](https://kovan.etherscan.io/address/0x22F24361D548e5FaAfb36d1437839f080363982B) |
+| Proxy\_\_OVM_L1CrossDomainMessenger   | [0x4361d0F75A0186C05f971c566dC6bEa5957483fD](https://kovan.etherscan.io/address/0x4361d0F75A0186C05f971c566dC6bEa5957483fD) |
+| Proxy\_\_OVM_L1StandardBridge         | [0x22F24361D548e5FaAfb36d1437839f080363982B](https://kovan.etherscan.io/address/0x22F24361D548e5FaAfb36d1437839f080363982B) |
 | mockOVM_BondManager                   | [0xD6143943447DFf503d948Fba3D8af3d4Df28f45c](https://kovan.etherscan.io/address/0xD6143943447DFf503d948Fba3D8af3d4Df28f45c) |
+
 <!--
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
@@ -102,14 +112,13 @@ Use their proxied counterparts seen above.
 OVM_L1CrossDomainMessenger:
  - 0x333d2674E2D7e1e7327dc076030ce9615183709C
  - https://kovan.etherscan.io/address/0x333d2674E2D7e1e7327dc076030ce9615183709C)
-OVM_L1StandardBridge:
- - 0x8293ab0dc701a1387031a13786276f1baa3fcd4e
- - https://kovan.etherscan.io/address/0x8293ab0dc701a1387031a13786276f1baa3fcd4e)
 -->
+
 ---
+
 ## GOERLI
 
-Network : __goerli (chain id: 5)__
+Network : **goerli (chain id: 5)**
 
 | Contract                              | Address                                                                                                                      |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -125,9 +134,11 @@ Network : __goerli (chain id: 5)__
 | OVM_StateCommitmentChain              | [0x9bA5E286934F0A29fb2f8421f60d3eE8A853447C](https://goerli.etherscan.io/address/0x9bA5E286934F0A29fb2f8421f60d3eE8A853447C) |
 | OVM_StateManagerFactory               | [0x24C7F0a4a2B926613B31c4cDDA4c0f90c0772f2b](https://goerli.etherscan.io/address/0x24C7F0a4a2B926613B31c4cDDA4c0f90c0772f2b) |
 | OVM_StateTransitionerFactory          | [0x703303Ce2d92Ef95F17a622E3d538390251165E8](https://goerli.etherscan.io/address/0x703303Ce2d92Ef95F17a622E3d538390251165E8) |
-| Proxy__OVM_L1CrossDomainMessenger     | [0xa85716330ff84Ab312D5B43F3BfDcC7E650fd88A](https://goerli.etherscan.io/address/0xa85716330ff84Ab312D5B43F3BfDcC7E650fd88A) |
-| Proxy__OVM_L1StandardBridge           | [0x74B6CC2F377fB769cEd6c697bC4C58a9c342E424](https://goerli.etherscan.io/address/0x74B6CC2F377fB769cEd6c697bC4C58a9c342E424) |
+| Proxy\_\_OVM_L1CrossDomainMessenger   | [0xa85716330ff84Ab312D5B43F3BfDcC7E650fd88A](https://goerli.etherscan.io/address/0xa85716330ff84Ab312D5B43F3BfDcC7E650fd88A) |
+| Proxy\_\_OVM_L1ETHGateway             | [0xA721CF3e39E5cB4CfEEc0e32EE05B3D05AA9aE39](https://goerli.etherscan.io/address/0xA721CF3e39E5cB4CfEEc0e32EE05B3D05AA9aE39) |
+| Proxy\_\_OVM_L1StandardBridge         | [0x74B6CC2F377fB769cEd6c697bC4C58a9c342E424](https://goerli.etherscan.io/address/0x74B6CC2F377fB769cEd6c697bC4C58a9c342E424) |
 | mockOVM_BondManager                   | [0x795F355F75f9B28AEC6cC6A887704191e630065b](https://goerli.etherscan.io/address/0x795F355F75f9B28AEC6cC6A887704191e630065b) |
+
 <!--
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
@@ -135,5 +146,9 @@ Use their proxied counterparts seen above.
 OVM_L1CrossDomainMessenger:
  - 0x3B1D4DE5F7Fe8487980Ee7608BE302dC60a9caE9
  - https://goerli.etherscan.io/address/0x3B1D4DE5F7Fe8487980Ee7608BE302dC60a9caE9)
+OVM_L1ETHGateway:
+ - 0x746E840b94cC75921D1cb620b83CFd0C658B2852
+ - https://goerli.etherscan.io/address/0x746E840b94cC75921D1cb620b83CFd0C658B2852)
 -->
+
 ---
