@@ -377,7 +377,7 @@ describe('Basic RPC tests', () => {
         value: 0,
       })
       // Expect gas to be less than or equal to the target plus 1%
-      expectApprox(estimate, 5920012, 1)
+      expectApprox(estimate, 5920012, { upperPercentDeviation: 1 })
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
