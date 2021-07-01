@@ -975,7 +975,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     /**
      * Checks that a pair of adjacent batch contexts are monotonic with respect to each other,
      * and with respect to any queue elements which may be appended between them.
-     * Also checks that any queue elements between are not yet older than the force inclusion period, which would force them to come next.
+     * Also checks that any queue elements between are not yet older than the force inclusion
+     * period, which would force them to come next.
      * @param _earlierContext The batch context to validate has values lower.
      * @param _laterContext The batch context whose time values should come AFTER all of _earlierContext's subsequent queue transactions
      * @param _subsequentQueueIndex Index of the queue element we are validating came later than the _earlierContext
@@ -990,49 +991,49 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         internal
         view
     {
-            Lib_OVMCodec.QueueElement memory earliestQueueElementBetween = _getQueueElement(
-                _subsequentQueueIndex,
+        Lib_OVMCodec.QueueElement memory earliestQueueElementBetween = _getQueueElement(
+            _subsequentQueueIndex,
+            _queueRef
+        );
+
+        // Assume the earliest and latest are the same, update the latest if not
+        Lib_OVMCodec.QueueElement memory latestQueueElementBetween;
+        if(_earlierContext.numSubsequentQueueTransactions > 1) {
+            latestQueueElementBetween = _getQueueElement(
+                _subsequentQueueIndex + uint40(_earlierContext.numSubsequentQueueTransactions) - 1,
                 _queueRef
             );
+        } else {
+            latestQueueElementBetween = earliestQueueElementBetween;
+        }
 
-            // Assume the earliest and latest are the same, update the latest if not
-            Lib_OVMCodec.QueueElement memory latestQueueElementBetween;
-            if(_earlierContext.numSubsequentQueueTransactions > 1) {
-                latestQueueElementBetween = _getQueueElement(
-                    _subsequentQueueIndex + uint40(_earlierContext.numSubsequentQueueTransactions) - 1,
-                    _queueRef
-                );
-            } else {
-                latestQueueElementBetween = earliestQueueElementBetween;
-            }
+        // If the force inclusion period has passed for an enqueued transaction, it MUST be the next chain element.
+        require(
+            block.timestamp < earliestQueueElementBetween.timestamp + forceInclusionPeriodSeconds,
+            "Previously enqueued batches have expired and must be appended before a new sequencer batch."
+        );
 
-            // If the force inclusion period has passed for an enqueued transaction, it MUST be the next chain element.
-            require(
-                block.timestamp < earliestQueueElementBetween.timestamp + forceInclusionPeriodSeconds,
-                "Previously enqueued batches have expired and must be appended before a new sequencer batch."
-            );
+        // Just like sequencer transaction times must be increasing relative to each other,
+        // We also require that they be increasing relative to any interspersed queue elements.
+        require(
+            _earlierContext.timestamp <= earliestQueueElementBetween.timestamp,
+            "Sequencer transaction timestamp exceeds that of next queue element."
+        );
 
-            // Just like sequencer transaction times must be increasing relative to each other,
-            // We also require that they be increasing relative to any interspersed queue elements.
-            require(
-                _earlierContext.timestamp <= earliestQueueElementBetween.timestamp,
-                "Sequencer transaction timestamp exceeds that of next queue element."
-            );
+        require(
+            _earlierContext.blockNumber <= earliestQueueElementBetween.blockNumber,
+            "Sequencer transaction blockNumber exceeds that of next queue element."
+        );
 
-            require(
-                _earlierContext.blockNumber <= earliestQueueElementBetween.blockNumber,
-                "Sequencer transaction blockNumber exceeds that of next queue element."
-            );
+        require(
+            _laterContext.timestamp >= latestQueueElementBetween.timestamp,
+            "Sequencer transaction timestamp is less than that of last queue element appended."
+        );
 
-            require(
-                _laterContext.timestamp >= latestQueueElementBetween.timestamp,
-                "Sequencer transaction timestamp is less than that of last queue element appended."
-            );
-
-            require(
-                _laterContext.blockNumber >= latestQueueElementBetween.blockNumber,
-                "Sequencer transaction block number must be greater than last queue element appended."
-            );
+        require(
+            _laterContext.blockNumber >= latestQueueElementBetween.blockNumber,
+            "Sequencer transaction block number must be greater than last queue element appended."
+        );
     }
 
     /**
