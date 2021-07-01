@@ -61,13 +61,13 @@ describe('Optimism plugin', () => {
         await hre.run('compile', { quiet: true })
       })
 
-      it('creates a cache folder', async () => {
+      it('creates a cache-ovm folder', async () => {
         assert.ok(
           await fsExtra.pathExists(path.join(hardhatProjectPath, 'cache-ovm'))
         )
       })
 
-      it('creates an artifacts folder', async () => {
+      it('creates an artifacts-ovm folder', async () => {
         assert.ok(
           await fsExtra.pathExists(
             path.join(hardhatProjectPath, 'artifacts-ovm')
