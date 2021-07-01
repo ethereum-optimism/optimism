@@ -109,7 +109,10 @@ const main = async () => {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(() => {
+    console.log('DONE WITH DEPLOY')
+    process.exit(0)
+  })
   .catch((error) => {
     console.log(
       JSON.stringify({ error: error.message, stack: error.stack }, null, 2)
