@@ -1,0 +1,33 @@
+/*
+Copyright 2019-present OmiseGO Pte Ltd
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. */
+
+import store from 'store';
+
+export function setWalletMethod (methodName) {
+  //console.log("dispatch SWM:", dispatch)
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: methodName });
+  }
+}
+
+export function setNetwork (network) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/NETWORK/SET', payload: network });
+  }
+}
+
+export function setMinter (minter) {
+  store.dispatch({type: 'SETUP/NFT/MINTER',payload: minter})
+}

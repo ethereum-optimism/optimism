@@ -1,0 +1,43 @@
+service: sls-omgx-rinkeby-message-relayer # NOTE: update this with your service name
+
+provider:
+  name: aws
+  runtime: python3.7
+  stackName: sls-omgx-rinkeby-message-relayer
+  stage: prod
+  region: us-east-1
+  role: ${file(env.yml):ROLE}
+
+package:
+  exclude:
+    - .gitignore
+  individually: true
+
+functions:
+  get_whitelist:
+    handler: whitelist.get_whitelist
+    vpc:
+      securityGroupIds:
+        - ${file(env.yml):SECURITYGROUP}
+      subnetIds:
+        - ${file(env.yml):SUBNET1}
+        - ${file(env.yml):SUBNET2}
+    events:
+      - http:
+          path: get.whitelist
+          method: get
+          cors: true
+
+  get_blacklist:
+    handler: whitelist.get_whitelist
+    vpc:
+      securityGroupIds:
+        - ${file(env.yml):SECURITYGROUP}
+      subnetIds:
+        - ${file(env.yml):SUBNET1}
+        - ${file(env.yml):SUBNET2}
+    events:
+      - http:
+          path: get.blacklist
+          method: get
+          cors: true

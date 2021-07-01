@@ -34,7 +34,7 @@ COPY packages/batch-submitter/package.json ./packages/batch-submitter/package.js
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
-RUN yarn install --frozen-lockfile
+RUN yarn install # --frozen-lockfile
 
 ### BUILDER: Builds the typescript
 FROM node

@@ -1,0 +1,55 @@
+@import 'index.scss';
+
+.Select {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+
+  .label {
+    margin-bottom: 10px;
+  }
+
+  .field {
+    position: relative;
+    border: 2px solid $gray4;
+    transition: all 200ms ease-in-out;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .select {
+    border: none;
+    outline: none;
+    border-radius: 0;
+    padding-right: 10px;
+    -webkit-appearance: none;
+    -webkit-border-radius: 0px;
+    background-color: $gray3;
+    color: $gray3;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    opacity: 0;
+  }
+
+  .selected {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 50px;
+    margin-left: 10px;
+
+    .details {
+      text-align: left;
+      margin-right: 10px;
+      font-size: 0.9em;
+      .subTitle {
+        font-size: 0.7em;
+        white-space: nowrap;
+      }
+    }
+  }
+}

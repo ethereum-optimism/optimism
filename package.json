@@ -7,7 +7,6 @@
     "packages": [
       "packages/*",
       "packages/omgx/*",
-      "packages/omgx/wallet/*",
       "l2geth",
       "integration-tests",
       "specs"

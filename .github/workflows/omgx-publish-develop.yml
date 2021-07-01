@@ -45,8 +45,8 @@ jobs:
         working-directory: ./ops
         run: |
           ./scripts/build-ci.sh
-          docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/wallet_builder:latest
-          docker build ../ --file docker/Dockerfile.wallet_deployer --tag omgx/wallet_deployer:latest
+          docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:latest
+          docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
 
       - name: Rename and retag the optimism images
         working-directory: ./ops
@@ -60,8 +60,8 @@ jobs:
           docker image tag ethereumoptimism/batch-submitter omgx/batch-submitter:latest
           docker image tag ethereumoptimism/integration-tests omgx/integration-tests:latest
 
-          docker image tag omgx/wallet_builder:latest omgx/wallet_builder:develop
-          docker image tag omgx/wallet_deployer:latest omgx/wallet_deployer:develop
+          docker image tag omgx/omgx_builder:latest omgx/omgx_builder:develop
+          docker image tag omgx/omgx_deployer:latest omgx/omgx_deployer:develop
           docker image tag ethereumoptimism/builder omgx/builder:develop
           docker image tag ethereumoptimism/hardhat omgx/hardhat:develop
           docker image tag ethereumoptimism/deployer omgx/deployer:develop

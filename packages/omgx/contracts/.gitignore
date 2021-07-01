@@ -1,0 +1,15 @@
+.DS_Store
+node_modules
+
+dist
+artifacts
+artifacts-ovm
+cache
+cache-ovm
+
+.env
+env.js
+env.yml
+env.js
+
+*.log

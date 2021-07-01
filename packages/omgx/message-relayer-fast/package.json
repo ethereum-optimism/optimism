@@ -11,14 +11,10 @@
   ],
   "scripts": {
     "start:service": "node ./exec/run-message-relayer-fast.js",
-    "start": "yarn deploy:contracts && yarn start:service",
+    "start": "yarn start:service",
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
-    "build:contracts": "./scripts/build.sh",
-    "build:contracts:evm": "hardhat compile",
-    "build:contracts:ovm": "hardhat compile --network omgx",
-    "deploy:contracts": "npx hardhat run scripts/deploy_messenger.js --network localhost",
-    "test:integration": "./scripts/build.sh && hardhat --network omgx test",
+    "test:integration": "hardhat --network omgx test",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\"",
     "lint:check": "tslint --format stylish --project ."

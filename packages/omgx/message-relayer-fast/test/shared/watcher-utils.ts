@@ -5,6 +5,7 @@ import {
 } from '@ethersproject/providers'
 import { Watcher } from './watcher'
 import { Contract, Transaction } from 'ethers'
+import { loadContract, loadContractFromManager } from '@eth-optimism/contracts'
 
 export const initWatcher = async (
   l1Provider: JsonRpcProvider,
@@ -14,10 +15,7 @@ export const initWatcher = async (
   
   const l1MessengerAddress = await AddressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger')
   console.log("l1MessengerAddress:",l1MessengerAddress)
-  
-  const SCC = await AddressManager.getAddress('OVM_StateCommitmentChain')
-  console.log(SCC)
-  
+
   return new Watcher({
     l1: {
       provider: l1Provider,
@@ -30,21 +28,20 @@ export const initWatcher = async (
   })
 }
 
-export const initWatcherMessengerFast = async (
+
+export const initWatcherFast = async (
   l1Provider: JsonRpcProvider,
   l2Provider: JsonRpcProvider,
   AddressManager: Contract,
-  l1MessengerAddress: string
 ) => {
 
-  if (l1MessengerAddress === '') {
-    l1MessengerAddress = await AddressManager.getAddress('OVM_L1CustomCrossDomainMessenger')
-  }
- 
+  const l1MessengerAddressFast = await AddressManager.getAddress('OVM_L1CrossDomainMessengerFast')
+  console.log("l1MessengerAddressFast:",l1MessengerAddressFast)
+  
   return new Watcher({
     l1: {
       provider: l1Provider,
-      messengerAddress: l1MessengerAddress,
+      messengerAddress: l1MessengerAddressFast,
     },
     l2: {
       provider: l2Provider,
@@ -62,11 +59,6 @@ export interface CrossDomainMessagePair {
 export enum Direction {
   L1ToL2,
   L2ToL1,
-}
-
-export enum Relayer {
-  origin,
-  custom,
 }
 
 export const waitForXDomainTransaction = async (

@@ -1,0 +1,31 @@
+@import 'index.scss';
+
+.buttons {
+  display: flex;
+  flex-direction: row;
+  margin-top: 30px;
+  justify-content: flex-end;
+
+  div:first-child {
+    margin-right: 10px;
+  }
+}
+
+.disclaimer {
+  padding: 10px;
+  background-color: $blue;
+  color: $gray6;
+  margin-top: -12px;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+
+.note {
+  margin: 10px 0;
+}
+
+.position {
+  color: $gray6;
+  font-weight: bold;
+  margin: 0 7px;
+}

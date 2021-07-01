@@ -1,0 +1,13 @@
+FROM ethereumoptimism/builder AS builder
+FROM node:14-alpine
+
+RUN apk add --no-cache git curl python bash jq
+
+# get the needed built artifacts
+WORKDIR /opt/optimism/packages/omgx/bl-wl
+
+COPY packages/omgx/bl-wl/bin ./bin
+COPY packages/omgx/bl-wl/scripts ./scripts
+COPY packages/omgx/bl-wl/lambda ./lambda
+
+ENTRYPOINT ["./scripts/serve.sh"]

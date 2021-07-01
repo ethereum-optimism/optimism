@@ -37,7 +37,6 @@ docker-compose up --scale \
     --build --detach
 ```
 
-
 A Makefile has been provided for convience. The following targets are available.
 - make up
 - make down

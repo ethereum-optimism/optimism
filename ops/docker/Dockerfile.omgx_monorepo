@@ -1,13 +1,13 @@
 FROM ethereumoptimism/builder:latest
 
 WORKDIR /optimism
-COPY packages/omgx/wallet/package.json ./packages/omgx/wallet/package.json
+COPY packages/omgx/contracts/package.json ./packages/omgx/contracts/package.json
 COPY ./packages/omgx ./packages/omgx
-
 COPY ./patches ./patches
+
 RUN yarn
 
-WORKDIR /optimism/packages/omgx/wallet
+WORKDIR /optimism/packages/omgx/contracts
 RUN yarn build
 
 CMD ["true"]

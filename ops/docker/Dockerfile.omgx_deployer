@@ -1,0 +1,54 @@
+FROM ethereumoptimism/builder AS builder
+FROM omgx/omgx_builder AS omgx_builder
+FROM node:14-alpine
+
+RUN apk add --no-cache git curl python bash jq
+WORKDIR /opt/optimism/
+
+COPY --from=builder /optimism/*.json /optimism/yarn.lock ./
+COPY --from=builder /optimism/node_modules ./node_modules
+
+# copy deps (would have been nice if docker followed the symlinks required)
+COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
+COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
+
+COPY --from=builder /optimism/packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
+COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/dist
+
+# get the needed built artifacts
+WORKDIR /opt/optimism/packages/contracts
+COPY --from=builder /optimism/packages/contracts/dist ./dist
+COPY --from=builder /optimism/packages/contracts/*.json ./
+COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
+COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
+COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
+COPY --from=builder /optimism/packages/contracts/deployments ./deployments
+
+# get non-build artifacts from the host
+COPY packages/contracts/bin ./bin
+COPY packages/contracts/contracts ./contracts
+COPY packages/contracts/hardhat.config.ts ./
+COPY packages/contracts/deploy ./deploy
+COPY packages/contracts/tasks ./tasks
+COPY packages/contracts/src ./src
+COPY packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
+COPY packages/contracts/scripts ./scripts
+
+# get the needed built artifacts
+WORKDIR /opt/optimism/packages/omgx/contracts
+COPY --from=omgx_builder /optimism/packages/omgx/contracts/tsconfig.json ./tsconfig.json
+COPY --from=omgx_builder /optimism/packages/omgx/contracts/package.json ./package.json
+COPY --from=omgx_builder /optimism/packages/omgx/contracts/node_modules ./node_modules
+COPY --from=omgx_builder /optimism/packages/omgx/contracts/artifacts ./artifacts
+COPY --from=omgx_builder /optimism/packages/omgx/contracts/artifacts-ovm ./artifacts-ovm
+
+# get non-build artifacts from the host
+COPY packages/omgx/contracts/bin ./bin
+COPY packages/omgx/contracts/contracts ./contracts
+COPY packages/omgx/contracts/hardhat.config.ts ./
+COPY packages/omgx/contracts/deploy ./deploy
+COPY packages/omgx/contracts/tasks ./tasks
+COPY packages/omgx/contracts/scripts ./scripts
+COPY packages/omgx/contracts/preSupportedTokens.json ./
+
+ENTRYPOINT ["./scripts/wait-for-l1-and-l2.sh", "./scripts/deployer.sh"]

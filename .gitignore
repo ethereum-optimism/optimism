@@ -26,4 +26,9 @@ packages/omgx/wallet/wallet/build
 *.swp
 
 .env
+env.js
+env.yml
 *.log
+
+packages/omgx/wallet-frontend/build
+.serverless

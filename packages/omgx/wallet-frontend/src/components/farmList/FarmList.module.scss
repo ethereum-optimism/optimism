@@ -1,0 +1,218 @@
+@import 'index.scss';
+
+$dropDownHeight: 140px;
+$boxDropDownHeight: 60px;
+
+.FarmList {
+  border-bottom: 2px solid rgb(233, 234, 235);
+
+  .topContainer {
+    cursor: pointer;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 10px;
+
+    .Table1 {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      padding: 10px;
+      min-width: 150px;
+    
+      .Image {
+        width: 50px;
+        height: 50px;
+        padding-right: 10px;
+      }
+    }
+    .Table2 {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+    }
+
+    .Table3 {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+    }
+
+    .Table4 {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+    }
+
+    .Table5 {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+    }
+
+    .Table6 {
+      display: flex;
+      padding: 10px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    @media screen and (max-width: 800px) {
+      .Table3 {
+        display: none;
+      }
+      .Table4 {
+        display: none;
+      }
+    }
+
+  }
+
+  .dropDownContainer {
+    height: $dropDownHeight;
+    animation: openDropDown 1s;
+    overflow: hidden;
+    background-color: $gray7;
+    display: flex;
+    flex-direction: row;
+  }
+
+  .closeDropDown {
+    height: 0px;
+    animation: closeDropDown 1s;
+    overflow: hidden;
+    background-color: $gray7;
+    display: flex;
+    flex-direction: row;
+  }
+
+  .dropDownInit {
+    height: 0px;
+    overflow: hidden;
+  }
+
+  .boxContainer {
+    border: 2px solid rgb(238, 234, 244);
+    border-radius: 10px;
+    width: 250px;
+    height: $boxDropDownHeight;
+    padding: 20px;
+    margin-left: 20px;
+    margin-right: 20px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+
+    .boxRowContainer {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      .AdjustButtonsContainer {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        
+        .AdjustButtonContainer {
+          border: 2px solid $blue;
+          border-radius: 10px;
+          margin-left: 5px;
+          cursor: pointer;
+        }
+
+        .AdjustButton {
+          width: 35px;
+          height: 35px;
+          color: $blue;
+        }
+
+        .AdjustButtonContainerDisabled {
+          background-color:$blue;
+          border-radius: 10px;
+          margin-left: 5px;
+          filter: brightness(50%);
+
+          .AdjustButton {
+            width: 35px;
+            height: 35px;
+            color: white;
+          }
+        }
+      }
+    }
+  }
+
+  /*************************/
+  @keyframes openDropDown {
+    0% {
+      height: 0px;
+    }
+    100% {
+      height: $dropDownHeight;
+    }
+  }
+
+  @keyframes closeDropDown {
+    0% {
+      height: $dropDownHeight;
+    }
+    100% {
+      height: 0px;
+    }
+  }
+
+  /*************************/
+  .BasicText {
+    font-size: 1em;
+    font-weight: 700;
+  }
+
+  .BasicLightText {
+    font-size: 1em;
+    font-weight: 700;
+    color: $gray4;
+  }
+
+  .LargeBlueText {
+    font-size: 1.5em;
+    font-weight: 700;
+    color: $blue;
+  }
+
+  .LinkText {
+    font-size: 1em;
+    font-weight: 700;
+    color: $green;
+  }
+
+  .LinkButton {
+    color: $green;
+  }
+  /************************/
+
+  .smallButton{
+    border-radius: 10px;
+    width: 100px !important;
+    flex: none;
+    color: white;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  
+  .largeButton{
+    border-radius: 10px;
+    width: calc(100% - 30px);
+    flex: none;
+    color: white;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}

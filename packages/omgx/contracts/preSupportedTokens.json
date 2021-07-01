@@ -1,0 +1,19 @@
+{
+     "supportedTokens": [
+         {
+             "name": "Tether USD",
+             "symbol": "USDT",
+             "address": "0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02"
+         },
+         {
+             "name": "Dai",
+             "symbol": "DAI",
+             "address": "0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa"
+         },
+         {
+             "name": "USD Coin",
+             "symbol": "USDC",
+             "address": "0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b"
+         }
+     ]
+ } 

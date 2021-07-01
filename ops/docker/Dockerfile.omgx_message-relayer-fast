@@ -1,0 +1,35 @@
+FROM ethereumoptimism/builder AS builder
+FROM node:14-alpine
+
+RUN apk add --no-cache git curl python bash jq
+WORKDIR /opt/optimism/
+
+COPY --from=builder /optimism/*.json /optimism/yarn.lock ./
+COPY --from=builder /optimism/node_modules ./node_modules
+
+# copy deps (would have been nice if docker followed the symlinks required)
+COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
+COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
+COPY --from=builder /optimism/packages/common-ts/package.json ./packages/common-ts/package.json
+COPY --from=builder /optimism/packages/common-ts/dist ./packages/common-ts/dist
+COPY --from=builder /optimism/packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
+COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/dist
+
+# get the needed built artifacts
+WORKDIR /opt/optimism/packages/contracts
+COPY --from=builder /optimism/packages/contracts/dist ./dist
+COPY --from=builder /optimism/packages/contracts/*.json ./
+COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
+COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
+COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
+COPY --from=builder /optimism/packages/contracts/deployments ./deployments
+
+# copy the service
+WORKDIR /opt/optimism/packages/omgx/message-relayer-fast
+COPY packages/omgx/message-relayer-fast/dist ./dist
+COPY packages/omgx/message-relayer-fast/package.json .
+COPY packages/omgx/message-relayer-fast/exec ./exec
+COPY packages/omgx/message-relayer-fast/node_modules ./node_modules
+COPY packages/omgx/message-relayer-fast/scripts ./scripts
+
+ENTRYPOINT ["./scripts/wait-for-l1-and-l2.sh", "./scripts/relayer-fast.sh"]
