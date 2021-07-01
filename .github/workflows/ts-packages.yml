@@ -58,11 +58,12 @@ jobs:
       - name: Print gas report
         run: cat packages/contracts/gas-report.txt
 
-#      - name: Run codechecks
-#        working-directory: ./packages/contracts
-#        run: yarn codechecks
-#        env:
-#          CC_SECRET: ${{ secrets.CC_SECRET }}
+      - name: Run codechecks
+        if: ${{ github.repository == 'ethereum-optimism/optimism' }}
+        working-directory: ./packages/contracts
+        run: yarn codechecks
+        env:
+          CC_SECRET: ${{ secrets.CC_SECRET }}
 
   test-coverage:
     name: Generate test coverage
@@ -137,5 +138,5 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
-      # - name: Lint
-        # run: yarn lint:check
+      - name: Lint
+        run: yarn lint:check
