@@ -14,7 +14,8 @@
     "lint": "yarn run lint:fix && yarn run lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint ."
+    "lint:check": "eslint .",
+    "test": "ts-mocha test/**/*.ts --timeout 10000"
   },
   "dependencies": {
     "node-fetch": "^2.6.1"
@@ -26,8 +27,12 @@
   "devDependencies": {
     "@types/mocha": "^8.2.2",
     "@types/node-fetch": "^2.5.10",
+    "@types/chai": "^4.2.17",
+    "@types/fs-extra": "^5.1.0",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
+    "chai": "^4.3.0",
+    "fs-extra": "^7.0.1",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
     "eslint-plugin-prettier": "^3.4.0",
