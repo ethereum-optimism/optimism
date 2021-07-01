@@ -138,5 +138,5 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
-      - name: Lint
-        run: yarn lint:check
+      # - name: Lint
+      #   run: yarn lint:check
