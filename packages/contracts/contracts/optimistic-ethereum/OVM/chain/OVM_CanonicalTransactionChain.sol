@@ -973,6 +973,44 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     }
 
     /**
+     * Checks that consecutve batches, and the queue elements between them, are monotonic
+     * @param _firstContext The first batch context being validated.
+     * @param _secondContext The batch context that follows this one.
+     * @param _subsequentQueueIndex Index of the next queue element to process for the _firstContext's subsequentQueueElements.
+     * @param _queueRef The storage container for the queue.
+     */
+    function _validateConsecutiveBatchContexts(
+        BatchContext memory _firstContext,
+        BatchContext memory _secondContext,
+        uint40 _subsequentQueueIndex,
+        iOVM_ChainStorageContainer _queueRef
+    )
+        internal
+        view
+    {
+        // All sequencer transactions' times must be greater than or equal to the previous ones.
+        require(
+            _secondContext.timestamp >= _firstContext.timestamp,
+            "Context timestamp values must monotonically increase."
+        );
+
+        require(
+            _secondContext.blockNumber >= _firstContext.blockNumber,
+            "Context blockNumber values must monotonically increase."
+        );
+
+        // If there is going to be a queue element pulled between the current and next context
+        if (_firstContext.numSubsequentQueueTransactions > 0) {
+            _validateEnqueuesBetweenContexts(
+                _firstContext,
+                _secondContext,
+                _subsequentQueueIndex,
+                _queueRef
+            );
+        }
+    }
+
+    /**
      * Checks that a pair of adjacent batch contexts are monotonic with respect to each other,
      * and with respect to any queue elements which may be appended between them.
      * Also checks that any queue elements between are not yet older than the force inclusion
@@ -1034,44 +1072,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             _laterContext.blockNumber >= latestQueueElementBetween.blockNumber,
             "Sequencer transaction block number must be greater than last queue element appended."
         );
-    }
-
-    /**
-     * Checks that consecutve batches, and the queue elements between them, are monotonic
-     * @param _firstContext The first batch context being validated.
-     * @param _secondContext The batch context that follows this one.
-     * @param _subsequentQueueIndex Index of the next queue element to process for the _firstContext's subsequentQueueElements.
-     * @param _queueRef The storage container for the queue.
-     */
-    function _validateConsecutiveBatchContexts(
-        BatchContext memory _firstContext,
-        BatchContext memory _secondContext,
-        uint40 _subsequentQueueIndex,
-        iOVM_ChainStorageContainer _queueRef
-    )
-        internal
-        view
-    {
-        // All sequencer transactions' times must be greater than or equal to the previous ones.
-        require(
-            _secondContext.timestamp >= _firstContext.timestamp,
-            "Context timestamp values must monotonically increase."
-        );
-
-        require(
-            _secondContext.blockNumber >= _firstContext.blockNumber,
-            "Context blockNumber values must monotonically increase."
-        );
-
-        // If there is going to be a queue element pulled between the current and next context
-        if (_firstContext.numSubsequentQueueTransactions > 0) {
-            _validateEnqueuesBetweenContexts(
-                _firstContext,
-                _secondContext,
-                _subsequentQueueIndex,
-                _queueRef
-            );
-        }
     }
 
     /**
