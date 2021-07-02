@@ -7,6 +7,7 @@ RUN apk add --no-cache git curl python bash jq
 WORKDIR /opt/optimism/packages/omgx/bl-wl
 
 COPY packages/omgx/bl-wl/bin ./bin
+COPY packages/omgx/bl-wl/dist ./dist
 COPY packages/omgx/bl-wl/scripts ./scripts
 COPY packages/omgx/bl-wl/lambda ./lambda
 

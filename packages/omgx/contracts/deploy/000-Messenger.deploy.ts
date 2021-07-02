@@ -12,7 +12,7 @@ let Factory__L1_Messenger: ContractFactory
 let L1_Messenger: Contract
 
 const deployFn: DeployFunction = async (hre) => {
-    
+
     const addressManager = getContractFactory('Lib_AddressManager')
       .connect((hre as any).deployConfig.deployer_l1)
       .attach(process.env.ADDRESS_MANAGER_ADDRESS) as any
@@ -24,7 +24,7 @@ const deployFn: DeployFunction = async (hre) => {
     )
 
     L1_Messenger = await Factory__L1_Messenger.deploy()
-    
+
     await L1_Messenger.deployTransaction.wait()
 
     const L1_MessengerDeploymentSubmission: DeploymentSubmission = {
@@ -33,7 +33,7 @@ const deployFn: DeployFunction = async (hre) => {
       address: L1_Messenger.address,
       abi: L1_MessengerJson.abi,
     };
-    await hre.deployments.save('MessageRelayerFast', L1_MessengerDeploymentSubmission)
+    await hre.deployments.save('OVM_L1CrossDomainMessengerFast', L1_MessengerDeploymentSubmission)
     console.log(`🌕 ${chalk.red('L1_CrossDomainMessenger_Fast deployed to:')} ${chalk.green(L1_Messenger.address)}`)
 
     const L1_Messenger_Deployed = await Factory__L1_Messenger.attach(L1_Messenger.address)
@@ -50,7 +50,7 @@ const deployFn: DeployFunction = async (hre) => {
       L1_Messenger.address,
       {gasLimit: 800000, gasPrice: 0}
     )
-    console.log(`⭐️ ${chalk.blue('Fast L1 Messager initialized:')} ${chalk.green(L1MessagerTXreg.hash)}`)
+    console.log(`⭐️ ${chalk.blue('Fast L1 Messager registered:')} ${chalk.green(L1MessagerTXreg.hash)}`)
 
 }
 

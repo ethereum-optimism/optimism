@@ -41,12 +41,14 @@ const deployFn: DeployFunction = async (hre) => {
     await hre.deployments.save('L2LiquidityPool', L2LiquidityPoolDeploymentSubmission)
     console.log(`🌕 ${chalk.red('L2LiquidityPool deployed to:')} ${chalk.green(L2LiquidityPool.address)}`)
 
+    const OVM_L1CrossDomainMessengerFastAddress = await (hre as any).deployConfig.addressManager.getAddress(
+      'OVM_L1CrossDomainMessengerFast'
+    )
+
     // Deploy L1 liquidity pool
     L1LiquidityPool = await Factory__L1LiquidityPool.deploy(
       (hre as any).deployConfig.l1MessengerAddress,
-      /* ALERT - this code will need to be changed once the new message-relayer-fast is autodeployed */
-      /*Specifically, the second line will need to be replaced with (hre as any).deployConfig.l1MessengerFastAddress*/
-      (hre as any).deployConfig.l1MessengerAddress
+      OVM_L1CrossDomainMessengerFastAddress
     )
     await L1LiquidityPool.deployTransaction.wait()
     const L1LiquidityPoolDeploymentSubmission: DeploymentSubmission = {

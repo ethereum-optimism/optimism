@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
+#this is what deploys all the right OMGX contracts
 yarn run deploy
 
-# serve the addrs and the state dump
+# serve the addresses and the state dump
 exec ./bin/serve_dump.sh

@@ -1,7 +1,7 @@
 version: "3"
 
 services:
-  
+
 # base service builder
 
   omgx_builder:
@@ -10,7 +10,7 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.omgx_monorepo
 
-# deploys OMGX contracts and serves contract addresses 
+# deploys OMGX contracts and serves contract addresses
 
   omgx_deployer:
     depends_on:
@@ -22,8 +22,8 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.omgx_deployer
     environment:
-        TEST: 1 #controls whther the test ERC20 is deployed, too
-        NO_COMPILE: 0 #sorry for the flipped logic. NO_COMPILE 0 probably means `please compile`
+        TEST: 1 #controls whether the test ERC20 is deployed, too
+        NO_COMPILE: 0 #sorry for the flipped logic. NO_COMPILE: 0 means `please compile`
         L1_NODE_WEB3_URL: http://l1_chain:8545
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
@@ -77,12 +77,12 @@ services:
         OMGX_URL: http://omgx_deployer:8079/addresses.json
         POLLING_INTERVAL: 1500
         GET_LOGS_INTERVAL: 500
-        WHITELIST_ENDPOINT: http://bl-wl:9000/whitelist.json
+        WHITELIST_ENDPOINT: http://omgx_bl-wl:9000/whitelist.json
         RETRIES: 70
 
 # and, tests for all the OMGX-specific services
 
-  omgx_integration_tests:
+  omgx_test_contracts:
     image: omgx/omgx_builder
     deploy:
        replicas: 0
@@ -100,3 +100,28 @@ services:
       L2_NODE_WEB3_URL: http://l2geth:8545
       URL: http://deployer:8081/addresses.json
       OMGX_URL: http://omgx_deployer:8079/addresses.json
+      TEST_PRIVATE_KEY_1: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
+      TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
+
+  omgx_test_relayer:
+    image: omgx/omgx_builder
+    deploy:
+       replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.omgx_monorepo
+    entrypoint:
+        - "/bin/sh"
+        - -ecx
+        - |
+            cd /optimism/packages/omgx/message-relayer-fast
+            yarn test:integration
+    environment:
+      L1_NODE_WEB3_URL: http://l1_chain:8545
+      L2_NODE_WEB3_URL: http://l2geth:8545
+      URL: http://deployer:8081/addresses.json
+      OMGX_URL: http://omgx_deployer:8079/addresses.json
+      TEST_PRIVATE_KEY_1: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
+      TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"

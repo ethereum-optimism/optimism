@@ -14,12 +14,14 @@ jobs:
   omgx_integration:
     runs-on: ubuntu-latest
     env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
-        TEST_PRIVATE_KEY_1: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
-        TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
-        ADDRESS_MANAGER_ADDRESS: "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
+      TEST_PRIVATE_KEY_1: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
+      TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
+      ADDRESS_MANAGER_ADDRESS: "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+      URL: http://127.0.0.1:8080/addresses.json
+      OMGX_URL: http://127.0.0.1:8078/addresses.json
 
     steps:
       # Monorepo tests
@@ -40,64 +42,22 @@ jobs:
       - name: Install yq
         run: sudo snap install yq
 
-      - name: Bring the stack up + OMGX
+      - name: Check the .envs
+        run: printenv
+
+      - name: Build the services, bring the stack up + OMGX services
         working-directory: ./ops
         env:
           BUILD: 1
           DAEMON: 1
         run: ./up_local.sh
 
-      - name: Background logs
+      # just sets up background logs for the system that was just started
+      - name: Start background logging
         working-directory: ./ops
         run: docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml logs --follow &
-
-      # these are the standard optimism integration tests, that are being run in the `integration.yml` anyway
-      # - name: Run the integration tests
-      #   working-directory: ./ops
-      #   run: docker-compose run integration_tests
-
-      # # Examples Tests
-      # - name: Test & deploy hardhat-example on Ethereum (regression)
-      #   working-directory: ./examples/hardhat
-      #   run: |
-      #     yarn
-      #     yarn deploy
-      #     yarn test:integration
-
-      # - name: Test & deploy hardhat-example on Optimistic Ethereum
-      #   working-directory: ./examples/hardhat
-      #   run: |
-      #     yarn deploy:ovm
-      #     yarn test:integration:ovm
-
-      # - name: Test & deploy waffle-example on Ethereum (regression)
-      #   working-directory: ./examples/waffle
-      #   run: |
-      #     yarn
-      #     yarn compile
-      #     yarn test:integration
-
-      # - name: Test & deploy waffle-example on Optimistic Ethereum
-      #   working-directory: ./examples/waffle
-      #   run: |
-      #     yarn compile:ovm
-      #     yarn test:integration:ovm
-
-      # - name: Test & deploy truffle-example on Ethereum (regression)
-      #   working-directory: ./examples/truffle
-      #   run: |
-      #     yarn
-      #     yarn compile
-      #     yarn test:integration
-      #     yarn deploy
-
-      # - name: Test & deploy truffle-example on Optimistic Ethereum
-      #   working-directory: ./examples/truffle
-      #   run: |
-      #     yarn compile:ovm
-      #     yarn test:integration:ovm
-      #     yarn deploy:ovm
-
+      
+      # this test jitters - in any case, later tests will fail if the OMGX_deployer does not come up
       - name: Test serving OMGX contracts
         working-directory: ./
         run: |
@@ -121,20 +81,26 @@ jobs:
             exit 1
           fi
 
-      - name: Function test the OMGX contracts
+      - name: Test the base OMGX contracts
         working-directory: ./packages/omgx/contracts
         run: |
           yarn test:integration
-        
-      # This test duplicates the standard test in the optimism `integration.yml`
-      # - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
-      #   working-directory: ./examples/l1-l2-deposit-withdrawal
-      #   run: |
-      #     yarn
-      #     yarn compile
-      #     yarn compile:ovm
-      #     yarn test:integration:ovm
 
+      # ToDo
+      # - name: Test the base OMGX contracts
+      #   working-directory: ./ops
+      #   run: docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml run omgx_test_contracts
+
+      - name: Test the message-relayer-fast
+        working-directory: ./packages/omgx/message-relayer-fast
+        run: |
+          yarn test:integration
+
+      # ToDo
+      # - name: Test the message-relayer-fast
+      #   working-directory: ./ops
+      #   run: docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml run omgx_test_relayer
+        
       # - name: List all built images
       #   if: failure()
       #   run: docker images

@@ -6,14 +6,13 @@ import chalk from 'chalk';
 
 import { Direction } from './shared/watcher-utils'
 
-import L1MessageJson from '../artifacts/contracts/Message/L1Message.sol/L1Message.json'
-import L2MessageJson from '../artifacts-ovm/contracts/Message/L2Message.sol/L2Message.json'
+import L1MessageJson from '../contracts/L1Message.json'
+import L2MessageJson from '../contracts/L2Message.json'
 
 import { OptimismEnv } from './shared/env'
-
 import * as fs from 'fs'
 
-describe('Default Messenge Relayer Test', async () => {
+describe('Fast Messenge Relayer Test', async () => {
 
   let L1Message: Contract
   let L2Message: Contract
@@ -24,6 +23,7 @@ describe('Default Messenge Relayer Test', async () => {
 
     const addressData = fs.readFileSync('./deployment/local/addresses.json', 'utf8')
     const addressArray = JSON.parse(addressData)
+    console.log(addressArray)
 
     env = await OptimismEnv.new()
 
@@ -38,14 +38,6 @@ describe('Default Messenge Relayer Test', async () => {
       L2MessageJson.abi,
       env.bobl2Wallet
     )
-
-  })
-  
-  it('should send message from L2 to L1', async () => {
-    await env.waitForXDomainTransactionFast(
-      L2Message.sendMessageL2ToL1({ gasLimit: 800000, gasPrice: 0 }),
-      Direction.L2ToL1
-    )
   })
 
   it('should send message from L1 to L2', async () => {
@@ -54,4 +46,12 @@ describe('Default Messenge Relayer Test', async () => {
       Direction.L1ToL2
     )
   })
+
+  it('should QUICKLY send message from L2 to L1 using the fast relayer', async () => {
+    await env.waitForXDomainTransactionFast(
+      L2Message.sendMessageL2ToL1({ gasLimit: 800000, gasPrice: 0 }),
+      Direction.L2ToL1
+    )
+  })
+
 })

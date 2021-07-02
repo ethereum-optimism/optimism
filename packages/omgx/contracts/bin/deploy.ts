@@ -6,9 +6,9 @@ require('dotenv').config()
 import hre from 'hardhat'
 
 const main = async () => {
-  
+
   console.log('Starting OMGX core contracts deployment...')
-  
+
   //const config = parseEnv()
   //not clear if the output is used anywhere?
 
@@ -52,6 +52,7 @@ const main = async () => {
     l2Provider,
     deployer_l1,
     deployer_l2,
+    addressManager,
     noCompile: process.env.NO_COMPILE ? true : false,
   })
 

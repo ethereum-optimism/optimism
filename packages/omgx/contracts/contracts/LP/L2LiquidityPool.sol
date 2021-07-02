@@ -105,15 +105,15 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
     event ClientDepositL2(
         address sender,
         uint256 receivedAmount,
-        uint256 userRewardFee,
-        uint256 ownerRewardFee,
-        uint256 totalFee,
         address tokenAddress
     );
 
     event ClientPayL2(
         address sender,
         uint256 amount,
+        uint256 userRewardFee,
+        uint256 ownerRewardFee,
+        uint256 totalFee,
         address tokenAddress
     );
 
@@ -306,22 +306,13 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
 
         require(pool.l2TokenAddress != address(0), "Token Address Not Registered");
 
-        //Augment the pool size for this ERC20
-        uint256 userRewardFee = (_amount.mul(userRewardFeeRate)).div(1000);
-        uint256 ownerRewardFee = (_amount.mul(ownerRewardFeeRate)).div(1000);
-        uint256 totalFee = userRewardFee.add(ownerRewardFee);
-        uint256 receivedAmount = _amount.sub(totalFee);
-
         IERC20(_tokenAddress).safeTransferFrom(msg.sender, address(this), _amount);
-
-        pool.accUserReward = pool.accUserReward.add(userRewardFee);
-        pool.accOwnerReward = pool.accOwnerReward.add(ownerRewardFee);
 
         // Construct calldata for L1LiquidityPool.depositToFinalize(_to, receivedAmount)
         bytes memory data = abi.encodeWithSelector(
             iL1LiquidityPool.clientPayL1.selector,
             msg.sender,
-            receivedAmount,
+            _amount,
             pool.l1TokenAddress
         );
 
@@ -334,10 +325,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
 
         emit ClientDepositL2(
             msg.sender,
-            receivedAmount,
-            userRewardFee,
-            ownerRewardFee,
-            totalFee,
+            _amount,
             _tokenAddress
         );
 
@@ -474,13 +462,25 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         onlyInitialized()
         onlyFromCrossDomainAccount(address(L1LiquidityPoolAddress))
     {
+        PoolInfo storage pool = poolInfo[_tokenAddress];
 
-        IERC20(_tokenAddress).safeTransfer(_to, _amount);
+        uint256 userRewardFee = (_amount.mul(userRewardFeeRate)).div(1000);
+        uint256 ownerRewardFee = (_amount.mul(ownerRewardFeeRate)).div(1000);
+        uint256 totalFee = userRewardFee.add(ownerRewardFee);
+        uint256 receivedAmount = _amount.sub(totalFee);
+
+        pool.accUserReward = pool.accUserReward.add(userRewardFee);
+        pool.accOwnerReward = pool.accOwnerReward.add(ownerRewardFee);
+
+        IERC20(_tokenAddress).safeTransfer(_to, receivedAmount);
 
         emit ClientPayL2(
-            _to,
-            _amount,
-            _tokenAddress
+          _to,
+          receivedAmount,
+          userRewardFee,
+          ownerRewardFee,
+          totalFee,
+          _tokenAddress
         );
     }
 

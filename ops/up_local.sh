@@ -5,12 +5,16 @@ if ! [ -x "$(command -v yq)" ]; then
   exit 1
 fi
 
+#Set conservative defaults
+#BUILD=${BUILD:-1}     #build unless override
+#DAEMON=${DAEMON:-0}   #run win foreground unless overrride
+
 if [[ $BUILD == 1 ]]; then
-  echo 'You set BUILD to 1, which means that all your dockers will be built'
+  echo 'You set BUILD to 1, which means that all your dockers will be (re)built'
 fi
 
 if [[ $BUILD == 0 ]]; then
-  echo 'You set BUILD to 0, which means that you want to use existing Dcoker images'
+  echo 'You set BUILD to 0, which means that you want to use existing Docker images'
 fi
 
 if [[ $DAEMON == 1 ]]; then

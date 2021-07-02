@@ -14,6 +14,7 @@ let L2Message: Contract
 
 const deployFn: DeployFunction = async (hre) => {
 
+
     Factory__L1Message = new ContractFactory(
       L1MessageJson.abi,
       L1MessageJson.bytecode,
@@ -25,12 +26,14 @@ const deployFn: DeployFunction = async (hre) => {
       L2MessageJson.bytecode,
       (hre as any).deployConfig.deployer_l2
     )
-    
+
+    const OVM_L1CrossDomainMessengerFastAddress = await (hre as any).deployConfig.addressManager.getAddress(
+      'OVM_L1CrossDomainMessengerFast'
+    )
+
     L1Message = await Factory__L1Message.deploy(
       (hre as any).deployConfig.l1MessengerAddress,
-      /* ALERT - this code will need to be changed once the new message-relayer-fast is autodeployed */
-      /*Specifically, the second line will need to be replaced with (hre as any).deployConfig.l1MessengerFastAddress*/
-      (hre as any).deployConfig.l1MessengerAddress
+      OVM_L1CrossDomainMessengerFastAddress
     )
     await L1Message.deployTransaction.wait()
     const L1MessageDeploymentSubmission: DeploymentSubmission = {
