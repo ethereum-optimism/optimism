@@ -21,20 +21,17 @@ describe('Fast Messenge Relayer Test', async () => {
 
   before(async () => {
 
-    const addressData = fs.readFileSync('./deployment/local/addresses.json', 'utf8')
-    const addressArray = JSON.parse(addressData)
-    console.log(addressArray)
-
     env = await OptimismEnv.new()
+    console.log(env.addressesOMGX)
 
     L1Message = new Contract(
-      addressArray.L1Message,
+      env.addressesOMGX.L1Message,
       L1MessageJson.abi,
       env.bobl1Wallet
     )
 
     L2Message = new Contract(
-      addressArray.L2Message,
+      env.addressesOMGX.L2Message,
       L2MessageJson.abi,
       env.bobl2Wallet
     )

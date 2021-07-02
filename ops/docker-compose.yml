@@ -111,6 +111,7 @@ services:
       L1_NODE_WEB3_URL: http://l1_chain:8545
       L2_NODE_WEB3_URL: http://l2geth:8545
       URL: http://deployer:8081/addresses.json
+      WHITELIST_ENDPOINT: http://omgx_bl-wl:9000/whitelist.json
       # a funded hardhat account
       L1_WALLET_KEY: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
       RETRIES: 60

@@ -10,6 +10,10 @@ import {
   l2Provider,
   bobl1Wallet,
   bobl2Wallet,
+  alicel1Wallet,
+  alicel2Wallet,
+  katel1Wallet,
+  katel2Wallet,
 } from './utils'
 
 import {
@@ -23,10 +27,12 @@ import {
 import { TransactionResponse } from '@ethersproject/providers'
 
 export class OptimismEnv {
-  
+
   // L1 Contracts
   addressManager: Contract
   addressesOMGX
+
+  l2ETHAddress
 
   l1Messenger: Contract
   l1MessengerFast: Contract
@@ -42,10 +48,16 @@ export class OptimismEnv {
   // The wallets
   bobl1Wallet: Wallet
   bobl2Wallet: Wallet
+  alicel1Wallet: Wallet
+  alicel2Wallet: Wallet
+
+  katel1Wallet: Wallet
+  katel2Wallet: Wallet
 
   constructor(args: any) {
     this.addressManager = args.addressManager
     this.addressesOMGX = args.addressesOMGX
+    this.l2ETHAddress = args.l2ETHAddress
     this.l1Messenger = args.l1Messenger
     this.l1MessengerFast = args.l1MessengerFast
     this.l2Messenger = args.l2Messenger
@@ -53,6 +65,10 @@ export class OptimismEnv {
     this.watcherFast = args.watcherFast
     this.bobl1Wallet = args.bobl1Wallet
     this.bobl2Wallet = args.bobl2Wallet
+    this.alicel1Wallet = args.alicel1Wallet
+    this.alicel2Wallet = args.alicel2Wallet
+    this.katel1Wallet = args.katel1Wallet
+    this.katel2Wallet = args.katel2Wallet
     this.l1Provider = args.l1Provider
     this.l2Provider = args.l2Provider
   }
@@ -87,7 +103,7 @@ export class OptimismEnv {
 
       l1Messenger,
       l1MessengerFast,
-      
+
       l2Messenger,
 
       watcher,
@@ -95,7 +111,13 @@ export class OptimismEnv {
 
       bobl1Wallet,
       bobl2Wallet,
-      
+
+      alicel1Wallet,
+      alicel2Wallet,
+
+      katel1Wallet,
+      katel2Wallet,
+
       l1Provider,
       l2Provider
     })
