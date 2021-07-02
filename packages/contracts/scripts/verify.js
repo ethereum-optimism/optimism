@@ -6,7 +6,7 @@ const { hideBin } = require('yargs/helpers')
 const argv = yargs(hideBin(process.argv)).argv
 
 const nicknames = {
-  'mockOVM_BondManager': 'OVM_BondManager'
+  mockOVM_BondManager: 'OVM_BondManager',
 }
 
 ;(async () => {
@@ -27,17 +27,21 @@ const nicknames = {
     throw new Error(`unable to get a reference to Lib_AddressManager`)
   }
 
-  const contracts = dirtree(`./deployments/${argv.network}`).children.filter((child) => {
-    return child.extension === '.json'
-  }).map((child) => {
-    return child.name.replace('.json', '')
-  })
+  const contracts = dirtree(`./deployments/${argv.network}`)
+    .children.filter((child) => {
+      return child.extension === '.json'
+    })
+    .map((child) => {
+      return child.name.replace('.json', '')
+    })
 
   for (const contract of contracts) {
     const deployment = require(`../deployments/${argv.network}/${contract}.json`)
 
     if (contract !== 'Lib_AddressManager') {
-      const address = await Lib_AddressManager.getAddress(nicknames[contract] || contract)
+      const address = await Lib_AddressManager.getAddress(
+        nicknames[contract] || contract
+      )
       if (address !== deployment.address) {
         console.log(`✖ ${contract} (ADDRESS MISMATCH DETECTED)`)
         continue

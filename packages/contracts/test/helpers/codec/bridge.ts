@@ -6,7 +6,8 @@ export const encodeXDomainCalldata = (
   message: string,
   messageNonce: number
 ): string => {
-  return getContractInterface(
-    'OVM_L2CrossDomainMessenger'
-  ).encodeFunctionData('relayMessage', [target, sender, message, messageNonce])
+  return getContractInterface('OVM_L2CrossDomainMessenger').encodeFunctionData(
+    'relayMessage',
+    [target, sender, message, messageNonce]
+  )
 }

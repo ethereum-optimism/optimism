@@ -7,13 +7,17 @@
   "files": [
     "dist/*"
   ],
+  "bin": {
+    "withdraw": "./src/exec/withdraw.ts"
+  },
   "scripts": {
     "start": "node ./exec/run-message-relayer.js",
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:fix": "prettier --config .prettierrc.json --write \"{src,exec,test}/**/*.ts\"",
-    "lint:check": "eslint -c .eslintrc.js --ext .ts --format stylish .",
+    "pre-commit": "lint-staged",
+    "lint:fix": "yarn lint:check --fix",
+    "lint:check": "eslint .",
     "test": "hardhat test --show-stack-traces"
   },
   "keywords": [
@@ -50,6 +54,7 @@
     "@typescript-eslint/parser": "^4.26.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
+    "eslint-plugin-prettier": "^3.4.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-ban": "^1.5.2",
     "eslint-plugin-import": "^2.23.4",
@@ -61,7 +66,10 @@
     "hardhat": "^2.3.0",
     "lodash": "^4.17.21",
     "mocha": "^8.4.0",
+    "babel-eslint": "^10.1.0",
     "eslint": "^7.27.0",
-    "prettier": "^2.2.1"
+    "lint-staged": "11.0.0",
+    "prettier": "^2.2.1",
+    "typescript": "^4.2.3"
   }
 }

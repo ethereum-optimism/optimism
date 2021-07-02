@@ -208,10 +208,8 @@ describe('Basic RPC tests', () => {
 
     it('should allow eth_calls with nonzero value', async () => {
       // Deploy a contract to check msg.value of the call
-      const Factory__ValueContext: ContractFactory = await ethers.getContractFactory(
-        'ValueContext',
-        wallet
-      )
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
       const ValueContext: Contract = await Factory__ValueContext.deploy()
       await ValueContext.deployTransaction.wait()
 
@@ -378,7 +376,7 @@ describe('Basic RPC tests', () => {
         value: 0,
       })
       // Expect gas to be less than or equal to the target plus 1%
-      expectApprox(estimate, 5920012, 1)
+      expectApprox(estimate, 5920012, { upperPercentDeviation: 1 })
     })
 
     it('should return a gas estimate that grows with the size of data', async () => {
@@ -429,12 +427,12 @@ describe('Basic RPC tests', () => {
 
   describe('rollup_gasPrices', () => {
     it('should return the L1 and L2 gas prices', async () => {
-      const result = await provider.send('rollup_gasPrices', []);
+      const result = await provider.send('rollup_gasPrices', [])
       const l1GasPrice = await env.l1Wallet.provider.getGasPrice()
       const l2GasPrice = await env.gasPriceOracle.gasPrice()
 
       expect(BigNumber.from(result.l1GasPrice)).to.deep.eq(l1GasPrice)
-      expect((BigNumber.from(result.l2GasPrice))).to.deep.eq(l2GasPrice)
+      expect(BigNumber.from(result.l2GasPrice)).to.deep.eq(l2GasPrice)
     })
   })
 })

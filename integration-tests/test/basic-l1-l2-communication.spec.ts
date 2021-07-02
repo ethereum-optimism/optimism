@@ -133,9 +133,10 @@ describe('Basic L1<>L2 Communication', async () => {
       // This call is fine but will give a status of 0.
       const transaction = await env.l1Messenger.sendMessage(
         predeploys.Lib_AddressManager,
-        getContractInterface(
-          'Lib_AddressManager'
-        ).encodeFunctionData('getAddress', ['whatever']),
+        getContractInterface('Lib_AddressManager').encodeFunctionData(
+          'getAddress',
+          ['whatever']
+        ),
         5000000
       )
 

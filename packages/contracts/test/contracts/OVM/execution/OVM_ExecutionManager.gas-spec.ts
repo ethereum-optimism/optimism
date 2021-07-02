@@ -68,9 +68,9 @@ describe('OVM_ExecutionManager gas consumption', () => {
 
     // deploy the state manager and mock it for the state transitioner
     MOCK__STATE_MANAGER = await smockit(
-      await (await ethers.getContractFactory('OVM_StateManager')).deploy(
-        NON_ZERO_ADDRESS
-      )
+      await (
+        await ethers.getContractFactory('OVM_StateManager')
+      ).deploy(NON_ZERO_ADDRESS)
     )
 
     // Setup the SM to satisfy all the checks executed during EM.run()

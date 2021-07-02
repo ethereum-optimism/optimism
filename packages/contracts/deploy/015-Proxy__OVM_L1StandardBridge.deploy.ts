@@ -65,7 +65,8 @@ const deployFn: DeployFunction = async (hre) => {
     hre.ethers.utils.hexZeroPad(l1MessengerAddress, 32)
   )
   // Verify that the slot was set correctly
-  const l1MessengerStored = await Proxy__WithBridgeInterface.callStatic.messenger()
+  const l1MessengerStored =
+    await Proxy__WithBridgeInterface.callStatic.messenger()
   console.log('l1MessengerStored:', l1MessengerStored)
   if (l1MessengerStored !== l1MessengerAddress) {
     throw new Error(
@@ -79,7 +80,8 @@ const deployFn: DeployFunction = async (hre) => {
     hre.ethers.utils.hexZeroPad(predeploys.OVM_L2StandardBridge, 32)
   )
   // Verify that the slot was set correctly
-  const l2TokenBridgeStored = await Proxy__WithBridgeInterface.callStatic.l2TokenBridge()
+  const l2TokenBridgeStored =
+    await Proxy__WithBridgeInterface.callStatic.l2TokenBridge()
   console.log('l2TokenBridgeStored:', l2TokenBridgeStored)
   if (l2TokenBridgeStored !== predeploys.OVM_L2StandardBridge) {
     throw new Error(

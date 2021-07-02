@@ -19,6 +19,7 @@
 | OVM_ECDSAContractAccount:   | `0x4200000000000000000000000000000000000003` |
 | OVM_SequencerEntrypoint:    | `0x4200000000000000000000000000000000000005` |
 | Lib_AddressManager:         | `0x4200000000000000000000000000000000000008` |
+| OVM_SequencerFeeVault:      | `0x4200000000000000000000000000000000000011` |
 | ERC1820Registry:            | `0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24` |
 
 ---
@@ -65,8 +66,8 @@ Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
 
 OVM_L1CrossDomainMessenger:
- - 0x16393737D09d2722AD13DcA3cA8C3DB957699F1D
- - https://etherscan.io/address/0x16393737D09d2722AD13DcA3cA8C3DB957699F1D
+ - 0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0
+ - https://etherscan.io/address/0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0)
 
 OVM_L1ETHGateway:
  - 0x40c9067ec8087EcF101FC10d2673636955b81A32
@@ -99,8 +100,8 @@ Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
 
 OVM_L1CrossDomainMessenger:
- - 0xa172330C2E6Ec2bF04662Bb9b67ae857910b7f7f
- - https://kovan.etherscan.io/address/0xa172330C2E6Ec2bF04662Bb9b67ae857910b7f7f)
+ - 0x333d2674E2D7e1e7327dc076030ce9615183709C
+ - https://kovan.etherscan.io/address/0x333d2674E2D7e1e7327dc076030ce9615183709C)
 OVM_L1StandardBridge:
  - 0x8293ab0dc701a1387031a13786276f1baa3fcd4e
  - https://kovan.etherscan.io/address/0x8293ab0dc701a1387031a13786276f1baa3fcd4e)

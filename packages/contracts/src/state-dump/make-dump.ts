@@ -189,8 +189,10 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
     const contract = deploymentResult.contracts[name]
     let code: string
     if (ovmCompiled.includes(name)) {
-      const ovmDeployedBytecode = getContractDefinition(name, true)
-        .deployedBytecode
+      const ovmDeployedBytecode = getContractDefinition(
+        name,
+        true
+      ).deployedBytecode
       // TODO remove: deployedBytecode is missing the find and replace in solidity
       code = ovmDeployedBytecode
         .split(

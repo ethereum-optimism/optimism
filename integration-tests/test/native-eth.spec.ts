@@ -57,7 +57,7 @@ describe('Native ETH Integration Tests', async () => {
       const addr = '0x' + '1234'.repeat(10)
       const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
       // Expect gas to be less than or equal to the target plus 1%
-      expectApprox(gas, 6430020, 1)
+      expectApprox(gas, 6430020, { upperPercentDeviation: 1 })
     })
 
     it('Should estimate gas for ETH withdraw', async () => {
@@ -69,7 +69,7 @@ describe('Native ETH Integration Tests', async () => {
         '0xFFFF'
       )
       // Expect gas to be less than or equal to the target plus 1%
-      expectApprox(gas, 6700060, 1)
+      expectApprox(gas, 6700060, { upperPercentDeviation: 1 })
     })
   })
 
@@ -325,12 +325,8 @@ describe('Native ETH Integration Tests', async () => {
       expect(receipt.events.length).to.equal(4)
 
       // The first transfer event is fee payment
-      const [
-        ,
-        firstTransferEvent,
-        secondTransferEvent,
-        depositEvent,
-      ] = receipt.events
+      const [, firstTransferEvent, secondTransferEvent, depositEvent] =
+        receipt.events
 
       expect(firstTransferEvent.event).to.equal('Transfer')
       expect(firstTransferEvent.args.from).to.equal(env.l2Wallet.address)

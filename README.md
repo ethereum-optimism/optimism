@@ -37,6 +37,29 @@ Extensive documentation is available [here](http://community.optimism.io/docs/).
 * [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
 as well as a docker-compose file for bringing up local testnets easily
 
+## Contributing
+
+Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our contribution process.
+
+### Good First Issues
+
+You can find good first issues by filtering for the ["good first issue" tag on our issues page](https://github.com/ethereum-optimism/optimism/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or alternatively by taking a look at our [Good First Issues project board](https://github.com/orgs/ethereum-optimism/projects/23).
+If you'd like to tackle one of these issues, please leave a comment and [assign yourself to the issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/assigning-issues-and-pull-requests-to-other-github-users#assigning-an-individual-issue-or-pull-request).
+This helps prevent two people accidentally working on the same task at the same time.
+
+### Changesets
+
+We use [changesets](https://github.com/atlassian/changesets) to manage releases of our various packages.
+You *must* include a `changeset` file in your PR when making a change that would require a new package release.
+
+Adding a `changeset` file is easy:
+
+1. Navigate to the root of the monorepo.
+2. Run `yarn changeset`. You'll be prompted to select packages to include in the changeset. Use the arrow keys to move the cursor up and down, hit the `spacebar` to select a package, and hit `enter` to confirm your selection. Select *all* packages that require a new release as a result of your PR.
+4. Once you hit `enter` you'll be prompted to decide whether your selected packages need a `major`, `minor`, or `patch` release. We follow the [Semantic Versioning](https://semver.org/) scheme. Please avoid using `major` releases for any packages that are still in version `0.y.z`.
+5. Commit your changeset and push it into your PR. The changeset bot will notice your changeset file and leave a little comment to this effect on GitHub.
+6. Voilà, c'est fini!
+
 ## Development Quick Start
 
 ### Dependencies
