@@ -89,7 +89,7 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
 
                 opNum := byte(indexInWord, word)
             }
-            /* solhint-disable max-line-length */
+            /* solhint-enable max-line-length */
 
             // + push opcodes
             // + stop opcodes [STOP(0x00),JUMP(0x56),RETURN(0xf3),INVALID(0xfe)]
@@ -100,11 +100,12 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
                 if (opBit & opcodePushMask == 0) {
                     // all pushes are valid opcodes
                     // subsequent bytes are not opcodes. Skip them.
-                    _pc += (opNum - 0x5e); // PUSH1 is 0x60, so opNum-0x5f = PUSHed bytes and we +1 to
-                    // skip the _pc++; line below in order to save gas ((-0x5f + 1) = -0x5e)
+                    _pc += (opNum - 0x5e); // PUSH1 is 0x60, so opNum-0x5f = PUSHed bytes and we
+                    // +1 to skip the _pc++; line below in order to save gas ((-0x5f + 1) = -0x5e)
                     continue;
                 } else if (opBit & opcodeHaltingMask == 0) {
-                    // STOP or JUMP or RETURN or INVALID (Note: REVERT is blacklisted, so not included here)
+                    // STOP or JUMP or RETURN or INVALID (Note: REVERT is blacklisted, so not
+                    // included here)
                     // We are now inside unreachable code until we hit a JUMPDEST!
                     do {
                         _pc++;
@@ -114,7 +115,8 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
                         // encountered a JUMPDEST
                         if (opNum == 0x5b) break;
                         // skip PUSHed bytes
-                        if ((1 << opNum) & opcodePushMask == 0) _pc += (opNum - 0x5f); // opNum-0x5f = PUSHed bytes (PUSH1 is 0x60)
+                        // opNum-0x5f = PUSHed bytes (PUSH1 is 0x60)
+                        if ((1 << opNum) & opcodePushMask == 0) _pc += (opNum - 0x5f);
                     } while (_pc < codeLength);
                     // opNum is 0x5b, so we don't continue here since the pc++ is fine
                 } else if (opNum == 0x33) { // Caller opcode
@@ -133,7 +135,11 @@ contract OVM_SafetyChecker is iOVM_SafetyChecker {
                     if ((firstOps >> 192) == 0x3350600060045af1) {
                         _pc += 8;
                     // Call EM and abort execution if instructed
-                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x0E ADD JUMPI RETURNDATASIZE PUSH1 0x00 DUP1 RETURNDATACOPY RETURNDATASIZE PUSH1 0x00 REVERT JUMPDEST RETURNDATASIZE PUSH1 0x01 EQ ISZERO PC PUSH1 0x0a ADD JUMPI PUSH1 0x01 PUSH1 0x00 RETURN JUMPDEST
+                    // CALLER PUSH1 0x00 SWAP1 GAS CALL PC PUSH1 0x0E ADD JUMPI RETURNDATASIZE
+                    // PUSH1 0x00 DUP1 RETURNDATACOPY RETURNDATASIZE PUSH1 0x00 REVERT JUMPDEST
+                    // RETURNDATASIZE PUSH1 0x01 EQ ISZERO PC PUSH1 0x0a ADD JUMPI PUSH1 0x01 PUSH1
+                    // 0x00 RETURN JUMPDEST
+                    // solhint-disable-next-line max-line-length
                     } else if (firstOps == 0x336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760 && secondOps == 0x016000f35b) {
                         _pc += 37;
                     } else {

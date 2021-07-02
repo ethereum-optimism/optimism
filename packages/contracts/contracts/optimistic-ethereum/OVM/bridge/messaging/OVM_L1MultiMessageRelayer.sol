@@ -44,7 +44,8 @@ contract OVM_L1MultiMessageRelayer is iOVM_L1MultiMessageRelayer, Lib_AddressRes
     modifier onlyBatchRelayer() {
         require(
             msg.sender == resolve("OVM_L2BatchMessageRelayer"),
-            "OVM_L1MultiMessageRelayer: Function can only be called by the OVM_L2BatchMessageRelayer" // solhint-disable-line max-line-length
+            // solhint-disable-next-line max-line-length
+            "OVM_L1MultiMessageRelayer: Function can only be called by the OVM_L2BatchMessageRelayer"
         );
         _;
     }

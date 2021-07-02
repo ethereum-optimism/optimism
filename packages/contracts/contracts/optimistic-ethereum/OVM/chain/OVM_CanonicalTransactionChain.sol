@@ -427,8 +427,9 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             "Must append at least one element."
         );
 
-        uint40 nextTransactionPtr = uint40(BATCH_CONTEXT_START_POS +
-            BATCH_CONTEXT_SIZE * numContexts);
+        uint40 nextTransactionPtr = uint40(
+            BATCH_CONTEXT_START_POS + BATCH_CONTEXT_SIZE * numContexts
+        );
 
         require(
             msg.data.length >= nextTransactionPtr,
@@ -845,8 +846,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
 
             mstore(add(chainElementStart, 1), ctxTimestamp)
             mstore(add(chainElementStart, 33), ctxBlockNumber)
-
-            calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_nextTransactionPtr, 3), _txDataLength) // solhint-disable-line max-line-length
+            // solhint-disable-next-line max-line-length
+            calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_nextTransactionPtr, 3), _txDataLength)
 
             leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, _txDataLength))
         }
@@ -887,8 +888,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
 
             mstore(add(chainElementStart, 1), ctxTimestamp)
             mstore(add(chainElementStart, 33), ctxBlockNumber)
-
-            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, BYTES_TILL_TX_DATA), txDataLength)) // solhint-disable-line max-line-length
+            // solhint-disable-next-line max-line-length
+            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, BYTES_TILL_TX_DATA), txDataLength))
 
             leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, txDataLength))
         }
@@ -1004,7 +1005,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             // next chain element.
             require(
                 block.timestamp < nextQueueElement.timestamp + forceInclusionPeriodSeconds,
-                "Previously enqueued batches have expired and must be appended before a new sequencer batch." // solhint-disable-line max-line-length
+                // solhint-disable-next-line max-line-length
+                "Previously enqueued batches have expired and must be appended before a new sequencer batch."
             );
 
             // Just like sequencer transaction times must be increasing relative to each other,

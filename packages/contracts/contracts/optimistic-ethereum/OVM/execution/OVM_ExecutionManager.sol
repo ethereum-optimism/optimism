@@ -1319,7 +1319,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             // developer experience, we do return the remaining gas.
             _revertWithFlag(
                 RevertFlag.UNSAFE_BYTECODE,
-                Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?") // solhint-disable-line max-line-length
+                // solhint-disable-next-line max-line-length
+                Lib_ErrorUtils.encodeRevertString("Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?")
             );
         }
 
@@ -1346,7 +1347,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (ovmSafetyChecker.isBytecodeSafe(deployedCode) == false) {
             _revertWithFlag(
                 RevertFlag.UNSAFE_BYTECODE,
-                Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.") // solhint-disable-line max-line-length
+                // solhint-disable-next-line max-line-length
+                Lib_ErrorUtils.encodeRevertString("Constructor attempted to deploy unsafe bytecode.")
             );
         }
 
