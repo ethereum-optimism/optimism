@@ -5,7 +5,7 @@ import {
 } from '@ethersproject/abstract-provider'
 import * as ynatm from '@eth-optimism/ynatm'
 
-interface ResubmissionConfig {
+export interface ResubmissionConfig {
   resubmissionTimeout: number
   minGasPriceInGwei: number
   maxGasPriceInGwei: number

@@ -1,16 +1,14 @@
 /* External Imports */
-import { Contract, BigNumber, ethers } from 'ethers'
+import { Contract, ethers } from 'ethers'
 import {
   TransactionResponse,
   TransactionRequest,
 } from '@ethersproject/abstract-provider'
-import { JsonRpcProvider } from '@ethersproject/providers'
 import { keccak256 } from 'ethers/lib/utils'
 import {
   AppendSequencerBatchParams,
   BatchContext,
   encodeAppendSequencerBatch,
-  encodeHex,
   remove0x,
 } from '@eth-optimism/core-utils'
 
@@ -33,7 +31,6 @@ export class CanonicalTransactionChainContract extends Contract {
         from: await this.signer.getAddress(),
         data,
       })
-      const value = 0
 
       return {
         nonce,
@@ -55,7 +52,9 @@ export class CanonicalTransactionChainContract extends Contract {
  * Internal Functions *
  *********************/
 
-const APPEND_SEQUENCER_BATCH_METHOD_ID = 'appendSequencerBatch()'
+const APPEND_SEQUENCER_BATCH_METHOD_ID = keccak256(
+  Buffer.from('appendSequencerBatch()')
+).slice(2, 10)
 
 const appendSequencerBatch = async (
   OVM_CanonicalTransactionChain: Contract,
@@ -70,18 +69,7 @@ const appendSequencerBatch = async (
 }
 
 const getEncodedCalldata = (batch: AppendSequencerBatchParams): string => {
-  const methodId = keccak256(
-    Buffer.from(APPEND_SEQUENCER_BATCH_METHOD_ID)
-  ).slice(2, 10)
+  const methodId = APPEND_SEQUENCER_BATCH_METHOD_ID
   const calldata = encodeAppendSequencerBatch(batch)
   return '0x' + remove0x(methodId) + remove0x(calldata)
-}
-
-const encodeBatchContext = (context: BatchContext): string => {
-  return (
-    encodeHex(context.numSequencedTransactions, 6) +
-    encodeHex(context.numSubsequentQueueTransactions, 6) +
-    encodeHex(context.timestamp, 10) +
-    encodeHex(context.blockNumber, 10)
-  )
 }

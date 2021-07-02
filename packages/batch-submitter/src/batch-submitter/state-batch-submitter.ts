@@ -13,6 +13,7 @@ import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
 import { BlockRange, BatchSubmitter } from '.'
+import { TransactionSubmitter } from '../utils'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!
@@ -23,6 +24,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
   protected syncing: boolean
   protected ctcContract: Contract
   private fraudSubmissionAddress: string
+  private transactionSubmitter: TransactionSubmitter
 
   constructor(
     signer: Signer,
@@ -36,10 +38,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
     finalityConfirmations: number,
     addressManagerAddress: string,
     minBalanceEther: number,
-    minGasPriceInGwei: number,
-    maxGasPriceInGwei: number,
-    gasRetryIncrement: number,
-    gasThresholdInGwei: number,
+    transactionSubmitter: TransactionSubmitter,
     blockOffset: number,
     logger: Logger,
     metrics: Metrics,
@@ -57,15 +56,12 @@ export class StateBatchSubmitter extends BatchSubmitter {
       finalityConfirmations,
       addressManagerAddress,
       minBalanceEther,
-      minGasPriceInGwei,
-      maxGasPriceInGwei,
-      gasRetryIncrement,
-      gasThresholdInGwei,
       blockOffset,
       logger,
       metrics
     )
     this.fraudSubmissionAddress = fraudSubmissionAddress
+    this.transactionSubmitter = transactionSubmitter
   }
 
   /*****************************
@@ -181,28 +177,16 @@ export class StateBatchSubmitter extends BatchSubmitter {
       batch,
       offsetStartsAtIndex
     )
-    const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
-      this.logger.info('Submitting appendStateBatch transaction', {
-        gasPrice,
-        contractAddr: this.chainContract.address,
-      })
-      const txResponse = await this.signer.sendTransaction({
-        ...tx,
-        gasPrice,
-      })
-      this.logger.info('Submitted appendStateBatch transaction', {
-        txHash: txResponse.hash,
-        from: txResponse.from,
-      })
-      this.logger.debug('appendStateBatch transaction data', {
-        data: txResponse.data,
-      })
-      return this.signer.provider.waitForTransaction(
-        txResponse.hash,
-        this.numConfirmations
+    const submitTransaction = (): Promise<TransactionReceipt> => {
+      return this.transactionSubmitter.submitTransaction(
+        tx,
+        this._makeHooks('appendStateBatch')
       )
     }
-    return this._submitAndLogTx(contractFunction, 'Submitted state root batch!')
+    return this._submitAndLogTx(
+      submitTransaction,
+      'Submitted state root batch!'
+    )
   }
 
   /*********************
