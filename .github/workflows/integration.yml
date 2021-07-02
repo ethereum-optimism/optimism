@@ -40,6 +40,11 @@ jobs:
         working-directory: ./ops
         run: docker-compose up -d
 
+      - name: Wait for Sequencer node to start
+        working-directory: ./ops
+        run: |
+          ./scripts/wait-for-sequencer.sh
+
       - name: Run the integration tests
         working-directory: ./ops
         run: |
