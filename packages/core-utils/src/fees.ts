@@ -5,14 +5,12 @@
 import { BigNumber } from 'ethers'
 import { remove0x } from './common'
 
-const hundredMillion = BigNumber.from(100_000_000)
 const feeScalar = 10_000_000
-export const TxGasPrice = BigNumber.from(feeScalar + feeScalar / 2)
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
 const overhead = 4200 + 200 * txDataNonZeroGasEIP2028
 const tenThousand = BigNumber.from(10_000)
-
+export const TxGasPrice = BigNumber.from(feeScalar + feeScalar / 2)
 export interface EncodableL2GasLimit {
   data: Buffer | string
   l1GasPrice: BigNumber | number
