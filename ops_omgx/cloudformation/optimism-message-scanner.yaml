@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Enya Message Scanner Application Deployment"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+
+  CFHelperELBv2RulePriorityStack:
+    Type: String
+    Default: CF-Helper-ELBv2-Rule-Priority
+
+  ServiceCount:
+    Type: Number
+    Default: 1
+
+  ImageTag:
+    Type: String
+    Default: push2aws
+
+  MessageScannerImage:
+    Type: String
+    Default: optimism-message-scanner
+
+  DockerPrefix:
+    Type: String
+    Default: omgx
+
+  ECRRegistry:
+    Type: String
+    Default: 942431445534.dkr.ecr.us-east-1.amazonaws.com
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: infrastructure-coredev
+
+  SecretName:
+    Description: AWS Secret Name used for the service
+    Type: String
+
+Conditions:
+  IsProduction:
+    !Equals [!Ref EnvironmentName, "production"]
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub ecs-tasks.${AWS::URLSuffix}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAccessToSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetResourcePolicy"
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:ListSecretVersionIds"
+                Resource:
+                  - arn:aws:secretsmanager:us-east-1:942431445534:secret:*
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image: !Sub "${ECRRegistry}/${DockerPrefix}/${MessageScannerImage}:${ImageTag}"
+          Name: message-scanner
+          Environment:
+            - Name: SECRETNAME
+              Value: !Ref SecretName
+            - Name: L2_NODE_WEB3_URL
+              Value: !Sub
+                - "https://${EndpointAddress}/"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+            - Name: RETRIES
+              Value: 3600
+          EntryPoint:
+            - "/opt/wait-for-l1-and-l2.sh"
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["message-scanner"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "message-scanner", "service": "message-scanner"}]'
+          Essential: true
+          Memory: "512"
+      NetworkMode: bridge
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub "MessageScanner-${EnvironmentName}"
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
+      DesiredCount: !Ref ServiceCount
+      LaunchType: EC2
+      SchedulingStrategy: REPLICA
+      ServiceName: !Sub "MessageScanner-${EnvironmentName}"
+      TaskDefinition: !Ref TaskDefinition

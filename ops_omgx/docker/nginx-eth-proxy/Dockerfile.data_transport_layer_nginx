@@ -1,0 +1,2 @@
+FROM nginx:latest
+COPY proxy_no_lua_data_transport_layer.conf /etc/nginx/conf.d/default.conf

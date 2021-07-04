@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Enya Deployer Application Deployment"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+
+  CFHelperELBv2RulePriorityStack:
+    Type: String
+    Default: CF-Helper-ELBv2-Rule-Priority
+
+  ServiceCount:
+    Type: Number
+    Default: 1
+
+  ImageTag:
+    Type: String
+    Default: push2aws
+
+  DeployerImage:
+    Type: String
+    Default: deployer-rinkeby
+
+  DockerPrefix:
+    Type: String
+    Default: omgx
+
+  ECRRegistry:
+    Type: String
+    Default: 942431445534.dkr.ecr.us-east-1.amazonaws.com
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: infrastructure-coredev
+
+  SecretName:
+    Description: AWS Secret Name used for the service
+    Type: String
+
+Conditions:
+  IsProduction:
+    !Equals [!Ref EnvironmentName, "production"]
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub ecs-tasks.${AWS::URLSuffix}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAccessToSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetResourcePolicy"
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:ListSecretVersionIds"
+                Resource:
+                  - arn:aws:secretsmanager:us-east-1:942431445534:secret:*
+  DeployerLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 8080
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP # TODO Implement proper healthcheck
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: 200
+  DeployerLBListenerRulePriority:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken:
+        Fn::ImportValue: !Sub "${CFHelperELBv2RulePriorityStack}:Function"
+      ListenerArn:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:DeployerListener"
+  DeployerLBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref DeployerLBTargetGroup
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+            - Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+      ListenerArn:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:DeployerListener"
+      Priority: !GetAtt DeployerLBListenerRulePriority.Value
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image: !Sub "${ECRRegistry}/${DockerPrefix}/${DeployerImage}:${ImageTag}"
+          Name: deployer
+          PortMappings:
+            - ContainerPort: 8081
+              HostPort: 0
+          Environment:
+            - Name: SECRETNAME
+              Value: !Ref SecretName
+          EntryPoint:
+            - "/opt/optimism/packages/contracts/deployer.sh"
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["deployer"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "deployer", "service": "deployer"}]'
+          Essential: true
+          Memory: "512"
+      NetworkMode: bridge
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub "Deployer-${EnvironmentName}"
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: DeployerLBListenerRule
+    Properties:
+      Cluster:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
+      LoadBalancers:
+        - ContainerName: deployer
+          ContainerPort: 8081
+          TargetGroupArn: !Ref DeployerLBTargetGroup
+      DesiredCount: !Ref ServiceCount
+      LaunchType: EC2
+      SchedulingStrategy: REPLICA
+      ServiceName: !Sub "Deployer-${EnvironmentName}"
+      TaskDefinition: !Ref TaskDefinition

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "resolveJsonModule": true
+  },
+  "include": ["./test"],
+  "files": ["./hardhat.config.ts"]
+}

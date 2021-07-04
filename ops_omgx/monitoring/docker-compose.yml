@@ -1,0 +1,7 @@
+version: "3.4"
+
+services:
+  monitoring:
+    image: enyalabs/omgx-monitor:v1.2.3
+    env_file:
+      - .env
