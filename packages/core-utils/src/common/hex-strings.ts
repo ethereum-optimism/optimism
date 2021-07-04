@@ -28,16 +28,6 @@ export const add0x = (str: string): string => {
 }
 
 /**
- * Returns whether or not the provided string is a hex string.
- *
- * @param str The string to test.
- * @returns True if the provided string is a hex string, false otherwise.
- */
-export const isHexString = (inp: any): boolean => {
-  return typeof inp === 'string' && inp.startsWith('0x')
-}
-
-/**
  * Casts a hex string to a buffer.
  *
  * @param inp Input to cast to a buffer.
@@ -88,30 +78,5 @@ export const padHexString = (str: string, length: number): string => {
   }
 }
 
-export const getLen = (pos: { start; end }) => (pos.end - pos.start) * 2
-
 export const encodeHex = (val: any, len: number) =>
   remove0x(BigNumber.from(val).toHexString()).padStart(len, '0')
-
-export const toVerifiedBytes = (val: string, len: number) => {
-  val = remove0x(val)
-  if (val.length !== len) {
-    throw new Error('Invalid length!')
-  }
-  return val
-}
-
-/**
- * @param byteLength The length of the hex string in bytes
- * @returns a random hex string of the specified byteLength (string length will be byteLength*2)
- */
-export const getRandomHexString = (byteLength: number): string => {
-  return (
-    '0x' +
-    [...Array(byteLength * 2)]
-      .map(() => {
-        return Math.floor(Math.random() * 16).toString(16)
-      })
-      .join('')
-  )
-}

@@ -1,9 +1,8 @@
 import { expect } from '../setup'
 import * as fees from '../../src/fees'
-import { BigNumber, utils } from 'ethers'
+import { utils } from 'ethers'
 
 const hundredBillion = 10 ** 11
-const million = 10 ** 6
 
 describe('Fees', () => {
   it('should count zeros and ones', () => {
