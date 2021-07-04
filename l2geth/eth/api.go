@@ -28,16 +28,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/hexutil"
+	"github.com/MetisProtocol/l2geth/core"
+	"github.com/MetisProtocol/l2geth/core/rawdb"
+	"github.com/MetisProtocol/l2geth/core/state"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/internal/ethapi"
+	"github.com/MetisProtocol/l2geth/rlp"
+	"github.com/MetisProtocol/l2geth/rpc"
+	"github.com/MetisProtocol/l2geth/trie"
 )
 
 // PublicEthereumAPI provides an API to access Ethereum full node-related

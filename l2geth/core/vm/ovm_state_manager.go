@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/log"
 )
 
 type stateManagerFunction func(*EVM, *Contract, map[string]interface{}) ([]interface{}, error)

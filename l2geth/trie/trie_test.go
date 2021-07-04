@@ -29,11 +29,11 @@ import (
 	"testing/quick"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb/leveldb"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/crypto"
+	"github.com/MetisProtocol/l2geth/ethdb/leveldb"
+	"github.com/MetisProtocol/l2geth/ethdb/memorydb"
+	"github.com/MetisProtocol/l2geth/rlp"
 )
 
 func init() {

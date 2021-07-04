@@ -23,17 +23,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rollup"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/hexutil"
+	"github.com/MetisProtocol/l2geth/consensus"
+	"github.com/MetisProtocol/l2geth/core"
+	"github.com/MetisProtocol/l2geth/core/state"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/eth/downloader"
+	"github.com/MetisProtocol/l2geth/event"
+	"github.com/MetisProtocol/l2geth/log"
+	"github.com/MetisProtocol/l2geth/params"
+	"github.com/MetisProtocol/l2geth/rollup"
 )
 
 // Backend wraps all methods required for mining.

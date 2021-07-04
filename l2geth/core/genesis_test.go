@@ -22,12 +22,12 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/consensus/ethash"
+	"github.com/MetisProtocol/l2geth/core/rawdb"
+	"github.com/MetisProtocol/l2geth/core/vm"
+	"github.com/MetisProtocol/l2geth/ethdb"
+	"github.com/MetisProtocol/l2geth/params"
 )
 
 func TestDefaultGenesisBlock(t *testing.T) {

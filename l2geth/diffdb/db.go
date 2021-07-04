@@ -1,7 +1,7 @@
 package diffdb
 
 import (
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/MetisProtocol/l2geth/common"
 	_ "github.com/mattn/go-sqlite3"
 
 	"database/sql"

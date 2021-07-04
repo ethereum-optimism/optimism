@@ -25,13 +25,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/common/prque"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/mclock"
+	"github.com/MetisProtocol/l2geth/common/prque"
+	"github.com/MetisProtocol/l2geth/ethdb"
+	"github.com/MetisProtocol/l2geth/log"
+	"github.com/MetisProtocol/l2geth/p2p/enode"
+	"github.com/MetisProtocol/l2geth/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
 

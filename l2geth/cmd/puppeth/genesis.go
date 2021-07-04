@@ -22,13 +22,13 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	math2 "github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/hexutil"
+	math2 "github.com/MetisProtocol/l2geth/common/math"
+	"github.com/MetisProtocol/l2geth/consensus/ethash"
+	"github.com/MetisProtocol/l2geth/core"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/params"
 )
 
 // alethGenesisSpec represents the genesis specification format used by the

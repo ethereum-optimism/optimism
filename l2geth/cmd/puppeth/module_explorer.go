@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/MetisProtocol/l2geth/log"
 )
 
 // explorerDockerfile is the Dockerfile required to run a block explorer.

@@ -24,16 +24,16 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/bitutil"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/bitutil"
+	"github.com/MetisProtocol/l2geth/core"
+	"github.com/MetisProtocol/l2geth/core/rawdb"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/ethdb"
+	"github.com/MetisProtocol/l2geth/log"
+	"github.com/MetisProtocol/l2geth/params"
+	"github.com/MetisProtocol/l2geth/rlp"
+	"github.com/MetisProtocol/l2geth/trie"
 )
 
 // IndexerConfig includes a set of configs for chain indexers.

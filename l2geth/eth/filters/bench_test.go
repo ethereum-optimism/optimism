@@ -22,13 +22,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/bitutil"
-	"github.com/ethereum/go-ethereum/core/bloombits"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/node"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/bitutil"
+	"github.com/MetisProtocol/l2geth/core/bloombits"
+	"github.com/MetisProtocol/l2geth/core/rawdb"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/ethdb"
+	"github.com/MetisProtocol/l2geth/node"
 )
 
 func BenchmarkBloomBits512(b *testing.B) {

@@ -30,15 +30,15 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/consensus/clique"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/MetisProtocol/l2geth/accounts"
+	"github.com/MetisProtocol/l2geth/accounts/abi"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/hexutil"
+	"github.com/MetisProtocol/l2geth/common/math"
+	"github.com/MetisProtocol/l2geth/consensus/clique"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/crypto"
+	"github.com/MetisProtocol/l2geth/rlp"
 )
 
 type SigFormat struct {
@@ -612,7 +612,7 @@ func (api *SignerAPI) EcRecover(ctx context.Context, data hexutil.Bytes, sig hex
 	// Note, the signature must conform to the secp256k1 curve R, S and V values, where
 	// the V value must be be 27 or 28 for legacy reasons.
 	//
-	// https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_ecRecover
+	// https://github.com/MetisProtocol/l2geth/wiki/Management-APIs#personal_ecRecover
 	if len(sig) != 65 {
 		return common.Address{}, fmt.Errorf("signature must be 65 bytes long")
 	}

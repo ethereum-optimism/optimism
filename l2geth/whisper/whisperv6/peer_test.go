@@ -27,13 +27,13 @@ import (
 
 	"net"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/nat"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/hexutil"
+	"github.com/MetisProtocol/l2geth/crypto"
+	"github.com/MetisProtocol/l2geth/p2p"
+	"github.com/MetisProtocol/l2geth/p2p/enode"
+	"github.com/MetisProtocol/l2geth/p2p/nat"
+	"github.com/MetisProtocol/l2geth/rlp"
 )
 
 var keys = []string{

@@ -21,16 +21,16 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/signer/core"
+	"github.com/MetisProtocol/l2geth"
+	"github.com/MetisProtocol/l2geth/accounts"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/common/hexutil"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/event"
+	"github.com/MetisProtocol/l2geth/internal/ethapi"
+	"github.com/MetisProtocol/l2geth/log"
+	"github.com/MetisProtocol/l2geth/rpc"
+	"github.com/MetisProtocol/l2geth/signer/core"
 )
 
 type ExternalBackend struct {

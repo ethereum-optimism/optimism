@@ -22,12 +22,12 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/external"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/MetisProtocol/l2geth/accounts"
+	"github.com/MetisProtocol/l2geth/accounts/external"
+	"github.com/MetisProtocol/l2geth/accounts/keystore"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/core/types"
+	"github.com/MetisProtocol/l2geth/crypto"
 )
 
 // NewTransactor is a utility method to easily create a transaction signer from

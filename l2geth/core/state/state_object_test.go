@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/MetisProtocol/l2geth/common"
 )
 
 func BenchmarkCutOriginal(b *testing.B) {

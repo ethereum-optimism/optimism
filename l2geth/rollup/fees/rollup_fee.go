@@ -3,8 +3,8 @@ package fees
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/params"
 )
 
 // overhead represents the fixed cost of batch submission of a single

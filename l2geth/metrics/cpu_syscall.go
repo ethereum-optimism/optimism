@@ -21,7 +21,7 @@ package metrics
 import (
 	"syscall"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/MetisProtocol/l2geth/log"
 )
 
 // getProcessCPUTime retrieves the process' CPU time since program startup.

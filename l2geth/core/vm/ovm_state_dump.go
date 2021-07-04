@@ -3,7 +3,7 @@ package vm
 import (
 	"os"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/MetisProtocol/l2geth/common"
 )
 
 // AbiBytesTrue represents the ABI encoding of "true" as a byte slice

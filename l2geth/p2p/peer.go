@@ -25,13 +25,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/MetisProtocol/l2geth/common/mclock"
+	"github.com/MetisProtocol/l2geth/event"
+	"github.com/MetisProtocol/l2geth/log"
+	"github.com/MetisProtocol/l2geth/metrics"
+	"github.com/MetisProtocol/l2geth/p2p/enode"
+	"github.com/MetisProtocol/l2geth/p2p/enr"
+	"github.com/MetisProtocol/l2geth/rlp"
 )
 
 var (

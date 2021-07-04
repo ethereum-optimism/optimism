@@ -27,11 +27,11 @@ import (
 
 	cli "gopkg.in/urfave/cli.v1"
 
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
-	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
+	"github.com/MetisProtocol/l2geth/cmd/utils"
+	"github.com/MetisProtocol/l2geth/eth"
+	"github.com/MetisProtocol/l2geth/node"
+	"github.com/MetisProtocol/l2geth/params"
+	whisper "github.com/MetisProtocol/l2geth/whisper/whisperv6"
 	"github.com/naoina/toml"
 )
 

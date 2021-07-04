@@ -19,7 +19,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/MetisProtocol/l2geth/core/vm"
 )
 
 func TestVM(t *testing.T) {

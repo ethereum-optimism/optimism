@@ -23,11 +23,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/ethdb/leveldb"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/ethdb"
+	"github.com/MetisProtocol/l2geth/ethdb/leveldb"
+	"github.com/MetisProtocol/l2geth/ethdb/memorydb"
+	"github.com/MetisProtocol/l2geth/log"
 	"github.com/olekukonko/tablewriter"
 )
 

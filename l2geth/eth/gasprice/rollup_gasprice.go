@@ -2,7 +2,7 @@ package gasprice
 
 import (
 	"context"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/MetisProtocol/l2geth/log"
 	"math/big"
 	"sync"
 )

@@ -21,11 +21,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/light"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/MetisProtocol/l2geth/common"
+	"github.com/MetisProtocol/l2geth/core/rawdb"
+	"github.com/MetisProtocol/l2geth/eth/downloader"
+	"github.com/MetisProtocol/l2geth/light"
+	"github.com/MetisProtocol/l2geth/log"
 )
 
 var errInvalidCheckpoint = errors.New("invalid advertised checkpoint")

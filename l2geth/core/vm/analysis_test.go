@@ -19,7 +19,7 @@ package vm
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/MetisProtocol/l2geth/crypto"
 )
 
 func TestJumpDestAnalysis(t *testing.T) {
