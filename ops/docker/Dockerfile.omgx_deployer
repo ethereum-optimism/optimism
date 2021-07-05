@@ -49,6 +49,7 @@ COPY packages/omgx/contracts/hardhat.config.ts ./
 COPY packages/omgx/contracts/deploy ./deploy
 COPY packages/omgx/contracts/tasks ./tasks
 COPY packages/omgx/contracts/scripts ./scripts
+COPY packages/omgx/contracts/deployment ./deployment
 COPY packages/omgx/contracts/preSupportedTokens.json ./
 
 ENTRYPOINT ["./scripts/wait-for-l1-and-l2.sh", "./scripts/deployer.sh"]

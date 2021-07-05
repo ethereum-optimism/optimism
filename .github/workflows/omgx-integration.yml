@@ -12,7 +12,7 @@ on:
 
 jobs:
   omgx_integration:
-    runs-on: ubuntu-latest
+    runs-on: integration-tests #ubuntu-latest
     env:
       DOCKER_BUILDKIT: 1
       COMPOSE_DOCKER_CLI_BUILD: 1
@@ -20,6 +20,8 @@ jobs:
       TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
       ADDRESS_MANAGER_ADDRESS: "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+      L1_NODE_WEB3_URL: http://localhost:9545
+      L2_NODE_WEB3_URL: http://localhost:8545
       URL: http://127.0.0.1:8080/addresses.json
       OMGX_URL: http://127.0.0.1:8078/addresses.json
 

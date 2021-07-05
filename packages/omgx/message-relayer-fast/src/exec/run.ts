@@ -48,13 +48,13 @@ const main = async () => {
     'from-l2-transaction-index',
     parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
   )
-  const WHITELIST_ENDPOINT = config.str(
-    'whitlist-endpoint', 
-    env.WHITELIST_ENDPOINT
+  const FILTER_ENDPOINT = config.str(
+    'filter-endpoint', 
+    env.FILTER_ENDPOINT
   ) || ''
-  const WHITELIST_POLLING_INTERVAL = config.uint(
-    'whitlist-polling-interval',
-    parseInt(env.WHITELIST_POLLING_INTERVAL, 10) || 60000
+  const FILTER_POLLING_INTERVAL = config.uint(
+    'filter-polling-interval',
+    parseInt(env.FILTER_POLLING_INTERVAL, 10) || 60000
   )
 
   if (!ADDRESS_MANAGER_ADDRESS) {
@@ -92,8 +92,8 @@ const main = async () => {
     l2BlockOffset: L2_BLOCK_OFFSET,
     l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
-    whitelistEndpoint: WHITELIST_ENDPOINT,
-    whitelistPollingInterval: WHITELIST_POLLING_INTERVAL
+    filterEndpoint: FILTER_ENDPOINT,
+    filterPollingInterval: FILTER_POLLING_INTERVAL
   })
 
   await service.start()

@@ -15,17 +15,21 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import { updatePriceTicker } from 'actions/priceTickerAction';
-
-import { WEBSOCKET_API_URL } from 'Settings';
+import { getBaseServices } from 'util/masterConfig'
 
 class OracleService {
+
   constructor () {
     this.exchangeRateAVG = [];
     this.ws = null;
   }
   
   initialize = () => (dispatch) => {
-    this.ws = new WebSocket(WEBSOCKET_API_URL);
+
+    console.log("OracleService: Trying to connect to:", getBaseServices().WEBSOCKET_API_URL)
+
+    this.ws = new WebSocket(getBaseServices().WEBSOCKET_API_URL);
+    
     this.ws.onopen = () => {
       console.log("WebSocket Connected!");
       this.ws.send(JSON.stringify({action: "sendMessage", actionType: "postID" }));

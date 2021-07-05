@@ -5,6 +5,7 @@
   "scripts": {
     "buildenv-dev": "react-env",
     "buildenv-prod": "NODE_ENV=production react-env --dest build",
+    "get_artifacts": "./scripts/get_all_artifacts.sh",
     "serve": "npm run buildenv-prod && serve -s build -l 3000 -c public/serve.json",
     "start": "npm run buildenv-dev && react-scripts start",
     "build:deploy": "GENERATE_SOURCEMAP=false react-scripts build",

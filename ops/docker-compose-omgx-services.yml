@@ -22,8 +22,8 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.omgx_deployer
     environment:
-        TEST: 1 #controls whether the test ERC20 is deployed, too
-        NO_COMPILE: 0 #sorry for the flipped logic. NO_COMPILE: 0 means `please compile`
+        SERVE_ONLY: 0 #if EQ 1, then do not deploy any contracts
+        IF_SERVE_ONLY_EQ_1_THEN_SERVE: rinkeby #e.g. serve whatever is in /deployments/rinkeby
         L1_NODE_WEB3_URL: http://l1_chain:8545
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
@@ -34,26 +34,6 @@ services:
         # expose the service to the host for getting the contract addrs
       - ${OMGX_DEPLOYER_PORT:-8078}:8079
 
-# serves data needed for the main message-relayer not to double-relay, saving gas
-# this assumes the deployer has come up correctly, and has deployed the right contracts
-
-  omgx_bl-wl:
-    depends_on:
-      - l1_chain
-      - deployer
-      - omgx_deployer
-      - l2geth
-    image: omgx/omgx_bl-wl
-    build:
-      context: ..
-      dockerfile: ./ops/docker/Dockerfile.omgx_bl-wl
-    environment:
-        OMGX_URL: http://omgx_deployer:8079/addresses.json
-        BL_WL_PORT: 9000
-        RETRIES: 70
-    ports:
-      - 9000:9000
-
 # a second relay system for messages that need to get to L1 quickly
 # NOTE - all withdrawal messenges use the standard relayer with its 7 day window
 
@@ -63,7 +43,6 @@ services:
       - deployer
       - omgx_deployer
       - l2geth
-      - omgx_bl-wl
     image: omgx/omgx_message-relayer-fast
     build:
       context: ..
@@ -77,7 +56,8 @@ services:
         OMGX_URL: http://omgx_deployer:8079/addresses.json
         POLLING_INTERVAL: 1500
         GET_LOGS_INTERVAL: 500
-        WHITELIST_ENDPOINT: http://omgx_bl-wl:9000/whitelist.json
+        FILTER_ENDPOINT: http://omgx_deployer:8079/addresses.json
+        FILTER_POLLING_INTERVAL: 30000
         RETRIES: 70
 
 # and, tests for all the OMGX-specific services

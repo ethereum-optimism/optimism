@@ -1,29 +1,26 @@
 # TODO: Prefix all env vars with service name
 # TODO: Allow specifing the image tag to use
 version: "3"
-
 services:
   # base service builder
   builder:
-    image: ethereumoptimism/builder
+    image: omgx/builder:latest
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.monorepo
-
   # this is a helper service used because there's no official hardhat image
   l1_chain:
-    image: ethereumoptimism/hardhat
+    image: omgx/hardhat:latest
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile
     ports:
-        # expose the service to the host for integration testing
+      # expose the service to the host for integration testing
       - ${L1CHAIN_HTTP_PORT:-9545}:8545
-
   deployer:
     depends_on:
       - l1_chain
-    image: ethereumoptimism/deployer
+    image: omgx/deployer:latest
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.deployer
@@ -41,40 +38,38 @@ services:
       # were already compiled in the builder step
       NO_COMPILE: 1
     ports:
-        # expose the service to the host for getting the contract addrs
+      # expose the service to the host for getting the contract addrs
       - ${DEPLOYER_PORT:-8080}:8081
-
   dtl:
     depends_on:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/data-transport-layer
+    image: omgx/data-transport-layer:latest
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.data-transport-layer
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
-      -  ./envs/dtl.env
+      - ./envs/dtl.env
     # set the rest of the env vars for the network whcih do not
     # depend on the docker-compose setup
     environment:
-        # used for setting the address manager address
-        URL: http://deployer:8081/addresses.json
-        # connect to the 2 layers
-        DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
-        DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
-        DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
-        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
+      # used for setting the address manager address
+      URL: http://deployer:8081/addresses.json
+      # connect to the 2 layers
+      DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
+      DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
+      DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
+      DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
     ports:
       - ${DTL_PORT:-7878}:7878
-
   l2geth:
     depends_on:
       - l1_chain
       - deployer
-    image: ethereumoptimism/l2geth
+    image: omgx/l2geth:latest
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
@@ -96,13 +91,12 @@ services:
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
-
   relayer:
     depends_on:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/message-relayer
+    image: omgx/message-relayer:latest
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.message-relayer
@@ -118,13 +112,12 @@ services:
       GET_LOGS_INTERVAL: 500
       FILTER_ENDPOINT: http://omgx_deployer:8079/addresses.json #this will fail early, but then start to work when the omgx_deployer comes up
       FILTER_POLLING_INTERVAL: 30000
-
   batch_submitter:
     depends_on:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/batch-submitter
+    image: omgx/batch-submitter:latest
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.batch-submitter
@@ -137,13 +130,12 @@ services:
       URL: http://deployer:8081/addresses.json
       SEQUENCER_PRIVATE_KEY: '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
       PROPOSER_PRIVATE_KEY: '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'
-
   verifier:
     depends_on:
       - l1_chain
       - deployer
       - dtl
-    image: ethereumoptimism/l2geth
+    image: omgx/l2geth:latest
     deploy:
       replicas: 0
     build:
@@ -164,9 +156,8 @@ services:
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546
-
   integration_tests:
-    image: ethereumoptimism/integration-tests
+    image: omgx/integration-tests:latest
     deploy:
       replicas: 0
     build:

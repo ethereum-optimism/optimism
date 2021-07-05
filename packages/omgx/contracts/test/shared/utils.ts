@@ -73,7 +73,7 @@ export const DEPLOYER = process.env.URL || 'http://127.0.0.1:8080/addresses.json
 export const OMGX_URL = process.env.OMGX_URL || 'http://127.0.0.1:8078/addresses.json'
 
 //export const addressManagerAddress = process.env.ADDRESS_MANAGER_ADDRESS
-export let addressManagerAddress = process.env.ETH1_ADDRESS_RESOLVER_ADDRESS
+export let addressManagerAddress = process.env.ADDRESS_MANAGER_ADDRESS
 
 export const getAddressManager = async (provider: any) => {
    //console.log(addressManagerAddress)

@@ -53,7 +53,7 @@ const main = async () => {
     deployer_l1,
     deployer_l2,
     addressManager,
-    noCompile: process.env.NO_COMPILE ? true : false,
+    //noCompile: process.env.NO_COMPILE ? true : false, //not clear how/where this is connected
   })
 
 }

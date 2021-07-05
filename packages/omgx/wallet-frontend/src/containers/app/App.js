@@ -49,7 +49,7 @@ function App () {
   const handleAlertClose=()=>dispatch(closeAlert());
 
   useEffect(() => {
-    dispatch(oracleService.initialize());
+    //dispatch(oracleService.initialize());
     if (isChangingChain) {
       dispatch(setWalletMethod('browser'));
     }
