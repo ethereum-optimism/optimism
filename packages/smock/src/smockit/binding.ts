@@ -14,7 +14,12 @@ try {
     ReturnData,
   } = require('hardhat/internal/hardhat-network/provider/return-data')
   decodeRevertReason = (value: Buffer) => {
-    return new ReturnData(value).decodeError()
+    const returnData = new ReturnData(value)
+    if (returnData.isErrorReturnData()) {
+      return returnData.decodeError()
+    } else {
+      return ''
+    }
   }
 }
 // Handle hardhat ^2.2.0

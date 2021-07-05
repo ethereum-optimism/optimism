@@ -134,5 +134,9 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
-      - name: Lint
+      - name: Lint JS and TS
         run: yarn lint:check
+
+      - name: Lint Solidity
+        working-directory: ./packages/contracts
+        run: yarn lint:contracts

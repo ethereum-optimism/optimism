@@ -253,7 +253,8 @@ library Lib_ExecutionManagerWrapper {
             bytes memory
         )
     {
-        (bool success, bytes memory returndata) = Lib_PredeployAddresses.EXECUTION_MANAGER_WRAPPER.delegatecall(_calldata);
+        (bool success, bytes memory returndata) =
+            Lib_PredeployAddresses.EXECUTION_MANAGER_WRAPPER.delegatecall(_calldata);
 
         if (success == true) {
             return returndata;

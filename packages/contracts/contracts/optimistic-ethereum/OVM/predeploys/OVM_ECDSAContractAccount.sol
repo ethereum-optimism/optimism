@@ -7,7 +7,8 @@ import { iOVM_ECDSAContractAccount } from "../../iOVM/predeploys/iOVM_ECDSAContr
 
 /* Library Imports */
 import { Lib_EIP155Tx } from "../../libraries/codec/Lib_EIP155Tx.sol";
-import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+import { Lib_ExecutionManagerWrapper } from
+    "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
@@ -152,9 +153,9 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // cases, but since this is a contract we'd end up bumping the nonce twice.
             Lib_ExecutionManagerWrapper.ovmINCREMENTNONCE();
 
-            // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their EOA
-            // so that they don't have to pay any fees to the sequencer. Function will remain disabled
-            // until a robust solution is in place.
+            // NOTE: Upgrades are temporarily disabled because users can, in theory, modify their
+            // EOA so that they don't have to pay any fees to the sequencer. Function will remain
+            // disabled until a robust solution is in place.
             require(
                 _transaction.to != Lib_ExecutionManagerWrapper.ovmADDRESS(),
                 "Calls to self are disabled until upgradability is re-enabled."

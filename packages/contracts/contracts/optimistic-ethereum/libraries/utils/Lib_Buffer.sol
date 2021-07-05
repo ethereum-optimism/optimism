@@ -246,7 +246,9 @@ library Lib_Buffer {
         uint40 length;
         bytes27 extraData;
         assembly {
+            // solhint-disable-next-line max-line-length
             length    := and(context, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
+            // solhint-disable-next-line max-line-length
             extraData := and(context, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000)
         }
 

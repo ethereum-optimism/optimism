@@ -2,7 +2,8 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
-import { iOVM_CrossDomainMessenger } from "../../iOVM/bridge/messaging/iOVM_CrossDomainMessenger.sol";
+import { iOVM_CrossDomainMessenger } from
+    "../../iOVM/bridge/messaging/iOVM_CrossDomainMessenger.sol";
 
 /**
  * @title OVM_CrossDomainEnabled

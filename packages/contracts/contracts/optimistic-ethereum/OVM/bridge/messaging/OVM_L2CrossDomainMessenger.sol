@@ -7,7 +7,8 @@ import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressReso
 import { Lib_CrossDomainUtils } from "../../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
-import { iOVM_L2CrossDomainMessenger } from "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
+import { iOVM_L2CrossDomainMessenger } from
+    "../../../iOVM/bridge/messaging/iOVM_L2CrossDomainMessenger.sol";
 import { iOVM_L1MessageSender } from "../../../iOVM/predeploys/iOVM_L1MessageSender.sol";
 import { iOVM_L2ToL1MessagePasser } from "../../../iOVM/predeploys/iOVM_L2ToL1MessagePasser.sol";
 
@@ -57,8 +58,10 @@ contract OVM_L2CrossDomainMessenger is
     /**
      * @param _libAddressManager Address of the Address Manager.
      */
-    constructor(address _libAddressManager) Lib_AddressResolver(_libAddressManager) ReentrancyGuard() {}
-
+    constructor(address _libAddressManager)
+        Lib_AddressResolver(_libAddressManager)
+        ReentrancyGuard()
+        {}
 
     /********************
      * Public Functions *
