@@ -1,7 +1,7 @@
-import rinkebyServiceAxiosInstance from 'api/rinkebyServiceAxios'
+import walletServiceAxiosInstance from 'api/walletServiceAxios'
 
 export const checkVersion = () => {
-  rinkebyServiceAxiosInstance.get('get.wallet.version').then((res) => {
+  walletServiceAxiosInstance('temporary_placeholder').get('get.wallet.version').then((res) => {
     if (res.status === 201) {
       if (res.data !== '') {
         if (res.data.version !== process.env.REACT_APP_WALLET_VERSION) {

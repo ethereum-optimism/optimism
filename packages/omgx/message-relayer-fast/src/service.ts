@@ -44,10 +44,10 @@ interface MessageRelayerOptions {
   // Number of blocks within each getLogs query - max is 2000
   getLogsInterval?: number
 
-  // whitelist
-  whitelistEndpoint?: string
+  // filter
+  filterEndpoint?: string
   
-  whitelistPollingInterval?: number
+  filterPollingInterval?: number
 }
 
 const optionSettings = {
@@ -57,7 +57,7 @@ const optionSettings = {
   l2BlockOffset: { default: 1 },
   l1StartOffset: { default: 0 },
   getLogsInterval: { default: 2000 },
-  whitelistPollingInterval: { default: 60000 }
+  filterPollingInterval: { default: 60000 }
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
@@ -75,8 +75,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     OVM_L1CrossDomainMessenger: Contract
     OVM_L2CrossDomainMessenger: Contract
     OVM_L2ToL1MessagePasser: Contract
-    whitelist: Array<any>
-    lastWhitelistPollingTimestamp: number
+    filter: Array<any>
+    lastFilterPollingTimestamp: number
   }
 
   protected async _init(): Promise<void> {
@@ -86,7 +86,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       pollingInterval: this.options.pollingInterval,
       l2BlockOffset: this.options.l2BlockOffset,
       getLogsInterval: this.options.getLogsInterval,
-      whitelistPollingInterval: this.options.whitelistPollingInterval,
+      filterPollingInterval: this.options.filterPollingInterval,
     })
     // Need to improve this, sorry.
     this.state = {} as any
@@ -151,13 +151,13 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.state.lastFinalizedTxHeight = this.options.fromL2TransactionIndex || 0
     this.state.nextUnfinalizedTxHeight =
       this.options.fromL2TransactionIndex || 0
-    this.state.lastWhitelistPollingTimestamp = 0
+    this.state.lastFilterPollingTimestamp = 0
   }
 
   protected async _start(): Promise<void> {
     while (this.running) {
       await sleep(this.options.pollingInterval)
-      await this._getWhitelist();
+      await this._getfilter();
 
       try {
         // Check that the correct address is set in the address manager
@@ -232,7 +232,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
             continue
           }
 
-          if (!this.state.whitelist.includes(message.target)) {
+          if (!this.state.filter.includes(message.target)) {
             this.logger.info('Message not intended for target, skipping.')
             continue
           }
@@ -566,24 +566,30 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.logger.info('Message successfully relayed to Layer 1!')
   }
 
-  private async _getWhitelist(): Promise<void> {
+  private async _getfilter(): Promise<void> {
     try {
-      if (this.options.whitelistEndpoint) {
-        if (this.state.lastWhitelistPollingTimestamp === 0 || 
-          new Date().getTime() > this.state.lastWhitelistPollingTimestamp + this.options.whitelistPollingInterval
+      if (this.options.filterEndpoint) {
+        if (this.state.lastFilterPollingTimestamp === 0 || 
+          new Date().getTime() > this.state.lastFilterPollingTimestamp + this.options.filterPollingInterval
         ) {
-          const response = await fetch(this.options.whitelistEndpoint);
-          const whitelist = await response.json();
-          this.state.lastWhitelistPollingTimestamp = new Date().getTime();
-          this.state.whitelist = whitelist;
-          this.logger.info('Found the whitelist', { whitelist: whitelist })
+          const response = await fetch(this.options.filterEndpoint)
+          const filter = await response.json()
+
+          // export L1LIQPOOL=$(echo $ADDRESSES | jq -r '.L1LiquidityPool')
+          // export L1M=$(echo $ADDRESSES | jq -r '.L1Message')
+          // echo '["'$L1LIQPOOL'", "'$L1M'"]' > dist/dumps/whitelist.json
+          const filterSelect = [ filter.L1LiquidityPool, filter.L1Message ]
+
+          this.state.lastFilterPollingTimestamp = new Date().getTime()
+          this.state.filter = filterSelect
+          this.logger.info('Found the filter', { filterSelect })
         }
       } else {
-        this.state.whitelist = [];
+        this.state.filter = [];
       }
     } catch {
-      this.logger.info('Failed to fetch the whitelist')
-      this.state.whitelist = [];
+      this.logger.info('Failed to fetch the Filter')
+      this.state.filter = [];
     }
   }
 }

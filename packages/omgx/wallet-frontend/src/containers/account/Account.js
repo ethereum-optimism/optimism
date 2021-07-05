@@ -76,7 +76,7 @@ function Account () {
 
   const wAddress = networkService.account ? truncate(networkService.account, 6, 4, '...') : '';
   const networkLayer = networkService.L1orL2 === 'L1' ? 'L1' : 'L2';
-  const networkName = networkService.networkName;
+  const masterConfig = networkService.masterConfig;
 
   const handleDepositETHL1 = useCallback(
     () => dispatch(networkService.depositETHL1()),
@@ -169,7 +169,7 @@ function Account () {
               <span>Balance on Rootchain</span>
               <span>Ethereum Network</span>
             </div>
-            {networkName === 'local' &&
+            {masterConfig === 'local' &&
               <div
                 onClick={()=>handleDepositETHL1()}
                 className={[styles.transfer, !isSynced ? styles.disabled : ''].join(' ')}

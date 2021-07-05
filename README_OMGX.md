@@ -156,7 +156,7 @@ Start a local L1/L2.
 
 <!-- You can change the BUILD and DAEMON values to control if everything is rebuilt (`BUILD=1`, very slow), and if you want to see all the debug information (`DAEMON=0`) -->
 
-```
+```bash
 $ cd ops
 $ BUILD=1 DAEMON=0 ./up_local.sh
 ```
@@ -169,7 +169,9 @@ $ BUILD=0 DAEMON=1 ./up_local.sh
 ``` -->
 
 Then, open a second terminal window and navigate to `packages/omgx/wallet-frontend`, and run
-```
+
+```bash
+$ yarn get_artifacts #this will get all the contract artifacts - note that this will only work right is you ran yarn build at the top level per instructions
 $ yarn build
 $ yarn start
 ```
@@ -183,11 +185,4 @@ REACT_APP_ETHERSCAN_API=
 REACT_APP_POLL_INTERVAL=20000
 SKIP_PREFLIGHT_CHECK=true
 REACT_APP_WALLET_VERSION=1.0.10
-REACT_APP_WALLET_SERVICE=https://api-service.rinkeby.omgx.network/
-REACT_APP_BUYER_OPTIMISM_API_URL=https://n245h0ka3i.execute-api.us-west-1.amazonaws.com/prod/
-REACT_APP_ETHERSCAN_URL=https://api-rinkeby.etherscan.io/api?module=account&action=txlist&startblock=0&endblock=99999999&sort=asc&apikey=
-REACT_APP_OMGX_WATCHER_URL=https://api-watcher.rinkeby.omgx.network/
-REACT_APP_SELLER_OPTIMISM_API_URL=https://pm7f0dp9ud.execute-api.us-west-1.amazonaws.com/prod/
-REACT_APP_SERVICE_OPTIMISM_API_URL=https://zlba6djrv6.execute-api.us-west-1.amazonaws.com/prod/
-REACT_APP_WEBSOCKET_API_URL=wss://d1cj5xnal2.execute-api.us-west-1.amazonaws.com/prod
 ```

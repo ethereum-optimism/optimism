@@ -26,7 +26,7 @@ import { selectNetwork } from 'selectors/setupSelector';
 
 function WrongNetworkModal ({ open, onClose }) {
 
-  const networkName = useSelector(selectNetwork());
+  const masterConfig = useSelector(selectNetwork());
   const dispatch = useDispatch();
 
   function handleClose () {
@@ -51,7 +51,7 @@ function WrongNetworkModal ({ open, onClose }) {
 
         <div className={styles.content}>
           <div className={styles.description}>
-            Metamask is set to the wrong network. Please switch Metamask to {networkName} to continue.
+            Metamask is set to the wrong network. Please switch Metamask to {masterConfig} to continue.
           </div>
 
           <div className={styles.currentNetwork}>
@@ -61,7 +61,7 @@ function WrongNetworkModal ({ open, onClose }) {
                 styles.active
               ].join(' ')}
             />
-            <span>{networkName}</span>
+            <span>{masterConfig}</span>
           </div>
 
           <img

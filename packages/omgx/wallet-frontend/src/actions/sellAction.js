@@ -33,7 +33,10 @@ import { accSub, accMul } from 'util/calculation';
 
 import networkService from 'services/networkService';
 
-import { SELLER_OPTIMISM_API_URL } from 'Settings';
+//import { SELLER_OPTIMISM_API_URL } from 'Settings';
+//import { getBaseServices } from 'util/masterConfig'
+//if you need it, it's here.... getBaseServices().SELLER_OPTIMISM_API_URL
+
 import sellerAxiosInstance from 'api/sellerAxios';
 
 const encryptItemForSellerBegin = () => ({

@@ -22,7 +22,7 @@ export function selectWalletMethod () {
 //local, rinkeby, mainnet...
 export function selectNetwork () {
   return function (state) {
-    return state.setup['networkName'];
+    return state.setup['masterConfig'];
   }
 }
 

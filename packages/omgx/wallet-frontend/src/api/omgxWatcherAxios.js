@@ -1,13 +1,30 @@
 import axios from 'axios'
+import { getAllNetworks } from 'util/masterConfig'
+const nw = getAllNetworks()
 
-const _omgxWatcherAxiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_OMGX_WATCHER_URL,
-})
+export default function omgxWatcherAxiosInstance(masterSystemConfig){
+  
+  let axiosInstance = null;
+  
+  if(masterSystemConfig === 'local') {
+    return null //does not make sense on local
+  } 
+  else if (masterSystemConfig === 'rinkeby') {
+    axiosInstance = axios.create({
+      baseURL: nw.rinkeby.OMGX_WATCHER_URL,
+    })
+  }
+  else if (masterSystemConfig === 'mainnet') {
+    axiosInstance = axios.create({
+      baseURL: nw.mainnet.OMGX_WATCHER_URL,
+    })
+  }
 
-_omgxWatcherAxiosInstance.interceptors.request.use((config) => {
-  config.headers['Accept'] = 'application/json'
-  config.headers['Content-Type'] = 'application/json'
-  return config
-})
+  axiosInstance.interceptors.request.use((config) => {
+    config.headers['Accept'] = 'application/json'
+    config.headers['Content-Type'] = 'application/json'
+    return config
+  })
 
-export default _omgxWatcherAxiosInstance
+  return axiosInstance
+}

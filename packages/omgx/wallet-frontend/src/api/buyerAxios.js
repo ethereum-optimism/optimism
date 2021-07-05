@@ -1,7 +1,13 @@
 import axios from 'axios'
 
+import { getBaseServices } from 'util/masterConfig'
+
+/*
+might need to be updated - not sure this makes sense for local?
+*/
+
 const _buyerAxiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_BUYER_OPTIMISM_API_URL,
+  baseURL: getBaseServices().BUYER_OPTIMISM_API_URL,
 })
 
 _buyerAxiosInstance.interceptors.request.use((config) => {

@@ -28,7 +28,7 @@ import {
 
 import { openModal } from 'actions/uiAction';
 import { setWalletMethod, setNetwork } from 'actions/setupAction';
-import { getAllNetworks } from 'util/networkName';
+import { getAllNetworks } from 'util/masterConfig';
 
 import logo from 'images/omgx.png';
 import chevron from 'images/chevron.svg';
@@ -46,7 +46,7 @@ function WalletPicker ({ onEnable, enabled }) {
   const [ showAllNetworks, setShowAllNetworks ] = useState(false);
 
   const walletMethod = useSelector(selectWalletMethod())
-  const networkName = useSelector(selectNetwork())
+  const masterConfig = useSelector(selectNetwork())
 
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
@@ -69,8 +69,8 @@ function WalletPicker ({ onEnable, enabled }) {
     }
 
     async function enableBrowserWallet () {
-      //console.log("enableBrowserWallet() for",networkName)
-      const selectedNetwork = networkName ? networkName : "local";
+      //console.log("enableBrowserWallet() for",masterConfig)
+      const selectedNetwork = masterConfig ? masterConfig : "local";
       const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
       //console.log("walletEnabled:",walletEnabled)
       return walletEnabled
@@ -78,18 +78,18 @@ function WalletPicker ({ onEnable, enabled }) {
         : dispatchSetWalletMethod(null);
     }
 
-  }, [ dispatchSetWalletMethod, walletMethod, networkName ]);
+  }, [ dispatchSetWalletMethod, walletMethod, masterConfig ]);
 
   useEffect(() => {
 
     async function initializeAccounts () {
 
-      //console.log("initializeAccounts() for:",networkName)
+      //console.log("initializeAccounts() for:",masterConfig)
 
-      const initialized = await networkService.initializeAccounts(networkName);
+      const initialized = await networkService.initializeAccounts(masterConfig);
 
       if (!initialized) {
-        console.log("Error !initialized for:",networkName)
+        console.log("Error !initialized for:",masterConfig)
         return setAccountsEnabled(false);
       }
 
@@ -106,7 +106,7 @@ function WalletPicker ({ onEnable, enabled }) {
     if (walletEnabled) {
       initializeAccounts();
     }
-  }, [ walletEnabled, networkName ]);
+  }, [ walletEnabled, masterConfig ]);
 
   useEffect(() => {
     if (accountsEnabled) {
@@ -158,7 +158,7 @@ function WalletPicker ({ onEnable, enabled }) {
             >
               <div className={styles.indicator} />
               <div>
-                OMGX {networkName}
+                OMGX {masterConfig}
               </div>
               {!!allNetworks.length && (
                 <img
