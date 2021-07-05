@@ -51,7 +51,18 @@ const optionSettings = {
       return validators.isUrl(val) || validators.isJsonRpcProvider(val)
     },
   },
+  l2RpcProvider: {
+    validate: (val: unknown) => {
+      return validators.isUrl(val) || validators.isJsonRpcProvider(val)
+    },
+  },
   defaultBackend: {
+    default: 'l1',
+    validate: (val: string) => {
+      return val === 'l1' || val === 'l2'
+    },
+  },
+  l1GasPriceBackend: {
     default: 'l1',
     validate: (val: string) => {
       return val === 'l1' || val === 'l2'
@@ -69,6 +80,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     server: any
     db: TransportDB
     l1RpcProvider: JsonRpcProvider
+    l2RpcProvider: JsonRpcProvider
   } = {} as any
 
   protected async _init(): Promise<void> {
@@ -81,6 +93,11 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       typeof this.options.l1RpcProvider === 'string'
         ? new JsonRpcProvider(this.options.l1RpcProvider)
         : this.options.l1RpcProvider
+
+    this.state.l2RpcProvider =
+      typeof this.options.l2RpcProvider === 'string'
+        ? new JsonRpcProvider(this.options.l2RpcProvider)
+        : this.options.l2RpcProvider
 
     this._initializeApp()
   }
@@ -132,6 +149,26 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     // and before other error middleware
     if (this.options.useSentry) {
       this.state.app.use(Sentry.Handlers.errorHandler())
+    }
+
+    this.logger.info('HTTP Server Options', {
+      defaultBackend: this.options.defaultBackend,
+      l1GasPriceBackend: this.options.l1GasPriceBackend,
+    })
+
+    if (this.state.l1RpcProvider) {
+      this.logger.info('HTTP Server L1 RPC Provider initialized', {
+        url: this.state.l1RpcProvider.connection.url,
+      })
+    } else {
+      this.logger.warn('HTTP Server L1 RPC Provider not initialized')
+    }
+    if (this.state.l2RpcProvider) {
+      this.logger.info('HTTP Server L2 RPC Provider initialized', {
+        url: this.state.l2RpcProvider.connection.url,
+      })
+    } else {
+      this.logger.warn('HTTP Server L2 RPC Provider not initialized')
     }
   }
 
@@ -271,8 +308,21 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     this._registerRoute(
       'get',
       '/eth/gasprice',
-      async (): Promise<GasPriceResponse> => {
-        const gasPrice = await this.state.l1RpcProvider.getGasPrice()
+      async (req): Promise<GasPriceResponse> => {
+        const backend = req.query.backend || this.options.l1GasPriceBackend
+        let gasPrice: BigNumber
+
+        if (backend === 'l1') {
+          gasPrice = await this.state.l1RpcProvider.getGasPrice()
+        } else if (backend === 'l2') {
+          const response = await this.state.l2RpcProvider.send(
+            'rollup_gasPrices',
+            []
+          )
+          gasPrice = BigNumber.from(response.l1GasPrice)
+        } else {
+          throw new Error(`Unknown L1 gas price backend: ${backend}`)
+        }
 
         return {
           gasPrice: gasPrice.toString(),
