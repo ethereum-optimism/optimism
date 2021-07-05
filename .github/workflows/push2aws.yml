@@ -1,0 +1,26 @@
+# This workflow will builds all docker images to run in AWS
+name: build and push to AWS ECR
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  push2aws:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Build and push docker images to AWS
+      run: |
+            cd ops_omgx
+            rm -rf cloudformation/deployer-rinkeby.yaml
+            ./cfn-devenv.sh push2aws --from-tag latest --deploy-tag ${{ github.sha }}

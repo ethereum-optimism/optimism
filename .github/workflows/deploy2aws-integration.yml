@@ -1,0 +1,43 @@
+# This workflow will builds all docker images to run in AWS
+name: Deploy to integration-AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployerImageTag:
+        description: 'deployer image tag'
+        required: true
+        default: 'integration-v2'
+      secretname:
+        description: 'AWS Secret to be used in the deployment'
+        required: true
+        default: 'integration-v2'
+
+jobs:
+  deploy2aws:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Stop integration stack
+      run: |
+            cd ops_omgx
+            ./cfn-devenv.sh stop --stack-name integration
+
+    - name: Update Deployer
+      run: |
+            cd ops_omgx
+            ./cfn-devenv.sh update --stack-name integration --service-name deployer-rinkeby --secret-name ${{ github.event.inputs.secretname }} --deploy-tag ${{ github.event.inputs.deployerImageTag }}
+
+    - name: Update All other services
+      run: |
+            cd ops_omgx
+            rm -rf cloudformation/deployer-rinkeby.yaml
+            ./cfn-devenv.sh update --stack-name integration --secret-name ${{ github.event.inputs.secretname }} --deploy-tag ${{ github.sha }}

@@ -22,29 +22,6 @@ $ ./aws-secrets-importer.py -i docker-compose-local.env.yml -d secret-foo -n sec
 
 3. Make sure you have installed [jq](https://stedolan.github.io/jq/) and configured [awscli](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 
-## Disaster Recovery and Restart Considerations
-
-Assuming you have been running a production system, the information needed to recover the L2 to its last known good state are:
-
-* The Ethereum L1
-* The *addresses* of the L1 smart contracts
-* The private keys of the *sequencer*, *address-manager*, *deployer*, *relayer* and potentially other accounts
-* The *state-dump.latest.json*
-* ?????????????
-* ?????????????
-
-_This is all part of the secrets, the L2_NODE_WEB3_URL, DEPLOYER_HTTP are being automatically generated from the cloudformation template_
-
-Restart special settings and considerations:
-
-Since the smart contracts have already all been deployed, you do not want the deployer to redeploy the smart contracts. This is controlled through the ???? setting in the deployer configuration. You just want the deployer to serve the correct addresses and state dumps.
-
-While the L2 is syncing with the L1, the batch submitter will hold off on submitting new batches, so the system will be effectively unresponsive for however long the resync takes. The resyncing is controlled through the `DATA_TRANSPORT_LAYER__SYNC_FROM_L1=true` setting in the L2 geth configuration.
-
-## Critical databases and folders
-
-* Geth DATADIR=/root/.ethereum saved in /mnt/efs/geth_l2 on EFS service, attached to the EC2 instance running the ECSCluster
-* DATA_TRANSPORT_LAYER__DB_PATH=/db saved in /mnt/efs/db on EFS service, attached to the EC2 instance running the ECSCluster
 
 ## Deployment: how to use the key cfn-devenv.sh script
 
@@ -75,10 +52,6 @@ To generate new AWS container for only one service, you can specifiy the service
 ```
 ./cfn-devenv.sh update --stack-name test-stack --region us-east-1 --deploy-tag aws-latest --registry-prefix omgx --secret-name aws-secret-name --service-name batch-submitter
 ```
-
-integration_tests:
-
-_I haven't done cloudformation template for the integration tests, will make sure to do it_
 
 * If you don't specify `--service-name` - all services are going to be updated
 
