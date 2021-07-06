@@ -61,7 +61,6 @@ func AccountPaths(b *PluginBackend) []*framework.Path {
 			All the accounts for an Ethereum wallet will be listed.
 			`,
 		},
-
 		{
 			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/" + framework.GenericNameRegex("address")),
 			HelpSynopsis: "Create an address.",
@@ -85,7 +84,7 @@ The generator produces a high-entropy passphrase with the provided length and re
 			},
 			ExistenceCheck: pathExistenceCheck,
 			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.ReadOperation:   b.pathAccountsRead,
+				logical.UpdateOperation: b.pathAccountsCreate,
 			},
 		},
 		{

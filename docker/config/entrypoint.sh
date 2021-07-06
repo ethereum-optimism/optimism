@@ -150,22 +150,22 @@ function test_banner {
 }
 
 function test_plugin {
-	test_banner
-	echo "SMOKE TEST BASIC WALLET FUNCTIONALITY"
-	test_banner
-	/vault/scripts/smoke.wallet.sh
-	test_banner
-	echo "SMOKE TEST WHITELIST FUNCTIONALITY"
+	# test_banner
+	# echo "SMOKE TEST BASIC WALLET FUNCTIONALITY"
+	# test_banner
+	# /vault/scripts/smoke.wallet.sh
+	# test_banner
+	# echo "SMOKE TEST WHITELIST FUNCTIONALITY"
 	test_banner
 	/vault/scripts/smoke.whitelist.sh
 	test_banner
-	echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
-	test_banner
-	/vault/scripts/smoke.blacklist.sh
-	test_banner
-	echo "SMOKE TEST PLASMA FUNCTIONALITY"
-	test_banner
-	/vault/scripts/smoke.plasma.sh
+	# echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
+	# test_banner
+	# /vault/scripts/smoke.blacklist.sh
+	# test_banner
+	# echo "SMOKE TEST PLASMA FUNCTIONALITY"
+	# test_banner
+	# /vault/scripts/smoke.plasma.sh
 }
 
 if [ -f "$VAULT_CREDENTIALS" ]; then
@@ -189,10 +189,10 @@ else
 fi
 
 
-if [ -n "$TEST" ]; then 
-    echo "Dying."
-else
+# if [ -n "$TEST" ]; then 
+#     echo "Dying."
+# else
     echo "Don't exit until vault dies."
     wait $VAULT_PID
-fi
+# fi
 

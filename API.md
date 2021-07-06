@@ -72,6 +72,8 @@ curl -H "X-Vault-Token: $(vault print token)" -H "X-Vault-Request: true" http://
     "bound_cidr_list": null,
     "chain_id": "5777",
     "rpc_url": "http://ganache:8545",
+    "chain_l2_id": "28",
+    "rpc_l2_url": "http://l2geth:9545",
     "whitelist": null
   },
   "warnings": null
