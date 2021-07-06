@@ -36,7 +36,8 @@ interface iOVM_FraudVerifier {
      * Public Functions: Transition Status *
      ***************************************/
 
-    function getStateTransitioner(bytes32 _preStateRoot, bytes32 _txHash) external view returns (iOVM_StateTransitioner _transitioner);
+    function getStateTransitioner(bytes32 _preStateRoot, bytes32 _txHash) external view
+        returns (iOVM_StateTransitioner _transitioner);
 
 
     /****************************************

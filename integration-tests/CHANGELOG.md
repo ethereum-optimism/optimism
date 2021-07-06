@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.1.2
+
+### Patch Changes
+
+- b107a032: Make expectApprox more readable by passing optional args as an object with well named keys
+
 ## 0.1.1
 
 ### Patch Changes
