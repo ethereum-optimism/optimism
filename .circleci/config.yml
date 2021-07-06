@@ -27,8 +27,10 @@ jobs:
           name: Test validation
           working_directory: /home/circleci/project/docker
           command: |
-            docker-compose logs | grep "DID NOT PASS THE REQUIRED TEST"
-            [[ $? -eq 0 ]] && echo 'DID NOT PASS THE REQUIRED TEST' && exit 1
+            lines=$(docker-compose logs | grep -c "DID NOT PASS THE REQUIRED TEST")
+            echo $lines
+            [[ $lines -eq 0 ]] && echo 'PASS'
+            [[ $lines -nq 0 ]] && echo 'FAILED TESTS' && exit $lines
       - run:
           name: Save Docker image
           command: |
