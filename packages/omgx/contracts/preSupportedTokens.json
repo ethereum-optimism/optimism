@@ -14,6 +14,41 @@
              "name": "USD Coin",
              "symbol": "USDC",
              "address": "0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b"
+         },
+         {
+            "name": "Wrapped BTC",
+            "symbol": "WBTC",
+            "address": "0x577D296678535e4903D59A4C929B718e1D575e0A"
+         },
+         {
+            "name": "Augur",
+            "symbol": "REP",
+            "address": "0x6e894660985207feb7cf89Faf048998c71E8EE89"
+         },
+         {
+            "name": "Basic Attention Token",
+            "symbol": "BAT",
+            "address": "0xbF7A7169562078c96f0eC1A8aFD6aE50f12e5A99"
+         },
+         {
+            "name": "0x Project",
+            "symbol": "ZRX",
+            "address": "0xddea378A6dDC8AfeC82C36E9b0078826bf9e68B6"
+         },
+         {
+            "name": "SushiToken",
+            "symbol": "SUSHI",
+            "address": "0xA434947525699FfbbF74260947c2906831FafD98"
+         },
+         {
+            "name": "ChainLink Token",
+            "symbol": "LINK",
+            "address": "0x01BE23585060835E02B77ef475b0Cc51aA1e0709"
+         },
+         {
+            "name": "Uniswap",
+            "symbol": "UNI",
+            "address": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"
          }
      ]
- } 
+ }
