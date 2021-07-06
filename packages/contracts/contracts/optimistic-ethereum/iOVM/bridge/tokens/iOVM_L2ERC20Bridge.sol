@@ -85,8 +85,8 @@ interface iOVM_L2ERC20Bridge {
 
     /**
      * @dev Complete a deposit from L1 to L2, and credits funds to the recipient's balance of this
-     * L2 token.
-     * This call will fail if it did not originate from a corresponding deposit in OVM_l1TokenGateway.
+     * L2 token. This call will fail if it did not originate from a corresponding deposit in
+     * OVM_l1TokenGateway.
      * @param _l1Token Address for the l1 token this is called with
      * @param _l2Token Address for the l2 token this is called with
      * @param _from Account to pull the deposit from on L2.

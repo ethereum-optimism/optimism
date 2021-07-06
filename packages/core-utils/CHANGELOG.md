@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.5.0
+
+### Minor Changes
+
+- 049200f4: removed unused functions from core-utils
+
 ## 0.4.7
 
 ### Patch Changes

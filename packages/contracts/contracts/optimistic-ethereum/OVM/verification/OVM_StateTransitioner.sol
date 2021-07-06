@@ -25,19 +25,20 @@ import { Abs_FraudContributor } from "./Abs_FraudContributor.sol";
 
 /**
  * @title OVM_StateTransitioner
- * @dev The State Transitioner coordinates the execution of a state transition during the evaluation of a
- * fraud proof. It feeds verified input to the Execution Manager's run(), and controls a State Manager (which is
- * uniquely created for each fraud proof).
- * Once a fraud proof has been initialized, this contract is provided with the pre-state root and verifies
- * that the OVM storage slots committed to the State Mangager are contained in that state
+ * @dev The State Transitioner coordinates the execution of a state transition during the evaluation
+ * of a fraud proof. It feeds verified input to the Execution Manager's run(), and controls a
+ * State Manager (which is uniquely created for each fraud proof).
+ * Once a fraud proof has been initialized, this contract is provided with the pre-state root and
+ * verifies that the OVM storage slots committed to the State Mangager are contained in that state
  * This contract controls the State Manager and Execution Manager, and uses them to calculate the
- * post-state root by applying the transaction. The Fraud Verifier can then check for fraud by comparing
- * the calculated post-state root with the proposed post-state root.
+ * post-state root by applying the transaction. The Fraud Verifier can then check for fraud by
+ * comparing the calculated post-state root with the proposed post-state root.
  *
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOVM_StateTransitioner {
+contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOVM_StateTransitioner
+{
 
     /*******************
      * Data Structures *
@@ -72,7 +73,9 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
      * Constants *
      *************/
 
+    // solhint-disable-next-line max-line-length
     bytes32 internal constant EMPTY_ACCOUNT_CODE_HASH = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+    // solhint-disable-next-line max-line-length
     bytes32 internal constant EMPTY_ACCOUNT_STORAGE_ROOT = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
 
 
@@ -99,7 +102,8 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         postStateRoot = _preStateRoot;
         transactionHash = _transactionHash;
 
-        ovmStateManager = iOVM_StateManagerFactory(resolve("OVM_StateManagerFactory")).create(address(this));
+        ovmStateManager = iOVM_StateManagerFactory(resolve("OVM_StateManagerFactory"))
+            .create(address(this));
     }
 
 
@@ -227,6 +231,7 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
                 // of the code stored on L2.
                 require(
                     Lib_EthUtils.getCodeHash(ethContractAddress) == account.codeHash,
+                    // solhint-disable-next-line max-line-length
                     "OVM_StateTransitioner: Provided L1 contract code hash does not match L2 contract code hash."
                 );
             }
@@ -338,11 +343,13 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
         // This includes 1/64 of the gas getting lost because of EIP-150 (lost twice--first
         // going into EM, then going into the code contract).
         require(
-            gasleft() >= 100000 + _transaction.gasLimit * 1032 / 1000, // 1032/1000 = 1.032 = (64/63)^2 rounded up
+            // 1032/1000 = 1.032 = (64/63)^2 rounded up
+            gasleft() >= 100000 + _transaction.gasLimit * 1032 / 1000,
             "Not enough gas to execute transaction deterministically."
         );
 
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(resolve("OVM_ExecutionManager"));
+        iOVM_ExecutionManager ovmExecutionManager =
+            iOVM_ExecutionManager(resolve("OVM_ExecutionManager"));
 
         // We call `setExecutionManager` right before `run` (and not earlier) just in case the
         // OVM_ExecutionManager address was updated between the time when this contract was created

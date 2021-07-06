@@ -9,10 +9,12 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 /* Interface Imports */
 import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.sol";
 import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
-import { iOVM_StateTransitionerFactory } from "../../iOVM/verification/iOVM_StateTransitionerFactory.sol";
+import { iOVM_StateTransitionerFactory } from
+    "../../iOVM/verification/iOVM_StateTransitionerFactory.sol";
 import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
-import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
+import { iOVM_CanonicalTransactionChain } from
+    "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 
 /* Contract Imports */
 import { Abs_FraudContributor } from "./Abs_FraudContributor.sol";
@@ -108,8 +110,10 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
             return;
         }
 
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
-        iOVM_CanonicalTransactionChain ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
+        iOVM_StateCommitmentChain ovmStateCommitmentChain =
+            iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_CanonicalTransactionChain ovmCanonicalTransactionChain =
+            iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
 
         require(
             ovmStateCommitmentChain.verifyStateCommitment(
@@ -131,6 +135,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
         );
 
         require (
+            // solhint-disable-next-line max-line-length
             _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index + 1 == _transactionBatchHeader.prevTotalElements + _transactionProof.index,
             "Pre-state root global index must equal to the transaction root global index."
         );
@@ -169,7 +174,8 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
         contributesToFraudProof(_preStateRoot, _txHash)
     {
         iOVM_StateTransitioner transitioner = getStateTransitioner(_preStateRoot, _txHash);
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_StateCommitmentChain ovmStateCommitmentChain =
+            iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
 
         require(
             transitioner.isComplete() == true,
@@ -177,6 +183,7 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
         );
 
         require (
+            // solhint-disable-next-line max-line-length
             _postStateRootBatchHeader.prevTotalElements + _postStateRootProof.index == _preStateRootBatchHeader.prevTotalElements + _preStateRootProof.index + 1,
             "Post-state root global index must equal to the pre state root global index plus one."
         );
@@ -208,7 +215,8 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
         _cancelStateTransition(_postStateRootBatchHeader, _preStateRoot);
 
         // TEMPORARY: Remove the transitioner; for minnet.
-        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitioner(0x0000000000000000000000000000000000000000);
+        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] =
+            iOVM_StateTransitioner(0x0000000000000000000000000000000000000000);
 
         emit FraudProofFinalized(
             _preStateRoot,
@@ -254,14 +262,15 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
     )
         internal
     {
-        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] = iOVM_StateTransitionerFactory(
-            resolve("OVM_StateTransitionerFactory")
-        ).create(
-            address(libAddressManager),
-            _stateTransitionIndex,
-            _preStateRoot,
-            _txHash
-        );
+        transitioners[keccak256(abi.encodePacked(_preStateRoot, _txHash))] =
+            iOVM_StateTransitionerFactory(
+                resolve("OVM_StateTransitionerFactory")
+            ).create(
+                address(libAddressManager),
+                _stateTransitionIndex,
+                _preStateRoot,
+                _txHash
+            );
     }
 
     /**
@@ -275,7 +284,8 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
     )
         internal
     {
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        iOVM_StateCommitmentChain ovmStateCommitmentChain =
+            iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
         iOVM_BondManager ovmBondManager = iOVM_BondManager(resolve("OVM_BondManager"));
 
         // Delete the state batch.
@@ -284,7 +294,8 @@ contract OVM_FraudVerifier is Lib_AddressResolver, Abs_FraudContributor, iOVM_Fr
         );
 
         // Get the timestamp and publisher for that block.
-        (uint256 timestamp, address publisher) = abi.decode(_postStateRootBatchHeader.extraData, (uint256, address));
+        (uint256 timestamp, address publisher) =
+            abi.decode(_postStateRootBatchHeader.extraData, (uint256, address));
 
         // Slash the bonds at the bond manager.
         ovmBondManager.finalize(

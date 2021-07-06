@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "[Optimism] Cross Domain Message Relayer service",
   "main": "dist/index",
   "types": "dist/index",
@@ -34,8 +34,8 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.4",
-    "@eth-optimism/contracts": "^0.4.0",
-    "@eth-optimism/core-utils": "^0.4.6",
+    "@eth-optimism/contracts": "^0.4.2",
+    "@eth-optimism/core-utils": "^0.5.0",
     "@sentry/node": "6.2.5",
     "bcfg": "^0.1.6",
     "dotenv": "^8.2.0",
@@ -45,7 +45,7 @@
     "node-fetch": "^2.6.1"
   },
   "devDependencies": {
-    "@eth-optimism/smock": "^1.1.6",
+    "@eth-optimism/smock": "^1.1.7",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@types/chai": "^4.2.18",

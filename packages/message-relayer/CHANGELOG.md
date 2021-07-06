@@ -1,5 +1,16 @@
 # @eth-optimism/message-relayer
 
+## 0.1.7
+
+### Patch Changes
+
+- fd86043a: Adds a new l2 to l1 message relaying utility within the message relayer package
+- Updated dependencies [0313794b]
+- Updated dependencies [049200f4]
+- Updated dependencies [21e47e1f]
+  - @eth-optimism/contracts@0.4.2
+  - @eth-optimism/core-utils@0.5.0
+
 ## 0.1.6
 
 ### Patch Changes

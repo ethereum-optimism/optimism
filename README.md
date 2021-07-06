@@ -24,14 +24,14 @@ Extensive documentation is available [here](http://community.optimism.io/docs/).
 ## Directory Structure
 
 * [`packages`](./packages): Contains all the typescript packages and contracts
-    * [`contracts`](./packages/contracts): Solidity smart contracts implementing the OVM
-    * [`core-utils`](./packages/core-utils): Low-level utilities and encoding packages
-    * [`common-ts`](./packages/common-ts): Common tools for TypeScript code that runs in Node
-    * [`hardhat-ovm`](./packages/hardhat-ovm): Hardhat plugin which enables the [OVM Compiler](https://github.com/ethereum-optimism/solidity)
-    * [`smock`](./packages/smock): Testing utility for mocking smart contract return values and storage
-    * [`data-transport-layer`](./packages/data-transport-layer): Event indexer, allowing the `l2geth` node to access L1 data
-    * [`batch-submitter`](./packages/batch-submitter): Daemon for submitting L2 transaction and state root batches to L1
-    * [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
+  * [`contracts`](./packages/contracts): Solidity smart contracts implementing the OVM
+  * [`core-utils`](./packages/core-utils): Low-level utilities and encoding packages
+  * [`common-ts`](./packages/common-ts): Common tools for TypeScript code that runs in Node
+  * [`hardhat-ovm`](./packages/hardhat-ovm): Hardhat plugin which enables the [OVM Compiler](https://github.com/ethereum-optimism/solidity)
+  * [`smock`](./packages/smock): Testing utility for mocking smart contract return values and storage
+  * [`data-transport-layer`](./packages/data-transport-layer): Event indexer, allowing the `l2geth` node to access L1 data
+  * [`batch-submitter`](./packages/batch-submitter): Daemon for submitting L2 transaction and state root batches to L1
+  * [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
 * [`l2geth`](./l2geth): Fork of [go-ethereum v1.9.10](https://github.com/ethereum/go-ethereum/tree/v1.9.10) implementing the [OVM](https://research.paradigm.xyz/optimism#optimistic-geth).
 * [`integration-tests`](./integration-tests): Integration tests between a L1 testnet, `l2geth`,
 * [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
@@ -40,6 +40,7 @@ as well as a docker-compose file for bringing up local testnets easily
 ## Contributing
 
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our contribution process.
+Follow the [Development Quick Start](#development-quick-start) to set up your local development environment.
 
 ### Good First Issues
 
@@ -56,9 +57,15 @@ Adding a `changeset` file is easy:
 
 1. Navigate to the root of the monorepo.
 2. Run `yarn changeset`. You'll be prompted to select packages to include in the changeset. Use the arrow keys to move the cursor up and down, hit the `spacebar` to select a package, and hit `enter` to confirm your selection. Select *all* packages that require a new release as a result of your PR.
-4. Once you hit `enter` you'll be prompted to decide whether your selected packages need a `major`, `minor`, or `patch` release. We follow the [Semantic Versioning](https://semver.org/) scheme. Please avoid using `major` releases for any packages that are still in version `0.y.z`.
-5. Commit your changeset and push it into your PR. The changeset bot will notice your changeset file and leave a little comment to this effect on GitHub.
-6. Voilà, c'est fini!
+3. Once you hit `enter` you'll be prompted to decide whether your selected packages need a `major`, `minor`, or `patch` release. We follow the [Semantic Versioning](https://semver.org/) scheme. Please avoid using `major` releases for any packages that are still in version `0.y.z`.
+4. Commit your changeset and push it into your PR. The changeset bot will notice your changeset file and leave a little comment to this effect on GitHub.
+5. Voilà, c'est fini!
+
+### Rebasing
+
+We use the `git rebase` command to keep our commit history tidy.
+Rebasing is an easy way to make sure that each PR includes a series of clean commits with descriptive commit messages
+See [this tutorial](https://docs.gitlab.com/ee/topics/git/git_rebase.html) for a detailed explanation of `git rebase` and how you should use it to maintain a clean commit history.
 
 ## Development Quick Start
 
@@ -107,6 +114,7 @@ docker-compose build
 ```
 
 This will build the following containers:
+
 * [`builder`](https://hub.docker.com/r/ethereumoptimism/builder): used to build the TypeScript packages
 * [`l1_chain`](https://hub.docker.com/r/ethereumoptimism/hardhat): simulated L1 chain using hardhat-evm as a backend
 * [`deployer`](https://hub.docker.com/r/ethereumoptimism/deployer): process that deploys L1 smart contracts to the L1 chain
@@ -160,6 +168,7 @@ docker-compose up
 ```
 
 #### Viewing docker container logs
+
 By default, the `docker-compose up` command will show logs from all services, and that
 can be hard to filter through. In order to view the logs from a specific service, you can run:
 
@@ -245,6 +254,7 @@ We may sometimes have more than one active `regenesis/X.X.X` branch if we're in 
 See table in the **Active Branches** section above to find the right branch to target.
 
 ## Additional Reference Material
+
 ### Running contract static analysis
 
 We perform static analysis with [`slither`](https://github.com/crytic/slither).
