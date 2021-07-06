@@ -90,7 +90,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.geth
           push: true
-          tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }}
+          tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }},ethereumoptimism/l2geth:latest
 
       - name: Publish rpc-proxy
         uses: docker/build-push-action@v2
@@ -98,7 +98,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.rpc-proxy
           push: true
-          tags: ethereumoptimism/rpc-proxy:${{ needs.release.outputs.l2geth }}
+          tags: ethereumoptimism/rpc-proxy:${{ needs.release.outputs.l2geth }},ethereumoptimism/rpc-proxy:latest
 
   # pushes the base builder image to dockerhub
   builder:
@@ -158,7 +158,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.message-relayer
           push: true
-          tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.message-relayer }}
+          tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.message-relayer }},ethereumoptimism/message-relayer:latest
 
   batch-submitter:
     name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
@@ -184,7 +184,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.batch-submitter
           push: true
-          tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.batch-submitter }}
+          tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.batch-submitter }},ethereumoptimism/batch-submitter:latest
 
   data-transport-layer:
     name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
@@ -210,7 +210,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.data-transport-layer
           push: true
-          tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.data-transport-layer }}
+          tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.data-transport-layer }},ethereumoptimism/data-transport-layer:latest
 
   contracts:
     name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
@@ -236,7 +236,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.deployer
           push: true
-          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.contracts }}
+          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.contracts }},ethereumoptimism/deployer:latest
 
   integration_tests:
     name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
@@ -262,4 +262,4 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.integration-tests
           push: true
-          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.integration-tests }}
+          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.integration-tests }},ethereumoptimism/integration-tests:latest
