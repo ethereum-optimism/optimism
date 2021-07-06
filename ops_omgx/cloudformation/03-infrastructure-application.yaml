@@ -1,0 +1,350 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Enya Application Infrastructure"
+
+Parameters:
+
+  EcsImageId:
+    # TODO: Implement automatic update or notifications: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS-AMI-SubscribeTopic.html
+    Description: Image ID for running the ECS Cluster instances
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  EcsInstanceType:
+    # https://aws.amazon.com/ec2/instance-types/
+    # The types of instances is limited to avoid mistakes generating huge costs by putting the wrong instance type.
+    Description: Type of instances to be added to the ECS cluster
+    Type: String
+    Default: t3a.xlarge
+
+  EcsMinSize:
+    Description: Minimum number of instances in the ECS cluster
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 1 # This is set to prevent accidental huge costs
+
+  EcsMaxSize:
+    Description: Maximum number of instances in the ECS cluster
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 1 # This is set to prevent accidental huge costs
+
+  EcsDesiredCapacity:
+    Description: Default number of instances in the ECS cluster
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 1 # This is set to prevent accidental huge costs
+
+  DomainName:
+    Description: The domain for the Common Name of the wildcard certificate on the Load Balancer listener
+    Type: String
+    Default: dev-integration.omgx.network
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: infrastructure-core
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Compute
+      Parameters:
+      - ECSInstanceType
+      - ECSMinSize
+      - ECSMaxSize
+      - ECSDesiredCapacity
+      - ECSImageId
+    ParameterLabels:
+      InstanceType:
+        default: AWS EC2 Instance Type for ECS nodes
+      ECSMinSize:
+        default: Minimum number of instances in the ECS cluster
+      ECSMaxSize:
+        default: Maximum number of instances in the ECS cluster
+      ECSDesiredCapacity:
+        default: Default number of instances in the ECS cluster
+
+Resources:
+
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      FileSystemTags:
+      - Key: Name
+        Value:
+          Ref: InfrastructureStackName
+
+  LoadBalancerIntSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "SG for ${AWS::StackName} Internal LB"
+      VpcId:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8081
+        ToPort: 8081
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8081
+        ToPort: 8081
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIpv6: ::/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-IntLB"
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "SG for ${AWS::StackName} External LB"
+      VpcId:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 8545
+        ToPort: 8545
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8545
+        ToPort: 8545
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 8546
+        ToPort: 8546
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8546
+        ToPort: 8546
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIpv6: ::/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-LB"
+
+  LoadBalancerInt:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '3600'
+      SecurityGroups:
+      - !Ref LoadBalancerIntSecurityGroup
+      Subnets:
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet1
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet2
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: dualstack
+      Scheme: internet-facing
+      SecurityGroups:
+      - !Ref LoadBalancerSecurityGroup
+      Subnets:
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet1
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet2
+
+  DeployerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancerInt
+      Port: 8081
+      Protocol: HTTP
+      DefaultActions:
+      - Type: fixed-response
+        FixedResponseConfig:
+          ContentType: text/html
+          MessageBody: ""
+          StatusCode: 404
+
+  DataTransportLayerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancerInt
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+      - Type: fixed-response
+        FixedResponseConfig:
+          ContentType: text/html
+          MessageBody: ""
+          StatusCode: 404
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+
+  EcsInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [!Sub "ec2.${AWS::URLSuffix}"]
+          Action: ["sts:AssumeRole"]
+      Policies:
+        - PolicyName: AllowAccessToELB
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ec2:*"
+                  - "ec2:Describe*"
+                  - "elasticloadbalancing:*"
+                  - "elasticloadbalancing:Describe*"
+                  - "elasticloadbalancing:RegisterInstancesWithLoadBalancer"
+                  - "elasticloadbalancing:DeregisterTargets"
+                  - "elasticloadbalancing:DescribeTargetGroups"
+                  - "elasticloadbalancing:DescribeTargetHealth"
+                  - "elasticloadbalancing:RegisterTargets"
+                Resource: "*"
+
+  EcsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref EcsInstanceRole]
+
+  EcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "SG for ${AWS::StackName} Landscape ECS Cluster"
+      VpcId:
+        Fn::ImportValue: !Sub ${InfrastructureStackName}:VpcId
+      SecurityGroupIngress:
+      - SourceSecurityGroupId: !Ref LoadBalancerIntSecurityGroup
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 65535
+      - SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 65535
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ECS-Cluster"
+
+  EcsLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            '/etc/ecs/ecs.config':
+              content: !Sub |
+                ECS_CLUSTER=${EcsCluster}
+                ECS_ENABLE_TASK_IAM_ROLE=true
+              mode: "000644"
+              owner: root
+              group: root
+    Properties:
+      InstanceType: !Ref EcsInstanceType
+      SecurityGroups:
+      - !Ref EcsSecurityGroup
+      IamInstanceProfile: !Ref EcsInstanceProfile
+      ImageId: !Ref EcsImageId
+      UserData:
+        Fn::Base64: !Sub |
+            #!/bin/bash -ex
+            yum -y install aws-cfn-bootstrap amazon-ssm-agent amazon-efs-utils
+            systemctl enable --now amazon-ssm-agent
+            mkdir -p /mnt/efs /mnt/efs/db
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EcsLaunchConfiguration --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region} || true
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref EcsLaunchConfiguration
+      MetricsCollection:
+      - Granularity: 1Minute
+        Metrics:
+        - GroupTotalInstances
+      MinSize: !Ref EcsMinSize
+      MaxSize: !Ref EcsMaxSize
+      DesiredCapacity: !Ref EcsDesiredCapacity
+      VPCZoneIdentifier:
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet1
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ECS"
+          PropagateAtLaunch: true
+
+Outputs:
+  EcsCluster:
+    Value: !Ref EcsCluster
+    Export:
+      Name: !Sub "${InfrastructureStackName}:EcsCluster"
+  EcsSecurityGroup:
+    Value: !Ref EcsSecurityGroup
+    Export:
+      Name: !Sub "${InfrastructureStackName}:EcsSecurityGroup"
+  DomainName:
+    Value: !Ref DomainName
+    Export:
+      Name: !Sub "${InfrastructureStackName}:DomainName"
+  LoadBalancerIntDNSName:
+    Value: !GetAtt LoadBalancerInt.DNSName
+    Export:
+      Name: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+  LoadBalancerDNSName:
+    Value: !GetAtt LoadBalancer.DNSName
+    Export:
+      Name: !Sub "${InfrastructureStackName}:LoadBalancer:DNSName"
+  LoadBalancerIntArn:
+    Value: !Ref LoadBalancerInt
+    Export:
+      Name: !Sub "${InfrastructureStackName}:LoadBalancerInt:ARN"
+  LoadBalancerArn:
+    Value: !Ref LoadBalancer
+    Export:
+      Name: !Sub "${InfrastructureStackName}:LoadBalancer:ARN"
+  LoadBalancerCanonicalHostedZoneID:
+    Value: !GetAtt LoadBalancerInt.CanonicalHostedZoneID
+    Export:
+      Name: !Sub "${InfrastructureStackName}:LoadBalancer:CanonicalHostedZoneID"
+  DeployerListener:
+    Value: !Ref DeployerListener
+    Export:
+      Name: !Sub "${InfrastructureStackName}:DeployerListener"
+  DataTransportLayerListener:
+    Value: !Ref DataTransportLayerListener
+    Export:
+      Name: !Sub "${InfrastructureStackName}:DataTransportLayerListener"
+  EFSFilesystem:
+    Value: !Ref FileSystem
+    Export:
+      Name: !Sub "${InfrastructureStackName}:EFSFilesystem"

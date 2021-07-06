@@ -40,7 +40,7 @@ OMGX_DOCKERFILE=docker-compose-omgx-services.yml
 #append :latest tag to all apps
 yq eval '(.services.[].image | select(. == "ethereumoptimism*")) |= sub("ethereumoptimism", "omgx")' ${ORIGINAL_DOCKERFILE} | \
 yq eval '(.services.[].image) += ":latest"' - \
-> ${DOCKERFILE}
+#> ${DOCKERFILE}
 
 if [[ $BUILD == 1 ]]; then
     docker-compose build --parallel -- builder l2geth l1_chain

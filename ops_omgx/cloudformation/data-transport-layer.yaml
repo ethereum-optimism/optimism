@@ -1,0 +1,195 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Enya Data Transport Layer Application Deployment"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+
+  CFHelperELBv2RulePriorityStack:
+    Type: String
+    Default: CF-Helper-ELBv2-Rule-Priority
+
+  ServiceCount:
+    Type: Number
+    Default: 1
+
+  ImageTag:
+    Type: String
+    Default: push2aws
+
+  DataTransportLayerImage:
+    Type: String
+    Default: data-transport-layer
+
+  DockerPrefix:
+    Type: String
+    Default: omgx
+
+  ECRRegistry:
+    Type: String
+    Default: 942431445534.dkr.ecr.us-east-1.amazonaws.com
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: infrastructure-coredev
+
+  SecretName:
+    Description: AWS Secret Name used for the service
+    Type: String
+
+Conditions:
+  IsProduction:
+    !Equals [!Ref EnvironmentName, "production"]
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub ecs-tasks.${AWS::URLSuffix}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAccessToSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetResourcePolicy"
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:ListSecretVersionIds"
+                Resource:
+                  - arn:aws:secretsmanager:us-east-1:942431445534:secret:*
+  DataTransportLayerLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP # TODO Implement proper healthcheck
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: 200
+  DataTransportLayerLBListenerRulePriority:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken:
+        Fn::ImportValue: !Sub "${CFHelperELBv2RulePriorityStack}:Function"
+      ListenerArn:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:DataTransportLayerListener"
+  DataTransportLayerListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref DataTransportLayerLBTargetGroup
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+            - Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+      ListenerArn:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:DataTransportLayerListener"
+      Priority: !GetAtt DataTransportLayerLBListenerRulePriority.Value
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+    Properties:
+      Volumes:
+        - Name: db
+          Host:
+            SourcePath: "/mnt/efs/db"
+      ContainerDefinitions:
+        - Image: !Sub "${ECRRegistry}/${DockerPrefix}/${DataTransportLayerImage}:${ImageTag}"
+          Name: data_transport_layer
+          PortMappings:
+            - ContainerPort: 7878
+              HostPort: 0
+          Environment:
+            - Name: SECRETNAME
+              Value: !Ref SecretName
+            - Name: RETRIES
+              Value: 3600
+            - Name: DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT
+              Value: !Sub
+                - "https://${EndpointAddress}/"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+            - Name: DEPLOYER_HTTP
+              Value: !Sub
+                - "http://${EndpointAddress}:8081"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+            - Name: URL
+              Value: !Sub
+                - "http://${EndpointAddress}:8081/addresses.json"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+            - Name: DATA_TRANSPORT_LAYER__SERVER_PORT
+              Value: 7878
+          EntryPoint:
+            - "/opt/optimism/packages/data-transport-layer/dtl.sh"
+          MountPoints:
+            - ContainerPath: "/db"
+              SourceVolume: db
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["data_transport_layer"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "data_transport_layer", "service": "data_transport_layer"}]'
+          Essential: true
+          Memory: "512"
+        - Image: 942431445534.dkr.ecr.us-east-1.amazonaws.com/omgx/nginx-eth-proxy:data_tr_layer
+          Name: nginx-dtl
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 0
+          Environment:
+            - Name: SEQUENCER
+              Value: geth_l2:8545
+            - Name: ETH_CALLS_ALLOWED
+              Value: eth_getTransactionByHash,eth_getTransactionReceipt,eth_sendRawTransaction,eth_blockNumber
+          Command:
+            - "nginx-debug"
+            - "-g"
+            - "daemon off;"
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["nginx"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "nginx", "service": "nginx"}]'
+          Essential: true
+          Memory: "256"
+          Links:
+            - data_transport_layer
+      NetworkMode: bridge
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub "DataTransportLayer-${EnvironmentName}"
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: DataTransportLayerListenerRule
+    Properties:
+      Cluster:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
+      LoadBalancers:
+        - ContainerName: nginx-dtl
+          ContainerPort: 80
+          TargetGroupArn: !Ref DataTransportLayerLBTargetGroup
+      DesiredCount: !Ref ServiceCount
+      LaunchType: EC2
+      SchedulingStrategy: REPLICA
+      ServiceName: !Sub "DataTransportLayer-${EnvironmentName}"
+      TaskDefinition: !Ref TaskDefinition

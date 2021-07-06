@@ -1,0 +1,273 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Enya Core Dev Infrastructure"
+
+Parameters:
+
+  IPv4CidrBlock:
+    Description: IPv4 range to pick IPs from (should be a /22 else IPs are wasted)
+    Type: String
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.0.0.0/22
+
+  Route53HostedZoneName:
+    Description: The Route 53 zone to create
+    Type: String
+    Default: dev-integration.omgx.network
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Networking
+      Parameters:
+      - IPv4CidrBlock
+    ParameterLabels:
+      IPv4CidrBlock:
+        default: IPv4 range to pick IPs from
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref IPv4CidrBlock
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  InternetGatewayAttachment: # For IPv4
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  EgressOnlyInternetGateway: # For IPv6
+    Type: AWS::EC2::EgressOnlyInternetGateway
+    Properties:
+      VpcId: !Ref VPC
+
+  IPv6CidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref VPC
+      AmazonProvidedIpv6CidrBlock: true
+
+  NATGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NATGateway2EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: IPv6CidrBlock
+    Properties:
+      AvailabilityZone: !Select [0, "Fn::GetAZs": !Ref "AWS::Region"]
+      CidrBlock: !Select [0, !Cidr [!GetAtt VPC.CidrBlock, 4, 8]]
+      Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt VPC.Ipv6CidrBlocks], 256, 64]]
+      AssignIpv6AddressOnCreation: true
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-Public-${AZ}", {AZ: !Select [0, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: IPv6CidrBlock
+    Properties:
+      AvailabilityZone: !Select [1, "Fn::GetAZs": !Ref "AWS::Region"]
+      CidrBlock: !Select [1, !Cidr [!GetAtt VPC.CidrBlock, 4, 8]]
+      Ipv6CidrBlock: !Select [1, !Cidr [!Select [0, !GetAtt VPC.Ipv6CidrBlocks], 256, 64]]
+      AssignIpv6AddressOnCreation: true
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-Public-${AZ}", {AZ: !Select [1, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: IPv6CidrBlock
+    Properties:
+      AvailabilityZone: !Select [0, "Fn::GetAZs": !Ref "AWS::Region"]
+      CidrBlock: !Select [2, !Cidr [!GetAtt VPC.CidrBlock, 4, 8]]
+      Ipv6CidrBlock: !Select [2, !Cidr [!Select [0, !GetAtt VPC.Ipv6CidrBlocks], 256, 64]]
+      AssignIpv6AddressOnCreation: true
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-Private-${AZ}", {AZ: !Select [0, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: IPv6CidrBlock
+    Properties:
+      AvailabilityZone: !Select [1, "Fn::GetAZs": !Ref "AWS::Region"]
+      CidrBlock: !Select [3, !Cidr [!GetAtt VPC.CidrBlock, 4, 8]]
+      Ipv6CidrBlock: !Select [3, !Cidr [!Select [0, !GetAtt VPC.Ipv6CidrBlocks], 256, 64]]
+      AssignIpv6AddressOnCreation: true
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-Private-${AZ}", {AZ: !Select [1, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  NATGateway1:
+    Type: AWS::EC2::NatGateway
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      AllocationId: !GetAtt NATGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-${AZ}", {AZ: !Select [0, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  NATGateway2:
+    Type: AWS::EC2::NatGateway
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      AllocationId: !GetAtt NATGateway2EIP.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-${AZ}", {AZ: !Select [1, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-Public"
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-Private-${AZ}", {AZ: !Select [0, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ["${AWS::StackName}-Private-${AZ}", {AZ: !Select [1, "Fn::GetAZs": !Ref "AWS::Region"]}]
+
+  PublicDefaultRoute: # IPv4
+    DependsOn: InternetGatewayAttachment
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicDefaultRouteV6:
+    DependsOn: EgressOnlyInternetGateway
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationIpv6CidrBlock: ::/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateDefaultRoute1: # IPv4
+    DependsOn: NATGateway1
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway1
+
+  PrivateDefaultRoute1v6:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationIpv6CidrBlock: ::/0
+      EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGateway
+
+  PrivateDefaultRoute2: # IPv4
+    DependsOn: NATGateway2
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway2
+
+  PrivateDefaultRoute2v6:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationIpv6CidrBlock: ::/0
+      EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
+
+  Route53HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref Route53HostedZoneName
+
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}:VpcId"
+  PublicSubnet1:
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}:PublicSubnet1"
+  PublicSubnet2:
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}:PublicSubnet2"
+  PrivateSubnet1:
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}:PrivateSubnet1"
+  PrivateSubnet2:
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}:PrivateSubnet2"
+  Route53HostedZoneName:
+    Value: !Ref Route53HostedZoneName
+    Export:
+      Name: !Sub "${AWS::StackName}:Route53HostedZoneName"
+  Route53HostedZoneID:
+    Value: !Ref Route53HostedZone
+    Export:
+      Name: !Sub "${AWS::StackName}:Route53HostedZoneID"

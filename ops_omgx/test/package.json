@@ -1,0 +1,45 @@
+{
+  "name": "@omgx/ops_omgx",
+  "version": "0.0.1",
+  "description": "OMGX Example Wallet and Associated Smart Contracts",
+  "private": true,
+  "author": "OMG",
+  "license": "MIT",
+  "files": [
+    "test/**/*.ts"
+  ],
+  "scripts": {
+    "build": "./scripts/build.sh",
+    "build:contracts": "hardhat compile",
+    "build:contracts:ovm": "hardhat compile --network omgx",
+    "test": "./scripts/build.sh && hardhat --network omgx test",
+    "postinstall": "patch-package"
+  },
+  "devDependencies": {
+    "@eth-optimism/hardhat-ovm": "^0.0.2",
+    "@eth-optimism/core-utils": "^0.4.2",
+    "@ethersproject/providers": "^5.0.24",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@types/jest": "^26.0.22",
+    "@types/mocha": "^8.2.2",
+    "chai": "^4.3.3",
+    "chai-as-promised": "^7.1.1",
+    "directory-tree": "^2.2.7",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.0.32",
+    "hardhat": "^2.1.2",
+    "mocha": "^8.3.1",
+    "rimraf": "^3.0.2",
+    "shx": "^0.3.3",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4"
+  },
+  "dependencies": {
+    "@eth-optimism/contracts": "^0.3.4",
+    "@openzeppelin/contracts": "3.4.1",
+    "chalk": "^4.1.1",
+    "dotenv": "^8.2.0",
+    "glob": "^7.1.6",
+    "patch-package": "^6.4.7"
+  }
+}
