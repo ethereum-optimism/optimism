@@ -100,20 +100,20 @@ jobs:
       #     yarn compile:ovm
       #     yarn test:integration:ovm
 
-      - name: Collect docker logs on failure
-        if: failure()
-        uses: jwalton/gh-docker-logs@v1
-        with:
-          images: 'ethereumoptimism/builder,ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
-          dest: '~/logs'
+      # - name: Collect docker logs on failure
+      #   if: failure()
+      #   uses: jwalton/gh-docker-logs@v1
+      #   with:
+      #     images: 'ethereumoptimism/builder,ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
+      #     dest: '~/logs'
 
-      - name: Tar logs
-        if: failure()
-        run: tar cvzf ./logs.tgz ~/logs
+      # - name: Tar logs
+      #   if: failure()
+      #   run: tar cvzf ./logs.tgz ~/logs
 
-      - name: Upload logs to GitHub
-        if: failure()
-        uses: actions/upload-artifact@master
-        with:
-          name: logs.tgz
-          path: ./logs.tgz
+      # - name: Upload logs to GitHub
+      #   if: failure()
+      #   uses: actions/upload-artifact@master
+      #   with:
+      #     name: logs.tgz
+      #     path: ./logs.tgz
