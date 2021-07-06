@@ -10,8 +10,9 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 
 /**
  * @title OVM_StateManager
- * @dev The State Manager contract holds all storage values for contracts in the OVM. It can only be written to by the
- * the Execution Manager and State Transitioner. It runs on L1 during the setup and execution of a fraud proof.
+ * @dev The State Manager contract holds all storage values for contracts in the OVM. It can only be
+ *  written to by the Execution Manager and State Transitioner. It runs on L1 during the setup and
+ * execution of a fraud proof.
  * The same logic runs on L2, but has been implemented as a precompile in the L2 go-ethereum client
  * (see https://github.com/ethereum-optimism/go-ethereum/blob/master/core/vm/ovm_state_manager.go).
  *
@@ -24,10 +25,12 @@ contract OVM_StateManager is iOVM_StateManager {
      * Constants *
      *************/
 
-    bytes32 constant internal EMPTY_ACCOUNT_STORAGE_ROOT = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
-    bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH =    0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
-    bytes32 constant internal STORAGE_XOR_VALUE =          0xFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEF;
-
+    bytes32 constant internal EMPTY_ACCOUNT_STORAGE_ROOT =
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
+    bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH =
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+    bytes32 constant internal STORAGE_XOR_VALUE =
+        0xFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEF;
 
     /*************
      * Variables *
@@ -41,7 +44,6 @@ contract OVM_StateManager is iOVM_StateManager {
     mapping (bytes32 => ItemState) internal itemStates;
     uint256 internal totalUncommittedAccounts;
     uint256 internal totalUncommittedContractStorage;
-
 
     /***************
      * Constructor *
@@ -57,13 +59,13 @@ contract OVM_StateManager is iOVM_StateManager {
         owner = _owner;
     }
 
-
     /**********************
      * Function Modifiers *
      **********************/
 
     /**
-     * Simple authentication, this contract should only be accessible to the owner (which is expected to be the State Transitioner during `PRE_EXECUTION`
+     * Simple authentication, this contract should only be accessible to the owner
+     * (which is expected to be the State Transitioner during `PRE_EXECUTION`
      * or the OVM_ExecutionManager during transaction execution.
      */
     modifier authenticated() {

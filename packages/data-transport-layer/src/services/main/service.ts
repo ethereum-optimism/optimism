@@ -34,6 +34,7 @@ export interface L1DataTransportServiceOptions {
   sentryDsn?: string
   sentryTraceRate?: number
   defaultBackend: string
+  l1GasPriceBackend: string
 }
 
 const optionSettings = {

@@ -119,8 +119,10 @@ interface iOVM_ExecutionManager {
      * Contract Creation Opcodes *
      *****************************/
 
-    function ovmCREATE(bytes memory _bytecode) external returns (address _contract, bytes memory _revertdata);
-    function ovmCREATE2(bytes memory _bytecode, bytes32 _salt) external returns (address _contract, bytes memory _revertdata);
+    function ovmCREATE(bytes memory _bytecode) external
+        returns (address _contract, bytes memory _revertdata);
+    function ovmCREATE2(bytes memory _bytecode, bytes32 _salt) external
+        returns (address _contract, bytes memory _revertdata);
 
 
     /*******************************
@@ -137,10 +139,14 @@ interface iOVM_ExecutionManager {
      ****************************/
 
     // Valueless ovmCALL for maintaining backwards compatibility with legacy OVM bytecode.
-    function ovmCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
-    function ovmCALL(uint256 _gasLimit, address _address, uint256 _value, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
-    function ovmSTATICCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
-    function ovmDELEGATECALL(uint256 _gasLimit, address _address, bytes memory _calldata) external returns (bool _success, bytes memory _returndata);
+    function ovmCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external
+        returns (bool _success, bytes memory _returndata);
+    function ovmCALL(uint256 _gasLimit, address _address, uint256 _value, bytes memory _calldata)
+        external returns (bool _success, bytes memory _returndata);
+    function ovmSTATICCALL(uint256 _gasLimit, address _address, bytes memory _calldata) external
+        returns (bool _success, bytes memory _returndata);
+    function ovmDELEGATECALL(uint256 _gasLimit, address _address, bytes memory _calldata) external
+        returns (bool _success, bytes memory _returndata);
 
 
     /****************************
@@ -155,7 +161,8 @@ interface iOVM_ExecutionManager {
      * Contract Code Opcodes *
      *************************/
 
-    function ovmEXTCODECOPY(address _contract, uint256 _offset, uint256 _length) external returns (bytes memory _code);
+    function ovmEXTCODECOPY(address _contract, uint256 _offset, uint256 _length) external
+        returns (bytes memory _code);
     function ovmEXTCODESIZE(address _contract) external returns (uint256 _size);
     function ovmEXTCODEHASH(address _contract) external returns (bytes32 _hash);
 

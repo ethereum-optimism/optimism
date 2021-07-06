@@ -14,7 +14,8 @@ library Lib_ErrorUtils {
     /**
      * Encodes an error string into raw solidity-style revert data.
      * (i.e. ascii bytes, prefixed with bytes4(keccak("Error(string))"))
-     * Ref: https://docs.soliditylang.org/en/v0.8.2/control-structures.html?highlight=Error(string)#panic-via-assert-and-error-via-require
+     * Ref: https://docs.soliditylang.org/en/v0.8.2/control-structures.html?highlight=Error(string)
+     * #panic-via-assert-and-error-via-require
      * @param _reason Reason for the reversion.
      * @return Standard solidity revert data for the given reason.
      */

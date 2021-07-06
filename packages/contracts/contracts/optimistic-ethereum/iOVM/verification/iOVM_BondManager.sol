@@ -9,6 +9,7 @@ interface ERC20 {
 /// All the errors which may be encountered on the bond manager
 library Errors {
     string constant ERC20_ERR = "BondManager: Could not post bond";
+    // solhint-disable-next-line max-line-length
     string constant ALREADY_FINALIZED = "BondManager: Fraud proof for this pre-state root has already been finalized";
     string constant SLASHED = "BondManager: Cannot finalize withdrawal, you probably got slashed";
     string constant WRONG_STATE = "BondManager: Wrong bond state for proposer";
@@ -16,9 +17,11 @@ library Errors {
 
     string constant WITHDRAWAL_PENDING = "BondManager: Withdrawal already pending";
     string constant TOO_EARLY = "BondManager: Too early to finalize your withdrawal";
-
+    // solhint-disable-next-line max-line-length
     string constant ONLY_TRANSITIONER = "BondManager: Only the transitioner for this pre-state root may call this function";
+    // solhint-disable-next-line max-line-length
     string constant ONLY_FRAUD_VERIFIER = "BondManager: Only the fraud verifier may call this function";
+    // solhint-disable-next-line max-line-length
     string constant ONLY_STATE_COMMITMENT_CHAIN = "BondManager: Only the state commitment chain may call this function";
     string constant WAIT_FOR_DISPUTES = "BondManager: Wait for other potential disputes";
 }

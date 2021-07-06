@@ -10,10 +10,10 @@ import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageCo
 
 /**
  * @title OVM_ChainStorageContainer
- * @dev The Chain Storage Container provides its owner contract with read, write and delete functionality.
- * This provides gas efficiency gains by enabling it to overwrite storage slots which can no longer be used
- * in a fraud proof due to the fraud window having passed, and the associated chain state or
- * transactions being finalized.
+ * @dev The Chain Storage Container provides its owner contract with read, write and delete
+ * functionality. This provides gas efficiency gains by enabling it to overwrite storage slots which
+ * can no longer be used in a fraud proof due to the fraud window having passed, and the associated
+ * chain state or transactions being finalized.
  * Three distinct Chain Storage Containers will be deployed on Layer 1:
  * 1. Stores transaction batches for the Canonical Transaction Chain
  * 2. Stores queued transactions for the Canonical Transaction Chain

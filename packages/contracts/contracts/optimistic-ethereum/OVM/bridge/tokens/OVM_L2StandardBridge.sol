@@ -17,10 +17,12 @@ import { IL2StandardERC20 } from "../../../libraries/standards/IL2StandardERC20.
 
 /**
  * @title OVM_L2StandardBridge
- * @dev The L2 Standard bridge is a contract which works together with the L1 Standard bridge to enable
- * ETH and ERC20 transitions between L1 and L2.
- * This contract acts as a minter for new tokens when it hears about deposits into the L1 Standard bridge.
- * This contract also acts as a burner of the tokens intended for withdrawal, informing the L1 bridge to release L1 funds.
+ * @dev The L2 Standard bridge is a contract which works together with the L1 Standard bridge to
+ * enable ETH and ERC20 transitions between L1 and L2.
+ * This contract acts as a minter for new tokens when it hears about deposits into the L1 Standard
+ * bridge.
+ * This contract also acts as a burner of the tokens intended for withdrawal, informing the L1
+ * bridge to release L1 funds.
  *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
@@ -102,7 +104,8 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @dev Performs the logic for deposits by storing the token and informing the L2 token Gateway of the deposit.
+     * @dev Performs the logic for deposits by storing the token and informing the L2 token Gateway
+     * of the deposit.
      * @param _l2Token Address of L2 token where withdrawal was initiated.
      * @param _from Account to pull the deposit from on L2.
      * @param _to Account to give the withdrawal to on L1.
@@ -122,7 +125,8 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     )
         internal
     {
-        // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2 usage
+        // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2
+        // usage
         IL2StandardERC20(_l2Token).burn(msg.sender, _amount);
 
         // Construct calldata for l1TokenBridge.finalizeERC20Withdrawal(_to, _amount)
@@ -185,7 +189,8 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
             ERC165Checker.supportsInterface(_l2Token, 0x1d1d8b63) &&
             _l1Token == IL2StandardERC20(_l2Token).l1Token()
         ) {
-            // When a deposit is finalized, we credit the account on L2 with the same amount of tokens.
+            // When a deposit is finalized, we credit the account on L2 with the same amount of
+            // tokens.
             IL2StandardERC20(_l2Token).mint(_to, _amount);
             emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
         } else {

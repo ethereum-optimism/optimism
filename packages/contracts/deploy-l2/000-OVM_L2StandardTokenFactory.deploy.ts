@@ -9,14 +9,17 @@ const deployFn: DeployFunction = async (hre: any) => {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const l2TokenFactory = getContractDefinition('OVM_L2StandardTokenFactory', true)
+  const l2TokenFactory = getContractDefinition(
+    'OVM_L2StandardTokenFactory',
+    true
+  )
 
   await deploy('OVM_L2StandardTokenFactory', {
     contract: l2TokenFactory,
     args: [],
     from: deployer,
     log: true,
-  });
+  })
 }
 
 deployFn.tags = ['OVM_L2StandardTokenFactory']
