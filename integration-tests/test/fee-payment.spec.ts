@@ -113,6 +113,7 @@ describe('Fee Payment Integration Tests', async () => {
     })
 
     // Wait for the withdrawal to be relayed to L1.
+    await env.relayXDomainMessages(withdrawTx)
     await env.waitForXDomainTransaction(withdrawTx, Direction.L2ToL1)
 
     // Balance difference should be equal to old L2 balance.
