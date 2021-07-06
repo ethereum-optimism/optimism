@@ -1,5 +1,12 @@
 # @eth-optimism/smock
 
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [049200f4]
+  - @eth-optimism/core-utils@0.5.0
+
 ## 1.1.6
 
 ### Patch Changes

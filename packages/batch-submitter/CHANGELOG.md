@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.7
+
+### Patch Changes
+
+- 8a1e63dd: Prevent batch submitter from submitting batches if low on ETH
+- Updated dependencies [0313794b]
+- Updated dependencies [049200f4]
+- Updated dependencies [21e47e1f]
+  - @eth-optimism/contracts@0.4.2
+  - @eth-optimism/core-utils@0.5.0
+
 ## 0.3.6
 
 ### Patch Changes
