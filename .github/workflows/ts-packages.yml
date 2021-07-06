@@ -51,10 +51,6 @@ jobs:
         env:
           FORCE_COLOR: 1
           ENABLE_GAS_REPORT: 1
-          TEST_PRIVATE_KEY_1: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-          TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
-          TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
-
       - name: Print gas report
         run: cat packages/contracts/gas-report.txt
 
@@ -138,5 +134,9 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
-      # - name: Lint
-      #   run: yarn lint:check
+      - name: Lint JS and TS
+        run: yarn lint:check
+
+      - name: Lint Solidity
+        working-directory: ./packages/contracts
+        run: yarn lint:contracts
