@@ -159,13 +159,13 @@ function test_plugin {
 	test_banner
 	/vault/scripts/smoke.whitelist.sh
 	test_banner
-	# echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
-	# test_banner
-	# /vault/scripts/smoke.blacklist.sh
-	# test_banner
-	# echo "SMOKE TEST PLASMA FUNCTIONALITY"
-	# test_banner
-	# /vault/scripts/smoke.plasma.sh
+	echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
+	test_banner
+	/vault/scripts/smoke.blacklist.sh
+	test_banner
+	echo "SMOKE TEST PLASMA FUNCTIONALITY"
+	test_banner
+	/vault/scripts/smoke.plasma.sh
 }
 
 if [ -f "$VAULT_CREDENTIALS" ]; then

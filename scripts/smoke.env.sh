@@ -14,6 +14,8 @@ export FUNDING_AMOUNT=100000000000000000
 export TEST_AMOUNT=10000000000000000
 export PASSPHRASE="passion bauble hypnotic hanky kiwi effective overcast roman staleness"
 export EMPTY=""
+export BLOCK_ROOT="KW7c+YhqaeXzUSARcnOh0sBSWhAU7l144fF6ls0Y5Vw="
+export BAD_BLOCK_ROOT="KW7c+YhqaeXzUSARcnOh0sBSWhAU7l144fF6ls0Y"
 function check_result(){
   EXIT_STATUS=$1
   EXPECTED=$2
