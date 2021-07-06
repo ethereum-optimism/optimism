@@ -93,26 +93,6 @@ services:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
 
-  relayer:
-    depends_on:
-      - l1_chain
-      - deployer
-      - l2geth
-    image: ethereumoptimism/message-relayer
-    build:
-      context: ..
-      dockerfile: ./ops/docker/Dockerfile.message-relayer
-    entrypoint: ./relayer.sh
-    environment:
-        L1_NODE_WEB3_URL: http://l1_chain:8545
-        L2_NODE_WEB3_URL: http://l2geth:8545
-        URL: http://deployer:8081/addresses.json
-        # a funded hardhat account
-        L1_WALLET_KEY: "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97"
-        RETRIES: 60
-        POLLING_INTERVAL: 500
-        GET_LOGS_INTERVAL: 500
-
   batch_submitter:
     depends_on:
       - l1_chain
@@ -157,7 +137,7 @@ services:
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546
-  
+
   replica:
     depends_on:
       - dtl
