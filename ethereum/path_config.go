@@ -58,6 +58,8 @@ type ConfigJSON struct {
 	Blacklist     []string `json:"blacklist"`
 	RPC           string   `json:"rpc_url"`
 	ChainID       string   `json:"chain_id"`
+	RPCl2         string   `json:"rpc_l2_url"`
+	ChainIDl2     string   `json:"chain_l2_id"`
 }
 
 // BlackListed returns an error if the address is blacklisted
@@ -102,6 +104,25 @@ func ConfigPaths(b *PluginBackend) []*framework.Path {
 					Type:        framework.TypeString,
 					Description: `The RPC address of the Ethereum network.`,
 				},
+				"chain_l2_id": {
+					Type: framework.TypeString,
+					Description: `Ethereum L2 network - can be one of the following values:
+
+					1 - Ethereum mainnet
+					2 - Morden (disused), Expanse mainnet
+					3 - Ropsten
+					4 - Rinkeby
+					30 - Rootstock mainnet
+					31 - Rootstock testnet
+					42 - Kovan
+					61 - Ethereum Classic mainnet
+					62 - Ethereum Classic testnet
+					1337 - Geth private chains (default)`,
+				},
+				"rpc_l2_url": {
+					Type:        framework.TypeString,
+					Description: `The RPC address of the L2 Ethereum network.`,
+				},
 				"whitelist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of accounts that any account can send ETH to.",
@@ -129,9 +150,18 @@ func (b *PluginBackend) pathWriteConfig(ctx context.Context, req *logical.Reques
 	if rpcURL == "" {
 		return nil, fmt.Errorf("invalid rpc_url")
 	}
+	rpcURLl2 := data.Get("rpc_l2_url").(string)
+	if rpcURLl2 == "" {
+		return nil, fmt.Errorf("invalid rpc_l2_url")
+	}
+
 	chainID := data.Get("chain_id").(string)
 	if chainID == "" {
 		return nil, fmt.Errorf("invalid chain_id")
+	}
+	chainIDl2 := data.Get("chain_l2_id").(string)
+	if chainIDl2 == "" {
+		return nil, fmt.Errorf("invalid chain_l2_id")
 	}
 	var boundCIDRList []string
 	if boundCIDRListRaw, ok := data.GetOk("bound_cidr_list"); ok {
@@ -151,6 +181,8 @@ func (b *PluginBackend) pathWriteConfig(ctx context.Context, req *logical.Reques
 		Blacklist:     blackList,
 		ChainID:       chainID,
 		RPC:           rpcURL,
+		ChainIDl2:     chainIDl2,
+		RPCl2:         rpcURLl2,
 	}
 	entry, err := logical.StorageEntryJSON("config", configBundle)
 
@@ -169,6 +201,8 @@ func (b *PluginBackend) pathWriteConfig(ctx context.Context, req *logical.Reques
 			"blacklist":       configBundle.Blacklist,
 			"rpc_url":         configBundle.RPC,
 			"chain_id":        configBundle.ChainID,
+			"rpc_l2_url":      configBundle.RPCl2,
+			"chain_l2_id":     configBundle.ChainIDl2,
 		},
 	}, nil
 }
@@ -191,6 +225,8 @@ func (b *PluginBackend) pathReadConfig(ctx context.Context, req *logical.Request
 			"blacklist":       configBundle.Blacklist,
 			"rpc_url":         configBundle.RPC,
 			"chain_id":        configBundle.ChainID,
+			"rpc_l2_url":      configBundle.RPCl2,
+			"chain_l2_id":     configBundle.ChainIDl2,
 		},
 	}, nil
 }

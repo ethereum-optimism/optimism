@@ -24,6 +24,10 @@ jobs:
           command: docker-compose up vault_server
           no_output_timeout: 2400s
       - run:
+          name: Test validation
+          working_directory: /home/circleci/project/docker
+          command: exit $(docker-compose logs | grep -c "DID NOT PASS THE REQUIRED TEST")
+      - run:
           name: Save Docker image
           command: |
             mkdir -p /tmp/workspace
