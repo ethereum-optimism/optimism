@@ -3,6 +3,7 @@ import { ethers } from 'ethers'
 import {
   fromHexString,
   remove0x,
+  sleep,
   toHexString,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
@@ -61,13 +62,11 @@ interface StateTrieProof {
  * Finds all L2 => L1 messages triggered by a given L2 transaction, if the message exists.
  *
  * @param l2RpcProvider L2 RPC provider.
- * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
  * @param l2TransactionHash Hash of the L2 transaction to find a message for.
  * @returns Messages associated with the transaction.
  */
 export const getMessagesByTransactionHash = async (
   l2RpcProvider: ethers.providers.JsonRpcProvider,
-  l2CrossDomainMessengerAddress: string,
   l2TransactionHash: string
 ): Promise<CrossDomainMessage[]> => {
   // Complain if we can't find the given transaction.
@@ -77,7 +76,7 @@ export const getMessagesByTransactionHash = async (
   }
 
   const l2CrossDomainMessenger = new ethers.Contract(
-    l2CrossDomainMessengerAddress,
+    predeploys.OVM_L2CrossDomainMessenger,
     getContractInterface('OVM_L2CrossDomainMessenger'),
     l2RpcProvider
   )
@@ -312,23 +311,70 @@ const getStateTrieProof = async (
   }
 }
 
+const getL1AddressManager = async (
+  l1RpcProvider: ethers.providers.JsonRpcProvider,
+  l2RpcProvider: ethers.providers.JsonRpcProvider
+): Promise<ethers.Contract> => {
+  const l2AddressManager = new ethers.Contract(
+    predeploys.Lib_AddressManager,
+    getContractInterface('Lib_AddressManager'),
+    l2RpcProvider
+  )
+
+  const l1CrossDomainMessenger = new ethers.Contract(
+    await l2AddressManager.getAddress('OVM_L1CrossDomainMessenger'),
+    getContractInterface('OVM_L1CrossDomainMessenger'),
+    l1RpcProvider
+  )
+
+  return new ethers.Contract(
+    await l1CrossDomainMessenger.libAddressManager(),
+    getContractInterface('Lib_AddressManager'),
+    l1RpcProvider
+  )
+}
+
+const getL1ContractByName = async (
+  name: string,
+  l1RpcProvider: ethers.providers.JsonRpcProvider,
+  l2RpcProvider: ethers.providers.JsonRpcProvider,
+  opts: {
+    interface?: string
+  } = {}
+): Promise<ethers.Contract> => {
+  const l1AddressManager = await getL1AddressManager(
+    l1RpcProvider,
+    l2RpcProvider
+  )
+
+  const address = await l1AddressManager.getAddress(name)
+  if (address === ethers.constants.AddressZero) {
+    throw new Error(`could not get contract by name: ${name}`)
+  }
+
+  return new ethers.Contract(
+    address,
+    getContractInterface(opts.interface || name),
+    l1RpcProvider
+  )
+}
+
 /**
  * Finds all L2 => L1 messages sent in a given L2 transaction and generates proofs for each of
  * those messages.
  *
  * @param l1RpcProvider L1 RPC provider.
  * @param l2RpcProvider L2 RPC provider.
- * @param l1StateCommitmentChainAddress Address of the StateCommitmentChain.
- * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
- * @param l2TransactionHash L2 transaction hash to generate a relay transaction for.
+ * @param l2Transaction L2 transaction to generate a relay transaction for.
  * @returns An array of messages sent in the transaction and a proof of inclusion for each.
  */
 export const getMessagesAndProofsForL2Transaction = async (
   l1RpcProvider: ethers.providers.JsonRpcProvider | string,
   l2RpcProvider: ethers.providers.JsonRpcProvider | string,
-  l1StateCommitmentChainAddress: string,
-  l2CrossDomainMessengerAddress: string,
-  l2TransactionHash: string
+  l2Transaction:
+    | string
+    | Promise<ethers.providers.TransactionResponse>
+    | ethers.providers.TransactionResponse
 ): Promise<CrossDomainMessagePair[]> => {
   if (typeof l1RpcProvider === 'string') {
     l1RpcProvider = new ethers.providers.JsonRpcProvider(l1RpcProvider)
@@ -337,21 +383,32 @@ export const getMessagesAndProofsForL2Transaction = async (
     l2RpcProvider = new ethers.providers.JsonRpcProvider(l2RpcProvider)
   }
 
-  const l2Transaction = await l2RpcProvider.getTransaction(l2TransactionHash)
-  if (l2Transaction === null) {
-    throw new Error(`unable to find tx with hash: ${l2TransactionHash}`)
+  const l1StateCommitmentChain = await getL1ContractByName(
+    'OVM_StateCommitmentChain',
+    l1RpcProvider,
+    l2RpcProvider
+  )
+
+  if (typeof l2Transaction === 'string') {
+    const l2TransactionHash = l2Transaction
+    l2Transaction = await l2RpcProvider.getTransaction(l2Transaction)
+    if (l2Transaction === null) {
+      throw new Error(`unable to find tx with hash: ${l2TransactionHash}`)
+    }
+  } else {
+    l2Transaction = await l2Transaction
   }
 
   // Need to find the state batch for the given transaction. If no state batch has been published
   // yet then we will not be able to generate a proof.
   const batch = await getStateRootBatchByTransactionIndex(
     l1RpcProvider,
-    l1StateCommitmentChainAddress,
+    l1StateCommitmentChain.address,
     l2Transaction.blockNumber - NUM_L2_GENESIS_BLOCKS
   )
   if (batch === null) {
     throw new Error(
-      `unable to find state root batch for tx with hash: ${l2TransactionHash}`
+      `unable to find state root batch for tx with hash: ${l2Transaction.hash}`
     )
   }
 
@@ -367,8 +424,7 @@ export const getMessagesAndProofsForL2Transaction = async (
   // Find every message that was sent during this transaction. We'll then attach a proof for each.
   const messages = await getMessagesByTransactionHash(
     l2RpcProvider,
-    l2CrossDomainMessengerAddress,
-    l2TransactionHash
+    l2Transaction.hash
   )
 
   const messagePairs: CrossDomainMessagePair[] = []
@@ -382,7 +438,7 @@ export const getMessagesAndProofsForL2Transaction = async (
     const messageSlot = ethers.utils.keccak256(
       ethers.utils.keccak256(
         encodeCrossDomainMessage(message) +
-          remove0x(l2CrossDomainMessengerAddress)
+          remove0x(predeploys.OVM_L2CrossDomainMessenger)
       ) + '00'.repeat(32)
     )
 
@@ -423,4 +479,74 @@ export const getMessagesAndProofsForL2Transaction = async (
   }
 
   return messagePairs
+}
+
+export const relayAllMessagesInL2Transaction = async (
+  l1Signer: ethers.Signer,
+  l1RpcProvider: ethers.providers.JsonRpcProvider | string,
+  l2RpcProvider: ethers.providers.JsonRpcProvider | string,
+  l2Transaction:
+    | string
+    | Promise<ethers.providers.TransactionResponse>
+    | ethers.providers.TransactionResponse
+): Promise<void> => {
+  if (typeof l1RpcProvider === 'string') {
+    l1RpcProvider = new ethers.providers.JsonRpcProvider(l1RpcProvider)
+  }
+  if (typeof l2RpcProvider === 'string') {
+    l2RpcProvider = new ethers.providers.JsonRpcProvider(l2RpcProvider)
+  }
+
+  const l1CrossDomainMessenger = await getL1ContractByName(
+    'Proxy__OVM_L1CrossDomainMessenger',
+    l1RpcProvider,
+    l2RpcProvider,
+    {
+      interface: 'OVM_L1CrossDomainMessenger',
+    }
+  )
+
+  let messagePairs = []
+  while (true) {
+    try {
+      messagePairs = await getMessagesAndProofsForL2Transaction(
+        l1RpcProvider,
+        l2RpcProvider,
+        l2Transaction
+      )
+      break
+    } catch (err) {
+      if (err.message.includes('unable to find state root batch for tx')) {
+        await sleep(5000)
+      } else {
+        throw err
+      }
+    }
+  }
+
+  for (const { message, proof } of messagePairs) {
+    while (true) {
+      try {
+        const result = await l1CrossDomainMessenger
+          .connect(l1Signer)
+          .relayMessage(
+            message.target,
+            message.sender,
+            message.message,
+            message.messageNonce,
+            proof
+          )
+        await result.wait()
+        break
+      } catch (err) {
+        if (err.message.includes('execution failed due to an exception')) {
+          await sleep(5000)
+        } else if (err.message.includes('message has already been received')) {
+          break
+        } else {
+          throw err
+        }
+      }
+    }
+  }
 }

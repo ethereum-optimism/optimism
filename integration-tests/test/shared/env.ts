@@ -3,7 +3,7 @@ import { Contract, utils, Wallet } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
 import { Watcher } from '@eth-optimism/core-utils'
-import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
+import { relayAllMessagesInL2Transaction } from '@eth-optimism/message-relayer'
 
 /* Imports: Internal */
 import {
@@ -131,55 +131,12 @@ export class OptimismEnv {
   async relayXDomainMessages(
     tx: Promise<TransactionResponse> | TransactionResponse
   ): Promise<void> {
-    tx = await tx
-
-    let messagePairs = []
-    while (true) {
-      try {
-        messagePairs = await getMessagesAndProofsForL2Transaction(
-          l1Provider,
-          l2Provider,
-          this.scc.address,
-          predeploys.OVM_L2CrossDomainMessenger,
-          tx.hash
-        )
-        break
-      } catch (err) {
-        if (err.message.includes('unable to find state root batch for tx')) {
-          await sleep(5000)
-        } else {
-          throw err
-        }
-      }
-    }
-
-    for (const { message, proof } of messagePairs) {
-      while (true) {
-        try {
-          const result = await this.l1Messenger
-            .connect(this.l1Wallet)
-            .relayMessage(
-              message.target,
-              message.sender,
-              message.message,
-              message.messageNonce,
-              proof
-            )
-          await result.wait()
-          break
-        } catch (err) {
-          if (err.message.includes('execution failed due to an exception')) {
-            await sleep(5000)
-          } else if (
-            err.message.includes('message has already been received')
-          ) {
-            break
-          } else {
-            throw err
-          }
-        }
-      }
-    }
+    return relayAllMessagesInL2Transaction(
+      this.l1Wallet,
+      l1Provider,
+      l2Provider,
+      tx
+    )
   }
 }
 

@@ -47,8 +47,6 @@ const main = async () => {
       messagePairs = await getMessagesAndProofsForL2Transaction(
         l1RpcProviderUrl,
         l2RpcProviderUrl,
-        l1StateCommitmentChainAddress,
-        predeploys.OVM_L2CrossDomainMessenger,
         l2TransactionHash
       )
       break
