@@ -92,6 +92,14 @@ jobs:
           push: true
           tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }}
 
+      - name: Publish op_exporter
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.op_exporter
+          push: true
+          tags: ethereumoptimism/op_exporter:${{ needs.release.outputs.l2geth }}
+
       - name: Publish rpc-proxy
         uses: docker/build-push-action@v2
         with:
