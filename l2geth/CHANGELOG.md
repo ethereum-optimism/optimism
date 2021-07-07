@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+### Patch Changes
+
+- 6e2074c5: Update the `RollupClient` transaction type to use `hexutil.Big`
+
 ## 0.4.2
 
 ### Patch Changes

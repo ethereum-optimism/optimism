@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/integration-tests",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "[Optimism] Integration Tests",
   "private": true,
   "author": "Optimism PBC",
