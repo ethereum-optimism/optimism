@@ -594,9 +594,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     if (this.autoFixBatchOptions.fixDoublePlayedDeposits) {
       batch = await fixDoublePlayedDeposits(batch)
     }
-    if (this.autoFixBatchOptions.fixMonotonicity) {
+    // if (this.autoFixBatchOptions.fixMonotonicity) {
       batch = await fixMonotonicity(batch)
-    }
+    // }
     if (this.autoFixBatchOptions.fixSkippedDeposits) {
       batch = await fixSkippedDeposits(batch)
     }
