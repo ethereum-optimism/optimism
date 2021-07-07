@@ -169,7 +169,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
       tx,
     })
 
-    if (!this._shouldSubmitBatch(batchSizeInBytes)) {
+    if (!this._shouldSubmitBatch(batchSizeInBytes, batch.length)) {
       return
     }
 
