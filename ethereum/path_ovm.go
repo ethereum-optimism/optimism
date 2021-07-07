@@ -21,23 +21,23 @@ import (
 	"github.com/omgnetwork/immutability-eth-plugin/util"
 )
 
-const plasmaContract string = "plasma"
+const ovm string = "ovm"
 
 // PlasmaPaths are the path handlers for Ethereum wallets
-func PlasmaPaths(b *PluginBackend) []*framework.Path {
+func OvmPaths(b *PluginBackend) []*framework.Path {
 	return []*framework.Path{
 
 		{
-			Pattern:      ContractPath(plasmaContract, "submitBlock"),
-			HelpSynopsis: "Submits the Merkle root of a Plasma block",
+			Pattern:      ContractPath(ovm, "appendStateBatch"),
+			HelpSynopsis: "Submits the state batch",
 			HelpDescription: `
 
-Allows the authority to submit the Merkle root of a Plasma block.
+Allows the sequencer to submit the state batch.
 
 `,
 			Fields: map[string]*framework.FieldSchema{
-				"name":    {Type: framework.TypeString},
-				"address": {Type: framework.TypeString},
+				"name":    {Type: framework.TypeString, Description: "Name of the wallet."},
+				"address": {Type: framework.TypeString, Description: "The address in the wallet."},
 				"contract": {
 					Type:        framework.TypeString,
 					Description: "The address of the Block Controller.",
@@ -50,21 +50,25 @@ Allows the authority to submit the Merkle root of a Plasma block.
 					Type:        framework.TypeString,
 					Description: "The nonce for the transaction.",
 				},
-				"block_root": {
+				"should_start_at_element": {
 					Type:        framework.TypeString,
-					Description: "The Merkle root of a Plasma block.",
+					Description: "Index of the element at which this batch should start.",
+				},
+				"batch": {
+					Type:        framework.TypeStringSlice,
+					Description: "Batch of state roots.",
 				},
 			},
 			ExistenceCheck: pathExistenceCheck,
 			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.CreateOperation: b.pathPlasmaSubmitBlock,
-				logical.UpdateOperation: b.pathPlasmaSubmitBlock,
+				logical.CreateOperation: b.pathOvmAppendStateBatch,
 			},
 		},
 	}
 }
 
-func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+//this goes into L1
+func (b *PluginBackend) pathOvmAppendStateBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	config, err := b.configured(ctx, req)
 	if err != nil {
 		return nil, err
