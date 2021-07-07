@@ -1,0 +1,27 @@
+{
+  "name": "optimism-scanner",
+  "version": "1.0.0",
+  "description": "[Optimism] Scanner",
+  "main": "index.js",
+  "scripts": {
+    "start:chain": "node ./exec/run-chain-scanner.js",
+    "start:message": "node ./exec/run-L2ToL1Message-scanner.js",
+    "lint": "yarn lint:check",
+    "lint:check": "tslint --format stylish --project ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@eth-optimism/core-utils": "^0.3.2",
+    "dotenv": "^9.0.0",
+    "ethers": "^5.1.4",
+    "mysql": "^2.18.1"
+  },
+  "devDependencies": {
+    "eslint": "^7.2.0",
+    "eslint-config-airbnb": "18.2.1",
+    "eslint-plugin-import": "^2.22.1",
+    "eslint-plugin-jsx-a11y": "^6.4.1",
+    "eslint-plugin-react": "^7.21.5",
+    "eslint-plugin-react-hooks": "^1.7.0"
+  }
+}

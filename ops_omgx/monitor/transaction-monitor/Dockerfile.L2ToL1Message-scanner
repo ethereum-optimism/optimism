@@ -1,0 +1,24 @@
+FROM node:14-buster as base
+
+RUN apt-get update && apt-get install -y bash curl jq
+
+FROM base as build
+
+RUN apt-get update && apt-get install -y bash git python build-essential
+
+ADD . /opt/optimism-scanner
+RUN cd /opt/optimism-scanner && yarn install
+
+FROM base
+
+RUN apt-get update && apt-get install -y bash curl jq
+
+COPY --from=build /opt/optimism-scanner /opt/optimism-scanner
+
+COPY wait-for-l1-and-l2.sh /opt/
+RUN chmod +x /opt/wait-for-l1-and-l2.sh
+
+RUN ln -s /opt/optimism-scanner/exec/run-L2ToL1Message-scanner.js /usr/local/bin/
+RUN chmod +x /usr/local/bin/run-L2ToL1Message-scanner.js
+
+ENTRYPOINT ["/opt/wait-for-l1-and-l2.sh", "run-L2ToL1Message-scanner.js"]
