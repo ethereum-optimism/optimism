@@ -333,15 +333,6 @@ contract OVM_StateTransitioner is Lib_AddressResolver, Abs_FraudContributor, iOV
             "Invalid transaction provided."
         );
 
-        // We require gas to complete the logic here in run() before/after execution,
-        // But must ensure the full _tx.gasLimit can be given to the ovmCALL (determinism)
-        // This includes 1/64 of the gas getting lost because of EIP-150 (lost twice--first
-        // going into EM, then going into the code contract).
-        require(
-            gasleft() >= 100000 + _transaction.gasLimit * 1032 / 1000, // 1032/1000 = 1.032 = (64/63)^2 rounded up
-            "Not enough gas to execute transaction deterministically."
-        );
-
         iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(resolve("OVM_ExecutionManager"));
 
         // We call `setExecutionManager` right before `run` (and not earlier) just in case the

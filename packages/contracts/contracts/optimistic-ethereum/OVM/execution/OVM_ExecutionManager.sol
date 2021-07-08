@@ -1561,8 +1561,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     if (
-      _isValidGasLimit(_transaction.gasLimit, _transaction.l1QueueOrigin) ==
-      false
+      _isValidGasLimit(_transaction.gasLimit, _transaction.l1QueueOrigin) == false
     ) {
       return false;
     }
@@ -1580,6 +1579,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     uint256 _gasLimit,
     Lib_OVMCodec.QueueOrigin // _queueOrigin
   ) internal view returns (bool _valid) {
+    // Ensure that sufficient gas is provided to cover transaction.gasLimit.
+    // This includes 1/64 of the gas getting lost because of EIP-150 (lost twice--first
+    // going into EM, then going into the code contract).
+    if(gasleft() < 100000 + _gasLimit * 1032 / 1000) { // 1032/1000 = 1.032 = (64/63)^2 rounded up
+        return false;
+    }
+
     // Always have to be below the maximum gas limit.
     if (_gasLimit > gasMeterConfig.maxTransactionGasLimit) {
       return false;
@@ -1722,7 +1728,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     transactionContext.ovmL1TXORIGIN = _transaction.l1TxOrigin;
     transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
 
-    messageRecord.nuisanceGasLeft = Math.min(_transaction.gasLimit, gasleft());
+    messageRecord.nuisanceGasLeft = _transaction.gasLimit;
   }
 
   /**
