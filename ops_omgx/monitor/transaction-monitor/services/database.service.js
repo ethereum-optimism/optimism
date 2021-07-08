@@ -137,6 +137,11 @@ class DatabaseService extends BaseService{
       AND blockHash='${receiptData.blockHash.toString()}'
     `);
   }
+
+  async getNewestBlock(){
+    await this.query(`USE OMGXRinkeby`);
+    return await this.query(`SELECT MAX(blockNumber) from block`);
+  }
 }
 
 module.exports = DatabaseService;
