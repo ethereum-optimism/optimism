@@ -6,7 +6,7 @@ const core_utils_1 = require('@eth-optimism/core-utils');
 
 const Watcher = require('./utilities/watcher');
 
-const addressManagerJSON = require('../contracts/deployments/custom/Lib_AddressManager.json');
+const addressManagerJSON = require('../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json');
 
 require('dotenv').config();
 const env = process.env;
@@ -32,7 +32,7 @@ class BaseService extends Watcher {
     super(...arguments);
     this.L1Provider = new ethers.providers.JsonRpcProvider(L1_NODE_WEB3_URL);
     this.L2Provider = new ethers.providers.JsonRpcProvider(L2_NODE_WEB3_URL);
-    
+
     this.wallet = new ethers.Wallet(DEPLOYER_PRIVATE_KEY).connect(this.L1Provider);
 
     this.MySQLHostURL = MYSQL_HOST_URL;
