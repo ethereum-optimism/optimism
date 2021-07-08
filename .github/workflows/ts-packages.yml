@@ -64,7 +64,10 @@ jobs:
   # A hack that allows running a job only if a specific directory changed.
   # Ref: https://github.community/t/run-job-only-if-folder-changed/118292
   is-contracts-package:
-    name: Check files
+    name: Check files for changes to the contracts package
+    # This job will break on a push event, so we just skip it,
+    # which in turn skips the test-coverage job.
+    if: ${{ github.event_name != 'push' }}
     outputs:
       run_coverage: ${{ steps.check_files.outputs.run_coverage }}
     runs-on: ubuntu-latest
