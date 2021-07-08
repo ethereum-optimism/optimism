@@ -1505,6 +1505,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     // Essentially the same as a standard OUT_OF_GAS, except we also retain a record of the gas
     // refund to be given at the end of the transaction.
     if (messageRecord.nuisanceGasLeft < _amount) {
+        messageRecord.nuisanceGasLeft = 0;
       _revertWithFlag(RevertFlag.EXCEEDS_NUISANCE_GAS);
     }
 
