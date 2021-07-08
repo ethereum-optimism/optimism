@@ -41,3 +41,5 @@ jobs:
             cd ops_omgx
             rm -rf cloudformation/deployer-rinkeby.yaml
             ./cfn-devenv.sh update --stack-name integration --secret-name ${{ github.event.inputs.secretname }} --deploy-tag ${{ github.sha }}
+            cd cloudformation
+            aws cloudformation update-stack --stack-name integration-l1l2test --capabilities CAPABILITY_NAMED_IAM --template-body=file://04-l1-l2-test-scheduled-ecs-task.yaml --region us-east-1 --parameters ParameterKey=SecretName,ParameterValue=${{ github.event.inputs.secretname }}
