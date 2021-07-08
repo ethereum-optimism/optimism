@@ -12,6 +12,8 @@ const main = async () => {
   //const config = parseEnv()
   //not clear if the output is used anywhere?
 
+  const network = process.env.NETWORK || 'local'
+
   const l1Provider = new providers.JsonRpcProvider(process.env.L1_NODE_WEB3_URL)
   const l2Provider = new providers.JsonRpcProvider(process.env.L2_NODE_WEB3_URL)
 
@@ -53,6 +55,7 @@ const main = async () => {
     deployer_l1,
     deployer_l2,
     addressManager,
+    network,
     //noCompile: process.env.NO_COMPILE ? true : false, //not clear how/where this is connected
   })
 

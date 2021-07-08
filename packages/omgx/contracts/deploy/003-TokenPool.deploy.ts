@@ -18,7 +18,7 @@ const deployFn: DeployFunction = async (hre) => {
       (hre as any).deployConfig.deployer_l2
     )
 
-    const L2ERC20 = await hre.deployments.getOrNull('L2ERC20');
+    const L2JLKN = await hre.deployments.getOrNull('L2JLKN');
 
     //Deploy L2 token pool for the new token
     L2TokenPool = await Factory__L2TokenPool.deploy({gasLimit: 1000000, gasPrice: 0})
@@ -32,13 +32,13 @@ const deployFn: DeployFunction = async (hre) => {
     await hre.deployments.save('L2TokenPool', L2TokenPoolDeploymentSubmission)
     console.log(`🌕 ${chalk.red('L2TokenPool deployed to:')} ${chalk.green(L2TokenPool.address)}`)
 
-    if(L2ERC20 === undefined){
-      console.log(`!!! ${chalk.red('L2TokenPool was not registered because L2ERC20 was not deployed')}`)
+    if(L2JLKN === undefined){
+      console.log(`!!! ${chalk.red('L2TokenPool was not registered because L2JLKN was not deployed')}`)
     }
     else{
       //Register ERC20 token address in L2 token pool
       const registerL2TokenPoolTX = await L2TokenPool.registerTokenAddress(
-        L2ERC20.address,
+        L2JLKN.address,
         {gasLimit: 800000, gasPrice: 0}
       );
       await registerL2TokenPoolTX.wait()
