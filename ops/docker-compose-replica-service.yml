@@ -1,0 +1,60 @@
+#############################
+# OMGX replica service
+# This service is used to replicate the l2geth
+#
+# RUN:
+# cd /ops
+# docker-compose -f docker-compose-omgx-replica.yml up
+#############################
+
+version: "3"
+
+services:
+  dtl-replica:
+    image: omgx/data-transport-layer:production-v1
+    deploy:
+      replicas: 1
+    entrypoint: ./dtl.sh
+    env_file:
+      -  ./envs/dtl.env
+    # set the rest of the env vars for the network whcih do not
+    # depend on the docker-compose setup
+    environment:
+        # used for setting the address manager address
+        URL: https://rinkeby.omgx.network:8081/addresses.json
+        DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: https://rinkeby.infura.io/v3/INFURA_KEY
+        DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: https://rinkeby.omgx.network
+        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
+        DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
+        # Port
+        DATA_TRANSPORT_LAYER__SERVER_PORT: 7878
+    ports:
+      - ${DTL_PORT:-7878}:7878
+
+  l2geth-replica:
+    image: omgx/replica:production-v1
+    deploy:
+      replicas: 1
+    entrypoint: sh ./geth.sh
+    env_file:
+      - ./envs/geth.env
+    environment:
+        ETH1_HTTP: //rinkeby.infura.io/v3/INFURA_KEY
+        ROLLUP_STATE_DUMP_PATH: https://rinkeby.omgx.network:8081/state-dump.latest.json
+        URL: https://rinkeby.omgx.network:8081/addresses.json
+        # connecting to the DTL
+        ROLLUP_CLIENT_HTTP: http://dtl-replica:7878
+        ETH1_CTC_DEPLOYMENT_HEIGHT: 8845198
+        RETRIES: 60
+        ROLLUP_BACKEND: 'l2'
+        ROLLUP_VERIFIER_ENABLE: 'true'
+        # PORT
+        RPC_PORT: 8545
+    ports:
+      - ${REPLICA_HTTP_PORT:-8545}:8545
+      - ${REPLICA_WS_PORT:-8546}:8546
+    volumes:
+      - l2geth:/root/.ethereum
+
+volumes:
+  l2geth:
