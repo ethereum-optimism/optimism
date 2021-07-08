@@ -37,6 +37,9 @@ services:
         # skip compilation when run in docker-compose, since the contracts
         # were already compiled in the builder step
         NO_COMPILE: 1
+        CHAIN_ID: 28
+        PROPOSER_PRIVATE_KEY: '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'
+        RELAYER_PRIVATE_KEY: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
     ports:
         # expose the service to the host for getting the contract addrs
       - ${DEPLOYER_PORT:-8080}:8081
@@ -63,7 +66,7 @@ services:
         DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
         DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
         DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
-        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
+        DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
     ports:
       - ${DTL_PORT:-7878}:7878
 
@@ -89,6 +92,7 @@ services:
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
+        CHAIN_ID: 28
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
@@ -112,6 +116,8 @@ services:
         RETRIES: 60
         POLLING_INTERVAL: 500
         GET_LOGS_INTERVAL: 500
+        FILTER_ENDPOINT: http://omgx_deployer:8079/addresses.json #this will fail early, but then start to work when the omgx_deployer comes up
+        FILTER_POLLING_INTERVAL: 30000
 
   batch_submitter:
     depends_on:
@@ -130,6 +136,7 @@ services:
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+        PROPOSER_PRIVATE_KEY: '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'
 
   verifier:
     depends_on:
@@ -192,20 +199,20 @@ services:
       dockerfile: ./ops/docker/Dockerfile.integration-tests
     entrypoint: ./integration-tests.sh
     environment:
-      L1_URL: http://l1_chain:8545
-      L2_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
-      ENABLE_GAS_REPORT: 1
-      NO_NETWORK: 1
+        L1_URL: http://l1_chain:8545
+        L2_URL: http://l2geth:8545
+        URL: http://deployer:8081/addresses.json
+        ENABLE_GAS_REPORT: 1
+        NO_NETWORK: 1
 
   gas_oracle:
     image: ethereumoptimism/gas-oracle
     deploy:
-       replicas: 0
+      replicas: 0
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.gas-oracle
     entrypoint: ./gas-oracle.sh
     environment:
-      GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
-      GAS_PRICE_ORACLE_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
+        GAS_PRICE_ORACLE_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
