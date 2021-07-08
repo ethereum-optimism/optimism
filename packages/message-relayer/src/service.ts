@@ -193,14 +193,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           )
           this.state.nextUnfinalizedTxHeight += size
 
-          // Only deal with ~1000 transactions at a time so we can limit the amount of stuff we
+          // Only deal with ~100 transactions at a time so we can limit the amount of stuff we
           // need to keep in memory. We operate on full batches at a time so the actual amount
           // depends on the size of the batches we're processing.
           const numTransactionsToProcess =
             this.state.nextUnfinalizedTxHeight -
             this.state.lastFinalizedTxHeight
 
-          if (numTransactionsToProcess > 1000) {
+          if (numTransactionsToProcess > 100) {
             break
           }
         }
