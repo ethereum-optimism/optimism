@@ -158,7 +158,7 @@ class NetworkService {
   }
 
   async initializeAccounts(masterSystemConfig) {
-    
+
     console.log('NS: initializeAccounts() for', masterSystemConfig)
 
     let resOMGX = null
@@ -166,11 +166,11 @@ class NetworkService {
     let addresses = null
 
     try {
-      
+
       console.log('Loading OMGX contract addresses')
 
       if (masterSystemConfig === 'local') {
-        
+
         try {
           resOMGX = await addressOMGXAxiosInstance('local').get()
         }
@@ -192,9 +192,9 @@ class NetworkService {
         }
 
         console.log("Final Local Addresses:",addresses)
-      } 
+      }
       else if (masterSystemConfig === 'rinkeby') {
-        
+
         /*these endpoints do not exist yet*/
         // try {
         //   resOMGX = await addressOMGXAxiosInstance('rinkeby').get()
@@ -217,7 +217,7 @@ class NetworkService {
         // }
 
         console.log("Final Rinkeby Addresses:",addresses)
-      } 
+      }
 
       //at this point, the wallet should be connected
       this.account = await this.provider.getSigner().getAddress()
@@ -309,20 +309,20 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
       //backwards compat
       if( addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessenger') )
         this.L1MessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessenger
-      else 
+      else
         this.L1MessengerAddress = addresses.L1MessengerAddress
 
       //this.L1FastMessengerAddress = addresses.OVM_L1CrossDomainMessengerFast
       //backwards compat
       if( addresses.hasOwnProperty('OVM_L1CrossDomainMessengerFast') )
         this.L1FastMessengerAddress = addresses.OVM_L1CrossDomainMessengerFast
-      else 
+      else
         this.L1FastMessengerAddress = addresses.L1FastMessengerAddress
 
       //backwards compat
       if( addresses.hasOwnProperty('Proxy__OVM_L1StandardBridge') )
         this.L1StandardBridgeAddress = addresses.Proxy__OVM_L1StandardBridge
-      else 
+      else
         this.L1StandardBridgeAddress = addresses.L1StandardBridge
 
       this.L1ERC20Address = addresses.L1ERC20
@@ -334,7 +334,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
       //backwards compat
       if( addresses.hasOwnProperty('L2ERC721') )
         this.ERC721Address = addresses.L2ERC721
-      else 
+      else
         this.ERC721Address = addresses.ERC721
 
       this.L2TokenPoolAddress = addresses.L2TokenPool
@@ -410,7 +410,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
         //console.log("Sorry, not the NFT owner")
         setMinter(false)
       }
-      
+
       //Fire up the new watcher
       //const addressManager = getAddressManager(bobl1Wallet)
       //const watcher = await initWatcher(L1Provider, this.L2Provider, addressManager)
@@ -469,9 +469,9 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
   }
 
   async getTransactions() {
-    
+
     //rinkeby L1
-    if (this.masterSystemConfig === 'rinkeby' && this.chainID === 4) { 
+    if (this.masterSystemConfig === 'rinkeby' && this.chainID === 4) {
       const response = await etherScanInstance(this.masterSystemConfig, this.L1orL2).get(`&address=${this.account}`)
       if (response.status === 200) {
         const transactions = await response.data
@@ -496,7 +496,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
   async getExits() {
 
     //this is NOT SUPPORTED on LOCAL
-    
+
     if (this.masterSystemConfig === 'rinkeby') {
       const response = await omgxWatcherAxiosInstance(this.masterSystemConfig).post('get.transaction', {
         address: this.account,
@@ -676,9 +676,9 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
   }
 
   depositETHL2 = async (value = '1') => {
-    
+
     try {
-      
+
       const depositTxStatus = await this.L1StandardBridgeContract.depositETH(
         this.L2GasLimit,
         utils.formatBytes32String(new Date().getTime().toString()),
@@ -828,7 +828,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     }
   }
 
-  async depositErc20(value, currency, gasPrice) {
+  async depositErc20(value, currency, gasPrice, currencyL2) {
     try {
       const L1ERC20Contract = this.L1ERC20Contract.attach(currency)
       const allowance = await L1ERC20Contract.allowance(
@@ -838,9 +838,13 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
 
       console.log({ allowance: allowance.toString(), value })
 
+      if(currency == this.L1ERC20Address) {
+        currencyL2 = this.L2ERC20Address
+      }
+
       const depositTxStatus = await this.L1StandardBridgeContract.depositERC20(
-        this.L1ERC20Address,
-        this.L2ERC20Address,
+        currency,
+        currencyL2,
         value,
         this.L2GasLimit,
         utils.formatBytes32String(new Date().getTime().toString())
@@ -876,10 +880,18 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
       currency,
       this.L2StandardBridgeAddress
     )
+    const L2ERC20Contract = new ethers.Contract(
+      currency,
+      L2ERC20Json.abi,
+      this.provider.getSigner()
+    )
+    const decimals = await L2ERC20Contract.decimals()
     // need the frontend updates
-    if (BigNumber.from(allowance).lt(parseEther(value))) {
+    if (BigNumber.from(allowance).lt(parseUnits(value, decimals))) {
       const res = await this.approveErc20(
-        parseEther(value),
+        // take caution while using parseEther() with erc20
+        // l2 erc20 can be customised to have non 18 decimals
+        parseUnits(value, decimals),
         currency,
         this.L2StandardBridgeAddress
       )
@@ -887,7 +899,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     }
     const tx = await this.L2StandardBridgeContract.withdraw(
       currency,
-      parseEther(value),
+      parseUnits(value, decimals),
       this.L1GasLimit,
       utils.formatBytes32String(new Date().getTime().toString()),
       { gasPrice: 0 }

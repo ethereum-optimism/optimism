@@ -16,6 +16,7 @@ import * as styles from '../DepositModal.module.scss';
 function ApproveStep ({
   onClose,
   currency,
+  currencyL2,
   value,
   tokenInfo,
   fast,
@@ -89,7 +90,7 @@ function ApproveStep ({
   async function doDeposit () {
     let res;
     if (fast === false) {
-      res = await dispatch(depositErc20(weiAmount, currency, gasPrice));
+      res = await dispatch(depositErc20(weiAmount, currency, gasPrice, currencyL2));
     } else {
       res = await dispatch(depositL1LP(currency, value))
     }
@@ -123,7 +124,7 @@ function ApproveStep ({
   );
 
   const tokenName = tokenInfo.symbol || tokenInfo.currency;
-  
+
   return (
     <>
       <h2>Approval</h2>

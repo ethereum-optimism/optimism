@@ -153,10 +153,10 @@ export function resetApprove (value, currency, approveContractAddress, contractA
   );
 }
 
-export function depositErc20 (value, currency, gasPrice) {
+export function depositErc20 (value, currency, gasPrice, currencyL2) {
   return createAction(
     'DEPOSIT/CREATE',
-    () => networkService.depositErc20(value, currency, gasPrice)
+    () => networkService.depositErc20(value, currency, gasPrice, currencyL2)
   );
 }
 

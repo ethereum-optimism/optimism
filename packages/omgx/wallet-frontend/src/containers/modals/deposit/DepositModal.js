@@ -76,6 +76,7 @@ function DepositModal ({ open, omgOnly = false, fast = false }) {
         <ApproveStep
           onClose={handleClose}
           currency={currency}
+          currency={currencyL2}
           value={value}
           tokenInfo={tokenInfo}
           fast={fast}
