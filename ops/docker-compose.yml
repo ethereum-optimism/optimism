@@ -157,7 +157,7 @@ services:
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546
-  
+
   replica:
     depends_on:
       - dtl
@@ -198,3 +198,14 @@ services:
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
 
+  gas_oracle:
+    image: ethereumoptimism/gas-oracle
+    deploy:
+       replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.gas-oracle
+    entrypoint: ./gas-oracle.sh
+    environment:
+      GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
+      GAS_PRICE_ORACLE_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
