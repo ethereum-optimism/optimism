@@ -489,7 +489,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
             break
           }
         }
-        fixedBatch.push(ele)
         if (!ele.isSequencerTx) {
           nextQueueIndex++
         }
