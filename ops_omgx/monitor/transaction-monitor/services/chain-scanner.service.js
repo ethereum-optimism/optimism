@@ -65,8 +65,8 @@ class ChainScannerService extends DatabaseService {
 
     // check the latest block on MySQL
     await this.query(`USE OMGXRinkeby`);
-    let latestSQLBlockQuery = await this.query(`SELECT MAX(CAST(blockNumber AS FLOAT)) from block`);
-    let latestSQLBlock = latestSQLBlockQuery[0]['MAX(CAST(blockNumber AS FLOAT))'];
+    let latestSQLBlockQuery = await this.query(`SELECT MAX(blockNumber) from block`);
+    let latestSQLBlock = latestSQLBlockQuery[0]['MAX(blockNumber)'];
 
     // get the blocks, transactions and receipts
     this.logger.info('Fetching the block data...');

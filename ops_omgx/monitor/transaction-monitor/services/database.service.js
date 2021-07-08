@@ -30,7 +30,7 @@ class DatabaseService extends BaseService{
       ( 
         hash VARCHAR(255) NOT NULL,
         parentHash VARCHAR(255) NOT NULL,
-        blockNumber VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
         timestamp INT,
         nonce VARCHAR(255),
         gasLimit INT,
@@ -42,7 +42,7 @@ class DatabaseService extends BaseService{
       ( 
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
-        blockNumber VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
         \`from\` VARCHAR(255),
         \`to\` VARCHAR(255),
         value VARCHAR(255),
@@ -57,7 +57,7 @@ class DatabaseService extends BaseService{
       ( 
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
-        blockNumber VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
         \`from\` VARCHAR(255),
         \`to\` VARCHAR(255),
         gasUsed INT,
