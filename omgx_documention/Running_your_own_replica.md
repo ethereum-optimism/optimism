@@ -1,29 +1,28 @@
 # Replica Service
 
-The docker-compose project runs a local replicate l2geth.
+The `ops/docker-compose-replica-service.yml` docker-compose project runs a local replica of the l2geth.
 
 ## Prerequisites
 
 \- docker
-
 \- docker-compose
 
 ## Start replica service
 
 ### Configuration
 
-Replace `INFURA_KEY` with your own key in [docker-compose-replica-service.yml](./docker-compose-replica-service.yml).
+Replace `INFURA_KEY` with your own key in [docker-compose-replica-service.yml](.ops/docker-compose-replica-service.yml).
 
 ### Start the docker
 
 Start the replica service via:
 
 ```bash
-cd ops/
+cd ops
 docker-compose -f docker-compose-replica-service.yml up
 ```
 
-This will pull the two images from docker hub:
+This will pull two images from docker hub:
 
 * [`data-tranport-layer`](https://hub.docker.com/layers/156092207/omgx/data-transport-layer/production-v1/images/sha256-07d4415aab46863b8c7996c1c40f6221f3ac3f697485ccc262a3a6f0478aa4fb?context=explore): service that indexes transaction data from the L1 chain and L2 chain
 

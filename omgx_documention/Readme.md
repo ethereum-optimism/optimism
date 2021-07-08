@@ -154,24 +154,24 @@ yarn test:integration
 
 Start a local L1/L2. 
 
-<!-- You can change the BUILD and DAEMON values to control if everything is rebuilt (`BUILD=1`, very slow), and if you want to see all the debug information (`DAEMON=0`) -->
+You can change the BUILD and DAEMON values to control if everything is rebuilt (`BUILD=1`, very slow), and if you want to see all the debug information (`DAEMON=0`).
 
 ```bash
 $ cd ops
 $ BUILD=1 DAEMON=0 ./up_local.sh
 ```
 
-<!-- Typically, you will only have to build everything once, and after that, you can save time by setting `BUILD` to `0`:
+Typically, you will only have to build everything once, and after that, you can save time by setting `BUILD` to `2`. In that case, we'll use the docker images you built earlier.
 
-```
+```bash
 $ cd ops
-$ BUILD=0 DAEMON=1 ./up_local.sh
-``` -->
+$ BUILD=2 DAEMON=0 ./up_local.sh
+```
 
 Then, open a second terminal window and navigate to `packages/omgx/wallet-frontend`, and run
 
 ```bash
-$ yarn get_artifacts #this will get all the contract artifacts - note that this will only work right is you ran yarn build at the top level per instructions
+$ yarn get_artifacts #this will get all the contract artifacts - note that this will only work correctly if you ran `yarn build` at the top level per instructions
 $ yarn build
 $ yarn start
 ```
