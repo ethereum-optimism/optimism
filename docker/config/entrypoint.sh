@@ -150,22 +150,25 @@ function test_banner {
 }
 
 function test_plugin {
+	# test_banner
+	# echo "SMOKE TEST BASIC WALLET FUNCTIONALITY"
+	# test_banner
+	# /vault/scripts/smoke.wallet.sh
+	# test_banner
+	# echo "SMOKE TEST WHITELIST FUNCTIONALITY"
+	# test_banner
+	# /vault/scripts/smoke.whitelist.sh
+	# test_banner
+	# echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
+	# test_banner
+	# /vault/scripts/smoke.blacklist.sh
+	# test_banner
+	# echo "SMOKE TEST PLASMA FUNCTIONALITY"
+	# test_banner
+	# /vault/scripts/smoke.plasma.sh
+	echo "SMOKE TEST OVM SUBMIT BATCH"
 	test_banner
-	echo "SMOKE TEST BASIC WALLET FUNCTIONALITY"
-	test_banner
-	/vault/scripts/smoke.wallet.sh
-	test_banner
-	echo "SMOKE TEST WHITELIST FUNCTIONALITY"
-	test_banner
-	/vault/scripts/smoke.whitelist.sh
-	test_banner
-	echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
-	test_banner
-	/vault/scripts/smoke.blacklist.sh
-	test_banner
-	echo "SMOKE TEST PLASMA FUNCTIONALITY"
-	test_banner
-	/vault/scripts/smoke.plasma.sh
+	/vault/scripts/smoke.ovm.sh
 }
 
 if [ -f "$VAULT_CREDENTIALS" ]; then
