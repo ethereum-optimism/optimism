@@ -3,13 +3,13 @@ import { expect } from 'chai'
 /* Imports: External */
 import { Contract, ContractFactory } from 'ethers'
 import { predeploys, getContractInterface } from '@eth-optimism/contracts'
-import { Direction } from './shared/watcher-utils'
 
 /* Imports: Internal */
 import l1SimpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 import l2SimpleStorageJson from '../artifacts-ovm/contracts/SimpleStorage.sol/SimpleStorage.json'
 import l2ReverterJson from '../artifacts-ovm/contracts/Reverter.sol/Reverter.json'
-import { OptimismEnv } from './shared/env'
+import { Direction } from './shared/watcher-utils'
+import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
 
 describe('Basic L1<>L2 Communication', async () => {
   let Factory__L1SimpleStorage: ContractFactory
@@ -49,7 +49,9 @@ describe('Basic L1<>L2 Communication', async () => {
   })
 
   describe('L2 => L1', () => {
-    it('should be able to perform a withdrawal from L2 -> L1', async () => {
+    it('should be able to perform a withdrawal from L2 -> L1', async function () {
+      await useDynamicTimeoutForWithdrawals(this, env)
+
       const value = `0x${'77'.repeat(32)}`
 
       // Send L2 -> L1 message.
@@ -58,7 +60,8 @@ describe('Basic L1<>L2 Communication', async () => {
         L1SimpleStorage.interface.encodeFunctionData('setValue', [value]),
         5000000
       )
-
+      await transaction.wait()
+      await env.relayXDomainMessages(transaction)
       await env.waitForXDomainTransaction(transaction, Direction.L2ToL1)
 
       expect(await L1SimpleStorage.msgSender()).to.equal(
