@@ -1,5 +1,6 @@
 /* Internal Imports */
 import { constants } from 'ethers'
+import { remove0x } from '@eth-optimism/core-utils'
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
@@ -7,14 +8,38 @@ import {
   NON_NULL_BYTES32,
   VERIFIED_EMPTY_CONTRACT_HASH,
   NUISANCE_GAS_COSTS,
+  DUMMY_BYTECODE,
+  DUMMY_BYTECODE_BYTELEN,
   Helper_TestRunner_BYTELEN,
 } from '../../../../helpers'
+
+import { deployedBytecode as WHITELIST_BYTECODE } from '../../../../../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_DeployerWhitelist.sol/OVM_DeployerWhitelist.json'
 
 const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
 
 const FRESH_CALL_NUISANCE_GAS_COST =
   Helper_TestRunner_BYTELEN *
     NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE +
+  NUISANCE_GAS_COSTS.MIN_NUISANCE_GAS_PER_CONTRACT
+
+const WHITELIST_BYTECODE_BYTELEN = remove0x(WHITELIST_BYTECODE).length / 2
+const NUISANCE_GAS_TO_DEPLOY_DUMMY_CONTRACT =
+  // Helper_TestRunner Overhead
+  FRESH_CALL_NUISANCE_GAS_COST +
+  // _checkAccountLoad for Deployer Whitelist
+  WHITELIST_BYTECODE_BYTELEN *
+    NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE +
+  NUISANCE_GAS_COSTS.MIN_NUISANCE_GAS_PER_CONTRACT +
+  // _checkContractStorageLoad for lookup in Deployer Whitelist
+  NUISANCE_GAS_COSTS.NUISANCE_GAS_SLOAD +
+  // _checkAccountChange for updating the nonce in Helper TestRunner
+  Helper_TestRunner_BYTELEN *
+    NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE +
+  NUISANCE_GAS_COSTS.MIN_NUISANCE_GAS_PER_CONTRACT +
+  // _checkAccountLoad for empty pending account
+  NUISANCE_GAS_COSTS.MIN_NUISANCE_GAS_PER_CONTRACT +
+  // _checkAccountChange for empty account changed to dummy bytecode
+  DUMMY_BYTECODE_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE +
   NUISANCE_GAS_COSTS.MIN_NUISANCE_GAS_PER_CONTRACT
 
 const test_nuisanceGas: TestDefinition = {
@@ -205,6 +230,41 @@ const test_nuisanceGas: TestDefinition = {
                 ],
               },
               expectedReturnStatus: true,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'ovmCREATE consumes the correct amount of nuisance gas',
+      postState: {
+        ExecutionManager: {
+          messageRecord: {
+            nuisanceGasLeft:
+              OVM_TX_GAS_LIMIT - NUISANCE_GAS_TO_DEPLOY_DUMMY_CONTRACT,
+          },
+        },
+      },
+      parameters: [
+        {
+          name:
+            'Nuisance gas is reduced by MIN_NUISANCE_GAS_PER_CONTRACT + NUISANCE_GAS_PER_CONTRACT_BYTE*CONTRACT_SIZE',
+          steps: [
+            {
+              functionName: 'ovmCREATE',
+              functionParams: {
+                bytecode: DUMMY_BYTECODE,
+              },
+              expectedReturnStatus: true,
+              expectedReturnValue: CREATED_CONTRACT_1,
+            },
+            {
+              functionName: 'ovmEXTCODESIZE',
+              functionParams: {
+                address: CREATED_CONTRACT_1,
+              },
+              expectedReturnStatus: true,
+              expectedReturnValue: DUMMY_BYTECODE_BYTELEN,
             },
           ],
         },

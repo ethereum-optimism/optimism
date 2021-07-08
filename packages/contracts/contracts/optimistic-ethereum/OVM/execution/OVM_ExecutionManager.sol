@@ -1244,8 +1244,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     address _ethAddress,
     bytes32 _codeHash
   ) internal {
-    _checkAccountChange(_address);
+    // We need to commit the account first so that we can look up the _ethAddress in _checkAccountChange
     ovmStateManager.commitPendingAccount(_address, _ethAddress, _codeHash);
+    _checkAccountChange(_address);
   }
 
   /**
@@ -1720,7 +1721,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     transactionContext.ovmL1TXORIGIN = _transaction.l1TxOrigin;
     transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
 
-    // Initialize this to
     messageRecord.nuisanceGasLeft = Math.min(_transaction.gasLimit, gasleft());
   }
 
