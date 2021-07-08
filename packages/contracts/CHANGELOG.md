@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+### Patch Changes
+
+- 694cf429: Add a hardhat task for setting the L2 gas price
+
 ## 0.4.2
 
 ### Patch Changes

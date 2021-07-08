@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.2.1
+
+### Patch Changes
+
+- f1dc8b77: Add various stress tests
+
 ## 0.2.0
 
 ### Minor Changes
