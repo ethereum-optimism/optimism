@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4
+
+### Patch Changes
+
+- 063151a6: Run lint over the tasks directory
+
 ## 0.4.3
 
 ### Patch Changes
