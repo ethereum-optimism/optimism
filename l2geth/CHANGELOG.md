@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.4
+
+### Patch Changes
+
+- 0404c964: Allow zero gas price transactions from the `OVM_GasPriceOracle.owner` when enforce fees is set to true. This is to prevent the need to manage an additional hot wallet as well as prevent any situation where a bug causes the fees to go too high that it is not possible to lower the fee by sending a transaction
+- c612a903: Add sequencer fee buffer with config options `ROLLUP_FEE_THRESHOLD_UP` and `ROLLUP_FEE_THRESHOLD_DOWN` that are interpreted as floating point numbers
+
 ## 0.4.3
 
 ### Patch Changes
