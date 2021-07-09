@@ -898,6 +898,16 @@ var (
 		Usage:  "Disable transactions with 0 gas price",
 		EnvVar: "ROLLUP_ENFORCE_FEES",
 	}
+	RollupFeeThresholdDownFlag = cli.BoolFlag{
+		Name:   "rollup.feethresholddown",
+		Usage:  "Allow txs with fees below the current fee up to this amount, must be < 1",
+		EnvVar: "ROLLUP_FEE_THRESHOLD_DOWN",
+	}
+	RollupFeeThresholdUpFlag = cli.BoolFlag{
+		Name:   "rollup.feethresholdup",
+		Usage:  "Allow txs with fees above the current fee up to this amount, must be > 1",
+		EnvVar: "ROLLUP_FEE_THRESHOLD_UP",
+	}
 	GasPriceOracleOwnerAddress = cli.StringFlag{
 		Name:   "rollup.gaspriceoracleowneraddress",
 		Usage:  "Owner of the OVM_GasPriceOracle",
@@ -1195,6 +1205,14 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupEnforceFeesFlag.Name) {
 		cfg.EnforceFees = true
+	}
+	if ctx.GlobalIsSet(RollupFeeThresholdDownFlag.Name) {
+		val := ctx.GlobalFloat64(RollupFeeThresholdDownFlag.Name)
+		cfg.FeeThresholdDown = new(big.Float).SetFloat64(val)
+	}
+	if ctx.GlobalIsSet(RollupFeeThresholdUpFlag.Name) {
+		val := ctx.GlobalFloat64(RollupFeeThresholdUpFlag.Name)
+		cfg.FeeThresholdUp = new(big.Float).SetFloat64(val)
 	}
 }
 

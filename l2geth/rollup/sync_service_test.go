@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -664,7 +665,54 @@ func TestInitializeL1ContextPostGenesis(t *testing.T) {
 	}
 }
 
-func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
+func TestBadFeeThresholds(t *testing.T) {
+	// Create the deps for the sync service
+	cfg, txPool, chain, db, err := newTestSyncServiceDeps(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := map[string]struct {
+		thresholdUp   *big.Float
+		thresholdDown *big.Float
+		err           error
+	}{
+		"nil-values": {
+			thresholdUp:   nil,
+			thresholdDown: nil,
+			err:           nil,
+		},
+		"good-values": {
+			thresholdUp:   new(big.Float).SetFloat64(2),
+			thresholdDown: new(big.Float).SetFloat64(0.8),
+			err:           nil,
+		},
+		"bad-value-up": {
+			thresholdUp:   new(big.Float).SetFloat64(0.8),
+			thresholdDown: nil,
+			err:           errBadConfig,
+		},
+		"bad-value-down": {
+			thresholdUp:   nil,
+			thresholdDown: new(big.Float).SetFloat64(1.1),
+			err:           errBadConfig,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg.FeeThresholdDown = tt.thresholdDown
+			cfg.FeeThresholdUp = tt.thresholdUp
+
+			_, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("%s: %s", name, err)
+			}
+		})
+	}
+}
+
+func newTestSyncServiceDeps(isVerifier bool) (Config, *core.TxPool, *core.BlockChain, ethdb.Database, error) {
 	chainCfg := params.AllEthashProtocolChanges
 	chainID := big.NewInt(420)
 	chainCfg.ChainID = chainID
@@ -674,7 +722,7 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 	_ = new(core.Genesis).MustCommit(db)
 	chain, err := core.NewBlockChain(db, nil, chainCfg, engine, vm.Config{}, nil)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Cannot initialize blockchain: %w", err)
+		return Config{}, nil, nil, nil, fmt.Errorf("Cannot initialize blockchain: %w", err)
 	}
 	chaincfg := params.ChainConfig{ChainID: chainID}
 
@@ -687,7 +735,14 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 		RollupClientHttp: "",
 		Backend:          BackendL2,
 	}
+	return cfg, txPool, chain, db, nil
+}
 
+func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
+	cfg, txPool, chain, db, err := newTestSyncServiceDeps(isVerifier)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
+	}
 	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
