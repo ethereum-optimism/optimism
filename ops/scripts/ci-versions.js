@@ -6,10 +6,18 @@ const os = require('os')
 data = process.argv[2]
 data = JSON.parse(data)
 
+// Packages that do not depend on the builder.
+// There are more packages that depend on the
+// builder than not, so keep track of this list instead
+const nonBuilders = new Set([
+  'l2geth',
+  'gas-oracle',
+])
+
 builder = false
 for (const i of data) {
   const name = i.name.replace("@eth-optimism/", "")
-  if (name !== 'l2geth') {
+  if (!nonBuilders.has(name)) {
     builder = true
   }
   const version = i.version
