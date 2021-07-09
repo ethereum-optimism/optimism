@@ -240,6 +240,9 @@ type EVM struct {
 	callGasTemp uint64
 
 	Id string
+
+  //Height is consistent with tx index+l2blockoffset
+  Height *big.Int
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -268,6 +271,9 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		interpreters: make([]Interpreter, 0, 1),
 
 		Id: hex.EncodeToString(id),
+
+    //set default Height
+    Height: new(big.Int).Set(ctx.BlockNumber),
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
