@@ -15,7 +15,7 @@ describe('[smock]: function manipulation tests', () => {
     mock = await smockit('TestHelpers_BasicReturnContract')
   })
 
-  describe('manipulating fallback functions', () => {
+  describe('manipulating fallback()', () => {
     it('should return with no data by default', async () => {
       const expected = '0x'
 
@@ -93,6 +93,8 @@ describe('[smock]: function manipulation tests', () => {
       ).to.equal(expected)
     })
 
+    // Adding this test but skipping it because `reset` is not implemented yet but I need to
+    // remind myself to implement it later.
     describe.skip('resetting the fallback function', () => {
       it('should go back to default behavior when reset', async () => {
         mock.smocked.fallback.will.revert()
@@ -105,6 +107,107 @@ describe('[smock]: function manipulation tests', () => {
 
         const expected = '0x'
         mock.smocked.fallback.reset()
+
+        expect(
+          await ethers.provider.call({
+            to: mock.address,
+          })
+        ).to.equal(expected)
+      })
+    })
+  })
+
+  // Currently just an alias for fallback()
+  describe('manipulating receive()', () => {
+    it('should return with no data by default', async () => {
+      const expected = '0x'
+
+      expect(
+        await ethers.provider.call({
+          to: mock.address,
+        })
+      ).to.equal(expected)
+    })
+
+    it('should be able to make a receive function return without any data', async () => {
+      const expected = '0x'
+      mock.smocked.receive.will.return()
+
+      expect(
+        await ethers.provider.call({
+          to: mock.address,
+        })
+      ).to.equal(expected)
+    })
+
+    it('should be able to make a receive function return with data', async () => {
+      const expected = '0x1234123412341234'
+      mock.smocked.receive.will.return.with(expected)
+
+      expect(
+        await ethers.provider.call({
+          to: mock.address,
+        })
+      ).to.equal(expected)
+    })
+
+    it('should be able to make a receive function revert without any data', async () => {
+      mock.smocked.receive.will.revert()
+
+      await expect(
+        ethers.provider.call({
+          to: mock.address,
+        })
+      ).to.be.reverted
+    })
+
+    it('should be able to make a receive function revert with a string', async () => {
+      const expected = 'this is a revert message'
+
+      mock.smocked.receive.will.revert.with(expected)
+
+      await expect(
+        ethers.provider.call({
+          to: mock.address,
+        })
+      ).to.be.revertedWith(expected)
+    })
+
+    it('should be able to make a receive function emit an event', async () => {
+      // TODO
+    })
+
+    it('should be able to change behaviors', async () => {
+      mock.smocked.receive.will.revert()
+
+      await expect(
+        ethers.provider.call({
+          to: mock.address,
+        })
+      ).to.be.reverted
+
+      const expected = '0x'
+      mock.smocked.receive.will.return()
+
+      expect(
+        await ethers.provider.call({
+          to: mock.address,
+        })
+      ).to.equal(expected)
+    })
+
+    describe.skip('resetting the receive function', () => {
+      it('should go back to default behavior when reset', async () => {
+        mock.smocked.receive.will.revert()
+
+        await expect(
+          ethers.provider.call({
+            to: mock.address,
+          })
+        ).to.be.reverted
+
+        const expected = '0x'
+        mock.smocked.receive.reset()
 
         expect(
           await ethers.provider.call({

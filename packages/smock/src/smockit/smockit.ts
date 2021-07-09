@@ -190,6 +190,8 @@ export const smockit = async (
     ),
   }
 
+  contract.smocked.receive = contract.smocked.fallback
+
   // Smock the rest of the contract functions.
   for (const functionName of Object.keys(contract.functions)) {
     contract.smocked[functionName] = smockifyFunction(
