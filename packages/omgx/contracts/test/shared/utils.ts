@@ -14,8 +14,6 @@ require('dotenv').config()
 
 export const GWEI = BigNumber.from(0)
 
-http://localhost:9545
-
 if(!process.env.L1_NODE_WEB3_URL) {
   console.log(`!!You did not set process.env.L1_NODE_WEB3_URL!!`)
   console.log(`Setting to default value of http://localhost:9545`)
@@ -78,12 +76,12 @@ export let addressManagerAddress = process.env.ADDRESS_MANAGER_ADDRESS
 export const getAddressManager = async (provider: any) => {
    //console.log(addressManagerAddress)
    if (addressManagerAddress){
-     console.log(`ETH1_ADDRESS_RESOLVER_ADDRESS var was set`)
+     console.log(`ADDRESS_MANAGER_ADDRESS var was set`)
      return getContractFactory('Lib_AddressManager')
     .connect(provider)
     .attach(addressManagerAddress) as any
    } else {
-     console.log(`ETH1_ADDRESS_RESOLVER_ADDRESS var was left unset. Using {$DEPLOYER} response`)
+     console.log(`ADDRESS_MANAGER_ADDRESS var was left unset. Using {$DEPLOYER} response`)
      addressManagerAddress = (await getDeployerAddresses()).AddressManager
      console.log('addressManagerAddress:',addressManagerAddress)
      return getContractFactory('Lib_AddressManager')
