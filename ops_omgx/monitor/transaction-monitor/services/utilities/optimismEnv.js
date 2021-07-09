@@ -4,9 +4,7 @@ const ethers = require('ethers');
 const util = require('util');
 const core_utils_1 = require('@eth-optimism/core-utils');
 
-const Watcher = require('./utilities/watcher');
-
-const addressManagerJSON = require('../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json');
+const addressManagerJSON = require('../../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json');
 
 require('dotenv').config();
 const env = process.env;
@@ -24,12 +22,11 @@ const L2_MESSENGER_ADDRESS = env.L2_MESSENGER_ADDRESS || "0x42000000000000000000
 
 const DEPLOYER_PRIVATE_KEY = env.DEPLOYER_PRIVATE_KEY;
 
-const CHAIN_SCAN_INTERVAL = env.CHAIN_SCAN_INTERVAL || 60000;
-const MESSAGE_SCAN_INTERVAL = env.MESSAGE_SCAN_INTERVAL || 60 * 60 * 1000;
+const TRANSACTION_MONITOR_INTERVAL = env.TRANSACTION_MONITOR_INTERVAL || 60000;
+const CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL = env.CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL || 60 * 60 * 1000;
 
-class BaseService extends Watcher {
+class OptimismEnv {
   constructor() {
-    super(...arguments);
     this.L1Provider = new ethers.providers.JsonRpcProvider(L1_NODE_WEB3_URL);
     this.L2Provider = new ethers.providers.JsonRpcProvider(L2_NODE_WEB3_URL);
 
@@ -42,25 +39,31 @@ class BaseService extends Watcher {
     this.MySQLDatabaseName = MYSQL_DATABASE_NAME;
 
     this.addressManagerAddress = ADDRESS_MANAGER_ADDRESS;
-    this.L1MessengerAddress = null;
-    this.L2MessengerAddress = L2_MESSENGER_ADDRESS;
+    this.OVM_L1CrossDomainMessenger = null;
+    this.OVM_L1CrossDomainMessengerFast = null;
+    this.OVM_L2CrossDomainMessenger = L2_MESSENGER_ADDRESS;
 
     this.numberBlockToFetch = 10000;
-    this.chainScanInterval = CHAIN_SCAN_INTERVAL;
-    this.messageScanInterval = MESSAGE_SCAN_INTERVAL;
+    this.transactionMonitorInterval = TRANSACTION_MONITOR_INTERVAL;
+    this.crossDomainMessageMonitorInterval = CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL;
 
     this.logger = new core_utils_1.Logger({ name: this.name });
     this.sleep = util.promisify(setTimeout);
   }
 
-  async initBaseService() {
+  async initOptimismEnv() {
     const addressManager = new ethers.Contract(
       this.addressManagerAddress,
       addressManagerJSON.abi,
       this.wallet
     )
-    this.L1MessengerAddress = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger');
+    this.OVM_L1CrossDomainMessenger = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger');
+    this.OVM_L1CrossDomainMessengerFast = await addressManager.getAddress('OVM_L1CrossDomainMessengerFast');
+    this.logger.info('Found OVM_L1CrossDomainMessenger and OVM_L1CrossDomainMessengerFast', {
+      OVM_L1CrossDomainMessenger: this.OVM_L1CrossDomainMessenger,
+      OVM_L1CrossDomainMessengerFast: this.OVM_L1CrossDomainMessengerFast,
+    })
   }
 }
 
-module.exports = BaseService;
+module.exports = OptimismEnv;

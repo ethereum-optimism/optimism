@@ -3,9 +3,9 @@
 const mysql = require('mysql');
 const util = require('util');
 
-const BaseService = require('./base.service');
+const OptimismEnv = require('./utilities/optimismEnv');
 
-class DatabaseService extends BaseService{
+class DatabaseService extends OptimismEnv{
   constructor() {
     super(...arguments);
     this.con = null;

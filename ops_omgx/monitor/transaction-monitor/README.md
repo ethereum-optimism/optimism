@@ -33,7 +33,7 @@ It scans the L2 and write the new block data, transaction data and receipt data 
 | `ADDRESS_MANAGER_ADDRESS` | Yes      | N/A                 | Contract address of the address manager |
 | `L2_MESSENGER_ADDRESS` | No        | 0x4200000000000000000000000000000000000007 | Contract address of L2 messenger |
 | `DEPLOYER_PRIVATE_KEY` | Yes | N/A | Private key for an account on Layer 1 (Ethereum) to be used to deploy contracts. |
-| `CHAIN_SCAN_INTERVAL` | No | 60,000 | Time (in milliseconds) to wait while scanning for new blocks. |
+| `TRANSACTION_MONITOR_INTERVAL` | No | 60,000 | Time (in milliseconds) to wait while scanning for new blocks. |
 
 ## L2 To L1 Message Scanner
 
@@ -51,4 +51,4 @@ It checks whether the message from L2 to L1 is finalized.
 | `ADDRESS_MANAGER_ADDRESS` | Yes       | N/A                                             | Contract address of the address manager                      |
 | `L2_MESSENGER_ADDRESS`    | No        | 0x4200000000000000000000000000000000000007      | Contract address of L2 messenger                             |
 | `DEPLOYER_PRIVATE_KEY`    | Yes       | N/A                                             | Private key for an account on Layer 1 (Ethereum) to be used to deploy contracts. |
-| `MESSAGE_SCAN_INTERVAL`   | No        | 3,600,000                                       | Time (in milliseconds) to wait while scanning for new blocks. |
+| `CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL`   | No        | 3,600,000                                       | Time (in milliseconds) to wait while scanning for new blocks. |

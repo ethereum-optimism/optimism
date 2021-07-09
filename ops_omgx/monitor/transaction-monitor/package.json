@@ -4,7 +4,7 @@
   "description": "[Optimism] Scanner",
   "main": "index.js",
   "scripts": {
-    "start": "node ./exec/chain-L2ToL1Message-scanner.js",
+    "start": "node ./exec/run-monitor.js",
     "lint": "yarn lint:check",
     "lint:check": "tslint --format stylish --project .",
     "copy":"./scripts/copyArtifacts.sh"
