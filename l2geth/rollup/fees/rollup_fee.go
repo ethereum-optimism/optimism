@@ -1,10 +1,22 @@
 package fees
 
 import (
+	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
+)
+
+var (
+	// errFeeTooLow represents the error case of then the user pays too little
+	ErrFeeTooLow = errors.New("fee too low")
+	// errFeeTooHigh represents the error case of when the user pays too much
+	ErrFeeTooHigh = errors.New("fee too high")
+	// errMissingInput represents the error case of missing required input to
+	// PaysEnough
+	errMissingInput = errors.New("missing input")
 )
 
 // overhead represents the fixed cost of batch submission of a single
@@ -85,6 +97,52 @@ func DecodeL2GasLimit(gasLimit *big.Int) *big.Int {
 func DecodeL2GasLimitU64(gasLimit uint64) uint64 {
 	scaled := gasLimit % tenThousand
 	return scaled * tenThousand
+}
+
+// PaysEnoughOpts represent the options to PaysEnough
+type PaysEnoughOpts struct {
+	UserFee, ExpectedFee       *big.Int
+	ThresholdUp, ThresholdDown *big.Float
+}
+
+// PaysEnough returns an error if the fee is not large enough
+// `GasPrice` and `Fee` are required arguments.
+func PaysEnough(opts *PaysEnoughOpts) error {
+	if opts.UserFee == nil {
+		return fmt.Errorf("%w: no user fee", errMissingInput)
+	}
+	if opts.ExpectedFee == nil {
+		return fmt.Errorf("%w: no expected fee", errMissingInput)
+	}
+
+	fee := opts.ExpectedFee
+	// Allow for a downward buffer to protect against L1 gas price volatility
+	if opts.ThresholdDown != nil {
+		fee = mulByFloat(fee, opts.ThresholdDown)
+	}
+	// Protect the sequencer from being underpaid
+	// if user fee < expected fee, return error
+	if opts.UserFee.Cmp(fee) == -1 {
+		return ErrFeeTooLow
+	}
+	// Protect users from overpaying by too much
+	if opts.ThresholdUp != nil {
+		// overpaying = user fee - expected fee
+		overpaying := new(big.Int).Sub(opts.UserFee, opts.ExpectedFee)
+		threshold := mulByFloat(overpaying, opts.ThresholdUp)
+		// if overpaying > threshold, return error
+		if overpaying.Cmp(threshold) == 1 {
+			return ErrFeeTooHigh
+		}
+	}
+	return nil
+}
+
+func mulByFloat(num *big.Int, float *big.Float) *big.Int {
+	n := new(big.Float).SetUint64(num.Uint64())
+	n = n.Mul(n, float)
+	value, _ := float.Uint64()
+	return new(big.Int).SetUint64(value)
 }
 
 // calculateL1GasLimit computes the L1 gasLimit based on the calldata and
