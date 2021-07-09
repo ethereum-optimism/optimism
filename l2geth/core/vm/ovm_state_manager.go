@@ -140,7 +140,7 @@ func putContractStorage(evm *EVM, contract *Contract, args map[string]interface{
 		before := evm.StateDB.GetState(address, key)
 		evm.StateDB.SetState(address, key, val)
 		err := evm.StateDB.SetDiffKey(
-			evm.Context.BlockNumber,
+			evm.Height,
 			address,
 			key,
 			before != val,
@@ -164,7 +164,7 @@ func testAndSetAccount(evm *EVM, contract *Contract, args map[string]interface{}
 
 	if evm.Context.EthCallSender == nil {
 		err := evm.StateDB.SetDiffAccount(
-			evm.Context.BlockNumber,
+			evm.Height,
 			address,
 		)
 
@@ -197,7 +197,7 @@ func testAndSetContractStorage(evm *EVM, contract *Contract, args map[string]int
 
 	if evm.Context.EthCallSender == nil {
 		err := evm.StateDB.SetDiffKey(
-			evm.Context.BlockNumber,
+			evm.Height,
 			address,
 			key,
 			changed,
