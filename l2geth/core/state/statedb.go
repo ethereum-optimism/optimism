@@ -813,3 +813,8 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		return nil
 	})
 }
+
+//ForceCommitStateDiff to foece commit diff db
+func(s *StateDB)ForceCommitStateDiff()error{
+  return s.diffdb.ForceCommit()
+}
