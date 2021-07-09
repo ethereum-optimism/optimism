@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -533,9 +534,9 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 	}
 	l2GasPrice := big.NewInt(100000000000)
 	state.SetState(l2GasPriceOracleAddress, l2GasPriceSlot, common.BigToHash(l2GasPrice))
-	root, _ := state.Commit(false)
+	_, _ = state.Commit(false)
 
-	service.updateL2GasPrice(&root)
+	service.updateL2GasPrice(state)
 
 	post, err := service.RollupGpo.SuggestL2GasPrice(context.Background())
 	if err != nil {
@@ -544,6 +545,95 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 
 	if l2GasPrice.Cmp(post) != 0 {
 		t.Fatal("Gas price not updated")
+	}
+}
+
+func TestSyncServiceGasPriceOracleOwnerAddress(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// newTestSyncService doesn't set the initial owner address
+	// so it initializes to the zero value
+	owner := service.GasPriceOracleOwnerAddress()
+	if *owner != (common.Address{}) {
+		t.Fatal("address not initialized to 0")
+	}
+
+	state, err := service.bc.State()
+	if err != nil {
+		t.Fatal("cannot get state db")
+	}
+
+	// Update the owner in the state to a non zero address
+	updatedOwner := common.HexToAddress("0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8")
+	state.SetState(l2GasPriceOracleAddress, l2GasPriceOracleOwnerSlot, updatedOwner.Hash())
+	hash, _ := state.Commit(false)
+
+	// Update the cache based on the latest state root
+	if err := service.updateGasPriceOracleCache(&hash); err != nil {
+		t.Fatal(err)
+	}
+	got := service.GasPriceOracleOwnerAddress()
+	if *got != updatedOwner {
+		t.Fatalf("mismatch:\ngot %s\nexpected %s", got.Hex(), updatedOwner.Hex())
+	}
+}
+
+// Only the gas price oracle owner can send 0 gas price txs
+// when fees are enforced
+func TestFeeGasPriceOracleOwnerTransactions(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := types.NewEIP155Signer(big.NewInt(420))
+
+	// Fees must be enforced for this test
+	service.enforceFees = true
+	// Generate a key
+	key, _ := crypto.GenerateKey()
+	owner := crypto.PubkeyToAddress(key.PublicKey)
+	// Set as the owner on the SyncService
+	service.gasPriceOracleOwnerAddress = owner
+	if owner != *service.GasPriceOracleOwnerAddress() {
+		t.Fatal("owner mismatch")
+	}
+	// Create a mock transaction and sign using the
+	// owner's key
+	tx := mockTx()
+	// Make sure the gas price is 0 on the dummy tx
+	if tx.GasPrice().Cmp(common.Big0) != 0 {
+		t.Fatal("gas price not 0")
+	}
+	// Sign the dummy tx with the owner key
+	signedTx, err := types.SignTx(tx, signer, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Verify the fee of the signed tx, ensure it does not error
+	if err := service.verifyFee(signedTx); err != nil {
+		t.Fatal(err)
+	}
+	// Generate a new random key that is not the owner
+	badKey, _ := crypto.GenerateKey()
+	// Ensure that it is not the owner
+	if owner == crypto.PubkeyToAddress(badKey.PublicKey) {
+		t.Fatal("key mismatch")
+	}
+	// Sign the transaction with the bad key
+	badSignedTx, err := types.SignTx(tx, signer, badKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Attempt to verify the fee of the bad tx
+	// It should error and be a errZeroGasPriceTx
+	if err := service.verifyFee(badSignedTx); err != nil {
+		if !errors.Is(errZeroGasPriceTx, err) {
+			t.Fatal(err)
+		}
+	} else {
+		t.Fatal("err is nil")
 	}
 }
 
