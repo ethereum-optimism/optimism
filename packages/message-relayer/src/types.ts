@@ -1,4 +1,5 @@
 import { BigNumber } from 'ethers'
+import { Document } from "mongoose"
 
 export interface StateRootBatchHeader {
   batchIndex: BigNumber
@@ -30,4 +31,9 @@ export interface SentMessageProof {
 export interface StateRootProof {
   index: number
   siblings: string[]
+}
+
+export interface IChainStore extends Document {
+  chainId: number
+  lastFinalizedTxHeight: number
 }
