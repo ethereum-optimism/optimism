@@ -66,7 +66,7 @@ const optionSettings = {
   l1StartOffset: { default: 0 },
   getLogsInterval: { default: 2000 },
   useChainStore: { default: false },
-  storeDbUrl: { default: "mongodb://localhost:27017/relayer" }
+  storeDbUrl: { default: "" }
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
@@ -155,7 +155,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.state.lastQueriedL1Block = this.options.l1StartOffset
     this.state.eventCache = []
 
-    if(this.options.useChainStore) {
+    if(this.options.useChainStore && this.options.storeDbUrl) {
       await mongoose.connect(this.options.storeDbUrl, {
         useNewUrlParser: true,
         useCreateIndex: true,
