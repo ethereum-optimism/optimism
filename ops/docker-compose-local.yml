@@ -113,9 +113,8 @@ services:
         RETRIES: 60
         POLLING_INTERVAL: 500
         GET_LOGS_INTERVAL: 500
-        USE_CHAIN_STORE: "true"
+        # USE_CHAIN_STORE: "true"
         # STORE_DB_URL: "mongodb://localhost:27017/relayer"
-        STORE_DB_URL: "mongodb://192.168.50.47:27017/relayer"
 
   batch_submitter:
     depends_on:
