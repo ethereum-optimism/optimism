@@ -22,3 +22,10 @@ function check_result(){
   echo "Exit status of command was $EXIT_STATUS."
   [[ $EXIT_STATUS -ne $EXPECTED ]] && echo 'DID NOT PASS THE REQUIRED TEST' && exit $EXIT_STATUS
 }
+function check_string_result(){
+  EXIT_STRING=$1
+  EXPECTED=$2
+  echo "Exit string of command was $EXIT_STRING."
+  echo "Exit string of command was $EXPECTED."
+  [[ $EXIT_STRING != $EXPECTED ]] && echo 'DID NOT PASS THE REQUIRED TEST' && exit 1
+}

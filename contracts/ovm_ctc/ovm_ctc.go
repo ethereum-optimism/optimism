@@ -1,5 +1,9 @@
 // Code generated - DO NOT EDIT.
 // This file is a generated binding and any manual changes will be lost.
+// Added:
+// func (_OvmCtc *OvmCtcTransactor) RawAppendSequencerBatch(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
+// 	return _OvmCtc.contract.RawTransact(opts, calldata)
+// }
 
 package ovm_ctc
 
@@ -736,6 +740,13 @@ func (_OvmCtc *OvmCtcCallerSession) VerifyTransaction(_transaction Lib_OVMCodecT
 // Solidity: function appendSequencerBatch() returns()
 func (_OvmCtc *OvmCtcTransactor) AppendSequencerBatch(opts *bind.TransactOpts) (*types.Transaction, error) {
 	return _OvmCtc.contract.Transact(opts, "appendSequencerBatch")
+}
+
+// AppendSequencerBatch is a paid mutator transaction binding the contract method 0xd0f89344.
+//
+// Solidity: function appendSequencerBatch() returns()
+func (_OvmCtc *OvmCtcTransactor) RawAppendSequencerBatch(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
+	return _OvmCtc.contract.RawTransact(opts, calldata)
 }
 
 // AppendSequencerBatch is a paid mutator transaction binding the contract method 0xd0f89344.

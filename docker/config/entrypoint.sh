@@ -108,7 +108,7 @@ function gencerts {
 
 gencerts
 
-nohup vault server -log-level=debug -config /vault/config/vault.hcl &
+nohup vault server -dev -dev-root-token-id=test-root-token -log-level=debug -config /vault/config/vault.hcl &
 VAULT_PID=$!
 
 function unseal() {
@@ -166,9 +166,12 @@ function test_plugin {
 	# echo "SMOKE TEST PLASMA FUNCTIONALITY"
 	# test_banner
 	# /vault/scripts/smoke.plasma.sh
-	echo "SMOKE TEST OVM SUBMIT BATCH"
+	# echo "SMOKE TEST OVM SUBMIT BATCH"
+	#test_banner
+	# /vault/scripts/smoke.ovm.sh
+	echo "SMOKE TEST OVM CUSTOM ENCODING"
 	test_banner
-	/vault/scripts/smoke.ovm.sh
+	/vault/scripts/smoke.encode_asb.sh
 }
 
 if [ -f "$VAULT_CREDENTIALS" ]; then

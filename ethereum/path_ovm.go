@@ -9,8 +9,11 @@ import (
 	"bytes"
 	"context"
 	b64 "encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,9 +28,42 @@ import (
 
 const ovm string = "ovm"
 
+type Context struct {
+	NumSequencedTransactions       int64 `json:"num_sequenced_transactions"`
+	NumSubsequentQueueTransactions int64 `json:"num_subsequent_queue_transactions"`
+	Timestamp                      int64 `json:"timestamp"`
+	BlockNumber                    int64 `json:"block_number"`
+}
+
 func OvmPaths(b *PluginBackend) []*framework.Path {
 	return []*framework.Path{
-
+		{
+			Pattern: QualifiedPath("encodeAppendSequencerBatch/?"),
+			Callbacks: map[logical.Operation]framework.OperationFunc{
+				logical.CreateOperation: b.pathEncodeAppendSequencerBatch,
+			},
+			HelpSynopsis:    "Encoding for AppendSequencerBatch",
+			HelpDescription: `Use this to Encode data for AppendSequencerBatch`,
+			Fields: map[string]*framework.FieldSchema{
+				"contexts": {
+					Type:        framework.TypeStringSlice,
+					Description: "An array of objects of num_sequenced_transactions,num_subsequent_queue_transactions,timestamp,block_number.",
+				},
+				"should_start_at_element": {
+					Type:        framework.TypeString,
+					Description: "AppendSequencerBatchParams shouldStartAtElement.",
+				},
+				"total_elements_to_append": {
+					Type:        framework.TypeString,
+					Description: "AppendSequencerBatchParams totalElementsToAppend.",
+				},
+				"transactions": {
+					Type:        framework.TypeStringSlice,
+					Description: "Transaction data.",
+				},
+			},
+			ExistenceCheck: pathExistenceCheck,
+		},
 		{
 			Pattern:         ContractPath(ovm, "appendStateBatch"),
 			HelpSynopsis:    "Submits the state batch",
@@ -61,6 +97,35 @@ func OvmPaths(b *PluginBackend) []*framework.Path {
 				logical.CreateOperation: b.pathOvmAppendStateBatch,
 			},
 		},
+		// {
+		// 	Pattern:         ContractPath(ovm, "appendSequencerBatch"),
+		// 	HelpSynopsis:    "Submits the state batch",
+		// 	HelpDescription: "Allows the sequencer to submit the state root batch.",
+		// 	Fields: map[string]*framework.FieldSchema{
+		// 		"name":    {Type: framework.TypeString, Description: "Name of the wallet."},
+		// 		"address": {Type: framework.TypeString, Description: "The address in the wallet."},
+		// 		"contract": {
+		// 			Type:        framework.TypeString,
+		// 			Description: "The address of the Block Controller.",
+		// 		},
+		// 		"gas_price": {
+		// 			Type:        framework.TypeString,
+		// 			Description: "The gas price for the transaction in wei.",
+		// 		},
+		// 		"nonce": {
+		// 			Type:        framework.TypeString,
+		// 			Description: "The nonce for the transaction.",
+		// 		},
+		// 		"data": {
+		// 			Type:        framework.TypeString,
+		// 			Description: "The unsigned '0x' + methodId + calldata that's forwarded to Cannonical Transaction Chain contract.",
+		// 		},
+		// 	},
+		// 	ExistenceCheck: pathExistenceCheck,
+		// 	Callbacks: map[logical.Operation]framework.OperationFunc{
+		// 		logical.CreateOperation: b.pathOvmAppendSequencerBatch,
+		// 	},
+		// },
 	}
 }
 
@@ -117,7 +182,6 @@ func (b *PluginBackend) pathOvmAppendStateBatch(ctx context.Context, req *logica
 	var inputBatchArr []string = inputBatch.([]string)
 	var batch = make([][32]byte, len(inputBatchArr))
 
-	log.Println("hexutil.Encode(buf)")
 	for i, s := range inputBatchArr {
 		batchElement, err := b64.StdEncoding.DecodeString(s)
 		if err != nil {
@@ -186,3 +250,174 @@ func (b *PluginBackend) pathOvmAppendStateBatch(ctx context.Context, req *logica
 		},
 	}, nil
 }
+
+func (b *PluginBackend) pathEncodeAppendSequencerBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	//log.Print(util.PrettyPrint(data))
+	dataEncodeShouldStartAtElement := data.Get("should_start_at_element").(string)
+	inputEncodeShouldStartAtElement, err := strconv.ParseInt(dataEncodeShouldStartAtElement, 10, 64)
+	if err == nil {
+		fmt.Printf("%d should_start_at_element of type %T", inputEncodeShouldStartAtElement, inputEncodeShouldStartAtElement)
+	}
+	encodeShouldStartAtElement := encodeHex(inputEncodeShouldStartAtElement, 10)
+
+	dataTotalElementsToAppend := data.Get("total_elements_to_append").(string)
+	inputTotalElementsToAppend, err := strconv.ParseInt(dataTotalElementsToAppend, 10, 64)
+	if err == nil {
+		fmt.Printf("%d total_elements_to_append of type %T", inputTotalElementsToAppend, inputTotalElementsToAppend)
+	}
+	encodedTotalElementsToAppend := encodeHex(inputTotalElementsToAppend, 6)
+
+	inputContexts, ok := data.GetOk("contexts")
+	if !ok {
+		return nil, fmt.Errorf("invalid contexts")
+	}
+	//contexts
+	var contexts = make([]Context, len(inputContexts.([]string)))
+	log.Print(inputContexts.([]string))
+	for i, s := range inputContexts.([]string) {
+		var context Context
+		json.Unmarshal([]byte(s), &context)
+		contexts[i] = context
+	}
+	encodedContextsHeader := encodeHex(int64(len(contexts)), 6)
+	var encodedContexts = ""
+	for _, s := range contexts {
+		encodedContexts += encodeBatchContext(s)
+	}
+	encodedContexts = encodedContextsHeader + encodedContexts
+	//transactions
+	inputTransactions, ok := data.GetOk("transactions")
+	if !ok {
+		return nil, fmt.Errorf("invalid transactions")
+	}
+
+	var encodedTransactionData = ""
+	for _, s := range inputTransactions.([]string) {
+		if len(s)%2 != 0 {
+			return nil, fmt.Errorf("unexpected uneven hex string value in transactions")
+		}
+		encodedTransactionData += fmt.Sprintf("%06s", remove0x(fmt.Sprintf("%x", len(remove0x(s))/2))) + remove0x(s)
+	}
+
+	log.Print(encodeShouldStartAtElement)
+	log.Print(encodedTotalElementsToAppend)
+	log.Print(encodedContexts)
+	log.Print(encodedTransactionData)
+	return &logical.Response{
+		Data: map[string]interface{}{
+			"data": encodeShouldStartAtElement +
+				encodedTotalElementsToAppend +
+				encodedContexts +
+				encodedTransactionData,
+		},
+	}, nil
+}
+
+func remove0x(val string) string {
+	return strings.Replace(val, "0x", "", -1)
+}
+
+func encodeHex(val int64, len int) string {
+	hex := fmt.Sprintf("%x", val)
+	return fmt.Sprintf("%0"+strconv.Itoa(len)+"s", hex)
+}
+
+func encodeBatchContext(context Context) string {
+	return (encodeHex(context.NumSequencedTransactions, 6) + encodeHex(context.NumSubsequentQueueTransactions, 6) + encodeHex(context.Timestamp, 10) + encodeHex(context.BlockNumber, 10))
+}
+
+// //because data is sent through the wire, this feels unsafe
+// //could an attacker construct arbitrary data and get is signed? seems so.
+// //one way how to prevent this would be to construct the data here instead in the sequencer
+// func (b *PluginBackend) pathOvmAppendSequencerBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+// 	log.Print(util.PrettyPrint(data))
+
+// 	config, err := b.configured(ctx, req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	address := data.Get("address").(string)
+// 	name := data.Get("name").(string)
+// 	contractAddress := common.HexToAddress(data.Get("contract").(string))
+// 	accountJSON, err := readAccount(ctx, req, name, address)
+// 	if err != nil || accountJSON == nil {
+// 		return nil, fmt.Errorf("error reading address")
+// 	}
+
+// 	chainID := util.ValidNumber(config.ChainID)
+// 	if chainID == nil {
+// 		return nil, fmt.Errorf("invalid chain ID")
+// 	}
+
+// 	client, err := ethclient.Dial(config.getRPCURL())
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	walletJSON, err := readWallet(ctx, req, name)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	wallet, account, err := getWalletAndAccount(*walletJSON, accountJSON.Index)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	instance, err := ovm_ctc.NewOvmCtc(contractAddress, client)
+// 	//instance.OvmCtcTransactor.
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	callOpts := &bind.CallOpts{}
+
+// 	transactOpts, err := b.NewWalletTransactor(chainID, wallet, account)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	// transactOpts needs gas etc. Use supplied gas_price
+// 	gasPriceRaw := data.Get("gas_price").(string)
+// 	if gasPriceRaw == "" {
+// 		return nil, fmt.Errorf("invalid gas_price")
+// 	}
+// 	transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
+
+// 	// //transactOpts needs nonce. Use supplied nonce
+// 	nonceRaw := data.Get("nonce").(string)
+// 	if nonceRaw == "" {
+// 		return nil, fmt.Errorf("invalid nonce")
+// 	}
+// 	transactOpts.Nonce = util.ValidNumber(nonceRaw)
+
+// 	ctcSession := &ovm_ctc.OvmCtcSession{
+// 		Contract:     instance,  // Generic contract caller binding to set the session for
+// 		CallOpts:     *callOpts, // Call options to use throughout this session
+// 		TransactOpts: *transactOpts,
+// 	}
+// 	//tx, err := ctcSession.AppendSequencerBatch(batch)
+
+// 	var batch = make([]byte, 1)
+// 	tx, err := ctcSession.RawAppendSequencerBatch(batch)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	var signedTxBuff bytes.Buffer
+// 	tx.EncodeRLP(&signedTxBuff)
+// 	return &logical.Response{
+// 		Data: map[string]interface{}{
+// 			"contract":           contractAddress.Hex(),
+// 			"transaction_hash":   tx.Hash().Hex(),
+// 			"signed_transaction": hexutil.Encode(signedTxBuff.Bytes()),
+// 			"from":               account.Address.Hex(),
+// 			"nonce":              tx.Nonce(),
+// 			"gas_price":          tx.GasPrice(),
+// 			"gas_limit":          tx.Gas(),
+// 		},
+// 	}, nil
+// }
+
+// func (_OvmCtc *OvmCtcTransactor) AppendSequencerBatch(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
+// 	return _OvmCtc.contract.RawTransact(opts, calldata)
+// }
