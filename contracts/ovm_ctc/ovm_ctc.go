@@ -744,8 +744,13 @@ func (_OvmCtc *OvmCtcTransactor) AppendSequencerBatch(opts *bind.TransactOpts) (
 
 // AppendSequencerBatch is a paid mutator transaction binding the contract method 0xd0f89344.
 //
-// Solidity: function appendSequencerBatch() returns()
+// Solidity: function appendSequencerBatch() returns() with calldata
 func (_OvmCtc *OvmCtcTransactor) RawAppendSequencerBatch(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
+
+	input, err := c.abi.Pack(method, params...)
+	if err != nil {
+		return nil, err
+	}
 	return _OvmCtc.contract.RawTransact(opts, calldata)
 }
 

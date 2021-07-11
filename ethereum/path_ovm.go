@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/omgnetwork/immutability-eth-plugin/contracts/ovm_ctc"
 	"github.com/omgnetwork/immutability-eth-plugin/contracts/ovm_scc"
 	"github.com/omgnetwork/immutability-eth-plugin/util"
 	"golang.org/x/crypto/sha3"
@@ -97,35 +98,48 @@ func OvmPaths(b *PluginBackend) []*framework.Path {
 				logical.CreateOperation: b.pathOvmAppendStateBatch,
 			},
 		},
-		// {
-		// 	Pattern:         ContractPath(ovm, "appendSequencerBatch"),
-		// 	HelpSynopsis:    "Submits the state batch",
-		// 	HelpDescription: "Allows the sequencer to submit the state root batch.",
-		// 	Fields: map[string]*framework.FieldSchema{
-		// 		"name":    {Type: framework.TypeString, Description: "Name of the wallet."},
-		// 		"address": {Type: framework.TypeString, Description: "The address in the wallet."},
-		// 		"contract": {
-		// 			Type:        framework.TypeString,
-		// 			Description: "The address of the Block Controller.",
-		// 		},
-		// 		"gas_price": {
-		// 			Type:        framework.TypeString,
-		// 			Description: "The gas price for the transaction in wei.",
-		// 		},
-		// 		"nonce": {
-		// 			Type:        framework.TypeString,
-		// 			Description: "The nonce for the transaction.",
-		// 		},
-		// 		"data": {
-		// 			Type:        framework.TypeString,
-		// 			Description: "The unsigned '0x' + methodId + calldata that's forwarded to Cannonical Transaction Chain contract.",
-		// 		},
-		// 	},
-		// 	ExistenceCheck: pathExistenceCheck,
-		// 	Callbacks: map[logical.Operation]framework.OperationFunc{
-		// 		logical.CreateOperation: b.pathOvmAppendSequencerBatch,
-		// 	},
-		// },
+		{
+			Pattern:         ContractPath(ovm, "appendSequencerBatch"),
+			HelpSynopsis:    "Submits the state batch",
+			HelpDescription: "Allows the sequencer to submit the state root batch.",
+			Fields: map[string]*framework.FieldSchema{
+				"name":    {Type: framework.TypeString, Description: "Name of the wallet."},
+				"address": {Type: framework.TypeString, Description: "The address in the wallet."},
+				"contract": {
+					Type:        framework.TypeString,
+					Description: "The address of the Block Controller.",
+				},
+				"gas_price": {
+					Type:        framework.TypeString,
+					Description: "The gas price for the transaction in wei.",
+				},
+				"nonce": {
+					Type:        framework.TypeString,
+					Description: "The nonce for the transaction.",
+				},
+
+				"contexts": {
+					Type:        framework.TypeStringSlice,
+					Description: "An array of objects of num_sequenced_transactions,num_subsequent_queue_transactions,timestamp,block_number.",
+				},
+				"should_start_at_element": {
+					Type:        framework.TypeString,
+					Description: "AppendSequencerBatchParams shouldStartAtElement.",
+				},
+				"total_elements_to_append": {
+					Type:        framework.TypeString,
+					Description: "AppendSequencerBatchParams totalElementsToAppend.",
+				},
+				"transactions": {
+					Type:        framework.TypeStringSlice,
+					Description: "Transaction data.",
+				},
+			},
+			ExistenceCheck: pathExistenceCheck,
+			Callbacks: map[logical.Operation]framework.OperationFunc{
+				logical.CreateOperation: b.pathOvmAppendSequencerBatch,
+			},
+		},
 	}
 }
 
@@ -253,23 +267,154 @@ func (b *PluginBackend) pathOvmAppendStateBatch(ctx context.Context, req *logica
 
 func (b *PluginBackend) pathEncodeAppendSequencerBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	//log.Print(util.PrettyPrint(data))
-	dataEncodeShouldStartAtElement := data.Get("should_start_at_element").(string)
-	inputEncodeShouldStartAtElement, err := strconv.ParseInt(dataEncodeShouldStartAtElement, 10, 64)
-	if err == nil {
-		fmt.Printf("%d should_start_at_element of type %T", inputEncodeShouldStartAtElement, inputEncodeShouldStartAtElement)
-	}
-	encodeShouldStartAtElement := encodeHex(inputEncodeShouldStartAtElement, 10)
 
-	dataTotalElementsToAppend := data.Get("total_elements_to_append").(string)
-	inputTotalElementsToAppend, err := strconv.ParseInt(dataTotalElementsToAppend, 10, 64)
-	if err == nil {
-		fmt.Printf("%d total_elements_to_append of type %T", inputTotalElementsToAppend, inputTotalElementsToAppend)
+	encodedData, err := encode(data)
+	if err != nil {
+		return nil, err
 	}
-	encodedTotalElementsToAppend := encodeHex(inputTotalElementsToAppend, 6)
+	return &logical.Response{
+		Data: map[string]interface{}{
+			"data": encodedData,
+		},
+	}, nil
+}
 
+func (b *PluginBackend) pathOvmAppendSequencerBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	log.Print(util.PrettyPrint(data))
+
+	config, err := b.configured(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	address := data.Get("address").(string)
+	name := data.Get("name").(string)
+	contractAddress := common.HexToAddress(data.Get("contract").(string))
+	accountJSON, err := readAccount(ctx, req, name, address)
+	if err != nil || accountJSON == nil {
+		return nil, fmt.Errorf("error reading address")
+	}
+
+	chainID := util.ValidNumber(config.ChainID)
+	if chainID == nil {
+		return nil, fmt.Errorf("invalid chain ID")
+	}
+
+	client, err := ethclient.Dial(config.getRPCURL())
+	if err != nil {
+		return nil, err
+	}
+
+	walletJSON, err := readWallet(ctx, req, name)
+	if err != nil {
+		return nil, err
+	}
+
+	wallet, account, err := getWalletAndAccount(*walletJSON, accountJSON.Index)
+	if err != nil {
+		return nil, err
+	}
+
+	instance, err := ovm_ctc.NewOvmCtc(contractAddress, client)
+	//instance.OvmCtcTransactor.
+	if err != nil {
+		return nil, err
+	}
+	callOpts := &bind.CallOpts{}
+
+	transactOpts, err := b.NewWalletTransactor(chainID, wallet, account)
+	if err != nil {
+		return nil, err
+	}
+	// transactOpts needs gas etc. Use supplied gas_price
+	gasPriceRaw := data.Get("gas_price").(string)
+	if gasPriceRaw == "" {
+		return nil, fmt.Errorf("invalid gas_price")
+	}
+	transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
+
+	// //transactOpts needs nonce. Use supplied nonce
+	nonceRaw := data.Get("nonce").(string)
+	if nonceRaw == "" {
+		return nil, fmt.Errorf("invalid nonce")
+	}
+	transactOpts.Nonce = util.ValidNumber(nonceRaw)
+
+	ctcSession := &ovm_ctc.OvmCtcSession{
+		Contract:     instance,  // Generic contract caller binding to set the session for
+		CallOpts:     *callOpts, // Call options to use throughout this session
+		TransactOpts: *transactOpts,
+	}
+
+	encodedData, err := encode(data)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := ctcSession.Contract.OvmCtcTransactor.RawAppendSequencerBatch(transactOpts, []byte(encodedData))
+
+	if err != nil {
+		return nil, err
+	}
+
+	var signedTxBuff bytes.Buffer
+	tx.EncodeRLP(&signedTxBuff)
+	return &logical.Response{
+		Data: map[string]interface{}{
+			"contract":           contractAddress.Hex(),
+			"transaction_hash":   tx.Hash().Hex(),
+			"signed_transaction": hexutil.Encode(signedTxBuff.Bytes()),
+			"from":               account.Address.Hex(),
+			"nonce":              tx.Nonce(),
+			"gas_price":          tx.GasPrice(),
+			"gas_limit":          tx.Gas(),
+		},
+	}, nil
+}
+
+func encode(data *framework.FieldData) (string, error) {
+	shouldStartAtElement, err := encodeShouldStartAtElement(data)
+	if err != nil {
+		return "", err
+	}
+	totalElementsToAppend, err := encodeTotalElementsToAppend(data)
+	if err != nil {
+		return "", err
+	}
+	contexts, err := encodeContexts(data)
+	if err != nil {
+		return "", err
+	}
+	transaction, err := encodeTransactionData(data)
+	if err != nil {
+		return "", err
+	}
+
+	return shouldStartAtElement +
+		totalElementsToAppend +
+		contexts +
+		transaction, nil
+}
+
+func encodeTransactionData(data *framework.FieldData) (string, error) {
+	inputTransactions, ok := data.GetOk("transactions")
+	if !ok {
+		return "", fmt.Errorf("invalid transactions")
+	}
+
+	var encodedTransactionData = ""
+	for _, s := range inputTransactions.([]string) {
+		if len(s)%2 != 0 {
+			return "", fmt.Errorf("unexpected uneven hex string value in transactions")
+		}
+		encodedTransactionData += fmt.Sprintf("%06s", remove0x(fmt.Sprintf("%x", len(remove0x(s))/2))) + remove0x(s)
+	}
+	return encodedTransactionData, nil
+}
+
+func encodeContexts(data *framework.FieldData) (string, error) {
 	inputContexts, ok := data.GetOk("contexts")
 	if !ok {
-		return nil, fmt.Errorf("invalid contexts")
+		return "", fmt.Errorf("invalid contexts")
 	}
 	//contexts
 	var contexts = make([]Context, len(inputContexts.([]string)))
@@ -285,32 +430,28 @@ func (b *PluginBackend) pathEncodeAppendSequencerBatch(ctx context.Context, req 
 		encodedContexts += encodeBatchContext(s)
 	}
 	encodedContexts = encodedContextsHeader + encodedContexts
-	//transactions
-	inputTransactions, ok := data.GetOk("transactions")
-	if !ok {
-		return nil, fmt.Errorf("invalid transactions")
-	}
+	return encodedContexts, nil
+}
 
-	var encodedTransactionData = ""
-	for _, s := range inputTransactions.([]string) {
-		if len(s)%2 != 0 {
-			return nil, fmt.Errorf("unexpected uneven hex string value in transactions")
-		}
-		encodedTransactionData += fmt.Sprintf("%06s", remove0x(fmt.Sprintf("%x", len(remove0x(s))/2))) + remove0x(s)
-	}
+func encodeTotalElementsToAppend(data *framework.FieldData) (string, error) {
+	dataTotalElementsToAppend := data.Get("total_elements_to_append").(string)
 
-	log.Print(encodeShouldStartAtElement)
-	log.Print(encodedTotalElementsToAppend)
-	log.Print(encodedContexts)
-	log.Print(encodedTransactionData)
-	return &logical.Response{
-		Data: map[string]interface{}{
-			"data": encodeShouldStartAtElement +
-				encodedTotalElementsToAppend +
-				encodedContexts +
-				encodedTransactionData,
-		},
-	}, nil
+	inputTotalElementsToAppend, err := strconv.ParseInt(dataTotalElementsToAppend, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("%d total_elements_to_append of type %T", inputTotalElementsToAppend, inputTotalElementsToAppend)
+	}
+	encodedTotalElementsToAppend := encodeHex(inputTotalElementsToAppend, 6)
+	return encodedTotalElementsToAppend, nil
+}
+
+func encodeShouldStartAtElement(data *framework.FieldData) (string, error) {
+	dataEncodeShouldStartAtElement := data.Get("should_start_at_element").(string)
+	inputEncodeShouldStartAtElement, err := strconv.ParseInt(dataEncodeShouldStartAtElement, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("%d should_start_at_element of type %T", inputEncodeShouldStartAtElement, inputEncodeShouldStartAtElement)
+	}
+	encodeShouldStartAtElement := encodeHex(inputEncodeShouldStartAtElement, 10)
+	return encodeShouldStartAtElement, nil
 }
 
 func remove0x(val string) string {
@@ -325,99 +466,3 @@ func encodeHex(val int64, len int) string {
 func encodeBatchContext(context Context) string {
 	return (encodeHex(context.NumSequencedTransactions, 6) + encodeHex(context.NumSubsequentQueueTransactions, 6) + encodeHex(context.Timestamp, 10) + encodeHex(context.BlockNumber, 10))
 }
-
-// //because data is sent through the wire, this feels unsafe
-// //could an attacker construct arbitrary data and get is signed? seems so.
-// //one way how to prevent this would be to construct the data here instead in the sequencer
-// func (b *PluginBackend) pathOvmAppendSequencerBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-// 	log.Print(util.PrettyPrint(data))
-
-// 	config, err := b.configured(ctx, req)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	address := data.Get("address").(string)
-// 	name := data.Get("name").(string)
-// 	contractAddress := common.HexToAddress(data.Get("contract").(string))
-// 	accountJSON, err := readAccount(ctx, req, name, address)
-// 	if err != nil || accountJSON == nil {
-// 		return nil, fmt.Errorf("error reading address")
-// 	}
-
-// 	chainID := util.ValidNumber(config.ChainID)
-// 	if chainID == nil {
-// 		return nil, fmt.Errorf("invalid chain ID")
-// 	}
-
-// 	client, err := ethclient.Dial(config.getRPCURL())
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	walletJSON, err := readWallet(ctx, req, name)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	wallet, account, err := getWalletAndAccount(*walletJSON, accountJSON.Index)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	instance, err := ovm_ctc.NewOvmCtc(contractAddress, client)
-// 	//instance.OvmCtcTransactor.
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	callOpts := &bind.CallOpts{}
-
-// 	transactOpts, err := b.NewWalletTransactor(chainID, wallet, account)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	// transactOpts needs gas etc. Use supplied gas_price
-// 	gasPriceRaw := data.Get("gas_price").(string)
-// 	if gasPriceRaw == "" {
-// 		return nil, fmt.Errorf("invalid gas_price")
-// 	}
-// 	transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
-
-// 	// //transactOpts needs nonce. Use supplied nonce
-// 	nonceRaw := data.Get("nonce").(string)
-// 	if nonceRaw == "" {
-// 		return nil, fmt.Errorf("invalid nonce")
-// 	}
-// 	transactOpts.Nonce = util.ValidNumber(nonceRaw)
-
-// 	ctcSession := &ovm_ctc.OvmCtcSession{
-// 		Contract:     instance,  // Generic contract caller binding to set the session for
-// 		CallOpts:     *callOpts, // Call options to use throughout this session
-// 		TransactOpts: *transactOpts,
-// 	}
-// 	//tx, err := ctcSession.AppendSequencerBatch(batch)
-
-// 	var batch = make([]byte, 1)
-// 	tx, err := ctcSession.RawAppendSequencerBatch(batch)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	var signedTxBuff bytes.Buffer
-// 	tx.EncodeRLP(&signedTxBuff)
-// 	return &logical.Response{
-// 		Data: map[string]interface{}{
-// 			"contract":           contractAddress.Hex(),
-// 			"transaction_hash":   tx.Hash().Hex(),
-// 			"signed_transaction": hexutil.Encode(signedTxBuff.Bytes()),
-// 			"from":               account.Address.Hex(),
-// 			"nonce":              tx.Nonce(),
-// 			"gas_price":          tx.GasPrice(),
-// 			"gas_limit":          tx.Gas(),
-// 		},
-// 	}, nil
-// }
-
-// func (_OvmCtc *OvmCtcTransactor) AppendSequencerBatch(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
-// 	return _OvmCtc.contract.RawTransact(opts, calldata)
-// }
