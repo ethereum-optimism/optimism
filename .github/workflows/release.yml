@@ -138,7 +138,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.gas-oracle
           push: true
-          tags: ethereumoptimism/gas-oracle:${{ needs.release.outputs.gas-oracle }}
+          tags: ethereumoptimism/gas-oracle:${{ needs.release.outputs.gas-oracle }},ethereumoptimism/gas-oracle:latest
 
   # pushes the base builder image to dockerhub
   builder:

@@ -8,12 +8,7 @@ import { getContractDefinition } from '../src/contract-defs'
 
 task('set-l2-gasprice')
   .addOptionalParam('l2GasPrice', 'Gas Price to set on L2', 0, types.int)
-  .addOptionalParam(
-    'transactionGasPrice',
-    'tx.gasPrice',
-    undefined,
-    types.int
-  )
+  .addOptionalParam('transactionGasPrice', 'tx.gasPrice', undefined, types.int)
   .addOptionalParam(
     'contractsRpcUrl',
     'Sequencer HTTP Endpoint',
