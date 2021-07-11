@@ -207,13 +207,21 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
           continue
         }
-        if(this.options.useChainStore) {
+        if(this.options.useChainStore && this.options.storeDbUrl) {
           this.logger.info('Save lastFinalizedTxHeight to store', {
             useChainStore: this.options.useChainStore,
             chainId: this.options.l2ChainId,
             nextUnfinalizedTxHeight: this.state.nextUnfinalizedTxHeight
           })
-          await ChainStore.findOneAndUpdate({'chainId': this.options.l2ChainId}, {'lastFinalizedTxHeight': this.state.nextUnfinalizedTxHeight}, {upsert: true})
+          try {
+            await ChainStore.findOneAndUpdate({'chainId': this.options.l2ChainId}, {'lastFinalizedTxHeight': this.state.nextUnfinalizedTxHeight}, {upsert: true})
+          } catch (err) {
+            this.logger.error('Save lastFinalizedTxHeight to store error', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+          }
         }
         this.state.lastFinalizedTxHeight = this.state.nextUnfinalizedTxHeight
         while (
