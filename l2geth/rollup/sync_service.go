@@ -858,9 +858,6 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	// Only count the calldata here as the overhead of the fully encoded
 	// RLP transaction is handled inside of EncodeL2GasLimit
 	expectedTxGasLimit := fees.EncodeTxGasLimit(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
-	if err != nil {
-		return err
-	}
 
 	// This should only happen if the unscaled transaction fee is greater than 18.44 ETH
 	if !expectedTxGasLimit.IsUint64() {
