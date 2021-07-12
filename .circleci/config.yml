@@ -1,0 +1,80 @@
+version: 2.1
+jobs:
+  build:
+    machine:
+      image: ubuntu-1604:202004-01
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+            make docker-build
+          no_output_timeout: 2400s
+      - run: sudo chown -R 100:1000 docker/config/ && sudo chmod -R 777 docker/config/
+      - run:
+          name: Infra standup
+          working_directory: /home/circleci/project/docker
+          command: docker-compose up ganache truffle
+          background: true
+      # prevent docker network creation race condition
+      - run: sleep 5 
+      - run:
+          name: Test
+          working_directory: /home/circleci/project/docker
+          command: docker-compose up vault_server
+          no_output_timeout: 2400s
+      - run:
+          name: Test validation
+          working_directory: /home/circleci/project/docker
+          command: exit $(docker-compose logs | grep -c "DID NOT PASS THE REQUIRED TEST")
+      - run:
+          name: Save Docker image
+          command: |
+            mkdir -p /tmp/workspace
+            docker save -o /tmp/workspace/omgnetwork_vault-latest.tar omgnetwork/vault:latest
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - "omgnetwork_vault-latest.tar"
+
+  publish:
+    machine:
+      image: ubuntu-1604:202004-01
+    environment:
+      GCR_PREFIX: gcr.io/omisego-development
+      IMMUTABILITY_IMAGE: omgnetwork/vault
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Install GCloud SDK
+          command: |
+            echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+            curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+            sudo apt-get update && sudo apt-get install google-cloud-sdk
+      - run:
+          name: Publish to GCR
+          command: |
+            export SEMVER=$(cat ./VERSION)
+            echo $GCLOUD_SERVICE_KEY | gcloud auth activate-service-account --key-file=-
+            gcloud -q auth configure-docker
+            docker load -i /tmp/workspace/omgnetwork_vault-latest.tar
+            docker tag $IMMUTABILITY_IMAGE:latest $GCR_PREFIX/$IMMUTABILITY_IMAGE:$SEMVER
+            docker push $GCR_PREFIX/$IMMUTABILITY_IMAGE:$SEMVER
+
+workflows:
+  version: 2
+  build-test-lint:
+    jobs:
+      - build
+      - publish:
+          requires: [build]
+          filters: &master_and_version_branches_and_all_tags
+            branches:
+              only:
+                - master
+                - /^v[0-9]+\.[0-9]+/
+            tags:
+              only:
+                - /.+/
