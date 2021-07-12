@@ -157,12 +157,39 @@ func TestPaysEnough(t *testing.T) {
 		},
 		"fee-threshold-up": {
 			opts: &PaysEnoughOpts{
-				UserFee:       common.Big3,
+				UserFee:       common.Big256,
 				ExpectedFee:   common.Big1,
 				ThresholdUp:   new(big.Float).SetFloat64(1.5),
 				ThresholdDown: nil,
 			},
 			err: ErrFeeTooHigh,
+		},
+		"fee-too-low-high": {
+			opts: &PaysEnoughOpts{
+				UserFee:       new(big.Int).SetUint64(10_000),
+				ExpectedFee:   new(big.Int).SetUint64(1),
+				ThresholdUp:   new(big.Float).SetFloat64(3),
+				ThresholdDown: new(big.Float).SetFloat64(0.8),
+			},
+			err: ErrFeeTooHigh,
+		},
+		"fee-too-low-down": {
+			opts: &PaysEnoughOpts{
+				UserFee:       new(big.Int).SetUint64(1),
+				ExpectedFee:   new(big.Int).SetUint64(10_000),
+				ThresholdUp:   new(big.Float).SetFloat64(3),
+				ThresholdDown: new(big.Float).SetFloat64(0.8),
+			},
+			err: ErrFeeTooLow,
+		},
+		"fee-too-low-down-2": {
+			opts: &PaysEnoughOpts{
+				UserFee:       new(big.Int).SetUint64(0),
+				ExpectedFee:   new(big.Int).SetUint64(10_000),
+				ThresholdUp:   new(big.Float).SetFloat64(3),
+				ThresholdDown: new(big.Float).SetFloat64(0.8),
+			},
+			err: ErrFeeTooLow,
 		},
 	}
 
