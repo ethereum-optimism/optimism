@@ -55,6 +55,7 @@ func Backend(conf *logical.BackendConfig) (*PluginBackend, error) {
 			WalletPaths(&b),
 			PlasmaPaths(&b),
 			AccountPaths(&b),
+			OvmPaths(&b),
 		),
 		PathsSpecial: &logical.Paths{
 			SealWrapStorage: []string{
