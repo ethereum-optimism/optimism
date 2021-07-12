@@ -1,5 +1,11 @@
 # @eth-optimism/smock
 
+## 1.1.8
+
+### Patch Changes
+
+- d1da05be: Add a test and a doc section for returning multiple uint256 arrays
+
 ## 1.1.7
 
 ### Patch Changes

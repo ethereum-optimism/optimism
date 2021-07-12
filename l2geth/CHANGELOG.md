@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.5
+
+### Patch Changes
+
+- 53b37978: Fixes the flags to use float64 instead of bools for the `--rollup.feethresholddown` and `-rollup.feethresholdup` config options
+- 709c85d6: Prevents the sequencer from accepting transactions with a too high nonce
+
 ## 0.4.4
 
 ### Patch Changes
