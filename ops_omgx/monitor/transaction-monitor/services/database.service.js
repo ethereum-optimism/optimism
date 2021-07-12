@@ -67,6 +67,7 @@ class DatabaseService extends OptimismEnv{
         crossDomainMessageSendTime INT,
         crossDomainMessageEstimateFinalizedTime INT,
         timestamp INT,
+        crossDomainMessageFinalizedTime INT,
         PRIMARY KEY ( hash )
       )`
     );
@@ -116,6 +117,7 @@ class DatabaseService extends OptimismEnv{
       crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
       crossDomainMessageSendTime=${receiptData.crossDomainMessageSendTime},
       crossDomainMessageEstimateFinalizedTime=${receiptData.crossDomainMessage ? receiptData.crossDomainMessageEstimateFinalizedTime : null},
+      crossDomainMessageFinalizedTime = ${receiptData.crossDomainMessageFinalizedTime ? receiptData.crossDomainMessageFinalizedTime : null},
       timestamp='${receiptData.timestamp.toString()}'
     `);
   }
@@ -132,7 +134,8 @@ class DatabaseService extends OptimismEnv{
   async updateCrossDomainData(receiptData) {
     await this.query(`USE ${this.MySQLDatabaseName}`);
     return await this.query(`UPDATE receipt
-      SET crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize}
+      SET crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
+      crossDomainMessageFinalizedTime=${receiptData.crossDomainMessageFinalizedTime}
       WHERE hash='${receiptData.transactionHash.toString()}'
       AND blockHash='${receiptData.blockHash.toString()}'
     `);

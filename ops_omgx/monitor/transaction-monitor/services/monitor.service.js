@@ -179,7 +179,7 @@ class MonitorService extends OptimismEnv {
       for (let receiptData of receiptsData) {
         receiptData = await this.getCrossDomainMessageStatus(receiptData, blocksData);
         if (receiptData.crossDomainMessageFinalize) {
-          await this.updateCrossDomainData(receiptData);
+          await this.databaseService.updateCrossDomainData(receiptData);
         }
       }
     } else {
@@ -210,12 +210,12 @@ class MonitorService extends OptimismEnv {
     return [blocksData, receiptsData]
   }
 
-  async getL1TransactionReceipt(msgHash) {
+  async getL1TransactionReceipt(msgHash, fast=false) {
     const blockNumber = await this.L1Provider.getBlockNumber();
     const startingBlock = Math.max(blockNumber - this.numberBlockToFetch, 0);
 
     const filter = {
-      address: this.OVM_L1CrossDomainMessenger,
+      address: (fast ? this.OVM_L1CrossDomainMessengerFast : this.OVM_L1CrossDomainMessenger),
       topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
       fromBlock: startingBlock,
     }
@@ -243,6 +243,7 @@ class MonitorService extends OptimismEnv {
     let crossDomainMessageEstimateFinalizedTime; 
     let crossDomainMessage = false;
     let crossDomainMessageFinalize = false;
+    let crossDomainMessageFinalizedTime;
     let msgHashes = [];
 
     if (filteredBlockData.length) {
@@ -264,14 +265,20 @@ class MonitorService extends OptimismEnv {
 
       // Check if L1 get the transaction receipt
       const L1Receipt = await this.getL1TransactionReceipt(msgHashes[0]);
-      if (L1Receipt) crossDomainMessageFinalize = true;
-      else crossDomainMessageFinalize = false;
+      const L1ReceiptFast = await this.getL1TransactionReceipt(msgHashes[0], true);
+      if ((L1Receipt) || (L1ReceiptFast)){
+        crossDomainMessageFinalize = true;
+        crossDomainMessageFinalizedTime = (new Date().getTime() / 1000).toFixed(0);
+      } else {
+        crossDomainMessageFinalize = false;
+      } 
     }
 
     receiptData.crossDomainMessage = crossDomainMessage;
     receiptData.crossDomainMessageFinalize = crossDomainMessageFinalize;
     receiptData.crossDomainMessageSendTime = crossDomainMessageSendTime;
     receiptData.crossDomainMessageEstimateFinalizedTime = crossDomainMessageEstimateFinalizedTime;
+    receiptData.crossDomainMessageFinalizedTime = crossDomainMessageFinalizedTime;
 
     return receiptData;
   }
