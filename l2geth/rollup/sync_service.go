@@ -868,9 +868,10 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	}
 
 	userFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
+	expectedFee := new(big.Int).Mul(expectedTxGasLimit, fees.BigTxGasPrice)
 	opts := fees.PaysEnoughOpts{
 		UserFee:       userFee,
-		ExpectedFee:   expectedTxGasLimit.Mul(expectedTxGasLimit, fees.BigTxGasPrice),
+		ExpectedFee:   expectedFee,
 		ThresholdUp:   s.feeThresholdUp,
 		ThresholdDown: s.feeThresholdDown,
 	}
@@ -881,7 +882,8 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 				fees.ErrFeeTooLow, userFee, expectedTxGasLimit, fees.BigTxGasPrice)
 		}
 		if errors.Is(err, fees.ErrFeeTooHigh) {
-			return fmt.Errorf("%w: %d", fees.ErrFeeTooHigh, userFee)
+			return fmt.Errorf("%w: %d, use less than %d * %f", fees.ErrFeeTooHigh, userFee,
+				expectedFee, s.feeThresholdDown)
 		}
 		return err
 	}
