@@ -68,7 +68,7 @@
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
-    "hardhat": "^2.2.1",
+    "hardhat": "^2.4.3",
     "mocha": "^8.3.2",
     "pino-pretty": "^4.7.1",
     "prettier": "^2.2.1",

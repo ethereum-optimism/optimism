@@ -63,7 +63,7 @@
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "^3.3.0",
-    "hardhat": "^2.3.0",
+    "hardhat": "^2.4.3",
     "lodash": "^4.17.21",
     "mocha": "^8.4.0",
     "babel-eslint": "^10.1.0",

@@ -73,7 +73,7 @@
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "3.0.0",
     "ganache-core": "^2.13.2",
-    "hardhat": "^2.2.1",
+    "hardhat": "^2.4.3",
     "mocha": "^6.1.4",
     "prettier": "^2.2.1",
     "lint-staged": "11.0.0",
