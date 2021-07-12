@@ -753,7 +753,7 @@
     "@ethersproject/properties" "^5.4.0"
     "@ethersproject/transactions" "^5.4.0"
 
-"@ethersproject/hardware-wallets@^5.0.8":
+"@ethersproject/hardware-wallets@^5.0.8", "@ethersproject/hardware-wallets@^5.4.0":
   version "5.4.0"
   resolved "https://registry.yarnpkg.com/@ethersproject/hardware-wallets/-/hardware-wallets-5.4.0.tgz#bce275b395e26b6f50481095331157614490a473"
   integrity sha512-Ea4ymm4etZoSWy93OcEGZkuVqyYdl/RjMlaXY6yQIYjsGi75sm4apbTiBA8DA9uajkv1FVakJZEBBTaVGgnBLA==
