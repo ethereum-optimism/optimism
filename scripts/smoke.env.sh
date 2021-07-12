@@ -26,6 +26,6 @@ function check_string_result(){
   EXIT_STRING=$1
   EXPECTED=$2
   echo "Exit string of command was $EXIT_STRING."
-  echo "Exit string of command was $EXPECTED."
+  echo "Expected output of command was $EXPECTED."
   [[ $EXIT_STRING != $EXPECTED ]] && echo 'DID NOT PASS THE REQUIRED TEST' && exit 1
 }
