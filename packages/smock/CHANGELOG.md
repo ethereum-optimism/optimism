@@ -1,5 +1,13 @@
 # @eth-optimism/smock
 
+## 1.1.9
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+- Updated dependencies [c73c3939]
+  - @eth-optimism/core-utils@0.5.1
+
 ## 1.1.8
 
 ### Patch Changes
