@@ -3,6 +3,7 @@ package fees
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -115,7 +116,7 @@ func PaysEnough(opts *PaysEnoughOpts) error {
 		return fmt.Errorf("%w: no expected fee", errMissingInput)
 	}
 
-	fee := opts.ExpectedFee
+	fee := new(big.Int).Set(opts.ExpectedFee)
 	// Allow for a downward buffer to protect against L1 gas price volatility
 	if opts.ThresholdDown != nil {
 		fee = mulByFloat(fee, opts.ThresholdDown)
@@ -129,7 +130,7 @@ func PaysEnough(opts *PaysEnoughOpts) error {
 	if opts.ThresholdUp != nil {
 		// overpaying = user fee - expected fee
 		overpaying := new(big.Int).Sub(opts.UserFee, opts.ExpectedFee)
-		threshold := mulByFloat(overpaying, opts.ThresholdUp)
+		threshold := mulByFloat(opts.ExpectedFee, opts.ThresholdUp)
 		// if overpaying > threshold, return error
 		if overpaying.Cmp(threshold) == 1 {
 			return ErrFeeTooHigh
@@ -140,9 +141,10 @@ func PaysEnough(opts *PaysEnoughOpts) error {
 
 func mulByFloat(num *big.Int, float *big.Float) *big.Int {
 	n := new(big.Float).SetUint64(num.Uint64())
-	n = n.Mul(n, float)
-	value, _ := float.Uint64()
-	return new(big.Int).SetUint64(value)
+	product := n.Mul(n, float)
+	pfloat, _ := product.Float64()
+	rounded := math.Ceil(pfloat)
+	return new(big.Int).SetUint64(uint64(rounded))
 }
 
 // calculateL1GasLimit computes the L1 gasLimit based on the calldata and
