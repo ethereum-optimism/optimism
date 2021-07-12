@@ -7,7 +7,7 @@ function banner {
 
 source /vault/scripts/smoke.env.sh
 OVM="OVM-wallet"
-#batch=['0x1111111111111111111111111111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111111111111111111111111111']
+batch=['0x1111111111111111111111111111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111111111111111111111111111']
 
 banner
 echo "CONFIGURE MOUNT"
@@ -62,10 +62,14 @@ banner
 #vault write -format=json -f -output-curl-string immutability-eth-plugin/wallets/$OVM/accounts
 banner
 
+banner
+banner
+banner
+echo "Append State Batch tests"
 echo "*** SHOULD FAIL! ***" 
-echo "UNAUTHORIZED SUBMISSION OF BLOCK BY $UNAUTHORIZED" 
-echo "vault write -format=json immutability-eth-plugin/wallets/$OVM/accounts/$UNAUTHORIZED/ovm/appendStateBatch @/vault/scripts/body.json"
-vault write -format=json immutability-eth-plugin/wallets/$OVM/accounts/$UNAUTHORIZED/ovm/appendStateBatch @/vault/scripts/body.json
+echo "UNAUTHORIZED SUBMISSION OF AppendStateBatch BY $UNAUTHORIZED" 
+echo "vault write -format=json immutability-eth-plugin/wallets/$OVM/accounts/$UNAUTHORIZED/ovm/appendStateBatch batch="0x1111111111111111111111111111111111111111111111111111111111111111" batch="0x1111111111111111111111111111111111111111111111111111111111111111" should_start_at_element=0 nonce=0 gas_price=$GAS_PRICE_HIGH contract=$PLASMA_CONTRACT"
+vault write -format=json immutability-eth-plugin/wallets/$OVM/accounts/$UNAUTHORIZED/ovm/appendStateBatch batch="0x1111111111111111111111111111111111111111111111111111111111111111" batch="0x1111111111111111111111111111111111111111111111111111111111111111" should_start_at_element=0 nonce=0 gas_price=$GAS_PRICE_HIGH contract=$PLASMA_CONTRACT
 check_result $? 2
 banner
 #vault write  -output-curl-string immutability-eth-plugin/wallets/$OVM/accounts/$UNAUTHORIZED/ovm/appendStateBatch nonce=0 gas_price=$GAS_PRICE_HIGH batch=$batch should_start_at_element=0 contract=$PLASMA_CONTRACT
@@ -115,3 +119,13 @@ banner
 # banner
 # #vault write  -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock nonce=1 block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT
 
+banner
+banner
+banner
+echo "Append Sequencer Batch tests"
+echo "*** SHOULD FAIL! ***" 
+echo "UNAUTHORIZED SUBMISSION OF AppendSequencerBatch BY $UNAUTHORIZED" 
+echo "vault write -format=json immutability-eth-plugin/wallets/$OVM/accounts/$UNAUTHORIZED/ovm/appendSequencerBatch should_start_at_element=10 total_elements_to_append=1 contexts="{\"num_sequenced_transactions\": 2, \"num_subsequent_queue_transactions\": 1, \"timestamp\": 100, \"block_number\": 200}" transactions="0x45423400000011" transactions="0x45423400000012" nonce=0 gas_price=$GAS_PRICE_HIGH contract=$PLASMA_CONTRACT"
+vault write -format=json immutability-eth-plugin/wallets/$OVM/accounts/$UNAUTHORIZED/ovm/appendSequencerBatch should_start_at_element=10 total_elements_to_append=1 contexts="{\"num_sequenced_transactions\": 2, \"num_subsequent_queue_transactions\": 1, \"timestamp\": 100, \"block_number\": 200}" transactions="0x45423400000011" transactions="0x45423400000012" nonce=0 gas_price=$GAS_PRICE_HIGH contract=$PLASMA_CONTRACT
+check_result $? 2
+banner

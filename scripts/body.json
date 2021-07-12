@@ -1,7 +1,0 @@
-{
-  "nonce":0,
-  "gas_price": 0,
-  "batch": ["MHhkMTg0NTdjYTZlZjkzM2ZmNmNlNWM2ZDQ3ZjZjMmEzN2ZmNzI3YjRiM2Q0M2QxZTFjZjFiOWVkMTA2Yzk4M2QzCg==", "MHhkMTg0NTdjYTZlZjkzM2ZmNmNlNWM2ZDQ3ZjZjMmEzN2ZmNzI3YjRiM2Q0M2QxZTFjZjFiOWVkMTA2Yzk4M2QzCg=="],
-  "should_start_at_element": 0,
-  "contract": "asdfasdfasdfadf"
-}

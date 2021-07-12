@@ -8,10 +8,8 @@ package ethereum
 import (
 	"bytes"
 	"context"
-	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -145,8 +143,6 @@ func OvmPaths(b *PluginBackend) []*framework.Path {
 
 //this goes into L1
 func (b *PluginBackend) pathOvmAppendStateBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	log.Print(util.PrettyPrint(data))
-
 	config, err := b.configured(ctx, req)
 	if err != nil {
 		return nil, err
@@ -197,13 +193,9 @@ func (b *PluginBackend) pathOvmAppendStateBatch(ctx context.Context, req *logica
 	var batch = make([][32]byte, len(inputBatchArr))
 
 	for i, s := range inputBatchArr {
-		batchElement, err := b64.StdEncoding.DecodeString(s)
-		if err != nil {
-			return nil, fmt.Errorf("invalid batch element - not base64")
-		}
 		var buf []byte
 		hash := sha3.NewLegacyKeccak256()
-		hash.Write(batchElement)
+		hash.Write([]byte(s))
 		buf = hash.Sum(buf)
 		if len(buf) != 32 {
 			return nil, fmt.Errorf("invalid batch element - not the right size")
@@ -280,7 +272,7 @@ func (b *PluginBackend) pathEncodeAppendSequencerBatch(ctx context.Context, req 
 }
 
 func (b *PluginBackend) pathOvmAppendSequencerBatch(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	log.Print(util.PrettyPrint(data))
+	//log.Print(util.PrettyPrint(data))
 
 	config, err := b.configured(ctx, req)
 	if err != nil {
@@ -350,7 +342,7 @@ func (b *PluginBackend) pathOvmAppendSequencerBatch(ctx context.Context, req *lo
 		return nil, err
 	}
 
-	tx, err := ctcSession.Contract.OvmCtcTransactor.RawAppendSequencerBatch(transactOpts, []byte(encodedData))
+	tx, err := ctcSession.RawAppendSequencerBatch([]byte(encodedData))
 
 	if err != nil {
 		return nil, err
@@ -418,7 +410,6 @@ func encodeContexts(data *framework.FieldData) (string, error) {
 	}
 	//contexts
 	var contexts = make([]Context, len(inputContexts.([]string)))
-	log.Print(inputContexts.([]string))
 	for i, s := range inputContexts.([]string) {
 		var context Context
 		json.Unmarshal([]byte(s), &context)
@@ -435,7 +426,10 @@ func encodeContexts(data *framework.FieldData) (string, error) {
 
 func encodeTotalElementsToAppend(data *framework.FieldData) (string, error) {
 	dataTotalElementsToAppend := data.Get("total_elements_to_append").(string)
-
+	validNumber := util.ValidNumber(dataTotalElementsToAppend)
+	if validNumber == nil {
+		return "", fmt.Errorf("invalid total_elements_to_append")
+	}
 	inputTotalElementsToAppend, err := strconv.ParseInt(dataTotalElementsToAppend, 10, 64)
 	if err != nil {
 		return "", fmt.Errorf("%d total_elements_to_append of type %T", inputTotalElementsToAppend, inputTotalElementsToAppend)
@@ -446,6 +440,10 @@ func encodeTotalElementsToAppend(data *framework.FieldData) (string, error) {
 
 func encodeShouldStartAtElement(data *framework.FieldData) (string, error) {
 	dataEncodeShouldStartAtElement := data.Get("should_start_at_element").(string)
+	validNumber := util.ValidNumber(dataEncodeShouldStartAtElement)
+	if validNumber == nil {
+		return "", fmt.Errorf("invalid should_start_at_element")
+	}
 	inputEncodeShouldStartAtElement, err := strconv.ParseInt(dataEncodeShouldStartAtElement, 10, 64)
 	if err != nil {
 		return "", fmt.Errorf("%d should_start_at_element of type %T", inputEncodeShouldStartAtElement, inputEncodeShouldStartAtElement)
