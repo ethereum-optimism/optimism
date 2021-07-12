@@ -1,5 +1,15 @@
 # @eth-optimism/message-relayer
 
+## 0.1.8
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+- Updated dependencies [c73c3939]
+  - @eth-optimism/common-ts@0.1.5
+  - @eth-optimism/contracts@0.4.5
+  - @eth-optimism/core-utils@0.5.1
+
 ## 0.1.7
 
 ### Patch Changes
