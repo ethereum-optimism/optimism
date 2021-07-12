@@ -560,8 +560,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
-	if pool.currentState.GetNonce(from) > tx.Nonce() {
-		return ErrNonceTooLow
+	if vm.UsingOVM {
+		if pool.currentState.GetNonce(from) != tx.Nonce() {
+			return ErrNonceTooLow
+		}
+	} else {
+		if pool.currentState.GetNonce(from) > tx.Nonce() {
+			return ErrNonceTooLow
+		}
 	}
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
