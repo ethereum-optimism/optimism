@@ -39,13 +39,13 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 
-    function mint(address _to, uint256 _amount) public override onlyL2Bridge {
+    function mint(address _to, uint256 _amount) public virtual override onlyL2Bridge {
         _mint(_to, _amount);
 
         emit Mint(_to, _amount);
     }
 
-    function burn(address _from, uint256 _amount) public override onlyL2Bridge {
+    function burn(address _from, uint256 _amount) public virtual override onlyL2Bridge {
         _burn(_from, _amount);
 
         emit Burn(_from, _amount);
