@@ -29,7 +29,7 @@ const CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL = env.CROSS_DOMAIN_MESSAGE_MONITOR_I
 const SQL_DISCONNECTED = "disconnected";
 
 const WHITELIST_SLEEP = 5 * 60; // in seconds
-const NON_WHITELIST_SLEEP = 10 * 60; // in seconds
+const NON_WHITELIST_SLEEP = 30 * 60; // in seconds
 const WHITELIST = "whitelist";
 const NON_WHITELIST = "non_whitelist";
 
