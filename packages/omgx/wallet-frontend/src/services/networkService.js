@@ -314,8 +314,8 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
 
       //this.L1FastMessengerAddress = addresses.OVM_L1CrossDomainMessengerFast
       //backwards compat
-      if( addresses.hasOwnProperty('OVM_L1CrossDomainMessengerFast') )
-        this.L1FastMessengerAddress = addresses.OVM_L1CrossDomainMessengerFast
+      if( addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessengerFast') )
+        this.L1FastMessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessengerFast
       else
         this.L1FastMessengerAddress = addresses.L1FastMessengerAddress
 

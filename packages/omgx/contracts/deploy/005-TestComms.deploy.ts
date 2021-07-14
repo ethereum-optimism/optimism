@@ -28,7 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
     )
 
     const OVM_L1CrossDomainMessengerFastAddress = await (hre as any).deployConfig.addressManager.getAddress(
-      'OVM_L1CrossDomainMessengerFast'
+      'Proxy__OVM_L1CrossDomainMessengerFast'
     )
 
     L1Message = await Factory__L1Message.deploy(

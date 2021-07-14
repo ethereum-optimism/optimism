@@ -42,7 +42,7 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`🌕 ${chalk.red('L2LiquidityPool deployed to:')} ${chalk.green(L2LiquidityPool.address)}`)
 
     const OVM_L1CrossDomainMessengerFastAddress = await (hre as any).deployConfig.addressManager.getAddress(
-      'OVM_L1CrossDomainMessengerFast'
+      'Proxy__OVM_L1CrossDomainMessengerFast'
     )
 
     // Deploy L1 liquidity pool

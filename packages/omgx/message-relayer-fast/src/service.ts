@@ -46,7 +46,7 @@ interface MessageRelayerOptions {
 
   // filter
   filterEndpoint?: string
-  
+
   filterPollingInterval?: number
 }
 
@@ -112,7 +112,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
     this.logger.info('Connecting to OVM_L1CrossDomainMessenger...')
     const l1MessengerAddress = this.options.l1MessengerFast || await this.state.Lib_AddressManager.getAddress(
-      'OVM_L1CrossDomainMessengerFast'
+      'Proxy__OVM_L1CrossDomainMessengerFast'
     )
     this.state.OVM_L1CrossDomainMessenger = loadContract(
       'OVM_L1CrossDomainMessenger',
@@ -569,7 +569,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
   private async _getfilter(): Promise<void> {
     try {
       if (this.options.filterEndpoint) {
-        if (this.state.lastFilterPollingTimestamp === 0 || 
+        if (this.state.lastFilterPollingTimestamp === 0 ||
           new Date().getTime() > this.state.lastFilterPollingTimestamp + this.options.filterPollingInterval
         ) {
           const response = await fetch(this.options.filterEndpoint)
