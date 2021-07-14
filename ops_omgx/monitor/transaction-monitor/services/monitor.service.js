@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 const ethers = require('ethers');
-
 const DatabaseService = require('./database.service');
 const OptimismEnv = require('./utilities/optimismEnv');
+const fetch = require('node-fetch');
 
 class MonitorService extends OptimismEnv {
   constructor() {
@@ -13,6 +13,11 @@ class MonitorService extends OptimismEnv {
 
     this.latestBlock = null;
     this.scannedLastBlock = null;
+    this.lastCheckWhitelist = (new Date().getTime() / 1000).toFixed(0);
+    this.lastCheckNonWhitelist = (new Date().getTime() / 1000).toFixed(0);
+
+    this.whitelist = [];
+
   }
 
   async initConnection() {
@@ -97,9 +102,19 @@ class MonitorService extends OptimismEnv {
       } else {
         receiptData.timestamp = (new Date().getTime() / 1000).toFixed(0);
       }
-      receiptData = await this.getCrossDomainMessageStatus(receiptData, blocksData);
+
+      receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
+
+      // if message is cross domain check if message has been finalized
+      if (receiptData.crossDomainMessage){
+        receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
+      }
+
       await this.databaseService.insertReceiptData(receiptData);
     }
+
+    await this.getWhitelist();
+    this.logger.info(`Whitelist: ${this.whitelist}`);
 
     // update scannedLastBlock
     this.scannedLastBlock = this.latestBlock;
@@ -114,7 +129,8 @@ class MonitorService extends OptimismEnv {
       this.latestBlock = latestBlock;
 
       // connect to MySQL
-      await this.databaseService.initDatabaseService();
+      this.transactionMonitorSQL = true;
+      await this.startDatabaseService();
 
       // get the blocks, transactions and receipts
       this.logger.info('Fetching the block data...');
@@ -142,42 +158,85 @@ class MonitorService extends OptimismEnv {
         } else {
           receiptData.timestamp = (new Date().getTime() / 1000).toFixed(0);
         }
-        receiptData = await this.getCrossDomainMessageStatus(receiptData, blocksData);
+        // check if message is cross domain
+        receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
+
+        // if message is cross domain check if message has been finalized
+        if (receiptData.crossDomainMessage){
+          receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
+        }
         await this.databaseService.insertReceiptData(receiptData);
       }
 
       // update scannedLastBlock
       this.scannedLastBlock = this.latestBlock;
-      this.databaseService.con.end();
-    } else {
-      // this.logger.info('No new block found.');
-    }
 
-    this.logger.info(`Found block, receipt and transaction data. Sleeping ${this.transactionMonitorInterval} ms...`);
+      this.transactionMonitorSQL = false;
+      await this.endDatabaseService();
+
+
+      this.logger.info(`Found block, receipt and transaction data. Sleeping ${this.transactionMonitorInterval} ms...`);
+    } else {
+      this.logger.info('No new block found.');
+    }
 
     await this.sleep(this.transactionMonitorInterval);
   }
 
   async startCrossDomainMessageMonitor() {
     // connect to MySQL
-    await this.databaseService.initDatabaseService();
+    this.crossDomainMessageMonitorSQL = true;
+    await this.startDatabaseService();
+
 
     this.logger.info('Searching cross domain messages...');
     const crossDomainData = await this.databaseService.getCrossDomainData();
 
+    // counts the number of server request
+    let promiseCount = 0;
+
+    let checkWhitelist = this.checkTime(this.whitelist);
+    if(checkWhitelist) await this.getWhitelist();
+    let checkNonWhitelist = this.checkTime(this.nonWhitelist);
+    
     if (crossDomainData.length) {
       this.logger.info('Found cross domain message.');
       const promisesBlock = [], promisesReceipt = [];
       for (let hashes of crossDomainData) {
+        // limits the rate of server request
+        if((promiseCount % this.L2rateLimit) === 0){
+          this.logger.info(`${this.L2rateLimit} promises reached!`);
+          await Promise.all(promisesBlock);
+          await Promise.all(promisesReceipt);
+          if(promiseCount % this.L2sleepThresh === 0){
+            await this.sleep(1000);
+          }
+        }
         const hash = hashes.hash;
         const blockNumber = Number(hashes.blockNumber);
         promisesReceipt.push(this.L2Provider.getTransactionReceipt(hash));
         promisesBlock.push(this.L2Provider.getBlockWithTransactions(blockNumber));
+        promiseCount = promiseCount + 1;
       }
+
+      promiseCount = 0;
       const blocksData = await Promise.all(promisesBlock);
       const receiptsData = await Promise.all(promisesReceipt);
+
       for (let receiptData of receiptsData) {
-        receiptData = await this.getCrossDomainMessageStatus(receiptData, blocksData);
+        receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
+        
+        if(!receiptData.crossDomainMessage) continue;
+
+        // if its time check cross domain message finalization
+        if(checkWhitelist && this.whitelist.includes(receiptData.from)){
+          this.logger.info(`Checking message from whitelist address: ${receiptData.from}`);
+          receiptData = await this.getCrossDomainMessageStatusL1(receiptData, blocksData);
+        }else if (checkNonWhitelist && !this.whitelist.includes(receiptData.from)){
+          this.logger.info(`Checking message from non-whitelist`);
+          receiptData = await this.getCrossDomainMessageStatusL1(receiptData, blocksData);
+        }
+
         if (receiptData.crossDomainMessageFinalize) {
           await this.databaseService.updateCrossDomainData(receiptData);
         }
@@ -185,7 +244,9 @@ class MonitorService extends OptimismEnv {
     } else {
       this.logger.info('No waiting cross domain message found.');
     }
-    this.con.end();
+
+    this.crossDomainMessageMonitorSQL = false;
+    await this.endDatabaseService();
 
     this.logger.info(`Found cross domain messages. Sleeping ${this.crossDomainMessageMonitorInterval} ms...`);
 
@@ -222,7 +283,7 @@ class MonitorService extends OptimismEnv {
 
     const logs = await this.L1Provider.getLogs(filter);
     const matches = logs.filter(i => i.data === msgHash);
-    
+
     this.logger.info(`Found matches: ${JSON.stringify(matches)}`);
 
     if (matches.length > 0) {
@@ -233,17 +294,15 @@ class MonitorService extends OptimismEnv {
     }
   }
 
-  async getCrossDomainMessageStatus(receiptData, blocksData) {
-    
+  async getCrossDomainMessageStatusL2(receiptData, blocksData){
     this.logger.info(`Searching ${receiptData.transactionHash}...`);
 
     const filteredBlockData = blocksData.filter(i => i.hash === receiptData.blockHash);
-      
+
     let crossDomainMessageSendTime;
-    let crossDomainMessageEstimateFinalizedTime; 
+    let crossDomainMessageEstimateFinalizedTime;
     let crossDomainMessage = false;
     let crossDomainMessageFinalize = false;
-    let crossDomainMessageFinalizedTime;
     let msgHashes = [];
 
     if (filteredBlockData.length) {
@@ -263,24 +322,96 @@ class MonitorService extends OptimismEnv {
         msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [message]));
       }
 
-      // Check if L1 get the transaction receipt
-      const L1Receipt = await this.getL1TransactionReceipt(msgHashes[0]);
-      const L1ReceiptFast = await this.getL1TransactionReceipt(msgHashes[0], true);
-      if ((L1Receipt) || (L1ReceiptFast)){
-        crossDomainMessageFinalize = true;
-        crossDomainMessageFinalizedTime = (new Date().getTime() / 1000).toFixed(0);
-      } else {
-        crossDomainMessageFinalize = false;
-      } 
     }
-
-    receiptData.crossDomainMessage = crossDomainMessage;
-    receiptData.crossDomainMessageFinalize = crossDomainMessageFinalize;
     receiptData.crossDomainMessageSendTime = crossDomainMessageSendTime;
     receiptData.crossDomainMessageEstimateFinalizedTime = crossDomainMessageEstimateFinalizedTime;
+    receiptData.crossDomainMessage = crossDomainMessage;
+    receiptData.crossDomainMessageFinalize = crossDomainMessageFinalize;
+
+    return receiptData;
+  }
+  async getCrossDomainMessageStatusL1(receiptData){
+    this.logger.info("Checking if message has been finalized...");
+
+    // Find the transaction that sends message from L2 to L1
+    const filteredLogData = receiptData.logs.filter(i => i.address === this.OVM_L2CrossDomainMessenger && i.topics[0] === ethers.utils.id('SentMessage(bytes)'));
+    let msgHash;
+    if (filteredLogData.length) {
+      const [message] = ethers.utils.defaultAbiCoder.decode(
+        ['bytes'],
+        filteredLogData[0].data
+      );
+      msgHash = ethers.utils.solidityKeccak256(['bytes'], [message])
+    } else return receiptData;
+
+    let crossDomainMessageFinalize = false;
+    let crossDomainMessageFinalizedTime;
+
+    if((await this.getL1TransactionReceipt(msgHash)) ||
+       (await this.getL1TransactionReceipt(msgHash, true))){
+      crossDomainMessageFinalize = true;
+      crossDomainMessageFinalizedTime = (new Date().getTime() / 1000).toFixed(0);
+    }
+
+    receiptData.crossDomainMessageFinalize = crossDomainMessageFinalize;
     receiptData.crossDomainMessageFinalizedTime = crossDomainMessageFinalizedTime;
 
     return receiptData;
+  }
+
+  // gets list of addresses whose messages may finalize fast
+  async getWhitelist(){
+    let response = await fetch('https://api-message-relayer.rinkeby.omgx.network/rinkeby/get.whitelist');
+    this.whitelist = await response.json();
+  }
+
+  // checks to see if its time to look for L1 finalization
+  checkTime(list){
+    let currentTime = (new Date().getTime() / 1000).toFixed(0);
+    if(list === this.whitelist){
+      if((currentTime - this.lastCheckWhitelist) >= this.whitelistSleep){
+        this.lastCheckWhitelist = currentTime;
+        return true;
+      }
+    } else if (list === this.nonWhitelist){
+      if((currentTime - this.lastCheckNonWhitelist) >= this.nonWhitelistSleep){
+        this.lastCheckNonWhitelist = currentTime;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // starts up connection with mysql database safely
+  async startDatabaseService(){
+    await this.databaseConnectedMutex.acquire().then(async (release) => {
+      try {
+        if(!this.databaseConnected){
+          await this.databaseService.initDatabaseService();
+          this.databaseConnected = true;
+        }
+        release();
+      } catch (error) {
+        release();
+        throw error;
+      }
+    });
+  }
+
+  // ends connection with mysql database safely
+  async endDatabaseService(){
+    await this.databaseConnectedMutex.acquire().then(async (release) => {
+        try {
+          if(this.databaseConnected && !this.transactionMonitorSQL && !this.crossDomainMessageMonitorSQL){
+              this.databaseService.con.end();
+              this.databaseConnected = false;
+          }
+          release();
+        } catch (error) {
+          release();
+          throw error;
+        }
+    });
   }
 }
 
