@@ -434,6 +434,32 @@
     ts-node "^8.0.2"
     url-join "^4.0.0"
 
+"@codechecks/client@^0.1.11":
+  version "0.1.11"
+  resolved "https://registry.yarnpkg.com/@codechecks/client/-/client-0.1.11.tgz#5ca0cb3b0d99fed1c397033c981efeedd8e2ea37"
+  integrity sha512-dSIzHnGNcXxDZtnVQEXWQHXH2v9KrpnK4mDGDxdwSu3l00rOIVwJcttj0wzx0bC0Q6gs65VsQdZH4gkanLdXOA==
+  dependencies:
+    bluebird "^3.5.3"
+    chalk "^2.4.2"
+    commander "^2.19.0"
+    debug "^4.1.1"
+    execa "^1.0.0"
+    glob "^7.1.3"
+    graceful-fs "^4.1.15"
+    js-yaml "^3.13.1"
+    json5 "^2.1.0"
+    lodash "^4.17.11"
+    marked "^0.7.0"
+    marked-terminal "^3.3.0"
+    mkdirp "^0.5.1"
+    ms "^2.1.1"
+    promise "^8.0.2"
+    request "^2.88.0"
+    request-promise "^4.2.2"
+    ts-essentials "^1.0.2"
+    ts-node "^8.0.2"
+    url-join "^4.0.0"
+
 "@ensdomains/ens@^0.4.4":
   version "0.4.5"
   resolved "https://registry.yarnpkg.com/@ensdomains/ens/-/ens-0.4.5.tgz#e0aebc005afdc066447c6e22feb4eda89a5edbfc"
