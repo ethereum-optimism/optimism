@@ -59,7 +59,7 @@ jobs:
         working-directory: ./ops
         run: |
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ethereumoptimism); do
-            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}'):${{ steps.tag.outputs.VERSION }}
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):${{ steps.tag.outputs.VERSION }}
           done
           docker rmi $(docker images | grep 'ethereumoptimism/' | awk '{print $1}')
           docker images

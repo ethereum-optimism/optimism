@@ -53,8 +53,8 @@ jobs:
         working-directory: ./ops
         run: |
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ethereumoptimism); do
-            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}'):latest
-            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}'):develop
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):latest
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):develop
           done
 
           docker image tag omgx/gas-oracle:latest omgx/gas-oracle:develop
