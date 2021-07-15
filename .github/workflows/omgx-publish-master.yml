@@ -1,9 +1,10 @@
-name: Publish Packages (omgx-develop)
+name: Publish Packages (omgx-master)
 
 on:
   push:
-    branches:
-      - 'develop'
+    tags:
+    - '*'
+
 # on:
 #   push:
 #     branches:
@@ -41,25 +42,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
+      - name: Get the version
+        id: tag
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
       - name: Build the services
         working-directory: ./ops
         run: |
+          echo ${{ steps.tag.outputs.VERSION }}
           ./scripts/build-ci.sh
-          docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:latest
-          docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
-          docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:latest
+          docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:${{ steps.tag.outputs.VERSION }}
+          docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:${{ steps.tag.outputs.VERSION }}
+          docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:${{ steps.tag.outputs.VERSION }}
 
-      - name: Rename and retag the optimism images
+      - name: Rename and retag the Optimism images
         working-directory: ./ops
         run: |
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ethereumoptimism); do
-            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}'):latest
-            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}'):develop
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}'):${{ steps.tag.outputs.VERSION }}
           done
-
-          docker image tag omgx/gas-oracle:latest omgx/gas-oracle:develop
-          docker image tag omgx/omgx_builder:latest omgx/omgx_builder:develop
-          docker image tag omgx/omgx_deployer:latest omgx/omgx_deployer:develop
           docker rmi $(docker images | grep 'ethereumoptimism/' | awk '{print $1}')
           docker images
 
