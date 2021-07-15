@@ -48,18 +48,19 @@ jobs:
           docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:latest
           docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
           docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:latest
-
+          docker build ../ --file docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:latest
       - name: Rename and retag the optimism images
         working-directory: ./ops
         run: |
+          for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep omgx); do
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):develop
+          done
+
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ethereumoptimism); do
             docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):latest
             docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):develop
           done
 
-          docker image tag omgx/gas-oracle:latest omgx/gas-oracle:develop
-          docker image tag omgx/omgx_builder:latest omgx/omgx_builder:develop
-          docker image tag omgx/omgx_deployer:latest omgx/omgx_deployer:develop
           docker rmi $(docker images | grep 'ethereumoptimism/' | awk '{print $1}')
           docker images
 

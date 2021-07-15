@@ -46,15 +46,17 @@ jobs:
         id: tag
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
 
+      - name: Print current tag
+        run: echo ${{ steps.tag.outputs.VERSION }}
+
       - name: Build the services
         working-directory: ./ops
         run: |
-          echo ${{ steps.tag.outputs.VERSION }}
           ./scripts/build-ci.sh
           docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:${{ steps.tag.outputs.VERSION }}
           docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:${{ steps.tag.outputs.VERSION }}
           docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:${{ steps.tag.outputs.VERSION }}
-
+          docker build ../ --file docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:${{ steps.tag.outputs.VERSION }}
       - name: Rename and retag the Optimism images
         working-directory: ./ops
         run: |
@@ -63,6 +65,7 @@ jobs:
           done
           docker rmi $(docker images | grep 'ethereumoptimism/' | awk '{print $1}')
           docker images
+          docker images | grep ${{ steps.tag.outputs.VERSION }}
 
       - name: Rename and retag the optimism images
         working-directory: ./ops
