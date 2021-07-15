@@ -1,0 +1,55 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: omisego-agent-sidecar
+spec:
+  serviceAccountName: omisego-service
+
+  restartPolicy: Never
+
+  volumes:
+    - name: vault-token
+      emptyDir:
+        medium: Memory
+
+    - name: cacerts
+      configMap:
+        name: cacerts
+        items:
+          - key: vault-cacert
+            path: vault-cacert
+
+    - name: config
+      configMap:
+        name: vault-agent-config
+        items:
+          - key: vault-agent-config.hcl
+            path: vault-agent-config.hcl
+          
+  containers:
+    - name: vault-agent-auth
+      image: vault
+
+      volumeMounts:
+        - name: config
+          mountPath: /etc/vault
+
+        - name: cacerts
+          mountPath: /certs
+
+        - name: vault-token
+          mountPath: /vault
+
+      # This assumes Vault running on local host and K8s running in Minikube using VirtualBox
+      env:
+        - name: VAULT_ADDR
+          value: https://192.168.64.1:8200
+
+      # Run the Vault agent
+      args:
+        [
+          "agent",
+          "-ca-cert=/certs/vault-cacert",
+          "-config=/etc/vault/vault-agent-config.hcl",
+        ]
