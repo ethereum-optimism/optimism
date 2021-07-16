@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.1.5
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+
 ## 0.1.4
 
 ### Patch Changes

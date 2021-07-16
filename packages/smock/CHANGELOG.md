@@ -1,5 +1,19 @@
 # @eth-optimism/smock
 
+## 1.1.9
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+- Updated dependencies [c73c3939]
+  - @eth-optimism/core-utils@0.5.1
+
+## 1.1.8
+
+### Patch Changes
+
+- d1da05be: Add a test and a doc section for returning multiple uint256 arrays
+
 ## 1.1.7
 
 ### Patch Changes

@@ -898,12 +898,12 @@ var (
 		Usage:  "Disable transactions with 0 gas price",
 		EnvVar: "ROLLUP_ENFORCE_FEES",
 	}
-	RollupFeeThresholdDownFlag = cli.BoolFlag{
+	RollupFeeThresholdDownFlag = cli.Float64Flag{
 		Name:   "rollup.feethresholddown",
 		Usage:  "Allow txs with fees below the current fee up to this amount, must be < 1",
 		EnvVar: "ROLLUP_FEE_THRESHOLD_DOWN",
 	}
-	RollupFeeThresholdUpFlag = cli.BoolFlag{
+	RollupFeeThresholdUpFlag = cli.Float64Flag{
 		Name:   "rollup.feethresholdup",
 		Usage:  "Allow txs with fees above the current fee up to this amount, must be > 1",
 		EnvVar: "ROLLUP_FEE_THRESHOLD_UP",
