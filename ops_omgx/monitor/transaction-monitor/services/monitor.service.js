@@ -198,7 +198,7 @@ class MonitorService extends OptimismEnv {
     let checkWhitelist = this.checkTime(this.whitelist);
     if(checkWhitelist) await this.getWhitelist();
     let checkNonWhitelist = this.checkTime(this.nonWhitelist);
-    
+
     if (crossDomainData.length) {
       this.logger.info('Found cross domain message.');
       const promisesBlock = [], promisesReceipt = [];
@@ -225,7 +225,7 @@ class MonitorService extends OptimismEnv {
 
       for (let receiptData of receiptsData) {
         receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
-        
+
         if(!receiptData.crossDomainMessage) continue;
 
         // if its time check cross domain message finalization
@@ -311,6 +311,7 @@ class MonitorService extends OptimismEnv {
     }
     // Find the transaction that sends message from L2 to L1
     const filteredLogData = receiptData.logs.filter(i => i.address === this.OVM_L2CrossDomainMessenger && i.topics[0] === ethers.utils.id('SentMessage(bytes)'));
+    // this.logger.info(`recieptData.logs:${JSON.stringify(receiptData, null, 4)}`)
     if (filteredLogData.length) {
       crossDomainMessage = true;
       // Get message hashes from L2 TX
@@ -319,8 +320,21 @@ class MonitorService extends OptimismEnv {
           ['bytes'],
           logData.data
         );
+        // this.logger.info(`logData:${JSON.stringify(logData, null, 4)}`);
         msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [message]));
+        // this.logger.info(`message:${JSON.stringify([message], null, 4)}`);
+        // try {
+        //   decoded = this.state.OVM_L2CrossDomainMessengerContract.decodeFunctionData(
+        //     'relayMessage',
+        //     [message]
+        //   );
+        //   this.logger.info(`Decoded.target:${decoded.target}`);
+        // } catch (error) {
+        //   this.logger.info(`Here is the error: ${error}`);
+        // }
+
       }
+
 
     }
     receiptData.crossDomainMessageSendTime = crossDomainMessageSendTime;
@@ -416,3 +430,32 @@ class MonitorService extends OptimismEnv {
 }
 
 module.exports = MonitorService;
+
+// private async _getSentMessages(
+//   startHeight: number,
+//   endHeight: number
+// ): Promise<SentMessage[]> {
+//   const filter = this.state.OVM_L2CrossDomainMessenger.filters.SentMessage()
+//   const events = await this.state.OVM_L2CrossDomainMessenger.queryFilter(
+//     filter,
+//     startHeight + this.options.l2BlockOffset,
+//     endHeight + this.options.l2BlockOffset - 1
+//   )
+//   const messages = events.map((event) => {
+//     const message = event.args.message
+//     const decoded = this.state.OVM_L2CrossDomainMessenger.interface.decodeFunctionData(
+//       'relayMessage',
+//       message
+//     )
+//     return {
+//       target: decoded._target,
+//       sender: decoded._sender,
+//       message: decoded._message,
+//       messageNonce: decoded._messageNonce,
+//       encodedMessage: message,
+//       encodedMessageHash: ethers.utils.keccak256(message),
+//       parentTransactionIndex: event.blockNumber - this.options.l2BlockOffset,
+//       parentTransactionHash: event.transactionHash,
+//     }
+//   })
+// }

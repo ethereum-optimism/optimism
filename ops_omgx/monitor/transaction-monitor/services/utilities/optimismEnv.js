@@ -3,9 +3,11 @@
 const ethers = require('ethers');
 const util = require('util');
 const core_utils_1 = require('@eth-optimism/core-utils');
+const loadContractFromManager = require('@eth-optimism/contracts');
 const Mutex = require('async-mutex').Mutex;
 
 const addressManagerJSON = require('../../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json');
+const OVM_L2CrossDomainMessengerJSON = require('../../artifacts/contracts/optimistic-ethereum/OVM/bridge/messaging/OVM_L2CrossDomainMessenger.sol/OVM_L2CrossDomainMessenger.json');
 
 require('dotenv').config();
 const env = process.env;
@@ -76,6 +78,8 @@ class OptimismEnv {
 
     this.databaseConnected = false;
     this.databaseConnectedMutex = new Mutex();
+
+    this.OVM_L2CrossDomainMessengerContract = null;
   }
 
   async initOptimismEnv() {
@@ -83,13 +87,19 @@ class OptimismEnv {
       this.addressManagerAddress,
       addressManagerJSON.abi,
       this.wallet
-    )
+    );
     this.OVM_L1CrossDomainMessenger = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger');
     this.OVM_L1CrossDomainMessengerFast = await addressManager.getAddress('OVM_L1CrossDomainMessengerFast');
     this.logger.info('Found OVM_L1CrossDomainMessenger and OVM_L1CrossDomainMessengerFast', {
       OVM_L1CrossDomainMessenger: this.OVM_L1CrossDomainMessenger,
       OVM_L1CrossDomainMessengerFast: this.OVM_L1CrossDomainMessengerFast,
-    })
+    });
+    this.OVM_L2CrossDomainMessengerContract = new ethers.Contract(
+      this.OVM_L2CrossDomainMessenger,
+      OVM_L2CrossDomainMessengerJSON.abi,
+      this.wallet,
+    );
+    this.logger.info(`this.OVM_L2CrossDomainMessengerContract: ${JSON.stringify(this.OVM_L2CrossDomainMessengerContract, null, null)}`);
   }
 }
 
