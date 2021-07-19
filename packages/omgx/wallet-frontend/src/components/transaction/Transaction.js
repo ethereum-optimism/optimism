@@ -28,9 +28,12 @@ function Transaction ({
   title,
   midTitle,
   subTitle,
+  chain,
+  typeTX,
   tooltip = ''
 }) {
   function renderValue () {
+    
     if (button) {
       return (
         <div className={styles.statusContainer}>
@@ -42,8 +45,9 @@ function Transaction ({
           </div>
           <div>{subStatus}</div>
         </div>
-      );
+      )
     }
+    
     return (
       <div className={styles.statusContainer}>
         <div className={styles.status}>
@@ -66,10 +70,11 @@ function Transaction ({
         </div>
         <div>{subStatus}</div>
       </div>
-    );
+    )
   }
 
-  const Resolved = link ? 'a' : 'div';
+  const Resolved = link ? 'a' : 'div'
+
   return (
     <div className={styles.Transaction}>
       <Resolved
@@ -78,17 +83,17 @@ function Transaction ({
         rel='noopener noreferrer'
         className={styles.left}
       >
+        <span style={{fontSize: '1.2em'}}>{chain}</span>
         <div>{title}</div>
-        {midTitle && (
-          <div className={styles.midTitle}>{midTitle}</div>
-        )}
+        {midTitle && (<div className={styles.midTitle}>{midTitle}</div>)}
         <div>{subTitle}</div>
+        <div>{typeTX}</div>
       </Resolved>
       <div className={styles.right}>
         {renderValue()}
       </div>
     </div>
-  );
+  )
 }
 
 export default React.memo(Transaction);

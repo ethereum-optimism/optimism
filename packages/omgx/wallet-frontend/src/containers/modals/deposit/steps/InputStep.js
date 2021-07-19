@@ -1,176 +1,114 @@
-import React, { useState } from 'react';
-import { ethers } from 'ethers';
-import { useDispatch, useSelector } from 'react-redux';
 
-import Button from 'components/button/Button';
-import Input from 'components/input/Input';
-import Tabs from 'components/tabs/Tabs';
+import React, { useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 
-import { openAlert, openError, setActiveHistoryTab1 } from 'actions/uiAction';
-import networkService from 'services/networkService';
-import { selectLoading } from 'selectors/loadingSelector';
-import { depositETHL2, depositL1LP } from 'actions/networkAction';
+import { depositETHL2, depositErc20 } from 'actions/networkAction'
+import { openAlert, openError, setActiveHistoryTab1 } from 'actions/uiAction'
 
-import * as styles from '../DepositModal.module.scss';
+import Button from 'components/button/Button'
+import Input from 'components/input/Input'
+import GasPicker from 'components/gaspicker/GasPicker'
 
-const ETH0x = "0x0000000000000000000000000000000000000000";
+import { selectLoading } from 'selectors/loadingSelector'
+import { logAmount, powAmount } from 'util/amountConvert'
 
-function InputStep ({
-  onClose,
-  onNext,
-  currency,
-  tokenInfo,
-  value,
-  setCurrency,
-  setTokenInfo,
-  setValue,
-  fast
-}) {
+import * as styles from '../DepositModal.module.scss'
 
-  const dispatch = useDispatch(); 
+function InputStep({ handleClose, token }) {
 
-  let uSC = 'ETH';
+  const dispatch = useDispatch()
+  const [value, setValue] = useState('')
+  const [disabledSubmit, setDisabledSubmit] = useState(true)
+  const [gasPrice, setGasPrice] = useState()
+  const [selectedSpeed, setSelectedSpeed] = useState('normal')
+  const depositLoading = useSelector(selectLoading(['DEPOSIT/CREATE']))
 
-  const [ activeTab1, setActiveTab1 ] = useState(uSC);
-  const [ LPBalance, setLPBalance ] = useState(0);
-  const [ feeRate, setFeeRate ] = useState(0);
-  const depositLoading = useSelector(selectLoading([ 'DEPOSIT/CREATE' ]));
+  async function doDeposit() {
 
-  function handleClose () {
-    setActiveTab1('ETH');
-    onClose();
-  }
+    let res
 
-  async function depositETH () {
-    if (value > 0 && tokenInfo) {
-      let res
-      if (fast) {
-        res = await dispatch(depositL1LP(currency, value))
-      } else {
-        res = await dispatch(depositETHL2(value));
-      }
-      if (res) {
-        dispatch(setActiveHistoryTab1('Deposits'));
-        if (fast) {
-          dispatch(openAlert(`ETH was deposited the the L1LP. You will receive ${(Number(value) * 0.97).toFixed(2)} oETH on L2`));
-        } else {
-          dispatch(openAlert('ETH deposit submitted.'));
+    if(token.symbol === 'ETH') {
+      console.log("Depositing ETH")
+      if (value > 0) {
+        res = await dispatch(depositETHL2(value))
+        if (res) {
+          dispatch(setActiveHistoryTab1('Deposits'))
+          dispatch(openAlert('ETH deposit submitted'))
+          handleClose()
         }
-        handleClose();
+      }
+    } else {
+      console.log("Depositing ERC20")
+      res = await dispatch(
+        depositErc20(powAmount(value, token.decimals), token.address, gasPrice, token.addressL2)
+      )
+      if (res) {
+        dispatch(setActiveHistoryTab1('Deposits'))
+        dispatch(openAlert(`${token.symbol} deposit submitted.`))
+        handleClose()
       } else {
-        dispatch(openError('Failed to deposit ETH'));
+        dispatch(openError(`Failed to deposit ${token.symbol}`))
       }
     }
   }
 
-  const disabledSubmit = value <= 0 || !currency || !ethers.utils.isAddress(currency) || (fast && Number(value) > Number(LPBalance));
-
-  if (fast && Object.keys(tokenInfo).length && currency) {
-    networkService.L2LPBalance(currency).then((LPBalance)=>{
-      setLPBalance(LPBalance)
-    })
-    networkService.getTotalFeeRate().then((feeRate)=>{
-      setFeeRate(feeRate)
-    })
+  function setAmount(value) {
+    if (Number(value) > 0 && Number(value) < Number(token.balance)) {
+      setDisabledSubmit(false)
+    } else {
+      setDisabledSubmit(true)
+    }
+    setValue(value)
   }
+
+  const renderGasPicker = (
+    <GasPicker
+      selectedSpeed={selectedSpeed}
+      setSelectedSpeed={setSelectedSpeed}
+      setGasPrice={setGasPrice}
+    />
+  )
+
+  console.log("Loading:", depositLoading)
 
   return (
     <>
-
-      {fast &&
-        <h2>Fast swap onto OMGX</h2>
-      }
-
-      {!fast &&
-        <h2>Traditional Deposit</h2>
-      }
-      
-      <Tabs
-        className={styles.tabs}
-        onClick={i => {
-          i === 'ETH' ? setCurrency(ETH0x) : setCurrency('');
-          setActiveTab1(i);
-        }}
-        activeTab={activeTab1}
-        tabs={[ 'ETH', 'ERC20' ]}
-      />
-
-      {activeTab1 === 'ERC20' && (
-        <Input
-          label='ERC20 Token Smart Contract Address.'
-          placeholder='0x'
-          paste
-          value={currency}
-          onChange={i=>setCurrency(i.target.value.toLowerCase())} //because this is a user input!!
-        />
-      )}
+      <h2>
+        {`Deposit ${token && token.symbol ? token.symbol : ''}`}
+      </h2>
 
       <Input
-        label='Amount to deposit into OMGX'
-        type='number'
-        unit={tokenInfo ? tokenInfo.symbol : ''}
-        placeholder={0}
+        placeholder={'Amount to deposit'}
         value={value}
-        onChange={i=>setValue(i.target.value)} 
+        type="number"
+        onChange={(i)=>setAmount(i.target.value)}
+        unit={token.symbol}
+        maxValue={logAmount(token.balance, token.decimals)}
       />
 
-      {fast && activeTab1 === 'ETH' && Object.keys(tokenInfo).length && currency ? (
-        <>
-          <h3>
-            The L2 liquidity pool has {LPBalance} oETH. The liquidity fee is {feeRate}%.{" "} 
-            {value && `You will receive ${(Number(value) * 0.97).toFixed(2)} oETH on L2.`}
-          </h3>
-        </>
-      ):<></>}
-
-      {fast && activeTab1 === 'ERC20' && Object.keys(tokenInfo).length && currency ? (
-        <>
-          <h3>
-            The L2 liquidity pool contains {LPBalance} {tokenInfo.symbol}. The liquidity fee is {feeRate}%.{" "} 
-            {value && `You will receive ${(Number(value) * 0.97).toFixed(2)} ${tokenInfo.symbol} on L2.`}
-          </h3>
-        </>
-      ):<></>}
-
-      {fast && Number(LPBalance) < Number(value) && 
-        <h3 style={{color: 'red'}}>
-          The L2 liquidity pool doesn't have enough balance to cover your swap.
-        </h3>
-      }
+      {renderGasPicker}
 
       <div className={styles.buttons}>
-        <Button
-          onClick={handleClose}
-          type='outline'
+        <Button 
+          onClick={handleClose} 
+          type="outline" 
           style={{ flex: 0 }}
         >
           CANCEL
         </Button>
-        {activeTab1 === 'ETH' && (
-          <Button
-            onClick={depositETH}
-            type='primary'
-            style={{ flex: 0 }}
-            loading={depositLoading}
-            tooltip='Your deposit is still pending. Please wait for confirmation.'
-            disabled={disabledSubmit}
-          >
-            DEPOSIT
-          </Button>
-        )}
-        {activeTab1 === 'ERC20' && (
-          <Button
-            onClick={onNext}
-            type='primary'
-            style={{ flex: 0 }}
-            disabled={disabledSubmit}
-          >
-            NEXT
-          </Button>
-        )}
+        <Button
+          onClick={doDeposit}
+          type="primary"
+          style={{flex: 0, minWidth: 200}}
+          loading={depositLoading}
+          tooltip="Your swap is still pending. Please wait for confirmation."
+          disabled={disabledSubmit}
+        >
+          DEPOSIT
+        </Button>
       </div>
     </>
-  );
+  )
 }
 
-export default React.memo(InputStep);
+export default React.memo(InputStep)

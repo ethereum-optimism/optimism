@@ -14,7 +14,6 @@ let L2Message: Contract
 
 const deployFn: DeployFunction = async (hre) => {
 
-
     Factory__L1Message = new ContractFactory(
       L1MessageJson.abi,
       L1MessageJson.bytecode,

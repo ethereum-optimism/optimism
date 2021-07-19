@@ -28,13 +28,6 @@ import feeReducer from './feeReducer';
 import gasReducer from './gasReducer';
 import uiReducer from './uiReducer';
 import setupReducer from './setupReducer';
-import sellReducer from './sellReducer';
-import buyReducer from './buyReducer';
-import buyTaskReducer from './buyTaskReducer';
-import sellTaskReducer from './sellTaskReducer';
-import loginReducer from './loginReducer';
-import swapReducer from './swapReducer';
-import priceTickerReducer from './priceTickerReducer';
 import notificationReducer from './notificationReducer';
 import farmReduer from './farmReducer';
 
@@ -52,13 +45,6 @@ const rootReducer = combineReducers({
   gas: gasReducer,
   ui: uiReducer,
   setup: setupReducer,
-  sell: sellReducer,
-  sellTask: sellTaskReducer,
-  buy: buyReducer,
-  buyTask: buyTaskReducer,
-  login: loginReducer,
-  swap: swapReducer,
-  priceTicker: priceTickerReducer,
   notification: notificationReducer,
   farm: farmReduer,
 });

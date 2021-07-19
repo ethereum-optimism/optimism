@@ -23,14 +23,6 @@ With all this done we can move on to actually spinning up a local version of the
 **NOTE: You should recompile all packages whenever you move from one  branch to another.**  
 Use the below commands to recompile the packages.
 
-<!-- Normally, after you have built the docker images once, all you have to do is to run:
-
-```bash
-$ BUILD=0 DAEMON=0 ./up_local.sh
-```
-
-and your computer will use the docker images you built earlier.  -->
-
 Note: _Running out of space on your Docker, or having other having hard to debug issues_? Try running `docker system prune -a --volumes` and then rebuild the images. 
 
 ## Starting a local basic Optimism L1/L2
@@ -38,7 +30,6 @@ Note: _Running out of space on your Docker, or having other having hard to debug
 You can change the BUILD and DAEMON values to control if everything is rebuilt (`BUILD=1`, very slow), and if you want to see all the debug information (`DAEMON=0`)
 
 **Before running any Docker related commands make sure you have Docker up and running.**
-
 
 ```bash
 cd ops
@@ -48,9 +39,6 @@ docker-compose build
 docker-compose up -V
 ```
 
-If you run into issues errors when running `docker-compose build` restart Docker before trying anything else. 
-
-The `-V` setting is critical, since otherwise your Docker images may have stale information in them from previous runs, which will confuse the `data-transport-layer`, among other things. 
 
 ## (Re)Building the entire system or parts of the base L1/L2
 
@@ -150,39 +138,3 @@ yarn build:integration
 yarn test:integration
 ```
 
-## Front End Development
-
-Start a local L1/L2. 
-
-You can change the BUILD and DAEMON values to control if everything is rebuilt (`BUILD=1`, very slow), and if you want to see all the debug information (`DAEMON=0`).
-
-```bash
-$ cd ops
-$ BUILD=1 DAEMON=0 ./up_local.sh
-```
-
-Typically, you will only have to build everything once, and after that, you can save time by setting `BUILD` to `2`. In that case, we'll use the docker images you built earlier.
-
-```bash
-$ cd ops
-$ BUILD=2 DAEMON=0 ./up_local.sh
-```
-
-Then, open a second terminal window and navigate to `packages/omgx/wallet-frontend`, and run
-
-```bash
-$ yarn get_artifacts #this will get all the contract artifacts - note that this will only work correctly if you ran `yarn build` at the top level per instructions
-$ yarn build
-$ yarn start
-```
-
-and the frontend should start up in a local browser. You can also develop on the Rinkeby testnet - in that case, you do not need to run a local L1/L2. If you would like to do that, just change the .env settings:
-
-```bash
-# This is for working on the wallet, pointed at the OMGX Rinkeby testnet
-REACT_APP_INFURA_ID=
-REACT_APP_ETHERSCAN_API=
-REACT_APP_POLL_INTERVAL=20000
-SKIP_PREFLIGHT_CHECK=true
-REACT_APP_WALLET_VERSION=1.0.10
-```

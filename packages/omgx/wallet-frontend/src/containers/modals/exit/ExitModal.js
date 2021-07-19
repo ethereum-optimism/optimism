@@ -13,30 +13,32 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React from 'react';
-import { useDispatch } from 'react-redux';
+import React from 'react'
+import { useDispatch } from 'react-redux'
 
-import { closeModal } from 'actions/uiAction';
+import Modal from 'components/modal/Modal'
+import { closeModal } from 'actions/uiAction'
 
-import Modal from 'components/modal/Modal';
+import DoExitStep from './steps/DoExitStep'
+import DoExitStepFast from './steps/DoExitStepFast'
 
-import DoExitStep from './steps/DoExitStep';
+function ExitModal({ open, token, fast }) {
+  
+  const dispatch = useDispatch()
 
-function ExitModal ({ open, fast }) {
-  const dispatch = useDispatch();
-
-  function handleClose () {
-    dispatch(closeModal('exitModal'));
+  function handleClose() {
+    dispatch(closeModal('exitModal'))
   }
 
   return (
     <Modal open={open}>
-      <DoExitStep 
-        handleClose={handleClose}
-        fast={fast}
-      />
+      {!!fast ? (
+        <DoExitStepFast handleClose={handleClose} token={token} />
+      ) : (
+        <DoExitStep handleClose={handleClose} token={token} />
+      )}
     </Modal>
-  );
+  )
 }
 
-export default React.memo(ExitModal);
+export default React.memo(ExitModal)

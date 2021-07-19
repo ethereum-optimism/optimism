@@ -1,58 +1,92 @@
 {
    "supportedTokens": [
       {
-         "name": "JLKN Token",
-         "symbol": "JLKN"
+         "name": "TEST Token",
+         "symbol": "TEST",
+         "address": { 
+            "rinkeby":"0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02",
+            "mainnet": "ToDo"
+         }
       },
       {
          "name": "Tether USD",
          "symbol": "USDT",
-         "address": "0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02"
+         "address": { 
+             "rinkeby":"0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "Dai",
          "symbol": "DAI",
-         "address": "0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa"
+         "address": { 
+             "rinkeby":"0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "USD Coin",
          "symbol": "USDC",
-         "address": "0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b"
+         "address": { 
+             "rinkeby":"0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "Wrapped BTC",
          "symbol": "WBTC",
-         "address": "0x577D296678535e4903D59A4C929B718e1D575e0A"
+         "address": { 
+             "rinkeby":"0x577D296678535e4903D59A4C929B718e1D575e0A",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "Augur",
          "symbol": "REP",
-         "address": "0x6e894660985207feb7cf89Faf048998c71E8EE89"
+         "address": { 
+             "rinkeby":"0x6e894660985207feb7cf89Faf048998c71E8EE89",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "Basic Attention Token",
          "symbol": "BAT",
-         "address": "0xbF7A7169562078c96f0eC1A8aFD6aE50f12e5A99"
+         "address": { 
+             "rinkeby":"0xbF7A7169562078c96f0eC1A8aFD6aE50f12e5A99",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "0x Project",
          "symbol": "ZRX",
-         "address": "0xddea378A6dDC8AfeC82C36E9b0078826bf9e68B6"
+         "address": { 
+             "rinkeby":"0xddea378A6dDC8AfeC82C36E9b0078826bf9e68B6",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "SushiToken",
          "symbol": "SUSHI",
-         "address": "0xA434947525699FfbbF74260947c2906831FafD98"
+         "address": { 
+             "rinkeby":"0xA434947525699FfbbF74260947c2906831FafD98",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "ChainLink Token",
          "symbol": "LINK",
-         "address": "0x01BE23585060835E02B77ef475b0Cc51aA1e0709"
+         "address": { 
+             "rinkeby":"0x01BE23585060835E02B77ef475b0Cc51aA1e0709",
+             "mainnet": "ToDo"
+          }
       },
       {
          "name": "Uniswap",
          "symbol": "UNI",
-         "address": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"
+         "address": { 
+             "rinkeby":"0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+             "mainnet": "ToDo"
+          }
       }
    ]
 }

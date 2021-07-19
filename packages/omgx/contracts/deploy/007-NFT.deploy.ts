@@ -43,7 +43,7 @@ const deployFn: DeployFunction = async (hre) => {
   let owner = await L2ERC721.owner()
   console.log(` 🔒 ${chalk.red('ERC721 owner:')} ${chalk.green(owner)}`)
 
-  await hre.deployments.save('ERC721', L2ERC721DeploymentSubmission)
+  await hre.deployments.save('L2ERC721', L2ERC721DeploymentSubmission)
 
 }
 

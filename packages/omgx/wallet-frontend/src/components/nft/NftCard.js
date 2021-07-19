@@ -14,40 +14,52 @@ import cells from 'images/hela.jpg';
 function NFTCard({ UUID, owner, URL, time, name, symbol }) {
 
   return (
-    <Card className={styles.NFTroot}>
+    <Card 
+      className={styles.NFTroot}
+      style={{background: '#F8F8F8'}}
+    >
       <CardActionArea>
         <CardMedia
           className={styles.NFTmedia}
           image={cells}
           title="Cell line"
         />
-        <CardContent>
-          <Typography gutterBottom variant="h4" component="h2">
+        <CardContent 
+          style={{padding: 0, margin: 7}}
+        >
+          <Typography variant="h5">
             {name}
           </Typography>
-          <Typography gutterBottom variant="h5" component="h3">
+          <Typography variant="h6">
             {symbol}
           </Typography>
-          <Typography variant="body2" color="textSecondary" component="p">
+          <Typography variant="body2" color="textSecondary" component="p" style={{fontSize: '0.9em',marginBottom: '15px'}}>
             <span style={{fontWeight: '600'}}>NFT ID: </span>{UUID}<br/>
             <span style={{fontWeight: '600'}}>Owner: </span>{owner}<br/>
-            <span style={{fontWeight: '600'}}>Time Minted: </span>{time}<br/>
+            <span style={{fontWeight: '600'}}>Time Minted:</span><br/>{time}<br/>
           </Typography>
-          <Typography variant="body2" color="textSecondary" component="p">
+          <Typography 
+            variant="body2" 
+            color="textSecondary" 
+            component="p" 
+          >
             <a style={{color: 'blue'}} 
               href={URL}
             >
-              LINK to datasheet
+              DATASHEET
             </a>
           </Typography>
         </CardContent>
       </CardActionArea>
-      <CardActions>
+      <CardActions style={{flexDirection: 'column', justifyContent: 'flex-begin'}}>
         <Button size="small" color="primary">
-          Transfer
+          Transfer Ownership
         </Button>
         <Button size="small" color="primary">
           Delete
+        </Button>
+        <Button size="small" color="primary">
+          License derived work
         </Button>
       </CardActions>
     </Card>

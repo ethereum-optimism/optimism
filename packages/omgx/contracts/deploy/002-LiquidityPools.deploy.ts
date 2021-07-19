@@ -92,7 +92,7 @@ const deployFn: DeployFunction = async (hre) => {
       {gasLimit: 800000, gasPrice: 0}
     )
     await registerPoolETHTX.wait()
-    console.log(`L1 and L2 pools have registered ETH and OETH`)
+    console.log(`L1 and L2 pools have registered ETH and oETH`)
 }
 
 deployFn.tags = ['L1LiquidityPool', 'L2LiquidityPool', 'required']

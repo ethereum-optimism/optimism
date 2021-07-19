@@ -1,0 +1,15 @@
+[
+  { "name": "UNI", "symbol": "UNI", "icon": "uniIcon" },
+  { "name": "Wrapped BTC", "symbol": "WBTC", "icon": "wbtcIcon" },
+  { "name": "BAT", "symbol": "BAT", "icon": "BATIcon" },
+  { "name": "DAI", "symbol": "DAI", "icon": "DAIIcon" },
+  { "name": "LINK", "symbol": "LINK", "icon": "LINKIcon" },
+  { "name": "REP", "symbol": "REP", "icon": "REPIcon" },
+  { "name": "SUSHI", "symbol": "SUSHI", "icon": "SUSHIIcon" },
+  { "name": "TEST", "symbol": "TEST", "icon": "TESTIcon" },
+  { "name": "UNI", "symbol": "UNI", "icon": "UNIIcon" },
+  { "name": "USDC", "symbol": "USDC", "icon": "USDCIcon" },
+  { "name": "USDT", "symbol": "USDT", "icon": "USDTIcon" },
+  { "name": "WBTC", "symbol": "WBTC", "icon": "WBTCIcon" },
+  { "name": "ZRX", "symbol": "ZRX", "icon": "ZRXIcon" }
+]

@@ -87,6 +87,7 @@ class Nft extends React.Component {
     return (
 
       <div className={styles.container}>
+        
         <div className={styles.boxContainer}>
           
           <h2>Minter/Owner Functions</h2>
@@ -125,6 +126,9 @@ class Nft extends React.Component {
           >
             Mint and Send
           </Button>
+        </div>
+
+        <div className={styles.nftContainer}>
           
           <h2>My NFTs</h2>
 
@@ -138,16 +142,16 @@ class Nft extends React.Component {
             <div className={styles.note}>You do not have any NFTs.</div> 
           }
 
-          <div className={styles.root}>
+          <div className={styles.nftHolder}>
             <Grid
               container
               spacing={2}
               direction="row"
-              justify="flex-start"
+              justifyContent="flex-start"
               alignItems="flex-start"
             >
               {Object.keys(NFTs).map(elem => (
-                <Grid item xs={12} sm={9} md={6} key={elem}>
+                <Grid item xs={4} key={elem}>
                   <NFTCard
                     name={NFTs[elem].name}
                     symbol={NFTs[elem].symbol}

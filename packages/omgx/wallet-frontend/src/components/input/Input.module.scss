@@ -38,6 +38,9 @@
       flex-direction: row;
       align-items: center;
     }
+    .isPaste {
+      position: relative;
+    }
     .paste {
       color: $blue;
       margin-left: 10px;

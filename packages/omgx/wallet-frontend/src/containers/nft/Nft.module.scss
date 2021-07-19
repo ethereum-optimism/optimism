@@ -1,9 +1,11 @@
 @import 'index.scss';
 
 .container {
+  
   padding-right: 20px;
 
   .boxContainer{
+    
     display: inline-block;
     max-width: 500px;
     padding: 20px;
@@ -15,8 +17,9 @@
       margin-top: 10px;
       margin-bottom: 10px;
     }
+
     .select {
-      flex: 1 1;
+      flex: 1;
       background-color: #d2d2d2;
       color: #565656;
       font-size: 1em;
@@ -29,16 +32,18 @@
       max-width: 500px;
     }
   }
-}
 
-.NFTroot {
-  flexGrow: 1;
-  padding: 10px;
-  maxWidth: 345;
-}
+  .nftContainer{
+    display: inline-block;
+    padding: 20px;
+    padding-top: 0px;
+    vertical-align: top;
+  }
 
-.NFTmedia {
-  height: 140;
+  .nftHolder {
+    flexGrow: 1;
+    padding: 0px;
+  }
 }
 
 .note {

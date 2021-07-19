@@ -18,14 +18,23 @@ import networkService from 'services/networkService';
 import * as styles from './FarmList.module.scss';
 
 class FarmList extends React.Component {
+  
   constructor(props) {
+    
     super(props);
     
-    const { logo, name, shortName, poolInfo, userInfo, L1orL2Pool } = this.props;
+    const { 
+      logo, name, shortName, 
+      poolInfo, userInfo, L1orL2Pool,
+      balance, decimals 
+    } = this.props;
 
     this.state = {
       logo,
-      name, shortName,
+      name, 
+      shortName,
+      balance,
+      decimals,
       L1orL2Pool,
       // data
       poolInfo, userInfo,
@@ -38,7 +47,8 @@ class FarmList extends React.Component {
   }
   
   componentDidUpdate(prevState) {
-    const { poolInfo, userInfo } = this.props;
+
+    const { poolInfo, userInfo, balance, decimals } = this.props;
 
     if (!isEqual(prevState.poolInfo, poolInfo)) {
       this.setState({ poolInfo });
@@ -48,34 +58,47 @@ class FarmList extends React.Component {
       this.setState({ userInfo });
     }
 
+    if (!isEqual(prevState.balance, balance)) {
+      this.setState({ balance });
+    }
+
+    if (!isEqual(prevState.decimals, decimals)) {
+      this.setState({ decimals });
+    }
+
   }
 
   handleStakeToken() {
-    const { shortName, poolInfo, L1orL2Pool } = this.state;
+    const { shortName, poolInfo, L1orL2Pool, balance, decimals } = this.state;
     this.props.dispatch(updateStakeToken({
       symbol: shortName,
       currency: L1orL2Pool === 'L1LP' ? poolInfo.l1TokenAddress : poolInfo.l2TokenAddress,
       LPAddress: L1orL2Pool === 'L1LP' ? networkService.L1LPAddress : networkService.L2LPAddress,
       L1orL2Pool,
+      balance,
+      decimals
     }));
     this.props.dispatch(openModal('farmDepositModal'));
   }
 
   handleWithdrawToken() {
-    const { shortName, poolInfo, L1orL2Pool } = this.state;
+    const { shortName, poolInfo, L1orL2Pool, balance, decimals } = this.state;
     this.props.dispatch(updateWithdrawToken({
       symbol: shortName,
       currency: L1orL2Pool === 'L1LP' ? poolInfo.l1TokenAddress : poolInfo.l2TokenAddress,
       LPAddress: L1orL2Pool === 'L1LP' ? networkService.L1LPAddress : networkService.L2LPAddress,
       L1orL2Pool,
+      balance,
+      decimals
     }));
     this.props.dispatch(openModal('farmWithdrawModal'));
   }
 
   async handleHarvest() {
+    
     const { poolInfo, userInfo, shortName } = this.state;
 
-    this.setState({ loading: true });
+    this.setState({ loading: true })
 
     const userReward = BigNumber.from(userInfo.pendingReward).add(
       BigNumber.from(userInfo.amount)
@@ -84,13 +107,24 @@ class FarmList extends React.Component {
       .sub(BigNumber.from(userInfo.rewardDebt))
     ).toString()
 
-    const getRewardTX = await networkService.getReward(
-      poolInfo.l2TokenAddress,
-      userReward
-    );
+    let getRewardTX = null;
+
+    if(networkService.L1orL2 === 'L1') {
+      getRewardTX = await networkService.getRewardL1(
+        poolInfo.l1TokenAddress,
+        userReward
+      )
+    } else if (networkService.L1orL2 === 'L2') {
+      getRewardTX = await networkService.getRewardL2(
+        poolInfo.l2TokenAddress,
+        userReward
+      )
+    } else {
+      console.log("handleHarvest(): Chain not set")
+    }
 
     if (getRewardTX) {
-      this.props.dispatch(openAlert(`${logAmount(userReward, 18).slice(0, 6)} ${shortName} was added to your account`));
+      this.props.dispatch(openAlert(`${logAmount(userReward, 18, 2)} ${shortName} was added to your account`));
       this.props.dispatch(getFarmInfo());
       this.setState({ loading: false });
     } else {
@@ -101,6 +135,7 @@ class FarmList extends React.Component {
   }
 
   render() {
+
     const { 
       logo, name, shortName,
       poolInfo, userInfo,
@@ -109,13 +144,14 @@ class FarmList extends React.Component {
     } = this.state;
 
     let userReward = 0;
+
     if (Object.keys(userInfo).length && Object.keys(poolInfo).length) {
       userReward = BigNumber.from(userInfo.pendingReward).add(
         BigNumber.from(userInfo.amount)
         .mul(BigNumber.from(poolInfo.accUserRewardPerShare))
         .div(BigNumber.from(powAmount(1, 12)))
         .sub(BigNumber.from(userInfo.rewardDebt))
-      ).toString();
+      ).toString()
     }
 
     // L1orL2Pool: L1LP || L2LP
@@ -138,7 +174,7 @@ class FarmList extends React.Component {
             <div className={styles.BasicText}>Earned</div>
             <div className={styles.BasicLightText}>
               {userReward ? 
-                `${logAmount(userReward, 18).slice(0, 6)} ${shortName}` : `0 ${shortName}`
+                `${logAmount(userReward, 18, 2)} ${shortName}` : `0 ${shortName}`
               }
             </div>
           </div>
@@ -146,7 +182,7 @@ class FarmList extends React.Component {
             <div className={styles.BasicText}>Share</div>
             <div className={styles.BasicLightText}>
               {userInfo.amount ? 
-                `${logAmount(userInfo.amount, 18).slice(0, 6)} ${shortName}` : `0 ${shortName}`
+                `${logAmount(userInfo.amount, 18, 2)} ${shortName}` : `0 ${shortName}`
               }
             </div>
           </div>
@@ -160,7 +196,7 @@ class FarmList extends React.Component {
             <div className={styles.BasicText}>Liquidity</div>
             <div className={styles.BasicLightText}>
               {poolInfo.userDepositAmount ? 
-                `${logAmount(poolInfo.userDepositAmount, 18).slice(0, 6)} ${shortName}` : `0 ${shortName}`
+                `${logAmount(poolInfo.userDepositAmount, 18, 2)} ${shortName}` : `0 ${shortName}`
               }
             </div>
           </div>
@@ -181,7 +217,7 @@ class FarmList extends React.Component {
           <div className={styles.boxContainer}>
             <div className={styles.BasicText}>{`${name}`} Earned</div>
             <div className={styles.boxRowContainer}>
-              <div className={styles.LargeBlueText}>{logAmount(userReward, 18).slice(0, 6)}</div>
+              <div className={styles.LargeBlueText}>{logAmount(userReward, 18, 2)}</div>
               <Button
                 type='primary'
                 size='small'

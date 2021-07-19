@@ -17,11 +17,8 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector, batch } from 'react-redux';
 import { selectWalletMethod } from 'selectors/setupSelector';
 import { selectModalState } from 'selectors/uiSelector';
-// import { selectChildchainTransactions } from 'selectors/transactionSelector';
-import { selectLogin } from 'selectors/loginSelector';
 
 import useInterval from 'util/useInterval';
-// import { isEqual } from 'lodash';
 
 import {
   checkWatcherStatus,
@@ -36,14 +33,12 @@ import {
 
 import { checkVersion } from 'actions/serviceAction';
 
-import { openError } from 'actions/uiAction';
-
 import DepositModal from 'containers/modals/deposit/DepositModal';
 import TransferModal from 'containers/modals/transfer/TransferModal';
 import ExitModal from 'containers/modals/exit/ExitModal';
+
 import LedgerConnect from 'containers/modals/ledger/LedgerConnect';
 import AddTokenModal from 'containers/modals/addtoken/AddTokenModal';
-import ConfirmationModal from 'containers/modals/confirmation/ConfirmationModal';
 import FarmDepositModal from 'containers/modals/farm/FarmDepositModal';
 import FarmWithdrawModal from 'containers/modals/farm/FarmWithdrawModal';
 
@@ -57,21 +52,14 @@ import NFT from 'containers/nft/Nft';
 import MobileHeader from 'components/mobileheader/MobileHeader';
 import MobileMenu from 'components/mobilemenu/MobileMenu';
 
-//Varna
-import Login from 'containers/login/Login';
-import Seller from 'containers/seller/Seller';
-import Buyer from 'containers/buyer/Buyer';
-
 // Farm
 import Farm from 'containers/farm/Farm';
-
-import networkService from 'services/networkService';
 
 import logo from 'images/omgx.png';
 
 import * as styles from './Home.module.scss';
 
-const POLL_INTERVAL = 10000; //in milliseconds?
+const POLL_INTERVAL = 5000; //milliseconds
 
 function Home () {
 
@@ -82,19 +70,20 @@ function Home () {
   const [ pageDisplay, setPageDisplay ] = useState("AccountNow");
   
   const depositModalState = useSelector(selectModalState('depositModal'))
-  const beginner = useSelector(selectModalState('beginner'))
-  const fast = useSelector(selectModalState('fast'))
   const transferModalState = useSelector(selectModalState('transferModal'))
   const exitModalState = useSelector(selectModalState('exitModal'))
+  
+  const fast = useSelector(selectModalState('fast'))
+  const token = useSelector(selectModalState('token'))
+
   const addTokenModalState = useSelector(selectModalState('addNewTokenModal'))
   const ledgerConnectModalState = useSelector(selectModalState('ledgerConnectModal'))
-  const confirmationModalState = useSelector(selectModalState('confirmationModal'))
+
   const farmDepositModalState = useSelector(selectModalState('farmDepositModal'))
   const farmWithdrawModalState = useSelector(selectModalState('farmWithdrawModal'))
 
   const walletMethod = useSelector(selectWalletMethod())
-  const loggedIn = useSelector(selectLogin());
-  // const transactions = useSelector(selectChildchainTransactions, isEqual);
+  //const transactions = useSelector(selectlayer2Transactions, isEqual);
   
   useEffect(() => {
     const body = document.getElementsByTagName('body')[0];
@@ -124,6 +113,7 @@ function Home () {
     });
   }, POLL_INTERVAL * 2);
 
+  //get all account balances
   useInterval(() => {
     dispatch(fetchBalances());
   }, POLL_INTERVAL);
@@ -131,33 +121,20 @@ function Home () {
   useEffect(() => {
     checkVersion()
   }, [])
-
-  useEffect(() => {
-    if (!loggedIn) {
-      setPageDisplay("AccountNow");
-    } else {
-      setPageDisplay("VarnaSell");
-    }
-  },[loggedIn]);
   
   const handleSetPage = async (page) => {
-    if (page === 'VarnaLogin') {
-      if (!(networkService.L1orL2 === 'L2')) {
-        dispatch(openError('Wrong network! Please switch to L2 network to use Varna.'));
-        return
-      }
-    }
     setPageDisplay(page);
   }
 
   return (
 
     <>
-      <DepositModal open={depositModalState} omgOnly={beginner} fast={fast}/>
-      <TransferModal open={transferModalState} />
-      <ExitModal open={exitModalState} fast={fast}/>
+      
+      <DepositModal  open={depositModalState}  token={token} fast={fast} />
+      <TransferModal open={transferModalState} token={token} fast={fast} />
+      <ExitModal     open={exitModalState}     token={token} fast={fast} />
+      
       <AddTokenModal open={addTokenModalState} />
-      <ConfirmationModal open={confirmationModalState} />
       <FarmDepositModal open={farmDepositModalState} />
       <FarmWithdrawModal open={farmWithdrawModalState} />
 
@@ -192,6 +169,12 @@ function Home () {
               Wallet
             </h2>
             <h2
+              className={pageDisplay === "History" ? styles.subtitletextActive : styles.subtitletext}
+              onClick={()=>{handleSetPage("History")}}
+            >  
+              History
+            </h2>
+            <h2
               className={pageDisplay === "Farm" ? styles.subtitletextActive : styles.subtitletext}
               onClick={()=>{handleSetPage("Farm")}}
             >  
@@ -203,47 +186,19 @@ function Home () {
             >  
               NFT
             </h2>
-            {!loggedIn ?
-              <h2
-                className={pageDisplay === "VarnaLogin" ? styles.subtitletextActive : styles.subtitletext}
-                onClick={()=>{handleSetPage("VarnaLogin")}}
-              >  
-                Login
-              </h2>:
-              <>
-                <h2 
-                  className={pageDisplay === "VarnaBuy" ? styles.subtitletextActive : styles.subtitletext}
-                  onClick={()=>{handleSetPage("VarnaBuy")}}
-                  style={{position: 'relative'}}
-                >  
-                  Buy
-                </h2>
-                <h2
-                  className={pageDisplay === "VarnaSell" ? styles.subtitletextActive : styles.subtitletext}
-                  onClick={()=>{handleSetPage("VarnaSell")}}
-                >  
-                  Sell
-                </h2>
-              </>
-            }
           </div>
           {pageDisplay === "AccountNow" &&
           <>  
             <Account/>
+          </>
+          }
+          {pageDisplay === "History" &&
+          <>  
             <Transactions/>
           </>
           }
           {pageDisplay === "NFT" &&
             <NFT/>
-          }
-          {pageDisplay === "VarnaLogin" &&
-            <Login/>
-          }
-          {pageDisplay === "VarnaSell" &&
-            <Seller/>
-          }
-          {pageDisplay === "VarnaBuy" &&
-            <Buyer/>
           }
           {pageDisplay === "Farm" &&
             <Farm/>

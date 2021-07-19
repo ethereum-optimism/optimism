@@ -1,0 +1,49 @@
+Searching 8 files for "TEST"
+
+/Users/janliphardt/Documents/GitHub/optimism/packages/omgx/contracts/deploy/002-ERC20.deploy.ts:
+   14  let L2ERC20: Contract
+   15  
+   16: //Test ERC20
+   17  const initialSupply = utils.parseEther("10000000000")
+   18  
+   ..
+   38      // [initialSupply, name, symbol]
+   39      // this is owned by bobl1Wallet
+   40:     if ((hre as any).deployConfig.network === 'local' || token.symbol === 'TEST') {
+   41:       //goal is not to deploy existing Tokens on testnets or mainnet
+   42        
+   43        L1ERC20 = await Factory__L1ERC20.deploy(
+   ..
+   83  }
+   84  
+   85: deployFn.tags = ['L1ERC20', 'test']
+   86  
+   87  export default deployFn
+
+/Users/janliphardt/Documents/GitHub/optimism/packages/omgx/contracts/deploy/003-TokenPool.deploy.ts:
+   16    )
+   17  
+   18:   const TK_L2TEST = await hre.deployments.getOrNull('TK_L2TEST');
+   19  
+   20    //Deploy L2 token pool for the new token
+   ..
+   30    console.log(`🌕 ${chalk.red('L2 TokenPool deployed to:')} ${chalk.green(L2TokenPool.address)}`)
+   31  
+   32:   if(TK_L2TEST === undefined){
+   33:     console.log(`!!! ${chalk.red('L2 TokenPool was not registered because L2TEST was not deployed')}`)
+   34    }
+   35    else{
+   36      //Register ERC20 token address in L2 token pool
+   37      const registerL2TokenPoolTX = await L2TokenPool.registerTokenAddress(
+   38:       TK_L2TEST.address,
+   39        {gasLimit: 800000, gasPrice: 0}
+   40      );
+
+/Users/janliphardt/Documents/GitHub/optimism/packages/omgx/contracts/deploy/006-NFT.deploy.ts:
+   10  let L2ERC721: Contract
+   11  
+   12: const nftName = 'TestNFT'
+   13  const nftSymbol = 'TST'
+   14  
+
+10 matches across 3 files

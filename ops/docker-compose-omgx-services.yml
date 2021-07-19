@@ -23,7 +23,7 @@ services:
       dockerfile: ./ops/docker/Dockerfile.omgx_deployer
     environment:
       SERVE_ONLY: 0 #if EQ 1, then do not deploy any contracts
-      IF_SERVE_ONLY_EQ_1_THEN_SERVE: rinkeby #e.g. serve whatever is in /deployments/rinkeby
+      IF_SERVE_ONLY_EQ_1_THEN_SERVE: rinkeby #e.g. serve whatever is in /deployments/rinkeby - other choice is mainnet
       L1_NODE_WEB3_URL: http://l1_chain:8545
       L2_NODE_WEB3_URL: http://l2geth:8545
       URL: http://deployer:8081/addresses.json

@@ -14,10 +14,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import { hexlify } from '@ethersproject/bytes'
 import { parseUnits, parseEther } from '@ethersproject/units'
 import { Watcher } from '@eth-optimism/watcher'
 import { ethers, BigNumber, utils } from 'ethers'
+import store from 'store'
 
 import { orderBy } from 'lodash'
 import BN from 'bn.js'
@@ -26,23 +26,24 @@ import { getToken } from 'actions/tokenAction'
 import { getNFTs, addNFT } from 'actions/nftAction'
 import { setMinter } from 'actions/setupAction'
 
-import { openAlert, openError } from 'actions/uiAction'
 import { WebWalletError } from 'services/errorService'
 
 //Base contracts
 import L1StandardBridgeJson from '../deployment/artifacts/optimistic-ethereum/OVM/bridge/tokens/OVM_L1StandardBridge.sol/OVM_L1StandardBridge.json'
 import L2StandardBridgeJson from '../deployment/artifacts-ovm/optimistic-ethereum/OVM/bridge/tokens/OVM_L2StandardBridge.sol/OVM_L2StandardBridge.json'
-import L2ERC20Json          from '../deployment/artifacts-ovm/optimistic-ethereum/libraries/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
-//OMGX L1 Contracts
-import L1LPJson             from '../deployment/artifacts/contracts/LP/L1LiquidityPool.sol/L1LiquidityPool.json'
-import L1ERC20Json          from '../deployment/artifacts/contracts/L1ERC20.sol/L1ERC20.json'
+//OMGX LP contracts
+import L1LPJson from '../deployment/artifacts/contracts/LP/L1LiquidityPool.sol/L1LiquidityPool.json'
+import L2LPJson from '../deployment/artifacts-ovm/contracts/LP/L2LiquidityPool.sol/L2LiquidityPool.json'
+
+//Standard ERC20 jsons - should be very similar? 
+import L1ERC20Json from '../deployment/artifacts/contracts/L1ERC20.sol/L1ERC20.json'
+import L2ERC20Json from '../deployment/artifacts-ovm/optimistic-ethereum/libraries/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
 //OMGX L2 Contracts
-import L2LPJson             from '../deployment/artifacts-ovm/contracts/LP/L2LiquidityPool.sol/L2LiquidityPool.json'
-import ERC721Json           from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
-import L2TokenPoolJson      from '../deployment/artifacts-ovm/contracts/TokenPool.sol/TokenPool.json'
-import AtomicSwapJson       from '../deployment/artifacts-ovm/contracts/AtomicSwap.sol/AtomicSwap.json'
+import ERC721Json from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
+import L2TokenPoolJson from '../deployment/artifacts-ovm/contracts/TokenPool.sol/TokenPool.json'
+import AtomicSwapJson from '../deployment/artifacts-ovm/contracts/AtomicSwap.sol/AtomicSwap.json'
 
 import { powAmount, logAmount } from 'util/amountConvert'
 import { accDiv, accMul } from 'util/calculation'
@@ -60,18 +61,19 @@ import addressOMGXAxiosInstance from 'api/addressOMGXAxios'
 const localAddresses = require(`../deployment/local/addresses.json`)
 const rinkebyAddresses = require(`../deployment/rinkeby/addresses.json`)
 
+const priorityTokens = require('../deployment/tokensPriority.json')
+const dropdownTokens = require('../deployment/tokensDropdown.json')
+const swapTokens = require('../deployment/tokensSwap.json')
+
 class NetworkService {
+
   constructor() {
+
     this.L1Provider = null
     this.L2Provider = null
 
     this.provider = null
     this.environment = null
-
-    this.L2ETHContract = null
-
-    this.L1ERC20Contract = null
-    this.L2ERC20Contract = null
 
     this.ERC721Contract = null
 
@@ -88,18 +90,27 @@ class NetworkService {
 
     // addresses
     this.L1StandardBridgeAddress = null
+    this.L2StandardBridgeAddress = '0x4200000000000000000000000000000000000010'
 
     this.ERC721Address = null
-    this.L1ERC20Address = null
-    this.L2ERC20Address = null
-    this.L1MessengerAddress = null
+
+    this.L1_TEST_Address = null
+    this.L2_TEST_Address = null
+
+    this.L1_TEST_Contract = null
+    this.L2_TEST_Contract = null
+
     this.L1LPAddress = null
     this.L2LPAddress = null
 
-    this.L2StandardBridgeAddress = '0x4200000000000000000000000000000000000010'
-    this.L1ETHAddress = '0x0000000000000000000000000000000000000000'
-    this.L2ETHAddress = '0x4200000000000000000000000000000000000006'
+    this.L1_ETH_Address = '0x0000000000000000000000000000000000000000'
+    this.L2_ETH_Address = '0x4200000000000000000000000000000000000006'
+    this.L2_ETH_Contract = null
+
+    this.L1MessengerAddress = null
     this.L2MessengerAddress = '0x4200000000000000000000000000000000000007'
+
+    this.tokenAddresses = null
 
     // chain ID
     this.chainID = null
@@ -170,31 +181,26 @@ class NetworkService {
       console.log('Loading OMGX contract addresses')
 
       if (masterSystemConfig === 'local') {
-
         try {
           resOMGX = await addressOMGXAxiosInstance('local').get()
-        }
-        catch (error) {
+        } catch (error) {
           console.log(error)
         }
 
         try {
           resBase = await addressAxiosInstance('local').get()
-        }
-        catch (error) {
+        } catch (error) {
           console.log(error)
         }
 
-        if ( resOMGX !== null && resBase !== null ) {
-          addresses = {...resBase.data, ...resOMGX.data }
+        if (resOMGX !== null && resBase !== null) {
+          addresses = { ...resBase.data, ...resOMGX.data }
         } else {
           addresses = localAddresses //emergency fallback
         }
 
-        console.log("Final Local Addresses:",addresses)
-      }
-      else if (masterSystemConfig === 'rinkeby') {
-
+        console.log('Final Local Addresses:', addresses)
+      } else if (masterSystemConfig === 'rinkeby') {
         /*these endpoints do not exist yet*/
         // try {
         //   resOMGX = await addressOMGXAxiosInstance('rinkeby').get()
@@ -213,10 +219,10 @@ class NetworkService {
         // if ( resOMGX !== null && resBase !== null ) {
         //   addresses = {...resBase.data, ...resOMGX.data }
         // } else {
-          addresses = rinkebyAddresses //emergency fallback
+        addresses = rinkebyAddresses //emergency fallback
         // }
 
-        console.log("Final Rinkeby Addresses:",addresses)
+        console.log('Final Rinkeby Addresses:', addresses)
       }
 
       //at this point, the wallet should be connected
@@ -227,8 +233,11 @@ class NetworkService {
       this.chainID = network.chainId
       this.masterSystemConfig = masterSystemConfig
 
+      this.tokenAddresses = addresses.TOKENS
+
       console.log('NS: masterConfig:', this.masterSystemConfig)
       console.log('NS: this.chainID:', this.chainID)
+      console.log('NS: network:', network)
 
       //there are numerous possible chains we could be on
       //either local, rinkeby etc
@@ -268,73 +277,47 @@ class NetworkService {
       this.L2Provider = new ethers.providers.JsonRpcProvider(
         nw[masterSystemConfig]['L2']['rpcUrl']
       )
-/*
-{
-"AddressManager": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-"AtomicSwap": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
-"ERC721": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
-"L1ERC20": "0x4c5859f0F772848b2D91F1D83E2Fe57935348029",
-"L1LiquidityPool": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
-"L1Message": "0x1291Be112d480055DaFd8a610b7d1e203891C274",
-"L2ERC20": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-"L2LiquidityPool": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-"L2Message": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-"L2TokenPool": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
-"OVM_L1CrossDomainMessenger": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
-"OVM_L1CrossDomainMessengerFast": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF",
-"Proxy__OVM_L1CrossDomainMessenger": "0x59b670e9fA9D0A427751Af201D676719a970857b",
-"Proxy__OVM_L1StandardBridge": "0x851356ae760d987E095750cCeb3bC6014560891C"
-}
-*/
-
-/*
-AtomicSwap: "0xfCc9525fDDbafbD3393821F7dAf96F68Bba93294"
-L1ERC20: "0xaB1e3377dEED7811beADf4b5773B59fB267089fb"
-L1FastMessengerAddress: "0xF296F4ca6A5725F55EdF1C67F80204871E65F87d"
-L1LiquidityPool: "0x2C12649A5A4FC61F146E0a3409f3e4c7FbeD15Dc"
-L1Message: "0x1E7C2Ed00FaaFeD62afC9DD630ACB8C8c6C16D52"
-L1MessengerAddress: "0xF10EEfC14eB5b7885Ea9F7A631a21c7a82cf5D76"
-L1StandardBridge: "0xDe085C82536A06b40D20654c2AbA342F2abD7077"
-L2ERC20: "0x0e52DEfc53ec6dCc52d630af949a9b6313455aDF"
-L2ERC721: "0xB08e122b98889321040AB251316887E59ee1d3Df"
-L2LiquidityPool: "0xEd3417AE90fA0BfE15Fab8b949a9a459F9f4ef26"
-L2Message: "0x8165E68dD175B4D6e913D1DF5aF456d8C04cA01e"
-L2StandardBridge: "0x4200000000000000000000000000000000000010"
-L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
-*/
-
-      // addresses
 
       //this.L1MessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessenger
       //backwards compat
-      if( addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessenger') )
+      if (addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessenger')) {
         this.L1MessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessenger
-      else
+        console.log('L1MessengerAddress set to:', this.L1MessengerAddress)
+      } else {
         this.L1MessengerAddress = addresses.L1MessengerAddress
+        console.log(
+          'LEGACY: L1MessengerAddress set to:',
+          this.L1MessengerAddress
+        )
+      }
 
-      //this.L1FastMessengerAddress = addresses.OVM_L1CrossDomainMessengerFast
-      //backwards compat
-      if( addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessengerFast') )
+      if(addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessengerFast')) {
         this.L1FastMessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessengerFast
-      else
+      }
+      else if (addresses.hasOwnProperty('OVM_L1CrossDomainMessengerFast')) {
+        this.L1FastMessengerAddress = addresses.OVM_L1CrossDomainMessengerFast
+      } 
+      else {
         this.L1FastMessengerAddress = addresses.L1FastMessengerAddress
+      }
+      console.log('L1FastMessengerAddress set to:',this.L1FastMessengerAddress)
 
       //backwards compat
-      if( addresses.hasOwnProperty('Proxy__OVM_L1StandardBridge') )
+      if (addresses.hasOwnProperty('Proxy__OVM_L1StandardBridge'))
         this.L1StandardBridgeAddress = addresses.Proxy__OVM_L1StandardBridge
-      else
+      else 
         this.L1StandardBridgeAddress = addresses.L1StandardBridge
 
-      this.L1ERC20Address = addresses.L1ERC20
-      this.L2ERC20Address = addresses.L2ERC20
+      this.L1_TEST_Address = addresses.TOKENS.TEST.L1
+      this.L2_TEST_Address = addresses.TOKENS.TEST.L2
 
       this.L1LPAddress = addresses.L1LiquidityPool
       this.L2LPAddress = addresses.L2LiquidityPool
 
       //backwards compat
-      if( addresses.hasOwnProperty('L2ERC721') )
+      if (addresses.hasOwnProperty('L2ERC721'))
         this.ERC721Address = addresses.L2ERC721
-      else
+      else 
         this.ERC721Address = addresses.ERC721
 
       this.L2TokenPoolAddress = addresses.L2TokenPool
@@ -345,30 +328,36 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
         L1StandardBridgeJson.abi,
         this.provider.getSigner()
       )
+      //console.log("L1StandardBridgeContract:", this.L1StandardBridgeContract.address)
 
       this.L2StandardBridgeContract = new ethers.Contract(
         this.L2StandardBridgeAddress,
         L2StandardBridgeJson.abi,
         this.provider.getSigner()
       )
+      //console.log("L2StandardBridgeContract:", this.L2StandardBridgeContract.address)
 
-      this.L2ETHContract = new ethers.Contract(
-        this.L2ETHAddress,
+      this.L2_ETH_Contract = new ethers.Contract(
+        this.L2_ETH_Address,
         L2ERC20Json.abi,
         this.provider.getSigner()
       )
+      //console.log("L2_ETH_Contract:", this.L2_ETH_Contract.address)
 
-      this.L1ERC20Contract = new ethers.Contract(
-        this.L1ERC20Address,
+      /*The test token*/
+      this.L1_TEST_Contract = new ethers.Contract(
+        addresses.TOKENS.TEST.L1,
         L1ERC20Json.abi,
         this.provider.getSigner()
       )
+      console.log('L1_TEST_Contract:', this.L1_TEST_Contract.address)
 
-      this.L2ERC20Contract = new ethers.Contract(
-        this.L2ERC20Address,
+      this.L2_TEST_Contract = new ethers.Contract(
+        addresses.TOKENS.TEST.L2,
         L2ERC20Json.abi,
         this.provider.getSigner()
       )
+      console.log('L2_TEST_Contract:', this.L2_TEST_Contract.address)
 
       // Liquidity pools
       this.L1LPContract = new ethers.Contract(
@@ -470,35 +459,109 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
 
   async getTransactions() {
 
-    //rinkeby L1
-    if (this.masterSystemConfig === 'rinkeby' && this.chainID === 4) {
-      const response = await etherScanInstance(this.masterSystemConfig, this.L1orL2).get(`&address=${this.account}`)
-      if (response.status === 200) {
-        const transactions = await response.data
-        if (transactions.status === '1') {
-          return transactions.result
+    if (this.masterSystemConfig === 'rinkeby') {
+      
+      let txL1
+      let txL2
+
+      const responseL1 = await etherScanInstance(
+        this.masterSystemConfig,
+        /*this.L1orL2*/ 'L1'
+      ).get(`&address=${this.account}`)
+      if (responseL1.status === 200) {
+        const transactionsL1 = await responseL1.data
+        if (transactionsL1.status === '1') {
+          //thread in ChainID
+          txL1 = transactionsL1.result.map(v => ({...v, chain: 'L1'}))
+          //return transactions.result
         }
       }
-    }
-    //rinkeby L2
-    if (this.masterSystemConfig === 'rinkeby' && this.chainID === 28) {
-      const response = await omgxWatcherAxiosInstance(this.masterSystemConfig).post('get.transaction', {
+
+      const responseL2 = await omgxWatcherAxiosInstance(
+        this.masterSystemConfig
+      ).post('get.transaction', {
         address: this.account,
         fromRange: 0,
-        toRange: 100,
+        toRange: 1000,
       })
-      if (response.status === 201) {
-        return response.data
+      if (responseL2.status === 201) {
+        txL2 = responseL2.data.map(v => ({...v, chain: 'L2'}))
+        const annotated = await this.parseTransaction( [...txL1, ...txL2] )
+        return annotated
       }
     }
+
+  }
+
+  /* Where possible, annotate the transactions 
+  based on contract addresses */
+  async parseTransaction( transactions ) {
+
+    var annotatedTX
+
+    if (this.masterSystemConfig === 'rinkeby') {
+      
+      annotatedTX = transactions.map(item => {
+        
+        let to = item.to
+        
+        if ( to === null || to === '') {
+          return item
+        }
+
+        to = to.toLowerCase()
+
+        if (to === this.L2LPAddress.toLowerCase()) {
+          console.log("L2->L1 Swap Off")
+          return Object.assign({}, item, { typeTX: 'L2->L1 Exit via Fast Offramp' })
+        } 
+
+        if (to === this.L1LPAddress.toLowerCase()) {
+          console.log("L1->L2 Swap On")
+          return Object.assign({}, item, { typeTX: 'L1->L2 Deposit via Fast Onramp' })
+        } 
+
+        if (to === this.L1StandardBridgeAddress.toLowerCase()) {
+          console.log("L1->L2 Traditional Deposit")
+          return Object.assign({}, item, { typeTX: 'L1->L2 Traditional Deposit' })
+        } 
+
+        if (to === this.L1_TEST_Address.toLowerCase()) {
+          console.log("L1 ERC20 Amount Approval")
+          return Object.assign({}, item, { typeTX: 'L1 ERC20 Amount Approval' })
+        } 
+
+        // if (item.crossDomainMessage) {
+        //   if(to === this.L2LPAddress.toLowerCase()) {
+        //     console.log("Found EXIT: L2LPAddress")
+        //     return Object.assign({}, item, { typeTX: 'EXIT: L2LPAddress' })
+        //   } 
+        //   else if (to === this.L2_TEST_Address.toLowerCase()) {
+        //     console.log("Found EXIT: L2_TEST_Address")
+        //     return Object.assign({}, item, { typeTX: 'EXIT: L2_TEST_Address' })
+        //   } 
+        //   else if (to === this.L2_ETH_Address.toLowerCase()) {
+        //     console.log("Found EXIT: L2_ETH_Address")
+        //     return Object.assign({}, item, { typeTX: 'EXIT: L2_ETH_Address' })
+        //   }
+        // }
+
+        return item
+
+      })
+
+    }
+    
+    return annotatedTX
+
   }
 
   async getExits() {
-
     //this is NOT SUPPORTED on LOCAL
-
     if (this.masterSystemConfig === 'rinkeby') {
-      const response = await omgxWatcherAxiosInstance(this.masterSystemConfig).post('get.transaction', {
+      const response = await omgxWatcherAxiosInstance(
+        this.masterSystemConfig
+      ).post('get.transaction', {
         address: this.account,
         fromRange: 0,
         toRange: 100,
@@ -509,8 +572,8 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
           (i) =>
             [
               this.L2LPAddress.toLowerCase(),
-              this.L2ERC20Address.toLowerCase(),
-              this.L2ETHAddress.toLowerCase(),
+              this.L2_TEST_Address.toLowerCase(),
+              this.L2_ETH_Address.toLowerCase(),
             ].includes(i.to ? i.to.toLowerCase() : null) && i.crossDomainMessage
         )
         return { exited: filteredTransactions }
@@ -519,28 +582,141 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
   }
 
   async getBalances() {
-    try {
-      const rootChainBalance = await this.L1Provider.getBalance(this.account)
-      const ERC20L1Balance = await this.L1ERC20Contract.connect(
-        this.L1Provider
-      ).balanceOf(this.account)
 
-      const childChainBalance = await this.L2Provider.getBalance(this.account)
-      const ERC20L2Balance = await this.L2ERC20Contract.connect(
-        this.L2Provider
-      ).balanceOf(this.account)
+    //console.log("Checking Balances")
+
+    try {
+      
+      // Always check ETH and oETH
+      const layer1Balance = await this.L1Provider.getBalance(this.account)
+      //console.log('ETH balance on L1:', layer1Balance.toString())
+
+      const layer2Balance = await this.L2Provider.getBalance(this.account)
+      //console.log("oETH balance on L2:", layer2Balance.toString())
+
+      // Add the token to our master list, if we do not have it yet
+      // if the token is already in the list, then this function does nothing
+      // but if a new token shows up, then it will get added
+      Object.keys(this.tokenAddresses).forEach((token, i) => {
+        getToken(this.tokenAddresses[token].L1)
+      })
+
+      //const ethToken = await getToken(this.L1_ETH_Address)
+      //console.log('Checking ethToken:', ethToken)
+
+      const layer1Balances = [
+        {
+          address: this.L1_ETH_Address,
+          addressL2: this.L2_ETH_Address,
+          currency: this.L1_ETH_Address,
+          symbol: 'ETH',
+          decimals: 18,
+          balance: new BN(layer1Balance.toString()),
+        },
+      ]
+
+      const layer2Balances = [
+        {
+          address: this.L2_ETH_Address,
+          addressL1: this.L1_ETH_Address,
+          currency: this.L1_ETH_Address,
+          symbol: 'oETH',
+          decimals: 18,
+          balance: new BN(layer2Balance.toString()),
+        },
+      ]
+
+      const state = store.getState()
+      const tA = Object.values(state.tokenList)
+
+      //console.log(tA)
+
+      for (let i = 0; i < tA.length; i++) {
+        
+        let token = tA[i]
+
+        //ETH is special - will break things,
+        //so, continue
+        if (token.addressL1 === this.L1_ETH_Address) continue
+
+        const tokenC = new ethers.Contract(
+          token.addressL1,
+          L1ERC20Json.abi,
+          this.provider.getSigner()
+        )
+        const balance = await tokenC
+          .connect(this.L1Provider)
+          .balanceOf(this.account)
+
+        //Value is too small to show
+        if (Number(balance.toString()) < 0.1) continue
+
+        layer1Balances.push({
+          currency: token.currency,
+          address: token.addressL1,
+          addressL2: token.addressL2,
+          symbol: token.symbolL1,
+          decimals: token.decimals,
+          balance: new BN(balance.toString())
+        })
+      }
+
+      for (let i = 0; i < tA.length; i++) {
+
+        let token = tA[i]
+
+        //ETH is special - will break things,
+        //so, continue
+        if (token.addressL2 === this.L2_ETH_Address) continue
+
+        const tokenC = new ethers.Contract(
+          token.addressL2,
+          L2ERC20Json.abi,
+          this.provider.getSigner()
+        )
+        const balance = await tokenC
+          .connect(this.L2Provider)
+          .balanceOf(this.account)
+
+        //Value is too small to show
+        if (Number(balance.toString()) < 0.1) continue
+
+        layer2Balances.push({
+          currency: token.currency,
+          address: token.addressL2,
+          addressL1: token.addressL1,
+          symbol: token.symbolL2,
+          decimals: token.decimals,
+          balance: new BN(balance.toString())
+        })
+      }
+
+      // const ERC20L1Balance = await this.L1_TEST_Contract.connect(
+      //   this.L1Provider
+      // ).balanceOf(this.account)
+      // console.log('Balance of the test token on L1:', ERC20L1Balance.toString())
+
+      // const ERC20L2Balance = await this.L2_TEST_Contract.connect(
+      //   this.L2Provider
+      // ).balanceOf(this.account)
+      // console.log('Balance of the test token on L2:', ERC20L2Balance.toString())
+      
+      //console.log(layer1Balances)
+      //console.log(layer2Balances)
 
       // //how many NFTs do I own?
       const ERC721L2Balance = await this.ERC721Contract.connect(
         this.L2Provider
       ).balanceOf(this.account)
-      // console.log("ERC721L2Balance",ERC721L2Balance)
-      // console.log("this.account",this.account)
-      // console.log(this.ERC721Contract)
+      //console.log('ERC721L2Balance', ERC721L2Balance)
+      //console.log("this.account",this.account)
+      //console.log(this.ERC721Contract)
 
       //let see if we already know about them
       const myNFTS = getNFTs()
       const numberOfNFTS = Object.keys(myNFTS).length
+
+      console.log('Checking NFTs')
 
       if (Number(ERC721L2Balance.toString()) !== numberOfNFTS) {
         //oh - something just changed - either got one, or sent one
@@ -558,7 +734,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
         let nftName = await this.ERC721Contract.getName()
         let nftSymbol = await this.ERC721Contract.getSymbol()
 
-        for (var i = 0; i < Number(ERC721L2Balance.toString()); i++) {
+        for (let i = 0; i < Number(ERC721L2Balance.toString()); i++) {
           tokenID = BigNumber.from(i)
           nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(
             this.account,
@@ -594,49 +770,13 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
           })
         }
       } else {
-        // console.log("No NFT changes")
+        //console.log("No NFT changes")
         //all set - do nothing
       }
 
-      const ethToken = await getToken(this.L1ETHAddress)
-      let testToken = null
-
-      //For testing - we always provide a test token
-      if (this.L1orL2 === 'L1') {
-        testToken = await getToken(this.L1ERC20Address)
-      } else {
-        testToken = await getToken(this.L2ERC20Address)
-      }
-
-      const rootchainEthBalance = [
-        {
-          ...ethToken,
-          amount: new BN(rootChainBalance.toString()),
-        },
-        {
-          ...testToken,
-          currency: this.L1ETHAddress,
-          amount: new BN(ERC20L1Balance.toString()),
-        },
-      ]
-
-      const childchainEthBalance = [
-        {
-          ...ethToken,
-          currency: this.L2ETHAddress,
-          symbol: 'oETH',
-          amount: new BN(childChainBalance.toString()),
-        },
-        {
-          ...testToken,
-          currency: this.L2ERC20Address,
-          amount: new BN(ERC20L2Balance.toString()),
-        },
-      ]
-
       return {
-        rootchain: orderBy(rootchainEthBalance, (i) => i.currency),
-        childchain: orderBy(childchainEthBalance, (i) => i.currency),
+        layer1: orderBy(layer1Balances, (i) => i.currency),
+        layer2: orderBy(layer2Balances, (i) => i.currency),
       }
     } catch (error) {
       throw new WebWalletError({
@@ -647,38 +787,9 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     }
   }
 
-  depositETHL1 = () => async (dispatch) => {
-    //for this to work, we have to be on the L1
-    //otherwise makes no sense
-    if (this.L1orL2 !== 'L1') return
-
-    try {
-      //const L1ProviderRPC = new JsonRpcProvider(l1Network.rpcUrl);
-      const signer = this.L1Provider.getSigner()
-
-      // Send 1 ETH
-      const txOption = {
-        to: this.account,
-        value: parseEther('1'),
-        gasPrice: parseUnits('4.1', 'gwei'),
-        gasLimit: hexlify(120000),
-      }
-
-      const tx = await signer.sendTransaction(txOption)
-      await tx.wait()
-
-      console.log(tx)
-
-      dispatch(openAlert('Deposited ETH to L1'))
-    } catch (error) {
-      dispatch(openError('Failed to deposit ETH to L1'))
-    }
-  }
-
+  //Move ETH from L1 to L2 using the standard deposit system
   depositETHL2 = async (value = '1') => {
-
     try {
-
       const depositTxStatus = await this.L1StandardBridgeContract.depositETH(
         this.L2GasLimit,
         utils.formatBytes32String(new Date().getTime().toString()),
@@ -704,9 +815,10 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     }
   }
 
+  //Transfer funds from one account to another, on the L2
   async transfer(address, value, currency) {
     try {
-      const tx = await this.L2ERC20Contract.attach(currency).transfer(
+      const tx = await this.L2_TEST_Contract.attach(currency).transfer(
         address,
         parseEther(value.toString()),
         { gasPrice: 0 }
@@ -718,6 +830,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     }
   }
 
+  //figure out which layer we are on right now
   confirmLayer = (layerToConfirm) => async (dispatch) => {
     if (layerToConfirm === this.L1orL2) {
       return true
@@ -726,30 +839,30 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     }
   }
 
-  async getAllTransactions() {
-    let transactionHistory = {}
-    const latest = await this.L2Provider.eth.getBlockNumber()
-    const blockNumbers = Array.from(Array(latest).keys())
+  // async getAllTransactions() {
+  //   let transactionHistory = {}
+  //   const latest = await this.L2Provider.eth.getBlockNumber()
+  //   const blockNumbers = Array.from(Array(latest).keys())
 
-    for (let blockNumber of blockNumbers) {
-      const blockData = await this.L2Provider.eth.getBlock(blockNumber)
-      const transactionsArray = blockData.transactions
-      if (transactionsArray.length === 0) {
-        transactionHistory.push({
-          /*ToDo*/
-        })
-      }
-    }
-  }
+  //   for (let blockNumber of blockNumbers) {
+  //     const blockData = await this.L2Provider.eth.getBlock(blockNumber)
+  //     const transactionsArray = blockData.transactions
+  //     if (transactionsArray.length === 0) {
+  //       transactionHistory.push({
+  //         /*ToDo*/
+  //       })
+  //     }
+  //   }
+  // }
 
   async checkAllowance(
-    currency,
-    targetContract = this.L1StandardBridgeAddress
+    currencyAddress,
+    targetContract
   ) {
     try {
       const ERC20Contract = new ethers.Contract(
-        currency,
-        L1ERC20Json.abi,
+        currencyAddress,
+        L1ERC20Json.abi, //could use any abi - just something with .allowance
         this.provider.getSigner()
       )
       const allowance = await ERC20Contract.allowance(
@@ -760,20 +873,62 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     } catch (error) {
       throw new WebWalletError({
         originalError: error,
-        customErrorMessage: 'Could not check deposit allowance for ERC20.',
+        customErrorMessage: 'Could not check ERC20 allowance.',
         reportToSentry: false,
         reportToUi: true,
       })
     }
   }
 
-  async approveErc20(
+  async approveERC20_L2LP(
+    depositAmount_string,
+    currencyAddress
+  ) {
+    
+    try {
+
+      console.log("approveERC20_L2LP")
+      
+      //we could use any L2 ERC contract here - just getting generic parts of the abi
+      //but we know we alaways have the TEST contract, so will use that
+      const L2ERC20Contract = this.L2_TEST_Contract.attach(currencyAddress)
+
+      let allowance_BN = await L2ERC20Contract.allowance(
+        this.account,
+        this.L2LPAddress
+      )
+
+      let depositAmount_BN = new BN(depositAmount_string)
+
+      if (depositAmount_BN.gt(allowance_BN)) {
+        const approveStatus = await L2ERC20Contract.approve(
+          this.L2LPAddress,
+          depositAmount_string,
+          //{ gasPrice: 0 } //this can be hardcoded here because, by definition, I'm always on L2
+        )
+        await approveStatus.wait()
+      }
+
+      allowance_BN = await L2ERC20Contract.allowance(
+        this.account,
+        this.L2LPAddress
+      )
+      
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
+  async approveERC20(
     value,
     currency,
     approveContractAddress = this.L1StandardBridgeAddress,
     contractABI = L1ERC20Json.abi
   ) {
+    
     try {
+
       const ERC20Contract = new ethers.Contract(
         currency,
         contractABI,
@@ -782,8 +937,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
 
       const approveStatus = await ERC20Contract.approve(
         approveContractAddress,
-        value,
-        this.L1orL2 === 'L1' ? {} : { gasPrice: 0 }
+        value
       )
       await approveStatus.wait()
 
@@ -821,26 +975,26 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     } catch (error) {
       throw new WebWalletError({
         originalError: error,
-        customErrorMessage: 'Could not reset approval allowance for ERC20.',
+        customErrorMessage: 'Could not reset allowance for ERC20.',
         reportToSentry: false,
         reportToUi: true,
       })
     }
   }
 
+  //Used to move ERC20 Tokens from L1 to L2
   async depositErc20(value, currency, gasPrice, currencyL2) {
+
     try {
-      const L1ERC20Contract = this.L1ERC20Contract.attach(currency)
-      const allowance = await L1ERC20Contract.allowance(
-        this.account,
-        this.L1StandardBridgeAddress
+      //could use any ERC20 here...
+      const L1_TEST_Contract = this.L1_TEST_Contract.attach(currency)
+
+      const approveStatus = await L1_TEST_Contract.approve(
+        this.L1StandardBridgeAddress, //this is the spender
+        value, //and this is how much the spender will be able to spend 
+        //this.L1orL2 === 'L1' ? {} : { gasPrice: 0 }
       )
-
-      console.log({ allowance: allowance.toString(), value })
-
-      if(currency == this.L1ERC20Address) {
-        currencyL2 = this.L2ERC20Address
-      }
+      await approveStatus.wait()
 
       const depositTxStatus = await this.L1StandardBridgeContract.depositERC20(
         currency,
@@ -875,30 +1029,34 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     }
   }
 
-  async exitOMGX(currency, value) {
+  //Standard 7 day exit from OMGX
+  //updated
+  async exitOMGX(currencyAddress, value) {
+    
     const allowance = await this.checkAllowance(
-      currency,
+      currencyAddress,
       this.L2StandardBridgeAddress
     )
-    const L2ERC20Contract = new ethers.Contract(
-      currency,
+    const L2_ERC20_Contract = new ethers.Contract(
+      currencyAddress,
       L2ERC20Json.abi,
       this.provider.getSigner()
     )
-    const decimals = await L2ERC20Contract.decimals()
+    const decimals = await L2_ERC20_Contract.decimals()
     // need the frontend updates
     if (BigNumber.from(allowance).lt(parseUnits(value, decimals))) {
-      const res = await this.approveErc20(
+      const res = await this.approveERC20(
         // take caution while using parseEther() with erc20
         // l2 erc20 can be customised to have non 18 decimals
         parseUnits(value, decimals),
-        currency,
+        currencyAddress,
         this.L2StandardBridgeAddress
       )
       if (!res) return false
     }
+
     const tx = await this.L2StandardBridgeContract.withdraw(
-      currency,
+      currencyAddress,
       parseUnits(value, decimals),
       this.L1GasLimit,
       utils.formatBytes32String(new Date().getTime().toString()),
@@ -915,7 +1073,8 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
   /***********************************************/
   /*****                  Fee                *****/
   /***********************************************/
-  // Total exist fee
+
+  // Total exit fee
   async getTotalFeeRate() {
     const L2LPContract = new ethers.Contract(
       this.L2LPAddress,
@@ -935,31 +1094,50 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     const feeRate = await L2LPContract.userRewardFeeRate()
     return ((feeRate / 1000) * 100).toFixed(1)
   }
-  /***********************************************/
 
-  /***********************************************/
-  /*****           Pool, User Info           *****/
-  /***********************************************/
+  /*****************************************************/
+  /***** Pool, User Info, to populate the Farm tab *****/
+  /*****************************************************/
   async getL1LPInfo() {
-    const tokenList = [this.L1ETHAddress, this.L1ERC20Address]
+    
+    const tokenAddressList = [
+      this.L1_ETH_Address, 
+      this.L1_TEST_Address
+    ]
+
     const L1LPContract = new ethers.Contract(
       this.L1LPAddress,
       L1LPJson.abi,
       this.L1Provider
     )
-    const poolInfo = {},
-      userInfo = {}
-    for (let token of tokenList) {
-      const [poolTokenInfo, userTokenInfo, tokenBalance] = await Promise.all([
-        L1LPContract.poolInfo(token),
-        L1LPContract.userInfo(token, this.account),
-        token === this.L1ETHAddress
-          ? this.L1Provider.getBalance(this.L1LPAddress)
-          : this.L1ERC20Contract.connect(this.L1Provider).balanceOf(
-              this.L1LPAddress
-            ),
+
+    const poolInfo = {}
+    const userInfo = {}
+
+    for (let tokenAddress of tokenAddressList) {
+      let tokenBalance
+
+      if (tokenAddress === this.L1_ETH_Address) {
+        tokenBalance = await this.L1Provider.getBalance(this.L1LPAddress)
+      } else if (tokenAddress === this.L1_TEST_Address) {
+        tokenBalance = await this.L1_TEST_Contract.connect(
+          this.L1Provider
+        ).balanceOf(this.L1LPAddress)
+      }
+      // Add new LPs here
+      // else if (tokenAddress === __________) {
+      //   tokenBalance = await this.___________.connect(this.L1Provider).balanceOf(this.L1LPAddress)
+      // }
+      else {
+        console.log('No liquidity pool for this token:', tokenAddress)
+      }
+
+      const [poolTokenInfo, userTokenInfo] = await Promise.all([
+        L1LPContract.poolInfo(tokenAddress),
+        L1LPContract.userInfo(tokenAddress, this.account),
       ])
-      poolInfo[token] = {
+
+      poolInfo[tokenAddress] = {
         l1TokenAddress: poolTokenInfo.l1TokenAddress,
         l2TokenAddress: poolTokenInfo.l2TokenAddress,
         accUserReward: poolTokenInfo.accUserReward.toString(),
@@ -985,36 +1163,57 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
               ), // ( accUserReward - userDepositAmount ) / timeDuration
         tokenBalance: tokenBalance.toString(),
       }
-      userInfo[token] = {
-        l1TokenAddress: token,
+      userInfo[tokenAddress] = {
+        l1TokenAddress: tokenAddress,
         amount: userTokenInfo.amount.toString(),
         pendingReward: userTokenInfo.pendingReward.toString(),
-        rewardDebt: userTokenInfo.rewardDebt.toString(),
+        rewardDebt: userTokenInfo.rewardDebt.toString()
       }
     }
     return { poolInfo, userInfo }
   }
 
   async getL2LPInfo() {
-    const tokenList = [this.L2ETHAddress, this.L2ERC20Address]
+    
+    const tokenAddressList = [
+      this.L2_ETH_Address, 
+      this.L2_TEST_Address
+    ]
+
     const L2LPContract = new ethers.Contract(
       this.L2LPAddress,
       L2LPJson.abi,
       this.L2Provider
     )
-    const poolInfo = {},
-      userInfo = {}
-    for (let token of tokenList) {
-      const [poolTokenInfo, userTokenInfo, tokenBalance] = await Promise.all([
-        L2LPContract.poolInfo(token),
-        L2LPContract.userInfo(token, this.account),
-        token === this.L2ETHAddress
-          ? this.L2Provider.getBalance(this.L2LPAddress)
-          : this.L2ERC20Contract.connect(this.L2Provider).balanceOf(
-              this.L2LPAddress
-            ),
+
+    const poolInfo = {}
+    const userInfo = {}
+
+    for (let tokenAddress of tokenAddressList) {
+      
+      let tokenBalance
+
+      if (tokenAddress === this.L2_ETH_Address) {
+        tokenBalance = await this.L2Provider.getBalance(this.L2LPAddress)
+      } else if (tokenAddress === this.L2_TEST_Address) {
+        tokenBalance = await this.L2_TEST_Contract.connect(
+          this.L2Provider
+        ).balanceOf(this.L2LPAddress)
+      }
+      // Add new LPs here
+      // else if (tokenAddress === __________) {
+      //   tokenBalance = await this.___________.connect(this.L2Provider).balanceOf(this.L2LPAddress)
+      // }
+      else {
+        console.log('No liquidity pool for this token:', tokenAddress)
+      }
+
+      const [poolTokenInfo, userTokenInfo] = await Promise.all([
+        L2LPContract.poolInfo(tokenAddress),
+        L2LPContract.userInfo(tokenAddress, this.account),
       ])
-      poolInfo[token] = {
+
+      poolInfo[tokenAddress] = {
         l1TokenAddress: poolTokenInfo.l1TokenAddress,
         l2TokenAddress: poolTokenInfo.l2TokenAddress,
         accUserReward: poolTokenInfo.accUserReward.toString(),
@@ -1040,23 +1239,22 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
               ), // ( accUserReward - userDepositAmount ) / timeDuration
         tokenBalance: tokenBalance.toString(),
       }
-      userInfo[token] = {
-        l2TokenAddress: token,
+      userInfo[tokenAddress] = {
+        l2TokenAddress: tokenAddress,
         amount: userTokenInfo.amount.toString(),
         pendingReward: userTokenInfo.pendingReward.toString(),
-        rewardDebt: userTokenInfo.rewardDebt.toString(),
+        rewardDebt: userTokenInfo.rewardDebt.toString()
       }
     }
+
     return { poolInfo, userInfo }
   }
-
-  /***********************************************/
 
   /***********************************************/
   /*****            Add Liquidity            *****/
   /***********************************************/
   async addLiquidity(currency, value, L1orL2Pool) {
-    const decimals = 18
+    const decimals = 18 //should not assume?
     let depositAmount = powAmount(value, decimals)
 
     try {
@@ -1068,7 +1266,7 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
         depositAmount,
         currency,
         // deposit ETH or not
-        currency === this.L1ETHAddress
+        currency === this.L1_ETH_Address
           ? { value: depositAmount }
           : L1orL2Pool === 'L1LP'
           ? {}
@@ -1081,34 +1279,50 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
       return false
     }
   }
-  /***********************************************/
 
   /***********************************************/
-  /*****              Get Reward             *****/
+  /*****           Get Reward L1             *****/
   /***********************************************/
-  async getReward(currency, value) {
+  async getRewardL1(currencyL1Address, userReward_BN) {
+    
     try {
-      // Deposit
-      const withdrawRewardTX = await this.L2LPContract.withdrawReward(
-        value,
-        currency,
+      const withdrawRewardTX = await this.L1LPContract.withdrawReward(
+        userReward_BN,
+        currencyL1Address,
         this.account,
-        { gasPrice: 0 }
+        //{ gasPrice: 0 }
       )
       await withdrawRewardTX.wait()
-
       return true
     } catch (err) {
       return false
     }
   }
+
   /***********************************************/
+  /*****           Get Reward L2             *****/
+  /***********************************************/
+  async getRewardL2(currencyL2Address, userReward_BN) {
+    
+    try {
+      const withdrawRewardTX = await this.L2LPContract.withdrawReward(
+        userReward_BN,
+        currencyL2Address,
+        this.account,
+        //{ gasPrice: 0 }
+      )
+      await withdrawRewardTX.wait()
+      return true
+    } catch (err) {
+      return false
+    }
+  }
 
   /***********************************************/
   /*****          Withdraw Liquidity         *****/
   /***********************************************/
   async withdrawLiquidity(currency, value, L1orL2Pool) {
-    const decimals = 18
+    const decimals = 18 //bit dangerous?
     let withdrawAmount = powAmount(value, decimals)
     try {
       // Deposit
@@ -1127,16 +1341,19 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
       return false
     }
   }
-  /***********************************************/
 
+  /***********************************************************/
+  /***** SWAP ON to OMGX by depositing funds to the L1LP *****/
+  /***********************************************************/
   async depositL1LP(currency, value) {
-    const decimals = 18
+    
+    const decimals = 18 //bit dangerous?
     let depositAmount = powAmount(value, decimals)
 
     const depositTX = await this.L1LPContract.clientDepositL1(
       depositAmount.toString(),
       currency,
-      currency === this.L1ETHAddress ? { value: depositAmount } : {}
+      currency === this.L1_ETH_Address ? { value: depositAmount } : {}
     )
     await depositTX.wait()
 
@@ -1146,59 +1363,113 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     )
     console.log(' got L1->L2 message hash', l1ToL2msgHash)
     const l2Receipt = await this.watcher.getL2TransactionReceipt(l1ToL2msgHash)
-    console.log(' completed Deposit! L2 tx hash:', l2Receipt.transactionHash)
+    console.log(' completed swap-on ! L2 tx hash:', l2Receipt.transactionHash)
 
     return l2Receipt
   }
 
-  async L1LPBalance(currency) {
+  /***************************************/
+  /************ L1LP Pool size ***********/
+  /***************************************/
+  async L1LPBalance(tokenAddress) {
     let balance
-    if (currency === this.L2ETHAddress || currency === this.L1ETHAddress) {
+    const decimals = 18
+    let tokenAddressLC = tokenAddress.toLowerCase()
+    if (
+      tokenAddressLC === this.L2_ETH_Address ||
+      tokenAddressLC === this.L1_ETH_Address
+    ) {
       balance = await this.L1Provider.getBalance(this.L1LPAddress)
     } else if (
-      currency === this.L2ERC20Address ||
-      currency === this.L1ERC20Address
+      tokenAddressLC === this.L2_TEST_Address.toLowerCase() ||
+      tokenAddressLC === this.L1_TEST_Address.toLowerCase()
     ) {
-      balance = await this.L1ERC20Contract.connect(this.L1Provider).balanceOf(
+      balance = await this.L1_TEST_Contract.connect(this.L1Provider).balanceOf(
         this.L1LPAddress
       )
     }
-    const decimals = 18
-    return logAmount(balance.toString(), decimals)
+
+    if(typeof(balance) === 'undefined') {
+      return logAmount('0', decimals)
+    } else {
+      return logAmount(balance.toString(), decimals)
+    }
+
   }
 
-  async depositL2LP(currency, value) {
-    const L2ERC20Contract = this.L2ERC20Contract.attach(currency)
+  /***************************************/
+  /************ L2LP Pool size ***********/
+  /***************************************/
+  async L2LPBalance(tokenAddress) {
+    let balance
+    const decimals = 18
+    let tokenAddressLC = tokenAddress.toLowerCase()
+    if (
+      tokenAddressLC === this.L2_ETH_Address ||
+      tokenAddressLC === this.L1_ETH_Address
+    ) {
+      //We are dealing with ETH
+      balance = await this.L2_ETH_Contract.connect(this.L2Provider).balanceOf(
+        this.L2LPAddress
+      )
+    } else if (
+      tokenAddressLC === this.L2_TEST_Address.toLowerCase() ||
+      tokenAddressLC === this.L1_TEST_Address.toLowerCase()
+    ) {
+      //we are dealing with TEST
+      balance = await this.L2_TEST_Contract.connect(this.L2Provider).balanceOf(
+        this.L2LPAddress
+      )
+    }
+    
+    console.log("L2LPBalance:",typeof(balance))
 
-    let allowance = await L2ERC20Contract.allowance(
+    if(typeof(balance) === 'undefined') {
+      return logAmount('0', decimals)
+    } else {
+      return logAmount(balance.toString(), decimals)
+    }
+    
+  }
+
+  /**************************************************************/
+  /***** SWAP OFF from OMGX by depositing funds to the L2LP *****/
+  /**************************************************************/
+  async depositL2LP(currencyAddress, depositAmount_string) {
+
+    const L2ERC20Contract = new ethers.Contract(
+      currencyAddress,
+      L2ERC20Json.abi,
+      this.provider.getSigner()
+    )
+
+    let allowance_BN = await L2ERC20Contract.allowance(
       this.account,
       this.L2LPAddress
     )
-    allowance = new BN(allowance.toString())
 
-    const token = await getToken(currency)
-    const decimals = token.decimals
-    let depositAmount = powAmount(value, decimals)
-    depositAmount = new BN(depositAmount)
+    //const decimals = await L2ERC20Contract.decimals() 
 
-    if (depositAmount.gt(allowance)) {
+    let depositAmount_BN = new BN(depositAmount_string)
+
+    if (depositAmount_BN.gt(allowance_BN)) {
       const approveStatus = await L2ERC20Contract.approve(
         this.L2LPAddress,
-        depositAmount.toString(),
-        { gasPrice: 0 }
+        depositAmount_string,
+        //{ gasPrice: 0 } //this can be hardcoded here because, by definition, I'm always on L2
       )
       await approveStatus.wait()
+      if (!approveStatus) return false
     }
 
     const depositTX = await this.L2LPContract.clientDepositL2(
-      depositAmount.toString(),
-      currency,
-      { gasPrice: 0 }
+      depositAmount_string,
+      currencyAddress,
+      //{ gasPrice: 0 }
     )
-
     await depositTX.wait()
 
-    // Waiting the response from L1
+    // Waiting for the response from L1
     const [L2ToL1msgHash] = await this.fastWatcher.getMessageHashesFromL2Tx(
       depositTX.hash
     )
@@ -1212,34 +1483,94 @@ L2TokenPool: "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD"
     return L1Receipt
   }
 
-  async L2LPBalance(currency) {
-    let balance
-    if (currency === this.L1ETHAddress) {
-      balance = await this.L2ETHContract.connect(this.L2Provider).balanceOf(
-        this.L2LPAddress
-      )
-    } else if (currency.toLowerCase() === this.L1ERC20Address.toLowerCase()) {
-      balance = await this.L2ERC20Contract.balanceOf(this.L2LPAddress)
-    } else {
-      balance = await this.L2ERC20Contract.connect(this.L2Provider).balanceOf(
-        this.L2LPAddress
-      )
+  async getPriorityTokens() {
+    try {
+
+      return priorityTokens.map((token) => {
+
+        let L1 = ''
+        let L2 = ''
+
+        if (token.symbol === 'ETH') {
+          L1 = this.L1_ETH_Address
+          L2 = this.L2_ETH_Address
+        } else {
+          L1 = this.tokenAddresses[token.symbol].L1
+          L2 = this.tokenAddresses[token.symbol].L2
+        }
+
+        return {
+          symbol: token.symbol,
+          icon: token.icon,
+          name: token.name,
+          L1,
+          L2,
+        }
+
+      })
+
+    } catch (error) {
+      return error
     }
-    const decimals = 18
-    return logAmount(balance.toString(), decimals)
   }
 
-  async getTestToken() {
+  async getSwapTokens() {
     try {
-      const getTokenTX = await this.L2TokenPoolContract.requestToken({
-        gasPrice: 0,
+
+      return swapTokens.map((token) => {
+
+        let L1 = ''
+        let L2 = ''
+
+        if (token.symbol === 'ETH') {
+          L1 = this.L1_ETH_Address
+          L2 = this.L2_ETH_Address
+        } else {
+          L1 = this.tokenAddresses[token.symbol].L1
+          L2 = this.tokenAddresses[token.symbol].L2
+        }
+
+        return {
+          symbol: token.symbol,
+          icon: token.icon,
+          name: token.name,
+          L1,
+          L2,
+        }
       })
-      await getTokenTX.wait()
-      //console.log(getTokenTX)
-      return true
+
     } catch (error) {
-      console.log(error)
-      return false
+      return error
+    }
+  }
+
+  async getDropdownTokens() {
+    try {
+      
+      return dropdownTokens.map((token) => {
+
+        let L1 = ''
+        let L2 = ''
+
+        if (token.symbol === 'ETH') {
+          L1 = this.L1_ETH_Address
+          L2 = this.L2_ETH_Address
+        } else {
+          L1 = this.tokenAddresses[token.symbol].L1
+          L2 = this.tokenAddresses[token.symbol].L2
+        }
+
+        return {
+          symbol: token.symbol,
+          icon: token.icon,
+          name: token.name,
+          L1,
+          L2,
+        }
+      })
+
+    } catch (error) {
+      return error
     }
   }
 }

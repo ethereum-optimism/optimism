@@ -30,17 +30,22 @@ const deployFn: DeployFunction = async (hre) => {
     true,
   )
 
+  let tokenAddress = null;
+
   for (let token of preSupportedTokens.supportedTokens) {
-    //Mint a new token on L1 and set up the L1 and L2 infrastructure
-    // [initialSupply, name, symbol]
-    // this is owned by bobl1Wallet
-    if ((hre as any).deployConfig.network === 'local' || token.symbol === 'JLKN') {
+    
+    if ((hre as any).deployConfig.network === 'local' || token.symbol === 'TEST') {
+      //do not deploy existing tokens on Rinkeby or Mainnet
+      //only deploy tokens if it's the TEST token or we are on local
+      
       L1ERC20 = await Factory__L1ERC20.deploy(
         initialSupply,
         token.name,
         token.symbol,
       )
       await L1ERC20.deployTransaction.wait()
+
+      tokenAddress = L1ERC20.address;
 
       const L1ERC20DeploymentSubmission: DeploymentSubmission = {
         ...L1ERC20,
@@ -49,33 +54,38 @@ const deployFn: DeployFunction = async (hre) => {
         abi: L1ERC20Json.abi,
       };
 
-      await hre.deployments.save(`L1${token.symbol}`, L1ERC20DeploymentSubmission)
-      console.log(`🌕 ${chalk.red(`L1 ${token.name} deployed to`)} ${chalk.green(L1ERC20.address)}`)
-    } else {
-      await hre.deployments.save(`L1${token.symbol}`, { abi: L1ERC20Json.abi, address: token.address })
-      console.log(`🌕 ${chalk.red(`L1 ${token.name} saved to`)} ${chalk.green(token.address)}`)
+      await hre.deployments.save(`TK_L1${token.symbol}`, L1ERC20DeploymentSubmission)
+      console.log(`🌕 ${chalk.red(`L1 ${token.name} was newly deployed to`)} ${chalk.green(tokenAddress)}`)
+    } else if ( (hre as any).deployConfig.network === 'rinkeby' ) {
+      tokenAddress = token.address.rinkeby
+      await hre.deployments.save(`TK_L1${token.symbol}`, { abi: L1ERC20Json.abi, address: tokenAddress })
+      console.log(`🌕 ${chalk.red(`L1 ${token.name} is located at`)} ${chalk.green(tokenAddress)}`)
+    } else if ( (hre as any).deployConfig.network === 'mainnet' ) {
+      tokenAddress = token.address.mainnet
+      await hre.deployments.save(`TK_L1${token.symbol}`, { abi: L1ERC20Json.abi, address: tokenAddress })
+      console.log(`🌕 ${chalk.red(`L1 ${token.name} is located at`)} ${chalk.green(tokenAddress)}`)
     }
 
-    //Set up things on L2 for this new token
-    // [L2StandardBridgeAddress, L1TokenAddress, tokenName, tokenSymbol]
+    //Set up things on L2 for this token
+
     L2ERC20 = await Factory__L2ERC20.deploy(
       (hre as any).deployConfig.L2StandardBridgeAddress,
-      ((hre as any).deployConfig.network === 'local' || token.symbol === 'JLKN' ) ?
-        L1ERC20.address : token.address,
+      tokenAddress,
+      //((hre as any).deployConfig.network === 'local' || token.symbol === 'TEST' ) ? L1ERC20.address : token.address,
       token.name,
       token.symbol,
       {gasLimit: 800000, gasPrice: 0}
     )
     await L2ERC20.deployTransaction.wait()
+    
     const L2ERC20DeploymentSubmission: DeploymentSubmission = {
       ...L2ERC20,
       receipt: L2ERC20.receipt,
       address: L2ERC20.address,
       abi: L2ERC20.abi,
     };
-    await hre.deployments.save(`L2${token.symbol}`, L2ERC20DeploymentSubmission)
-    console.log(`🌕 ${chalk.red(`L2 ${token.name} deployed to`)} ${chalk.green(L2ERC20.address)}`)
-
+    await hre.deployments.save(`TK_L2${token.symbol}`, L2ERC20DeploymentSubmission)
+    console.log(`🌕 ${chalk.red(`L2 ${token.name} was deployed to`)} ${chalk.green(L2ERC20.address)}`)
   }
 }
 

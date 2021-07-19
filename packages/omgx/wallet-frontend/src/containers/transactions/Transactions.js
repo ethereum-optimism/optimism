@@ -27,7 +27,7 @@ import { setActiveHistoryTab2 } from 'actions/uiAction'
 import { selectActiveHistoryTab1 } from 'selectors/uiSelector'
 import { selectActiveHistoryTab2 } from 'selectors/uiSelector'
 
-import { selectChildchainTransactions } from 'selectors/transactionSelector';
+import { selectTransactions } from 'selectors/transactionSelector';
 import { selectLoading } from 'selectors/loadingSelector'
 
 import Tabs from 'components/tabs/Tabs'
@@ -37,8 +37,6 @@ import Pager from 'components/pager/Pager'
 
 import Exits from './Exits';
 import Deposits from './Deposits';
-
-import networkService from 'services/networkService';
 
 import * as styles from './Transactions.module.scss';
 
@@ -59,7 +57,8 @@ function Transactions () {
   const activeTab1 = useSelector(selectActiveHistoryTab1, isEqual);
   const activeTab2 = useSelector(selectActiveHistoryTab2, isEqual);
 
-  const unorderedTransactions = useSelector(selectChildchainTransactions, isEqual);
+  const unorderedTransactions = useSelector(selectTransactions, isEqual)
+
   const transactions = orderBy(unorderedTransactions, i => i.timeStamp, 'desc');
 
   const _transactions = transactions.filter(i => {
@@ -115,25 +114,26 @@ function Transactions () {
                 onClickBack={()=>setPage1(page1 - 1)}
               />
               {!paginatedTransactions.length && !loading && (
-                <div className={styles.disclaimer}>No transaction history.</div>
+                <div className={styles.disclaimer}>Transaction history coming soon...</div>
               )}
               {!paginatedTransactions.length && loading && (
                 <div className={styles.disclaimer}>Loading...</div>
               )}
               {paginatedTransactions.map((i, index) => {
+                const metaData = typeof(i.typeTX) === 'undefined' ? '' : i.typeTX
                 return (
                   <Transaction
                     key={index}
                     link={ 
-                      networkService.chainID === 4 ? 
-                      `https://rinkeby.etherscan.io/tx/${i.hash}`:
-                      networkService.chainID === 28 ? 
-                      `https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`:
-                      undefined
+                      i.chain === 'L1' ? 
+                      `https://rinkeby.etherscan.io/tx/${i.hash}` :
+                      `https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`
                     }
-                    title={`${truncate(i.hash, 6, 4, '...')}`}
+                    title={`${truncate(i.hash, 8, 4, '...')}`}
                     midTitle={moment.unix(i.timeStamp).format('lll')}
                     status={`Block ${i.blockNumber}`}
+                    chain={`${i.chain} Chain`}
+                    typeTX={`${metaData}`}
                   />
                 );
               })}
@@ -141,7 +141,10 @@ function Transactions () {
           )}
 
           {activeTab1=== 'Deposits' && <
-            Deposits searchHistory={searchHistory} transactions={transactions} />
+            Deposits 
+              searchHistory={searchHistory} 
+              transactions={transactions} 
+            />
           }
 
         </div>

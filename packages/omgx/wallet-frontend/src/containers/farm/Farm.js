@@ -27,38 +27,58 @@ import FarmList from 'components/farmList/FarmList';
 import networkService from 'services/networkService';
 
 import ethLogo from 'images/ethereum.svg';
-import JLKNLogo from 'images/JLKN.svg';
+import TESTLogo from 'images/test.svg';
 
 import * as styles from './Farm.module.scss';
 
 class Farm extends React.Component {
+  
   constructor(props) {
+
     super(props);
 
     const { 
-      totalFeeRate, userRewardFeeRate,
-      poolInfo, userInfo,
+      totalFeeRate, 
+      userRewardFeeRate,
+      poolInfo, 
+      userInfo,
     } = this.props.farm;
 
+    const { 
+      layer1, layer2
+    } = this.props.balance;
+
     this.state = {
-      totalFeeRate, userRewardFeeRate,
-      poolInfo, userInfo,
+      totalFeeRate, 
+      userRewardFeeRate,
+      poolInfo, 
+      userInfo,
+      layer1,
+      layer2
     }
+
   }
 
   componentDidMount() {
+
     const { totalFeeRate, userRewardFeeRate } = this.props.farm;
     if (!totalFeeRate || !userRewardFeeRate) {
       this.props.dispatch(getFee());
     }
     this.props.dispatch(getFarmInfo());
+
   }
 
   componentDidUpdate(prevState) {
+
     const { 
       totalFeeRate, userRewardFeeRate,
       poolInfo, userInfo,
-    } = this.props.farm;
+    } = this.props.farm
+
+    const { 
+      layer1, layer2
+    } = this.props.balance
 
     if (prevState.farm.totalFeeRate !== totalFeeRate) {
       this.setState({ totalFeeRate });
@@ -75,10 +95,47 @@ class Farm extends React.Component {
     if (!isEqual(prevState.farm.userInfo, userInfo)) {
       this.setState({ userInfo });
     }
+
+    if (!isEqual(prevState.balance.layer1, layer1)) {
+      this.setState({ layer1 })
+    }
+
+    if (!isEqual(prevState.balance.layer2, layer2)) {
+      this.setState({ layer2 })
+    }
+
   }
 
   isETH(address) {
-    return [networkService.L2ETHAddress, networkService.L1ETHAddress].includes(address);
+    return [networkService.L2_ETH_Address, networkService.L1_ETH_Address].includes(address)
+  }
+
+  getBalance(address, chain) {
+
+    const { layer1, layer2 } = this.state;
+  
+    if(typeof(layer1) === 'undefined') return [0, 0]
+    if(typeof(layer2) === 'undefined') return [0, 0]
+
+    if(chain === 'L1'){
+      let tokens = Object.entries(layer1)
+      for(let i = 0; i < tokens.length; i++) {
+        if(tokens[i][1].address.toLowerCase() === address.toLowerCase()) {
+          return [tokens[i][1].balance, tokens[i][1].decimals]
+        }
+      }
+    } 
+    else if (chain === 'L2') {
+      let tokens = Object.entries(layer2)
+      for(let i = 0; i < tokens.length; i++) {
+        if(tokens[i][1].address.toLowerCase() === address.toLowerCase()) {
+          return [tokens[i][1].balance, tokens[i][1].decimals]
+        }
+      }
+    } 
+   
+    return [0,0]
+
   }
 
   render() {
@@ -94,21 +151,24 @@ class Farm extends React.Component {
         <h2>Stake tokens to the liquidity pool to earn</h2>
         <div className={styles.Note}>
           Your tokens will be deposited into the liquidity pool. 
-          Meanwhile, you are rewarded with a portion of the fees collected from the swap users.
+          You will share the fees collected from the swap users.
         </div>
         <h3>L1 Liquidity Pool</h3>
         <div className={styles.TableContainer}>
           {Object.keys(poolInfo.L1LP).map((v, i) => {
-            const isETH = this.isETH(v);
+            const isETH = this.isETH(v)
+            const ret = this.getBalance(v, 'L1')
             return (
               <FarmList 
                 key={i}
-                logo={isETH ? ethLogo : JLKNLogo}
-                name={isETH ? "Ethereum" : "JLKN"}
-                shortName={isETH ? "ETH" : "JLKN"}
+                logo={isETH ? ethLogo : TESTLogo}
+                name={isETH ? "Ethereum" : "TEST"}
+                shortName={isETH ? "ETH" : "TEST"}
                 poolInfo={poolInfo.L1LP[v]}
                 userInfo={userInfo.L1LP[v]}
                 L1orL2Pool="L1LP"
+                balance={ret[0]}
+                decimals={ret[1]}
               />
             )
           })}
@@ -116,16 +176,19 @@ class Farm extends React.Component {
         <h3>L2 Liquidity Pool</h3>
         <div className={styles.TableContainer}>
           {Object.keys(poolInfo.L2LP).map((v, i) => {
-            const isETH = this.isETH(v);
+            const isETH = this.isETH(v)
+            const ret = this.getBalance(v, 'L2')
             return (
               <FarmList 
                 key={i}
-                logo={isETH ? ethLogo : JLKNLogo}
-                name={isETH ? "Ethereum" : "JLKN"}
-                shortName={isETH ? "ETH" : "JLKN"}
+                logo={isETH ? ethLogo : TESTLogo}
+                name={isETH ? "Ethereum" : "TEST"}
+                shortName={isETH ? "ETH" : "TEST"}
                 poolInfo={poolInfo.L2LP[v]}
                 userInfo={userInfo.L2LP[v]}
                 L1orL2Pool="L2LP"
+                balance={ret[0]}
+                decimals={ret[1]}
               />
             )
           })}
@@ -136,7 +199,8 @@ class Farm extends React.Component {
 }
 
 const mapStateToProps = state => ({ 
-  farm: state.farm
+  farm: state.farm,
+  balance: state.balance
 });
 
 export default connect(mapStateToProps)(Farm);
