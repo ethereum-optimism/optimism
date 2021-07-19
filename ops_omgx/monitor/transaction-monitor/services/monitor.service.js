@@ -323,15 +323,15 @@ class MonitorService extends OptimismEnv {
         // this.logger.info(`logData:${JSON.stringify(logData, null, 4)}`);
         msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [message]));
         // this.logger.info(`message:${JSON.stringify([message], null, 4)}`);
-        // try {
-        //   decoded = this.state.OVM_L2CrossDomainMessengerContract.decodeFunctionData(
-        //     'relayMessage',
-        //     [message]
-        //   );
-        //   this.logger.info(`Decoded.target:${decoded.target}`);
-        // } catch (error) {
-        //   this.logger.info(`Here is the error: ${error}`);
-        // }
+        try {
+          decoded = this.state.OVM_L2CrossDomainMessengerContract.decodeFunctionData(
+            'relayMessage',
+            [message]
+          );
+          this.logger.info(`Decoded.target:${decoded.target}`);
+        } catch (error) {
+          this.logger.info(`Here is the error: ${error}`);
+        }
 
       }
 
@@ -430,32 +430,3 @@ class MonitorService extends OptimismEnv {
 }
 
 module.exports = MonitorService;
-
-// private async _getSentMessages(
-//   startHeight: number,
-//   endHeight: number
-// ): Promise<SentMessage[]> {
-//   const filter = this.state.OVM_L2CrossDomainMessenger.filters.SentMessage()
-//   const events = await this.state.OVM_L2CrossDomainMessenger.queryFilter(
-//     filter,
-//     startHeight + this.options.l2BlockOffset,
-//     endHeight + this.options.l2BlockOffset - 1
-//   )
-//   const messages = events.map((event) => {
-//     const message = event.args.message
-//     const decoded = this.state.OVM_L2CrossDomainMessenger.interface.decodeFunctionData(
-//       'relayMessage',
-//       message
-//     )
-//     return {
-//       target: decoded._target,
-//       sender: decoded._sender,
-//       message: decoded._message,
-//       messageNonce: decoded._messageNonce,
-//       encodedMessage: message,
-//       encodedMessageHash: ethers.utils.keccak256(message),
-//       parentTransactionIndex: event.blockNumber - this.options.l2BlockOffset,
-//       parentTransactionHash: event.transactionHash,
-//     }
-//   })
-// }

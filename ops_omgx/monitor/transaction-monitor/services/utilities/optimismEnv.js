@@ -3,8 +3,8 @@
 const ethers = require('ethers');
 const util = require('util');
 const core_utils_1 = require('@eth-optimism/core-utils');
-const loadContractFromManager = require('@eth-optimism/contracts');
 const Mutex = require('async-mutex').Mutex;
+const { loadContract, loadContractFromManager } = require('@eth-optimism/contracts')
 
 const addressManagerJSON = require('../../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json');
 const OVM_L2CrossDomainMessengerJSON = require('../../artifacts/contracts/optimistic-ethereum/OVM/bridge/messaging/OVM_L2CrossDomainMessenger.sol/OVM_L2CrossDomainMessenger.json');
@@ -43,7 +43,8 @@ class OptimismEnv {
     this.L1Provider = new ethers.providers.JsonRpcProvider(L1_NODE_WEB3_URL);
     this.L2Provider = new ethers.providers.JsonRpcProvider(L2_NODE_WEB3_URL);
 
-    this.wallet = new ethers.Wallet(DEPLOYER_PRIVATE_KEY).connect(this.L1Provider);
+    this.L1wallet = new ethers.Wallet(DEPLOYER_PRIVATE_KEY).connect(this.L1Provider);
+    this.L2wallet = new ethers.Wallet(DEPLOYER_PRIVATE_KEY).connect(this.L2Provider);
 
     this.MySQLHostURL = MYSQL_HOST_URL;
     this.MySQLPort = MYSQL_PORT;
@@ -86,7 +87,7 @@ class OptimismEnv {
     const addressManager = new ethers.Contract(
       this.addressManagerAddress,
       addressManagerJSON.abi,
-      this.wallet
+      this.L1wallet
     );
     this.OVM_L1CrossDomainMessenger = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger');
     this.OVM_L1CrossDomainMessengerFast = await addressManager.getAddress('OVM_L1CrossDomainMessengerFast');
@@ -94,12 +95,12 @@ class OptimismEnv {
       OVM_L1CrossDomainMessenger: this.OVM_L1CrossDomainMessenger,
       OVM_L1CrossDomainMessengerFast: this.OVM_L1CrossDomainMessengerFast,
     });
-    this.OVM_L2CrossDomainMessengerContract = new ethers.Contract(
-      this.OVM_L2CrossDomainMessenger,
-      OVM_L2CrossDomainMessengerJSON.abi,
-      this.wallet,
-    );
-    this.logger.info(`this.OVM_L2CrossDomainMessengerContract: ${JSON.stringify(this.OVM_L2CrossDomainMessengerContract, null, null)}`);
+    this.OVM_L2CrossDomainMessengerContract = await loadContractFromManager({
+      name: 'OVM_L2CrossDomainMessenger',
+      Lib_AddressManager: addressManager,
+      provider: this.L2Provider,
+    });
+    this.logger.info("Set up")
   }
 }
 
