@@ -70,7 +70,7 @@ describe('[smock]: function manipulation tests', () => {
       ).to.be.revertedWith(expected)
     })
 
-    it('should be able to make a fallback function emit an event', async () => {
+    it.skip('should be able to make a fallback function emit an event', async () => {
       // TODO
     })
 
@@ -173,7 +173,7 @@ describe('[smock]: function manipulation tests', () => {
       ).to.be.revertedWith(expected)
     })
 
-    it('should be able to make a receive function emit an event', async () => {
+    it.skip('should be able to make a receive function emit an event', async () => {
       // TODO
     })
 
@@ -232,7 +232,7 @@ describe('[smock]: function manipulation tests', () => {
       await expect(mock.callStatic.empty()).to.be.reverted
     })
 
-    it('should be able to make a function emit an event', async () => {
+    it.skip('should be able to make a function emit an event', async () => {
       // TODO
     })
 
