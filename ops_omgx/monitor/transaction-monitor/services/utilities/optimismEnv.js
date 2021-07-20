@@ -7,7 +7,6 @@ const Mutex = require('async-mutex').Mutex;
 const { loadContract, loadContractFromManager } = require('@eth-optimism/contracts')
 
 const addressManagerJSON = require('../../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json');
-const OVM_L2CrossDomainMessengerJSON = require('../../artifacts/contracts/optimistic-ethereum/OVM/bridge/messaging/OVM_L2CrossDomainMessenger.sol/OVM_L2CrossDomainMessenger.json');
 
 require('dotenv').config();
 const env = process.env;
@@ -26,7 +25,7 @@ const L2_MESSENGER_ADDRESS = env.L2_MESSENGER_ADDRESS || "0x42000000000000000000
 const DEPLOYER_PRIVATE_KEY = env.DEPLOYER_PRIVATE_KEY;
 
 const TRANSACTION_MONITOR_INTERVAL = env.TRANSACTION_MONITOR_INTERVAL || 60000;
-const CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL = env.CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL || 3 * 60 * 1000;
+const CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL = env.CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL || 5 * 60 * 1000;
 
 const SQL_DISCONNECTED = "disconnected";
 

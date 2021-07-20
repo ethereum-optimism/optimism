@@ -27,7 +27,7 @@ class DatabaseService extends OptimismEnv{
     await this.query(`CREATE DATABASE IF NOT EXISTS ${this.MySQLDatabaseName}`);
     await this.query(`USE ${this.MySQLDatabaseName}`);
     await this.query(`CREATE TABLE IF NOT EXISTS block
-      ( 
+      (
         hash VARCHAR(255) NOT NULL,
         parentHash VARCHAR(255) NOT NULL,
         blockNumber INT NOT NULL,
@@ -39,7 +39,7 @@ class DatabaseService extends OptimismEnv{
       )`
     );
     await this.query(`CREATE TABLE IF NOT EXISTS transaction
-      ( 
+      (
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
         blockNumber INT NOT NULL,
@@ -54,7 +54,7 @@ class DatabaseService extends OptimismEnv{
       )`
     );
     await this.query(`CREATE TABLE IF NOT EXISTS receipt
-      ( 
+      (
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
         blockNumber INT NOT NULL,
@@ -68,6 +68,7 @@ class DatabaseService extends OptimismEnv{
         crossDomainMessageEstimateFinalizedTime INT,
         timestamp INT,
         crossDomainMessageFinalizedTime INT,
+        fastRelay BOOL,
         PRIMARY KEY ( hash )
       )`
     );
@@ -135,7 +136,8 @@ class DatabaseService extends OptimismEnv{
     await this.query(`USE ${this.MySQLDatabaseName}`);
     return await this.query(`UPDATE receipt
       SET crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
-      crossDomainMessageFinalizedTime=${receiptData.crossDomainMessageFinalizedTime}
+      crossDomainMessageFinalizedTime=${receiptData.crossDomainMessageFinalizedTime},
+      fastRelay = ${receiptData.fastRelay}
       WHERE hash='${receiptData.transactionHash.toString()}'
       AND blockHash='${receiptData.blockHash.toString()}'
     `);

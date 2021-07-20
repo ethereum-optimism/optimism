@@ -209,7 +209,7 @@ class MonitorService extends OptimismEnv {
           await Promise.all(promisesBlock);
           await Promise.all(promisesReceipt);
           if(promiseCount % this.L2sleepThresh === 0){
-            await this.sleep(1000);
+            await this.sleep(2000);
           }
         }
         const hash = hashes.hash;
@@ -224,23 +224,28 @@ class MonitorService extends OptimismEnv {
       const receiptsData = await Promise.all(promisesReceipt);
 
       for (let receiptData of receiptsData) {
+        if(promiseCount % this.L2sleepThresh === 0){
+          await this.sleep(2000);
+        }
         receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
 
         if(!receiptData.crossDomainMessage) continue;
 
         // if its time check cross domain message finalization
-        if(checkWhitelist && this.whitelist.includes(receiptData.from)){
+        if(checkWhitelist && receiptData.fastRelay){
           this.logger.info(`Checking message from whitelist address: ${receiptData.from}`);
           receiptData = await this.getCrossDomainMessageStatusL1(receiptData, blocksData);
-        }else if (checkNonWhitelist && !this.whitelist.includes(receiptData.from)){
+        }else if (checkNonWhitelist && !receiptData.fastRelay){
           this.logger.info(`Checking message from non-whitelist`);
           receiptData = await this.getCrossDomainMessageStatusL1(receiptData, blocksData);
         }
+        promiseCount = promiseCount + 1;
 
         if (receiptData.crossDomainMessageFinalize) {
           await this.databaseService.updateCrossDomainData(receiptData);
         }
       }
+      promiseCount = 0;
     } else {
       this.logger.info('No waiting cross domain message found.');
     }
@@ -303,7 +308,7 @@ class MonitorService extends OptimismEnv {
     let crossDomainMessageEstimateFinalizedTime;
     let crossDomainMessage = false;
     let crossDomainMessageFinalize = false;
-    let msgHashes = [];
+    let fastRelay = false;
 
     if (filteredBlockData.length) {
       crossDomainMessageSendTime = filteredBlockData[0].timestamp ;
@@ -311,7 +316,7 @@ class MonitorService extends OptimismEnv {
     }
     // Find the transaction that sends message from L2 to L1
     const filteredLogData = receiptData.logs.filter(i => i.address === this.OVM_L2CrossDomainMessenger && i.topics[0] === ethers.utils.id('SentMessage(bytes)'));
-    // this.logger.info(`recieptData.logs:${JSON.stringify(receiptData, null, 4)}`)
+
     if (filteredLogData.length) {
       crossDomainMessage = true;
       // Get message hashes from L2 TX
@@ -320,30 +325,27 @@ class MonitorService extends OptimismEnv {
           ['bytes'],
           logData.data
         );
-        // this.logger.info(`logData:${JSON.stringify(logData, null, 4)}`);
-        msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [message]));
-        // this.logger.info(`message:${JSON.stringify([message], null, 4)}`);
-        try {
-          decoded = this.state.OVM_L2CrossDomainMessengerContract.decodeFunctionData(
-            'relayMessage',
-            [message]
-          );
-          this.logger.info(`Decoded.target:${decoded.target}`);
-        } catch (error) {
-          this.logger.info(`Here is the error: ${error}`);
+        let decoded = this.OVM_L2CrossDomainMessengerContract.interface.decodeFunctionData(
+          'relayMessage',
+          message
+        );
+        if(this.whitelist.includes(decoded._target)){
+          fastRelay = true;
         }
-
       }
-
-
     }
     receiptData.crossDomainMessageSendTime = crossDomainMessageSendTime;
     receiptData.crossDomainMessageEstimateFinalizedTime = crossDomainMessageEstimateFinalizedTime;
     receiptData.crossDomainMessage = crossDomainMessage;
     receiptData.crossDomainMessageFinalize = crossDomainMessageFinalize;
+    receiptData.fastRelay = fastRelay;
+
+
 
     return receiptData;
   }
+
+
   async getCrossDomainMessageStatusL1(receiptData){
     this.logger.info("Checking if message has been finalized...");
 
