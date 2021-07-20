@@ -195,27 +195,54 @@ class MonitorService extends OptimismEnv {
     // counts the number of server request
     let promiseCount = 0;
 
-    let checkWhitelist = this.checkTime(this.whitelist);
+    let checkWhitelist = this.checkTime(this.whitelistString);
     if(checkWhitelist) await this.getWhitelist();
-    let checkNonWhitelist = this.checkTime(this.nonWhitelist);
+    let checkNonWhitelist = this.checkTime(this.nonWhitelistString);
 
     if (crossDomainData.length) {
       this.logger.info('Found cross domain message.');
       const promisesBlock = [], promisesReceipt = [];
       for (let hashes of crossDomainData) {
+
         // limits the rate of server request
         if((promiseCount % this.L2rateLimit) === 0){
-          this.logger.info(`${this.L2rateLimit} promises reached!`);
           await Promise.all(promisesBlock);
           await Promise.all(promisesReceipt);
           if(promiseCount % this.L2sleepThresh === 0){
             await this.sleep(2000);
           }
         }
+
         const hash = hashes.hash;
         const blockNumber = Number(hashes.blockNumber);
-        promisesReceipt.push(this.L2Provider.getTransactionReceipt(hash));
-        promisesBlock.push(this.L2Provider.getBlockWithTransactions(blockNumber));
+        promisesReceipt.push(
+          (async () => {
+            for(let i=0; i<2; i++){
+              try {
+                let result = await this.L2Provider.getTransactionReceipt(hash);
+                return result;
+              } catch (error) {
+                if(i == 2) throw error;
+                console.log(`CAUGHT ERROR: ${error}`);
+                this.sleep(1000)
+              }
+            }
+          })());
+
+        promisesBlock.push(
+          (async () => {
+            for(let i=0; i<2; i++){
+              try {
+                let result = await this.L2Provider.getBlockWithTransactions(blockNumber);
+                return result;
+              } catch (error) {
+                if(i == 2) throw error;
+                console.log(`CAUGHT ERROR: ${error}`);
+                this.sleep(1000)
+              }
+            }
+          })());
+
         promiseCount = promiseCount + 1;
       }
 
@@ -290,8 +317,6 @@ class MonitorService extends OptimismEnv {
 
     const logs = await this.L1Provider.getLogs(filter);
     const matches = logs.filter(i => i.data === msgHash);
-
-    this.logger.info(`Found matches: ${JSON.stringify(matches)}`);
 
     if (matches.length > 0) {
       if (matches.length > 1) return false;
@@ -385,12 +410,12 @@ class MonitorService extends OptimismEnv {
   // checks to see if its time to look for L1 finalization
   checkTime(list){
     let currentTime = (new Date().getTime() / 1000).toFixed(0);
-    if(list === this.whitelist){
+    if(list === this.whitelistString){
       if((currentTime - this.lastCheckWhitelist) >= this.whitelistSleep){
         this.lastCheckWhitelist = currentTime;
         return true;
       }
-    } else if (list === this.nonWhitelist){
+    } else if (list === this.nonWhitelistString){
       if((currentTime - this.lastCheckNonWhitelist) >= this.nonWhitelistSleep){
         this.lastCheckNonWhitelist = currentTime;
         return true;
@@ -430,6 +455,22 @@ class MonitorService extends OptimismEnv {
         }
     });
   }
+
+  errorCatcher(func, param){
+    return (async () =>{
+      for(let i=0; i < 2; i++){
+        try {
+            let result = await func(param);
+            return result;
+        } catch (error) {
+          console.log(`${func}returned an error!`, error);
+          await this.sleep(1000);
+        }
+      }
+    })();
+  }
 }
+
+
 
 module.exports = MonitorService;

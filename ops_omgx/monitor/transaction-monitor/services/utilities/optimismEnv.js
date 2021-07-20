@@ -43,7 +43,6 @@ class OptimismEnv {
     this.L2Provider = new ethers.providers.JsonRpcProvider(L2_NODE_WEB3_URL);
 
     this.L1wallet = new ethers.Wallet(DEPLOYER_PRIVATE_KEY).connect(this.L1Provider);
-    this.L2wallet = new ethers.Wallet(DEPLOYER_PRIVATE_KEY).connect(this.L2Provider);
 
     this.MySQLHostURL = MYSQL_HOST_URL;
     this.MySQLPort = MYSQL_PORT;
@@ -62,8 +61,8 @@ class OptimismEnv {
 
     this.whitelistSleep = WHITELIST_SLEEP;
     this.nonWhitelistSleep = NON_WHITELIST_SLEEP;
-    this.whitelist = WHITELIST;
-    this.nonWhitelist = NON_WHITELIST;
+    this.whitelistString = WHITELIST;
+    this.nonWhitelistString = NON_WHITELIST;
 
     this.L2rateLimit = L2_RATE_LIMIT;
     this.L2sleepThresh = L2_SLEEP_THRESH;
