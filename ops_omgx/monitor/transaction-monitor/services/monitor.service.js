@@ -234,10 +234,10 @@ class MonitorService extends OptimismEnv {
         // if its time check cross domain message finalization
         if(checkWhitelist && receiptData.fastRelay){
           this.logger.info(`Checking message from whitelist address: ${receiptData.from}`);
-          receiptData = await this.getCrossDomainMessageStatusL1(receiptData, blocksData);
+          receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
         }else if (checkNonWhitelist && !receiptData.fastRelay){
           this.logger.info(`Checking message from non-whitelist`);
-          receiptData = await this.getCrossDomainMessageStatusL1(receiptData, blocksData);
+          receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
         }
         promiseCount = promiseCount + 1;
 
@@ -262,6 +262,7 @@ class MonitorService extends OptimismEnv {
     const promisesBlock = [], promisesReceipt = [];
     for (let i = startingBlock; i <= endingBlock; i++) {
       promisesBlock.push(this.L2Provider.getBlockWithTransactions(i));
+      this.logger.info(`Pushing block`);
     }
     const blocksData = await Promise.all(promisesBlock);
     for (let blockData of blocksData) {
@@ -270,6 +271,7 @@ class MonitorService extends OptimismEnv {
           promisesReceipt.push(this.L2Provider.getTransactionReceipt(i.hash));
         });
       }
+      this.sleep(2000);
     }
     const receiptsData = await Promise.all(promisesReceipt);
 
@@ -321,6 +323,7 @@ class MonitorService extends OptimismEnv {
       crossDomainMessage = true;
       // Get message hashes from L2 TX
       for (let logData of filteredLogData) {
+        this.logger.info(`filteredLogData length: ${filteredLogData.length}`);
         const [message] = ethers.utils.defaultAbiCoder.decode(
           ['bytes'],
           logData.data
@@ -329,9 +332,8 @@ class MonitorService extends OptimismEnv {
           'relayMessage',
           message
         );
-        if(this.whitelist.includes(decoded._target)){
-          fastRelay = true;
-        }
+        if(this.whitelist.includes(decoded._target)) fastRelay = true;
+
       }
     }
     receiptData.crossDomainMessageSendTime = crossDomainMessageSendTime;
@@ -363,8 +365,7 @@ class MonitorService extends OptimismEnv {
     let crossDomainMessageFinalize = false;
     let crossDomainMessageFinalizedTime;
 
-    if((await this.getL1TransactionReceipt(msgHash)) ||
-       (await this.getL1TransactionReceipt(msgHash, true))){
+    if(await this.getL1TransactionReceipt(msgHash, receiptData.fastRelay)){
       crossDomainMessageFinalize = true;
       crossDomainMessageFinalizedTime = (new Date().getTime() / 1000).toFixed(0);
     }
