@@ -55,7 +55,7 @@ class OptimismEnv {
     this.OVM_L1CrossDomainMessengerFast = null;
     this.OVM_L2CrossDomainMessenger = L2_MESSENGER_ADDRESS;
 
-    this.numberBlockToFetch = 10000;
+    this.numberBlockToFetch = 1000000;
     this.transactionMonitorInterval = TRANSACTION_MONITOR_INTERVAL;
     this.crossDomainMessageMonitorInterval = CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL;
 
