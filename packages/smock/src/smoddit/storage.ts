@@ -98,10 +98,14 @@ export const getStorageSlots = (
       ethers.BigNumber.from(slotHash).add(inputSlot.slot)
     )
 
+    const slotValue = toHexString32(
+      `0x` + toHexString32(flat[key]).slice(2 + variableDef.offset * 2)
+    )
+
     slots.push({
       label: key,
       hash: slotHash,
-      value: toHexString32(flat[key]),
+      value: slotValue,
     })
   }
 
