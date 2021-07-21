@@ -8,8 +8,9 @@
     "compile": "hardhat compile",
     "compile:ovm": "hardhat compile --network optimism",
     "compile:omgx": "hardhat compile --network omgx_rinkeby",
-    "test:integration:ovm": "yarn hardhat test --network optimism",
-    "test:integration:omgx": "hardhat test --network omgx_rinkeby" 
+    "test:integration": "hardhat test",
+    "test:integration:ovm": "hardhat test --network optimism",
+    "test:integration:omgx": "hardhat test --network omgx_rinkeby"
   },
   "devDependencies": {
     "@eth-optimism/contracts": "^0.3.0",

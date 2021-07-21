@@ -20,17 +20,19 @@ contract SushiMaker is Ownable {
     using SafeERC20 for IERC20;
 
     // V1 - V5: OK
-    IUniswapV2Factory public immutable factory;
+    IUniswapV2Factory public factory;
     //0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac
     // V1 - V5: OK
-    address public immutable bar;
+    address public bar;
     //0x8798249c2E607446EfB7Ad49eC89dD1865Ff4272
     // V1 - V5: OK
-    address private immutable sushi;
+    address private sushi;
     //0x6B3595068778DD592e39A122f4f5a5cF09C90fE2
     // V1 - V5: OK
-    address private immutable weth;
+    address private weth;
     //0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+
+    bool private initialized = false;
 
     // V1 - V5: OK
     mapping(address => address) internal _bridges;
@@ -47,16 +49,18 @@ contract SushiMaker is Ownable {
         uint256 amountSUSHI
     );
 
-    constructor(
+    function initialize(
         address _factory,
         address _bar,
         address _sushi,
         address _weth
     ) public {
+        require(!initialized, "Contract was already initialized");
         factory = IUniswapV2Factory(_factory);
         bar = _bar;
         sushi = _sushi;
         weth = _weth;
+        initialized = true;
     }
 
     // F1 - F10: OK

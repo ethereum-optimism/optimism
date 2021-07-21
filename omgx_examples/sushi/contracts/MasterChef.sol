@@ -75,6 +75,7 @@ contract MasterChef is Ownable {
     uint256 public totalAllocPoint = 0;
     // The block number when SUSHI mining starts.
     uint256 public startBlock;
+    bool private initialized = false;
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(
@@ -83,18 +84,20 @@ contract MasterChef is Ownable {
         uint256 amount
     );
 
-    constructor(
+    function initialize(
         SushiToken _sushi,
         address _devaddr,
         uint256 _sushiPerBlock,
         uint256 _startBlock,
         uint256 _bonusEndBlock
     ) public {
+        require(!initialized, "Contract was already initialized");
         sushi = _sushi;
         devaddr = _devaddr;
         sushiPerBlock = _sushiPerBlock;
         bonusEndBlock = _bonusEndBlock;
         startBlock = _startBlock;
+        initialized = true;
     }
 
     function poolLength() external view returns (uint256) {

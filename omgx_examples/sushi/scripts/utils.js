@@ -6,13 +6,13 @@ const { utils } = require("ethers");
 const R = require("ramda");
 
 async function deploy({
-  rpcUrl, 
-  contractName, 
-  pk, ovm = false, 
-  _args = [], 
-  overrides = {}, 
+  rpcUrl,
+  contractName,
+  pk, ovm = false,
+  _args = [],
+  overrides = {},
 }) {
-  
+
   console.log(` 🛰  ${ovm?`OVM`:`EVM`} Deploying: ${contractName} on ${rpcUrl}`);
 
   const contractArgs = _args || [];
@@ -27,7 +27,7 @@ async function deploy({
   } else {
     contractArtifacts = await ethers.getContractFactory(contractName, signerProvider);
   }
-  
+
   const nonce = await signerProvider.getTransactionCount()
   const deployed = await contractArtifacts.deploy(...contractArgs, { nonce, ...overrides, gasPrice: 0, gasLimit: 800000 });
   await deployed.deployTransaction.wait()

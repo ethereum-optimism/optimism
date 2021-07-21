@@ -40,8 +40,4 @@ functions:
       - http:
           path: get.blacklist
           method: get
-<<<<<<< HEAD:ops_omgx/lambda/production/serverless.yml
           cors: true
-=======
-          cors: true
->>>>>>> develop:packages/omgx/bl-wl/lambda/serverless.yml
