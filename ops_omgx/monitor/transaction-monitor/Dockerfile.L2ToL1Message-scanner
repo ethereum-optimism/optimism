@@ -6,7 +6,7 @@ FROM base as build
 
 RUN apt-get update && apt-get install -y bash git python build-essential
 
-ADD . /opt/optimism-scanner
+COPY . /opt/optimism-scanner
 RUN cd /opt/optimism-scanner && yarn install
 
 FROM base

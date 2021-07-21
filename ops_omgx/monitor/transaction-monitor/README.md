@@ -8,7 +8,7 @@ To build the docker image:
 ```bash
 
 # Chain Scanner
-docker build . --file Dockerfile.chain-scanner --tag enyalabs/optimism-chain-scanner:v1.0.0
+docker build . --file Dockerfile.transaction-monitor --tag omg/transaction-monitor:production-v1.0.0
 docker push enyalabs/optimism-chain-scanner:v1.0.0
 
 # Message Scanner

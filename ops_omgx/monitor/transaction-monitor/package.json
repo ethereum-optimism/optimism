@@ -12,6 +12,7 @@
   "license": "MIT",
   "dependencies": {
     "@eth-optimism/core-utils": "^0.3.2",
+    "@eth-optimism/contracts": "^0.2.4",
     "dotenv": "^9.0.0",
     "ethers": "^5.1.4",
     "mysql": "^2.18.1",

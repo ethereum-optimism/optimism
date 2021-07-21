@@ -198,7 +198,7 @@ class MonitorService extends OptimismEnv {
     let checkWhitelist = this.checkTime(this.whitelistString);
     if(checkWhitelist) await this.getWhitelist();
     let checkNonWhitelist = this.checkTime(this.nonWhitelistString);
-
+    this.logger.info(`Check the white list: ${checkWhitelist}`);
     if (crossDomainData.length) {
       this.logger.info('Found cross domain message.');
       const promisesBlock = [], promisesReceipt = [];
@@ -249,7 +249,7 @@ class MonitorService extends OptimismEnv {
       promiseCount = 0;
       const blocksData = await Promise.all(promisesBlock);
       const receiptsData = await Promise.all(promisesReceipt);
-
+      this.logger.info(`checkwhitelist: ${checkWhitelist}`);
       for (let receiptData of receiptsData) {
         if(promiseCount % this.L2sleepThresh === 0){
           await this.sleep(2000);
@@ -277,10 +277,13 @@ class MonitorService extends OptimismEnv {
       this.logger.info('No waiting cross domain message found.');
     }
 
+    if(checkWhitelist) checkWhitelist = false;
+    if(checkNonWhitelist) checkNonWhitelist = false;
+
     this.crossDomainMessageMonitorSQL = false;
     await this.endDatabaseService();
 
-    this.logger.info(`Found cross domain messages. Sleeping ${this.crossDomainMessageMonitorInterval} ms...`);
+    this.logger.info(`Cross Domain Message Monitor Sleeping ${this.crossDomainMessageMonitorInterval} ms...`);
 
     await this.sleep(this.crossDomainMessageMonitorInterval);
   }
@@ -410,9 +413,11 @@ class MonitorService extends OptimismEnv {
   // checks to see if its time to look for L1 finalization
   checkTime(list){
     let currentTime = (new Date().getTime() / 1000).toFixed(0);
+    this.logger.info(`Current time: ${currentTime}, lastCheck: ${this.lastCheckWhitelist} Difference: ${currentTime - this.lastCheckWhitelist}`)
     if(list === this.whitelistString){
       if((currentTime - this.lastCheckWhitelist) >= this.whitelistSleep){
         this.lastCheckWhitelist = currentTime;
+        this.logger.info(`Checkwhitelist true!`);
         return true;
       }
     } else if (list === this.nonWhitelistString){
