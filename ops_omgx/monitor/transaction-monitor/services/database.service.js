@@ -119,6 +119,7 @@ class DatabaseService extends OptimismEnv{
       crossDomainMessageSendTime=${receiptData.crossDomainMessageSendTime},
       crossDomainMessageEstimateFinalizedTime=${receiptData.crossDomainMessage ? receiptData.crossDomainMessageEstimateFinalizedTime : null},
       crossDomainMessageFinalizedTime = ${receiptData.crossDomainMessageFinalizedTime ? receiptData.crossDomainMessageFinalizedTime : null},
+      fastRelay=${receiptData.fastRelay ? receiptData.fastRelay : null},
       timestamp='${receiptData.timestamp.toString()}'
     `);
   }
