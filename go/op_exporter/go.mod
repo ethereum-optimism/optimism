@@ -8,4 +8,6 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/ybbus/jsonrpc v2.1.2+incompatible
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+	k8s.io/apimachinery v0.21.2 // indirect
+	k8s.io/client-go v0.21.2
 )
