@@ -25,11 +25,11 @@ const L2_MESSENGER_ADDRESS = env.L2_MESSENGER_ADDRESS || "0x42000000000000000000
 const DEPLOYER_PRIVATE_KEY = env.DEPLOYER_PRIVATE_KEY;
 
 const TRANSACTION_MONITOR_INTERVAL = env.TRANSACTION_MONITOR_INTERVAL || 60000;
-const CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL = env.CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL || 5 * 60 * 1000;
+const CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL = env.CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL || 60 * 1000;
 
 const SQL_DISCONNECTED = "disconnected";
 
-const WHITELIST_SLEEP = 5 * 60; // in seconds
+const WHITELIST_SLEEP = 60; // in seconds
 const NON_WHITELIST_SLEEP = 30 * 60; // in seconds
 const WHITELIST = "whitelist";
 const NON_WHITELIST = "non_whitelist";
@@ -55,7 +55,7 @@ class OptimismEnv {
     this.OVM_L1CrossDomainMessengerFast = null;
     this.OVM_L2CrossDomainMessenger = L2_MESSENGER_ADDRESS;
 
-    this.numberBlockToFetch = 1000000;
+    this.numberBlockToFetch = 10000000;
     this.transactionMonitorInterval = TRANSACTION_MONITOR_INTERVAL;
     this.crossDomainMessageMonitorInterval = CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL;
 

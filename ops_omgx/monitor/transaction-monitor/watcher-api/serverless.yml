@@ -1,0 +1,33 @@
+service: sls-omgx-rinkeby-watcher # NOTE: update this with your service name
+
+provider:
+  name: aws
+  runtime: python3.7
+  stackName: sls-omgx-rinkeby-watcher
+  stage: prod
+  region: us-east-1
+  role: ${file(env.yml):ROLE}
+
+package:
+  exclude:
+    - .gitignore
+  individually: true
+
+functions:
+  watcher_getTransaction:
+    handler: watcher_getTransaction.watcher_getTransaction
+    memorySize: 10240 # optional, in MB, default is 1024
+    timeout: 60 # optional, in seconds, default is 6
+    vpc:
+      securityGroupIds:
+        - sg-0efc38a735756ed2f
+      subnetIds:
+        - subnet-838566a2
+        - subnet-d92acfbf
+    events:
+      - http:
+          path: get.transaction
+          method: post
+          cors: true
+    layers:
+      - ${file(env.yml):LAYERS}
