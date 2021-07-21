@@ -22,6 +22,8 @@ docker-compose \
     up --build --detach
 ```
 
+*Note*: This generates a large amount of log data which docker stores by default. See [Disk Usage](#disk-usage).
+
 To start the stack with monitoring enabled, just add the metric composition file.
 ```
 docker-compose \
@@ -74,3 +76,33 @@ After starting up the project Grafana should be listening on http://localhost:30
 Access this link and authenticate as `admin` (see #Authentication)
 
 From the Dashboard list, select "Geth dashboard".
+
+## Disk Usage
+
+The logs generated are in the gigabytes per day range, so you need to be wary of disk exhaustion when running for long periods.
+
+One way to solve this is to configure `/etc/docker/daemon.json` like this:
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+```
+
+This configures log rotation with a limit of 10MB per file and storing a maximum of three files (per container). [More details on docker logging configuration](https://docs.docker.com/config/containers/logging/configure/).
+
+You can also decrease logging by increasing polling intervals:
+
+```env
+DATA_TRANSPORT_LAYER__POLLING_INTERVAL=100
+```
+- [./envs/dtl.env#L7](./envs/dtl.env#L7)
+
+```env
+ROLLUP_POLL_INTERVAL_FLAG=500ms
+```
+- [./envs/geth.env#L8](./envs/geth.env#L8)

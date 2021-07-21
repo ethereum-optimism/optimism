@@ -23,6 +23,11 @@ contract SimpleStorageGetter {
     bool internal _packedA;
     address internal _packedB;
 
+    // Regression for #1275.
+    uint256 internal __packingSpacerUnused1; // Spacer to avoid packing with the above two.
+    bool public booleanOne = true;
+    bool public booleanTwo = true;
+
     constructor(
         uint256 _inA
     ) {
