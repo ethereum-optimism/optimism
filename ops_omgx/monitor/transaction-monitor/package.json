@@ -4,17 +4,19 @@
   "description": "[Optimism] Scanner",
   "main": "index.js",
   "scripts": {
-    "start:chain": "node ./exec/run-chain-scanner.js",
-    "start:message": "node ./exec/run-L2ToL1Message-scanner.js",
+    "start": "node ./exec/run-monitor.js",
     "lint": "yarn lint:check",
-    "lint:check": "tslint --format stylish --project ."
+    "lint:check": "tslint --format stylish --project .",
+    "copy":"./scripts/copyArtifacts.sh"
   },
   "license": "MIT",
   "dependencies": {
     "@eth-optimism/core-utils": "^0.3.2",
+    "@eth-optimism/contracts": "^0.2.4",
     "dotenv": "^9.0.0",
     "ethers": "^5.1.4",
-    "mysql": "^2.18.1"
+    "mysql": "^2.18.1",
+    "async-mutex":"^0.3.1"
   },
   "devDependencies": {
     "eslint": "^7.2.0",

@@ -3,9 +3,9 @@
 const mysql = require('mysql');
 const util = require('util');
 
-const BaseService = require('./base.service');
+const OptimismEnv = require('./utilities/optimismEnv');
 
-class DatabaseService extends BaseService{
+class DatabaseService extends OptimismEnv{
   constructor() {
     super(...arguments);
     this.con = null;
@@ -27,10 +27,10 @@ class DatabaseService extends BaseService{
     await this.query(`CREATE DATABASE IF NOT EXISTS ${this.MySQLDatabaseName}`);
     await this.query(`USE ${this.MySQLDatabaseName}`);
     await this.query(`CREATE TABLE IF NOT EXISTS block
-      ( 
+      (
         hash VARCHAR(255) NOT NULL,
         parentHash VARCHAR(255) NOT NULL,
-        blockNumber VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
         timestamp INT,
         nonce VARCHAR(255),
         gasLimit INT,
@@ -39,10 +39,10 @@ class DatabaseService extends BaseService{
       )`
     );
     await this.query(`CREATE TABLE IF NOT EXISTS transaction
-      ( 
+      (
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
-        blockNumber VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
         \`from\` VARCHAR(255),
         \`to\` VARCHAR(255),
         value VARCHAR(255),
@@ -54,10 +54,10 @@ class DatabaseService extends BaseService{
       )`
     );
     await this.query(`CREATE TABLE IF NOT EXISTS receipt
-      ( 
+      (
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
-        blockNumber VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
         \`from\` VARCHAR(255),
         \`to\` VARCHAR(255),
         gasUsed INT,
@@ -67,6 +67,9 @@ class DatabaseService extends BaseService{
         crossDomainMessageSendTime INT,
         crossDomainMessageEstimateFinalizedTime INT,
         timestamp INT,
+        crossDomainMessageFinalizedTime INT,
+        fastRelay BOOL,
+        contractAddress VARCHAR(255), 
         PRIMARY KEY ( hash )
       )`
     );
@@ -114,8 +117,11 @@ class DatabaseService extends BaseService{
       cumulativeGasUsed='${receiptData.cumulativeGasUsed.toString()}',
       crossDomainMessage=${receiptData.crossDomainMessage},
       crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
-      crossDomainMessageSendTime=${receiptData.crossDomainMessageSendTime},
+      crossDomainMessageSendTime=${receiptData.crossDomainMessageSendTime ? receiptData.crossDomainMessageSendTime: null},
       crossDomainMessageEstimateFinalizedTime=${receiptData.crossDomainMessage ? receiptData.crossDomainMessageEstimateFinalizedTime : null},
+      crossDomainMessageFinalizedTime = ${receiptData.crossDomainMessageFinalizedTime ? receiptData.crossDomainMessageFinalizedTime : null},
+      fastRelay=${receiptData.fastRelay ? receiptData.fastRelay : null},
+      contractAddress=${receiptData.contractAddress ? "'" + receiptData.contractAddress + "'" : null},
       timestamp='${receiptData.timestamp.toString()}'
     `);
   }
@@ -132,10 +138,17 @@ class DatabaseService extends BaseService{
   async updateCrossDomainData(receiptData) {
     await this.query(`USE ${this.MySQLDatabaseName}`);
     return await this.query(`UPDATE receipt
-      SET crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize}
+      SET crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
+      crossDomainMessageFinalizedTime=${receiptData.crossDomainMessageFinalizedTime},
+      fastRelay = ${receiptData.fastRelay}
       WHERE hash='${receiptData.transactionHash.toString()}'
       AND blockHash='${receiptData.blockHash.toString()}'
     `);
+  }
+
+  async getNewestBlock(){
+    await this.query(`USE OMGXRinkeby`);
+    return await this.query(`SELECT MAX(blockNumber) from block`);
   }
 }
 
