@@ -1116,9 +1116,11 @@ class NetworkService {
 
     for (let tokenAddress of tokenAddressList) {
       let tokenBalance
+      let isETH = false
 
       if (tokenAddress === this.L1_ETH_Address) {
         tokenBalance = await this.L1Provider.getBalance(this.L1LPAddress)
+        isETH = true
       } else if (tokenAddress === this.L1_TEST_Address) {
         tokenBalance = await this.L1_TEST_Contract.connect(
           this.L1Provider
@@ -1162,6 +1164,7 @@ class NetworkService {
                 100
               ), // ( accUserReward - userDepositAmount ) / timeDuration
         tokenBalance: tokenBalance.toString(),
+        isETH
       }
       userInfo[tokenAddress] = {
         l1TokenAddress: tokenAddress,
@@ -1192,9 +1195,11 @@ class NetworkService {
     for (let tokenAddress of tokenAddressList) {
       
       let tokenBalance
+      let isETH = false
 
       if (tokenAddress === this.L2_ETH_Address) {
         tokenBalance = await this.L2Provider.getBalance(this.L2LPAddress)
+        isETH = true
       } else if (tokenAddress === this.L2_TEST_Address) {
         tokenBalance = await this.L2_TEST_Contract.connect(
           this.L2Provider
@@ -1238,6 +1243,7 @@ class NetworkService {
                 100
               ), // ( accUserReward - userDepositAmount ) / timeDuration
         tokenBalance: tokenBalance.toString(),
+        isETH
       }
       userInfo[tokenAddress] = {
         l2TokenAddress: tokenAddress,

@@ -73,24 +73,29 @@ function Transaction ({
     )
   }
 
-  const Resolved = link ? 'a' : 'div'
-
   return (
     <div className={styles.Transaction}>
-      <Resolved
-        href={link}
-        target={'_blank'}
-        rel='noopener noreferrer'
-        className={styles.left}
-      >
-        <span style={{fontSize: '1.2em'}}>{chain}</span>
-        <div>{title}</div>
-        {midTitle && (<div className={styles.midTitle}>{midTitle}</div>)}
-        <div>{subTitle}</div>
-        <div>{typeTX}</div>
-      </Resolved>
-      <div className={styles.right}>
-        {renderValue()}
+      <div className={styles.transactionItem}>
+        <div className={styles.title}>
+          <div>
+            <h4>{chain}</h4>  
+            {midTitle && (<div className={styles.midTitle}>{midTitle}</div>)}
+          </div> 
+          <div>{title}</div>
+        </div>
+        <div className={styles.content}>
+          <div className={styles.detail}>
+            <div>{subTitle}</div>
+            <div>{typeTX}</div>
+            {link && <a href={link}
+                target={'_blank'}
+                rel='noopener noreferrer'
+                className={styles.detailLink}>View Details</a>  }
+          </div>
+          <div className={styles.right}>
+            {renderValue()}
+          </div>
+        </div>
       </div>
     </div>
   )
