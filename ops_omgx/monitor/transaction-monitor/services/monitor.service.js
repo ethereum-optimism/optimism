@@ -258,7 +258,7 @@ class MonitorService extends OptimismEnv {
         if(!receiptData.crossDomainMessage) continue;
 
         // if its time check cross domain message finalization
-        if(checkWhitelist && receiptData.fastRelay){
+        if(receiptData.fastRelay){
           this.logger.info(`Checking message from whitelist address: ${receiptData.from}`);
           receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
         }else if (checkNonWhitelist && !receiptData.fastRelay){
