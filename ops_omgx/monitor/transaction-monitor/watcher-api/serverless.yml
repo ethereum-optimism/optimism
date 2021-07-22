@@ -1,9 +1,9 @@
-service: sls-prod-omgx-rinkeby-watcher # NOTE: update this with your service name
+service: sls-omgx-rinkeby-watcher # NOTE: update this with your service name
 
 provider:
   name: aws
   runtime: python3.7
-  stackName: sls-prod-omgx-rinkeby-watcher
+  stackName: sls-omgx-rinkeby-watcher
   stage: prod
   region: us-east-1
   role: ${file(env.yml):ROLE}
@@ -32,7 +32,7 @@ functions:
     layers:
       - ${file(env.yml):LAYERS}
   watcher_getDeployments:
-    handler: watcher.watcher_getDeployments
+    handler: watcher_getDeployments.watcher_getDeployments
     memorySize: 10240 # optional, in MB, default is 1024
     timeout: 60 # optional, in seconds, default is 6
     vpc:
@@ -117,4 +117,3 @@ functions:
 #           cors: true
 #     layers:
 #       - ${file(env.yml):LAYERS}
-      

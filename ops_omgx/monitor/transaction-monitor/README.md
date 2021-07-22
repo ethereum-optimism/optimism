@@ -20,16 +20,14 @@ yarn install
 yarn copy
 
 # Build Transaction Monitor Image
-docker build . --file ./Dockerfile --tag omg/transaction-monitor:production-v1.0.0
-docker push omg/optimism-chain-scanner:v1.0.0
+docker build . --file ./Dockerfile --tag omg/transaction-monitor:production-v1
+docker push omg/transaction-monitor:production-v1
 ```
 To run the docker image:
 ```bash
 # Start Transaction Monitor
 docker-compose -f docker-compose-monitor.yml up
 ```
-
-
 
 
 ## Transaction Monitor

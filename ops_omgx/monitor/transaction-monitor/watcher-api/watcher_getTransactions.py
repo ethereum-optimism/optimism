@@ -15,7 +15,7 @@ def watcher_getTransactions(event, context):
   address = body.get("address")
   fromRange = int(body.get("fromRange"))
   toRange = int(body.get("toRange"))
-  
+
   # Read YML
   with open("env.yml", 'r') as ymlfile:
     config = yaml.load(ymlfile, Loader=yaml.FullLoader)
@@ -66,7 +66,7 @@ def watcher_getTransactions(event, context):
       transactionData = []
 
   con.close()
-  
+
   response = {
     "statusCode": 201,
     "headers": {
