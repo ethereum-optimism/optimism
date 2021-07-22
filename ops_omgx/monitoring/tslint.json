@@ -1,0 +1,14 @@
+{
+  "extends": [
+    "tslint-config-standard",
+    "tslint:latest"
+  ],
+  "rulesDirectory": [
+    "tslint-plugin-prettier"
+  ],
+  "rules": {
+    "trailing-comma": true,
+    "object-literal-sort-keys": false,
+    "ordered-imports": false
+  }
+}

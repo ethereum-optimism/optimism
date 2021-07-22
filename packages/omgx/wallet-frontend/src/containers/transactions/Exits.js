@@ -123,7 +123,7 @@ function Exits ({ searchHistory }) {
               onClickBack={() => setPage(page - 1)}
             />
             {!allExits.length && !loading && (
-              <div className={styles.disclaimer}>No exit history.</div>
+              <div className={styles.disclaimer}>Exit history coming soon...</div>
             )}
             {!allExits.length && loading && (
               <div className={styles.disclaimer}>Loading...</div>

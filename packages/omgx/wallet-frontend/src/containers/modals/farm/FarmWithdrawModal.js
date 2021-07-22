@@ -27,8 +27,8 @@ class FarmWithdrawModal extends React.Component {
       withdrawValue: '',
       // balance
       userInfo,
-      rootchainBalance: balance.rootchain,
-      childchainBalance: balance.childchain,
+      layer1Balance: balance.layer1,
+      layer2Balance: balance.layer2,
       LPBalance: 0,
       // loading 
       loading: false,
@@ -59,8 +59,8 @@ class FarmWithdrawModal extends React.Component {
 
     if (!isEqual(prevState.balance, balance)) {
       this.setState({ 
-        rootchainBalance: balance.rootchain,
-        childchainBalance: balance.childchain 
+        layer1Balance: balance.layer1,
+        layer2Balance: balance.layer2 
       });
     }
   }
@@ -104,13 +104,13 @@ class FarmWithdrawModal extends React.Component {
       open, 
       withdrawToken, withdrawValue,
       userInfo, 
-      rootchainBalance, childchainBalance, 
+      layer1Balance, layer2Balance, 
       LPBalance,
       loading,
     } = this.state;
     
 
-    const selectOptions = (withdrawToken.L1orL2Pool === 'L1LP' ? rootchainBalance : childchainBalance)
+    const selectOptions = (withdrawToken.L1orL2Pool === 'L1LP' ? layer1Balance : layer2Balance)
       .reduce((acc, cur) => {
       if (cur.currency.toLowerCase() === withdrawToken.currency.toLowerCase()) {
         acc.push({

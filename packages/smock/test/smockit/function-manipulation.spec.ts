@@ -531,6 +531,25 @@ describe('[smock]: function manipulation tests', () => {
               expect(result[i]).to.deep.equal(expected[i])
             }
           })
+
+          it('should be able to return multiple arrays of uint256 values', async () => {
+            const expected = [
+              [1234, 2345, 3456, 4567, 5678, 6789].map((n) => {
+                return BigNumber.from(n)
+              }),
+              [1234, 2345, 3456, 4567, 5678, 6789].map((n) => {
+                return BigNumber.from(n)
+              }),
+            ]
+            mock.smocked.getMultipleUint256Arrays.will.return.with(expected)
+
+            const result = await mock.callStatic.getMultipleUint256Arrays()
+            for (let i = 0; i < result.length; i++) {
+              for (let j = 0; j < result[i].length; j++) {
+                expect(result[i][j]).to.deep.equal(expected[i][j])
+              }
+            }
+          })
         })
       })
     })

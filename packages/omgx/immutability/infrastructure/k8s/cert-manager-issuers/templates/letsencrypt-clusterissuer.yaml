@@ -1,0 +1,20 @@
+{{- if eq (.Values.letsencrypt.enabled | toString) "true" }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    email: {{ .Values.letsencrypt.email }}
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt
+    solvers:
+      - dns01:
+          cloudDNS:
+            project: omisego-development
+            hostedZoneName: vault
+            serviceAccountSecretRef:
+              name: dns-creds
+              key: dns_account.key.json
+{{- end }}

@@ -1,0 +1,6 @@
+[
+  {"name": "USDT token","symbol": "USDT", "icon": "usdtIcon"},
+  {"name": "TEST token","symbol": "TEST", "icon": "testIcon"},
+  {"name": "SushiToken","symbol": "SUSHI","icon": "sushiIcon"},
+  {"name": "Ethereum"  ,"symbol": "ETH",  "icon": "etherIcon"}
+]

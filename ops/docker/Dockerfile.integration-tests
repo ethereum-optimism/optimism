@@ -13,6 +13,9 @@ COPY --from=builder /optimism/node_modules ./node_modules
 COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
 COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
 
+COPY --from=builder /optimism/packages/message-relayer/package.json ./packages/message-relayer/package.json
+COPY --from=builder /optimism/packages/message-relayer/dist ./packages/message-relayer/dist
+
 COPY --from=builder /optimism/packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
 COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/dist
 

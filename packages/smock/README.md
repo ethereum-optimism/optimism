@@ -240,6 +240,25 @@ MyMockContract.smocked.myFunction.will.return.with({
 console.log(await MyMockContract.myFunction()) // ['Some value', 1234, true]
 ```
 
+### Returning a Multiple Arrays
+```typescript
+import { ethers } from 'hardhat'
+import { smockit } from '@eth-optimism/smock'
+
+const MyContractFactory = await ethers.getContractFactory('MyContract')
+const MyContract = await MyContractFactory.deploy(...)
+
+// Smockit!
+const MyMockContract = await smockit(MyContract)
+
+MyMockContract.smocked.myFunction.will.return.with([
+  [1234, 5678],
+  [4321, 8765]
+])
+
+console.log(await MyMockContract.myFunction()) // [ [1234, 5678], [4321, 8765] ]
+```
+
 ### Returning a Function
 ```typescript
 import { ethers } from 'hardhat'

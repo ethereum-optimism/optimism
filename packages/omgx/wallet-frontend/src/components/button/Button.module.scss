@@ -9,7 +9,7 @@
   flex: 1;
   cursor: pointer;
   transition: all 200ms ease-in-out;
-  max-width: $maxWidth;
+  /*max-width: $maxWidth;*/
   @include mobile {
     min-width: 100px;
   }
@@ -60,9 +60,3 @@
   filter: brightness(50%);
   cursor: initial;
 }
-
-
-
-
-
-

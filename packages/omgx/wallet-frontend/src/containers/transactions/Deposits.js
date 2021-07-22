@@ -50,8 +50,11 @@ function Deposits ({ searchHistory, transactions }) {
     return i.hash.includes(searchHistory) && (
       i.to !== null && (
       i.to.toLowerCase() === networkService.L1LPAddress.toLowerCase() ||
-      i.to.toLowerCase() === networkService.L1ETHAddress.toLowerCase()));
-  });
+      i.to.toLowerCase() === networkService.L1_ETH_Address.toLowerCase() ||
+      i.to.toLowerCase() === networkService.L1StandardBridgeAddress.toLowerCase()
+      )
+    )
+  })
 
   const startingIndex = page === 1 ? 0 : ((page - 1) * PER_PAGE);
   const endingIndex = page * PER_PAGE;
@@ -73,26 +76,27 @@ function Deposits ({ searchHistory, transactions }) {
           onClickBack={()=>setPage(page - 1)}
         />
         {!paginatedDeposits.length && !loading && (
-          <div className={styles.disclaimer}>No deposit history.</div>
+          <div className={styles.disclaimer}>Deposit history coming soon...</div>
         )}
         {!paginatedDeposits.length && loading && (
           <div className={styles.disclaimer}>Loading...</div>
         )}
         {paginatedDeposits.map((i, index) => {
+          const metaData = typeof(i.typeTX) === 'undefined' ? '' : i.typeTX
           return (
             <Transaction
               key={index}
               link={
-                networkService.chainID === 4 ?
-                  `https://rinkeby.etherscan.io/tx/${i.hash}`:
-                  networkService.chainID === 28 ?
-                  `https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`:
-                  undefined
+                i.chain === 'L1' ? 
+                `https://rinkeby.etherscan.io/tx/${i.hash}` :
+                `https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`
               }
               title={truncate(i.hash, 6, 4, '...')}
               midTitle='Deposit'
               subTitle={moment.unix(i.timeStamp).format('lll')}
               subStatus={`Block ${i.blockNumber}`}
+              chain={`${i.chain} Chain`}
+              typeTX={`${metaData}`}
             />
           );
         })}

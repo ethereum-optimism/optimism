@@ -38,7 +38,13 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up -d
+        run: |
+          ./scripts/stats.sh &
+          docker-compose up -d
+
+      - name: Wait for the Sequencer node
+        working-directory: ./ops
+        run: ./scripts/wait-for-sequencer.sh
 
       - name: Run the integration tests
         working-directory: ./ops
@@ -99,11 +105,11 @@ jobs:
       #   uses: jwalton/gh-docker-logs@v1
       #   with:
       #     images: 'ethereumoptimism/builder,ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
-      #     dest: './logs'
+      #     dest: '~/logs'
 
       # - name: Tar logs
       #   if: failure()
-      #   run: tar cvzf ./logs.tgz ./logs
+      #   run: tar cvzf ./logs.tgz ~/logs
 
       # - name: Upload logs to GitHub
       #   if: failure()

@@ -15,7 +15,6 @@ limitations under the License. */
 
 const initialState = {
   depositModal: false,
-  beginner: false,
   transferModal: false,
   exitModal: false,
   mergeModal: false,
@@ -37,21 +36,21 @@ function uiReducer (state = initialState, action) {
     case 'UI/MODAL/OPEN':
       return { ...state, 
         [action.payload]: true,
-        beginner: action.beginner,
         fast: action.fast,
-      };
+        token: action.token
+      }
     case 'UI/MODAL/CLOSE':
-      return { ...state, [action.payload]: false };
+      return { ...state, [action.payload]: false }
     case 'UI/ALERT/UPDATE':
-      return { ...state, alert: action.payload };
+      return { ...state, alert: action.payload }
     case 'UI/ERROR/UPDATE':
-      return { ...state, error: action.payload };
+      return { ...state, error: action.payload }
     case 'UI/LEDGER/UPDATE':
-      return { ...state, ledger: action.payload };
+      return { ...state, ledger: action.payload }
     case 'UI/HISTORYTAB/UPDATE1':
-      return { ...state, activeHistoryTab1: action.payload };
+      return { ...state, activeHistoryTab1: action.payload }
     case 'UI/HISTORYTAB/UPDATE2':
-      return { ...state, activeHistoryTab2: action.payload };
+      return { ...state, activeHistoryTab2: action.payload }
     case 'UI/MODAL/DATA':
       let dataType = 'generic';
       if(action.payload.modal === 'confirmationModal') {

@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Amazon ECS Time and Event-Based Task Scheduling with CloudFormation.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: integration
+
+  ServiceCount:
+    Type: Number
+    Default: 1
+
+  ImageTag:
+    Type: String
+    Default: latest
+
+
+  L1L2TestImage:
+    Type: String
+    Default: l1-l2-test
+
+  DockerPrefix:
+    Type: String
+    Default: omgx
+
+  ECRRegistry:
+    Type: String
+    Default: 942431445534.dkr.ecr.us-east-1.amazonaws.com
+
+  LogsRetention:
+    Type: Number
+    Default: 7
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: integration-infrastructure-core
+
+  SecretName:
+    Description: AWS Secret Name used for the service
+    Type: String
+
+  SchedulerTasksCount:
+    Type: Number
+    Default: '1'
+    Description: Maximum number of Tasks that you want to the Scheduler to run
+  CronOrRate:
+    Type: String
+    Default: cron
+    AllowedValues:
+    - cron
+    - rate
+    Description: Choose to use a cron expression or a rate expression you want to
+      use.
+  CronSchedule:
+    Type: String
+    Default: cron(00 * ? * * *)
+    Description: This defines the Schedule at which to run the. Cron Expressions -
+      http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
+  RateSchedule:
+    Type: String
+    Default: rate(1 hour)
+    Description: This defines the Schedule at which to run the. Rate Expressions -
+      http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#RateExpressions
+
+Conditions:
+  CronRate:
+    Fn::Equals:
+    - Ref: CronOrRate
+    - cron
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub ecs-tasks.${AWS::URLSuffix}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAccessToSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetResourcePolicy"
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:ListSecretVersionIds"
+                  - "cloudwatch:DescribeAlarms"
+                  - "cloudwatch:PutMetricAlarm"
+                  - "ecs:DescribeServices"
+                  - "ecs:UpdateService"
+                  - "ecs:RunTask"
+                Resource:
+                  - arn:aws:secretsmanager:us-east-1:942431445534:secret:*
+  L1L2TestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+      LogGroupName: !Sub "/omgx/${EnvironmentName}/l1-l2-test/${ImageTag}"
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image: !Sub "${ECRRegistry}/${DockerPrefix}/${L1L2TestImage}:${ImageTag}"
+          Name: l1-l2-test
+          Environment:
+            - Name: SECRETNAME
+              Value: !Ref SecretName
+            - Name: L2_NODE_WEB3_URL
+              Value: !Sub
+                - "https://${EndpointAddress}"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+          EntryPoint:
+            - "/opt/run_test.sh"
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["l1-l2-test"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "l1-l2-test", "service": "l1-l2-test"}]'
+          Essential: true
+          Memory: "512"
+      NetworkMode: bridge
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub "L1L2Test-${EnvironmentName}"
+
+  L1L2TestScheduleIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: L1L2-Test-Schedule-Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecs:RunTask
+              - iam:PassRole
+            Resource: "*"
+
+  L1L2TestScheduleIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: L1L2-Test-Schedule-Policy-Role
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref L1L2TestScheduleIAMPolicy
+
+  L1L2TestSchedule:
+    Type: AWS::Events::Rule
+    DependsOn: TaskDefinition
+    Properties:
+      State: ENABLED
+      ScheduleExpression: cron(*/15 * * * ? *)
+      Name: l1-l2-test-rule
+      Targets:
+        - Arn:
+            Fn::Sub:
+              - "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${Cluster}"
+              - Cluster:
+                  Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
+          Id: 1
+          EcsParameters:
+            LaunchType: EC2
+            TaskDefinitionArn: !Ref TaskDefinition
+            TaskCount: 1
+          RoleArn: !GetAtt L1L2TestScheduleIAMRole.Arn

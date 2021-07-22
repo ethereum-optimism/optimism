@@ -10,7 +10,7 @@ import { getContractDefinition } from '../../src/contract-defs'
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_HARDHAT = defaultAccounts.map((account) => {
   return {
-    balance: ethers.BigNumber.from(account.balance).toString(),
+    balance: account.balance,
     privateKey: account.secretKey,
   }
 })

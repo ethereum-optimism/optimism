@@ -47,8 +47,7 @@ const deployFn: DeployFunction = async (hre) => {
     //this will fail for non deployer account
     const L1MessagerTXreg = await addressManager.setAddress(
       'OVM_L1CrossDomainMessengerFast',
-      L1_Messenger.address,
-      {gasLimit: 800000, gasPrice: 0}
+      L1_Messenger.address
     )
     console.log(`⭐️ ${chalk.blue('Fast L1 Messager registered:')} ${chalk.green(L1MessagerTXreg.hash)}`)
 

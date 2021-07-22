@@ -34,7 +34,7 @@ contract ERC20 {
     // Some optional extra goodies.
     uint256 public totalSupply;
     string public name;
-
+    string public symbol;
 
     /***************
      * Constructor *
@@ -43,15 +43,19 @@ contract ERC20 {
     /**
      * @param _initialSupply Initial maximum token supply.
      * @param _name A name for our ERC20 (technically optional, but it's fun ok jeez).
+     * @param _symbol A symbol for our ERC20
      */
     constructor(
         uint256 _initialSupply,
-        string memory _name
+        string memory _name,
+        string memory _symbol
     )
+        public
     {
         balances[msg.sender] = _initialSupply;
         totalSupply = _initialSupply;
         name = _name;
+        symbol = _symbol;
     }
 
 

@@ -9,7 +9,9 @@
       "packages/omgx/*",
       "l2geth",
       "integration-tests",
-      "specs"
+      "specs",
+      "go/gas-oracle",
+      "omgx_examples/*"
     ],
     "nohoist": [
       "examples/*"
@@ -33,7 +35,7 @@
     "lerna": "^4.0.0",
     "patch-package": "^6.4.7",
     "prettier": "^2.3.1",
-    "typescript": "^4.2.3"
+    "typescript": "^4.3.5"
   },
   "scripts": {
     "clean": "yarn lerna run clean",
@@ -49,6 +51,7 @@
     "release": "yarn build && yarn changeset publish"
   },
   "dependencies": {
-    "@changesets/cli": "^2.16.0"
+    "@changesets/cli": "^2.16.0",
+    "@codechecks/client": "^0.1.11"
   }
 }

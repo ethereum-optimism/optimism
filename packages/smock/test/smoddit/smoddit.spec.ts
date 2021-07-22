@@ -53,8 +53,7 @@ describe('smoddit', () => {
         expect(await smod.getAddress()).to.equal(ret)
       })
 
-      // TODO: Need to solve this with a rewrite.
-      it.skip('should be able to return an address in a packed storage slot', async () => {
+      it('should be able to return an address in a packed storage slot', async () => {
         const ret = '0x558ba9b8d78713fbf768c1f8a584485B4003f43F'
 
         await smod.smodify.put({
@@ -169,6 +168,16 @@ describe('smoddit', () => {
         })
 
         expect(await smod.getAddressToAddressMapValue(key)).to.equal(val)
+      })
+
+      it('should be able to pack two booleans', async () => {
+        const ret = true
+
+        expect(await smod.booleanTwo()).to.equal(ret)
+        await smod.smodify.put({
+          booleanTwo: ret,
+        })
+        expect(await smod.booleanTwo()).to.equal(ret)
       })
     })
   })

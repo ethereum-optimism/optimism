@@ -13,10 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-export function selectRootchainBalance (state) {
-  return state.balance.rootchain;
+export function selectlayer1Balance (state) {
+  return state.balance.layer1;
 }
 
-export function selectChildchainBalance (state) {
-  return state.balance.childchain;
+export function selectlayer2Balance (state) {
+  return state.balance.layer2;
 }

@@ -17,36 +17,109 @@ import store from 'store';
 
 export function getNFTs () {
   const state = store.getState()
-  return state.nftList;
+  return state.nft.list;
 }
 
-export async function addNFT ( NFTproperties ) {
+export function getNFTFactories () {
+  const state = store.getState()
+  return state.nft.factories;
+}
 
+export function getNFTContracts () {
+  const state = store.getState()
+  return state.nft.contracts;
+}
+
+export async function addNFT ( NFT ) {
+  
   const state = store.getState();
-  const UUID = NFTproperties.UUID;
-    
+  const UUID = NFT.UUID;
+
   //if we already have looked it up, no need to look up again. 
-  if (state.nftList[UUID]) {
-    return state.nftList[UUID];
+  if (state.nft.list[UUID]) {
+    return state.nft.list[UUID];
   }
   
-  const nftInfo = {
-    UUID: NFTproperties.UUID, 
-    owner: NFTproperties.owner, 
-    url: NFTproperties.url, 
-    mintedTime: NFTproperties.mintedTime, 
+  const info = {
+    UUID: NFT.UUID, 
+    owner: NFT.owner, 
+    url: NFT.url, 
+    mintedTime: NFT.mintedTime, 
     decimals: 0,
-    name:  NFTproperties.name, 
-    symbol:  NFTproperties.symbol, 
-  };
-
-  //console.log("nftInfo0:",nftInfo)
+    name:  NFT.name, 
+    symbol:  NFT.symbol, 
+    address: NFT.address,
+    originID: NFT.originID,
+    originAddress: NFT.originAddress,
+    originChain: NFT.originChain
+  }
 
   store.dispatch({
     type: 'NFT/GET/SUCCESS',
-    payload: nftInfo
+    payload: info
   })
 
-  return nftInfo;
+  return info
+
+}
+
+export async function addNFTContract ( address ) {
+  
+  console.log("adding NFT Contract to state:", address)
+
+  const state = store.getState();
+    
+  //if we already have looked it up, no need to look up again. 
+  if (state.nft.contracts[address]) {
+    return state.nft.contracts[address];
+  }
+
+  store.dispatch({
+    type: 'NFT/ADDCONTRACT/SUCCESS',
+    payload: address
+  })
+
+  return address
+
+}
+
+export async function addNFTFactory ( Factory ) {
+
+  const state = store.getState();
+    
+  const address = Factory.address
+    
+  //if we already have looked it up, no need to look up again. 
+  if (state.nft.factories[address]) {
+    return state.nft.factories[address];
+  }
+  
+  const factory = {
+    owner: Factory.owner, 
+    address,
+    mintedTime: Factory.mintedTime, 
+    decimals: 0,
+    symbol:  Factory.symbol, 
+    layer: Factory.layer,
+    name: Factory.name,
+    originID: Factory.originID,
+    originAddress: Factory.originAddress,
+    originChain: Factory.originChain,
+    haveRights: Factory.haveRights
+  }
+
+  console.log("nft factory:",factory)
+
+  store.dispatch({
+    type: 'NFT/CREATEFACTORY/SUCCESS',
+    payload: factory
+  })
+
+  store.dispatch({
+    type: 'NFT/ADDCONTRACT/SUCCESS',
+    payload: address
+  })
+
+  return factory;
 
 }
