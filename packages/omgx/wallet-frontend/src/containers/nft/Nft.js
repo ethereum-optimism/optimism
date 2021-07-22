@@ -95,16 +95,18 @@ class Nft extends React.Component {
 
           <h2>Your NFT Factories</h2>
 
-          {numberOfFactories && 
+          {numberOfFactories > 0 && 
             <div className={styles.note}>
-            Status: You have owner permissions and are authorized to mint new NFTs. 
-            Select the desired NFT factory and click "Actions" to mint NFTs.
+              Status: You have owner permissions and are authorized to mint new NFTs. 
+              Select the desired NFT factory and click "Actions" to mint NFTs.
             </div> 
           }
-          {!numberOfFactories &&
-            <div className={styles.note}>Status: You do not have owner permissions and you not 
-            are authorized to mint new NFTs. 
-            Obtain an NFT, and then you can derive new NFTs from it.</div> 
+          {numberOfFactories === 0 &&
+            <div className={styles.note}>
+              Status: You do not have owner permissions and you not 
+              are authorized to mint new NFTs. 
+              Obtain an NFT, and then you can derive new NFTs from it.
+            </div> 
           }
 
           <div className={styles.TableContainer}>
