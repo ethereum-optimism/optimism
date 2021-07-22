@@ -30,6 +30,7 @@ function Transaction ({
   subTitle,
   chain,
   typeTX,
+  blockNumber,
   tooltip = ''
 }) {
   function renderValue () {
@@ -77,25 +78,38 @@ function Transaction ({
     <div className={styles.Transaction}>
       <div className={styles.transactionItem}>
         <div className={styles.title}>
-          <div>
-            <h4>{chain}</h4>  
-            {midTitle && (<div className={styles.midTitle}>{midTitle}</div>)}
-          </div> 
+          <div>{chain}</div>
           <div>{title}</div>
         </div>
+        {(midTitle || status) && 
+          <div className={styles.subTitle}>
+            <div>{midTitle}</div>
+            <div>{blockNumber}</div>
+          </div>
+        }
+        {subTitle && 
+          <div className={styles.subTitle}>
+            {subTitle}
+          </div>
+        }
         <div className={styles.content}>
-          <div className={styles.detail}>
-            <div>{subTitle}</div>
-            <div>{typeTX}</div>
-            {link && <a href={link}
-                target={'_blank'}
-                rel='noopener noreferrer'
-                className={styles.detailLink}>View Details</a>  }
-          </div>
-          <div className={styles.right}>
-            {renderValue()}
-          </div>
+          <div>{typeTX}</div>
+          {link && 
+            <a 
+              href={link}
+              target={'_blank'}
+              rel='noopener noreferrer'
+              className={styles.button}
+            >View Details</a>  
+          }
         </div>
+        {(button || status) &&
+          <div className={styles.content}>
+            <div className={styles.right}>
+              {renderValue()}
+            </div>
+          </div>
+        }
       </div>
     </div>
   )

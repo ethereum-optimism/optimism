@@ -55,6 +55,7 @@
 .disclaimer {
   color: $gray3;
   margin: 5px 10px;
+  margin-top: 20px;
 }
 
 .searchBar {
@@ -76,6 +77,7 @@
   box-shadow: rgb(100 100 111 / 20%) 0px 7px 10px 0px;
   border-radius: 10px;
   margin-top: 10px;
+  min-height: 100px;
   .transaction {
     padding: 20px 0;
     &:last-child {

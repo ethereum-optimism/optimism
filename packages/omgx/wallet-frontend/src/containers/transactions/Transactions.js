@@ -43,7 +43,7 @@ import * as styles from './Transactions.module.scss';
 import { getAllNetworks } from 'util/masterConfig';
 import { selectNetwork } from 'selectors/setupSelector';
 
-const PER_PAGE = 5;
+const PER_PAGE = 8;
 
 function Transactions () {
 
@@ -97,7 +97,7 @@ function Transactions () {
         <h2>Search</h2>
         <Input
           icon
-          placeholder='Search history'
+          placeholder='Search by hash'
           value={searchHistory}
           onChange={i => {
             setPage1(1);
@@ -141,9 +141,9 @@ function Transactions () {
                   <Transaction
                     key={index}
                     link={chainLink(i)}
-                    title={`${truncate(i.hash, 8, 4, '...')}`}
+                    title={`${truncate(i.hash, 8, 6, '...')}`}
                     midTitle={moment.unix(i.timeStamp).format('lll')}
-                    status={`Block ${i.blockNumber}`}
+                    blockNumber={`Block ${i.blockNumber}`}
                     chain={`${i.chain} Chain`}
                     typeTX={`${metaData}`}
                   />
