@@ -8,7 +8,7 @@ import time
 import requests
 import redis
 
-def watcher_getTransaction(event, context):
+def watcher_getDeployments(event, context):
 
   # Parse incoming event
   body = json.loads(event["body"])
@@ -31,18 +31,17 @@ def watcher_getTransaction(event, context):
   with con:
     try:
       cur = con.cursor()
-      cur.execute("""SELECT hash, blockNumber, `from`, `to`, timestamp, crossDomainMessage FROM receipt WHERE `from`=%s ORDER BY CAST(blockNumber as unsigned) DESC""", (address))
+      cur.execute("""SELECT hash, blockNumber, `from`, timestamp, contractAddress FROM receipt WHERE `from`=%s AND `to` is null ORDER BY CAST(blockNumber as unsigned) DESC""", (address))
       transactionsDataRaw = cur.fetchall()
       for transactionDataRaw in transactionsDataRaw:
         transactionData.append({
           "hash": transactionDataRaw[0],
           "blockNumber": int(transactionDataRaw[1]),
           "from": transactionDataRaw[2],
-          "to": transactionDataRaw[3],
-          "timeStamp": transactionDataRaw[4],
-          "crossDomainMessage": transactionDataRaw[5]
+          "timestamp": transactionDataRaw[3],
+          "contractAddress": transactionDataRaw[4]
         })
-    except:
+    except Exception as e:
       transactionData = []
 
   con.close()
@@ -62,11 +61,3 @@ def watcher_getTransaction(event, context):
     "body": json.dumps(transactionData),
   }
   return response
-
-res = watcher_getTransaction({"body": json.dumps({
-  "address": "0xb2780bABBe5Eaf6b611cAcC5cf3Db1C669224F60",
-  "fromRange": "1",
-  "toRange": "2"
-})}, "context")
-
-print(res)

@@ -1,9 +1,9 @@
-service: sls-omgx-rinkeby-watcher # NOTE: update this with your service name
+service: sls-prod-omgx-rinkeby-watcher # NOTE: update this with your service name
 
 provider:
   name: aws
   runtime: python3.7
-  stackName: sls-omgx-rinkeby-watcher
+  stackName: sls-prod-omgx-rinkeby-watcher
   stage: prod
   region: us-east-1
   role: ${file(env.yml):ROLE}
@@ -14,16 +14,16 @@ package:
   individually: true
 
 functions:
-  watcher_getTransaction:
-    handler: watcher.watcher_getTransaction
+  watcher_getTransactions:
+    handler: watcher_getTransactions.watcher_getTransactions
     memorySize: 10240 # optional, in MB, default is 1024
     timeout: 60 # optional, in seconds, default is 6
     vpc:
       securityGroupIds:
-        - sg-0efc38a735756ed2f
+        - ${file(env.yml):SECURITY_GROUPS}
       subnetIds:
-        - subnet-838566a2
-        - subnet-d92acfbf
+        - ${file(env.yml):SUBNET_ID_1}
+        - ${file(env.yml):SUBNET_ID_2}
     events:
       - http:
           path: get.transaction
@@ -37,10 +37,10 @@ functions:
     timeout: 60 # optional, in seconds, default is 6
     vpc:
       securityGroupIds:
-        - sg-0efc38a735756ed2f
+        - ${file(env.yml):SECURITY_GROUPS}
       subnetIds:
-        - subnet-838566a2
-        - subnet-d92acfbf
+        - ${file(env.yml):SUBNET_ID_1}
+        - ${file(env.yml):SUBNET_ID_2}
     events:
       - http:
           path: get.deployments
@@ -48,72 +48,73 @@ functions:
           cors: true
     layers:
       - ${file(env.yml):LAYERS}
-  watcher_standardWithdraw:
-    handler: watcher.watcher_standardWithdraw
-    memorySize: 10240 # optional, in MB, default is 1024
-    timeout: 60 # optional, in seconds, default is 6
-    vpc:
-      securityGroupIds:
-        - sg-0efc38a735756ed2f
-      subnetIds:
-        - subnet-838566a2
-        - subnet-d92acfbf
-    events:
-      - http:
-          path: get.withdraw
-          method: post
-          cors: true
-    layers:
-      - ${file(env.yml):LAYERS}
-watcher_fastWithdraw:
-    handler: watcher.watcher_fastWithdraw
-    memorySize: 10240 # optional, in MB, default is 1024
-    timeout: 60 # optional, in seconds, default is 6
-    vpc:
-      securityGroupIds:
-        - sg-0efc38a735756ed2f
-      subnetIds:
-        - subnet-838566a2
-        - subnet-d92acfbf
-    events:
-      - http:
-          path: get.withdraw
-          method: post
-          cors: true
-    layers:
-      - ${file(env.yml):LAYERS}
-watcher_standardOnramp:
-    handler: watcher.watcher_standardOnramp
-    memorySize: 10240 # optional, in MB, default is 1024
-    timeout: 60 # optional, in seconds, default is 6
-    vpc:
-      securityGroupIds:
-        - sg-0efc38a735756ed2f
-      subnetIds:
-        - subnet-838566a2
-        - subnet-d92acfbf
-    events:
-      - http:
-          path: get.onramp
-          method: post
-          cors: true
-    layers:
-      - ${file(env.yml):LAYERS}
-watcher_fastOnramp:
-    handler: watcher.watcher_fastOnramp
-    memorySize: 10240 # optional, in MB, default is 1024
-    timeout: 60 # optional, in seconds, default is 6
-    vpc:
-      securityGroupIds:
-        - sg-0efc38a735756ed2f
-      subnetIds:
-        - subnet-838566a2
-        - subnet-d92acfbf
-    events:
-      - http:
-          path: get.onramp
-          method: post
-          cors: true
-    layers:
-      - ${file(env.yml):LAYERS}
+
+#   watcher_standardWithdraw:
+#     handler: watcher.watcher_standardWithdraw
+#     memorySize: 10240 # optional, in MB, default is 1024
+#     timeout: 60 # optional, in seconds, default is 6
+#     vpc:
+#       securityGroupIds:
+#         - sg-0efc38a735756ed2f
+#       subnetIds:
+#         - subnet-838566a2
+#         - subnet-d92acfbf
+#     events:
+#       - http:
+#           path: get.withdraw
+#           method: post
+#           cors: true
+#     layers:
+#       - ${file(env.yml):LAYERS}
+# watcher_fastWithdraw:
+#     handler: watcher.watcher_fastWithdraw
+#     memorySize: 10240 # optional, in MB, default is 1024
+#     timeout: 60 # optional, in seconds, default is 6
+#     vpc:
+#       securityGroupIds:
+#         - sg-0efc38a735756ed2f
+#       subnetIds:
+#         - subnet-838566a2
+#         - subnet-d92acfbf
+#     events:
+#       - http:
+#           path: get.withdraw
+#           method: post
+#           cors: true
+#     layers:
+#       - ${file(env.yml):LAYERS}
+# watcher_standardOnramp:
+#     handler: watcher.watcher_standardOnramp
+#     memorySize: 10240 # optional, in MB, default is 1024
+#     timeout: 60 # optional, in seconds, default is 6
+#     vpc:
+#       securityGroupIds:
+#         - sg-0efc38a735756ed2f
+#       subnetIds:
+#         - subnet-838566a2
+#         - subnet-d92acfbf
+#     events:
+#       - http:
+#           path: get.onramp
+#           method: post
+#           cors: true
+#     layers:
+#       - ${file(env.yml):LAYERS}
+# watcher_fastOnramp:
+#     handler: watcher.watcher_fastOnramp
+#     memorySize: 10240 # optional, in MB, default is 1024
+#     timeout: 60 # optional, in seconds, default is 6
+#     vpc:
+#       securityGroupIds:
+#         - sg-0efc38a735756ed2f
+#       subnetIds:
+#         - subnet-838566a2
+#         - subnet-d92acfbf
+#     events:
+#       - http:
+#           path: get.onramp
+#           method: post
+#           cors: true
+#     layers:
+#       - ${file(env.yml):LAYERS}
       
