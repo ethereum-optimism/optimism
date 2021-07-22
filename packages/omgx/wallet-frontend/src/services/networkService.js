@@ -16,15 +16,23 @@ limitations under the License. */
 
 import { parseUnits, parseEther } from '@ethersproject/units'
 import { Watcher } from '@eth-optimism/watcher'
-import { ethers, BigNumber, utils } from 'ethers'
+
+import { ethers, BigNumber, utils, ContractFactory } from 'ethers'
 import store from 'store'
 
 import { orderBy } from 'lodash'
 import BN from 'bn.js'
 
 import { getToken } from 'actions/tokenAction'
-import { getNFTs, addNFT } from 'actions/nftAction'
-import { setMinter } from 'actions/setupAction'
+
+import { 
+  addNFT, 
+  getNFTs, 
+  addNFTFactory, 
+  getNFTFactories,
+  addNFTContract,
+  getNFTContracts, 
+} from 'actions/nftAction'
 
 import { WebWalletError } from 'services/errorService'
 
@@ -41,7 +49,7 @@ import L1ERC20Json from '../deployment/artifacts/contracts/L1ERC20.sol/L1ERC20.j
 import L2ERC20Json from '../deployment/artifacts-ovm/optimistic-ethereum/libraries/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
 //OMGX L2 Contracts
-import ERC721Json from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
+import L2ERC721Json from '../deployment/artifacts-ovm/contracts/ERC721Mock.sol/ERC721Mock.json'
 import L2TokenPoolJson from '../deployment/artifacts-ovm/contracts/TokenPool.sol/TokenPool.json'
 import AtomicSwapJson from '../deployment/artifacts-ovm/contracts/AtomicSwap.sol/AtomicSwap.json'
 
@@ -148,24 +156,108 @@ class NetworkService {
     })
   }
 
-  async mintAndSendNFT(receiverAddress, ownerName, tokenURI) {
+  async mintAndSendNFT(receiverAddress, contractAddress, ownerName, tokenURI) {
     try {
       let meta = ownerName + '#' + Date.now().toString() + '#' + tokenURI
 
       console.log('meta:', meta)
       console.log('receiverAddress:', receiverAddress)
 
-      let nft = await this.ERC721Contract.connect(
+      const contract = new ethers.Contract(
+        contractAddress,
+        L2ERC721Json.abi,
+        this.L2Provider
+      )
+
+      let nft = await contract.connect(
         this.provider.getSigner()
-      ).mintNFT(receiverAddress, meta, { gasPrice: 0 })
+      ).mintNFT(
+        receiverAddress, 
+        meta, 
+        { gasLimit: 800000, gasPrice: 0 }
+      )
 
       await nft.wait()
       console.log('New ERC721:', nft)
+
       return true
     } catch (error) {
       console.log(error)
       return false
     }
+  }
+
+  async addNFTFactoryNS( address ) {
+
+    const contract = new ethers.Contract(
+      address,
+      L2ERC721Json.abi,
+      this.L2Provider
+    )
+
+    //handles stale information in the local address cachce
+    if(typeof(contract) === 'undefined') return
+
+    let haveRights = false
+
+    if (this.account === await contract.owner()) haveRights = true
+    
+    let nftName = await contract.name()
+    let nftSymbol = await contract.symbol()
+    let genesis = await contract.getGenesis()
+    
+    addNFTFactory({
+      name: nftName,
+      symbol: nftSymbol,
+      owner: this.account,
+      layer: 'L2',
+      address,
+      originAddress: genesis[0],
+      originID: genesis[1],
+      originChain: genesis[2],
+      haveRights
+    })
+
+  }
+
+  async deployNewNFTContract(
+      nftSymbol,
+      nftName,
+      oriAddress,
+      oriID,
+      oriChain) 
+  {
+    
+    try {
+      console.log("Deploying new NFT factory")
+
+      let Factory__L2ERC721 = new ContractFactory(
+         L2ERC721Json.abi,
+         L2ERC721Json.bytecode,
+         this.provider.getSigner()
+      )
+
+      let contract = await Factory__L2ERC721.deploy(
+        nftSymbol,
+        nftName,
+        BigNumber.from(String(0)), //starting index for the tokenIDs
+        oriAddress,
+        oriID,
+        oriChain,
+        {gasLimit: 800000, gasPrice: 0}
+      )
+      await contract.deployTransaction.wait()
+
+      this.addNFTFactoryNS( contract.address )
+      
+      console.log('New NFT ERC721 deployed to:', contract.address)
+
+      return true
+    } catch (error) {
+      console.log(error)
+      return false
+    }
+
   }
 
   async initializeAccounts(masterSystemConfig) {
@@ -374,7 +466,7 @@ class NetworkService {
 
       this.ERC721Contract = new ethers.Contract(
         this.ERC721Address,
-        ERC721Json.abi,
+        L2ERC721Json.abi,
         this.L2Provider
       )
 
@@ -389,20 +481,26 @@ class NetworkService {
         AtomicSwapJson.abi,
         this.provider.getSigner()
       )
+      
+      //this one is always there...
+      await addNFTContract(this.ERC721Contract.address)
 
-      const ERC721Owner = await this.ERC721Contract.owner()
+      //yes, this looks weird, but think before you change it...
+      //there may be some in the cache, and this makes sure we get them all, and if not, 
+      //we at least have the basic one
+      const NFTcontracts = Object.values(await getNFTContracts())
+      
+      //this deals with adding factories, based on cached contract addresses 
+      //this is information is also used for the balance lookup
+      for(var i = 0; i < NFTcontracts.length; i++) {
+        
+        const address = NFTcontracts[i]
 
-      if (this.account === ERC721Owner) {
-        //console.log("Great, you are the NFT owner")
-        setMinter(true)
-      } else {
-        //console.log("Sorry, not the NFT owner")
-        setMinter(false)
-      }
+        console.log("Adding NFT contract:",address)
+        
+        this.addNFTFactoryNS( address )
 
-      //Fire up the new watcher
-      //const addressManager = getAddressManager(bobl1Wallet)
-      //const watcher = await initWatcher(L1Provider, this.L2Provider, addressManager)
+      } 
 
       this.watcher = new Watcher({
         l1: {
@@ -581,6 +679,111 @@ class NetworkService {
     }
   }
 
+  async getNFTs() {
+
+    let numberOfNFTS = 0
+
+    let NFTfactories = Object.entries(await getNFTFactories())
+
+    //add factories, based on cached contract addresses 
+    //this is information is also used for the balance lookup
+    for(let i = 0; i < NFTfactories.length; i++) {
+
+      const contract = new ethers.Contract(
+        NFTfactories[i][1].address,
+        L2ERC721Json.abi,
+        this.L2Provider
+      )
+
+      //how many NFTs do I own?
+      const balance = await contract.connect(
+        this.L2Provider
+      ).balanceOf(this.account)
+
+      numberOfNFTS = numberOfNFTS + Number(balance.toString())
+
+    }
+
+    //lets see if we already know about them
+    const myNFTS = getNFTs()
+    const numberOfStoredNFTS = Object.keys(myNFTS).length
+
+    if (numberOfNFTS !== numberOfStoredNFTS) {
+      
+      console.log('NFT change detected - need to add one or more NFTs')
+
+      for(let i = 0; i < NFTfactories.length; i++) {
+
+        const address = NFTfactories[i][1].address
+        
+        console.log("factory address:",address)
+
+        const contract = new ethers.Contract(
+          address,
+          L2ERC721Json.abi,
+          this.L2Provider
+        )
+
+        const balance = await contract.connect(
+          this.L2Provider
+        ).balanceOf(this.account)
+
+        //always the same, no need to have in the loop
+        let nftName = await contract.name()
+        let nftSymbol = await contract.symbol()
+        let genesis = await contract.getGenesis()
+
+        //can have more than 1 per contract
+        for (let i = 0; i < Number(balance.toString()); i++) {
+        
+          const tokenID = BigNumber.from(i)
+
+          const tID = await contract.tokenOfOwnerByIndex(
+            this.account,
+            tokenID
+          )
+
+          const nftMeta = await contract.getTokenURI(tID)
+          const meta = nftMeta.split('#')
+          const time = new Date(parseInt(meta[1]))
+
+          const mintedTime = String(
+              time.toLocaleString('en-US', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric',
+                hour12: true,
+              })
+            )
+
+          const UUID = address.substring(1, 6) + '_' + tID.toString() + '_' + this.account.substring(1, 6)
+
+          const NFT = {
+            UUID,
+            owner: meta[0],
+            mintedTime,
+            url: meta[2],
+            tokenID,
+            name: nftName,
+            symbol: nftSymbol,
+            address,
+            originAddress: genesis[0],
+            originID: genesis[1],
+            originChain: genesis[2]
+          }
+
+          await addNFT( NFT)
+
+        }
+
+      }
+
+    }
+    
+  }
+
   async getBalances() {
 
     //console.log("Checking Balances")
@@ -689,89 +892,6 @@ class NetworkService {
           decimals: token.decimals,
           balance: new BN(balance.toString())
         })
-      }
-
-      // const ERC20L1Balance = await this.L1_TEST_Contract.connect(
-      //   this.L1Provider
-      // ).balanceOf(this.account)
-      // console.log('Balance of the test token on L1:', ERC20L1Balance.toString())
-
-      // const ERC20L2Balance = await this.L2_TEST_Contract.connect(
-      //   this.L2Provider
-      // ).balanceOf(this.account)
-      // console.log('Balance of the test token on L2:', ERC20L2Balance.toString())
-      
-      //console.log(layer1Balances)
-      //console.log(layer2Balances)
-
-      // //how many NFTs do I own?
-      const ERC721L2Balance = await this.ERC721Contract.connect(
-        this.L2Provider
-      ).balanceOf(this.account)
-      //console.log('ERC721L2Balance', ERC721L2Balance)
-      //console.log("this.account",this.account)
-      //console.log(this.ERC721Contract)
-
-      //let see if we already know about them
-      const myNFTS = getNFTs()
-      const numberOfNFTS = Object.keys(myNFTS).length
-
-      console.log('Checking NFTs')
-
-      if (Number(ERC721L2Balance.toString()) !== numberOfNFTS) {
-        //oh - something just changed - either got one, or sent one
-        console.log('NFT change detected!')
-
-        //we need to do something
-        //get the first one
-
-        let tokenID = null
-        let nftTokenIDs = null
-        let nftMeta = null
-        let meta = null
-
-        //always the same, no need to have in the loop
-        let nftName = await this.ERC721Contract.getName()
-        let nftSymbol = await this.ERC721Contract.getSymbol()
-
-        for (let i = 0; i < Number(ERC721L2Balance.toString()); i++) {
-          tokenID = BigNumber.from(i)
-          nftTokenIDs = await this.ERC721Contract.tokenOfOwnerByIndex(
-            this.account,
-            tokenID
-          )
-          nftMeta = await this.ERC721Contract.getTokenURI(tokenID)
-          meta = nftMeta.split('#')
-
-          const time = new Date(parseInt(meta[1]))
-
-          addNFT({
-            UUID:
-              this.ERC721Address.substring(1, 6) +
-              '_' +
-              nftTokenIDs.toString() +
-              '_' +
-              this.account.substring(1, 6),
-            owner: meta[0],
-            mintedTime: String(
-              time.toLocaleString('en-US', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: 'numeric',
-                hour12: true,
-              })
-            ),
-            url: meta[2],
-            tokenID: tokenID,
-            name: nftName,
-            symbol: nftSymbol,
-          })
-        }
-      } else {
-        //console.log("No NFT changes")
-        //all set - do nothing
       }
 
       return {

@@ -39,7 +39,7 @@ function depositReducer (state = initialState, action) {
           ...state.erc20,
           [action.payload.transactionHash]: action.payload
         }
-      };
+      }
     case 'DEPOSIT/CHECKALL/SUCCESS':
     case 'DEPOSIT/GETALL/SUCCESS':
       const { eth, erc20 } = action.payload;

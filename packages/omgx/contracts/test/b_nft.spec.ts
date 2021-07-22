@@ -33,6 +33,18 @@ describe('NFT Test\n', async () => {
       env.bobl2Wallet
     )
 
+    const balanceOwner = await L2ERC721.balanceOf(owner)
+    console.log("Owner balance:", balanceOwner)
+
+    let symbol = await L2ERC721.symbol()
+    console.log("NFT Symbol:", symbol)
+
+    let name = await L2ERC721.name()
+    console.log("NFT Name:", name)
+
+    let genesis = await L2ERC721.getGenesis()
+    console.log("NFT Genesis:", genesis)
+
     console.log(` 🔒 ${chalk.red('ERC721 owner:')} ${chalk.green(owner)}`)
 
   })

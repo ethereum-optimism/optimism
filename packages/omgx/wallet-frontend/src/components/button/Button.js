@@ -40,7 +40,8 @@ function Button ({
     timeDefined = true;
   }
 
-  const [now, setTime] = React.useState(new Date()); // Save the current date to be able to trigger an update
+  // Save the current date to be able to trigger an update
+  const [now, setTime] = React.useState(new Date()); 
 
   React.useEffect(() => {
     const timer = setInterval(()=>{setTime(new Date())}, 1000);

@@ -22,7 +22,7 @@ import { isEqual } from 'lodash';
 
 import { getFarmInfo, getFee } from 'actions/farmAction';
 
-import FarmList from 'components/farmList/FarmList';
+import ListFarm from 'components/listFarm/listFarm';
 
 import ethLogo from 'images/ethereum.svg';
 import TESTLogo from 'images/test.svg';
@@ -157,7 +157,7 @@ class Farm extends React.Component {
             const isETH = poolInfo.L1LP[v].isETH;
             const ret = this.getBalance(v, 'L1')
             return (
-              <FarmList 
+              <ListFarm 
                 key={i}
                 logo={isETH ? ethLogo : TESTLogo}
                 name={isETH ? "Ethereum" : "TEST"}
@@ -180,7 +180,7 @@ class Farm extends React.Component {
             const isETH = poolInfo.L2LP[v].isETH;
             const ret = this.getBalance(v, 'L2')
             return (
-              <FarmList 
+              <ListFarm 
                 key={i}
                 logo={isETH ? ethLogo : TESTLogo}
                 name={isETH ? "Ethereum" : "TEST"}

@@ -23,6 +23,7 @@ import useInterval from 'util/useInterval';
 import {
   checkWatcherStatus,
   fetchBalances,
+  fetchNFTs,
   fetchTransactions,
   fetchExits,
   fetchDeposits,
@@ -116,6 +117,7 @@ function Home () {
   //get all account balances
   useInterval(() => {
     dispatch(fetchBalances());
+    dispatch(fetchNFTs());
   }, POLL_INTERVAL);
 
   useEffect(() => {

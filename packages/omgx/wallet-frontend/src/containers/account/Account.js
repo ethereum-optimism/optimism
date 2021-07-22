@@ -24,7 +24,7 @@ import { selectIsSynced } from 'selectors/statusSelector'
 
 import { selectlayer2Balance, selectlayer1Balance } from 'selectors/balanceSelector'
 
-import AccountList from 'components/accountList/AccountList';
+import ListAccount from 'components/listAccount/listAccount';
 
 import Copy from 'components/copy/Copy'
 
@@ -129,7 +129,7 @@ function Account () {
       <div className={styles.TableContainer}>
         {rootBalance.map((i, index) => {
           return (
-            <AccountList 
+            <ListAccount 
               key={i.currency}
               token={i}
               chain={'L1'}
@@ -148,7 +148,7 @@ function Account () {
       <div className={styles.TableContainer}>
         {childBalance.map((i, index) => {
           return (
-            <AccountList 
+            <ListAccount 
               key={i.currency}
               token={i}
               chain={'L2'}

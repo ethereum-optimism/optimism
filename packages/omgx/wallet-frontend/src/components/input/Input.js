@@ -31,6 +31,7 @@ function Input({
   paste,
   className,
   maxValue,
+  small,
 }) {
   async function handlePaste() {
     try {
@@ -55,7 +56,7 @@ function Input({
       <div className={[styles.field, overMax ? styles.error : ''].join(' ')}>
         {icon && <Search className={styles.icon} />}
         <input
-          className={styles.input}
+          className={[styles.input, small ? styles.small : ''].join(' ')}
           placeholder={placeholder}
           type={type}
           value={value}

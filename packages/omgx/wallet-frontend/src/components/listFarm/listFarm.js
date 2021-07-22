@@ -15,9 +15,9 @@ import RemoveIcon from '@material-ui/icons/Remove';
 
 import networkService from 'services/networkService';
 
-import * as styles from './FarmList.module.scss';
+import * as styles from './listFarm.module.scss';
 
-class FarmList extends React.Component {
+class ListFarm extends React.Component {
   
   constructor(props) {
     
@@ -159,7 +159,7 @@ class FarmList extends React.Component {
     const disabled = !L1orL2Pool.includes(networkService.L1orL2);
 
     return (
-      <div className={styles.FarmList}>
+      <div className={styles.ListFarm}>
         <div 
           className={styles.topContainer} 
           onClick={()=>{
@@ -283,4 +283,4 @@ const mapStateToProps = state => ({
   buy: state.buy,
 });
 
-export default connect(mapStateToProps)(FarmList);
+export default connect(mapStateToProps)(ListFarm);

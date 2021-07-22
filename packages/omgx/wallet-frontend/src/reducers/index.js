@@ -40,7 +40,7 @@ const rootReducer = combineReducers({
   exit: exitReducer,
   queue: queueReducer,
   tokenList: tokenReducer,
-  nftList: nftReducer,
+  nft: nftReducer,
   fees: feeReducer,
   gas: gasReducer,
   ui: uiReducer,
