@@ -18,7 +18,7 @@ def watcher_getTransaction(event, context):
   
   # Read YML
   with open("env.yml", 'r') as ymlfile:
-    config = yaml.load(ymlfile)
+    config = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
   # Get MySQL host and port
   endpoint = config.get('RDS_ENDPOINT')
@@ -26,13 +26,12 @@ def watcher_getTransaction(event, context):
   dbpassword = config.get('RDS_MYSQL_PASSWORD')
   dbname = config.get('RDS_DBNAME')
 
-  con = pymysql.connect(endpoint, user=user, db=dbname,
+  con = pymysql.connect(host=endpoint, user=user, db=dbname,
                         passwd=dbpassword, connect_timeout=5)
 
   transactionData = []
-  with con:
+  with con.cursor() as cur:
     try:
-      cur = con.cursor()
       cur.execute("""SELECT hash, blockNumber, `from`, `to`, timestamp, crossDomainMessage FROM receipt WHERE `from`=%s ORDER BY CAST(blockNumber as unsigned) DESC LIMIT %s OFFSET %s""", (address, toRange - fromRange, fromRange))
       transactionsDataRaw = cur.fetchall()
       for transactionDataRaw in transactionsDataRaw:
@@ -64,3 +63,11 @@ def watcher_getTransaction(event, context):
     "body": json.dumps(transactionData),
   }
   return response
+
+
+res = watcher_getTransaction({"body": json.dumps({
+  "address": "0xb2780bABBe5Eaf6b611cAcC5cf3Db1C669224F60",
+  "fromRange": "1",
+  "toRange": "2"
+})}, "context")
+print(res)
