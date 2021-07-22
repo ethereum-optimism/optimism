@@ -69,6 +69,7 @@ class DatabaseService extends OptimismEnv{
         timestamp INT,
         crossDomainMessageFinalizedTime INT,
         fastRelay BOOL,
+        contractAddress VARCHAR(255), 
         PRIMARY KEY ( hash )
       )`
     );
@@ -116,10 +117,11 @@ class DatabaseService extends OptimismEnv{
       cumulativeGasUsed='${receiptData.cumulativeGasUsed.toString()}',
       crossDomainMessage=${receiptData.crossDomainMessage},
       crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
-      crossDomainMessageSendTime=${receiptData.crossDomainMessageSendTime},
+      crossDomainMessageSendTime=${receiptData.crossDomainMessageSendTime ? receiptData.crossDomainMessageSendTime: null},
       crossDomainMessageEstimateFinalizedTime=${receiptData.crossDomainMessage ? receiptData.crossDomainMessageEstimateFinalizedTime : null},
       crossDomainMessageFinalizedTime = ${receiptData.crossDomainMessageFinalizedTime ? receiptData.crossDomainMessageFinalizedTime : null},
       fastRelay=${receiptData.fastRelay ? receiptData.fastRelay : null},
+      contractAddress=${receiptData.contractAddress ? "'" + receiptData.contractAddress + "'" : null},
       timestamp='${receiptData.timestamp.toString()}'
     `);
   }
