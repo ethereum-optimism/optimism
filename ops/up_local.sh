@@ -62,6 +62,7 @@ if [[ $BUILD == 1 ]]; then
     docker build ../ --file $DIR/docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:latest
     docker build ../ --file $DIR/docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
     docker build ../ --file $DIR/docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:latest
+    docker build ../ --file $DIR/docker/Dockerfile.omgx_gas-price-oracle --tag omgx/omgx_gas-price-oracle:latest
 elif [[ $BUILD == 0 ]]; then
     docker-compose -f $DIR/$DOCKERFILE -f $DIR/$OMGX_DOCKERFILE pull
 fi

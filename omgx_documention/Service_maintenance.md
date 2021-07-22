@@ -111,7 +111,55 @@ We open the following the ports:
 
 ## Regenesis
 
-Two possible reasons that we need to do regenesis on L2geth.
+L2 geth genesis structure:
 
-1. When l2geth starts, it will fully sync with old data. If we have thousands of L2 blocks, it takes a few hours to do so.
-2. When we deploy the new deployer contracts, probably we need to do regenesis.
+```go
+// Genesis specifies the header fields, state of a genesis block. It also defines hard
+// fork switch-over blocks through the chain configuration.
+type Genesis struct {
+	Config     *params.ChainConfig `json:"config"`
+	Nonce      uint64              `json:"nonce"`
+	Timestamp  uint64              `json:"timestamp"`
+	ExtraData  []byte              `json:"extraData"`
+	GasLimit   uint64              `json:"gasLimit"   gencodec:"required"`
+	Difficulty *big.Int            `json:"difficulty" gencodec:"required"`
+	Mixhash    common.Hash         `json:"mixHash"`
+	Coinbase   common.Address      `json:"coinbase"`
+	Alloc      GenesisAlloc        `json:"alloc"      gencodec:"required"`
+
+	// These fields are used for consensus tests. Please don't use them
+	// in actual genesis blocks.
+	Number     uint64      `json:"number"`
+	GasUsed    uint64      `json:"gasUsed"`
+	ParentHash common.Hash `json:"parentHash"`
+
+	// OVM Specific, used to initialize the l1XDomainMessengerAddress
+	// in the genesis state
+	L1FeeWalletAddress            common.Address `json:"-"`
+	L1CrossDomainMessengerAddress common.Address `json:"-"`
+	AddressManagerOwnerAddress    common.Address `json:"-"`
+	GasPriceOracleOwnerAddress    common.Address `json:"-"`
+	L1StandardBridgeAddress       common.Address `json:"-"`
+	ChainID                       *big.Int       `json:"-"`
+}
+```
+
+### Bypass `GasPriceOracleOwnerAddress`
+
+Modify `l2GasPriceOracleAddress` in [rollup/sync_service.go](https://github.com/omgnetwork/optimism/blob/9e07036f61a02ffb23eff405c3274f5f24950ad5/l2geth/rollup/sync_service.go#L49).
+
+```go
+var (
+	// l2GasPriceSlot refers to the storage slot that the L2 gas price is stored
+	// in in the OVM_GasPriceOracle predeploy
+	l2GasPriceSlot = common.BigToHash(big.NewInt(1))
+	// l2GasPriceOracleOwnerSlot refers to the storage slot that the owner of
+	// the OVM_GasPriceOracle is stored in
+	l2GasPriceOracleOwnerSlot = common.BigToHash(big.NewInt(0))
+	// l2GasPriceOracleAddress is the address of the OVM_GasPriceOracle
+	// predeploy
+	// l2GasPriceOracleAddress = common.HexToAddress("0x420000000000000000000000000000000000000F")
+  l2GasPriceOracleAddress = common.HexToAddress("OVM_GasPriceOracleAddress")
+)
+```
+

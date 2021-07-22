@@ -3,6 +3,7 @@ import {
   TxGasLimit,
   TxGasPrice,
 } from '@eth-optimism/core-utils'
+import { loadContract } from '@eth-optimism/contracts'
 import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
@@ -409,9 +410,13 @@ describe('Basic RPC tests', () => {
         expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
         expect(estimate.toString().endsWith(l2Gaslimit.toString()))
 
-        const l2GasPrice = BigNumber.from(0)
-        // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
-        // but it does not yet exist. Use the default value for now
+        const OVM_GasPriceOracle = loadContract(
+          'OVM_GasPriceOracle',
+          "0x420000000000000000000000000000000000000F",
+          l2Provider,
+        ).connect(wallet)
+        const l2GasPrice = BigNumber.from(await OVM_GasPriceOracle.gasPrice())
+
         const expected = TxGasLimit.encode({
           data: tx.data,
           l1GasPrice,
