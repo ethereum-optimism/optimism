@@ -36,7 +36,7 @@ export const initFastWatcher = async (
 ) => {
 
   // const l1MessengerAddress = '0xF296F4ca6A5725F55EdF1C67F80204871E65F87d'
-  const l1MessengerAddress = await AddressManager.getAddress('OVM_L1CrossDomainMessengerFast')
+  const l1MessengerAddress = await AddressManager.getAddress('Proxy__OVM_L1CrossDomainMessengerFast')
   logger.info('l1FastMessengerAddress: ' + l1MessengerAddress)
 
   return new Watcher({
