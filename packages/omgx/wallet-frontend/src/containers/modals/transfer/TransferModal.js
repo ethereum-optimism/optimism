@@ -13,96 +13,70 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { isEqual } from 'lodash';
-import BN from 'bignumber.js';
 
 import { transfer } from 'actions/networkAction';
 
-import { selectChildchainBalance } from 'selectors/balanceSelector';
-import { selectLoading } from 'selectors/loadingSelector';
 import { closeModal, openAlert } from 'actions/uiAction';
+import { selectLoading } from 'selectors/loadingSelector';
 
 import Button from 'components/button/Button';
 import Modal from 'components/modal/Modal';
-import Input from 'components/input/Input';
-import InputSelect from 'components/inputselect/InputSelect';
 
+import { logAmount } from 'util/amountConvert'
 import networkService from 'services/networkService';
-import { logAmount } from 'util/amountConvert';
 
 import * as styles from './TransferModal.module.scss';
+import Input from 'components/input/Input';
 
-function TransferModal ({ open }) {
-  const dispatch = useDispatch();
+function TransferModal ({ open, token }) {
 
-  const [ currency, setCurrency ] = useState('');
-  const [ value, setValue ] = useState('');
-  const [ recipient, setRecipient ] = useState('');
+  const dispatch = useDispatch()
 
-  const balances = useSelector(selectChildchainBalance, isEqual);
+  const [ value, setValue ] = useState('')
+  const [ recipient, setRecipient ] = useState('')
 
   const loading = useSelector(selectLoading([ 'TRANSFER/CREATE' ]));
-
-  useEffect(() => {
-    if (balances.length && !currency) {
-      setCurrency(balances[0].currency);
-    }
-  }, [ balances, currency, open ]);
-
-  const selectOptions = balances.map(i => ({
-    title: i.symbol,
-    value: i.currency,
-    subTitle: `Balance: ${logAmount(i.amount, i.decimals)}`
-  }));
 
   async function submit () {
     if (
       value > 0 &&
-      currency &&
+      token.address &&
       recipient
     ) {
       try {
-        const transferResponse = await dispatch(transfer(recipient, value, currency));
+        const transferResponse = await dispatch(transfer(recipient, value, token.address));
         if (transferResponse) {
-          dispatch(openAlert('Transaction was submitted'));
+          dispatch(openAlert('Transaction submitted'));
           handleClose();
         }
       } catch (err) {
-        //
+        //guess not really?
       }
     }
   }
 
   function handleClose () {
-    setCurrency('');
-    setValue('');
-    setRecipient('');
-    dispatch(closeModal('transferModal'));
+    setValue('')
+    setRecipient('')
+    dispatch(closeModal('transferModal'))
   }
 
   const disabledTransfer = value <= 0 ||
-    !currency ||
-    !recipient ||
-    new BN(value).gt(new BN(getMaxTransferValue()));
-
-  function getMaxTransferValue () {
-
-    const transferingBalanceObject = balances.find(i => i.currency === currency);
-    if (!transferingBalanceObject) {
-      return;
-    }
-    return logAmount(transferingBalanceObject.amount, transferingBalanceObject.decimals);
-  }
+    !token.address ||
+    !recipient
 
   function renderTransferScreen () {
+
+    if(typeof(token) === 'undefined') return
+
     return (
       <>
         <h2>Transfer</h2>
         
         <div className={styles.address}>
-          {`From address : ${networkService.account}`}
+          {`From address: ${networkService.account}`}
         </div>
 
         <Input
@@ -113,19 +87,13 @@ function TransferModal ({ open }) {
           onChange={i => setRecipient(i.target.value)}
         />
 
-        <InputSelect
-          label='Amount to transfer'
-          placeholder={0}
+        <Input
+          placeholder={`Amount to transfer`}
           value={value}
-          onChange={i => {
-            setValue(i.target.value);
-          }}
-          selectOptions={selectOptions}
-          onSelect={i => {
-            setCurrency(i.target.value);
-          }}
-          selectValue={currency}
-          maxValue={getMaxTransferValue()}
+          type="number"
+          onChange={(i) => {setValue(i.target.value)}}
+          unit={token.symbol}
+          maxValue={logAmount(token.balance, token.decimals)}
         />
 
         <div className={styles.buttons}>
@@ -139,12 +107,10 @@ function TransferModal ({ open }) {
 
           <Button
             className={styles.button}
-            onClick={() => {
-              submit({ useLedgerSign: false });
-            }}
+            onClick={()=>{submit({useLedgerSign: false})}}
             type='primary'
             loading={loading}
-            tooltip='Your transfer transaction is still pending. Please wait for confirmation.'
+            tooltip='Your transfer is still pending. Please wait for confirmation.'
             disabled={disabledTransfer}
           >
             TRANSFER

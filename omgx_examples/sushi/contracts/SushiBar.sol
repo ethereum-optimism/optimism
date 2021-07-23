@@ -12,10 +12,12 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 contract SushiBar is ERC20("SushiBar", "xSUSHI"){
     using SafeMath for uint256;
     IERC20 public sushi;
+    bool private initialized = false;
 
-    // Define the Sushi token contract
-    constructor(IERC20 _sushi) public {
+    function initialize(IERC20 _sushi) public {
+        require(!initialized, "Contract was already initialized");
         sushi = _sushi;
+        initialized = true;
     }
 
     // Enter the bar. Pay some SUSHIs. Earn some shares.
@@ -28,7 +30,7 @@ contract SushiBar is ERC20("SushiBar", "xSUSHI"){
         // If no xSushi exists, mint it 1:1 to the amount put in
         if (totalShares == 0 || totalSushi == 0) {
             _mint(msg.sender, _amount);
-        } 
+        }
         // Calculate and mint the amount of xSushi the Sushi is worth. The ratio will change overtime, as xSushi is burned/minted and Sushi deposited + gained from fees / withdrawn.
         else {
             uint256 what = _amount.mul(totalShares).div(totalSushi);

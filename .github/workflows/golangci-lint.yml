@@ -1,0 +1,29 @@
+name: golangci-lint
+on:
+  push:
+    paths:
+      - 'go/gas-oracle/**'
+    branches:
+      - 'master'
+      - 'develop'
+      - '*rc'
+      - 'regenesis/*'
+  pull_request:
+    paths:
+      - 'go/gas-oracle/**'
+    branches:
+      - 'master'
+      - 'develop'
+      - '*rc'
+      - 'regenesis/*'
+jobs:
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.29
+          working-directory: go/gas-oracle

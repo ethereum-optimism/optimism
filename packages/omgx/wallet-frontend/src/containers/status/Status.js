@@ -32,6 +32,14 @@ function Status ({ className }) {
 
   const network = useSelector(selectNetwork());
 
+  let networkLabel = 'Local'
+
+  if(network === 'rinkeby') {
+    networkLabel = 'Rinkeby'
+  } else if (network === 'mainnet') {
+    networkLabel = 'Mainnet'
+  }
+
   const renderNoConnection = (
     <Tooltip title='Currently cannot connect to the Watcher. Either the Watcher is not operational or there is a connection issue. Please wait while we retry the connection.'>
       <div className={styles.indicator}>
@@ -105,7 +113,9 @@ function Status ({ className }) {
 
     const renderEnvironment = (
 
-    <Tooltip>
+    <Tooltip
+      title={'The environment you are on - e.g. Local, Rinkeby, or Mainnet'}
+    >
       <div className={styles.indicator}>
         <div
           className={[
@@ -121,7 +131,7 @@ function Status ({ className }) {
               : styles.unhealthyText
           }
         >
-          {network}
+          {networkLabel}
         </span>
       </div>
     </Tooltip>

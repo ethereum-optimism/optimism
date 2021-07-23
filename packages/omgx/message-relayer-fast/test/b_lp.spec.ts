@@ -6,7 +6,6 @@ import { Contract, ContractFactory, BigNumber, utils, ethers } from 'ethers'
 import { Direction } from './shared/watcher-utils'
 import { getContractFactory } from '@eth-optimism/contracts';
 
-
 import L1ERC20Json from '../contracts/L1ERC20.json'
 import L1LiquidityPoolJson from '../contracts/L1LiquidityPool.json'
 import L2LiquidityPoolJson from '../contracts/L2LiquidityPool.json'
@@ -30,42 +29,37 @@ describe('Liquidity Pool Test', async () => {
 
   let env: OptimismEnv
 
-  const initialSupply = utils.parseEther("10000000000")
-  const tokenName = 'JLKN'
-  const tokenSymbol = 'JLKN'
-
-  /************* BOB owns all the pools, and ALICE mints a new token ***********/
   before(async () => {
 
     env = await OptimismEnv.new()
 
-    Factory__L1ERC20 = new ContractFactory(
+    const L1StandardBridgeAddress = await env.addressManager.getAddress('Proxy__OVM_L1StandardBridge')
+
+    L1StandardBridge = getContractFactory(
+      "OVM_L1StandardBridge",
+      env.bobl1Wallet
+    ).attach(L1StandardBridgeAddress)
+    
+    const L2StandardBridgeAddress = await L1StandardBridge.l2TokenBridge()
+
+    //let's use the TEST token we minted when the omgx contracts were deployed
+    L1ERC20 = new Contract(
+      env.addressesOMGX.TOKENS.TEST.L1,
       L1ERC20Json.abi,
-      L1ERC20Json.bytecode,
       env.bobl1Wallet
     )
 
     Factory__L2ERC20 = getContractFactory(
       "L2StandardERC20",
       env.bobl2Wallet,
-      true
+      true,
     )
 
-    /****************************
-    //  * THIS NEEDS TO BE CHANGED/UPDATED TO TEST THE DEPLOYED CONTRACTS
-    //  * The addresses are at
-
-    //  export const getOMGXDeployerAddresses = async () => {
-    //    var options = {
-    //        uri: OMGX_URL,
-    //    }
-    //    const result = await request.get(options)
-    //    return JSON.parse(result)
-    // }
-    *****************************/
-
-    console.log(env.addressesOMGX)
-    const L1StandardBridgeAddress = await env.addressManager.getAddress('Proxy__OVM_L1StandardBridge')
+    L2ERC20 = new Contract(
+      env.addressesOMGX.TOKENS.TEST.L2,
+      Factory__L2ERC20.interface,
+      env.bobl2Wallet
+    )
 
     L1LiquidityPool = new Contract(
       env.addressesOMGX.L1LiquidityPool,
@@ -79,39 +73,15 @@ describe('Liquidity Pool Test', async () => {
       env.bobl2Wallet
     )
 
-    L1StandardBridge = getContractFactory(
-      "OVM_L1StandardBridge",
-      env.bobl1Wallet
-    ).attach(L1StandardBridgeAddress)
-
-    const L2StandardBridgeAddress = await L1StandardBridge.l2TokenBridge()
-
-
-    // we want to deploy new ERC20 for each test run
-    L1ERC20 = await Factory__L1ERC20.deploy(
-      initialSupply,
-      tokenName,
-      tokenSymbol
-    )
-    await L1ERC20.deployTransaction.wait()
-
-    L2ERC20 = await Factory__L2ERC20.deploy(
-      L2StandardBridgeAddress,
-      L1ERC20.address,
-      tokenName,
-      tokenSymbol,
-      {gasLimit: 800000, gasPrice: 0}
-    )
-    await L2ERC20.deployTransaction.wait()
-
     L2TokenPool = new Contract(
       env.addressesOMGX.L2TokenPool,
       L2TokenPoolJson.abi,
       env.bobl2Wallet
     )
+
   })
 
-  it('should deposit ERC20 token to L2', async () => {
+  it('should deposit 10000 TEST ERC20 token from L1 to L2', async () => {
 
     const depositL2ERC20Amount = utils.parseEther("10000");
 
@@ -147,7 +117,7 @@ describe('Liquidity Pool Test', async () => {
     )
   })
 
-  it('should transfer ERC20 token to Alice and Kate', async () => {
+  it('should transfer L2 ERC20 TEST token from Bob to Alice and Kate', async () => {
 
     const transferL2ERC20Amount = utils.parseEther("150")
 
@@ -186,7 +156,7 @@ describe('Liquidity Pool Test', async () => {
     )
   })
 
-  it('should add ERC20 token to token pool', async () => {
+  it('should add 1000 ERC20 TEST tokens to the L2 token pool', async () => {
 
     const addL2TPAmount = utils.parseEther("1000")
 
@@ -445,7 +415,8 @@ describe('Liquidity Pool Test', async () => {
     await expect(withdrawTX.wait()).to.be.eventually.rejected;
   })
 
-  it("should withdraw reward", async () => {
+  it("should withdraw reward from L2 pool", async () => {
+    
     const preL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
     const preBobUserInfo = await L2LiquidityPool.userInfo(L2ERC20.address, env.bobl2Wallet.address)
     const pendingReward = BigNumber.from(preBobUserInfo.pendingReward).div(2)
@@ -469,7 +440,32 @@ describe('Liquidity Pool Test', async () => {
     expect(preL2ERC20Balance).to.deep.eq(postL2ERC20Balance.sub(pendingReward))
   })
 
-  it("shouldn't withdraw reward", async () => {
+  // it("should withdraw reward from L1 pool", async () => {
+    
+  //   const preL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
+  //   const preBobUserInfo = await L1LiquidityPool.userInfo(L1ERC20.address, env.bobl1Wallet.address)
+  //   const pendingReward = BigNumber.from(preBobUserInfo.pendingReward).div(2)
+
+  //   const withdrawRewardTX = await L1LiquidityPool.withdrawReward(
+  //     pendingReward,
+  //     L1ERC20.address,
+  //     env.bobl1Wallet.address//,
+  //     //{gasLimit: 800000, gasPrice: 0}
+  //   )
+  //   await withdrawRewardTX.wait()
+
+  //   const postBobUserInfo = await L1LiquidityPool.userInfo(
+  //     L1ERC20.address,
+  //     env.bobl1Wallet.address//,
+  //     //{gasLimit: 800000, gasPrice: 0}
+  //   )
+  //   const postL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
+
+  //   expect(postBobUserInfo.pendingReward).to.deep.eq(preBobUserInfo.pendingReward.sub(pendingReward))
+  //   expect(preL1ERC20Balance).to.deep.eq(postL1ERC20Balance.sub(pendingReward))
+  // })
+
+  it("shouldn't withdraw reward from L2 pool", async () => {
     const withdrawRewardAmount = utils.parseEther("100")
 
     const withdrawRewardTX = await L2LiquidityPool.withdrawReward(

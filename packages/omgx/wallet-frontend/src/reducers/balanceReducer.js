@@ -14,18 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 const initialState = {
-  rootchain: [],
-  childchain: []
-};
+  layer1: [],
+  layer2: [],
+}
 
-function balanceReducer (state = initialState, action) {
+function balanceReducer(state = initialState, action) {
   switch (action.type) {
     case 'BALANCE/GET/SUCCESS':
-      const { rootchain, childchain } = action.payload;
-      return { ...state, rootchain, childchain };
+      const { layer1, layer2 } = action.payload
+      return { ...state, layer1, layer2 }
     default:
-      return state;
+      return state
   }
 }
 
-export default balanceReducer;
+export default balanceReducer

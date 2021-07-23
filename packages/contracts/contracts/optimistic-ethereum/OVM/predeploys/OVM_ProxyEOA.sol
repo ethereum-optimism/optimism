@@ -4,13 +4,14 @@ pragma solidity >0.5.0 <0.8.0;
 /* Library Imports */
 import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
-import { Lib_ExecutionManagerWrapper } from "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
+import { Lib_ExecutionManagerWrapper } from
+    "../../libraries/wrappers/Lib_ExecutionManagerWrapper.sol";
 
 /**
  * @title OVM_ProxyEOA
- * @dev The Proxy EOA contract uses a delegate call to execute the logic in an implementation contract.
- * In combination with the logic implemented in the ECDSA Contract Account, this enables a form of upgradable
- * 'account abstraction' on layer 2.
+ * @dev The Proxy EOA contract uses a delegate call to execute the logic in an implementation
+ * contract. In combination with the logic implemented in the ECDSA Contract Account, this enables
+ * a form of upgradable 'account abstraction' on layer 2.
  *
  * Compiler used: optimistic-solc
  * Runtime target: OVM
@@ -29,9 +30,8 @@ contract OVM_ProxyEOA {
     /*************
      * Constants *
      *************/
-
+    // solhint-disable-next-line max-line-length
     bytes32 constant IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc; //bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1);
-
 
     /*********************
      * Fallback Function *

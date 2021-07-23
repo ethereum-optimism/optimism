@@ -13,13 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React from 'react';
-import { Search } from '@material-ui/icons';
-import BN from 'bignumber.js';
+import React from 'react'
+import { Search } from '@material-ui/icons'
+import BN from 'bignumber.js'
 
-import * as styles from './Input.module.scss';
+import * as styles from './Input.module.scss'
 
-function Input ({
+function Input({
   placeholder,
   label,
   type = 'text',
@@ -30,38 +30,33 @@ function Input ({
   onChange,
   paste,
   className,
-  maxValue
+  maxValue,
+  small,
 }) {
-  
-  async function handlePaste () {
+  async function handlePaste() {
     try {
-      const text = await navigator.clipboard.readText();
+      const text = await navigator.clipboard.readText()
       if (text) {
-        onChange({ target: { value: text } });
+        onChange({ target: { value: text } })
       }
     } catch (err) {
       // navigator clipboard api not supported in client browser
     }
   }
 
-  function handleMaxClick () {
-    onChange({ target: { value: maxValue } });
+  function handleMaxClick() {
+    onChange({ target: { value: maxValue } })
   }
 
-  const overMax = new BN(value).gt(new BN(maxValue));
+  const overMax = new BN(value).gt(new BN(maxValue))
 
   return (
-    <div className={[ styles.Input, className ].join(' ')}>
+    <div className={[styles.Input, className].join(' ')}>
       {label && <div className={styles.label}>{label}</div>}
-      <div
-        className={[
-          styles.field,
-          overMax ? styles.error : ''
-        ].join(' ')}
-      >
+      <div className={[styles.field, overMax ? styles.error : ''].join(' ')}>
         {icon && <Search className={styles.icon} />}
         <input
-          className={styles.input}
+          className={[styles.input, small ? styles.small : ''].join(' ')}
           placeholder={placeholder}
           type={type}
           value={value}
@@ -69,16 +64,16 @@ function Input ({
           disabled={disabled}
         />
         {unit && (
-          <div className={styles.unit}>
-            {maxValue && (value !== maxValue) && (
-              <div
-                onClick={handleMaxClick}
-                className={styles.maxValue}
-              >
+          <div className={`${styles.unit} ${!maxValue ? styles.isPaste : ''}`}>
+            {maxValue && value !== maxValue && (
+              <div onClick={handleMaxClick} className={styles.maxValue}>
                 MAX
               </div>
             )}
-            {unit}
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              {unit}
+              <span style={{fontSize: '0.7em'}}>Balance: {Number(maxValue).toFixed(3)}</span>
+            </div>
           </div>
         )}
         {paste && (
@@ -88,7 +83,7 @@ function Input ({
         )}
       </div>
     </div>
-  );
+  )
 }
 
-export default React.memo(Input);
+export default React.memo(Input)

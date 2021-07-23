@@ -22,6 +22,7 @@ jobs:
       message-relayer: ${{ steps.packages.outputs.message-relayer }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
+      gas-oracle: ${{ steps.packages.outputs.gas-oracle }}
 
     steps:
       - name: Checkout Repo
@@ -95,7 +96,15 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.geth
           push: true
-          tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }}
+          tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }},ethereumoptimism/l2geth:latest
+
+      - name: Publish op_exporter
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.op_exporter
+          push: true
+          tags: ethereumoptimism/op_exporter:${{ needs.release.outputs.l2geth }}
 
       - name: Publish rpc-proxy
         uses: docker/build-push-action@v2
@@ -103,7 +112,33 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.rpc-proxy
           push: true
-          tags: ethereumoptimism/rpc-proxy:${{ needs.release.outputs.l2geth }}
+          tags: ethereumoptimism/rpc-proxy:${{ needs.release.outputs.l2geth }},ethereumoptimism/rpc-proxy:latest
+
+  gas-oracle:
+    name: Publish Gas Oracle Version ${{ needs.release.outputs.gas-oracle }}
+    needs: release
+    if: needs.release.outputs.gas-oracle != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Publish Gas Oracle
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.gas-oracle
+          push: true
+          tags: ethereumoptimism/gas-oracle:${{ needs.release.outputs.gas-oracle }},ethereumoptimism/gas-oracle:latest
 
   # pushes the base builder image to dockerhub
   builder:
@@ -163,7 +198,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.message-relayer
           push: true
-          tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.message-relayer }}
+          tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.message-relayer }},ethereumoptimism/message-relayer:latest
 
   batch-submitter:
     name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
@@ -189,7 +224,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.batch-submitter
           push: true
-          tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.batch-submitter }}
+          tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.batch-submitter }},ethereumoptimism/batch-submitter:latest
 
   data-transport-layer:
     name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
@@ -215,7 +250,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.data-transport-layer
           push: true
-          tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.data-transport-layer }}
+          tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.data-transport-layer }},ethereumoptimism/data-transport-layer:latest
 
   contracts:
     name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
@@ -241,7 +276,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.deployer
           push: true
-          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.contracts }}
+          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.contracts }},ethereumoptimism/deployer:latest
 
   integration_tests:
     name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
@@ -267,4 +302,4 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.integration-tests
           push: true
-          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.integration-tests }}
+          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.integration-tests }},ethereumoptimism/integration-tests:latest

@@ -3,11 +3,12 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
 /* Imports: External */
-import { BigNumber, Contract, utils } from 'ethers'
+import { ethers, BigNumber, Contract, utils } from 'ethers'
 import { TxGasLimit, TxGasPrice } from '@eth-optimism/core-utils'
 import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
+import { IS_LIVE_NETWORK } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
@@ -36,11 +37,11 @@ describe('Fee Payment Integration Tests', async () => {
   it('Should estimateGas with recoverable L2 gasLimit', async () => {
     const gas = await env.ovmEth.estimateGas.transfer(
       other,
-      utils.parseEther('0.5')
+      utils.parseEther('0.0000001')
     )
     const tx = await env.ovmEth.populateTransaction.transfer(
       other,
-      utils.parseEther('0.5')
+      utils.parseEther('0.0000001')
     )
     const executionGas = await (env.ovmEth.provider as any).send(
       'eth_estimateExecutionGas',
@@ -51,7 +52,7 @@ describe('Fee Payment Integration Tests', async () => {
   })
 
   it('Paying a nonzero but acceptable gasPrice fee', async () => {
-    const amount = utils.parseEther('0.5')
+    const amount = utils.parseEther('0.0000001')
     const balanceBefore = await env.l2Wallet.getBalance()
     const feeVaultBalanceBefore = await env.l2Wallet.provider.getBalance(
       ovmSequencerFeeVault.address
@@ -84,15 +85,23 @@ describe('Fee Payment Integration Tests', async () => {
     await expect(ovmSequencerFeeVault.withdraw()).to.be.rejected
   })
 
-  it('should be able to withdraw fees back to L1 once the minimum is met', async () => {
+  it('should be able to withdraw fees back to L1 once the minimum is met', async function () {
     const l1FeeWallet = await ovmSequencerFeeVault.l1FeeWallet()
     const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
+    const withdrawalAmount = await ovmSequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
+
+    const l2WalletBalance = await env.l2Wallet.getBalance()
+    if (IS_LIVE_NETWORK && l2WalletBalance.lt(withdrawalAmount)) {
+      console.log(
+        `NOTICE: must have at least ${ethers.utils.formatEther(
+          withdrawalAmount
+        )} ETH on L2 to execute this test, skipping`
+      )
+      this.skip()
+    }
 
     // Transfer the minimum required to withdraw.
-    await env.ovmEth.transfer(
-      ovmSequencerFeeVault.address,
-      await ovmSequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
-    )
+    await env.ovmEth.transfer(ovmSequencerFeeVault.address, withdrawalAmount)
 
     const vaultBalance = await env.ovmEth.balanceOf(
       ovmSequencerFeeVault.address

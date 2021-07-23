@@ -1,0 +1,52 @@
+traefik:
+  deployment:
+    replicas: 3
+
+  globalArguments:
+    - "--global.checknewversion=false"
+    - "--global.sendanonymoususage=false"
+
+  additionalArguments:
+    # Traefik talks TLS to Vault by ClusterIP address, and the IP addresses aren't on the certificate.
+    # Therefore, we need to skip TLS verification of Vault's internal certificate.
+    - "--serverstransport.insecureSkipVerify=true"
+
+
+  env:
+    - name: DD_HOSTNAME
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+
+  logs:
+    access:
+      enabled: true
+      filters:
+        retryattempts: true
+        statuscodes: "400-599"
+      format: json
+    general:
+      format: json
+      level: INFO
+
+  ports:
+    web:
+      redirectTo: websecure
+    websecure:
+      tls:
+        enabled: true
+
+  providers:
+    kubernetesIngress:
+      publishedService:
+        enabled: true
+
+  service:
+    type: LoadBalancer
+    annotations:
+      cloud.google.com/load-balancer-type: "Internal"
+    spec:
+      externalTrafficPolicy: Local
+      loadBalancerIP: 10.5.0.100
+    loadBalancerSourceRanges:
+      - 10.0.0.0/8

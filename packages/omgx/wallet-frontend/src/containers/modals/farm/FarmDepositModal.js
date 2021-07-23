@@ -8,7 +8,7 @@ import { getFarmInfo } from 'actions/farmAction';
 
 import Button from 'components/button/Button';
 import Modal from 'components/modal/Modal';
-import InputSelect from 'components/inputselect/InputSelect';
+import Input from 'components/input/Input';
 import { logAmount, powAmount } from 'util/amountConvert';
 
 import networkService from 'services/networkService';
@@ -19,16 +19,13 @@ class FarmDepositModal extends React.Component {
   constructor(props) {
     super(props);
 
-    const { open, balance } = this.props;
+    const { open } = this.props;
     const { stakeToken } = this.props.farm;
 
     this.state = {
       open,
       stakeToken,
       stakeValue: '',
-      // balance
-      rootchainBalance: balance.rootchain,
-      childchainBalance: balance.childchain,
       // allowance
       approvedAllowance: 0,
       // loading
@@ -37,7 +34,8 @@ class FarmDepositModal extends React.Component {
   }
 
   async componentDidUpdate(prevState) {
-    const { open, balance } = this.props;
+
+    const { open } = this.props;
     const { stakeToken } = this.props.farm;
 
     if (prevState.open !== open) {
@@ -47,7 +45,7 @@ class FarmDepositModal extends React.Component {
     if (!isEqual(prevState.farm.stakeToken, stakeToken)) {
       let approvedAllowance = powAmount(10, 50);
       // There is no need to check allowance for depositing ETH
-      if (stakeToken.currency !== networkService.L1ETHAddress) {
+      if (stakeToken.currency !== networkService.L1_ETH_Address) {
         approvedAllowance = await networkService.checkAllowance(
           stakeToken.currency,
           stakeToken.LPAddress
@@ -56,22 +54,16 @@ class FarmDepositModal extends React.Component {
       this.setState({ approvedAllowance, stakeToken });
     }
 
-    if (!isEqual(prevState.balance, balance)) {
-      this.setState({
-        childchainBalance: balance.childchain,
-        rootchainBalance: balance.rootchain,
-      });
-    }
   }
 
   getMaxTransferValue () {
-    const { rootchainBalance, childchainBalance, stakeToken } = this.state;
-    const transferingBalanceObject = (stakeToken.L1orL2Pool === 'L1LP' ? rootchainBalance : childchainBalance)
-      .find(i => i.currency === stakeToken.currency);
-    if (!transferingBalanceObject) {
-      return;
-    }
-    return logAmount(transferingBalanceObject.amount, transferingBalanceObject.decimals);
+    const { stakeToken } = this.state;
+    // const transferingBalanceObject = (stakeToken.L1orL2Pool === 'L1LP' ? layer1Balance : layer2Balance)
+    //   .find(i => i.currency === stakeToken.currency);
+    // if (!transferingBalanceObject) {
+    //   return;
+    // }
+    return logAmount(stakeToken.balance, stakeToken.decimals);
   }
 
   handleClose() {
@@ -79,21 +71,24 @@ class FarmDepositModal extends React.Component {
   }
 
   async handleApprove() {
+    
     const { stakeToken, stakeValue } = this.state;
 
     this.setState({ loading: true });
 
-    const approveTX = await networkService.approveErc20(
+    const approveTX = await networkService.approveERC20(
       powAmount(stakeValue, 18),
       stakeToken.currency,
       stakeToken.LPAddress,
-      networkService.L2ERC20Contract.abi,
+      networkService.L2_TEST_Contract.abi, 
+      //we are using _TEST_ here but is really 
+      //does not matter - all we need is something that conforms to ERC20
     );
     if (approveTX) {
-      this.props.dispatch(openAlert("Your transaction was approved."));
+      this.props.dispatch(openAlert("Your amount was approved."));
       let approvedAllowance = powAmount(10, 50);
       // There is no need to check allowance for depositing ETH
-      if (stakeToken.currency !== networkService.L1ETHAddress) {
+      if (stakeToken.currency !== networkService.L1_ETH_Address) {
         approvedAllowance = await networkService.checkAllowance(
           stakeToken.currency,
           stakeToken.LPAddress
@@ -101,7 +96,7 @@ class FarmDepositModal extends React.Component {
       }
       this.setState({ approvedAllowance, loading: false });
     } else {
-      this.props.dispatch(openError("Failed to approve the transaction."));
+      this.props.dispatch(openError("Failed to approve the amount."));
       this.setState({ loading: false });
     }
   }
@@ -128,42 +123,28 @@ class FarmDepositModal extends React.Component {
   }
 
   render() {
+    
     const {
       open,
-      stakeToken, stakeValue,
-      rootchainBalance, childchainBalance,
+      stakeToken, 
+      stakeValue,
       approvedAllowance,
       loading,
     } = this.state;
 
-    const selectOptions = (stakeToken.L1orL2Pool === 'L1LP' ? rootchainBalance : childchainBalance)
-      .reduce((acc, cur) => {
-      if (cur.currency.toLowerCase() === stakeToken.currency.toLowerCase()) {
-        acc.push({
-          title: cur.symbol,
-          value: cur.currency,
-          subTitle: `Balance: ${logAmount(cur.amount, cur.decimals)}`
-        })
-      }
-      return acc;
-    }, []);
-
     return (
+
       <Modal open={open}>
+        
         <h2>Stake {`${stakeToken.symbol}`}</h2>
 
-        <InputSelect
-          label='Amount to stake'
-          placeholder={0}
+        <Input
+          placeholder={`Amount to stake`}
           value={stakeValue}
-          onChange={i => {
-            this.setState({stakeValue: i.target.value});
-          }}
-          onSelect={i => {}}
-          selectOptions={selectOptions}
-          selectValue={stakeToken.currency}
+          type="number"
+          onChange={i=>{this.setState({stakeValue: i.target.value})}}
+          unit={stakeToken.symbol}
           maxValue={this.getMaxTransferValue()}
-          disabledSelect={true}
         />
 
         {Number(stakeValue) > Number(this.getMaxTransferValue()) &&
@@ -188,7 +169,7 @@ class FarmDepositModal extends React.Component {
               disabled={Number(this.getMaxTransferValue()) < Number(stakeValue) || stakeValue === '' || !stakeValue}
               loading={loading}
             >
-              CONFIRM
+              STAKE!
             </Button>
           </div>
         }
@@ -197,8 +178,7 @@ class FarmDepositModal extends React.Component {
           <>
             <div className={styles.disclaimer}>
               To stake {stakeValue} {stakeToken.symbol},
-              you first need to approve this.
-              Click below to submit an approval transaction.
+              you first need to approve this amount.
             </div>
             <div className={styles.buttons}>
               <Button
@@ -215,7 +195,7 @@ class FarmDepositModal extends React.Component {
                 loading={loading}
                 disabled={Number(this.getMaxTransferValue()) < Number(stakeValue)}
               >
-                Approve
+                APPROVE AMOUNT
               </Button>
             </div>
           </>

@@ -3,14 +3,14 @@ const chai = require('chai');
 const chaiAsPromised = require('chai-as-promised');
 chai.use(chaiAsPromised);
 const { Contract, Wallet, ContractFactory, BigNumber, providers } = require('ethers');
-const { encodeParameters } = require('./utilities/index');
+const { encodeParameters, gasOptions } = require('./utilities/index');
 const { latest, duration, increase } = require('./utilities/time');
 const { bob, alice, carol, dev, minter } = require('./utilities/wallet');
 
-const MasterChefJSON = require('../artifacts/contracts/MasterChef.sol/MasterChef.ovm.json');
-const SushiTokenJSON = require('../artifacts/contracts/SushiToken.sol/SushiToken.ovm.json');
-const ERC20MockJSON = require('../artifacts/contracts/mocks/ERC20Mock.sol/ERC20Mock.ovm.json');
-const TimelockJSON = require('../artifacts/contracts/governance/Timelock.sol/Timelock.ovm.json');
+const MasterChefJSON = require('../artifacts-ovm/contracts/MasterChef.sol/MasterChef.ovm.json');
+const SushiTokenJSON = require('../artifacts-ovm/contracts/SushiToken.sol/SushiToken.ovm.json');
+const ERC20MockJSON = require('../artifacts-ovm/contracts/mocks/ERC20Mock.sol/ERC20Mock.ovm.json');
+const TimelockJSON = require('../artifacts-ovm/contracts/governance/Timelock.sol/Timelock.ovm.json');
 
 /******************************************************************/
 /*************   evm_increaseTime is not supported ****************/
@@ -36,7 +36,7 @@ describe("Timelock", function () {
       ERC20MockJSON.bytecode,
       minter,
     )
-      
+
     this.Factory__Timelock = new ContractFactory(
       TimelockJSON.abi,
       TimelockJSON.bytecode,
@@ -45,31 +45,28 @@ describe("Timelock", function () {
   })
 
   beforeEach(async function () {
-    this.sushi = await this.Factory__SushiToken.deploy()
+    this.sushi = await this.Factory__SushiToken.deploy(gasOptions)
     await this.sushi.deployTransaction.wait()
-    this.timelock = await this.Factory__Timelock.deploy(bob.address, "259200")
+    this.timelock = await this.Factory__Timelock.deploy(bob.address, "259200", gasOptions)
     await this.timelock.deployTransaction.wait()
   })
 
   it("should not allow non-owner to do operation", async function () {
     let transferOwnership
-    transferOwnership = await this.sushi.transferOwnership(this.timelock.address);
+    transferOwnership = await this.sushi.transferOwnership(this.timelock.address, gasOptions);
     await transferOwnership.wait()
 
-    transferOwnership = await this.sushi.transferOwnership(carol.address);
-    await expect(transferOwnership.wait()).to.be.eventually.rejected;
+    await expect(this.sushi.transferOwnership(carol.address)).to.be.eventually.rejected;
 
-    transferOwnership = await this.sushi.connect(alice).transferOwnership(carol.address);
-    await expect(transferOwnership.wait()).to.be.eventually.rejected;
+    await expect(this.sushi.connect(alice).transferOwnership(carol.address)).to.be.eventually.rejected;
 
-    const timelock = await this.timelock.connect(alice).queueTransaction(
+    await expect(this.timelock.connect(alice).queueTransaction(
       this.sushi.address,
       "0",
       "transferOwnership(address)",
       encodeParameters(["address"], [carol.address]),
-      (await latest()).add(duration.days(4))
-    )
-    await expect(timelock.wait()).to.be.eventually.rejected;
+      (await latest()).add(duration.days(4)),
+    )).to.be.eventually.rejected;
   })
 
   /******************************************************************/

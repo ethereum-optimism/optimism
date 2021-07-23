@@ -94,7 +94,7 @@ library Lib_BytesUtils {
         )
     {
         if (_start >= _bytes.length) {
-            return bytes('');
+            return bytes("");
         }
 
         return slice(_bytes, _start, _bytes.length - _start);

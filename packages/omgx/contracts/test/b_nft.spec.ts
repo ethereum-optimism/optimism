@@ -12,50 +12,45 @@ import * as fs from 'fs'
 
 describe('NFT Test\n', async () => {
 
-  let Factory__L2ERC721: ContractFactory
-  let L2ERC721: Contract
-
   let env: OptimismEnv
 
-  const nftName = 'TestNFT'
-  const nftSymbol = 'TST'
+  let Factory__L2ERC721: ContractFactory
+  let L2ERC721: Contract
+  let owner: string
+  let recipient: string
 
-  /************* BOB owns all the pools, and ALICE Mints a new token ***********/
   before(async () => {
 
     env = await OptimismEnv.new()
 
-    Factory__L2ERC721 = new ContractFactory(
+    owner = env.bobl2Wallet.address;
+
+    recipient = env.alicel2Wallet.address;
+
+    L2ERC721 = new Contract(
+      env.addressesOMGX.L2ERC721,
       L2ERC721Json.abi,
-      L2ERC721Json.bytecode,
       env.bobl2Wallet
     )
 
-  })
+    const balanceOwner = await L2ERC721.balanceOf(owner)
+    console.log("Owner balance:", balanceOwner)
 
-  before(async () => {
+    let symbol = await L2ERC721.symbol()
+    console.log("NFT Symbol:", symbol)
 
-    // Mint a new NFT on L2
-    // [nftSymbol, nftName]
-    // this is owned by bobl1Wallet
-    L2ERC721 = await Factory__L2ERC721.deploy(
-      nftSymbol,
-      nftName,
-      BigNumber.from(String(0)), //starting index for the tokenIDs
-      "", //the base URI is empty in this case
-      {gasLimit: 800000, gasPrice: 0}
-    )
-    await L2ERC721.deployTransaction.wait()
-    console.log(` 🌕 ${chalk.red('NFT L2ERC721 deployed to:')} ${chalk.green(L2ERC721.address)}`)
+    let name = await L2ERC721.name()
+    console.log("NFT Name:", name)
 
-    let owner = await L2ERC721.owner()
+    let genesis = await L2ERC721.getGenesis()
+    console.log("NFT Genesis:", genesis)
+
     console.log(` 🔒 ${chalk.red('ERC721 owner:')} ${chalk.green(owner)}`)
+
   })
 
-  it('should mint a new ERC721 and transfer it from Bob to Alice', async () => {
+  it('should generate a new ERC721 and transfer it from Bob to Alice', async () => {
 
-    const owner = env.bobl2Wallet.address;
-    const recipient = env.alicel2Wallet.address;
     const ownerName = "Henrietta Lacks"
 
     let meta = ownerName + '#' + Date.now().toString() + '#' + 'https://www.atcc.org/products/all/CCL-2.aspx';

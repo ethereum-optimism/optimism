@@ -22,7 +22,6 @@ describe('Fast Messenge Relayer Test', async () => {
   before(async () => {
 
     env = await OptimismEnv.new()
-    console.log(env.addressesOMGX)
 
     L1Message = new Contract(
       env.addressesOMGX.L1Message,

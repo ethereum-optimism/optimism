@@ -9,15 +9,18 @@ import "@boringcrypto/boring-solidity/contracts/libraries/BoringMath.sol";
 contract RewarderMock is IRewarder {
     using BoringMath for uint256;
     using BoringERC20 for IERC20;
-    uint256 private immutable rewardMultiplier;
-    IERC20 private immutable rewardToken;
+    uint256 private rewardMultiplier;
+    IERC20 private rewardToken;
     uint256 private constant REWARD_TOKEN_DIVISOR = 1e18;
-    address private immutable MASTERCHEF_V2;
+    address private MASTERCHEF_V2;
+    bool private initialized = false;
 
-    constructor (uint256 _rewardMultiplier, IERC20 _rewardToken, address _MASTERCHEF_V2) public {
+    function initialize(uint256 _rewardMultiplier, IERC20 _rewardToken, address _MASTERCHEF_V2) public {
+        require(!initialized, "Contract was already initialized");
         rewardMultiplier = _rewardMultiplier;
         rewardToken = _rewardToken;
         MASTERCHEF_V2 = _MASTERCHEF_V2;
+        initialized = true;
     }
 
     function onSushiReward (uint256, address user, address to, uint256 sushiAmount, uint256) onlyMCV2 override external {
@@ -29,7 +32,7 @@ contract RewarderMock is IRewarder {
             rewardToken.safeTransfer(to, pendingReward);
         }
     }
-    
+
     function pendingTokens(uint256 pid, address user, uint256 sushiAmount) override external view returns (IERC20[] memory rewardTokens, uint256[] memory rewardAmounts) {
         IERC20[] memory _rewardTokens = new IERC20[](1);
         _rewardTokens[0] = (rewardToken);
@@ -45,5 +48,5 @@ contract RewarderMock is IRewarder {
         );
         _;
     }
-  
+
 }

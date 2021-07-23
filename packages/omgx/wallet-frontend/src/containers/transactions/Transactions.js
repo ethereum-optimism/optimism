@@ -27,7 +27,7 @@ import { setActiveHistoryTab2 } from 'actions/uiAction'
 import { selectActiveHistoryTab1 } from 'selectors/uiSelector'
 import { selectActiveHistoryTab2 } from 'selectors/uiSelector'
 
-import { selectChildchainTransactions } from 'selectors/transactionSelector';
+import { selectTransactions } from 'selectors/transactionSelector';
 import { selectLoading } from 'selectors/loadingSelector'
 
 import Tabs from 'components/tabs/Tabs'
@@ -38,11 +38,12 @@ import Pager from 'components/pager/Pager'
 import Exits from './Exits';
 import Deposits from './Deposits';
 
-import networkService from 'services/networkService';
-
 import * as styles from './Transactions.module.scss';
 
-const PER_PAGE = 5;
+import { getAllNetworks } from 'util/masterConfig';
+import { selectNetwork } from 'selectors/setupSelector';
+
+const PER_PAGE = 8;
 
 function Transactions () {
 
@@ -59,7 +60,8 @@ function Transactions () {
   const activeTab1 = useSelector(selectActiveHistoryTab1, isEqual);
   const activeTab2 = useSelector(selectActiveHistoryTab2, isEqual);
 
-  const unorderedTransactions = useSelector(selectChildchainTransactions, isEqual);
+  const unorderedTransactions = useSelector(selectTransactions, isEqual)
+
   const transactions = orderBy(unorderedTransactions, i => i.timeStamp, 'desc');
 
   const _transactions = transactions.filter(i => {
@@ -75,6 +77,19 @@ function Transactions () {
   //if totalNumberOfPages === 0, set to one so we don't get the strange "page 1 of 0" display
   if (totalNumberOfPages === 0) totalNumberOfPages = 1;
 
+  const currentNetwork = useSelector(selectNetwork());
+
+  const nw = getAllNetworks();
+
+  const chainLink = (item) => {
+    let network = nw[currentNetwork];
+    if (!!network && !!network[item.chain]) {
+      // network object should have L1 & L2
+      return `${network[item.chain].transaction}${item.hash}`;
+    }
+    return '';
+  };
+
   return (
     <div className={styles.container}>
 
@@ -82,7 +97,7 @@ function Transactions () {
         <h2>Search</h2>
         <Input
           icon
-          placeholder='Search history'
+          placeholder='Search by hash'
           value={searchHistory}
           onChange={i => {
             setPage1(1);
@@ -115,25 +130,22 @@ function Transactions () {
                 onClickBack={()=>setPage1(page1 - 1)}
               />
               {!paginatedTransactions.length && !loading && (
-                <div className={styles.disclaimer}>No transaction history.</div>
+                <div className={styles.disclaimer}>Transaction history coming soon...</div>
               )}
               {!paginatedTransactions.length && loading && (
                 <div className={styles.disclaimer}>Loading...</div>
               )}
               {paginatedTransactions.map((i, index) => {
+                const metaData = typeof(i.typeTX) === 'undefined' ? '' : i.typeTX
                 return (
                   <Transaction
                     key={index}
-                    link={ 
-                      networkService.chainID === 4 ? 
-                      `https://rinkeby.etherscan.io/tx/${i.hash}`:
-                      networkService.chainID === 28 ? 
-                      `https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`:
-                      undefined
-                    }
-                    title={`${truncate(i.hash, 6, 4, '...')}`}
+                    link={chainLink(i)}
+                    title={`${truncate(i.hash, 8, 6, '...')}`}
                     midTitle={moment.unix(i.timeStamp).format('lll')}
-                    status={`Block ${i.blockNumber}`}
+                    blockNumber={`Block ${i.blockNumber}`}
+                    chain={`${i.chain} Chain`}
+                    typeTX={`${metaData}`}
                   />
                 );
               })}
@@ -141,7 +153,10 @@ function Transactions () {
           )}
 
           {activeTab1=== 'Deposits' && <
-            Deposits searchHistory={searchHistory} transactions={transactions} />
+            Deposits 
+              searchHistory={searchHistory} 
+              transactions={transactions} 
+            />
           }
 
         </div>

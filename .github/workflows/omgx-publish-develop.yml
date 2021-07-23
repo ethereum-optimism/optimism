@@ -47,29 +47,20 @@ jobs:
           ./scripts/build-ci.sh
           docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:latest
           docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
-
+          docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:latest
+          docker build ../ --file docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:latest
       - name: Rename and retag the optimism images
         working-directory: ./ops
         run: |
-          docker image tag ethereumoptimism/builder omgx/builder:latest
-          docker image tag ethereumoptimism/hardhat omgx/hardhat:latest
-          docker image tag ethereumoptimism/deployer omgx/deployer:latest
-          docker image tag ethereumoptimism/data-transport-layer omgx/data-transport-layer:latest
-          docker image tag ethereumoptimism/l2geth omgx/l2geth:latest
-          docker image tag ethereumoptimism/message-relayer omgx/message-relayer:latest
-          docker image tag ethereumoptimism/batch-submitter omgx/batch-submitter:latest
-          docker image tag ethereumoptimism/integration-tests omgx/integration-tests:latest
+          for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep omgx); do
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):develop
+          done
 
-          docker image tag omgx/omgx_builder:latest omgx/omgx_builder:develop
-          docker image tag omgx/omgx_deployer:latest omgx/omgx_deployer:develop
-          docker image tag ethereumoptimism/builder omgx/builder:develop
-          docker image tag ethereumoptimism/hardhat omgx/hardhat:develop
-          docker image tag ethereumoptimism/deployer omgx/deployer:develop
-          docker image tag ethereumoptimism/data-transport-layer omgx/data-transport-layer:develop
-          docker image tag ethereumoptimism/l2geth omgx/l2geth:develop
-          docker image tag ethereumoptimism/message-relayer omgx/message-relayer:develop
-          docker image tag ethereumoptimism/batch-submitter omgx/batch-submitter:develop
-          docker image tag ethereumoptimism/integration-tests omgx/integration-tests:develop
+          for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ethereumoptimism); do
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):latest
+            docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):develop
+          done
+
           docker rmi $(docker images | grep 'ethereumoptimism/' | awk '{print $1}')
           docker images
 

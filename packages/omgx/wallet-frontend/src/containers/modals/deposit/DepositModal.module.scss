@@ -26,3 +26,19 @@
   justify-items: center;
   align-items: center;
 }
+
+.tokenDetail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  text-align: right;
+  margin-right: 10px;
+  font-size: 0.9em;
+  height: 30px;
+  .tokenBalance {
+    font-size: 0.7em;
+    white-space: nowrap;
+  }
+}

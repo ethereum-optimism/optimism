@@ -51,22 +51,54 @@ jobs:
         env:
           FORCE_COLOR: 1
           ENABLE_GAS_REPORT: 1
-          TEST_PRIVATE_KEY_1: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-          TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
-          TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
-
       - name: Print gas report
         run: cat packages/contracts/gas-report.txt
 
       - name: Run codechecks
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         working-directory: ./packages/contracts
         run: yarn codechecks
         env:
           CC_SECRET: ${{ secrets.CC_SECRET }}
 
+  # A hack that allows running a job only if a specific directory changed.
+  # Ref: https://github.community/t/run-job-only-if-folder-changed/118292
+  is-contracts-package:
+    name: Check files for changes to the contracts package
+    # This job will break on a push event, so we just skip it,
+    # which in turn skips the test-coverage job.
+    if: ${{ github.event_name != 'push' }}
+    outputs:
+      run_coverage: ${{ steps.check_files.outputs.run_coverage }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - run: git fetch origin $GITHUB_BASE_REF
+
+      - name: check modified files
+        id: check_files
+        run: |
+          echo "=============== list modified files ==============="
+          git diff --name-only origin/$GITHUB_BASE_REF HEAD -- .
+
+          echo "========== check paths of modified files =========="
+          git diff --name-only origin/$GITHUB_BASE_REF HEAD -- . > files.txt
+          while IFS= read -r file
+          do
+            echo $file
+            if [[ $file != packages/contracts/* ]]; then
+              echo "This modified files are not in the contracts package."
+              echo "::set-output name=run_coverage::false"
+              break
+            else
+              echo "::set-output name=run_coverage::true"
+            fi
+          done < files.txt
+
   test-coverage:
     name: Generate test coverage
+    needs: is-contracts-package
+    if: needs.is-contracts-package.outputs.run_coverage == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -138,5 +170,9 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
-      # - name: Lint
+      # - name: Lint JS and TS
       #   run: yarn lint:check
+
+      # - name: Lint Solidity
+      #   working-directory: ./packages/contracts
+      #   run: yarn lint:contracts

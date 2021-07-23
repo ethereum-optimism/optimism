@@ -1,33 +1,39 @@
 @import 'index.scss';
 
 .GasPicker {
+
   display: flex;
   flex-direction: column;
 
   .label {
-    margin-bottom: 10px;
+    margin-top: 8px;
+    margin-bottom: 3px;
+    font-size: 0.9em;
   }
 
   .items {
+
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
+    justify-content: center;
   
     .category {
       display: flex;
       cursor: pointer;
       flex: 1;
-      margin-right: 10px;
+      margin-right: 5px;
       flex-direction: column;
       justify-content: center;
       transition: all 100ms ease-in-out;
-      padding: 10px;
+      padding: 5px;
       color: $gray5;
-      border: 2px solid $gray4;
+      border: 1px solid $gray4;
+      font-size: 0.8em;
       .title {
         font-weight: bold;
+        font-size: 01.0em;
         color: $gray6;
-        padding-bottom: 5px;
+        padding-bottom: 3px;
       }
       &:last-child {
         margin-right: 0px;
@@ -36,7 +42,7 @@
   
     .selected {
       background-color: $gray3;
-      border: 2px solid $blue;
+      border: 1px solid $blue;
     }
   }
 }
