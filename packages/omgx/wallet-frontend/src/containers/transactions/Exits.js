@@ -13,27 +13,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useState } from 'react';
-import { orderBy, isEqual } from 'lodash';
-import moment from 'moment';
-import { useSelector } from 'react-redux';
-import truncate from 'truncate-middle';
+import React, { useState } from 'react'
+import moment from 'moment'
+import { useSelector } from 'react-redux'
+import truncate from 'truncate-middle'
 
-import { selectPendingExits, selectExitedExits } from 'selectors/exitSelector';
-import { selectLoading } from 'selectors/loadingSelector';
-import { selectEtherscan } from 'selectors/setupSelector';
+import { selectLoading } from 'selectors/loadingSelector'
+import { selectEtherscan } from 'selectors/setupSelector'
 
-import ProcessExitsModal from 'containers/modals/processexit/ProcessExitsModal';
-import Transaction from 'components/transaction/Transaction';
-import Pager from 'components/pager/Pager';
-
+import ProcessExitsModal from 'containers/modals/processexit/ProcessExitsModal'
+import Transaction from 'components/transaction/Transaction'
+import Pager from 'components/pager/Pager'
 
 import networkService from 'services/networkService'
 
-import { getAllNetworks } from 'util/masterConfig'
-import { selectNetwork } from 'selectors/setupSelector'
-
-import * as styles from './Transactions.module.scss';
+import * as styles from './Transactions.module.scss'
 
 const PER_PAGE = 8;
 
