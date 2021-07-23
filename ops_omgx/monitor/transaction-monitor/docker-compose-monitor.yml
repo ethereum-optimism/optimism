@@ -8,7 +8,7 @@ services:
             MYSQL_HOST_URL: "rinkeby.cjka46punles.us-east-1.rds.amazonaws.com"
             MYSQL_PORT: 3306
             MYSQL_USERNAME: "admin"
-            MYSQL_PASSWORD: "c5B0bRB83DmangdQshANl"
+
             MYSQL_DATABASE_NAME: "OMGXRinkeby"
             ADDRESS_MANAGER_ADDRESS: "0x93A96D6A5beb1F661cf052722A1424CDDA3e9418"
             L2_MESSENGER_ADDRESS: "0x4200000000000000000000000000000000000007"
