@@ -128,7 +128,7 @@ class DatabaseService extends OptimismEnv{
 
   async getCrossDomainData() {
     await this.query(`USE ${this.MySQLDatabaseName}`);
-    return await this.query(`SELECT hash, blockNumber FROM receipt
+    return await this.query(`SELECT * FROM receipt
       WHERE crossDomainMessage=${true}
       AND crossDomainMessageFinalize=${false}
       AND UNIX_TIMESTAMP() > crossDomainMessageEstimateFinalizedTime

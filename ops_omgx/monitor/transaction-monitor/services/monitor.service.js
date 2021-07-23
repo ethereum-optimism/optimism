@@ -105,16 +105,10 @@ class MonitorService extends OptimismEnv {
 
       receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
 
-      // if message is cross domain check if message has been finalized
-      if (receiptData.crossDomainMessage){
-        receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
-      }
-
       await this.databaseService.insertReceiptData(receiptData);
     }
 
     await this.getWhitelist();
-    this.logger.info(`Whitelist: ${this.whitelist}`);
 
     // update scannedLastBlock
     this.scannedLastBlock = this.latestBlock;
@@ -161,10 +155,6 @@ class MonitorService extends OptimismEnv {
         // check if message is cross domain
         receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
 
-        // if message is cross domain check if message has been finalized
-        if (receiptData.crossDomainMessage){
-          receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
-        }
         await this.databaseService.insertReceiptData(receiptData);
       }
 
@@ -197,72 +187,18 @@ class MonitorService extends OptimismEnv {
     let checkWhitelist = this.checkTime(this.whitelistString);
     if(checkWhitelist) await this.getWhitelist();
     let checkNonWhitelist = this.checkTime(this.nonWhitelistString);
-    this.logger.info(`Check the white list: ${checkWhitelist}`);
+    
     if (crossDomainData.length) {
       this.logger.info('Found cross domain message.');
-      const promisesBlock = [], promisesReceipt = [];
-      for (let hashes of crossDomainData) {
 
-        // limits the rate of server request
-        if((promiseCount % this.L2rateLimit) === 0){
-          await Promise.all(promisesBlock);
-          await Promise.all(promisesReceipt);
-          if(promiseCount % this.L2sleepThresh === 0){
-            await this.sleep(2000);
-          }
-        }
-
-        const hash = hashes.hash;
-        const blockNumber = Number(hashes.blockNumber);
-        promisesReceipt.push(
-          (async () => {
-            for(let i=0; i<2; i++){
-              try {
-                let result = await this.L2Provider.getTransactionReceipt(hash);
-                return result;
-              } catch (error) {
-                if(i == 2) throw error;
-                console.log(`CAUGHT ERROR: ${error}`);
-                this.sleep(1000)
-              }
-            }
-          })());
-
-        promisesBlock.push(
-          (async () => {
-            for(let i=0; i<2; i++){
-              try {
-                let result = await this.L2Provider.getBlockWithTransactions(blockNumber);
-                return result;
-              } catch (error) {
-                if(i == 2) throw error;
-                console.log(`CAUGHT ERROR: ${error}`);
-                this.sleep(1000)
-              }
-            }
-          })());
-
-        promiseCount = promiseCount + 1;
-      }
-
-      promiseCount = 0;
-      const blocksData = await Promise.all(promisesBlock);
-      const receiptsData = await Promise.all(promisesReceipt);
-      this.logger.info(`checkwhitelist: ${checkWhitelist}`);
-      for (let receiptData of receiptsData) {
+      for (let receiptData of crossDomainData) {
         if(promiseCount % this.L2sleepThresh === 0){
           await this.sleep(2000);
         }
-        receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
-
-        if(!receiptData.crossDomainMessage) continue;
-
         // if its time check cross domain message finalization
         if(receiptData.fastRelay){
-          this.logger.info(`Checking message from whitelist address: ${receiptData.from}`);
           receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
         }else if (checkNonWhitelist && !receiptData.fastRelay){
-          this.logger.info(`Checking message from non-whitelist`);
           receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
         }
         promiseCount = promiseCount + 1;
@@ -326,7 +262,6 @@ class MonitorService extends OptimismEnv {
       crossDomainMessage = true;
       // Get message hashes from L2 TX
       for (let logData of filteredLogData) {
-        this.logger.info(`filteredLogData length: ${filteredLogData.length}`);
         const [message] = ethers.utils.defaultAbiCoder.decode(
           ['bytes'],
           logData.data
@@ -359,6 +294,7 @@ class MonitorService extends OptimismEnv {
   async getCrossDomainMessageStatusL1(receiptData){
     this.logger.info("Checking if message has been finalized...");
 
+    receiptData = await this.L2Provider.getTransactionReceipt(receiptData.hash);
     // Find the transaction that sends message from L2 to L1
     const filteredLogData = receiptData.logs.filter(i => i.address === this.OVM_L2CrossDomainMessenger && i.topics[0] === ethers.utils.id('SentMessage(bytes)'));
     let msgHash;
@@ -419,11 +355,9 @@ class MonitorService extends OptimismEnv {
   // checks to see if its time to look for L1 finalization
   checkTime(list){
     let currentTime = (new Date().getTime() / 1000).toFixed(0);
-    this.logger.info(`Current time: ${currentTime}, lastCheck: ${this.lastCheckWhitelist} Difference: ${currentTime - this.lastCheckWhitelist}`)
     if(list === this.whitelistString){
       if((currentTime - this.lastCheckWhitelist) >= this.whitelistSleep){
         this.lastCheckWhitelist = currentTime;
-        this.logger.info(`Checkwhitelist true!`);
         return true;
       }
     } else if (list === this.nonWhitelistString){
