@@ -108,7 +108,7 @@ export async function addNFTFactory ( Factory ) {
     haveRights: Factory.haveRights
   }
 
-  console.log("nft factory:",factory)
+  //console.log("nft factory:",factory)
 
   store.dispatch({
     type: 'NFT/CREATEFACTORY/SUCCESS',

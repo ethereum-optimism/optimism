@@ -27,80 +27,82 @@ import ProcessExitsModal from 'containers/modals/processexit/ProcessExitsModal';
 import Transaction from 'components/transaction/Transaction';
 import Pager from 'components/pager/Pager';
 
+
+import networkService from 'services/networkService'
+
+import { getAllNetworks } from 'util/masterConfig'
+import { selectNetwork } from 'selectors/setupSelector'
+
 import * as styles from './Transactions.module.scss';
 
-const PER_PAGE = 10;
+const PER_PAGE = 8;
 
-function Exits ({ searchHistory }) {
+function Exits ({ searchHistory, transactions }) {
+  
   const [ page, setPage ] = useState(1);
   const [ processExitModal, setProcessExitModal ] = useState(false);
-
-  const pendingExits = orderBy(useSelector(selectPendingExits, isEqual), i => i.blockNumber, 'desc');
-  const exitedExits = orderBy(useSelector(selectExitedExits, isEqual), i => i.blockNumber, 'desc');
-  const loading = useSelector(selectLoading([ 'EXIT/GETALL' ]));
+  
+  const loading = useSelector(selectLoading([ 'EXIT/GETALL' ]));  
   const etherscan = useSelector(selectEtherscan());
 
-  const _pendingExits = pendingExits.filter(i => {
-    return i.hash.includes(searchHistory);
-  });
+  const _exits = transactions.filter(i => {
+    return i.hash.includes(searchHistory) && (
+      i.to !== null && (
+        i.to.toLowerCase() === networkService.L2LPAddress.toLowerCase() ||
+        i.to.toLowerCase() === networkService.L2_ETH_Address.toLowerCase() ||
+        i.to.toLowerCase() === networkService.L2_TEST_Address.toLowerCase() ||
+        i.to.toLowerCase() === networkService.L2StandardBridgeAddress.toLowerCase()
+      )
+    )
+  })
 
-  const _exitedExits = exitedExits.filter(i => {
-    return i.hash.includes(searchHistory);
-  });
+  const renderExits = _exits.map((i, index) => {
 
-  const renderPending = _pendingExits.map((i, index) => {
-    const exitableMoment = moment.unix(i.exitableAt);
-    const isExitable = moment().isAfter(exitableMoment);
-
-    function getStatus () {
-      if (i.status === 'Confirmed' && i.pendingPercentage >= 100) {
-        return 'In Challenge Period';
+    const metaData = typeof(i.typeTX) === 'undefined' ? '' : i.typeTX
+    
+    let tradExit = false
+    let isExitable = false
+    let midTitle = 'Swapped: ' + moment.unix(i.timeStamp).format('lll')
+    
+    const to = i.to.toLowerCase()
+        
+    //are we dealing with a traditional exit?
+    if(to === networkService.L2StandardBridgeAddress.toLowerCase()) {
+      
+      tradExit = true
+      isExitable = moment().isAfter(moment.unix(i.crossDomainMessageEstimateFinalizedTime))
+      
+      if(isExitable) {
+        midTitle = 'Ready to exit - initiated:' + moment.unix(i.timeStamp).format('lll')
+      } else {
+        const secondsToGo = i.crossDomainMessageEstimateFinalizedTime - Math.round(Date.now() / 1000)
+        const daysToGo = Math.floor(secondsToGo / (3600 * 24))
+        const hoursToGo = Math.round((secondsToGo % (3600 * 24)) / 3600)
+        const time = moment.unix(i.timeStamp).format("mm/DD hh:MM");
+        midTitle = `7 day window started ${time}. ${daysToGo} days and ${hoursToGo} hours remaining`
       }
-      return i.status;
+
     }
 
     return (
       <Transaction
-        key={`pending-${index}`}
-        button={
-          i.exitableAt && isExitable
-            ? {
-              onClick: () => setProcessExitModal(i),
-              text: 'Process Exit'
-            }
-            : undefined
-        }
+        key={`${index}`}
+        chain='L2->L1 Exit'
         link={`${etherscan}/tx/${i.hash}`}
-        status={getStatus()}
-        subStatus={`Block ${i.blockNumber}`}
-        statusPercentage={i.pendingPercentage <= 100 ? i.pendingPercentage : ''}
-        title={truncate(i.hash, 6, 4, '...')}
-        midTitle={i.exitableAt ? `Exitable ${exitableMoment.format('lll')}` : ''}
-        subTitle={i.currency ? truncate(i.currency, 6, 4, '...'): ''}
+        title={truncate(i.hash, 8, 6, '...')}
+        blockNumber={`Block ${i.blockNumber}`}
+        midTitle={midTitle}
+        button={isExitable && tradExit ? {onClick: ()=>setProcessExitModal(i), text: 'Process Exit'}: undefined}
+        typeTX={`${metaData}`}
       />
-    );
-  });
-
-  const renderExited = _exitedExits.map((i, index) => {
-    return (
-      <Transaction
-        key={`exited-${index}`}
-        link={`https://blockexplorer.rinkeby.omgx.network/tx/${i.hash}`}
-        status='Exited'
-        subStatus={`Block ${i.blockNumber}`}
-        title={truncate(i.hash, 6, 4, '...')}
-        midTitle={moment.unix(i.timeStamp).format('lll')}
-      />
-    );
-  });
-
-  const allExits = [ ...renderPending, ...renderExited ];
+    )
+  })
 
   const startingIndex = page === 1 ? 0 : ((page - 1) * PER_PAGE);
   const endingIndex = page * PER_PAGE;
-  const paginatedExits = allExits.slice(startingIndex, endingIndex);
+  const paginatedExits = renderExits.slice(startingIndex, endingIndex);
 
-  let totalNumberOfPages = Math.ceil(allExits.length / PER_PAGE);
+  let totalNumberOfPages = Math.ceil(renderExits.length / PER_PAGE);
 
   //if totalNumberOfPages === 0, set to one so we don't get the strange "Page 1 of 0" display
   if (totalNumberOfPages === 0) totalNumberOfPages = 1;
@@ -110,7 +112,7 @@ function Exits ({ searchHistory }) {
       <ProcessExitsModal
         exitData={processExitModal}
         open={!!processExitModal}
-        toggle={() => setProcessExitModal(false)}
+        toggle={()=>setProcessExitModal(false)}
       />
       <div className={styles.section}>
         <div className={styles.transactionSection}>
@@ -122,10 +124,10 @@ function Exits ({ searchHistory }) {
               onClickNext={() => setPage(page + 1)}
               onClickBack={() => setPage(page - 1)}
             />
-            {!allExits.length && !loading && (
+            {!renderExits.length && !loading && (
               <div className={styles.disclaimer}>Exit history coming soon...</div>
             )}
-            {!allExits.length && loading && (
+            {!renderExits.length && loading && (
               <div className={styles.disclaimer}>Loading...</div>
             )}
             {React.Children.toArray(paginatedExits)}

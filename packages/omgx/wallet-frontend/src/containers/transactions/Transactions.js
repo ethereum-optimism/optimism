@@ -40,8 +40,8 @@ import Deposits from './Deposits';
 
 import * as styles from './Transactions.module.scss';
 
-import { getAllNetworks } from 'util/masterConfig';
-import { selectNetwork } from 'selectors/setupSelector';
+import { getAllNetworks } from 'util/masterConfig'
+import { selectNetwork } from 'selectors/setupSelector'
 
 const PER_PAGE = 8;
 
@@ -88,7 +88,7 @@ function Transactions () {
       return `${network[item.chain].transaction}${item.hash}`;
     }
     return '';
-  };
+  }
 
   return (
     <div className={styles.container}>
@@ -147,7 +147,7 @@ function Transactions () {
                     chain={`${i.chain} Chain`}
                     typeTX={`${metaData}`}
                   />
-                );
+                )
               })}
             </div>
           )}
@@ -172,7 +172,10 @@ function Transactions () {
           />
 
           {activeTab2 === 'Exits' && 
-            <Exits searchHistory={searchHistory} />
+            <Exits 
+              searchHistory={searchHistory}
+              transactions={transactions}  
+            />
           }
 
         </div>

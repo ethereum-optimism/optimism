@@ -118,6 +118,9 @@ class NetworkService {
     this.L1MessengerAddress = null
     this.L2MessengerAddress = '0x4200000000000000000000000000000000000007'
 
+    this.L1Message = null
+    this.L2Message = null
+
     this.tokenAddresses = null
 
     // chain ID
@@ -406,6 +409,9 @@ class NetworkService {
       this.L1LPAddress = addresses.L1LiquidityPool
       this.L2LPAddress = addresses.L2LiquidityPool
 
+      this.L1Message = addresses.L1Message
+      this.L2Message = addresses.L2Message
+
       //backwards compat
       if (addresses.hasOwnProperty('L2ERC721'))
         this.ERC721Address = addresses.L2ERC721
@@ -611,17 +617,17 @@ class NetworkService {
 
         if (to === this.L2LPAddress.toLowerCase()) {
           console.log("L2->L1 Swap Off")
-          return Object.assign({}, item, { typeTX: 'L2->L1 Exit via Fast Offramp' })
+          return Object.assign({}, item, { typeTX: 'Fast Offramp' })
         } 
 
         if (to === this.L1LPAddress.toLowerCase()) {
           console.log("L1->L2 Swap On")
-          return Object.assign({}, item, { typeTX: 'L1->L2 Deposit via Fast Onramp' })
+          return Object.assign({}, item, { typeTX: 'Fast Onramp' })
         } 
 
         if (to === this.L1StandardBridgeAddress.toLowerCase()) {
           console.log("L1->L2 Traditional Deposit")
-          return Object.assign({}, item, { typeTX: 'L1->L2 Traditional Deposit' })
+          return Object.assign({}, item, { typeTX: 'Traditional' })
         } 
 
         if (to === this.L1_TEST_Address.toLowerCase()) {
@@ -629,27 +635,58 @@ class NetworkService {
           return Object.assign({}, item, { typeTX: 'L1 ERC20 Amount Approval' })
         } 
 
-        // if (item.crossDomainMessage) {
-        //   if(to === this.L2LPAddress.toLowerCase()) {
-        //     console.log("Found EXIT: L2LPAddress")
-        //     return Object.assign({}, item, { typeTX: 'EXIT: L2LPAddress' })
-        //   } 
-        //   else if (to === this.L2_TEST_Address.toLowerCase()) {
-        //     console.log("Found EXIT: L2_TEST_Address")
-        //     return Object.assign({}, item, { typeTX: 'EXIT: L2_TEST_Address' })
-        //   } 
-        //   else if (to === this.L2_ETH_Address.toLowerCase()) {
-        //     console.log("Found EXIT: L2_ETH_Address")
-        //     return Object.assign({}, item, { typeTX: 'EXIT: L2_ETH_Address' })
-        //   }
-        // }
+        if (to === this.L2StandardBridgeAddress.toLowerCase()) {
+          //0x4200000000000000000000000000000000000010
+          console.log("L2 Standard Bridge")
+          return Object.assign({}, item, { typeTX: 'L2 Standard Bridge' })
+        } 
 
-        return item
+        if (to === this.L1Message.toLowerCase()) {
+          console.log("L1 Message")
+          return Object.assign({}, item, { typeTX: 'L1 Message' })
+        } 
 
-      })
+        if (to === this.L2Message.toLowerCase()) {
+          console.log("L2 Message")
+          return Object.assign({}, item, { typeTX: 'L2 Message' })
+        } 
 
-    }
+        if (to === this.L2_TEST_Address.toLowerCase()) {
+          console.log("L2 TEST Message")
+          return Object.assign({}, item, { typeTX: 'L2 TEST Token' })
+        } 
+
+        if (to === this.L2_ETH_Address.toLowerCase()) {
+          console.log("L2 ETH Message")
+          return Object.assign({}, item, { typeTX: 'L2 ETH Token' })
+        }
+
+        if (to === this.L2_ETH_Address.toLowerCase()) {
+          console.log("L2 ETH Message")
+          return Object.assign({}, item, { typeTX: 'L2 ETH Token' })
+        } 
+
+        if (item.crossDomainMessage) {
+          if(to === this.L2LPAddress.toLowerCase()) {
+            console.log("Found EXIT: L2LPAddress")
+            return Object.assign({}, item, { typeTX: 'FAST EXIT via L2LP' })
+          } 
+          else if (to === this.L2_TEST_Address.toLowerCase()) {
+            console.log("Found EXIT: L2_TEST_Address")
+            return Object.assign({}, item, { typeTX: 'EXIT (TEST Token)' })
+          } 
+          else if (to === this.L2_ETH_Address.toLowerCase()) {
+            console.log("Found EXIT: L2_ETH_Address")
+            return Object.assign({}, item, { typeTX: 'EXIT ETH' })
+          }
+        }
+
+        return Object.assign({}, item, { typeTX: to })
+
+      }) //map
     
+    } //if rinkeby
+
     return annotatedTX
 
   }

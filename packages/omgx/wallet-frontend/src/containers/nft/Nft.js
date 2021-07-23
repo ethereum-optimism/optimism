@@ -82,7 +82,7 @@ class Nft extends React.Component {
       loading 
     } = this.state;
 
-    console.log("Factories:",factories)
+    //console.log("Factories:",factories)
 
     const numberOfNFTs = Object.keys(list).length
     const numberOfFactories = Object.keys(factories).length
