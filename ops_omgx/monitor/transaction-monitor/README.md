@@ -25,7 +25,7 @@ docker push omg/transaction-monitor:production-v1
 ```
 Set environment variables:
 ```bash
-# Start Transaction Monitor
+# Set environment variables
 source ./.env-docker
 ```
 To run the docker image:
