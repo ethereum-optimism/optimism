@@ -26,6 +26,7 @@ packages/omgx/wallet/wallet/build
 *.swp
 
 .env
+.env-docker
 env.js
 env.yml
 *.log
