@@ -16,6 +16,7 @@ import {
   ContextResponse,
   GasPriceResponse,
   EnqueueResponse,
+  EnqueueInfoResponse,
   StateRootBatchResponse,
   StateRootResponse,
   SyncingResponse,
@@ -81,6 +82,8 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     db: TransportDB
     l1RpcProvider: JsonRpcProvider
     l2RpcProvider: JsonRpcProvider
+    baseBlock: number
+    baseTime: number
   } = {} as any
 
   protected async _init(): Promise<void> {
@@ -98,6 +101,9 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       typeof this.options.l2RpcProvider === 'string'
         ? new JsonRpcProvider(this.options.l2RpcProvider)
         : this.options.l2RpcProvider
+
+    this.state.baseBlock = 0
+    this.state.baseTime = 0
 
     this._initializeApp()
   }
@@ -225,6 +231,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           url: req.url,
           elapsed,
         })
+
         this.logger.debug('Response body', {
           method: req.method,
           url: req.url,
@@ -398,6 +405,52 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         return {
           ...enqueue,
           ctcIndex,
+        }
+      }
+    )
+
+    // Replacement for /enqueue/latest. This version returns a smaller data
+    // structure (removing fields which were ignored by the caller), and
+    // adds information about the highest synced L1 block (replacing a call
+    // to /eth/context/latest which could cause uncorrectable
+    // monotonicity errors)
+    this._registerRoute(
+      'get',
+      '/enqueue/info',
+      async (): Promise<EnqueueInfoResponse> => {
+        const enqueue = await this.state.db.getLatestEnqueue()
+        if (enqueue === null) {
+          return {
+            index: null,
+            blockNumber: null,
+            timestamp: null,
+	    baseBlock: null,
+	    baseTime: null
+          }
+        }
+
+	const l1Synced = await this.state.db.getHighestSyncedL1Block()
+
+	if (this.state.baseBlock !== l1Synced || this.state.baseBlock === 0)
+	{
+	  const block = await await this.state.l1RpcProvider.getBlock(l1Synced)
+
+	  if (l1Synced)
+	  {
+	    this.state.baseBlock = l1Synced
+	    this.state.baseTime = block.timestamp
+	  } else {
+	    this.logger.error("Error querying highestSyncedL1Block timestamp")
+	  }
+	}
+
+        this.logger.debug("/enqueue/info response", { idx: enqueue.index, baseblock: this.state.baseBlock , basetime: this.state.baseTime})
+        return {
+          index: enqueue.index,
+	  blockNumber: enqueue.blockNumber,
+	  timestamp: enqueue.timestamp,
+	  baseBlock: this.state.baseBlock,
+	  baseTime: this.state.baseTime
         }
       }
     )

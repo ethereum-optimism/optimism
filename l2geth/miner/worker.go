@@ -473,7 +473,7 @@ func (w *worker) mainLoop() {
 				}
 				txn := txs[0]
 				height := head.Block.Number().Uint64()
-				log.Debug("Miner got new head", "height", height, "block-hash", head.Block.Hash().Hex(), "tx-hash", txn.Hash().Hex(), "tx-hash", tx.Hash().Hex())
+				log.Debug("Miner got new head", "height", height, "block-hash", head.Block.Hash().Hex(), "txn-hash", txn.Hash().Hex(), "tx-hash", tx.Hash().Hex())
 			} else {
 				log.Debug("Problem committing transaction: %w", err)
 			}

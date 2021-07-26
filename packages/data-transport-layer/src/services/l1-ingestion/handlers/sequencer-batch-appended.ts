@@ -261,7 +261,7 @@ const maybeDecodeSequencerBatchTransaction = (
       gasPrice: BigNumber.from(decodedTx.gasPrice).toString(),
       gasLimit: BigNumber.from(decodedTx.gasLimit).toString(),
       value: toRpcHexString(decodedTx.value),
-      target: toHexString(decodedTx.to), // Maybe null this out for creations?
+      target: decodedTx.to ? toHexString(decodedTx.to):null, // Maybe null this out for creations?
       data: toHexString(decodedTx.data),
       sig: {
         v: parseSignatureVParam(decodedTx.v, l2ChainId),

@@ -10,6 +10,14 @@ export type EnqueueResponse = EnqueueEntry & {
   ctcIndex: number | null
 }
 
+export interface EnqueueInfoResponse {
+  index: number | null
+  blockNumber: number
+  timestamp: number
+  baseBlock: number
+  baseTime: number
+}
+
 export interface TransactionResponse {
   batch: TransactionBatchEntry
   transaction: TransactionEntry
