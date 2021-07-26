@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.6
+
+### Patch Changes
+
+- 8feac092: Make it possible to override mint & burn methods in L2StandardERC20
+- 4736eb2e: Add a task for setting the gas price oracle
+
 ## 0.4.5
 
 ### Patch Changes
