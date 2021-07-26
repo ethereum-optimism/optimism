@@ -34,6 +34,10 @@ COPY packages/batch-submitter/package.json ./packages/batch-submitter/package.js
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
+# Moved from Dockerfile.omgx_monorepo
+COPY packages/omgx/contracts/package.json ./packages/omgx/contracts/package.json
+COPY packages/omgx/message-relayer-fast/package.json ./packages/omgx/message-relayer-fast/package.json
+
 RUN yarn install # --frozen-lockfile
 
 ### BUILDER: Builds the typescript
@@ -47,6 +51,10 @@ WORKDIR /optimism
 COPY --from=builder /optimism/node_modules ./node_modules
 COPY --from=builder /optimism/packages ./packages
 COPY --from=builder /optimism/integration-tests ./integration-tests
+
+# Moved from Dockerfile.omgx_monorepo
+COPY ./patches ./patches
+#COPY ./packages/omgx ./packages/omgx
 
 # the following steps are cheap
 COPY *.json yarn.lock ./

@@ -93,16 +93,16 @@ cd ops
 export COMPOSE_DOCKER_CLI_BUILD=1 # these environment variables significantly speed up build time
 export DOCKER_BUILDKIT=1
 docker-compose build 
-docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml up -V
+docker-compose -f docker-compose.yml up -V
 ```
 
 To build individual OMGX services:
 
 ```bash
-docker-compose -f "docker-compose-omgx-services.yml" build -- omgx_message-relayer-fast
+docker-compose build -- omgx_message-relayer-fast
 ```
 
-**Note: First you will have to comment out various dependencies in the `docker-compose-omgx-services.yml`.**
+**Note: First you will have to comment out various dependencies in the `docker-compose.yml`.**
 
 #### Viewing docker container logs
 

@@ -21,7 +21,7 @@ Helpful commands:
 
 * _Running out of space on your Docker, or having other having hard to debug issues_? Try running `docker system prune -a --volumes` and then rebuild the images. 
 * _To (re)build individual base services_: `docker-compose build -- l2geth` 
-* _To (re)build individual OMGX services_: `docker-compose -f "docker-compose-omgx-services.yml" build -- omgx_message-relayer-fast` Note: First you will have to comment out various dependencies in `docker-compose-omgx-services.yml`.
+* _To (re)build individual OMGX services_: `docker-compose -f "docker-compose.yml" build -- omgx_message-relayer-fast` Note: First you will have to comment out various dependencies in `docker-compose.yml`.
 
 ### Running unit tests
 

@@ -44,7 +44,7 @@ const env = cleanEnv(process.env, {
   ADDRESS_MANAGER: str({
     default: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
   }),
-  L2_CHAINID: num({ default: 420 }),
+  L2_CHAINID: num({ default: 28 }),
   IS_LIVE_NETWORK: bool({ default: false }),
 })
 

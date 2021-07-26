@@ -1,4 +1,4 @@
-FROM ethereumoptimism/builder AS builder
+FROM omgx/builder AS builder
 
 FROM node:14-alpine
 

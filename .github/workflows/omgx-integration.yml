@@ -82,7 +82,7 @@ jobs:
       # just sets up background logs for the system that was just started
       - name: Start background logging
         working-directory: ./ops
-        run: docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml logs --follow &
+        run: docker-compose -f docker-compose.yml logs --follow &
 
       # this test jitters - in any case, later tests will fail if the OMGX_deployer does not come up
       - name: Test serving OMGX contracts
@@ -116,7 +116,7 @@ jobs:
       # ToDo
       # - name: Test the base OMGX contracts
       #   working-directory: ./ops
-      #   run: docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml run omgx_test_contracts
+      #   run: docker-compose -f docker-compose.yml run omgx_test_contracts
 
       - name: Test the message-relayer-fast
         working-directory: ./packages/omgx/message-relayer-fast
@@ -126,7 +126,7 @@ jobs:
       # ToDo
       # - name: Test the message-relayer-fast
       #   working-directory: ./ops
-      #   run: docker-compose -f docker-compose.yml -f docker-compose-omgx-services.yml run omgx_test_relayer
+      #   run: docker-compose -f docker-compose.yml run omgx_test_relayer
 
       # - name: List all built images
       #   if: failure()
