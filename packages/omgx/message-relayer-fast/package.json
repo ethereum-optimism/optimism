@@ -37,6 +37,7 @@
     "@eth-optimism/hardhat-ovm": "^0.0.2",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@openzeppelin/test-helpers": "0.5.4",
     "@types/jest": "^26.0.22",
     "@types/mocha": "^8.2.2",
     "chai": "^4.3.3",
@@ -46,6 +47,7 @@
     "ethers": "^5.1.0",
     "hardhat": "^2.1.2",
     "mocha": "^8.3.1",
+    "node-fetch": "^2.6.1",
     "prettier": "^2.2.1",
     "rimraf": "^3.0.2",
     "shx": "^0.3.3",
@@ -54,23 +56,22 @@
     "tslint-config-prettier": "^1.18.0",
     "tslint-no-focused-test": "^0.5.0",
     "tslint-plugin-prettier": "^2.3.0",
-    "typescript": "^4.2.4",
-    "node-fetch": "^2.6.1"
+    "typescript": "^4.2.4"
   },
   "dependencies": {
-    "@eth-optimism/hardhat-ovm": "^0.0.2",
-    "@eth-optimism/core-utils": "^0.4.2",
     "@eth-optimism/common-ts": "^0.1.0",
+    "@eth-optimism/core-utils": "^0.4.2",
+    "@eth-optimism/hardhat-ovm": "^0.0.2",
+    "@openzeppelin/contracts": "3.4.1",
     "bcfg": "^0.1.6",
+    "chalk": "^4.1.1",
     "dotenv": "^8.2.0",
     "ethers": "^5.1.0",
     "ganache-core": "^2.13.2",
+    "glob": "^7.1.6",
     "google-spreadsheet": "^3.1.15",
     "merkletreejs": "^0.2.18",
-    "rlp": "^2.2.6",
-    "@openzeppelin/contracts": "3.4.1",
-    "chalk": "^4.1.1",
-    "glob": "^7.1.6",
-    "patch-package": "^6.4.7"
+    "patch-package": "^6.4.7",
+    "rlp": "^2.2.6"
   }
 }

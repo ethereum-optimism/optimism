@@ -27,15 +27,15 @@ interface iL1LiquidityPool {
     event ClientDepositL1(
         address sender,
         uint256 receivedAmount,
-        uint256 userRewardFee,
-        uint256 ownerRewardFee,
-        uint256 totalFee,
         address tokenAddress
     );
 
     event ClientPayL1(
         address sender,
         uint256 amount,
+        uint256 userRewardFee,
+        uint256 ownerRewardFee,
+        uint256 totalFee,
         address tokenAddress
     );
 
