@@ -1,0 +1,135 @@
+Macro DeployGov
+    Counter Deploy CNT1
+    Timelock Deploy Jared 604800
+    Comp Deploy Bank
+    Governor Deploy Alpha LegitGov (Address Timelock) (Address Comp) Guardian
+    Timelock SetAdmin (Address LegitGov)
+    Enfranchise Root 400001e18
+    MineBlock
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+    MineBlock
+
+Macro QueueLastProposal
+    --anyone should be able to queue, set time to 100 for predictable eta's
+    SetTime 100
+    From Torrey (Governor LegitGov Proposal LastProposal Queue)
+
+Macro GivenPendingProposal
+    DeployGov
+    MineBlock
+    Governor LegitGov Propose "Add and sub" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256,uint256)" "decrement(uint256)"] [["7" "4"] ["2"]]
+    Assert Equal ("Pending") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenActiveProposal
+    GivenPendingProposal
+    MineBlock
+    MineBlock
+    Assert Equal ("Active") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenSucceededProposal
+    GivenActiveProposal
+    SucceedProposal
+
+Macro SucceedProposal
+    Governor LegitGov Proposal LastProposal Vote For
+    AdvanceBlocks 20000
+    Assert Equal ("Succeeded") (Governor LegitGov Proposal LastProposal State)
+
+Test "Queue simple action"
+    DeployGov
+    Enfranchise Geoff 100
+    Governor LegitGov Propose "Add 5" [(Address CNT1)] [1] ["increment(uint256)"] [["2"]]
+    MineBlock
+    SucceedProposal
+    --anyone should be able to queue
+    From Torrey (Governor LegitGov Proposal LastProposal Queue)
+    Assert True (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 1 (Governor LegitGov Proposal LastProposal Eta) "increment(uint256)" 2))
+    Assert Log ProposalQueued (id 1)
+    Assert Log ProposalQueued (eta (Governor LegitGov Proposal LastProposal Eta))
+    Assert True (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 1 (Governor LegitGov Proposal LastProposal Eta) "increment(uint256)" 2))
+
+Test "Queue 2 actions with multiple params"
+    GivenActiveProposal
+    Governor LegitGov Proposal LastProposal Vote For
+    AdvanceBlocks 20000
+    QueueLastProposal
+    Assert Log ProposalQueued (id 1)
+    Assert Log ProposalQueued (eta (Governor LegitGov Proposal LastProposal Eta))
+    Assert True (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 0 (Governor LegitGov Proposal LastProposal Eta) "increment(uint256,uint256)" 7 4))
+    Assert True (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 0 (Governor LegitGov Proposal LastProposal Eta) "decrement(uint256)" 2))
+
+Test "Revert on repeated proposal items"
+    DeployGov
+    Governor LegitGov Propose "Add 1 and Add 1" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256)" "increment(uint256)"] [["1"] ["1"]]
+    MineBlock
+    SucceedProposal
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert GovernorAlpha::_queueOrRevert: proposal action already queued at eta"
+
+Test "Revert queue when proposal Id is Invalid"
+    DeployGov
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert GovernorAlpha::state: invalid proposal id"
+
+Test "Revert queue when proposal is Pending"
+    DeployGov
+    Governor LegitGov Propose "Add 5" [(Address CNT1)] [1] ["increment(uint256)"] [["2"]]
+    Assert Equal ("Pending") (Governor LegitGov Proposal LastProposal State)
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert GovernorAlpha::queue: proposal can only be queued if it is succeeded"
+
+Test "Revert queue proposal is Active"
+    GivenActiveProposal
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert GovernorAlpha::queue: proposal can only be queued if it is succeeded"
+
+Test "Revert queue when proposal is Defeated"
+    GivenActiveProposal
+    Governor LegitGov Proposal LastProposal Vote Against
+    AdvanceBlocks 20000
+    AllowFailures
+    Assert Equal ("Defeated") (Governor LegitGov Proposal LastProposal State)
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert GovernorAlpha::queue: proposal can only be queued if it is succeeded"
+
+Test "Revert queue when proposal is Queued"
+    GivenSucceededProposal
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Equal ("Queued") (Governor LegitGov Proposal LastProposal State)
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert GovernorAlpha::queue: proposal can only be queued if it is succeeded"
+
+Test "Revert when queuing an already executed proposal"
+    GivenSucceededProposal
+    QueueLastProposal
+    SetTime 604902
+    Governor LegitGov Proposal LastProposal Execute
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert GovernorAlpha::queue: proposal can only be queued if it is succeeded"
+
+Test "Revert when queuing on invalid Timelock"
+    Comp Deploy Bank
+    Enfranchise Root 600001e18
+    Counter Deploy CNT1
+    Governor Deploy Alpha LegitGov (Address Zero) (Address Comp) Guardian
+    Governor LegitGov Propose "Add 5" [(Address CNT1)] [1] ["increment(uint256)"] [["2"]]
+    MineBlock
+    Governor LegitGov Proposal LastProposal Vote For
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Revert "revert"
+
+--TODO:
+
+--Test "Dont queue when cancelled"
+--deploy => propose => cancel
+--Assert revert on queue

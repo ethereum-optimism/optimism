@@ -1,0 +1,52 @@
+
+Macro DeployGov
+    SetBlockNumber 1
+    SetTime 10
+    Counter Deploy CNT1
+    Comp Deploy Bank
+    Enfranchise Root 400001e18
+    Timelock Deploy Jared 604800
+    GovernorBravo Deploy BravoDelegateHarness BravoDelegateHarness
+    GovernorBravo Deploy BravoDelegator Alpha (Address Timelock) (Address Comp) (Address Root) (Address BravoDelegateHarness) 17280 1 100000e18
+    GovernorBravo Alpha MergeABI BravoDelegateHarness
+    GovernorBravo Alpha HarnessInitiate
+    Timelock SetAdmin (Address Alpha)
+    Assert Equal (Timelock Admin) (Address Alpha)
+
+Macro SucceedQueueExecuteLastProposal gov
+    MineBlock
+    GovernorBravo gov Proposal LastProposal Vote For
+    AdvanceBlocks 20000
+    MineBlock
+    Enfranchise Root 600001e18
+    Assert Equal ("Succeeded") (GovernorBravo gov Proposal LastProposal State)
+    GovernorBravo gov Proposal LastProposal Queue
+    Assert Equal ("Queued") (GovernorBravo gov Proposal LastProposal State)
+    IncreaseTime 604905
+    GovernorBravo gov Proposal LastProposal Execute
+    Assert Equal ("Executed") (Governor gov Proposal LastProposal State)
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+
+Test "Governor can switch to a new governor"
+    DeployGov
+    GovernorBravo Deploy BravoDelegate BravoDelegate
+    GovernorBravo Deploy BravoDelegator Bravo (Address Timelock) (Address Comp) (Address Timelock) (Address BravoDelegate) 17280 1 100000e18
+    GovernorBravo Bravo MergeABI BravoDelegate
+    GovernorBravo Alpha Propose "Upgrade Governor" [(Address Timelock) (Address Bravo)] [0 0] ["setPendingAdmin(address)" "_initiate(address)"] [[(Address Bravo)] [(Address Alpha)]]
+    SucceedQueueExecuteLastProposal Alpha
+    Assert Equal (Timelock Admin) (Address Bravo)
+    Assert Equal (Timelock PendingAdmin) (Address Zero)
+    Governor Bravo Propose "Add 2" [(Address CNT1)] [0] ["increment(uint256)"] [["2"]]
+    SucceedQueueExecuteLastProposal Bravo
+    Assert Log ProposalExecuted (id 3)
+    Assert Equal (Counter CNT1 Count) 2
+
+Test "Governor can get new impl"
+    DeployGov
+    GovernorBravo Deploy BravoDelegate BravoDelegate
+    Assert Equal (Address BravoDelegateHarness) (GovernorBravo Alpha Implementation)
+    GovernorBravo Alpha SetImplementation BravoDelegate
+    Assert Equal (Address BravoDelegate) (GovernorBravo Alpha Implementation)

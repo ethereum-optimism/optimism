@@ -1,0 +1,96 @@
+Macro DeployGov
+    SetBlockNumber 1
+    IncreaseTime 100
+    Counter Deploy CNT1
+    Timelock Deploy Jared 604800
+    Comp Deploy Bank
+    Enfranchise Root 200001e18
+    Enfranchise Jared 200000e18
+    Governor Deploy Alpha LegitGov (Address Timelock) (Address Comp) Guardian
+    Timelock SetAdmin (Address LegitGov)
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+
+Macro SucceedProposal
+    MineBlock
+    Governor LegitGov Proposal LastProposal Vote For
+    From Jared (Governor LegitGov Proposal LastProposal Vote For)
+    AdvanceBlocks 20000
+    Assert Equal ("Succeeded") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenSucceededProposal
+    DeployGov
+    Governor LegitGov Propose "Add 2" [(Address CNT1)] [0] ["increment(uint256)"] [["2"]]
+    SucceedProposal
+
+Macro GivenQueuedProposal
+    GivenSucceededProposal
+    Governor LegitGov Proposal LastProposal Queue
+
+Test "Execute a simple queued proposal with value"
+    GivenQueuedProposal
+    Assert Equal ("Queued") (Governor LegitGov Proposal LastProposal State)
+    IncreaseTime 605000
+    Governor LegitGov Proposal LastProposal Execute
+    Assert Equal ("Executed") (Governor LegitGov Proposal LastProposal State)
+    Assert Log ProposalExecuted (id 1)
+    Assert Equal (Counter CNT1 Count) 2
+
+Test "Execute a complex queued proposal with value"
+    DeployGov
+    Governor LegitGov Propose "Add and sub" [(Address CNT1) (Address CNT1)] [1 1] ["increment(uint256,uint256)" "decrement(uint256)"] [["7" "4"] ["2"]]
+    SucceedProposal
+    Governor LegitGov Proposal LastProposal Queue
+    IncreaseTime 604910
+    Assert Equal (Counter CNT1 Count) 0
+    Assert Equal (Counter CNT1 Count2) 0
+    Trx Value 2 (Governor LegitGov Proposal LastProposal Execute)
+    Assert Equal ("Executed") (Governor LegitGov Proposal LastProposal State)
+    Assert Equal (Counter CNT1 Count) 5
+    Assert Equal (Counter CNT1 Count2) 4
+
+Test "Revert when trying to execute a succeeded but unqueued proposal"
+    DeployGov
+    Governor LegitGov Propose "Add 5" [(Address CNT1)] [0] ["increment(uint256)"] [["2"]]
+    SucceedProposal
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Execute
+    Assert Revert "revert GovernorAlpha::execute: proposal can only be executed if it is queued"
+
+Test "Revert when executing a proposal that reverts"
+    DeployGov
+    Governor LegitGov Propose "Add 1 and revert" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256)" "doRevert()"] [["1"] []]
+    SucceedProposal
+    Governor LegitGov Proposal LastProposal Queue
+    IncreaseTime 604905
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Execute
+    Assert Revert "revert Timelock::executeTransaction: Transaction execution reverted."
+
+Test "Revert when executing an expired proposal"
+    GivenQueuedProposal
+    -- eta + grace period (2 weeks) + 1
+    -- 604900 + 1209600 + 1 =
+    IncreaseTime 1814505
+    Assert Equal ("Expired") (Governor LegitGov Proposal LastProposal State)
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Execute
+    Assert Revert "revert GovernorAlpha::execute: proposal can only be executed if it is queued"
+
+Test "Assert execution order"
+    DeployGov
+    Governor LegitGov Propose "Increment and require not zero" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256)" "notZero()"] [["1"] []]
+    SucceedProposal
+    Governor LegitGov Proposal LastProposal Queue
+    IncreaseTime 604905
+    Governor LegitGov Proposal LastProposal Execute
+
+Test "Cannot execute cancelled proposal"
+    GivenQueuedProposal
+    IncreaseTime 604905
+    From Guardian (Governor LegitGov Proposal LastProposal Cancel)
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Execute
+    Assert Revert "revert GovernorAlpha::execute: proposal can only be executed if it is queued"

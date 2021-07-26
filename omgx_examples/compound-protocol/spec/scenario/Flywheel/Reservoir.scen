@@ -1,0 +1,84 @@
+
+Test "Reservoir is initialized correctly"
+    Comp Deploy Admin
+    Block 100 (Reservoir Deploy 5e18 Comp Bank)
+    Assert Equal (Reservoir Dripped) 0
+    Assert Equal (Reservoir DripStart) 100
+    Assert Equal (Reservoir DripRate) 5e18
+    Assert Equal (Reservoir Token) (Comp Address)
+    Assert Equal (Reservoir Target) (Address Bank)
+
+Test "Reservoir properly drips first drip"
+    Comp Deploy Admin
+    Block 100 (Reservoir Deploy 5e18 Comp Bank)
+    Comp Transfer Reservoir 5000e18
+    SetBlockNumber 200
+    Assert Equal (Reservoir Drip) 500e18
+    Assert Equal (Reservoir Dripped) 0
+    Block 200 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 500e18
+    Assert Equal (Comp TokenBalance Bank) 500e18
+    Assert Equal (Comp TokenBalance Reservoir) 4500e18
+
+Test "Reservoir properly drips second drip"
+    Comp Deploy Admin
+    Block 100 (Reservoir Deploy 5e18 Comp Bank)
+    Comp Transfer Reservoir 5000e18
+    Block 200 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 500e18
+    SetBlockNumber 250
+    Assert Equal (Reservoir Drip) 250e18
+    Block 250 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 750e18
+    Assert Equal (Comp TokenBalance Bank) 750e18
+    Assert Equal (Comp TokenBalance Reservoir) 4250e18
+
+Test "Reservoir properly drips zero sequentially"
+    Comp Deploy Admin
+    Block 100 (Reservoir Deploy 5e18 Comp Bank)
+    Comp Transfer Reservoir 5000e18
+    Block 100 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 0
+    Block 200 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 500e18
+    Block 200 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 500e18
+
+Test "Reservoir handles not having enough to drip"
+    Comp Deploy Admin
+    Block 100 (Reservoir Deploy 5e18 Comp Bank)
+    Comp Transfer Reservoir 200e18
+    Block 200 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 200e18
+    Assert Equal (Comp TokenBalance Bank) 200e18
+    Assert Equal (Comp TokenBalance Reservoir) 0
+    Block 200 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 200e18
+    Assert Equal (Comp TokenBalance Bank) 200e18
+    Assert Equal (Comp TokenBalance Reservoir) 0
+    Comp Transfer Reservoir 4800e18
+    Block 200 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 500e18
+    Assert Equal (Comp TokenBalance Bank) 500e18
+    Assert Equal (Comp TokenBalance Reservoir) 4500e18
+    Block 250 (Reservoir Drip)
+    Assert Equal (Reservoir Dripped) 750e18
+    Assert Equal (Comp TokenBalance Bank) 750e18
+    Assert Equal (Comp TokenBalance Reservoir) 4250e18
+
+Test "Revert on dripTotal overflow"
+    Comp Deploy Admin
+    Block 100 (Reservoir Deploy UInt256Max Comp Bank)
+    AllowFailures
+    Block 200 (Reservoir Drip)
+    Assert Revert "revert dripTotal overflow"
+
+Test "Revert on deltaDrip underflow - reverses block!"
+    Comp Deploy Admin
+    Block 100 (Reservoir Deploy 5e18 Comp Bank)
+    Comp Transfer Reservoir 5000e18
+    Assert Equal (Reservoir DripStart) 100
+    Block 200 (Reservoir Drip)
+    AllowFailures
+    Block 100 (Reservoir Drip) -- Going back in time!
+    Assert Revert "revert deltaDrip underflow"

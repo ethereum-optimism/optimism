@@ -1,0 +1,300 @@
+
+Test "Check Name"
+    Comp Deploy Geoff
+    Assert Equal (Comp Name) "Compound"
+
+Test "Check Symbol"
+    Comp Deploy Geoff
+    Assert Equal (Comp Symbol) "COMP"
+
+Test "Check Decimals"
+    Comp Deploy Geoff
+    Assert Equal (Comp Decimals) 18
+
+Test "Check Total Supply"
+    Comp Deploy Geoff
+    Assert Equal (Comp TotalSupply) 10000000e18
+
+Test "Check account receives Total Supply after deploy and emits Transfer event"
+    Comp Deploy Geoff
+    Assert Equal (Comp TokenBalance Geoff) 10000000e18
+    Assert Log Transfer (from (Address Zero)) (to (Address Geoff)) (amount "10000000000000000000000000")
+
+Test "Check approve sets correct approval and emits Approval event"
+    Comp Deploy Geoff
+    From Geoff (Comp Approve Jared 10)
+    Assert Equal (Comp Allowance Geoff Jared) 10
+    Assert Log Approval (owner (Address Geoff)) (spender (Address Jared)) (amount "10")
+
+Test "Check approve with bad allowance reverts"
+    Comp Deploy Geoff
+    AllowFailures
+    From Geoff (Comp Approve Jared 1e70)
+    Assert Revert "revert Comp::approve: amount exceeds 96 bits"
+
+Test "Check transfer updates balances correctly, emits Transfer event, and returns true"
+    Comp Deploy Geoff
+    From Geoff (Comp Transfer Jared 10)
+    Assert Equal (Comp TokenBalance Geoff) 9999999999999999999999990
+    Assert Equal (Comp TokenBalance Jared) 10
+    Assert Log Transfer (from (Address Geoff)) (to (Address Jared)) (amount "10")
+
+Test "Check self-transfer updates balances correctly, emits Transfer event, and returns true"
+    Comp Deploy Geoff
+    Expect Changes (Comp VotesLength Geoff) Zero
+    Expect Changes (Comp TokenBalance Geoff) Zero
+    From Geoff (Comp Transfer Geoff 10)
+    Assert Log Transfer (from (Address Geoff)) (to (Address Geoff)) (amount "10")
+    Expect Changes (Comp VotesLength Geoff) Zero
+    Expect Changes (Comp TokenBalance Geoff) Zero
+    From Geoff (Comp Transfer Geoff 0)
+    Assert Log Transfer (from (Address Geoff)) (to (Address Geoff)) (amount "0")
+
+Test "Check transferFrom with unlimited allowance updates balances correctly, emits Transfer event, and returns true"
+    Comp Deploy Geoff
+    From Geoff (Comp Approve Jared UInt256Max)
+    From Jared (Comp TransferFrom Geoff Jared 10)
+    Assert Equal (Comp TokenBalance Geoff) 9999999999999999999999990
+    Assert Equal (Comp TokenBalance Jared) 10
+    Assert Equal (Comp Allowance Geoff Jared) UInt96Max
+    Assert Log Transfer (from (Address Geoff)) (to (Address Jared)) (amount "10")
+
+Test "Check transferFrom with unlimited allowance updates balances correctly, emits Transfer event, and returns true"
+    Comp Deploy Geoff
+    From Geoff (Comp Approve Jared UInt96Max)
+    From Jared (Comp TransferFrom Geoff Jared 10)
+    Assert Equal (Comp TokenBalance Geoff) 9999999999999999999999990
+    Assert Equal (Comp TokenBalance Jared) 10
+    Assert Equal (Comp Allowance Geoff Jared) UInt96Max
+    Assert Log Transfer (from (Address Geoff)) (to (Address Jared)) (amount "10")
+
+Test "Check transferFrom with allowance updates balances correctly, emits Transfer event, and returns true"
+    Comp Deploy Geoff
+    From Geoff (Comp Approve Jared 10)
+    From Jared (Comp TransferFrom Geoff Jared 9)
+    Assert Equal (Comp TokenBalance Geoff) 9999999999999999999999991
+    Assert Equal (Comp TokenBalance Jared) 9
+    Assert Equal (Comp Allowance Geoff Jared) 1
+    Assert Log Transfer (from (Address Geoff)) (to (Address Jared)) (amount "9")
+    Assert Log Approval (owner (Address Geoff)) (spender (Address Jared)) (amount "1")
+
+Test "Check transferFrom reverts with not sufficient allowance"
+    Comp Deploy Geoff
+    From Geoff (Comp Approve Jared 10)
+    AllowFailures
+    From Jared (Comp TransferFrom Geoff Jared 11)
+    Assert Revert "revert Comp::transferFrom: transfer amount exceeds spender allowance"
+
+Test "Check transfer reverts when transferring too much"
+    Comp Deploy Geoff
+    AllowFailures
+    From Geoff (Comp Transfer Jared 10000001e18)
+    Assert Revert "revert Comp::_transferTokens: transfer amount exceeds balance"
+
+Test "Check transfer reverts when transferring to address 0"
+    Comp Deploy Geoff
+    AllowFailures
+    From Geoff (Comp Transfer (Address Zero) 10000000e18)
+    Assert Revert "revert Comp::_transferTokens: cannot transfer to the zero address"
+
+Test "Delegate with zero balance doesn't change votes checkpoints"
+    Comp Deploy Geoff
+    Assert Equal (Comp VotesLength Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 0
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+
+Test "Delegate from address(0) to account with zero checkpoints"
+    Comp Deploy Geoff
+    From Geoff (Comp Transfer Jared 10)
+    Assert Equal (Comp VotesLength Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Equal (Comp VotesLength Zero) 0
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+
+Test "Delegate from address(0) to account with existing checkpoints"
+    Comp Deploy Geoff
+    From Geoff (Comp Transfer Jared 10)
+    From Geoff (Comp Transfer Torrey 14)
+    Assert Equal (Comp VotesLength Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+    From Torrey (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 2
+    Assert Equal (Comp GetCurrentVotes Geoff) 24
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Equal (Comp VotesLength Zero) 0
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "24")
+
+Test "Delegate to address(0)"
+    Comp Deploy Geoff
+    From Geoff (Comp Transfer Jared 10)
+    From Geoff (Comp Transfer Torrey 14)
+    Assert Equal (Comp VotesLength Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+    From Torrey (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 2
+    Assert Equal (Comp GetCurrentVotes Geoff) 24
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "24")
+    From Torrey (Comp Delegate Zero)
+    Assert Equal (Comp VotesLength Geoff) 3
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Geoff)) (toDelegate (Address Zero))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "24") (newBalance "10")
+    Assert Equal (Comp VotesLength Zero) 0
+
+Test "Delegate from one account to another account with zero checkpoints"
+    Comp Deploy Geoff
+    From Geoff (Comp Transfer Jared 10)
+    From Geoff (Comp Transfer Torrey 14)
+    Assert Equal (Comp VotesLength Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+    From Torrey (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 2
+    Assert Equal (Comp GetCurrentVotes Geoff) 24
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Equal (Comp VotesLength Coburn) 0
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "24")
+    From Torrey (Comp Delegate Coburn)
+    Assert Equal (Comp VotesLength Coburn) 1
+    Assert Equal (Comp GetCurrentVotes Coburn) 14
+    Assert Equal (Comp GetCurrentVotesBlock Coburn) LastBlock
+    Assert Equal (Comp VotesLength Geoff) 3
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Geoff)) (toDelegate (Address Coburn))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "24") (newBalance "10")
+    Assert Log DelegateVotesChanged (delegate (Address Coburn)) (previousBalance "0") (newBalance "14")
+
+Test "Delegate from one account to another account with multiple checkpoints"
+    Comp Deploy Geoff
+    From Geoff (Comp Transfer Jared 10)
+    From Geoff (Comp Transfer Torrey 14)
+    From Geoff (Comp Transfer Coburn 2)
+    Assert Equal (Comp VotesLength Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+    From Torrey (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 2
+    Assert Equal (Comp GetCurrentVotes Geoff) 24
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Equal (Comp VotesLength Coburn) 0
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "24")
+    From Coburn (Comp Delegate Coburn)
+    Assert Equal (Comp VotesLength Coburn) 1
+    Assert Equal (Comp GetCurrentVotes Coburn) 2
+    Assert Equal (Comp GetCurrentVotesBlock Coburn) LastBlock
+    Assert Log DelegateChanged (delegator (Address Coburn)) (fromDelegate (Address Zero)) (toDelegate (Address Coburn))
+    Assert Log DelegateVotesChanged (delegate (Address Coburn)) (previousBalance "0") (newBalance "2")
+    From Torrey (Comp Delegate Coburn)
+    Assert Equal (Comp VotesLength Coburn) 2
+    Assert Equal (Comp GetCurrentVotes Coburn) 16
+    Assert Equal (Comp GetCurrentVotesBlock Coburn) LastBlock
+    Assert Equal (Comp VotesLength Geoff) 3
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Geoff)) (toDelegate (Address Coburn))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "24") (newBalance "10")
+    Assert Log DelegateVotesChanged (delegate (Address Coburn)) (previousBalance "2") (newBalance "16")
+
+Test "Vote checkpoints don't change on transfer when to and from accounts delegate to same account"
+    Comp Deploy Geoff
+    From Geoff (Comp Transfer Jared 10)
+    From Geoff (Comp Transfer Torrey 14)
+    Assert Equal (Comp VotesLength Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+    From Torrey (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 2
+    Assert Equal (Comp GetCurrentVotes Geoff) 24
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "24")
+    Invariant Static (Comp VotesLength Geoff)
+    Invariant Static (Comp GetCurrentVotes Geoff)
+    Invariant Static (Comp GetCurrentVotesBlock Geoff)
+    From Torrey (Comp Transfer Jared 14)
+
+Test "Only one checkpoint is added per block for multiple increased balance updates"
+    Comp Deploy Scenario Geoff
+    Assert Equal (Comp VotesLength Geoff) 0
+    Assert Equal (Comp GetCurrentVotes Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    From Torrey (Comp Delegate Geoff)
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    From Geoff (Comp TransferScenario (Jared Torrey) 10)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 20
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Equal (Comp VotesLength Zero) 0
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "20")
+
+Test "Only one checkpoint is added per block for multiple decreased balance updates"
+    Comp Deploy Scenario Geoff
+    From Geoff (Comp Transfer Jared 10)
+    From Geoff (Comp Transfer Torrey 10)
+    Assert Equal (Comp VotesLength Geoff) 0
+    Assert Equal (Comp GetCurrentVotes Geoff) 0
+    From Jared (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 1
+    Assert Equal (Comp GetCurrentVotes Geoff) 10
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Jared)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "0") (newBalance "10")
+    From Torrey (Comp Delegate Geoff)
+    Assert Equal (Comp VotesLength Geoff) 2
+    Assert Equal (Comp GetCurrentVotes Geoff) 20
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Log DelegateChanged (delegator (Address Torrey)) (fromDelegate (Address Zero)) (toDelegate (Address Geoff))
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "20")
+    From Jared (Comp Approve Geoff 10)
+    From Torrey (Comp Approve Geoff 10)
+    From Geoff (Comp TransferFromScenario (Jared Torrey) 10)
+    Assert Equal (Comp VotesLength Geoff) 3
+    Assert Equal (Comp GetCurrentVotes Geoff) 0
+    Assert Equal (Comp GetCurrentVotesBlock Geoff) LastBlock
+    Assert Equal (Comp VotesLength Zero) 0
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "20") (newBalance "10")
+    Assert Log DelegateVotesChanged (delegate (Address Geoff)) (previousBalance "10") (newBalance "0")
+
+Test "Check transfer reverts when block number exceeds 32 bits"
+    Comp Deploy Geoff
+    From Jared (Comp Delegate Geoff)
+    AllowFailures
+    SetBlockNumber 5000000000
+    From Geoff (Comp Transfer Jared 10000000e18)
+    Assert Revert "revert Comp::_writeCheckpoint: block number exceeds 32 bits"

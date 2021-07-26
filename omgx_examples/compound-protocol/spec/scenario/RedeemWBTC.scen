@@ -1,0 +1,226 @@
+-- Redeem Tests
+
+Test "Mint WBTC then Redeem All"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check current affairs
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 20e8
+    -- Any other good invariants?
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    Redeem Geoff 500e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) Zero
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 70e8
+
+Test "Mint WBTC, Enter and then Redeem All"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check current affairs
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 20e8
+    -- Any other good invariants?
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    EnterMarkets Geoff cWBTC
+    Redeem Geoff 500e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) Zero
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 70e8
+
+Test "Mint WBTC then Redeem Part"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check current affairs
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 20e8
+    -- Any other good invariants?
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    Redeem Geoff 250e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 250e8
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 45e8
+
+Test "Mint WBTC then Redeem Too Much"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check and hold static
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    Invariant Remains (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Invariant Remains (Erc20 WBTC TokenBalance Geoff) 20e8
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    AllowFailures
+    Redeem Geoff 501e8 cWBTC
+    Assert Failure MATH_ERROR REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED "3"
+
+Test "Mint WBTC then Redeem Zero"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check current affairs
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 20e8
+    -- Any other good invariants?
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    Redeem Geoff 0e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 20e8
+
+Test "Mint WBTC then redeem with interest - no reserves"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Invariant Remains (CToken cWBTC Reserves) Zero
+    Prep Geoff 50e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 50e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.1
+    -- Get some brah to borrow then repay
+    BorrowAndRepayWithInterest WBTC cWBTC 10e8 5e8 interestRate:0.000001 blocks:500000
+    -- We've accrued .001% interest for 500000 blocks, or 50% of the principal,
+    --   thus, we should have accrued 5e8 of interest for the protocol
+    --   This is due pro-rata to all suppliers, but we just have one, so
+    --   let's check that account is given correct new balance.
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 55e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.11
+    -- Now redeem all with interest
+    Redeem Geoff 500e8 cWBTC
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 55e8
+    Assert Equal (Erc20 WBTC TokenBalance cWBTC) 0e8
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 0e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 0e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.1
+
+Test "Mint WBTC then redeem part with interest - no reserves"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Invariant Remains (CToken cWBTC Reserves) Zero
+    Prep Geoff 50e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 50e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.1
+    -- Get some brah to borrow then repay
+    BorrowAndRepayWithInterest WBTC cWBTC 10e8 5e8 interestRate:0.000001 blocks:500000
+    -- We've accrued .001% interest for 500000 blocks, or 50% of the principal,
+    --   thus, we should have accrued 5e8 of interest for the protocol
+    --   This is due pro-rata to all suppliers, but we just have one, so
+    --   let's check that account is given correct new balance.
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 55e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.11
+    -- Now redeem all with interest
+    Redeem Geoff 499e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 1e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 0.11e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.11
+
+Test "Mint WBTC then redeem with reserves and interest"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 50e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 50e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.1
+    -- Get some brah to borrow then repay
+    BorrowAndRepayWithInterest WBTC cWBTC 10e8 5e8 interestRate:0.000001 blocks:500000 reserveRate:0.2
+    -- We've accrued .001% interest for 500000 blocks, or 50% of the principal,
+    --   thus, we should have accrued 5e8 of interest for the protocol
+    --   The reserves should get 20% of this, or 1e8, and the rest
+    --   is due pro-rata to all suppliers. We just have one, so
+    --   let's check that account is given correct new balance.
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Assert Equal (CToken cWBTC Reserves) 1e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 54e8
+    -- 55e8 + 0e8 - 1e8 / 500
+    Assert Equal (CToken cWBTC ExchangeRate) 0.108
+    -- Now redeem all with interest
+    Redeem Geoff 500e8 cWBTC
+    Assert Equal (Erc20 WBTC TokenBalance Geoff) 54e8
+    Assert Equal (Erc20 WBTC TokenBalance cWBTC) 1e8
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 0e8
+    Assert Equal (CToken cWBTC Reserves) 1e8
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) 0e8
+    Assert Equal (CToken cWBTC ExchangeRate) 0.1
+
+Test "Two users Mint WBTC, one redeems"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff Some WBTC cWBTC
+    Prep Torrey Some WBTC cWBTC
+    Mint Geoff 2e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 20e8
+    Assert Equal (Erc20 cWBTC TotalSupply) 20e8
+    Mint Torrey 2e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 20e8
+    Assert Equal (Erc20 cWBTC TokenBalance Torrey) 20e8
+    Assert Equal (Erc20 cWBTC TotalSupply) 40e8
+    Redeem Torrey 10e8 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) 20e8
+    Assert Equal (Erc20 cWBTC TokenBalance Torrey) 10e8
+    Assert Equal (Erc20 cWBTC TotalSupply) 30e8
+
+Test "Redeem WBTC transfer out fails"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check current affairs
+    Invariant Remains (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Invariant Remains (Erc20 WBTC TokenBalance Geoff) 20e8
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    Erc20 WBTC Pause
+    AllowFailures
+    Redeem Geoff 500e8 cWBTC
+    Assert Revert
+
+Test "Mint WBTC, Enter, then Redeem Too Much (collateral factor: 0)"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check and hold static
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    Invariant Remains (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Invariant Remains (Erc20 WBTC TokenBalance Geoff) 20e8
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    EnterMarkets Geoff cWBTC
+    AllowFailures
+    Redeem Geoff 501e8 cWBTC
+    Assert Failure MATH_ERROR REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED "3"
+
+Test "Mint WBTC, Enter, then Redeem Too Much (collateral factor: 0.1)"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Comptroller SetCollateralFactor cWBTC 0.1
+    Prep Geoff 70e8 WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Check and hold static
+    Invariant Static (CToken cWBTC ExchangeRateStored)
+    Invariant Remains (Erc20 cWBTC TokenBalance Geoff) 500e8
+    Invariant Remains (Erc20 WBTC TokenBalance Geoff) 20e8
+    -- Now redeem after some time
+    FastForward 2 Blocks
+    EnterMarkets Geoff cWBTC
+    AllowFailures
+    Redeem Geoff 501e8 cWBTC
+    Assert Failure COMPTROLLER_REJECTION REDEEM_COMPTROLLER_REJECTION INSUFFICIENT_LIQUIDITY

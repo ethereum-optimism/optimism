@@ -1,0 +1,30 @@
+#!/usr/bin/env yarn repl -s
+
+PrintTransactionLogs
+Alias CompHolder "0x19bc62ff7cd9ffd6bdced9802ff718f09f7259f1"
+Web3Fork "https://mainnet-eth.compound.finance/@10796407" (CompHolder)
+UseConfigs mainnet
+
+-- Deploy new interest rate model
+InterestRateModel Deploy LegacyJumpRateModelV2 MyInterestRateModel 0 0.04 1.09 0.8 (Address Timelock)
+
+-- Propose to apply the patch
+
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "Update cUSDC interest rate model" [(Address cUSDC)] [0] ["_setInterestRateModel(address)"] [[(Address MyInterestRateModel)]])
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+
+Assert Equal (Address (CToken cUSDC InterestRateModel)) (Address MyInterestRateModel)
+CToken cUSDC AccrueInterest
+
+
+Print "cUSDC interest rate model upgrade ok" 

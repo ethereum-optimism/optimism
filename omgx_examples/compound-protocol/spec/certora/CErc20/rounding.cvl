@@ -1,0 +1,29 @@
+
+rule redeemRounding(uint256 redeemTokensIn, uint256 redeemAmountIn)
+description "Redeemer can withdraw tokens for free" {
+    env e0;
+    env e1;
+    require e1.block.number >= e0.block.number;
+
+    uint256 exchangeRate = sinvoke exchangeRateStored(e0);
+    require exchangeRate > 0;
+    uint256 redeemTokens = redeemAmountIn / exchangeRate / 1000000000000000000;
+    uint256 redeemAmount = redeemTokensIn * exchangeRate / 1000000000000000000;
+    bool tokensTruncated = redeemAmountIn > 0 && redeemTokens == 0;
+    bool amountTruncated = redeemTokensIn > 0 && redeemAmount == 0;
+
+    address redeemer = e0.msg.sender;
+
+    uint256 preTokens = sinvoke balanceOf(e0, redeemer);
+    uint256 preCash = sinvoke getCash(e0);
+
+    uint256 error = sinvoke redeemFreshPub(e0, redeemer, redeemTokensIn, redeemAmountIn);
+    bool redeemReverted = lastReverted;
+    bool redeemSucceeded = !redeemReverted && error == 0;
+
+    uint256 postTokens = sinvoke balanceOf(e1, redeemer);
+    uint256 postCash = sinvoke getCash(e1);
+
+    assert (redeemSucceeded => (!tokensTruncated <=> (postCash < preCash => postTokens < preTokens))), "Cash decreased but redeemer tokens did not";
+    assert (redeemSucceeded => (!amountTruncated <=> (postTokens < preTokens => postCash < preCash))), "Redeemer tokens decreased but cash did not";
+}

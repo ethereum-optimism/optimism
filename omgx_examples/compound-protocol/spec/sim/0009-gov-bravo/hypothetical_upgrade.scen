@@ -1,0 +1,43 @@
+#!/usr/bin/env yarn repl -s
+
+PrintTransactionLogs
+
+Alias Arr00 "0x2B384212EDc04Ae8bB41738D05BA20E33277bf33"
+Alias CompHolder "0xC89b6f0146642688bb254bF93C28fcCF1E182C81"
+
+Web3Fork "https://mainnet-eth.compound.finance/@11635311" (CompHolder)
+UseConfigs mainnet
+
+GovernorBravo Deploy BravoDelegate BravoDelegate2
+GovernorBravo Deploy BravoDelegator BravoDelegator2 (Address Timelock) (Address Comp) (Address Timelock) (Address BravoDelegate2) 17280 1 100000e18
+
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "Governor Bravo" [(Address Timelock) (Address BravoDelegator2)] [0 0] ["setPendingAdmin(address)" "_initiate(address)"] [[(Address BravoDelegator2)] [(Address GovernorAlpha)]])
+
+-- Vote for, queue, and execute the proposal
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+GovernorBravo BravoDelegator2 MergeABI BravoDelegate2
+
+From CompHolder (GovernorBravo BravoDelegator2 Propose "Grant Comp" [(Address Comptroller)] [0] ["_grantComp(address,uint256)"] [[(Address Arr00) 2]])
+
+-- Vote for, queue, and execute the proposal
+MineBlock
+From CompHolder (GovernorBravo BravoDelegator2 Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+GovernorBravo BravoDelegator2 Proposal LastProposal Queue
+IncreaseTime 604910
+GovernorBravo BravoDelegator2 Proposal LastProposal Execute
+
+Assert Equal (50000000000000002) (Erc20 Comp TokenBalance (Address Arr00))
+
+-- Continuous proposal id count
+Assert Equal (GovernorBravo BravoDelegator2 Proposal LastProposal Id) 37
+
+
+Print "Migration to GovernorBravo Ok!"
+

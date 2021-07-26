@@ -1,0 +1,26 @@
+repayBehalf(uint256 repayAmount, address borrower)
+description "Break repayBehalf" {
+    env e0;
+    env e1;
+    env e2;
+
+    require e1.block.number == e0.block.number;
+    require e2.block.number == e1.block.number;
+
+    require e0.msg.value == 0;
+    uint256 borrowed = sinvoke borrowBalance(e0, borrower);
+
+    require repayAmount == e1.msg.value;
+    invoke repayBehalf(e1, borrower);
+    bool repayReverted = lastReverted;
+
+    require e2.msg.value == 0;
+    uint256 borrows = sinvoke borrowBalance(e2, borrower);
+    uint256 balance = sinvoke etherBalance(e2, e1.msg.sender);
+
+    assert (!repayReverted =>
+            ((repayAmount >= borrowed) => (balance >= repayAmount - borrowed))), "Mismatch in refund";
+    assert (!repayReverted =>
+            ((repayAmount >= borrowed) => (borrows == 0)) &&
+            ((repayAmount < borrowed) => (borrows == borrowed - repayAmount))), "Mismatch in borrows repaid";
+}

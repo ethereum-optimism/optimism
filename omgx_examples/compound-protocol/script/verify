@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -eo pipefail
+set -x
+
+cd `dirname $0`/..
+
+command -v java >/dev/null 2>&1 || { echo "Error: java is not installed." >&2; exit 1; }
+command -v z3 >/dev/null 2>&1 || { echo "Error: z3 is not installed." >&2; exit 1; }
+
+function verify_spec {
+    [ -e "$1" ] || (echo "spec file not found: $1" && exit 1)
+    make -B "$1"
+}
+
+if [ "$CI" ]; then
+    all_specs=($(echo "" | circleci tests split --split-by=timings))
+elif [[ $# -eq 0 ]] ; then
+    all_specs=(spec/certora/{Comp,Governor}/*.cvl)
+else
+    all_specs=($@)
+fi
+
+echo "running specs ${all_specs[@]}"
+
+for spec in "${all_specs[@]}"; do
+    verify_spec "$spec"
+done

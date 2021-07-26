@@ -1,0 +1,133 @@
+Test "Add all reserves and verify effects"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Prep Geoff 50e18 ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 500e8) -- 50e18 / 1e9
+    Assert Equal (CToken cZRX UnderlyingBalance Geoff) (Exactly 50e18)
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1e9)
+    -- Get some brah to borrow then repay
+    BorrowAndRepayWithInterest ZRX cZRX 10e18 5e18 interestRate:0.000001 blocks:500000 reserveRate:0.2
+    -- We've accrued .0001% interest for 500000 blocks, or 50% of the principal (10e18),
+    --   thus, we should have accrued 5e18 of interest for the protocol
+    --   The reserves should get 20% of this, or 1e18, and the rest
+    --   is due pro-rata to all suppliers. We just have one, so
+    --   let's check that account is given correct new balance.
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 55e18)
+    Assert Equal (Erc20 ZRX TokenBalance Root) (Exactly 0e18)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 500e8)
+    Assert Equal (CToken cZRX Reserves) (Exactly 1e18)
+    Assert Equal (CToken cZRX UnderlyingBalance Geoff) (Exactly 54e18)
+    -- (55.0e18+0.0e18-1.0e18)/500.0e8
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1.08e9)
+    -- Now, let's pull out add some our reserves (1e18)
+    Erc20 ZRX Faucet Root 3e18
+    From Root (Erc20 ZRX Approve cZRX 6e18)
+    AddReserves 1e18 cZRX
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 56e18)
+    Assert Equal (Erc20 ZRX TokenBalance Root) (Exactly 2e18)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 500e8)
+    Assert Equal (CToken cZRX Reserves) (Exactly 2e18)
+    Assert Equal (CToken cZRX UnderlyingBalance Geoff) (Exactly 54e18)
+    -- (54.0e18+0.0e18-0.0e18)/500.0e8
+    -- unchanged
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1.08e9)
+
+Test "Remove and re add reserves and remove again"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Prep Geoff 50e18 ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 500e8)
+    Assert Equal (CToken cZRX UnderlyingBalance Geoff) (Exactly 50e18)
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1e9)
+    -- Get some brah to borrow then repay
+    BorrowAndRepayWithInterest ZRX cZRX 10e18 5e18 interestRate:0.000001 blocks:500000 reserveRate:0.2
+    -- We've accrued .0001% interest for 500000 blocks, or 50% of the principal (10e18),
+    --   thus, we should have accrued 5e18 of interest for the protocol
+    --   The reserves should get 20% of this, or 1e18, and the rest
+    --   is due pro-rata to all suppliers. We just have one, so
+    --   let's check that account is given correct new balance.
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 55e18)
+    Assert Equal (Erc20 ZRX TokenBalance Root) (Exactly 0e18)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 500e8)
+    Assert Equal (CToken cZRX Reserves) (Exactly 1e18)
+    Assert Equal (CToken cZRX UnderlyingBalance Geoff) (Exactly 54e18)
+    -- (55.0e18+0.0e18-1.0e18)/500.0e8
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1.08e9)
+    -- Now, let's pull out half of reserves (0.5e18)
+    ReduceReserves 0.5e18 cZRX
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 54.5e18)
+    Assert Equal (Erc20 ZRX TokenBalance Root) (Exactly 0.5e18)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 500e8)
+    Assert Equal (CToken cZRX Reserves) (Exactly 0.5e18)
+    Assert Equal (CToken cZRX UnderlyingBalance Geoff) (Exactly 54e18)
+    -- (54.5e18+0.5e18-0.0e18)/500.0e8
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1.08e9)
+    -- Now, let's put back reserves (1e18)
+    From Root (Erc20 ZRX Approve cZRX 6e18)
+    AddReserves 0.5e18 cZRX
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 55e18)
+    Assert Equal (Erc20 ZRX TokenBalance Root) (Exactly 0e18)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 500e8)
+    Assert Equal (CToken cZRX Reserves) (Exactly 1e18)
+    Assert Equal (CToken cZRX UnderlyingBalance Geoff) (Exactly 54e18)
+    -- (54.5e18+0.5e18-0.0e18)/500.0e8
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1.08e9)
+
+Test "add reserves to empty contract"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1e9)
+    Erc20 ZRX Faucet Root 3e18
+    From Root (Erc20 ZRX Approve cZRX 6e18)
+    AddReserves 2e18 cZRX
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 2e18)
+    Assert Equal (Erc20 ZRX TokenBalance Root) (Exactly 1e18)
+    Assert Equal (CToken cZRX Reserves) (Exactly 2e18)
+    -- unchanged
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1e9)
+
+Test "add reserves failures"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1e9)
+    Assert Equal (CToken cZRX Reserves) (Exactly 0e18)
+    Erc20 ZRX Faucet Root 2e18
+    AllowFailures
+    AddReserves 2e18 cZRX
+    Assert Revert "revert Insufficient allowance"
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 0e18)
+    Assert Equal (Erc20 ZRX TokenBalance Root) (Exactly 2e18)
+    Assert Equal (CToken cZRX Reserves) (Exactly 0e18)
+    -- unchanged
+    Assert Equal (CToken cZRX ExchangeRate) (Exactly 1e9)
+
+Test "Add reserves WBTC when paused"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:1e9 tokenType:WBTC
+    Prep Geoff 50e18 WBTC cWBTC
+    Mint Geoff 50e18 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) (Exactly 500e8)
+    Assert Equal (CToken cWBTC UnderlyingBalance Geoff) (Exactly 50e18)
+    Assert Equal (CToken cWBTC ExchangeRate) (Exactly 1e9)
+    -- Get some brah to borrow then repay
+    BorrowAndRepayWithInterest WBTC cWBTC 10e18 5e18 interestRate:0.000001 blocks:500000 reserveRate:0.2
+    -- We've accrued .0001% interest for 500000 blocks, or 50% of the principal (10e18),
+    --   thus, we should have accrued 5e18 of interest for the protocol
+    --   The reserves should get 20% of this, or 1e18, and the rest
+    --   is due pro-rata to all suppliers. We just have one, so
+    --   let's check that account is given correct new balance.
+    Erc20 WBTC Faucet Root 3e18
+    Invariant Remains (Erc20 WBTC TokenBalance cWBTC) (Exactly 55e18)
+    Invariant Remains (Erc20 WBTC TokenBalance Root) (Exactly 3e18)
+    Invariant Remains (Erc20 cWBTC TokenBalance Geoff) (Exactly 500e8)
+    Invariant Remains (CToken cWBTC Reserves) (Exactly 1e18)
+    Invariant Remains (CToken cWBTC UnderlyingBalance Geoff) (Exactly 54e18)
+    -- (55.0e18+0.0e18-1.0e18)/500.0e8
+    Invariant Remains (CToken cWBTC ExchangeRate) (Exactly 1.08e9)
+    From Root (Erc20 WBTC Approve cWBTC 6e18)
+    Erc20 WBTC Pause
+    AllowFailures
+    AddReserves 1e18 cWBTC
+    Assert Revert

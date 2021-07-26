@@ -1,0 +1,31 @@
+#!/bin/bash
+
+set -eo pipefail
+
+dir=`dirname $0`
+proj_root="$dir/.."
+test_root="$dir/../tests"
+contracts_root="$dir/../contracts"
+coverage_root="$dir/../coverage"
+network=${NETWORK:-test}
+verbose=${verbose:-}
+
+# Compile scenario runner
+[[ -z $NO_TSC ]] && "$proj_root/scenario/script/tsc"
+
+# Build scenario stubs
+[[ -z $NO_BUILD_STUB ]] && "$proj_root/script/compile" --trace
+
+# Build scenario stubs
+[[ -z $NO_BUILD_SCEN ]] && "$proj_root/script/build_scenarios"
+
+rm -rf "$coverage_root"
+
+npx saddle coverage $@
+coverage_code=$?
+
+npx istanbul report --root="$coverage_root" lcov json
+
+echo "Coverage generated. Report at $(cd $coverage_root && pwd)/lcov-report/index.html"
+
+exit $coverage_code

@@ -1,0 +1,238 @@
+
+borrowFresh(uint result, address borrower, uint256 borrowAmount)
+description "Break borrow with result=$result borrower=$borrower borrowAmount=$borrowAmount" {
+    // Pre/action/post environments
+    env e0;
+    env e1;
+    env e2;
+
+    require e1.block.number >= e0.block.number;
+    require e2.block.number >= e1.block.number;
+
+    // Any other account
+    address other;
+    require other != borrower && other != currentContract;
+
+    /*
+      - exchange rate should not change
+      - errors should have no effect
+      - no *other* storage should change - XXX can we specify this?
+
+      |----------+--------+----------+-------|
+      |          | CToken | Borrower | Other |
+      |----------+--------+----------+-------|
+      | cash     |   -A   |    +A    |   0   |
+      | borrows  |   +A   |    +A    |   0   |
+      | tokens   |    0   |     0    |   0   |
+      | reserves |    0   |          |       |
+      |----------+--------+----------+-------|
+    */
+
+    /* Pre */
+
+    uint256 exchangeRatePre = sinvoke exchangeRateStored(e0);
+
+    uint256 cTokenCashPre = sinvoke getCash(e0);
+    uint256 borrowerCashPre = sinvoke getCashOf(e0, borrower);
+    uint256 otherCashPre = sinvoke getCashOf(e0, other);
+
+    uint256 cTokenBorrowsPre = sinvoke totalBorrows(e0);
+    uint256 borrowerBorrowsPre = sinvoke borrowBalanceStored(e0, borrower);
+    uint256 otherBorrowsPre = sinvoke borrowBalanceStored(e0, other);
+
+    uint256 cTokenTokensPre = sinvoke totalSupply(e0);
+    uint256 borrowerTokensPre = sinvoke balanceOf(e0, borrower);
+    uint256 otherTokensPre = sinvoke balanceOf(e0, other);
+
+    uint256 cTokenReservesPre = sinvoke totalReserves(e0);
+
+    // Just Do It
+    require result == invoke borrowFreshPub(e1, borrower, borrowAmount);
+    bool borrowFreshReverted = lastReverted;
+
+    /* Post */
+
+    uint256 exchangeRatePost = sinvoke exchangeRateStored(e2);
+
+    uint256 cTokenCashPost = sinvoke getCash(e2);
+    uint256 borrowerCashPost = sinvoke getCashOf(e2, borrower);
+    uint256 otherCashPost = sinvoke getCashOf(e2, other);
+
+    uint256 cTokenBorrowsPost = sinvoke totalBorrows(e2);
+    uint256 borrowerBorrowsPost = sinvoke borrowBalanceStored(e2, borrower);
+    uint256 otherBorrowsPost = sinvoke borrowBalanceStored(e2, other);
+
+    uint256 cTokenTokensPost = sinvoke totalSupply(e2);
+    uint256 borrowerTokensPost = sinvoke balanceOf(e2, borrower);
+    uint256 otherTokensPost = sinvoke balanceOf(e2, other);
+
+    uint256 cTokenReservesPost = sinvoke totalReserves(e2);
+
+    // Measure
+    bool staticBalance =
+        (exchangeRatePost == exchangeRatePre) &&
+        (cTokenCashPost == cTokenCashPre) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        (cTokenTokensPost == cTokenTokensPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (borrowerCashPost == borrowerCashPre) &&
+        (borrowerBorrowsPost == borrowerBorrowsPre) &&
+        (borrowerTokensPost == borrowerTokensPre) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    bool dynamicBalance =
+        (borrowAmount != 0) &&
+        (exchangeRatePost == exchangeRatePre) &&
+        (cTokenCashPost == cTokenCashPre - borrowAmount) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre + borrowAmount) &&
+        (cTokenTokensPost == cTokenTokensPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (borrowerCashPost == borrowerCashPre + borrowAmount) &&
+        (borrowerBorrowsPost == borrowerBorrowsPre + borrowAmount) &&
+        (borrowerTokensPost == borrowerTokensPre) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    assert (!borrowFreshReverted =>
+            ((result != 0 || borrowAmount == 0) <=> staticBalance)), "Mismatch in static case";
+    assert (!borrowFreshReverted =>
+            ((result == 0 && borrowAmount != 0 && borrower != currentContract) <=> dynamicBalance)), "Mismatch in dynamic case";
+}
+
+repayBorrowFresh(uint result, address payer, address borrower, uint256 repayAmount)
+description "Break repay borrow with realRepayAmount=$realRepayAmount borrowerBorrowsPre=$borrowerBorrowsPre" {
+    // Pre/action/post environments
+    env e0;
+    env e1;
+    env e2;
+
+    require e1.block.number >= e0.block.number;
+    require e2.block.number >= e1.block.number;
+
+    // Any other account
+    address other;
+    require other != payer && other != borrower && other != currentContract;
+
+    // We assume this cannot happen
+    //  OQ: should we enforce in the code such that it need not be assumed?
+    require borrower != currentContract;
+    require payer != currentContract;
+
+    /*
+      |----------+--------+-------+----------+-------|
+      |          | CToken | Payer | Borrower | Other |
+      |----------+--------+-------+----------+-------|
+      | cash     |   +A   |  -A   |   -A/0   |   0   |
+      | borrows  |   -A   | -A/0  |    -A    |   0   |
+      | tokens   |    0   |   0   |     0    |   0   |
+      | reserves |    0   |       |          |       |
+      |----------+--------+-------+----------+-------|
+    */
+
+    /* Pre */
+
+    uint256 exchangeRatePre = sinvoke exchangeRateStored(e0);
+
+    uint256 cTokenCashPre = sinvoke getCash(e0);
+    uint256 payerCashPre = sinvoke getCashOf(e0, payer);
+    uint256 borrowerCashPre = sinvoke getCashOf(e0, borrower);
+    uint256 otherCashPre = sinvoke getCashOf(e0, other);
+
+    uint256 cTokenBorrowsPre = sinvoke totalBorrows(e0);
+    uint256 payerBorrowsPre = sinvoke borrowBalanceStored(e0, payer);
+    uint256 borrowerBorrowsPre = sinvoke borrowBalanceStored(e0, borrower);
+    uint256 otherBorrowsPre = sinvoke borrowBalanceStored(e0, other);
+
+    uint256 cTokenTokensPre = sinvoke totalSupply(e0);
+    uint256 payerTokensPre = sinvoke balanceOf(e0, payer);
+    uint256 borrowerTokensPre = sinvoke balanceOf(e0, borrower);
+    uint256 otherTokensPre = sinvoke balanceOf(e0, other);
+
+    uint256 cTokenReservesPre = sinvoke totalReserves(e0);
+
+    // Just Do It
+    require result == invoke repayBorrowFreshPub(e1, payer, borrower, repayAmount);
+    bool repayBorrowFreshReverted = lastReverted;
+
+    /* Post */
+
+    uint256 exchangeRatePost = sinvoke exchangeRateStored(e2);
+
+    uint256 cTokenCashPost = sinvoke getCash(e2);
+    uint256 payerCashPost = sinvoke getCashOf(e2, payer);
+    uint256 borrowerCashPost = sinvoke getCashOf(e2, borrower);
+    uint256 otherCashPost = sinvoke getCashOf(e2, other);
+
+    uint256 cTokenBorrowsPost = sinvoke totalBorrows(e2);
+    uint256 payerBorrowsPost = sinvoke borrowBalanceStored(e2, payer);
+    uint256 borrowerBorrowsPost = sinvoke borrowBalanceStored(e2, borrower);
+    uint256 otherBorrowsPost = sinvoke borrowBalanceStored(e2, other);
+
+    uint256 cTokenTokensPost = sinvoke totalSupply(e2);
+    uint256 payerTokensPost = sinvoke balanceOf(e2, payer);
+    uint256 borrowerTokensPost = sinvoke balanceOf(e2, borrower);
+    uint256 otherTokensPost = sinvoke balanceOf(e2, other);
+
+    uint256 cTokenReservesPost = sinvoke totalReserves(e2);
+
+    // Measure
+    bool staticBalance =
+        (exchangeRatePost == exchangeRatePre) &&
+        (cTokenCashPost == cTokenCashPre) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        (cTokenTokensPost == cTokenTokensPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (payerCashPost == payerCashPre) &&
+        (payerBorrowsPost == payerBorrowsPre) &&
+        (payerTokensPost == payerTokensPre) &&
+        (borrowerCashPost == borrowerCashPre) &&
+        (borrowerBorrowsPost == borrowerBorrowsPre) &&
+        (borrowerTokensPost == borrowerTokensPre) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    // XXX more convenient way to represent uint max?
+    uint256 UINT_MAX = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
+    uint256 realRepayAmount;
+    require
+        ((repayAmount == UINT_MAX) =>
+         (realRepayAmount == borrowerBorrowsPre)) &&
+        ((repayAmount != UINT_MAX) =>
+         (realRepayAmount == repayAmount));
+
+    uint256 payerBorrowsExpected;
+    uint256 borrowerCashExpected;
+    require
+        ((payer == borrower) =>
+         (payerBorrowsExpected == payerBorrowsPre - realRepayAmount) &&
+         (borrowerCashExpected == borrowerCashPre - realRepayAmount)) &&
+        ((payer != borrower) =>
+         (payerBorrowsExpected == payerBorrowsPre) &&
+         (borrowerCashExpected == borrowerCashPre));
+
+    bool dynamicBalance =
+        (realRepayAmount != 0) &&
+        (exchangeRatePost == exchangeRatePre) &&
+        (cTokenCashPost == cTokenCashPre + realRepayAmount) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre - realRepayAmount) &&
+        (cTokenTokensPost == cTokenTokensPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (payerCashPost == payerCashPre - realRepayAmount) &&
+        (payerBorrowsPost == payerBorrowsExpected) &&
+        (payerTokensPost == payerTokensPre) &&
+        (borrowerCashPost == borrowerCashExpected) &&
+        (borrowerBorrowsPost == borrowerBorrowsPre - realRepayAmount) &&
+        (borrowerTokensPost == borrowerTokensPre) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    assert (!repayBorrowFreshReverted =>
+            ((result != 0 || realRepayAmount == 0) <=> staticBalance)), "Mismatch in static case";
+    assert (!repayBorrowFreshReverted =>
+            ((result == 0 && realRepayAmount != 0 && payer != currentContract) <=> dynamicBalance)), "Mismatch in dynamic case";
+}

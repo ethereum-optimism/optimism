@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -eo pipefail
+
+dir=`dirname $0`
+proj_root="$dir/.."
+network=${NETWORK:-test}
+verbose=${verbose:-}
+
+debug_args="-n --inspect" #add "debugger" statements to javascript and interact with running code in repl found at chrome://inspect
+[[ -z $DEBUG ]] && debug_args=""
+
+# Compile scenario runner
+[[ -z $NO_TSC ]] && "$proj_root/scenario/script/tsc"
+
+# Build scenario stubs
+[[ -z $NO_BUILD_STUB ]] && "$proj_root/script/compile"
+
+# Build scenario stubs
+[[ -z $NO_BUILD_SCEN ]] && "$proj_root/script/build_scenarios"
+
+[[ -n $NO_RUN ]] && exit 0
+
+args=()
+for arg in "$@"; do
+  mapped=`node -e "console.log(\"$arg\".replace(/spec\/scenario\/(.*).scen/i, \"tests/Scenarios/\\$1ScenTest.js\"))"`
+  args+=("$mapped")
+done
+
+proj_root="$proj_root" verbose="$verbose" npx $debug_args saddle test "${args[@]}"

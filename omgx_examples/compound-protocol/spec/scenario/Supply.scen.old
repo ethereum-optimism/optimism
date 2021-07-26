@@ -1,0 +1,59 @@
+-- Supply Tests
+
+Test "Geoff supplies Ether and we check 2 future balances and then supply again"
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff Ether "10.0e18"
+	Faucet Geoff Ether "10.0e18"
+	Supply Geoff Ether "3e18"
+	Assert Success
+	FastForward 2 Blocks
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "6.0e18") -- 3 * ( 1 + 2 * .5 )
+	FastForward 2 Blocks
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "9.0e18") -- 3 * ( 1 + 4 * .5 )
+	Supply Geoff Ether "1e18"
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "10.0e18") -- 3 * ( 1 + 4 * .5 ) + 1
+	FastForward 2 Blocks
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "20.0e18") -- 10 * ( 1 + 2 * .5 )
+
+Test "Geoff supplies Ether, Torrey supplies Ether and then Geoff supplies more Ether"
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff Ether "10.0e18"
+	Faucet Geoff Ether "10.0e18"
+	Approve Torrey Ether "5.0e18"
+	Faucet Torrey Ether "5.0e18"
+	Supply Geoff Ether "1e18"
+	Assert Success
+	FastForward 2 Blocks
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "2.0e18")
+	Supply Torrey Ether "3e18"
+	Assert Success
+	FastForward 2 Blocks
+	Assert Equal (SupplyBalance Torrey Ether) (Exactly "6.0e18")
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "4.0e18")
+	Supply Geoff Ether "1e18"
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "5.0e18")
+
+Test "Can't supply an 'initial' asset"
+	AddToken Dragon
+	Approve Geoff Dragon "10.0e18"
+	Faucet Geoff Dragon "10.0e18"
+	Supply Geoff Dragon "1e18"
+	Assert Failure MARKET_NOT_LISTED SUPPLY_MARKET_NOT_LISTED
+
+Test "Can't supply when contract is paused"
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff Ether 1.0e18
+	Faucet Geoff Ether 0.4e18
+	PolicyHook Ether (SetPaused True)
+	Supply Geoff Ether 0.3e18
+	Assert Failure COMPTROLLER_REJECTION SUPPLY_COMPTROLLER_REJECTION 1
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "0e18")
+
+Test "With always paused policy hook, can't supply when contract is paused"
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) AlwaysPausedPolicyHook
+	Supply Geoff Ether 0.3e18
+	Assert Failure COMPTROLLER_REJECTION SUPPLY_COMPTROLLER_REJECTION 99

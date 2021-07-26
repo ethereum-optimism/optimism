@@ -1,0 +1,49 @@
+
+Test "Calculates hypothetical account liquidity"
+    -- Note, this comes a bit from `EnterExitMarkets` Scenario
+    PricedComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    SetPriceCF cZRX 0.002 0.4
+    ListedEtherToken cETH initialExchangeRate:1e9
+    Comptroller SetCollateralFactor cEth 0.8
+    ListedCToken BAT cBAT initialExchangeRate:1e9
+    SetPriceCF cBAT 0.0015 0.3
+    ListedCToken OMG cOMG initialExchangeRate:1e9
+    NewCToken REP cREP
+    -- Mint some cZRX and cETH
+    Prep Geoff 1250e18 ZRX cZRX
+    Mint Geoff 1250e18 cZRX -- Liquidity -> 0.4 * 0.002 * 1250e18 = 1.0e18
+    SendMintEth Geoff 2.5e18 cETH -- Liqiuidity -> 0.8 * 1.0 * 2.5e18 = 2.0e18
+    -- Check liquidity is zero when not in any markets
+    Assert Equal (Comptroller Liquidity Geoff) Zero
+    -- Enter ZRX and check liquidity
+    EnterMarkets Geoff cZRX
+    Assert Equal (Comptroller Liquidity Geoff) 1.0e18
+    -- Now let's look at some hypotheticals
+    Assert Equal (Comptroller Hypothetical Geoff Redeems 1000e9 cZRX) 0.2e18 -- 0.4 * 0.002 * -1000e18 = -0.8e18
+    Assert Equal (Comptroller Hypothetical Geoff Borrows 1000e18 cZRX) -1e18 -- 0.002 * -1000e18 = -2e18
+    -- Note, if you're not in an asset, this function returns no effect
+    Assert Equal (Comptroller Hypothetical Geoff Redeems 0.002e9 cETH) 1.0e18 -- 0.8 * 1000.0 * -0.002e18 = -1.6e18
+    Assert Equal (Comptroller Hypothetical Geoff Borrows 0.002e18 cETH) 1.0e18 -- 1000.0 * -0.002e18 = -2e18
+    EnterMarkets Geoff cETH
+    Assert Equal (Comptroller Liquidity Geoff) 3.0e18
+    Assert Equal (Comptroller Hypothetical Geoff Redeems 1000e9 cZRX) 2.2e18 -- 0.4 * 0.002 * -1000e18 = -0.8e18
+    Assert Equal (Comptroller Hypothetical Geoff Borrows 1000e18 cZRX) 1e18 -- 0.002 * -1000e18 = -2e18
+    Assert Equal (Comptroller Hypothetical Geoff Redeems 2e9 cETH) 1.4e18 -- 0.8 * 1.0 * -2e18 = -1.6e18
+    Assert Equal (Comptroller Hypothetical Geoff Borrows 2e18 cETH) 1.0e18 -- 1.0 * -2e18 = -2e18
+    EnterMarkets Geoff cBAT
+    Assert Equal (Comptroller Hypothetical Geoff Redeems 1000e9 cBAT) 2.55e18 -- 0.3 * 0.0015 * -1000e18 = -0.45e18e18
+    Assert Equal (Comptroller Hypothetical Geoff Borrows 1000e18 cBAT) 1.5e18 -- 0.0015 * -1000e18 = -1.5e18
+    EnterMarkets Geoff cOMG
+    -- Fails if the given asset doesn't have a price
+    Assert ReadError (Comptroller Hypothetical Geoff Redeems 1e20 cOMG) "Failed to compute account hypothetical liquidity: error code = 13"
+    Assert ReadError (Comptroller Hypothetical Geoff Borrows 1e20 cOMG) "Failed to compute account hypothetical liquidity: error code = 13"
+    PriceOracle SetPrice cOMG 0.01
+    -- Has a price and now is listed
+    Assert Equal (Comptroller Hypothetical Geoff Redeems 100e9 cOMG) 3.0e18 -- No collateral factor
+    Assert Equal (Comptroller Hypothetical Geoff Borrows 100e18 cOMG) 2.0e18 -- 0.01 * -100e18 = -1e18
+    -- For a token has no price and isn't listed
+    -- Note: we can't actually enter the unlisted market without some harness function
+    --       we could consider testing this, but it would be out of the scope of scenarios
+    Assert Equal (Comptroller Hypothetical Geoff Redeems 100e18 cREP) 3.0e18 -- No effect
+    Assert Equal (Comptroller Hypothetical Geoff Borrows 100e18 cREP) 3.0e18 -- No effect

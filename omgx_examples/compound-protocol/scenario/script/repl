@@ -1,0 +1,59 @@
+#!/bin/bash
+
+set -eo pipefail
+
+dir=`dirname $0`
+tsc_root="$dir/.."
+proj_root="$dir/../.."
+networks_root="$dir/../../networks"
+network=${NETWORK:-development}
+script=()
+verbose="$VERBOSE"
+dry_run="$DRY_RUN"
+no_tsc="$NO_TSC"
+
+[ -n "$SCRIPT" ] && script+=("$SCRIPT")
+
+usage() { echo "$0 usage:" && grep ".)\ #" $0; exit 0; }
+while getopts ":hdn:e:s:vt" arg; do
+	case $arg in
+		c) # Don't compile
+			no_compile="true"
+			;;
+		d) # Dry run
+			dry_run="true"
+			;;
+		h) # Hypothetical
+			hypothetical="true"
+			;;
+		e) # Add variables for script (key=value,key2=value2)
+			env_vars="$OPTARG"
+			;;
+		n) # Specify network
+			network=$OPTARG
+			;;
+		s) # Specify a script to run
+			[ ! -f "$OPTARG" ] \
+				&& echo "Cannot find script $OPTARG" \
+				&& exit 1
+			script+=("$OPTARG")
+			;;
+		t) # Don't build TSC
+			no_tsc="true"
+			;;
+
+		v) # Verbose
+			verbose="true"
+			;;
+
+		h | *) # Display help.
+			usage
+			exit 0
+			;;
+	esac
+done
+
+[[ -z $no_tsc ]] && "$dir/tsc"
+[[ -z $no_compile ]] && "$proj_root/script/compile"
+
+proj_root="$proj_root" env_vars="$env_vars" dry_run="$dry_run" script="$(IFS=, ; echo "${script[*]}")" network="$network" verbose="$verbose" node "$tsc_root/.tsbuilt/Repl.js"

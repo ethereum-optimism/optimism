@@ -4,6 +4,8 @@ results
 temp
 .nyc_output
 *.tsbuildinfo
+yarn.lock
+*yarn.lock
 
 dist
 artifacts

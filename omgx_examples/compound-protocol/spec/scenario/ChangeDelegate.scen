@@ -1,0 +1,11 @@
+-- Delegate upgrade tests
+
+Test "Change the delegate"
+    NewComptroller
+    NewCToken DEL cDEL
+    Support cDEL collateralFactor:0.5
+    Prep Jared Some DEL cDEL
+    Mint Jared 100e18 cDEL
+    CTokenDelegate Deploy CErc20Delegate cErc20Delegate2
+    CToken cDEL SetImplementation (CTokenDelegate cErc20Delegate2 Address) True "0x0"
+    Redeem Jared 50e9 cDEL

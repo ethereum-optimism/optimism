@@ -1,0 +1,52 @@
+#!/usr/bin/env yarn repl -s
+
+PrintTransactionLogs
+
+-- verify at https://changelog.makerdao.com/releases/mainnet/1.0.8/contracts.json
+Alias PotAddress "0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7"
+Alias JugAddress "0x19c0976f590D67707E62397C87829d896Dc0f1F1"
+Alias CompHolder "0x19bc62ff7cd9ffd6bdced9802ff718f09f7259f1"
+Web3Fork "https://mainnet-eth.compound.finance/@10473211" (CompHolder)
+UseConfigs mainnet
+
+-- Deploy IRM contract
+InterestRateModel Deploy DAIInterestRateModel UpdateableDaiInterestRateModel (Exp 1.09) (Exp 0.8) PotAddress JugAddress (Address Timelock)
+
+-- Propose to apply the patch
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "DAI IRM v3" [(Address cDAI)] [0] ["_setInterestRateModel(address)"] [[(InterestRateModel UpdateableDaiInterestRateModel Address)]])
+
+-- Vote for, queue, and execute the proposal
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+-- Check model
+Assert Equal (CToken cDAI InterestRateModel) (InterestRateModel UpdateableDaiInterestRateModel Address)
+
+-- Propose to apply the update
+From CompHolder (Governor GovernorAlpha Propose "DAI IRM v3 update" [(Address UpdateableDaiInterestRateModel)] [0] ["updateJumpRateModel(uint256,uint256,uint256,uint256)"] [[0 (Exp 0.4) (Exp 1.1) (Exp 0.7)]])
+
+-- Vote for, queue, and execute the proposal to update
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+
+-- NOTE: checking the interest rate before the update currently returns 0, needs to be investigated!
+Assert Equal (InterestRateModel UpdateableDaiInterestRateModel BorrowRate 1 10 1) (Zero)
+
+Governor GovernorAlpha Proposal LastProposal Execute
+
+Assert Equal (InterestRateModel UpdateableDaiInterestRateModel BorrowRate 1 10 1) (0.7299999999953279)
+
+-- TODO:
+-- * additional tests that new cDAI interest rate matches expectations
+-- * no one else can propose rate update
+-- * get a non-zero initial interest rate!
+
+Print "Looking good!"

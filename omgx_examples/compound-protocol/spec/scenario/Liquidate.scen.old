@@ -1,0 +1,142 @@
+-- Liquidate Tests
+
+Test "Supply OMG, Borrow Ether, OMG price crashes, Liquidate Ether"
+	AddToken OMG
+	SupportMarket OMG (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff OMG "2.1e18"
+	Faucet Geoff OMG "2.1e18"
+	Supply Geoff OMG "2.1e18"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff OMG) (Exactly "2.1e18")
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Torrey Ether "5.0e18"
+	Faucet Torrey Ether "5.0e18"
+	Supply Torrey Ether "2.0e18"
+	Assert Equal (BalanceSheetSupply OMG) (Exactly "2.1e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "0.0e18")
+	EnterMarkets Geoff Ether
+	Borrow Geoff Ether "1e18"
+	Assert Success
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "1.05e18") -- includes origination fee
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "1.05e18") -- includes origination fee
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "1e18") -- does not include origination fee
+	--
+	-- Ether total supply unchanged
+	Assert Equal (BalanceSheetSupply Ether) (Exactly "2.0e18")
+	--
+	-- Crash OMG price and liquidate
+	SetMarketPriceOracle OMG (FixedPrice "0.5") -- Max liquidate at this price should be maxClose = 1E for all the supply
+	Liquidate Torrey Geoff Ether "1e18" OMG
+	Assert Success
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "0.05e18") -- borrow was paid by liquidator
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "0.05e18") -- target user should have liquidated amount closed on borrow
+	Assert Equal (BalanceSheetSupply OMG) (Exactly "2.1e18")
+	Assert Equal (SupplyBalance Geoff OMG) (Exactly "0e18") -- Collateral was the limit in this scenario
+	Assert Equal (TokenBalance Torrey Ether) (Exactly "2.0e18") -- liquidator token balance should be reduced
+	Assert Equal (TokenBalance Torrey OMG) (Exactly "0e18")
+	Assert Equal (SupplyBalance Torrey OMG) (Exactly "2.1e18") -- Liquidator now has seized collateral
+
+Test "Supply OMG, Borrow Ether, gain interest, OMG price crashes, Liquidate Ether"
+	AddToken OMG
+	SupportMarket OMG (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff OMG "2.1e18"
+	Faucet Geoff OMG "2.1e18"
+	Supply Geoff OMG "2.1e18"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff OMG) (Exactly "2.1e18")
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Torrey Ether "20.0e18"
+	Faucet Torrey Ether "20.0e18"
+	Supply Torrey Ether "10.0e18"
+	Assert Equal (BalanceSheetSupply OMG) (Exactly "2.1e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "0.0e18")
+	EnterMarkets Geoff Ether
+	Borrow Geoff Ether "1e18"
+	Assert Success
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "1.05e18") -- includes origination fee
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "1.05e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "1e18") -- does not include origination fee
+	FastForward 2 Blocks
+	--
+	-- Crash OMG price and liquidate
+	SetMarketPriceOracle OMG (FixedPrice "0.8") -- Max liquidate at this price should be maxClose ~ 1.98947 E to meet collateral ratio
+	Liquidate Torrey Geoff Ether "2e18" OMG
+	Assert Failure INVALID_CLOSE_AMOUNT_REQUESTED LIQUIDATE_CLOSE_AMOUNT_TOO_HIGH
+	Liquidate Torrey Geoff Ether "1.5e18" OMG
+	Assert Success
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "1.125e18") -- (1.05) * ( 1 + 2 * .75 ) - 1.5
+	Assert Equal (BalanceSheetSupply OMG) (Exactly "4.2e18")
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "1.125e18")
+	Assert Equal (SupplyBalance Geoff OMG) (Exactly "2.23125e18") -- (2.1) * (1 + 2 * .5) - 1.96875 [amountSeize]
+	Assert Equal (TokenBalance Torrey Ether) (Exactly "8.5e18")
+	Assert Equal (SupplyBalance Torrey Ether) (Exactly "20e18") -- (10) * (1 + 2 * .5)
+	Assert Equal (TokenBalance Torrey OMG) (Exactly "0e18")
+	Assert Equal (SupplyBalance Torrey OMG) (Exactly "1.96875e18")
+
+Test "Can't liquidate when contract is borrow asset is paused"
+	AddToken OMG
+	SupportMarket OMG (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff OMG "2.1e18"
+	Faucet Geoff OMG "2.1e18"
+	Supply Geoff OMG "2.1e18"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff OMG) (Exactly "2.1e18")
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Torrey Ether "5.0e18"
+	Faucet Torrey Ether "5.0e18"
+	Supply Torrey Ether "2.0e18"
+	Assert Equal (BalanceSheetSupply OMG) (Exactly "2.1e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "0.0e18")
+	EnterMarkets Geoff Ether
+	Borrow Geoff Ether "1e18"
+	Assert Success
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "1.05e18") -- includes origination fee
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "1.05e18") -- includes origination fee
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "1e18") -- does not include origination fee
+	--
+	-- Ether total supply unchanged
+	Assert Equal (BalanceSheetSupply Ether) (Exactly "2.0e18")
+	--
+	-- Crash OMG price and liquidate
+	SetMarketPriceOracle OMG (FixedPrice "0.5") -- Max liquidate at this price should be maxClose = 1E for all the supply
+	PolicyHook Ether (SetPaused True)
+	Liquidate Torrey Geoff Ether "1e18" OMG
+	Assert Failure COMPTROLLER_REJECTION LIQUIDATE_POLICY_HOOK_ASSET_BORROW_REJECTION 1
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "1.05e18") -- unchanged
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "1.05e18") -- unchanged
+
+Test "Can't liquidate when contract is collateral asset is paused"
+	AddToken OMG
+	SupportMarket OMG (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff OMG "2.1e18"
+	Faucet Geoff OMG "2.1e18"
+	Supply Geoff OMG "2.1e18"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff OMG) (Exactly "2.1e18")
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Torrey Ether "5.0e18"
+	Faucet Torrey Ether "5.0e18"
+	Supply Torrey Ether "2.0e18"
+	Assert Equal (BalanceSheetSupply OMG) (Exactly "2.1e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "0.0e18")
+	EnterMarkets Geoff OMG Ether
+	Borrow Geoff Ether "1e18"
+	Assert Success
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "1.05e18") -- includes origination fee
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "1.05e18") -- includes origination fee
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "1e18") -- does not include origination fee
+	--
+	-- Ether total supply unchanged
+	Assert Equal (BalanceSheetSupply Ether) (Exactly "2.0e18")
+	--
+	-- Crash OMG price and liquidate
+	SetMarketPriceOracle OMG (FixedPrice "0.5") -- Max liquidate at this price should be maxClose = 1E for all the supply
+	PolicyHook OMG (SetPaused True)
+	Liquidate Torrey Geoff Ether "1e18" OMG
+	Assert Failure COMPTROLLER_REJECTION LIQUIDATE_POLICY_HOOK_ASSET_COLLATERAL_REJECTION 1
+	Assert Equal (BalanceSheetBorrow Ether) (Exactly "1.05e18") -- unchanged
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "1.05e18") -- unchanged

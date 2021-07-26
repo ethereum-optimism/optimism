@@ -1,0 +1,8 @@
+#!/usr/bin/env yarn repl -n mainnet -s
+
+PrintTransactionLogs
+
+-- Deploy the flywheel impl
+ComptrollerImpl Deploy Standard StdComptrollerG5
+
+Print "Deployed OK!"

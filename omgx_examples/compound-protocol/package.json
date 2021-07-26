@@ -1,0 +1,46 @@
+{
+  "name": "compound-protocol",
+  "version": "0.2.1",
+  "description": "The Compound Money Market",
+  "main": "index.js",
+  "scripts": {
+    "compile": "./script/compile",
+    "console": "if node -v | grep -E \"v(12|13)\" > /dev/null; then flags=\"-n --experimental-repl-await\"; fi; npx $flags saddle console",
+    "coverage": "./script/coverage",
+    "deploy": "./scenario/script/repl -s ./script/scen/deploy.scen",
+    "lint": "./script/lint",
+    "repl": "./scenario/script/repl",
+    "profile": "yarn test tests/gasProfiler.js",
+    "report": "npx run ./script/saddle/gasReport.js",
+    "test": "./script/test",
+    "test:prepare": "NO_RUN=true ./script/test",
+    "checksize": "npx run ./script/saddle/comptrollerSize.js",
+    "ganache": "npx ganache-cli -l 10000038 -i 1234 -e 100000 -a 10 -u 0 -g 1000000000 --allowUnlimitedContractSize -m \"$HDWALLET_MNEMONIC\"",
+    "migrate": "npx truffle migrate",
+    "migrate:ovm": "yarn truffle migrate --network optimism --config truffle-config-ovm.js",
+    "compile:ovm": "truffle compile --config truffle-config-ovm.js",
+    "deploy:omgx": "truffle migrate --network omgx_rinkeby --config truffle-config-ovm.js"
+  },
+  "repository": "git@github.com:compound-finance/compound-protocol.git",
+  "author": "Compound Finance",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "bignumber.js": "9.0.0",
+    "jest-diff": "^26.4.2",
+    "jest-junit": "^11.1.0",
+    "solium": "^1.2.5",
+    "solparse": "^2.2.8"
+  },
+  "dependencies": {
+    "@eth-optimism/solc": "0.5.16-alpha.6",
+    "@truffle/hdwallet-provider": "^1.4.0",
+    "eth-saddle": "^0.1.21",
+    "rimraf": "^3.0.2",
+    "truffle": "^5.3.6",
+    "truffle-contract-size": "^2.0.1"
+  },
+  "resolutions": {
+    "scrypt.js": "https://registry.npmjs.org/@compound-finance/ethereumjs-wallet/-/ethereumjs-wallet-0.6.3.tgz",
+    "**/ganache-core": "github:compound-finance/ganache-core.git#jflatow/unbreak-fork"
+  }
+}

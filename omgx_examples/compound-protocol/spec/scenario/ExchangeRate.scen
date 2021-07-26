@@ -1,0 +1,73 @@
+
+Test "Initial Exchange Rate"
+    NewComptroller
+    NewCToken ZRX cZRX initialExchangeRate:2e9
+    Assert Equal (CToken cZRX ExchangeRateStored) (Exp 2e9)
+
+Test "Initial Exchange Rate with Mint"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:5e9
+    -- Check initial exchange holds
+    Invariant Remains (CToken cZRX ExchangeRateStored) (Exp 5e9)
+    -- Mint some tokens and verify invariant still holds
+    Prep Geoff Some ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    -- Also, verify token was minted at given exchange rate
+    Assert Equal (Erc20 cZRX TotalSupply) (Exactly 10e9)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 10e9)
+    -- Let's mint again and verify it's still good.
+    Prep Torrey Some ZRX cZRX
+    Mint Torrey 50e18 cZRX
+    -- Also, verify token was minted at given exchange rate
+    Assert Equal (Erc20 cZRX TotalSupply) (Exactly 20e9)
+    Assert Equal (Erc20 cZRX TokenBalance Torrey) (Exactly 10e9)
+
+Test "ZRX: Exch. Rate:2e9, Cash(51e18) + Borrows(2.0e18) - Reserves(0.5e18) / Tokens(2.5e10)"
+    NewComptroller
+    -- Decimals You=18, Decimals Us=8 -> 2e9 Exchange Rate
+    ListedCToken ZRX cZRX initialExchangeRate:2e9 decimals:8
+    Assert Equal (CToken cZRX ExchangeRateStored) (Exp 2e9)
+    -- Mint 50.0 ZRX at given exchange rate
+    Prep Geoff Some ZRX cZRX
+    Assert Equal (Erc20 cZRX TotalSupply) Zero
+    Mint Geoff 50e18 cZRX
+    -- 50e18 / 2e9 = 2.5e10
+    Assert Equal (Erc20 cZRX TotalSupply) (Exactly 2.5e10)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 2.5e10)
+    -- Set cash
+    Erc20 ZRX Faucet cZRX 1.0e18
+    Assert Equal (Erc20 ZRX TokenBalance cZRX) (Exactly 51.0e18)
+    -- Mock total borrows
+    CToken cZRX Mock totalBorrows 2.0e18
+    Assert Equal (CToken cZRX TotalBorrows) (Exactly 2.0e18)
+    -- Mock total reserves
+    CToken cZRX Mock totalReserves 0.5e18
+    Assert Equal (CToken cZRX Reserves) (Exactly 0.5e18)
+    -- Okay, we're all set, let's check the exchange rate
+    -- (51+2-0.5)e18/2.5e10 = 52.5e18/2.5e10 = 21e8 -> 21e26 (Exp)
+    Assert Equal (CToken cZRX ExchangeRateStored) (Exp 2.1e9)
+
+Test "USDC: Exch. Rate:2e-3, Cash(51e18) + Borrows(2.0e18) - Reserves(0.5e18) / Tokens(2.5e10)"
+    NewComptroller
+    -- Decimals You=6, Decimals Us=8 -> 2e-3 Exchange Rate
+    ListedCToken USDC cUSDC initialExchangeRate:2e-3 decimals:8
+    Assert Equal (CToken cUSDC ExchangeRateStored) (Exp 2e-3)
+    -- Mint 50.0 USDC at given exchange rate
+    Prep Geoff Little USDC cUSDC
+    Assert Equal (Erc20 cUSDC TotalSupply) (Exactly 0.0)
+    Mint Geoff 50e6 cUSDC
+    -- 5.0e7 / 2e-3 = 2.5e10
+    Assert Equal (Erc20 cUSDC TotalSupply) (Exactly 2.5e10)
+    Assert Equal (Erc20 cUSDC TokenBalance Geoff) (Exactly 2.5e10)
+    -- Set cash
+    Erc20 USDC Faucet cUSDC 2.0e6
+    Assert Equal (Erc20 USDC TokenBalance cUSDC) (Exactly 52.0e6)
+    -- Mock total borrows
+    CToken cUSDC Mock totalBorrows 5.0e6
+    Assert Equal (CToken cUSDC TotalBorrows) (Exactly 5.0e6)
+    -- Mock total reserves
+    CToken cUSDC Mock totalReserves 1.5e6
+    Assert Equal (CToken cUSDC Reserves) (Exactly 1.5e6)
+    -- Okay, we're all set, let's check the exchange rate
+    -- (52+5-1.5)e6/2.5e10 = 55.5e6/2.5e10 = 2.22e-3 -> 2.22e15 (Exp)
+    Assert Equal (CToken cUSDC ExchangeRateStored) (Exp 2.22e-3)

@@ -1,0 +1,86 @@
+#!/usr/bin/env yarn repl -s
+
+-- This script tests a hypothetical upgrade with multiple speeds and has been subsumed in hypothetical_upgrade.scen
+-- It is left here as a faster test for development
+
+PrintTransactionLogs
+Alias CompHolder "0x19bc62ff7cd9ffd6bdced9802ff718f09f7259f1"
+Alias USDCWhale "0x3dfd23a6c5e8bbcfc9581d2e864a68feb6a076d3"
+Alias Tarun "0x6626593c237f530d15ae9980a95ef938ac15c35c"
+Web3Fork "https://mainnet-eth.compound.finance/@10706095" (CompHolder USDCWhale Tarun)
+UseConfigs mainnet
+
+-- Deploy the flywheel impl
+
+ComptrollerImpl Deploy Standard ComptrollerG6
+
+-- Propose to apply the patch
+
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (0)
+
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "Grants Comptroller Patch" [(Address Unitroller) (Address ComptrollerG6) (Address Unitroller)] [0 0 0] ["_setPendingImplementation(address)" "_become(address)" "_setContributorCompSpeed(address,uint256)"] [[(Address ComptrollerG6)] [(Address Unitroller)] [(Address Tarun) 15]])
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+ComptrollerImpl ComptrollerG6 MergeABI
+
+-- Round out blocks to 1000 before next patch
+AdvanceBlocks 997
+
+-- Prepare second proposal
+From CompHolder (Governor GovernorAlpha Propose "Contributor speed reduction Patch" [(Address Unitroller)] [0] ["_setContributorCompSpeed(address,uint256)"] [[(Address Tarun) 5]])
+
+-- Vote for, queue, and execute the second proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+AdvanceBlocks 1000
+
+-- Check contributor claim amount is added
+From Tarun (Comptroller UpdateContributorRewards Tarun)
+From Tarun (Comptroller ClaimComp Tarun)
+
+-- Initial run            15000  = (997+3)*15
+-- Second proposal mining 300000 = 20000*15
+-- Extra blocks           5000   = 1000*5
+-- Extra proposal mining  85
+-- Total = 330080
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (320085)
+
+-- Prepare final proposal
+From CompHolder (Governor GovernorAlpha Propose "Contributor speed elimination Patch" [(Address Unitroller)] [0] ["_setContributorCompSpeed(address,uint256)"] [[(Address Tarun) 0]])
+
+-- Vote for, queue, and execute the final proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+AdvanceBlocks 10000
+
+-- Check no more COMP was allocated
+From Tarun (Comptroller UpdateContributorRewards Tarun)
+From Tarun (Comptroller ClaimComp Tarun)
+-- Initial value          320085
+-- Third proposal mining  100000 = 20000*5
+-- Extra blocks           0 = 1000*0
+-- Extra proposal mining  40
+-- Total = 420125
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (420125)
+
+Print "Upgrade OK!"

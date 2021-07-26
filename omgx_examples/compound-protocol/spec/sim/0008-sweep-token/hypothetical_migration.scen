@@ -1,0 +1,42 @@
+#!/usr/bin/env yarn repl -s
+
+PrintTransactionLogs
+Alias CompHolder "0xC89b6f0146642688bb254bF93C28fcCF1E182C81"
+Alias cUNISender "0xf22c2e3475e4a066f4e9f44567c950dd36112d05"
+Alias UniHolder "0x5518C31f4A22782E5a7046711FACF985985530c7"
+Alias CUSDCHolder "0x926e78b8DF67e129011750Dd7b975f8E50D3d7Ad"
+Web3Fork "https://mainnet-eth.compound.finance/@11746553" (CompHolder CUSDCHolder UniHolder)
+UseConfigs mainnet
+
+
+-- Delegate and propose update
+CTokenDelegate Deploy CErc20Delegate newCUNIImpl
+
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "Update cUNI implementation" [(Address cUNI) (Address cUNI) (Address cUNI)] [0 0 0] ["_setImplementation(address,bool,bytes)" "sweepToken(address)" "transfer(address,uint256)"] [[(address newCUNIImpl) false "0x"] [(address cUNI)] [(address cUNISender) 1]])
+
+-- Fast forward, vote, queue, execute
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+Assert Equal (Erc20 (Address cUNI) TokenBalance cUNISender) (1)
+Assert Equal (Erc20 (Address cUNI) TokenBalance Timelock) (179874258721489)
+
+-- Ensure accrue interest works
+CToken cUNI AccrueInterest
+
+-- Mint Test
+Assert Equal (Erc20 Uni TokenBalance cUNI) (8841949597201167092831625)
+From UniHolder (Erc20 Uni Approve cUNI 10000000)
+From UniHolder (CToken cUNI Mint 10000000)
+Assert Equal (Erc20 Uni TokenBalance cUNI) (8841949597201167102831625)
+
+-- Borrow Test
+From CUSDCHolder (CToken cUNI Borrow 10000000)
+Assert Equal (Erc20 Uni TokenBalance CUSDCHolder) (10000000)
+
+Print "cUNI implementation migration ok" 

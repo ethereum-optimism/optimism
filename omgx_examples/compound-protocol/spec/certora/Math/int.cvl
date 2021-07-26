@@ -1,0 +1,24 @@
+
+basicDiv(uint a, uint b) {
+    require b > 0;
+
+    uint c = a + 1;
+    uint d = a / b;
+    uint e = c / b;
+
+    assert c >= a, "Failed to prove ${c} >= ${a}";
+    assert e >= d, "Failed to prove: ${e} >= ${d}";
+}
+
+atLeastEnough(uint256 chi, uint256 amount) {
+    uint256 WAD = 1000000000000000000;
+    uint256 RAY = 1000000000000000000000000000;
+    uint256 MAX = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
+
+    require chi >= RAY;
+    require amount <= MAX;
+
+    assert (amount + 1) >= amount, "Failed (${amount} + 1) >= ${amount}";
+    assert (amount + 1) / chi >= amount / chi, "Failed: (${amount} + 1) / ${chi} >= ${amount} / ${chi}";
+    assert ((((amount + 1) * RAY) / chi) * chi / RAY) >= amount, "Not enough DAI";
+}

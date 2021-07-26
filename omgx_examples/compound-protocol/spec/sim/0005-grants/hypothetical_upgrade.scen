@@ -1,0 +1,98 @@
+#!/usr/bin/env yarn repl -s
+
+-- This script tests a hypothetical upgrade with one time and streaming grants
+
+PrintTransactionLogs
+Alias CompHolder "0x19bc62ff7cd9ffd6bdced9802ff718f09f7259f1"
+Alias USDCWhale "0x3dfd23a6c5e8bbcfc9581d2e864a68feb6a076d3"
+Alias Tarun "0x6626593c237f530d15ae9980a95ef938ac15c35c"
+Web3Fork "https://mainnet-eth.compound.finance/@10706095" (CompHolder USDCWhale Tarun)
+UseConfigs mainnet
+
+-- Deploy the flywheel impl
+
+ComptrollerImpl Deploy Standard ComptrollerG6
+
+-- Propose to apply the patch
+
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (0)
+
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "Grants Comptroller Patch and both types of grants issued" [(Address Unitroller) (Address ComptrollerG6) (Address Unitroller) (Address Unitroller)] [0 0 0 0] ["_setPendingImplementation(address)" "_become(address)" "_grantComp(address,uint256)" "_setContributorCompSpeed(address,uint256)"] [[(Address ComptrollerG6)] [(Address Unitroller)] [(Address Tarun) 10000000] [(Address Tarun) 15]])
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+ComptrollerImpl ComptrollerG6 MergeABI
+
+-- Check initial grant amount was apportioned
+Assert Equal (Address (Unitroller Implementation)) (Address ComptrollerG6)
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (10e6)
+
+-- Check contributor claim does not work without update
+AdvanceBlocks 997
+From Tarun (Comptroller ClaimComp Tarun)
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (10e6)
+
+-- Check contributor claim amount is added
+From Tarun (Comptroller UpdateContributorRewards Tarun)
+From Tarun (Comptroller ClaimComp Tarun)
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (10015000)
+
+
+-- Prepare second proposal
+From CompHolder (Governor GovernorAlpha Propose "Contributor speed reduction and second grant" [(Address Unitroller) (Address ComptrollerG6) (Address Unitroller) (Address Unitroller)] [0 0 0 0] ["_setPendingImplementation(address)" "_become(address)" "_grantComp(address,uint256)" "_setContributorCompSpeed(address,uint256)"] [[(Address ComptrollerG6)] [(Address Unitroller)] [(Address Tarun) 20000000] [(Address Tarun) 5]])
+
+-- Vote for, queue, and execute the second proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+AdvanceBlocks 1000
+
+-- Check contributor claim amount is added
+From Tarun (Comptroller UpdateContributorRewards Tarun)
+From Tarun (Comptroller ClaimComp Tarun)
+
+-- Initial value          10015000 = 10000000 grant + (997+3)*15
+-- Second grant           20000000
+-- Second proposal mining 300000 = 20000*15
+-- Extra blocks           5000   = 1000*5
+-- Extra proposal mining  130
+-- Total = 30330130
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (30320130)
+
+-- Prepare final proposal
+From CompHolder (Governor GovernorAlpha Propose "Contributor speed elimination Patch" [(Address Unitroller)] [0] ["_setContributorCompSpeed(address,uint256)"] [[(Address Tarun) 0]])
+
+-- Vote for, queue, and execute the final proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+AdvanceBlocks 10000
+
+-- Check no more COMP was allocated
+From Tarun (Comptroller UpdateContributorRewards Tarun)
+From Tarun (Comptroller ClaimComp Tarun)
+-- Initial value          30320130
+-- Third proposal mining  100000 = 20000*5
+-- Extra blocks           0 = 1000*0
+-- Extra proposal mining  40
+-- Total = 30420170
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (30420170)
+
+Print "Upgrade OK!"

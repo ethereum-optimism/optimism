@@ -1,0 +1,112 @@
+
+Macro DeployGov
+    Comp Deploy Bank
+    Timelock Deploy Jared 604800
+    GovernorBravo Deploy BravoDelegateHarness BravoDelegateHarness
+    GovernorBravo Deploy BravoDelegator LegitGov (Address Timelock) (Address Comp) (Address Root) (Address BravoDelegateHarness) 17280 1 100000e18
+    GovernorBravo LegitGov MergeABI BravoDelegateHarness
+    GovernorBravo LegitGov HarnessInitiate
+    Timelock SetAdmin (Address LegitGov)
+    Enfranchise Root 100001e18
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+
+Test "Propose 💍 [1 Action]"
+    DeployGov
+    Counter Deploy
+    Governor LegitGov Propose "Add 5" [(Address Counter)] [1] ["increment(uint256)"] [["5"]]
+    Assert Log ProposalCreated (id 2)
+    Assert Log ProposalCreated (description "Add 5")
+    Assert Log ProposalCreated (targets [(Address Counter)])
+    Assert Log ProposalCreated (values [1])
+    Assert Log ProposalCreated (signatures ["increment(uint256)"])
+    Assert Log ProposalCreated (startBlock 11)
+    Assert Log ProposalCreated (endBlock 17291)
+    Assert Log ProposalCreated (calldatas ["0x0000000000000000000000000000000000000000000000000000000000000005"])
+    Assert Log ProposalCreated (proposer (Address Root))
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Id) 2
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Proposer) (Address Root)
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal StartBlock) 11
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal EndBlock) 17291
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal ForVotes) 0
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal AgainstVotes) 0
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Eta) 0
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Targets) [(Address Counter)]
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Values) [1]
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Signatures) ["increment(uint256)"]
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Calldatas) ["0x0000000000000000000000000000000000000000000000000000000000000005"]
+    Assert False (GovernorBravo LegitGov Proposal LastProposal HasVoted Geoff)
+
+Test "Propose 💍💍 [2 Actions]"
+    DeployGov
+    Counter Deploy CounterA
+    Counter Deploy CounterB
+    GovernorBravo LegitGov Propose "Add 5, Sub 3" [(Address CounterA) (Address CounterB)] [1 2] ["increment(uint256)" "decrement(uint256)"] [["5"] ["3"]]
+    Assert Log ProposalCreated (description "Add 5, Sub 3")
+    Assert Log ProposalCreated (targets [(Address CounterA) (Address CounterB)])
+    Assert Log ProposalCreated (values [1 2])
+    Assert Log ProposalCreated (signatures ["increment(uint256)" "decrement(uint256)"])
+    Assert Log ProposalCreated (calldatas ["0x0000000000000000000000000000000000000000000000000000000000000005" "0x0000000000000000000000000000000000000000000000000000000000000003"])
+    Assert Log ProposalCreated (proposer (Address Root))
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Targets) [(Address CounterA) (Address CounterB)]
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Values) [1 2]
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Signatures) ["increment(uint256)" "decrement(uint256)"]
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Calldatas) ["0x0000000000000000000000000000000000000000000000000000000000000005" "0x0000000000000000000000000000000000000000000000000000000000000003"]
+
+Test "Propose fails when insufficient sender votes"
+    DeployGov
+    Counter Deploy
+    AllowFailures
+    From Geoff (GovernorBravo LegitGov Propose "Add 5" [(Address Counter)] [1] ["increment(uint256)"] [["5"]])
+    Assert Revert "revert GovernorBravo::propose: proposer votes below proposal threshold"
+
+Test "Propose fails when no actions given"
+    DeployGov
+    Counter Deploy
+    AllowFailures
+    GovernorBravo LegitGov Propose "Add 5" [] [] [] [[]]
+    Assert Revert "revert GovernorBravo::propose: must provide actions"
+
+Test "Propose fails when too many actions given"
+    DeployGov
+    Counter Deploy
+    AllowFailures
+    GovernorBravo LegitGov Propose "Add 5" [(Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov) (Address LegitGov)] [0 1 2 3 4 5 6 7 8 9 10] ["0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "10"] [[] [] [] [] [] [] [] [] [] [] []]
+    Assert Revert "revert GovernorBravo::propose: too many actions"
+
+Test "Propose fails when actions mismatch length"
+    DeployGov
+    Counter Deploy
+    AllowFailures
+    GovernorBravo LegitGov Propose "Add 5" [(Address Counter)] [1 2] ["increment(uint256)"] [["5"]]
+    Assert Revert "revert GovernorBravo::propose: proposal function information arity mismatch"
+
+Test "Propose fails when proposer has active proposal"
+    DeployGov
+    Counter Deploy
+    GovernorBravo LegitGov Propose "Add 5" [(Address Counter)] [1] ["increment(uint256)"] [["5"]]
+    AllowFailures
+    GovernorBravo LegitGov Propose "Add 5" [(Address Counter)] [1] ["increment(uint256)"] [["5"]]
+    Assert Revert "revert GovernorBravo::propose: one live proposal per proposer, found an already pending proposal"
+
+Test "Can re-propose after vote completes"
+    DeployGov
+    Counter Deploy
+    GovernorBravo LegitGov Propose "Add 5" [(Address Counter)] [1] ["increment(uint256)"] [["5"]]
+    Assert Equal (GovernorBravo LegitGov Proposal (ActiveProposal Root) Id) 2
+    AdvanceBlocks 20000
+    GovernorBravo LegitGov Propose "Add 7" [(Address Counter)] [1] ["increment(uint256)"] [["7"]]
+    Assert Equal (GovernorBravo LegitGov Proposal (ActiveProposal Root) Id) 3
+
+Test "Can re-propose after vote is canceled"
+    DeployGov
+    Counter Deploy
+    GovernorBravo LegitGov Propose "Add 5" [(Address Counter)] [1] ["increment(uint256)"] [["5"]]
+    Assert Equal (GovernorBravo LegitGov Proposal (ActiveProposal Root) Id) 2
+    From Root (Comp Delegate Geoff)
+    GovernorBravo LegitGov Proposal (ActiveProposal Root) Cancel
+    From Root (Comp Delegate Root)
+    GovernorBravo LegitGov Propose "Add 7" [(Address Counter)] [1] ["increment(uint256)"] [["7"]]
+    Assert Equal (GovernorBravo LegitGov Proposal (ActiveProposal Root) Id) 3

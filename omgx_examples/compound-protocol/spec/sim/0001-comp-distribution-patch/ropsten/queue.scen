@@ -1,0 +1,8 @@
+#!/usr/bin/env yarn repl -n ropsten -s
+
+PrintTransactionLogs
+
+-- Queue the proposal
+Governor GovernorAlpha Proposal 9 Queue
+
+Print "Queued OK!"

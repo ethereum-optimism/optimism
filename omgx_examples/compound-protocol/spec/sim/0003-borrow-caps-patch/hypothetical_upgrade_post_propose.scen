@@ -1,0 +1,32 @@
+#!/usr/bin/env yarn repl -s
+
+PrintTransactionLogs
+Alias CompVoter1 "0x9aa835bc7b8ce13b9b0c9764a52fbf71ac62ccf1"
+Alias CompVoter2 "0xed409c9ff60f3020abf9012bcd45fc294f5608ff"
+Alias USDCWhale "0x3dfd23a6c5e8bbcfc9581d2e864a68feb6a076d3"
+Alias Arr00 "0x2b384212edc04ae8bb41738d05ba20e33277bf33"
+Web3Fork "https://mainnet-eth.compound.finance/@10823813" (USDCWhale CompVoter1 CompVoter2)
+UseConfigs mainnet
+
+
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompVoter1 (Governor GovernorAlpha Proposal LastProposal Vote For)
+From CompVoter2 (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+ComptrollerImpl StdComptrollerG5 MergeABI
+
+Assert Equal (Address (Unitroller Implementation)) (Address StdComptrollerG5)
+Assert Equal (Erc20 SAI TokenBalance (Address Arr00)) (2800000000000000000000)
+
+From USDCWhale (Trx GasPrice 0 (Erc20 USDC Approve cUSDC UInt256Max))
+From USDCWhale (Trx GasPrice 0 (CToken cUSDC Mint 100000000e6))
+From USDCWhale (Trx GasPrice 0 (CToken cUSDC Borrow 1000000e6))
+
+
+Print "Borrow Limit Comptroller Patch OK!"

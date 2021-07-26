@@ -1,0 +1,137 @@
+transferFrom(bool success, address src, address dst, uint256 amount)
+description "Break transferFrom" {
+    // Pre/action/post environments
+    env e0;
+    env e1a;
+    env e1b;
+    env e2;
+
+    require e1a.block.number >= e0.block.number;
+    require e1b.block.number >= e1a.block.number;
+    require e2.block.number >= e1b.block.number;
+
+    // Any other account
+    address other;
+    require other != src && other != dst;
+
+    /*
+      - no effect on exchange rate
+      - no more than approved
+      |----------+--------+-----+-----+-------|
+      |          | CToken | Src | Dst | Other |
+      |----------+--------+-----+-----+-------|
+      | cash     |    0   |  0  |  0  |   0   |
+      | borrows  |    0   |  0  |  0  |   0   |
+      | tokens   |    0   | -T  | +T  |   0   |
+      | reserves |    0   |     |     |       |
+      |----------+--------+-----+-----+-------|
+    */
+
+    /* Pre */
+
+    uint256 exchangeRatePre = sinvoke exchangeRateStored(e0);
+
+    uint256 cTokenCashPre = sinvoke getCash(e0);
+    uint256 srcCashPre = sinvoke getCashOf(e0, src);
+    uint256 dstCashPre = sinvoke getCashOf(e0, dst);
+    uint256 otherCashPre = sinvoke getCashOf(e0, other);
+
+    uint256 cTokenBorrowsPre = sinvoke totalBorrows(e0);
+    uint256 srcBorrowsPre = sinvoke borrowBalanceStored(e0, src);
+    uint256 dstBorrowsPre = sinvoke borrowBalanceStored(e0, dst);
+    uint256 otherBorrowsPre = sinvoke borrowBalanceStored(e0, other);
+
+    uint256 cTokenSupplyPre = sinvoke totalSupply(e0);
+    uint256 srcTokensPre = sinvoke balanceOf(e0, src);
+    uint256 dstTokensPre = sinvoke balanceOf(e0, dst);
+    uint256 otherTokensPre = sinvoke balanceOf(e0, other);
+
+    uint256 cTokenReservesPre = sinvoke totalReserves(e0);
+
+    // Approve
+    bool doApprove;
+    uint256 approvedAmount;
+    if (doApprove) {
+        require e1a.msg.sender == src;
+        sinvoke approve(e1a, e1b.msg.sender, approvedAmount);
+    } else {}
+
+    uint256 allowancePre = sinvoke allowance(e1a, src, e1b.msg.sender);
+
+    // Just Do It
+    require success == invoke transferFrom(e1b, src, dst, amount);
+    bool transferReverted = lastReverted;
+
+    /* Post */
+
+    uint256 exchangeRatePost = sinvoke exchangeRateStored(e2);
+
+    uint256 cTokenCashPost = sinvoke getCash(e2);
+    uint256 srcCashPost = sinvoke getCashOf(e2, src);
+    uint256 dstCashPost = sinvoke getCashOf(e2, dst);
+    uint256 otherCashPost = sinvoke getCashOf(e2, other);
+
+    uint256 cTokenBorrowsPost = sinvoke totalBorrows(e2);
+    uint256 srcBorrowsPost = sinvoke borrowBalanceStored(e2, src);
+    uint256 dstBorrowsPost = sinvoke borrowBalanceStored(e2, dst);
+    uint256 otherBorrowsPost = sinvoke borrowBalanceStored(e2, other);
+
+    uint256 cTokenSupplyPost = sinvoke totalSupply(e2);
+    uint256 srcTokensPost = sinvoke balanceOf(e2, src);
+    uint256 dstTokensPost = sinvoke balanceOf(e2, dst);
+    uint256 otherTokensPost = sinvoke balanceOf(e2, other);
+
+    uint256 cTokenReservesPost = sinvoke totalReserves(e2);
+
+    uint256 allowancePost = sinvoke allowance(e2, src, e1b.msg.sender);
+
+    // Measure
+    bool staticBalance =
+        (exchangeRatePost == exchangeRatePre) &&
+        (cTokenCashPost == cTokenCashPre) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        (cTokenSupplyPost == cTokenSupplyPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (srcCashPost == srcCashPre) &&
+        (srcBorrowsPost == srcBorrowsPre) &&
+        (srcTokensPost == srcTokensPre) &&
+        (dstCashPost == dstCashPre) &&
+        (dstBorrowsPost == dstBorrowsPre) &&
+        (dstTokensPost == dstTokensPre) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    bool dynamicBalance =
+        (amount != 0) &&
+        (exchangeRatePost == exchangeRatePre) &&
+        (cTokenCashPost == cTokenCashPre) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        (cTokenSupplyPost == cTokenSupplyPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (srcCashPost == srcCashPre) &&
+        (srcBorrowsPost == srcBorrowsPre) &&
+        (srcTokensPost == srcTokensPre - amount) &&
+        (dstCashPost == dstCashPre) &&
+        (dstBorrowsPost == dstBorrowsPre) &&
+        (dstTokensPost == dstTokensPre + amount) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    // XXX better way to write uint max?
+    uint256 UINT_MAX = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
+
+    assert (!transferReverted =>
+            ((!success || amount == 0 || src == dst) <=> staticBalance)), "Mismatch in static case";
+    assert (!transferReverted =>
+            ((success && amount != 0) <=> dynamicBalance)), "Mismatch in dynamic case";
+    assert (!transferReverted && success =>
+            (amount > allowancePre => e1b.msg.sender == src)), "Only owner can transfer > allowance";
+    assert (!transferReverted && success =>
+            (doApprove => allowancePre >= approvedAmount)), "Approval must increase the allowance";
+    assert (!transferReverted && success =>
+            (allowancePre == UINT_MAX || e1b.msg.sender == src || amount == 0) <=> allowancePost == allowancePre), "Mismatch not touching allowance";
+    assert (!transferReverted && success && e1b.msg.sender != src && amount != 0 =>
+            (allowancePre != UINT_MAX <=> allowancePost == allowancePre - amount)), "Spender transfer uses allowance";
+}

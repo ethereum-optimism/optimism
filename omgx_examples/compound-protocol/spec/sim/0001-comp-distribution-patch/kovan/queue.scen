@@ -1,0 +1,8 @@
+#!/usr/bin/env yarn repl -n queue -s
+
+PrintTransactionLogs
+
+-- Queue the proposal
+Governor GovernorAlpha Proposal 8 Queue
+
+Print "Queued OK!"

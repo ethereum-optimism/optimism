@@ -1,0 +1,59 @@
+#!/usr/bin/env yarn run repl -s
+-- Deploys basic ComptrollerG3
+
+Unitroller Deploy
+PriceOracle Deploy Fixed 1.0
+PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero)
+----g2
+ComptrollerImpl Deploy ScenarioG2 ComptrollerScenG2
+Unitroller SetPendingImpl ComptrollerScenG2
+ComptrollerImpl ComptrollerScenG2 BecomeG2
+--list some tokens
+Comptroller SetPriceOracle (PriceOracleProxy Address)
+Comptroller SetMaxAssets 20
+Comptroller SetCloseFactor 0.5
+Comptroller LiquidationIncentive 1.1
+NewCToken ZRX cZRX
+NewCToken BAT cBAT
+Support cZRX collateralFactor:0.5
+Support cBAT collateralFactor:0.5
+-- final
+ComptrollerImpl Deploy Scenario ComptrollerScen
+Unitroller SetPendingImpl ComptrollerScen
+
+Prep Geoff 100e18 ZRX cZRX
+Mint Geoff 50e18 cZRX--tokenbalance = 50e18 / 2e9 = 2.5e10
+
+Prep Fourth Some BAT cBAT
+Mint Fourth 6e18 cBAT
+EnterMarkets Fourth cBAT
+Borrow Fourth 1e18 cZRX
+
+Prep Fifth Some BAT cBAT
+Mint Fifth 6e18 cBAT
+EnterMarkets Fifth cBAT
+Borrow Fifth 1e18 cZRX
+
+Prep Sixth Some BAT cBAT
+Mint Sixth 6e18 cBAT
+EnterMarkets Sixth cBAT
+Borrow Sixth 1e18 cZRX
+
+Prep Seventh Some BAT cBAT
+Mint Seventh 6e18 cBAT
+EnterMarkets Seventh cBAT
+Borrow Seventh 1e18 cZRX
+
+ComptrollerImpl ComptrollerScen Become 1e18 [cZRX cBAT]
+Erc20 Deploy Standard COMP "COMP Token" 18
+Give (Address Comptroller) 5000000e18 COMP
+Comptroller Send "setCompAddress(address)" (Address COMP)
+
+Comptroller RefreshCompSpeeds
+
+FastForward 300000 Blocks
+Read (Comptroller Address)
+Read (Address Fourth)
+Read (Address Fifth)
+Read (Address Sixth)
+Read (Address Seventh)

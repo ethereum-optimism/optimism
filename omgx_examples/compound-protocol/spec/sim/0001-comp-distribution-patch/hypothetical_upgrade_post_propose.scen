@@ -1,0 +1,169 @@
+#!/usr/bin/env yarn repl -s
+
+PrintTransactionLogs
+Alias CompVoter1 "0xf25f26a42adcb153b1966a4bf5df6d0c9e27197f"
+Alias CompVoter2 "0xed409c9ff60f3020abf9012bcd45fc294f5608ff"
+Alias USDCWhale "0x92d7796c04ee34d1d16c57fab92fc2bccf434468"
+Alias cBATBorrower "0xe5f3dbcc3dcf75a6946822aae7df5160505d3069"
+Web3Fork "https://mainnet-eth.compound.finance/@10351502" (CompVoter1 CompVoter2 USDCWhale cBATBorrower)
+UseConfigs mainnet
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompVoter1 (Governor GovernorAlpha Proposal 11 Vote For)
+From CompVoter2 (Governor GovernorAlpha Proposal 11 Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal 11 Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal 11 Execute
+
+-- Sanity check the upgrade
+
+Assert Equal (Comptroller CompRate) 0.22e18
+Assert Equal (Comptroller CheckIsComped cBAT) True
+Assert Equal (Comptroller CheckIsComped cDAI) True
+Assert Equal (Comptroller CheckIsComped cETH) True
+Assert Equal (Comptroller CheckIsComped cREP) True
+Assert Equal (Comptroller CheckIsComped cSAI) False
+Assert Equal (Comptroller CheckIsComped cUSDC) True
+Assert Equal (Comptroller CheckIsComped cUSDT) True
+Assert Equal (Comptroller CheckisComped cWBTC) True
+Assert Equal (Comptroller CheckIsComped cZRX) True
+
+-- Sanity check the speeds
+
+Assert Equal (Comptroller CompSpeed cBAT) 0.203121569295974918e18
+Assert Equal (Comptroller CompSpeed cDAI) 0.001103447907469680e18
+Assert Equal (Comptroller CompSpeed cETH) 0.000017970643503360e18
+Assert Equal (Comptroller CompSpeed cREP) 0.000127756157903774e18
+Assert Equal (Comptroller CompSpeed cSAI) 0
+Assert Equal (Comptroller CompSpeed cUSDC) 0.000940109498639776e18
+Assert Equal (Comptroller CompSpeed cUSDT) 0.008447487333746899e18
+Assert Equal (Comptroller CompSpeed cWBTC) 0.004841175362144006e18
+Assert Equal (Comptroller CompSpeed cZRX) 0.001400483800617582e18
+
+-- Check the market borrows
+
+Assert Equal (CToken cBAT TotalBorrows) 994790805782510516637146235
+Assert Equal (CToken cDAI TotalBorrows) 28733415458831908292748520
+Assert Equal (CToken cETH TotalBorrows) 1423195009215949475714
+Assert Equal (CToken cREP TotalBorrows) 11741036506536325005938
+Assert Equal (CToken cSAI TotalBorrows) 85702639018129680274971
+Assert Equal (CToken cUSDC TotalBorrows) 13194641271913
+Assert Equal (CToken cUSDT TotalBorrows) 33842222695086
+Assert Equal (CToken cWBTC TotalBorrows) 166281366345
+Assert Equal (CToken cZRX TotalBorrows) 14602818278789368467659480
+
+-- Check the market prices
+
+Assert Equal (PriceOracleProxy Price cBAT) 1189627500000000
+Assert Equal (PriceOracleProxy Price cDAI) 4579024512369984
+Assert Equal (PriceOracleProxy Price cETH) 1000000000000000000
+Assert Equal (PriceOracleProxy Price cREP) 71700617500000010
+Assert Equal (PriceOracleProxy Price cSAI) 5285551943761727
+Assert Equal (PriceOracleProxy Price cUSDC) 4554587056912220000000000000
+Assert Equal (PriceOracleProxy Price cUSDT) 4554587056912220000000000000
+Assert Equal (PriceOracleProxy Price cWBTC) 410378476771980800000000000000
+Assert Equal (PriceOracleProxy Price cZRX) 1465310000000000
+
+-- Refresh speeds
+
+Comptroller RefreshCompSpeeds
+
+-- Check the new speeds match utility metric
+-- Total Utility =
+--  994790805782510516637146235 * 1189627500000000 +
+--  28733415458831908292748520 * 4579024512369984 +
+--  1423195009215949475714 * 1000000000000000000 +
+--  11741036506536325005938 * 71700617500000010 +
+--  85702639018129680274971 * 5285551943761727 * 0 (cSAI not comped) +
+--  13194641271913 * 4554587056912220000000000000 +
+--  33842222695086 * 4554587056912220000000000000 +
+--  166281366345 * 410378476771980800000000000000 +
+--  14602818278789368467659480 * 1465310000000000
+--  = 1621135988903112202016711619617847258483060
+
+-- .22e18 * 994790805782510516637146235 * 1189627500000000 / 1621135988903112202016711619617847258483060
+--  = 160600166568066720
+Assert Equal (Comptroller CompSpeed cBAT) 0.160600166568066716e18
+
+-- .22e18 * 28733415458831908292748520 * 4579024512369984 / 1621135988903112202016711619617847258483060
+--  = 17855148003843600
+Assert Equal (Comptroller CompSpeed cDAI) 0.017855148003843601e18
+
+-- .22e18 * 1423195009215949475714 * 1000000000000000000 / 1621135988903112202016711619617847258483060
+--  = 193137962620495
+Assert Equal (Comptroller CompSpeed cETH) 0.000193137962620495e18
+
+-- .22e18 * 11741036506536325005938 * 71700617500000010 / 1621135988903112202016711619617847258483060
+--  = 114243780991640
+Assert Equal (Comptroller CompSpeed cREP) 0.000114243780991640e18
+
+-- not comped
+Assert Equal (Comptroller CompSpeed cSAI) 0
+
+-- .22e18 * 13194641271913 * 4554587056912220000000000000 / 1621135988903112202016711619617847258483060
+--  = 8155485665104318
+Assert Equal (Comptroller CompSpeed cUSDC) 0.008155485665104317e18
+
+-- .22e18 * 33842222695086 * 4554587056912220000000000000 / 1621135988903112202016711619617847258483060
+--  = 20917564667146620
+Assert Equal (Comptroller CompSpeed cUSDT) 0.020917564667146617e18
+
+-- .22e18 * 166281366345 * 410378476771980800000000000000 / 1621135988903112202016711619617847258483060
+--  = 9260435118787978
+Assert Equal (Comptroller CompSpeed cWBTC) 0.009260435118787978e18
+
+-- .22e18 * 14602818278789368467659480 * 1465310000000000 / 1621135988903112202016711619617847258483060
+--  = 2903818233438633
+Assert Equal (Comptroller CompSpeed cZRX) 0.002903818233438633e18
+
+-- Now sanity check that we can continue to use the market as usual
+
+-- First check the USDC Whale, mint
+
+Assert Equal (Erc20 cUSDC TokenBalance USDCWhale) 0
+
+From USDCWhale (Trx GasPrice 0 (Erc20 USDC Approve cUSDC UInt256Max))
+From USDCWhale (Trx GasPrice 0 (CToken cUSDC Mint 10000e6))
+
+Assert Equal (Erc20 cUSDC TokenBalance USDCWhale) 47481122314530
+Assert Equal (Erc20 cUSDC TotalSupply) 1080141236963466282
+
+-- Next check the BAT borrower, borrow a little more
+
+Assert Equal (Erc20 cETH TokenBalance cBATBorrower) 1034370824418
+Assert Equal (Erc20 cETH TotalSupply) 5134544277187300
+
+Assert Equal (CToken cBAT BorrowBalance cBATBorrower) 123048404201235973562497
+Assert Equal (CToken cBAT TotalBorrows) 994790805782510516637146235
+
+Expect Changes (CToken cBAT BorrowBalance cBATBorrower) 6666016503078751208324
+From cBATBorrower (CToken cBAT Borrow 6666000000000000000000)
+
+Assert Equal (CToken cBAT BorrowBalance cBATBorrower) 129714420704314724770821
+Assert Equal (CToken cBAT TotalBorrows) 997475461661266096431316572
+
+-- Claim comp to true up their balances
+
+Comptroller ClaimComp USDCWhale
+Comptroller ClaimComp cBATBorrower
+
+-- Now move the clock forward
+
+AdvanceBlocks 1000000
+
+-- And check that they receive the right amount of COMP when claimed
+
+-- cUSDC: 47481122314530 / 1080141236963466282 * 8155485665104318 * 1e6 = 358500906314635600
+Expect Changes (Erc20 Comp TokenBalance USDCWhale) 0.358501981817354439e18
+Comptroller ClaimComp USDCWhale
+
+-- cETH: 1034370824418 / 5134544277187300 * 193137962620495 * 1e6 = 38908277509608240
+-- cBAT: 129714420704314724770821 / 997475461661266096431316572 * 160600166568066720 * 1e6 = 20884882257351856000
+--  = 0.358500906314635600 + 20.884882257351856000 = 21.24338316366649
+Expect Changes (Erc20 Comp TokenBalance cBATBorrower) 21.282364219697601761e18
+Comptroller ClaimComp cBATBorrower
+
+Print "COMP distribution patch OK!"

@@ -1,0 +1,29 @@
+
+Test "Attempt to sweep underlying token"
+    NewComptroller price:1.0
+    NewCToken ZRX cZRX
+    NewCToken BAT cBAT
+    Give cBAT 10e18 BAT -- Faucet some bat to sweep
+    Support cZRX collateralFactor:0.5
+    Support cBAT collateralFactor:0.5
+    AllowFailures
+    cToken cBAT SweepToken BAT
+    Assert Revert "revert CErc20::sweepToken: can not sweep underlying token"
+
+Test "Succesfully Sweep standard non-underlying token from CErc20"
+    NewComptroller price:1.0
+    Erc20 Deploy Standard ZRX "ZRX" 18
+    NewCToken BAT cBAT
+    Give cBAT 10e18 ZRX -- Faucet some ZRX to sweep
+    Support cBAT collateralFactor:0.5
+    cToken cBAT SweepToken ZRX
+    Assert Equal (Erc20 ZRX TokenBalance Admin) (10e18)
+
+Test "Succesfully Sweep non-standard non-underlying token from CErc20"
+    NewComptroller price:1.0
+    Erc20 Deploy NonStandard USDT "USDT" 18
+    NewCToken BAT cBAT
+    Give cBAT 10e18 USDT -- Faucet some USDT to sweep
+    Support cBAT collateralFactor:0.5
+    cToken cBAT SweepToken USDT
+    Assert Equal (Erc20 USDT TokenBalance Admin) (10e18)

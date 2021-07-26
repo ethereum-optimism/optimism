@@ -1,0 +1,23 @@
+binarySearch(address account, uint blockNumber, uint futureBlock) {
+    env e0;
+    require e0.msg.value == 0;
+    require blockNumber < e0.block.number;
+    require futureBlock >= e0.block.number;
+
+    uint nCheckpoints;
+    require nCheckpoints <= 4;
+    require invoke numCheckpoints(e0, account) == nCheckpoints;
+
+    require invoke certoraOrdered(e0, account);
+
+    invoke getPriorVotes(e0, account, futureBlock);
+    assert lastReverted, "Must revert for future blocks";
+
+    uint votesLinear = invoke certoraScan(e0, account, blockNumber);
+    assert !lastReverted, "Linear scan should not revert for any valid block number";
+
+    uint votesBinary = invoke getPriorVotes(e0, account, blockNumber);
+    assert !lastReverted, "Query should not revert for any valid block number";
+
+    assert votesLinear == votesBinary, "Linear search and binary search disagree";
+}

@@ -1,0 +1,48 @@
+#!/usr/bin/env yarn repl -s
+
+PrintTransactionLogs
+Alias CompVoter1 "0x6626593C237f530D15aE9980A95ef938Ac15c35c"
+Alias CompVoter2 "0xA1b61405791170833070C0eA61eD28728A840241"
+Alias CompVoter3 "0xAC5720d6EE2d7872b88914C9c5Fa9BF38e72FaF6"
+Alias CompVoter4 "0x8169522c2C57883E8EF80C498aAB7820dA539806"
+Alias Arr00 "0x2B384212EDc04Ae8bB41738D05BA20E33277bf33"
+Alias NewcUNIImplementation "0xa1849880593E96d2f7dF77D0D38a7f2372aE10E0"
+Alias UniHolder "0x5518C31f4A22782E5a7046711FACF985985530c7"
+Alias CUSDCHolder "0x926e78b8DF67e129011750Dd7b975f8E50D3d7Ad"
+Alias cUNISender "0xf22c2e3475e4a066f4e9f44567c950dd36112d05"
+Web3Fork "https://mainnet-eth.compound.finance/@11820163" (CompVoter1 CompVoter2 CompVoter3 CompVoter4 UniHolder CUSDCHolder)
+UseConfigs mainnet
+
+
+-- Vote for, queue, and execute the proposal
+MineBlock
+From CompVoter1 (Governor GovernorAlpha Proposal LastProposal Vote For)
+From CompVoter2 (Governor GovernorAlpha Proposal LastProposal Vote For)
+From CompVoter3 (Governor GovernorAlpha Proposal LastProposal Vote For)
+From CompVoter4 (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+-- Check expected values
+Assert Equal (CToken cUNI Implementation) (Address NewcUNIImplementation)
+Assert Equal (Erc20 (Address cUNI) TokenBalance (Address Timelock)) (17987425872149)
+Assert Equal (Erc20 (Address cUNI) TokenBalance cUNISender) (161886832849341)
+Assert Equal (Erc20 (Address COMP) TokenBalance (Address Arr00)) (30040000000000000000)
+
+-- Ensure accrue interest works
+MineBlock
+CToken cUNI AccrueInterest
+
+-- Mint Test
+Assert Equal (Erc20 Uni TokenBalance cUNI) (8974517540659969962306996)
+From UniHolder (Erc20 Uni Approve cUNI 10000000)
+From UniHolder (CToken cUNI Mint 10000000)
+Assert Equal (Erc20 Uni TokenBalance cUNI) (8974517540659969972306996)
+
+-- Borrow Test
+From CUSDCHolder (CToken cUNI Borrow 10000000)
+Assert Equal (Erc20 Uni TokenBalance CUSDCHolder) (10000000)
+
+Print "cUNI implementation migration ok" 

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -eo pipefail
+
+dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+root_dir="$(cd $dir/.. && pwd)"
+cache_file="$root_dir/.solcache"
+saddle_config_file="$root_dir/saddle.config.js"
+config_trace=`node -e "console.log(require(\"$saddle_config_file\").trace)"`
+[[ "$*" == "--trace" ]] || [[ "$config_trace" == "true" ]] && cache_file="${cache_file}cov"
+checksum="$(ls $root_dir/{contracts,contracts/**,tests/Contracts}/*.sol | xargs shasum -U | shasum -U | cut -d' ' -f 1)"
+
+if [ -z "$rebuild" -a -f "$cache_file" ]; then
+  cached="$(cat $cache_file)"
+
+  if [ "$cached" == "$checksum" ]; then
+    echo "Skipping Contract Rebuild (set rebuild=true to force)"
+    exit 0
+  fi
+fi
+
+echo "Compiling Solidity contracts..."
+npx saddle compile $@
+
+echo "$checksum" > "$cache_file"

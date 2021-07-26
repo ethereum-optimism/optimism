@@ -1,0 +1,87 @@
+-- Borrow Tests
+
+Macro CreateSupportedAsset token price interestRate policyHook
+	AddToken token
+	SupportMarket token price interestRate policyHook
+	Assert Success
+
+Macro CreateSupply user token amount
+	Approve user token amount
+	Faucet user token amount
+	Supply user token amount
+	Assert Success
+
+Test "Supply Ether and Borrow OMG"
+	-- Note that borrow reduces Cash but does not reduce the Supply balance sheet.
+	CreateSupportedAsset Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	CreateSupply Geoff Ether 10.0e18
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly 10.0e18)
+	FastForward 2 Blocks
+	CreateSupportedAsset OMG (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	AddCash OMG 1e20
+	CreateSupply Torrey OMG 5.0e18
+	Assert Equal (BalanceSheetSupply OMG) (Exactly 5.0e18)
+	Assert Equal (TokenBalance Geoff OMG) (Exactly 0.0e18)
+	EnterMarkets Geoff OMG
+	Borrow Geoff OMG 2.0e18
+	Assert Success
+	Assert Equal (BalanceSheetBorrow OMG) (Exactly 2.1e18) -- includes origination fee
+	Assert Equal (BorrowBalance Geoff OMG) (Exactly 2.1e18) -- includes origination fee
+	Assert Equal (TokenBalance Geoff OMG) (Exactly 2.0e18) -- does not include origination fee
+	--
+	-- OMG total supply unchanged
+	Assert Equal (BalanceSheetSupply OMG) (Exactly 5.0e18)
+
+
+Test "Supply Ether and attempt to Borrow more OMG than supported by collateral ratio"
+	-- Note that borrow reduces Cash but does not reduce the Supply balance sheet.
+	CreateSupportedAsset Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	CreateSupply Geoff Ether 3.0e18
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly 3.0e18)
+	Assert Equal (MaxBorrow Geoff) (Exactly 1.5e18) -- the original supply has doubled due to interest, so max borrow value has also doubled
+	FastForward 2 Blocks
+	CreateSupportedAsset OMG (FixedPrice 0.2) (FixedRate 0.5 0.75) SimplePolicyHook
+	AddCash OMG 1e20
+	CreateSupply Torrey OMG 30.0e18
+	Assert Equal (BalanceSheetSupply OMG) (Exactly 30.0e18)
+	Assert Equal (TokenBalance Geoff OMG) (Exactly 0.0e18)
+	Assert Equal (MaxBorrow Geoff) (Exactly 3.0e18) -- the original supply has doubled due to interest, so max borrow value has also doubled
+	EnterMarkets Geoff OMG
+	Borrow Geoff OMG 20.0e18
+	Assert Failure INSUFFICIENT_LIQUIDITY BORROW_AMOUNT_LIQUIDITY_SHORTFALL
+	Assert Equal (BorrowBalance Geoff OMG) (Exactly 0.0e18)
+	Assert Equal (TokenBalance Geoff OMG) (Exactly 0.0e18)
+	Assert Equal (BalanceSheetBorrow OMG) (Exactly 0.0e18)
+	--
+	-- OMG total supply unchanged
+	Assert Equal (BalanceSheetSupply OMG) (Exactly 30.0e18)
+
+Test "Can't borrow an initial state asset"
+	CreateSupportedAsset Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	CreateSupply Geoff Ether 30.0e18
+	FastForward 2 Blocks
+	AddToken OMG
+	AddCash OMG 1e20
+	Borrow Geoff OMG 1e18
+	Assert Failure MARKET_NOT_LISTED BORROW_MARKET_NOT_LISTED
+
+Test "Can't borrow when contract is paused"
+	CreateSupportedAsset Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	CreateSupply Geoff Ether 10.0e18
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "10.0e18")
+	FastForward 2 Blocks
+	CreateSupportedAsset OMG (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	CreateSupply Torrey OMG 5.0e18
+	AddCash OMG 1e20
+	Assert Equal (BalanceSheetSupply OMG) (Exactly 5.0e18)
+	Assert Equal (TokenBalance Geoff OMG) (Exactly 0.0e18)
+	PolicyHook OMG (SetPaused True)
+	Borrow Geoff OMG 2.0e18
+	Assert Failure COMPTROLLER_REJECTION BORROW_COMPTROLLER_REJECTION 1
+	Assert Equal (BorrowBalance Geoff OMG) (Exactly 0.0e18)
+	Assert Equal (TokenBalance Geoff OMG) (Exactly 0.0e18)
+
+Test "Can't borrow if have not entered market"
+	CreateSupportedAsset OMG (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Borrow Geoff OMG 2.0e18
+	Assert Failure ASSET_NOT_ENTERED BORROW_ASSET_NOT_ENTERED

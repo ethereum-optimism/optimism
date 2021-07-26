@@ -1,0 +1,84 @@
+-- Tests for the current borrow balance in a number of scenarios
+
+Macro NewBorrow borrowAmount borrowRate user=Geoff
+    NewComptroller price:1.0 -- TODO: This should really be a price for a specific asset
+    NewCToken ZRX cZRX
+    NewCToken BAT cBAT borrowRate -- note: cannot use macros with named args right now
+    Give cBAT 10e18 BAT -- Faucet some bat to borrow
+    Support cZRX collateralFactor:0.5
+    Support cBAT collateralFactor:0.5
+    SimpleBorrow user borrowAmount
+
+Macro SimpleBorrow user borrowAmount
+    Prep user Some ZRX cZRX
+    Mint user 100e18 cZRX
+    EnterMarkets user cZRX cBAT
+    Borrow user borrowAmount cBAT
+
+Test "Borrow Balance after 300000 blocks"
+    NewBorrow borrowAmount:1e18 borrowRate:0.000005
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 1e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 1e18)
+    Assert Equal (Erc20 BAT TokenBalance Geoff) (Exactly 1e18)
+    Assert Equal (Erc20 BAT TokenBalance cBAT) (Exactly 9e18)
+    -- Now let's add some blocks and see what happs
+    FastForward 300000 Blocks -- 1e18 * (1 + 300000 * 0.000005)
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 2.5e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 2.5e18)
+
+Test "Borrow Balance after 300000 blocks and then 600000 blocks"
+    NewBorrow borrowAmount:1e18 borrowRate:0.000005
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 1e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 1e18)
+    Assert Equal (Erc20 BAT TokenBalance Geoff) (Exactly 1e18)
+    Assert Equal (Erc20 BAT TokenBalance cBAT) (Exactly 9e18)
+    -- Now let's add some blocks and see what happs
+    FastForward 300000 Blocks -- 1e18 * (1 + 300000 * 0.000005)
+    AccrueInterest cBAT
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 2.5e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 2.5e18)
+    FastForward 600000 Blocks -- 1e18 * (1 + 300000 * 0.000005) * (1 + 600000 * 0.000005)
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 10e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 10e18)
+
+Test "Borrow Balance after accrual then changed interest rate"
+    NewBorrow borrowAmount:1e18 borrowRate:0.000005
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 1e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 1e18)
+    Assert Equal (Erc20 BAT TokenBalance Geoff) (Exactly 1e18)
+    Assert Equal (Erc20 BAT TokenBalance cBAT) (Exactly 9e18)
+    -- Now let's add some blocks and see what happs
+    FastForward 300000 Blocks -- Current: 1e18 * (1 + 300000 * 0.000005)
+    -- Note: this should accrue interest
+    InterestRateModel Deploy Fixed Std 0.000004
+    CToken cBAT SetInterestRateModel (InterestRateModel Std Address)
+    -- Check borrow balance still based on old figure (with previous interest accrual)
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 2.5e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 2.5e18)
+    -- Now accrue with new rate
+    FastForward 800000 Blocks -- 1e18 * (1 + 300000 * 0.000005) * (1 + 800000 * 0.000004)
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 10.5e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 10.5e18)
+
+Test "Total Borrow Balance with Two Borrowers"
+    NewBorrow borrowAmount:1e18 borrowRate:0.000005 user:Geoff
+    FastForward 300000 Blocks
+    InterestRateModel Deploy Fixed Std 0.000004
+    CToken cBAT SetInterestRateModel (InterestRateModel Std Address)
+    -- Check borrow balance still based on old figure (with previous interest accrual)
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 2.5e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 2.5e18)
+    SimpleBorrow user:Torrey borrowAmount:5e18
+    -- Now accrue with new rate
+    FastForward 800000 Blocks
+    -- Geoff: 1e18 * (1 + 300000 * 0.000005) * (1 + 800000 * 0.000004)
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 10.5e18)
+    -- Torrey: 5e18 * (1 + 800000 * 0.000004)
+    Assert Equal (cToken cBAT BorrowBalance Torrey) (Exactly 21e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 31.5e18)
+    -- And test some repayment
+    From Torrey (Erc20 BAT Approve cBAT 2.0e18)
+    RepayBorrow Torrey 2.0e18 cBAT
+    Assert Equal (cToken cBAT BorrowBalance Geoff) (Exactly 10.5e18)
+    Assert Equal (cToken cBAT BorrowBalance Torrey) (Exactly 19e18)
+    Assert Equal (cToken cBAT TotalBorrowsCurrent) (Exactly 29.5e18)

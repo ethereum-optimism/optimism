@@ -1,0 +1,14 @@
+
+rule alwaysHasDai(uint256 amount) {
+    env e0;
+
+    require amount == sinvoke getCashOf(e0, e0.msg.sender);
+    uint256 mintError = sinvoke mint(e0, amount);
+    uint256 redeemError = invoke redeemUnderlying(e0, amount);
+    bool redeemReverted = lastReverted;
+    uint256 redeemedAmount = sinvoke getCashOf(e0, e0.msg.sender);
+
+    // XXX what if it reverts? cannot fix until specs can run again
+    assert !redeemReverted, "Redeem reverted";
+    assert !redeemReverted => redeemedAmount == amount, "Redeemed amount other than specified";
+}

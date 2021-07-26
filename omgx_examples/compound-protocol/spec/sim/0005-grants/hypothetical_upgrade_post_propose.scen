@@ -1,0 +1,31 @@
+#!/usr/bin/env yarn repl -s
+
+-- This script tests a hypothetical upgrade with one time and streaming grants
+
+PrintTransactionLogs
+Alias CompHolder "0x19bc62ff7cd9ffd6bdced9802ff718f09f7259f1"
+Alias CompVoter1 "0x9aa835bc7b8ce13b9b0c9764a52fbf71ac62ccf1"
+Alias CompVoter2 "0xed409c9ff60f3020abf9012bcd45fc294f5608ff"
+Alias USDCWhale "0x3dfd23a6c5e8bbcfc9581d2e864a68feb6a076d3"
+Alias Tarun "0x6626593c237f530d15ae9980a95ef938ac15c35c"
+Web3Fork "https://mainnet-eth.compound.finance/@11395519" (CompHolder USDCWhale Tarun CompVoter1 CompVoter2)
+UseConfigs mainnet
+
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (2e18)
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompVoter1 (Governor GovernorAlpha Proposal LastProposal Vote For)
+From CompVoter2 (Governor GovernorAlpha Proposal LastProposal Vote For)
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+ComptrollerImpl ComptrollerG6 MergeABI
+
+-- Check grant amount was apportioned
+Assert Equal (Erc20 COMP TokenBalance (Address Tarun)) (1002e18)
+
+Print "Upgrade OK!"

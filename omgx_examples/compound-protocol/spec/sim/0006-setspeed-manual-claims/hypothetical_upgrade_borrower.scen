@@ -1,0 +1,53 @@
+#!/usr/bin/env yarn repl -s
+
+-- This script tests a hypothetical upgrade with manual COMP claims and manual COMP speed setting
+
+PrintTransactionLogs
+Alias CompHolder "0xC89b6f0146642688bb254bF93C28fcCF1E182C81"
+Alias USDCWhale "0x3dfd23a6c5e8bbcfc9581d2e864a68feb6a076d3"
+Alias DAIWhale "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503"
+Alias BigBorrower "0x847956f7f7ff49714fb2d70a0d0cd44a6376990f"
+Web3Fork "https://mainnet-eth.compound.finance/@11458477" (CompHolder USDCWhale DAIWhale)
+UseConfigs mainnet
+
+-- Deploy the flywheel impl
+ComptrollerImpl Deploy Standard ComptrollerG7
+
+-- Baseline USDC comp speed before the patch
+Assert Equal (Comptroller CompSpeed cUSDC) 5.3786477206671197e16
+
+-- Mint tokens
+From DAIWhale (Trx GasPrice 0 (Erc20 DAI Approve cDAI UInt256Max))
+From DAIWhale (Trx GasPrice 0 (CToken cDAI Mint 10000e6))
+From USDCWhale (Trx GasPrice 0 (Erc20 USDC Approve cUSDC UInt256Max))
+From USDCWhale (Trx GasPrice 0 (CToken cUSDC Mint 10000e6))
+
+-- Baseline COMP claim speed
+Assert Equal (Comptroller CheckIsComped cDAI) True
+
+Comptroller ClaimComp BigBorrower
+AdvanceBlocks 1000
+Expect Changes (Erc20 Comp TokenBalance BigBorrower) 2.893496802261224189e18
+Comptroller ClaimComp BigBorrower
+
+-- Propose to apply the patch
+
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "Disable automatic comp speed refresh and automatic claims and change comp speed" [(Address Unitroller) (Address ComptrollerG7) (Address Unitroller)] [0 0 0] ["_setPendingImplementation(address)" "_become(address)" "_setCompSpeed(address,uint256)"] [[(Address ComptrollerG7)] [(Address Unitroller)] [(Address cUSDC) 30000000000000000]])
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+ComptrollerImpl ComptrollerG7 MergeABI
+
+Comptroller ClaimComp BigBorrower
+AdvanceBlocks 1000
+Expect Changes (Erc20 Comp TokenBalance BigBorrower) 2.893496802261224189e18
+Comptroller ClaimComp BigBorrower
+
+Print "Upgrade OK!"

@@ -1,0 +1,101 @@
+_setPendingAdmin(address currentAdmin, address currentPendingAdmin, address newPendingAdmin)
+description "Failed to set new pending admin $currentPendingAdmin to $newPendingAdmin (admin=$currentAdmin)"
+{
+    // Free Variables
+    env e0;
+    env e1;
+    env e2;
+
+    require currentAdmin == sinvoke admin(e0);
+    require currentPendingAdmin == sinvoke pendingAdmin(e0);
+
+    // Invoke set new pending admin
+    uint256 result = sinvoke _setPendingAdmin(e1, newPendingAdmin);
+
+    // pendingAdmin changes <=> msg.sender == currentAdmin
+    assert (
+            (
+             e1.msg.sender == currentAdmin &&
+             result == 0 &&
+             sinvoke pendingAdmin(e2) == newPendingAdmin
+             )
+            ||
+            (
+             e1.msg.sender != currentAdmin &&
+             result != 0 &&
+             sinvoke pendingAdmin(e2) == currentPendingAdmin
+             )
+            );
+}
+
+_acceptAdmin(address currentAdmin, address currentPendingAdmin, address newAdmin, address newPendingAdmin)
+description "Failed to accept pending admin currentAdmin=$currentAdmin, currentPendingAdmin=$currentPendingAdmin, newPendingAdmin=$newPendingAdmin, newAdmin=$newAdmin"
+{
+    // Free Variables
+    env e0;
+    env e1;
+    env e2;
+
+    require currentAdmin == sinvoke admin(e0);
+    require currentPendingAdmin == sinvoke pendingAdmin(e0);
+
+    // Invoke accept admin
+    uint256 result = sinvoke _acceptAdmin(e1);
+
+    require newAdmin == sinvoke admin(e2);
+    require newPendingAdmin == sinvoke pendingAdmin(e2);
+
+    // admin == pendingAdmin <=> msg.sender == pendingAdmin
+    assert (
+            (
+             e1.msg.sender == currentPendingAdmin &&
+             currentPendingAdmin != 0 &&
+             result == 0 &&
+             newAdmin == currentPendingAdmin &&
+             newPendingAdmin == 0
+             )
+            ||
+            (
+             (
+              e1.msg.sender != currentPendingAdmin ||
+              currentPendingAdmin == 0
+              ) &&
+             result != 0 &&
+             newAdmin == currentAdmin &&
+             newPendingAdmin == currentPendingAdmin
+             )
+            );
+}
+
+// Invariant: To change admin or currentPendingAdmin, must come from current admin
+invariantRequireAdminToChangeAdmin(address caller, address currentAdmin, address currentPendingAdmin, address desiredAdmin, address newAdmin, address newPendingAdmin)
+    description "Failed to prove that required to be admin to change admin (caller=$caller, currentAdmin=$currentAdmin, currentPendingAdmin=$currentPendingAdmin, desiredAdmin=$desiredAdmin, newAdmin=$newAdmin, newPendingAdmin=$newPendingAdmin)"
+{
+    // Free Variables
+    env e0;
+    env e1;
+    env e2;
+    env e3;
+
+    require currentAdmin == sinvoke admin(e0);
+    require currentPendingAdmin == sinvoke pendingAdmin(e0);
+
+    // Start with a zero admin
+    require currentPendingAdmin == 0;
+
+    require caller == e1.msg.sender;
+
+    // Invoke set new pending admin
+    uint256 result0 = sinvoke _setPendingAdmin(e1, desiredAdmin);
+    uint256 result1 = sinvoke _acceptAdmin(e2);
+
+    require newAdmin == sinvoke admin(e3);
+    require newPendingAdmin == sinvoke pendingAdmin(e3);
+
+    assert (e1.msg.sender == currentAdmin ||
+            (
+             newAdmin == currentAdmin &&
+             newPendingAdmin == currentPendingAdmin
+             )
+            );
+}

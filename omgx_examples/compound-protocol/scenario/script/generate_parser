@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -eo pipefail
+
+dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+scenario_dir="$(cd $dir/.. && pwd)"
+
+"$scenario_dir/node_modules/.bin/pegjs" \
+	--plugin "$scenario_dir/node_modules/ts-pegjs" \
+	-o "$scenario_dir/src/Parser.ts" \
+	--cache \
+	--allowed-start-rules tests,step,macros \
+	"$scenario_dir/Grammar.pegjs"

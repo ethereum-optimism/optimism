@@ -1,0 +1,257 @@
+
+frame_balanceOf(address a, method f)
+description "$f may change value of balanceOf($a)"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke balanceOf(e0, a);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke balanceOf(e2, a);
+
+	assert old == new;
+}
+
+frame_borrowBalanceStored(address a, method f)
+description "$f may change value of borrowBalanceStored($a)"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke borrowBalanceStored(e0, a);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke borrowBalanceStored(e2, a);
+
+	assert old == new;
+}
+
+frame_borrowIndex(method f)
+description "$f may change value of borrowIndex()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke borrowIndex(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke borrowIndex(e2);
+
+	assert old == new;
+}
+
+frame_borrowRatePerBlock(method f)
+description "$f may change value of borrowRatePerBlock()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke borrowRatePerBlock(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke borrowRatePerBlock(e2);
+
+	assert old == new;
+}
+
+frame_comptroller(method f)
+description "$f may change value of comptroller()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	address old = sinvoke comptroller(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	address new = sinvoke comptroller(e2);
+
+	assert old == new;
+}
+
+frame_exchangeRateStored(address a, method f)
+description "$f may change value of exchangeRateStored()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke exchangeRateStored(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke exchangeRateStored(e2);
+
+	assert old == new;
+}
+
+frame_getAccountSnapshot(address a, method f)
+description "$f may change value of getAccountSnapshot($a)"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old1; uint256 old2; uint256 old3; uint256 old4;
+	old1,old2,old3,old4 = sinvoke getAccountSnapshot(e0, a);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new1; uint256 new2; uint256 new3; uint256 new4;
+	new1,new2,new3,new4 = sinvoke getAccountSnapshot(e2, a);
+
+	assert old1 == new1 && old2 == new2 && old3 == new3 && old4 == new4;
+}
+
+frame_getCash(method f)
+description "$f may change value of getCash()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke getCash(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke getCash(e2);
+
+	assert old == new;
+}
+
+frame_interestRateModel(method f)
+description "$f may change value of interestRateModel()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	address old = sinvoke interestRateModel(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	address new = sinvoke interestRateModel(e2);
+
+	assert old == new;
+}
+
+frame_pendingAdmin(method f)
+description "$f may change value of pendingAdmin()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	address old = sinvoke pendingAdmin(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	address new = sinvoke pendingAdmin(e2);
+
+	assert old == new;
+}
+
+frame_reserveFactorMantissa(method f)
+description "$f may change value of reserveFactorMantissa()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke reserveFactorMantissa(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke reserveFactorMantissa(e2);
+
+	assert old == new;
+}
+
+frame_supplyRatePerBlock(method f)
+description "$f may change value of supplyRatePerBlock()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke supplyRatePerBlock(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke supplyRatePerBlock(e2);
+
+	assert old == new;
+}
+
+frame_totalBorrows(method f)
+description "$f may change value of totalBorrows()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke totalBorrows(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke totalBorrows(e2);
+
+	assert old == new;
+}
+
+frame_totalReserves(address a, method f)
+description "$f may change value of totalReserves()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke totalReserves(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke totalReserves(e2);
+
+	assert old == new;
+}
+
+frame_totalSupply(method f)
+description "$f may change value of totalSupply()"
+{
+	env e0;
+	env e1;
+	env e2;
+	require e1.block.number >= e0.block.number;
+	require e2.block.number >= e1.block.number;
+
+	uint256 old = sinvoke totalSupply(e0);
+	calldataarg arg;
+	invoke f(e1, arg);
+	uint256 new = sinvoke totalSupply(e2);
+
+	assert old == new;
+}

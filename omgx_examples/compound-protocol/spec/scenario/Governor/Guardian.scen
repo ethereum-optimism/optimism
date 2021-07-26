@@ -1,0 +1,68 @@
+Macro GivenGov
+    Counter Deploy
+    SetTime 10
+    Timelock Deploy Jared 604800
+    Comp Deploy Bank
+    Governor Deploy Alpha LegitGov (Address Timelock) (Address Comp) Guardian
+    Timelock SetAdmin (Address LegitGov)
+
+Test "Guardian can switch to a new governor"
+    GivenGov
+    From Guardian (Governor LegitGov Guardian QueueSetTimelockPendingAdmin (Address Geoff) 604900)
+    SetTime 604901
+    From Guardian (Governor LegitGov Guardian  ExecuteSetTimelockPendingAdmin (Address Geoff) 604900)
+    From Geoff (Timelock AcceptAdmin)
+    Assert Equal (Timelock Admin) (Address Geoff)
+
+Test "Only guardian can queue"
+    GivenGov
+    AllowFailures
+    Governor LegitGov Guardian QueueSetTimelockPendingAdmin Geoff 604900
+    Assert Revert "revert GovernorAlpha::__queueSetTimelockPendingAdmin: sender must be gov guardian"
+
+Test "Only guardian can execute"
+    GivenGov
+    From Guardian (Governor LegitGov Guardian QueueSetTimelockPendingAdmin Geoff 604900)
+    AllowFailures
+    IncreaseTime 604901
+    Governor LegitGov Guardian ExecuteSetTimelockPendingAdmin Geoff 604900
+    Assert Revert "revert GovernorAlpha::__executeSetTimelockPendingAdmin: sender must be gov guardian"
+
+Test "Guardian can abdicate"
+    GivenGov
+    Assert Equal (Governor LegitGov Guardian) (Address Guardian)
+    From Guardian (Governor LegitGov Guardian Abdicate)
+    Assert Equal (Governor LegitGov Guardian) (Address Zero)
+
+Test "Only guardian can abdicate"
+    GivenGov
+    AllowFailures
+    Governor LegitGov Guardian Abdicate
+    Assert Revert "revert GovernorAlpha::__abdicate: sender must be gov guardian"
+
+Test "Guardian can accept admin"
+    Timelock Deploy Jared 604800
+    Comp Deploy Bank
+    Governor Deploy Alpha LegitGov (Address Timelock) (Address Comp) Guardian
+    From Jared (Timelock QueueTransaction (Timelock Address) 0 604900 "setPendingAdmin(address)" (Governor LegitGov Address))
+    IncreaseTime 604901
+    From Jared (Timelock ExecuteTransaction (Timelock Address) 0 604900 "setPendingAdmin(address)" (Governor LegitGov Address))
+    Assert Equal (Timelock Admin) (Address Jared)
+    Assert Equal (Timelock PendingAdmin) (Governor LegitGov Address)
+    From Guardian (Governor LegitGov Guardian AcceptAdmin)
+    Assert Equal (Timelock Admin) (Governor LegitGov Address)
+    Assert Equal (Timelock PendingAdmin) (Address Zero)
+
+Test "Only guardian can accept admin"
+    SetTime 10
+    Timelock Deploy Jared 604800
+    Comp Deploy Bank
+    Governor Deploy Alpha LegitGov (Address Timelock) (Address Comp) Guardian
+    From Jared (Timelock QueueTransaction (Timelock Address) 0 604900 "setPendingAdmin(address)" (Governor LegitGov Address))
+    IncreaseTime 604901
+    From Jared (Timelock ExecuteTransaction (Timelock Address) 0 604900 "setPendingAdmin(address)" (Governor LegitGov Address))
+    Assert Equal (Timelock Admin) (Address Jared)
+    Assert Equal (Timelock PendingAdmin) (Governor LegitGov Address)
+    AllowFailures
+    Governor LegitGov Guardian AcceptAdmin
+    Assert Revert "revert GovernorAlpha::__acceptAdmin: sender must be gov guardian"

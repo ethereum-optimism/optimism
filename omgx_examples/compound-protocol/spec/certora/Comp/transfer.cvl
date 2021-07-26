@@ -1,0 +1,44 @@
+transferDelegates(address src, address dst, uint amount) {
+    env e0;
+    env e1;
+    require e1.block.number > e0.block.number;
+
+    address srcRep = sinvoke delegates(e0, src);
+    address dstRep = sinvoke delegates(e0, dst);
+
+    uint srcBalancePrior = sinvoke balanceOf(e0, src);
+    uint dstBalancePrior = sinvoke balanceOf(e0, dst);
+
+    uint srcVotesPrior = sinvoke getCurrentVotes(e0, srcRep);
+    uint dstVotesPrior = sinvoke getCurrentVotes(e0, dstRep);
+
+    // Bound the number of checkpoints to prevent solver timeout / unwinding assertion violation
+    uint32 nCheckpoints;
+    require nCheckpoints == 1; // XXX
+    require invoke numCheckpoints(e0, srcRep) == nCheckpoints && invoke numCheckpoints(e0, dstRep) == nCheckpoints;
+
+    // Ensure the checkpoints are sane
+    require sinvoke certoraOrdered(e0, src);
+    require sinvoke certoraOrdered(e0, dst);
+    require srcVotesPrior >= srcBalancePrior;
+    require dstVotesPrior >= dstBalancePrior;
+
+    require amount <= 79228162514264337593543950335; // UInt96 Max
+    bool didTransfer = invoke transferFrom(e0, src, dst, amount);
+    bool transferReverted = lastReverted;
+    assert didTransfer || transferReverted, "Transfer either succeeds or reverts";
+
+    uint srcBalancePost = sinvoke balanceOf(e1, src);
+    uint dstBalancePost = sinvoke balanceOf(e1, dst);
+    assert !transferReverted => (
+        (src != dst) => ((dstBalancePost == dstBalancePrior + amount) && (srcBalancePost == srcBalancePrior - amount)) &&
+        (src == dst) => ((dstBalancePost == dstBalancePrior) && (srcBalancePost == srcBalancePrior))
+    ), "Transfers right amount";
+
+    uint srcVotesPost = sinvoke getCurrentVotes(e1, srcRep);
+    uint dstVotesPost = sinvoke getCurrentVotes(e1, dstRep);
+
+    assert (srcRep == 0 && dstRep != 0 && !transferReverted) => (dstVotesPost == dstVotesPrior + amount), "Votes are created from the abyss";
+    assert (srcRep != 0 && dstRep == 0 && !transferReverted) => (srcVotesPost + amount == srcVotesPrior), "Votes are destroyed into the abyss";
+    assert (srcRep != 0 && dstRep != 0) => (srcVotesPrior + dstVotesPrior == srcVotesPost + dstVotesPost), "Votes are neither created nor destroyed";
+}

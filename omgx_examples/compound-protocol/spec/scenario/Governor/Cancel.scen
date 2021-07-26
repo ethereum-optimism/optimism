@@ -1,0 +1,99 @@
+Macro DeployGov
+    SetBlockNumber 1
+    Counter Deploy CNT1
+    Timelock Deploy Scenario Jared 604800
+    Comp Deploy Bank
+    Governor Deploy Alpha LegitGov (Address Timelock) (Address Comp) Guardian
+    Timelock SetAdmin (Address LegitGov)
+    Enfranchise Root 200001e18
+    Enfranchise Jared 200000e18
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+
+Macro GivenPendingProposal
+    DeployGov
+    MineBlock
+    MineBlock
+    Governor LegitGov Propose "Add and sub" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256,uint256)" "decrement(uint256)"] [["7" "4"] ["2"]]
+    Assert Equal ("Pending") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenActiveProposal
+    GivenPendingProposal
+    MineBlock
+    MineBlock
+    Assert Equal ("Active") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenSucceededProposal
+    GivenActiveProposal
+    Governor LegitGov Proposal LastProposal Vote For
+    From Jared (Governor LegitGov Proposal LastProposal Vote For)
+    AdvanceBlocks 20000
+    Assert Equal ("Succeeded") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenQueuedProposal
+    GivenSucceededProposal
+    FreezeTime 100
+    Governor LegitGov Proposal LastProposal Queue
+    Assert Log ProposalQueued (id 1)
+    Assert Equal ("Queued") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenExecutedProposal
+    GivenQueuedProposal
+    FreezeTime 604901
+    Governor LegitGov Proposal LastProposal Execute
+    Assert Equal ("Executed") (Governor LegitGov Proposal LastProposal State)
+
+Test "Cancel a Pending proposal"
+    GivenPendingProposal
+    From Root (Comp Delegate Geoff)
+    Assert Equal ("Pending") (Governor LegitGov Proposal LastProposal State)
+    --sending away delegates takes a block, so proposal will be "Active" by time it is cancelable
+    Governor LegitGov Proposal LastProposal Cancel
+    Assert Log ProposalCanceled (id 1)
+    Assert Equal ("Canceled") (Governor LegitGov Proposal LastProposal State)
+
+Test "Cancel an Active proposal"
+    GivenActiveProposal
+    From Root (Comp Delegate Geoff)
+    Governor LegitGov Proposal LastProposal Cancel
+    Assert Log ProposalCanceled (id 1)
+    Assert Equal ("Canceled") (Governor LegitGov Proposal LastProposal State)
+
+Test "Cancel a Succeded proposal"
+    GivenSucceededProposal
+    From Root (Comp Delegate Geoff)
+    Governor LegitGov Proposal LastProposal Cancel
+    Assert Log ProposalCanceled (id 1)
+    Assert Equal ("Canceled") (Governor LegitGov Proposal LastProposal State)
+
+Test "Cancel a queued proposal"
+    GivenQueuedProposal
+    Assert True (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 0 (Governor LegitGov Proposal LastProposal Eta) "increment(uint256,uint256)" 7 4))
+    Assert True (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 0 (Governor LegitGov Proposal LastProposal Eta) "decrement(uint256)" 2))
+    From Root (Comp Delegate Geoff)
+    Governor LegitGov Proposal LastProposal Cancel
+    Assert Log ProposalCanceled (id 1)
+    Assert False (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 0 (Governor LegitGov Proposal LastProposal Eta) "increment(uint256,uint256)" 7 4))
+    Assert False (Timelock QueuedTransaction (Timelock TxHash (Address CNT1) 0 (Governor LegitGov Proposal LastProposal Eta) "decrement(uint256)" 2))
+    Assert Equal ("Canceled") (Governor LegitGov Proposal LastProposal State)
+
+Test "Revert when trying to cancel an executed proposal"
+    GivenExecutedProposal
+    From Root (Comp Delegate Geoff)
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Cancel
+    Assert Revert "revert GovernorAlpha::cancel: cannot cancel executed proposal"
+
+Test "Revert when canceling if proposer has votes"
+    GivenPendingProposal
+    AllowFailures
+    Governor LegitGov Proposal LastProposal Cancel
+    Assert Revert "revert GovernorAlpha::cancel: proposer above threshold"
+
+Test "Guardian can cancel any proposal"
+    GivenActiveProposal
+    From Guardian (Governor LegitGov Proposal LastProposal Cancel)
+    Assert Log ProposalCanceled (id 1)
+    Assert Equal (Governor LegitGov Proposal LastProposal State) "Canceled"

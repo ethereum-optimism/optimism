@@ -1,0 +1,48 @@
+-- Withdraw Tests
+
+Test "Supply Ether 5 then Withdraw MAX in the same block"
+	AddToken Ether -- baseline sanity check for withdraw max
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff Ether "6.0e18"
+	Faucet Geoff Ether "6.0e18"
+	Supply Geoff Ether "5.0e18"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "5.0e18")
+	Assert Equal (BorrowBalance Geoff Ether) (Exactly "0e18")
+	Assert Equal (MaxBorrow Geoff) (Exactly "2.5e18")
+	Withdraw Geoff Ether "MAX"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "0.0e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "6e18")
+
+Test "Supply Ether 5 then Withdraw MAX (6) after accruing some interest"
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff Ether "6.0e18"
+	Faucet Geoff Ether "6.0e18"
+	Supply Geoff Ether "5.0e18" -- We need more Ether in the system to simulate protocol gaining borrow interest to pay Geoff
+	Approve Torrey Ether "10.0e18"
+	Faucet Torrey Ether "10.0e18"
+	Supply Torrey Ether "10.0e18"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "5.0e18")
+	FastForward 2 Blocks
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "10.0e18")
+	Withdraw Geoff Ether "MAX"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "0.0e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "11e18")
+
+Test "Withdraw Ether 1 when contract paused"
+	AddToken Ether
+	SupportMarket Ether (FixedPrice 1.0) (FixedRate 0.5 0.75) SimplePolicyHook
+	Approve Geoff Ether "1.0e18"
+	Faucet Geoff Ether "1.0e18"
+	Supply Geoff Ether "1.0e18"
+	Assert Success
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "1.0e18")
+	PolicyHook Ether (SetPaused True)
+	Withdraw Geoff Ether "1.0e18"
+	Assert Failure COMPTROLLER_REJECTION WITHDRAW_COMPTROLLER_REJECTION 1
+	Assert Equal (SupplyBalance Geoff Ether) (Exactly "1e18")
+	Assert Equal (TokenBalance Geoff Ether) (Exactly "0e18")

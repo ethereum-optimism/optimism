@@ -1,0 +1,66 @@
+
+accrueInterest(uint result)
+description "Break accrueInterest with result=$result, block delta is $delta" {
+    // Pre/action/post environments
+    env e0;
+    env e1;
+
+    require e1.block.number >= e0.block.number;
+
+    // fetch pre
+    uint256 cTokenCashPre = sinvoke getCash(e0);
+
+    uint256 borrowRateMaxMantissa = 5000000000000;
+    uint256 borrowRateMantissaPre = sinvoke borrowRatePerBlock(e0);
+    bool interestRateModelReverted = lastReverted;
+
+    uint256 accrualBlockNumberPre = sinvoke accrualBlockNumber(e0);
+    uint256 borrowIndexPre = sinvoke borrowIndex(e0);
+    uint256 totalBorrowsPre = sinvoke totalBorrows(e0);
+    uint256 totalReservesPre = sinvoke totalReserves(e0);
+    uint256 reserveFactorPre = sinvoke reserveFactorMantissa(e0);
+
+    // internal computations
+    uint256 delta = e0.block.number - accrualBlockNumberPre;
+    require delta >= 0;
+
+    uint256 simpleInterestFactor = delta * borrowRateMantissaPre;
+    uint256 interestAccumulated = (totalBorrowsPre * simpleInterestFactor) / 1000000000000000000;
+
+    // post expected
+    uint256 borrowIndexPostExpected = borrowIndexPre + (borrowIndexPre*simpleInterestFactor) / 1000000000000000000;
+    uint256 totalBorrowsPostExpected = totalBorrowsPre + interestAccumulated;
+    uint256 totalReservesPostExpected = totalReservesPre + (interestAccumulated*reserveFactorPre) / 1000000000000000000;
+
+    // Action!
+    require result == invoke accrueInterest(e0);
+    bool accrueInterestReverted = lastReverted;
+
+    // fetch post
+    uint256 accrualBlockNumberPost = sinvoke accrualBlockNumber(e1);
+    uint256 borrowIndexPostActual = sinvoke borrowIndex(e1);
+    uint256 totalBorrowsPostActual = sinvoke totalBorrows(e1);
+    uint256 totalReservesPostActual = sinvoke totalReserves(e1);
+
+    uint256 NO_ERROR = 0;
+    uint256 MATH_ERROR = 9;
+
+    // Guarantee return values
+    assert (accrueInterestReverted <=> (interestRateModelReverted || borrowRateMantissaPre > borrowRateMaxMantissa)), "Reverted for unexpected reason";
+
+    assert (!accrueInterestReverted) => (result == NO_ERROR || result == MATH_ERROR), "Got unexpected error code";
+
+    assert (!accrueInterestReverted =>
+            ((result != 0 || delta == 0) <=>
+             (accrualBlockNumberPost == accrualBlockNumberPre &&
+              borrowIndexPostActual == borrowIndexPre &&
+              totalBorrowsPostActual == totalBorrowsPre &&
+              totalReservesPostActual == totalReservesPre))), "Mismatch in static case";
+
+    assert (!accrueInterestReverted =>
+            ((result == 0) <=>
+             (accrualBlockNumberPost == e0.block.number &&
+              borrowIndexPostActual == borrowIndexPostExpected &&
+              totalBorrowsPostActual == totalBorrowsPostExpected &&
+              totalReservesPostActual == totalReservesPostExpected))), "Mismatch in no error case";
+}

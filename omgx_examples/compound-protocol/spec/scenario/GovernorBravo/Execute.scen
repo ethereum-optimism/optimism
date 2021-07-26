@@ -1,0 +1,99 @@
+Macro DeployGov
+    SetBlockNumber 1
+    IncreaseTime 100
+    Counter Deploy CNT1
+    Timelock Deploy Jared 604800
+    Comp Deploy Bank
+    Enfranchise Root 200001e18
+    Enfranchise Jared 200000e18
+    GovernorBravo Deploy BravoDelegateHarness BravoDelegateHarness
+    GovernorBravo Deploy BravoDelegator LegitGov (Address Timelock) (Address Comp) (Address Root) (Address BravoDelegateHarness) 17280 1 100000e18
+    GovernorBravo LegitGov MergeABI BravoDelegateHarness
+    GovernorBravo LegitGov HarnessInitiate
+    Timelock SetAdmin (Address LegitGov)
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+
+Macro SucceedProposal
+    MineBlock
+    GovernorBravo LegitGov Proposal LastProposal Vote For
+    From Jared (GovernorBravo LegitGov Proposal LastProposal Vote For)
+    AdvanceBlocks 20000
+    Assert Equal ("Succeeded") (GovernorBravo LegitGov Proposal LastProposal State)
+
+Macro GivenSucceededProposal
+    DeployGov
+    GovernorBravo LegitGov Propose "Add 2" [(Address CNT1)] [0] ["increment(uint256)"] [["2"]]
+    SucceedProposal
+
+Macro GivenQueuedProposal
+    GivenSucceededProposal
+    GovernorBravo LegitGov Proposal LastProposal Queue
+
+Test "Execute a simple queued proposal with value"
+    GivenQueuedProposal
+    Assert Equal ("Queued") (GovernorBravo LegitGov Proposal LastProposal State)
+    IncreaseTime 605000
+    GovernorBravo LegitGov Proposal LastProposal Execute
+    Assert Equal ("Executed") (GovernorBravo LegitGov Proposal LastProposal State)
+    Assert Log ProposalExecuted (id 2)
+    Assert Equal (Counter CNT1 Count) 2
+
+Test "Execute a complex queued proposal with value"
+    DeployGov
+    GovernorBravo LegitGov Propose "Add and sub" [(Address CNT1) (Address CNT1)] [1 1] ["increment(uint256,uint256)" "decrement(uint256)"] [["7" "4"] ["2"]]
+    SucceedProposal
+    GovernorBravo LegitGov Proposal LastProposal Queue
+    IncreaseTime 604910
+    Assert Equal (Counter CNT1 Count) 0
+    Assert Equal (Counter CNT1 Count2) 0
+    Trx Value 2 (GovernorBravo LegitGov Proposal LastProposal Execute)
+    Assert Equal ("Executed") (GovernorBravo LegitGov Proposal LastProposal State)
+    Assert Equal (Counter CNT1 Count) 5
+    Assert Equal (Counter CNT1 Count2) 4
+
+Test "Revert when trying to execute a succeeded but unqueued proposal"
+    DeployGov
+    GovernorBravo LegitGov Propose "Add 5" [(Address CNT1)] [0] ["increment(uint256)"] [["2"]]
+    SucceedProposal
+    AllowFailures
+    GovernorBravo LegitGov Proposal LastProposal Execute
+    Assert Revert "revert GovernorBravo::execute: proposal can only be executed if it is queued"
+
+Test "Revert when executing a proposal that reverts"
+    DeployGov
+    GovernorBravo LegitGov Propose "Add 1 and revert" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256)" "doRevert()"] [["1"] []]
+    SucceedProposal
+    GovernorBravo LegitGov Proposal LastProposal Queue
+    IncreaseTime 604905
+    AllowFailures
+    GovernorBravo LegitGov Proposal LastProposal Execute
+    Assert Revert "revert Timelock::executeTransaction: Transaction execution reverted."
+
+Test "Revert when executing an expired proposal"
+    GivenQueuedProposal
+    -- eta + grace period (2 weeks) + 1
+    -- 604900 + 1209600 + 1 =
+    IncreaseTime 1814505
+    Assert Equal ("Expired") (GovernorBravo LegitGov Proposal LastProposal State)
+    AllowFailures
+    GovernorBravo LegitGov Proposal LastProposal Execute
+    Assert Revert "revert GovernorBravo::execute: proposal can only be executed if it is queued"
+
+Test "Assert execution order"
+    DeployGov
+    GovernorBravo LegitGov Propose "Increment and require not zero" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256)" "notZero()"] [["1"] []]
+    SucceedProposal
+    GovernorBravo LegitGov Proposal LastProposal Queue
+    IncreaseTime 604905
+    GovernorBravo LegitGov Proposal LastProposal Execute
+
+Test "Cannot execute cancelled proposal"
+    GivenQueuedProposal
+    IncreaseTime 604905
+    GovernorBravo LegitGov Proposal LastProposal Cancel
+    AllowFailures
+    GovernorBravo LegitGov Proposal LastProposal Execute
+    Assert Revert "revert GovernorBravo::execute: proposal can only be executed if it is queued"

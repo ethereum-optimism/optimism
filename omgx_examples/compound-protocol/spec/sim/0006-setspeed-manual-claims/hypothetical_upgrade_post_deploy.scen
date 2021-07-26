@@ -1,0 +1,95 @@
+#!/usr/bin/env yarn repl -s
+
+-- This script tests a hypothetical upgrade with manual COMP claims and manual COMP speed setting
+
+PrintTransactionLogs
+Alias CompHolder "0xC89b6f0146642688bb254bF93C28fcCF1E182C81"
+Alias USDCWhale "0x3dfd23a6c5e8bbcfc9581d2e864a68feb6a076d3"
+Alias DAIWhale "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503"
+Alias NewComptroller "0xbe7616B06f71e363A310Aa8CE8aD99654401ead7"
+Web3Fork "https://mainnet-eth.compound.finance/@11499182" (CompHolder USDCWhale DAIWhale)
+UseConfigs mainnet
+
+-- Mint tokens
+From DAIWhale (Trx GasPrice 0 (Erc20 DAI Approve cDAI UInt256Max))
+From DAIWhale (Trx GasPrice 0 (CToken cDAI Mint 10000e6))
+From USDCWhale (Trx GasPrice 0 (Erc20 USDC Approve cUSDC UInt256Max))
+From USDCWhale (Trx GasPrice 0 (CToken cUSDC Mint 10000e6))
+
+-- Baseline COMP claim speed
+Assert Equal (Comptroller CheckIsComped cDAI) True
+
+Comptroller ClaimComp DAIWhale
+AdvanceBlocks 1000
+Comptroller ClaimComp DAIWhale
+
+-- Propose to apply the patch
+
+From CompHolder (Comp Delegate CompHolder)
+From CompHolder (Governor GovernorAlpha Propose "Disable automatic comp speed refresh and automatic claims and change comp speed" [(Address Unitroller) (Address NewComptroller) (Address Unitroller)] [0 0 0] ["_setPendingImplementation(address)" "_become(address)" "_setCompSpeed(address,uint256)"] [[(Address NewComptroller)] [(Address Unitroller)] [(Address cUSDC) 30000000000000000]])
+
+-- Vote for, queue, and execute the proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+ComptrollerImpl ComptrollerG7 MergeABI
+
+-- Check that speed has changed
+Assert Equal (Comptroller CompSpeed cUSDC) 3.0e16
+
+-- Check that COMP is still accruing at the same speed
+Comptroller ClaimComp DAIWhale
+AdvanceBlocks 1000
+Comptroller ClaimComp DAIWhale
+
+-- Check that minting some USDC wont result in any automatic claims
+AdvanceBlocks 1000000
+From USDCWhale (Trx GasPrice 0 (Erc20 USDC Approve cUSDC UInt256Max))
+Expect Changes (Erc20 Comp TokenBalance USDCWhale) 0
+From USDCWhale (Trx GasPrice 0 (CToken cUSDC Mint 10000e6))
+
+-- Prepare second proposal
+From CompHolder (Governor GovernorAlpha Propose "Remove USDC market by setting comp speed to 0" [(Address Unitroller)] [0] ["_setCompSpeed(address,uint256)"] [[(Address cUSDC) 0]])
+
+-- Vote for, queue, and execute the second proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+AdvanceBlocks 1000
+
+-- Check speed is now 0
+Assert Equal (Comptroller CompSpeed cUSDC) 0
+
+-- True up balances
+Comptroller ClaimComp USDCWhale
+
+-- Check no more comp accrued
+AdvanceBlocks 1000000
+Expect Changes (Erc20 Comp TokenBalance USDCWhale) 0
+Comptroller ClaimComp USDCWhale
+
+-- Prepare final proposal
+From CompHolder (Governor GovernorAlpha Propose "Reset USDC comp speed" [(Address Unitroller)] [0] ["_setCompSpeed(address,uint256)"] [[(Address cUSDC) 27000000000000000]])
+
+-- Vote for, queue, and execute the final proposal
+
+MineBlock
+From CompHolder (Governor GovernorAlpha Proposal LastProposal Vote For)
+AdvanceBlocks 20000
+Governor GovernorAlpha Proposal LastProposal Queue
+IncreaseTime 604910
+Governor GovernorAlpha Proposal LastProposal Execute
+
+-- Check new speed
+Assert Equal (Comptroller CompSpeed cUSDC) 2.7e16
+
+Print "Upgrade OK!"

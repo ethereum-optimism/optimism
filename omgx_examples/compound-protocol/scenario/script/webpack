@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -eo pipefail
+
+dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+scenario_dir="$(cd $dir/.. && pwd)"
+
+cd "$scenario_dir" &&
+	mkdir -p ./build &&
+	./node_modules/.bin/webpack \
+	--mode production \
+	--config ./webpack.config.js \
+	--entry ./src/Web.ts \
+	--module-bind 'ts=ts-loader' \
+	--module-bind 'exports-loader?parse' \
+	--resolve-extensions ".ts,.js" \
+	--output-library-target window \
+	--output ./build/scenario.js

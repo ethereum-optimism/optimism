@@ -1,0 +1,53 @@
+
+exchangeRateDecreases(uint result, address minter, uint256 mintAmount, uint256 mintTokens) {
+    // Pre/action/post environments
+    env e0;
+    env e1;
+    env e2;
+
+    require e1.block.number >= e0.block.number;
+    require e2.block.number >= e1.block.number;
+
+    // Any other account
+    address other;
+    require other != minter && other != currentContract;
+    require minter != currentContract;
+
+    uint256 exchangeRatePre = sinvoke exchangeRateCurrent(e0);
+
+    uint256 cTokenCashPre = sinvoke getCash(e0);
+    uint256 cTokenBorrowsPre = sinvoke totalBorrows(e0);
+    uint256 cTokenTokensPre = sinvoke totalSupply(e0);
+    uint256 cTokenReservesPre = sinvoke totalReserves(e0);
+    uint256 cTokenSupplyPre = cTokenCashPre + cTokenBorrowsPre - cTokenReservesPre;
+
+    // Simplifying assumptions to analyze the vulnerability
+    require cTokenBorrowsPre == 0; // XXX not necessary, simplifies analysis
+    require cTokenSupplyPre >= 0; // XXX not necessary, should underflow
+    require cTokenTokensPre > 0; // XXX not necessary
+    require exchangeRatePre * cTokenTokensPre == cTokenSupplyPre * 1000000000000000000; // XXX
+
+    // XXX why does this have to be after require?
+    uint256 implicitExchangeRatePre = cTokenSupplyPre * 1000000000000000000 / cTokenTokensPre;
+
+    require result == invoke mintFreshPub(e1, minter, mintAmount);
+    bool mintFreshReverted = lastReverted;
+
+    uint256 exchangeRatePost = sinvoke exchangeRateCurrent(e2);
+
+    uint256 cTokenCashPost = sinvoke getCash(e2);
+    uint256 cTokenBorrowsPost = sinvoke totalBorrows(e2);
+    uint256 cTokenTokensPost = sinvoke totalSupply(e2);
+    uint256 cTokenReservesPost = sinvoke totalReserves(e2);
+    uint256 cTokenSupplyPost = cTokenCashPost + cTokenBorrowsPost - cTokenReservesPost;
+
+    require mintTokens == cTokenTokensPost - cTokenTokensPre;
+    require exchangeRatePre * mintTokens == mintAmount * 1000000000000000000;  // XXX why would this need to be assumed? should be proven
+
+    uint256 implicitExchangeRatePost = cTokenSupplyPost * 1000000000000000000 / cTokenTokensPost;
+
+    assert (!mintFreshReverted =>
+            ((result != 0) => (exchangeRatePost == exchangeRatePre))), "Mismatch in failure case";
+    assert (!mintFreshReverted => (exchangeRatePost >= exchangeRatePre)), "Exchange rate decreased";
+    assert (!mintFreshReverted => (implicitExchangeRatePost >= implicitExchangeRatePre)), "Implicit exchange rate decreased";
+}

@@ -1,0 +1,55 @@
+Macro DeployGov
+    SetBlockNumber 1
+    Counter Deploy CNT1
+    Timelock Deploy Scenario Jared 604800
+    Comp Deploy Bank
+    Governor Deploy Alpha LegitGov (Address Timelock) (Address Comp) Guardian
+    Timelock SetAdmin (Address LegitGov)
+    Enfranchise Root 100001e18
+    Enfranchise Jared 200000e18
+    Enfranchise Torrey 600001e18
+    Enfranchise Geoff 700001e18
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+
+Macro GivenPendingProposal
+    DeployGov
+    MineBlock
+    MineBlock
+    Governor LegitGov Propose "Add and sub" [(Address CNT1) (Address CNT1)] [0 0] ["increment(uint256,uint256)" "decrement(uint256)"] [["7" "4"] ["2"]]
+    Assert Equal ("Pending") (Governor LegitGov Proposal LastProposal State)
+
+Macro GivenActiveProposal
+    GivenPendingProposal
+    MineBlock
+    MineBlock
+    Assert Equal ("Active") (Governor LegitGov Proposal LastProposal State)
+
+Test "Defeat when for votes do not reach quorum"
+    GivenActiveProposal
+    Governor LegitGov Proposal LastProposal Vote For
+    AdvanceBlocks 20000
+    Assert Equal ("Defeated") (Governor LegitGov Proposal LastProposal State)
+
+Test "Defeat when more against votes than for votes"
+    GivenActiveProposal
+    From Torrey (Governor LegitGov Proposal LastProposal Vote For )
+    From Geoff (Governor LegitGov Proposal LastProposal Vote Against )
+    AdvanceBlocks 20000
+    Assert Equal ("Defeated") (Governor LegitGov Proposal LastProposal State)
+
+Test "(not defeat) when vote is ongoing"
+    GivenActiveProposal
+    From Torrey (Governor LegitGov Proposal LastProposal Vote For )
+    From Geoff (Governor LegitGov Proposal LastProposal Vote For )
+    Assert Equal ("Active") (Governor LegitGov Proposal LastProposal State)
+
+Test "(not defeat) when fors pass quorum and nays"
+    GivenActiveProposal
+    From Torrey (Governor LegitGov Proposal LastProposal Vote For )
+    From Geoff (Governor LegitGov Proposal LastProposal Vote For )
+    From Jared (Governor LegitGov Proposal LastProposal Vote Against )
+    AdvanceBlocks 20000
+    Assert Equal ("Succeeded") (Governor LegitGov Proposal LastProposal State)

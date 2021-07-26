@@ -1,0 +1,87 @@
+
+Macro GivenProposal
+    Counter Deploy
+    Comp Deploy Bank
+    Timelock Deploy Jared 604800
+    GovernorBravo Deploy BravoDelegateHarness BravoDelegateHarness
+    GovernorBravo Deploy BravoDelegator LegitGov (Address Timelock) (Address Comp) (Address Root) (Address BravoDelegateHarness) 17280 1 100000e18
+    GovernorBravo LegitGov MergeABI BravoDelegateHarness
+    GovernorBravo LegitGov HarnessInitiate
+    Timelock SetAdmin (Address LegitGov)
+    Enfranchise Root 100001e18
+    Enfranchise Geoff 100
+    GovernorBravo LegitGov Propose "Add 5" [(Address Counter)] [1] ["increment(uint256)"] [["0x5"]]
+    MineBlock
+
+Macro Enfranchise user amount
+    From Bank (Comp Transfer user amount)
+    From user (Comp Delegate user)
+
+Test "Successfully Cast For Vote"
+    GivenProposal
+    From Geoff (GovernorBravo LegitGov Proposal LastProposal Vote For)
+    Assert Log VoteCast (voter (Address Geoff)) (proposalId 2) (support 1) (votes 100)
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal ForVotes) 100
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal AgainstVotes) 0
+    Assert True (GovernorBravo LegitGov Proposal LastProposal HasVoted Geoff)
+
+Test "Successfully Cast Against Vote"
+    GivenProposal
+    From Geoff (GovernorBravo LegitGov Proposal LastProposal Vote Against)
+    Assert Log VoteCast (support 0) (votes 100)
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal ForVotes) 0
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal AgainstVotes) 100
+    Assert True (GovernorBravo LegitGov Proposal LastProposal HasVoted Geoff)
+
+Test "Successfully Cast Zero Vote"
+    GivenProposal
+    From Torrey (GovernorBravo LegitGov Proposal LastProposal Vote For)
+    Assert Log VoteCast (support 1) (votes 0)
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal ForVotes) 0
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal AgainstVotes) 0
+    Assert True (GovernorBravo LegitGov Proposal LastProposal HasVoted Torrey)
+
+Test "Fail to vote twice"
+    GivenProposal
+    GovernorBravo LegitGov Proposal LastProposal Vote For
+    AllowFailures
+    GovernorBravo LegitGov Proposal LastProposal Vote For
+    Assert Revert "revert GovernorBravo::castVoteInternal: voter already voted"
+    GovernorBravo LegitGov Proposal LastProposal Vote Against
+    Assert Revert "revert GovernorBravo::castVoteInternal: voter already voted"
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal ForVotes) 100001e18
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal AgainstVotes) 0
+    Assert False (GovernorBravo LegitGov Proposal LastProposal HasVoted Geoff)
+
+Test "Cannot vote before vote starts"
+    GivenProposal
+    AllowFailures
+    SetBlockNumber 7
+    GovernorBravo LegitGov Proposal LastProposal Vote For
+    Assert Revert "revert GovernorBravo::castVoteInternal: voting is closed"
+
+Test "Cannot vote after vote ends"
+    GivenProposal
+    AllowFailures
+    AdvanceBlocks 20000
+    GovernorBravo LegitGov Proposal LastProposal Vote For
+    Assert Revert "revert GovernorBravo::castVoteInternal: voting is closed"
+
+Test "Cannot vote on cancelled vote"
+    GivenProposal
+    GovernorBravo LegitGov Proposal LastProposal Cancel
+    AllowFailures
+    GovernorBravo LegitGov Proposal LastProposal Vote For
+    Assert Revert "revert GovernorBravo::castVoteInternal: voting is closed"
+
+Test "Can abstain"
+    GivenProposal
+    From Geoff (GovernorBravo LegitGov Proposal LastProposal Vote Abstain)
+    Assert Equal (GovernorBravo LegitGov Proposal LastProposal Support Geoff) 2
+    Assert Log VoteCast (support 2) (votes 100)
+
+Test "Voting Reason"
+    GivenProposal
+    From Geoff (GovernorBravo LegitGov Proposal LastProposal VoteWithReason For "Hello World")
+    Assert Log VoteCast (reason "Hello World")
+

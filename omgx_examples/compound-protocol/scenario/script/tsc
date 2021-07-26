@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -eo pipefail
+
+dir=`dirname $0`
+scenario_dir="$(cd $dir/.. && pwd)"
+parent_dir="$(cd $dir/../.. && pwd)"
+cache_file="$scenario_dir/.tscache"
+checksum="$(echo $scenario_dir/src/{*,**/}*.* | xargs shasum -U | shasum -U | cut -d' ' -f 1)"
+
+if [ ! -d "$scenario_dir/node_modules" ]; then
+	echo "Getting scenario packages..."
+	cd "$scenario_dir" && yarn
+fi
+
+trap cleanup EXIT
+
+cleanup() {
+  mv "$parent_dir/node_modules_tmp" "$parent_dir/node_modules"
+}
+
+mv "$parent_dir/node_modules" "$parent_dir/node_modules_tmp"
+
+if [ -z "$rebuild" -a -f "$cache_file" ]; then
+  cached="$(cat $cache_file)"
+
+  if [ "$cached" == "$checksum" ]; then
+    echo "Skipping Scenario Rebuild (set rebuild=true to force)"
+    exit 0
+  fi
+fi
+
+echo "Building Scenario Runner..."
+cd "$scenario_dir" && node "$scenario_dir/node_modules/.bin/tsc" ${TSC_ARGS-"--skipLibCheck"}
+
+echo "$checksum" > "$cache_file"

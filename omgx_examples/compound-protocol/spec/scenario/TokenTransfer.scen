@@ -1,0 +1,108 @@
+
+Test "Simple cToken Transfer"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Prep Geoff Some ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    -- Just to be sure, check initial balances
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 50e9)
+    Assert Equal (Erc20 cZRX TokenBalance Torrey) Zero
+    -- Just transfer
+    Transfer Geoff Torrey 10e9 cZRX
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 40e9)
+    Assert Equal (Erc20 cZRX TokenBalance Torrey) (Exactly 10e9)
+
+Test "Simple cToken Transfer When Underlying Paused"
+    NewComptroller
+    ListedCToken WBTC cWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff Some WBTC cWBTC
+    Mint Geoff 50e8 cWBTC
+    -- Just to be sure, check initial balances
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) (Exactly 50e9)
+    Assert Equal (Erc20 cWBTC TokenBalance Torrey) Zero
+    -- Just transfer
+    Erc20 WBTC Pause
+    Transfer Geoff Torrey 10e9 cWBTC
+    Assert Equal (Erc20 cWBTC TokenBalance Geoff) (Exactly 40e9)
+    Assert Equal (Erc20 cWBTC TokenBalance Torrey) (Exactly 10e9)
+
+Test "Simple cToken Transfer 1:1 Rate"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e0
+    Prep Geoff Some ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    -- Just to be sure, check initial balances
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 50e18)
+    Assert Equal (Erc20 cZRX TokenBalance Torrey) Zero
+    -- Just transfer
+    Transfer Geoff Torrey 10e18 cZRX
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 40e18)
+    Assert Equal (Erc20 cZRX TokenBalance Torrey) (Exactly 10e18)
+
+Test "Simple cToken Transfer Not Allowed by Comptroller"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e0
+    Comptroller SetCollateralFactor cZRX 0.1
+    EnterMarkets Geoff cZRX
+    Prep Geoff Some ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    -- Just to be sure, check initial balances
+    Invariant Remains (Erc20 cZRX TokenBalance Geoff) (Exactly 50e18)
+    Invariant Remains (Erc20 cZRX TokenBalance Torrey) Zero
+    -- Just transfer
+    AllowFailures
+    Transfer Geoff Torrey 60e18 cZRX
+    Assert Failure COMPTROLLER_REJECTION TRANSFER_COMPTROLLER_REJECTION INSUFFICIENT_LIQUIDITY
+
+Test "Simple cToken Transfer From"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Prep Geoff Some ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    -- Just to be sure, check initial balances
+    Invariant Remains (Erc20 cZRX TokenBalance Torrey) Zero
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 50e9)
+    Assert Equal (Erc20 cZRX TokenBalance Coburn) Zero
+    -- Add approval
+    From Geoff (Erc20 cZRX Approve Torrey 25e9)
+    Assert Equal (Erc20 cZRX Allowance Geoff Torrey) (Exactly 25e9)
+    -- Perform transfer from
+    From Torrey (Erc20 cZRX TransferFrom Geoff Coburn 10e9)
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 40e9)
+    Assert Equal (Erc20 cZRX TokenBalance Coburn) (Exactly 10e9)
+    Assert Equal (Erc20 cZRX Allowance Geoff Torrey) (Exactly 15e9)
+
+Test "cToken Transfer From Not Allowed"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Prep Geoff Some ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    --
+    Invariant Remains (Erc20 cZRX TokenBalance Geoff) (Exactly 50e9)
+    Invariant Remains (Erc20 cZRX TokenBalance Torrey) (Exactly 0e9)
+    AllowFailures
+    Erc20 cZRX TransferFrom Geoff Torrey 10e9
+    Assert Failure MATH_ERROR TRANSFER_NOT_ALLOWED
+
+Test "cToken Transfer paused"
+    NewComptroller
+    ListedCToken ZRX cZRX initialExchangeRate:1e9
+    Prep Geoff Some ZRX cZRX
+    Mint Geoff 50e18 cZRX
+    -- Just to be sure, check initial balances
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 50e9)
+    Assert Equal (Erc20 cZRX TokenBalance Coburn) Zero
+    -- Pause and attempt transfer
+    Comptroller SetPauseGuardian Coburn
+    From Coburn (Comptroller SetGuardianPaused "Transfer" True)
+    AllowFailures
+    Transfer Geoff Torrey 10e9 cZRX
+    Assert Revert "revert transfer is paused"
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 50e9)
+    Assert Equal (Erc20 cZRX TokenBalance Coburn) Zero
+    -- unPause and complete transfer
+    Invariant Success
+    Comptroller SetGuardianPaused "Transfer" False
+    Transfer Geoff Coburn 10e9 cZRX
+    Assert Equal (Erc20 cZRX TokenBalance Geoff) (Exactly 40e9)
+    Assert Equal (Erc20 cZRX TokenBalance Coburn) (Exactly 10e9)

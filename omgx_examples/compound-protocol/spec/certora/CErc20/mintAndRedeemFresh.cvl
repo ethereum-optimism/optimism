@@ -1,0 +1,244 @@
+
+mintFresh(uint result, address minter, uint256 mintAmount, uint256 mintTokens)
+description "Break mint with result=$result minter=$minter mintAmount=$mintAmount" {
+    // Pre/action/post environments
+    env e0;
+    env e1;
+    env e2;
+
+    require e1.block.number >= e0.block.number;
+    require e2.block.number >= e1.block.number;
+
+    // Any other account
+    address other;
+    require other != minter && other != currentContract;
+    require minter != currentContract;
+
+    /*
+      - exchange rate should not change
+      - errors should have no effect
+      - no *other* storage should change - XXX can we specify this?
+
+      |----------+--------+--------+-------|
+      |          | CToken | Minter | Other |
+      |----------+--------+--------+-------|
+      | cash     |   +A   |   -A   |   0   |
+      | borrows  |    0   |    0   |   0   |
+      | tokens   |   +T   |   +T   |   0   |
+      | reserves |    0   |        |       |
+      |----------+--------+--------+-------|
+    */
+
+    /* Pre */
+
+    uint256 exchangeRatePre = sinvoke exchangeRateStored(e0);
+
+    uint256 cTokenCashPre = sinvoke getCash(e0);
+    uint256 minterCashPre = sinvoke getCashOf(e0, minter);
+    uint256 otherCashPre = sinvoke getCashOf(e0, other);
+
+    uint256 cTokenBorrowsPre = sinvoke totalBorrows(e0);
+    uint256 minterBorrowsPre = sinvoke borrowBalanceStored(e0, minter);
+    uint256 otherBorrowsPre = sinvoke borrowBalanceStored(e0, other);
+
+    uint256 cTokenTokensPre = sinvoke totalSupply(e0);
+    uint256 minterTokensPre = sinvoke balanceOf(e0, minter);
+    uint256 otherTokensPre = sinvoke balanceOf(e0, other);
+
+    uint256 cTokenReservesPre = sinvoke totalReserves(e0);
+
+    uint256 cTokenSupplyPre = cTokenCashPre + cTokenBorrowsPre - cTokenReservesPre; // XXX
+
+    // A few constraints
+    /* require cTokenBorrowsPre == 0; // XXX */
+    /* require cTokenSupplyPre >= 0; // XXX shouldn't be necessary, should underflow */
+    /* require cTokenTokensPre > 0; // XXX shouldn't be necessary */
+    //require exchangeRatePre == 2000000000000000000; // XXX
+    /* require exchangeRatePre * cTokenTokensPre == cTokenSupplyPre; // XXX */
+    require minterTokensPre + otherTokensPre <= cTokenTokensPre; // XXX shouldn't be necessary, though weird
+    /* require mintAmount == mintTokens * exchangeRatePre; */
+
+    // Just do it
+    require result == invoke mintFreshPub(e1, minter, mintAmount);
+    bool mintFreshReverted = lastReverted;
+
+    /* Post */
+
+    uint256 exchangeRatePost = sinvoke exchangeRateStored(e2);
+
+    uint256 cTokenCashPost = sinvoke getCash(e2);
+    uint256 minterCashPost = sinvoke getCashOf(e2, minter);
+    uint256 otherCashPost = sinvoke getCashOf(e2, other);
+
+    uint256 cTokenBorrowsPost = sinvoke totalBorrows(e2);
+    uint256 minterBorrowsPost = sinvoke borrowBalanceStored(e2, minter);
+    uint256 otherBorrowsPost = sinvoke borrowBalanceStored(e2, other);
+
+    uint256 cTokenTokensPost = sinvoke totalSupply(e2);
+    uint256 minterTokensPost = sinvoke balanceOf(e2, minter);
+    uint256 otherTokensPost = sinvoke balanceOf(e2, other);
+
+    uint256 cTokenReservesPost = sinvoke totalReserves(e2);
+
+    // Measure
+    bool staticBalance =
+        /* (exchangeRatePost == exchangeRatePre) && */
+        (cTokenCashPost == cTokenCashPre) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        (cTokenTokensPost == cTokenTokensPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (minterCashPost == minterCashPre) &&
+        (minterBorrowsPost == minterBorrowsPre) &&
+        (minterTokensPost == minterTokensPre) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    bool dynamicBalance =
+        (mintAmount != 0) &&
+        /* (exchangeRatePost >= exchangeRatePre) && // XXX ugh */
+        (cTokenCashPost == cTokenCashPre + mintAmount) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        //XXX(cTokenTokensPost == cTokenTokensPre + mintTokens) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (minterCashPost == minterCashPre - mintAmount) &&
+        (minterBorrowsPost == minterBorrowsPre) &&
+        //XXX(minterTokensPost == minterTokensPre + mintTokens) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    assert (!mintFreshReverted =>
+            ((result != 0 || mintAmount == 0) <=> staticBalance)), "Mismatch in static case";
+    assert (!mintFreshReverted =>
+            ((result == 0 && mintAmount != 0) <=> dynamicBalance)), "Mismatch in dynamic case";
+}
+
+redeemFresh(uint result, address redeemer, uint256 redeemAmount, uint256 redeemTokens)
+description "Break redeem with result=$result redeemer=$redeemer redeemAmount=$redeemAmount" {
+    // Pre/action/post environments
+    env e0;
+    env e1;
+    env e2;
+
+    require e1.block.number >= e0.block.number;
+    require e2.block.number >= e1.block.number;
+
+    // Any other account
+    address other;
+    require other != redeemer && other != currentContract;
+    require redeemer != currentContract;
+
+    /*
+      - exchange rate should not change
+      - errors should have no effect
+      - no *other* storage should change - XXX can we specify this?
+
+      |----------+--------+----------+-------|
+      |          | CToken | Redeemer | Other |
+      |----------+--------+----------+-------|
+      | cash     |   -A   |    +A    |   0   |
+      | borrows  |    0   |     0    |   0   |
+      | tokens   |   -T   |    -T    |   0   |
+      | reserves |    0   |          |       |
+      |----------+--------+----------+-------|
+    */
+
+    /* Pre */
+
+    uint256 exchangeRatePre = sinvoke exchangeRateStored(e0);
+
+    uint256 cTokenCashPre = sinvoke getCash(e0);
+    uint256 redeemerCashPre = sinvoke getCashOf(e0, redeemer);
+    uint256 otherCashPre = sinvoke getCashOf(e0, other);
+
+    uint256 cTokenBorrowsPre = sinvoke totalBorrows(e0);
+    uint256 redeemerBorrowsPre = sinvoke borrowBalanceStored(e0, redeemer);
+    uint256 otherBorrowsPre = sinvoke borrowBalanceStored(e0, other);
+
+    uint256 cTokenTokensPre = sinvoke totalSupply(e0);
+    uint256 redeemerTokensPre = sinvoke balanceOf(e0, redeemer);
+    uint256 otherTokensPre = sinvoke balanceOf(e0, other);
+
+    uint256 cTokenReservesPre = sinvoke totalReserves(e0);
+
+    uint256 cTokenSupplyPre = cTokenCashPre + cTokenBorrowsPre - cTokenReservesPre; // XXX
+
+    // Just do it
+    require result == invoke redeemFreshPub(e1, redeemer, 0, redeemAmount);
+    bool redeemFreshReverted = lastReverted;
+
+    /* Post */
+
+    uint256 exchangeRatePost = sinvoke exchangeRateStored(e2);
+
+    uint256 cTokenCashPost = sinvoke getCash(e2);
+    uint256 redeemerCashPost = sinvoke getCashOf(e2, redeemer);
+    uint256 otherCashPost = sinvoke getCashOf(e2, other);
+
+    uint256 cTokenBorrowsPost = sinvoke totalBorrows(e2);
+    uint256 redeemerBorrowsPost = sinvoke borrowBalanceStored(e2, redeemer);
+    uint256 otherBorrowsPost = sinvoke borrowBalanceStored(e2, other);
+
+    uint256 cTokenTokensPost = sinvoke totalSupply(e2);
+    uint256 redeemerTokensPost = sinvoke balanceOf(e2, redeemer);
+    uint256 otherTokensPost = sinvoke balanceOf(e2, other);
+
+    uint256 cTokenReservesPost = sinvoke totalReserves(e2);
+
+    // Measure
+    bool staticBalance =
+        /* (exchangeRatePost == exchangeRatePre) && */
+        (cTokenCashPost == cTokenCashPre) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        (cTokenTokensPost == cTokenTokensPre) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (redeemerCashPost == redeemerCashPre) &&
+        (redeemerBorrowsPost == redeemerBorrowsPre) &&
+        (redeemerTokensPost == redeemerTokensPre) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    bool dynamicBalance =
+        (redeemAmount != 0) &&
+        /* (exchangeRatePost >= exchangeRatePre) && // XXX ugh */
+        (cTokenCashPost == cTokenCashPre - redeemAmount) &&
+        (cTokenBorrowsPost == cTokenBorrowsPre) &&
+        //XXX(cTokenTokensPost == cTokenTokensPre - redeemTokens) &&
+        (cTokenReservesPost == cTokenReservesPre) &&
+        (redeemerCashPost == redeemerCashPre + redeemAmount) &&
+        (redeemerBorrowsPost == redeemerBorrowsPre) &&
+        //XXX(redeemerTokensPost == redeemerTokensPre - redeemTokens) &&
+        (otherCashPost == otherCashPre) &&
+        (otherBorrowsPost == otherBorrowsPre) &&
+        (otherTokensPost == otherTokensPre);
+
+    assert (!redeemFreshReverted =>
+            ((result != 0 || redeemAmount == 0) <=> staticBalance)), "Mismatch in static case";
+    assert (!redeemFreshReverted =>
+            ((result == 0 && redeemAmount != 0) <=> dynamicBalance)), "Mismatch in dynamic case";
+}
+
+mintThenRedeem(address account, uint256 amountUnderlying)
+description "Mint and redeem are not inverses for account $account, amount $amountUnderlying"
+{
+    env e0;
+
+    uint origCash = sinvoke getCash(e0);
+
+    // both calls are "fresh"
+    uint mintResult = invoke mintFreshPub(e0, account, amountUnderlying);
+    bool mintReverted = lastReverted;
+
+    uint redeemResult = invoke redeemFreshPub(e0, account, 0, amountUnderlying);
+    bool redeemReverted = lastReverted;
+
+    uint newCash = sinvoke getCash(e0);
+
+    assert (mintResult == 0 && !mintReverted && redeemResult == 0 && !redeemReverted) => newCash == origCash;
+
+    // check that exchange rate is the same, check all the 4 variables that affect the exchange rate are retained.
+    // check that accounts balances are the same.
+    // the only thing that changes is the interest index. rounding errors.
+}

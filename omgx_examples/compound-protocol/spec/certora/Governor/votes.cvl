@@ -1,0 +1,43 @@
+voteOnce(uint proposalId, bool support) {
+    env e0;
+    env e1;
+    require e0.msg.sender == e1.msg.sender;
+
+    uint nProposals = sinvoke proposalCount(e0);
+    require proposalId < nProposals;
+
+    invoke castVote(e0, proposalId, support);
+    bool firstVoteReverted = lastReverted;
+
+    invoke castVote(e1, proposalId, support);
+    bool secondVoteReverted = lastReverted;
+
+    assert !firstVoteReverted => secondVoteReverted, "Second vote succeeded after first";
+}
+
+votesSum(uint proposalId, bool support, address voterA, address voterB) {
+    env e0;
+    env e1;
+    require e0.msg.sender == voterA;
+    require e1.msg.sender == voterB;
+
+    uint nProposals = sinvoke proposalCount(e0);
+    require proposalId < nProposals;
+
+    uint preVotesFor = sinvoke certoraProposalVotesFor(e0, proposalId);
+    uint preVotesAgainst = sinvoke certoraProposalVotesAgainst(e0, proposalId);
+
+    sinvoke castVote(e0, proposalId, support);
+    sinvoke castVote(e1, proposalId, support);
+
+    uint postVotesFor = sinvoke certoraProposalVotesFor(e1, proposalId);
+    uint postVotesAgainst = sinvoke certoraProposalVotesAgainst(e1, proposalId);
+
+    uint voterAVotes = sinvoke certoraVoterVotes(e1, proposalId, voterA);
+    uint voterBVotes = sinvoke certoraVoterVotes(e1, proposalId, voterB);
+
+    // XXX violates?
+    assert postVotesFor >= preVotesFor, "Cannot reduce votes for";
+    assert postVotesAgainst >= preVotesAgainst, "Cannot reduce votes against";
+    assert postVotesFor - preVotesFor + postVotesAgainst - preVotesAgainst == voterAVotes + voterBVotes, "Delta votes equals voter votes";
+}
