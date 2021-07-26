@@ -13,13 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React from 'react';
-import { KeyboardArrowDown } from '@material-ui/icons';
-import Input from 'components/input/Input';
+import React from 'react'
+import { KeyboardArrowDown } from '@material-ui/icons'
+import Input from 'components/input/Input'
 
-import * as styles from './InputSelect.module.scss';
+import * as styles from './InputSelect.module.scss'
 
-function InputSelect ({
+function InputSelect({
   placeholder,
   label,
   value,
@@ -28,9 +28,11 @@ function InputSelect ({
   onSelect,
   selectValue,
   maxValue,
-  disabledSelect=false
+  disabledSelect = false,
+  type = 'number',
+  paste = false,
 }) {
-  const selected = selectOptions.find(i => i.value === selectValue);
+  const selected = selectOptions.find((i) => i.value === selectValue)
 
   const renderUnit = (
     <div className={styles.selectContainer}>
@@ -41,10 +43,7 @@ function InputSelect ({
         disabled={disabledSelect}
       >
         {selectOptions.map((i, index) => (
-          <option
-            key={index}
-            value={i.value}
-          >
+          <option key={index} value={i.value}>
             {i.title} - {i.subTitle}
           </option>
         ))}
@@ -52,24 +51,27 @@ function InputSelect ({
       <div className={styles.selected}>
         <div className={styles.details}>
           <div className={styles.title}>{selected ? selected.title : ''}</div>
-          <div className={styles.subTitle}>{selected ? selected.subTitle : ''}</div>
+          <div className={styles.subTitle}>
+            {selected ? selected.subTitle : ''}
+          </div>
         </div>
         {disabledSelect ? <></> : <KeyboardArrowDown />}
       </div>
     </div>
-  );
+  )
 
   return (
     <Input
       placeholder={placeholder}
       label={label}
-      type='number'
+      type={type}
       unit={renderUnit}
       maxValue={maxValue}
       value={value}
       onChange={onChange}
+      paste={paste}
     />
-  );
+  )
 }
 
-export default React.memo(InputSelect);
+export default React.memo(InputSelect)

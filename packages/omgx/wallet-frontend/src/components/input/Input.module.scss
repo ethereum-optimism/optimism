@@ -1,6 +1,7 @@
 @import 'index.scss';
 
 .Input {
+
   display: flex;
   flex-direction: column;
   margin-bottom: 5px;
@@ -12,7 +13,7 @@
 
   .field {
     position: relative;
-    padding: 7px;
+    padding: 5px;
     border: 1px solid $gray4;
     transition: all 200ms ease-in-out;
     display: flex;
@@ -29,6 +30,12 @@
       background-color: $gray6;
       color: $gray3;
     }
+    .small {
+      font-size: 0.7em;
+      padding: 4px;
+      color: $gray2;
+      background-color: white;
+    }
     .unit {
       margin: 0 10px;
       position: absolute;
@@ -37,6 +44,9 @@
       display: flex;
       flex-direction: row;
       align-items: center;
+    }
+    .isPaste {
+      position: relative;
     }
     .paste {
       color: $blue;

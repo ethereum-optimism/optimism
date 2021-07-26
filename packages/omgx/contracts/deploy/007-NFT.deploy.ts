@@ -20,14 +20,13 @@ const deployFn: DeployFunction = async (hre) => {
     (hre as any).deployConfig.deployer_l2
   )
 
-  // Mint a new NFT on L2
-  // [nftSymbol, nftName]
-  // this is owned by bobl1Wallet
   L2ERC721 = await Factory__L2ERC721.deploy(
     nftSymbol,
     nftName,
     BigNumber.from(String(0)), //starting index for the tokenIDs
-    "", //the base URI is empty in this case
+    '0x0000000000000000000000000000000000000000',
+    'Genesis',
+    'OMGX_Rinkeby_28',
     {gasLimit: 800000, gasPrice: 0}
   )
   await L2ERC721.deployTransaction.wait()
@@ -43,7 +42,7 @@ const deployFn: DeployFunction = async (hre) => {
   let owner = await L2ERC721.owner()
   console.log(` 🔒 ${chalk.red('ERC721 owner:')} ${chalk.green(owner)}`)
 
-  await hre.deployments.save('ERC721', L2ERC721DeploymentSubmission)
+  await hre.deployments.save('L2ERC721', L2ERC721DeploymentSubmission)
 
 }
 

@@ -1,0 +1,14 @@
+FROM golang:1.15-alpine3.13 as builder
+
+RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+
+ADD ./go/gas-oracle /gas-oracle
+RUN cd /gas-oracle && make gas-oracle
+
+FROM alpine:3.13
+
+RUN apk add --no-cache ca-certificates jq curl
+COPY --from=builder /gas-oracle/gas-oracle /usr/local/bin/
+
+COPY ./ops/scripts/gas-oracle.sh .
+ENTRYPOINT ["gas-oracle"]

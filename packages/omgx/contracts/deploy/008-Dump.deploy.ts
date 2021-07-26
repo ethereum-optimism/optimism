@@ -8,14 +8,32 @@ const deployFn: DeployFunction = async (hre) => {
 
     let contracts = {};
     
+    contracts['TOKENS'] = {};
+    
     const deployments = await hre.deployments.all()
         
     for (let key in await hre.deployments.all()) {
-      contracts[key] = deployments[key].address
+      const regex = /TK_L(1|2)([A-Z]+)/i
+      const tokenMatch = key.match(regex)
+      if(tokenMatch == null) {
+        //not a token address
+        contracts[key] = deployments[key].address
+      }
+      else if(tokenMatch[1] == '1') {
+        contracts['TOKENS'][tokenMatch[2]] = {
+          'L1': deployments[key].address,
+          'L2': deployments['TK_L2'+tokenMatch[2]].address
+        }
+      }
+      else if (tokenMatch[1] == '2') {
+        //skip - everything is taken care of above
+      }    
     }
-    
+
     const addresses = JSON.stringify(contracts, null, 2)
     
+    console.log(addresses)
+
     const dumpsPath = path.resolve(__dirname, "../dist/dumps")
     
     if (!fs.existsSync(dumpsPath)) {

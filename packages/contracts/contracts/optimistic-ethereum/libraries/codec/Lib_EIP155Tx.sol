@@ -138,7 +138,7 @@ library Lib_EIP155Tx {
         // We write the encoding of empty bytes when the transaction is a creation, *not* the zero
         // address as one might assume.
         if (_transaction.isCreate) {
-            raw[3] = Lib_RLPWriter.writeBytes('');
+            raw[3] = Lib_RLPWriter.writeBytes("");
         } else {
             raw[3] = Lib_RLPWriter.writeAddress(_transaction.to);
         }
@@ -153,8 +153,8 @@ library Lib_EIP155Tx {
         } else {
             // Chain ID *is* included in the unsigned transaction.
             raw[6] = Lib_RLPWriter.writeUint(_transaction.chainId);
-            raw[7] = Lib_RLPWriter.writeBytes('');
-            raw[8] = Lib_RLPWriter.writeBytes('');
+            raw[7] = Lib_RLPWriter.writeBytes("");
+            raw[8] = Lib_RLPWriter.writeBytes("");
         }
 
         return Lib_RLPWriter.writeList(raw);

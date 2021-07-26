@@ -1,0 +1,16 @@
+version: "3.4"
+services:
+    gas_oracle:
+        image: omg/transaction-monitor:production-v1
+        environment:
+            L1_NODE_WEB3_URL: "https://rinkeby.infura.io/v3/fd76d0a0b9e940058d6d42d5e261f517"
+            L2_NODE_WEB3_URL: "https://rinkeby.omgx.network"
+            MYSQL_HOST_URL: "rinkeby.cjka46punles.us-east-1.rds.amazonaws.com"
+            MYSQL_PORT: 3306
+            MYSQL_USERNAME: "admin"
+            MYSQL_PASSWORD: "c5B0bRB83DmangdQshANl"
+            MYSQL_DATABASE_NAME: "OMGXRinkeby"
+            ADDRESS_MANAGER_ADDRESS: "0x93A96D6A5beb1F661cf052722A1424CDDA3e9418"
+            L2_MESSENGER_ADDRESS: "0x4200000000000000000000000000000000000007"
+            DEPLOYER_PRIVATE_KEY: "0x754fde3f5e60ef2c7649061e06957c29017fe21032a8017132c0078e37f6193a"
+            TRANSACTION_MONITOR_INTERVAL: 6000

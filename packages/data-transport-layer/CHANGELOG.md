@@ -1,5 +1,27 @@
 # data transport layer
 
+## 0.4.4
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+- Updated dependencies [c73c3939]
+  - @eth-optimism/common-ts@0.1.5
+  - @eth-optimism/contracts@0.4.5
+  - @eth-optimism/core-utils@0.5.1
+
+## 0.4.3
+
+### Patch Changes
+
+- 390fd8a6: Allow the L1 gas price to be fetched from either the sequencer or a L1 provider based on the config `--l1-gas-price-backend` as well as overriding the config by using a query param. Valid values are `l1` or `l2` and it defaults to `l1`
+- 049200f4: removed unused functions from core-utils
+- Updated dependencies [0313794b]
+- Updated dependencies [049200f4]
+- Updated dependencies [21e47e1f]
+  - @eth-optimism/contracts@0.4.2
+  - @eth-optimism/core-utils@0.5.0
+
 ## 0.4.2
 
 ### Patch Changes

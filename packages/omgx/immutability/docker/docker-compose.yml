@@ -1,0 +1,67 @@
+version: "3.3"
+
+services:
+  ganache:
+    image: trufflesuite/ganache-cli:latest
+    networks:
+      - testnet
+    ports:
+      - "8545:8545"
+    entrypoint: >
+      /bin/sh -c "
+        node /app/ganache-core.docker.cli.js --deterministic \
+          --mnemonic 'explain foam nice clown method avocado hill basket echo blur elevator marble' \
+          --networkId '5777' \
+          --hostname '0.0.0.0'
+      "
+  truffle:
+    build:
+      dockerfile: Dockerfile
+      context: ./truffle
+    networks:
+      - testnet
+    volumes:
+      - "./truffle:/truffleshuffle:rw"
+    depends_on:
+      - "ganache"
+    entrypoint: >
+      /bin/sh -c "
+        rm -f /truffleshuffle/*.out
+        while ! `nc ganache 8545 &> /dev/null` ;do
+          echo waiting for ganache...
+          sleep 1
+        done;
+        cd plasma-contracts/plasma_framework
+        rm -rf build
+        sed -i 's/127.0.0.1/ganache/g'  truffle-config.js
+        npx truffle migrate --network local 2>&1 | tee /truffleshuffle/migrate.out
+        grep '\"plasma_framework\":' /truffleshuffle/migrate.out > /truffleshuffle/addresses_json.out
+        jq -r '.plasma_framework' /truffleshuffle/addresses_json.out > /truffleshuffle/plasma_framework_addr.out
+        chown nobody:nogroup /truffleshuffle/*.out
+        cat /truffleshuffle/plasma_framework_addr.out
+      "
+  vault_server:
+    image: omgnetwork/vault:latest
+    networks:
+      - testnet
+    ports:
+      - "8200:8900"
+    environment:
+      - TEST=true
+    volumes:
+      - "./config:/vault/config:rw"
+      - "../contracts:/vault/contracts:ro"
+      - "../scripts:/vault/scripts:ro"
+      - "./truffle:/truffleshuffle:rw"
+    entrypoint: >
+      /bin/sh -c "
+        sleep 2
+        while [ ! -f /truffleshuffle/plasma_framework_addr.out ];do
+          echo Waiting on the truffle shuffle.  This will take some time as plasma framework is recompiled...
+          sleep 3
+        done;
+        /vault/config/entrypoint.sh
+      "
+networks:
+  testnet:
+    driver: bridge

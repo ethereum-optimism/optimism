@@ -9,12 +9,16 @@ fi
 #BUILD=${BUILD:-1}     #build unless override
 #DAEMON=${DAEMON:-0}   #run win foreground unless overrride
 
+if [[ $BUILD == 2 ]]; then
+  echo 'You set BUILD to 2, which means that we will use existing docker images on your computer'
+fi
+
 if [[ $BUILD == 1 ]]; then
   echo 'You set BUILD to 1, which means that all your dockers will be (re)built'
 fi
 
 if [[ $BUILD == 0 ]]; then
-  echo 'You set BUILD to 0, which means that you want to use existing Docker images'
+  echo 'You set BUILD to 0, which means that you want to pull Docker images from Dockerhub'
 fi
 
 if [[ $DAEMON == 1 ]]; then
@@ -25,11 +29,11 @@ if [[ $DAEMON == 0 ]]; then
   echo 'You set DAEMON to 0, which means that your local L1/L2 will run in the front and you will see all the debug log information'
 fi
 
-# # Build dependencies, if needed
-# if [[ $BUILD == 1 ]]; then
-yarn
-yarn build
-# fi
+#Build dependencies, if needed
+if [[ $BUILD == 1 ]]; then
+  yarn
+  yarn build
+fi
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 ORIGINAL_DOCKERFILE="docker-compose.yml"
@@ -40,7 +44,7 @@ OMGX_DOCKERFILE=docker-compose-omgx-services.yml
 #append :latest tag to all apps
 yq eval '(.services.[].image | select(. == "ethereumoptimism*")) |= sub("ethereumoptimism", "omgx")' ${ORIGINAL_DOCKERFILE} | \
 yq eval '(.services.[].image) += ":latest"' - \
-> ${DOCKERFILE}
+#> ${DOCKERFILE}
 
 if [[ $BUILD == 1 ]]; then
     docker-compose build --parallel -- builder l2geth l1_chain
@@ -58,7 +62,8 @@ if [[ $BUILD == 1 ]]; then
     docker build ../ --file $DIR/docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:latest
     docker build ../ --file $DIR/docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
     docker build ../ --file $DIR/docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:latest
-else
+    docker build ../ --file $DIR/docker/Dockerfile.omgx_gas-price-oracle --tag omgx/omgx_gas-price-oracle:latest
+elif [[ $BUILD == 0 ]]; then
     docker-compose -f $DIR/$DOCKERFILE -f $DIR/$OMGX_DOCKERFILE pull
 fi
 

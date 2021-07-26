@@ -1,20 +1,49 @@
 @import 'index.scss';
 
 .Transaction {
+
   display: flex;
   flex-direction: row;
-  padding: 20px;
-  background-color: $bunnyRed;
-  margin-bottom: 5px;
-  min-height: 101px;
-  box-sizing: border-box;
   transition: all 200ms ease-in-out;
-  &:hover {
-    background-color: $gray2;
-  }
+  flex-direction: column;
+  padding: 10px;
+  margin: 5px;
+  background: transparent;
+  box-shadow: 0 0 4px $gray4;
+  border-radius: 10px;
   @include mobile {
     flex-direction: column;
     padding: 15px 10px;
+  }
+
+  .transactionItem {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    .title {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 1.1em;
+    }
+    .subTitle {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 5px;
+      font-size: 0.8em;
+      color: $gray4;
+    }
+    .content {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 10px;
+      font-size: 0.8em;
+    }
   }
 }
 
@@ -94,9 +123,8 @@
 }
 
 .button {
-  color: $gray1;
+  color: $gray6;
   background-color: $blue;
-  border-radius: 20px;
   padding: 5px 10px;
   cursor: pointer;
 }

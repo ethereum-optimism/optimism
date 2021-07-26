@@ -70,16 +70,16 @@ if(!process.env.OMGX_URL) {
   console.log(`process.env.OMGX_URL set to:`,process.env.OMGX_URL)
 }
 
-export let addressManagerAddress = process.env.ETH1_ADDRESS_RESOLVER_ADDRESS
+export let addressManagerAddress = process.env.ADDRESS_MANAGER_ADDRESS
 export const getAddressManager = async (provider: any) => {
    //console.log(addressManagerAddress)
    if (addressManagerAddress){
-     console.log(`ETH1_ADDRESS_RESOLVER_ADDRESS var was set`)
+     console.log(`ADDRESS_MANAGER_ADDRESS var was set`)
      return getContractFactory('Lib_AddressManager')
     .connect(provider)
     .attach(addressManagerAddress) as any
    } else {
-     console.log(`ETH1_ADDRESS_RESOLVER_ADDRESS var was left unset. Using {$DEPLOYER} response`)
+     console.log(`ADDRESS_MANAGER_ADDRESS var was left unset. Using {$DEPLOYER} response`)
      addressManagerAddress = (await getDeployerAddresses()).AddressManager
      return getContractFactory('Lib_AddressManager')
      .connect(provider)

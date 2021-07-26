@@ -1,0 +1,135 @@
+vault:
+  global:
+    enabled: true
+    tlsDisable: false
+    certSecretName: vault-internal-certificate
+  injector:
+    enabled: false
+  server:
+    dataStorage:
+      enabled: true
+      size: 200Gi
+      storageClassName: vault-data
+      accessMode: ReadWriteOnce
+    auditStorage:
+      enabled: true
+      size: 100Gi
+      storageClass: vault-audit
+      accessMode: ReadWriteOnce
+    service:
+      enabled: true
+      type: ClusterIP
+      clusterIP: None
+      port: 8200
+    ha:
+      enabled: true
+      replicas: 5
+      raft:
+        enabled: true
+        setNodeId: true
+        config: |-
+          ui = false
+          log_level = "info"
+          cluster_name = "vault"
+          plugin_directory = "/vault/plugins"
+
+          listener "tcp" {
+              tls_disable = {{ .Values.global.tlsDisable }}
+              tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+              tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
+
+              address = "[::]:8200"
+              cluster_address = "[::]:8201"
+          }
+
+          seal "gcpckms" {
+              region      = "asia-southeast1"
+              project     = "omisego-development"
+              key_ring    = "omgnetwork-vault-keyring"
+              crypto_key  = "omgnetwork-vault-unseal-key"
+          }
+
+          storage "raft" {
+              path = "/vault/data"
+
+              retry_join {
+              leader_api_addr = "https://vault-0.vault-internal.default.svc.cluster.local:8200"
+              leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+              leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
+              leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
+              }
+
+              retry_join {
+              leader_api_addr = "https://vault-1.vault-internal.default.svc.cluster.local:8200"
+              leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+              leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
+              leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
+              }
+
+              retry_join {
+              leader_api_addr = "https://vault-2.vault-internal.default.svc.cluster.local:8200"
+              leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+              leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
+              leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
+              }
+
+              retry_join {
+              leader_api_addr = "https://vault-3.vault-internal.default.svc.cluster.local:8200"
+              leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+              leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
+              leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
+              }
+
+              retry_join {
+              leader_api_addr = "https://vault-4.vault-internal.default.svc.cluster.local:8200"
+              leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.crt"
+              leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/tls.key"
+              leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
+              }
+          }
+
+          service_registration "kubernetes" {}
+    image:
+      repository: gcr.io/omisego-development/omgnetwork/vault
+      tag: 0.0.7
+      pullPolicy: IfNotPresent
+      updateStrategyType: RollingUpdate
+    ingress:
+      enabled: true
+      annotations:
+        kubernetes.io/ingress.class: traefik
+        ingress.kubernetes.io/protocol: https
+        cert-manager.io/cluster-issuer: letsencrypt
+      hosts:
+        - host: dev.vault-dev.omg.network
+      tls:
+        - hosts:
+            - dev.vault-dev.omg.network
+          secretName: vault-ingress-certificate
+    extraEnvironmentVars:
+      GOOGLE_REGION: asia-southeast1
+      GOOGLE_PROJECT: omisego-development
+      GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/kms_account.key.json
+    extraVolumes:
+      - name: kms-creds
+        type: secret
+      - name: vault-internal-certificate
+        type: secret
+    dev:
+      enabled: false
+    standalone:
+      enabled: false
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+  ui:
+    enabled: false
+    publishNotReadyAddresses: true
+    serviceType: "LoadBalancer"
+    externalPort: 8200
+    loadBalancerSourceRanges:
+      - 10.1.0.0/16

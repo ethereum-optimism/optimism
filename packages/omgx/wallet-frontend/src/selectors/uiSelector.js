@@ -16,7 +16,7 @@ limitations under the License. */
 export function selectModalState (modal) {
   return function (state) {
     return state.ui[modal];
-  };
+  }
 }
 
 export function selectAlert (state) {

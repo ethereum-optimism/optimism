@@ -105,6 +105,11 @@ class MonitorService extends OptimismEnv {
 
       receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
 
+      // if message is cross domain check if message has been finalized
+      if (receiptData.crossDomainMessage){
+        receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
+      }
+
       await this.databaseService.insertReceiptData(receiptData);
     }
 
@@ -155,6 +160,11 @@ class MonitorService extends OptimismEnv {
         // check if message is cross domain
         receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
 
+        // if message is cross domain check if message has been finalized
+        if (receiptData.crossDomainMessage){
+          receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
+        }
+
         await this.databaseService.insertReceiptData(receiptData);
       }
 
@@ -187,7 +197,7 @@ class MonitorService extends OptimismEnv {
     let checkWhitelist = this.checkTime(this.whitelistString);
     if(checkWhitelist) await this.getWhitelist();
     let checkNonWhitelist = this.checkTime(this.nonWhitelistString);
-    
+
     if (crossDomainData.length) {
       this.logger.info('Found cross domain message.');
 
@@ -293,7 +303,6 @@ class MonitorService extends OptimismEnv {
 
   async getCrossDomainMessageStatusL1(receiptData){
     this.logger.info("Checking if message has been finalized...");
-
     receiptData = await this.L2Provider.getTransactionReceipt(receiptData.hash);
     // Find the transaction that sends message from L2 to L1
     const filteredLogData = receiptData.logs.filter(i => i.address === this.OVM_L2CrossDomainMessenger && i.topics[0] === ethers.utils.id('SentMessage(bytes)'));

@@ -13,39 +13,37 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-const ETH0x = '0x0000000000000000000000000000000000000000';
-const oETH = '0x4200000000000000000000000000000000000006';
+const L1ETH = '0x0000000000000000000000000000000000000000'
+const L2ETH = '0x4200000000000000000000000000000000000006'
 
 const initialState = {
-  [ETH0x]: {
-    currency: ETH0x,
-    decimals: 18,
-    symbol: 'ETH',
-    name: 'Ethereum'
+  [L1ETH]: {
+    currency:  L1ETH,
+    addressL1: L1ETH,
+    addressL2: L2ETH,
+    symbolL1:  'ETH',
+    symbolL2:  'oETH',
+    decimals:  18,
+    name:      'Ethereum',
+    redalert:  false,
   },
-  [oETH]: {
-    currency: oETH,
-    decimals: 18,
-    symbol: 'oETH',
-    name: 'Ethereum',
-  }
-};
+}
 
-function tokenReducer (state = initialState, action) {
+function tokenReducer(state = initialState, action) {
   switch (action.type) {
     case 'TOKEN/GET/SUCCESS':
-      return { 
-        ...state, 
+      return {
+        ...state,
         [action.payload.currency]: action.payload,
-      };
+      }
     case 'TOKEN/GET/FAILURE':
       return {
         ...state,
         [action.payload.currency]: action.payload,
       }
     default:
-      return state;
+      return state
   }
 }
 
-export default tokenReducer;
+export default tokenReducer
