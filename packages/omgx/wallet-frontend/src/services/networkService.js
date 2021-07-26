@@ -192,34 +192,37 @@ class NetworkService {
 
   async addNFTFactoryNS( address ) {
 
-    const contract = new ethers.Contract(
+    let contract = new ethers.Contract(
       address,
       L2ERC721Json.abi,
       this.L2Provider
     )
 
-    //handles stale information in the local address cachce
-    if(typeof(contract) === 'undefined') return
-
     let haveRights = false
 
-    if (this.account === await contract.owner()) haveRights = true
-    
-    let nftName = await contract.name()
-    let nftSymbol = await contract.symbol()
-    let genesis = await contract.getGenesis()
-    
-    addNFTFactory({
-      name: nftName,
-      symbol: nftSymbol,
-      owner: this.account,
-      layer: 'L2',
-      address,
-      originAddress: genesis[0],
-      originID: genesis[1],
-      originChain: genesis[2],
-      haveRights
-    })
+    try {
+      
+      if (this.account === await contract.owner()) haveRights = true
+      
+      let nftName = await contract.name()
+      let nftSymbol = await contract.symbol()
+      let genesis = await contract.getGenesis()
+      
+      addNFTFactory({
+        name: nftName,
+        symbol: nftSymbol,
+        owner: this.account,
+        layer: 'L2',
+        address,
+        originAddress: genesis[0],
+        originID: genesis[1],
+        originChain: genesis[2],
+        haveRights
+      })
+
+    } catch (error) {
+      console.log("addNFTFactoryNS stale cache:",error)
+    }
 
   }
 
@@ -496,7 +499,7 @@ class NetworkService {
       //we at least have the basic one
       const NFTcontracts = Object.values(await getNFTContracts())
       
-      //this deals with adding factories, based on cached contract addresses 
+      //Add factories based on cached contract addresses 
       //this is information is also used for the balance lookup
       for(var i = 0; i < NFTcontracts.length; i++) {
         
@@ -716,38 +719,44 @@ class NetworkService {
     }
   }
 
-  async getNFTs() {
+  async fetchNFTs() {
 
+    console.log('fetchNFTs')
+    
     let numberOfNFTS = 0
 
     let NFTfactories = Object.entries(await getNFTFactories())
 
+    console.log("NFTfactories:",NFTfactories)
+
     //add factories, based on cached contract addresses 
     //this is information is also used for the balance lookup
     for(let i = 0; i < NFTfactories.length; i++) {
-
-      const contract = new ethers.Contract(
+      
+      let contract = new ethers.Contract(
         NFTfactories[i][1].address,
         L2ERC721Json.abi,
         this.L2Provider
       )
 
-      //how many NFTs do I own?
+      //how many NFTs of this flavor do I own?
       const balance = await contract.connect(
         this.L2Provider
       ).balanceOf(this.account)
+
+      console.log("balance:",balance)
 
       numberOfNFTS = numberOfNFTS + Number(balance.toString())
 
     }
 
-    //lets see if we already know about them
+    //let's see if we already know about them
     const myNFTS = getNFTs()
     const numberOfStoredNFTS = Object.keys(myNFTS).length
 
     if (numberOfNFTS !== numberOfStoredNFTS) {
       
-      console.log('NFT change detected - need to add one or more NFTs')
+      console.log('NFT change - need to add one or more NFTs')
 
       for(let i = 0; i < NFTfactories.length; i++) {
 
@@ -772,15 +781,17 @@ class NetworkService {
 
         //can have more than 1 per contract
         for (let i = 0; i < Number(balance.toString()); i++) {
-        
-          const tokenID = BigNumber.from(i)
+          
+          //Goal here is to get all the tokenIDs, e.g. 3, 7, and 98,
+          //based on knowing the user's balance - e.g. three NFTs 
+          const tokenIndex = BigNumber.from(i)
 
-          const tID = await contract.tokenOfOwnerByIndex(
+          const tokenID = await contract.tokenOfOwnerByIndex(
             this.account,
-            tokenID
+            tokenIndex
           )
 
-          const nftMeta = await contract.getTokenURI(tID)
+          const nftMeta = await contract.getTokenURI(tokenID)
           const meta = nftMeta.split('#')
           const time = new Date(parseInt(meta[1]))
 
@@ -795,7 +806,7 @@ class NetworkService {
               })
             )
 
-          const UUID = address.substring(1, 6) + '_' + tID.toString() + '_' + this.account.substring(1, 6)
+          const UUID = address.substring(1, 6) + '_' + tokenID.toString() + '_' + this.account.substring(1, 6)
 
           const NFT = {
             UUID,
@@ -977,8 +988,8 @@ class NetworkService {
     try {
       const tx = await this.L2_TEST_Contract.attach(currency).transfer(
         address,
-        parseEther(value.toString()),
-        { gasPrice: 0 }
+        parseEther(value.toString())//,
+        //{ gasPrice: 0 }
       )
       await tx.wait()
       return tx

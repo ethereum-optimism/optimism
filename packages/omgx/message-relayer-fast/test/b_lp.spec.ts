@@ -72,7 +72,7 @@ describe('Liquidity Pool Test', async () => {
       L1ERC20.address,
       tokenName,
       tokenSymbol,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 85390000}
     )
     await L2ERC20.deployTransaction.wait()
 
@@ -143,14 +143,14 @@ describe('Liquidity Pool Test', async () => {
     const tranferToAliceTX = await L2ERC20.transfer(
       env.alicel2Wallet.address,
       transferL2ERC20Amount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await tranferToAliceTX.wait()
 
     const transferToKateTX = await L2ERC20.transfer(
       env.katel2Wallet.address,
       transferL2ERC20Amount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await transferToKateTX.wait()
 
@@ -178,14 +178,14 @@ describe('Liquidity Pool Test', async () => {
     const approveL2TPTX = await L2ERC20.approve(
       L2TokenPool.address,
       addL2TPAmount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await approveL2TPTX.wait()
 
     const transferL2TPTX = await L2ERC20.transfer(
       L2TokenPool.address,
       addL2TPAmount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     );
     await transferL2TPTX.wait()
 
@@ -217,8 +217,7 @@ describe('Liquidity Pool Test', async () => {
 
     const registerPoolERC20TX = await L2LiquidityPool.registerPool(
       L1ERC20.address,
-      L2ERC20.address,
-      {gasLimit: 800000, gasPrice: 0}
+      L2ERC20.address
     )
     await registerPoolERC20TX.wait()
 
@@ -237,7 +236,7 @@ describe('Liquidity Pool Test', async () => {
     const registerPoolTX = await L2LiquidityPool.registerPool(
       L1ERC20.address,
       L2ERC20.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await expect(registerPoolTX.wait()).to.be.eventually.rejected;
   })
@@ -282,28 +281,28 @@ describe('Liquidity Pool Test', async () => {
     const approveBobL2TX = await L2ERC20.approve(
       L2LiquidityPool.address,
       addLiquidityAmount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await approveBobL2TX.wait()
 
     const BobAddLiquidity = await L2LiquidityPool.addLiquidity(
       addLiquidityAmount,
       L2ERC20.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await BobAddLiquidity.wait()
 
     const approveAliceL2TX = await L2ERC20.connect(env.alicel2Wallet).approve(
       L2LiquidityPool.address,
       addLiquidityAmount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await approveAliceL2TX.wait()
 
     const AliceAddLiquidity = await L2LiquidityPool.connect(env.alicel2Wallet).addLiquidity(
       addLiquidityAmount,
       L2ERC20.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await AliceAddLiquidity.wait()
 
@@ -340,7 +339,7 @@ describe('Liquidity Pool Test', async () => {
     const approveKateL2TX = await L2ERC20.connect(env.katel2Wallet).approve(
       L2LiquidityPool.address,
       fastExitAmount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await approveKateL2TX.wait()
 
@@ -348,7 +347,7 @@ describe('Liquidity Pool Test', async () => {
       L2LiquidityPool.connect(env.katel2Wallet).clientDepositL2(
         fastExitAmount,
         L2ERC20.address,
-        {gasLimit: 800000, gasPrice: 0}
+        {gasLimit: 7000000}
       ),
       Direction.L2ToL1
     )
@@ -410,7 +409,7 @@ describe('Liquidity Pool Test', async () => {
       withdrawAmount,
       L2ERC20.address,
       env.bobl2Wallet.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await withdrawTX.wait()
 
@@ -439,7 +438,7 @@ describe('Liquidity Pool Test', async () => {
       withdrawAmount,
       L2ERC20.address,
       env.bobl2Wallet.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await expect(withdrawTX.wait()).to.be.eventually.rejected;
   })
@@ -454,14 +453,14 @@ describe('Liquidity Pool Test', async () => {
       pendingReward,
       L2ERC20.address,
       env.bobl2Wallet.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await withdrawRewardTX.wait()
 
     const postBobUserInfo = await L2LiquidityPool.userInfo(
       L2ERC20.address,
       env.bobl2Wallet.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     const postL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
 
@@ -479,14 +478,14 @@ describe('Liquidity Pool Test', async () => {
   //     pendingReward,
   //     L1ERC20.address,
   //     env.bobl1Wallet.address//,
-  //     //{gasLimit: 800000, gasPrice: 0}
+  //     //{gasLimit: 800000}
   //   )
   //   await withdrawRewardTX.wait()
 
   //   const postBobUserInfo = await L1LiquidityPool.userInfo(
   //     L1ERC20.address,
   //     env.bobl1Wallet.address//,
-  //     //{gasLimit: 800000, gasPrice: 0}
+  //     //{gasLimit: 800000}
   //   )
   //   const postL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
 
@@ -501,7 +500,7 @@ describe('Liquidity Pool Test', async () => {
       withdrawRewardAmount,
       L2ERC20.address,
       env.bobl2Wallet.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 7000000}
     )
     await expect(withdrawRewardTX.wait()).to.be.eventually.rejected;
   })
@@ -568,7 +567,7 @@ describe('Liquidity Pool Test', async () => {
      const approveBobL2TX = await L2ERC20.connect(env.bobl2Wallet).approve(
        L2LiquidityPool.address,
        fastExitAmount,
-       {gasLimit: 800000, gasPrice: 0}
+       {gasLimit: 7000000}
      )
      await approveBobL2TX.wait()
 
@@ -576,7 +575,7 @@ describe('Liquidity Pool Test', async () => {
        L2LiquidityPool.connect(env.bobl2Wallet).clientDepositL2(
          fastExitAmount,
          L2ERC20.address,
-         {gasLimit: 800000, gasPrice: 0}
+         {gasLimit: 7000000}
        ),
        Direction.L2ToL1
      )

@@ -84,14 +84,16 @@ describe(`ERC20`, () => {
     it(`should succeed when the owner has enough balance and the sender has a large enough allowance`, async () => {
       const tx1 = await ERC20.connect(account1).approve(
         await account2.getAddress(),
-        INITIAL_SUPPLY
+        INITIAL_SUPPLY,
+        {gasLimit: 6400000}
       )
       await tx1.wait()
 
       const tx2 = await ERC20.connect(account2).transferFrom(
         await account1.getAddress(),
         await account2.getAddress(),
-        INITIAL_SUPPLY
+        INITIAL_SUPPLY,
+        {gasLimit: 6700000}
       )
       await tx2.wait()
 

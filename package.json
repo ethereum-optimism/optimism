@@ -10,8 +10,7 @@
       "l2geth",
       "integration-tests",
       "specs",
-      "go/gas-oracle",
-      "omgx_examples/*"
+      "go/gas-oracle"
     ],
     "nohoist": [
       "examples/*"

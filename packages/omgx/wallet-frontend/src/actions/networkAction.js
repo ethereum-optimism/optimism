@@ -34,7 +34,7 @@ export function fetchBalances() {
 
 export function fetchNFTs() {
   console.log("fetchNFTs")
-  return createAction('NFTS/GET', () => networkService.getNFTs())
+  return createAction('NFTS/GET', () => networkService.fetchNFTs())
 }
 
 export function fetchTransactions() {

@@ -222,7 +222,7 @@ class listNFT extends React.Component {
           <div className={styles.Table2}>
             {UUID && <>
               <div className={styles.BasicText}>{name} ({symbol})</div>
-              <div className={styles.BasicLightText}>Owner: {truncate(owner, 6, 4, '...')}</div>
+              <div className={styles.BasicLightText}>Owner: {owner}</div>
               <div className={styles.BasicLightText}>UUID: {UUID}</div>
               <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
               <div className={styles.BasicLightText}>Time minted: {time}</div>
@@ -266,39 +266,45 @@ class listNFT extends React.Component {
           </div>
 
           <div className={styles.boxContainer}>
-          {!UUID && haveRights && <>
-            <h3>Mint and Send</h3>
-            <div 
-              className={styles.BasicLightText}
-            >To mint and send a new {name} NFT, please fill in the information and click "Mint and Send".</div><br/>
-            <Input
-              small={true}
-              placeholder="Receiver Address (Ox.....)"
-              onChange={i=>{this.setState({receiverAddress: i.target.value})}}
-              value={receiverAddress}
-            />
-            <Input
-              small={true}
-              placeholder="NFT Owner Name (e.g. Henrietta Lacks)"
-              onChange={i=>{this.setState({ownerName: i.target.value})}}
-              value={ownerName}
-            />
-            <Input
-              small={true}
-              placeholder="NFT URL (e.g. https://jimb.stanford.edu)"
-              onChange={i=>{this.setState({tokenURI: i.target.value})}}
-              value={tokenURI}
-            />
-            <Button
-              type='primary'
-              size='small'
-              disabled={!receiverAddress || !ownerName || !tokenURI}
-              onClick={()=>{this.handleMintAndSend()}}
-              loading={loading}
-            >
-              Mint and Send
-            </Button>
-          </>}  
+          {!UUID && haveRights && 
+            <>
+              <h3>Mint and Send</h3>
+              <div className={styles.BasicLightText}>
+                To mint and send a new {name} NFT, please fill in the information and click "Mint and Send".
+              </div>
+              <br/>
+              <Input
+                small={true}
+                placeholder="Receiver Address (Ox.....)"
+                onChange={i=>{this.setState({receiverAddress: i.target.value})}}
+                value={receiverAddress}
+              />
+              <Input
+                small={true}
+                placeholder="NFT Owner Name (e.g. Henrietta Lacks)"
+                onChange={i=>{this.setState({ownerName: i.target.value})}}
+                value={ownerName}
+              />
+              <Input
+                small={true}
+                placeholder="NFT URL (e.g. https://jimb.stanford.edu)"
+                onChange={i=>{this.setState({tokenURI: i.target.value})}}
+                value={tokenURI}
+              />
+              <Button
+                type='primary'
+                size='small'
+                disabled={!receiverAddress || !ownerName || !tokenURI}
+                onClick={()=>{this.handleMintAndSend()}}
+                loading={loading}
+              >
+                Mint and Send
+              </Button>
+              <div className={styles.BasicLightText}>
+                <span style={{fontWeight: 'bold'}}>Please send this address to the recipient:<br/> {address}</span>
+              </div>
+            </>
+          }  
           {UUID && <>
             <h3>Derive New NFT Factory</h3>
             <div className={styles.BasicLightText}

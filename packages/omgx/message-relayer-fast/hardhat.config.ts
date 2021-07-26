@@ -14,7 +14,7 @@ const config: HardhatUserConfig = {
       // This sets the gas price to 0 for all transactions on L2. We do this
       // because account balances are not automatically initiated with an ETH
       // balance.
-      gasPrice: 0,
+      gasPrice: 15000000,
       ovm: true,
     },
     localhost: {

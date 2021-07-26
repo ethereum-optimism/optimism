@@ -1,4 +1,4 @@
-# OMGX ERC20 Example
+# OMGX ERC721 Example
 
 ## 1. Compiling the contracts
 
@@ -41,3 +41,8 @@ $ hardhat test --network omgx_rinkeby
 ✨  Done in 48.41s.
 
 ```
+
+
+    "deploy": "hardhat deploy",
+    "deploy:ovm": "hardhat deploy --network optimism",
+    "deploy:omgx": "hardhat deploy --network omgx_rinkeby"

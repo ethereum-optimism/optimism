@@ -9,7 +9,7 @@ const func = async (hre) => {
   const nftName = 'Test NFT'
   const nftSymbol = 'TST'
 
-  await deploy('ERC721Mock', {
+  await deploy('ERC721Genesis', {
     from: deployer,
     args: [
       nftSymbol,
@@ -18,6 +18,13 @@ const func = async (hre) => {
       '0x0000000000000000000000000000000000000000',
       'Genesis',
       'OMGX_Rinkeby_28',
+    ],
+    log: true
+  })
+
+  await deploy('ERC721Registry', {
+    from: deployer,
+    args: [
     ],
     log: true
   })
