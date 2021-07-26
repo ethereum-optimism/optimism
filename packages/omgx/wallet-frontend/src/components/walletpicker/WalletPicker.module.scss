@@ -43,6 +43,32 @@
   justify-content: space-around;
 }
 
+.ButtonConnect {
+  width: 250px;
+  border-radius: 5px;
+  padding: 15px;
+  cursor: pointer;
+  box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+  @include mobile {
+    flex-direction: column;
+    width: 70%;
+  }
+}
+
+.ButtonAdd {
+  width: 200px;
+  border-radius: 5px;
+  margin-top: 20px;
+  transition: all 200ms ease-in-out;
+  padding: 5px;
+  cursor: pointer;
+  @include mobile {
+    flex-direction: column;
+    width: 70%;
+  }
+  box-shadow: 0 4px 10px 0 rgba(0,0,0,0.2);
+}
+
 /*the actual button*/
 .MainRight {
   width: 250px;
@@ -128,7 +154,7 @@
 }
 
 .disabledMM {
-  padding-top: 5px;
+  padding-top: 20px;
   font-size: 0.9em;
   color: $red;
 }

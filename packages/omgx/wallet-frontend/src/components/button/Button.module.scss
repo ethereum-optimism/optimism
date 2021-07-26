@@ -59,4 +59,5 @@
 .disabled {
   filter: brightness(50%);
   cursor: initial;
+  pointer-events: none;
 }

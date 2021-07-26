@@ -24,6 +24,12 @@
     }
     .icon {
       margin-right: 10px;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+    }
+    .icon + .input {
+      padding-left: 30px;
     }
     .input {
       flex: 1;

@@ -25,14 +25,11 @@ import Transaction from 'components/transaction/Transaction'
 
 import networkService from 'services/networkService'
 
-import { getAllNetworks } from 'util/masterConfig'
-import { selectNetwork } from 'selectors/setupSelector'
-
 import * as styles from './Transactions.module.scss'
 
 const PER_PAGE = 10;
 
-function Deposits ({ searchHistory, transactions }) {
+function Deposits ({ searchHistory, transactions,chainLink }) {
 
   const [ page, setPage ] = useState(1);
 
@@ -61,18 +58,6 @@ function Deposits ({ searchHistory, transactions }) {
   //if totalNumberOfPages === 0, set to one so we don't get the strange "page 1 of 0" display
   if (totalNumberOfPages === 0) totalNumberOfPages = 1
 
-  const currentNetwork = useSelector(selectNetwork())
-
-  const nw = getAllNetworks();
-
-  const chainLink = (item) => {
-    let network = nw[currentNetwork];
-    if (!!network && !!network[item.chain]) {
-      // network object should have L1 & L2
-      return `${network[item.chain].transaction}${item.hash}`;
-    }
-    return '';
-  }
 
   return (
     <div className={styles.transactionSection}>

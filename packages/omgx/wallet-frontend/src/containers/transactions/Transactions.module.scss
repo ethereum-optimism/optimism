@@ -20,7 +20,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  background-color: $bunnyRed;
+  // background-color: $bunnyRed;
   @include mobile {
     padding-top: 10px;
     flex-direction: column;
@@ -60,6 +60,7 @@
 .searchBar {
   flex: 1;
   margin-bottom: 0;
+  min-width: 250px;
   & > div {
     border: none !important;
   }
@@ -100,4 +101,17 @@
 .processExitButton {
   color: $blue;
   cursor: pointer;
+}
+
+.actions {
+  flex:1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .datePicker {
+    flex: 1;
+    margin-bottom: 0;
+    min-width: 250px;
+  }
 }

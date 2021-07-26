@@ -35,6 +35,7 @@ import chevron from 'images/chevron.svg';
 
 import * as styles from './WalletPicker.module.scss';
 import { isChangingChain } from 'util/changeChain';
+import Button from 'components/button/Button';
 
 function WalletPicker ({ onEnable, enabled }) {
   const dispatch = useDispatch();
@@ -51,7 +52,6 @@ function WalletPicker ({ onEnable, enabled }) {
   const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
 
   const dispatchSetWalletMethod = useCallback((methodName) => {
-    //console.log("dispatchSetWalletMethod:",methodName)
     dispatch(setWalletMethod(methodName));
   }, [ dispatch ])
 
@@ -197,29 +197,26 @@ function WalletPicker ({ onEnable, enabled }) {
           Traditional Deposits and 7 Day Exits<br/>
         </div>
         <div className={styles.MainRightContainer}>
-        <div
-          className={styles.MainRight}
-          onClick={()=>dispatchSetWalletMethod('browser')}
-        >
-          <div
-            className={[styles.MainButton, !browserEnabled ? styles.disabled : ''].join(' ')}
+          <Button
+            type="primary"
+            disabled={!browserEnabled}
+            pulsate={true}
+            className={styles.ButtonConnect}
+            onClick={() => dispatchSetWalletMethod('browser')}
           >
-            <span>Connect to MetaMask</span>
-            {!browserEnabled &&
-              <div className={styles.disabledMM}>Your browser does not have a web3 provider.</div>
-            }
-          </div>
-        </div>
-        <div
-          className={styles.MainRightSecond}
-          onClick={()=>networkService.addL2Network()}
-        >
-          <div
-            className={styles.MainButtonSecond}
+            Connect to MetaMask
+          </Button>
+          {!browserEnabled &&
+            <div className={styles.disabledMM}>Your browser does not have a web3 provider.</div>
+          }
+
+          <Button
+            type="primary"
+            className={styles.ButtonAdd}
+            onClick={() => networkService.addL2Network()}
           >
-            <span>Add OMGX L2 Provider</span>
-          </div>
-        </div>
+            Add OMGX L2 Provider
+          </Button>
         </div>
       </div>
 
