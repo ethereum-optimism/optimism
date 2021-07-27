@@ -29,7 +29,7 @@ async function deploy({
   }
 
   const nonce = await signerProvider.getTransactionCount()
-  const deployed = await contractArtifacts.deploy(...contractArgs, { nonce, ...overrides, gasPrice: 0, gasLimit: 800000 });
+  const deployed = await contractArtifacts.deploy(...contractArgs, { nonce, ...overrides, gasPrice: 15000000 });
   await deployed.deployTransaction.wait()
 
   const checkCode = async (_address) => {
