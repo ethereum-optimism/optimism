@@ -21,11 +21,12 @@ import { selectLoading } from 'selectors/loadingSelector'
 
 import Button from 'components/button/Button'
 
-import { logAmount, powAmount } from 'util/amountConvert'
+import { amountToUsd, logAmount, powAmount } from 'util/amountConvert'
 import networkService from 'services/networkService'
 
 import * as styles from '../ExitModal.module.scss'
 import Input from 'components/input/Input'
+import { selectLookupPrice } from 'selectors/lookupSelector'
 
 function DoExitStepFast({ handleClose, token }) {
 
@@ -37,6 +38,7 @@ function DoExitStepFast({ handleClose, token }) {
   const [disabledSubmit, setDisabledSubmit] = useState(true)
 
   const exitLoading = useSelector(selectLoading(['EXIT/CREATE']))
+  const lookupPrice = useSelector(selectLookupPrice);
 
   function setAmount(value) {
     if (
@@ -113,7 +115,9 @@ function DoExitStepFast({ handleClose, token }) {
           {value &&
             `You will receive 
             ${receivableAmount(value)} 
-            ETH on L1.`
+            ETH 
+            ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''}
+            on L1.`
           }
         </h3>
       )}
@@ -124,6 +128,7 @@ function DoExitStepFast({ handleClose, token }) {
             `You will receive 
             ${receivableAmount(value)} 
             ${token.symbol} 
+            ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''}
             on L1.`
           }
         </h3>

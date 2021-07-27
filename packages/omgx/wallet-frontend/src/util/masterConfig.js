@@ -85,6 +85,8 @@ const BaseServices = {
   SERVICE_OPTIMISM_API_URL: `https://zlba6djrv6.execute-api.us-west-1.amazonaws.com/prod/`,
   //relevant to local?
   WEBSOCKET_API_URL: `wss://d1cj5xnal2.execute-api.us-west-1.amazonaws.com/prod`,
+  //Coing gecko url
+  COIN_GECKO_URL: `https://api.coingecko.com/api/v3/`,
 }
 
 export function getAllNetworks () {

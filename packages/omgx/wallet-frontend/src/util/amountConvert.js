@@ -36,3 +36,15 @@ export function powAmount (amount, power) {
   const calculated = x.multipliedBy(exp);
   return calculated.toFixed(0);
 }
+
+export function amountToUsd(amount, lookupPrice, token) {
+  if (['ETH', 'oETH'].includes(token.symbol) && !!lookupPrice['ethereum']) {
+    return amount * lookupPrice['ethereum'].usd
+  } else if (token.symbol === 'OMG' && !!lookupPrice['omisego']) {
+    return amount * lookupPrice['omisego'].usd
+  } else if (!!lookupPrice[token.symbol.toLowerCase()]) {
+    return amount * lookupPrice[token.symbol.toLowerCase()].usd
+  } else {
+    return false
+  }
+}

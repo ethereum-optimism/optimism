@@ -62,6 +62,7 @@ import etherScanInstance from 'api/etherScanAxios'
 import omgxWatcherAxiosInstance from 'api/omgxWatcherAxios'
 import addressAxiosInstance from 'api/addressAxios'
 import addressOMGXAxiosInstance from 'api/addressOMGXAxios'
+import coinGeckoAxiosInstance from 'api/coinGeckoAxios'
 
 //All the current addresses for fallback purposes only
 //These may or may not be present
@@ -1744,6 +1745,18 @@ class NetworkService {
       })
 
     } catch (error) {
+      return error
+    }
+  }
+
+  async fetchLookUpPrice(params) {
+    try {
+       // fetching only the prices compare to usd.
+       const res = await coinGeckoAxiosInstance.get(
+         `simple/price?ids=${params.join()}&vs_currencies=usd`
+       )
+       return res.data;
+    } catch(error) {
       return error
     }
   }

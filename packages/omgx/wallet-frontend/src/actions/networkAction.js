@@ -232,3 +232,7 @@ export function getTransferTypedData(data) {
 //     }
 //   };
 // }
+
+export function fetchLookUpPrice(params) {
+  return createAction('PRICE/GET', () => networkService.fetchLookUpPrice(params))
+}

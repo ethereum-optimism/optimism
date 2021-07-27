@@ -13,8 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React from 'react'
-import { useSelector } from 'react-redux'
+import React,{useEffect,useCallback} from 'react'
+import { useSelector, useDispatch } from 'react-redux'
 
 import { isEqual } from 'lodash'
 import truncate from 'truncate-middle'
@@ -35,14 +35,36 @@ import bunny_happy from 'images/bunny_happy.svg'
 import bunny_sad from 'images/bunny_sad.svg'
 
 import * as styles from './Account.module.scss'
+import { selectTokens } from 'selectors/tokenSelector'
+import { fetchLookUpPrice } from 'actions/networkAction'
 
 function Account () {
+  const dispatch = useDispatch();
   
   const childBalance = useSelector(selectlayer2Balance, isEqual);
   const rootBalance = useSelector(selectlayer1Balance, isEqual);
 
   const isSynced = useSelector(selectIsSynced);
   const criticalTransactionLoading = useSelector(selectLoading([ 'EXIT/CREATE' ]));
+  const tokenList = useSelector(selectTokens);
+
+  const getLookupPrice = useCallback(()=>{
+    const symbolList = Object.values(tokenList).map((i)=> {
+      if(i.symbolL1 === 'ETH') {
+        return 'ethereum'
+      } else if(i.symbolL1 === 'OMG') {
+        return 'omisego'
+      } else {
+        return i.symbolL1.toLowerCase()
+      }
+    });
+    dispatch(fetchLookUpPrice(symbolList));
+  },[tokenList,dispatch])
+
+  useEffect(()=>{
+    getLookupPrice();
+  },[childBalance, rootBalance,getLookupPrice])
+
 
   const disabled = criticalTransactionLoading || !isSynced
 

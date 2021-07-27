@@ -10,9 +10,10 @@ import Input from 'components/input/Input'
 import GasPicker from 'components/gaspicker/GasPicker'
 
 import { selectLoading } from 'selectors/loadingSelector'
-import { logAmount, powAmount } from 'util/amountConvert'
+import { amountToUsd, logAmount, powAmount } from 'util/amountConvert'
 
 import * as styles from '../DepositModal.module.scss'
+import { selectLookupPrice } from 'selectors/lookupSelector'
 
 function InputStep({ handleClose, token }) {
 
@@ -22,6 +23,7 @@ function InputStep({ handleClose, token }) {
   const [gasPrice, setGasPrice] = useState()
   const [selectedSpeed, setSelectedSpeed] = useState('normal')
   const depositLoading = useSelector(selectLoading(['DEPOSIT/CREATE']))
+  const lookupPrice = useSelector(selectLookupPrice);
 
   async function doDeposit() {
 
@@ -85,6 +87,12 @@ function InputStep({ handleClose, token }) {
         unit={token.symbol}
         maxValue={logAmount(token.balance, token.decimals)}
       />
+
+      {Object.keys(lookupPrice) && !!value && !!amountToUsd(value, lookupPrice, token) && (
+        <h3>
+          {`Amount in USD ${amountToUsd(value, lookupPrice, token).toFixed(2)}`}
+        </h3>
+      )}
 
       {renderGasPicker}
 
