@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
@@ -59,7 +59,7 @@
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
     "@eth-optimism/hardhat-ovm": "^0.2.2",
-    "@eth-optimism/smock": "^1.1.9",
+    "@eth-optimism/smock": "^1.1.10",
     "@ethersproject/transactions": "^5.0.31",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
