@@ -62,9 +62,16 @@ jobs:
       - name: Build the services
         working-directory: ./ops
         run: |
-          ./scripts/build-ci.sh  
+           ./scripts/build-ci-omgx.sh  
+#          # docker-compose build --parallel -- builder l2geth l1_chain
+#          # docker-compose build --parallel -- deployer dtl batch_submitter relayer integration_tests
+#          # docker-compose build --parallel -- omgx_deployer omgx_message-relayer-fast
+#          # docker-compose build --parallel -- gas_oracle
+#          ./scripts/build-ci.sh  
 #         docker build ../ --file docker/Dockerfile.monorepo --tag omgx/omgx_builder:latest
 #         docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
+# this fails with issue finding artifacts-ovm
+# error cannot be reproduced locally
 #         docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:latest
 #         docker build ../ --file docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:latest
       
