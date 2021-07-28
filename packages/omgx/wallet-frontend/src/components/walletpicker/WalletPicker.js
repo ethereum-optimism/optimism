@@ -225,7 +225,7 @@ function WalletPicker ({ onEnable, enabled }) {
         <div className={styles.directive}>
 
           <div className={styles.Title}>
-            <span className={styles.B}>Demo of Traditional Deposit and Exit.</span>{' '}Note - for testing, we have turned off the 7 day exit delay.<br/><br/>
+            <span className={styles.B}>Traditional Deposit and Exit.</span><br/><br/>
             <span className={styles.B}>NEW.</span>{' '}Fast (90 second) Swap-On and Swap-Off, from L1 to L2, and back from L2 to L1. Depositing ETH on L1
             transfers oETH to you on the L2, and vice versa. No more waiting to exit.<br/><br/>
             <span className={styles.B}>Staking and Community-provided Liquidity.</span>{' '}This fast on/off capability is

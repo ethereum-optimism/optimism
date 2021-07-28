@@ -54,13 +54,15 @@ COPY --from=builder /optimism/integration-tests ./integration-tests
 
 # Moved from Dockerfile.omgx_monorepo
 COPY ./patches ./patches
-#COPY ./packages/omgx ./packages/omgx
+COPY ./packages/omgx ./packages/omgx
 
 # the following steps are cheap
 COPY *.json yarn.lock ./
+
 # copy over the source
 COPY ./packages ./packages
 COPY ./integration-tests ./integration-tests
+
 # copy over solc to save time building (35+ seconds vs not doing this step)
 COPY --from=downloader solc /root/.cache/hardhat-nodejs/compilers/linux-amd64/solc-linux-amd64-v0.7.6+commit.7338295f
 COPY --from=downloader ovm-solc /root/.cache/hardhat-nodejs/compilers/ovm/0.7.6.js

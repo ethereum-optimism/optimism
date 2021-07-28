@@ -123,7 +123,7 @@ function Home () {
   }, [])
   
   const handleSetPage = async (page) => {
-    setPageDisplay(page);
+    setPageDisplay(page)
   }
 
   return (
@@ -178,7 +178,7 @@ function Home () {
               className={pageDisplay === "Farm" ? styles.subtitletextActive : styles.subtitletext}
               onClick={()=>{handleSetPage("Farm")}}
             >  
-              Farm
+              Earn
             </h2>
             <h2
               className={pageDisplay === "NFT" ? styles.subtitletextActive : styles.subtitletext}

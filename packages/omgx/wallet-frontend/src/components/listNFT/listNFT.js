@@ -1,18 +1,22 @@
-import React from 'react';
-import { connect } from 'react-redux';
-import { isEqual } from 'lodash';
+import React from 'react'
+import { connect } from 'react-redux'
+import { isEqual } from 'lodash'
 
-import { openAlert, openError } from 'actions/uiAction';
+import { openAlert, openError } from 'actions/uiAction'
 
 import Button from 'components/button/Button'
 import Input from 'components/input/Input'
 
-import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore'
+import Select from '@material-ui/core/Select'
+import MenuItem from '@material-ui/core/MenuItem'
 
-import networkService from 'services/networkService';
-import root from 'images/root.png';
+import networkService from 'services/networkService'
+import root from 'images/root.png'
 
-import * as styles from './listNFT.module.scss';
+import { transfer } from 'actions/networkAction'
+
+import * as styles from './listNFT.module.scss'
 
 import truncate from 'truncate-middle'
 
@@ -35,7 +39,9 @@ class listNFT extends React.Component {
       oriChain,
       oriAddress,
       oriID,
-      haveRights
+      haveRights,
+      type,
+      oriFeeRecipient
     } = this.props;
 
 
@@ -62,7 +68,10 @@ class listNFT extends React.Component {
       oriChain,
       oriAddress,
       oriID,
-      haveRights 
+      haveRights,
+      type,
+      typeNew : 0,
+      oriFeeRecipient 
     }
   }
   
@@ -72,7 +81,8 @@ class listNFT extends React.Component {
       name, layer, symbol, owner, 
       address, UUID, time, URL,
       oriChain, oriAddress, oriID,
-      haveRights 
+      haveRights, type, oriFeeRecipient,
+      typeNew 
     } = this.props;
 
     if (!isEqual(prevState.name, name)) {
@@ -123,11 +133,24 @@ class listNFT extends React.Component {
       this.setState({ haveRights })
     }
 
+    if (!isEqual(prevState.type, type)) {
+      this.setState({ type })
+    }
+
+    if (!isEqual(prevState.typeNew, typeNew)) {
+      this.setState({ typeNew })
+    }
+
+    if (!isEqual(prevState.oriFeeRecipient, oriFeeRecipient)) {
+      this.setState({ oriFeeRecipient })
+    }
+
   }
 
   async handleMintAndSend() {
 
-    const { receiverAddress, ownerName, tokenURI, address } = this.state;
+    const { receiverAddress, ownerName, tokenURI, address, typeNew, oriFeeRecipient } = this.state;
+    
     const networkStatus = await this.props.dispatch(networkService.confirmLayer('L2'))
     
     if (!networkStatus) {
@@ -135,21 +158,43 @@ class listNFT extends React.Component {
       return
     }
 
-    this.setState({ loading: true });
+    this.setState({ loading: true })
 
     const mintTX = await networkService.mintAndSendNFT(
       receiverAddress, 
       address,
       ownerName, 
-      tokenURI
+      tokenURI,
+      typeNew //can be 0, 1, or 2 - 0 denotes full rights
     )
-    
-    if (mintTX) {
-      this.props.dispatch(openAlert(`You minted a new NFT for ${receiverAddress}. The owner's name is ${ownerName}.`));
-    } else {
-      this.props.dispatch(openError('NFT minting error'));
-    }
 
+    //for the payment, this is always in oETH, is always 0.01 oETH in magnitude (for now), and 
+    //goes to the owner of the NFT that was the parent of the NFT you are sending to someone else 
+
+    const ETHL2 = '0x4200000000000000000000000000000000000006'
+
+    if (mintTX) {
+      
+      this.props.dispatch(openAlert(`You minted a new NFT for ${receiverAddress}. 
+        The owner's name is ${ownerName}. 
+        You will now be prompted to send a payment to the creator of the parent NFT`
+      ))
+
+      try {
+        const transferResponse = await this.props.dispatch(
+          transfer(oriFeeRecipient, 0.01, ETHL2)
+        )
+        if (transferResponse) {
+          this.props.dispatch(openAlert('Payment submitted'))
+        }
+      } catch (err) {
+        //guess not really?
+      }
+
+    } else {
+      this.props.dispatch(openError('NFT minting error'))
+    }
+ 
     this.setState({ loading: false })
   }
 
@@ -205,8 +250,22 @@ class listNFT extends React.Component {
       ownerName,
       newNFTsymbol,
       newNFTname,
-      haveRights 
+      haveRights,
+      type,
+      typeNew,
+      oriFeeRecipient 
     } = this.state;
+
+    let typeString = 'Commercial; derivatizable'
+
+    if(type === 1){
+      typeString = 'Commercial; no derivatives'
+    } else if (type === 2) {
+      typeString = 'Non-profit; no derivatives'
+    }
+
+    //console.log(type)
+    //console.log(type === 0)
 
     return (
       <div className={styles.ListNFT}>
@@ -226,6 +285,7 @@ class listNFT extends React.Component {
               <div className={styles.BasicLightText}>UUID: {UUID}</div>
               <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
               <div className={styles.BasicLightText}>Time minted: {time}</div>
+              <div className={styles.BasicLightText}>Type: {typeString}</div>
               <a style={{color: 'blue', paddingTop: '2px', fontSize: '0.7em', fontWeight: '700'}} href={URL}>DATASHEET</a>
             </> }
             {!UUID && <>
@@ -262,6 +322,7 @@ class listNFT extends React.Component {
               <div className={styles.BasicLightText}>Address: {oriAddress}</div>
               <div className={styles.BasicLightText}>NFT: {oriID}</div>
               <div className={styles.BasicLightText}>Chain: {oriChain}</div>
+              <div className={styles.BasicLightText}>Fee recipient: {oriFeeRecipient}</div>
             </div>
           </div>
 
@@ -291,6 +352,17 @@ class listNFT extends React.Component {
                 onChange={i=>{this.setState({tokenURI: i.target.value})}}
                 value={tokenURI}
               />
+              <Select
+                labelId="select-type-label"
+                id="select-type"
+                className={styles.DD}
+                value={typeNew}
+                onChange={i=>{this.setState({typeNew: i.target.value})}}
+              >
+                <MenuItem value={0}>Type: Commercial; derivatizable</MenuItem>
+                <MenuItem value={1}>Type: Commercial; no derivatives</MenuItem>
+                <MenuItem value={2}>Type: Non-profit; no derivatives</MenuItem>
+              </Select>
               <Button
                 type='primary'
                 size='small'
@@ -300,12 +372,9 @@ class listNFT extends React.Component {
               >
                 Mint and Send
               </Button>
-              <div className={styles.BasicLightText}>
-                <span style={{fontWeight: 'bold'}}>Please send this address to the recipient:<br/> {address}</span>
-              </div>
             </>
           }  
-          {UUID && <>
+          {UUID && (type === 0) && <>
             <h3>Derive New NFT Factory</h3>
             <div className={styles.BasicLightText}
             >To derive a new NFT factory from this NFT, please fill in the information and click "Derive".</div><br/>
@@ -341,12 +410,6 @@ class listNFT extends React.Component {
 
 const mapStateToProps = state => ({ 
   nft: state.nft
-  /*
-  login: state.login,
-  sell: state.sell,
-  sellTask: state.sellTask,
-  buy: state.buy,
-  */
-});
+})
 
-export default connect(mapStateToProps)(listNFT);
+export default connect(mapStateToProps)(listNFT)

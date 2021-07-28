@@ -442,7 +442,8 @@ func TestSyncQueue(t *testing.T) {
 
 	var tip *uint64
 	go func() {
-		tip, err = service.syncQueue()
+		// atTip, index, err 
+		_, tip, err = service.syncQueue()
 	}()
 
 	for i := 0; i < 4; i++ {
@@ -855,7 +856,11 @@ type mockClient struct {
 	getLatestEthContext            *EthContext
 	getLatestEnqueueIndex          []func() (*uint64, error)
 	getLatestEnqueueIndexCallCount int
+	getLatestEnqueueInfo           []func() (*EnqueueInfo, error)
 }
+
+
+//GetLatestEnqueueInfo() (*EnqueueInfo, error)
 
 func setupMockClient(service *SyncService, responses map[string]interface{}) {
 	client := newMockClient(responses)

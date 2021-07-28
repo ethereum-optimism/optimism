@@ -24,20 +24,22 @@ class ListFarm extends React.Component {
     super(props);
     
     const { 
-      logo, name, shortName, 
-      poolInfo, userInfo, L1orL2Pool,
-      balance, decimals 
+      logo,
+      poolInfo, 
+      userInfo, 
+      L1orL2Pool,
+      balance, 
+      decimals 
     } = this.props;
 
     this.state = {
       logo,
-      name, 
-      shortName,
       balance,
       decimals,
       L1orL2Pool,
       // data
-      poolInfo, userInfo,
+      poolInfo, 
+      userInfo,
       //drop down box
       dropDownBox: false,
       dropDownBoxInit: true,
@@ -69,34 +71,40 @@ class ListFarm extends React.Component {
   }
 
   handleStakeToken() {
-    const { shortName, poolInfo, L1orL2Pool, balance, decimals } = this.state;
+    
+    const { poolInfo, L1orL2Pool, balance, decimals } = this.state
+    
     this.props.dispatch(updateStakeToken({
-      symbol: shortName,
+      symbol: poolInfo.symbol,
       currency: L1orL2Pool === 'L1LP' ? poolInfo.l1TokenAddress : poolInfo.l2TokenAddress,
       LPAddress: L1orL2Pool === 'L1LP' ? networkService.L1LPAddress : networkService.L2LPAddress,
       L1orL2Pool,
       balance,
       decimals
-    }));
-    this.props.dispatch(openModal('farmDepositModal'));
+    }))
+    
+    this.props.dispatch(openModal('farmDepositModal'))
   }
 
   handleWithdrawToken() {
-    const { shortName, poolInfo, L1orL2Pool, balance, decimals } = this.state;
+    
+    const { poolInfo, L1orL2Pool, balance, decimals } = this.state;
+    
     this.props.dispatch(updateWithdrawToken({
-      symbol: shortName,
+      symbol: poolInfo.symbol,
       currency: L1orL2Pool === 'L1LP' ? poolInfo.l1TokenAddress : poolInfo.l2TokenAddress,
       LPAddress: L1orL2Pool === 'L1LP' ? networkService.L1LPAddress : networkService.L2LPAddress,
       L1orL2Pool,
       balance,
       decimals
-    }));
+    }))
+    
     this.props.dispatch(openModal('farmWithdrawModal'));
   }
 
   async handleHarvest() {
     
-    const { poolInfo, userInfo, shortName } = this.state;
+    const { poolInfo, userInfo } = this.state;
 
     this.setState({ loading: true })
 
@@ -124,7 +132,7 @@ class ListFarm extends React.Component {
     }
 
     if (getRewardTX) {
-      this.props.dispatch(openAlert(`${logAmount(userReward, 18, 2)} ${shortName} was added to your account`));
+      this.props.dispatch(openAlert(`${logAmount(userReward, 18, 2)} ${poolInfo.symbol} was added to your account`));
       this.props.dispatch(getFarmInfo());
       this.setState({ loading: false });
     } else {
@@ -137,7 +145,7 @@ class ListFarm extends React.Component {
   render() {
 
     const { 
-      logo, name, shortName,
+      logo,
       poolInfo, userInfo,
       dropDownBox, dropDownBoxInit,
       loading, L1orL2Pool
@@ -156,15 +164,16 @@ class ListFarm extends React.Component {
 
     // L1orL2Pool: L1LP || L2LP
     // networkService.L1OrL2 L1: || L2
-    const disabled = !L1orL2Pool.includes(networkService.L1orL2);
+    const disabled = !L1orL2Pool.includes(networkService.L1orL2)
+    const symbol = poolInfo.symbol
+    const name = poolInfo.name
 
     return (
       <div className={styles.ListFarm}>
         <div 
           className={styles.topContainer} 
-          onClick={()=>{
-            this.setState({ dropDownBox: !dropDownBox, dropDownBoxInit: false })
-          }}
+          style={disabled ? {pointerEvents: 'none'} : {}}
+          onClick={()=>{this.setState({ dropDownBox: !dropDownBox, dropDownBoxInit: false })}}
         >
           <div className={styles.Table1}>
             <img className={styles.Image} src={logo} alt="logo"/>
@@ -174,7 +183,7 @@ class ListFarm extends React.Component {
             <div className={styles.BasicText}>Earned</div>
             <div className={styles.BasicLightText}>
               {userReward ? 
-                `${logAmount(userReward, 18, 2)} ${shortName}` : `0 ${shortName}`
+                `${logAmount(userReward, 18, 2)} ${symbol}` : `0 ${symbol}`
               }
             </div>
           </div>
@@ -182,7 +191,7 @@ class ListFarm extends React.Component {
             <div className={styles.BasicText}>Share</div>
             <div className={styles.BasicLightText}>
               {userInfo.amount ? 
-                `${logAmount(userInfo.amount, 18, 2)} ${shortName}` : `0 ${shortName}`
+                `${logAmount(userInfo.amount, 18, 2)} ${symbol}` : `0 ${symbol}`
               }
             </div>
           </div>
@@ -196,14 +205,22 @@ class ListFarm extends React.Component {
             <div className={styles.BasicText}>Liquidity</div>
             <div className={styles.BasicLightText}>
               {poolInfo.userDepositAmount ? 
-                `${logAmount(poolInfo.userDepositAmount, 18, 2)} ${shortName}` : `0 ${shortName}`
+                `${logAmount(poolInfo.userDepositAmount, 18, 2)} ${symbol}` : `0 ${symbol}`
               }
             </div>
           </div>
-          <div className={styles.Table6}>
-            <div className={styles.LinkText}>Staking</div>
-            <ExpandMoreIcon className={styles.LinkButton} />
-          </div>
+          {disabled &&
+            <div className={styles.Table6}>
+              <div className={styles.LinkTextOff}>Staking</div>
+              <ExpandMoreIcon className={styles.LinkButtonOff} />
+            </div>
+          }
+          {!disabled &&
+            <div className={styles.Table6}>
+              <div className={styles.LinkText}>Staking</div>
+              <ExpandMoreIcon className={styles.LinkButton} />
+            </div>
+          }
         </div>
 
         {/*********************************************/

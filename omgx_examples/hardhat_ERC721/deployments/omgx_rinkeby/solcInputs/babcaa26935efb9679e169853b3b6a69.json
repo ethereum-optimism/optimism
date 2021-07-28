@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/ERC721Registry.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity >0.5.0;\n\n/**\n * @title ERC721Registry\n * \n */\ncontract ERC721Registry {\n\n    struct wallet {\n        address[] addresses;\n    }   \n    \n    mapping (address => wallet) locations;\n\n    /**\n     * @dev Emitted when a NFT contract addresss is added to a user's wallet.\n     */\n    event AddressRegistered(address indexed walletAddress, address indexed NFTContractAddress);\n\n    constructor () {\n    }\n\n    function registerAddress(address walletAddress, address NFTContractAddress) public\n    { \n        //note - we don't check for double adding...\n        //less expensive to simply remove duplicates at the frontend, and of course,\n        //any sane frontend will check first to make sure they are not wasting gas by \n        //registering their NFT contract address more than once per recipient\n        //Also, we don't bother with removing, since there are better ways to do that - \n        //i.e. by burning the actual NFTs - stale addresses will just accumulate \n        locations[walletAddress].addresses.push(NFTContractAddress);  \n\n        emit AddressRegistered(walletAddress, NFTContractAddress);   \n    }  \n\n    function lookupAddress(address walletAddress) public view returns(address[] memory) \n    { \n        return locations[walletAddress].addresses;     \n    }  \n\n}\n\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

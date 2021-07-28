@@ -111,6 +111,7 @@ function InputStep({ handleClose, token }) {
           loading={depositLoading}
           tooltip="Your swap is still pending. Please wait for confirmation."
           disabled={disabledSubmit}
+          triggerTime={new Date()}
         >
           DEPOSIT
         </Button>

@@ -62,7 +62,7 @@ function DoExitStepFast({ handleClose, token }) {
     let res = await dispatch(
       depositL2LP(
         token.address,
-        powAmount(value, token.decimals) //takes a value, converts to 18 decimals, generates string
+        powAmount(value, token.decimals) //take a value, convert to 18 decimals, generate string
       )
     )
 
@@ -158,6 +158,7 @@ function DoExitStepFast({ handleClose, token }) {
           className={styles.button}
           tooltip='Your exit is still pending. Please wait for confirmation.'
           disabled={disabledSubmit}
+          triggerTime={new Date()}
         >
           FAST EXIT
         </Button>

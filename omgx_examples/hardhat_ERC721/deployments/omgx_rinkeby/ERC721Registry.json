@@ -1,0 +1,165 @@
+{
+  "address": "0xeD54c73589124264Fb447Cc656332173C6980675",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "walletAddress",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "NFTContractAddress",
+          "type": "address"
+        }
+      ],
+      "name": "AddressRegistered",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "walletAddress",
+          "type": "address"
+        }
+      ],
+      "name": "lookupAddress",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "walletAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "NFTContractAddress",
+          "type": "address"
+        }
+      ],
+      "name": "registerAddress",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xe1036b77f7c987b588da40e06efcf44821c71e2f1273f037f1509ccc69d96e3e",
+  "receipt": {
+    "to": null,
+    "from": "0xb2780bABBe5Eaf6b611cAcC5cf3Db1C669224F60",
+    "contractAddress": "0xeD54c73589124264Fb447Cc656332173C6980675",
+    "transactionIndex": 0,
+    "gasUsed": "1277651",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000040000000000000000000000000000000000100000000100000000000000000000000000000000000000000000000000000008000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000010000000000000000200000000000000000000000000000000002000000000010000000000000000000000000000000000000200000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000",
+    "blockHash": "0x640bb2a1f84368870c5f5d311b91952cf2a15241a3b0b8266ed4947beb07eb85",
+    "transactionHash": "0xe1036b77f7c987b588da40e06efcf44821c71e2f1273f037f1509ccc69d96e3e",
+    "logs": [
+      {
+        "transactionIndex": 0,
+        "blockNumber": 7850,
+        "transactionHash": "0xe1036b77f7c987b588da40e06efcf44821c71e2f1273f037f1509ccc69d96e3e",
+        "address": "0x4200000000000000000000000000000000000006",
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x000000000000000000000000b2780babbe5eaf6b611cacc5cf3db1c669224f60",
+          "0x0000000000000000000000004200000000000000000000000000000000000011"
+        ],
+        "data": "0x000000000000000000000000000000000000000000000000000037cc63124dc0",
+        "logIndex": 0,
+        "blockHash": "0x640bb2a1f84368870c5f5d311b91952cf2a15241a3b0b8266ed4947beb07eb85"
+      }
+    ],
+    "blockNumber": 7850,
+    "cumulativeGasUsed": "1277651",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "solcInputHash": "babcaa26935efb9679e169853b3b6a69",
+  "metadata": "{\"compiler\":{\"version\":\"0.7.6+ovm+commit.aff196a1\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"walletAddress\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"NFTContractAddress\",\"type\":\"address\"}],\"name\":\"AddressRegistered\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"walletAddress\",\"type\":\"address\"}],\"name\":\"lookupAddress\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"walletAddress\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"NFTContractAddress\",\"type\":\"address\"}],\"name\":\"registerAddress\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"events\":{\"AddressRegistered(address,address)\":{\"details\":\"Emitted when a NFT contract addresss is added to a user's wallet.\"}},\"kind\":\"dev\",\"methods\":{},\"title\":\"ERC721Registry \",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/ERC721Registry.sol\":\"ERC721Registry\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"contracts/ERC721Registry.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >0.5.0;\\n\\n/**\\n * @title ERC721Registry\\n * \\n */\\ncontract ERC721Registry {\\n\\n    struct wallet {\\n        address[] addresses;\\n    }   \\n    \\n    mapping (address => wallet) locations;\\n\\n    /**\\n     * @dev Emitted when a NFT contract addresss is added to a user's wallet.\\n     */\\n    event AddressRegistered(address indexed walletAddress, address indexed NFTContractAddress);\\n\\n    constructor () {\\n    }\\n\\n    function registerAddress(address walletAddress, address NFTContractAddress) public\\n    { \\n        //note - we don't check for double adding...\\n        //less expensive to simply remove duplicates at the frontend, and of course,\\n        //any sane frontend will check first to make sure they are not wasting gas by \\n        //registering their NFT contract address more than once per recipient\\n        //Also, we don't bother with removing, since there are better ways to do that - \\n        //i.e. by burning the actual NFTs - stale addresses will just accumulate \\n        locations[walletAddress].addresses.push(NFTContractAddress);  \\n\\n        emit AddressRegistered(walletAddress, NFTContractAddress);   \\n    }  \\n\\n    function lookupAddress(address walletAddress) public view returns(address[] memory) \\n    { \\n        return locations[walletAddress].addresses;     \\n    }  \\n\\n}\\n\\n\",\"keccak256\":\"0xb9af3819a04ca00f9477df031b11ec2d4c5fa72747b17b81d7a7fe7a16f8d0fa\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x60806040523480156100195760008061001661001f565b50505b5061008d565b632a2a7adb598160e01b8152600481016020815285602082015260005b8681101561005a57808601518160408401015260208101905061003c565b506020828760640184336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b505050565b6104968061009c6000396000f3fe608060405234801561001957600080610016610360565b50505b506004361061003f5760003560e01c806331b0795c1461004d578063d79582f6146100ba575b60008061004a610360565b50505b6100b86004803603604081101561006c57600080610069610360565b50505b81019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061015c565b005b610105600480360360208110156100d9576000806100d6610360565b50505b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061027c565b6040518080602001828103825283818151815260200191508051906020019060200280838360005b8381101561014857808201518184015260208101905061012d565b505050509050019250505060405180910390f35b6000808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000018190806001816101ab6103ce565b0180826101b6610431565b505080915050600190039060005260206000200160009091909190916101000a816101df6103ce565b8173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179061021b610431565b5050508073ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff167f72b627b4904fa8a0160a923aa5b142eb19f6e56dc75017884162206f8886df0960405160405180910390a35050565b60606000808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600001806102c86103ce565b806020026020016040519081016040528092919081815260200182806102ec6103ce565b801561035457602002820191906000526020600020905b8160009061030f6103ce565b906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019060010190808311610303575b50505050509050919050565b632a2a7adb598160e01b8152600481016020815285602082015260005b8681101561039b57808601518160408401015260208101905061037d565b506020828760640184336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b505050565b6303daa959598160e01b8152836004820152602081602483336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b8051935060005b604081101561042c57600081830152602081019050610412565b505050565b6322bd64c0598160e01b8152836004820152846024820152600081604483336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b60005b604081101561049157600081830152602081019050610477565b50505056",
+  "deployedBytecode": "0x608060405234801561001957600080610016610360565b50505b506004361061003f5760003560e01c806331b0795c1461004d578063d79582f6146100ba575b60008061004a610360565b50505b6100b86004803603604081101561006c57600080610069610360565b50505b81019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061015c565b005b610105600480360360208110156100d9576000806100d6610360565b50505b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061027c565b6040518080602001828103825283818151815260200191508051906020019060200280838360005b8381101561014857808201518184015260208101905061012d565b505050509050019250505060405180910390f35b6000808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000018190806001816101ab6103ce565b0180826101b6610431565b505080915050600190039060005260206000200160009091909190916101000a816101df6103ce565b8173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179061021b610431565b5050508073ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff167f72b627b4904fa8a0160a923aa5b142eb19f6e56dc75017884162206f8886df0960405160405180910390a35050565b60606000808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600001806102c86103ce565b806020026020016040519081016040528092919081815260200182806102ec6103ce565b801561035457602002820191906000526020600020905b8160009061030f6103ce565b906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019060010190808311610303575b50505050509050919050565b632a2a7adb598160e01b8152600481016020815285602082015260005b8681101561039b57808601518160408401015260208101905061037d565b506020828760640184336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b505050565b6303daa959598160e01b8152836004820152602081602483336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b8051935060005b604081101561042c57600081830152602081019050610412565b505050565b6322bd64c0598160e01b8152836004820152846024820152600081604483336000905af158600e01573d6000803e3d6000fd5b3d6001141558600a015760016000f35b60005b604081101561049157600081830152602081019050610477565b50505056",
+  "devdoc": {
+    "events": {
+      "AddressRegistered(address,address)": {
+        "details": "Emitted when a NFT contract addresss is added to a user's wallet."
+      }
+    },
+    "kind": "dev",
+    "methods": {},
+    "title": "ERC721Registry ",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 10,
+        "contract": "contracts/ERC721Registry.sol:ERC721Registry",
+        "label": "locations",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_struct(wallet)6_storage)"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_address)dyn_storage": {
+        "base": "t_address",
+        "encoding": "dynamic_array",
+        "label": "address[]",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_address,t_struct(wallet)6_storage)": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => struct ERC721Registry.wallet)",
+        "numberOfBytes": "32",
+        "value": "t_struct(wallet)6_storage"
+      },
+      "t_struct(wallet)6_storage": {
+        "encoding": "inplace",
+        "label": "struct ERC721Registry.wallet",
+        "members": [
+          {
+            "astId": 5,
+            "contract": "contracts/ERC721Registry.sol:ERC721Registry",
+            "label": "addresses",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_array(t_address)dyn_storage"
+          }
+        ],
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}

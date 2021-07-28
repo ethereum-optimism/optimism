@@ -5,10 +5,10 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title ERC721Mock
+ * @title ERC721Genesis
  * 
  */
-contract ERC721Mock is Ownable, ERC721 {
+contract ERC721Genesis is Ownable, ERC721 {
 
     uint256 tID;
 
@@ -18,7 +18,7 @@ contract ERC721Mock is Ownable, ERC721 {
        string id;
        string chain;
     }
-  
+
     Ancestor genesis;
 
     constructor (

@@ -7,8 +7,15 @@
   
 
   .Note {
-    font-size: 0.7em;
+    font-size: 0.8em;
     margin-bottom: 5px;
+    color: $gray3;
+  }
+
+  .NoteStrong {
+    font-size: 0.8em;
+    margin-top: 5px;
+    margin-bottom: 0px;
     color: $gray3;
   }
 

@@ -51,7 +51,9 @@ export async function addNFT ( NFT ) {
     address: NFT.address,
     originID: NFT.originID,
     originAddress: NFT.originAddress,
-    originChain: NFT.originChain
+    originChain: NFT.originChain,
+    originFeeRecipient: NFT.originFeeRecipient,
+    type: NFT.type
   }
 
   store.dispatch({
@@ -105,6 +107,7 @@ export async function addNFTFactory ( Factory ) {
     originID: Factory.originID,
     originAddress: Factory.originAddress,
     originChain: Factory.originChain,
+    originFeeRecipient: Factory.originFeeRecipient,
     haveRights: Factory.haveRights
   }
 

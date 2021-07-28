@@ -46,7 +46,7 @@ const deployFn: DeployFunction = async (hre) => {
 
     L2Message = await Factory__L2Message.deploy(
       (hre as any).deployConfig.l2MessengerAddress,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 85450000}
     )
     await L2Message.deployTransaction.wait()
     const L2MessageDeploymentSubmission: DeploymentSubmission = {
@@ -68,7 +68,7 @@ const deployFn: DeployFunction = async (hre) => {
     // Initialize L2 message
     const L2MessageTX = await L2Message.init(
       L1Message.address,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 85450000}
     )
     await L2MessageTX.wait()
     console.log(`⭐️ ${chalk.blue('L2 Message initialized:')} ${chalk.green(L2MessageTX.hash)}`)

@@ -41,8 +41,8 @@ function Exits ({ searchHistory, transactions,chainLink }) {
     return i.hash.includes(searchHistory) && (
       i.to !== null && (
         i.to.toLowerCase() === networkService.L2LPAddress.toLowerCase() ||
-        i.to.toLowerCase() === networkService.L2_ETH_Address.toLowerCase() ||
-        i.to.toLowerCase() === networkService.L2_TEST_Address.toLowerCase() ||
+        //i.to.toLowerCase() === networkService.L2_ETH_Address.toLowerCase() ||
+        //i.to.toLowerCase() === networkService.L2_TEST_Address.toLowerCase() ||
         i.to.toLowerCase() === networkService.L2StandardBridgeAddress.toLowerCase()
       )
     )

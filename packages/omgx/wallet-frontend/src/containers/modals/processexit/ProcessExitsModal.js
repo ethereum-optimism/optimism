@@ -79,11 +79,12 @@ function ProcessExitsModal ({ exitData, open, toggle }) {
           type='primary'
           style={{ flex: 0 }}
           loading={loading}
-          tooltip='Your process exits transaction is still pending. Please wait for confirmation.'
+          tooltip='Your process exit transaction is still pending. Please wait for confirmation.'
           disabled={
             exitData.queueLength < 1 ||
             byzantineChain
           }
+          triggerTime={new Date()}
         >
           PROCESS
         </Button>

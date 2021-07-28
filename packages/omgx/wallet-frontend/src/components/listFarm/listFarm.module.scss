@@ -192,9 +192,20 @@ $boxDropDownHeight: 60px;
     color: $green;
   }
 
+  .LinkTextOff {
+    font-size: 1em;
+    font-weight: 700;
+    color: $gray6;
+  }
+
   .LinkButton {
     color: $green;
   }
+
+  .LinkButtonOff {
+    color: $gray6;
+  }
+
   /************************/
 
   .smallButton{

@@ -42,13 +42,13 @@ export const getFarmInfo = () => async (dispatch) => {
   const [L1LPInfo, L2LPInfo] = await Promise.all([
     networkService.getL1LPInfo(),
     networkService.getL2LPInfo(),
-  ]);
+  ])
   dispatch(getFarmInfoSuccess(
     L1LPInfo.poolInfo,
     L1LPInfo.userInfo,
     L2LPInfo.poolInfo,
     L2LPInfo.userInfo,
-  ));
+  ))
 }
 
 

@@ -165,4 +165,15 @@ $dropDownHeight: 340px;
     padding-top: 10px;
     padding-bottom: 10px;
   }
+
+  .DD{
+    border: 1px solid $gray3;
+    width: 50%;
+    padding: 5px;
+    margin-top: 0px;
+    margin-bottom: 10px;
+    font-size: 0.8em;
+    color: $gray4;
+    background: white;
+  }
 }

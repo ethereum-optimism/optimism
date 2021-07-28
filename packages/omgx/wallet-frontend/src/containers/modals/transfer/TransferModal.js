@@ -112,6 +112,7 @@ function TransferModal ({ open, token }) {
             loading={loading}
             tooltip='Your transfer is still pending. Please wait for confirmation.'
             disabled={disabledTransfer}
+            triggerTime={new Date()}
           >
             TRANSFER
           </Button>

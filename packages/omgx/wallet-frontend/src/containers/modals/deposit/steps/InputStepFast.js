@@ -187,6 +187,7 @@ function InputStepFast({ handleClose, token }) {
           loading={depositLoading || approvalLoading}
           tooltip="Your deposit is still pending. Please wait for confirmation."
           disabled={disabledSubmit}
+          triggerTime={new Date()}
         >
           {buttonLabel}
         </Button>       

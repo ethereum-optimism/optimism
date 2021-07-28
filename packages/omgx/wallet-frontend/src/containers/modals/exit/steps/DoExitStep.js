@@ -120,6 +120,7 @@ function DoExitStep({ handleClose, token }) {
             className={styles.button}
             tooltip="Your exit is still pending. Please wait for confirmation."
             disabled={disabledSubmit}
+            triggerTime={new Date()}
           >
             EXIT
           </Button>

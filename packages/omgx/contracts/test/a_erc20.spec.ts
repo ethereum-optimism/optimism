@@ -110,7 +110,7 @@ describe('System setup', async () => {
     const transferToKateTX = await L2ERC20.transfer(
       env.katel2Wallet.address,
       transferL2ERC20Amount,
-      {gasLimit: 2000000, gasPrice: 0}
+      {gasLimit: 6440000}
     )
     await transferToKateTX.wait()
 
@@ -131,7 +131,7 @@ describe('System setup', async () => {
     const tranferToAliceTX = await L2ERC20.transfer(
       env.alicel2Wallet.address,
       transferL2ERC20Amount,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 6440000}
     )
     await tranferToAliceTX.wait()
 

@@ -12,10 +12,7 @@ const config: HardhatUserConfig = {
   networks: {
     optimism: {
       url: 'http://localhost:8545',
-      // This sets the gas price to 0 for all transactions on L2. We do this
-      // because account balances are not automatically initiated with an ETH
-      // balance.
-      gasPrice: 0,
+      gasPrice: 15000000,
       saveDeployments: false,
       ovm: true,
     },

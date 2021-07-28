@@ -74,7 +74,7 @@ const deployFn: DeployFunction = async (hre) => {
       //((hre as any).deployConfig.network === 'local' || token.symbol === 'TEST' ) ? L1ERC20.address : token.address,
       token.name,
       token.symbol,
-      {gasLimit: 800000, gasPrice: 0}
+      {gasLimit: 86000000}
     )
     await L2ERC20.deployTransaction.wait()
     

@@ -27,7 +27,7 @@ import Pager from 'components/pager/Pager'
 
 import * as styles from './Transactions.module.scss';
 
-const PER_PAGE = 10;
+const PER_PAGE = 8;
 
 function Transactions({ searchHistory, transactions, chainLink }) {
   const [page, setPage] = useState(1);
