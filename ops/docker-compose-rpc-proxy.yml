@@ -1,5 +1,7 @@
 version: "3"
+
 services:
+
   rpc-proxy:
     depends_on:
       - l1_chain

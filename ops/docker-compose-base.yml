@@ -1,8 +1,7 @@
-# TODO: Prefix all env vars with service name
-# TODO: Allow specifing the image tag to use
 version: "3"
 
 services:
+  
   # base service builder
   builder:
     image: omgx/builder:latest

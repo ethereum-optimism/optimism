@@ -10,6 +10,7 @@
 version: "3"
 
 services:
+  
   dtl-replica:
     image: omgx/data-transport-layer:production-v1
     deploy:

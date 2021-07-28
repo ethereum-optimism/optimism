@@ -1,8 +1,7 @@
-# TODO: Prefix all env vars with service name
-# TODO: Allow specifing the image tag to use
 version: "3"
 
 services:
+  
   # base service builder
   builder:
     image: omgx/builder:latest
@@ -44,8 +43,7 @@ services:
         # expose the service to the host for getting the contract addrs
       - ${DEPLOYER_PORT:-8080}:8081
 
-# deploys OMGX contracts and serves contract addresses
-
+  # deploys OMGX contracts and serves contract addresses
   omgx_deployer:
     depends_on:
       - l1_chain
@@ -143,9 +141,8 @@ services:
         FILTER_ENDPOINT: http://omgx_deployer:8079/addresses.json #this will fail early, but then start to work when the omgx_deployer comes up
         FILTER_POLLING_INTERVAL: 30000
 
-# a second relay system for messages that need to get to L1 quickly
-# NOTE - all withdrawal messenges use the standard relayer with its 7 day window
-
+  # a second relay system for messages that need to get to L1 quickly
+  # NOTE - all withdrawal messenges use the standard relayer with its 7 day window
   omgx_message-relayer-fast:
     depends_on:
       - l1_chain
@@ -254,8 +251,8 @@ services:
       URL: http://deployer:8081/addresses.json
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
-# and, tests for all the OMGX-specific services
 
+  # and, tests for all the OMGX-specific services
   omgx_test_contracts:
     image: omgx/builder
     deploy:
@@ -300,8 +297,7 @@ services:
       TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
 
-# gas price system
-
+  # gas price system
   gas_oracle:
     depends_on:
       - l1_chain
