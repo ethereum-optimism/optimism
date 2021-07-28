@@ -3,7 +3,7 @@
   "files": [
     "dist/src/*"
   ],
-  "version": "1.1.9",
+  "version": "1.1.10",
   "main": "dist/src/index",
   "types": "dist/src/index",
   "author": "Optimism PBC",

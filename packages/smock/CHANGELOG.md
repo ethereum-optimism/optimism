@@ -1,5 +1,11 @@
 # @eth-optimism/smock
 
+## 1.1.10
+
+### Patch Changes
+
+- 269b0788: Adds naive support for packed storage slots
+
 ## 1.1.9
 
 ### Patch Changes

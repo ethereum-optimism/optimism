@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.7
+
+### Patch Changes
+
+- bb7b916e: revert rpcGasCap logic to upstream geth behavior
+
 ## 0.4.6
 
 ### Patch Changes

@@ -916,7 +916,7 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 		}
 		if errors.Is(err, fees.ErrFeeTooHigh) {
 			return fmt.Errorf("%w: %d, use less than %d * %f", fees.ErrFeeTooHigh, userFee,
-				expectedFee, s.feeThresholdDown)
+				expectedFee, s.feeThresholdUp)
 		}
 		return err
 	}
