@@ -62,11 +62,11 @@ jobs:
       - name: Build the services
         working-directory: ./ops
         run: |
-          ./scripts/build-ci.sh
-          docker build ../ --file docker/Dockerfile.monorepo --tag omgx/omgx_builder:latest
-          docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
-          docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:latest
-          docker build ../ --file docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:latest
+          ./scripts/build-ci.sh  
+#         docker build ../ --file docker/Dockerfile.monorepo --tag omgx/omgx_builder:latest
+#         docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:latest
+#         docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:latest
+#         docker build ../ --file docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:latest
       
       - name: Rename and retag the optimism images
         working-directory: ./ops
