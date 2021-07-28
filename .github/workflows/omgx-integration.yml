@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
+
   start-runner:
     name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
@@ -23,8 +24,8 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          #aws-region: ${{ secrets.AWS_REGION }}
-          aws-region: us-east-1
+          aws-region: ${{ secrets.AWS_REGION }}
+          # aws-region: us-east-1
       - name: Start EC2 runner
         id: start-ec2-runner
         uses: machulav/ec2-github-runner@v2
@@ -35,6 +36,7 @@ jobs:
           ec2-instance-type: t2.xlarge
           subnet-id: subnet-905870ae
           security-group-id: sg-0855631d714870b32
+  
   omgx_integration:
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
@@ -108,47 +110,20 @@ jobs:
             exit 1
           fi
 
+      - name: Run the base system integration tests
+        working-directory: ./ops
+        run: docker-compose run integration_tests
+
       - name: Test the base OMGX contracts
         working-directory: ./packages/omgx/contracts
         run: |
           yarn test:integration
-
-      # ToDo
-      # - name: Test the base OMGX contracts
-      #   working-directory: ./ops
-      #   run: docker-compose -f docker-compose.yml run omgx_test_contracts
 
       - name: Test the message-relayer-fast
         working-directory: ./packages/omgx/message-relayer-fast
         run: |
           yarn test:integration
 
-      # ToDo
-      # - name: Test the message-relayer-fast
-      #   working-directory: ./ops
-      #   run: docker-compose -f docker-compose.yml run omgx_test_relayer
-
-      # - name: List all built images
-      #   if: failure()
-      #   run: docker images
-
-      # - name: Collect docker logs on failure
-      #   if: failure()
-      #   uses: jwalton/gh-docker-logs@v1
-      #   with:
-      #     images: 'omgx/builder,omgx/hardhat,omgx/deployer,omgx/data-transport-layer,omgx/l2geth,omgx/message-relayer,omgx/batch-submitter,omgx/l2geth,omgx/integration-tests,omgx/wallet_builder,omgx/wallet_deployer'
-      #     dest: './logs'
-
-      # - name: Tar logs
-      #   if: failure()
-      #   run: tar cvzf ./logs.tgz ./logs
-
-      # - name: Upload logs to GitHub
-      #   if: failure()
-      #   uses: actions/upload-artifact@master
-      #   with:
-      #     name: logs.tgz
-      #     path: ./logs.tgz
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
@@ -162,8 +137,8 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          #aws-region: ${{ secrets.AWS_REGION }}
-          aws-region: us-east-1
+          aws-region: ${{ secrets.AWS_REGION }}
+          # aws-region: us-east-1
       - name: Stop EC2 runner
         uses: machulav/ec2-github-runner@v2
         with:

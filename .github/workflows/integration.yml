@@ -40,7 +40,7 @@ jobs:
         working-directory: ./ops
         run: |
           ./scripts/stats.sh &
-          docker-compose up -d
+          docker-compose -f docker-compose-base.yml up -d
 
       - name: Wait for the Sequencer node
         working-directory: ./ops

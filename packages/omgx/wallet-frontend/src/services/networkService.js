@@ -72,10 +72,6 @@ import coinGeckoAxiosInstance from 'api/coinGeckoAxios'
 const localAddresses = require(`../deployment/local/addresses.json`)
 const rinkebyAddresses = require(`../deployment/rinkeby/addresses.json`)
 
-const priorityTokens = require('../deployment/tokensPriority.json')
-const dropdownTokens = require('../deployment/tokensDropdown.json')
-const swapTokens = require('../deployment/tokensSwap.json')
-
 class NetworkService {
 
   constructor() {
@@ -1784,96 +1780,96 @@ class NetworkService {
     return L1Receipt
   }
 
-  async getPriorityTokens() {
-    try {
+  // async getPriorityTokens() {
+  //   try {
 
-      return priorityTokens.map((token) => {
+  //     return priorityTokens.map((token) => {
 
-        let L1 = ''
-        let L2 = ''
+  //       let L1 = ''
+  //       let L2 = ''
 
-        if (token.symbol === 'ETH') {
-          L1 = this.L1_ETH_Address
-          L2 = this.L2_ETH_Address
-        } else {
-          L1 = this.tokenAddresses[token.symbol].L1
-          L2 = this.tokenAddresses[token.symbol].L2
-        }
+  //       if (token.symbol === 'ETH') {
+  //         L1 = this.L1_ETH_Address
+  //         L2 = this.L2_ETH_Address
+  //       } else {
+  //         L1 = this.tokenAddresses[token.symbol].L1
+  //         L2 = this.tokenAddresses[token.symbol].L2
+  //       }
 
-        return {
-          symbol: token.symbol,
-          icon: token.icon,
-          name: token.name,
-          L1,
-          L2,
-        }
+  //       return {
+  //         symbol: token.symbol,
+  //         icon: token.icon,
+  //         name: token.name,
+  //         L1,
+  //         L2,
+  //       }
 
-      })
+  //     })
 
-    } catch (error) {
-      return error
-    }
-  }
+  //   } catch (error) {
+  //     return error
+  //   }
+  // }
 
-  async getSwapTokens() {
-    try {
+  // async getSwapTokens() {
+  //   try {
 
-      return swapTokens.map((token) => {
+  //     return swapTokens.map((token) => {
 
-        let L1 = ''
-        let L2 = ''
+  //       let L1 = ''
+  //       let L2 = ''
 
-        if (token.symbol === 'ETH') {
-          L1 = this.L1_ETH_Address
-          L2 = this.L2_ETH_Address
-        } else {
-          L1 = this.tokenAddresses[token.symbol].L1
-          L2 = this.tokenAddresses[token.symbol].L2
-        }
+  //       if (token.symbol === 'ETH') {
+  //         L1 = this.L1_ETH_Address
+  //         L2 = this.L2_ETH_Address
+  //       } else {
+  //         L1 = this.tokenAddresses[token.symbol].L1
+  //         L2 = this.tokenAddresses[token.symbol].L2
+  //       }
 
-        return {
-          symbol: token.symbol,
-          icon: token.icon,
-          name: token.name,
-          L1,
-          L2,
-        }
-      })
+  //       return {
+  //         symbol: token.symbol,
+  //         icon: token.icon,
+  //         name: token.name,
+  //         L1,
+  //         L2,
+  //       }
+  //     })
 
-    } catch (error) {
-      return error
-    }
-  }
+  //   } catch (error) {
+  //     return error
+  //   }
+  // }
 
-  async getDropdownTokens() {
-    try {
+  // async getDropdownTokens() {
+  //   try {
       
-      return dropdownTokens.map((token) => {
+  //     return dropdownTokens.map((token) => {
 
-        let L1 = ''
-        let L2 = ''
+  //       let L1 = ''
+  //       let L2 = ''
 
-        if (token.symbol === 'ETH') {
-          L1 = this.L1_ETH_Address
-          L2 = this.L2_ETH_Address
-        } else {
-          L1 = this.tokenAddresses[token.symbol].L1
-          L2 = this.tokenAddresses[token.symbol].L2
-        }
+  //       if (token.symbol === 'ETH') {
+  //         L1 = this.L1_ETH_Address
+  //         L2 = this.L2_ETH_Address
+  //       } else {
+  //         L1 = this.tokenAddresses[token.symbol].L1
+  //         L2 = this.tokenAddresses[token.symbol].L2
+  //       }
 
-        return {
-          symbol: token.symbol,
-          icon: token.icon,
-          name: token.name,
-          L1,
-          L2,
-        }
-      })
+  //       return {
+  //         symbol: token.symbol,
+  //         icon: token.icon,
+  //         name: token.name,
+  //         L1,
+  //         L2,
+  //       }
+  //     })
 
-    } catch (error) {
-      return error
-    }
-  }
+  //   } catch (error) {
+  //     return error
+  //   }
+  // }
 
   async fetchLookUpPrice(params) {
     try {

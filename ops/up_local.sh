@@ -72,9 +72,11 @@ fi
 if [[ $DAEMON == 1 ]]; then
     docker-compose \
     -f $DIR/$DOCKERFILE \
-    up --no-build --detach -V
+    up --detach -V
+    #up --no-build --detach -V
 else
     docker-compose \
     -f $DIR/$DOCKERFILE \
-    up --no-build -V
+    up -V
+    #up --no-build -V
 fi
