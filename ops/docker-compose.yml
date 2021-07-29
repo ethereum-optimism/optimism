@@ -115,6 +115,7 @@ services:
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
         CHAIN_ID: 28
+        L2_CHAINID: 28
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
@@ -225,14 +226,14 @@ services:
     env_file:
       - ./envs/geth.env
     environment:
-        ETH1_HTTP: http://l1_chain:8545
-        ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        URL: http://deployer:8081/addresses.json
-        ROLLUP_CLIENT_HTTP: http://dtl:7878
-        ROLLUP_BACKEND: 'l2'
-        ROLLUP_VERIFIER_ENABLE: 'true'
-        ETH1_CTC_DEPLOYMENT_HEIGHT: 8
-        RETRIES: 60
+      ETH1_HTTP: http://l1_chain:8545
+      ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
+      URL: http://deployer:8081/addresses.json
+      ROLLUP_CLIENT_HTTP: http://dtl:7878
+      ROLLUP_BACKEND: 'l2'
+      ROLLUP_VERIFIER_ENABLE: 'true'
+      ETH1_CTC_DEPLOYMENT_HEIGHT: 8
+      RETRIES: 60
     ports:
       - ${L2GETH_HTTP_PORT:-8549}:8545
       - ${L2GETH_WS_PORT:-8550}:8546
@@ -251,6 +252,7 @@ services:
       URL: http://deployer:8081/addresses.json
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
+      L2_CHAINID: 28
 
   # and, tests for all the OMGX-specific services
   omgx_test_contracts:
