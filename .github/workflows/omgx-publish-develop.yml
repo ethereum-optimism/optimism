@@ -35,8 +35,8 @@ jobs:
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
     env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
   
     steps:
       - name: Login to Docker Hub
@@ -76,7 +76,7 @@ jobs:
             docker image tag "$i" omgx/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):develop
           done
 
-#         docker rmi $(docker images | grep 'ethereumoptimism/' | awk '{print $1}')
+          # docker rmi $(docker images | grep 'ethereumoptimism/' | awk '{print $1}')
           docker images
 
       - name: Rename and retag the optimism images
