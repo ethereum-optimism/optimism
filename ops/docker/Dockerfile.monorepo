@@ -32,6 +32,7 @@ COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/batch-submitter/package.json ./packages/batch-submitter/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
+COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
 RUN yarn install --frozen-lockfile
