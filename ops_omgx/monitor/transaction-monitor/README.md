@@ -23,10 +23,17 @@ yarn copy
 docker build . --file ./Dockerfile --tag omg/transaction-monitor:production-v1
 docker push omg/transaction-monitor:production-v1
 ```
+You will have to create the `.env-docker` file and populate it with your
+credentials. Look at `.env-docker.example` for an example.
+You will use this file to set environment variables:
+```bash
+# Set environment variables
+source ./.env-docker
+```
 To run the docker image:
 ```bash
 # Start Transaction Monitor
-docker-compose -f docker-compose-monitor.yml up
+docker-compose up
 ```
 
 
