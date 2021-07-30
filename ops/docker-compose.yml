@@ -134,7 +134,7 @@ services:
       L2_NODE_WEB3_URL: http://l2geth:8545
       URL: http://deployer:8081/addresses.json
       # a funded hardhat account
-      L1_WALLET_KEY: "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97"
+      RELAY_PRIVATE_KEY: "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97"
       RETRIES: 60
       POLLING_INTERVAL: 500
       GET_LOGS_INTERVAL: 500
@@ -159,7 +159,7 @@ services:
       URL: http://deployer:8081/addresses.json
       OMGX_URL: http://omgx_deployer:8079/addresses.json
       # This is who pays for the fast message relayer
-      L1_WALLET_KEY: "0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0"
+      FAST_RELAYER_PRIVATE_KEY: "0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0"
       RETRIES: 70
       POLLING_INTERVAL: 1500
       GET_LOGS_INTERVAL: 500

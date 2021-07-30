@@ -7,7 +7,7 @@
 export ADDRESS_MANAGER_ADDRESS=`/opt/secret2env -name $SECRETNAME|grep -w ADDRESS_MANAGER_ADDRESS|sed 's/ADDRESS_MANAGER_ADDRESS=//g'`
 export L1_BLOCK_OFFSET=`/opt/secret2env -name $SECRETNAME|grep -w L1_BLOCK_OFFSET|sed 's/L1_BLOCK_OFFSET=//g'`
 export L1_NODE_WEB3_URL=`/opt/secret2env -name $SECRETNAME|grep -w L1_NODE_WEB3_URL|sed 's/L1_NODE_WEB3_URL=//g'`
-export L1_WALLET_KEY=`/opt/secret2env -name $SECRETNAME|grep -w RELAY_L1_WALLET_PRIV_KEY|sed 's/RELAY_L1_WALLET_PRIV_KEY=//g'`
+export RELAYER_PRIVATE_KEY=`/opt/secret2env -name $SECRETNAME|grep -w RELAY_L1_WALLET_PRIV_KEY|sed 's/RELAY_L1_WALLET_PRIV_KEY=//g'`
 export BLACKLIST_ENDPOINT=`/opt/secret2env -name $SECRETNAME|grep -w BLACKLIST_ENDPOINT|sed 's/BLACKLIST_ENDPOINT=//g'`
 
 cmd="/opt/optimism/packages/message-relayer/exec/run-message-relayer.js"
@@ -63,7 +63,7 @@ if [ ! -z "$DEPLOYER_HTTP" ]; then
         ADDRESS_MANAGER_ADDRESS=$ADDRESS_MANAGER_ADDRESS \
         L1_BLOCK_OFFSET=$L1_BLOCK_OFFSET \
         L1_NODE_WEB3_URL=`/opt/secret2env -name $SECRETNAME|grep -w L1_NODE_WEB3_URL|sed 's/L1_NODE_WEB3_URL=//g'` \
-        L1_WALLET_KEY=`/opt/secret2env -name $SECRETNAME|grep -w RELAY_L1_WALLET_PRIV_KEY|sed 's/RELAY_L1_WALLET_PRIV_KEY=//g'` \
+        RELAYER_PRIVATE_KEY=`/opt/secret2env -name $SECRETNAME|grep -w RELAY_L1_WALLET_PRIV_KEY|sed 's/RELAY_L1_WALLET_PRIV_KEY=//g'` \
         BLACKLIST_ENDPOINT=`/opt/secret2env -name $SECRETNAME|grep -w BLACKLIST_ENDPOINT|sed 's/BLACKLIST_ENDPOINT=//g'` \
         $cmd
 else

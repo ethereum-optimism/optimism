@@ -7,7 +7,7 @@
 export ADDRESS_MANAGER_ADDRESS=`/opt/secret2env -name $SECRETNAME|grep -w ADDRESS_MANAGER_ADDRESS|sed 's/ADDRESS_MANAGER_ADDRESS=//g'`
 export L1_BLOCK_OFFSET=`/opt/secret2env -name $SECRETNAME|grep -w L1_BLOCK_OFFSET|sed 's/L1_BLOCK_OFFSET=//g'`
 export L1_NODE_WEB3_URL=`/opt/secret2env -name $SECRETNAME|grep -w L1_NODE_WEB3_URL|sed 's/L1_NODE_WEB3_URL=//g'`
-export L1_WALLET_KEY=`/opt/secret2env -name $SECRETNAME|grep -w FAST_RELAY_L1_WALLET_PRIV_KEY|sed 's/FAST_RELAY_L1_WALLET_PRIV_KEY=//g'`
+export FAST_RELAYER_PRIVATE_KEY=`/opt/secret2env -name $SECRETNAME|grep -w FAST_RELAY_L1_WALLET_PRIV_KEY|sed 's/FAST_RELAY_L1_WALLET_PRIV_KEY=//g'`
 export WHITELIST_ENDPOINT=`/opt/secret2env -name $SECRETNAME|grep -w WHITELIST_ENDPOINT|sed 's/WHITELIST_ENDPOINT=//g'`
 export L1_TARGET=`/opt/secret2env -name $SECRETNAME|grep -w L1_TARGET|sed 's/L1_TARGET=//g'`
 
@@ -64,7 +64,7 @@ if [ ! -z "$DEPLOYER_HTTP" ]; then
         ADDRESS_MANAGER_ADDRESS=$ADDRESS_MANAGER_ADDRESS \
         L1_BLOCK_OFFSET=$L1_BLOCK_OFFSET \
         L1_NODE_WEB3_URL=`/opt/secret2env -name $SECRETNAME|grep -w L1_NODE_WEB3_URL|sed 's/L1_NODE_WEB3_URL=//g'` \
-        L1_WALLET_KEY=`/opt/secret2env -name $SECRETNAME|grep -w FAST_RELAY_L1_WALLET_PRIV_KEY|sed 's/FAST_RELAY_L1_WALLET_PRIV_KEY=//g'` \
+        FAST_RELAYER_PRIVATE_KEY=`/opt/secret2env -name $SECRETNAME|grep -w FAST_RELAY_L1_WALLET_PRIV_KEY|sed 's/FAST_RELAY_L1_WALLET_PRIV_KEY=//g'` \
         WHITELIST_ENDPOINT=`/opt/secret2env -name $SECRETNAME|grep -w WHITELIST_ENDPOINT|sed 's/WHITELIST_ENDPOINT=//g'` \
         $cmd
 else

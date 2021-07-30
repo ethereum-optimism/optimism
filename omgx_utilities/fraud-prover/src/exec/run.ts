@@ -24,7 +24,7 @@ const main = async () => {
     'address-manager-address',
     env.ADDRESS_MANAGER_ADDRESS
   )
-  const L1_WALLET_KEY = config.str('l1-wallet-key', env.L1_WALLET_KEY)
+  const FP_WALLET_KEY = config.str('fp-wallet-key', env.FP_WALLET_KEY)
   const MNEMONIC = config.str('mnemonic', env.MNEMONIC)
   const HD_PATH = config.str('hd-path', env.HD_PATH)
   const RELAY_GAS_LIMIT = config.uint(
@@ -76,13 +76,13 @@ const main = async () => {
   const l1Provider = new providers.JsonRpcProvider(L1_NODE_WEB3_URL)
 
   let wallet: Wallet
-  if (L1_WALLET_KEY) {
-    wallet = new Wallet(L1_WALLET_KEY, l1Provider)
+  if (FP_WALLET_KEY) {
+    wallet = new Wallet(FP_WALLET_KEY, l1Provider)
   } else if (MNEMONIC) {
     wallet = Wallet.fromMnemonic(MNEMONIC, HD_PATH)
     wallet = wallet.connect(l1Provider)
   } else {
-    throw new Error('Must pass one of L1_WALLET_KEY or MNEMONIC')
+    throw new Error('Must pass one of FP_WALLET_KEY or MNEMONIC')
   }
 
   const service = new FraudProverService({
