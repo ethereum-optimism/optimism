@@ -241,6 +241,16 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 }
 
 func makeExtraData(extra []byte) []byte {
+	if vm.UsingOVM {
+		// Make the extradata deterministic
+		extra, _ = rlp.EncodeToBytes([]interface{}{
+			uint(params.VersionMajor<<16 | params.VersionMinor<<8 | params.VersionPatch),
+			"geth",
+			"go1.15.13",
+			"linux",
+		})
+		return extra
+	}
 	if len(extra) == 0 {
 		// create default extradata
 		extra, _ = rlp.EncodeToBytes([]interface{}{
