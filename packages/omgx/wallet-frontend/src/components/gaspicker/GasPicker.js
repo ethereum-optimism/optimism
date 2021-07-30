@@ -17,7 +17,6 @@ import React, { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 
 import { selectGas } from 'selectors/gasSelector';
-
 import * as styles from './GasPicker.module.scss';
 
 function GasPicker ({ selectedSpeed, setSelectedSpeed, setGasPrice }) {

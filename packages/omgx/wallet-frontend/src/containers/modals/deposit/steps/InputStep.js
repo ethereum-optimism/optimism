@@ -32,7 +32,7 @@ function InputStep({ handleClose, token }) {
     if(token.symbol === 'ETH') {
       console.log("Depositing ETH")
       if (value > 0) {
-        res = await dispatch(depositETHL2(value))
+        res = await dispatch(depositETHL2(value, gasPrice))
         if (res) {
           dispatch(setActiveHistoryTab1('Deposits'))
           dispatch(openAlert('ETH deposit submitted'))

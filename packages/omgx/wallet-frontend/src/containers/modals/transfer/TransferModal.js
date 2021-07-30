@@ -24,11 +24,12 @@ import { selectLoading } from 'selectors/loadingSelector';
 import Button from 'components/button/Button';
 import Modal from 'components/modal/Modal';
 
-import { logAmount } from 'util/amountConvert'
+import { amountToUsd, logAmount } from 'util/amountConvert'
 import networkService from 'services/networkService';
 
 import * as styles from './TransferModal.module.scss';
 import Input from 'components/input/Input';
+import { selectLookupPrice } from 'selectors/lookupSelector';
 
 function TransferModal ({ open, token }) {
 
@@ -38,6 +39,8 @@ function TransferModal ({ open, token }) {
   const [ recipient, setRecipient ] = useState('')
 
   const loading = useSelector(selectLoading([ 'TRANSFER/CREATE' ]));
+
+  const lookupPrice = useSelector(selectLookupPrice);
 
   async function submit () {
     if (
@@ -95,6 +98,12 @@ function TransferModal ({ open, token }) {
           unit={token.symbol}
           maxValue={logAmount(token.balance, token.decimals)}
         />
+
+        {Object.keys(lookupPrice) && !!value && !!amountToUsd(value, lookupPrice, token) && (
+          <h3>
+            {`Amount to transfer ($${amountToUsd(value, lookupPrice, token).toFixed(2)})`}
+          </h3>
+        )}
 
         <div className={styles.buttons}>
           <Button

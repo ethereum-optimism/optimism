@@ -87,6 +87,8 @@ const BaseServices = {
   WEBSOCKET_API_URL: `wss://d1cj5xnal2.execute-api.us-west-1.amazonaws.com/prod`,
   //Coing gecko url
   COIN_GECKO_URL: `https://api.coingecko.com/api/v3/`,
+  //ETH gas station 
+  ETH_GAS_STATION_URL: `https://ethgasstation.info/`,
 }
 
 export function getAllNetworks () {
