@@ -133,7 +133,7 @@ All configuration is done via environment variables. See below for more informat
 
 | Environment Variable   | Required? | Default Value         | Description            |
 | -----------            | --------- | -------------         | -----------           |
-| `L1_WALLET_KEY`        | Yes       | N/A                   | Private key for an account on Layer 1 (Ethereum) to be used to submit fraud proof transactions. |
+| `FP_WALLET_KEY`        | Yes       | N/A                   | Private key for an account on Layer 1 (Ethereum) to be used to submit fraud proof transactions. |
 | `L2_NODE_WEB3_URL`     | No        | http://localhost:9545 | HTTP endpoint for a Layer 2 (Optimism) Verifier node.  |
 | `L1_NODE_WEB3_URL`     | No        | http://localhost:8545 | HTTP endpoint for a Layer 1 (Ethereum) node.      |
 | `RELAY_GAS_LIMIT`      | No        | 9,000,000             | Maximum amount of gas to provide to fraud proof transactions (except for the "transaction execution" step). |
@@ -243,7 +243,7 @@ services:
       - *L1_NODE_WEB3_URL
       - *ADDRESS_MANAGER_ADDRESS
       - L2_NODE_WEB3_URL=http://verifier:8045
-      - L1_WALLET_KEY=0xYOUR_FP_WALLET_KEY_HERE
+      - FP_WALLET_KEY=0xYOUR_FP_WALLET_KEY_HERE
       - POLLING_INTERVAL=5000
       - RUN_GAS_LIMIT=8999999
       - RELAY_GAS_LIMIT=8999999
