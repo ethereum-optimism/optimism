@@ -29,7 +29,7 @@ const deployFn: DeployFunction = async (hre) => {
     console.log("Deploying...")
     L2LiquidityPool = await Factory__L2LiquidityPool.deploy(
       (hre as any).deployConfig.l2MessengerAddress,
-      {gasLimit: 192870000}
+      {gasLimit: 250000000}
     )
     await L2LiquidityPool.deployTransaction.wait()
     const L2LiquidityPoolDeploymentSubmission: DeploymentSubmission = {
@@ -73,8 +73,8 @@ const deployFn: DeployFunction = async (hre) => {
     const L2LiquidityPoolTX = await L2LiquidityPool.init(
       /* userRewardFeeRate 3.5% */ 35,
       /* ownerRewardFeeRate 1.5% */ 15,
-      L1LiquidityPool.address,
-      {gasLimit: 192870000}
+      L1LiquidityPool.address//,
+      //{gasLimit: 192870000}
     )
     await L2LiquidityPoolTX.wait()
     console.log(`⭐️ ${chalk.blue('L2 LP initialized:')} ${chalk.green(L2LiquidityPoolTX.hash)}`)
@@ -87,8 +87,8 @@ const deployFn: DeployFunction = async (hre) => {
 
     registerPoolETHTX = await L2LiquidityPool.registerPool(
       "0x0000000000000000000000000000000000000000",
-      "0x4200000000000000000000000000000000000006",
-      {gasLimit: 192870000}
+      "0x4200000000000000000000000000000000000006"//,
+      //{gasLimit: 192870000}
     )
     await registerPoolETHTX.wait()
     console.log(`L1 and L2 pools have registered ETH and oETH`)

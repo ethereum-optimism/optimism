@@ -24,6 +24,16 @@ COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
 COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
 COPY --from=builder /optimism/packages/contracts/deployments ./deployments
 
+# get non-build artifacts from the host
+COPY packages/contracts/bin ./bin
+COPY packages/contracts/contracts ./contracts
+COPY packages/contracts/hardhat.config.ts ./
+COPY packages/contracts/deploy ./deploy
+COPY packages/contracts/tasks ./tasks
+COPY packages/contracts/src ./src
+COPY packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
+COPY packages/contracts/scripts ./scripts
+
 # copy the service
 WORKDIR /opt/optimism/packages/omgx/message-relayer-fast
 COPY packages/omgx/message-relayer-fast/dist ./dist

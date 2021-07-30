@@ -9,7 +9,6 @@ function build_dependencies() {
     yarn build
 }
 
-build_images &
-build_dependencies &
+build_dependencies && build_images
 
 wait

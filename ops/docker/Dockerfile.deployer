@@ -1,9 +1,7 @@
 FROM omgx/builder AS builder
-
 FROM node:14-alpine
 
 RUN apk add --no-cache git curl python bash jq
-
 WORKDIR /opt/optimism/
 
 COPY --from=builder /optimism/*.json /optimism/yarn.lock ./

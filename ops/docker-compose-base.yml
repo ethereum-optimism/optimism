@@ -151,6 +151,7 @@ services:
       URL: http://deployer:8081/addresses.json
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
+      L2_CHAINID: 28 #unfortunately, elsewhere the L2_CHAINID is called CHAIN_ID
 
   gas_oracle:
     depends_on:
