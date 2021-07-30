@@ -167,7 +167,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         }
 
         // Empty the queue with a huge `appendQueueBatch(..)` call
-        return this._submitAndLogTx(contractFunction, 'Cleared queue!')
+        const receipt = this._submitAndLogTx(contractFunction, 'Cleared queue!')
+        if (typeof receipt === 'undefined') { this._enableAutoFixBatchOptions(1) }
+        return receipt
       }
     }
     this.logger.info('Syncing mode enabled but queue is empty. Skipping...')
@@ -273,7 +275,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         this.numConfirmations
       )
     }
-    return this._submitAndLogTx(contractFunction, 'Submitted batch!')
+    const receipt = this._submitAndLogTx(contractFunction, 'Submitted batch!')
+    if (typeof receipt === 'undefined') { this._enableAutoFixBatchOptions(1) }
+    return receipt
   }
 
   /*********************
