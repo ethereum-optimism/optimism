@@ -236,7 +236,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract calls', async () => {
       const req: TransactionRequest = {
         ...revertingTx,
-        gasLimit: 5980899, // override gas estimation
+        gasLimit: 7000000, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)

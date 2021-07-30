@@ -23,7 +23,9 @@ FROM node as builder
 # note: this approach can be a bit unhandy to maintain, but it allows
 # us to cache the installation steps
 WORKDIR /optimism
+
 COPY *.json yarn.lock ./
+
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
@@ -34,12 +36,13 @@ COPY packages/batch-submitter/package.json ./packages/batch-submitter/package.js
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 
 COPY packages/omgx/contracts/package.json ./packages/omgx/contracts/package.json
+COPY packages/omgx/gas-price-oracle/package.json ./packages/omgx/gas-price-oracle/package.json
 COPY packages/omgx/message-relayer-fast/package.json ./packages/omgx/message-relayer-fast/package.json
 
 COPY integration-tests/package.json ./integration-tests/package.json
 
-RUN yarn install
-RUN yarn build
+# RUN yarn install
+RUN yarn
 
 ### BUILDER: Builds the typescript
 FROM node
@@ -63,10 +66,17 @@ COPY ./packages ./packages
 COPY ./packages/omgx ./packages/omgx
 COPY ./integration-tests ./integration-tests
 
+WORKDIR /optimism/packages/omgx/message-relayer-fast
+RUN yarn build
+
+WORKDIR /optimism/packages/omgx/contracts
+RUN yarn build
+
 # copy over solc to save time building (35+ seconds vs not doing this step)
 COPY --from=downloader solc /root/.cache/hardhat-nodejs/compilers/linux-amd64/solc-linux-amd64-v0.7.6+commit.7338295f
 COPY --from=downloader ovm-solc /root/.cache/hardhat-nodejs/compilers/ovm/0.7.6.js
 
+WORKDIR /optimism
 # build it!
 RUN yarn build
 

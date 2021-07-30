@@ -51,6 +51,8 @@ jobs:
       L2_NODE_WEB3_URL: http://localhost:8545
       URL: http://127.0.0.1:8080/addresses.json
       OMGX_URL: http://127.0.0.1:8078/addresses.json
+      TARGET_GAS_LIMIT: 9000000000
+      CHAIN_ID: 28
 
     steps:
       # Monorepo tests
@@ -74,14 +76,27 @@ jobs:
       - name: Check the .envs
         run: printenv
 
-      - name: Build the services, bring the stack up + OMGX services
+      - name: Build the services
         working-directory: ./ops
-        env:
-          BUILD: 1
-          DAEMON: 1
-        run: ./up_local.sh
+        run: ./scripts/build-ci-omgx.sh
+
+      - name: Bring the stack up
+        working-directory: ./ops
+        run: docker-compose -f docker-compose.yml up -d
+
+      - name: Wait for the Sequencer node
+        working-directory: ./ops
+        run: ./scripts/wait-for-sequencer.sh
+
+      # - name: Build the services, bring the stack up + OMGX services
+      #   working-directory: ./ops
+      #   env:
+      #     BUILD: 1
+      #     DAEMON: 1
+      #   run: ./up_local.sh
 
       # just sets up background logs for the system that was just started
+      # this just adds the logging
       - name: Start background logging
         working-directory: ./ops
         run: docker-compose -f docker-compose.yml logs --follow &
@@ -109,10 +124,12 @@ jobs:
           else
             exit 1
           fi
-
-      - name: Run the base system integration tests
-        working-directory: ./ops
-        run: docker-compose run integration_tests
+      
+      # Very time and memory consuming
+      # and simply duplicates
+      # - name: Run the base system integration tests
+      #   working-directory: ./ops
+      #   run: docker-compose run integration_tests
 
       - name: Test the base OMGX contracts
         working-directory: ./packages/omgx/contracts

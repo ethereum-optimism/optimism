@@ -40,8 +40,8 @@ jobs:
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
     env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
       # Monorepo tests
       - uses: actions/checkout@v2
@@ -64,9 +64,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: |
-          ./scripts/stats.sh &
-          docker-compose -f docker-compose-base.yml up -d
+        run: docker-compose -f docker-compose-base.yml up -d
 
       - name: Wait for the Sequencer node
         working-directory: ./ops

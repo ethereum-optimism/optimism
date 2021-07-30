@@ -37,8 +37,9 @@ DOCKERFILE="docker-compose.yml"
 if [[ $BUILD == 1 ]]; then
     docker-compose build --parallel -- builder l2geth l1_chain
     docker-compose build --parallel -- deployer dtl batch_submitter relayer integration_tests
-    docker-compose build --parallel -- omgx_deployer omgx_message-relayer-fast
-    docker-compose build --parallel -- gas_oracle
+    docker-compose build -- omgx_message-relayer-fast
+    docker-compose build -- gas_oracle
+    docker-compose build -- omgx_deployer
 elif [[ $BUILD == 0 ]]; then
     docker-compose -f $DIR/$DOCKERFILE pull
 fi
@@ -46,11 +47,9 @@ fi
 if [[ $DAEMON == 1 ]]; then
     docker-compose \
     -f $DIR/$DOCKERFILE \
-    up --detach -V
-    #up --no-build --detach -V
+    up --no-build --detach -V
 else
     docker-compose \
     -f $DIR/$DOCKERFILE \
-    up -V
-    #up --no-build -V
+    up --no-build -V
 fi
