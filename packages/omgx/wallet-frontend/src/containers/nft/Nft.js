@@ -3,6 +3,7 @@ import { connect } from 'react-redux'
 import { isEqual } from 'lodash'
 
 import ListNFT from 'components/listNFT/listNFT'
+import ListNFTfactory from 'components/listNFTfactory/listNFTfactory'
 
 import * as styles from './Nft.module.scss'
 
@@ -74,18 +75,20 @@ class Nft extends React.Component {
               and click "Actions" to mint NFTs.
             </div> 
           }
+
           {rights === 0 &&
             <div className={styles.note}>
               Status: You do not have owner permissions and you not 
-              are authorized to mint new NFTs. Obtain an NFT first, 
-              and then you can create your own NFT factory.
+              are authorized to mint new NFTs. To create you own NFT 
+              factory, obtain an NFT first.
             </div> 
           }
 
           <div className={styles.TableContainer}>
             {Object.keys(factories).map((v, i) => {
+              if(factories[v].haveRights) {
               return (
-                <ListNFT 
+                <ListNFTfactory 
                   key={i}
                   name={factories[v].name}
                   symbol={factories[v].symbol}
@@ -100,11 +103,16 @@ class Nft extends React.Component {
                   haveRights={factories[v].haveRights}
                 />
               )
+              } else {
+                return (<></>)
+              }
             })}
           </div>
         </div>
 
-        <div className={styles.nftContainer}>
+        <div 
+          className={styles.nftContainer}
+        >
           
           <h2>Your NFTs</h2>
 
@@ -115,31 +123,32 @@ class Nft extends React.Component {
             <div className={styles.note}>You have {numberOfNFTs} NFTs and they should be shown below.</div> 
           }
           {numberOfNFTs < 1 &&
-            <div className={styles.note}>You do not have any NFTs.</div> 
+            <div className={styles.note}>Scanning the blockchain for your NFTs...</div> 
           }
-
-            {Object.keys(list).map((v, i) => {
-              return (
-                <ListNFT 
-                  key={i}
-                  name={list[v].name}
-                  symbol={list[v].symbol}
-                  owner={list[v].owner}
-                  address={list[v].address}
-                  layer={list[v].layer}
-                  icon={cellIcon}
-                  UUID={list[v].UUID}
-                  URL={list[v].url}
-                  time={list[v].mintedTime}
-                  oriChain={list[v].originChain}
-                  oriAddress={list[v].originAddress}
-                  oriID={list[v].originID}
-                  oriFeeRecipient={list[v].originFeeRecipient}
-                  type={list[v].type}
-                />
-              )
-            })
+          <div className={styles.nftTiles} >
+          {Object.keys(list).map((v, i) => {
+            return (
+              <ListNFT 
+                key={i}
+                name={list[v].name}
+                symbol={list[v].symbol}
+                owner={list[v].owner}
+                address={list[v].address}
+                layer={list[v].layer}
+                icon={cellIcon}
+                UUID={list[v].UUID}
+                URL={list[v].url}
+                time={list[v].mintedTime}
+                oriChain={list[v].originChain}
+                oriAddress={list[v].originAddress}
+                oriID={list[v].originID}
+                oriFeeRecipient={list[v].originFeeRecipient}
+                type={list[v].type}
+              />
+            )
+          })
           }
+          </div>
 
         </div>
 

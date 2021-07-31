@@ -6,34 +6,41 @@ $dropDownHeight: 92px;
 
   box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
   border-radius: 10px;
-  width: 250px;
+  width: 500px;
   margin-top: 10px;
-  margin-left: 10px;
-  border: 2px solid $blue;
-  overflow: hidden;
-
-  .Image {
-    width: 250px;
-    overflow: hidden;
-  }
+  padding: 10px;
+  border: 2px solid $green;
 
   .topContainer {
 
     cursor: pointer;
     display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding: 10px;
+    flex-direction: row;
+    justify-content: space-between;
 
+    .Table1 {
+      display: flex;
+      justify-content: center;
+      align-items: center;    
+      .Image {
+        width: 80px;
+        height: 80px;
+        border-radius: 10px;
+        margin: 10px;
+      }
+    }
     .Table2 {
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
       align-items: flex-start;
+      padding: 10px;
+      padding-left: 0px;
+      min-width: 250px;
     }
     .Table3 {
       display: flex;
-      flex-direction: row;
+      padding: 10px;
       justify-content: center;
       align-items: center;
     }
@@ -71,18 +78,26 @@ $dropDownHeight: 92px;
     flex-direction: column;
     width: 90%;
     padding: 0px;
-    margin: 0px;
-    padding-bottom: 10px;
+    margin: 8px;
   }
 
   .boxOrigin {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
+    flex-direction: row;
     width: 90%;
     padding: 0px;
     margin: 0px;
+    align-items: center;
+    .Image {
+        width: 75px;
+        height: 75px;
+        border-radius: 10px;
+        padding: 0px;
+    }
+    .originRight {
+        flex-direction: column;
+        padding-left: 6px;
+    }
   }
 
   /*************************/
@@ -111,7 +126,7 @@ $dropDownHeight: 92px;
   }
 
   .BasicLightText {
-    font-size: 0.6em;
+    font-size: 0.7em;
     font-weight: 700;
     color: $gray4;
     padding-top: 2px;
@@ -126,18 +141,11 @@ $dropDownHeight: 92px;
   .LinkText {
     font-size: 1em;
     font-weight: 700;
-    color: $blue;
+    color: $green;
   }
 
   .LinkButton {
-    color: $blue;
-  }
-
-  .URILink {
-    color: $blue;
-    padding-top: 2px; 
-    font-size: 0.7em; 
-    font-weight: 700
+    color: $green;
   }
   /************************/
 

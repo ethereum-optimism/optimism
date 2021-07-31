@@ -53,15 +53,13 @@
   margin-bottom: 5px;
 }
 
-.ListNFT {
+.nftTiles {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: stretch;
-  padding: 10px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
-  border-radius: 10px;
-  width: 500px;
+  width: 600px;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  
 }
+

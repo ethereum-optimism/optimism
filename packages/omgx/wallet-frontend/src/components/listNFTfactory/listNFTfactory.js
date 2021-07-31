@@ -8,16 +8,21 @@ import Button from 'components/button/Button'
 import Input from 'components/input/Input'
 
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore'
+import Select from '@material-ui/core/Select'
+import InputLabel from '@material-ui/core/InputLabel'
+import FormControl from '@material-ui/core/FormControl'
+import MenuItem from '@material-ui/core/MenuItem'
 
 import networkService from 'services/networkService'
+import root from 'images/root.png'
 
 import { transfer } from 'actions/networkAction'
 
-import * as styles from './listNFT.module.scss'
+import * as styles from './listNFTfactory.module.scss'
 
 import truncate from 'truncate-middle'
 
-class listNFT extends React.Component {
+class listNFTfactory extends React.Component {
   
   constructor(props) {
     
@@ -52,6 +57,7 @@ class listNFT extends React.Component {
       UUID,
       time,
       URL,
+      receiverAddress: '',
       tokenURI: '',
       ownerName: '',
       //drop down box
@@ -241,9 +247,14 @@ class listNFT extends React.Component {
       dropDownBox, 
       dropDownBoxInit,
       loading,
+      receiverAddress,
+      tokenURI,
+      ownerName,
       newNFTsymbol,
       newNFTname,
+      haveRights,
       type,
+      typeNew,
       oriFeeRecipient 
     } = this.state;
 
@@ -255,23 +266,37 @@ class listNFT extends React.Component {
       typeString = 'Non-profit; no derivatives'
     }
 
+    //console.log(type)
+    //console.log(type === 0)
+
     return (
       <div className={styles.ListNFT}>
-
-        <img className={styles.Image} src={icon} alt="icon"/>
 
         <div 
           className={styles.topContainer}
         >
           
+          <div className={styles.Table1}>
+            <img className={styles.Image} src={icon} alt="icon"/>
+          </div>
+
           <div className={styles.Table2}>
-            <div className={styles.BasicText}>{name} ({symbol})</div>
-            <div className={styles.BasicLightText}>Owner: {owner}</div>
-            <div className={styles.BasicLightText}>UUID: {UUID}</div>
-            <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
-            <div className={styles.BasicLightText}>Time minted: {time}</div>
-            <div className={styles.BasicLightText}>Type: {typeString}</div>
-            <a className={styles.URILink} href={URL}>DATASHEET</a>
+            {UUID && <>
+              <div className={styles.BasicText}>{name} ({symbol})</div>
+              <div className={styles.BasicLightText}>Owner: {owner}</div>
+              <div className={styles.BasicLightText}>UUID: {UUID}</div>
+              <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
+              <div className={styles.BasicLightText}>Time minted: {time}</div>
+              <div className={styles.BasicLightText}>Type: {typeString}</div>
+              <a style={{color: 'blue', paddingTop: '2px', fontSize: '0.7em', fontWeight: '700'}} href={URL}>DATASHEET</a>
+            </> }
+            {!UUID && <>
+              <div className={styles.BasicText}>{name} ({symbol}) Factory</div><br/>
+              <div className={styles.BasicLightText}>Owner: {truncate(owner, 6, 4, '...')}</div> 
+              <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
+              <div className={styles.BasicLightText}>Chain: {oriChain}</div>
+              <div className={styles.BasicLightText}>Owner rights: {haveRights ? 'True' : 'False'}</div>
+            </> }
           </div>
 
           <div 
@@ -293,15 +318,74 @@ class listNFT extends React.Component {
         >
           
           <div className={styles.boxOrigin}>
-            <div className={styles.BasicText}>Root</div>
-            <div className={styles.BasicLightText}>Address: {oriAddress}</div>
-            <div className={styles.BasicLightText}>NFT: {oriID}</div>
-            <div className={styles.BasicLightText}>Chain: {oriChain}</div>
-            <div className={styles.BasicLightText}>Fee recipient: {oriFeeRecipient}</div>
+            <img className={styles.Image} src={root} alt="root"/>
+            <div className={styles.originRight}>
+              <div className={styles.BasicText}>Root</div>
+              <div className={styles.BasicLightText}>Address: {oriAddress}</div>
+              <div className={styles.BasicLightText}>NFT: {oriID}</div>
+              <div className={styles.BasicLightText}>Chain: {oriChain}</div>
+              <div className={styles.BasicLightText}>Fee recipient: {oriFeeRecipient}</div>
+            </div>
           </div>
 
           <div className={styles.boxContainer}>
-          {(type === 0) && <>
+          {!UUID && haveRights && 
+            <>
+              <h3>Mint and Send</h3>
+              <div className={styles.BasicLightText} style={{paddingBottom: '3px'}}>
+                To mint and send a new {name} NFT, please fill in the information and click "Mint and Send".
+              </div>
+              <Input
+                small={true}
+                placeholder="Receiver Address (Ox.....)"
+                onChange={i=>{this.setState({receiverAddress: i.target.value})}}
+                value={receiverAddress}
+              />
+              <Input
+                small={true}
+                placeholder="NFT Owner Name (e.g. Henrietta Lacks)"
+                onChange={i=>{this.setState({ownerName: i.target.value})}}
+                value={ownerName}
+              />
+              <Input
+                small={true}
+                placeholder="NFT URL (e.g. https://jimb.stanford.edu)"
+                onChange={i=>{this.setState({tokenURI: i.target.value})}}
+                value={tokenURI}
+              />
+              <FormControl 
+                variant="outlined" 
+                size="small"
+                style={{paddingTop: '10px', paddingBottom: '10px'}}
+              >
+                <InputLabel 
+                  id="demo-simple-select-outlined-label"
+                  style={{paddingTop: '13px'}}
+                >NFT Type</InputLabel>
+                <Select
+                  labelId="demo-simple-select-outlined-label"
+                  id="demo-simple-select-outlined"
+                  value={typeNew}
+                  onChange={i=>{this.setState({typeNew: i.target.value})}}
+                  label="NFT Type"
+                >
+                  <MenuItem value={0}>Type: Commercial; derivatizable</MenuItem>
+                  <MenuItem value={1}>Type: Commercial; no derivatives</MenuItem>
+                  <MenuItem value={2}>Type: Non-profit; no derivatives</MenuItem>
+                </Select>
+              </FormControl>
+              <Button
+                type='primary'
+                size='small'
+                disabled={!receiverAddress || !ownerName || !tokenURI}
+                onClick={()=>{this.handleMintAndSend()}}
+                loading={loading}
+              >
+                Mint and Send
+              </Button>
+            </>
+          }  
+          {UUID && (type === 0) && <>
             <h3>Derive New NFT Factory</h3>
             <div className={styles.BasicLightText}
             >To create a new NFT factory from this NFT, please fill in the information and click "Create New NFT Factory".</div><br/>
@@ -339,4 +423,4 @@ const mapStateToProps = state => ({
   nft: state.nft
 })
 
-export default connect(mapStateToProps)(listNFT)
+export default connect(mapStateToProps)(listNFTfactory)
