@@ -100,6 +100,17 @@ Resources:
       Matcher:
         HttpCode: 200
 
+  GoEthereumListener1:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancer:ARN"
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref GoEthereumLBTargetGroup
+
   GoEthereumListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -124,28 +135,10 @@ Resources:
         - Field: host-header
           HostHeaderConfig:
             Values:
-            - !Ref DNSRecordV4
+            - Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
       ListenerArn: !Ref GoEthereumListener
       Priority: 1
-  DNSRecordV4:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      Type: A
-      AliasTarget:
-        DNSName:
-          Fn::Sub:
-            - "dualstack.${DomainName}."
-            - DomainName:
-                Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancer:DNSName"
-        HostedZoneId:
-          Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancer:CanonicalHostedZoneID"
-      HostedZoneName:
-        Fn::Sub:
-          - "${DomainName}."
-          - DomainName:
-              Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
-      Name:
-        Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -168,14 +161,14 @@ Resources:
               Value: 3600
             - Name: DEPLOYER_HTTP
               Value: !Sub
-                - "http://${EndpointAddress}:8081"
+                - "https://${EndpointAddress}:8081"
                 - EndpointAddress:
-                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
             - Name: URL
               Value: !Sub
-                - "http://${EndpointAddress}:8081/addresses.json"
+                - "https://${EndpointAddress}:8081/addresses.json"
                 - EndpointAddress:
-                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
             - Name: ROLLUP_CLIENT_HTTP
               Value: !Sub
                 - "http://${EndpointAddress}"
@@ -183,9 +176,9 @@ Resources:
                     Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
             - Name: ROLLUP_STATE_DUMP_PATH
               Value: !Sub
-                - "http://${EndpointAddress}:8081/state-dump.latest.json"
+                - "https://${EndpointAddress}:8081/state-dump.latest.json"
                 - EndpointAddress:
-                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
             - Name: RPC_ADDR
               Value: "0.0.0.0"
           EntryPoint:
@@ -198,7 +191,7 @@ Resources:
             com.datadoghq.ad.init_configs: '[{}]'
             com.datadoghq.ad.logs: '[{"source": "geth_l2", "service": "geth_l2"}]'
           Essential: true
-          Memory: "8192"
+          Memory: "2048"
         - Image: 942431445534.dkr.ecr.us-east-1.amazonaws.com/omgx/nginx-eth-proxy:rpc_proxy
           Ulimits:
             - Name: nofile
@@ -215,13 +208,13 @@ Resources:
             - Name: SEQUENCER
               Value: geth_l2:8545
             - Name: ETH_CALLS_ALLOWED
-              Value: web3_clientVersion,eth_chainId,eth_getProof,rollup_getInfo,web3_sha3,net_version,net_peerCount,net_listening,eth_protocolVersion,eth_syncing,eth_coinbase,eth_mining,eth_hashrate,eth_gasPrice,eth_accounts,eth_blockNumber,eth_getBalance,eth_getStorageAt,eth_getTransactionCount,eth_getBlockTransactionCountByHash,eth_getBlockTransactionCountByNumber,eth_getUncleCountByBlockHash,eth_getUncleCountByBlockNumber,eth_getCode,eth_sign,eth_signTransaction,eth_sendTransaction,eth_sendRawTransaction,eth_call,eth_estimateGas,eth_getBlockByHash,eth_getBlockByNumber,eth_getTransactionByHash,eth_getTransactionByBlockHashAndIndex,eth_getTransactionByBlockNumberAndIndex,eth_getTransactionReceipt,eth_getUncleByBlockHashAndIndex,eth_getUncleByBlockNumberAndIndex,eth_getCompilers,eth_compileLLL,eth_compileSolidity,eth_compileSerpent,eth_newFilter,eth_newBlockFilter,eth_newPendingTransactionFilter,eth_uninstallFilter,eth_getFilterChanges,eth_getFilterLogs,eth_getLogs,eth_getWork,eth_submitWork,eth_submitHashrate,db_putString,db_getString,db_putHex,db_getHex,shh_post,shh_version,shh_newIdentity,shh_hasIdentity,shh_newGroup,shh_addToGroup,shh_newFilter,shh_uninstallFilter,shh_getFilterChanges,shh_getMessages
+              Value: web3_clientVersion,eth_chainId,eth_getProof,rollup_getInfo,web3_sha3,net_version,net_peerCount,net_listening,eth_protocolVersion,eth_syncing,eth_coinbase,eth_mining,eth_hashrate,eth_gasPrice,eth_accounts,eth_blockNumber,eth_getBalance,eth_getStorageAt,eth_getTransactionCount,eth_getBlockTransactionCountByHash,eth_getBlockTransactionCountByNumber,eth_getUncleCountByBlockHash,eth_getUncleCountByBlockNumber,eth_getCode,eth_sign,eth_signTransaction,eth_sendTransaction,eth_sendRawTransaction,eth_call,eth_estimateGas,eth_getBlockByHash,eth_getBlockByNumber,eth_getTransactionByHash,eth_getTransactionByBlockHashAndIndex,eth_getTransactionByBlockNumberAndIndex,eth_getTransactionReceipt,eth_getUncleByBlockHashAndIndex,eth_getUncleByBlockNumberAndIndex,eth_getCompilers,eth_compileLLL,eth_compileSolidity,eth_compileSerpent,eth_newFilter,eth_newBlockFilter,eth_newPendingTransactionFilter,eth_uninstallFilter,eth_getFilterChanges,eth_getFilterLogs,eth_getLogs,eth_getWork,eth_submitWork,eth_submitHashrate,db_putString,db_getString,db_putHex,db_getHex,shh_post,shh_version,shh_newIdentity,shh_hasIdentity,shh_newGroup,shh_addToGroup,shh_newFilter,shh_uninstallFilter,shh_getFilterChanges,shh_getMessages,eth_getBlockRange
           DockerLabels:
             com.datadoghq.ad.check_names: '["nginx"]'
             com.datadoghq.ad.init_configs: '[{}]'
             com.datadoghq.ad.logs: '[{"source": "l2_proxy", "service": "l2_proxy"}]'
           Essential: true
-          Memory: "256"
+          Memory: "64"
           Links:
             - geth_l2
       NetworkMode: bridge
@@ -233,9 +226,6 @@ Resources:
     Properties:
       Cluster:
         Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
-      DeploymentConfiguration:
-        MaximumPercent: 133
-        MinimumHealthyPercent: 66
       LoadBalancers:
         - ContainerName: l2_proxy
           ContainerPort: 80
@@ -243,5 +233,5 @@ Resources:
       DesiredCount: !Ref ServiceCount
       LaunchType: EC2
       SchedulingStrategy: REPLICA
-      ServiceName: !Sub "L2Geth-${EnvironmentName}"
+      ServiceName: "l2geth"
       TaskDefinition: !Ref TaskDefinition

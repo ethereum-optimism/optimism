@@ -145,9 +145,84 @@ Resources:
         FromPort: 80
         ToPort: 80
         CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 6001
+        ToPort: 6001
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 6001
+        ToPort: 6001
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 8020
+        ToPort: 8020
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8020
+        ToPort: 8020
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 5001
+        ToPort: 5001
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 5001
+        ToPort: 5001
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 8081
+        ToPort: 8081
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8081
+        ToPort: 8081
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 8000
+        ToPort: 8000
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8000
+        ToPort: 8000
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 8001
+        ToPort: 8001
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8001
+        ToPort: 8001
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 8030
+        ToPort: 8030
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8030
+        ToPort: 8030
+        CidrIpv6: ::/0
+      - IpProtocol: tcp
+        FromPort: 8040
+        ToPort: 8040
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8040
+        ToPort: 8040
+        CidrIpv6: ::/0
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-LB"
+
+  LoadBalancerGraph:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Scheme: internet-facing
+      SecurityGroups:
+      - !Ref LoadBalancerSecurityGroup
+      Subnets:
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet1
+      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet2
 
   LoadBalancerInt:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -172,19 +247,6 @@ Resources:
       Subnets:
       - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet1
       - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet2
-
-  DeployerListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref LoadBalancerInt
-      Port: 8081
-      Protocol: HTTP
-      DefaultActions:
-      - Type: fixed-response
-        FixedResponseConfig:
-          ContentType: text/html
-          MessageBody: ""
-          StatusCode: 404
 
   DataTransportLayerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -324,6 +386,10 @@ Outputs:
     Value: !GetAtt LoadBalancer.DNSName
     Export:
       Name: !Sub "${InfrastructureStackName}:LoadBalancer:DNSName"
+  LoadBalancerGraphDNSName:
+    Value: !GetAtt LoadBalancerGraph.DNSName
+    Export:
+      Name: !Sub "${InfrastructureStackName}:LoadBalancerGraph:DNSName"
   LoadBalancerIntArn:
     Value: !Ref LoadBalancerInt
     Export:
@@ -332,14 +398,14 @@ Outputs:
     Value: !Ref LoadBalancer
     Export:
       Name: !Sub "${InfrastructureStackName}:LoadBalancer:ARN"
+  LoadBalancerGraphArn:
+    Value: !Ref LoadBalancerGraph
+    Export:
+      Name: !Sub "${InfrastructureStackName}:LoadBalancerGraph:ARN"
   LoadBalancerCanonicalHostedZoneID:
     Value: !GetAtt LoadBalancerInt.CanonicalHostedZoneID
     Export:
       Name: !Sub "${InfrastructureStackName}:LoadBalancer:CanonicalHostedZoneID"
-  DeployerListener:
-    Value: !Ref DeployerListener
-    Export:
-      Name: !Sub "${InfrastructureStackName}:DeployerListener"
   DataTransportLayerListener:
     Value: !Ref DataTransportLayerListener
     Export:

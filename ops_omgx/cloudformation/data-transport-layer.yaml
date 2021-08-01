@@ -132,14 +132,14 @@ Resources:
                     Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
             - Name: DEPLOYER_HTTP
               Value: !Sub
-                - "http://${EndpointAddress}:8081"
+                - "https://${EndpointAddress}:8081"
                 - EndpointAddress:
-                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
             - Name: URL
               Value: !Sub
-                - "http://${EndpointAddress}:8081/addresses.json"
+                - "https://${EndpointAddress}:8081/addresses.json"
                 - EndpointAddress:
-                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
             - Name: DATA_TRANSPORT_LAYER__SERVER_PORT
               Value: 7878
           EntryPoint:
@@ -172,7 +172,7 @@ Resources:
             com.datadoghq.ad.init_configs: '[{}]'
             com.datadoghq.ad.logs: '[{"source": "nginx", "service": "nginx"}]'
           Essential: true
-          Memory: "256"
+          Memory: "128"
           Links:
             - data_transport_layer
       NetworkMode: bridge
@@ -191,5 +191,5 @@ Resources:
       DesiredCount: !Ref ServiceCount
       LaunchType: EC2
       SchedulingStrategy: REPLICA
-      ServiceName: !Sub "DataTransportLayer-${EnvironmentName}"
+      ServiceName: "data-transport-layer"
       TaskDefinition: !Ref TaskDefinition
