@@ -20,6 +20,7 @@ package clique
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"math/rand"
@@ -66,6 +67,8 @@ var (
 
 	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
+
+	allowedFutureBlockTime = 150 * time.Second // Max time from current time allowed for blocks, before they're considered future blocks
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -251,7 +254,9 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 
 	if vm.UsingOVM {
 		// Don't waste time checking blocks from the future
-		if header.Time > uint64(time.Now().Unix()) {
+		// NOTE 20210724
+		fmt.Println("verifyHeader in clique, [headerTime, time.Now, allowedFutureBlockTime, expect]", header.Time, time.Now(), allowedFutureBlockTime, uint64(time.Now().Add(allowedFutureBlockTime).Unix()))
+		if header.Time > uint64(time.Now().Add(allowedFutureBlockTime).Unix()) {
 			return consensus.ErrFutureBlock
 		}
 	}

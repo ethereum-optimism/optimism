@@ -81,7 +81,7 @@ const (
 	receiptsCacheLimit  = 32
 	txLookupCacheLimit  = 1024
 	maxFutureBlocks     = 256
-	maxTimeFutureBlocks = 30
+	maxTimeFutureBlocks = 300
 	badBlockLimit       = 10
 	TriesInMemory       = 128
 
@@ -1505,6 +1505,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 // accepted for future processing, and returns an error if the block is too far
 // ahead and was not added.
 func (bc *BlockChain) addFutureBlock(block *types.Block) error {
+	// NOTE 20210724
 	max := uint64(time.Now().Unix() + maxTimeFutureBlocks)
 	if block.Time() > max {
 		return fmt.Errorf("future block timestamp %v > allowed %v", block.Time(), max)
@@ -1520,8 +1521,12 @@ func (bc *BlockChain) addFutureBlock(block *types.Block) error {
 //
 // After insertion is done, all accumulated events will be fired.
 func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
+	// NOTE 20210724
+	log.Debug("Test: BlockChain.InsertChain")
 	// Sanity check that we have something meaningful to import
 	if len(chain) == 0 {
+		// NOTE 20210724
+		log.Debug("Test: BlockChain.InsertChain, len chain = 0")
 		return 0, nil
 	}
 
@@ -1549,7 +1554,9 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 	bc.wg.Add(1)
 	bc.chainmu.Lock()
 	n, err := bc.insertChain(chain, true)
-	bc.chainmu.Unlock()
+	// NOTE 20210724
+	log.Debug("Test: after insert chain")
+	// bc.chainmu.Unlock()
 	bc.wg.Done()
 
 	return n, err
@@ -1564,8 +1571,14 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 // is imported, but then new canon-head is added before the actual sidechain
 // completes, then the historic state could be pruned again
 func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, error) {
+	// NOTE 20210724
+	log.Debug("Test: BlockChain.insertChain")
 	// If the chain is terminating, don't even bother starting up
 	if atomic.LoadInt32(&bc.procInterrupt) == 1 {
+		// NOTE 20210724
+		if verifySeals {
+			bc.chainmu.Unlock()
+		}
 		return 0, nil
 	}
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)
@@ -1577,8 +1590,16 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 	)
 	// Fire a single chain head event if we've progressed the chain
 	defer func() {
+		// NOTE 20210724
+		fmt.Println("Test: defer 1 in insertChain", lastCanon != nil, bc.CurrentBlock().Hash(), lastCanon.Hash())
+		if verifySeals {
+			bc.chainmu.Unlock()
+		}
+
 		if lastCanon != nil && bc.CurrentBlock().Hash() == lastCanon.Hash() {
 			bc.chainHeadFeed.Send(ChainHeadEvent{lastCanon})
+			// NOTE 20210724
+			fmt.Println("Test: defer 2 in insertChain")
 		}
 	}()
 	// Start the parallel header verifier
@@ -1590,12 +1611,19 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		seals[i] = verifySeals
 	}
 	abort, results := bc.engine.VerifyHeaders(bc, headers, seals)
+
+	// NOTE 20210724
+	fmt.Println("Test: VerifyHeaders before insert chain", abort, results)
+
 	defer close(abort)
 
 	// Peek the error for the first block to decide the directing import logic
 	it := newInsertIterator(chain, results, bc.validator)
 
 	block, err := it.next()
+
+	// NOTE 20210724
+	log.Debug("Test: it.next before insert chain", block, err)
 
 	// Left-trim all the known blocks
 	if err == ErrKnownBlock {
@@ -1653,6 +1681,16 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			}
 			block, err = it.next()
 		}
+
+		// NOTE 20210724
+		if block != nil && it.index > 0 && err == consensus.ErrFutureBlock {
+			log.Debug("Future block >= 1, postponing import", "number", block.Number(), "hash", block.Hash())
+			if err := bc.addFutureBlock(block); err != nil {
+				return it.index, err
+			}
+			block, err = it.next()
+		}
+
 		stats.queued += it.processed()
 		stats.ignored += it.remaining()
 
@@ -1661,6 +1699,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 	// Some other error occurred, abort
 	case err != nil:
+		// NOTE 20210724
+		log.Debug("Other error block, ignore", block.Hash(), err)
 		bc.futureBlocks.Remove(block.Hash())
 		stats.ignored += len(it.chain)
 		bc.reportBlock(block, nil, err)
@@ -1675,6 +1715,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		}
 		// If the header is a banned one, straight out abort
 		if BadHashes[block.Hash()] {
+			log.Debug("Test: BadHashes", block.Hash())
 			bc.reportBlock(block, nil, ErrBlacklistedHash)
 			return it.index, ErrBlacklistedHash
 		}
@@ -1710,6 +1751,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			parent = bc.GetHeader(block.ParentHash(), block.NumberU64()-1)
 		}
 		statedb, err := state.NewWithDiffDb(parent.Root, bc.stateCache, bc.diffdb)
+		// NOTE 20210724
+		log.Debug("Test: NewWithDiffDb", err)
 		if err != nil {
 			return it.index, err
 		}
@@ -1720,7 +1763,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		if !bc.cacheConfig.TrieCleanNoPrefetch {
 			if followup, err := it.peek(); followup != nil && err == nil {
 				go func(start time.Time) {
-					throwaway, _ := state.New(parent.Root, bc.stateCache)
+					throwaway, _ := state.NewWithDiffDb(parent.Root, bc.stateCache, bc.diffdb)
 					bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, &followupInterrupt)
 
 					blockPrefetchExecuteTimer.Update(time.Since(start))
@@ -1752,6 +1795,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Validate the state using the default validator
 		substart = time.Now()
+
+		// NOTE 20210724
+		usedGas = block.GasUsed()
+
 		if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
@@ -1813,6 +1860,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		dirty, _ := bc.stateCache.TrieDB().Size()
 		stats.report(chain, it.index, dirty)
 	}
+	// NOTE 20210724
+	log.Debug("Test: insert chain done updated 1", block != nil, err)
 	// Any blocks remaining here? The only ones we care about are the future ones
 	if block != nil && err == consensus.ErrFutureBlock {
 		if err := bc.addFutureBlock(block); err != nil {
@@ -1828,6 +1877,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		}
 	}
 	stats.ignored += it.remaining()
+
+	// NOTE 20210724
+	log.Debug("Test: insert chain done updated 2", it.index, err)
 
 	return it.index, err
 }

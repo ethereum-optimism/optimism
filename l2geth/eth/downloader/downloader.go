@@ -1553,6 +1553,7 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	blocks := make([]*types.Block, len(results))
 	for i, result := range results {
 		blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.Transactions, result.Uncles)
+		log.Debug("Test: importBlockResults", "chainId", blocks[i].Transactions()[0].ChainId())
 	}
 	if index, err := d.blockchain.InsertChain(blocks); err != nil {
 		if index < len(results) {

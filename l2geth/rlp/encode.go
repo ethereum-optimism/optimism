@@ -154,6 +154,8 @@ func (w *encbuf) Write(b []byte) (int, error) {
 func (w *encbuf) encode(val interface{}) error {
 	rval := reflect.ValueOf(val)
 	writer, err := cachedWriter(rval.Type())
+	//TODO 20210724
+	// fmt.Println("Test: encode writer type", rval.Type())
 	if err != nil {
 		return err
 	}

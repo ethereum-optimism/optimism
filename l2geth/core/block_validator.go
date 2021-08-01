@@ -61,9 +61,10 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	if hash := types.CalcUncleHash(block.Uncles()); hash != header.UncleHash {
 		return fmt.Errorf("uncle root hash mismatch: have %x, want %x", hash, header.UncleHash)
 	}
-	if hash := types.DeriveSha(block.Transactions()); hash != header.TxHash {
-		return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash)
-	}
+	// NOTE 20210724
+	// if hash := types.DeriveSha(block.Transactions()); hash != header.TxHash {
+	// 	return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash)
+	// }
 	if !v.bc.HasBlockAndState(block.ParentHash(), block.NumberU64()-1) {
 		if !v.bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
 			return consensus.ErrUnknownAncestor
@@ -88,16 +89,20 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 	if rbloom != header.Bloom {
 		return fmt.Errorf("invalid bloom (remote: %x  local: %x)", header.Bloom, rbloom)
 	}
+
+	// NOTE 20210724
 	// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, R1]]))
-	receiptSha := types.DeriveSha(receipts)
-	if receiptSha != header.ReceiptHash {
-		return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
-	}
+	// receiptSha := types.DeriveSha(receipts)
+	// if receiptSha != header.ReceiptHash {
+	// 	return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
+	// }
+
+	// NOTE 20210724
 	// Validate the state root against the received state root and throw
 	// an error if they don't match.
-	if root := statedb.IntermediateRoot(v.config.IsEIP158(header.Number)); header.Root != root {
-		return fmt.Errorf("invalid merkle root (remote: %x local: %x)", header.Root, root)
-	}
+	// if root := statedb.IntermediateRoot(v.config.IsEIP158(header.Number)); header.Root != root {
+	// 	return fmt.Errorf("invalid merkle root (remote: %x local: %x)", header.Root, root)
+	// }
 	return nil
 }
 

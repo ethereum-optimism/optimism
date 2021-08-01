@@ -290,6 +290,12 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 
 func (b *Block) Uncles() []*Header          { return b.uncles }
 func (b *Block) Transactions() Transactions { return b.transactions }
+func (b *Block) RestTransactions() {
+	for i := 0; i < len(b.transactions); i++ {
+		tr := b.transactions[i]
+		tr.ResetPayload()
+	}
+}
 
 func (b *Block) Transaction(hash common.Hash) *Transaction {
 	for _, transaction := range b.transactions {

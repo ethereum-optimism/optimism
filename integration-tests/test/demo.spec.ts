@@ -94,7 +94,7 @@ describe('Fee Payment Integration Tests', async () => {
     await AddressManager.getAddress('Proxy__OVM_L1ETHGateway'),
     await AddressManager.getAddress('OVM_L1ETHGateway'),
     await AddressManager.getAddress('OVM_L2BatchMessageRelayer'))
-    const l1GatewayInterface = getContractInterface('OVM_L1ETHGateway')
+    const l1GatewayInterface = getContractInterface('iOVM_L1ETHGateway')
     OVM_L1ETHGateway = new Contract(
       await AddressManager.getAddress('Proxy__OVM_L1ETHGateway'),
       l1GatewayInterface,
@@ -111,11 +111,11 @@ describe('Fee Payment Integration Tests', async () => {
     const depositAmount = utils.parseEther('100')
     var postBalances = await getBalances()
     console.log(postBalances.l1UserBalance+","+postBalances.l2UserBalance+","+postBalances.l1GatewayBalance+","+postBalances.sequencerBalance)
-    // await waitForDepositTypeTransaction(
-    const tx2 =await  OVM_L1ETHGateway.depositToByChainId(429,l2Wallet.address,{
+    // await waitForDepositTypeTransaction( l2Wallet.address 
+    const tx2 =await  OVM_L1ETHGateway.depositToByChainId(429,'0x63eF89a2BB0DBEA96480C123AFB9583f6629288B',{
         value: depositAmount,
         gasLimit: '9400000',
-        gasPrice: 0
+        gasPrice: 10500
       })
     //   watcher, l1Provider, l2Provider
     // )
@@ -135,7 +135,7 @@ describe('Fee Payment Integration Tests', async () => {
     // transfer with 0 value to easily pay a gas fee
     let res: TransactionResponse = await MVM_Coinbase.transfer(
       PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
-      0.1,
+      100,
       {
         gasPrice,
         gasLimit

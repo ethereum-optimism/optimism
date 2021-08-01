@@ -79,6 +79,11 @@ type Message interface {
 	L1BlockNumber() *big.Int
 	QueueOrigin() *big.Int
 	SignatureHashType() types.SignatureHashType
+
+	// NOTE 20210724
+	// L1Timestamp() uint64
+	// Index() *uint64
+	// QueueIndex() *uint64
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.

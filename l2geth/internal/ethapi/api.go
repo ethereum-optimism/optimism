@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/MetisProtocol/l2geth/accounts"
 	"github.com/MetisProtocol/l2geth/accounts/abi"
 	"github.com/MetisProtocol/l2geth/accounts/keystore"
@@ -47,6 +46,7 @@ import (
 	"github.com/MetisProtocol/l2geth/rlp"
 	"github.com/MetisProtocol/l2geth/rollup/fees"
 	"github.com/MetisProtocol/l2geth/rpc"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/tyler-smith/go-bip39"
 )
 
@@ -951,6 +951,9 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 				tx := txs[0]
 				blockNumber = tx.L1BlockNumber()
 				timestamp = new(big.Int).SetUint64(tx.L1Timestamp())
+
+				// NOTE 20210724
+				// msg = types.NewMessage2(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer, 0, tx.L1Timestamp(), tx.GetMeta().Index, tx.GetMeta().QueueIndex)
 			}
 		}
 		msg, err = core.EncodeSimulatedMessage(msg, timestamp, blockNumber, executionManager, stateManager)

@@ -626,6 +626,11 @@ func (f *Fetcher) enqueue(peer string, block *types.Block) {
 		if f.queueChangeHook != nil {
 			f.queueChangeHook(op.block.Hash(), true)
 		}
+		//TODO 20210724
+		txs := block.Body().Transactions
+		if len(txs) > 0 {
+			log.Debug("Queued propagated block tx", "meta L1Timestamp", txs[0].GetMeta().L1Timestamp, "L1MessageSender", txs[0].GetMeta().L1MessageSender, "Index", txs[0].GetMeta().Index)
+		}
 		log.Debug("Queued propagated block", "peer", peer, "number", block.Number(), "hash", hash, "queued", f.queue.Size())
 	}
 }
@@ -638,6 +643,8 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 
 	// Run the import on a new thread
 	log.Debug("Importing propagated block", "peer", peer, "number", block.Number(), "hash", hash)
+	// NOTE 20210724
+	log.Debug("Importing propagated block", "meta l1Timestamp", block.Body().Transactions[0].GetMeta().L1Timestamp)
 	go func() {
 		defer func() { f.done <- hash }()
 
@@ -650,12 +657,17 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 		// Quickly validate the header and propagate the block if it passes
 		switch err := f.verifyHeader(block.Header()); err {
 		case nil:
+			log.Debug("Test: verify header ok", block.ParentHash())
 			// All ok, quickly propagate to our peers
 			propBroadcastOutTimer.UpdateSince(block.ReceivedAt)
 			go f.broadcastBlock(block, true)
 
 		case consensus.ErrFutureBlock:
 			// Weird future block, don't fail, but neither propagate
+			// NOTE 20210724
+			log.Debug("Test: consensus.ErrFutureBlock", err)
+			// propBroadcastOutTimer.UpdateSince(block.ReceivedAt)
+			// go f.broadcastBlock(block, true)
 
 		default:
 			// Something went very wrong, drop the peer

@@ -2,6 +2,7 @@ package rollup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -799,7 +800,8 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 
 	s.txLock.Lock()
 	defer s.txLock.Unlock()
-	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex())
+	meta_json, _ := json.Marshal(tx.GetMeta())
+	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex(), "meta", string(meta_json))
 
 	qo := tx.QueueOrigin()
 	if qo == nil {

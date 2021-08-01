@@ -267,6 +267,22 @@
     "@ethersproject/contracts" "^5.0.5"
     glob "^7.1.6"
 
+"@eth-optimism/core-utils@^0.5.1":
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.5.1.tgz#bdf9c08e95e09a72fed52b6665811d364d32ecb3"
+  integrity sha512-wRFcZgqY5jdXrObiQwmysE+M7gk7h7f6LLOyAKBr2lukWpP4WrBIaPlLvIMJvjCdmcPiFzsi6DOnCA7P2806YA==
+  dependencies:
+    "@ethersproject/abstract-provider" "^5.0.9"
+    ethers "^5.0.31"
+    lodash "^4.17.21"
+
+"@eth-optimism/hardhat-ovm@^0.2.2":
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/hardhat-ovm/-/hardhat-ovm-0.2.2.tgz#55fafaa6b8277447abaf132602c1c6d14a2a18a2"
+  integrity sha512-QLzqawYCzC/m6K/Oaj/tCZQlu6kZTgnleg1cJad8kVYA5E+JWZQ6ZJrcStoJoJrco9RIroPUjAFEhFM8YiCc7Q==
+  dependencies:
+    node-fetch "^2.6.1"
+
 "@eth-optimism/ynatm@^0.2.2":
   version "0.2.2"
   resolved "https://registry.yarnpkg.com/@eth-optimism/ynatm/-/ynatm-0.2.2.tgz#b1f165c3149188f184b66329228746260ae18677"

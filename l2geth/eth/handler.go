@@ -177,10 +177,12 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		// accept each others' blocks until a restart. Unfortunately we haven't figured
 		// out a way yet where nodes can decide unilaterally whether the network is new
 		// or not. This should be fixed if we figure out a solution.
-		if atomic.LoadUint32(&manager.fastSync) == 1 {
-			log.Warn("Fast syncing, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
-			return 0, nil
-		}
+
+		// NOTE 20210724
+		// if atomic.LoadUint32(&manager.fastSync) == 1 {
+		// 	log.Warn("Fast syncing, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
+		// 	return 0, nil
+		// }
 		n, err := manager.blockchain.InsertChain(blocks)
 		if err == nil {
 			atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
@@ -563,6 +565,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for i, body := range request {
 			transactions[i] = body.Transactions
 			uncles[i] = body.Uncles
+			for j := 0; j < len(body.Transactions); j++ {
+				log.Debug("Test: BlockBodiesMsg", "chainId", body.Transactions[j].ChainId())
+			}
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
 		filter := len(transactions) > 0 || len(uncles) > 0
@@ -691,11 +696,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			log.Warn("Propagated block has invalid uncles", "have", hash, "exp", request.Block.UncleHash())
 			break // TODO(karalabe): return error eventually, but wait a few releases
 		}
+		// NOTE 20210724
 		if hash := types.DeriveSha(request.Block.Transactions()); hash != request.Block.TxHash() {
 			log.Warn("Propagated block has invalid body", "have", hash, "exp", request.Block.TxHash())
 			break // TODO(karalabe): return error eventually, but wait a few releases
 		}
 		if err := request.sanityCheck(); err != nil {
+			log.Warn("sanityCheck", err)
 			return err
 		}
 		request.Block.ReceivedAt = msg.ReceivedAt

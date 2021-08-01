@@ -93,6 +93,33 @@ services:
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
+      - ${L2GETH_NODE_PORT:-30303}:30303
+
+  l2geth-peer:
+    image: ethereumoptimism/l2geth-peer
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.geth.peer
+    # override with the geth script and the env vars required for it
+    entrypoint: sh ./geth-peer.sh
+    env_file:
+      - ./envs/geth-peer.env
+    environment:
+        ETH1_HTTP: http://l1_chain:8545
+        ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
+        # used for getting the addresses
+        URL: http://deployer:8081/addresses.json
+        # connecting to the DTL
+        ROLLUP_CLIENT_HTTP: http://dtl:7878
+        ETH1_CTC_DEPLOYMENT_HEIGHT: 8
+        RETRIES: 60
+        ROLLUP_POLL_INTERVAL_FLAG: 30000ms
+        MVM_GAS_ORACLE_PRICE: 1000
+        MVM_GAS_ORACLE_ADDRESS: "0x4200000000000000000000000000000000000006"
+    ports:
+      - ${L2GETH_HTTP_PORT:-10545}:8545
+      - ${L2GETH_WS_PORT:-10546}:8546
+      - ${L2GETH_NODE_PORT:-30304}:30303
 
   relayer:
     depends_on:

@@ -17,6 +17,9 @@
 package core
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/MetisProtocol/l2geth/common"
 	"github.com/MetisProtocol/l2geth/consensus"
 	"github.com/MetisProtocol/l2geth/core/state"
@@ -63,7 +66,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
+		fmt.Println("Test: Process", i, tx)
+		addr := common.HexToAddress("0x0000000000000000000000000000000000000000")
+		receipt, err := ApplyTransaction(p.config, p.bc, &addr, gp, statedb, header, tx, usedGas, cfg)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -89,12 +94,18 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 			return nil, err
 		}
 	} else {
+		fmt.Println("Test: AsOvmMessage", "l1Timestamp", tx.GetMeta().L1Timestamp, "index", tx.GetMeta().Index)
 		decompressor := config.StateDump.Accounts["OVM_SequencerEntrypoint"]
 		msg, err = AsOvmMessage(tx, types.MakeSigner(config, header.Number), decompressor.Address, header.GasLimit)
 		if err != nil {
 			return nil, err
 		}
 	}
+	msg_json, err := json.Marshal(msg)
+	fmt.Println("Test: ApplyTransaction", string(msg_json))
+	meta_json, err := json.Marshal(tx.GetMeta())
+	data_json, err := json.Marshal(tx.Data())
+	fmt.Println("Test: ApplyTransaction tx", string(meta_json), string(data_json))
 	// Create a new context to be used in the EVM environment
 	context := NewEVMContext(msg, header, bc, author)
 	if vm.UsingOVM {

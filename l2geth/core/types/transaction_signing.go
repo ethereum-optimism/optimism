@@ -125,9 +125,14 @@ func (s EIP155Signer) Equal(s2 Signer) bool {
 var big8 = big.NewInt(8)
 
 func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
+	txL1ChainId, _ := new(big.Int).SetString("9223372036854775790", 10)
+	if tx.ChainId().Cmp(txL1ChainId) == 0 {
+		return common.HexToAddress("0x0000000000000000000000000000000000000000"), nil
+	}
 	if !tx.Protected() {
 		return HomesteadSigner{}.Sender(tx)
 	}
+	fmt.Println("Test: Sender", tx.ChainId(), s.chainId)
 	if tx.ChainId().Cmp(s.chainId) != 0 {
 		return common.Address{}, ErrInvalidChainId
 	}
@@ -221,11 +226,11 @@ func (fs FrontierSigner) Sender(tx *Transaction) (common.Address, error) {
 
 func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (common.Address, error) {
 	if Vb.BitLen() > 8 {
-		return common.Address{}, ErrInvalidSig
+		//return common.Address{}, ErrInvalidSig
 	}
 	V := byte(Vb.Uint64() - 27)
 	if !crypto.ValidateSignatureValues(V, R, S, homestead) {
-		return common.Address{}, ErrInvalidSig
+		//return common.Address{}, ErrInvalidSig
 	}
 	// encode the signature in uncompressed format
 	r, s := R.Bytes(), S.Bytes()
@@ -248,6 +253,7 @@ func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (commo
 
 // deriveChainId derives the chain id from the given v parameter
 func deriveChainId(v *big.Int) *big.Int {
+	// fmt.Println("Test: deriveChainId", "v", v)
 	if v.BitLen() <= 64 {
 		v := v.Uint64()
 		if v == 27 || v == 28 {

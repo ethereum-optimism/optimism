@@ -96,7 +96,8 @@ func (h *clientHandler) runPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter)
 
 func (h *clientHandler) handle(p *peer) error {
 	if h.backend.peers.Len() >= h.backend.config.LightPeers && !p.Peer.Info().Network.Trusted {
-		return p2p.DiscTooManyPeers
+		p.Log().Debug("Light Ethereum peer DiscTooManyPeers", "light peers", h.backend.config.LightPeers)
+		return nil //p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Light Ethereum peer connected", "name", p.Name())
 

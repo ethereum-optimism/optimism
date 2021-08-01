@@ -190,9 +190,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         startBlock + this.maxBatchSize,
         await this.l2Provider.getBlockNumber()
       ) + 1 // +1 because the `endBlock` is *exclusive*
-    //this.logger.info('Retrieved end block number from L2 sequencer', {
-    //  endBlock,
-    //})
+    this.logger.info('getBatchStartAndEnd:', {
+      startBlock,
+      endBlock,
+      l2chainId:this.l2ChainId
+    })
 
     if (startBlock >= endBlock) {
       if (startBlock > endBlock) {

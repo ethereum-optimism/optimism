@@ -25,7 +25,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/MetisProtocol/l2geth/common"
 	"github.com/MetisProtocol/l2geth/consensus"
 	"github.com/MetisProtocol/l2geth/consensus/misc"
@@ -35,6 +34,7 @@ import (
 	"github.com/MetisProtocol/l2geth/event"
 	"github.com/MetisProtocol/l2geth/log"
 	"github.com/MetisProtocol/l2geth/params"
+	mapset "github.com/deckarep/golang-set"
 )
 
 const (
@@ -621,6 +621,8 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
+			block.RestTransactions()
+			fmt.Println("Test: resultLoop", block.Transactions()[0])
 			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)

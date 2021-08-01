@@ -545,12 +545,19 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 
 	// Start the RPC service
 	s.netRPCService = ethapi.NewPublicNetAPI(srvr, s.NetVersion())
+
+	// Start Sync
+	maxPeers := srvr.MaxPeers
+	s.protocolManager.Start(maxPeers)
 	return nil
 }
 
 // Stop implements node.Service, terminating all internal goroutines used by the
 // Ethereum protocol.
 func (s *Ethereum) Stop() error {
+	// Stop all the peer-related stuff first.
+	s.protocolManager.Stop()
+
 	s.bloomIndexer.Close()
 	s.blockchain.Stop()
 	s.engine.Close()

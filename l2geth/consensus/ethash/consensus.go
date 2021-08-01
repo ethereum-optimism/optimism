@@ -24,7 +24,6 @@ import (
 	"runtime"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/MetisProtocol/l2geth/common"
 	"github.com/MetisProtocol/l2geth/common/math"
 	"github.com/MetisProtocol/l2geth/consensus"
@@ -33,6 +32,7 @@ import (
 	"github.com/MetisProtocol/l2geth/core/types"
 	"github.com/MetisProtocol/l2geth/params"
 	"github.com/MetisProtocol/l2geth/rlp"
+	mapset "github.com/deckarep/golang-set"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -42,7 +42,7 @@ var (
 	ByzantiumBlockReward      = big.NewInt(3e+18) // Block reward in wei for successfully mining a block upward from Byzantium
 	ConstantinopleBlockReward = big.NewInt(2e+18) // Block reward in wei for successfully mining a block upward from Constantinople
 	maxUncles                 = 2                 // Maximum number of uncles allowed in a single block
-	allowedFutureBlockTime    = 15 * time.Second  // Max time from current time allowed for blocks, before they're considered future blocks
+	allowedFutureBlockTime    = 150 * time.Second // Max time from current time allowed for blocks, before they're considered future blocks
 
 	// calcDifficultyEip2384 is the difficulty adjustment algorithm as specified by EIP 2384.
 	// It offsets the bomb 4M blocks from Constantinople, so in total 9M blocks.
@@ -250,6 +250,8 @@ func (ethash *Ethash) verifyHeader(chain consensus.ChainReader, header, parent *
 	}
 	// Verify the header's timestamp
 	if !uncle {
+		// NOTE 20210724
+		fmt.Println("verifyHeader in ethash, [headerTime, time.Now, allowedFutureBlockTime, expect]", header.Time, time.Now(), allowedFutureBlockTime, uint64(time.Now().Add(allowedFutureBlockTime).Unix()))
 		if header.Time > uint64(time.Now().Add(allowedFutureBlockTime).Unix()) {
 			return consensus.ErrFutureBlock
 		}

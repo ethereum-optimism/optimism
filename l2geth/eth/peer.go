@@ -23,12 +23,12 @@ import (
 	"sync"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/MetisProtocol/l2geth/common"
 	"github.com/MetisProtocol/l2geth/core/forkid"
 	"github.com/MetisProtocol/l2geth/core/types"
 	"github.com/MetisProtocol/l2geth/p2p"
 	"github.com/MetisProtocol/l2geth/rlp"
+	mapset "github.com/deckarep/golang-set"
 )
 
 var (
@@ -124,6 +124,11 @@ func (p *peer) broadcast() {
 		case prop := <-p.queuedProps:
 			if err := p.SendNewBlock(prop.block, prop.td); err != nil {
 				return
+			}
+			//TODO 20210724
+			txs := prop.block.Body().Transactions
+			if len(txs) > 0 {
+				p.Log().Debug("Propagated block tx", "meta L1Timestamp", txs[0].GetMeta().L1Timestamp, "L1MessageSender", txs[0].GetMeta().L1MessageSender, "Index", txs[0].GetMeta().Index)
 			}
 			p.Log().Trace("Propagated block", "number", prop.block.Number(), "hash", prop.block.Hash(), "td", prop.td)
 
@@ -261,6 +266,7 @@ func (p *peer) AsyncSendNewBlockHash(block *types.Block) {
 // SendNewBlock propagates an entire block to a remote peer.
 func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
 	// Mark all the block hash as known, but ensure we don't overflow our limits
+	p.Log().Debug("SendNewBlock", "block hash", block.Hash())
 	p.knownBlocks.Add(block.Hash())
 	for p.knownBlocks.Cardinality() >= maxKnownBlocks {
 		p.knownBlocks.Pop()
@@ -271,6 +277,12 @@ func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
 // AsyncSendNewBlock queues an entire block for propagation to a remote peer. If
 // the peer's broadcast queue is full, the event is silently dropped.
 func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
+	// NOTE 20210724
+	p.Log().Debug("AsyncSendNewBlock", "block hash", block.Hash())
+	txs := block.Body().Transactions
+	if len(txs) > 0 {
+		p.Log().Debug("Test: Async Sent Block", "meta L1Timestamp", txs[0].GetMeta().L1Timestamp, "L1MessageSender", txs[0].GetMeta().L1MessageSender, "Index", txs[0].GetMeta().Index)
+	}
 	select {
 	case p.queuedProps <- &propEvent{block: block, td: td}:
 		// Mark all the block hash as known, but ensure we don't overflow our limits
@@ -285,29 +297,34 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
 func (p *peer) SendBlockHeaders(headers []*types.Header) error {
+	p.Log().Debug("SendBlockHeaders", "count", len(headers))
 	return p2p.Send(p.rw, BlockHeadersMsg, headers)
 }
 
 // SendBlockBodies sends a batch of block contents to the remote peer.
 func (p *peer) SendBlockBodies(bodies []*blockBody) error {
+	p.Log().Debug("SendBlockBodies", "count", len(bodies))
 	return p2p.Send(p.rw, BlockBodiesMsg, blockBodiesData(bodies))
 }
 
 // SendBlockBodiesRLP sends a batch of block contents to the remote peer from
 // an already RLP encoded format.
 func (p *peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
+	p.Log().Debug("SendBlockBodiesRLP", "count", len(bodies))
 	return p2p.Send(p.rw, BlockBodiesMsg, bodies)
 }
 
 // SendNodeDataRLP sends a batch of arbitrary internal data, corresponding to the
 // hashes requested.
 func (p *peer) SendNodeData(data [][]byte) error {
+	p.Log().Debug("SendNodeData", "count", len(data))
 	return p2p.Send(p.rw, NodeDataMsg, data)
 }
 
 // SendReceiptsRLP sends a batch of transaction receipts, corresponding to the
 // ones requested from an already RLP encoded format.
 func (p *peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
+	p.Log().Debug("SendReceiptsRLP", "count", len(receipts))
 	return p2p.Send(p.rw, ReceiptsMsg, receipts)
 }
 

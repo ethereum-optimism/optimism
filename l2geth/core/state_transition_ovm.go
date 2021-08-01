@@ -39,6 +39,7 @@ func toExecutionManagerRun(evm *vm.EVM, msg Message) (Message, error) {
 		evm.Context.OvmStateManager.Address,
 	}
 
+	fmt.Println("Test: toExecutionManagerRun", args)
 	ret, err := abi.Pack("run", args...)
 	if err != nil {
 		return nil, err
@@ -144,6 +145,7 @@ func modMessage(
 		return nil, err
 	}
 
+	// NOTE 20210724
 	outmsg := types.NewMessage(
 		from,
 		to,
@@ -157,6 +159,11 @@ func modMessage(
 		msg.L1BlockNumber(),
 		queueOrigin,
 		msg.SignatureHashType(),
+
+		// NOTE 20210724
+		// msg.L1Timestamp(),
+		// msg.Index(),
+		// msg.QueueIndex(),
 	)
 
 	return outmsg, nil
@@ -165,6 +172,10 @@ func modMessage(
 func getQueueOrigin(
 	queueOrigin *big.Int,
 ) (types.QueueOrigin, error) {
+	// NOTE 20210724
+	if queueOrigin == nil {
+		queueOrigin = big.NewInt(0)
+	}
 	if queueOrigin.Cmp(big.NewInt(0)) == 0 {
 		return types.QueueOriginSequencer, nil
 	} else if queueOrigin.Cmp(big.NewInt(1)) == 0 {

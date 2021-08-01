@@ -42,7 +42,7 @@ func MustRun(cmd *exec.Cmd) {
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout
 		if err := cmd.Run(); err != nil {
-			log.Fatal(err)
+			log.Fatal(err)		
 		}
 	}
 }

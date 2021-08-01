@@ -14,6 +14,7 @@
     "build:contracts:ovm": "hardhat compile --network optimism",
     "test:integration": "hardhat --network optimism test",
     "test:sync": "hardhat --network optimism test sync-tests/*.spec.ts --no-compile",
+    "test:l1l2": "hardhat --network optimism test test/demo.spec.ts",
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
@@ -35,13 +36,14 @@
     "envalid": "^7.1.0",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.0.32",
-    "hardhat": "^2.2.1",
+    "hardhat": "^2.3.0",
     "hardhat-gas-reporter": "^1.0.4",
     "mocha": "^8.3.1",
     "rimraf": "^3.0.2",
     "shelljs": "^0.8.4"
   },
   "dependencies": {
+    "@eth-optimism/core-utils": "^0.5.1",
     "hardhat": "^2.3.0"
   }
 }
