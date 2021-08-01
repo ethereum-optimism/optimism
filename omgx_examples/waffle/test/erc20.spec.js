@@ -1,5 +1,7 @@
 /* External imports */
-require('dotenv/config')
+require('dotenv').config();
+const env = process.env;
+
 const { use, expect } = require('chai')
 const { ethers } = require('ethers')
 const { solidity } = require('ethereum-waffle')
@@ -10,16 +12,15 @@ const { getArtifact } = require('./getArtifact')
 use(solidity)
 
 const config = {
-  l2Url: process.env.L2_URL || 'http://127.0.0.1:8545', // 'http://rinkeby.omgx.network'
-  l1Url: process.env.L1_URL || 'http://127.0.0.1:9545',
-  useL2: process.env.TARGET === 'OVM',
-  privateKey: process.env.PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+  l2Url: env.L2_URL || 'http://127.0.0.1:8545',
+  l1Url: env.L1_URL || 'http://127.0.0.1:9545',
+  useL2: env.TARGET === 'OMGX' || env.TARGET === "OVM",
+  privateKey: env.PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 }
 
 describe('ERC20 smart contract', () => {
   let ERC20,
     provider
-
   if (config.useL2) {
     provider = new ethers.providers.JsonRpcProvider(config.l2Url)
     provider.pollingInterval = 100
@@ -31,8 +32,8 @@ describe('ERC20 smart contract', () => {
   const wallet = new ethers.Wallet(config.privateKey).connect(provider)
 
   // parameters to use for our test coin
-  const COIN_NAME = 'OVM Test Coin'
-  const TICKER = 'OVM'
+  const COIN_NAME = `${env.TARGET} Test Coin`
+  const TICKER = `${env.TARGET}`
   const NUM_DECIMALS = 1
 
   describe('when using a deployed contract instance', () => {
@@ -41,7 +42,8 @@ describe('ERC20 smart contract', () => {
       const Factory__ERC20 = new ethers.ContractFactory(
         Artifact__ERC20.abi,
         Artifact__ERC20.bytecode,
-        wallet
+        wallet,
+        {gasPrice:15000000}
       )
 
       // TODO: Remove this hardcoded gas limit
@@ -49,9 +51,10 @@ describe('ERC20 smart contract', () => {
         1000,
         COIN_NAME,
         NUM_DECIMALS,
-        TICKER
+        TICKER,
+        {gasPrice:15000000}
       )
-      await ERC20.deployTransaction.wait()
+      await ERC20.deployTransaction.wait({gasPrice:15000000})
     })
 
     it('should assigns initial balance', async () => {
@@ -73,7 +76,7 @@ describe('ERC20 smart contract', () => {
     it('should transfer amount to destination account', async () => {
       const freshWallet = ethers.Wallet.createRandom()
       const destination = await freshWallet.getAddress()
-      const tx = await ERC20.connect(wallet).transfer(destination, 7)
+      const tx = await ERC20.connect(wallet).transfer(destination, 7, {gasPrice:15000000})
       await tx.wait()
       const walletToBalance = await ERC20.balanceOf(destination)
       expect(walletToBalance.toString()).to.equal('7')
@@ -81,7 +84,7 @@ describe('ERC20 smart contract', () => {
 
     it('should emit Transfer event', async () => {
       const address = await wallet.getAddress()
-      const tx = ERC20.connect(wallet).transfer(address, 7)
+      const tx = ERC20.connect(wallet).transfer(address, 7, {gasPrice:15000000})
       await expect(tx)
         .to.emit(ERC20, 'Transfer')
         .withArgs(address, address, 7)
@@ -90,7 +93,7 @@ describe('ERC20 smart contract', () => {
     it('should not transfer above the amount', async () => {
       const address = await wallet.getAddress()
       const walletToBalanceBefore = await ERC20.balanceOf(address)
-      await expect(ERC20.transfer(address, 1007)).to.be.reverted
+      await expect(ERC20.transfer(address, 1007, {gasPrice:15000000})).to.be.reverted
       const walletToBalanceAfter = await ERC20.balanceOf(address)
       expect(walletToBalanceBefore).to.eq(walletToBalanceAfter)
     })
@@ -99,7 +102,7 @@ describe('ERC20 smart contract', () => {
       const emptyWallet = ethers.Wallet.createRandom()
       const address = await emptyWallet.getAddress()
       const ERC20FromOtherWallet = ERC20.connect(emptyWallet)
-      await expect(ERC20FromOtherWallet.transfer(address, 1)).to.be
+      await expect(ERC20FromOtherWallet.transfer(address, 1, {gasPrice:15000000})).to.be
         .reverted
     })
   })

@@ -1,21 +1,14 @@
 
-## 1. Compiling, running, and deploying.
+## 1. Configuring `.env` file.
 
-For example, to compile, test, and then deploy the contract on a local L2:
+First create `.env` file similar to `.env.example`, replace the private key with your private key. 
+
+## 2. Compiling, running, and deploying.
+For example, to compile, and test the contract on OMGX Rinkeby:
+
 
 ```bash
 $ yarn
-$ yarn compile:ovm
-$ yarn test:integration:ovm
-```
-
-NOTE: you can deploy the contract on OMGX Rinkeby by changing the `l2Url` target in `/test/erc20.spec.js` to `http://rinkeby.omgx.network`: 
-
-```bash
-const config = {
-  l2Url: process.env.L2_URL || 'http://127.0.0.1:8545', // 'http://rinkeby.omgx.network'
-  l1Url: process.env.L1_URL || 'http://127.0.0.1:9545',
-  useL2: process.env.TARGET === 'OVM',
-  privateKey: process.env.PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-}
+$ yarn compile:omgx
+$ yarn test:integration:omgx
 ```

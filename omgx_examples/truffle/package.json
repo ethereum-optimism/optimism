@@ -37,7 +37,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@eth-optimism/solc": "0.7.6-alpha.1",
+    "@eth-optimism/solc": "0.6.12-alpha.1",
     "@truffle/hdwallet-provider": "^1.4.0",
     "rimraf": "^3.0.2",
     "truffle": "^5.3.6"

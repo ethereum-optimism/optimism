@@ -36,8 +36,11 @@ yarn add @eth-optimism/solc@0.7.6-alpha.1
 Next, we just need to add a new `truffle-config-ovm.js` file to compile our contracts. Create `truffle-config-ovm.js` and add the following to it:
 
 ```js
-const mnemonicPhrase = "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat"
-const HDWalletProvider = require('@truffle/hdwallet-provider')
+const HDWalletProvider = require('@truffle/hdwallet-provider');
+require('dotenv').config();
+const env = process.env;
+const mnemonicPhrase = env.mnemonic;
+
 
 module.exports = {
   contracts_build_directory: './build-ovm',
@@ -46,45 +49,48 @@ module.exports = {
       provider: function () {
         return new HDWalletProvider({
           mnemonic: {
-            phrase: mnemonicPhrase
+            phrase: mnemonicPhrase,
           },
-          providerOrUrl: 'http://127.0.0.1:8545'
+          providerOrUrl: 'http://127.0.0.1:8545',
         })
       },
-      network_id: 420,
+      network_id: 28,
       host: '127.0.0.1',
       port: 8545,
       gasPrice: 0,
+      gas: 11000000,
     },
     omgx_rinkeby: {
       provider: function () {
         return new HDWalletProvider({
           mnemonic: {
-            phrase: mnemonicPhrase
+            phrase: mnemonicPhrase,
           },
-          providerOrUrl: 'http://rinkeby.omgx.network'
+          providerOrUrl: 'http://rinkeby.omgx.network',
         })
       },
       network_id: 28,
       host: 'http://rinkeby.omgx.network',
-      port: 8545,
-      gasPrice: 0,
+      gasPrice: 15000000,
+      gas: 8000000
     }
   },
   compilers: {
     solc: {
-      // Add path to the optimism solc fork
-      version: "node_modules/@eth-optimism/solc",
+      version: '../../node_modules/@eth-optimism/solc',
       settings: {
         optimizer: {
           enabled: true,
-          runs: 1
+          runs: 1,
         },
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
+
+Now add a `.env` file that follows the format of `env.example` with your mnemonic phrase.
+
 
 Here, we specify the new custom Optimistic Ethereum compiler we just installed and the new build path for our optimistically compiled contracts. We also specify the network parameters of a local Optimistic Ethereum instance. This local instance will be set up soon, but we'll set this up in our config now so that it's easy for us later when we compile and deploy our Optimistic Ethereum contracts.
 

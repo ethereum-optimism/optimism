@@ -6,12 +6,5 @@ module.exports = function (deployer, accounts) {
   const tokenDecimals = 1
 
   // deployment steps
-  deployer.deploy(
-    ERC20,
-    10000,
-    tokenName,
-    tokenDecimals,
-    tokenSymbol,
-    { gasPrice: 0, gasLimit: 10000000 }
-  )
+  deployer.deploy(ERC20, 10000, tokenName, tokenDecimals, tokenSymbol)
 }

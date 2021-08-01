@@ -36,7 +36,20 @@ $ yarn compile:ovm  #compile the examples for the local L2
 $ yarn compile:omgx #compile the examples for the OMGX Rinkeby L2
 ```
 
-Now, see it all work. The `ovm` suffix denotes deploying and running contracts on the L2.
+Add a `.env` file contianing a mnemonic phrases or two private keys of accounts with ethereum on BOBA L2. Checkout `.env.example` for an example.
+Note: if you choose to use two private keys you will have to replace 
+```javascript
+accounts: {
+        mnemonic: env.mnemonic
+      },
+```
+with
+```javascript
+accounts: [env.privateKey1, env.privateKey2],
+```
+in `hardhat.config.js`.
+
+Now, see it all work. The `ovm` and `omgx` suffix denote deploying and running contracts on the L2.
 
 ```bash
 $ yarn test:integration      #test the examples on the local L1
