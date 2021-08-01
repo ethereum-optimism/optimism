@@ -70,14 +70,3 @@ yarn start:service
 ```
 
 This starts the service for the registered custom messenger. Specify L1_MESSENGER_FAST=<messenger> to spin up the relayer for your messenger
-
-## Build a DockerHub Message Relayer Fast
-
-To build the Message Relayer Fast docker image:
-
-```bash
-
-docker build . --file Dockerfile.message-relayer-fast --tag omgx/message-relayer-fast:latest
-docker push omgx/message-relayer-fast:latest
-
-```

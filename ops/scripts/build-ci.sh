@@ -1,14 +1,23 @@
-# build in 2 steps
-function build_images() {
-    docker-compose build --parallel -- builder l2geth l1_chain
-    docker-compose build --parallel -- deployer dtl batch_submitter relayer integration_tests
-}
+yarn 
+yarn build
 
-function build_dependencies() {
-    yarn
-    yarn build
-}
+docker-compose build -- builder
+docker-compose build -- omgx_deployer
+docker-compose build -- omgx_message-relayer-fast
+docker-compose build -- gas_oracle
+docker-compose build -- deployer
 
-build_dependencies && build_images
+docker rmi $(docker images -f "dangling=true" -q)
+
+docker-compose build -- l2geth 
+docker-compose build -- l1_chain
+docker-compose build -- batch_submitter
+docker-compose build -- dtl
+docker-compose build -- relayer
+docker-compose build -- integration_tests
+
+docker rmi $(docker images -f "dangling=true" -q)
+
+docker ps
 
 wait

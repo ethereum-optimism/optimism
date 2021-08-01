@@ -26,8 +26,8 @@
   "license": "MIT",
   "devDependencies": {
     "@eth-optimism/contracts": "^0.4.1",
-    "@eth-optimism/core-utils": "^0.4.2",
-    "@eth-optimism/hardhat-ovm": "^0.0.2",
+    "@eth-optimism/core-utils": "^0.5.1",
+    "@eth-optimism/hardhat-ovm": "^0.2.2",
     "@ethersproject/providers": "^5.0.24",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@types/jest": "^26.0.22",

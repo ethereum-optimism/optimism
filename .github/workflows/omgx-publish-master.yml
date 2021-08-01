@@ -5,22 +5,10 @@ on:
     tags:
     - '*'
 
-# on:
-#   push:
-#     branches:
-#       - 'master'
-#       - 'develop'
-#       - '*rc'
-#       - 'regenesis/*'
-#   pull_request:
-#   workflow_dispatch:
-
 jobs:
   build-publish-win:
     runs-on: ubuntu-latest
-    env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
+
     steps:
       - name: Login to Docker Hub
         uses: docker/login-action@v1
@@ -53,9 +41,9 @@ jobs:
         working-directory: ./ops
         run: |
           ./scripts/build-ci.sh
-          docker build ../ --file docker/Dockerfile.omgx_monorepo --tag omgx/omgx_builder:${{ steps.tag.outputs.VERSION }}
+          docker build ../ --file docker/Dockerfile.monorepo --tag omgx/omgx_builder:${{ steps.tag.outputs.VERSION }}
           docker build ../ --file docker/Dockerfile.omgx_deployer --tag omgx/omgx_deployer:${{ steps.tag.outputs.VERSION }}
-          docker build ../ --file docker/Dockerfile.gas-oracle --tag omgx/gas-oracle:${{ steps.tag.outputs.VERSION }}
+          docker build ../ --file docker/Dockerfile.omgx_gas-price-oracle --tag omgx/gas-oracle:${{ steps.tag.outputs.VERSION }}
           docker build ../ --file docker/Dockerfile.omgx_message-relayer-fast --tag omgx/omgx_message-relayer-fast:${{ steps.tag.outputs.VERSION }}
       - name: Rename and retag the Optimism images
         working-directory: ./ops

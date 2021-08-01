@@ -25,7 +25,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-          # aws-region: us-east-1
       - name: Start EC2 runner
         id: start-ec2-runner
         uses: machulav/ec2-github-runner@v2
@@ -41,8 +40,8 @@ jobs:
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
     env:
-      DOCKER_BUILDKIT: 1
-      COMPOSE_DOCKER_CLI_BUILD: 1
+      #DOCKER_BUILDKIT: 1
+      #COMPOSE_DOCKER_CLI_BUILD: 1
       TEST_PRIVATE_KEY_1: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
       TEST_PRIVATE_KEY_2: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       TEST_PRIVATE_KEY_3: "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
@@ -70,19 +69,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
-      - name: Install yq
-        run: sudo snap install yq
-
       - name: Check the .envs
         run: printenv
 
       - name: Build the services
         working-directory: ./ops
-        run: ./scripts/build-ci-omgx.sh
+        run: ./scripts/build-ci.sh
+
+      - name: List all images
+        run: docker image ls --all
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose -f docker-compose.yml up -d
+        run: docker-compose up --no-build -d
+
+      # just sets up background logs for the system that was just started
+      # this just adds the logging
+      - name: Start background logging
+        working-directory: ./ops
+        run: docker-compose -f docker-compose.yml logs --follow &
 
       - name: Wait for the Sequencer node
         working-directory: ./ops
@@ -94,12 +99,6 @@ jobs:
       #     BUILD: 1
       #     DAEMON: 1
       #   run: ./up_local.sh
-
-      # just sets up background logs for the system that was just started
-      # this just adds the logging
-      - name: Start background logging
-        working-directory: ./ops
-        run: docker-compose -f docker-compose.yml logs --follow &
 
       # this test jitters - in any case, later tests will fail if the OMGX_deployer does not come up
       - name: Test serving OMGX contracts
@@ -155,7 +154,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-          # aws-region: us-east-1
       - name: Stop EC2 runner
         uses: machulav/ec2-github-runner@v2
         with:

@@ -23,7 +23,7 @@ COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
 COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
 COPY --from=builder /optimism/packages/contracts/deployments ./deployments
 
-# get non-build artifacts from the host
+# get non-build static artifacts from the host
 COPY packages/contracts/bin ./bin
 COPY packages/contracts/contracts ./contracts
 COPY packages/contracts/hardhat.config.ts ./
@@ -33,7 +33,7 @@ COPY packages/contracts/src ./src
 COPY packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
 COPY packages/contracts/scripts ./scripts
  
-# get the needed built artifacts
+# get the built artifacts
 WORKDIR /opt/optimism/packages/omgx/contracts
 COPY --from=builder /optimism/packages/omgx/contracts/tsconfig.json ./tsconfig.json
 COPY --from=builder /optimism/packages/omgx/contracts/package.json ./package.json
@@ -41,7 +41,7 @@ COPY --from=builder /optimism/packages/omgx/contracts/node_modules ./node_module
 COPY --from=builder /optimism/packages/omgx/contracts/artifacts ./artifacts
 COPY --from=builder /optimism/packages/omgx/contracts/artifacts-ovm ./artifacts-ovm
 
-# get non-build artifacts from the host
+# get static artifacts from the host
 COPY packages/omgx/contracts/bin ./bin
 COPY packages/omgx/contracts/contracts ./contracts
 COPY packages/omgx/contracts/hardhat.config.ts ./

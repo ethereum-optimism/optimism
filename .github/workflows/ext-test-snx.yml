@@ -1,4 +1,4 @@
-name: Exteral Tests (Synthetix)
+name: External Tests (Synthetix)
 
 on: workflow_dispatch
 
