@@ -63,8 +63,6 @@ jobs:
         working-directory: ./ops
         run: docker-compose up --no-build -d
 
-      # just sets up background logs for the system that was just started
-      # this just adds the logging
       - name: Start background logging
         working-directory: ./ops
         run: docker-compose -f docker-compose.yml logs --follow &
@@ -76,20 +74,6 @@ jobs:
       - name: Run the integration tests
         working-directory: ./ops
         run: docker-compose run integration_tests
-
-      # Examples Tests
-      # - name: Test & deploy hardhat-example on Ethereum (regression)
-      #  working-directory: ./examples/hardhat
-      #  run: |
-      #    yarn
-      #    yarn deploy
-      #    yarn test:integration
-
-      # - name: Test & deploy hardhat-example on Optimistic Ethereum
-      #  working-directory: ./examples/hardhat
-      #  run: |
-      #    yarn deploy:ovm
-      #    yarn test:integration:ovm
 
       - name: Test & deploy waffle-example on Ethereum (regression)
         working-directory: ./examples/waffle

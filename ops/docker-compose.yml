@@ -252,6 +252,9 @@ services:
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
       L2_CHAINID: 28 #unfortunately, elsewhere the L2_CHAINID is called CHAIN_ID
+      PRIVATE_KEY: '0xf214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897'
+      # that's hardhat default acconut 10
+      # Account #10: 0xbcd4042de499d14e55001ccbb24a551f3b954096 (10000 ETH)
 
   # and, tests for all the OMGX-specific services
   omgx_test_contracts:
