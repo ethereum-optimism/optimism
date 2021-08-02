@@ -26,9 +26,10 @@ Script'll subscribe l1 and l2. Every new block, callback'll get balance of l1 po
     L1_GAS_USED=229932
     L1_ADDRESS_MANAGER=0x93A96D6A5beb1F661cf052722A1424CDDA3e9418
     L2_DEPOSITED_ERC20=0x0e52DEfc53ec6dCc52d630af949a9b6313455aDF
-    DUMMY_DELAY_MINS=5
-    DUMMY_ETH_AMOUNT=0.0005
-        ```
+    DUMMY_DELAY_MINS=5 // delay after every transaction in minutes
+    DUMMY_ETH_AMOUNT=0.0005 // transaction amount in eth
+    DUMMY_TIMEOUT_MINS=1 // time out when transaction error in minutes
+    ```
 2. run `npm run dummy-transaction`
 
 ## How to deploy image

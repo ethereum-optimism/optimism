@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Omgx Monitor Deployment"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+
+  ServiceCount:
+    Type: Number
+    Default: 1
+
+  ImageTag:
+    Type: String
+    Default: push2aws
+
+  OmgxMonitorImage:
+    Type: String
+    Default: dummy-transaction
+
+  DockerPrefix:
+    Type: String
+    Default: omgx
+
+  ECRRegistry:
+    Type: String
+    Default: 942431445534.dkr.ecr.us-east-1.amazonaws.com
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: infrastructure-coredev
+
+  SecretName:
+    Description: AWS Secret Name used for the service
+    Type: String
+
+Conditions:
+  IsProduction:
+    !Equals [!Ref EnvironmentName, "production"]
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub ecs-tasks.${AWS::URLSuffix}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAccessToSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetResourcePolicy"
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:ListSecretVersionIds"
+                Resource:
+                  - arn:aws:secretsmanager:us-east-1:942431445534:secret:*
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image: !Sub "${ECRRegistry}/${DockerPrefix}/${OmgxMonitorImage}:${ImageTag}"
+          Name: dummy-transaction
+          Environment:
+            - Name: SECRETNAME
+              Value: !Ref SecretName
+            - Name: L2_NODE_WEB3_WS
+              Value: !Sub
+                - "wss://${EndpointAddress}/ws"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+            - Name: URL
+              Value: !Sub
+                - "http://${EndpointAddress}:8081/addresses.json"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
+          EntryPoint:
+            - "/usr/local/bin/entrypoint.sh"
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["dummy_transaction"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "dummy_transaction", "service": "dummy_transaction", "log_processing_rules": [{ "type": "multi_line", "name": "log_start_with_message", "pattern" : "%{PROG}" }]}]'
+          Essential: true
+          Memory: "256"
+      NetworkMode: bridge
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub "DummyTransaction-${EnvironmentName}"
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
+      DesiredCount: !Ref ServiceCount
+      LaunchType: EC2
+      SchedulingStrategy: REPLICA
+      ServiceName: !Sub "DummyTransaction-${EnvironmentName}"
+      TaskDefinition: !Ref TaskDefinition

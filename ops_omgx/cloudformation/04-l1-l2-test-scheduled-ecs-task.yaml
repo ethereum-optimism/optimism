@@ -163,7 +163,7 @@ Resources:
     DependsOn: TaskDefinition
     Properties:
       State: ENABLED
-      ScheduleExpression: cron(*/15 * * * ? *)
+      ScheduleExpression: cron(*/30 * * * ? *)
       Name: l1-l2-test-rule
       Targets:
         - Arn:

@@ -126,12 +126,21 @@ export class Watcher {
     // Message has yet to be relayed, poll until it is found
     return new Promise(async (resolve, reject) => {
       logger.debug('Watcher polling::layer.provider.getTransactionReceipt pre filter')
+
+      // check timeout
+      const timeout = parseInt(process.env.DUMMY_TIMEOUT_MINS, 10) || 5
+      let isFound = false
+      setTimeout(() => {
+        if (!isFound) reject(Error('Timeout'))
+      }, timeout * 60 * 1000)
+
       // listener that triggers on filter event
       layer.provider.on(filter, async (log: any) => {
         logger.debug('Watcher polling::layer.provider.getTransactionReceipt post filter')
         logger.debug(log)
         if (log.data === msgHash) {
           logger.debug('FOUND')
+          isFound = true
           try {
             const txReceipt = await layer.provider.getTransactionReceipt(log.transactionHash)
             layer.provider.off(filter)

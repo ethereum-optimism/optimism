@@ -152,7 +152,7 @@ Resources:
             com.datadoghq.ad.init_configs: '[{}]'
             com.datadoghq.ad.logs: '[{"source": "data_transport_layer", "service": "data_transport_layer"}]'
           Essential: true
-          Memory: "512"
+          Memory: "256"
         - Image: 942431445534.dkr.ecr.us-east-1.amazonaws.com/omgx/nginx-eth-proxy:data_tr_layer
           Name: nginx-dtl
           PortMappings:
