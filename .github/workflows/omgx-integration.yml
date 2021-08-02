@@ -35,7 +35,7 @@ jobs:
           ec2-instance-type: t2.xlarge
           subnet-id: subnet-905870ae
           security-group-id: sg-0855631d714870b32
-  
+
   omgx_integration:
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
@@ -93,13 +93,6 @@ jobs:
         working-directory: ./ops
         run: ./scripts/wait-for-sequencer.sh
 
-      # - name: Build the services, bring the stack up + OMGX services
-      #   working-directory: ./ops
-      #   env:
-      #     BUILD: 1
-      #     DAEMON: 1
-      #   run: ./up_local.sh
-
       # this test jitters - in any case, later tests will fail if the OMGX_deployer does not come up
       - name: Test serving OMGX contracts
         working-directory: ./
@@ -123,12 +116,6 @@ jobs:
           else
             exit 1
           fi
-      
-      # Very time and memory consuming
-      # and simply duplicates
-      # - name: Run the base system integration tests
-      #   working-directory: ./ops
-      #   run: docker-compose run integration_tests
 
       - name: Test the base OMGX contracts
         working-directory: ./packages/omgx/contracts

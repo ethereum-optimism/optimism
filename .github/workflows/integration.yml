@@ -35,7 +35,7 @@ jobs:
           ec2-instance-type: t2.xlarge
           subnet-id: subnet-905870ae
           security-group-id: sg-0855631d714870b32
-  
+
   integration:
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
@@ -82,26 +82,26 @@ jobs:
           yarn compile
           yarn test:integration
 
-      - name: Test & deploy waffle-example on Optimistic Ethereum
-        working-directory: ./examples/waffle
-        run: |
-          yarn compile:ovm
-          yarn test:integration:ovm
+      #- name: Test & deploy waffle-example on Optimistic Ethereum
+      #  working-directory: ./examples/waffle
+      #  run: |
+      #    yarn compile:ovm
+      #    yarn test:integration:ovm
 
-      - name: Test & deploy truffle-example on Ethereum (regression)
-        working-directory: ./examples/truffle
-        run: |
-          yarn
-          yarn compile
-          yarn test:integration
-          yarn deploy
+      #- name: Test & deploy truffle-example on Ethereum (regression)
+      #  working-directory: ./examples/truffle
+      #  run: |
+      #    yarn
+      #    yarn compile
+      #    yarn test:integration
+      #    yarn deploy
 
-      - name: Test & deploy truffle-example on Optimistic Ethereum
-        working-directory: ./examples/truffle
-        run: |
-          yarn compile:ovm
-          yarn test:integration:ovm
-          yarn deploy:ovm
+      #- name: Test & deploy truffle-example on Optimistic Ethereum
+      #  working-directory: ./examples/truffle
+      #  run: |
+      #    yarn compile:ovm
+      #    yarn test:integration:ovm
+      #    yarn deploy:ovm
 
       # - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
       #   working-directory: ./examples/l1-l2-deposit-withdrawal
