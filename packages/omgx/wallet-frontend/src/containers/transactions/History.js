@@ -48,11 +48,8 @@ const POLL_INTERVAL = 5000; //milliseconds
 function History () {
 
   const dispatch = useDispatch();
-
-  const start = new Date();
-  const end = new Date();
-  const [startDate, setStartDate] = useState(new Date(start.setDate(1)));
-  const [endDate, setEndDate] = useState(new Date(end.setDate(end.getDate() + 7)));
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
   const [ searchHistory, setSearchHistory ] = useState('');
 
@@ -64,7 +61,10 @@ function History () {
   const orderedTransactions = orderBy(unorderedTransactions, i => i.timeStamp, 'desc');
     
   const transactions = orderedTransactions.filter((i)=>{
-    return (moment.unix(i.timeStamp).isSameOrAfter(startDate) && moment.unix(i.timeStamp).isSameOrBefore(endDate));
+    if(startDate && endDate) {
+      return (moment.unix(i.timeStamp).isSameOrAfter(startDate) && moment.unix(i.timeStamp).isSameOrBefore(endDate));
+    }
+    return true;
   })  
 
   const currentNetwork = useSelector(selectNetwork());
