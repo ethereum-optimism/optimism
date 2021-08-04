@@ -16,6 +16,7 @@ import '@eth-optimism/hardhat-ovm'
 import './tasks/deploy'
 import './tasks/l2-gasprice'
 import './tasks/set-owner'
+import './tasks/whitelist'
 import 'hardhat-gas-reporter'
 
 // Load environment variables from .env
