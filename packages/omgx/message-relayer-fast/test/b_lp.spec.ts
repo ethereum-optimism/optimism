@@ -557,7 +557,7 @@ describe('Liquidity Pool Test', async () => {
     })
   })
 
-  it("should revert unfulfillable swaps", async () => {
+  it("should revert unfulfillable swap-offs", async () => {
 
      const preBobL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
      const preBobL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
@@ -587,5 +587,36 @@ describe('Liquidity Pool Test', async () => {
 
      const exitFees = fastExitAmount.mul(50).div(1000)
      expect(postBobL2ERC20Balance).to.deep.eq(preBobL2ERC20Balance.sub(exitFees))
+   })
+
+   it("should revert unfulfillable swap-ons", async () => {
+
+      const preL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
+      const preL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
+
+      const requestedLiquidity = (await L2ERC20.balanceOf(L2LiquidityPool.address)).add(1)
+      const swapOnAmount = requestedLiquidity.mul(1000).div(950)
+
+      const approveBobL1TX = await L1ERC20.connect(env.bobl1Wallet).approve(
+        L1LiquidityPool.address,
+        swapOnAmount
+      )
+      await approveBobL1TX.wait()
+
+      await env.waitForRevertXDomainTransaction(
+        L1LiquidityPool.clientDepositL1(
+          swapOnAmount,
+          L1ERC20.address
+        ),
+        Direction.L1ToL2
+      )
+
+      const postBobL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
+      const postBobL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
+
+      const swapOnFees = swapOnAmount.mul(50).div(1000)
+
+      expect(preL2ERC20Balance).to.deep.eq(postBobL2ERC20Balance)
+      expect(postBobL1ERC20Balance).to.deep.eq(preL1ERC20Balance.sub(swapOnFees))
    })
 })

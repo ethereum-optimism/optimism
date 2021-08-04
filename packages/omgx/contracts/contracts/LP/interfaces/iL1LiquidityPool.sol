@@ -39,6 +39,15 @@ interface iL1LiquidityPool {
         address tokenAddress
     );
 
+    event ClientPayL1Settlement(
+        address sender,
+        uint256 amount,
+        uint256 userRewardFee,
+        uint256 ownerRewardFee,
+        uint256 totalFee,
+        address tokenAddress
+    );
+
     event WithdrawLiquidity(
         address sender,
         address receiver,
@@ -58,6 +67,13 @@ interface iL1LiquidityPool {
      *************************/
 
     function clientPayL1(
+        address payable _to,
+        uint256 _amount,
+        address _tokenAddress
+    )
+        external;
+
+    function clientPayL1Settlement(
         address payable _to,
         uint256 _amount,
         address _tokenAddress

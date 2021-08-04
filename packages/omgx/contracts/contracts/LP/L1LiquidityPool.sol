@@ -83,6 +83,7 @@ contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
     uint256 public ownerRewardFeeRate;
     // Default gas value which can be overridden if more complex logic runs on L2.
     uint32 public DEFAULT_FINALIZE_DEPOSIT_L2_GAS = 1200000;
+    uint32 public SETTLEMENT_L2_GAS = 1400000;
     uint256 constant internal SAFE_GAS_STIPEND = 2300;
 
     /********************
@@ -109,6 +110,15 @@ contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
     );
 
     event ClientPayL1(
+        address sender,
+        uint256 amount,
+        uint256 userRewardFee,
+        uint256 ownerRewardFee,
+        uint256 totalFee,
+        address tokenAddress
+    );
+
+    event ClientPayL1Settlement(
         address sender,
         uint256 amount,
         uint256 userRewardFee,
@@ -214,21 +224,6 @@ contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
                 accOwnerReward: 0,
                 startTime: block.timestamp
             });
-    }
-
-    /**
-     * @dev Overridable getter for the L2 gas limit, in the case it may be
-     * dynamic, and the above public constant does not suffice.
-     *
-     */
-    function getFinalizeDepositL2Gas()
-        internal
-        view
-        returns(
-            uint32
-        )
-    {
-        return DEFAULT_FINALIZE_DEPOSIT_L2_GAS;
     }
 
     /**
@@ -345,7 +340,8 @@ contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
         // Send calldata into L1
         sendCrossDomainMessage(
             address(L2LiquidityPoolAddress),
-            getFinalizeDepositL2Gas(),
+            // extra gas for complex l2 logic
+            SETTLEMENT_L2_GAS,
             data
         );
 
@@ -540,15 +536,15 @@ contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
          if (replyNeeded) {
              // send cross domain message
              bytes memory data = abi.encodeWithSelector(
-             iL2LiquidityPool.clientPayL2.selector,
+             iL2LiquidityPool.clientPayL2Settlement.selector,
              _to,
              _amount,
-             poolInfo[_tokenAddress].l2TokenAddress
+             pool.l2TokenAddress
              );
 
              sendCrossDomainMessage(
                  address(L2LiquidityPoolAddress),
-                 getFinalizeDepositL2Gas(),
+                 DEFAULT_FINALIZE_DEPOSIT_L2_GAS,
                  data
              );
          } else {
@@ -561,5 +557,48 @@ contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
              _tokenAddress
              );
          }
+    }
+
+    /**
+     * Settlement pay when there's not enough funds on the other side
+     * @param _to receiver to get the funds
+     * @param _amount amount to to be transferred.
+     * @param _tokenAddress L1 token address
+     */
+    function clientPayL1Settlement(
+        address payable _to,
+        uint256 _amount,
+        address _tokenAddress
+    )
+        external
+        onlyFromCrossDomainAccount(address(L2LiquidityPoolAddress))
+    {
+        PoolInfo storage pool = poolInfo[_tokenAddress];
+        uint256 userRewardFee = (_amount.mul(userRewardFeeRate)).div(1000);
+        uint256 ownerRewardFee = (_amount.mul(ownerRewardFeeRate)).div(1000);
+        uint256 totalFee = userRewardFee.add(ownerRewardFee);
+        uint256 receivedAmount = _amount.sub(totalFee);
+
+        pool.accUserReward = pool.accUserReward.add(userRewardFee);
+        pool.accOwnerReward = pool.accOwnerReward.add(ownerRewardFee);
+
+        if (_tokenAddress != address(0)) {
+            IERC20(_tokenAddress).safeTransfer(_to, receivedAmount);
+        } else {
+            //this is ETH
+            // balances[address(0)] = balances[address(0)].sub(_amount);
+            //_to.transfer(_amount); UNSAFE
+            (bool sent,) = _to.call{gas: SAFE_GAS_STIPEND, value: receivedAmount}("");
+            require(sent, "Failed to send Ether");
+        }
+
+        emit ClientPayL1Settlement(
+        _to,
+        receivedAmount,
+        userRewardFee,
+        ownerRewardFee,
+        totalFee,
+        _tokenAddress
+        );
     }
 }

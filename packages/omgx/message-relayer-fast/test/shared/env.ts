@@ -142,8 +142,8 @@ export class OptimismEnv {
      direction: Direction
    ) {
      const {remoteReceipt} = await waitForXDomainTransaction(this.watcher, tx, direction)
-     const [xDomainMsgHash] = await this.watcher.getMessageHashesFromL1Tx(remoteReceipt.transactionHash)
-     await this.watcher.getL2TransactionReceipt(xDomainMsgHash)
+     const [xDomainMsgHash] = await this.watcher.getMessageHashesFromL2Tx(remoteReceipt.transactionHash)
+     await this.watcherFast.getL1TransactionReceipt(xDomainMsgHash)
    }
 
    async waitForRevertXDomainTransactionFast(

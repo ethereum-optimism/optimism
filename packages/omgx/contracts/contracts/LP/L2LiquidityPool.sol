@@ -117,6 +117,15 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         address tokenAddress
     );
 
+    event ClientPayL2Settlement(
+        address sender,
+        uint256 amount,
+        uint256 userRewardFee,
+        uint256 ownerRewardFee,
+        uint256 totalFee,
+        address tokenAddress
+    );
+
     event WithdrawLiquidity(
         address sender,
         address receiver,
@@ -469,12 +478,66 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         uint256 totalFee = userRewardFee.add(ownerRewardFee);
         uint256 receivedAmount = _amount.sub(totalFee);
 
+        if (receivedAmount > IERC20(_tokenAddress).balanceOf(address(this))) {
+            // send cross domain message
+            bytes memory data = abi.encodeWithSelector(
+            iL1LiquidityPool.clientPayL1Settlement.selector,
+            _to,
+            _amount,
+            pool.l1TokenAddress
+            );
+
+            // Send calldata into L1
+            sendCrossDomainMessage(
+                address(L1LiquidityPoolAddress),
+                getFinalizeDepositL1Gas(),
+                data
+            );
+        } else {
+            pool.accUserReward = pool.accUserReward.add(userRewardFee);
+            pool.accOwnerReward = pool.accOwnerReward.add(ownerRewardFee);
+
+            IERC20(_tokenAddress).safeTransfer(_to, receivedAmount);
+
+            emit ClientPayL2(
+             _to,
+             receivedAmount,
+             userRewardFee,
+             ownerRewardFee,
+             totalFee,
+             _tokenAddress
+            );
+        }
+    }
+
+    /**
+     * Settlement pay when there's not enough funds on other side
+     * @param _to receiver to get the funds
+     * @param _amount amount to to be transferred.
+     * @param _tokenAddress L2 token address
+     */
+    function clientPayL2Settlement(
+        address _to,
+        uint256 _amount,
+        address _tokenAddress
+    )
+        external
+        onlyInitialized()
+        onlyFromCrossDomainAccount(address(L1LiquidityPoolAddress))
+    {
+        PoolInfo storage pool = poolInfo[_tokenAddress];
+
+        uint256 userRewardFee = (_amount.mul(userRewardFeeRate)).div(1000);
+        uint256 ownerRewardFee = (_amount.mul(ownerRewardFeeRate)).div(1000);
+        uint256 totalFee = userRewardFee.add(ownerRewardFee);
+        uint256 receivedAmount = _amount.sub(totalFee);
+
         pool.accUserReward = pool.accUserReward.add(userRewardFee);
         pool.accOwnerReward = pool.accOwnerReward.add(ownerRewardFee);
 
         IERC20(_tokenAddress).safeTransfer(_to, receivedAmount);
 
-        emit ClientPayL2(
+        emit ClientPayL2Settlement(
           _to,
           receivedAmount,
           userRewardFee,
