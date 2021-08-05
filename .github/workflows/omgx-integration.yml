@@ -81,7 +81,7 @@ jobs:
 
       - name: Bring the stack up
         working-directory: ./ops
-        run: docker-compose up --no-build -d
+        run: docker-compose up --no-build -d -V
 
       # just sets up background logs for the system that was just started
       # this just adds the logging

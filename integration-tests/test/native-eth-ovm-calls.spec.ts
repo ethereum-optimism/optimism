@@ -14,6 +14,7 @@ import { Interface } from 'ethers/lib/utils'
 chai.use(solidity)
 
 describe('Native ETH value integration tests', () => {
+  
   let env: OptimismEnv
   let wallet: Wallet
   let other: Wallet
@@ -25,46 +26,53 @@ describe('Native ETH value integration tests', () => {
   })
 
   it('should allow an L2 EOA to send to a new account and back again', async () => {
-    const getBalances = async (): Promise<BigNumber[]> => {
-      return [
-        await wallet.provider.getBalance(wallet.address),
-        await wallet.provider.getBalance(other.address),
-      ]
-    }
+    
+    const fee = BigNumber.from('96300375000000')
+    const value = 1000 //this is in units of wei - perfect
 
-    const checkBalances = async (
-      expectedBalances: BigNumber[]
-    ): Promise<void> => {
-      const realBalances = await getBalances()
-      expect(realBalances[0]).to.deep.eq(expectedBalances[0])
-      expect(realBalances[1]).to.deep.eq(expectedBalances[1])
-    }
+    //fund with double the fee to be on the safe side
+    await fundUser(env.watcher, env.l1Bridge, fee.mul(3), wallet.address)
 
-    const value = 10
-    await fundUser(env.watcher, env.l1Bridge, value, wallet.address)
+    const ib_wallet = await wallet.provider.getBalance(wallet.address)
+    const ib_other = await wallet.provider.getBalance(other.address)
 
-    const initialBalances = await getBalances()
-
-    const there = await wallet.sendTransaction({
+    let there = await wallet.sendTransaction({
       to: other.address,
-      value,
-      gasPrice: 0,
+      value: BigNumber.from('1000')
     })
     await there.wait()
 
-    await checkBalances([
-      initialBalances[0].sub(value),
-      initialBalances[1].add(value),
-    ])
+    const ib_wallet1 = await wallet.provider.getBalance(wallet.address)
+    const ib_other1 = await wallet.provider.getBalance(other.address)
 
+    //other got 1000
+    expect(ib_other.add('1000')).to.deep.eq(ib_other1)
+    expect(ib_wallet1).to.be.below(ib_wallet)
+
+    //and now send 2x the fees to the 'other'
+    there = await wallet.sendTransaction({
+      to: other.address,
+      value: fee.mul(2),
+    })
+    await there.wait()
+
+    const ib_wallet2 = await wallet.provider.getBalance(wallet.address)
+    const ib_other2 = await wallet.provider.getBalance(other.address)
+
+    //other now send back the 1000
     const backAgain = await other.sendTransaction({
       to: wallet.address,
-      value,
-      gasPrice: 0,
+      value: BigNumber.from('1000'),
     })
     await backAgain.wait()
 
-    await checkBalances(initialBalances)
+    const ib_wallet3 = await wallet.provider.getBalance(wallet.address)
+    const ib_other3 = await wallet.provider.getBalance(other.address)
+
+    //and sent back 1000
+    expect(ib_wallet2.add('1000')).to.deep.eq(ib_wallet3)
+    expect(ib_other3).to.be.below(ib_other2)
+
   })
 
   describe(`calls between OVM contracts with native ETH value and relevant opcodes`, async () => {
@@ -75,11 +83,13 @@ describe('Native ETH value integration tests', () => {
     let ValueCalls1: Contract
 
     const checkBalances = async (expectedBalances: number[]) => {
+      
       // query geth as one check
       const balance0 = await wallet.provider.getBalance(ValueCalls0.address)
       const balance1 = await wallet.provider.getBalance(ValueCalls1.address)
       expect(balance0).to.deep.eq(BigNumber.from(expectedBalances[0]))
       expect(balance1).to.deep.eq(BigNumber.from(expectedBalances[1]))
+      
       // query ovmBALANCE() opcode via eth_call as another check
       const ovmBALANCE0 = await ValueCalls0.callStatic.getBalance(
         ValueCalls0.address
@@ -148,14 +158,14 @@ describe('Native ETH value integration tests', () => {
         initialBalance0,
         ValueCalls0.address
       )
-      // These tests ass assume ValueCalls0 starts with a balance, but ValueCalls1 does not.
+      // These tests assume ValueCalls0 starts with a balance, but ValueCalls1 does not.
       await checkBalances([initialBalance0, 0])
     })
 
     it('should allow ETH to be sent', async () => {
       const sendAmount = 15
       const tx = await ValueCalls0.simpleSend(ValueCalls1.address, sendAmount, {
-        gasPrice: 0,
+        //gasPrice: 0,
       })
       await tx.wait()
 
@@ -188,7 +198,7 @@ describe('Native ETH value integration tests', () => {
 
     it('should have the correct ovmSELFBALANCE which includes the msg.value', async () => {
       // give an initial balance which the ovmCALLVALUE should be added to when calculating ovmSELFBALANCE
-      const initialBalance = 10
+      const initialBalance = 100
       await fundUser(
         env.watcher,
         env.l1Bridge,
@@ -251,7 +261,7 @@ describe('Native ETH value integration tests', () => {
       const ValueContext = await Factory__ValueContext.deploy()
       await ValueContext.deployTransaction.wait()
 
-      const sendAmount = 10
+      const sendAmount = 1
 
       const [outerSuccess, outerReturndata] =
         await ValueCalls0.callStatic.sendWithData(
