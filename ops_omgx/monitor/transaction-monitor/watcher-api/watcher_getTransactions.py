@@ -32,7 +32,8 @@ def watcher_getTransactions(event, context):
   transactionData = []
   with con.cursor() as cur:
     try:
-      cur.execute("""SELECT hash, blockNumber, `from`, `to`, timestamp, crossDomainMessage, crossDomainMessageFinalize, crossDomainMessageSendTime, crossDomainMessageEstimateFinalizedTime, fastRelay
+      cur.execute("""SELECT hash, blockNumber, `from`, `to`, timestamp, crossDomainMessage, crossDomainMessageFinalize, crossDomainMessageSendTime, crossDomainMessageEstimateFinalizedTime, fastRelay,
+        l1Hash, l1BlockNumber, l1BlockHash, l1From, l1To
         FROM receipt WHERE `from`=%s ORDER BY CAST(blockNumber as unsigned) DESC LIMIT %s OFFSET %s""", (address, toRange - fromRange, fromRange))
       transactionsDataRaw = cur.fetchall()
 
@@ -58,7 +59,12 @@ def watcher_getTransactions(event, context):
           "crossDomainMessageFinailze": transactionDataRaw[6],
           "crossDomainMessageSendTime": crossDomainMessageSendTime,
           "crossDomainMessageEstimateFinalizedTime": crossDomainMessageEstimateFinalizedTime,
-          "fastRelay": fastRelay
+          "fastRelay": fastRelay,
+          "l1Hash": transactionDataRaw[10],
+          "l1BlockNumber": transactionDataRaw[11],
+          "l1BlockHash": transactionDataRaw[12],
+          "l1From": transactionDataRaw[13],
+          "l1To": transactionDataRaw[14]
         })
 
     except Exception as e:

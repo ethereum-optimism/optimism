@@ -69,7 +69,7 @@ class DatabaseService extends OptimismEnv{
         timestamp INT,
         crossDomainMessageFinalizedTime INT,
         fastRelay BOOL,
-        contractAddress VARCHAR(255), 
+        contractAddress VARCHAR(255),
         PRIMARY KEY ( hash )
       )`
     );
@@ -122,7 +122,12 @@ class DatabaseService extends OptimismEnv{
       crossDomainMessageFinalizedTime = ${receiptData.crossDomainMessageFinalizedTime ? receiptData.crossDomainMessageFinalizedTime : null},
       fastRelay=${receiptData.fastRelay ? receiptData.fastRelay : null},
       contractAddress=${receiptData.contractAddress ? "'" + receiptData.contractAddress + "'" : null},
-      timestamp='${receiptData.timestamp.toString()}'
+      timestamp=${receiptData.timestamp ? receiptData.timestamp.toString() : null},
+      l1Hash=${receiptData.l1Hash ? `'${receiptData.l1Hash.toString()}'` : null},
+      l1BlockNumber=${receiptData.l1BlockNumber ? Number(receiptData.l1BlockNumber) : null},
+      l1BlockHash=${receiptData.l1BlockHash ? `'${receiptData.l1BlockHash.toString()}'` : null},
+      l1From=${receiptData.l1From ? `'${receiptData.l1From.toString()}'` : null},
+      l1To=${receiptData.l1To ? `'${receiptData.l1To.toString()}'` : null}
     `);
   }
 
@@ -140,7 +145,12 @@ class DatabaseService extends OptimismEnv{
     return await this.query(`UPDATE receipt
       SET crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
       crossDomainMessageFinalizedTime=${receiptData.crossDomainMessageFinalizedTime},
-      fastRelay = ${receiptData.fastRelay}
+      fastRelay = ${receiptData.fastRelay},
+      l1Hash=${receiptData.l1Hash ? `'${receiptData.l1Hash.toString()}'` : null},
+      l1BlockNumber=${receiptData.l1BlockNumber ? Number(receiptData.l1BlockNumber) : null},
+      l1BlockHash=${receiptData.l1BlockHash ? `'${receiptData.l1BlockHash.toString()}'` : null},
+      l1From=${receiptData.l1From ? `'${receiptData.l1From.toString()}'` : null},
+      l1To=${receiptData.l1To ? `'${receiptData.l1To.toString()}'` : null}
       WHERE hash='${receiptData.transactionHash.toString()}'
       AND blockHash='${receiptData.blockHash.toString()}'
     `);

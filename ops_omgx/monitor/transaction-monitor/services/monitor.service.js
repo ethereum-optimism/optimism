@@ -69,6 +69,9 @@ class MonitorService extends OptimismEnv {
     await this.databaseService.initDatabaseService();
     await this.databaseService.initMySQL();
 
+    // get whitelist
+    await this.getWhitelist();
+
     // scan the chain and get the latest number of blocks
     this.latestBlock = await this.L2Provider.getBlockNumber();
 
@@ -104,16 +107,12 @@ class MonitorService extends OptimismEnv {
       }
 
       receiptData = await this.getCrossDomainMessageStatusL2(receiptData, blocksData);
-
       // if message is cross domain check if message has been finalized
       if (receiptData.crossDomainMessage){
         receiptData = await this.getCrossDomainMessageStatusL1(receiptData);
       }
-
       await this.databaseService.insertReceiptData(receiptData);
     }
-
-    await this.getWhitelist();
 
     // update scannedLastBlock
     this.scannedLastBlock = this.latestBlock;
@@ -281,7 +280,6 @@ class MonitorService extends OptimismEnv {
           message
         );
         if(this.whitelist.includes(decoded._target)) fastRelay = true;
-
       }
     }
 
@@ -303,7 +301,8 @@ class MonitorService extends OptimismEnv {
 
   async getCrossDomainMessageStatusL1(receiptData){
     this.logger.info("Checking if message has been finalized...");
-    receiptData = await this.L2Provider.getTransactionReceipt(receiptData.hash);
+    const receiptDataRaw = await this.L2Provider.getTransactionReceipt(receiptData.transactionHash ? receiptData.transactionHash : receiptData.hash);
+    receiptData = { ...JSON.parse(JSON.stringify(receiptData)), ...receiptDataRaw };
     // Find the transaction that sends message from L2 to L1
     const filteredLogData = receiptData.logs.filter(i => i.address === this.OVM_L2CrossDomainMessenger && i.topics[0] === ethers.utils.id('SentMessage(bytes)'));
     let msgHash;
@@ -318,9 +317,16 @@ class MonitorService extends OptimismEnv {
     let crossDomainMessageFinalize = false;
     let crossDomainMessageFinalizedTime;
 
-    if(await this.getL1TransactionReceipt(msgHash, receiptData.fastRelay)){
+    const matches = await this.getL1TransactionReceipt(msgHash, receiptData.fastRelay)
+    if (matches !== false) {
+      const l1Receipt = await this.L1Provider.getTransactionReceipt(matches[0].transactionHash)
       crossDomainMessageFinalize = true;
       crossDomainMessageFinalizedTime = (new Date().getTime() / 1000).toFixed(0);
+      receiptData.l1Hash = l1Receipt.transactionHash.toString();
+      receiptData.l1BlockNumber = Number(l1Receipt.blockNumber.toString());
+      receiptData.l1BlockHash = l1Receipt.blockHash.toString();
+      receiptData.l1From = l1Receipt.from.toString();
+      receiptData.l1To = l1Receipt.to.toString();
     }
 
     receiptData.crossDomainMessageFinalize = crossDomainMessageFinalize;
@@ -349,7 +355,7 @@ class MonitorService extends OptimismEnv {
 
     if (matches.length > 0) {
       if (matches.length > 1) return false;
-      return true
+      return matches
     } else {
       return false;
     }

@@ -21,7 +21,7 @@ const main = async () => {
   const service = new MonitorService();
   await service.initConnection();
   await service.initScan();
-  
+
   loop(() => service.startTransactionMonitor())
   loop(() => service.startCrossDomainMessageMonitor())
 }
