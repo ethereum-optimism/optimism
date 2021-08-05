@@ -1,21 +1,25 @@
 /* External Imports */
-import { Contract, Signer, utils, providers } from 'ethers'
-import { TransactionReceipt } from '@ethersproject/abstract-provider'
+import {
+  Contract,
+  Signer,
+  utils,
+  providers,
+  PopulatedTransaction,
+} from 'ethers'
+import {
+  TransactionReceipt,
+  TransactionResponse,
+} from '@ethersproject/abstract-provider'
 import { Gauge, Histogram, Counter } from 'prom-client'
-import * as ynatm from '@eth-optimism/ynatm'
 import { RollupInfo, sleep } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { getContractFactory } from 'old-contracts'
+/* Internal Imports */
+import { TxSubmissionHooks } from '..'
 
 export interface BlockRange {
   start: number
   end: number
-}
-export interface ResubmissionConfig {
-  resubmissionTimeout: number
-  minGasPriceInGwei: number
-  maxGasPriceInGwei: number
-  gasRetryIncrement: number
 }
 
 interface BatchSubmitterMetrics {
@@ -49,10 +53,6 @@ export abstract class BatchSubmitter {
     readonly finalityConfirmations: number,
     readonly addressManagerAddress: string,
     readonly minBalanceEther: number,
-    readonly minGasPriceInGwei: number,
-    readonly maxGasPriceInGwei: number,
-    readonly gasRetryIncrement: number,
-    readonly gasThresholdInGwei: number,
     readonly blockOffset: number,
     readonly logger: Logger,
     readonly defaultMetrics: Metrics
@@ -190,69 +190,37 @@ export abstract class BatchSubmitter {
     return true
   }
 
-  public static async getReceiptWithResubmission(
-    txFunc: (gasPrice) => Promise<TransactionReceipt>,
-    resubmissionConfig: ResubmissionConfig,
-    logger: Logger
-  ): Promise<TransactionReceipt> {
-    const {
-      resubmissionTimeout,
-      minGasPriceInGwei,
-      maxGasPriceInGwei,
-      gasRetryIncrement,
-    } = resubmissionConfig
-
-    const receipt = await ynatm.send({
-      sendTransactionFunction: txFunc,
-      minGasPrice: ynatm.toGwei(minGasPriceInGwei),
-      maxGasPrice: ynatm.toGwei(maxGasPriceInGwei),
-      gasPriceScalingFunction: ynatm.LINEAR(gasRetryIncrement),
-      delay: resubmissionTimeout,
-    })
-
-    logger.debug('Resubmission tx receipt', { receipt })
-
-    return receipt
-  }
-
-  private async _getMinGasPriceInGwei(): Promise<number> {
-    if (this.minGasPriceInGwei !== 0) {
-      return this.minGasPriceInGwei
+  protected _makeHooks(txName: string): TxSubmissionHooks {
+    return {
+      beforeSendTransaction: (tx: PopulatedTransaction) => {
+        this.logger.info(`Submitting ${txName} transaction`, {
+          gasPrice: tx.gasPrice,
+          nonce: tx.nonce,
+          contractAddr: this.chainContract.address,
+        })
+      },
+      onTransactionResponse: (txResponse: TransactionResponse) => {
+        this.logger.info(`Submitted ${txName} transaction`, {
+          txHash: txResponse.hash,
+          from: txResponse.from,
+        })
+        this.logger.debug(`${txName} transaction data`, {
+          data: txResponse.data,
+        })
+      },
     }
-    let minGasPriceInGwei = parseInt(
-      utils.formatUnits(await this.signer.getGasPrice(), 'gwei'),
-      10
-    )
-    if (minGasPriceInGwei > this.maxGasPriceInGwei) {
-      this.logger.warn(
-        'Minimum gas price is higher than max! Ethereum must be congested...'
-      )
-      minGasPriceInGwei = this.maxGasPriceInGwei
-    }
-    return minGasPriceInGwei
   }
 
   protected async _submitAndLogTx(
-    txFunc: (gasPrice) => Promise<TransactionReceipt>,
+    submitTransaction: () => Promise<TransactionReceipt>,
     successMessage: string
   ): Promise<TransactionReceipt> {
     this.lastBatchSubmissionTimestamp = Date.now()
-    this.logger.debug('Waiting for receipt...')
-
-    const resubmissionConfig: ResubmissionConfig = {
-      resubmissionTimeout: this.resubmissionTimeout,
-      minGasPriceInGwei: await this._getMinGasPriceInGwei(),
-      maxGasPriceInGwei: this.maxGasPriceInGwei,
-      gasRetryIncrement: this.gasRetryIncrement,
-    }
+    this.logger.debug('Submitting transaction & waiting for receipt...')
 
     let receipt: TransactionReceipt
     try {
-      receipt = await BatchSubmitter.getReceiptWithResubmission(
-        txFunc,
-        resubmissionConfig,
-        this.logger
-      )
+      receipt = await submitTransaction()
     } catch (err) {
       this.metrics.failedSubmissions.inc()
       if (err.reason) {

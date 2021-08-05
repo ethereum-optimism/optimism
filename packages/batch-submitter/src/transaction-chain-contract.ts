@@ -1,5 +1,5 @@
 /* External Imports */
-import { Contract, BigNumber } from 'ethers'
+import { Contract, ethers } from 'ethers'
 import {
   TransactionResponse,
   TransactionRequest,
@@ -9,7 +9,7 @@ import {
   AppendSequencerBatchParams,
   BatchContext,
   encodeAppendSequencerBatch,
-  encodeHex,
+  remove0x,
 } from '@eth-optimism/core-utils'
 
 export { encodeAppendSequencerBatch, BatchContext, AppendSequencerBatchParams }
@@ -19,6 +19,27 @@ export { encodeAppendSequencerBatch, BatchContext, AppendSequencerBatchParams }
  * where the `appendSequencerBatch(...)` function uses a specialized encoding for improved efficiency.
  */
 export class CanonicalTransactionChainContract extends Contract {
+  public customPopulateTransaction = {
+    appendSequencerBatch: async (
+      batch: AppendSequencerBatchParams
+    ): Promise<ethers.PopulatedTransaction> => {
+      const nonce = await this.signer.getTransactionCount()
+      const to = this.address
+      const data = getEncodedCalldata(batch)
+      const gasLimit = await this.signer.provider.estimateGas({
+        to,
+        from: await this.signer.getAddress(),
+        data,
+      })
+
+      return {
+        nonce,
+        to,
+        data,
+        gasLimit,
+      }
+    },
+  }
   public async appendSequencerBatch(
     batch: AppendSequencerBatchParams,
     options?: TransactionRequest
@@ -31,29 +52,24 @@ export class CanonicalTransactionChainContract extends Contract {
  * Internal Functions *
  *********************/
 
-const APPEND_SEQUENCER_BATCH_METHOD_ID = 'appendSequencerBatch()'
+const APPEND_SEQUENCER_BATCH_METHOD_ID = keccak256(
+  Buffer.from('appendSequencerBatch()')
+).slice(2, 10)
 
 const appendSequencerBatch = async (
   OVM_CanonicalTransactionChain: Contract,
   batch: AppendSequencerBatchParams,
   options?: TransactionRequest
 ): Promise<TransactionResponse> => {
-  const methodId = keccak256(
-    Buffer.from(APPEND_SEQUENCER_BATCH_METHOD_ID)
-  ).slice(2, 10)
-  const calldata = encodeAppendSequencerBatch(batch)
   return OVM_CanonicalTransactionChain.signer.sendTransaction({
     to: OVM_CanonicalTransactionChain.address,
-    data: '0x' + methodId + calldata,
+    data: getEncodedCalldata(batch),
     ...options,
   })
 }
 
-const encodeBatchContext = (context: BatchContext): string => {
-  return (
-    encodeHex(context.numSequencedTransactions, 6) +
-    encodeHex(context.numSubsequentQueueTransactions, 6) +
-    encodeHex(context.timestamp, 10) +
-    encodeHex(context.blockNumber, 10)
-  )
+const getEncodedCalldata = (batch: AppendSequencerBatchParams): string => {
+  const methodId = APPEND_SEQUENCER_BATCH_METHOD_ID
+  const calldata = encodeAppendSequencerBatch(batch)
+  return '0x' + remove0x(methodId) + remove0x(calldata)
 }

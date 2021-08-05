@@ -15,4 +15,5 @@
 # packages/message-relayer/           @K-Ho
 # packages/batch-submitter/           @annieke @karlfloersch
 # packages/data-transport-layer/      @annieke
+# packages/replica-healthcheck/       @annieke
 # integration-tests/                  @tynes
