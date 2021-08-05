@@ -27,6 +27,8 @@ import {
   TX_BATCH_SUBMITTER_LOG_TAG,
   STATE_BATCH_SUBMITTER_LOG_TAG,
   BatchSubmitter,
+  YnatmTransactionSubmitter,
+  ResubmissionConfig,
 } from '../../src'
 
 import {
@@ -200,8 +202,19 @@ describe('BatchSubmitter', () => {
     sinon.restore()
   })
 
-  const createBatchSubmitter = (timeout: number): TransactionBatchSubmitter =>
-    new TransactionBatchSubmitter(
+  const createBatchSubmitter = (timeout: number): TransactionBatchSubmitter => {
+    const resubmissionConfig: ResubmissionConfig = {
+      resubmissionTimeout: 100000,
+      minGasPriceInGwei: MIN_GAS_PRICE_IN_GWEI,
+      maxGasPriceInGwei: GAS_THRESHOLD_IN_GWEI,
+      gasRetryIncrement: GAS_RETRY_INCREMENT,
+    }
+    const txBatchTxSubmitter = new YnatmTransactionSubmitter(
+      sequencer,
+      resubmissionConfig,
+      1
+    )
+    return new TransactionBatchSubmitter(
       sequencer,
       l2Provider as any,
       MIN_TX_SIZE,
@@ -212,15 +225,14 @@ describe('BatchSubmitter', () => {
       100000,
       AddressManager.address,
       1,
-      MIN_GAS_PRICE_IN_GWEI,
-      MAX_GAS_PRICE_IN_GWEI,
-      GAS_RETRY_INCREMENT,
       GAS_THRESHOLD_IN_GWEI,
+      txBatchTxSubmitter,
       1,
       new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
       testMetrics,
       false
     )
+  }
 
   describe('TransactionBatchSubmitter', () => {
     describe('submitNextBatch', () => {
@@ -375,7 +387,7 @@ describe('BatchSubmitter', () => {
           .callsFake(async () => lowGasPriceWei)
 
         const receipt = await batchSubmitter.submitNextBatch()
-        expect(sequencer.getGasPrice).to.have.been.calledOnce
+        expect(sequencer.getGasPrice).to.have.been.calledTwice
         expect(receipt).to.not.be.undefined
       })
     })
@@ -417,6 +429,17 @@ describe('BatchSubmitter', () => {
       // submit a batch of transactions to enable state batch submission
       await txBatchSubmitter.submitNextBatch()
 
+      const resubmissionConfig: ResubmissionConfig = {
+        resubmissionTimeout: 100000,
+        minGasPriceInGwei: MIN_GAS_PRICE_IN_GWEI,
+        maxGasPriceInGwei: GAS_THRESHOLD_IN_GWEI,
+        gasRetryIncrement: GAS_RETRY_INCREMENT,
+      }
+      const stateBatchTxSubmitter = new YnatmTransactionSubmitter(
+        sequencer,
+        resubmissionConfig,
+        1
+      )
       stateBatchSubmitter = new StateBatchSubmitter(
         sequencer,
         l2Provider as any,
@@ -429,10 +452,7 @@ describe('BatchSubmitter', () => {
         0, // finalityConfirmations
         AddressManager.address,
         1,
-        MIN_GAS_PRICE_IN_GWEI,
-        MAX_GAS_PRICE_IN_GWEI,
-        GAS_RETRY_INCREMENT,
-        GAS_THRESHOLD_IN_GWEI,
+        stateBatchTxSubmitter,
         1,
         new Logger({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
         testMetrics,
@@ -472,55 +492,5 @@ describe('Batch Submitter with Ganache', () => {
 
   after(async () => {
     await server.close()
-  })
-
-  // Unit test for getReceiptWithResubmission function,
-  // tests for increasing gas price on resubmission
-  it('should resubmit a transaction if it is not confirmed', async () => {
-    const gasPrices = []
-    const numConfirmations = 2
-    const sendTxFunc = async (gasPrice) => {
-      // push the retried gasPrice
-      gasPrices.push(gasPrice)
-
-      const tx = signer.sendTransaction({
-        to: predeploys.OVM_SequencerEntrypoint,
-        value: 88,
-        nonce: 0,
-        gasPrice,
-      })
-
-      const response = await tx
-
-      return signer.provider.waitForTransaction(response.hash, numConfirmations)
-    }
-
-    const resubmissionConfig = {
-      numConfirmations,
-      resubmissionTimeout: 1_000, // retry every second
-      minGasPriceInGwei: 0,
-      maxGasPriceInGwei: 100,
-      gasRetryIncrement: 5,
-    }
-
-    BatchSubmitter.getReceiptWithResubmission(
-      sendTxFunc,
-      resubmissionConfig,
-      new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG })
-    )
-
-    // Wait 1.5s for at least 1 retry
-    await new Promise((r) => setTimeout(r, 1500))
-
-    // Iterate through gasPrices to ensure each entry increases from
-    // the last
-    const isIncreasing = gasPrices.reduce(
-      (isInc, gasPrice, i, gP) =>
-        (isInc && gasPrice > gP[i - 1]) || Number.NEGATIVE_INFINITY,
-      true
-    )
-
-    expect(gasPrices).to.have.lengthOf.above(1) // retried at least once
-    expect(isIncreasing).to.be.true
   })
 })
