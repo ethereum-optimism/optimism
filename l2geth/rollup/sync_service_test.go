@@ -31,8 +31,17 @@ func setupLatestEthContextTest() (*SyncService, *EthContext) {
 		BlockHash:   common.Hash{},
 		Timestamp:   uint64(service.timestampRefreshThreshold.Seconds()) + 1,
 	}
+
+	tx := mockTx()
+	setMockQueueIndex(tx, 0)
+	setMockTxL1BlockNumber(tx, big.NewInt(int64(resp.BlockNumber)))
+	setMockTxL1Timestamp(tx, resp.Timestamp)
+
 	setupMockClient(service, map[string]interface{}{
 		"GetLatestEthContext": resp,
+		"GetEnqueue": []*types.Transaction{
+			tx,
+		},
 	})
 
 	return service, resp
@@ -52,8 +61,16 @@ func TestSyncServiceContextUpdated(t *testing.T) {
 		t.Fatal("context was not instantiated to the expected value")
 	}
 
-	// run the update context call once
+	// Call this (preserved from the old test case) although it should now be a no-op.
 	err := service.updateContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update the context via syncQueueToTip()
+	// This replaces the earlier method using service.updateContext()
+	service.chainHeadCh <- core.ChainHeadEvent{}
+	err = service.syncQueueToTip()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +84,12 @@ func TestSyncServiceContextUpdated(t *testing.T) {
 	if service.OVMContext != *expectedCtx {
 		t.Fatal("context was not updated to the expected response even though enough time passed")
 	}
+
+	// FIXME - The remainder of this test is preserved from the old service.updateContext() method.
+	// It should succeed, but is not testing the s.timestampRefreshThreshold comparison in its
+	// new syncQueueToTip() location. It's not clear that there's any reason for having that
+	// logic at all now. If/when it is removed from the main code, the rest of this test case
+	// should also be removed (along with the earlier service.updateContext() call).
 
 	// updating the context should be a no-op if time advanced by less than
 	// the refresh period
@@ -442,8 +465,8 @@ func TestSyncQueue(t *testing.T) {
 
 	var tip *uint64
 	go func() {
-		// atTip, index, err 
-		_, tip, err = service.syncQueue()
+		// atTip, index, err
+		_, tip, err = service.syncQueue(service.client.GetLatestEnqueueIndex)
 	}()
 
 	for i := 0; i < 4; i++ {
@@ -984,6 +1007,23 @@ func (m *mockClient) GetLatestEnqueueIndex() (*uint64, error) {
 	return enqueue.GetMeta().QueueIndex, nil
 }
 
+func (m *mockClient) GetLatestEnqueueInfo() (*EnqueueInfo, error) {
+	var inf EnqueueInfo
+
+	enqueue, err := m.GetLatestEnqueue()
+	if err != nil {
+		return nil, err
+	}
+	if enqueue == nil {
+		return nil, errElementNotFound
+	}
+
+	inf.BaseBlock = newUint64(enqueue.L1BlockNumber().Uint64())
+	inf.BaseTime = newUint64(enqueue.L1Timestamp())
+	inf.QueueIndex = enqueue.GetMeta().QueueIndex
+	return &inf, nil
+}
+
 func (m *mockClient) GetLatestTransactionBatchIndex() (*uint64, error) {
 	return nil, nil
 }
@@ -1027,6 +1067,13 @@ func mockTx() *types.Transaction {
 func setMockTxL1Timestamp(tx *types.Transaction, ts uint64) *types.Transaction {
 	meta := tx.GetMeta()
 	meta.L1Timestamp = ts
+	tx.SetTransactionMeta(meta)
+	return tx
+}
+
+func setMockTxL1BlockNumber(tx *types.Transaction, bn *big.Int) *types.Transaction {
+	meta := tx.GetMeta()
+	meta.L1BlockNumber = bn
 	tx.SetTransactionMeta(meta)
 	return tx
 }
