@@ -160,5 +160,23 @@ If you are using a network which Etherscan supports you can verify your contract
 npx hardhat etherscan-verify --api-key ... --network ...
 ```
 
+### Other hardhat tasks
+
+To whitelist deployers on Mainnet you must have the whitelist Owner wallet connected, then run:
+```bash
+npx hardhat whitelist \
+  --use-ledger true \
+  --contracts-rpc-url https://mainnet.optimism.io \
+  --address ... \ # address to whitelist
+```
+
+To withdraw ETH fees to L1 on Mainnet, run:
+```bash
+npx hardhat withdraw-fees \
+  --use-ledger \  # The ledger to withdraw fees with. Ensure this wallet has ETH on L2 to pay the tx fee.
+  --contracts-rpc-url https://mainnet.optimism.io \
+```
+
+
 ## Security
 Please refer to our [Security Policy](https://github.com/ethereum-optimism/.github/security/policy) for information about how to disclose security issues with this code.

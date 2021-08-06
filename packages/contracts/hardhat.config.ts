@@ -17,6 +17,7 @@ import './tasks/deploy'
 import './tasks/l2-gasprice'
 import './tasks/set-owner'
 import './tasks/whitelist'
+import './tasks/withdraw-fees'
 import 'hardhat-gas-reporter'
 
 // Load environment variables from .env
