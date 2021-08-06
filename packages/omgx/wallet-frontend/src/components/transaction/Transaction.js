@@ -13,9 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React from 'react';
+import React, {useState} from 'react';
 
 import Tooltip from 'components/tooltip/Tooltip';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 
 import * as styles from './Transaction.module.scss';
 
@@ -31,8 +32,13 @@ function Transaction ({
   chain,
   typeTX,
   blockNumber,
-  tooltip = ''
+  tooltip = '',
+  detail
 }) {
+
+  const [dropDownBox, setDropDownBox] = useState(false);
+  const [dropDownBoxInit, setDropDownBoxInit] = useState(true);
+
   function renderValue () {
     
     if (button) {
@@ -74,6 +80,42 @@ function Transaction ({
     )
   }
 
+  function renderDetail() {
+    if (!detail) {
+      return null;
+    }
+    return <> 
+      <div className={`${styles.subTitle} ${styles.viewMore}`} style={{ cursor: 'pointer' }}
+        onClick={() => {
+          setDropDownBox(!dropDownBox)
+          setDropDownBoxInit(false)
+        }}
+      >
+        <div>View More</div>
+        <ExpandMoreIcon />
+      </div>
+      <div
+        className={dropDownBox ?
+          styles.dropDownContainer : dropDownBoxInit ? styles.dropDownInit : styles.closeDropDown}
+      >
+        <div className={styles.title}>
+          <div>{detail.l1Hash}</div></div>
+        <div className={styles.content}>
+          <div>L1 Block : {detail.l1BlockNumber}</div>
+        </div>
+        <div className={styles.content}>
+          <div>Block Hash : {detail.l1BlockHash}</div>
+        </div>
+        <div className={styles.content}>
+          <div>L1 From : {detail.l1From}</div>
+        </div>
+        <div className={styles.content}>
+          <div>L1 To : {detail.l1To}</div>
+        </div>
+      </div>
+    </>
+  }
+
   return (
     <div className={styles.Transaction}>
       <div className={styles.transactionItem}>
@@ -103,6 +145,7 @@ function Transaction ({
             >View Details</a>  
           }
         </div>
+        {renderDetail()}
         {(button || status) &&
           <div className={styles.content}>
             <div className={styles.right}>

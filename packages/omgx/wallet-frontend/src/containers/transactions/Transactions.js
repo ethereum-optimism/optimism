@@ -65,6 +65,13 @@ function Transactions({ searchHistory, transactions, chainLink }) {
     )}
     {paginatedTransactions.map((i, index) => {
       const metaData = typeof (i.typeTX) === 'undefined' ? '' : i.typeTX
+      const {
+        l1BlockHash,
+        l1BlockNumber,
+        l1From,
+        l1Hash,
+        l1To
+      } = i;
       return (
         <Transaction
           key={index}
@@ -74,6 +81,13 @@ function Transactions({ searchHistory, transactions, chainLink }) {
           blockNumber={`Block ${i.blockNumber}`}
           chain={`${i.chain} Chain`}
           typeTX={`${metaData}`}
+          detail={l1Hash ? {
+            l1BlockHash: truncate(l1BlockHash, 8, 6, '...'),
+            l1BlockNumber,
+            l1From,
+            l1Hash: truncate(l1Hash, 8, 6, '...'),
+            l1To
+          } : null}
         />
       )
     })}
