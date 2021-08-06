@@ -58,6 +58,14 @@ function Exits ({ searchHistory, transactions,chainLink }) {
     
     const to = i.to.toLowerCase()
         
+    const {
+      l1BlockHash,
+      l1BlockNumber,
+      l1From,
+      l1Hash,
+      l1To
+    } = i;
+
     //are we dealing with a traditional exit?
     if(to === networkService.L2StandardBridgeAddress.toLowerCase()) {
       
@@ -86,6 +94,13 @@ function Exits ({ searchHistory, transactions,chainLink }) {
         midTitle={midTitle}
         button={isExitable && tradExit ? {onClick: ()=>setProcessExitModal(i), text: 'Process Exit'}: undefined}
         typeTX={`${metaData}`}
+        detail={l1Hash ? {
+          l1BlockHash: truncate(l1BlockHash, 8, 6, '...'),
+          l1BlockNumber,
+          l1From,
+          l1Hash: truncate(l1Hash, 8, 6, '...'),
+          l1To
+        } : null}
       />
     )
   })
