@@ -12,11 +12,11 @@ Greetings from your engineering team. We are in the process of our first `regene
 
 ## 1. New code/features 
 
-* As desired and expected, *load and stress testing* of OMGX Rinkeby surfaced rare errors in coordinating the L1 with the L2, requiring (minor) changes to the L2 Geth and the data transport layer - see for example https://github.com/omgnetwork/optimism/pull/230. 
+* As desired and expected, **load and stress testing** of OMGX Rinkeby surfaced rare errors in coordinating the L1 with the L2, requiring (minor) changes to the L2 Geth and the data transport layer - see for example https://github.com/omgnetwork/optimism/pull/230. 
 
-* Improvement of the *cross-chain liquidity pools* - the contracts now revert unfillable swaps (https://github.com/omgnetwork/optimism/pull/257) so that user funds do not get stuck in edge cases in which a swap passes initial balance checks but then cannot be filled when the transaction actually arrives on the other chain. 
+* Improvement of the **cross-chain liquidity pools** - the contracts now revert unfillable swaps (https://github.com/omgnetwork/optimism/pull/257) so that user funds do not get stuck in edge cases in which a swap passes initial balance checks but then cannot be filled when the transaction actually arrives on the other chain. 
 
-* *Fees* are now turned on by default on OMGX Rinkeby, so Rinkeby ETH is needed for contract deployments and transfers. The fee logic considers ETH price, chain utilization and congestion, and two hard coded limits, the `floor` and the `ceiling`. These two parameters define the lowest possible fee (e.g. transactions will never cost less than X) and the highest possible fee (e.g. transactions will never cost more than Y). In some system configurations (e.g. when OMGX utilization is low but ETH is expensive), operating losses will need to covered by operator subsidies, the goal being to guarantee a 24/7 pleasant, cost-effective, and convenient L2 experience. At the code of the OMGX L2 operations model is this function:
+* **Fees** are now turned on by default on OMGX Rinkeby, so Rinkeby ETH is needed for contract deployments and transfers. The fee logic considers ETH price, chain utilization and congestion, and two hard coded limits, the `floor` and the `ceiling`. These two parameters define the lowest possible fee (e.g. transactions will never cost less than X) and the highest possible fee (e.g. transactions will never cost more than Y). In some system configurations (e.g. when OMGX utilization is low but ETH is expensive), operating losses will need to be covered by operator subsidies, the goal being to guarantee a 24/7 pleasant, cost-effective, and convenient L2 experience. At the core of the OMGX L2 operations model is this function:
 
 ```javascript
 private async _updateGasPrice(): Promise<void> {
@@ -51,11 +51,11 @@ private async _updateGasPrice(): Promise<void> {
   }
 ```
 
-* Mainnet support for the *webwallet*. In concert with pending contract deployment on mainnet, the webwallet will soon expose a third net choice, `mainnet`, in addition to `local` and `rinkeby`. 
+* Mainnet support for the **webwallet**. In concert with pending contract deployment on mainnet, the webwallet will soon expose a third net choice, `mainnet`, in addition to `local` and `rinkeby`. 
 
-* History support for the *webwallet*. Also, for mainnet, the webwallet now shows more information about transactions, so that wallet users can see the status of their transactions inclucing block data, hashes, and cross-chain timestamps and receipts.
+* History support for the **webwallet**. Also, for mainnet, the webwallet now shows more information about transactions, so that wallet users can see the status of their transactions including block data, hashes, and cross-chain timestamps and receipts.
 
-* Name change for the *webwallet*. Reflecting its broad actual use (wallet, earn/stake, NFT minting, transaction histories, DAO interface, and more...) the webwallet will be renamed to *gateway*. The current endpoints will keep working, but in the near future, https://gateway.rinkeby.omgx.network (and https://gateway.mainnet.omgx.network) will serve as the main initial points of contact with the OMGX L2. 
+* Name change for the **webwallet**. Reflecting its broad actual use (wallet, earn/stake, NFT minting, transaction histories, DAO interface, and more...) the webwallet will be renamed to **gateway**. The current endpoints will keep working, but in the near future, https://gateway.rinkeby.omgx.network (and https://gateway.mainnet.omgx.network) will serve as the main initial points of contact with the OMGX L2. 
 
 ## 2. Hybrid Compute
 
