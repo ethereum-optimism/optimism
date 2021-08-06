@@ -34,10 +34,7 @@ var funcs = map[string]stateManagerFunction{
 }
 
 func callStateManager(input []byte, evm *EVM, contract *Contract) (ret []byte, err error) {
-	rawabi := evm.Context.OvmStateManager.ABI
-	abi := &rawabi
-
-	method, err := abi.MethodById(input)
+	method, err := evm.Context.OvmStateManager.ABI.MethodById(input)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find method id %s: %w", input, err)
 	}
