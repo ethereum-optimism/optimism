@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -90,7 +89,7 @@ func getAccountNonce(evm *EVM, contract *Contract, args map[string]interface{}) 
 		return nil, errors.New("Could not parse address arg in getAccountNonce")
 	}
 	nonce := evm.StateDB.GetNonce(address)
-	return []interface{}{new(big.Int).SetUint64(reflect.ValueOf(nonce).Uint())}, nil
+	return []interface{}{new(big.Int).SetUint64(nonce)}, nil
 }
 
 func getAccountEthAddress(evm *EVM, contract *Contract, args map[string]interface{}) ([]interface{}, error) {
