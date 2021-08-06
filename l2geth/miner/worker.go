@@ -895,7 +895,7 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	}
 	header := &types.Header{
 		ParentHash: parent.Hash(),
-		Number:     num.Add(num, common.Big1),
+		Number:     new(big.Int).Add(num, common.Big1),
 		GasLimit:   w.config.GasFloor,
 		Extra:      w.extra,
 		Time:       tx.L1Timestamp(),
@@ -915,7 +915,7 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	if w.commitTransactions(txs, w.coinbase, nil) {
 		return errors.New("Cannot commit transaction in miner")
 	}
-	return w.commit([]*types.Header{}, w.fullTaskHook, true, tstart)
+	return w.commit(nil, w.fullTaskHook, true, tstart)
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
