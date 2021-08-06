@@ -70,6 +70,11 @@ class DatabaseService extends OptimismEnv{
         crossDomainMessageFinalizedTime INT,
         fastRelay BOOL,
         contractAddress VARCHAR(255),
+        l1Hash VARCHAR(255),
+        l1BlockNumber INT,
+        l1BlockHash VARCHAR(255),
+        l1From VARCHAR(255),
+        l1To VARCHAR(255),
         PRIMARY KEY ( hash )
       )`
     );
@@ -157,7 +162,7 @@ class DatabaseService extends OptimismEnv{
   }
 
   async getNewestBlock(){
-    await this.query(`USE OMGXRinkeby`);
+    await this.query(`USE ${this.MySQLDatabaseName}`);
     return await this.query(`SELECT MAX(blockNumber) from block`);
   }
 }
