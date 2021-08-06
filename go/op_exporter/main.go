@@ -1,18 +1,23 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/go/op_exporter/k8sClient"
 	"github.com/ethereum-optimism/optimism/go/op_exporter/version"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/ybbus/jsonrpc"
 	"gopkg.in/alecthomas/kingpin.v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 var (
@@ -36,21 +41,26 @@ var (
 		"wait.minutes",
 		"Number of minutes to wait for the next block before marking provider unhealthy.",
 	).Default("10").Int()
-	//unhealthyTimePeriod = time.Minute * 10
+	enableK8sQuery = kingpin.Flag(
+		"k8s.enable",
+		"Enable kubernetes info lookup.",
+	).Default("true").Bool()
 )
 
 type healthCheck struct {
-	mu         *sync.RWMutex
-	height     uint64
-	healthy    bool
-	updateTime time.Time
+	mu             *sync.RWMutex
+	height         uint64
+	healthy        bool
+	updateTime     time.Time
+	allowedMethods []string
+	version        *string
 }
 
 func healthHandler(health *healthCheck) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		health.mu.RLock()
 		defer health.mu.RUnlock()
-		w.Write([]byte(fmt.Sprintf(`{ "healthy": "%t" }`, health.healthy)))
+		w.Write([]byte(fmt.Sprintf(`{ "healthy": "%t", "version": "%s" }`, health.healthy, *health.version)))
 	}
 }
 
@@ -67,10 +77,12 @@ func main() {
 	log.Infoln("Build context", version.BuildContext())
 
 	health := healthCheck{
-		mu:         new(sync.RWMutex),
-		height:     0,
-		healthy:    false,
-		updateTime: time.Now(),
+		mu:             new(sync.RWMutex),
+		height:         0,
+		healthy:        false,
+		updateTime:     time.Now(),
+		allowedMethods: nil,
+		version:        nil,
 	}
 	http.Handle("/metrics", promhttp.Handler())
 	http.Handle("/health", healthHandler(&health))
@@ -86,11 +98,51 @@ func main() {
 	})
 	go getRollupGasPrices()
 	go getBlockNumber(&health)
+	if *enableK8sQuery {
+		client, err := k8sClient.Newk8sClient()
+		if err != nil {
+			log.Fatal(err)
+		}
+		go getSequencerVersion(&health, client)
+	}
 	log.Infoln("Listening on", *listenAddress)
 	if err := http.ListenAndServe(*listenAddress, nil); err != nil {
 		log.Fatal(err)
 	}
 
+}
+
+func getSequencerVersion(health *healthCheck, client *kubernetes.Clientset) {
+	ns, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	if err != nil {
+		log.Fatalf("Unable to read namespace file: %s", err)
+	}
+	ticker := time.NewTicker(30 * time.Second)
+	for {
+		<-ticker.C
+		getOpts := metav1.GetOptions{
+			TypeMeta:        metav1.TypeMeta{},
+			ResourceVersion: "",
+		}
+		sequencerStatefulSet, err := client.AppsV1().StatefulSets(string(ns)).Get(context.TODO(), "sequencer", getOpts)
+		if err != nil {
+			unknownStatus := "UNKNOWN"
+			health.version = &unknownStatus
+			log.Errorf("Unable to retrieve a sequencer StatefulSet: %s", err)
+			continue
+		}
+		for _, c := range sequencerStatefulSet.Spec.Template.Spec.Containers {
+			log.Infof("Checking container %s", c.Name)
+			switch {
+			case c.Name == "sequencer":
+				log.Infof("The sequencer version is: %s", c.Image)
+				health.version = &c.Image
+			default:
+				log.Infof("Unable to find the sequencer container in the statefulset?!?")
+			}
+		}
+
+	}
 }
 
 func getBlockNumber(health *healthCheck) {
