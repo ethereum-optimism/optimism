@@ -195,12 +195,12 @@ type Context struct {
 	EthCallSender             *common.Address
 	IsL1ToL2Message           bool
 	IsSuccessfulL1ToL2Message bool
-	OvmExecutionManager       dump.OvmDumpAccount
-	OvmStateManager           dump.OvmDumpAccount
-	OvmSafetyChecker          dump.OvmDumpAccount
-	OvmL2CrossDomainMessenger dump.OvmDumpAccount
-	OvmETH                    dump.OvmDumpAccount
-	OvmL2StandardBridge       dump.OvmDumpAccount
+	OvmExecutionManager       *dump.OvmDumpAccount
+	OvmStateManager           *dump.OvmDumpAccount
+	OvmSafetyChecker          *dump.OvmDumpAccount
+	OvmL2CrossDomainMessenger *dump.OvmDumpAccount
+	OvmETH                    *dump.OvmDumpAccount
+	OvmL2StandardBridge       *dump.OvmDumpAccount
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -248,12 +248,18 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 	// Add the ExecutionManager and StateManager to the Context here to
 	// prevent the need to update function signatures across the codebase.
 	if chainConfig != nil && chainConfig.StateDump != nil {
-		ctx.OvmExecutionManager = chainConfig.StateDump.Accounts["OVM_ExecutionManager"]
-		ctx.OvmStateManager = chainConfig.StateDump.Accounts["OVM_StateManager"]
-		ctx.OvmSafetyChecker = chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
-		ctx.OvmL2CrossDomainMessenger = chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
-		ctx.OvmETH = chainConfig.StateDump.Accounts["OVM_ETH"]
-		ctx.OvmL2StandardBridge = chainConfig.StateDump.Accounts["OVM_L2StandardBridge"]
+		executionManager := chainConfig.StateDump.Accounts["OVM_ExecutionManager"]
+		ctx.OvmExecutionManager = &executionManager
+		stateManager := chainConfig.StateDump.Accounts["OVM_StateManager"]
+		ctx.OvmStateManager = &stateManager
+		safetyChecker := chainConfig.StateDump.Accounts["OVM_SafetyChecker"]
+		ctx.OvmSafetyChecker = &safetyChecker
+		xdomainMessenger := chainConfig.StateDump.Accounts["OVM_L2CrossDomainMessenger"]
+		ctx.OvmL2CrossDomainMessenger = &xdomainMessenger
+		ovmEth := chainConfig.StateDump.Accounts["OVM_ETH"]
+		ctx.OvmETH = &ovmEth
+		l2StandardBridge := chainConfig.StateDump.Accounts["OVM_L2StandardBridge"]
+		ctx.OvmL2StandardBridge = &l2StandardBridge
 	}
 
 	id := make([]byte, 4)

@@ -133,5 +133,14 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	receipt.BlockNumber = header.Number
 	receipt.TransactionIndex = uint(statedb.TxIndex())
 
+	if vm.UsingOVM {
+		vmenv.Context.OvmExecutionManager = nil
+		vmenv.Context.OvmStateManager = nil
+		vmenv.Context.OvmSafetyChecker = nil
+		vmenv.Context.OvmL2CrossDomainMessenger = nil
+		vmenv.Context.OvmETH = nil
+		vmenv.Context.OvmL2StandardBridge = nil
+	}
+
 	return receipt, err
 }
