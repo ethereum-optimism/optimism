@@ -448,7 +448,6 @@ contract L1LiquidityPool is OVM_CrossDomainEnabledFast, Ownable {
         address _to
     )
         external
-        onlyOwner()
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];

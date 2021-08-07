@@ -426,7 +426,6 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         address _to
     )
         external
-        onlyOwner()
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
