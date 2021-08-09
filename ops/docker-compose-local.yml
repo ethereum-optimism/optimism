@@ -96,6 +96,8 @@ services:
       - ${L2GETH_NODE_PORT:-30303}:30303
 
   l2geth-peer:
+    depends_on:
+      - l2geth
     image: ethereumoptimism/l2geth-peer
     build:
       context: ..
@@ -111,6 +113,7 @@ services:
         URL: http://deployer:8081/addresses.json
         # connecting to the DTL
         ROLLUP_CLIENT_HTTP: http://dtl:7878
+        L2_URL: http://l2geth:8545
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
         ROLLUP_POLL_INTERVAL_FLAG: 30000ms

@@ -32,18 +32,20 @@ if [[ ! -z "$URL" ]]; then
     fi
 fi
 
-# wait for the dtl to be up, else geth will crash if it cannot connect
-# curl \
-#     --fail \
-#     --show-error \
-#     --silent \
-#     --output /dev/null \
-#     --retry-connrefused \
-#     --retry $RETRIES \
-#     --retry-delay 1 \
-#     $ROLLUP_CLIENT_HTTP
+JSON='{"jsonrpc":"2.0","id":0,"method":"admin_nodeInfo","params":[]}'
+NODE_INFO=$(curl --silent --fail --show-error -H "Content-Type: application/json" --retry-connrefused --retry $RETRIES --retry-delay 3  -d $JSON $L2_URL)
 
-# geth init $DATADIR/genesis.json --datadir $DATADIR
+NODE_ENODE=$(echo $NODE_INFO | jq -r '.result.enode')
+NODE_IP=$(echo $NODE_INFO | jq -r '.result.ip')
+
+if [ "$NODE_IP" = "127.0.0.1" ];then
+    HOST_IP=$(/sbin/ip route | awk '/default/ { print $3 }')
+    NODE_ENODE=${NODE_ENODE//127.0.0.1/$HOST_IP}
+fi
+
+mkdir $(echo $DATADIR)
+touch $(echo $DATADIR)/static-nodes.json
+
+echo "[\"$NODE_ENODE\"]" > $(echo $DATADIR)/static-nodes.json
 
 exec geth --verbosity="$VERBOSITY" "$@"
-# exec top
