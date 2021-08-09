@@ -136,6 +136,7 @@ function info {
 }
 
 function verify_images_in_ecr {
+  set -x
 # cached old docker images makes docker refuse to pull latest!
   #docker system prune -a -f --volumes
   info "Login to AWS ECR and start building image"
@@ -152,7 +153,11 @@ function verify_images_in_ecr {
               warn "${image}:${DEPLOYTAG} not found"
               cd ${PATH_TO_DOCKER}/${image}
               cp -fRv ../../secret2env .
+              if [[ ${image} == "omgx-gas-price-oracle" ]]; then
+                  docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/omgx_gas-price-oracle" --build-arg BUILD_IMAGE_VERSION="${DEPLOYTAG}"
+              else
               docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/${image}" --build-arg BUILD_IMAGE_VERSION="${DEPLOYTAG}"
+              fi
               docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG}
               cd ../..
           fi
@@ -162,7 +167,11 @@ function verify_images_in_ecr {
         for image in ${DOCKER_IMAGES_LIST}; do
           cd ${PATH_TO_DOCKER}/${image}
           cp -fRv ../../secret2env .
+          if [[ ${image} == "omgx-gas-price-oracle" ]]; then
+              docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/omgx_gas-price-oracle" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+          else
           docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/${image}" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+          fi
           docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG}
           cd ../..
         done

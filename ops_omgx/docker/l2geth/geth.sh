@@ -3,7 +3,9 @@
 # Copyright Optimism PBC 2020
 # MIT License
 # github.com/ethereum-optimism
-
+export ROLLUP_ENFORCE_FEES=`/opt/secret2env -name $SECRETNAME|grep -w ROLLUP_ENFORCE_FEES|sed 's/ROLLUP_ENFORCE_FEES=//g'`
+export ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS=`/opt/secret2env -name $SECRETNAME|grep -w ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS|sed 's/ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS=//g'`
+export ETH1_L1_FEE_WALLET_ADDRESS=`/opt/secret2env -name $SECRETNAME|grep -w ETH1_L1_FEE_WALLET_ADDRESS|sed 's/ETH1_L1_FEE_WALLET_ADDRESS=//g'`
 export CHAIN_ID=`/opt/secret2env -name $SECRETNAME|grep -w CHAIN_ID|sed 's/CHAIN_ID=//g'`
 export DATADIR=`/opt/secret2env -name $SECRETNAME|grep -w DATADIR|sed 's/DATADIR=//g'`
 export DEV=`/opt/secret2env -name $SECRETNAME|grep -w DEV|sed 's/DEV=//g'`
@@ -47,9 +49,9 @@ if [[ ! -z "$URL" ]]; then
     envSet ROLLUP_ADDRESS_MANAGER_OWNER_ADDRESS Deployer
 
     # set the address to the proxy gateway if possible
-    envSet ETH1_L1_ETH_GATEWAY_ADDRESS Proxy__OVM_L1ETHGateway
-    if [ $ETH1_L1_ETH_GATEWAY_ADDRESS == null ]; then
-        envSet ETH1_L1_ETH_GATEWAY_ADDRESS OVM_L1ETHGateway
+    envSet ETH1_L1_STANDARD_BRIDGE_ADDRESS Proxy__OVM_L1StandardBridge
+    if [ $ETH1_L1_STANDARD_BRIDGE_ADDRESS == null ]; then
+        envSet ETH1_L1_STANDARD_BRIDGE_ADDRESS OVM_L1StandardBridge
     fi
 fi
 

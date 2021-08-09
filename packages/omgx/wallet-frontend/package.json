@@ -11,7 +11,8 @@
     "build:deploy": "GENERATE_SOURCEMAP=false react-scripts build",
     "audit-check": "audit-ci --moderate",
     "postinstall": "patch-package",
-    "deploy": "aws s3 rm s3://omgx-wallet --recursive && aws s3 sync build s3://omgx-wallet && aws s3 cp s3://omgx-wallet/index.html s3://omgx-wallet/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html"
+    "deploy": "aws s3 rm s3://omgx-wallet --recursive && aws s3 sync build s3://omgx-wallet && aws s3 cp s3://omgx-wallet/index.html s3://omgx-wallet/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html",
+    "deploy-integration": "aws s3 rm s3://omgx-wallet-integration --recursive && aws s3 sync build s3://omgx-wallet-integration && aws s3 cp s3://omgx-wallet-integration/index.html s3://omgx-wallet-integration/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html"
   },
   "dependencies": {
     "@eth-optimism/contracts": "^0.4.1",

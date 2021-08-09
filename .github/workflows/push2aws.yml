@@ -5,8 +5,7 @@ on:
   push:
     branches:
       - develop
-      - 'memory_and_omg-monitor'
-
+      - l1-env-add-gas-price-oracle-fix-stack-name
 jobs:
   push2aws:
     runs-on: ubuntu-latest

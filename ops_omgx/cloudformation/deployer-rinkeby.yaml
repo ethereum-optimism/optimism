@@ -137,13 +137,13 @@ Resources:
             - Name: SECRETNAME
               Value: !Ref SecretName
           EntryPoint:
-            - "/opt/optimism/packages/contracts/deployer.sh"
+            - "./bin/serve_dump.sh"
           DockerLabels:
             com.datadoghq.ad.check_names: '["deployer"]'
             com.datadoghq.ad.init_configs: '[{}]'
             com.datadoghq.ad.logs: '[{"source": "deployer", "service": "deployer"}]'
           Essential: true
-          Memory: "512"
+          Memory: "64"
       NetworkMode: bridge
       TaskRoleArn: !GetAtt TaskRole.Arn
       Family: !Sub "deployer"
