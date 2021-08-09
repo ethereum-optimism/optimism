@@ -86,7 +86,11 @@ function Transactions({ searchHistory, transactions, chainLink }) {
             l1BlockNumber,
             l1From,
             l1Hash: truncate(l1Hash, 8, 6, '...'),
-            l1To
+            l1To,
+            l1TxLink: chainLink({
+              chain: i.chain,
+              hash: l1Hash
+            })
           } : null}
         />
       )

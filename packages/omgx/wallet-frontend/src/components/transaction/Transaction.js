@@ -99,7 +99,10 @@ function Transaction ({
           styles.dropDownContainer : dropDownBoxInit ? styles.dropDownInit : styles.closeDropDown}
       >
         <div className={styles.title}>
-          <div>{detail.l1Hash}</div></div>
+        <a className={styles.href} href={detail.l1TxLink} target="_blank" rel="noopener noreferrer">
+          {detail.l1Hash}
+        </a>
+        </div>
         <div className={styles.content}>
           <div>L1 Block : {detail.l1BlockNumber}</div>
         </div>

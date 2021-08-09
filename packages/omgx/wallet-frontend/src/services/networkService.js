@@ -136,11 +136,14 @@ class NetworkService {
     console.log('NS: enableBrowserWallet()')
     try {
       // connect to the wallet
-      await window.ethereum.enable()
+      //await window.ethereum.enable()
+/*
+inpage.js:1 MetaMask: 'ethereum.enable()' is deprecated and may be removed in the future. Please use the 'eth_requestAccounts' RPC method instead.
+For more information, see: https://eips.ethereum.org/EIPS/eip-1102
+*/
+
+      await window.ethereum.request({method: 'eth_requestAccounts'})
       this.provider = new ethers.providers.Web3Provider(window.ethereum)
-      await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      })
       return true
     } catch (error) {
       return false

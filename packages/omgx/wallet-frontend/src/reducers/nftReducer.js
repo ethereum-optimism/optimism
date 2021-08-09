@@ -19,12 +19,27 @@ let nftContracts = localStorage.getItem("nftContracts")
 
 if (nftContracts) {
   nftContracts = JSON.parse(nftContracts)
-  console.log("Contracts Cache:",nftContracts)
+  console.log("NFT Contracts Cache:",nftContracts)
 }
 
+let nftFactories = localStorage.getItem("nftFactories")
+
+if (nftFactories) {
+  nftFactories = JSON.parse(nftFactories)
+  console.log("NFT Factories Cache:",nftFactories)
+}
+
+let nftList = localStorage.getItem("nftList")
+
+if (nftList) {
+  nftList = JSON.parse(nftList)
+  console.log("NFT List Cache:",nftList)
+}
+
+
 const initialState = {
-  list: {},
-  factories: {},
+  list: nftList ? nftList : {},
+  factories: nftFactories ? nftFactories : {},
   contracts: nftContracts ? nftContracts : {}
 }
 
@@ -32,6 +47,13 @@ function nftReducer (state = initialState, action) {
   switch (action.type) {
     
     case 'NFT/GET/SUCCESS':
+
+      localStorage.setItem("nftList", JSON.stringify({
+          ...state.list,
+          [action.payload.UUID]: action.payload
+        })
+      )
+
       return { 
         ...state,
         list: {

@@ -209,6 +209,14 @@ class ListFarm extends React.Component {
               }
             </div>
           </div>
+          <div className={styles.Table5}>
+            <div className={styles.BasicText}>Balance</div>
+            <div className={styles.BasicLightText}>
+              {poolInfo.tokenBalance ?
+                `${logAmount(poolInfo.tokenBalance, 18, 2)} ${symbol}` : `0 ${symbol}`
+              }
+            </div>
+          </div>
           {disabled &&
             <div className={styles.Table6}>
               <div className={styles.LinkTextOff}>Staking</div>
