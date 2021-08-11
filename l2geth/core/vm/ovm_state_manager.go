@@ -32,15 +32,15 @@ var funcs = map[string]stateManagerFunction{
 	"commitPendingAccount":                     nativeFunctionVoid,
 }
 
-func callStateManager(input []byte, evm *EVM, contract *Contract) (ret []byte, err error) {
+func callStateManager(input []byte, evm *EVM, contract *Contract) ([]byte, error) {
 	method, err := evm.Context.OvmStateManager.ABI.MethodById(input)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find method id %s: %w", input, err)
 	}
 
 	var inputArgs = make(map[string]interface{})
-	err = method.Inputs.UnpackIntoMap(inputArgs, input[4:])
-	if err != nil {
+	encodedArgs := common.CopyBytes(input[4:])
+	if err := method.Inputs.UnpackIntoMap(inputArgs, encodedArgs); err != nil {
 		return nil, err
 	}
 
@@ -59,7 +59,7 @@ func callStateManager(input []byte, evm *EVM, contract *Contract) (ret []byte, e
 		return nil, fmt.Errorf("cannot pack returndata: %w", err)
 	}
 
-	return returndata, nil
+	return common.CopyBytes(returndata), nil
 }
 
 func owner(evm *EVM, contract *Contract, args map[string]interface{}) ([]interface{}, error) {
