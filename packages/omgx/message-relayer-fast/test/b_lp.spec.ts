@@ -77,13 +77,13 @@ describe('Liquidity Pool Test', async () => {
     await L2ERC20.deployTransaction.wait()
 
     L1LiquidityPool = new Contract(
-      env.addressesOMGX.L1LiquidityPool,
+      env.addressesOMGX.Proxy__L1LiquidityPool,
       L1LiquidityPoolJson.abi,
       env.bobl1Wallet
     )
 
     L2LiquidityPool = new Contract(
-      env.addressesOMGX.L2LiquidityPool,
+      env.addressesOMGX.Proxy__L2LiquidityPool,
       L2LiquidityPoolJson.abi,
       env.bobl2Wallet
     )
@@ -468,30 +468,36 @@ describe('Liquidity Pool Test', async () => {
     expect(preL2ERC20Balance).to.deep.eq(postL2ERC20Balance.sub(pendingReward))
   })
 
-  // it("should withdraw reward from L1 pool", async () => {
+  it("should withdraw reward from L1 pool", async () => {
 
-  //   const preL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
-  //   const preBobUserInfo = await L1LiquidityPool.userInfo(L1ERC20.address, env.bobl1Wallet.address)
-  //   const pendingReward = BigNumber.from(preBobUserInfo.pendingReward).div(2)
+    const preL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
+    const preBobUserInfo = await L1LiquidityPool.userInfo(L1ERC20.address, env.bobl1Wallet.address)
+    const prePoolInfo = await L1LiquidityPool.poolInfo(L1ERC20.address)
+    const pendingReward = BigNumber.from(preBobUserInfo.pendingReward).add(
+      BigNumber.from(preBobUserInfo.amount)
+      .mul(BigNumber.from(prePoolInfo.accUserRewardPerShare))
+      .div(BigNumber.from(10).pow(BigNumber.from(12)))
+      .sub(BigNumber.from(preBobUserInfo.rewardDebt))
+    )
 
-  //   const withdrawRewardTX = await L1LiquidityPool.withdrawReward(
-  //     pendingReward,
-  //     L1ERC20.address,
-  //     env.bobl1Wallet.address//,
-  //     //{gasLimit: 800000}
-  //   )
-  //   await withdrawRewardTX.wait()
+    const withdrawRewardTX = await L1LiquidityPool.withdrawReward(
+      pendingReward,
+      L1ERC20.address,
+      env.bobl1Wallet.address//,
+      //{gasLimit: 800000}
+    )
+    await withdrawRewardTX.wait()
 
-  //   const postBobUserInfo = await L1LiquidityPool.userInfo(
-  //     L1ERC20.address,
-  //     env.bobl1Wallet.address//,
-  //     //{gasLimit: 800000}
-  //   )
-  //   const postL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
+    const postBobUserInfo = await L1LiquidityPool.userInfo(
+      L1ERC20.address,
+      env.bobl1Wallet.address//,
+      //{gasLimit: 800000}
+    )
+    const postL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
 
-  //   expect(postBobUserInfo.pendingReward).to.deep.eq(preBobUserInfo.pendingReward.sub(pendingReward))
-  //   expect(preL1ERC20Balance).to.deep.eq(postL1ERC20Balance.sub(pendingReward))
-  // })
+    expect(postBobUserInfo.pendingReward).to.deep.eq(BigNumber.from(0))
+    expect(preL1ERC20Balance).to.deep.eq(postL1ERC20Balance.sub(pendingReward))
+  })
 
   it("shouldn't withdraw reward from L2 pool", async () => {
     const withdrawRewardAmount = utils.parseEther("100")
@@ -515,13 +521,15 @@ describe('Liquidity Pool Test', async () => {
     const approveL1LPTX = await L1ERC20.approve(
       L1LiquidityPool.address,
       depositAmount,
+      {gasLimit: 9000000}
     )
     await approveL1LPTX.wait()
 
     const depositTx = await env.waitForXDomainTransaction(
       L1LiquidityPool.clientDepositL1(
         depositAmount,
-        L1ERC20.address
+        L1ERC20.address,
+        {gasLimit: 9000000}
       ),
       Direction.L1ToL2
     )
@@ -561,8 +569,8 @@ describe('Liquidity Pool Test', async () => {
 
      const preBobL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
      const preBobL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
-     const requestedLiquidity = (await L1ERC20.balanceOf(L1LiquidityPool.address)).add(1)
-     const fastExitAmount = requestedLiquidity.mul(1000).div(950)
+     const requestedLiquidity = (await L1ERC20.balanceOf(L1LiquidityPool.address)).add(10)
+     const fastExitAmount = requestedLiquidity.mul(100).div(95)
 
      const approveBobL2TX = await L2ERC20.connect(env.bobl2Wallet).approve(
        L2LiquidityPool.address,
@@ -585,7 +593,7 @@ describe('Liquidity Pool Test', async () => {
 
      expect(preBobL1ERC20Balance).to.deep.eq(postBobL1ERC20Balance)
 
-     const exitFees = fastExitAmount.mul(50).div(1000)
+     const exitFees = fastExitAmount.mul(5).div(100)
      expect(postBobL2ERC20Balance).to.deep.eq(preBobL2ERC20Balance.sub(exitFees))
    })
 
@@ -594,8 +602,8 @@ describe('Liquidity Pool Test', async () => {
       const preL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
       const preL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
 
-      const requestedLiquidity = (await L2ERC20.balanceOf(L2LiquidityPool.address)).add(1)
-      const swapOnAmount = requestedLiquidity.mul(1000).div(950)
+      const requestedLiquidity = (await L2ERC20.balanceOf(L2LiquidityPool.address)).add(10)
+      const swapOnAmount = requestedLiquidity.mul(100).div(95)
 
       const approveBobL1TX = await L1ERC20.connect(env.bobl1Wallet).approve(
         L1LiquidityPool.address,
@@ -614,7 +622,7 @@ describe('Liquidity Pool Test', async () => {
       const postBobL1ERC20Balance = await L1ERC20.balanceOf(env.bobl1Wallet.address)
       const postBobL2ERC20Balance = await L2ERC20.balanceOf(env.bobl2Wallet.address)
 
-      const swapOnFees = swapOnAmount.mul(50).div(1000)
+      const swapOnFees = swapOnAmount.mul(5).div(100)
 
       expect(preL2ERC20Balance).to.deep.eq(postBobL2ERC20Balance)
       expect(postBobL1ERC20Balance).to.deep.eq(preL1ERC20Balance.sub(swapOnFees))

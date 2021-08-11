@@ -35,7 +35,7 @@ class DatabaseService extends OptimismEnv{
         nonce VARCHAR(255),
         gasLimit INT,
         gasUsed INT,
-        PRIMARY KEY ( hash )
+        PRIMARY KEY ( blockNumber )
       )`
     );
     await this.query(`CREATE TABLE IF NOT EXISTS transaction
@@ -50,7 +50,7 @@ class DatabaseService extends OptimismEnv{
         gasLimit INT,
         gasPrice INT,
         timestamp INT,
-        PRIMARY KEY ( hash )
+        PRIMARY KEY ( blockNumber )
       )`
     );
     await this.query(`CREATE TABLE IF NOT EXISTS receipt
@@ -75,7 +75,7 @@ class DatabaseService extends OptimismEnv{
         l1BlockHash VARCHAR(255),
         l1From VARCHAR(255),
         l1To VARCHAR(255),
-        PRIMARY KEY ( hash )
+        PRIMARY KEY ( blockNumber )
       )`
     );
     this.logger.info('Initialized the database.');

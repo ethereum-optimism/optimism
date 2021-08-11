@@ -9,13 +9,12 @@ import "@eth-optimism/contracts/contracts/optimistic-ethereum/libraries/bridge/O
 /* External Imports */
 import '@openzeppelin/contracts/math/SafeMath.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
-import '@openzeppelin/contracts/access/Ownable.sol';
 
 /**
  * @dev An L2 LiquidityPool implementation
  */
 
-contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
+contract L2LiquidityPool is OVM_CrossDomainEnabled {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -78,12 +77,12 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
     // Info of each user that stakes tokens.
     mapping(address => mapping(address => UserInfo)) public userInfo;
 
-    address L1LiquidityPoolAddress;
-    uint256 public totalFeeRate;
+    address public owner;
+    address public L1LiquidityPoolAddress;
     uint256 public userRewardFeeRate;
     uint256 public ownerRewardFeeRate;
     // Default gas value which can be overridden if more complex logic runs on L1.
-    uint32 internal constant DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS = 100000;
+    uint32 public DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS;
 
     /********************
      *       Event      *
@@ -144,18 +143,23 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
      * Constructor & Initialization *
      ********************************/
 
-    /**
-     * @param _l2CrossDomainMessenger L1 Messenger address being used for cross-chain communications.
-     */
-    constructor (
-        address _l2CrossDomainMessenger
-    )
-        OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
+    constructor ()
+        OVM_CrossDomainEnabled(address(0))
     {}
 
     /**********************
      * Function Modifiers *
      **********************/
+
+    modifier onlyOwner() {
+        require(msg.sender == owner || owner == address(0), 'caller is not the owner');
+        _;
+    }
+
+    modifier onlyNotInitialized() {
+        require(address(L1LiquidityPoolAddress) == address(0), "Contract has been initialized");
+        _;
+    }
 
     modifier onlyInitialized() {
         require(address(L1LiquidityPoolAddress) != address(0), "Contract has not yet been initialized");
@@ -167,24 +171,71 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
      ********************/
 
     /**
-     * @dev Initialize this contract.
+     * @dev transfer ownership
      *
-     * @param _userRewardFeeRate fee rate that users get
-     * @param _ownerRewardFeeRate fee rate that contract owner gets
-     * @param _L1LiquidityPoolAddress Address of the corresponding L1 LP deployed to the main chain
+     * @param _newOwner new owner of this contract
      */
-    function init(
-        uint256 _userRewardFeeRate,
-        uint256 _ownerRewardFeeRate,
-        address _L1LiquidityPoolAddress
+    function transferOwnership(
+        address _newOwner
     )
         public
         onlyOwner()
     {
-        totalFeeRate = _userRewardFeeRate + _ownerRewardFeeRate;
+        owner = _newOwner;
+    }
+
+    /**
+     * @dev Initialize this contract.
+     *
+     * @param _l2CrossDomainMessenger L2 Messenger address being used for sending the cross-chain message.
+     * @param _L1LiquidityPoolAddress Address of the corresponding L1 LP deployed to the main chain
+     */
+    function initialize(
+        address _l2CrossDomainMessenger,
+        address _L1LiquidityPoolAddress
+    )
+        public
+        onlyOwner()
+        onlyNotInitialized()
+    {
+        messenger = _l2CrossDomainMessenger;
+        L1LiquidityPoolAddress = _L1LiquidityPoolAddress;
+        owner = msg.sender;
+        configureFee(35, 15);
+        configureGas(100000);
+    }
+
+    /**
+     * @dev Configure fee of this contract.
+     *
+     * @param _userRewardFeeRate fee rate that users get
+     * @param _ownerRewardFeeRate fee rate that contract owner gets
+     */
+    function configureFee(
+        uint256 _userRewardFeeRate,
+        uint256 _ownerRewardFeeRate
+    )
+        public
+        onlyOwner()
+        onlyInitialized()
+    {
         userRewardFeeRate = _userRewardFeeRate;
         ownerRewardFeeRate = _ownerRewardFeeRate;
-        L1LiquidityPoolAddress = _L1LiquidityPoolAddress;
+    }
+
+    /**
+     * @dev Configure gas.
+     *
+     * @param _l1GasFee default finalized withdraw L1 Gas
+     */
+    function configureGas(
+        uint32 _l1GasFee
+    )
+        public
+        onlyOwner()
+        onlyInitialized()
+    {
+        DEFAULT_FINALIZE_WITHDRAWAL_L1_GAS = _l1GasFee;
     }
 
     /***
@@ -402,9 +453,9 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, Ownable {
         require(pool.l2TokenAddress != address(0), "Token Address Not Register");
         require(pool.accOwnerReward >= _amount, "Owner Reward Withdraw Error");
 
-        IERC20(_tokenAddress).safeTransfer(_to, _amount);
-
         pool.accOwnerReward = pool.accOwnerReward.sub(_amount);
+
+        IERC20(_tokenAddress).safeTransfer(_to, _amount);
 
         emit OwnerRecoverFee(
             msg.sender,

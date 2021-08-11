@@ -26,9 +26,9 @@ const deployFn: DeployFunction = async (hre) => {
       (hre as any).deployConfig.deployer_l2
     )
     // Deploy L2 liquidity pool
-    console.log("Deploying...")
+    console.log(`💿 ${chalk.green("Deploying LP...")}`)
+
     L2LiquidityPool = await Factory__L2LiquidityPool.deploy(
-      (hre as any).deployConfig.l2MessengerAddress,
       {gasLimit: 250000000}
     )
     await L2LiquidityPool.deployTransaction.wait()
@@ -41,15 +41,12 @@ const deployFn: DeployFunction = async (hre) => {
     await hre.deployments.save('L2LiquidityPool', L2LiquidityPoolDeploymentSubmission)
     console.log(`🌕 ${chalk.red('L2LiquidityPool deployed to:')} ${chalk.green(L2LiquidityPool.address)}`)
 
-    const OVM_L1CrossDomainMessengerFastAddress = await (hre as any).deployConfig.addressManager.getAddress(
-      'Proxy__OVM_L1CrossDomainMessengerFast'
-    )
+    // const OVM_L1CrossDomainMessengerFastAddress = await (hre as any).deployConfig.addressManager.getAddress(
+    //   'Proxy__OVM_L1CrossDomainMessengerFast'
+    // )
 
     // Deploy L1 liquidity pool
-    L1LiquidityPool = await Factory__L1LiquidityPool.deploy(
-      (hre as any).deployConfig.l1MessengerAddress,
-      OVM_L1CrossDomainMessengerFastAddress
-    )
+    L1LiquidityPool = await Factory__L1LiquidityPool.deploy()
     await L1LiquidityPool.deployTransaction.wait()
     const L1LiquidityPoolDeploymentSubmission: DeploymentSubmission = {
       ...L1LiquidityPool,
@@ -60,38 +57,49 @@ const deployFn: DeployFunction = async (hre) => {
     await hre.deployments.save('L1LiquidityPool', L1LiquidityPoolDeploymentSubmission)
     console.log(`🌕 ${chalk.red('L1LiquidityPool deployed to:')} ${chalk.green(L1LiquidityPool.address)}`)
 
-    // Initialize L1 liquidity pool
-    const L1LiquidityPoolTX = await L1LiquidityPool.init(
-      /* userRewardFeeRate 3.5% */ 35,
-      /* ownerRewardFeeRate 1.5% */ 15,
-      L2LiquidityPool.address
-    )
-    await L1LiquidityPoolTX.wait()
-    console.log(`⭐️ ${chalk.blue('L1 LP initialized:')} ${chalk.green(L1LiquidityPoolTX.hash)}`)
+    // const initL1LPTX = await L1LiquidityPool.initialize(
+    //   (hre as any).deployConfig.l1MessengerAddress,
+    //   OVM_L1CrossDomainMessengerFastAddress
+    // )
+    // await initL1LPTX.wait()
+    // console.log(`⭐️ ${chalk.red('L1LiquidityPool initialized:')} ${chalk.green(initL1LPTX.hash)}`)
 
-    // Initialize L2 liquidity pool
-    const L2LiquidityPoolTX = await L2LiquidityPool.init(
-      /* userRewardFeeRate 3.5% */ 35,
-      /* ownerRewardFeeRate 1.5% */ 15,
-      L1LiquidityPool.address//,
-      //{gasLimit: 192870000}
-    )
-    await L2LiquidityPoolTX.wait()
-    console.log(`⭐️ ${chalk.blue('L2 LP initialized:')} ${chalk.green(L2LiquidityPoolTX.hash)}`)
+    // const confL1LPTX = await L1LiquidityPool.configure(
+    //   /* userRewardFeeRate 3.5% */ 35,
+    //   /* ownerRewardFeeRate 1.5% */ 15,
+    //   L2LiquidityPool.address
+    // )
+    // await confL1LPTX.wait()
+    // console.log(`⭐️ ${chalk.red('L1LiquidityPool configured:')} ${chalk.green(confL1LPTX.hash)}`)
 
-    let registerPoolETHTX = await L1LiquidityPool.registerPool(
-      "0x0000000000000000000000000000000000000000",
-      "0x4200000000000000000000000000000000000006",
-    )
-    await registerPoolETHTX.wait()
+    // const initL2LPTX = await L2LiquidityPool.initialize(
+    //   (hre as any).deployConfig.l2MessengerAddress,
+    //   { gasLimit: 250000000 }
+    // )
+    // await initL2LPTX.wait()
+    // console.log(`⭐️ ${chalk.red('L2LiquidityPool initialized:')} ${chalk.green(initL2LPTX.hash)}`)
 
-    registerPoolETHTX = await L2LiquidityPool.registerPool(
-      "0x0000000000000000000000000000000000000000",
-      "0x4200000000000000000000000000000000000006"//,
-      //{gasLimit: 192870000}
-    )
-    await registerPoolETHTX.wait()
-    console.log(`L1 and L2 pools have registered ETH and oETH`)
+    // const confL2LPTX = await L2LiquidityPool.configure(
+    //   /* userRewardFeeRate 3.5% */ 35,
+    //   /* ownerRewardFeeRate 1.5% */ 15,
+    //   L1LiquidityPool.address
+    // )
+    // await confL2LPTX.wait()
+    // console.log(`⭐️ ${chalk.red('L2LiquidityPool configured:')} ${chalk.green(confL2LPTX.hash)}`)
+
+    // const registerL1LPETHTX = await L1LiquidityPool.registerPool(
+    //   "0x0000000000000000000000000000000000000000",
+    //   "0x4200000000000000000000000000000000000006",
+    // )
+    // await registerL1LPETHTX.wait()
+    // console.log(`⭐️ ${chalk.red('L1LiquidityPool registered:')} ${chalk.green(registerL1LPETHTX.hash)}`)
+
+    // const registerL2LPETHTX = await L2LiquidityPool.registerPool(
+    //   "0x0000000000000000000000000000000000000000",
+    //   "0x4200000000000000000000000000000000000006"//,
+    // )
+    // await registerL2LPETHTX.wait()
+    // console.log(`⭐️ ${chalk.red('L2LiquidityPool registered:')} ${chalk.green(registerL2LPETHTX.hash)}`)
 }
 
 deployFn.tags = ['L1LiquidityPool', 'L2LiquidityPool', 'required']

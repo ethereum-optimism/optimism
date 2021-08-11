@@ -579,7 +579,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           // export L1LIQPOOL=$(echo $ADDRESSES | jq -r '.L1LiquidityPool')
           // export L1M=$(echo $ADDRESSES | jq -r '.L1Message')
           // echo '["'$L1LIQPOOL'", "'$L1M'"]' > dist/dumps/whitelist.json
-          const filterSelect = [ filter.L1LiquidityPool, filter.L1Message ]
+          const filterSelect = [ filter.Proxy__L1LiquidityPool, filter.L1Message ]
 
           this.state.lastFilterPollingTimestamp = new Date().getTime()
           this.state.filter = filterSelect
