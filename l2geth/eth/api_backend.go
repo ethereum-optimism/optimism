@@ -304,9 +304,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 	if b.UsingOVM {
 		to := signedTx.To()
 		if to != nil {
-			if *to == (common.Address{}) {
-				return errors.New("Cannot send transaction to zero address")
-			}
 			// Prevent QueueOriginSequencer transactions that are too large to
 			// be included in a batch. The `MaxCallDataSize` should be set to
 			// the layer one consensus max transaction size in bytes minus the
