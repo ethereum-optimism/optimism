@@ -1137,7 +1137,7 @@ func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) e
 		if err != nil {
 			return fmt.Errorf("cannot fetch transaction %d: %w", i, err)
 		}
-		if err = s.applyTransaction(tx); err != nil {
+		if err := s.applyTransaction(tx); err != nil {
 			return fmt.Errorf("Cannot apply transaction: %w", err)
 		}
 	}

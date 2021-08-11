@@ -162,7 +162,6 @@ var (
 		utils.RollupTimstampRefreshFlag,
 		utils.RollupPollIntervalFlag,
 		utils.RollupStateDumpPathFlag,
-		utils.RollupDiffDbFlag,
 		utils.RollupMaxCalldataSizeFlag,
 		utils.RollupBackendFlag,
 		utils.RollupEnforceFeesFlag,

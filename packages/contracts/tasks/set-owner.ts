@@ -63,10 +63,9 @@ task('set-owner')
     console.log(`Owner is currently ${owner.toString()}`)
     console.log(`Setting owner to ${args.owner}`)
 
-    const tx = await Ownable.connect(signer).transferOwnership(
-      args.owner,
-      { gasPrice: args.transactionGasPrice }
-    )
+    const tx = await Ownable.connect(signer).transferOwnership(args.owner, {
+      gasPrice: args.transactionGasPrice,
+    })
 
     const receipt = await tx.wait()
     console.log(`Success - ${receipt.transactionHash}`)

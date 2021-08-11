@@ -82,7 +82,6 @@ var DefaultConfig = Config{
 		// safety.
 		MaxCallDataSize: 127000,
 	},
-	DiffDbCache: 256,
 }
 
 func init() {
@@ -139,7 +138,6 @@ type Config struct {
 	DatabaseHandles    int  `toml:"-"`
 	DatabaseCache      int
 	DatabaseFreezer    string
-	DiffDbCache        uint64
 
 	TrieCleanCache int
 	TrieDirtyCache int
