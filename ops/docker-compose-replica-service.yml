@@ -12,7 +12,7 @@ version: "3"
 services:
 
   dtl-replica:
-    image: omgx/data-transport-layer:production-v1
+    image: omgx/data-transport-layer:production-v2
     deploy:
       replicas: 1
     entrypoint: ./dtl.sh
@@ -33,19 +33,19 @@ services:
       - ${DTL_PORT:-7878}:7878
 
   l2geth-replica:
-    image: omgx/replica:production-v1
+    image: omgx/replica:production-v2
     deploy:
       replicas: 1
     entrypoint: sh ./geth.sh
     env_file:
       - ./envs/geth_rv.env
     environment:
-        ETH1_HTTP: //rinkeby.infura.io/v3/INFURA_KEY
+        ETH1_HTTP: https://rinkeby.infura.io/v3/INFURA_KEY
         ROLLUP_STATE_DUMP_PATH: https://rinkeby.omgx.network:8081/state-dump.latest.json
         URL: https://rinkeby.omgx.network:8081/addresses.json
         # connecting to the DTL
         ROLLUP_CLIENT_HTTP: http://dtl-replica:7878
-        ETH1_CTC_DEPLOYMENT_HEIGHT: 8845198
+        ETH1_CTC_DEPLOYMENT_HEIGHT: 9065019
         RETRIES: 60
         ROLLUP_BACKEND: 'l2'
         ROLLUP_VERIFIER_ENABLE: 'true'
