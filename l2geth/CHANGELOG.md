@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.8
+
+### Patch Changes
+
+- a8e37aac: Style fix to the ovm state manager precompile
+- 616b7a28: Small fixes to miner codepath
+- 7ee76c23: Remove an unnecessary use of `reflect` in l2geth
+- 75d8dcd3: Remove layer of indirection in `callStateManager`
+- f0a02385: Update the start script to work with the latest regenesis, `0.4.0`
+- 75ec2869: Return correct value in L2 Geth fee too high error message
+- 7acbab74: Delete stateobjects in the miner as blocks are produced to prevent a build up of memory
+- 0975f738: Remove diffdb
+- 8f9bb36f: Quick syntax fix in the sync service
+- 11d46182: Make the extradata deterministic for deterministic block hashes
+
 ## 0.4.7
 
 ### Patch Changes
