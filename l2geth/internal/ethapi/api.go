@@ -40,7 +40,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/diffdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
@@ -569,61 +568,6 @@ type HeaderMeta struct {
 	Hash      common.Hash `json:"hash"`
 	StateRoot common.Hash `json:"stateRoot"`
 	Timestamp uint64      `json:"timestamp"`
-}
-
-func (s *PublicBlockChainAPI) GetStateDiff(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (diffdb.Diff, error) {
-	_, header, err := s.b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
-	if err != nil {
-		return nil, err
-	}
-	return s.b.GetDiff(new(big.Int).Add(header.Number, big.NewInt(1)))
-}
-
-// GetStateDiffProof returns the Merkle-proofs corresponding to all the accounts and
-// storage slots which were touched for a given block number or hash.
-func (s *PublicBlockChainAPI) GetStateDiffProof(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*StateDiffProof, error) {
-	state, header, err := s.b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
-	if state == nil || header == nil || err != nil {
-		return nil, err
-	}
-
-	// get the changed accounts for this block
-	diffs, err := s.GetStateDiff(ctx, blockNrOrHash)
-	if err != nil {
-		return nil, err
-	}
-
-	// for each changed account, get their proof
-	var accounts []AccountResult
-	for address, keys := range diffs {
-		// need to convert the hashes to strings, we could maybe refactor getProof
-		// alternatively
-		keyStrings := make([]string, len(keys))
-		for i, key := range keys {
-			keyStrings[i] = key.Key.String()
-		}
-
-		// get the proofs
-		res, err := s.GetProof(ctx, address, keyStrings, blockNrOrHash)
-		if err != nil {
-			return nil, err
-		}
-
-		accounts = append(accounts, *res)
-	}
-
-	// add some metadata
-	stateDiffProof := &StateDiffProof{
-		Header: &HeaderMeta{
-			Number:    header.Number,
-			Hash:      header.Hash(),
-			StateRoot: header.Root,
-			Timestamp: header.Time,
-		},
-		Accounts: accounts,
-	}
-
-	return stateDiffProof, state.Error()
 }
 
 // GetProof returns the Merkle-proof for a given account and optionally some storage keys.

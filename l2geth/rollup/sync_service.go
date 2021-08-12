@@ -880,7 +880,7 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 		}
 		if errors.Is(err, fees.ErrFeeTooHigh) {
 			return fmt.Errorf("%w: %d, use less than %d * %f", fees.ErrFeeTooHigh, userFee,
-				expectedFee, s.feeThresholdDown)
+				expectedFee, s.feeThresholdUp)
 		}
 		return err
 	}
@@ -1092,7 +1092,7 @@ func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) e
 		if err != nil {
 			return fmt.Errorf("cannot fetch transaction %d: %w", i, err)
 		}
-		if err = s.applyTransaction(tx); err != nil {
+		if err := s.applyTransaction(tx); err != nil {
 			return fmt.Errorf("Cannot apply transaction: %w", err)
 		}
 	}
