@@ -101,7 +101,7 @@ function Exits ({ searchHistory, transactions,chainLink }) {
           l1Hash: truncate(l1Hash, 8, 6, '...'),
           l1To,
           l1TxLink: chainLink({
-            chain: i.chain,
+            chain: "L1",
             hash: l1Hash
           })
         } : null}

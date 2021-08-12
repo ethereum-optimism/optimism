@@ -363,8 +363,11 @@ class MonitorService extends OptimismEnv {
 
   // gets list of addresses whose messages may finalize fast
   async getWhitelist(){
-    let response = await fetch('https://api-message-relayer.rinkeby.omgx.network/rinkeby/get.whitelist');
-    this.whitelist = await response.json();
+    let response = await fetch(this.filterEndpoint);
+    const filter = await response.json();
+    const filterSelect = [ filter.Proxy__L1LiquidityPool, filter.L1Message ]
+    this.whitelist = filterSelect
+    this.logger.info('Found the filter', { filterSelect })
   }
 
   // checks to see if its time to look for L1 finalization

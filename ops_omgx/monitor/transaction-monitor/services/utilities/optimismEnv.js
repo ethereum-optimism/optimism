@@ -37,6 +37,8 @@ const NON_WHITELIST = "non_whitelist";
 const L2_RATE_LIMIT = 500;
 const L2_SLEEP_THRESH = 100;
 
+const FILTER_ENDPOINT = env.FILTER_ENDPOINT;
+
 class OptimismEnv {
   constructor() {
     this.L1Provider = new ethers.providers.JsonRpcProvider(L1_NODE_WEB3_URL);
@@ -79,6 +81,8 @@ class OptimismEnv {
     this.databaseConnectedMutex = new Mutex();
 
     this.OVM_L2CrossDomainMessengerContract = null;
+
+    this.filterEndpoint = FILTER_ENDPOINT;
   }
 
   async initOptimismEnv() {
@@ -88,7 +92,7 @@ class OptimismEnv {
       this.L1wallet
     );
     this.OVM_L1CrossDomainMessenger = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger');
-    this.OVM_L1CrossDomainMessengerFast = await addressManager.getAddress('OVM_L1CrossDomainMessengerFast');
+    this.OVM_L1CrossDomainMessengerFast = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessengerFast');
     this.logger.info('Found OVM_L1CrossDomainMessenger and OVM_L1CrossDomainMessengerFast', {
       OVM_L1CrossDomainMessenger: this.OVM_L1CrossDomainMessenger,
       OVM_L1CrossDomainMessengerFast: this.OVM_L1CrossDomainMessengerFast,

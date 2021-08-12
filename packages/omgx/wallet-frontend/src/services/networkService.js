@@ -1370,7 +1370,7 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
       L2LPContract.userRewardFeeRate(),
       L2LPContract.ownerRewardFeeRate()
     ])
-    const feeRate = userRewardFeeRate + ownerRewardFeeRate;
+    const feeRate = Number(userRewardFeeRate) + Number(ownerRewardFeeRate);
     return ((feeRate / 1000) * 100).toFixed(0)
   }
 
