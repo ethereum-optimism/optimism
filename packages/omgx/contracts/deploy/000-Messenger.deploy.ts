@@ -42,6 +42,7 @@ const deployFn: DeployFunction = async (hre) => {
     const L1MessagerTX = await L1_Messenger_Deployed.initialize(
       addressManager.address
     )
+    await L1MessagerTX.wait()
     console.log(`⭐️ ${chalk.blue('Fast L1 Messager initialized:')} ${chalk.green(L1MessagerTX.hash)}`)
 
     //this will fail for non deployer account
@@ -49,6 +50,7 @@ const deployFn: DeployFunction = async (hre) => {
       'OVM_L1CrossDomainMessengerFast',
       L1_Messenger.address
     )
+    await L1MessagerTXreg.wait()
     console.log(`⭐️ ${chalk.blue('Fast L1 Messager registered:')} ${chalk.green(L1MessagerTXreg.hash)}`)
 
 }

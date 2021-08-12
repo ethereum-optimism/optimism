@@ -52,13 +52,15 @@ const deployFn: DeployFunction = async (hre) => {
     const ProxyL1MessengerTX = await Proxy_L1_Messenger_Deployed.initialize(
       addressManager.address
     )
+    await ProxyL1MessengerTX.wait()
     console.log(`⭐️ ${chalk.blue('Proxy Fast L1 Messenger initialized:')} ${chalk.green(ProxyL1MessengerTX.hash)}`)
 
     const ProxyL1MessengerTXreg = await addressManager.setAddress(
-        'Proxy__OVM_L1CrossDomainMessengerFast',
-        Proxy_L1_Messenger.address
-      )
-      console.log(`⭐️ ${chalk.blue('Proxy Fast L1 Messager registered:')} ${chalk.green(ProxyL1MessengerTXreg.hash)}`)
+      'Proxy__OVM_L1CrossDomainMessengerFast',
+      Proxy_L1_Messenger.address
+    )
+    await ProxyL1MessengerTXreg.wait()
+    console.log(`⭐️ ${chalk.blue('Proxy Fast L1 Messager registered:')} ${chalk.green(ProxyL1MessengerTXreg.hash)}`)
 
 }
 
