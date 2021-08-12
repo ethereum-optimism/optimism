@@ -264,23 +264,38 @@ class listNFT extends React.Component {
           className={styles.topContainer}
         >
           
-          <div className={styles.Table2}>
-            <div className={styles.BasicText}>{name} ({symbol})</div>
-            <div className={styles.BasicLightText}>Owner: {owner}</div>
-            <div className={styles.BasicLightText}>UUID: {UUID}</div>
-            <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
-            <div className={styles.BasicLightText}>Time minted: {time}</div>
-            <div className={styles.BasicLightText}>Type: {typeString}</div>
-            <a className={styles.URILink} href={URL}>DATASHEET</a>
-          </div>
+          {oriID === 'simple' && 
+            <div className={styles.Table2}>
+              <div className={styles.BasicText}>{name} ({symbol})</div>
+              <div className={styles.BasicLightText}>Owner: {owner}</div>
+              <div className={styles.BasicLightText}>UUID: {UUID}</div>
+              <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
+              <div className={styles.BasicLightText}>Time minted: {time}</div>
+              <a className={styles.URILink} href={URL}>Link</a>
+            </div>
+          }
 
-          <div 
-            className={styles.Table3}
-            onClick={()=>{this.setState({ dropDownBox: !dropDownBox, dropDownBoxInit: false })}}
-          >
-            <div className={styles.LinkText}>Actions</div>
-            <ExpandMoreIcon className={styles.LinkButton} />
-          </div>
+          {oriID !== 'simple' && <>
+            <div className={styles.Table2}>
+              <div className={styles.BasicText}>{name} ({symbol})</div>
+              <div className={styles.BasicLightText}>Owner: {owner}</div>
+              <div className={styles.BasicLightText}>UUID: {UUID}</div>
+              <div className={styles.BasicLightText}>Address: {truncate(address, 6, 4, '...')}</div>
+              <div className={styles.BasicLightText}>Time minted: {time}</div>
+              <div className={styles.BasicLightText}>Type: {typeString}</div>
+              <a className={styles.URILink} href={URL}>DATASHEET</a>
+            </div>
+          
+            <div 
+              className={styles.Table3}
+              onClick={()=>{this.setState({ dropDownBox: !dropDownBox, dropDownBoxInit: false })}}
+            >
+              <div className={styles.LinkText}>Actions</div>
+              <ExpandMoreIcon className={styles.LinkButton} />
+            </div>
+          </>
+          }
+
         </div>
 
         {/*********************************************/

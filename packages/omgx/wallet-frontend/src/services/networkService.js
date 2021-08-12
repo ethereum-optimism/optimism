@@ -251,16 +251,21 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
         //special case - this is the default NFT factory....
         genesisContractAddress = this.ERC721Address
       }
-      
-      //wallet address of whomever owns the parent
-      const genesisContract = new ethers.Contract(
-        genesisContractAddress,
-        L2ERC721Json.abi,
-        this.L2Provider
-      )
-      
-      const feeRecipient = await genesisContract.owner()
 
+      let simpleAddress = '0x0000000000000000000000000000000000000042'
+      let feeRecipient = simpleAddress
+
+      if( genesisContractAddress !== simpleAddress) {
+        //this is a derived NFT
+        //wallet address of whomever owns the parent
+        const genesisContract = new ethers.Contract(
+          genesisContractAddress,
+          L2ERC721Json.abi,
+          this.L2Provider
+        )
+        feeRecipient = await genesisContract.owner()
+      }
+      
       addNFTFactory({
         name: nftName,
         symbol: nftSymbol,
@@ -789,11 +794,14 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
 
     //console.log('fetchNFTs')
     
+    //the current list of factories we know about
+    //based in part on the cahce, and anything we recently generated in this session
     let NFTfactories = Object.entries(await getNFTFactories())
-
+    
+    //list of NFT factory addresses we know about, locally
     const localCache = NFTfactories.map(item => {return item[0].toLowerCase()})
 
-    //check user's blockchain NFT registry
+    //the user's blockchain NFT registry
     const registry = new ethers.Contract(this.ERC721RegAddress,L2ERC721RegJson.abi,this.L2Provider)
     const addresses = await registry.lookupAddress(this.account)
     //console.log("Blockchain NFT wallet:", addresses)
@@ -812,7 +820,7 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
     //How many NFTs do you have right now?
     let numberOfNFTS = 0
 
-    //need to call this again because it might have changed
+    //need to call this again because it might have changed since the iniital call
     NFTfactories = Object.entries(await getNFTFactories())
     
     for(let i = 0; i < NFTfactories.length; i++) {
@@ -827,6 +835,22 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
       const balance = await contract.connect(
         this.L2Provider
       ).balanceOf(this.account)
+
+      const rights = NFTfactories[i][1].haveRights
+      //console.log("NFT Rights:", rights)
+
+      let owner = await contract.owner()
+      owner = owner.toLowerCase()
+
+      if ( this.account.toLowerCase() === owner && rights === false ) {
+        //we need to give rights
+        //haveRights = true
+        //ToDo
+      } else if ( this.account.toLowerCase() !== owner && rights === true ) {
+        //we need to remove rights
+        //haveRights = false
+        //ToDo
+      }
 
       numberOfNFTS = numberOfNFTS + Number(balance.toString())
 
@@ -858,6 +882,7 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
         let nftName = await contract.name()
         let nftSymbol = await contract.symbol()
         let genesis = await contract.getGenesis()
+        let feeRecipient = '0x0000000000000000000000000000000000000042'
 
         let genesisContractAddress = genesis[0]
 
@@ -866,18 +891,18 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
           genesisContractAddress = this.ERC721Address
         }
         
-        //console.log("NFT genesis contract:", genesis)
-        //wallet address of whomever owns the parent
-        const genesisContract = new ethers.Contract(
-          genesisContractAddress,
-          L2ERC721Json.abi,
-          this.L2Provider
-        )
-        //console.log("genesisContract:", genesisContract)
+        if( genesisContractAddress !== '0x0000000000000000000000000000000000000042') {
+          const genesisContract = new ethers.Contract(
+            genesisContractAddress,
+            L2ERC721Json.abi,
+            this.L2Provider
+          )
+          //console.log("genesisContract:", genesisContract)
+          
+          feeRecipient = await genesisContract.owner()
+          //console.log("NFT feeRecipient:", feeRecipient)
+        }
         
-        const feeRecipient = await genesisContract.owner()
-        //console.log("NFT feeRecipient:", feeRecipient)
-
         //can have more than 1 per contract
         for (let i = 0; i < Number(balance.toString()); i++) {
           

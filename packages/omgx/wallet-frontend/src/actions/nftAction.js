@@ -85,6 +85,34 @@ export async function addNFTContract ( address ) {
 
 }
 
+/* Allows one or more fields of an NFT factroy to be updated */
+
+export async function changeNFTFactory ( Factory ) {
+          
+  const factory = {
+    owner: Factory.owner, 
+    address: Factory.address,
+    mintedTime: Factory.mintedTime, 
+    decimals: 0,
+    symbol:  Factory.symbol, 
+    layer: Factory.layer,
+    name: Factory.name,
+    originID: Factory.originID,
+    originAddress: Factory.originAddress,
+    originChain: Factory.originChain,
+    originFeeRecipient: Factory.originFeeRecipient,
+    haveRights: Factory.haveRights
+  }
+
+  store.dispatch({
+    type: 'NFT/CREATEFACTORY/SUCCESS',
+    payload: factory
+  })
+
+  return factory;
+
+}
+
 export async function addNFTFactory ( Factory ) {
 
   const state = store.getState();

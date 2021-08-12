@@ -200,6 +200,37 @@ class listNFTfactory extends React.Component {
     this.setState({ loading: false })
   }
 
+    async handleSimpleMintAndSend() {
+
+    const { receiverAddress, ownerName, tokenURI, address } = this.state;
+    
+    const networkStatus = await this.props.dispatch(networkService.confirmLayer('L2'))
+    
+    if (!networkStatus) {
+      this.props.dispatch(openError('Please use L2 network.'))
+      return
+    }
+
+    this.setState({ loading: true })
+
+    const mintTX = await networkService.mintAndSendNFT(
+      receiverAddress, 
+      address,
+      ownerName, 
+      tokenURI,
+      0
+    )
+
+    if (mintTX) {
+      this.props.dispatch(openAlert(`You minted a new NFT for ${receiverAddress}. 
+        The owner's name is ${ownerName}.`))
+    } else {
+      this.props.dispatch(openError('NFT minting error'))
+    }
+ 
+    this.setState({ loading: false })
+  }
+
   async handleDeployDerivative() {
 
     const { newNFTsymbol, newNFTname, address, UUID  } = this.state;
@@ -317,19 +348,58 @@ class listNFTfactory extends React.Component {
             styles.dropDownContainer: dropDownBoxInit ? styles.dropDownInit : styles.closeDropDown}
         >
           
-          <div className={styles.boxOrigin}>
-            <img className={styles.Image} src={root} alt="root"/>
-            <div className={styles.originRight}>
-              <div className={styles.BasicText}>Root</div>
-              <div className={styles.BasicLightText}>Address: {oriAddress}</div>
-              <div className={styles.BasicLightText}>NFT: {oriID}</div>
-              <div className={styles.BasicLightText}>Chain: {oriChain}</div>
-              <div className={styles.BasicLightText}>Fee recipient: {oriFeeRecipient}</div>
+          
+          {oriID !== 'simple' &&
+            <div className={styles.boxOrigin}>
+              <img className={styles.Image} src={root} alt="root"/>
+              <div className={styles.originRight}>
+                <div className={styles.BasicText}>Root</div>
+                <div className={styles.BasicLightText}>Address: {oriAddress}</div>
+                <div className={styles.BasicLightText}>NFT: {oriID}</div>
+                <div className={styles.BasicLightText}>Chain: {oriChain}</div>
+                <div className={styles.BasicLightText}>Fee recipient: {oriFeeRecipient}</div>
+              </div>
             </div>
-          </div>
+          }
 
           <div className={styles.boxContainer}>
-          {!UUID && haveRights && 
+          {!UUID && haveRights && oriID === 'simple' &&
+            <>
+              <h3>Mint and Send</h3>
+              <div className={styles.BasicLightText} style={{paddingBottom: '3px'}}>
+                To mint and send a new {name} NFT, please fill in the information and click "Mint and Send".
+              </div>
+              <Input
+                small={true}
+                placeholder="Receiver Address (Ox.....)"
+                onChange={i=>{this.setState({receiverAddress: i.target.value})}}
+                value={receiverAddress}
+              />
+              <Input
+                small={true}
+                placeholder="NFT Owner Name (e.g. Satoshi)"
+                onChange={i=>{this.setState({ownerName: i.target.value})}}
+                value={ownerName}
+              />
+              <Input
+                small={true}
+                placeholder="NFT URL (e.g. https://jimb.stanford.edu)"
+                onChange={i=>{this.setState({tokenURI: i.target.value})}}
+                value={tokenURI}
+              />
+              <Button
+                type='primary'
+                size='small'
+                disabled={!receiverAddress || !ownerName || !tokenURI}
+                onClick={()=>{this.handleSimpleMintAndSend()}}
+                loading={loading}
+              >
+                Mint and Send
+              </Button>
+            </>
+          }  
+
+          {!UUID && haveRights && oriID !== 'simple' &&
             <>
               <h3>Mint and Send</h3>
               <div className={styles.BasicLightText} style={{paddingBottom: '3px'}}>
