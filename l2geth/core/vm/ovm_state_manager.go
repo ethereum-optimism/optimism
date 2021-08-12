@@ -39,8 +39,7 @@ func callStateManager(input []byte, evm *EVM, contract *Contract) (ret []byte, e
 	}
 
 	var inputArgs = make(map[string]interface{})
-	err = method.Inputs.UnpackIntoMap(inputArgs, input[4:])
-	if err != nil {
+	if err := method.Inputs.UnpackIntoMap(inputArgs, input[4:]); err != nil {
 		return nil, err
 	}
 
