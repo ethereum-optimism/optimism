@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.9
+
+### Patch Changes
+
+- 3b132974: Fix tx resubmission estimateGas bug in batch submitter
+- Updated dependencies [7f26667d]
+- Updated dependencies [77511b68]
+  - @eth-optimism/contracts@0.4.7
+
 ## 0.3.8
 
 ### Patch Changes

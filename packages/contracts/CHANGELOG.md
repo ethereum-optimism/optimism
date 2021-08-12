@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.7
+
+### Patch Changes
+
+- 7f26667d: Add hardhat task for whitelisting addresses
+- 77511b68: Add a hardhat task to withdraw ETH fees from L2 to L1
+
 ## 0.4.6
 
 ### Patch Changes
