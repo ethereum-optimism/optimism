@@ -86,7 +86,6 @@ type Backend interface {
 	CurrentBlock() *types.Block
 
 	// Optimism-specific API
-	SetTimestamp(timestamp int64)
 	IsVerifier() bool
 	IsSyncing() bool
 	GetEthContext() (uint64, uint64)
