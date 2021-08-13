@@ -249,7 +249,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			l1MessageSender = msg.L1MessageSender().Hex()
 		}
 		if st.evm.EthCallSender == nil {
-			log.Debug("Applying transaction", "ID", st.evm.Id, "from", sender.Address().Hex(), "to", to, "nonce", msg.Nonce(), "gasPrice", msg.GasPrice().Uint64(), "gasLimit", msg.Gas(), "value", msg.Value().Uint64(), "l1MessageSender", l1MessageSender, "data", hexutil.Encode(msg.Data()))
+			log.Debug("Applying transaction", "from", sender.Address().Hex(), "to", to, "nonce", msg.Nonce(), "gasPrice", msg.GasPrice().Uint64(), "gasLimit", msg.Gas(), "value", msg.Value().Uint64(), "l1MessageSender", l1MessageSender, "data", hexutil.Encode(msg.Data()))
 		}
 	}
 
