@@ -63,6 +63,7 @@ type flagGroup struct {
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flagGroup{
 	{
+		// UsingOVM
 		Name: "OPTIMISM",
 		Flags: []cli.Flag{
 			utils.Eth1SyncServiceEnable,
