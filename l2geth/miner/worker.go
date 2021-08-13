@@ -355,6 +355,16 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = w.chain.CurrentTimestamp()
 			commit(false, commitInterruptNewHead)
 
+		// Remove this code for the OVM implementation. It is responsible for
+		// cleaning up memory with the call to `clearPending`, so be sure to
+		// call that in the new hot code path
+		/*
+			case <-w.chainHeadCh:
+				clearPending(head.Block.NumberU64())
+				timestamp = time.Now().Unix()
+				commit(false, commitInterruptNewHead)
+		*/
+
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
@@ -464,7 +474,18 @@ func (w *worker) mainLoop() {
 			}
 			tx := ev.Txs[0]
 			log.Debug("Attempting to commit rollup transaction", "hash", tx.Hash().Hex())
+			// Build the block with the tx and add it to the chain. This will
+			// send the block through the `taskCh` and then through the
+			// `resultCh` which ultimately adds the block to the blockchain
+			// through `bc.WriteBlockWithState`
 			if err := w.commitNewTx(tx); err == nil {
+				// `chainHeadCh` is written to when a new block is added to the
+				// tip of the chain. Reading from the channel will block until
+				// the ethereum block is added to the chain downstream of `commitNewTx`.
+				// This will result in a deadlock if we call `commitNewTx` with
+				// a transaction that cannot be added to the chain, so this
+				// should be updated to a select statement that can also listen
+				// for errors.
 				head := <-w.chainHeadCh
 				txs := head.Block.Transactions()
 				if len(txs) == 0 {
@@ -474,6 +495,19 @@ func (w *worker) mainLoop() {
 				txn := txs[0]
 				height := head.Block.Number().Uint64()
 				log.Debug("Miner got new head", "height", height, "block-hash", head.Block.Hash().Hex(), "txn-hash", txn.Hash().Hex(), "tx-hash", tx.Hash().Hex())
+
+				// Prevent memory leak by cleaning up pending tasks
+				// This is mostly copied from the `newWorkLoop`
+				// `clearPending` function and must be called
+				// periodically to clean up pending tasks. This
+				// function was originally called in `newWorkLoop`
+				// but the OVM implementation no longer uses that code path.
+				w.pendingMu.Lock()
+				for h := range w.pendingTasks {
+					delete(w.pendingTasks, h)
+				}
+				w.pendingMu.Unlock()
+
 			} else {
 				log.Debug("Problem committing transaction: %w", err)
 			}
@@ -1053,6 +1087,8 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		if interval != nil {
 			interval()
 		}
+		// Writing to the taskCh will result in the block being added to the
+		// chain via the resultCh
 		select {
 		case w.taskCh <- &task{receipts: receipts, state: s, block: block, createdAt: time.Now()}:
 			w.unconfirmed.Shift(block.NumberU64() - 1)
