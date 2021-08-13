@@ -6,14 +6,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title ERC721Genesis
- * 
+ *
  */
 contract ERC721Genesis is Ownable, ERC721 {
 
     uint256 tID;
 
     // Ancestral NFT
-    struct Ancestor { 
+    struct Ancestor {
        address cAddress;
        string id;
        string chain;
@@ -22,13 +22,13 @@ contract ERC721Genesis is Ownable, ERC721 {
     Ancestor genesis;
 
     constructor (
-        string memory name, 
-        string memory symbol, 
-        uint256 tID_start, 
+        string memory name,
+        string memory symbol,
+        uint256 tID_start,
         address origin_cAddress,
         string memory origin_id,
         string memory origin_chain
-    ) 
+    )
         ERC721(name, symbol) {
         _setBaseURI('');
         tID = tID_start;
@@ -41,8 +41,8 @@ contract ERC721Genesis is Ownable, ERC721 {
 
     function mintNFT(address recipient, string memory tokenURI) public onlyOwner returns (uint256)
     {
-        mint(recipient, tID);
-        setTokenURI(tID, tokenURI);
+        _mint(recipient, tID);
+        _setTokenURI(tID, tokenURI);
         tID += 1;
         return tID;
     }
@@ -52,14 +52,10 @@ contract ERC721Genesis is Ownable, ERC721 {
     }
 
     function getGenesis() public view returns (
-        address, 
-        string memory, 
-        string memory) {  
-        return(genesis.cAddress, genesis.id, genesis.chain);  
-    } 
-
-    function setTokenURI(uint256 tokenId, string memory _tokenURI) public {
-        _setTokenURI(tokenId, _tokenURI);
+        address,
+        string memory,
+        string memory) {
+        return(genesis.cAddress, genesis.id, genesis.chain);
     }
 
     //for a specific tokenId, get the associated NFT
@@ -71,19 +67,12 @@ contract ERC721Genesis is Ownable, ERC721 {
         return _exists(tokenId);
     }
 
-    function mint(address to, uint256 tokenId) public {
-        _mint(to, tokenId);
-    }
-
-    function safeMint(address to, uint256 tokenId) public {
-        _safeMint(to, tokenId);
-    }
-
-    function safeMint(address to, uint256 tokenId, bytes memory _data) public {
+    function safeMint(address to, uint256 tokenId, bytes memory _data) public onlyOwner {
         _safeMint(to, tokenId, _data);
     }
 
     function burn(uint256 tokenId) public {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "Caller is not owner nor approved");
         _burn(tokenId);
     }
 }
