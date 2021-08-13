@@ -1,0 +1,8 @@
+{
+  "OVM_L1CrossDomainMessengerFast": "0x68ac1623ACf9eB9F88b65B5F229fE3e2c0d5789e",
+  "Proxy__OVM_L1CrossDomainMessengerFast": "0x841979bbC06Be7BFE28d9FadDac1A73e1Fb495C1",
+  "L2LiquidityPool": "0xF8882EB01e6657532c4963b3F7160024dfF56637",
+  "L1LiquidityPool": "0xF9197a0fdFc747981Fb264071057c73d17662F59",
+  "Proxy__L1LiquidityPool": "0x6b4eab8D55A4f701C3FE58bDb8b3e1f181eA7087",
+  "Proxy__L2LiquidityPool": "0xe469ff3C6b7002cD591427B44F0A5922D3CA0026"
+}
