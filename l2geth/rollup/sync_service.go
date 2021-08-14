@@ -262,8 +262,12 @@ func (s *SyncService) Start() error {
 	if s.verifier {
 		go s.VerifierLoop()
 	} else {
-context, err := s.client.GetLatestEthContext()
-log.Debug("MMDBG init context", "context", context, "err", err)
+		// FIXME - for debugging, can remove later
+		context, err := s.client.GetLatestEthContext()
+		log.Debug("Startup - GetLatestEthContext", "context", context, "err", err)
+		inf, err := s.client.GetLatestEnqueueInfo()
+		log.Debug("Startup - GetLatestEnqueueInfo", "info", inf, "err", err)
+
 		// The sequencer must sync the transactions to the tip and the
 		// pending queue transactions on start before setting sync status
 		// to false and opening up the RPC to accept transactions.
@@ -456,8 +460,13 @@ func (s *SyncService) syncQueueToTip() error {
 	}
 
 	inf, err := s.client.GetLatestEnqueueInfo()
-	if err != nil {
-		log.Debug("s.client.GetLatestEnqueueInfo failed", "err", err)
+	if errors.Is(err, errElementNotFound) {
+		// This can happen on first startup if the queue's empty. Does not happen
+		// on a local system using 'deployer' to fund L2 accounts.
+		log.Warn("GetLatestEnqueueInfo() index not found")
+		return nil
+	} else if err != nil {
+		log.Error("s.client.GetLatestEnqueueInfo failed", "err", err)
 		return err
 	}
 

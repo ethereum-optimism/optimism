@@ -325,7 +325,7 @@ func (c *Client) GetLatestEnqueueInfo() (*EnqueueInfo, error) {
 	}
 
 	if info.QueueIndex == nil {
-		return nil, errors.New("Latest queue index is nil")
+		return nil, errElementNotFound
 	}
 
 	return info, nil
