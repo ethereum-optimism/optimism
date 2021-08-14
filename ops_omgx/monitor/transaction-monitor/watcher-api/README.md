@@ -1,6 +1,7 @@
 # Watcher API
 
-> Endpoint: https://api-watcher.rinkeby.omgx.network/
+> Mainnet Endpoint: https://api-watcher.mainnet.omgx.network/
+> Rinkeby Endpoint: https://api-watcher.rinkeby.omgx.network/
 
 ## Methods
 

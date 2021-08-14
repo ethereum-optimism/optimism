@@ -1,0 +1,67 @@
+service: sls-omgx-mainnet-watcher # NOTE: update this with your service name
+
+provider:
+  name: aws
+  runtime: python3.7
+  stackName: sls-omgx-mainnet-watcher
+  stage: prod
+  region: us-east-1
+  role: ${file(env.yml):ROLE}
+
+package:
+  exclude:
+    - .gitignore
+  individually: true
+
+functions:
+  watcher_getTransactions:
+    handler: watcher_getTransactions.watcher_getTransactions
+    memorySize: 10240 # optional, in MB, default is 1024
+    timeout: 60 # optional, in seconds, default is 6
+    vpc:
+      securityGroupIds:
+        - ${file(env.yml):SECURITY_GROUPS}
+      subnetIds:
+        - ${file(env.yml):SUBNET_ID_1}
+        - ${file(env.yml):SUBNET_ID_2}
+    events:
+      - http:
+          path: get.transaction
+          method: post
+          cors: true
+    layers:
+      - ${file(env.yml):LAYERS}
+  watcher_getDeployments:
+    handler: watcher_getDeployments.watcher_getDeployments
+    memorySize: 10240 # optional, in MB, default is 1024
+    timeout: 60 # optional, in seconds, default is 6
+    vpc:
+      securityGroupIds:
+        - ${file(env.yml):SECURITY_GROUPS}
+      subnetIds:
+        - ${file(env.yml):SUBNET_ID_1}
+        - ${file(env.yml):SUBNET_ID_2}
+    events:
+      - http:
+          path: get.deployments
+          method: post
+          cors: true
+    layers:
+      - ${file(env.yml):LAYERS}
+  watcher_getCrossDomainMessage:
+    handler: watcher_getCrossDomainMessage.watcher_getCrossDomainMessage
+    memorySize: 10240 # optional, in MB, default is 1024
+    timeout: 60 # optional, in seconds, default is 6
+    vpc:
+      securityGroupIds:
+        - ${file(env.yml):SECURITY_GROUPS}
+      subnetIds:
+        - ${file(env.yml):SUBNET_ID_1}
+        - ${file(env.yml):SUBNET_ID_2}
+    events:
+      - http:
+          path: get.crossdomainmessage
+          method: post
+          cors: true
+    layers:
+      - ${file(env.yml):LAYERS}
