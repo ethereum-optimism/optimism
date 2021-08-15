@@ -352,7 +352,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		select {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
-			timestamp = w.chain.CurrentTimestamp()
 			commit(false, commitInterruptNewHead)
 
 		// Remove this code for the OVM implementation. It is responsible for
@@ -374,7 +373,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					timer.Reset(recommit)
 					continue
 				}
-				timestamp = w.chain.CurrentTimestamp()
 				commit(true, commitInterruptResubmit)
 			}
 
@@ -544,7 +542,7 @@ func (w *worker) mainLoop() {
 				// If clique is running in dev mode(period is 0), disable
 				// advance sealing here.
 				if w.chainConfig.Clique != nil && w.chainConfig.Clique.Period == 0 {
-					w.commitNewWork(nil, true, w.chain.CurrentTimestamp())
+					w.commitNewWork(nil, true, time.Now().Unix())
 				}
 			}
 			atomic.AddInt32(&w.newTxs, int32(len(ev.Txs)))

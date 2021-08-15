@@ -304,9 +304,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 	if b.UsingOVM {
 		to := signedTx.To()
 		if to != nil {
-			if *to == (common.Address{}) {
-				return errors.New("Cannot send transaction to zero address")
-			}
 			// Prevent QueueOriginSequencer transactions that are too large to
 			// be included in a batch. The `MaxCallDataSize` should be set to
 			// the layer one consensus max transaction size in bytes minus the
@@ -321,10 +318,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 	}
 	// OVM Disabled
 	return b.eth.txPool.AddLocal(signedTx)
-}
-
-func (b *EthAPIBackend) SetTimestamp(timestamp int64) {
-	b.eth.blockchain.SetCurrentTimestamp(timestamp)
 }
 
 func (b *EthAPIBackend) GetPoolTransactions() (types.Transactions, error) {
