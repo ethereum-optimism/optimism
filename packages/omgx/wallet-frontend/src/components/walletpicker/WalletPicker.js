@@ -213,7 +213,7 @@ function WalletPicker ({ onEnable, enabled }) {
           <Button
             type="primary"
             className={styles.ButtonAdd}
-            onClick={() => networkService.addL2Network()}
+            onClick={() => networkService.addL2NetworkMainnet()}
           >
             Add OMGX L2 Provider
           </Button>
@@ -233,8 +233,8 @@ function WalletPicker ({ onEnable, enabled }) {
             who can earn rewards for providing liquidity.<br/><br/>
             <span className={styles.B}>Easy to customize.</span>{' '}We have tried to keep the code simple to make it easy to customize and modify.<br/><br/>
             <span className={styles.B}>Requirements.</span>{' '}You will need Metamask and,
-            if you want to test on the Rinkeby testnet, some Rinkeby ETH.<br/><br/>
-            <span className={styles.B}>MetaMask L2 Setup.</span>{' '}Click 'Add OMGX L2 Provider', or, if want to add it manually, go to <span className={styles.B}>MetaMask&#62;Settings&#62;Networks&#62;Add Network</span>.{' '}Specify `https://rinkeby.omgx.network` as the New RPC URL.<br/><br/>
+            to test on the Rinkeby testnet, some Rinkeby ETH. On Mainnet, you will need some ETH to get started.<br/><br/>
+            <span className={styles.B}>MetaMask L2 Setup.</span>{' '}Click `Add OMGX L2 Provider` on the top right, or, add it manually at MetaMask&#62;Settings&#62;Networks&#62;Add Network. Specify `https://mainnet.omgx.network` as the New RPC URL.<br/><br/>
             <br/>
             <br/>
           </div>

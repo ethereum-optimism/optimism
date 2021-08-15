@@ -67,11 +67,10 @@ import addressOMGXAxiosInstance from 'api/addressOMGXAxios'
 import coinGeckoAxiosInstance from 'api/coinGeckoAxios'
 import ethGasStationAxiosInstance from 'api/ethGasStationAxios'
 
-//All the current addresses for fallback purposes only
-//These may or may not be present
-//Generally, the wallet will get these from the two HTTP deployment servers
+//All the current addresses for fallback purposes, or live network
 const localAddresses = require(`../deployment/local/addresses.json`)
 const rinkebyAddresses = require(`../deployment/rinkeby/addresses.json`)
+const mainnetAddresses = require(`../deployment/mainnet/addresses.json`)
 
 class NetworkService {
 
@@ -126,6 +125,7 @@ class NetworkService {
 
     // chain ID
     this.chainID = null
+    this.networkName = null
 
     // gas
     this.L1GasLimit = 9999999
@@ -136,12 +136,6 @@ class NetworkService {
     console.log('NS: enableBrowserWallet()')
     try {
       // connect to the wallet
-      //await window.ethereum.enable()
-/*
-inpage.js:1 MetaMask: 'ethereum.enable()' is deprecated and may be removed in the future. Please use the 'eth_requestAccounts' RPC method instead.
-For more information, see: https://eips.ethereum.org/EIPS/eip-1102
-*/
-
       await window.ethereum.request({method: 'eth_requestAccounts'})
       this.provider = new ethers.providers.Web3Provider(window.ethereum)
       return true
@@ -339,6 +333,7 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
       console.log('Loading OMGX contract addresses')
 
       if (masterSystemConfig === 'local') {
+
         try {
           resOMGX = await addressOMGXAxiosInstance('local').get()
         } catch (error) {
@@ -359,43 +354,30 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
 
         console.log('Final Local Addresses:', addresses)
       } else if (masterSystemConfig === 'rinkeby') {
-        /*these endpoints do not exist yet*/
-        // try {
-        //   resOMGX = await addressOMGXAxiosInstance('rinkeby').get()
-        // }
-        // catch (error) {
-        //   console.log(error)
-        // }
-
-        // try {
-        //   resBase = await addressAxiosInstance('rinkeby').get()
-        // }
-        // catch (error) {
-        //   console.log(error)
-        // }
-
-        // if ( resOMGX !== null && resBase !== null ) {
-        //   addresses = {...resBase.data, ...resOMGX.data }
-        // } else {
-        addresses = rinkebyAddresses //emergency fallback
-        // }
-
-        console.log('Final Rinkeby Addresses:', addresses)
+        addresses = rinkebyAddresses
+        console.log('Rinkeby Addresses:', addresses)
+      } else if (masterSystemConfig === 'mainnet') {
+        addresses = mainnetAddresses
+        console.log('Mainnet Addresses:', addresses)
       }
 
       //at this point, the wallet should be connected
       this.account = await this.provider.getSigner().getAddress()
       console.log('this.account', this.account)
+      
       const network = await this.provider.getNetwork()
-
+      
       this.chainID = network.chainId
+      this.networkName = network.name
+      
       this.masterSystemConfig = masterSystemConfig
 
       this.tokenAddresses = addresses.TOKENS
 
+      console.log('NS: network:', network)
       console.log('NS: masterConfig:', this.masterSystemConfig)
       console.log('NS: this.chainID:', this.chainID)
-      console.log('NS: network:', network)
+      console.log('NS: this.networkName:', this.networkName)
 
       //there are numerous possible chains we could be on
       //either local, rinkeby etc
@@ -415,6 +397,14 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
         //rinkeby, L1
         this.L1orL2 = 'L1'
       } else if (masterSystemConfig === 'rinkeby' && network.chainId === 28) {
+        //ok, that's reasonable
+        //rinkeby, L2
+        this.L1orL2 = 'L2'
+      } else if (masterSystemConfig === 'mainnet' && network.chainId === 1) {
+        //ok, that's reasonable
+        //rinkeby, L2
+        this.L1orL2 = 'L1'
+      } else if (masterSystemConfig === 'mainnet' && network.chainId === 288) {
         //ok, that's reasonable
         //rinkeby, L2
         this.L1orL2 = 'L2'
@@ -441,13 +431,7 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
       if (addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessenger')) {
         this.L1MessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessenger
         console.log('L1MessengerAddress set to:', this.L1MessengerAddress)
-      } else {
-        this.L1MessengerAddress = addresses.L1MessengerAddress
-        console.log(
-          'LEGACY: L1MessengerAddress set to:',
-          this.L1MessengerAddress
-        )
-      }
+      } 
 
       if(addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessengerFast')) {
         this.L1FastMessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessengerFast
@@ -613,12 +597,25 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
     }
   }
 
-  async addL2Network() {
+  async addL2NetworkRinkeby() {
     const nw = getAllNetworks()
     const chainParam = {
       chainId: '0x' + nw.rinkeby.L2.chainId.toString(16),
-      chainName: 'OMGX L2',
+      chainName: 'OMGX L2 Rinkeby',
       rpcUrls: [nw.rinkeby.L2.rpcUrl],
+    }
+
+    // connect to the wallet
+    this.provider = new ethers.providers.Web3Provider(window.ethereum)
+    this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
+  }
+
+  async addL2NetworkMainnet() {
+    const nw = getAllNetworks()
+    const chainParam = {
+      chainId: '0x' + nw.mainnet.L2.chainId.toString(16),
+      chainName: 'OMGX L2 Mainnet',
+      rpcUrls: [nw.mainnet.L2.rpcUrl],
     }
 
     // connect to the wallet
@@ -628,36 +625,36 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
 
   async getTransactions() {
 
-    if (this.masterSystemConfig === 'rinkeby') {
+    // NOT SUPPORTED on LOCAL
+    if (this.masterSystemConfig === 'local') return
       
-      let txL1
-      let txL2
+    let txL1
+    let txL2
 
-      const responseL1 = await etherScanInstance(
-        this.masterSystemConfig,
-        /*this.L1orL2*/ 'L1'
-      ).get(`&address=${this.account}`)
-      if (responseL1.status === 200) {
-        const transactionsL1 = await responseL1.data
-        if (transactionsL1.status === '1') {
-          //thread in ChainID
-          txL1 = transactionsL1.result.map(v => ({...v, chain: 'L1'}))
-          //return transactions.result
-        }
+    const responseL1 = await etherScanInstance(
+      this.masterSystemConfig,
+      /*this.L1orL2*/ 'L1'
+    ).get(`&address=${this.account}`)
+    if (responseL1.status === 200) {
+      const transactionsL1 = await responseL1.data
+      if (transactionsL1.status === '1') {
+        //thread in ChainID
+        txL1 = transactionsL1.result.map(v => ({...v, chain: 'L1'}))
+        //return transactions.result
       }
+    }
 
-      const responseL2 = await omgxWatcherAxiosInstance(
-        this.masterSystemConfig
-      ).post('get.transaction', {
-        address: this.account,
-        fromRange: 0,
-        toRange: 1000,
-      })
-      if (responseL2.status === 201) {
-        txL2 = responseL2.data.map(v => ({...v, chain: 'L2'}))
-        const annotated = await this.parseTransaction( [...txL1, ...txL2] )
-        return annotated
-      }
+    const responseL2 = await omgxWatcherAxiosInstance(
+      this.masterSystemConfig
+    ).post('get.transaction', {
+      address: this.account,
+      fromRange: 0,
+      toRange: 1000,
+    })
+    if (responseL2.status === 201) {
+      txL2 = responseL2.data.map(v => ({...v, chain: 'L2'}))
+      const annotated = await this.parseTransaction( [...txL1, ...txL2] )
+      return annotated
     }
 
   }
@@ -666,119 +663,118 @@ For more information, see: https://eips.ethereum.org/EIPS/eip-1102
   based on contract addresses */
   async parseTransaction( transactions ) {
 
-    var annotatedTX
+    // NOT SUPPORTED on LOCAL
+    if (this.masterSystemConfig === 'local') return
 
-    if (this.masterSystemConfig === 'rinkeby') {
+    var annotatedTX = transactions.map(item => {
+        
+      let to = item.to
       
-      annotatedTX = transactions.map(item => {
-        
-        let to = item.to
-        
-        if ( to === null || to === '') {
-          return item
+      if ( to === null || to === '') {
+        return item
+      }
+
+      to = to.toLowerCase()
+
+      if (to === this.L2LPAddress.toLowerCase()) {
+        //console.log("L2->L1 Swap Off")
+        return Object.assign({}, item, { typeTX: 'Fast Offramp' })
+      } 
+
+      if (to === this.L1LPAddress.toLowerCase()) {
+        //console.log("L1->L2 Swap On")
+        return Object.assign({}, item, { typeTX: 'Fast Onramp' })
+      } 
+
+      if (to === this.L1StandardBridgeAddress.toLowerCase()) {
+        //console.log("L1->L2 Traditional Deposit")
+        return Object.assign({}, item, { typeTX: 'Traditional' })
+      } 
+
+      if (to === this.L1_TEST_Address.toLowerCase()) {
+        //console.log("L1 ERC20 Amount Approval")
+        return Object.assign({}, item, { typeTX: 'L1 ERC20 Amount Approval' })
+      } 
+
+      if (to === this.L2StandardBridgeAddress.toLowerCase()) {
+        //0x4200000000000000000000000000000000000010
+        //console.log("L2 Standard Bridge")
+        return Object.assign({}, item, { typeTX: 'L2 Standard Bridge' })
+      } 
+
+      if (to === this.L1Message.toLowerCase()) {
+        //console.log("L1 Message")
+        return Object.assign({}, item, { typeTX: 'L1 Message' })
+      } 
+
+      if (to === this.L2Message.toLowerCase()) {
+        //console.log("L2 Message")
+        return Object.assign({}, item, { typeTX: 'L2 Message' })
+      } 
+
+      if (to === this.L2_TEST_Address.toLowerCase()) {
+        //console.log("L2 TEST Message")
+        return Object.assign({}, item, { typeTX: 'L2 TEST Token' })
+      } 
+
+      if (to === this.L2_ETH_Address.toLowerCase()) {
+        //console.log("L2 ETH Message")
+        return Object.assign({}, item, { typeTX: 'L2 ETH Ops (such as a L2->L2 Transfer)' })
+      }
+
+      // if (to === this.L2_ETH_Address.toLowerCase()) {
+      //   //console.log("L2 ETH Message")
+      //   return Object.assign({}, item, { typeTX: 'L2 ETH Token' })
+      // } 
+
+      if (item.crossDomainMessage) {
+        if(to === this.L2LPAddress.toLowerCase()) {
+          //console.log("Found EXIT: L2LPAddress")
+          return Object.assign({}, item, { typeTX: 'FAST EXIT via L2LP' })
+        } 
+        else if (to === this.L2_TEST_Address.toLowerCase()) {
+          //console.log("Found EXIT: L2_TEST_Address")
+          return Object.assign({}, item, { typeTX: 'EXIT (TEST Token)' })
+        } 
+        else if (to === this.L2_ETH_Address.toLowerCase()) {
+          //console.log("Found EXIT: L2_ETH_Address")
+          return Object.assign({}, item, { typeTX: 'EXIT ETH' })
         }
+      }
 
-        to = to.toLowerCase()
+      return Object.assign({}, item, { typeTX: to })
 
-        if (to === this.L2LPAddress.toLowerCase()) {
-          //console.log("L2->L1 Swap Off")
-          return Object.assign({}, item, { typeTX: 'Fast Offramp' })
-        } 
-
-        if (to === this.L1LPAddress.toLowerCase()) {
-          //console.log("L1->L2 Swap On")
-          return Object.assign({}, item, { typeTX: 'Fast Onramp' })
-        } 
-
-        if (to === this.L1StandardBridgeAddress.toLowerCase()) {
-          //console.log("L1->L2 Traditional Deposit")
-          return Object.assign({}, item, { typeTX: 'Traditional' })
-        } 
-
-        if (to === this.L1_TEST_Address.toLowerCase()) {
-          //console.log("L1 ERC20 Amount Approval")
-          return Object.assign({}, item, { typeTX: 'L1 ERC20 Amount Approval' })
-        } 
-
-        if (to === this.L2StandardBridgeAddress.toLowerCase()) {
-          //0x4200000000000000000000000000000000000010
-          //console.log("L2 Standard Bridge")
-          return Object.assign({}, item, { typeTX: 'L2 Standard Bridge' })
-        } 
-
-        if (to === this.L1Message.toLowerCase()) {
-          //console.log("L1 Message")
-          return Object.assign({}, item, { typeTX: 'L1 Message' })
-        } 
-
-        if (to === this.L2Message.toLowerCase()) {
-          //console.log("L2 Message")
-          return Object.assign({}, item, { typeTX: 'L2 Message' })
-        } 
-
-        if (to === this.L2_TEST_Address.toLowerCase()) {
-          //console.log("L2 TEST Message")
-          return Object.assign({}, item, { typeTX: 'L2 TEST Token' })
-        } 
-
-        if (to === this.L2_ETH_Address.toLowerCase()) {
-          //console.log("L2 ETH Message")
-          return Object.assign({}, item, { typeTX: 'L2 ETH Ops (such as a L2->L2 Transfer)' })
-        }
-
-        // if (to === this.L2_ETH_Address.toLowerCase()) {
-        //   //console.log("L2 ETH Message")
-        //   return Object.assign({}, item, { typeTX: 'L2 ETH Token' })
-        // } 
-
-        if (item.crossDomainMessage) {
-          if(to === this.L2LPAddress.toLowerCase()) {
-            //console.log("Found EXIT: L2LPAddress")
-            return Object.assign({}, item, { typeTX: 'FAST EXIT via L2LP' })
-          } 
-          else if (to === this.L2_TEST_Address.toLowerCase()) {
-            //console.log("Found EXIT: L2_TEST_Address")
-            return Object.assign({}, item, { typeTX: 'EXIT (TEST Token)' })
-          } 
-          else if (to === this.L2_ETH_Address.toLowerCase()) {
-            //console.log("Found EXIT: L2_ETH_Address")
-            return Object.assign({}, item, { typeTX: 'EXIT ETH' })
-          }
-        }
-
-        return Object.assign({}, item, { typeTX: to })
-
-      }) //map
+    }) //map
     
-    } //if rinkeby
-
     return annotatedTX
 
   }
 
   async getExits() {
-    //this is NOT SUPPORTED on LOCAL
-    if (this.masterSystemConfig === 'rinkeby') {
-      const response = await omgxWatcherAxiosInstance(
-        this.masterSystemConfig
-      ).post('get.transaction', {
-        address: this.account,
-        fromRange: 0,
-        toRange: 100,
-      })
-      if (response.status === 201) {
-        const transactions = response.data
-        const filteredTransactions = transactions.filter(
-          (i) =>
-            [
-              this.L2LPAddress.toLowerCase(),
-              this.L2_TEST_Address.toLowerCase(),
-              this.L2_ETH_Address.toLowerCase(),
-            ].includes(i.to ? i.to.toLowerCase() : null) && i.crossDomainMessage
-        )
-        return { exited: filteredTransactions }
-      }
+
+    // NOT SUPPORTED on LOCAL
+    if (this.masterSystemConfig === 'local') return
+
+    const response = await omgxWatcherAxiosInstance(
+      this.masterSystemConfig
+    ).post('get.transaction', {
+      address: this.account,
+      fromRange: 0,
+      toRange: 100,
+    })
+    if (response.status === 201) {
+      const transactions = response.data
+      const filteredTransactions = transactions.filter(
+        (i) =>
+          [
+            this.L2LPAddress.toLowerCase(),
+            this.L2_TEST_Address.toLowerCase(),
+            this.L2_ETH_Address.toLowerCase(),
+          ].includes(i.to ? i.to.toLowerCase() : null) && i.crossDomainMessage
+      )
+      return { exited: filteredTransactions }
     }
+
   }
 
   async fetchNFTs() {

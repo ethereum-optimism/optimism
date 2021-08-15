@@ -63,22 +63,32 @@ class Nft extends React.Component {
     const networkStatus = await this.props.dispatch(networkService.confirmLayer('L2'))
     
     if (!networkStatus) {
-      this.props.dispatch(openError('Please use L2 network.'))
+      this.props.dispatch(openError('Please use L2 network'))
       return;
     }
 
     this.setState({ loading: true })
+
+    let originName = ''
+
+    if(networkService.chainID === 28) {
+      originName = 'OMGX_Rinkeby_28'
+    } else if (networkService.chainID === 288) {
+      originName = 'OMGX_Mainnet_288'
+    } else {
+      originName = 'OMGX_Other'
+    }
 
     const deployTX = await networkService.deployNewNFTContract(
       newNFTsymbol,
       newNFTname,
       '0x0000000000000000000000000000000000000042',
       'simple',
-      'OMGX_Rinkeby_28'
+      originName
     )
     
     if (deployTX) {
-      this.props.dispatch(openAlert(`You have deployed a new NFT contract.`))
+      this.props.dispatch(openAlert(`You have deployed a new NFT contract`))
     } else {
       this.props.dispatch(openError('NFT contract deployment error'))
     }
@@ -124,9 +134,10 @@ class Nft extends React.Component {
           }
           <div className={styles.nftTiles} >
           {Object.keys(list).map((v, i) => {
+            const key_UUID = `nft_` + i
             return (
               <ListNFT 
-                key={i}
+                key={key_UUID}
                 name={list[v].name}
                 symbol={list[v].symbol}
                 owner={list[v].owner}
@@ -183,9 +194,11 @@ class Nft extends React.Component {
           <div className={styles.TableContainer}>
             {Object.keys(factories).map((v, i) => {
               if(factories[v].haveRights && factories[v].originID === 'simple') {
+                const key_UUID = `fac_` + i
+                console.log(key_UUID)
                 return (
                   <ListNFTfactory 
-                    key={i}
+                    key={key_UUID}
                     name={factories[v].name}
                     symbol={factories[v].symbol}
                     owner={factories[v].owner}
@@ -223,9 +236,9 @@ class Nft extends React.Component {
 
           {rights === 0 &&
             <div className={styles.note}>
-              In this tab, you can take an NFT you got from someone and derive a new family of NFTs from it.
+              In this tab, you can take an NFT you obtained from someone else and derive a new family of NFTs from it.
               Think of this as creating a "child" NFT from a preceeding "parent" NFT. This is useful, for example, if you generate 
-              creative content, and would like to license that content to others, and allow them to build on it, whilst still 
+              creative content, and would like to license that content to others and allow them to build on it, whilst still 
               receiving micropayments for your original contribution and work.
               Status: You do not have owner permissions. To create your own NFT factory, obtain an NFT first.
             </div> 
@@ -234,9 +247,10 @@ class Nft extends React.Component {
           <div className={styles.TableContainer}>
             {Object.keys(factories).map((v, i) => {
               if(factories[v].haveRights && factories[v].originID !== 'simple') {
+                const key_UUID = `fac_d_` + i
                 return (
                   <ListNFTfactory 
-                    key={i}
+                    key={key_UUID}
                     name={factories[v].name}
                     symbol={factories[v].symbol}
                     owner={factories[v].owner}

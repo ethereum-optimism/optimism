@@ -5,7 +5,7 @@
          "symbol": "TEST",
          "address": { 
             "rinkeby":"0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02",
-            "mainnet": "ToDo"
+            "mainnet": ""
          }
       },
       {
@@ -13,7 +13,7 @@
          "symbol": "USDT",
          "address": { 
              "rinkeby":"0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02",
-             "mainnet": "ToDo"
+             "mainnet": "0xdac17f958d2ee523a2206206994597c13d831ec7"
           }
       },
       {
@@ -21,7 +21,7 @@
          "symbol": "DAI",
          "address": { 
              "rinkeby":"0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa",
-             "mainnet": "ToDo"
+             "mainnet": "0x6b175474e89094c44da98b954eedeac495271d0f"
           }
       },
       {
@@ -29,7 +29,7 @@
          "symbol": "USDC",
          "address": { 
              "rinkeby":"0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b",
-             "mainnet": "ToDo"
+             "mainnet": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
           }
       },
       {
@@ -37,7 +37,7 @@
          "symbol": "WBTC",
          "address": { 
              "rinkeby":"0x577D296678535e4903D59A4C929B718e1D575e0A",
-             "mainnet": "ToDo"
+             "mainnet": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
           }
       },
       {
@@ -45,7 +45,7 @@
          "symbol": "REP",
          "address": { 
              "rinkeby":"0x6e894660985207feb7cf89Faf048998c71E8EE89",
-             "mainnet": "ToDo"
+             "mainnet": "0x221657776846890989a759ba2973e427dff5c9bb"
           }
       },
       {
@@ -53,7 +53,7 @@
          "symbol": "BAT",
          "address": { 
              "rinkeby":"0xbF7A7169562078c96f0eC1A8aFD6aE50f12e5A99",
-             "mainnet": "ToDo"
+             "mainnet": "0x0d8775f648430679a709e98d2b0cb6250d2887ef"
           }
       },
       {
@@ -61,7 +61,7 @@
          "symbol": "ZRX",
          "address": { 
              "rinkeby":"0xddea378A6dDC8AfeC82C36E9b0078826bf9e68B6",
-             "mainnet": "ToDo"
+             "mainnet": "0xe41d2489571d322189246dafa5ebde1f4699f498"
           }
       },
       {
@@ -69,7 +69,7 @@
          "symbol": "SUSHI",
          "address": { 
              "rinkeby":"0xA434947525699FfbbF74260947c2906831FafD98",
-             "mainnet": "ToDo"
+             "mainnet": "0x6b3595068778dd592e39a122f4f5a5cf09c90fe2"
           }
       },
       {
@@ -77,7 +77,7 @@
          "symbol": "LINK",
          "address": { 
              "rinkeby":"0x01BE23585060835E02B77ef475b0Cc51aA1e0709",
-             "mainnet": "ToDo"
+             "mainnet": "0x514910771af9ca656af840dff83e8264ecf986ca"
           }
       },
       {
@@ -85,7 +85,7 @@
          "symbol": "UNI",
          "address": { 
              "rinkeby":"0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
-             "mainnet": "ToDo"
+             "mainnet": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
           }
       }
    ]

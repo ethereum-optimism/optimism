@@ -242,20 +242,30 @@ class listNFTfactory extends React.Component {
       return;
     }
 
-    this.setState({ loading: true });
+    this.setState({ loading: true })
+
+    let originName = ''
+
+    if(networkService.chainID === 28) {
+      originName = 'OMGX_Rinkeby_28'
+    } else if (networkService.chainID === 288) {
+      originName = 'OMGX_Mainnet_288'
+    } else {
+      originName = 'OMGX_Other'
+    }
 
     const deployTX = await networkService.deployNewNFTContract(
       newNFTsymbol,
       newNFTname,
       address,
       UUID,
-      'OMGX_Rinkeby_28'
+      originName
     )
     
     if (deployTX) {
-      this.props.dispatch(openAlert(`You have deployed a new NFT factory.`));
+      this.props.dispatch(openAlert(`You have deployed a new NFT factory`))
     } else {
-      this.props.dispatch(openError('NFT factory deployment error'));
+      this.props.dispatch(openError('NFT factory deployment error'))
     }
 
     this.setState({ loading: false })
