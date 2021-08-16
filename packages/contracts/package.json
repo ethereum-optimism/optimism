@@ -39,13 +39,14 @@
     "lint:fix": "yarn lint:check --fix",
     "lint:contracts": "yarn solhint -f table contracts/optimistic-ethereum/**/*.sol",
     "clean": "rm -rf ./dist ./artifacts ./artifacts-ovm ./cache ./cache-ovm ./tsconfig.build.tsbuildinfo",
-    "deploy": "ts-node \"./bin/deploy.ts\" && yarn generate-markdown",
+    "deploy": "ts-node \"./bin/deploy.ts\" && yarn generate:markdown",
     "serve": "./bin/serve_dump.sh",
     "prepublishOnly": "yarn copyfiles -u 2 \"contracts/optimistic-ethereum/**/*\" ./",
     "postpublish": "rimraf OVM iOVM libraries mockOVM",
     "prepack": "yarn prepublishOnly",
     "postpack": "yarn postpublish",
-    "generate-markdown": "node \"./scripts/generate-markdown.js\"",
+    "generate:markdown": "node \"./scripts/generate-markdown.js\"",
+    "generate:artifacts": "yarn clean && yarn build && node \"./scripts/generate-artifacts.js\" && yarn lint:fix",
     "pre-commit": "lint-staged"
   },
   "dependencies": {
