@@ -61,7 +61,6 @@ interface RequiredEnvVars {
 
 /* Optional Env Vars
  * FRAUD_SUBMISSION_ADDRESS
- * DISABLE_QUEUE_BATCH_APPEND
  * SEQUENCER_PRIVATE_KEY
  * PROPOSER_PRIVATE_KEY
  * MNEMONIC
@@ -193,10 +192,6 @@ export const run = async () => {
   const FRAUD_SUBMISSION_ADDRESS = config.str(
     'fraud-submisison-address',
     env.FRAUD_SUBMISSION_ADDRESS || 'no fraud'
-  )
-  const DISABLE_QUEUE_BATCH_APPEND = config.bool(
-    'disable-queue-batch-append',
-    !!env.DISABLE_QUEUE_BATCH_APPEND
   )
   const MIN_GAS_PRICE_IN_GWEI = config.uint(
     'min-gas-price-in-gwei',
@@ -382,7 +377,6 @@ export const run = async () => {
     BLOCK_OFFSET,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     metrics,
-    DISABLE_QUEUE_BATCH_APPEND,
     autoFixBatchOptions
   )
 
