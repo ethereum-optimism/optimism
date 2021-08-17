@@ -92,7 +92,6 @@ export class HealthcheckServer {
   }
 
   runSyncCheck = async () => {
-    throw new Error('trial')
     const sequencerProvider = injectL2Context(
       new providers.JsonRpcProvider(this.options.sequencerRpcProvider)
     )
