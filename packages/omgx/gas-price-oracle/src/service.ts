@@ -1,6 +1,7 @@
 /* Imports: External */
-import { Contract, Wallet, BigNumber, providers } from 'ethers'
-import fetch from 'node-fetch'
+import { Contract, Wallet, BigNumber, providers, utils } from 'ethers'
+import fs, { promises as fsPromise } from 'fs';
+import path from 'path'
 
 /* Imports: Internal */
 import { sleep } from '@eth-optimism/core-utils'
@@ -14,6 +15,8 @@ interface GasPriceOracleOptions {
 
   // Address of the gasPrice contract
   gasPriceOracleAddress: string,
+  OVM_oETHAddress: string,
+  OVM_SequencerFeeVault: string,
 
   // Wallet
   deployerWallet: Wallet,
@@ -34,8 +37,6 @@ interface GasPriceOracleOptions {
   // Interval in seconds to wait between loops
   pollingInterval: number
 
-  // Etherscan API
-  etherscanAPI: string
 }
 
 const optionSettings = {}
@@ -47,6 +48,7 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
 
   private state: {
     OVM_GasPriceOracle: Contract
+    OVM_oETH: Contract
     L1ETHBalance: BigNumber
     L1ETHCostFee: BigNumber
     L2ETHCollectFee: BigNumber
@@ -54,12 +56,13 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
     lastQueriedL2Block: number
     avgL2GasLimitPerBlock: BigNumber
     numberOfBlocksInterval: number
-    etherscanURL: string
   }
 
   protected async _init(): Promise<void> {
     this.logger.info('Initializing gas price oracle', {
       gasPriceOracleAddress: this.options.gasPriceOracleAddress,
+      OVM_SequencerFeeVault: this.options.OVM_SequencerFeeVault,
+      OVM_oETHAddress: this.options.OVM_oETHAddress,
       deployerAddress: this.options.deployerWallet.address,
       sequencerWallet: this.options.sequencerWallet.address,
       proposerWallet: this.options.proposerWallet.address,
@@ -81,6 +84,16 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
       address: this.state.OVM_GasPriceOracle.address,
     })
 
+    this.logger.info('Connecting to oETH...')
+    this.state.OVM_oETH = loadContract(
+      'L2StandardERC20',
+      this.options.OVM_oETHAddress,
+      this.options.l2RpcProvider,
+    ).connect(this.options.deployerWallet)
+    this.logger.info('Connected to oETH', {
+      address: this.state.OVM_oETH.address,
+    })
+
     this.state.L1ETHBalance = BigNumber.from('0')
     this.state.L1ETHCostFee = BigNumber.from('0')
     this.state.L2ETHCollectFee = BigNumber.from('0')
@@ -91,7 +104,8 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
     this.state.avgL2GasLimitPerBlock = BigNumber.from('0')
     this.state.numberOfBlocksInterval = 0
 
-    this.state.etherscanURL = `https://api-rinkeby.etherscan.io/api?module=account&action=txlist&apikey=${this.options.etherscanAPI}`
+    // Load history
+    await this._loadL1ETHFee();
   }
 
   protected async _start(): Promise<void> {
@@ -100,6 +114,40 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
       await this._getL1Balance()
       await this._getL2GasCost()
       await this._updateGasPrice()
+    }
+  }
+
+  private async _loadL1ETHFee(): Promise<void> {
+    const dumpsPath = path.resolve(__dirname, '../data/history.json')
+    if (fs.existsSync(dumpsPath)) {
+      this.logger.warn('Loading L1 cost history...')
+      const historyJsonRaw = await fsPromise.readFile(dumpsPath)
+      const historyJSON = JSON.parse(historyJsonRaw.toString())
+      if (historyJSON.L1ETHCostFee) {
+        this.state.L1ETHBalance = BigNumber.from(historyJSON.L1ETHBalance)
+        this.state.L1ETHCostFee = BigNumber.from(historyJSON.L1ETHCostFee)
+      } else {
+        this.logger.warn('Invalid L1 cost history!')
+      }
+    } else {
+      this.logger.warn('No L1 cost history Found!')
+    }
+  }
+
+  private async _writeL1ETHFee(): Promise<void> {
+    const dumpsPath = path.resolve(__dirname, '../data')
+    if (!fs.existsSync(dumpsPath)) {
+      fs.mkdirSync(dumpsPath)
+    }
+    try {
+      const addrsPath = path.resolve(dumpsPath, 'history.json')
+      await fsPromise.writeFile(addrsPath, JSON.stringify({
+        L1ETHBalance: this.state.L1ETHBalance.toString(),
+        L1ETHCostFee: this.state.L1ETHCostFee.toString()
+      }))
+    } catch (error) {
+      console.log(error)
+      this.logger.error("Failed to write L1 cost history!")
     }
   }
 
@@ -114,38 +162,32 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
       (acc,cur) => { return acc.add(cur) }, BigNumber.from('0')
     )
 
-    const latestQueriedL1Block = await this.options.l1RpcProvider.getBlockNumber()
-
-    // Check if anyone transferred ETH to accounts
-    const txResponse = await Promise.all([
-      fetch(`${this.state.etherscanURL}&startblock=${this.state.lastQueriedL1Block}&endblock=${latestQueriedL1Block}&address=${this.options.sequencerWallet.address}`),
-      fetch(`${this.state.etherscanURL}&startblock=${this.state.lastQueriedL1Block}&endblock=${latestQueriedL1Block}&address=${this.options.proposerWallet.address}`),
-      fetch(`${this.state.etherscanURL}&startblock=${this.state.lastQueriedL1Block}&endblock=${latestQueriedL1Block}&address=${this.options.relayerWallet.address}`),
-      fetch(`${this.state.etherscanURL}&startblock=${this.state.lastQueriedL1Block}&endblock=${latestQueriedL1Block}&address=${this.options.fastRelayerWallet.address}`),
-    ])
-    const txHistory = await Promise.all(txResponse.map(response => response.json()))
-    const addedETHBalance = txHistory.reduce((acc, cur) => {
-      if (Array.isArray(cur.result)) {
-        const addedValued = cur.result.filter(i => i.value !== '0').reduce((iacc, icur) => {
-          return iacc.add(BigNumber.from(icur.value))
-        }, BigNumber.from('0'))
-        return acc.add(addedValued)
-      }
-      return acc
-    }, BigNumber.from('0'))
-
     if (!this.state.L1ETHBalance.eq(BigNumber.from('0'))) {
-      this.state.L1ETHCostFee = this.state.L1ETHCostFee.add(
-        this.state.L1ETHBalance.add(addedETHBalance).sub(L1ETHBalanceLatest)
-      )
+      // condition 1 - L1ETHBalance <= L1ETHBalanceLatest -- do nothing
+      // condition 2 - L1ETHBalance > L1ETHBalanceLatest
+      if (this.state.L1ETHBalance.gt(L1ETHBalanceLatest)) {
+        this.state.L1ETHCostFee = this.state.L1ETHCostFee.add(
+          this.state.L1ETHBalance.sub(L1ETHBalanceLatest)
+        )
+      }
+    } else {
+      // start from the point that L1ETHCost = L2ETHCollect
+      this.state.L1ETHCostFee = BigNumber.from((await this.state.OVM_oETH.balanceOf(this.options.OVM_SequencerFeeVault)).toString())
     }
+
     this.state.L1ETHBalance = L1ETHBalanceLatest
-    this.state.lastQueriedL1Block = latestQueriedL1Block
+    this.state.lastQueriedL1Block = await this.options.l2RpcProvider.getBlockNumber()
+
+    // write history
+    this._writeL1ETHFee();
 
     this.logger.info("Got L1 ETH balances", {
-      L1ETHBalance: this.state.L1ETHBalance.toString(),
-      L1ETHCostFee: this.state.L1ETHCostFee.toString(),
-      latestQueriedL1Block: this.state.lastQueriedL1Block,
+      network: "L1",
+      data: {
+        L1ETHBalance: this.state.L1ETHBalance.toString(),
+        L1ETHCostFee: Number(utils.formatEther(this.state.L1ETHCostFee.toString()).slice(0, 8)),
+        latestQueriedL1Block: this.state.lastQueriedL1Block,
+      }
     })
   }
 
@@ -167,17 +209,20 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
       ]
     }, [BigNumber.from('0'), BigNumber.from('0')])
 
-    this.state.L2ETHCollectFee = latestQueriedL2Block !== this.state.lastQueriedL2Block ?
-      this.state.L2ETHCollectFee.add(collectGasLimitAndFee[1]) : this.state.L2ETHCollectFee
+    // Get L2 ETH Fee from contract
+    this.state.L2ETHCollectFee = BigNumber.from((await this.state.OVM_oETH.balanceOf(this.options.OVM_SequencerFeeVault)).toString())
     this.state.lastQueriedL2Block = latestQueriedL2Block
     this.state.avgL2GasLimitPerBlock = collectGasLimitAndFee[0].div(numberOfBlocksInterval)
     this.state.numberOfBlocksInterval = numberOfBlocksInterval
 
     this.logger.info("Got L2 Gas Cost", {
-      L2ETHCollectFee: this.state.L2ETHCollectFee.toString(),
-      lastQueriedL2Block: this.state.lastQueriedL2Block,
-      avgL2GasUsagePerBlock: this.state.avgL2GasLimitPerBlock.toString(),
-      numberOfBlocksInterval: this.state.numberOfBlocksInterval,
+      network: "L2",
+      data: {
+        L2ETHCollectFee: Number(utils.formatEther(this.state.L2ETHCollectFee.toString()).slice(0, 8)),
+        lastQueriedL2Block: this.state.lastQueriedL2Block,
+        avgL2GasUsagePerBlock: this.state.avgL2GasLimitPerBlock.toString(),
+        numberOfBlocksInterval: this.state.numberOfBlocksInterval,
+      }
     })
   }
 

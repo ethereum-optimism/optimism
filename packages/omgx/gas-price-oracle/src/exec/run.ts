@@ -62,11 +62,6 @@ const main = async () => {
     parseInt(env.POLLING_INTERVAL, 10) || 1000 * 60 * 10
   )
 
-  const ETHERSCAN_API = config.str(
-    'etherscan-api',
-    env.ETHERSCAN_API,
-  )
-
   if (!GAS_PRICE_ORACLE_ADDRESS) {
     throw new Error('Must pass GAS_PRICE_ORACLE_ADDRESS')
   }
@@ -101,10 +96,16 @@ const main = async () => {
   const relayerWallet = new Wallet(RELAYER_PRIVATE_KEY, l1Provider)
   const fastRelayerWallet = new Wallet(FAST_RELAYER_PRIVATE_KEY, l1Provider)
 
+  // Fix address
+  const OVM_oETHAddress = "0x4200000000000000000000000000000000000006"
+  const OVM_SequencerFeeVault = "0x4200000000000000000000000000000000000011"
+
   const service = new GasPriceOracleService({
     l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
     gasPriceOracleAddress: GAS_PRICE_ORACLE_ADDRESS,
+    OVM_oETHAddress,
+    OVM_SequencerFeeVault,
     deployerWallet,
     sequencerWallet,
     proposerWallet,
@@ -113,8 +114,7 @@ const main = async () => {
     gasFloorPrice: GAS_PRICE_ORACLE_FLOOR_PRICE,
     gasRoofPrice: GAS_PRICE_ORACLE_ROOF_PRICE,
     gasPriceMinPercentChange: GAS_PRICE_ORACLE_MIN_PERCENT_CHANGE,
-    pollingInterval: POLLING_INTERVAL,
-    etherscanAPI: ETHERSCAN_API,
+    pollingInterval: POLLING_INTERVAL
   })
 
   await service.start()

@@ -51,9 +51,6 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.0",
-    "@eth-optimism/core-utils": "^0.4.2",
-    "@eth-optimism/hardhat-ovm": "^0.0.2",
-    "@openzeppelin/contracts": "3.4.1",
     "bcfg": "^0.1.6",
     "chalk": "^4.1.1",
     "dotenv": "^8.2.0",

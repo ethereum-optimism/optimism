@@ -23,6 +23,7 @@ packages/contracts/hardhat*
 
 packages/data-transport-layer/db
 
+packages/omgx/gas-price-oracle/data
 
 packages/omgx/wallet-frontend/build
 packages/omgx/wallet/wallet/build
