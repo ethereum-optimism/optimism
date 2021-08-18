@@ -893,14 +893,9 @@ func makeLog(size int) executionFunc {
 			topics[i] = common.BigToHash(stack.pop())
 		}
 
-		contractAddr := contract.Address()
-		if UsingOVM {
-			contractAddr = interpreter.evm.OvmADDRESS()
-		}
-
 		d := memory.GetCopy(mStart.Int64(), mSize.Int64())
 		interpreter.evm.StateDB.AddLog(&types.Log{
-			Address: contractAddr,
+			Address: contract.Address(),
 			Topics:  topics,
 			Data:    d,
 			// This is a non-consensus field, but assigned here because

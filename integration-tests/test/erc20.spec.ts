@@ -64,18 +64,9 @@ describe('Basic ERC20 interactions', async () => {
     const transfer = await ERC20.transfer(other.address, 100)
     const receipt = await transfer.wait()
 
-    // The expected fee paid is the value returned by eth_estimateGas
-    const gasLimit = await ERC20.estimateGas.transfer(other.address, 100)
-    const gasPrice = await wallet.getGasPrice()
-    expect(gasPrice).to.deep.equal(TxGasPrice)
-    const expectedFeePaid = gasLimit.mul(gasPrice)
-
-    // There are two events from the transfer with the first being
-    // the ETH fee paid and the second of the value transfered (100)
-    expect(receipt.events.length).to.equal(2)
-    expect(receipt.events[0].args._value).to.deep.equal(expectedFeePaid)
-    expect(receipt.events[1].args._from).to.equal(wallet.address)
-    expect(receipt.events[1].args._value.toNumber()).to.equal(100)
+    expect(receipt.events.length).to.equal(1)
+    expect(receipt.events[0].args._from).to.equal(wallet.address)
+    expect(receipt.events[0].args._value.toNumber()).to.equal(100)
 
     const receiverBalance = await ERC20.balanceOf(other.address)
     const senderBalance = await ERC20.balanceOf(wallet.address)
