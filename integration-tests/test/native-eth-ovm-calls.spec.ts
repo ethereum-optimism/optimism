@@ -13,7 +13,8 @@ import { Interface } from 'ethers/lib/utils'
 
 chai.use(solidity)
 
-describe('Native ETH value integration tests', () => {
+// SKIP: needs message passing PR
+describe.skip('Native ETH value integration tests', () => {
   let env: OptimismEnv
   let wallet: Wallet
   let other: Wallet
