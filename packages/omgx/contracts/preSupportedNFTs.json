@@ -1,0 +1,46 @@
+{
+   "supportedTokens": [
+      {
+         "name": "Bored_Ape_Yacht_Club",
+         "symbol": "BAYC",
+         "address": {
+             "mainnet":"0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D"
+          }
+      },
+      {
+         "name": "Ethereum_Naming_Service",
+         "symbol": "ENS",
+         "address": {
+             "mainnet":"0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85"
+          }
+      },
+      {
+         "name": "Cool_Cats",
+         "symbol": "COOL",
+         "address": {
+             "mainnet":"0x1a92f7381b9f03921564a437210bb9396471050c"
+          }
+      },
+      {
+         "name": "Pudgy_Penguins",
+         "symbol": "PPG",
+         "address": {
+             "mainnet":"0xBd3531dA5CF5857e7CfAA92426877b022e612cf8"
+          }
+      },
+      {
+         "name": "Yat_NFT",
+         "symbol": "Yats",
+         "address": {
+             "mainnet":"0x7d256d82b32d8003d1ca1a1526ed211e6e0da9e2"
+          }
+      },
+      {
+         "name": "CryptoKitties",
+         "symbol": "CK",
+         "address": {
+             "mainnet":"0x06012c8cf97BEaD5deAe237070F9587f8E7A266d"
+          }
+      }
+   ]
+}

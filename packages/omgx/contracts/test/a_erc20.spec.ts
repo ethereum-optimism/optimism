@@ -29,12 +29,12 @@ describe('System setup', async () => {
     env = await OptimismEnv.new()
 
     L1StandardBridgeAddress = await env.addressManager.getAddress('Proxy__OVM_L1StandardBridge')
-    
+
     L1StandardBridge = getContractFactory(
       "OVM_L1StandardBridge",
       env.bobl1Wallet
     ).attach(L1StandardBridgeAddress)
-    
+
     L2StandardBridgeAddress = await L1StandardBridge.l2TokenBridge()
 
     //let's tap into the contract we just deployed
@@ -104,7 +104,7 @@ describe('System setup', async () => {
   it('should transfer ERC20 TEST token to Kate', async () => {
 
     const transferL2ERC20Amount = utils.parseEther("999")
-    
+
     const preKateL2ERC20Balance = await L2ERC20.balanceOf(env.katel2Wallet.address)
 
     const transferToKateTX = await L2ERC20.transfer(
@@ -141,7 +141,7 @@ describe('System setup', async () => {
     expect(postBobL2ERC20Balance).to.deep.eq(
       preBobL2ERC20Balance.sub(transferL2ERC20Amount)
     )
-    
+
   })
 
 })

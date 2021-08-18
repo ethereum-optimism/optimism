@@ -17,7 +17,7 @@ const nftName = 'TestNFT'
 const nftSymbol = 'TST'
 
 const deployFn: DeployFunction = async (hre) => {
-    
+
   Factory__L2ERC721 = new ContractFactory(
     L2ERC721Json.abi,
     L2ERC721Json.bytecode,

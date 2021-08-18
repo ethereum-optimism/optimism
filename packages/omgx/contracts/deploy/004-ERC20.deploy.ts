@@ -33,11 +33,11 @@ const deployFn: DeployFunction = async (hre) => {
   let tokenAddress = null;
 
   for (let token of preSupportedTokens.supportedTokens) {
-    
+
     if ((hre as any).deployConfig.network === 'local' || token.symbol === 'TEST') {
       //do not deploy existing tokens on Rinkeby or Mainnet
       //only deploy tokens if it's the TEST token or we are on local
-      
+
       L1ERC20 = await Factory__L1ERC20.deploy(
         initialSupply,
         token.name,
@@ -77,7 +77,7 @@ const deployFn: DeployFunction = async (hre) => {
       {gasLimit: 86000000}
     )
     await L2ERC20.deployTransaction.wait()
-    
+
     const L2ERC20DeploymentSubmission: DeploymentSubmission = {
       ...L2ERC20,
       receipt: L2ERC20.receipt,

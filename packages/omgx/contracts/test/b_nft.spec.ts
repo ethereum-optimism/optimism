@@ -78,7 +78,7 @@ describe('NFT Test\n', async () => {
 
     let meta = ownerName + '#' + Date.now().toString() + '#' + 'https://www.atcc.org/products/all/CCL-2.aspx';
     console.log(`meta: ${meta}`)
-    
+
     console.log("Alice (a1a):",a2a)
 
     //mint one NFT
@@ -88,7 +88,7 @@ describe('NFT Test\n', async () => {
       { gasLimit: 21170000 }
     )
     await nft.wait()
-    
+
     //console.log("ERC721:",nft)
 
     const balanceBob = await ERC721.balanceOf(a1a)
@@ -136,7 +136,7 @@ describe('NFT Test\n', async () => {
     expect(await ERC721.balanceOf(a1a)).to.deep.eq(BigNumber.from(String(0)))
     //});
 
-    // Alice (a1a) should have two NFTs, and the tokenID of the first one should be zero, and the second one 
+    // Alice (a1a) should have two NFTs, and the tokenID of the first one should be zero, and the second one
     // should be 2
     expect(await ERC721.ownerOf(BigNumber.from(String(0)))).to.deep.eq(a2a)
     expect(await ERC721.ownerOf(BigNumber.from(String(1)))).to.deep.eq(a3a)
@@ -147,7 +147,7 @@ describe('NFT Test\n', async () => {
   })
 
   it('should derive an NFT Factory from a genesis NFT', async () => {
-    
+
     //Alice (a2a) Account #2 wishes to create a derivative NFT factory from a genesis NFT
     const tokenID = await ERC721.tokenOfOwnerByIndex(
       a2a,
@@ -179,7 +179,7 @@ describe('NFT Test\n', async () => {
     console.log(`Derived NFT deployed to: ${ERC721_D.address}`)
 
     const meta = 'ADA BYRON, COUNTESS OF LOVELACE' + '#' + Date.now().toString() + '#' + 'http://blogs.bodleian.ox.ac.uk/wp-content/uploads/sites/163/2015/10/AdaByron-1850-1000x1200-e1444805848856.jpg'
-    
+
     const nft = await ERC721_D.mintNFT(
       a3a,
       meta,
@@ -192,20 +192,20 @@ describe('NFT Test\n', async () => {
   it('should register the NFTs address in users wallet', async () => {
 
     await ERC721Reg.registerAddress(
-      a2a, 
+      a2a,
       ERC721.address,
       { gasLimit: 21170000 }
     )
-    
+
     //but, a3a should have two flavors of NFT...
     await ERC721Reg.registerAddress(
-      a3a, 
+      a3a,
       ERC721.address,
       { gasLimit: 21170000 }
     )
 
     await ERC721Reg.registerAddress(
-      a3a, 
+      a3a,
       ERC721_D.address,
       { gasLimit: 21170000 }
     )
