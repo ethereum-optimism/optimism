@@ -1,5 +1,0 @@
-{
-  "compilerVersion": "./node_modules/@eth-optimism/solc",
-  "sourceDirectory": "./contracts",
-  "outputDirectory": "./build-ovm"
-}
