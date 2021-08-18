@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
-	"golang.org/x/crypto/sha3"
 )
 
 type revision struct {
@@ -230,23 +229,6 @@ func (s *StateDB) GetBalance(addr common.Address) *big.Int {
 		return stateObject.Balance()
 	}
 	return common.Big0
-}
-
-// UsingOVM
-// Read the account's balance from the state. This is used
-// because ETH is an ERC20. This function specifically looks
-// up the storage slot of the users balance. It is fragile to any
-// changes in storage layout.
-func (s *StateDB) GetOVMBalance(addr common.Address) *big.Int {
-	eth := common.HexToAddress("0x4200000000000000000000000000000000000006")
-	position := big.NewInt(0)
-	hasher := sha3.NewLegacyKeccak256()
-	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
-	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
-	digest := hasher.Sum(nil)
-	key := common.BytesToHash(digest)
-	slot := s.GetState(eth, key)
-	return slot.Big()
 }
 
 func (s *StateDB) GetNonce(addr common.Address) uint64 {
