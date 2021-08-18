@@ -805,15 +805,7 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 
 	for idx, tx := range block.Transactions() {
 		// Assemble the transaction call message and return if the requested offset
-		var msg core.Message
-		if !vm.UsingOVM {
-			msg, _ = tx.AsMessage(signer)
-		} else {
-			msg, err = core.AsOvmMessage(tx, signer, common.HexToAddress("0x4200000000000000000000000000000000000005"), block.Header().GasLimit)
-			if err != nil {
-				return nil, vm.Context{}, nil, err
-			}
-		}
+		msg, _ := tx.AsMessage(signer)
 		context := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
 		if idx == txIndex {
 			return msg, context, statedb, nil
