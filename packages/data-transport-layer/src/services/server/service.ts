@@ -420,6 +420,7 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       async (): Promise<EnqueueInfoResponse> => {
         const enqueue = await this.state.db.getLatestEnqueue()
         if (enqueue === null) {
+	  this.logger.warn("db.getLatestEnqueue returned null")
           return {
             index: null,
             blockNumber: null,
@@ -433,14 +434,16 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
 
 	if (this.state.baseBlock !== l1Synced || this.state.baseBlock === 0)
 	{
-	  const block = await await this.state.l1RpcProvider.getBlock(l1Synced)
-
-	  if (l1Synced)
+	  const block = await this.state.l1RpcProvider.getBlock(l1Synced)
+	  if (block)
 	  {
 	    this.state.baseBlock = l1Synced
 	    this.state.baseTime = block.timestamp
 	  } else {
 	    this.logger.error("Error querying highestSyncedL1Block timestamp")
+	    // FIXME - Should find a way to return a 500-class error here. For now this
+	    // results in a "400 Bad Request" which is incorrect.
+            throw new Error('Error querying highestSyncedL1Block timestamp')
 	  }
 	}
 

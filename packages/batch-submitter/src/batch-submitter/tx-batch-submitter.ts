@@ -215,9 +215,22 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     if (!wasBatchTruncated && !this._shouldSubmitBatch(batchSizeInBytes)) {
       return
     }
+
+    if(batchParams.totalElementsToAppend === 0) {
+      this.logger.error("Will not submit tx_chain batch with 0 elements")
+      return
+    }
+
     this.metrics.numTxPerBatch.observe(endBlock - startBlock)
     const l1tipHeight = await this.signer.provider.getBlockNumber()
-    this.logger.debug('Submitting batch.', {
+    this.logger.info('Submitting tx_chain batch', {
+      startBlock,
+      endBlock,
+      l1tipHeight,
+      batchStart:batchParams.shouldStartAtElement,
+      batchElements:batchParams.totalElementsToAppend
+    })
+    this.logger.info('Submitting batch.', {
       calldata: batchParams,
       l1tipHeight,
     })
@@ -246,7 +259,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 //         this.numConfirmations
 //       )
 //     }
-//     const receipt = this._submitAndLogTx(contractFunction, 'Submitted batch!')
+//     const receipt = this._submitAndLogTx(contractFunction, 'Submitted tx_chain batch!')
 //     if (typeof receipt === 'undefined') { this._enableAutoFixBatchOptions(1) }
 //     return receipt
 // =======
