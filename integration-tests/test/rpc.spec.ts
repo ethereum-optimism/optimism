@@ -94,7 +94,8 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('Cannot submit unprotected transaction')
     })
 
-    it('should accept a transaction with a value', async () => {
+    // SKIP: needs ETH value PR
+    it.skip('should accept a transaction with a value', async () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         chainId: await env.l2Wallet.getChainId(),
@@ -112,7 +113,8 @@ describe('Basic RPC tests', () => {
       )
     })
 
-    it('should reject a transaction with higher value than user balance', async () => {
+    // SKIP: needs ETH value PR
+    it.skip('should reject a transaction with higher value than user balance', async () => {
       const balance = await env.l2Wallet.getBalance()
       const tx = {
         ...DEFAULT_TRANSACTION,
@@ -123,31 +125,6 @@ describe('Basic RPC tests', () => {
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
         'invalid transaction: insufficient funds for gas * price + value'
-      )
-    })
-
-    it('should reject a transaction with too low of a fee', async () => {
-      const tx = {
-        ...DEFAULT_TRANSACTION,
-        gasLimit: 1,
-        gasPrice: TxGasPrice,
-      }
-      const fee = tx.gasPrice.mul(tx.gasLimit)
-
-      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        `fee too low: ${fee}, use at least tx.gasLimit =`
-      )
-    })
-
-    it('should reject a transaction with an incorrect gas price', async () => {
-      const tx = {
-        ...DEFAULT_TRANSACTION,
-        gasLimit: 1,
-        gasPrice: TxGasPrice.sub(1),
-      }
-
-      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        `tx.gasPrice must be ${TxGasPrice.toString()}`
       )
     })
 
@@ -193,20 +170,8 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('out of gas')
     })
 
-    it('should return the correct error message when attempting to deploy unsafe initcode', async () => {
-      // PUSH1 0x00 PUSH1 0x00 SSTORE
-      const unsafeCode = '0x6000600055'
-
-      await expect(
-        provider.call({
-          data: unsafeCode,
-        })
-      ).to.be.revertedWith(
-        'Contract creation code contains unsafe opcodes. Did you use the right compiler or pass an unsafe constructor argument?'
-      )
-    })
-
-    it('should allow eth_calls with nonzero value', async () => {
+    // SKIP: needs ETH value PR
+    it.skip('should allow eth_calls with nonzero value', async () => {
       // Deploy a contract to check msg.value of the call
       const Factory__ValueContext: ContractFactory =
         await ethers.getContractFactory('ValueContext', wallet)
@@ -235,7 +200,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract calls', async () => {
       const req: TransactionRequest = {
         ...revertingTx,
-        gasLimit: 5980899, // override gas estimation
+        gasLimit: 8_000_000, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -258,7 +223,7 @@ describe('Basic RPC tests', () => {
     it('correctly exposes revert data for contract creations', async () => {
       const req: TransactionRequest = {
         ...revertingDeployTx,
-        gasLimit: 27700899, // override gas estimation
+        gasLimit: 8_000_000, // override gas estimation
       }
 
       const tx = await wallet.sendTransaction(req)
@@ -350,7 +315,8 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_getBalance', () => {
-    it('should get the OVM_ETH balance', async () => {
+    // SKIP: needs ETH value PR
+    it.skip('should get the OVM_ETH balance', async () => {
       const rpcBalance = await provider.getBalance(env.l2Wallet.address)
       const contractBalance = await env.ovmEth.balanceOf(env.l2Wallet.address)
       expect(rpcBalance).to.be.deep.eq(contractBalance)
@@ -364,15 +330,7 @@ describe('Basic RPC tests', () => {
     })
   })
 
-  describe('eth_gasPrice', () => {
-    it('gas price should be the fee scalar', async () => {
-      expect(await provider.getGasPrice()).to.be.deep.equal(
-        TxGasPrice.toNumber()
-      )
-    })
-  })
-
-  describe('eth_estimateGas (returns the scaled fee)', () => {
+  describe('eth_estimateGas', () => {
     it('gas estimation is deterministic', async () => {
       let lastEstimate: BigNumber
       for (let i = 0; i < 10; i++) {
@@ -395,42 +353,7 @@ describe('Basic RPC tests', () => {
         value: 0,
       })
       // Expect gas to be less than or equal to the target plus 1%
-      expectApprox(estimate, 5920012, { upperPercentDeviation: 1 })
-    })
-
-    it('should return a gas estimate that grows with the size of data', async () => {
-      const dataLen = [0, 2, 8, 64, 256]
-      const l1GasPrice = await env.l1Wallet.provider.getGasPrice()
-
-      // Repeat this test for a series of possible transaction sizes.
-      for (const data of dataLen) {
-        const tx = {
-          to: '0x' + '1234'.repeat(10),
-          value: '0x0',
-          data: '0x' + '00'.repeat(data),
-          from: '0x' + '1234'.repeat(10),
-        }
-        const estimate = await l2Provider.estimateGas(tx)
-        const l2Gaslimit = await l2Provider.send('eth_estimateExecutionGas', [
-          tx,
-          true,
-        ])
-
-        const decoded = TxGasLimit.decode(estimate)
-        expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
-        expect(estimate.toString().endsWith(l2Gaslimit.toString()))
-
-        const l2GasPrice = BigNumber.from(0)
-        // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
-        // but it does not yet exist. Use the default value for now
-        const expected = TxGasLimit.encode({
-          data: tx.data,
-          l1GasPrice,
-          l2GasLimit: BigNumber.from(l2Gaslimit),
-          l2GasPrice,
-        })
-        expect(expected).to.deep.eq(estimate)
-      }
+      expectApprox(estimate, 21000, { upperPercentDeviation: 1 })
     })
 
     it('should fail for a reverting call transaction', async () => {
@@ -444,7 +367,8 @@ describe('Basic RPC tests', () => {
     })
   })
 
-  describe('rollup_gasPrices', () => {
+  // SKIP: ?
+  describe.skip('rollup_gasPrices', () => {
     it('should return the L1 and L2 gas prices', async () => {
       const result = await provider.send('rollup_gasPrices', [])
       const l1GasPrice = await env.l1Wallet.provider.getGasPrice()

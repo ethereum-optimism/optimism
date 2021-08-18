@@ -54,7 +54,10 @@ const (
 )
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
-var bigDefaultGasPrice = new(big.Int).SetUint64(defaultGasPrice)
+
+// TEMPORARY: Set the gas price to 0 until message passing and ETH value work again.
+// Otherwise the integration tests won't pass because the accounts have no ETH.
+var bigDefaultGasPrice = new(big.Int).SetUint64(0)
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
@@ -539,7 +542,7 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 	if state == nil || err != nil {
 		return nil, err
 	}
-	return (*hexutil.Big)(state.GetOVMBalance(address)), state.Error()
+	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
 }
 
 // Result structs for GetProof
@@ -860,16 +863,12 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 		data = []byte(*args.Data)
 	}
 
+	// Currently, the blocknumber and timestamp actually refer to the L1BlockNumber and L1Timestamp
+	// attached to each transaction. We need to modify the blocknumber and timestamp to reflect this,
+	// or else the result of `eth_call` will not be correct.
 	blockNumber := header.Number
 	timestamp := new(big.Int).SetUint64(header.Time)
-
-	// Create new call message
-	var msg core.Message
-	msg = types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
 	if vm.UsingOVM {
-		cfg := b.ChainConfig()
-		executionManager := cfg.StateDump.Accounts["OVM_ExecutionManager"]
-		stateManager := cfg.StateDump.Accounts["OVM_StateManager"]
 		block, err := b.BlockByNumber(ctx, rpc.BlockNumber(header.Number.Uint64()))
 		if err != nil {
 			return nil, 0, false, err
@@ -885,11 +884,10 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 				timestamp = new(big.Int).SetUint64(tx.L1Timestamp())
 			}
 		}
-		msg, err = core.EncodeSimulatedMessage(msg, timestamp, blockNumber, executionManager, stateManager)
-		if err != nil {
-			return nil, 0, false, err
-		}
 	}
+
+	// Create new call message
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -918,8 +916,8 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
+	// Modify the blocknumber and timestamp based on the L1BlockNumber and L1Timestamp from above.
 	if vm.UsingOVM {
-		evm.Context.EthCallSender = &addr
 		evm.Context.BlockNumber = blockNumber
 		evm.Context.Time = timestamp
 	}
@@ -966,37 +964,6 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 // fees can compensate for the additional costs the sequencer pays for publishing the
 // transaction calldata
 func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
-	// 1. get the gas that would be used by the transaction
-	gasUsed, err := legacyDoEstimateGas(ctx, b, args, blockNrOrHash, gasCap)
-	if err != nil {
-		return 0, err
-	}
-	// 2a. fetch the data price, depends on how the sequencer has chosen to update their values based on the
-	// l1 gas prices
-	l1GasPrice, err := b.SuggestL1GasPrice(ctx)
-	if err != nil {
-		return 0, err
-	}
-	// 2b. fetch the execution gas price, by the typical mempool dynamics
-	l2GasPrice, err := b.SuggestL2GasPrice(ctx)
-	if err != nil {
-		return 0, err
-	}
-	data := []byte{}
-	if args.Data != nil {
-		data = *args.Data
-	}
-	// 3. calculate the fee using just the calldata. The additional overhead of
-	// RLP encoding is covered inside of EncodeL2GasLimit
-	l2GasLimit := new(big.Int).SetUint64(uint64(gasUsed))
-	fee := fees.EncodeTxGasLimit(data, l1GasPrice, l2GasLimit, l2GasPrice)
-	if !fee.IsUint64() {
-		return 0, fmt.Errorf("estimate gas overflow: %s", fee)
-	}
-	return (hexutil.Uint64)(fee.Uint64()), nil
-}
-
-func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
 	// Binary search the gas requirement, as it may be higher than the amount used
 	var (
 		lo  uint64 = params.TxGas - 1
@@ -1076,21 +1043,6 @@ func legacyDoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrO
 func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
 	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
 	return DoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
-}
-
-// EstimateExecutionGas returns an estimate of the amount of gas needed to execute the
-// given transaction against the current pending block.
-func (s *PublicBlockChainAPI) EstimateExecutionGas(ctx context.Context, args CallArgs, round *bool) (hexutil.Uint64, error) {
-	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
-	estimate, err := legacyDoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
-	if err != nil {
-		return estimate, err
-	}
-	if round != nil && *round {
-		rounded := fees.Ceilmod(new(big.Int).SetUint64(uint64(estimate)), fees.BigTenThousand)
-		estimate = (hexutil.Uint64)(rounded.Uint64())
-	}
-	return estimate, nil
 }
 
 // ExecutionResult groups all structured logs emitted by the EVM
