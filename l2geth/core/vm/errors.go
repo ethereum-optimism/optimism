@@ -27,7 +27,4 @@ var (
 	ErrInsufficientBalance      = errors.New("insufficient balance for transfer")
 	ErrContractAddressCollision = errors.New("contract address collision")
 	ErrNoCompatibleInterpreter  = errors.New("no compatible interpreter")
-	ErrOvmExecutionFailed       = errors.New("ovm execution failed")
-	ErrOvmCreationFailed        = errors.New("creation called by non-Execution Manager contract")
-	ErrOvmSandboxEscape         = errors.New("ovm execution escaped from sandbox")
 )
