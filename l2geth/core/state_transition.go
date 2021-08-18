@@ -160,14 +160,8 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	// There is no native ETH, there is OVM_ETH which is an ERC20.
-	// Sufficient user balance is checked when the user sends the transaction
-	// via RPC through very similar checks as to when a transaction enters
-	// the layer one mempool. Deposits skip the check
-	if !vm.UsingOVM {
-		if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
-			return errInsufficientBalanceForGas
-		}
+	if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
+		return errInsufficientBalanceForGas
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
@@ -175,11 +169,7 @@ func (st *StateTransition) buyGas() error {
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-	// Do not subtract the gas from the user balance when running OVM.
-	// This is handled in the Solidity contracts to enable to fraud proof
-	if !vm.UsingOVM {
-		st.state.SubBalance(st.msg.From(), mgval)
-	}
+	st.state.SubBalance(st.msg.From(), mgval)
 	return nil
 }
 
@@ -211,26 +201,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	if err = st.preCheck(); err != nil {
 		return
 	}
-
-	if vm.UsingOVM {
-		// When the execution is not an `eth_call`, abi encode the user transaction
-		// and place it in the calldata of the msg struct so that the user
-		// transaction can be passed to the system contracts via the calldata
-		if st.evm.EthCallSender == nil {
-			st.msg, err = toExecutionManagerRun(st.evm, st.msg)
-		}
-		st.data = st.msg.Data()
-		if err != nil {
-			return nil, 0, false, err
-		}
-	}
-
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
+	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead, istanbul)
 	if err != nil {
 		return nil, 0, false, err
@@ -247,52 +224,30 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		vmerr error
 	)
 
-	if vm.UsingOVM {
-		to := "<nil>"
-		if msg.To() != nil {
-			to = msg.To().Hex()
-		}
-		l1MessageSender := "<nil>"
-		if msg.L1MessageSender() != nil {
-			l1MessageSender = msg.L1MessageSender().Hex()
-		}
-		if st.evm.EthCallSender == nil {
-			log.Debug("Applying transaction", "from", sender.Address().Hex(), "to", to, "nonce", msg.Nonce(), "gasPrice", msg.GasPrice().Uint64(), "gasLimit", msg.Gas(), "value", msg.Value().Uint64(), "l1MessageSender", l1MessageSender, "data", hexutil.Encode(msg.Data()))
-		}
-	}
-
 	if contractCreation {
 		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
 	} else {
 		// Increment the nonce for the next transaction
-		if !vm.UsingOVM {
-			// Do not set the nonce because that is handled in the Solidity
-			// contracts.
-			st.state.SetNonce(msg.From(), st.state.GetNonce(msg.From())+1)
-		}
-
+		st.state.SetNonce(msg.From(), st.state.GetNonce(msg.From())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
 	if vmerr != nil {
+		log.Debug("VM returned with error", "err", vmerr, "ret", hexutil.Encode(ret))
+		// The only possible consensus-error would be if there wasn't
+		// sufficient balance to make the transfer happen. The first
+		// balance transfer may never fail.
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, false, vmerr
 		}
 	}
 	st.refundGas()
+	st.state.AddBalance(evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 
-	if !vm.UsingOVM {
-		// Do not pay the gas to the coinbase address when running the OVM
-		st.state.AddBalance(evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
-	}
 	return ret, st.gasUsed(), vmerr != nil, err
 }
 
 func (st *StateTransition) refundGas() {
-	// Do not refund any gas when running the OVM
-	if vm.UsingOVM {
-		return
-	}
 	// Apply refund counter, capped to half of the used gas.
 	refund := st.gasUsed() / 2
 	if refund > st.state.GetRefund() {
