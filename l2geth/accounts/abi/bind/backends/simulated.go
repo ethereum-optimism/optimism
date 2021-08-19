@@ -601,6 +601,8 @@ func (m callmsg) Gas() uint64          { return m.CallMsg.Gas }
 func (m callmsg) Value() *big.Int      { return m.CallMsg.Value }
 func (m callmsg) Data() []byte         { return m.CallMsg.Data }
 
+// UsingOVM
+// These getters return OVM specific fields
 func (m callmsg) L1MessageSender() *common.Address { return m.CallMsg.L1MessageSender }
 func (m callmsg) L1BlockNumber() *big.Int          { return m.CallMsg.L1BlockNumber }
 func (m callmsg) QueueOrigin() types.QueueOrigin   { return m.CallMsg.QueueOrigin }

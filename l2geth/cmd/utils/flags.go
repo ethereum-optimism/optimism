@@ -1130,6 +1130,7 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 	}
 }
 
+// UsingOVM
 // setEth1 configures the sync service
 func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(Eth1CanonicalTransactionChainDeployHeightFlag.Name) {
@@ -1159,6 +1160,8 @@ func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 	}
 }
 
+// UsingOVM
+// setRollup configures the rollup
 func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(RollupAddressManagerOwnerAddressFlag.Name) {
 		addr := ctx.GlobalString(RollupAddressManagerOwnerAddressFlag.Name)
@@ -1764,6 +1767,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			chainID = new(big.Int).SetUint64(id)
 		}
 
+		// UsingOVM
+		// The genesis block includes state that is set at runtime.
+		// This allows the statedump to be generic and not created
+		// specific for each network.
 		gasLimit := cfg.Rollup.GasLimit
 		if gasLimit == 0 {
 			gasLimit = params.GenesisGasLimit
