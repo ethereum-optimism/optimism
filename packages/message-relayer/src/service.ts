@@ -266,9 +266,15 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           )
 
           // Remove any events from the cache for batches that should've been processed by now.
+	  const oldSize = this.state.eventCache.length
           this.state.eventCache = this.state.eventCache.filter((event) => {
             return event.args._batchIndex > lastProcessedBatch.batch.batchIndex
           })
+	  const newSize = this.state.eventCache.length
+	  this.logger.info("Trimmed eventCache", {
+	    oldSize,
+	    newSize,
+	  })
         }
 
         this.logger.info(
@@ -310,13 +316,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     }
 
     let startingBlock = this.state.lastQueriedL1Block
+    const maxBlock = await this.options.l1RpcProvider.getBlockNumber()
     while (
-      startingBlock < (await this.options.l1RpcProvider.getBlockNumber())
+      startingBlock < maxBlock
     ) {
-      this.state.lastQueriedL1Block = startingBlock
       this.logger.info('Querying events', {
         startingBlock,
         endBlock: startingBlock + this.options.getLogsInterval,
+        maxBlock,
       })
 
       const events: ethers.Event[] =
@@ -325,8 +332,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           startingBlock,
           startingBlock + this.options.getLogsInterval
         )
+      this.state.lastQueriedL1Block = Math.min(startingBlock + this.options.getLogsInterval, maxBlock)
 
       this.state.eventCache = this.state.eventCache.concat(events)
+      this.logger.info("Added events to eventCache", {
+        added:events.length,
+        newSize:this.state.eventCache.length,
+      })
+
       startingBlock += this.options.getLogsInterval
 
       // We need to stop syncing early once we find the event we're looking for to avoid putting
