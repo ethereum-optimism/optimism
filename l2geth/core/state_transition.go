@@ -160,10 +160,8 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	if !vm.UsingOVM {
-		if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
-			return errInsufficientBalanceForGas
-		}
+	if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
+		return errInsufficientBalanceForGas
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
@@ -171,9 +169,7 @@ func (st *StateTransition) buyGas() error {
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-	if !vm.UsingOVM {
-		st.state.SubBalance(st.msg.From(), mgval)
-	}
+	st.state.SubBalance(st.msg.From(), mgval)
 	return nil
 }
 
@@ -203,26 +199,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	if err = st.preCheck(); err != nil {
 		return
 	}
-
-	if vm.UsingOVM {
-		// OVM_ENABLED
-		if st.evm.EthCallSender == nil {
-			st.msg, err = toExecutionManagerRun(st.evm, st.msg)
-		}
-		st.data = st.msg.Data()
-		if err != nil {
-			return nil, 0, false, err
-		}
-	}
-
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
-	// OVM_ADDITION
-	// TODO(mark): pay intrinsic gas function needs to be updated
+	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead, istanbul)
 	if err != nil {
 		return nil, 0, false, err
@@ -239,50 +222,30 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		vmerr error
 	)
 
-	if vm.UsingOVM {
-		to := "<nil>"
-		if msg.To() != nil {
-			to = msg.To().Hex()
-		}
-		l1MessageSender := "<nil>"
-		if msg.L1MessageSender() != nil {
-			l1MessageSender = msg.L1MessageSender().Hex()
-		}
-		if st.evm.EthCallSender == nil {
-			log.Debug("Applying transaction", "from", sender.Address().Hex(), "to", to, "nonce", msg.Nonce(), "gasPrice", msg.GasPrice().Uint64(), "gasLimit", msg.Gas(), "value", msg.Value().Uint64(), "l1MessageSender", l1MessageSender, "data", hexutil.Encode(msg.Data()))
-		}
-	}
-
 	if contractCreation {
 		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
 	} else {
 		// Increment the nonce for the next transaction
-		if !vm.UsingOVM {
-			// OVM_DISABLED
-			st.state.SetNonce(msg.From(), st.state.GetNonce(msg.From())+1)
-		}
-
+		st.state.SetNonce(msg.From(), st.state.GetNonce(msg.From())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
 	if vmerr != nil {
+		log.Debug("VM returned with error", "err", vmerr, "ret", hexutil.Encode(ret))
+		// The only possible consensus-error would be if there wasn't
+		// sufficient balance to make the transfer happen. The first
+		// balance transfer may never fail.
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, false, vmerr
 		}
 	}
 	st.refundGas()
+	st.state.AddBalance(evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 
-	if !vm.UsingOVM {
-		// OVM_DISABLED
-		st.state.AddBalance(evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
-	}
 	return ret, st.gasUsed(), vmerr != nil, err
 }
 
 func (st *StateTransition) refundGas() {
-	if vm.UsingOVM {
-		return
-	}
 	// Apply refund counter, capped to half of the used gas.
 	refund := st.gasUsed() / 2
 	if refund > st.state.GetRefund() {

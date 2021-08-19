@@ -148,7 +148,7 @@ export const encodeSolidityRevertMessage = (_reason: string): string => {
 
 export const DEFAULT_TRANSACTION = {
   to: '0x' + '1234'.repeat(10),
-  gasLimit: 33600000000001,
+  gasLimit: 8_000_000,
   gasPrice: 0,
   data: '0x',
   value: 0,
