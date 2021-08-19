@@ -51,14 +51,14 @@
 .title {
   margin-top: 30px;
   font-size: 1.5em;
-  font-family: 'Messina';
+  font-family: 'MrEavesXL', 'Messina';
   font-weight: 400;
   color: white;
   text-align: center;
 }
 
 .description {
-  font-family: 'Messina';
+  font-family: 'MrEavesXL', 'Messina';
   margin-top: 20px;
   color: white;
   font-size: 1em;
@@ -73,7 +73,7 @@
     background-color: $gray2;
     display: flex;
     flex-direction: row;
-    font-family: 'Messina';
+    font-family: 'MrEavesXL', 'Messina';
     @include mobile {
       font-size: 0.8em;
     }

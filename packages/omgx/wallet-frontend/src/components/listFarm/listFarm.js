@@ -169,7 +169,11 @@ class ListFarm extends React.Component {
     const name = poolInfo.name
 
     return (
-      <div className={styles.ListFarm}>
+      <div className={styles.ListFarm}
+      style={{
+        background: `${!!dropDownBox ? 'rgba(255, 255, 255, 0.03)' : ''}`
+      }}
+      >
         <div 
           className={styles.topContainer} 
           style={disabled ? {pointerEvents: 'none'} : {}}

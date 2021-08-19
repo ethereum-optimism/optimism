@@ -4,14 +4,15 @@ $dropDownHeight: 60px;
 $boxDropDownHeight: 50px;
 
 .underRed {
-  font-size: 0.7em;
+  font-size: 16px;//0.7em;
   color: $red;
   width: 90%;
 }
 
 .ListAccount {
   
-  border-bottom: 1px solid rgb(233, 234, 235);
+  // border-bottom: 1px solid rgb(233, 234, 235);
+  margin-bottom: 5px;
 
   .topContainer {
     
@@ -65,7 +66,8 @@ $boxDropDownHeight: 50px;
     height: $dropDownHeight;
     animation: openDropDown 1s;
     overflow: hidden;
-    background-color: $gray7;
+    // background-color: $gray7;
+    padding: 10px;
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -75,7 +77,7 @@ $boxDropDownHeight: 50px;
     height: 0px;
     animation: closeDropDown 1s;
     overflow: hidden;
-    background-color: $gray7;
+    // background-color: $gray7;
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -122,7 +124,7 @@ $boxDropDownHeight: 50px;
   .BasicLightText {
     font-size: 1em;
     font-weight: 700;
-    color: $gray4;
+    color:  $white700;//$gray4;
   }
 
   .LargeBlueText {
@@ -134,13 +136,13 @@ $boxDropDownHeight: 50px;
   .LinkText {
     font-size: 1em;
     font-weight: 700;
-    color: $green;
+    color: $white; //$green;
   }
 
   .LinkTextOff {
     font-size: 1em;
     font-weight: 700;
-    color: $gray4;
+    color: $white500; //$gray4;
   }
 
   .LinkButton {
@@ -151,7 +153,6 @@ $boxDropDownHeight: 50px;
     color: $gray4;
   }
 
-  /************************/
 
   .smallButton{
     border-radius: 10px;
@@ -170,4 +171,26 @@ $boxDropDownHeight: 50px;
     padding-top: 10px;
     padding-bottom: 10px;
   }
+}
+
+.divider {
+  height: 0px;
+  width: 90%;
+  margin: 5px auto;
+  position: relative;
+  z-index: 1;
+
+  &::before{ 
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    margin: -1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) -0.74%, rgba(255, 255, 255, 0.0414) 8.18%, rgba(255, 255, 255, 0.0408) 90.07%, rgba(255, 255, 255, 0) 100.04%);
+  }
+
 }

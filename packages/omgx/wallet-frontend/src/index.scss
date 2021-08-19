@@ -1,7 +1,7 @@
 $red: #ff6868;
 $yellow: #f0ba31;
 $green: #0ebf9a;
-$blue: #4967ff;
+$blue:  #506DFA;// #4967ff;
 $maxWidth: 450px;
 $red1: #ff8080;
 
@@ -14,6 +14,18 @@ $gray6: #d2d2d2; //v. light gray
 $gray7: #F8F8F8;
 
 $bunnyRed: #C83950;
+
+
+// redesign color;
+
+$background: linear-gradient(180deg, #061122 0%, #08162C 100%);
+$background400: rgba(255, 255, 255, 0.04);
+
+
+$white: #ffffff;
+$white700: rgba(255, 255, 255, 0.7);
+$white500: rgba(255, 255, 255, 0.5);
+
 
 :export {
   red: $red;
@@ -30,6 +42,11 @@ $bunnyRed: #C83950;
   gray7: $gray7;
   bunnyRed: $bunnyRed;
   maxWidth: $maxWidth;
+  background:$background;
+  background400:$background400;
+  white:$white;
+  white700:$white700;
+  white500:$white500;
 }
 
 /* small screens */
@@ -51,8 +68,25 @@ $bunnyRed: #C83950;
   }
 }
 
+
 @font-face {
-  font-family: 'Messina';
+  font-family: 'MrEavesXL';
+  src: url(./fonts/MrEavesXLModOT-Reg.ttf) format('opentype');
+}
+
+@font-face {
+  font-family: 'MrEavesXLBold';
+  src: url(./fonts/MrEavesXLModOT-Bold.ttf) format('opentype');
+}
+
+@font-face {
+  font-family: 'MrEavesXLThin';
+  src: url(./fonts/MrEavesXLModOT-Thin.ttf) format('opentype');
+}
+
+
+@font-face {
+  font-family: 'MrEavesXL', 'Messina';
   src: url(./fonts/MessinaSans-Regular.otf) format('opentype');
 }
 
@@ -82,18 +116,19 @@ a {
 body {
   margin: 0;
   padding: 0;
-  color: $gray1;
-  background-color: white;
-  font-family: 'MessinaMono', monospace !important;
-  font-size: 14px;
+  color: $white ;//$gray1;
+  background:  $background; //white;
+  font-family: 'MrEavesXL', 'MessinaMono', monospace !important;
+  // font-size: 14px;
+  font-size: 16px;
 }
 
 button {
-  font-family: 'MessinaMono', monospace !important;
+  font-family: 'MrEavesXL', 'MessinaMono', monospace !important;
 }
 
 input {
-  font-family: 'MessinaMono', monospace;
+  font-family: 'MrEavesXL', 'MessinaMono', monospace;
   font-size: 0.8em;
   border: none;
   outline: none;
@@ -117,15 +152,14 @@ input::-webkit-inner-spin-button {
 h1 {
   margin: 0;
   white-space: pre;
-  font-family: 'Messina';
+  font-family: 'MrEavesXL','Messina';
   font-weight: 400;
   font-size: 2em;
   color: $blue;
 }
 
 h2 {
-  color: $gray2;
-  font-family: 'Messina';
+  font-family: 'MrEavesXL', 'Messina';
   font-weight: 200;
   margin: 0 0 10px 0;
   font-size: 1.5em;
@@ -135,8 +169,9 @@ h2 {
 }
 
 h3 {
-  color: $gray2;
-  font-family: 'Messina';
+  // color: $gray2;
+  // color: $white700;
+  font-family: 'MrEavesXL','Messina';
   margin-bottom: 3px;
   font-size: 1.1em;
   @include mobile {

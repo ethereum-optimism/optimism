@@ -3,26 +3,37 @@
 .Farm {
   padding: 10px;
   padding-top: 0px;
-  background: white;
+  // background: $background;//white;
   
 
   .Note {
-    font-size: 0.8em;
+    font-size: 16px;
     margin-bottom: 5px;
-    color: $gray3;
+    color: $white; 
   }
 
   .NoteStrong {
-    font-size: 0.8em;
+    font-size: 16px;
     margin-top: 5px;
     margin-bottom: 0px;
-    color: $gray3;
+    color: $white; //$gray3;
   }
 
   .TableContainer {
-    box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+    // box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+    // background: $background;
     border-radius: 10px;
     max-width: 1000px;
     margin-top: 20px;
+  }
+
+  .PoolContainer {
+    // box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+    background: rgba(255, 255, 255, 0.6%);
+    border-radius: 10px;
+    max-width: 1000px;
+    margin-top: 20px;
+    border: 8px;
+    padding: 10px;
   }
 }

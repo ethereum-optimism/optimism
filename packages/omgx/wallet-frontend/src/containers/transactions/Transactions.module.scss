@@ -5,15 +5,15 @@
   flex-direction: column;
   padding: 10px;
   padding-top: 0px;
-  background: white;
+  background: $background;//white;
 }
 
 .header {
   h2 {
-    flex: 1;
+    // flex: 1;
     margin-bottom: 0;
     padding-left: 10px;
-    color: $gray2;
+    color: $white;//$gray2;
   }
   display: flex;
   flex-direction: row;
@@ -72,10 +72,10 @@
 .transactions {
   /*height: 100%;*/
   overflow: auto;
-  background-color: white;
-  border-bottom: 1px solid rgb(233, 234, 235);
-  box-shadow: rgb(100 100 111 / 20%) 0px 7px 10px 0px;
-  border-radius: 10px;
+  background: $background400; //white;
+  // border-bottom: 1px solid rgb(233, 234, 235);
+  // box-shadow: rgb(100 100 111 / 20%) 0px 7px 10px 0px;
+  border-radius: 8px;
   margin-top: 10px;
   min-height: 100px;
   .transaction {
@@ -104,7 +104,7 @@
 }
 
 .actions {
-  flex:1;
+  // flex:1;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -113,5 +113,36 @@
     flex: 1;
     margin-bottom: 0;
     min-width: 250px;
+  }
+}
+
+.datePickerInput {
+  background: rgba(9, 22, 43, 0.5); 
+  box-shadow: -13px 15px 19px rgba(0, 0, 0, 0.15), inset 53px 36px 120px rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  width: 130px;
+  margin: 0px 15px;
+  position: relative;
+
+  &::after{
+    content: "^";
+    color: rgba(255, 255, 255, 0.7);;
+    position: absolute;
+    right: 10px;
+    font-size: 25px;
+    bottom: 10px;
+    transform: rotate(180deg);
+  }
+
+  input { 
+    background-color: transparent;
+    height: 40px;
+    width: 130px;
+    padding: 0px 15px;
+    line-height: 40px;
+    border: 0;   
+    color: #F0A000;
+    font-size: 16px;
+    text-align: left;
   }
 }

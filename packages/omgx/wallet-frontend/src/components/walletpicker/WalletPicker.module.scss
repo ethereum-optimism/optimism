@@ -1,9 +1,9 @@
 @import 'index.scss';
 
 .B {
-  font-family: MessinaMonoBold;
+  font-family: 'MrEavesXLBold', MessinaMonoBold;
   font-style: unset;
-  color: $bunnyRed;
+  color: $white // $bunnyRed;
 }
 
 .MainBar {
@@ -24,7 +24,7 @@
 .MainLeft {
   width: 490px;
   font-size: 1.3em;
-  color: $gray3;
+  color: $white;// $gray3;
   margin-top: 5px;
   margin-bottom: 5px;
   padding: 3px;
@@ -190,7 +190,7 @@
   }
 
   .VPText {
-    font-family: 'Messina';
+    font-family: 'MrEavesXL', 'Messina';
     font-size: 1.0em;
     font-style: italic;
     color: $gray4;
@@ -204,7 +204,7 @@
 }
 
 .Note {
-  font-family: 'Messina';
+  font-family: 'MrEavesXL', 'Messina';
   font-size: 0.8em;
   font-style: italic;
   color: $gray4;
@@ -214,9 +214,9 @@
 }
 
 .Title {
-  font-family: 'Messina';
+  font-family: 'MrEavesXL', 'Messina';
   font-size: 0.9em;
-  color: $gray4;
+  color: $white700; //$gray4;
   margin-top: 5px;
   margin-bottom: 5px;
   padding: 3px;
@@ -229,7 +229,7 @@
   justify-content: center;
   align-items: flex-start;
   padding: 20px;
-  font-family: 'Messina';
+  font-family: 'MrEavesXL', 'Messina';
   margin-bottom: 50px;
 
   @include mobile {
@@ -287,7 +287,7 @@
           width: 150px;
         }
         a {
-          background-color: $gray3;
+          background-color: $white; ///$gray3;
           transition: all 200ms ease-in-out;
           padding: 10px 15px;
           cursor: pointer;
@@ -302,11 +302,13 @@
         flex-direction: row;
         align-items: center;
         cursor: pointer;
+        color: $white;
+
         .indicator {
           margin-right: 5px;
           width: 5px;
           height: 13px;
-          background-color: #2A308E;
+          background-color: $white ;// #2A308E;
           border-radius: 4px;
         }
       }

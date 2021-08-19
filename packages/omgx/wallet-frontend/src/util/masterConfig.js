@@ -42,12 +42,14 @@ const NETWORKS = {
       chainId: 4,
       rpcUrl: `https://rinkeby.infura.io/v3/${process.env.REACT_APP_INFURA_ID}`,
       blockExplorer: `https://api-rinkeby.etherscan.io/api?module=account&action=txlist&startblock=0&endblock=99999999&sort=asc&apikey=${process.env.REACT_APP_ETHERSCAN_API}`,
+      transaction: `https://rinkeby.etherscan.io/tx/`,
     },
     L2: {
       name: "Rinkeby L2",
       chainId: 28,
       rpcUrl: `https://rinkeby.omgx.network`,
       blockExplorer: `https://blockexplorer.omgx.network/?network=Rinkeby`,
+      transaction: `https://blockexplorer.omgx.network/tx/`,
     }
   },
   mainnet: {
@@ -59,12 +61,14 @@ const NETWORKS = {
       chainId: 1,
       rpcUrl: `https://mainnet.infura.io/v3/${process.env.REACT_APP_INFURA_ID}`,
       blockExplorer: `https://api-mainnet.etherscan.io/api?module=account&action=txlist&startblock=0&endblock=99999999&sort=asc&apikey=${process.env.REACT_APP_ETHERSCAN_API}`,
+      transaction: ` https://etherscan.io/tx/`,
     },
     L2: {
       name: "Mainnet L2",
       chainId: 288,
       rpcUrl: `https://mainnet.omgx.network`,
       blockExplorer: `https://blockexplorer.omgx.network/?network=Mainnet`,
+      transaction: `https://blockexplorer.omgx.network/tx/`,
     }
   }
 }

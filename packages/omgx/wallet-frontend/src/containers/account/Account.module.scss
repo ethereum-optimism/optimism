@@ -1,9 +1,9 @@
 @import 'index.scss';
 
 .TableContainer {
-  box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+  // box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
   border-radius: 10px;
-  max-width: 400px;
+  // max-width: 400px;
   margin-top: 10px;
 }
 
@@ -19,7 +19,37 @@
   align-items: flex-start;
   padding-top: 15px;
   padding-bottom: 40px;
-  width: 800px;
+  width: 80wv;
+  min-width: 800px;
+
+  .balanceContent {
+    border-radius: 8px;
+    padding: 20px 10px;
+    background: $background400;
+    max-width: 40%;
+    width: 40%;
+    min-width: 400px;
+
+    .title {
+      display: flex;
+      justify-content: center;
+      margin: 10px auto;
+      color: $white;
+      font-size: 20px;
+      font-family: 'MrEavesXL','Messina';
+      // span:first-child {
+      //   font-size: 0.8rem;
+      // }
+      p {
+        margin: 0px;
+      }
+
+      .muted {
+        color: $white700 !important;
+        margin-right: 10px;
+      }
+    }
+  }
 
   @include mobile {
     flex-direction: column;
@@ -32,7 +62,7 @@
 .Account {
   padding: 10px;
   padding-top: 0px;
-  background: white;
+  // background: $background;// white;
 }
 
 .logo {
@@ -188,15 +218,15 @@
         }
         .title {
           display: flex;
-          flex-direction: column;
-          font-family: 'Messina';
+          // flex-direction: column;
+          font-family: 'MrEavesXL','Messina';
           span:first-child {
-            font-size: 0.8em;
+            font-size: 0.8rem;
           }
         }
         .transfer {
           font-size: 0.8em;
-          font-family: 'Messina';
+          font-family: 'MrEavesXL', 'Messina';
           cursor: pointer;
           border-radius: 20px;
           padding: 7px;

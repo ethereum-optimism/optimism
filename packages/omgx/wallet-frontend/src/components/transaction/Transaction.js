@@ -17,7 +17,7 @@ import React, {useState} from 'react';
 
 import Tooltip from 'components/tooltip/Tooltip';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
-
+import LinkIcon from 'components/Icons/LinkIcon';
 import * as styles from './Transaction.module.scss';
 
 function Transaction ({
@@ -120,7 +120,11 @@ function Transaction ({
   }
 
   return (
-    <div className={styles.Transaction}>
+    <div className={styles.Transaction}
+      style={{
+        background: `${!!dropDownBox ? 'rgba(255, 255, 255, 0.03)' : ''}`
+      }}
+    >
       <div className={styles.transactionItem}>
         <div className={styles.title}>
           <div>{chain}</div>
@@ -145,7 +149,9 @@ function Transaction ({
               target={'_blank'}
               rel='noopener noreferrer'
               className={styles.button}
-            >View Details</a>  
+            > 
+            <LinkIcon />
+             Advanced Details</a>  
           }
         </div>
         {renderDetail()}
@@ -157,6 +163,8 @@ function Transaction ({
           </div>
         }
       </div>
+      <div className={styles.divider}></div>
+
     </div>
   )
 }

@@ -8,7 +8,6 @@ $dropDownHeight: 92px;
   border-radius: 10px;
   width: 250px;
   margin-top: 10px;
-  margin-left: 10px;
   border: 2px solid $blue;
   overflow: hidden;
 
@@ -73,6 +72,10 @@ $dropDownHeight: 92px;
     padding: 0px;
     margin: 0px;
     padding-bottom: 10px;
+    color: inherit;
+    h3 {
+      color: $gray4;
+    }
   }
 
   .boxOrigin {
@@ -83,6 +86,7 @@ $dropDownHeight: 92px;
     width: 90%;
     padding: 0px;
     margin: 0px;
+    color: $gray4;
   }
 
   /*************************/
@@ -135,8 +139,8 @@ $dropDownHeight: 92px;
 
   .URILink {
     color: $blue;
-    padding-top: 2px; 
-    font-size: 0.7em; 
+    padding-top: 2px;
+    font-size: 0.7em;
     font-weight: 700
   }
   /************************/
@@ -149,7 +153,7 @@ $dropDownHeight: 92px;
     padding-top: 10px;
     padding-bottom: 10px;
   }
-  
+
   .largeButton{
     border-radius: 10px;
     width: calc(100% - 30px);

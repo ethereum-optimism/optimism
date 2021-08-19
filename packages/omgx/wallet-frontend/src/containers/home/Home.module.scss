@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: row;
   flex: 1;
-  background: white;
+  background:  $background;//white;
 
   .main {
     flex: 1;
@@ -48,10 +48,12 @@
 
   .secondtab {
     display: flex;
-    color: white;
-    background: white;
-    padding-left: 10px;
-    padding-top: 8px;
+    color: $white700;
+    // background: $background; //white;
+    // padding-left: 10px;
+    // padding-top: 8px;
+    padding: 10px;
+    gap:20px;
     margin-bottom: 5px;
     @include mobile {
       margin-top: 5px;
@@ -60,7 +62,7 @@
   }
 
   .titletext {
-    color: $gray4;
+    color:  $white;// $gray4;
     cursor: pointer;
     margin-right: 20px;
     font-size: 2em;
@@ -70,7 +72,7 @@
   }
 
   .titletextActive {
-    color: $blue;
+    color: $white700 ;//$blue;
     text-decoration: underline;
     text-decoration-color: $blue;
     cursor: pointer;
@@ -84,17 +86,19 @@
   .subtitletext {
     color: $gray4;
     cursor: pointer;
-    padding-right: 15px;
-    font-family: MessinaMonoSemiBold;
+    // padding-right: 15px;
+    font-family: 'MrEavesXL', MessinaMonoSemiBold;
   }
 
   .subtitletextActive {
-    color: $gray2;
-    text-decoration: underline;
-    text-decoration-color: #ff8080;
+    color: $white; //$gray2;
+    margin-bottom: 8px;
+    border-bottom: 2px solid $blue;
+    // text-decoration: underline;
+    // text-decoration-color: $blue;
     cursor: pointer;
-    padding-right: 15px;
-    font-family: MessinaMonoSemiBold;
+    // padding-right: 15px;
+    font-family: 'MrEavesXL',MessinaMonoSemiBold;
   }
 
 }

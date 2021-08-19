@@ -4,6 +4,9 @@ $dropDownHeight: 140px;
 $boxDropDownHeight: 60px;
 
 .ListFarm {
+  margin-bottom: 10px;
+  padding: 5px;
+  border-radius: 8px;
 
   .topContainer {
     cursor: pointer;
@@ -79,18 +82,26 @@ $boxDropDownHeight: 60px;
     height: $dropDownHeight;
     animation: openDropDown 1s;
     overflow: hidden;
-    background-color: $gray7;
+    // background-color: $gray7;
+    background: rgba(9, 22, 43, 0.5);
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px;
     display: flex;
     flex-direction: row;
+    justify-content: space-around;
   }
-
+  
   .closeDropDown {
     height: 0px;
     animation: closeDropDown 1s;
     overflow: hidden;
-    background-color: $gray7;
+    // background-color: $gray7;
+    background: rgba(9, 22, 43, 0.5);
+    border-radius: 8px;
     display: flex;
     flex-direction: row;
+    justify-content: space-around;
   }
 
   .dropDownInit {
@@ -99,7 +110,7 @@ $boxDropDownHeight: 60px;
   }
 
   .boxContainer {
-    border: 2px solid rgb(238, 234, 244);
+    // border: 2px solid rgb(238, 234, 244);
     border-radius: 10px;
     width: 250px;
     height: $boxDropDownHeight;

@@ -13,7 +13,8 @@ $boxDropDownHeight: 50px;
   padding: 10px;
   margin: 5px;
   background: transparent;
-  box-shadow: 0 0 4px $gray4;
+  padding: '10px';
+  // box-shadow: 0 0 4px $gray4;
   border-radius: 10px;
   @include mobile {
     flex-direction: column;
@@ -24,12 +25,13 @@ $boxDropDownHeight: 50px;
     display: flex;
     justify-content: center;
     flex-direction: column;
+    margin-bottom: 10px;
     .title {
       width: 100%;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 1.1em;
+      // font-size: 1.1em;
     }
     .subTitle {
       width: 100%;
@@ -37,8 +39,8 @@ $boxDropDownHeight: 50px;
       justify-content: space-between;
       align-items: center;
       padding-top: 5px;
-      font-size: 0.8em;
-      color: $gray4;
+      // font-size: 0.8em;
+      color: $white700; //$gray4;
     }
     .content {
       display: flex;
@@ -46,7 +48,7 @@ $boxDropDownHeight: 50px;
       align-items: center;
       justify-content: space-between;
       padding-top: 10px;
-      font-size: 0.8em;
+      font-size: 16px;
     }
     .viewMore {
       flex-direction: row;
@@ -57,17 +59,19 @@ $boxDropDownHeight: 50px;
       height: $dropDownHeight;
       animation: openDropDown 1s;
       overflow: hidden;
-      background-color: $gray7;
+      background: rgba(9, 22, 43, 0.5);
+      border-radius: 8px;
       display: flex;
       flex-direction: column;
-      padding: 5px;
+      padding: 10px;
     }
   
     .closeDropDown {
       height: 0px;
       animation: closeDropDown 1s;
       overflow: hidden;
-      background-color: $gray7;
+      background: rgba(9, 22, 43, 0.5);
+      border-radius: 8px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -185,12 +189,43 @@ $boxDropDownHeight: 50px;
 }
 
 .button {
-  color: $gray6;
-  background-color: $blue;
+  color: $white;//$gray6;
+  border: 1.4px solid $blue;// #506DFA;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  border-radius: 8px;
   padding: 5px 10px;
   cursor: pointer;
+
+  &:hover {
+    background-color: $blue;
+  }
+
 }
 
 .href {
   text-decoration: underline;
 } 
+
+.divider {
+  height: 0px;
+  width: 90%;
+  margin: 5px auto;
+  position: relative;
+  z-index: 1;
+
+  &::before{ 
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    margin: -1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) -0.74%, rgba(255, 255, 255, 0.0414) 8.18%, rgba(255, 255, 255, 0.0408) 90.07%, rgba(255, 255, 255, 0) 100.04%);
+  }
+
+}

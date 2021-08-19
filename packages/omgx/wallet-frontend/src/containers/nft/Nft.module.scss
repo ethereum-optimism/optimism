@@ -1,16 +1,17 @@
 @import 'index.scss';
 
 .container {
-  
+
   padding-right: 20px;
 
   .boxContainer{
-    
+
     display: inline-block;
     max-width: 500px;
     padding: 20px;
     padding-top: 0px;
     vertical-align: top;
+    margin-bottom: 30px;
 
     .button {
       max-width: 500px;
@@ -47,10 +48,9 @@
 }
 
 .note {
-  font-size: 0.7em;
-  color: $gray3;
-  font-family: MessinaMonoSemiBold;
+  font-family: 'MrEavesXL', MessinaMonoSemiBold;
   margin-bottom: 5px;
+  line-height: 130%;
 }
 
 .nftTiles {
@@ -61,4 +61,3 @@
   align-items: flex-start;
   flex-wrap: wrap;
 }
-
