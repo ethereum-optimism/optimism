@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.8
+
+### Patch Changes
+
+- e4fea5e0: Makes the contracts package browser compatible.
+
 ## 0.4.7
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @eth-optimism/message-relayer
 
+## 0.1.9
+
+### Patch Changes
+
+- e4fea5e0: Use latest contracts package for browser compatibility support
+- Updated dependencies [e4fea5e0]
+  - @eth-optimism/contracts@0.4.8
+
 ## 0.1.8
 
 ### Patch Changes

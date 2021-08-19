@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.9
+
+### Patch Changes
+
+- 3c420ec3: Reduce the geth diff
+- 9d1ff999: Allow transactions via RPC to `address(0)`
+- 101b942c: Removes `id` field from EVM and no longer logs the EVM execution id
+- 4cf68ade: Style fix in the `RollupClient`
+- 6dbb9293: Remove dead code in `blockchain.go` and `miner/worker.go`
+
 ## 0.4.8
 
 ### Patch Changes
