@@ -365,11 +365,12 @@ func batchedTransactionToTransaction(res *transaction, signer *types.EIP155Signe
 	// The queue origin must be either sequencer of l1, otherwise
 	// it is considered an unknown queue origin and will not be processed
 	var queueOrigin types.QueueOrigin
-	if res.QueueOrigin == sequencer {
+	switch res.QueueOrigin {
+	case sequencer:
 		queueOrigin = types.QueueOriginSequencer
-	} else if res.QueueOrigin == l1 {
+	case l1:
 		queueOrigin = types.QueueOriginL1ToL2
-	} else {
+	default:
 		return nil, fmt.Errorf("Unknown queue origin: %s", res.QueueOrigin)
 	}
 	// Transactions that have been decoded are

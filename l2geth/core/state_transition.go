@@ -160,6 +160,10 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
+	// There is no native ETH, there is OVM_ETH which is an ERC20.
+	// Sufficient user balance is checked when the user sends the transaction
+	// via RPC through very similar checks as to when a transaction enters
+	// the layer one mempool. Deposits skip the check
 	if !vm.UsingOVM {
 		if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
 			return errInsufficientBalanceForGas
@@ -171,6 +175,8 @@ func (st *StateTransition) buyGas() error {
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
+	// Do not subtract the gas from the user balance when running OVM.
+	// This is handled in the Solidity contracts to enable to fraud proof
 	if !vm.UsingOVM {
 		st.state.SubBalance(st.msg.From(), mgval)
 	}
@@ -182,8 +188,10 @@ func (st *StateTransition) preCheck() error {
 	if st.msg.CheckNonce() {
 		nonce := st.state.GetNonce(st.msg.From())
 		if nonce < st.msg.Nonce() {
+			// Skip the nonce check for L1 to L2 transactions. They do not
+			// increment a nonce in the state and they also ecrecover to
+			// `address(0)`
 			if vm.UsingOVM {
-				// The nonce never increments for L1ToL2 txs
 				if st.msg.QueueOrigin() == types.QueueOriginL1ToL2 {
 					return st.buyGas()
 				}
@@ -205,7 +213,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 
 	if vm.UsingOVM {
-		// OVM_ENABLED
+		// When the execution is not an `eth_call`, abi encode the user transaction
+		// and place it in the calldata of the msg struct so that the user
+		// transaction can be passed to the system contracts via the calldata
 		if st.evm.EthCallSender == nil {
 			st.msg, err = toExecutionManagerRun(st.evm, st.msg)
 		}
@@ -221,8 +231,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
-	// OVM_ADDITION
-	// TODO(mark): pay intrinsic gas function needs to be updated
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead, istanbul)
 	if err != nil {
 		return nil, 0, false, err
@@ -258,7 +266,8 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	} else {
 		// Increment the nonce for the next transaction
 		if !vm.UsingOVM {
-			// OVM_DISABLED
+			// Do not set the nonce because that is handled in the Solidity
+			// contracts.
 			st.state.SetNonce(msg.From(), st.state.GetNonce(msg.From())+1)
 		}
 
@@ -273,13 +282,14 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	st.refundGas()
 
 	if !vm.UsingOVM {
-		// OVM_DISABLED
+		// Do not pay the gas to the coinbase address when running the OVM
 		st.state.AddBalance(evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 	}
 	return ret, st.gasUsed(), vmerr != nil, err
 }
 
 func (st *StateTransition) refundGas() {
+	// Do not refund any gas when running the OVM
 	if vm.UsingOVM {
 		return
 	}

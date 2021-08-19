@@ -558,18 +558,6 @@ type StorageResult struct {
 	Proof []string     `json:"proof"`
 }
 
-// Result structs for GetStateDiffProof
-type StateDiffProof struct {
-	Header   *HeaderMeta     `json:"header"`
-	Accounts []AccountResult `json:"accounts"`
-}
-type HeaderMeta struct {
-	Number    *big.Int    `json:"number"`
-	Hash      common.Hash `json:"hash"`
-	StateRoot common.Hash `json:"stateRoot"`
-	Timestamp uint64      `json:"timestamp"`
-}
-
 // GetProof returns the Merkle-proof for a given account and optionally some storage keys.
 func (s *PublicBlockChainAPI) GetProof(ctx context.Context, address common.Address, storageKeys []string, blockNrOrHash rpc.BlockNumberOrHash) (*AccountResult, error) {
 	state, _, err := s.b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)

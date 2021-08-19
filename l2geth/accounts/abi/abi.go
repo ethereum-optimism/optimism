@@ -123,6 +123,12 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	abi.Methods = make(map[string]Method)
+	// UsingOVM specific changes
+	// Create a cache of methods when running under the OVM because
+	// looking up methods based on the 4 byte selector is part of the hot
+	// code path. Without this cache, it was observed that 50% of the CPU
+	// time during syncing was spent hashing the function selectors
+	// during the call to `abi.MethodsById`
 	abi.MethodsById = make(map[[4]byte]*Method)
 	abi.Events = make(map[string]Event)
 	for _, field := range fields {
@@ -148,7 +154,8 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 				Outputs: field.Outputs,
 			}
 			abi.Methods[name] = method
-			// add method to the id cache
+			// UsingOVM specific changes
+			// Add method to the id cache
 			sigdata := method.ID()
 			abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}] = &method
 		case "event":
@@ -177,6 +184,9 @@ func (abi *ABI) MethodById(sigdata []byte) (*Method, error) {
 		return nil, fmt.Errorf("data too short (%d bytes) for abi method lookup", len(sigdata))
 	}
 
+	// UsingOVM specific changes
+	// Use the method cache to prevent the need to iterate and hash
+	// each method in the ABI
 	method, exist := abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}]
 	if !exist {
 		return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
@@ -195,6 +205,11 @@ func (abi *ABI) EventByID(topic common.Hash) (*Event, error) {
 	return nil, fmt.Errorf("no event with id: %#x", topic.Hex())
 }
 
+// UsingOVM
+// Both RevertSelector and UnpackRevert were pulled from upstream
+// geth as they were not present in the version of geth that this
+// codebase was forked from. These are useful for displaying revert
+// messages to users when they use `eth_call`
 // RevertSelector is a special function selector for revert reason unpacking.
 var RevertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
 

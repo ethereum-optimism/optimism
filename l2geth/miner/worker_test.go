@@ -192,6 +192,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 }
 
 func TestGenerateBlockAndImportEthash(t *testing.T) {
+	t.Skip("OVM")
 	testGenerateBlockAndImport(t, false)
 }
 

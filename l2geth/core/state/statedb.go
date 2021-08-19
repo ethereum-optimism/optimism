@@ -232,6 +232,11 @@ func (s *StateDB) GetBalance(addr common.Address) *big.Int {
 	return common.Big0
 }
 
+// UsingOVM
+// Read the account's balance from the state. This is used
+// because ETH is an ERC20. This function specifically looks
+// up the storage slot of the users balance. It is fragile to any
+// changes in storage layout.
 func (s *StateDB) GetOVMBalance(addr common.Address) *big.Int {
 	eth := common.HexToAddress("0x4200000000000000000000000000000000000006")
 	position := big.NewInt(0)

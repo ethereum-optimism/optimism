@@ -85,7 +85,10 @@ func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 	ks.init(keydir)
 	if vm.UsingOVM {
 		// Add a deterministic key to the key store so that
-		// all clique blocks are signed with the same key
+		// all clique blocks are signed with the same key.
+		// This change will result in deterministic blocks across
+		// the entire network. This change is necessary due to
+		// each node running its own single signer clique consensus.
 		input := make([]byte, 65)
 		rng := bytes.NewReader(input)
 		key, err := newKey(rng)
