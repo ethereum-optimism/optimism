@@ -10,5 +10,5 @@ interface iOVM_L1MessageSender {
      * Public Functions *
      ********************/
 
-    function getL1MessageSender() external view returns (address _l1MessageSender);
+    function getL1MessageSender() external view returns (address);
 }
