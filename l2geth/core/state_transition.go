@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 var (
@@ -180,10 +181,8 @@ func (st *StateTransition) preCheck() error {
 	if st.msg.CheckNonce() {
 		nonce := st.state.GetNonce(st.msg.From())
 		if nonce < st.msg.Nonce() {
-			// Skip the nonce check for L1 to L2 transactions. They do not
-			// increment a nonce in the state and they also ecrecover to
-			// `address(0)`
-			if vm.UsingOVM {
+			if rcfg.UsingOVM {
+				// The nonce never increments for L1ToL2 txs
 				if st.msg.QueueOrigin() == types.QueueOriginL1ToL2 {
 					return st.buyGas()
 				}

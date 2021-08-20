@@ -19,8 +19,7 @@ const DEFAULT_TEST_GAS_L2 = 1_300_000
 // TX size enforced by CTC:
 const MAX_ROLLUP_TX_SIZE = 50_000
 
-// SKIP: ETH value PR
-describe.skip('Native ETH Integration Tests', async () => {
+describe('Native ETH Integration Tests', async () => {
   let env: OptimismEnv
   let l1Bob: Wallet
   let l2Bob: Wallet
@@ -345,21 +344,14 @@ describe.skip('Native ETH Integration Tests', async () => {
       expect(
         await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
       ).to.equal(initialBalance)
-      expect(receipt.events.length).to.equal(4)
+      expect(receipt.events.length).to.equal(2)
 
-      // The first transfer event is fee payment
-      const [, firstTransferEvent, secondTransferEvent, depositEvent] =
-        receipt.events
+      const [transferEvent, depositEvent] = receipt.events
 
-      expect(firstTransferEvent.event).to.equal('Transfer')
-      expect(firstTransferEvent.args.from).to.equal(env.l2Wallet.address)
-      expect(firstTransferEvent.args.to).to.equal(env.ovmEth.address)
-      expect(firstTransferEvent.args.value).to.equal(value)
-
-      expect(secondTransferEvent.event).to.equal('Transfer')
-      expect(secondTransferEvent.args.from).to.equal(env.ovmEth.address)
-      expect(secondTransferEvent.args.to).to.equal(env.l2Wallet.address)
-      expect(secondTransferEvent.args.value).to.equal(value)
+      expect(transferEvent.event).to.equal('Transfer')
+      expect(transferEvent.args.from).to.equal(env.ovmEth.address)
+      expect(transferEvent.args.to).to.equal(env.l2Wallet.address)
+      expect(transferEvent.args.value).to.equal(value)
 
       expect(depositEvent.event).to.equal('Deposit')
       expect(depositEvent.args.dst).to.equal(env.l2Wallet.address)
@@ -385,10 +377,9 @@ describe.skip('Native ETH Integration Tests', async () => {
       expect(
         await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
       ).to.equal(initialBalance)
-      expect(receipt.events.length).to.equal(2)
+      expect(receipt.events.length).to.equal(1)
 
-      // The first transfer event is fee payment
-      const depositEvent = receipt.events[1]
+      const depositEvent = receipt.events[0]
       expect(depositEvent.event).to.equal('Withdrawal')
       expect(depositEvent.args.src).to.equal(env.l2Wallet.address)
       expect(depositEvent.args.wad).to.equal(value)
