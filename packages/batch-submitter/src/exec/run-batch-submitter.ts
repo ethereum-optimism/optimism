@@ -4,7 +4,10 @@ import * as Sentry from '@sentry/node'
 import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
-import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
+import {
+  StaticJsonRpcProvider,
+  TransactionReceipt,
+} from '@ethersproject/providers'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
 
@@ -136,7 +139,9 @@ export const run = async () => {
   )
 
   const getSequencerSigner = async (): Promise<Signer> => {
-    const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
+    const l1Provider = new StaticJsonRpcProvider(
+      requiredEnvVars.L1_NODE_WEB3_URL
+    )
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
@@ -161,7 +166,9 @@ export const run = async () => {
   }
 
   const getProposerSigner = async (): Promise<Signer> => {
-    const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
+    const l1Provider = new StaticJsonRpcProvider(
+      requiredEnvVars.L1_NODE_WEB3_URL
+    )
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
@@ -335,7 +342,7 @@ export const run = async () => {
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS
 
   const l2Provider = injectL2Context(
-    new JsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
+    new StaticJsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
   )
 
   const sequencerSigner: Signer = await getSequencerSigner()
