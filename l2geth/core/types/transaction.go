@@ -298,8 +298,9 @@ func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 		data:       tx.data.Payload,
 		checkNonce: true,
 
-		l1MessageSender: tx.meta.L1MessageSender,
+		l1Timestamp:     tx.meta.L1Timestamp,
 		l1BlockNumber:   tx.meta.L1BlockNumber,
+		l1MessageSender: tx.meta.L1MessageSender,
 		queueOrigin:     tx.meta.QueueOrigin,
 	}
 
@@ -481,12 +482,13 @@ type Message struct {
 	data       []byte
 	checkNonce bool
 
-	l1MessageSender *common.Address
+	l1Timestamp     uint64
 	l1BlockNumber   *big.Int
+	l1MessageSender *common.Address
 	queueOrigin     QueueOrigin
 }
 
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool, l1MessageSender *common.Address, l1BlockNumber *big.Int, queueOrigin QueueOrigin) Message {
+func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool, l1MessageSender *common.Address, l1BlockNumber *big.Int, l1Timestamp uint64, queueOrigin QueueOrigin) Message {
 	return Message{
 		from:       from,
 		to:         to,
@@ -497,6 +499,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		data:       data,
 		checkNonce: checkNonce,
 
+		l1Timestamp:     l1Timestamp,
 		l1BlockNumber:   l1BlockNumber,
 		l1MessageSender: l1MessageSender,
 		queueOrigin:     queueOrigin,
@@ -512,6 +515,7 @@ func (m Message) Nonce() uint64        { return m.nonce }
 func (m Message) Data() []byte         { return m.data }
 func (m Message) CheckNonce() bool     { return m.checkNonce }
 
-func (m Message) L1MessageSender() *common.Address { return m.l1MessageSender }
+func (m Message) L1Timestamp() uint64              { return m.l1Timestamp }
 func (m Message) L1BlockNumber() *big.Int          { return m.l1BlockNumber }
+func (m Message) L1MessageSender() *common.Address { return m.l1MessageSender }
 func (m Message) QueueOrigin() QueueOrigin         { return m.queueOrigin }

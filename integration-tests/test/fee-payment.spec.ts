@@ -12,7 +12,7 @@ import { IS_LIVE_NETWORK } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
-// SKIP: needs message passing PR
+// SKIP: ETH value PR
 describe.skip('Fee Payment Integration Tests', async () => {
   let env: OptimismEnv
   before(async () => {

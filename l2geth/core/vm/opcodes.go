@@ -103,6 +103,8 @@ const (
 	GASLIMIT
 	CHAINID     = 0x46
 	SELFBALANCE = 0x47
+
+	L1MESSAGESENDER = 0x4A
 )
 
 // 0x50 range - 'storage' and execution.
@@ -281,6 +283,10 @@ var opCodeToString = map[OpCode]string{
 	GASLIMIT:    "GASLIMIT",
 	CHAINID:     "CHAINID",
 	SELFBALANCE: "SELFBALANCE",
+
+	// OVM opcodes
+	// 0x4A
+	L1MESSAGESENDER: "L1MESSAGESENDER",
 
 	// 0x50 range - 'storage' and execution.
 	POP: "POP",
@@ -538,6 +544,9 @@ var stringToOp = map[string]OpCode{
 	"CALLCODE":       CALLCODE,
 	"REVERT":         REVERT,
 	"SELFDESTRUCT":   SELFDESTRUCT,
+
+	// OVM opcodes
+	"L1MESSAGESENDER": L1MESSAGESENDER,
 }
 
 // StringToOp finds the opcode whose name is stored in `str`.
