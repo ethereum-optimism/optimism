@@ -75,8 +75,10 @@ type Message interface {
 	Nonce() uint64
 	CheckNonce() bool
 	Data() []byte
-	L1MessageSender() *common.Address
+
+	L1Timestamp() uint64
 	L1BlockNumber() *big.Int
+	L1MessageSender() *common.Address
 	QueueOrigin() types.QueueOrigin
 }
 
