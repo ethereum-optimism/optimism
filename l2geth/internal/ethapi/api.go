@@ -867,7 +867,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// attached to each transaction. We need to modify the blocknumber and timestamp to reflect this,
 	// or else the result of `eth_call` will not be correct.
 	blockNumber := header.Number
-	timestamp := new(big.Int).SetUint64(header.Time)
+	timestamp := header.Time
 	if vm.UsingOVM {
 		block, err := b.BlockByNumber(ctx, rpc.BlockNumber(header.Number.Uint64()))
 		if err != nil {
@@ -881,13 +881,13 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 				}
 				tx := txs[0]
 				blockNumber = tx.L1BlockNumber()
-				timestamp = new(big.Int).SetUint64(tx.L1Timestamp())
+				timestamp = tx.L1Timestamp()
 			}
 		}
 	}
 
 	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, nil, types.QueueOriginSequencer)
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, &addr, blockNumber, timestamp, types.QueueOriginSequencer)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -916,11 +916,6 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	// Modify the blocknumber and timestamp based on the L1BlockNumber and L1Timestamp from above.
-	if vm.UsingOVM {
-		evm.Context.BlockNumber = blockNumber
-		evm.Context.Time = timestamp
-	}
 	res, gas, failed, err := core.ApplyMessage(evm, msg, gp)
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
