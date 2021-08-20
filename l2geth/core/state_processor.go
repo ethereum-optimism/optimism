@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -87,7 +88,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
-	if vm.UsingOVM {
+	if rcfg.UsingOVM {
 		if err != nil {
 			// This should only be allowed to pass if the transaction is in the ctc
 			// already. The presence of `Index` should specify this.

@@ -34,13 +34,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rollup/dump"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 //go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
@@ -352,8 +352,9 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
 
-	if vm.UsingOVM {
-		// OVM_ENABLED
+	// Apply the OVM genesis state, including setting storage dynamically
+	// in particular system contracts.
+	if rcfg.UsingOVM {
 		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1StandardBridgeAddress, g.AddressManagerOwnerAddress, g.GasPriceOracleOwnerAddress, g.L1FeeWalletAddress, g.ChainID, g.GasLimit)
 	}
 
@@ -495,7 +496,7 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 	}
 
 	stateDump := dump.OvmDump{}
-	if vm.UsingOVM {
+	if rcfg.UsingOVM {
 		// Fetch the state dump from the state dump path
 		// The system cannot start without a state dump as it depends on
 		// the ABIs that are included in the state dump. Check that all
