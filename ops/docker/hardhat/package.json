@@ -2,10 +2,10 @@
   "name": "@eth-optimism/hardhat-node",
   "version": "1.0.0",
   "scripts": {
-    "start": "hardhat node"
+    "start": "hardhat node --network hardhat"
   },
   "license": "MIT",
   "dependencies": {
-    "hardhat": "^2.1.2"
+    "hardhat": "^2.6.1"
   }
 }
