@@ -82,7 +82,7 @@ export const makeContractDeployConfig = async (
       ],
     },
     OVM_DeployerWhitelist: {
-      factory: getContractFactory('OVM_DeployerWhitelist', undefined, true),
+      factory: getContractFactory('OVM_DeployerWhitelist'),
       params: [],
     },
     OVM_L1MessageSender: {
@@ -118,24 +118,20 @@ export const makeContractDeployConfig = async (
       },
     },
     OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount', undefined, true),
+      factory: getContractFactory('OVM_ECDSAContractAccount'),
     },
     OVM_SequencerEntrypoint: {
-      factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),
+      factory: getContractFactory('OVM_SequencerEntrypoint'),
     },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
       params: [],
     },
     OVM_ProxyEOA: {
-      factory: getContractFactory('OVM_ProxyEOA', undefined, true),
+      factory: getContractFactory('OVM_ProxyEOA'),
     },
     OVM_ExecutionManagerWrapper: {
-      factory: getContractFactory(
-        'OVM_ExecutionManagerWrapper',
-        undefined,
-        true
-      ),
+      factory: getContractFactory('OVM_ExecutionManagerWrapper'),
     },
     OVM_GasPriceOracle: {
       factory: getContractFactory('OVM_GasPriceOracle'),

@@ -10,8 +10,7 @@ import l2ReverterJson from '../artifacts/contracts/Reverter.sol/Reverter.json'
 import { Direction } from './shared/watcher-utils'
 import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
 
-// SKIP: needs message passing PR
-describe.skip('Basic L1<>L2 Communication', async () => {
+describe('Basic L1<>L2 Communication', async () => {
   let Factory__L1SimpleStorage: ContractFactory
   let Factory__L2SimpleStorage: ContractFactory
   let Factory__L2Reverter: ContractFactory
@@ -116,45 +115,12 @@ describe.skip('Basic L1<>L2 Communication', async () => {
       expect(remoteReceipt.status).to.equal(1)
     })
 
-    it('should have a receipt with a status of 0 for a failed message', async () => {
+    // SKIP: until we decide what should be done in this case
+    it.skip('should have a receipt with a status of 0 for a failed message', async () => {
       // Send L1 -> L2 message.
       const transaction = await env.l1Messenger.sendMessage(
         L2Reverter.address,
         L2Reverter.interface.encodeFunctionData('doRevert', []),
-        5000000
-      )
-
-      const { remoteReceipt } = await env.waitForXDomainTransaction(
-        transaction,
-        Direction.L1ToL2
-      )
-
-      expect(remoteReceipt.status).to.equal(0)
-    })
-
-    it('should have a receipt with a status of 0 for messages sent to 0x42... addresses', async () => {
-      // This call is fine but will give a status of 0.
-      const transaction = await env.l1Messenger.sendMessage(
-        predeploys.Lib_AddressManager,
-        getContractInterface('Lib_AddressManager').encodeFunctionData(
-          'getAddress',
-          ['whatever']
-        ),
-        5000000
-      )
-
-      const { remoteReceipt } = await env.waitForXDomainTransaction(
-        transaction,
-        Direction.L1ToL2
-      )
-
-      expect(remoteReceipt.status).to.equal(0)
-    })
-
-    it('should have a receipt with a status of 0 for messages sent to 0xdead... addresses', async () => {
-      const transaction = await env.l1Messenger.sendMessage(
-        '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
-        '0x',
         5000000
       )
 
