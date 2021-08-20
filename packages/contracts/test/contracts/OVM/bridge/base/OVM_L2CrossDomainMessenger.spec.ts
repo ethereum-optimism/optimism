@@ -4,6 +4,7 @@ import { expect } from '../../../../setup'
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
+import { solidityKeccak256 } from 'ethers/lib/utils'
 
 /* Internal Imports */
 import {
@@ -14,7 +15,7 @@ import {
   encodeXDomainCalldata,
   getNextBlockNumber,
 } from '../../../../helpers'
-import { solidityKeccak256 } from 'ethers/lib/utils'
+import { getContractInterface } from '../../../../../src'
 
 describe('OVM_L2CrossDomainMessenger', () => {
   let signer: Signer
@@ -39,7 +40,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       await ethers.getContractFactory('OVM_L1CrossDomainMessenger')
     )
     Mock__OVM_L1MessageSender = await smockit(
-      await ethers.getContractFactory('OVM_L1MessageSender')
+      getContractInterface('iOVM_L1MessageSender')
     )
     Mock__OVM_L2ToL1MessagePasser = await smockit(
       await ethers.getContractFactory('OVM_L2ToL1MessagePasser')

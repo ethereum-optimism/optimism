@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
+// @unsupported: ovm
 pragma solidity >0.5.0 <0.8.0;
-
-/* Interface Imports */
-import { iOVM_L1MessageSender } from "../../iOVM/predeploys/iOVM_L1MessageSender.sol";
-import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 
 /**
  * @title OVM_L1MessageSender
@@ -20,24 +17,23 @@ import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManage
  * Compiler used: solc
  * Runtime target: OVM
  */
-contract OVM_L1MessageSender is iOVM_L1MessageSender {
-
-    /********************
-     * Public Functions *
-     ********************/
-
-    /**
-     * @return _l1MessageSender L1 message sender address (msg.sender).
-     */
-    function getL1MessageSender()
-        override
-        public
-        view
-        returns (
-            address _l1MessageSender
-        )
-    {
-        // Note that on L2 msg.sender (ie. evmCALLER) will always be the Execution Manager
-        return iOVM_ExecutionManager(msg.sender).ovmL1TXORIGIN();
+contract OVM_L1MessageSender {
+    constructor() {
+        // By using the low-level assembly `return` we can dictate the final code of this contract
+        // directly. Any call to this contract will simply return the L1MessageSender address.
+        // Code of this contract will be:
+        // 4A - L1MESSAGESENDER
+        // 60 - PUSH1
+        // 00
+        // 52 - MSTORE (store L1MESSAGESENDER at memory location 0x00)
+        // 60 - PUSH1
+        // 20
+        // 60 - PUSH1
+        // 00
+        // F3 - RETURN (return memory at 0x00...0x20)
+        bytes memory code = hex"4A60005260206000F3";
+        assembly {
+            return(add(code, 0x20), mload(code))
+        }
     }
 }
