@@ -30,7 +30,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rollup/dump"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 	"github.com/ethereum/go-ethereum/trie"
+	"golang.org/x/crypto/sha3"
 )
 
 type revision struct {
@@ -55,6 +58,15 @@ func (n *proofList) Put(key []byte, value []byte) error {
 
 func (n *proofList) Delete(key []byte) error {
 	panic("not supported")
+}
+
+func GetOVMBalanceKey(addr common.Address) common.Hash {
+	position := common.Big0
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
+	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
+	digest := hasher.Sum(nil)
+	return common.BytesToHash(digest)
 }
 
 // StateDBs within the ethereum protocol are used to store anything
@@ -224,11 +236,19 @@ func (s *StateDB) Empty(addr common.Address) bool {
 
 // Retrieve the balance from the given address or 0 if object not found
 func (s *StateDB) GetBalance(addr common.Address) *big.Int {
-	stateObject := s.getStateObject(addr)
-	if stateObject != nil {
-		return stateObject.Balance()
+	if rcfg.UsingOVM {
+		// Get balance from the OVM_ETH contract.
+		// NOTE: We may remove this feature in a future release.
+		key := GetOVMBalanceKey(addr)
+		bal := s.GetState(dump.OvmEthAddress, key)
+		return bal.Big()
+	} else {
+		stateObject := s.getStateObject(addr)
+		if stateObject != nil {
+			return stateObject.Balance()
+		}
+		return common.Big0
 	}
-	return common.Big0
 }
 
 func (s *StateDB) GetNonce(addr common.Address) uint64 {
@@ -347,24 +367,54 @@ func (s *StateDB) HasSuicided(addr common.Address) bool {
 
 // AddBalance adds amount to the account associated with addr.
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.AddBalance(amount)
+	if rcfg.UsingOVM {
+		// Mutate the storage slot inside of OVM_ETH to change balances.
+		// Note that we don't need to check for overflows or underflows here because the code that
+		// uses this codepath already checks for them. You can follow the original codepath below
+		// (stateObject.AddBalance) to confirm that there are no checks being performed here.
+		key := GetOVMBalanceKey(addr)
+		value := s.GetState(dump.OvmEthAddress, key)
+		bal := value.Big()
+		bal = bal.Add(bal, amount)
+		s.SetState(dump.OvmEthAddress, key, common.BigToHash(bal))
+	} else {
+		stateObject := s.GetOrNewStateObject(addr)
+		if stateObject != nil {
+			stateObject.AddBalance(amount)
+		}
 	}
 }
 
 // SubBalance subtracts amount from the account associated with addr.
 func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.SubBalance(amount)
+	if rcfg.UsingOVM {
+		// Mutate the storage slot inside of OVM_ETH to change balances.
+		// Note that we don't need to check for overflows or underflows here because the code that
+		// uses this codepath already checks for them. You can follow the original codepath below
+		// (stateObject.SubBalance) to confirm that there are no checks being performed here.
+		key := GetOVMBalanceKey(addr)
+		value := s.GetState(dump.OvmEthAddress, key)
+		bal := value.Big()
+		bal = bal.Sub(bal, amount)
+		s.SetState(dump.OvmEthAddress, key, common.BigToHash(bal))
+	} else {
+		stateObject := s.GetOrNewStateObject(addr)
+		if stateObject != nil {
+			stateObject.SubBalance(amount)
+		}
 	}
 }
 
 func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.SetBalance(amount)
+	if rcfg.UsingOVM {
+		// Mutate the storage slot inside of OVM_ETH to change balances.
+		key := GetOVMBalanceKey(addr)
+		s.SetState(dump.OvmEthAddress, key, common.BigToHash(amount))
+	} else {
+		stateObject := s.GetOrNewStateObject(addr)
+		if stateObject != nil {
+			stateObject.SetBalance(amount)
+		}
 	}
 }
 

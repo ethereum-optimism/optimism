@@ -33,12 +33,12 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
@@ -249,7 +249,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	}
 	number := header.Number.Uint64()
 
-	if !vm.UsingOVM {
+	if !rcfg.UsingOVM {
 		// Don't waste time checking blocks from the future
 		if header.Time > uint64(time.Now().Unix()) {
 			return consensus.ErrFutureBlock
@@ -328,7 +328,7 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 	// Do not account for timestamps in consensus when running the OVM
 	// changes. The timestamp must be montonic, meaning that it can be the same
 	// or increase. L1 dictates the timestamp.
-	if !vm.UsingOVM {
+	if !rcfg.UsingOVM {
 		if parent.Time+c.config.Period > header.Time {
 			return ErrInvalidTimestamp
 		}
@@ -555,7 +555,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 	}
 
 	// Do not manipulate the timestamps when running with the OVM
-	if !vm.UsingOVM {
+	if !rcfg.UsingOVM {
 		header.Time = parent.Time + c.config.Period
 		if header.Time < uint64(time.Now().Unix()) {
 			header.Time = uint64(time.Now().Unix())
@@ -640,7 +640,10 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 
 		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
 	}
-	if vm.UsingOVM {
+	// Set the delay to 0 when using the OVM so that blocks are always
+	// produced instantly. When running in a non-OVM network, the delay prevents
+	// the creation of invalid blocks.
+	if rcfg.UsingOVM {
 		delay = 0
 	}
 	// Sign all the things!
