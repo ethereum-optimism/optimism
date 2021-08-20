@@ -47,8 +47,7 @@ describe('stress tests', () => {
     await L2SimpleStorage.deployTransaction.wait()
   })
 
-  // SKIP: needs message passing PR
-  describe.skip('L1 => L2 stress tests', () => {
+  describe('L1 => L2 stress tests', () => {
     const numTransactions = 10
 
     it(`${numTransactions} L1 => L2 transactions (serial)`, async () => {
@@ -84,8 +83,7 @@ describe('stress tests', () => {
     }).timeout(STRESS_TEST_TIMEOUT)
   })
 
-  // SKIP: needs message passing PR
-  describe.skip('L2 => L1 stress tests', () => {
+  describe('L2 => L1 stress tests', () => {
     const numTransactions = 10
 
     it(`${numTransactions} L2 => L1 transactions (serial)`, async () => {
