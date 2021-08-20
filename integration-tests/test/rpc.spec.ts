@@ -94,8 +94,7 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('Cannot submit unprotected transaction')
     })
 
-    // SKIP: needs ETH value PR
-    it.skip('should accept a transaction with a value', async () => {
+    it('should accept a transaction with a value', async () => {
       const tx = {
         ...DEFAULT_TRANSACTION,
         chainId: await env.l2Wallet.getChainId(),
@@ -113,8 +112,7 @@ describe('Basic RPC tests', () => {
       )
     })
 
-    // SKIP: needs ETH value PR
-    it.skip('should reject a transaction with higher value than user balance', async () => {
+    it('should reject a transaction with higher value than user balance', async () => {
       const balance = await env.l2Wallet.getBalance()
       const tx = {
         ...DEFAULT_TRANSACTION,
@@ -170,8 +168,7 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('out of gas')
     })
 
-    // SKIP: needs ETH value PR
-    it.skip('should allow eth_calls with nonzero value', async () => {
+    it('should allow eth_calls with nonzero value', async () => {
       // Deploy a contract to check msg.value of the call
       const Factory__ValueContext: ContractFactory =
         await ethers.getContractFactory('ValueContext', wallet)
@@ -304,8 +301,7 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_getBalance', () => {
-    // SKIP: needs ETH value PR
-    it.skip('should get the OVM_ETH balance', async () => {
+    it('should get the OVM_ETH balance', async () => {
       const rpcBalance = await provider.getBalance(env.l2Wallet.address)
       const contractBalance = await env.ovmEth.balanceOf(env.l2Wallet.address)
       expect(rpcBalance).to.be.deep.eq(contractBalance)

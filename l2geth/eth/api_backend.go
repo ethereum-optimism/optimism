@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -267,7 +268,13 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 }
 
 func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
-	state.SetBalance(msg.From(), math.MaxBig256)
+	// This was removed upstream:
+	// https://github.com/ethereum/go-ethereum/commit/39f502329fac4640cfb71959c3496f19ea88bc85#diff-9886da3412b43831145f62cec6e895eb3613a175b945e5b026543b7463454603
+	// We're throwing this behind a UsingOVM flag for now as to not break
+	// any tests that may depend on this behavior.
+	if !rcfg.UsingOVM {
+		state.SetBalance(msg.From(), math.MaxBig256)
+	}
 	vmError := func() error { return nil }
 
 	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)

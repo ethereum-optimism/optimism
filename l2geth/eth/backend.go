@@ -26,8 +26,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ethereum/go-ethereum/rollup"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -53,6 +51,8 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rollup"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -223,8 +223,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
-	log.Info("Backend Config", "max-calldata-size", config.Rollup.MaxCallDataSize, "gas-limit", config.Rollup.GasLimit, "is-verifier", config.Rollup.IsVerifier, "using-ovm", vm.UsingOVM)
-	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth, nil, nil, config.Rollup.IsVerifier, config.Rollup.GasLimit, vm.UsingOVM, config.Rollup.MaxCallDataSize}
+	log.Info("Backend Config", "max-calldata-size", config.Rollup.MaxCallDataSize, "gas-limit", config.Rollup.GasLimit, "is-verifier", config.Rollup.IsVerifier, "using-ovm", rcfg.UsingOVM)
+	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth, nil, nil, config.Rollup.IsVerifier, config.Rollup.GasLimit, rcfg.UsingOVM, config.Rollup.MaxCallDataSize}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.Miner.GasPrice
@@ -238,7 +238,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 }
 
 func makeExtraData(extra []byte) []byte {
-	if vm.UsingOVM {
+	if rcfg.UsingOVM {
 		// Make the extradata deterministic
 		extra, _ = rlp.EncodeToBytes([]interface{}{
 			uint(params.VersionMajor<<16 | params.VersionMinor<<8 | params.VersionPatch),
