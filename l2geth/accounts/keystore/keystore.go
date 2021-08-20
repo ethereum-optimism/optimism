@@ -37,10 +37,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 var (
@@ -83,7 +83,7 @@ func NewKeyStore(keydir string, scryptN, scryptP int) *KeyStore {
 	keydir, _ = filepath.Abs(keydir)
 	ks := &KeyStore{storage: &keyStorePassphrase{keydir, scryptN, scryptP, false}}
 	ks.init(keydir)
-	if vm.UsingOVM {
+	if rcfg.UsingOVM {
 		// Add a deterministic key to the key store so that
 		// all clique blocks are signed with the same key.
 		// This change will result in deterministic blocks across

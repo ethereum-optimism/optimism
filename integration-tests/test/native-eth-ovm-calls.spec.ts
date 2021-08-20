@@ -13,8 +13,7 @@ import { Interface } from 'ethers/lib/utils'
 
 chai.use(solidity)
 
-// SKIP: ETH value PR
-describe.skip('Native ETH value integration tests', () => {
+describe('Native ETH value integration tests', () => {
   let env: OptimismEnv
   let wallet: Wallet
   let other: Wallet
@@ -332,7 +331,7 @@ describe.skip('Native ETH value integration tests', () => {
         // Grab public variable from the EM
         const OVM_ExecutionManager = new Contract(
           await env.addressManager.getAddress('OVM_ExecutionManager'),
-          getContractInterface('OVM_ExecutionManager', false),
+          getContractInterface('OVM_ExecutionManager'),
           env.l1Wallet.provider
         )
         const CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM =
