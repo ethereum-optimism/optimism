@@ -91,7 +91,7 @@ function Transactions({ searchHistory, transactions, chainLink }) {
               chain: "L1",
               hash: l1Hash
             })
-          } : {}}
+          } : null}
         />
       )
     })}
