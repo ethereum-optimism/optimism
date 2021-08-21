@@ -63,13 +63,13 @@ jobs:
         working-directory: ./ops
         run: docker-compose up --no-build -d
 
-      - name: Start background logging
-        working-directory: ./ops
-        run: docker-compose -f docker-compose.yml logs --follow &
-
       - name: Wait for the Sequencer node
         working-directory: ./ops
         run: ./scripts/wait-for-sequencer.sh
+
+      - name: Start background logging
+        working-directory: ./ops
+        run: docker-compose -f docker-compose.yml logs --follow &
 
       - name: Run the integration tests
         working-directory: ./ops

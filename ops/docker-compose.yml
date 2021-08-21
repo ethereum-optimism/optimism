@@ -112,6 +112,7 @@ services:
   deployer:
     depends_on:
       - l1_chain
+      - dtl
     image: omgx/deployer:latest
     build:
       context: ..
@@ -129,15 +130,16 @@ services:
       # skip compilation when run in docker-compose, since the contracts
       # were already compiled in the builder step
       NO_COMPILE: 1
+      DTL_REGISTRY_URL: http://dtl:8081/addresses.json
     ports:
         # expose the service to the host for getting the contract addrs
-      - ${DEPLOYER_PORT:-8080}:8081
+      - ${DEPLOYER_PORT:-8099}:8081 # Can eventually remove this now that DTL is serving stuff
 
   # deploys OMGX contracts and serves contract addresses
   omgx_deployer:
     depends_on:
       - l1_chain
-      - deployer
+      - dtl
       - l2geth
     image: omgx/omgx_deployer
     build:
@@ -146,10 +148,11 @@ services:
     environment:
       L1_NODE_WEB3_URL: http://l1_chain:8545
       L2_NODE_WEB3_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
+      URL: http://dtl:8081/addresses.json
       # DO NOT use in production
       << : *deployer_pk
       RETRIES: 70
+      DTL_REGISTRY_URL: http://dtl:8081/omgx-addr.json
     ports:
         # expose the service to the host for getting the contract addrs
       - ${OMGX_DEPLOYER_PORT:-8078}:8079
@@ -157,21 +160,15 @@ services:
   dtl:
     depends_on:
       - l1_chain
-      - deployer
-      - l2geth
     image: omgx/data-transport-layer:latest
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.data-transport-layer
-    # override with the dtl script and the env vars required for it
-    entrypoint: ./dtl.sh
     env_file:
       -  ./envs/dtl.env
     # set the rest of the env vars for the network whcih do not
     # depend on the docker-compose setup
     environment:
-      # used for setting the address manager address
-      URL: http://deployer:8081/addresses.json
       # connect to the 2 layers
       DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
       DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
@@ -179,11 +176,12 @@ services:
       DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
     ports:
       - ${DTL_PORT:-7878}:7878
+      - ${REGISTRY_PORT:-8080}:8081
 
   l2geth:
     depends_on:
       - l1_chain
-      - deployer
+      - dtl
     image: omgx/l2geth:latest
     build:
       context: ..
@@ -195,9 +193,9 @@ services:
     environment:
       ETH1_HTTP: http://l1_chain:8545
       ROLLUP_TIMESTAMP_REFRESH: 5s
-      ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
+      ROLLUP_STATE_DUMP_PATH: http://dtl:8081/state-dump.latest.json
       # used for getting the addresses
-      URL: http://deployer:8081/addresses.json
+      URL: http://dtl:8081/addresses.json
       # connecting to the DTL
       ROLLUP_CLIENT_HTTP: http://dtl:7878
       ETH1_CTC_DEPLOYMENT_HEIGHT: 8
@@ -210,7 +208,7 @@ services:
   relayer:
     depends_on:
       - l1_chain
-      - deployer
+      - dtl
       - l2geth
     image: omgx/message-relayer:latest
     build:
@@ -220,13 +218,13 @@ services:
     environment:
       L1_NODE_WEB3_URL: http://l1_chain:8545
       L2_NODE_WEB3_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
+      URL: http://dtl:8081/addresses.json
       # a funded hardhat account
       << : *relayer_pk
       RETRIES: 60
       POLLING_INTERVAL: 500
       GET_LOGS_INTERVAL: 500
-      FILTER_ENDPOINT: http://omgx_deployer:8079/addresses.json #this will fail early, but then start to work when the omgx_deployer comes up
+      FILTER_ENDPOINT: http://dtl:8081/omgx-addr.json #this will fail early, but then start to work
       FILTER_POLLING_INTERVAL: 30000
 
   # a second relay system for messages that need to get to L1 quickly
@@ -234,8 +232,7 @@ services:
   omgx_message-relayer-fast:
     depends_on:
       - l1_chain
-      - deployer
-      - omgx_deployer
+      - dtl
       - l2geth
     image: omgx/omgx_message-relayer-fast
     build:
@@ -244,20 +241,20 @@ services:
     environment:
       L1_NODE_WEB3_URL: http://l1_chain:8545
       L2_NODE_WEB3_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
-      OMGX_URL: http://omgx_deployer:8079/addresses.json
+      URL: http://dtl:8081/addresses.json
+      OMGX_URL: http://dtl:8081/omgx-addr.json
       # This is who pays for the fast message relayer
       << : *fast-relayer_pk
       RETRIES: 70
       POLLING_INTERVAL: 1500
       GET_LOGS_INTERVAL: 500
-      FILTER_ENDPOINT: http://omgx_deployer:8079/addresses.json
+      FILTER_ENDPOINT: http://dtl:8081/omgx-addr.json
       FILTER_POLLING_INTERVAL: 30000
 
   batch_submitter:
     depends_on:
       - l1_chain
-      - deployer
+      - dtl
       - l2geth
     image: omgx/batch-submitter:latest
     build:
@@ -269,14 +266,13 @@ services:
     environment:
         L1_NODE_WEB3_URL: http://l1_chain:8545
         L2_NODE_WEB3_URL: http://l2geth:8545
-        URL: http://deployer:8081/addresses.json
+        URL: http://dtl:8081/addresses.json
         << : *sequencer_pk
         << : *proposer_pk
 
   verifier:
     depends_on:
       - l1_chain
-      - deployer
       - dtl
     image: omgx/l2geth:latest
     deploy:
@@ -289,8 +285,8 @@ services:
       - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
-        ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        URL: http://deployer:8081/addresses.json
+        ROLLUP_STATE_DUMP_PATH: http://dtl:8081/state-dump.latest.json
+        URL: http://dtl:8081/addresses.json
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l1'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
@@ -314,8 +310,8 @@ services:
       - ./envs/geth.env
     environment:
       ETH1_HTTP: http://l1_chain:8545
-      ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-      URL: http://deployer:8081/addresses.json
+      ROLLUP_STATE_DUMP_PATH: http://dtl:8081/state-dump.latest.json
+      URL: http://dtl:8081/addresses.json
       ROLLUP_CLIENT_HTTP: http://dtl:7878
       ROLLUP_BACKEND: 'l2'
       ROLLUP_VERIFIER_ENABLE: 'true'
@@ -336,7 +332,7 @@ services:
     environment:
       L1_URL: http://l1_chain:8545
       L2_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
+      URL: http://dtl:8081/addresses.json
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
       L2_CHAINID: 28 #unfortunately, elsewhere the L2_CHAINID is called CHAIN_ID

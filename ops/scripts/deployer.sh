@@ -18,5 +18,19 @@ curl \
 
 yarn run deploy
 
+if [ -n "$DTL_REGISTRY_URL" ] ; then
+  echo "Will upload addresses.json to DTL"
+  curl \
+      --fail \
+      --show-error \
+      --silent \
+      -H "Content-Type: application/json" \
+      --retry-connrefused \
+      --retry $RETRIES \
+      --retry-delay 5 \
+      -T dist/dumps/addresses.json \
+      "$DTL_REGISTRY_URL"
+fi
+
 # serve the addrs and the state dump
 exec ./bin/serve_dump.sh

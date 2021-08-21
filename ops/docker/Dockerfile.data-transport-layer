@@ -25,10 +25,14 @@ COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./packages/contra
 
 # copy the service
 WORKDIR /opt/optimism/packages/data-transport-layer
+
+# For development, comment out the next COPY and uncomment the ADD. This will
+# build the image from the current tree instead of the old builder files.
 COPY --from=builder /optimism/packages/data-transport-layer/dist ./dist
+#ADD ./packages/data-transport-layer/dist ./dist
+
+COPY --from=builder /optimism/packages/contracts/dist/dumps ./state-dumps
 COPY --from=builder /optimism/packages/data-transport-layer/package.json .
 COPY --from=builder /optimism/packages/data-transport-layer/node_modules ./node_modules
 
-# copy this over in case you want to run alongside other services
-COPY ./ops/scripts/dtl.sh .
 ENTRYPOINT ["node", "dist/src/services/run.js"]

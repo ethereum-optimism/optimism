@@ -53,6 +53,7 @@ export interface L1IngestionServiceOptions
   extends L1DataTransportServiceOptions {
   db: LevelUp
   metrics: Metrics
+  addressManager: string
 }
 
 const optionSettings = {

@@ -67,62 +67,6 @@ Resources:
                   - "secretsmanager:ListSecretVersionIds"
                 Resource:
                   - arn:aws:secretsmanager:us-east-1:942431445534:secret:*
-  DeployerListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn:
-        Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancer:ARN"
-      Port: 8081
-      Protocol: HTTPS
-      SslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01 # https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html
-      Certificates:
-      - CertificateArn: arn:aws:acm:us-east-1:942431445534:certificate/f0c77afc-0e13-42f4-b3b7-eeeafb32c631
-      DefaultActions:
-      - Type: fixed-response
-        FixedResponseConfig:
-          ContentType: text/html
-          MessageBody: ""
-          StatusCode: 404
-
-  DeployerLBTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Port: 8081
-      Protocol: HTTP
-      VpcId:
-        Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
-      TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: 30
-      HealthCheckIntervalSeconds: 60
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP # TODO Implement proper healthcheck
-      HealthCheckTimeoutSeconds: 15
-      HealthyThresholdCount: 3
-      UnhealthyThresholdCount: 10
-      Matcher:
-        HttpCode: 200
-
-  DeployerLBListenerRulePriority:
-    Type: AWS::CloudFormation::CustomResource
-    Properties:
-      ServiceToken:
-        Fn::ImportValue: !Sub "${CFHelperELBv2RulePriorityStack}:Function"
-      ListenerArn: !Ref DeployerListener
-
-  DeployerLBListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      Actions:
-        - Type: forward
-          TargetGroupArn: !Ref DeployerLBTargetGroup
-      Conditions:
-        - Field: host-header
-          HostHeaderConfig:
-            Values:
-            - Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
-      ListenerArn: !Ref DeployerListener
-      Priority: !GetAtt DeployerLBListenerRulePriority.Value
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -136,6 +80,11 @@ Resources:
           Environment:
             - Name: SECRETNAME
               Value: !Ref SecretName
+            - Name: DTL_REGISTRY_URL
+              Value: !Sub
+                - "https://${EndpointAddress}:8081/addresses.json"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
           EntryPoint:
             - "./bin/serve_dump.sh"
           DockerLabels:
@@ -149,14 +98,9 @@ Resources:
       Family: !Sub "deployer"
   ECSService:
     Type: AWS::ECS::Service
-    DependsOn: DeployerLBListenerRule
     Properties:
       Cluster:
         Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsCluster"
-      LoadBalancers:
-        - ContainerName: deployer
-          ContainerPort: 8081
-          TargetGroupArn: !Ref DeployerLBTargetGroup
       DesiredCount: !Ref ServiceCount
       LaunchType: EC2
       SchedulingStrategy: REPLICA
