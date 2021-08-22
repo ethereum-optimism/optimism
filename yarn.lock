@@ -1604,15 +1604,6 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/core-utils@^0.4.2":
-  version "0.4.7"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.4.7.tgz#3eeec47222ccfad1d8f3d9539a368c9283b2df1e"
-  integrity sha512-H+NdGAyx6w4Wmjy3PaTF7xnBEeKh8BZK1jfU6yy52sd2E0oH7ABd0H5FtRY2SLPTH8AZ8gAgOhrTNoqE0Mlktw==
-  dependencies:
-    "@ethersproject/abstract-provider" "^5.0.9"
-    ethers "^5.0.31"
-    lodash "^4.17.21"
-
 "@eth-optimism/hardhat-ovm@^0.0.2":
   version "0.0.2"
   resolved "https://registry.yarnpkg.com/@eth-optimism/hardhat-ovm/-/hardhat-ovm-0.0.2.tgz#3317fece96db0b79cc9a1e70ceb933a8b437da6d"
