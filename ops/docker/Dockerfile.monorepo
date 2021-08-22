@@ -27,7 +27,6 @@ COPY *.json yarn.lock ./
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
-COPY packages/smock/package.json ./packages/smock/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/batch-submitter/package.json ./packages/batch-submitter/package.json
