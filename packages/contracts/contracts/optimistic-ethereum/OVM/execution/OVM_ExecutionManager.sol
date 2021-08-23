@@ -1875,9 +1875,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         internal
     {
-        // Essentially the same as a standard OUT_OF_GAS, except we also retain a record of the gas
-        // refund to be given at the end of the transaction.
+        // All functions invoking _useNuisanceGas should use the requiresNuisanceGas modifier with
+        // the upper bound nuisance gas usage. Just in case though, prevent overflow here.
         if (messageRecord.nuisanceGasLeft < _amount) {
+            messageRecord.nuisanceGasLeft = 0;
             _revertWithFlag(RevertFlag.EXCEEDS_NUISANCE_GAS);
         }
 
