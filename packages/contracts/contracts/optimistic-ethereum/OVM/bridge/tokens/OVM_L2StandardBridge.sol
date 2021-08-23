@@ -24,7 +24,6 @@ import { IL2StandardERC20 } from "../../../libraries/standards/IL2StandardERC20.
  * This contract also acts as a burner of the tokens intended for withdrawal, informing the L1
  * bridge to release L1 funds.
  *
- * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {

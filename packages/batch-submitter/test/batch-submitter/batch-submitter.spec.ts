@@ -96,10 +96,6 @@ describe('BatchSubmitter', () => {
       'OVM_Sequencer',
       await sequencer.getAddress()
     )
-    await AddressManager.setAddress(
-      'OVM_DecompressionPrecompileAddress',
-      predeploys.OVM_SequencerEntrypoint
-    )
 
     Mock__OVM_ExecutionManager = await smockit(
       await getContractFactory('OVM_ExecutionManager')

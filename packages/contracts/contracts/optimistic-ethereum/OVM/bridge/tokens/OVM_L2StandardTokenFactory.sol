@@ -10,7 +10,7 @@ import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_Predepl
  * @title OVM_L2StandardTokenFactory
  * @dev Factory contract for creating standard L2 token representations of L1 ERC20s
  * compatible with and working on the standard bridge.
- * Compiler used: optimistic-solc
+ *
  * Runtime target: OVM
  */
 contract OVM_L2StandardTokenFactory {

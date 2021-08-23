@@ -11,7 +11,6 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * transactions. When the system is more congested, the l2 gas price will increase and fees
  * will also increase as a result.
  *
- * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_GasPriceOracle is Ownable {
