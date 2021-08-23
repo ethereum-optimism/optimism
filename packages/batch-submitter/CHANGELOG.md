@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.10
+
+### Patch Changes
+
+- b5b9fd89: Migrate to using `ethers.StaticJsonRpcProvider`
+- Updated dependencies [ecc2f8c1]
+  - @eth-optimism/contracts@0.4.9
+
 ## 0.3.9
 
 ### Patch Changes
