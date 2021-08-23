@@ -1,5 +1,14 @@
 # data transport layer
 
+## 0.4.6
+
+### Patch Changes
+
+- 918c08ca: Bump ethers dependency to 5.4.x to support eip1559
+- Updated dependencies [918c08ca]
+  - @eth-optimism/contracts@0.4.10
+  - @eth-optimism/core-utils@0.5.2
+
 ## 0.4.5
 
 ### Patch Changes
