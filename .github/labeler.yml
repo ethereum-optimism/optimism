@@ -37,8 +37,5 @@ M-core-utils:
 M-dtl:
   - any: ['packages/data-transport-layer/**/*']
 
-M-hardhat-ovm:
-  - any: ['packages/hardhat-ovm/**/*']
-
 M-ops:
   - any: ['ops/**/*']

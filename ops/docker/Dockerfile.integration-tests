@@ -16,9 +16,6 @@ COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dis
 COPY --from=builder /optimism/packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY --from=builder /optimism/packages/message-relayer/dist ./packages/message-relayer/dist
 
-COPY --from=builder /optimism/packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
-COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/dist
-
 COPY --from=builder /optimism/packages/contracts ./packages/contracts
 
 # get the needed built artifacts
