@@ -249,7 +249,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	}
 	number := header.Number.Uint64()
 
-	if vm.UsingOVM {
+	if !vm.UsingOVM {
 		// Don't waste time checking blocks from the future
 		if header.Time > uint64(time.Now().Unix()) {
 			return consensus.ErrFutureBlock
