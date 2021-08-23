@@ -27,7 +27,6 @@ Extensive documentation is available [here](http://community.optimism.io/docs/).
   * [`contracts`](./packages/contracts): Solidity smart contracts implementing the OVM
   * [`core-utils`](./packages/core-utils): Low-level utilities and encoding packages
   * [`common-ts`](./packages/common-ts): Common tools for TypeScript code that runs in Node
-  * [`hardhat-ovm`](./packages/hardhat-ovm): Hardhat plugin which enables the [OVM Compiler](https://github.com/ethereum-optimism/solidity)
   * [`smock`](./packages/smock): Testing utility for mocking smart contract return values and storage
   * [`data-transport-layer`](./packages/data-transport-layer): Event indexer, allowing the `l2geth` node to access L1 data
   * [`batch-submitter`](./packages/batch-submitter): Daemon for submitting L2 transaction and state root batches to L1

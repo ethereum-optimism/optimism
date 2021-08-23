@@ -1,4 +1,4 @@
-import { Signer, Contract, providers, ethers } from 'ethers'
+import { Signer, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { getL1ContractData, getL2ContractData } from './contract-data'
 
