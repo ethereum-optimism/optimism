@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9
+
+### Patch Changes
+
+- ecc2f8c1: Patch so contracts package will correctly use the browser-compatible contract artifacts import
+
 ## 0.4.8
 
 ### Patch Changes
