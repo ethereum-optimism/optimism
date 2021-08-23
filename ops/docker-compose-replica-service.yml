@@ -22,9 +22,9 @@ services:
     # depend on the docker-compose setup
     environment:
         # used for setting the address manager address
-        URL: https://rinkeby.omgx.network:8081/addresses.json
+        URL: https://rinkeby.boba.network:8081/addresses.json
         DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: https://rinkeby.infura.io/v3/INFURA_KEY
-        DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: https://rinkeby.omgx.network
+        DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: https://rinkeby.boba.network
         DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 28
         DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
         # Port
@@ -41,8 +41,8 @@ services:
       - ./envs/geth_rv.env
     environment:
         ETH1_HTTP: https://rinkeby.infura.io/v3/INFURA_KEY
-        ROLLUP_STATE_DUMP_PATH: https://rinkeby.omgx.network:8081/state-dump.latest.json
-        URL: https://rinkeby.omgx.network:8081/addresses.json
+        ROLLUP_STATE_DUMP_PATH: https://rinkeby.boba.network:8081/state-dump.latest.json
+        URL: https://rinkeby.boba.network:8081/addresses.json
         # connecting to the DTL
         ROLLUP_CLIENT_HTTP: http://dtl-replica:7878
         ETH1_CTC_DEPLOYMENT_HEIGHT: 9065019

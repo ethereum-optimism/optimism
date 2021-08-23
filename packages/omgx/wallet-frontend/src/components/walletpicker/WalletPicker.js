@@ -214,7 +214,7 @@ function WalletPicker ({ onEnable, enabled }) {
           <Button
             type="primary"
             className={styles.ButtonAdd}
-            onClick={() => networkService.addL2NetworkMainnet()}
+            onClick={() => networkService.addL2Network()}
           >
             Add BOBA L2 Provider
           </Button>

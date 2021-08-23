@@ -1,9 +1,9 @@
-service: sls-omgx-mainnet-watcher # NOTE: update this with your service name
+service: sls-boba-rinkeby-watcher # NOTE: update this with your service name
 
 provider:
   name: aws
   runtime: python3.7
-  stackName: sls-omgx-mainnet-watcher
+  stackName: sls-boba-rinkeby-watcher
   stage: prod
   region: us-east-1
   role: ${file(env.yml):ROLE}

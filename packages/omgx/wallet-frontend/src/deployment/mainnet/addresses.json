@@ -5,8 +5,8 @@
   "Proxy__OVM_L1StandardBridge": "0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00",
   "TOKENS": {
     "TEST": {
-      "L1": "",
-      "L2": ""
+      "L1": "0xB68a38D3a10F28948EBf0f2450Fef348680F4714",
+      "L2": "0xeDB79B0FD84c81E870b2fCB1D3CcF366179bA6D2"
     },
     "USDT": {
       "L1": "0xdac17f958d2ee523a2206206994597c13d831ec7",
@@ -59,10 +59,10 @@
   "Proxy__L2LiquidityPool": "0xe469ff3C6b7002cD591427B44F0A5922D3CA0026",
   "OVM_L1CrossDomainMessengerFast": "0x68ac1623ACf9eB9F88b65B5F229fE3e2c0d5789e",
   "Proxy__OVM_L1CrossDomainMessengerFast": "0x841979bbC06Be7BFE28d9FadDac1A73e1Fb495C1",
-  "L2TokenPool": "",
-  "AtomicSwap": "",
-  "L1Message": "",
-  "L2Message": "",
-  "L2ERC721": "",
-  "L2ERC721Reg": ""
+  "L2TokenPool": "0x82B178EE692572e21D73d5F1ebC1c7c438Fc52DD",
+  "AtomicSwap": "0xfCc9525fDDbafbD3393821F7dAf96F68Bba93294",
+  "L1Message": "0x1E7C2Ed00FaaFeD62afC9DD630ACB8C8c6C16D52",
+  "L2Message": "0x8165E68dD175B4D6e913D1DF5aF456d8C04cA01e",
+  "L2ERC721": "0xe7dc303281a6B69D86578EB596741cA1B8EFcD93",
+  "L2ERC721Reg": "0x967c403E64A316d0Cb04c97334F967a37d58d82f"
 }

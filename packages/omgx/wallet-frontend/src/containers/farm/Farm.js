@@ -1,5 +1,5 @@
 /*
-  Utility Functions for OMG Plasma 
+  Utility Functions for OMG Plasma
   Copyright (C) 2021 Enya Inc. Palo Alto, CA
 
   This program is free software: you can redistribute it and/or modify
@@ -21,12 +21,10 @@ import { connect } from 'react-redux';
 import { isEqual } from 'lodash';
 
 import { getFarmInfo, getFee } from 'actions/farmAction'
+import { openError } from 'actions/uiAction';
 
 import ListFarm from 'components/listFarm/listFarm'
 import networkService from 'services/networkService'
-
-import ethLogo from 'images/ethereum.svg'
-import TESTLogo from 'images/test.svg'
 
 import * as styles from './Farm.module.scss'
 
@@ -69,6 +67,9 @@ class Farm extends React.Component {
 
     this.props.dispatch(getFarmInfo());
 
+    if (networkService.masterSystemConfig === 'mainnet') {
+      this.props.dispatch(openError('You are attempting to use Mainnet Beta! Your funds can be lost!'))
+    }
   }
 
   componentDidUpdate(prevState) {
@@ -170,7 +171,6 @@ class Farm extends React.Component {
               return (
                 <ListFarm
                   key={i}
-                  logo={poolInfo.L1LP[v].symbol === 'ETH' ? ethLogo : TESTLogo}
                   poolInfo={poolInfo.L1LP[v]}
                   userInfo={userInfo.L1LP[v]}
                   L1orL2Pool='L1LP'
@@ -191,11 +191,9 @@ class Farm extends React.Component {
           <div className={styles.TableContainer}>
             {Object.keys(poolInfo.L2LP).map((v, i) => {
               const ret = this.getBalance(v, 'L2')
-              console.log(poolInfo.L2LP[v].symbol)
               return (
                 <ListFarm
                   key={i}
-                  logo={poolInfo.L2LP[v].symbol === 'oETH' ? ethLogo : TESTLogo}
                   poolInfo={poolInfo.L2LP[v]}
                   userInfo={userInfo.L2LP[v]}
                   L1orL2Pool='L2LP'

@@ -1,0 +1,50 @@
+service: sls-boba-service # NOTE: update this with your service name
+
+provider:
+  name: aws
+  runtime: python3.7
+  stackName: sls-boba-service
+  stage: prod
+  region: us-east-1
+  role: ${file(env.yml):ROLE}
+
+package:
+  exclude:
+    - .gitignore
+  individually: true
+
+functions:
+  blockexplorer_version:
+    handler: blockexplorer_version.blockexplorer_version
+    memorySize: 10240 # optional, in MB, default is 1024
+    timeout: 60 # optional, in seconds, default is 6
+    vpc:
+      securityGroupIds:
+        - sg-0efc38a735756ed2f
+      subnetIds:
+        - subnet-838566a2
+        - subnet-d92acfbf
+    events:
+      - http:
+          path: get.blockexplorer.version
+          method: get
+          cors: true
+    layers:
+      - ${file(env.yml):LAYERS}
+  webwallet_version:
+    handler: webwallet_version.webwallet_version
+    memorySize: 10240 # optional, in MB, default is 1024
+    timeout: 60 # optional, in seconds, default is 6
+    vpc:
+      securityGroupIds:
+        - sg-0efc38a735756ed2f
+      subnetIds:
+        - subnet-838566a2
+        - subnet-d92acfbf
+    events:
+      - http:
+          path: get.wallet.version
+          method: get
+          cors: true
+    layers:
+      - ${file(env.yml):LAYERS}

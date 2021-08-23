@@ -25,13 +25,13 @@ import BN from 'bn.js'
 
 import { getToken } from 'actions/tokenAction'
 
-import { 
-  addNFT, 
-  getNFTs, 
-  addNFTFactory, 
+import {
+  addNFT,
+  getNFTs,
+  addNFTFactory,
   getNFTFactories,
   addNFTContract,
-  getNFTContracts, 
+  getNFTContracts,
 } from 'actions/nftAction'
 
 import { WebWalletError } from 'services/errorService'
@@ -44,7 +44,7 @@ import L2StandardBridgeJson from '../deployment/artifacts-ovm/optimistic-ethereu
 import L1LPJson from '../deployment/artifacts/contracts/LP/L1LiquidityPool.sol/L1LiquidityPool.json'
 import L2LPJson from '../deployment/artifacts-ovm/contracts/LP/L2LiquidityPool.sol/L2LiquidityPool.json'
 
-//Standard ERC20 jsons - should be very similar? 
+//Standard ERC20 jsons - should be very similar?
 import L1ERC20Json from '../deployment/artifacts/contracts/L1ERC20.sol/L1ERC20.json'
 import L2ERC20Json from '../deployment/artifacts-ovm/optimistic-ethereum/libraries/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
@@ -123,6 +123,9 @@ class NetworkService {
 
     this.tokenAddresses = null
 
+    // address
+    this.addresses = null
+
     // chain ID
     this.chainID = null
     this.networkName = null
@@ -158,10 +161,10 @@ class NetworkService {
   }
 
   async mintAndSendNFT(receiverAddress, contractAddress, ownerName, tokenURI, type) {
-    
+
     try {
 
-      let meta = ownerName + '#' + Date.now().toString() + '#' + tokenURI + '#' + type 
+      let meta = ownerName + '#' + Date.now().toString() + '#' + tokenURI + '#' + type
 
       console.log('meta:', meta)
       console.log('receiverAddress:', receiverAddress)
@@ -175,12 +178,12 @@ class NetworkService {
       let nft = await contract.connect(
         this.provider.getSigner()
       ).mintNFT(
-        receiverAddress, 
+        receiverAddress,
         meta
       )
 
       await nft.wait()
-            
+
       const registry = new ethers.Contract(
         this.ERC721RegAddress,
         L2ERC721RegJson.abi,
@@ -203,7 +206,7 @@ class NetworkService {
         let reg = await registry.connect(
           this.provider.getSigner()
         ).registerAddress(
-          receiverAddress, 
+          receiverAddress,
           contractAddress
         )
         console.log("Reg:",reg)
@@ -232,9 +235,9 @@ class NetworkService {
       let owner = await contract.owner()
       owner = owner.toLowerCase()
 
-      if ( this.account.toLowerCase() === owner ) 
+      if ( this.account.toLowerCase() === owner )
         haveRights = true
-      
+
       let nftName = await contract.name()
       let nftSymbol = await contract.symbol()
       let genesis = await contract.getGenesis()
@@ -259,7 +262,7 @@ class NetworkService {
         )
         feeRecipient = await genesisContract.owner()
       }
-      
+
       addNFTFactory({
         name: nftName,
         symbol: nftSymbol,
@@ -269,7 +272,7 @@ class NetworkService {
         originAddress: genesis[0],
         originID: genesis[1],
         originChain: genesis[2],
-        originFeeRecipient: feeRecipient, 
+        originFeeRecipient: feeRecipient,
         haveRights
       })
 
@@ -284,11 +287,11 @@ class NetworkService {
       nftName,
       oriAddress,
       oriID,
-      oriChain) 
+      oriChain)
   {
-    
+
     try {
-      
+
       console.log("Deploying new NFT factory")
 
       let Factory__L2ERC721 = new ContractFactory(
@@ -309,7 +312,7 @@ class NetworkService {
       await contract.deployTransaction.wait()
 
       this.addNFTFactoryNS( contract.address )
-      
+
       console.log('New NFT ERC721 deployed to:', contract.address)
 
       return true
@@ -364,12 +367,12 @@ class NetworkService {
       //at this point, the wallet should be connected
       this.account = await this.provider.getSigner().getAddress()
       console.log('this.account', this.account)
-      
+
       const network = await this.provider.getNetwork()
-      
+
       this.chainID = network.chainId
       this.networkName = network.name
-      
+
       this.masterSystemConfig = masterSystemConfig
 
       this.tokenAddresses = addresses.TOKENS
@@ -431,14 +434,14 @@ class NetworkService {
       if (addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessenger')) {
         this.L1MessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessenger
         console.log('L1MessengerAddress set to:', this.L1MessengerAddress)
-      } 
+      }
 
       if(addresses.hasOwnProperty('Proxy__OVM_L1CrossDomainMessengerFast')) {
         this.L1FastMessengerAddress = addresses.Proxy__OVM_L1CrossDomainMessengerFast
       }
       else if (addresses.hasOwnProperty('OVM_L1CrossDomainMessengerFast')) {
         this.L1FastMessengerAddress = addresses.OVM_L1CrossDomainMessengerFast
-      } 
+      }
       else {
         this.L1FastMessengerAddress = addresses.L1FastMessengerAddress
       }
@@ -447,11 +450,13 @@ class NetworkService {
       //backwards compat
       if (addresses.hasOwnProperty('Proxy__OVM_L1StandardBridge'))
         this.L1StandardBridgeAddress = addresses.Proxy__OVM_L1StandardBridge
-      else 
+      else
         this.L1StandardBridgeAddress = addresses.L1StandardBridge
 
-      this.L1_TEST_Address = addresses.TOKENS.TEST.L1
-      this.L2_TEST_Address = addresses.TOKENS.TEST.L2
+      Object.keys(addresses.TOKENS).forEach((key) => {
+        this["L1_" + key + "_Address"] = addresses.TOKENS[key].L1;
+        this["L2_" + key + "_Address"] = addresses.TOKENS[key].L2;
+      })
 
       this.L1LPAddress = addresses.Proxy__L1LiquidityPool
       this.L2LPAddress = addresses.Proxy__L2LiquidityPool
@@ -462,17 +467,19 @@ class NetworkService {
       //backwards compat
       if (addresses.hasOwnProperty('L2ERC721'))
         this.ERC721Address = addresses.L2ERC721
-      else 
+      else
         this.ERC721Address = addresses.ERC721
 
       //backwards compat
       if (addresses.hasOwnProperty('L2ERC721Reg'))
         this.ERC721RegAddress = addresses.L2ERC721Reg
-      else 
+      else
         this.ERC721RegAddress = addresses.ERC721Reg
 
       this.L2TokenPoolAddress = addresses.L2TokenPool
       this.AtomicSwapAddress = addresses.AtomicSwap
+
+      this.addresses = addresses
 
       this.L1StandardBridgeContract = new ethers.Contract(
         this.L1StandardBridgeAddress,
@@ -540,22 +547,22 @@ class NetworkService {
         AtomicSwapJson.abi,
         this.provider.getSigner()
       )
-      
+
       //this one is always there...
       await addNFTContract(this.ERC721Contract.address)
 
       //yes, this looks weird, but think before you change it...
-      //there may be some in the cache, and this makes sure we get them all, and if not, 
+      //there may be some in the cache, and this makes sure we get them all, and if not,
       //we at least have the basic one
       const NFTcontracts = Object.values(await getNFTContracts())
-      
-      //Add factories based on cached contract addresses 
+
+      //Add factories based on cached contract addresses
       //this information is also used for the balance lookup
       for(var i = 0; i < NFTcontracts.length; i++) {
         const address = NFTcontracts[i]
         console.log("Adding NFT contract:",address)
         this.addNFTFactoryNS( address )
-      } 
+      }
 
       this.watcher = new Watcher({
         l1: {
@@ -597,25 +604,22 @@ class NetworkService {
     }
   }
 
-  async addL2NetworkRinkeby() {
+  async addL2Network() {
     const nw = getAllNetworks()
-    const chainParam = {
-      chainId: '0x' + nw.rinkeby.L2.chainId.toString(16),
-      chainName: 'OMGX L2 Rinkeby',
-      rpcUrls: [nw.rinkeby.L2.rpcUrl],
-    }
-
-    // connect to the wallet
-    this.provider = new ethers.providers.Web3Provider(window.ethereum)
-    this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
-  }
-
-  async addL2NetworkMainnet() {
-    const nw = getAllNetworks()
-    const chainParam = {
-      chainId: '0x' + nw.mainnet.L2.chainId.toString(16),
-      chainName: 'OMGX L2 Mainnet',
-      rpcUrls: [nw.mainnet.L2.rpcUrl],
+    const masterConfig = store.getState().setup.masterConfig;
+    let chainParam = {}
+    if (masterConfig === 'mainnet') {
+      chainParam = {
+        chainId: '0x' + nw.mainnet.L2.chainId.toString(16),
+        chainName: 'OMGX L2 Mainnet',
+        rpcUrls: [nw.mainnet.L2.rpcUrl],
+      }
+    } else {
+      chainParam = {
+        chainId: '0x' + nw.rinkeby.L2.chainId.toString(16),
+        chainName: 'OMGX L2 Rinkeby',
+        rpcUrls: [nw.rinkeby.L2.rpcUrl],
+      }
     }
 
     // connect to the wallet
@@ -627,7 +631,7 @@ class NetworkService {
 
     // NOT SUPPORTED on LOCAL
     if (this.masterSystemConfig === 'local') return
-      
+
     let txL1
     let txL2
 
@@ -659,7 +663,7 @@ class NetworkService {
 
   }
 
-  /* Where possible, annotate the transactions 
+  /* Where possible, annotate the transactions
   based on contract addresses */
   async parseTransaction( transactions ) {
 
@@ -667,9 +671,9 @@ class NetworkService {
     if (this.masterSystemConfig === 'local') return
 
     var annotatedTX = transactions.map(item => {
-        
+
       let to = item.to
-      
+
       if ( to === null || to === '') {
         return item
       }
@@ -679,43 +683,43 @@ class NetworkService {
       if (to === this.L2LPAddress.toLowerCase()) {
         //console.log("L2->L1 Swap Off")
         return Object.assign({}, item, { typeTX: 'Fast Offramp' })
-      } 
+      }
 
       if (to === this.L1LPAddress.toLowerCase()) {
         //console.log("L1->L2 Swap On")
         return Object.assign({}, item, { typeTX: 'Fast Onramp' })
-      } 
+      }
 
       if (to === this.L1StandardBridgeAddress.toLowerCase()) {
         //console.log("L1->L2 Traditional Deposit")
         return Object.assign({}, item, { typeTX: 'Traditional' })
-      } 
+      }
 
       if (to === this.L1_TEST_Address.toLowerCase()) {
         //console.log("L1 ERC20 Amount Approval")
         return Object.assign({}, item, { typeTX: 'L1 ERC20 Amount Approval' })
-      } 
+      }
 
       if (to === this.L2StandardBridgeAddress.toLowerCase()) {
         //0x4200000000000000000000000000000000000010
         //console.log("L2 Standard Bridge")
         return Object.assign({}, item, { typeTX: 'L2 Standard Bridge' })
-      } 
+      }
 
       if (to === this.L1Message.toLowerCase()) {
         //console.log("L1 Message")
         return Object.assign({}, item, { typeTX: 'L1 Message' })
-      } 
+      }
 
       if (to === this.L2Message.toLowerCase()) {
         //console.log("L2 Message")
         return Object.assign({}, item, { typeTX: 'L2 Message' })
-      } 
+      }
 
       if (to === this.L2_TEST_Address.toLowerCase()) {
         //console.log("L2 TEST Message")
         return Object.assign({}, item, { typeTX: 'L2 TEST Token' })
-      } 
+      }
 
       if (to === this.L2_ETH_Address.toLowerCase()) {
         //console.log("L2 ETH Message")
@@ -725,17 +729,17 @@ class NetworkService {
       // if (to === this.L2_ETH_Address.toLowerCase()) {
       //   //console.log("L2 ETH Message")
       //   return Object.assign({}, item, { typeTX: 'L2 ETH Token' })
-      // } 
+      // }
 
       if (item.crossDomainMessage) {
         if(to === this.L2LPAddress.toLowerCase()) {
           //console.log("Found EXIT: L2LPAddress")
           return Object.assign({}, item, { typeTX: 'FAST EXIT via L2LP' })
-        } 
+        }
         else if (to === this.L2_TEST_Address.toLowerCase()) {
           //console.log("Found EXIT: L2_TEST_Address")
           return Object.assign({}, item, { typeTX: 'EXIT (TEST Token)' })
-        } 
+        }
         else if (to === this.L2_ETH_Address.toLowerCase()) {
           //console.log("Found EXIT: L2_ETH_Address")
           return Object.assign({}, item, { typeTX: 'EXIT ETH' })
@@ -745,7 +749,7 @@ class NetworkService {
       return Object.assign({}, item, { typeTX: to })
 
     }) //map
-    
+
     return annotatedTX
 
   }
@@ -780,7 +784,7 @@ class NetworkService {
   async fetchNFTs() {
 
     /*
-      Metacomment on how this is coded: 
+      Metacomment on how this is coded:
       Is it messy? Yes.
       Does it use arrow functions well? No.
       Is it elegant? No.
@@ -789,11 +793,11 @@ class NetworkService {
     */
 
     //console.log('fetchNFTs')
-    
+
     //the current list of factories we know about
     //based in part on the cahce, and anything we recently generated in this session
     let NFTfactories = Object.entries(await getNFTFactories())
-    
+
     //list of NFT factory addresses we know about, locally
     const localCache = NFTfactories.map(item => {return item[0].toLowerCase()})
 
@@ -801,7 +805,7 @@ class NetworkService {
     const registry = new ethers.Contract(this.ERC721RegAddress,L2ERC721RegJson.abi,this.L2Provider)
     const addresses = await registry.lookupAddress(this.account)
     //console.log("Blockchain NFT wallet:", addresses)
-    
+
     //make sure we have all the factories relevant to this user
     for(let i = 0; i < addresses.length; i++) {
       const newAddress = addresses[i]
@@ -812,15 +816,15 @@ class NetworkService {
         this.addNFTFactoryNS( newAddress )
       }
     }
-    
+
     //How many NFTs do you have right now?
     let numberOfNFTS = 0
 
     //need to call this again because it might have changed since the iniital call
     NFTfactories = Object.entries(await getNFTFactories())
-    
+
     for(let i = 0; i < NFTfactories.length; i++) {
-      
+
       let contract = new ethers.Contract(
         NFTfactories[i][1].address,
         L2ERC721Json.abi,
@@ -857,13 +861,13 @@ class NetworkService {
     const numberOfStoredNFTS = Object.keys(myNFTS).length
 
     if (numberOfNFTS !== numberOfStoredNFTS) {
-      
+
       console.log('NFT change - need to add one or more NFTs')
 
       for(let i = 0; i < NFTfactories.length; i++) {
 
         const address = NFTfactories[i][1].address
-        
+
         const contract = new ethers.Contract(
           address,
           L2ERC721Json.abi,
@@ -886,7 +890,7 @@ class NetworkService {
           //special case - this is just the default NFT factory....
           genesisContractAddress = this.ERC721Address
         }
-        
+
         if( genesisContractAddress !== '0x0000000000000000000000000000000000000042') {
           const genesisContract = new ethers.Contract(
             genesisContractAddress,
@@ -894,16 +898,16 @@ class NetworkService {
             this.L2Provider
           )
           //console.log("genesisContract:", genesisContract)
-          
+
           feeRecipient = await genesisContract.owner()
           //console.log("NFT feeRecipient:", feeRecipient)
         }
-        
+
         //can have more than 1 per contract
         for (let i = 0; i < Number(balance.toString()); i++) {
-          
+
           //Goal here is to get all the tokenIDs, e.g. 3, 7, and 98,
-          //based on knowing the user's balance - e.g. three NFTs 
+          //based on knowing the user's balance - e.g. three NFTs
           const tokenIndex = BigNumber.from(i)
 
           const tokenID = await contract.tokenOfOwnerByIndex(
@@ -915,7 +919,7 @@ class NetworkService {
           const meta = nftMeta.split('#')
           const time = new Date(parseInt(meta[1]))
 
-          let type = 0          
+          let type = 0
           //new flavor of NFT has type field
           //default to zero for old NFTs
           if(meta.length === 4) {
@@ -958,26 +962,26 @@ class NetworkService {
       }
 
     }
-    
+
+  }
+
+  async addTokenList() {
+    // Add the token to our master list, if we do not have it yet
+    // if the token is already in the list, then this function does nothing
+    // but if a new token shows up, then it will get added
+    Object.keys(this.tokenAddresses).forEach((token, i) => {
+      getToken(this.tokenAddresses[token].L1)
+    })
   }
 
   async getBalances() {
-
     try {
-      
       // Always check ETH and oETH
       const layer1Balance = await this.L1Provider.getBalance(this.account)
       //console.log('ETH balance on L1:', layer1Balance.toString())
 
       const layer2Balance = await this.L2Provider.getBalance(this.account)
       //console.log("oETH balance on L2:", layer2Balance.toString())
-
-      // Add the token to our master list, if we do not have it yet
-      // if the token is already in the list, then this function does nothing
-      // but if a new token shows up, then it will get added
-      Object.keys(this.tokenAddresses).forEach((token, i) => {
-        getToken(this.tokenAddresses[token].L1)
-      })
 
       //const ethToken = await getToken(this.L1_ETH_Address)
       //console.log('Checking ethToken:', ethToken)
@@ -1007,65 +1011,37 @@ class NetworkService {
       const state = store.getState()
       const tA = Object.values(state.tokenList)
 
-      for (let i = 0; i < tA.length; i++) {
-        
-        let token = tA[i]
+      const tokenC = new ethers.Contract(
+        this.L1_ETH_Address,
+        L1ERC20Json.abi,
+        this.L1Provider
+      )
 
-        //ETH is special - will break things,
-        //so, continue
-        if (token.addressL1 === this.L1_ETH_Address) continue
-
-        const tokenC = new ethers.Contract(
-          token.addressL1,
-          L1ERC20Json.abi,
-          this.provider.getSigner()
-        )
-        const balance = await tokenC
-          .connect(this.L1Provider)
-          .balanceOf(this.account)
-
-        //Value is too small to show
-        if (Number(balance.toString()) < 0.1) continue
-
-        layer1Balances.push({
-          currency: token.currency,
-          address: token.addressL1,
-          addressL2: token.addressL2,
-          symbol: token.symbolL1,
-          decimals: token.decimals,
-          balance: new BN(balance.toString())
-        })
+      const getERC20Balance = async(token, tokenAddress, layer, provider=this.L1Provider) => {
+        const balance = await tokenC.attach(tokenAddress).connect(provider).balanceOf(this.account);
+        return {
+          ...token, balance: new BN(balance.toString()),
+          layer, address: layer === 'L1' ? token.addressL1: token.addressL2,
+          symbol: token.symbolL1
+        };
       }
 
-      for (let i = 0; i < tA.length; i++) {
+      const getBalancePromise = [];
 
-        let token = tA[i]
+      tA.forEach((token) => {
+        if (token.addressL1 === this.L1_ETH_Address) return;
+        getBalancePromise.push(getERC20Balance(token, token.addressL1, "L1"))
+        getBalancePromise.push(getERC20Balance(token, token.addressL2, "L2", this.L2Provider))
+      })
 
-        //ETH is special - will break things,
-        //so, continue
-        if (token.addressL2 === this.L2_ETH_Address) continue
-
-        const tokenC = new ethers.Contract(
-          token.addressL2,
-          L2ERC20Json.abi,
-          this.provider.getSigner()
-        )
-        const balance = await tokenC
-          .connect(this.L2Provider)
-          .balanceOf(this.account)
-
-        //Value is too small to show
-        if (Number(balance.toString()) < 0.1) continue
-
-        layer2Balances.push({
-          currency: token.currency,
-          address: token.addressL2,
-          addressL1: token.addressL1,
-          symbol: token.symbolL2,
-          decimals: token.decimals,
-          balance: new BN(balance.toString())
-        })
-      }
+      const tokenBalances = await Promise.all(getBalancePromise);
+      tokenBalances.forEach((token) => {
+        if (token.layer === 'L1' && token.balance.gt(new BN(0))) {
+          layer1Balances.push(token)
+        } else if (token.layer === 'L2' && token.balance.gt(new BN(0))){
+          layer2Balances.push(token)
+        }
+      })
 
       return {
         layer1: orderBy(layer1Balances, (i) => i.currency),
@@ -1086,7 +1062,7 @@ class NetworkService {
       const depositTxStatus = await this.L1StandardBridgeContract.depositETH(
         this.L2GasLimit,
         utils.formatBytes32String(new Date().getTime().toString()),
-        { 
+        {
           value: parseEther(value),
           gasPrice: ethers.utils.parseUnits(`${gasPrice}`, 'wei'),
         }
@@ -1158,17 +1134,17 @@ class NetworkService {
       })
     }
   }
-  
+
   /*Used when people want to fast exit - they have to deposit funds into the L2LP*/
   async approveERC20_L2LP(
     depositAmount_string,
     currencyAddress
   ) {
-    
+
     try {
 
       console.log("approveERC20_L2LP")
-      
+
       //we could use any L2 ERC contract here - just getting generic parts of the abi
       //but we know we alaways have the TEST contract, so will use that
       const L2ERC20Contract = this.L2_TEST_Contract.attach(currencyAddress)
@@ -1198,11 +1174,11 @@ class NetworkService {
     depositAmount_string,
     currencyAddress
   ) {
-    
+
     try {
 
       console.log("approveERC20_L1LP")
-      
+
       const ERC20Contract = new ethers.Contract(
         currencyAddress,
         L1ERC20Json.abi,
@@ -1232,11 +1208,11 @@ class NetworkService {
     approveContractAddress = this.L1StandardBridgeAddress,
     contractABI = L1ERC20Json.abi
   ) {
-    
+
     try {
 
       console.log("approveERC20")
-      
+
       const ERC20Contract = new ethers.Contract(
         currency,
         contractABI,
@@ -1339,7 +1315,7 @@ class NetworkService {
   //Standard 7 day exit from OMGX
   //updated
   async exitOMGX(currencyAddress, value) {
-    
+
     const allowance = await this.checkAllowance(
       currencyAddress,
       this.L2StandardBridgeAddress
@@ -1409,11 +1385,11 @@ class NetworkService {
   /***** Pool, User Info, to populate the Farm tab *****/
   /*****************************************************/
   async getL1LPInfo() {
-    
-    const tokenAddressList = [
-      this.L1_ETH_Address, 
-      this.L1_TEST_Address
-    ]
+
+    const tokenAddressList = Object.keys(this.addresses.TOKENS).reduce((acc, cur) => {
+      acc.push(this["L1_" + cur + "_Address"]);
+      return acc;
+    }, [this.L1_ETH_Address]);
 
     const L1LPContract = new ethers.Contract(
       this.L1LPAddress,
@@ -1424,88 +1400,75 @@ class NetworkService {
     const poolInfo = {}
     const userInfo = {}
 
-    for (let tokenAddress of tokenAddressList) {
-      
+    const L1LPInfoPromise = [];
+
+    const getL1LPInfoPromise = async(tokenAddress) => {
       let tokenBalance
       let tokenSymbol
       let tokenName
-      
-      console.log(tokenAddress)
-      console.log(this.L1_ETH_Address)
 
       if (tokenAddress === this.L1_ETH_Address) {
         tokenBalance = await this.L1Provider.getBalance(this.L1LPAddress)
-        console.log('Match')
         tokenSymbol = 'ETH'
         tokenName = 'Ethereum'
-      } else if (tokenAddress === this.L1_TEST_Address) {
-        tokenBalance = await this.L1_TEST_Contract.connect(
-          this.L1Provider
-        ).balanceOf(this.L1LPAddress)
-        tokenSymbol = await this.L2_TEST_Contract.connect(
-          this.L2Provider
-        ).symbol()
-        tokenName = await this.L2_TEST_Contract.connect(
-          this.L2Provider
-        ).name()
+      } else {
+        tokenBalance = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).balanceOf(this.L1LPAddress)
+        tokenSymbol = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).symbol()
+        tokenName = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).name()
       }
-      // Add new LPs here
-      // else if (tokenAddress === __________) {
-      //   tokenBalance = await this.___________.connect(this.L1Provider).balanceOf(this.L1LPAddress)
-      // }
-      else {
-        console.log('No liquidity pool for this token:', tokenAddress)
-      }
+      const poolTokenInfo = await L1LPContract.poolInfo(tokenAddress)
+      const userTokenInfo = await L1LPContract.userInfo(tokenAddress, this.account)
+      return { tokenAddress, tokenBalance, tokenSymbol, tokenName, poolTokenInfo, userTokenInfo }
+    }
 
-      const [poolTokenInfo, userTokenInfo] = await Promise.all([
-        L1LPContract.poolInfo(tokenAddress),
-        L1LPContract.userInfo(tokenAddress, this.account),
-      ])
+    tokenAddressList.forEach((tokenAddress) => L1LPInfoPromise.push(getL1LPInfoPromise(tokenAddress)))
+    const L1LPInfo = await Promise.all(L1LPInfoPromise);
 
-      poolInfo[tokenAddress] = {
-        symbol: tokenSymbol,
-        name: tokenName,
-        l1TokenAddress: poolTokenInfo.l1TokenAddress,
-        l2TokenAddress: poolTokenInfo.l2TokenAddress,
-        accUserReward: poolTokenInfo.accUserReward.toString(),
-        accUserRewardPerShare: poolTokenInfo.accUserRewardPerShare.toString(),
-        userDepositAmount: poolTokenInfo.userDepositAmount.toString(),
-        startTime: poolTokenInfo.startTime.toString(),
+    L1LPInfo.forEach((token) => {
+      poolInfo[token.tokenAddress] = {
+        symbol: token.tokenSymbol,
+        name: token.tokenName,
+        l1TokenAddress: token.poolTokenInfo.l1TokenAddress,
+        l2TokenAddress: token.poolTokenInfo.l2TokenAddress,
+        accUserReward: token.poolTokenInfo.accUserReward.toString(),
+        accUserRewardPerShare: token.poolTokenInfo.accUserRewardPerShare.toString(),
+        userDepositAmount: token.poolTokenInfo.userDepositAmount.toString(),
+        startTime: token.poolTokenInfo.startTime.toString(),
         APR:
-          Number(poolTokenInfo.userDepositAmount.toString()) === 0
+          Number(token.poolTokenInfo.userDepositAmount.toString()) === 0
             ? 0
             : accMul(
                 accDiv(
                   accDiv(
-                    poolTokenInfo.accUserReward,
-                    poolTokenInfo.userDepositAmount
+                    token.poolTokenInfo.accUserReward,
+                    token.poolTokenInfo.userDepositAmount
                   ),
                   accDiv(
                     new Date().getTime() -
-                      Number(poolTokenInfo.startTime) * 1000,
+                      Number(token.poolTokenInfo.startTime) * 1000,
                     365 * 24 * 60 * 60 * 1000
                   )
                 ),
                 100
               ), // ( accUserReward - userDepositAmount ) / timeDuration
-        tokenBalance: tokenBalance.toString()
+        tokenBalance: token.tokenBalance.toString()
       }
-      userInfo[tokenAddress] = {
-        l1TokenAddress: tokenAddress,
-        amount: userTokenInfo.amount.toString(),
-        pendingReward: userTokenInfo.pendingReward.toString(),
-        rewardDebt: userTokenInfo.rewardDebt.toString()
+      userInfo[token.tokenAddress] = {
+        l1TokenAddress: token.tokenAddress,
+        amount: token.userTokenInfo.amount.toString(),
+        pendingReward: token.userTokenInfo.pendingReward.toString(),
+        rewardDebt: token.userTokenInfo.rewardDebt.toString()
       }
-    }
+    })
     return { poolInfo, userInfo }
   }
 
   async getL2LPInfo() {
-    
-    const tokenAddressList = [
-      this.L2_ETH_Address, 
-      this.L2_TEST_Address
-    ]
+
+    const tokenAddressList = Object.keys(this.addresses.TOKENS).reduce((acc, cur) => {
+      acc.push(this["L2_" + cur + "_Address"]);
+      return acc;
+    }, [this.L2_ETH_Address]);
 
     const L2LPContract = new ethers.Contract(
       this.L2LPAddress,
@@ -1516,8 +1479,9 @@ class NetworkService {
     const poolInfo = {}
     const userInfo = {}
 
-    for (let tokenAddress of tokenAddressList) {
-      
+    const L2LPInfoPromise = [];
+
+    const getL2LPInfoPromise = async(tokenAddress) => {
       let tokenBalance
       let tokenSymbol
       let tokenName
@@ -1526,65 +1490,55 @@ class NetworkService {
         tokenBalance = await this.L2Provider.getBalance(this.L2LPAddress)
         tokenSymbol = 'oETH'
         tokenName = 'Ethereum'
-      } else if (tokenAddress === this.L2_TEST_Address) {
-        tokenBalance = await this.L2_TEST_Contract.connect(
-          this.L2Provider
-        ).balanceOf(this.L2LPAddress)
-        tokenSymbol = await this.L2_TEST_Contract.connect(
-          this.L2Provider
-        ).symbol()
-         tokenName = await this.L2_TEST_Contract.connect(
-          this.L2Provider
-        ).name()
+      } else {
+        tokenBalance = await this.L2_TEST_Contract.attach(tokenAddress).connect(this.L2Provider).balanceOf(this.L2LPAddress)
+        tokenSymbol = await this.L2_TEST_Contract.attach(tokenAddress).connect(this.L2Provider).symbol()
+        tokenName = await this.L2_TEST_Contract.attach(tokenAddress).connect(this.L2Provider).name()
       }
-      // Add new LPs here
-      // else if (tokenAddress === __________) {
-      //   tokenBalance = await this.___________.connect(this.L2Provider).balanceOf(this.L2LPAddress)
-      // }
-      else {
-        console.log('No liquidity pool for this token:', tokenAddress)
-      }
+      const poolTokenInfo = await L2LPContract.poolInfo(tokenAddress)
+      const userTokenInfo = await L2LPContract.userInfo(tokenAddress, this.account)
+      return { tokenAddress, tokenBalance, tokenSymbol, tokenName, poolTokenInfo, userTokenInfo }
+    }
 
-      const [poolTokenInfo, userTokenInfo] = await Promise.all([
-        L2LPContract.poolInfo(tokenAddress),
-        L2LPContract.userInfo(tokenAddress, this.account),
-      ])
+    tokenAddressList.forEach((tokenAddress) => L2LPInfoPromise.push(getL2LPInfoPromise(tokenAddress)))
+    const L2LPInfo = await Promise.all(L2LPInfoPromise);
 
-      poolInfo[tokenAddress] = {
-        symbol: tokenSymbol,
-        name: tokenName,
-        l1TokenAddress: poolTokenInfo.l1TokenAddress,
-        l2TokenAddress: poolTokenInfo.l2TokenAddress,
-        accUserReward: poolTokenInfo.accUserReward.toString(),
-        accUserRewardPerShare: poolTokenInfo.accUserRewardPerShare.toString(),
-        userDepositAmount: poolTokenInfo.userDepositAmount.toString(),
-        startTime: poolTokenInfo.startTime.toString(),
+    L2LPInfo.forEach((token) => {
+      poolInfo[token.tokenAddress] = {
+        symbol: token.tokenSymbol,
+        name: token.tokenName,
+        l1TokenAddress: token.poolTokenInfo.l1TokenAddress,
+        l2TokenAddress: token.poolTokenInfo.l2TokenAddress,
+        accUserReward: token.poolTokenInfo.accUserReward.toString(),
+        accUserRewardPerShare: token.poolTokenInfo.accUserRewardPerShare.toString(),
+        userDepositAmount: token.poolTokenInfo.userDepositAmount.toString(),
+        startTime: token.poolTokenInfo.startTime.toString(),
         APR:
-          Number(poolTokenInfo.userDepositAmount.toString()) === 0
+          Number(token.poolTokenInfo.userDepositAmount.toString()) === 0
             ? 0
             : accMul(
                 accDiv(
                   accDiv(
-                    poolTokenInfo.accUserReward,
-                    poolTokenInfo.userDepositAmount
+                    token.poolTokenInfo.accUserReward,
+                    token.poolTokenInfo.userDepositAmount
                   ),
                   accDiv(
                     new Date().getTime() -
-                      Number(poolTokenInfo.startTime) * 1000,
+                      Number(token.poolTokenInfo.startTime) * 1000,
                     365 * 24 * 60 * 60 * 1000
                   )
                 ),
                 100
               ), // ( accUserReward - userDepositAmount ) / timeDuration
-        tokenBalance: tokenBalance.toString()
+        tokenBalance: token.tokenBalance.toString()
       }
-      userInfo[tokenAddress] = {
-        l2TokenAddress: tokenAddress,
-        amount: userTokenInfo.amount.toString(),
-        pendingReward: userTokenInfo.pendingReward.toString(),
-        rewardDebt: userTokenInfo.rewardDebt.toString()
+      userInfo[token.tokenAddress] = {
+        l2TokenAddress: token.tokenAddress,
+        amount: token.userTokenInfo.amount.toString(),
+        pendingReward: token.userTokenInfo.pendingReward.toString(),
+        rewardDebt: token.userTokenInfo.rewardDebt.toString()
       }
-    }
+    })
 
     return { poolInfo, userInfo }
   }
@@ -1593,7 +1547,7 @@ class NetworkService {
   /*****            Add Liquidity            *****/
   /***********************************************/
   async addLiquidity(currency, value, L1orL2Pool) {
-    
+
     const decimals = 18 //should not assume?
     let depositAmount = powAmount(value, decimals)
 
@@ -1619,7 +1573,7 @@ class NetworkService {
   /*****           Get Reward L1             *****/
   /***********************************************/
   async getRewardL1(currencyL1Address, userReward_BN) {
-    
+
     try {
       const withdrawRewardTX = await this.L1LPContract.withdrawReward(
         userReward_BN,
@@ -1637,7 +1591,7 @@ class NetworkService {
   /*****           Get Reward L2             *****/
   /***********************************************/
   async getRewardL2(currencyL2Address, userReward_BN) {
-    
+
     try {
       const withdrawRewardTX = await this.L2LPContract.withdrawReward(
         userReward_BN,
@@ -1678,7 +1632,7 @@ class NetworkService {
   /***** SWAP ON to OMGX by depositing funds to the L1LP *****/
   /***********************************************************/
   async depositL1LP(currency, value) {
-    
+
     const decimals = 18 //bit dangerous?
     let depositAmount = powAmount(value, decimals)
 
@@ -1753,7 +1707,7 @@ class NetworkService {
         this.L2LPAddress
       )
     }
-    
+
     console.log("L2LPBalance:",typeof(balance))
 
     if(typeof(balance) === 'undefined') {
@@ -1761,7 +1715,7 @@ class NetworkService {
     } else {
       return logAmount(balance.toString(), decimals)
     }
-    
+
   }
 
   /**************************************************************/
@@ -1780,7 +1734,7 @@ class NetworkService {
       this.L2LPAddress
     )
 
-    //const decimals = await L2ERC20Contract.decimals() 
+    //const decimals = await L2ERC20Contract.decimals()
 
     let depositAmount_BN = new BN(depositAmount_string)
 
@@ -1876,7 +1830,7 @@ class NetworkService {
 
   // async getDropdownTokens() {
   //   try {
-      
+
   //     return dropdownTokens.map((token) => {
 
   //       let L1 = ''
@@ -1942,8 +1896,8 @@ class NetworkService {
       } catch (error) {
         //
       }
-    } 
-    
+    }
+
     return {
       slow: 1000000000,
       normal: 2000000000,

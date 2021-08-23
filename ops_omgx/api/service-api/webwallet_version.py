@@ -1,7 +1,6 @@
 import json
 
-def get_whitelist(event, context):
-  whitelist = ["0x27f54feB333AD17981a58B31dc978E99463C6323"]
+def webwallet_version(event, context):
 
   response = {
     "statusCode": 201,
@@ -15,6 +14,6 @@ def get_whitelist(event, context):
       "Referrer-Policy": "same-origin",
       "Permissions-Policy": "*",
     },
-    "body": json.dumps(whitelist),
+    "body": json.dumps({"version": "1.3.3"})
   }
   return response
