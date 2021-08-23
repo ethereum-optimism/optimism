@@ -1164,7 +1164,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // only use a few storage slots during any given transaction, this shouldn't be a limiting
         // factor.
         uint256 prevNuisanceGasLeft = messageRecord.nuisanceGasLeft;
-        uint256 nuisanceGasLimit = _getNuisanceGasLimit(_gasLimit);
+        // Here we will limit the Nuisance Gas forwarded to the external message to the minimum of
+        // the nuisance gas left in this call frame, and the gas limit provided to the call. This
+        // protects against an attack where an untrusted contract intentionally uses up all
+        // available nuisance gas.
+        uint256 nuisanceGasLimit = Math.min(_gasLimit, prevNuisanceGasLeft);
         messageRecord.nuisanceGasLeft = nuisanceGasLimit;
 
         // Make the call and make sure to pass in the gas limit. Another instance of hidden
@@ -1839,26 +1843,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      ******************************************/
 
     /**
-     * Computes the nuisance gas limit from the gas limit.
-     * @dev This function is currently using a naive implementation whereby the nuisance gas limit
-     *      is set to exactly equal the lesser of the gas limit or remaining gas. It's likely that
-     *      this implementation is perfectly fine, but we may change this formula later.
-     * @param _gasLimit Gas limit to compute from.
-     * @return _nuisanceGasLimit Computed nuisance gas limit.
-     */
-    function _getNuisanceGasLimit(
-        uint256 _gasLimit
-    )
-        internal
-        view
-        returns (
-            uint256 _nuisanceGasLimit
-        )
-    {
-        return _gasLimit < gasleft() ? _gasLimit : gasleft();
-    }
-
-    /**
      * Uses a certain amount of nuisance gas.
      * @param _amount Amount of nuisance gas to use.
      */
@@ -2113,7 +2097,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         transactionContext.ovmL1TXORIGIN = _transaction.l1TxOrigin;
         transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
 
-        messageRecord.nuisanceGasLeft = _getNuisanceGasLimit(_transaction.gasLimit);
+        messageRecord.nuisanceGasLeft = _transaction.gasLimit;
     }
 
     /**
