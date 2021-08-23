@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.10
+
+### Patch Changes
+
+- 918c08ca: Bump ethers dependency to 5.4.x to support eip1559
+- Updated dependencies [918c08ca]
+  - @eth-optimism/core-utils@0.5.2
+
 ## 0.4.9
 
 ### Patch Changes

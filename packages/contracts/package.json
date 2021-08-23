@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
@@ -50,7 +50,7 @@
     "pre-commit": "lint-staged"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.5.1",
+    "@eth-optimism/core-utils": "^0.5.2",
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/abstract-signer": "^5.4.1",
     "@ethersproject/contracts": "^5.4.1",
@@ -59,7 +59,7 @@
   },
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
-    "@eth-optimism/hardhat-ovm": "^0.2.2",
+    "@eth-optimism/hardhat-ovm": "^0.2.3",
     "@eth-optimism/smock": "^1.1.10",
     "@ethersproject/transactions": "^5.4.0",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
