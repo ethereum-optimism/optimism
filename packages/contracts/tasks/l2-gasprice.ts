@@ -27,10 +27,7 @@ task('set-l2-gasprice')
       provider
     )
 
-    const GasPriceOracleArtifact = getContractDefinition(
-      'OVM_GasPriceOracle',
-      true
-    )
+    const GasPriceOracleArtifact = getContractDefinition('OVM_GasPriceOracle')
 
     const GasPriceOracle = new ethers.Contract(
       predeploys.OVM_GasPriceOracle,

@@ -71,7 +71,7 @@ const test_ovmCREATEEOA: TestDefinition = {
           },
           expectedReturnStatus: true,
           expectedReturnValue: fromHexString(
-            getContractDefinition('OVM_ProxyEOA', true).deployedBytecode
+            getContractDefinition('OVM_ProxyEOA').deployedBytecode
           ).length,
         },
       ],
