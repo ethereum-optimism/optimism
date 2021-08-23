@@ -500,6 +500,14 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
+"@eth-optimism/smock@^1.1.10", "@eth-optimism/smock@^1.1.9":
+  version "1.1.10"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/smock/-/smock-1.1.10.tgz#98a6eefc994ccf707f52ab06849468f3cc57bdb7"
+  integrity sha512-XPx1x9odF/noTBHzIhRgL9ihhr769WgUhf9dOm6X7bjSWRAVsII3IqbdB4ssPycaoSuNSmv8HG1xTLgfgcyOYw==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.5.1"
+    bn.js "^5.2.0"
+
 "@eth-optimism/solc@^0.6.12-alpha.1":
   version "0.6.12-alpha.1"
   resolved "https://registry.yarnpkg.com/@eth-optimism/solc/-/solc-0.6.12-alpha.1.tgz#041876f83b34c6afe2f19dfe9626568df6ed8590"
@@ -1876,7 +1884,7 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@nomiclabs/ethereumjs-vm@^4.2.2":
+"@nomiclabs/ethereumjs-vm@^4":
   version "4.2.2"
   resolved "https://registry.yarnpkg.com/@nomiclabs/ethereumjs-vm/-/ethereumjs-vm-4.2.2.tgz#2f8817113ca0fb6c44c1b870d0a809f0e026a6cc"
   integrity sha512-8WmX94mMcJaZ7/m7yBbyuS6B+wuOul+eF+RY9fBpGhNaUpyMR/vFIcDojqcWQ4Yafe1tMKY5LDu2yfT4NZgV4Q==
@@ -8006,7 +8014,7 @@ hardhat-gas-reporter@^1.0.4:
     eth-gas-reporter "^0.2.20"
     sha1 "^1.1.1"
 
-hardhat@^2.2.1, hardhat@^2.3.0, hardhat@^2.4.0:
+hardhat@^2.2.1, hardhat@^2.3.0:
   version "2.4.1"
   resolved "https://registry.yarnpkg.com/hardhat/-/hardhat-2.4.1.tgz#2cd1e86ee6ca3a6a473eeb0f55bd3124c8c59250"
   integrity sha512-vwllrFypukeE/Q+4ZfWj7j7nUo4ncUhRpsAYUM0Ruuuk6pQlKmRa0A6c0kxRSvvVgQsMud6j+/weYhbMX1wPmQ==
