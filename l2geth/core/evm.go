@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 // DefaultL1MessageSender is the default L1MessageSender value attached to a transaction that is
@@ -48,7 +49,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	} else {
 		beneficiary = *author
 	}
-	if vm.UsingOVM {
+	if rcfg.UsingOVM {
 		// When using the OVM, we must:
 		// (1) Attach the L1MessageSender context value and
 		// (2) Set the BlockNumber to be the msg.L1BlockNumber
