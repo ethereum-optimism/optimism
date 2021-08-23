@@ -6,11 +6,6 @@ import * as types from 'hardhat/internal/core/params/argumentTypes'
 const DEFAULT_L1_BLOCK_TIME_SECONDS = 15
 const DEFAULT_CTC_FORCE_INCLUSION_PERIOD_SECONDS = 60 * 60 * 24 * 30 // 30 days
 const DEFAULT_CTC_MAX_TRANSACTION_GAS_LIMIT = 11_000_000
-const DEFAULT_EM_MIN_TRANSACTION_GAS_LIMIT = 50_000
-const DEFAULT_EM_MAX_TRANSACTION_GAS_LIMIT = 11_000_000
-const DEFAULT_EM_MAX_GAS_PER_QUEUE_PER_EPOCH = 250_000_000
-const DEFAULT_EM_SECONDS_PER_EPOCH = 0
-const DEFAULT_EM_OVM_CHAIN_ID = 420
 const DEFAULT_SCC_FRAUD_PROOF_WINDOW = 60 * 60 * 24 * 7 // 7 days
 const DEFAULT_SCC_SEQUENCER_PUBLISH_WINDOW = 60 * 30 // 30 minutes
 
@@ -31,36 +26,6 @@ task('deploy')
     'ctcMaxTransactionGasLimit',
     'Max gas limit for L1 queue transactions.',
     DEFAULT_CTC_MAX_TRANSACTION_GAS_LIMIT,
-    types.int
-  )
-  .addOptionalParam(
-    'emMinTransactionGasLimit',
-    'Minimum allowed transaction gas limit.',
-    DEFAULT_EM_MIN_TRANSACTION_GAS_LIMIT,
-    types.int
-  )
-  .addOptionalParam(
-    'emMaxTransactionGasLimit',
-    'Maximum allowed transaction gas limit.',
-    DEFAULT_EM_MAX_TRANSACTION_GAS_LIMIT,
-    types.int
-  )
-  .addOptionalParam(
-    'emMaxGasPerQueuePerEpoch',
-    'Maximum gas allowed in a given queue for each epoch.',
-    DEFAULT_EM_MAX_GAS_PER_QUEUE_PER_EPOCH,
-    types.int
-  )
-  .addOptionalParam(
-    'emSecondsPerEpoch',
-    'Number of seconds in each epoch.',
-    DEFAULT_EM_SECONDS_PER_EPOCH,
-    types.int
-  )
-  .addOptionalParam(
-    'emOvmChainId',
-    'Chain ID for the L2 network.',
-    DEFAULT_EM_OVM_CHAIN_ID,
     types.int
   )
   .addOptionalParam(
@@ -88,12 +53,6 @@ task('deploy')
     types.string
   )
   .addOptionalParam(
-    'ovmRelayerAddress',
-    'Address of the message relayer. Must be provided or this deployment will fail.',
-    undefined,
-    types.string
-  )
-  .addOptionalParam(
     'ovmAddressManagerOwner',
     'Address that will own the Lib_AddressManager. Must be provided or this deployment will fail.',
     undefined,
@@ -116,7 +75,6 @@ task('deploy')
 
     validateAddressArg('ovmSequencerAddress')
     validateAddressArg('ovmProposerAddress')
-    validateAddressArg('ovmRelayerAddress')
     validateAddressArg('ovmAddressManagerOwner')
 
     args.ctcForceInclusionPeriodBlocks = Math.floor(

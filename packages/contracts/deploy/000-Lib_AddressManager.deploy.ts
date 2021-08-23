@@ -23,12 +23,6 @@ const deployFn: DeployFunction = async (hre) => {
 
   await registerAddress({
     hre,
-    name: 'OVM_DecompressionPrecompileAddress',
-    address: predeploys.OVM_SequencerEntrypoint,
-  })
-
-  await registerAddress({
-    hre,
     name: 'OVM_Sequencer',
     address: (hre as any).deployConfig.ovmSequencerAddress,
   })
@@ -37,12 +31,6 @@ const deployFn: DeployFunction = async (hre) => {
     hre,
     name: 'OVM_Proposer',
     address: (hre as any).deployConfig.ovmProposerAddress,
-  })
-
-  await registerAddress({
-    hre,
-    name: 'OVM_L2BatchMessageRelayer',
-    address: (hre as any).deployConfig.ovmRelayerAddress,
   })
 }
 

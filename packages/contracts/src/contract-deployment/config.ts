@@ -9,28 +9,6 @@ import { predeploys } from '../predeploys'
 
 export interface RollupDeployConfig {
   deploymentSigner: Signer
-  ovmGasMeteringConfig: {
-    minTransactionGasLimit: number
-    maxTransactionGasLimit: number
-    maxGasPerQueuePerEpoch: number
-    secondsPerEpoch: number
-  }
-  ovmGlobalContext: {
-    ovmCHAINID: number
-    L2CrossDomainMessengerAddress: string
-  }
-  transactionChainConfig: {
-    sequencer: string | Signer
-    forceInclusionPeriodSeconds: number
-    forceInclusionPeriodBlocks: number
-  }
-  stateChainConfig: {
-    fraudProofWindowSeconds: number
-    sequencerPublishWindowSeconds: number
-  }
-  l1CrossDomainMessengerConfig: {
-    relayerAddress?: string | Signer
-  }
   whitelistConfig: {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
@@ -59,16 +37,6 @@ export const makeContractDeployConfig = async (
   config: RollupDeployConfig,
   AddressManager: Contract
 ): Promise<ContractDeployConfig> => {
-  const _sendTx = async (
-    txPromise: Promise<TransactionResponse>
-  ): Promise<TransactionResponse> => {
-    const res = await txPromise
-    if (config.waitForReceipts) {
-      await res.wait()
-    }
-    return res
-  }
-
   return {
     OVM_L2CrossDomainMessenger: {
       factory: getContractFactory('OVM_L2CrossDomainMessenger'),
@@ -93,45 +61,9 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_L2ToL1MessagePasser'),
       params: [],
     },
-    OVM_SafetyChecker: {
-      factory: getContractFactory('OVM_SafetyChecker'),
-      params: [],
-    },
-    OVM_ExecutionManager: {
-      factory: getContractFactory('OVM_ExecutionManager'),
-      params: [
-        AddressManager.address,
-        config.ovmGasMeteringConfig,
-        config.ovmGlobalContext,
-      ],
-    },
-    OVM_StateManager: {
-      factory: getContractFactory('OVM_StateManager'),
-      params: [await config.deploymentSigner.getAddress()],
-      afterDeploy: async (contracts): Promise<void> => {
-        await _sendTx(
-          contracts.OVM_StateManager.setExecutionManager(
-            contracts.OVM_ExecutionManager.address,
-            config.deployOverrides
-          )
-        )
-      },
-    },
-    OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount'),
-    },
-    OVM_SequencerEntrypoint: {
-      factory: getContractFactory('OVM_SequencerEntrypoint'),
-    },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
       params: [],
-    },
-    OVM_ProxyEOA: {
-      factory: getContractFactory('OVM_ProxyEOA'),
-    },
-    OVM_ExecutionManagerWrapper: {
-      factory: getContractFactory('OVM_ExecutionManagerWrapper'),
     },
     OVM_GasPriceOracle: {
       factory: getContractFactory('OVM_GasPriceOracle'),
