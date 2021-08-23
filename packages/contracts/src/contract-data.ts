@@ -112,15 +112,15 @@ export const getL1ContractData = (network: Network) => {
   }
 }
 
-const OVM_ETH = require('../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_ETH.sol/OVM_ETH.json')
-const OVM_L2CrossDomainMessenger = require('../artifacts-ovm/contracts/optimistic-ethereum/OVM/bridge/messaging/OVM_L2CrossDomainMessenger.sol/OVM_L2CrossDomainMessenger.json')
-const OVM_L2ToL1MessagePasser = require('../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_L2ToL1MessagePasser.sol/OVM_L2ToL1MessagePasser.json')
+const OVM_ETH = require('../artifacts/contracts/optimistic-ethereum/OVM/predeploys/OVM_ETH.sol/OVM_ETH.json')
+const OVM_L2CrossDomainMessenger = require('../artifacts/contracts/optimistic-ethereum/OVM/bridge/messaging/OVM_L2CrossDomainMessenger.sol/OVM_L2CrossDomainMessenger.json')
+const OVM_L2ToL1MessagePasser = require('../artifacts/contracts/optimistic-ethereum/OVM/predeploys/OVM_L2ToL1MessagePasser.sol/OVM_L2ToL1MessagePasser.json')
 const OVM_L1MessageSender = require('../artifacts/contracts/optimistic-ethereum/OVM/predeploys/OVM_L1MessageSender.sol/OVM_L1MessageSender.json')
-const OVM_DeployerWhitelist = require('../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_DeployerWhitelist.sol/OVM_DeployerWhitelist.json')
-const OVM_ECDSAContractAccount = require('../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_ECDSAContractAccount.sol/OVM_ECDSAContractAccount.json')
-const OVM_SequencerEntrypoint = require('../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol/OVM_SequencerEntrypoint.json')
-const ERC1820Registry = require('../artifacts-ovm/contracts/optimistic-ethereum/OVM/predeploys/ERC1820Registry.sol/ERC1820Registry.json')
-const Lib_AddressManager = require('../artifacts-ovm/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json')
+const OVM_DeployerWhitelist = require('../artifacts/contracts/optimistic-ethereum/OVM/predeploys/OVM_DeployerWhitelist.sol/OVM_DeployerWhitelist.json')
+const OVM_ECDSAContractAccount = require('../artifacts/contracts/optimistic-ethereum/OVM/predeploys/OVM_ECDSAContractAccount.sol/OVM_ECDSAContractAccount.json')
+const OVM_SequencerEntrypoint = require('../artifacts/contracts/optimistic-ethereum/OVM/predeploys/OVM_SequencerEntrypoint.sol/OVM_SequencerEntrypoint.json')
+const ERC1820Registry = require('../artifacts/contracts/optimistic-ethereum/OVM/predeploys/ERC1820Registry.sol/ERC1820Registry.json')
+const Lib_AddressManager = require('../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json')
 
 export const getL2ContractData = () => {
   return {

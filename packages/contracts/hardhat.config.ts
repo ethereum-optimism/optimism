@@ -12,7 +12,6 @@ import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
 import '@typechain/hardhat'
-import '@eth-optimism/hardhat-ovm'
 import './tasks/deploy'
 import './tasks/l2-gasprice'
 import './tasks/set-owner'
@@ -35,10 +34,8 @@ const config: HardhatUserConfig = {
       tags: ['local'],
       hardfork: 'istanbul',
     },
-    // Add this network to your config!
     optimism: {
       url: 'http://127.0.0.1:8545',
-      ovm: true,
       saveDeployments: false,
     },
   },
@@ -58,9 +55,6 @@ const config: HardhatUserConfig = {
         },
       },
     },
-  },
-  ovm: {
-    solcVersion: '0.7.6+commit.3b061308',
   },
   typechain: {
     outDir: 'dist/types',
