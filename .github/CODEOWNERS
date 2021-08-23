@@ -7,7 +7,6 @@
 # packages/contracts/                 @smartcontracts @ben-chain @maurelian @elenadimitrova
 # packages/specs/protocol/            @smartcontracts @ben-chain @maurelian
 # ops/                                @tynes @karlfloersch
-# packages/hardhat-ovm/               @smartcontracts
 # packages/core-utils/                @smartcontracts @annieke @ben-chain
 # packages/common-ts/                 @annieke
 # packages/core-utils/src/watcher.ts  @K-Ho
