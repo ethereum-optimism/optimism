@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.10
+
+### Patch Changes
+
+- eb1eb327: Ensure that L2 geth doesn't reject blocks from the future
+
 ## 0.4.9
 
 ### Patch Changes
