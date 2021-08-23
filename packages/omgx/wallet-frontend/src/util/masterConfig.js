@@ -52,6 +52,25 @@ const NETWORKS = {
       transaction: `https://blockexplorer.boba.network/tx/`,
     }
   },
+  rinkeby_integration: {
+    addressUrl:       `https://integration.omgx.network:8081/addresses.json`,
+    addressOMGXUrl:   `https://integration.omgx.network:8081/omgx-addr.json`,
+    OMGX_WATCHER_URL: `https://api-watcher.integration.omgx.network/`,
+    L1: {
+      name: "Rinkeby Int L1",
+      chainId: 4,
+      rpcUrl: `https://rinkeby.infura.io/v3/${process.env.REACT_APP_INFURA_ID}`,
+      blockExplorer: `https://api-rinkeby.etherscan.io/api?module=account&action=txlist&startblock=0&endblock=99999999&sort=asc&apikey=${process.env.REACT_APP_ETHERSCAN_API}`,
+      transaction: `https://rinkeby.etherscan.io/tx/`,
+    },
+    L2: {
+      name: "Rinkeby Int L2",
+      chainId: 28,
+      rpcUrl: `https://integration.omgx.network`,
+      blockExplorer: `https://blockexplorer.omgx.network/?network=Rinkeby%20Test`,
+      transaction: `https://blockexplorer.omgx.network/tx/?network=Rinkeby%20Test`,
+    }
+  },
   mainnet: {
     addressUrl:       `https://mainnet.boba.network:8080/addresses.json`,
     addressOMGXUrl:   `https://mainnet.boba.network:8078/addresses.json`,

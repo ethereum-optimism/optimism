@@ -71,6 +71,7 @@ import ethGasStationAxiosInstance from 'api/ethGasStationAxios'
 const localAddresses = require(`../deployment/local/addresses.json`)
 const rinkebyAddresses = require(`../deployment/rinkeby/addresses.json`)
 const mainnetAddresses = require(`../deployment/mainnet/addresses.json`)
+const rinkebyIntegrationAddresses = require(`../deployment/rinkeby-integration/addresses.json`)
 
 class NetworkService {
 
@@ -362,6 +363,9 @@ class NetworkService {
       } else if (masterSystemConfig === 'mainnet') {
         addresses = mainnetAddresses
         console.log('Mainnet Addresses:', addresses)
+      } else if (masterSystemConfig === 'rinkeby_integration') {
+        addresses = rinkebyIntegrationAddresses
+        console.log('Rinkeby Integration Addresses:', addresses)
       }
 
       //at this point, the wallet should be connected
@@ -400,6 +404,14 @@ class NetworkService {
         //rinkeby, L1
         this.L1orL2 = 'L1'
       } else if (masterSystemConfig === 'rinkeby' && network.chainId === 28) {
+        //ok, that's reasonable
+        //rinkeby, L2
+        this.L1orL2 = 'L2'
+      } else if (masterSystemConfig === 'rinkeby_integration' && network.chainId === 4) {
+        //ok, that's reasonable
+        //rinkeby, L1
+        this.L1orL2 = 'L1'
+      } else if (masterSystemConfig === 'rinkeby_integration' && network.chainId === 28) {
         //ok, that's reasonable
         //rinkeby, L2
         this.L1orL2 = 'L2'
