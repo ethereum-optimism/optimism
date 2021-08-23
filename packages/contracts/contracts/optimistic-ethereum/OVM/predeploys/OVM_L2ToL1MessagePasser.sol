@@ -11,7 +11,6 @@ import { iOVM_L2ToL1MessagePasser } from "../../iOVM/predeploys/iOVM_L2ToL1Messa
  * _verifyStorageProof function, which verifies the existence of the transaction hash in this
  * contract's `sentMessages` mapping.
  *
- * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {

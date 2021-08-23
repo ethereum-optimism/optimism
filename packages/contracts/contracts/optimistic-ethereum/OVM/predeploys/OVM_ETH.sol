@@ -13,7 +13,6 @@ import { IWETH9 } from "../../libraries/standards/IWETH9.sol";
  * @dev The ETH predeploy provides an ERC20 interface for ETH deposited to Layer 2. Note that
  * unlike on Layer 1, Layer 2 accounts do not have a balance field.
  *
- * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_ETH is L2StandardERC20, IWETH9 {

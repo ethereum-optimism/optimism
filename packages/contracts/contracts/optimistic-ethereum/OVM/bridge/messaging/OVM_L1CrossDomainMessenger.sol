@@ -31,7 +31,6 @@ import { ReentrancyGuardUpgradeable } from
  * from L2 onto L1. In the event that a message sent from L1 to L2 is rejected for exceeding the L2
  * epoch gas limit, it can be resubmitted via this contract's replay function.
  *
- * Compiler used: solc
  * Runtime target: EVM
  */
 contract OVM_L1CrossDomainMessenger is
@@ -209,13 +208,12 @@ contract OVM_L1CrossDomainMessenger is
             nonce
         );
 
-        address l2CrossDomainMessenger = resolve("OVM_L2CrossDomainMessenger");
         _sendXDomainMessage(
             ovmCanonicalTransactionChain,
-            l2CrossDomainMessenger,
             xDomainCalldata,
             _gasLimit
         );
+
         emit SentMessage(xDomainCalldata);
     }
 
@@ -312,12 +310,11 @@ contract OVM_L1CrossDomainMessenger is
         Lib_OVMCodec.QueueElement memory element =
             iOVM_CanonicalTransactionChain(canonicalTransactionChain).getQueueElement(_queueIndex);
 
-        address l2CrossDomainMessenger = resolve("OVM_L2CrossDomainMessenger");
         // Compute the transactionHash
         bytes32 transactionHash = keccak256(
             abi.encode(
                 address(this),
-                l2CrossDomainMessenger,
+                Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
                 _gasLimit,
                 _message
             )
@@ -337,7 +334,6 @@ contract OVM_L1CrossDomainMessenger is
 
         _sendXDomainMessage(
             canonicalTransactionChain,
-            l2CrossDomainMessenger,
             xDomainCalldata,
             _gasLimit
         );
@@ -419,7 +415,7 @@ contract OVM_L1CrossDomainMessenger is
                 keccak256(
                     abi.encodePacked(
                         _xDomainCalldata,
-                        resolve("OVM_L2CrossDomainMessenger")
+                        Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER
                     )
                 ),
                 uint256(0)
@@ -455,20 +451,18 @@ contract OVM_L1CrossDomainMessenger is
     /**
      * Sends a cross domain message.
      * @param _canonicalTransactionChain Address of the OVM_CanonicalTransactionChain instance.
-     * @param _l2CrossDomainMessenger Address of the OVM_L2CrossDomainMessenger instance.
      * @param _message Message to send.
      * @param _gasLimit OVM gas limit for the message.
      */
     function _sendXDomainMessage(
         address _canonicalTransactionChain,
-        address _l2CrossDomainMessenger,
         bytes memory _message,
         uint256 _gasLimit
     )
         internal
     {
         iOVM_CanonicalTransactionChain(_canonicalTransactionChain).enqueue(
-            _l2CrossDomainMessenger,
+            Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
             _gasLimit,
             _message
         );
