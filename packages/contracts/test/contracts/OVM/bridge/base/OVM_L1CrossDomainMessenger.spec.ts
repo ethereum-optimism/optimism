@@ -65,7 +65,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
     Mock__OVM_L2CrossDomainMessenger = await smockit(
-      await ethers.getContractFactory('OVM_L2CrossDomainMessenger')
+      await ethers.getContractFactory('OVM_L2CrossDomainMessenger'),
+      {
+        address: predeploys.OVM_L2CrossDomainMessenger,
+      }
     )
     Mock__OVM_StateCommitmentChain = await smockit(
       await ethers.getContractFactory('OVM_StateCommitmentChain')

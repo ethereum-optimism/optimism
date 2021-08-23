@@ -104,7 +104,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           nextTxPointer
         )
 
-        const decoded = maybeDecodeSequencerBatchTransaction(
+        const decoded = decodeSequencerBatchTransaction(
           sequencerTransaction,
           l2ChainId
         )
@@ -116,12 +116,12 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           batchIndex: extraData.batchIndex.toNumber(),
           blockNumber: BigNumber.from(context.blockNumber).toNumber(),
           timestamp: BigNumber.from(context.timestamp).toNumber(),
-          gasLimit: BigNumber.from(extraData.gasLimit).toString(),
-          target: SEQUENCER_ENTRYPOINT_ADDRESS,
+          gasLimit: BigNumber.from(0).toString(),
+          target: constants.AddressZero,
           origin: null,
           data: toHexString(sequencerTransaction),
           queueOrigin: 'sequencer',
-          value: decoded ? decoded.value : '0x0',
+          value: decoded.value,
           queueIndex: null,
           decoded,
           confirmed: true,
@@ -249,27 +249,23 @@ const parseSequencerBatchTransaction = (
   return calldata.slice(offset + 3, offset + 3 + transactionLength)
 }
 
-const maybeDecodeSequencerBatchTransaction = (
+const decodeSequencerBatchTransaction = (
   transaction: Buffer,
   l2ChainId: number
-): DecodedSequencerBatchTransaction | null => {
-  try {
-    const decodedTx = ethers.utils.parseTransaction(transaction)
+): DecodedSequencerBatchTransaction => {
+  const decodedTx = ethers.utils.parseTransaction(transaction)
 
-    return {
-      nonce: BigNumber.from(decodedTx.nonce).toString(),
-      gasPrice: BigNumber.from(decodedTx.gasPrice).toString(),
-      gasLimit: BigNumber.from(decodedTx.gasLimit).toString(),
-      value: toRpcHexString(decodedTx.value),
-      target: toHexString(decodedTx.to), // Maybe null this out for creations?
-      data: toHexString(decodedTx.data),
-      sig: {
-        v: parseSignatureVParam(decodedTx.v, l2ChainId),
-        r: toHexString(decodedTx.r),
-        s: toHexString(decodedTx.s),
-      },
-    }
-  } catch (err) {
-    return null
+  return {
+    nonce: BigNumber.from(decodedTx.nonce).toString(),
+    gasPrice: BigNumber.from(decodedTx.gasPrice).toString(),
+    gasLimit: BigNumber.from(decodedTx.gasLimit).toString(),
+    value: toRpcHexString(decodedTx.value),
+    target: decodedTx.to ? toHexString(decodedTx.to) : null,
+    data: toHexString(decodedTx.data),
+    sig: {
+      v: parseSignatureVParam(decodedTx.v, l2ChainId),
+      r: toHexString(decodedTx.r),
+      s: toHexString(decodedTx.s),
+    },
   }
 }

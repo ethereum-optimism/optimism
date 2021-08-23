@@ -11,7 +11,6 @@ import { iOVM_DeployerWhitelist } from "../../iOVM/predeploys/iOVM_DeployerWhite
  * which are allowed to deploy contracts on Layer2. The Execution Manager will only allow an
  * ovmCREATE or ovmCREATE2 operation to proceed if the deployer's address whitelisted.
  *
- * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {

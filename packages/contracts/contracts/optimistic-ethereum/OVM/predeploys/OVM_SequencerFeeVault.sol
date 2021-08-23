@@ -13,7 +13,6 @@ import { OVM_L2StandardBridge } from "../bridge/tokens/OVM_L2StandardBridge.sol"
  * @dev Simple holding contract for fees paid to the Sequencer. Likely to be replaced in the future
  * but "good enough for now".
  *
- * Compiler used: optimistic-solc
  * Runtime target: OVM
  */
 contract OVM_SequencerFeeVault {
