@@ -20,8 +20,6 @@ import {
   getNextBlockNumber,
 } from '../../../helpers'
 
-import { predeploys } from '../../../../src'
-
 // Still have some duplication from OVM_CanonicalTransactionChain.spec.ts, but it's so minimal that
 // this is probably cleaner for now. Particularly since we're planning to move all of this out into
 // core-utils soon anyway.
@@ -46,21 +44,12 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
   })
 
   let AddressManager: Contract
-  let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_StateCommitmentChain: MockContract
   before(async () => {
     AddressManager = await makeAddressManager()
     await AddressManager.setAddress(
       'OVM_Sequencer',
       await sequencer.getAddress()
-    )
-    await AddressManager.setAddress(
-      'OVM_DecompressionPrecompileAddress',
-      predeploys.OVM_SequencerEntrypoint
-    )
-
-    Mock__OVM_ExecutionManager = await smockit(
-      await ethers.getContractFactory('OVM_ExecutionManager')
     )
 
     Mock__OVM_StateCommitmentChain = await smockit(
@@ -69,18 +58,8 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
 
     await setProxyTarget(
       AddressManager,
-      'OVM_ExecutionManager',
-      Mock__OVM_ExecutionManager
-    )
-
-    await setProxyTarget(
-      AddressManager,
       'OVM_StateCommitmentChain',
       Mock__OVM_StateCommitmentChain
-    )
-
-    Mock__OVM_ExecutionManager.smocked.getMaxTransactionGasLimit.will.return.with(
-      MAX_GAS_LIMIT
     )
   })
 
