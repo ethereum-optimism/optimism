@@ -14,7 +14,7 @@
     "test:integration": "hardhat --network optimism test",
     "test:integration:live": "IS_LIVE_NETWORK=true hardhat --network optimism test",
     "test:sync": "hardhat --network optimism test sync-tests/*.spec.ts --no-compile",
-    "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
+    "clean": "rimraf cache artifacts"
   },
   "devDependencies": {
     "@eth-optimism/contracts": "^0.4.10",

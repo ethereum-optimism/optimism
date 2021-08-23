@@ -231,24 +231,21 @@ export class ExecutionManagerTestRunner {
 
     const DeployerWhitelist = await getContractFactory(
       'OVM_DeployerWhitelist',
-      AddressManager.signer,
-      true
+      AddressManager.signer
     ).deploy()
 
     this.contracts.OVM_DeployerWhitelist = DeployerWhitelist
 
     const OvmEth = await getContractFactory(
       'OVM_ETH',
-      AddressManager.signer,
-      true
+      AddressManager.signer
     ).deploy()
 
     this.contracts.OVM_ETH = OvmEth
 
     this.contracts.OVM_ProxyEOA = await getContractFactory(
       'OVM_ProxyEOA',
-      AddressManager.signer,
-      true
+      AddressManager.signer
     ).deploy()
 
     this.contracts.OVM_ExecutionManager = await (
