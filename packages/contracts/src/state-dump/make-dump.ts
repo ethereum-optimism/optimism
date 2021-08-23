@@ -99,45 +99,17 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
 
   let config: RollupDeployConfig = {
     deploymentSigner: signer,
-    ovmGasMeteringConfig: {
-      minTransactionGasLimit: 0,
-      maxTransactionGasLimit: 11_000_000,
-      maxGasPerQueuePerEpoch: 1_000_000_000_000,
-      secondsPerEpoch: 0,
-    },
-    ovmGlobalContext: {
-      ovmCHAINID: 420,
-      L2CrossDomainMessengerAddress: predeploys.OVM_L2CrossDomainMessenger,
-    },
-    transactionChainConfig: {
-      sequencer: signer,
-      forceInclusionPeriodSeconds: 600,
-      forceInclusionPeriodBlocks: 600 / 12,
-    },
-    stateChainConfig: {
-      fraudProofWindowSeconds: 600,
-      sequencerPublishWindowSeconds: 60_000,
-    },
     whitelistConfig: {
       owner: signer,
       allowArbitraryContractDeployment: true,
     },
-    l1CrossDomainMessengerConfig: {},
     dependencies: [
-      'ERC1820Registry',
       'Lib_AddressManager',
       'OVM_DeployerWhitelist',
       'OVM_L1MessageSender',
       'OVM_L2ToL1MessagePasser',
-      'OVM_ProxyEOA',
-      'OVM_ECDSAContractAccount',
-      'OVM_SequencerEntrypoint',
       'OVM_L2CrossDomainMessenger',
-      'OVM_SafetyChecker',
-      'OVM_ExecutionManager',
-      'OVM_StateManager',
       'OVM_ETH',
-      'OVM_ExecutionManagerWrapper',
       'OVM_GasPriceOracle',
       'OVM_SequencerFeeVault',
       'OVM_L2StandardBridge',
@@ -204,14 +176,6 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       dump.accounts[name].storage,
       addressMap
     )
-  }
-
-  dump.accounts['OVM_GasMetadata'] = {
-    address: '0x06a506a506a506a506a506a506a506a506a506a5',
-    code: '0x00',
-    codeHash: keccak256('0x00'),
-    storage: {},
-    abi: [],
   }
 
   return dump

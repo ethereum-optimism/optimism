@@ -8,7 +8,6 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
-import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.sol";
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 import { iOVM_CanonicalTransactionChain } from
     "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
@@ -25,7 +24,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
  * Elements here have a 1:1 correspondence with transactions in the CTC, and should be the unique
  * state root calculated off-chain by applying the canonical transactions one by one.
  *
- * Compiler used: solc
  * Runtime target: EVM
  */
 contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResolver {

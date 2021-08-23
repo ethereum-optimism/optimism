@@ -13,8 +13,6 @@ pragma solidity >0.5.0 <0.8.0;
  * because there is no corresponding operation in the EVM which the the optimistic solidity compiler
  * can be replaced with a call to the ExecutionManager's ovmL1TXORIGIN() function.
  *
- *
- * Compiler used: solc
  * Runtime target: OVM
  */
 contract OVM_L1MessageSender {

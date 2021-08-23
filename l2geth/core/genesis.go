@@ -314,20 +314,6 @@ func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDo
 		l1BridgeValue := common.BytesToHash(l1StandardBridgeAddress.Bytes())
 		statedb.SetState(OVM_L2StandardBridge.Address, l1BridgeSlot, l1BridgeValue)
 	}
-	ExecutionManager, ok := stateDump.Accounts["OVM_ExecutionManager"]
-	if ok {
-		if chainID == nil {
-			chainID = new(big.Int)
-		}
-		log.Info("Setting ovmCHAINID in ExecutionManager", "chain-id", chainID.Uint64())
-		chainIdSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000007")
-		chainIdValue := common.BytesToHash(chainID.Bytes())
-		statedb.SetState(ExecutionManager.Address, chainIdSlot, chainIdValue)
-		log.Info("Setting maxTransactionGasLimit in ExecutionManager", "gas-limit", gasLimit)
-		maxTxGasLimitSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004")
-		maxTxGasLimitValue := common.BytesToHash(new(big.Int).SetUint64(gasLimit).Bytes())
-		statedb.SetState(ExecutionManager.Address, maxTxGasLimitSlot, maxTxGasLimitValue)
-	}
 	OVM_SequencerFeeVault, ok := stateDump.Accounts["OVM_SequencerFeeVault"]
 	if ok {
 		log.Info("Setting l1FeeWallet in OVM_SequencerFeeVault", "wallet", l1FeeWalletAddress.Hex())
@@ -513,18 +499,6 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 		_, ok := stateDump.Accounts["Lib_AddressManager"]
 		if !ok {
 			panic("Lib_AddressManager not in state dump")
-		}
-		_, ok = stateDump.Accounts["OVM_StateManager"]
-		if !ok {
-			panic("OVM_StateManager not in state dump")
-		}
-		_, ok = stateDump.Accounts["OVM_ExecutionManager"]
-		if !ok {
-			panic("OVM_ExecutionManager not in state dump")
-		}
-		_, ok = stateDump.Accounts["OVM_SequencerEntrypoint"]
-		if !ok {
-			panic("OVM_SequencerEntrypoint not in state dump")
 		}
 	}
 	config.StateDump = &stateDump
