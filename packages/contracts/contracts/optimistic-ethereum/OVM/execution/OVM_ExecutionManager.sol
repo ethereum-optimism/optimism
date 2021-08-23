@@ -164,6 +164,22 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     }
 
     /**
+     * Enforces that a minimum amount of nuisance gas is required to continue
+     * execution, else throwing an EXCEEDS_NUISANCE_GAS reversion and
+     * consuming all nuisance gas.
+     * @param _amount Amount of nuisance gas to enforce is left
+     */
+    modifier requiresNuisanceGas(
+        uint256 _amount
+    ) {
+        if (messageRecord.nuisanceGasLeft < _amount) {
+            messageRecord.nuisanceGasLeft = 0;
+            _revertWithFlag(RevertFlag.EXCEEDS_NUISANCE_GAS);
+        }
+        _;
+    }
+
+    /**
      * Makes sure we're not inside a static context.
      */
     modifier notStatic() {
@@ -1586,6 +1602,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     function _checkAccountLoad(
         address _address
     )
+        requiresNuisanceGas(
+            NUISANCE_GAS_PER_CONTRACT_BYTE * 24000 + MIN_NUISANCE_GAS_PER_CONTRACT
+        )
         internal
     {
         // See `_checkContractStorageLoad` for more information.
@@ -1623,6 +1642,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _address
     )
         internal
+        requiresNuisanceGas(
+            MIN_NUISANCE_GAS_PER_CONTRACT
+        )
     {
         // Start by checking for a load as we only want to charge nuisance gas proportional to
         // contract size once.
@@ -1634,13 +1656,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bool _wasAccountAlreadyChanged
         ) = ovmStateManager.testAndSetAccountChanged(_address);
 
-        // If we hadn't already loaded the account, then we'll need to charge "nuisance gas" based
-        // on the size of the contract code.
+        // If we are changing this account, we will require a call to
+        // OVM_StateTransitioner.commitContractState in the POST_EXECUTION phase,
+        // which requires an account-level MPT update (not dependent on codesize).
         if (_wasAccountAlreadyChanged == false) {
             ovmStateManager.incrementTotalUncommittedAccounts();
             _useNuisanceGas(
-                (Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address))
-                * NUISANCE_GAS_PER_CONTRACT_BYTE) + MIN_NUISANCE_GAS_PER_CONTRACT
+                MIN_NUISANCE_GAS_PER_CONTRACT
             );
         }
     }
@@ -1656,6 +1678,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         bytes32 _key
     )
         internal
+        requiresNuisanceGas(NUISANCE_GAS_SLOAD)
     {
         // Another case of hidden complexity. If we didn't enforce this requirement, then a
         // contract could pass in just enough gas to cause the INVALID_STATE_ACCESS check to fail
@@ -1697,6 +1720,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address _contract,
         bytes32 _key
     )
+        requiresNuisanceGas(NUISANCE_GAS_SSTORE)
         internal
     {
         // Start by checking for load to make sure we have the storage slot and that we charge the
