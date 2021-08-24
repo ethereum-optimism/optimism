@@ -1,5 +1,11 @@
 # @eth-optimism/replica-healthcheck
 
+## 0.2.2
+
+### Patch Changes
+
+- 4262ea2c: Add tx write latency cron check
+
 ## 0.2.1
 
 ### Patch Changes
