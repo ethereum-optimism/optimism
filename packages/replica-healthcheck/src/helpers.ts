@@ -30,6 +30,19 @@ export const readConfig = (): HealthcheckServerOptions => {
     process.exit(1)
   }
 
+  const checkTxWriteLatency =
+    process.env['REPLICA_HEALTHCHECK__CHECK_TX_WRITE_LATENCY'] === 'true'
+  let txWriteOptions
+  if (checkTxWriteLatency) {
+    const wallet1PrivateKey = readEnvOrQuitProcess(
+      'REPLICA_HEALTHCHECK__WALLET1_PRIVATE_KEY'
+    )
+    const wallet2PrivateKey = readEnvOrQuitProcess(
+      'REPLICA_HEALTHCHECK__WALLET2_PRIVATE_KEY'
+    )
+    txWriteOptions = { wallet1PrivateKey, wallet2PrivateKey }
+  }
+
   const logger = new Logger({ name: 'replica-healthcheck' })
 
   return {
@@ -37,6 +50,8 @@ export const readConfig = (): HealthcheckServerOptions => {
     gethRelease,
     sequencerRpcProvider,
     replicaRpcProvider,
+    checkTxWriteLatency,
+    txWriteOptions,
     logger,
   }
 }
