@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.11
+
+### Patch Changes
+
+- f331428f: Update the memory usage in geth
+
 ## 0.4.10
 
 ### Patch Changes
