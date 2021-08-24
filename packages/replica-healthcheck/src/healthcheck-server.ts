@@ -1,8 +1,9 @@
 import express from 'express'
 import { Server } from 'net'
 import promBundle from 'express-prom-bundle'
-import { Gauge } from 'prom-client'
-import { providers } from 'ethers'
+import { Gauge, Histogram } from 'prom-client'
+import cron from 'node-cron'
+import { providers, Wallet } from 'ethers'
 import { Metrics, Logger } from '@eth-optimism/common-ts'
 import { injectL2Context, sleep } from '@eth-optimism/core-utils'
 
@@ -13,13 +14,21 @@ export interface HealthcheckServerOptions {
   gethRelease: string
   sequencerRpcProvider: string
   replicaRpcProvider: string
+  checkTxWriteLatency: boolean
+  txWriteOptions?: TxWriteOptions
   logger: Logger
+}
+
+export interface TxWriteOptions {
+  wallet1PrivateKey: string
+  wallet2PrivateKey: string
 }
 
 export interface ReplicaMetrics {
   lastMatchingStateRootHeight: Gauge<string>
   replicaHeight: Gauge<string>
   sequencerHeight: Gauge<string>
+  txWriteLatencyMs: Histogram<string>
 }
 
 export class HealthcheckServer {
@@ -27,6 +36,7 @@ export class HealthcheckServer {
   protected app: express.Express
   protected logger: Logger
   protected metrics: ReplicaMetrics
+  protected replicaProvider: providers.StaticJsonRpcProvider
   server: Server
 
   constructor(options: HealthcheckServerOptions) {
@@ -38,6 +48,12 @@ export class HealthcheckServer {
   init = () => {
     this.metrics = this.initMetrics()
     this.server = this.initServer()
+    this.replicaProvider = injectL2Context(
+      new providers.StaticJsonRpcProvider(this.options.replicaRpcProvider)
+    )
+    if (this.options.checkTxWriteLatency) {
+      this.initTxLatencyCheck()
+    }
   }
 
   initMetrics = (): ReplicaMetrics => {
@@ -69,6 +85,11 @@ export class HealthcheckServer {
         help: 'Block number of the latest block from the sequencer',
         registers: [metrics.registry],
       }),
+      txWriteLatencyMs: new metrics.client.Histogram({
+        name: 'tx_write_latency_in_ms',
+        help: 'The latency of sending a write transaction through a replica in ms',
+        registers: [metrics.registry],
+      }),
     }
   }
 
@@ -91,17 +112,77 @@ export class HealthcheckServer {
     return server
   }
 
+  initTxLatencyCheck = () => {
+    // Check latency for every Monday
+    cron.schedule('0 0 * * 1', this.runTxLatencyCheck)
+  }
+
+  runTxLatencyCheck = async () => {
+    const wallet1 = new Wallet(
+      this.options.txWriteOptions.wallet1PrivateKey,
+      this.replicaProvider
+    )
+    const wallet2 = new Wallet(
+      this.options.txWriteOptions.wallet2PrivateKey,
+      this.replicaProvider
+    )
+
+    // Send funds between the 2 addresses
+    try {
+      const res1 = await this.getLatencyForSend(wallet1, wallet2)
+      this.logger.info('Sent transaction from wallet1 to wallet2', {
+        latencyMs: res1.latencyMs,
+        status: res1.status,
+      })
+
+      const res2 = await this.getLatencyForSend(wallet2, wallet2)
+      this.logger.info('Sent transaction from wallet2 to wallet1', {
+        latencyMs: res2.latencyMs,
+        status: res2.status,
+      })
+    } catch (err) {
+      this.logger.error('Failed to get tx write latency', {
+        message: err.toString(),
+        stack: err.stack,
+        code: err.code,
+        wallet1: wallet1.address,
+        wallet2: wallet2.address,
+      })
+    }
+  }
+
+  getLatencyForSend = async (
+    from: Wallet,
+    to: Wallet
+  ): Promise<{
+    latencyMs: number
+    status: number
+  }> => {
+    const fromBal = await from.getBalance()
+    if (fromBal.isZero()) {
+      throw new Error('Wallet balance is zero, cannot make test transaction')
+    }
+
+    const startTime = new Date()
+    const tx = await from.sendTransaction({
+      to: to.address,
+      value: fromBal.div(2), // send half
+    })
+    const { status } = await tx.wait()
+    const endTime = new Date()
+    const latencyMs = endTime.getTime() - startTime.getTime()
+    this.metrics.txWriteLatencyMs.observe(latencyMs)
+    return { latencyMs, status }
+  }
+
   runSyncCheck = async () => {
     const sequencerProvider = injectL2Context(
-      new providers.JsonRpcProvider(this.options.sequencerRpcProvider)
-    )
-    const replicaProvider = injectL2Context(
-      new providers.JsonRpcBatchProvider(this.options.replicaRpcProvider)
+      new providers.StaticJsonRpcProvider(this.options.sequencerRpcProvider)
     )
 
     // Continuously loop while replica runs
     while (true) {
-      let replicaLatest = (await replicaProvider.getBlock('latest')) as any
+      let replicaLatest = (await this.replicaProvider.getBlock('latest')) as any
       const sequencerCorresponding = (await sequencerProvider.getBlock(
         replicaLatest.number
       )) as any
@@ -112,7 +193,7 @@ export class HealthcheckServer {
         )
         const firstMismatch = await binarySearchForMismatch(
           sequencerProvider,
-          replicaProvider,
+          this.replicaProvider,
           replicaLatest.number,
           this.logger
         )
@@ -129,7 +210,7 @@ export class HealthcheckServer {
       })
       this.metrics.lastMatchingStateRootHeight.set(replicaLatest.number)
 
-      replicaLatest = await replicaProvider.getBlock('latest')
+      replicaLatest = await this.replicaProvider.getBlock('latest')
       const sequencerLatest = await sequencerProvider.getBlock('latest')
       this.logger.info('Syncing from sequencer', {
         sequencerHeight: sequencerLatest.number,
@@ -145,7 +226,7 @@ export class HealthcheckServer {
           'Replica caught up with sequencer, waiting for next block'
         )
         await sleep(1_000)
-        replicaLatest = await replicaProvider.getBlock('latest')
+        replicaLatest = await this.replicaProvider.getBlock('latest')
       }
     }
   }
