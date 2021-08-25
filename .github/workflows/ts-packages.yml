@@ -102,7 +102,6 @@ jobs:
         continue-on-error: true
       - uses: codecov/codecov-action@v1
         with:
-          files: ./packages/contracts/coverage.json
           fail_ci_if_error: false
           verbose: true
   lint:
