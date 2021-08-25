@@ -51,6 +51,7 @@ type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
       useSentry: config.bool('use-sentry', false),
       sentryDsn: config.str('sentry-dsn'),
       sentryTraceRate: config.ufloat('sentry-trace-rate', 0.05),
+      ctcDeploymentHeight: config.uint('eth1-ctc-deployment-height') || 0,
     })
 
     await service.start()

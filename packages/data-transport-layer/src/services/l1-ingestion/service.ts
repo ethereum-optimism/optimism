@@ -439,6 +439,10 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
   private async _findStartingL1BlockNumber(): Promise<number> {
     const currentL1Block = await this.state.l1RpcProvider.getBlockNumber()
 
+    if (this.options.ctcDeploymentHeight) {
+      return this.options.ctcDeploymentHeight
+    }
+
     for (let i = 0; i < currentL1Block; i += 1000000) {
       const events = await this.state.contracts.Lib_AddressManager.queryFilter(
         this.state.contracts.Lib_AddressManager.filters.OwnershipTransferred(),
