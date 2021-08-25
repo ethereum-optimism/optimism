@@ -54,24 +54,24 @@ jobs:
       - name: Build
         run: yarn build
 
-      - name: Setup Canary Snapshot
-        run: yarn changeset version --snapshot
+      # - name: Setup Canary Snapshot
+      #   run: yarn changeset version --snapshot
 
-      - name: Publish To NPM
-        uses: changesets/action@master
-        id: changesets
-        with:
-          publish: yarn changeset publish --tag canary
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # - name: Publish To NPM
+      #   uses: changesets/action@master
+      #   id: changesets
+      #   with:
+      #     publish: yarn changeset publish --tag canary
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Conditional on the release being executed, we unbundle the publishedPackages to specific
       # job outputs
-      - name: Get version tags from each published version
-        id: packages
-        run: |
-          node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
+      # - name: Get version tags from each published version
+      #   id: packages
+      #   run: |
+      #     node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
 
       - name: Docker Image Name
         id: docker-image-name

@@ -43,7 +43,7 @@ export abstract class BatchSubmitter {
 
   constructor(
     readonly signer: Signer,
-    readonly l2Provider: providers.JsonRpcProvider,
+    readonly l2Provider: providers.StaticJsonRpcProvider,
     readonly minTxSize: number,
     readonly maxTxSize: number,
     readonly maxBatchSize: number,

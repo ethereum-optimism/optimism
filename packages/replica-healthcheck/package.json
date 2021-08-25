@@ -22,7 +22,7 @@
   "devDependencies": {
     "@types/express": "^4.17.12",
     "@types/node": "^15.12.2",
-    "dotenv": "^10.0.0",
+    "@types/node-cron": "^2.0.4",
     "supertest": "^6.1.4",
     "ts-mocha": "^8.0.0",
     "ts-node": "^10.0.0",
@@ -31,9 +31,11 @@
   "dependencies": {
     "@eth-optimism/common-ts": "0.1.5",
     "@eth-optimism/core-utils": "^0.5.1",
-    "ethers": "^5.3.0",
+    "ethers": "^5.4.5",
+    "dotenv": "^10.0.0",
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
+    "node-cron": "^3.0.0",
     "prom-client": "^13.1.0"
   }
 }

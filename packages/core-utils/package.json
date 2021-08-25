@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "main": "dist/index",
   "files": [
     "dist/*"
@@ -44,8 +44,8 @@
     "typescript": "^4.2.3"
   },
   "dependencies": {
-    "@ethersproject/abstract-provider": "^5.0.9",
-    "ethers": "^5.0.31",
+    "@ethersproject/abstract-provider": "^5.4.1",
+    "ethers": "^5.4.5",
     "lodash": "^4.17.21"
   }
 }

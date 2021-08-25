@@ -46,8 +46,8 @@ jobs:
       - name: Build
         run: yarn build
 
-      - name: Setup Canary Snapshot
-        run: yarn changeset version --snapshot
+      # - name: Setup Canary Snapshot
+      #   run: yarn changeset version --snapshot
       
       # #Turn off until we have npm set up
       # - name: Publish To NPM

@@ -42,7 +42,3 @@ M-hardhat-ovm:
 
 M-ops:
   - any: ['ops/**/*']
-
-M-smock:
-  - any: ['packages/smock/**/*']
-

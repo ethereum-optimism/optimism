@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-ovm
 
+## 0.2.3
+
+### Patch Changes
+
+- 918c08ca: Bump ethers dependency to 5.4.x to support eip1559
+
 ## 0.2.2
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @eth-optimism/message-relayer
 
+## 0.1.11
+
+### Patch Changes
+
+- 918c08ca: Bump ethers dependency to 5.4.x to support eip1559
+- Updated dependencies [918c08ca]
+  - @eth-optimism/contracts@0.4.10
+  - @eth-optimism/core-utils@0.5.2
+
+## 0.1.10
+
+### Patch Changes
+
+- ecc2f8c1: Patch so contracts package will correctly use the browser-compatible contract artifacts import
+- Updated dependencies [ecc2f8c1]
+  - @eth-optimism/contracts@0.4.9
+
 ## 0.1.9
 
 ### Patch Changes
