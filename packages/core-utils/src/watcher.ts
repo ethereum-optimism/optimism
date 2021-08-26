@@ -11,19 +11,23 @@ export interface WatcherOptions {
   l1: Layer
   l2: Layer
   pollInterval?: number
+  blocksToFetch?: number
 }
 
 export class Watcher {
   public l1: Layer
   public l2: Layer
   public pollInterval = 3000
-  public NUM_BLOCKS_TO_FETCH = 9_999
+  public blocksToFetch = 2000
 
   constructor(opts: WatcherOptions) {
     this.l1 = opts.l1
     this.l2 = opts.l2
     if (opts.pollInterval) {
       this.pollInterval = opts.pollInterval
+    }
+    if (opts.blocksToFetch) {
+      this.blocksToFetch = opts.blocksToFetch
     }
   }
 
@@ -83,7 +87,7 @@ export class Watcher {
     // scan for transaction with specified message
     while (matches.length === 0) {
       const blockNumber = await layer.provider.getBlockNumber()
-      const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
+      const startingBlock = Math.max(blockNumber - this.blocksToFetch, 0)
       const successFilter: ethers.providers.Filter = {
         address: layer.messengerAddress,
         topics: [ethers.utils.id(`RelayedMessage(bytes32)`)],
