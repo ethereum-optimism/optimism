@@ -83,11 +83,6 @@ Resources:
           Environment:
             - Name: SECRETNAME
               Value: !Ref SecretName
-            - Name: L1_NODE_WEB3_URL
-              Value: !Sub
-                - "https://${EndpointAddress}:6001"
-                - EndpointAddress:
-                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
             - Name: L2_NODE_WEB3_URL
               Value: !Sub
                 - "https://${EndpointAddress}"

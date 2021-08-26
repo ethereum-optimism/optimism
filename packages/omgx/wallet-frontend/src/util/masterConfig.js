@@ -65,7 +65,7 @@ const NETWORKS = {
     },
     L2: {
       name: "Rinkeby Integration L2",
-      chainId: 28,
+      chainId: 29,
       rpcUrl: `https://rinkeby-integration.boba.network`,
       blockExplorer: `https://blockexplorer.boba.network/?network=Rinkeby%20Test`,
       transaction: `https://blockexplorer.boba.network/tx/`,

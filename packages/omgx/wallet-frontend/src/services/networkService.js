@@ -411,7 +411,7 @@ class NetworkService {
         //ok, that's reasonable
         //rinkeby, L1
         this.L1orL2 = 'L1'
-      } else if (masterSystemConfig === 'rinkeby_integration' && network.chainId === 28) {
+      } else if (masterSystemConfig === 'rinkeby_integration' && network.chainId === 29) {
         //ok, that's reasonable
         //rinkeby, L2
         this.L1orL2 = 'L2'

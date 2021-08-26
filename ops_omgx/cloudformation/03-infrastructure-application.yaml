@@ -292,6 +292,10 @@ Resources:
                   - "elasticloadbalancing:DescribeTargetGroups"
                   - "elasticloadbalancing:DescribeTargetHealth"
                   - "elasticloadbalancing:RegisterTargets"
+                  - "elasticfilesystem:ClientMount"
+                  - "elasticfilesystem:ClientRootAccess"
+                  - "elasticfilesystem:ClientWrite"
+                  - "elasticfilesystem:DescribeMountTargets"
                 Resource: "*"
 
   EcsInstanceProfile:

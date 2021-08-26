@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - develop
+      - wallet-integration
 
 jobs:
   push2aws:
