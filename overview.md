@@ -31,7 +31,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
           - step witness parts can be represented as `generalized index -> bytes32`, 
             to simplify interaction with the partial structure (no tree management, every lookup is a simple math evaluation to get the right key)
           - involved contract code entries can be large, TBD if put in storage or better of in call-data
-          - MPT nodes just are just a dict (of internal MPT node hash to MPT node content)
+          - MPT nodes are just a dict (of internal MPT node hash to MPT node content)
       - Runs verification step
       - Registers result in bond-manager (slash sequencer, reward challenger, or vice-versa if spam attempt)
   - **Optimistic Gateway**
