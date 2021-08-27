@@ -34,7 +34,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
           - MPT nodes are just a dict (of internal MPT node hash to MPT node content)
       - Runs verification step
       - Registers result in bond-manager (slash sequencer, reward challenger, or vice-versa if spam attempt)
-  - **Optimistic Gateway**
+  - **Optimistic Bridge**
     - Log authorized calls as forced L2 transactions
       - Enables Deposits
     - Verify L2 data statelessly with MPT proof to undisputed state-root
