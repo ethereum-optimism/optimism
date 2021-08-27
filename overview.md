@@ -15,7 +15,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
     - Block-insertion: Eth1 node has specialized EVM and DB, valuable for L2, instead of reinventing the wheel
   - Leverage sync: insert latest blocks from rollup node (pull from L1), but do state-sync via L2 p2p network
   - Leverage tx propagation (happy case, if not forcing tx via L1): L2 user sends transaction to any sequencer, via tx pool. Anyone can bond to be a sequencer
-  - Fee model fit: EIP1559 on L2, on actual L2 capacity usage
+  - Fee model fit: EIP1559 on L2, on actual L2 block-capacity usage. (note: L2 gas-limit of blocks may adjust based on L1 data cost)
 
 ## Components
 
@@ -41,7 +41,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
       - Enables Withdrawals
 - **Rollup node** (previously "Data Transport Layer"):
   - Sync data from the L1: call payload-insertion method of Engine API
-  - Track L1 data tip, and track state-roots: call forkchoice method of Engine API to finalize (undisputed state root) and reorg ()
+  - Track L1 data tip, and track state-roots: call forkchoice method of Engine API to finalize (undisputed state root) and reorg (follow head derived from L1)
   - Create execution payloads:
     - L2 Blocks as a whole from the L1 (i.e. include header data for batch of transactions) (TBD)
     - Follow rollup rules to batch remaining individual transactions
