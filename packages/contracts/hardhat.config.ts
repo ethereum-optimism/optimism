@@ -42,6 +42,20 @@ const config: HardhatUserConfig = {
       ovm: true,
       saveDeployments: false,
     },
+    'optimism-kovan': {
+      chainId: 69,
+      url: 'https://kovan.optimism.io',
+      accounts: [process.env.PRIVATE_KEY],
+      gasPrice: 15000000,
+      ovm: true,
+    },
+    'optimism-mainnet': {
+      chainId: 10,
+      url: 'https://mainnet.optimism.io',
+      accounts: [process.env.PRIVATE_KEY],
+      gasPrice: 15000000,
+      ovm: true,
+    }
   },
   mocha: {
     timeout: 50000,
@@ -81,6 +95,9 @@ const config: HardhatUserConfig = {
     currency: 'USD',
     gasPrice: 100,
     outputFile: process.env.CI ? 'gas-report.txt' : undefined,
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY,
   },
 }
 
