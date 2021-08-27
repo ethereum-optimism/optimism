@@ -146,7 +146,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       'BlockHashGetter'
     )
     const blockHashGetter = await blockHashGetterFactory.deploy()
-    const currentBlock = await ethers.provider.getBlockNumber()
+    const currentBlock = await env.l2Wallet.provider.getBlockNumber()
 
     // Go over the last 10 blocks and make sure that the blockhash is zero.
     for (let i = currentBlock - 1; i >= Math.max(currentBlock - 10, 0); i++) {
