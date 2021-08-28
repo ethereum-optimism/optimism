@@ -1,2 +1,0 @@
-# Fraud Proof Generator
-
