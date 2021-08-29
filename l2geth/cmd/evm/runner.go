@@ -124,7 +124,9 @@ func runCmd(ctx *cli.Context) error {
 	} else {
 		debugLogger = vm.NewStructLogger(logconfig)
 	}
+	fmt.Println("NOTE: genesis...")
 	if ctx.GlobalString(GenesisFlag.Name) != "" {
+		fmt.Println("NOTE: debug genesis, use existing, " + ctx.GlobalString(GenesisFlag.Name))
 		gen := readGenesis(ctx.GlobalString(GenesisFlag.Name))
 		genesisConfig = gen
 		db := rawdb.NewMemoryDatabase()
@@ -132,6 +134,7 @@ func runCmd(ctx *cli.Context) error {
 		statedb, _ = state.New(genesis.Root(), state.NewDatabase(db))
 		chainConfig = gen.Config
 	} else {
+		fmt.Println("NOTE: debug genesis, new genesis")
 		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 		genesisConfig = new(core.Genesis)
 	}
