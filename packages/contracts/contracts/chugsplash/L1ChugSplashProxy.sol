@@ -25,16 +25,18 @@ contract L1ChugSplashProxy {
     bytes13 constant internal DEPLOY_CODE_PREFIX = 0x600D380380600D6000396000f3;
 
     // bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
-    bytes32 constant internal IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 constant internal IMPLEMENTATION_KEY =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     // bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
-    bytes32 constant internal OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 constant internal OWNER_KEY =
+        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
 
     /***************
      * Constructor *
      ***************/
-    
+
     /**
      * @param _owner Address of the initial contract owner.
      */
@@ -286,7 +288,7 @@ contract L1ChugSplashProxy {
      */
     function _getOwner()
         internal
-        view 
+        view
         returns (
             address
         )
@@ -344,7 +346,7 @@ contract L1ChugSplashProxy {
             // overwrite the calldata that we just copied into memory but that doesn't really
             // matter because we'll be returning in a second anyway.
             returndatacopy(0x0, 0x0, returndatasize())
-            
+
             // Success == 0 means a revert. We'll revert too and pass the data up.
             if iszero(success) {
                 revert(0x0, returndatasize())
