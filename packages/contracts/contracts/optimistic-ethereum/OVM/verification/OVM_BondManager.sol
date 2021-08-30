@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
-import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
+import { iOVM_BondManager } from "./iOVM_BondManager.sol";
 
 /* Contract Imports */
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";

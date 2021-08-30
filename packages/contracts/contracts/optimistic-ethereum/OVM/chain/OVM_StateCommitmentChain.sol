@@ -11,7 +11,7 @@ import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 import { iOVM_CanonicalTransactionChain } from
     "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_BondManager } from "../../iOVM/verification/iOVM_BondManager.sol";
+import { iOVM_BondManager } from "../verification/iOVM_BondManager.sol";
 import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageContainer.sol";
 
 /* External Imports */
