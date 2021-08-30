@@ -1,4 +1,4 @@
-import { expect } from '../../../../setup'
+import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
@@ -19,9 +19,9 @@ import {
   TrieTestGenerator,
   getNextBlockNumber,
   encodeXDomainCalldata,
-} from '../../../../helpers'
+} from '../../../helpers'
 import { keccak256 } from 'ethers/lib/utils'
-import { predeploys } from '../../../../../src'
+import { predeploys } from '../../../../src'
 
 const MAX_GAS_LIMIT = 8_000_000
 
