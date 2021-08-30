@@ -11,11 +11,9 @@ import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_Predepl
 import { Lib_CrossDomainUtils } from "../../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
-import { iOVM_L1CrossDomainMessenger } from
-    "./iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_CanonicalTransactionChain } from
-    "../../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_StateCommitmentChain } from "../../../iOVM/chain/iOVM_StateCommitmentChain.sol";
+import { iOVM_L1CrossDomainMessenger } from "./iOVM_L1CrossDomainMessenger.sol";
+import { iOVM_CanonicalTransactionChain } from "../../chain/iOVM_CanonicalTransactionChain.sol";
+import { iOVM_StateCommitmentChain } from "../../chain/iOVM_StateCommitmentChain.sol";
 
 /* External Imports */
 import { OwnableUpgradeable } from
