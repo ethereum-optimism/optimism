@@ -3,8 +3,8 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_AddressResolver } from "../../../libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_CrossDomainUtils } from "../../../libraries/bridge/Lib_CrossDomainUtils.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "./iOVM_L2CrossDomainMessenger.sol";

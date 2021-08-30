@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_SecureMerkleTrie } from "../../optimistic-ethereum/libraries/trie/Lib_SecureMerkleTrie.sol";
+import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /**
  * @title TestLib_SecureMerkleTrie
