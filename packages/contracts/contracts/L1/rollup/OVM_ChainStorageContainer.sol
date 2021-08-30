@@ -2,8 +2,8 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
-import { Lib_Buffer } from "../libraries/utils/Lib_Buffer.sol";
-import { Lib_AddressResolver } from "../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_Buffer } from "../../libraries/utils/Lib_Buffer.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
 import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";

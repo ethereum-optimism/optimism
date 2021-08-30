@@ -4,9 +4,9 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_OVMCodec } from "../libraries/codec/Lib_OVMCodec.sol";
-import { Lib_AddressResolver } from "../libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_MerkleTree } from "../libraries/utils/Lib_MerkleTree.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
 import { iOVM_CanonicalTransactionChain } from "./iOVM_CanonicalTransactionChain.sol";
