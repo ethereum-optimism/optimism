@@ -8,7 +8,7 @@ import ganache from 'ganache-core'
 import sinon from 'sinon'
 import { Web3Provider } from '@ethersproject/providers'
 
-import scc from '@eth-optimism/contracts/artifacts/contracts/optimistic-ethereum/OVM/chain/OVM_StateCommitmentChain.sol/OVM_StateCommitmentChain.json'
+import scc from '@eth-optimism/contracts/artifacts/contracts/L1/rollup/OVM_StateCommitmentChain.sol/OVM_StateCommitmentChain.json'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
