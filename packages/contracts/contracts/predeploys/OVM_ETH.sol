@@ -2,11 +2,11 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
-import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
-import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
-import { IWETH9 } from "../../libraries/standards/IWETH9.sol";
+import { L2StandardERC20 } from "../libraries/standards/L2StandardERC20.sol";
+import { IWETH9 } from "../libraries/standards/IWETH9.sol";
 
 /**
  * @title OVM_ETH
