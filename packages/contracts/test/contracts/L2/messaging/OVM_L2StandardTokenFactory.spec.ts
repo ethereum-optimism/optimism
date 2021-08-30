@@ -1,4 +1,4 @@
-import { expect } from '../../../../setup'
+import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
@@ -6,7 +6,7 @@ import { Signer, ContractFactory, Contract } from 'ethers'
 import { smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { predeploys, getContractInterface } from '../../../../../src'
+import { predeploys, getContractInterface } from '../../../../src'
 
 describe('OVM_L2StandardTokenFactory', () => {
   let signer: Signer
