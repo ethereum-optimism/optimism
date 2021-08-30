@@ -69,8 +69,8 @@ function WalletPicker ({ onEnable, enabled }) {
     }
 
     async function enableBrowserWallet () {
-      //console.log("enableBrowserWallet() for",masterConfig)
-      const selectedNetwork = masterConfig ? masterConfig : "local";
+      // The default network is rinkeby
+      const selectedNetwork = masterConfig ? masterConfig : "rinkeby";
       const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
       //console.log("walletEnabled:",walletEnabled)
       return walletEnabled

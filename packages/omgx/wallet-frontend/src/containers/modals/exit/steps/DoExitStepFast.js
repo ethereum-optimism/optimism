@@ -85,7 +85,7 @@ function DoExitStepFast({ handleClose, token }) {
 
   useEffect(() => {
     if (typeof(token) !== 'undefined') {
-      networkService.L1LPBalance(token.address).then((res) => {
+      networkService.L1LPBalance(token.addressL1).then((res) => {
         setLPBalance(Number(res).toFixed(2))
       })
       networkService.getTotalFeeRate().then((feeRate) => {

@@ -11,6 +11,7 @@ import zrxLogo from 'images/zrx.svg';
 import linkLogo from 'images/link.svg';
 import dodoLogo from 'images/dodo.svg';
 import uniLogo from 'images/uni.png';
+import omgLogo from 'images/omg.png';
 
 export const getCoinImage = (symbol) => {
   let logo = null;
@@ -60,6 +61,9 @@ export const getCoinImage = (symbol) => {
       break;
     case "JLKN":
       logo = TESTLogo;
+      break;
+    case "OMG":
+      logo = omgLogo;
       break;
     default:
       logo = ethLogo;

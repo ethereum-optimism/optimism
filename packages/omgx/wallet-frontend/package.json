@@ -8,11 +8,12 @@
     "get_artifacts": "./scripts/get_all_artifacts.sh",
     "serve": "npm run buildenv-prod && serve -s build -l 3000 -c public/serve.json",
     "start": "npm run buildenv-dev && react-scripts start",
-    "build:deploy": "GENERATE_SOURCEMAP=false react-scripts build",
+    "build:prod": "GENERATE_SOURCEMAP=false REACT_APP_ENV=prod react-scripts build",
+    "build:dev": "GENERATE_SOURCEMAP=false REACT_APP_ENV=dev react-scripts build",
     "audit-check": "audit-ci --moderate",
     "postinstall": "patch-package",
-    "deploy": "aws s3 rm s3://boba-gateway --recursive && aws s3 sync build s3://boba-gateway && aws s3 cp s3://boba-gateway/index.html s3://boba-gateway/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html",
-    "deploy-integration": "aws s3 rm s3://omgx-wallet-integration --recursive && aws s3 sync build s3://omgx-wallet-integration && aws s3 cp s3://omgx-wallet-integration/index.html s3://omgx-wallet-integration/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html"
+    "deploy:prod": "GENERATE_SOURCEMAP=false REACT_APP_ENV=prod react-scripts build && aws s3 rm s3://boba-gateway --recursive && aws s3 sync build s3://boba-gateway && aws s3 cp s3://boba-gateway/index.html s3://boba-gateway/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html",
+    "deploy:dev": "GENERATE_SOURCEMAP=false REACT_APP_ENV=dev react-scripts build && aws s3 rm s3://boba-gateway-test --recursive && aws s3 sync build s3://boba-gateway-test && aws s3 cp s3://boba-gateway-test/index.html s3://boba-gateway-test/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html"
   },
   "dependencies": {
     "@eth-optimism/contracts": "^0.4.1",

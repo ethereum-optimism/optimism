@@ -363,7 +363,7 @@ class NetworkService {
       } else if (masterSystemConfig === 'mainnet') {
         addresses = mainnetAddresses
         console.log('Mainnet Addresses:', addresses)
-      } else if (masterSystemConfig === 'rinkeby_integration') {
+      } else if (masterSystemConfig === 'rinkeby-integration') {
         addresses = rinkebyIntegrationAddresses
         console.log('Rinkeby Integration Addresses:', addresses)
       }
@@ -407,7 +407,7 @@ class NetworkService {
         //ok, that's reasonable
         //rinkeby, L2
         this.L1orL2 = 'L2'
-      } else if (masterSystemConfig === 'rinkeby_integration' && network.chainId === 4) {
+      } else if (masterSystemConfig === 'rinkeby-integration' && network.chainId === 4) {
         //ok, that's reasonable
         //rinkeby, L1
         this.L1orL2 = 'L1'
@@ -1678,11 +1678,8 @@ class NetworkService {
       tokenAddressLC === this.L1_ETH_Address
     ) {
       balance = await this.L1Provider.getBalance(this.L1LPAddress)
-    } else if (
-      tokenAddressLC === this.L2_TEST_Address.toLowerCase() ||
-      tokenAddressLC === this.L1_TEST_Address.toLowerCase()
-    ) {
-      balance = await this.L1_TEST_Contract.connect(this.L1Provider).balanceOf(
+    } else {
+      balance = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).balanceOf(
         this.L1LPAddress
       )
     }
@@ -1710,12 +1707,8 @@ class NetworkService {
       balance = await this.L2_ETH_Contract.connect(this.L2Provider).balanceOf(
         this.L2LPAddress
       )
-    } else if (
-      tokenAddressLC === this.L2_TEST_Address.toLowerCase() ||
-      tokenAddressLC === this.L1_TEST_Address.toLowerCase()
-    ) {
-      //we are dealing with TEST
-      balance = await this.L2_TEST_Contract.connect(this.L2Provider).balanceOf(
+    } else {
+      balance = await this.L2_TEST_Contract.attach(tokenAddress).connect(this.L2Provider).balanceOf(
         this.L2LPAddress
       )
     }

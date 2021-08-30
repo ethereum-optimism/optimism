@@ -31,45 +31,63 @@ def watcher_getTransactions(event, context):
 
   transactionData = []
   with con.cursor() as cur:
-    try:
-      cur.execute("""SELECT hash, blockNumber, `from`, `to`, timestamp, crossDomainMessage, crossDomainMessageFinalize, crossDomainMessageSendTime, crossDomainMessageEstimateFinalizedTime, fastRelay,
-        l1Hash, l1BlockNumber, l1BlockHash, l1From, l1To
-        FROM receipt WHERE `from`=%s ORDER BY CAST(blockNumber as unsigned) DESC LIMIT %s OFFSET %s""", (address, toRange - fromRange, fromRange))
-      transactionsDataRaw = cur.fetchall()
+    if address != "":
+      try:
+        cur.execute("""SELECT hash, blockNumber, `from`, `to`, timestamp, crossDomainMessage, crossDomainMessageFinalize, crossDomainMessageSendTime, crossDomainMessageEstimateFinalizedTime, fastRelay,
+          l1Hash, l1BlockNumber, l1BlockHash, l1From, l1To
+          FROM receipt WHERE `from`=%s ORDER BY CAST(blockNumber as unsigned) DESC LIMIT %s OFFSET %s""", (address, toRange - fromRange, fromRange))
+        transactionsDataRaw = cur.fetchall()
 
-      for transactionDataRaw in transactionsDataRaw:
-        if transactionDataRaw[5] == False:
-          crossDomainMessageSendTime, crossDomainMessageEstimateFinalizedTime, fastRelay = None, None, None
-        else:
-          crossDomainMessageSendTime, fastRelay = transactionDataRaw[7], transactionDataRaw[9]
-          if fastRelay == True:
-            # Estimate time is 3 minutes
-            crossDomainMessageEstimateFinalizedTime = crossDomainMessageSendTime + 60 * 3
+        for transactionDataRaw in transactionsDataRaw:
+          if transactionDataRaw[5] == False:
+            crossDomainMessageSendTime, crossDomainMessageEstimateFinalizedTime, fastRelay = None, None, None
           else:
-            # Estimate time is 7 days
-            crossDomainMessageEstimateFinalizedTime = crossDomainMessageSendTime + 60 * 60 * 24 * 7
+            crossDomainMessageSendTime, fastRelay = transactionDataRaw[7], transactionDataRaw[9]
+            if fastRelay == True:
+              # Estimate time is 3 minutes
+              crossDomainMessageEstimateFinalizedTime = crossDomainMessageSendTime + 60 * 3
+            else:
+              # Estimate time is 7 days
+              crossDomainMessageEstimateFinalizedTime = crossDomainMessageSendTime + 60 * 60 * 24 * 7
 
-        transactionData.append({
-          "hash": transactionDataRaw[0],
-          "blockNumber": int(transactionDataRaw[1]),
-          "from": transactionDataRaw[2],
-          "to": transactionDataRaw[3],
-          "timeStamp": transactionDataRaw[4],
-          "crossDomainMessage": transactionDataRaw[5],
-          "crossDomainMessageFinailze": transactionDataRaw[6],
-          "crossDomainMessageSendTime": crossDomainMessageSendTime,
-          "crossDomainMessageEstimateFinalizedTime": crossDomainMessageEstimateFinalizedTime,
-          "fastRelay": fastRelay,
-          "l1Hash": transactionDataRaw[10],
-          "l1BlockNumber": transactionDataRaw[11],
-          "l1BlockHash": transactionDataRaw[12],
-          "l1From": transactionDataRaw[13],
-          "l1To": transactionDataRaw[14]
-        })
+          transactionData.append({
+            "hash": transactionDataRaw[0],
+            "blockNumber": int(transactionDataRaw[1]),
+            "from": transactionDataRaw[2],
+            "to": transactionDataRaw[3],
+            "timeStamp": transactionDataRaw[4],
+            "crossDomainMessage": transactionDataRaw[5],
+            "crossDomainMessageFinailze": transactionDataRaw[6],
+            "crossDomainMessageSendTime": crossDomainMessageSendTime,
+            "crossDomainMessageEstimateFinalizedTime": crossDomainMessageEstimateFinalizedTime,
+            "fastRelay": fastRelay,
+            "l1Hash": transactionDataRaw[10],
+            "l1BlockNumber": transactionDataRaw[11],
+            "l1BlockHash": transactionDataRaw[12],
+            "l1From": transactionDataRaw[13],
+            "l1To": transactionDataRaw[14]
+          })
 
-    except Exception as e:
-      print(e)
-      transactionData = []
+      except Exception as e:
+        print(e)
+        transactionData = []
+    else:
+      try:
+        cur.execute("""SELECT hash, blockNumber, `from`, `to`, timestamp, gasUsed
+          FROM receipt ORDER BY CAST(blockNumber as unsigned) DESC LIMIT %s OFFSET %s""", (toRange - fromRange, fromRange))
+        transactionsDataRaw = cur.fetchall()
+        for transactionDataRaw in transactionsDataRaw:
+          transactionData.append({
+            "hash": transactionDataRaw[0],
+            "blockNumber": int(transactionDataRaw[1]),
+            "from": transactionDataRaw[2],
+            "to": transactionDataRaw[3],
+            "timeStamp": transactionDataRaw[4],
+            "gasUsed": transactionDataRaw[5]
+          })
+      except Exception as e:
+        print(e)
+        transactionData = []
 
   con.close()
 

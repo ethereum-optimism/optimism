@@ -68,7 +68,10 @@ class Farm extends React.Component {
     this.props.dispatch(getFarmInfo());
 
     if (networkService.masterSystemConfig === 'mainnet') {
-      this.props.dispatch(openError('You are attempting to use Mainnet Beta! Your funds can be lost!'))
+      this.props.dispatch(openError(`You are using Mainnet Beta.
+        WARNING: the mainnet smart contracts are not fully audited and funds may
+        be at risk. Please exercise caution when using mainnet beta.`
+      ))
     }
   }
 

@@ -15,24 +15,11 @@ limitations under the License. */
 
 require('dotenv').config()
 
-const NETWORKS = {
-  local: {
-    addressUrl:       `http://${window.location.hostname}:8080/addresses.json`,
-    addressOMGXUrl:   `http://${window.location.hostname}:8078/addresses.json`,
-    OMGX_WATCHER_URL: null, //Does not exist on local
-    L1: {
-      name: "Local L1",
-      chainId: 31337,
-      rpcUrl: `http://${window.location.hostname}:9545`,
-      blockExplorer: null, //does not exist on local
-    },
-    L2: {
-      name: "Local L2",
-      chainId: 28,
-      rpcUrl: `http://${window.location.hostname}:8545`,
-      blockExplorer: null, //does not exist on local
-    },
-  },
+const env = process.env.REACT_APP_ENV;
+
+let NETWORKS;
+
+NETWORKS = {
   rinkeby: {
     addressUrl:       `https://rinkeby.boba.network:8080/addresses.json`,
     addressOMGXUrl:   `https://rinkeby.boba.network:8078/addresses.json`,
@@ -49,25 +36,6 @@ const NETWORKS = {
       chainId: 28,
       rpcUrl: `https://rinkeby.boba.network`,
       blockExplorer: `https://blockexplorer.boba.network/?network=Rinkeby`,
-      transaction: `https://blockexplorer.boba.network/tx/`,
-    }
-  },
-  "rinkeby-integration": {
-    addressUrl:       `https://rinkeby-integration.boba.network:8081/addresses.json`,
-    addressOMGXUrl:   `https://rinkeby-integration.boba.network:8081/omgx-addr.json`,
-    OMGX_WATCHER_URL: `https://api-watcher.rinkeby-integration.boba.network/`,
-    L1: {
-      name: "Rinkeby Integration L1",
-      chainId: 4,
-      rpcUrl: `https://rinkeby.infura.io/v3/${process.env.REACT_APP_INFURA_ID}`,
-      blockExplorer: `https://api-rinkeby.etherscan.io/api?module=account&action=txlist&startblock=0&endblock=99999999&sort=asc&apikey=${process.env.REACT_APP_ETHERSCAN_API}`,
-      transaction: `https://rinkeby.etherscan.io/tx/`,
-    },
-    L2: {
-      name: "Rinkeby Integration L2",
-      chainId: 29,
-      rpcUrl: `https://rinkeby-integration.boba.network`,
-      blockExplorer: `https://blockexplorer.boba.network/?network=Rinkeby%20Test`,
       transaction: `https://blockexplorer.boba.network/tx/`,
     }
   },
@@ -89,6 +57,48 @@ const NETWORKS = {
       blockExplorer: `https://blockexplorer.boba.network/?network=Mainnet`,
       transaction: `https://blockexplorer.boba.network/tx/`,
     }
+  }
+}
+
+if (env === 'dev') {
+  NETWORKS = {
+    local: {
+      addressUrl:       `http://${window.location.hostname}:8080/addresses.json`,
+      addressOMGXUrl:   `http://${window.location.hostname}:8078/addresses.json`,
+      OMGX_WATCHER_URL: null, //Does not exist on local
+      L1: {
+        name: "Local L1",
+        chainId: 31337,
+        rpcUrl: `http://${window.location.hostname}:9545`,
+        blockExplorer: null, //does not exist on local
+      },
+      L2: {
+        name: "Local L2",
+        chainId: 28,
+        rpcUrl: `http://${window.location.hostname}:8545`,
+        blockExplorer: null, //does not exist on local
+      },
+    },
+    rinkeby_integration: {
+      addressUrl:       `https://rinkeby-integration.boba.network:8081/addresses.json`,
+      addressOMGXUrl:   `https://rinkeby-integration.boba.network:8081/omgx-addr.json`,
+      OMGX_WATCHER_URL: `https://api-watcher.rinkeby-integration.boba.network/`,
+      L1: {
+        name: "Rinkeby Integration L1",
+        chainId: 4,
+        rpcUrl: `https://rinkeby.infura.io/v3/${process.env.REACT_APP_INFURA_ID}`,
+        blockExplorer: `https://api-rinkeby.etherscan.io/api?module=account&action=txlist&startblock=0&endblock=99999999&sort=asc&apikey=${process.env.REACT_APP_ETHERSCAN_API}`,
+        transaction: `https://rinkeby.etherscan.io/tx/`,
+      },
+      L2: {
+        name: "Rinkeby Integration L2",
+        chainId: 29,
+        rpcUrl: `https://rinkeby-integration.boba.network`,
+        blockExplorer: `https://blockexplorer.boba.network/?network=Rinkeby%20Test`,
+        transaction: `https://blockexplorer.boba.network/tx/`,
+      }
+    },
+    ...NETWORKS,
   }
 }
 
