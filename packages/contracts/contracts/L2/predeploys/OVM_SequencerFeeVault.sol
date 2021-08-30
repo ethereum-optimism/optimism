@@ -2,11 +2,11 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
-import { Lib_PredeployAddresses } from "../libraries/constants/Lib_PredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
 import { OVM_ETH } from "./OVM_ETH.sol";
-import { OVM_L2StandardBridge } from "../bridge/tokens/OVM_L2StandardBridge.sol";
+import { OVM_L2StandardBridge } from "../messaging/OVM_L2StandardBridge.sol";
 
 /**
  * @title OVM_SequencerFeeVault
