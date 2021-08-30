@@ -74,7 +74,7 @@ if (env === 'dev') {
       },
       L2: {
         name: "Local L2",
-        chainId: 28,
+        chainId: 31338,
         rpcUrl: `http://${window.location.hostname}:8545`,
         blockExplorer: null, //does not exist on local
       },
