@@ -1,4 +1,4 @@
-import { expect } from '../../../../setup'
+import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
@@ -12,9 +12,9 @@ import {
 } from '@eth-optimism/smock'
 
 /* Internal Imports */
-import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../../helpers'
+import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../helpers'
 
-import { getContractInterface } from '../../../../../src'
+import { getContractInterface } from '../../../../src'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
