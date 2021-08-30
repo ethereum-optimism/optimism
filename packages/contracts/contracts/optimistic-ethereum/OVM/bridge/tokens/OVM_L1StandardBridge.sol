@@ -4,9 +4,9 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1StandardBridge } from "../../../iOVM/bridge/tokens/iOVM_L1StandardBridge.sol";
-import { iOVM_L1ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L1ERC20Bridge.sol";
-import { iOVM_L2ERC20Bridge } from "../../../iOVM/bridge/tokens/iOVM_L2ERC20Bridge.sol";
+import { iOVM_L1StandardBridge } from "./iOVM_L1StandardBridge.sol";
+import { iOVM_L1ERC20Bridge } from "./iOVM_L1ERC20Bridge.sol";
+import { iOVM_L2ERC20Bridge } from "./iOVM_L2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
