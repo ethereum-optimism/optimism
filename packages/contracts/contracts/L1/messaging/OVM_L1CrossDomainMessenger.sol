@@ -12,8 +12,8 @@ import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtil
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "./iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_CanonicalTransactionChain } from "../../chain/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_StateCommitmentChain } from "../../chain/iOVM_StateCommitmentChain.sol";
+import { iOVM_CanonicalTransactionChain } from "../rollup/iOVM_CanonicalTransactionChain.sol";
+import { iOVM_StateCommitmentChain } from "../rollup/iOVM_StateCommitmentChain.sol";
 
 /* External Imports */
 import { OwnableUpgradeable } from
