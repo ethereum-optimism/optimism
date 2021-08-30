@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >0.5.0 <0.8.0;
 
-/* Interface Imports */
-import { iOVM_DeployerWhitelist } from "../../iOVM/predeploys/iOVM_DeployerWhitelist.sol";
-
 /**
  * @title OVM_DeployerWhitelist
  * @dev The Deployer Whitelist is a temporary predeploy used to provide additional safety during the
@@ -13,7 +10,7 @@ import { iOVM_DeployerWhitelist } from "../../iOVM/predeploys/iOVM_DeployerWhite
  *
  * Runtime target: OVM
  */
-contract OVM_DeployerWhitelist is iOVM_DeployerWhitelist {
+contract OVM_DeployerWhitelist {
 
     /**********************
      * Contract Constants *
