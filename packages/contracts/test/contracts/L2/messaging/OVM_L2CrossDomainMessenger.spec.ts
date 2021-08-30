@@ -1,4 +1,4 @@
-import { expect } from '../../../../setup'
+import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
@@ -14,8 +14,8 @@ import {
   NON_ZERO_ADDRESS,
   encodeXDomainCalldata,
   getNextBlockNumber,
-} from '../../../../helpers'
-import { getContractInterface } from '../../../../../src'
+} from '../../../helpers'
+import { getContractInterface } from '../../../../src'
 
 describe('OVM_L2CrossDomainMessenger', () => {
   let signer: Signer
