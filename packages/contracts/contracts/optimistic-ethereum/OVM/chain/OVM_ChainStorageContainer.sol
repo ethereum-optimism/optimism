@@ -6,7 +6,7 @@ import { Lib_Buffer } from "../../libraries/utils/Lib_Buffer.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
-import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageContainer.sol";
+import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
 
 /**
  * @title OVM_ChainStorageContainer

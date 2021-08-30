@@ -9,9 +9,8 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
-import { iOVM_CanonicalTransactionChain } from
-    "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_ChainStorageContainer } from "../../iOVM/chain/iOVM_ChainStorageContainer.sol";
+import { iOVM_CanonicalTransactionChain } from "./iOVM_CanonicalTransactionChain.sol";
+import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
 
 /* External Imports */
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
