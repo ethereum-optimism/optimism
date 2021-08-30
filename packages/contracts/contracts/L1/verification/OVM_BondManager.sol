@@ -5,7 +5,7 @@ pragma solidity >0.5.0 <0.8.0;
 import { iOVM_BondManager } from "./iOVM_BondManager.sol";
 
 /* Contract Imports */
-import { Lib_AddressResolver } from "../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /**
  * @title OVM_BondManager
