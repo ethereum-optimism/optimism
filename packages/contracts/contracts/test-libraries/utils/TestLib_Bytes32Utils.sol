@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
-import { Lib_Bytes32Utils } from "../../optimistic-ethereum/libraries/utils/Lib_Bytes32Utils.sol";
+import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
 
 /**
  * @title TestLib_Byte32Utils

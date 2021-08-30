@@ -10,8 +10,8 @@ import { iOVM_L2ERC20Bridge } from "./iOVM_L2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
-import { OVM_CrossDomainEnabled } from "../../../libraries/bridge/OVM_CrossDomainEnabled.sol";
-import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
+import { OVM_CrossDomainEnabled } from "../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";

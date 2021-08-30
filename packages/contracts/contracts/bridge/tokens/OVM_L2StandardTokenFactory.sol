@@ -3,8 +3,8 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Contract Imports */
-import { L2StandardERC20 } from "../../../libraries/standards/L2StandardERC20.sol";
-import { Lib_PredeployAddresses } from "../../../libraries/constants/Lib_PredeployAddresses.sol";
+import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /**
  * @title OVM_L2StandardTokenFactory
