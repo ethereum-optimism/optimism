@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_Buffer } from "../../optimistic-ethereum/libraries/utils/Lib_Buffer.sol";
+import { Lib_Buffer } from "../../libraries/utils/Lib_Buffer.sol";
 
 /**
  * @title TestLib_Buffer

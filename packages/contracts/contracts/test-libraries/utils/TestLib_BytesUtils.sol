@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_BytesUtils } from "../../optimistic-ethereum/libraries/utils/Lib_BytesUtils.sol";
+import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
 import { TestERC20 } from "../../test-helpers/TestERC20.sol";
 
 /**
