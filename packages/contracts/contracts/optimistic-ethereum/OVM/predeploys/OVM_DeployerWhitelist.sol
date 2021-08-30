@@ -18,7 +18,7 @@ contract OVM_DeployerWhitelist {
 
     bool public initialized;
     bool public allowArbitraryDeployment;
-    address override public owner;
+    address public owner;
     mapping (address => bool) public whitelist;
 
 
@@ -51,7 +51,6 @@ contract OVM_DeployerWhitelist {
         address _owner,
         bool _allowArbitraryDeployment
     )
-        override
         external
     {
         if (initialized == true) {
@@ -72,7 +71,6 @@ contract OVM_DeployerWhitelist {
         address _deployer,
         bool _isWhitelisted
     )
-        override
         external
         onlyOwner
     {
@@ -86,7 +84,6 @@ contract OVM_DeployerWhitelist {
     function setOwner(
         address _owner
     )
-        override
         public
         onlyOwner
     {
@@ -100,7 +97,6 @@ contract OVM_DeployerWhitelist {
     function setAllowArbitraryDeployment(
         bool _allowArbitraryDeployment
     )
-        override
         public
         onlyOwner
     {
@@ -111,7 +107,6 @@ contract OVM_DeployerWhitelist {
      * Permanently enables arbitrary contract deployment and deletes the owner.
      */
     function enableArbitraryContractDeployment()
-        override
         external
         onlyOwner
     {
@@ -127,7 +122,6 @@ contract OVM_DeployerWhitelist {
     function isDeployerAllowed(
         address _deployer
     )
-        override
         external
         returns (
             bool
