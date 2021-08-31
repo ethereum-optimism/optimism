@@ -11,10 +11,12 @@ Enabling rollups on execution-layer data today, and shard-data in the future.
 [**Specs overview**](./overview.md) - experimental!
 
 Components (under construction):
-- [Execution Engine Usage](./components/exec_engine.md)
-- [Fraud Proof Generator](./components/fraud_proof_gen.md)
-- [Layer 1](./components/layer1.md)
-- [Rollup Node](./components/rollup_node.md)
+- [Layer 1 Contracts](./components/layer1.md)
+- [Rollup Synchronizer](./components/rollup_synchronizer.md)
+- [Execution Engine](./components/exec_engine.md)
+- [Batch Submitter](./components/batch_submitter.md)
+- [Witness Generator](./components/witness_gen.md)
+- [Challenge Agent](./components/challenge_agent.md)
 
 ## Contribute
 

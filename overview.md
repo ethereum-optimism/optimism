@@ -19,27 +19,38 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
 
 ## Components
 
-- **L1**:
-  - Data availability layer (eth1 event logs or sharding):
-    - (Batch) Transactions
-    - State roots
-  - **Bond Contract**
-  - **Dispute Game Contract**:
-      - Bi-section game on merkle tree of execution steps between the trusted start and disputed end
-  - **Verification Engine Contract**
-      - Loads witness data:
-          - step witness parts can be represented as `generalized index -> bytes32`, 
-            to simplify interaction with the partial structure (no tree management, every lookup is a simple math evaluation to get the right key)
-          - involved contract code entries can be large, TBD if put in storage or better of in call-data
-          - MPT nodes are just a dict (of internal MPT node hash to MPT node content)
-      - Runs verification step
-      - Registers result in bond-manager (slash sequencer, reward challenger, or vice-versa if spam attempt)
-  - **Optimistic Bridge**
-    - Log authorized calls as forced L2 transactions
-      - Enables Deposits
-    - Verify L2 data statelessly with MPT proof to undisputed state-root
-      - Enables Withdrawals
-- **Rollup node** (previously "Data Transport Layer"):
+![Architecture Diagram](architecture.svg)
+
+### L1 Contracts
+- **Feeds**: "Data availability layer"--append-only logs (e.g. of deposits, transactions, and batched transactions) which must guarantee that:
+  - all values and their witnesses are indexable by off-chain parties
+  - witnesses are verifiable by on-chain dispute contract
+- **State Oracle**: Cryptoeconomic light client of the L2.
+  - *Contract separation is not yet final.  Highest priority interface spec: Single-step verification API* 
+  - **Proposal Manager**: Handles conflicting state proposals to determine malicious party
+    - Maintains a set of ongoing optimistic proposals of the L2 state
+    - Ensures that state proposers are sufficiently bonded
+    - Distributes bond payouts
+  - **k-section game**
+    - executed to narrow in on the first disagreed-upon step between proposers
+    - played between two parties ("all people who agree with a proposal" may be considered a single party)
+    - merkle tree of execution steps between the trusted start and disputed end
+  - **Single Step Verifier** for executing the earliest disagreed-upon step
+    - Loads witness data:
+      - step witness parts can be represented as `generalized index -> bytes32`, 
+        to simplify interaction with the partial structure (no tree management, every lookup is a simple math evaluation to get the right key)
+      - involved contract code entries can be large, TBD if put in storage or better of in call-data
+      - MPT nodes are just a dict (of internal MPT node hash to MPT node content)
+    - Runs verification step
+    - Registers result in bond-manager (slash sequencer, reward challenger, or vice-versa if spam attempt)
+- **Cross-domain Messenger**: Message-passing abstraction contract used by applications developers (e.g. token bridge implementations)
+    - Sends messages into L2, reads messages out from L1
+    - Log authorized calls as forced L2 transactions (deposits)
+    - Verify L2 data statelessly with MPT proof to undisputed state-root (withdrawals)
+
+### L2 Components
+
+- **Rollup Synchronizer** (previously "Data Transport Layer"):
   - Sync data from the L1: call payload-insertion method of Engine API
   - Track L1 data tip, and track state-roots: call forkchoice method of Engine API to finalize (undisputed state root) and reorg (follow head derived from L1)
   - Create execution payloads:
@@ -56,7 +67,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
   - Maintains the L2 state (just like it would on L1)
   - Syncs state to other L2 nodes for fast onboarding. Engine API can inform of finalized checkpoint,
     to efficiently sync to trusted point, before processing block by block to the head of the L2 chain.
-- **Fraud Proof Generator**:
+- **Witness Generator**:
   - Highly experimental concept implementation (work in progress!): [Macula](https://github.com/protolambda/macula)
   - Python: readability, not performance critical, just a temporary sub-process
   - Requires bare minimum API methods from the Engine:
@@ -86,6 +97,9 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
      3. load nodes as identified by the AccessData from shared dicts
      4. format witness data as L1 transaction input
   - Sign tx, finish dispute (resubmit if not confirmed in time)
+- **Batch Submitter**:
+  - Finalizes pre-confirmed sequencer transactions onto L1
+  - Writes to sequencer feed
 
 
 ## Caveats
