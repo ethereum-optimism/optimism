@@ -5,8 +5,8 @@ pragma solidity >0.5.0 <0.8.0;
 contract TestERC20 {
     using SafeMath for uint;
 
-    string public constant name = 'Test';
-    string public constant symbol = 'TST';
+    string public constant name = "Test";
+    string public constant symbol = "TST";
     uint8 public constant decimals = 18;
     uint256  public totalSupply;
     mapping(address => uint) public balanceOf;
@@ -55,14 +55,14 @@ contract TestERC20 {
 
 library SafeMath {
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x + y) >= x, 'ds-math-add-overflow');
+        require((z = x + y) >= x, "ds-math-add-overflow");
     }
 
     function sub(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x - y) <= x, 'ds-math-sub-underflow');
+        require((z = x - y) <= x, "ds-math-sub-underflow");
     }
 
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require(y == 0 || (z = x * y) / y == x, 'ds-math-mul-overflow');
+        require(y == 0 || (z = x * y) / y == x, "ds-math-mul-overflow");
     }
 }

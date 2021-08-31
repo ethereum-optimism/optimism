@@ -7,7 +7,7 @@ import { predeploys } from '../src/predeploys'
 import { NON_ZERO_ADDRESS } from '../test/helpers/constants'
 import { getContractFactory } from '../src/contract-defs'
 
-import l1StandardBridgeJson from '../artifacts/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L1StandardBridge.sol/OVM_L1StandardBridge.json'
+import l1StandardBridgeJson from '../artifacts/contracts/L1/messaging/OVM_L1StandardBridge.sol/OVM_L1StandardBridge.json'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments
