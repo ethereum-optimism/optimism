@@ -1,0 +1,6 @@
+# Run a private L1 network using an unmodified upstream geth binary
+FROM ethereum/client-go:v1.10.4
+
+EXPOSE 8545 8546 8547
+COPY ./ops/scripts/l1_geth.sh .
+ENTRYPOINT ["sh ./l1_geth.sh"]

@@ -99,12 +99,21 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.monorepo
 
-  # this is a helper service used because there's no official hardhat image
+  # A geth replacement for the Hardhat-based l1_chain
   l1_chain:
-    image: omgx/hardhat:latest
+    image: omgx/l1_geth
+    deploy:
+      replicas: 1
     build:
-      context: ./docker/hardhat
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.l1_geth
+    # override with the geth script and the env vars required for it
+    entrypoint: sh ./l1_geth.sh
+    env_file:
+      - ./envs/l1_geth.env
+    environment:
+        CHAIN_ID: 31337    # 31337 matches Hardhat's default
+        BLOCK_INTERVAL: 0  # Clique "period" parameter. 0 = auto-mine when transaction received.
     ports:
         # expose the service to the host for integration testing
       - ${L1CHAIN_HTTP_PORT:-9545}:8545
