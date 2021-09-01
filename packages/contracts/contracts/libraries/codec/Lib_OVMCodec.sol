@@ -27,15 +27,6 @@ library Lib_OVMCodec {
      * Structs *
      ***********/
 
-    struct Account {
-        uint256 nonce;
-        uint256 balance;
-        bytes32 storageRoot;
-        bytes32 codeHash;
-        address ethAddress;
-        bool isFresh;
-    }
-
     struct EVMAccount {
         uint256 nonce;
         uint256 balance;
@@ -125,28 +116,6 @@ library Lib_OVMCodec {
         )
     {
         return keccak256(encodeTransaction(_transaction));
-    }
-
-    /**
-     * Converts an OVM account to an EVM account.
-     * @param _in OVM account to convert.
-     * @return Converted EVM account.
-     */
-    function toEVMAccount(
-        Account memory _in
-    )
-        internal
-        pure
-        returns (
-            EVMAccount memory
-        )
-    {
-        return EVMAccount({
-            nonce: _in.nonce,
-            balance: _in.balance,
-            storageRoot: _in.storageRoot,
-            codeHash: _in.codeHash
-        });
     }
 
     /**
