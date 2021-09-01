@@ -78,6 +78,7 @@ type SyncService struct {
 	gasPriceOracleOwnerAddressLock *sync.RWMutex
 	enforceFees                    bool
 	signer                         types.Signer
+	minL2GasLimit                  *big.Int
 	feeThresholdUp                 *big.Float
 	feeThresholdDown               *big.Float
 }
@@ -135,6 +136,11 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 				cfg.FeeThresholdUp)
 		}
 	}
+	if cfg.MinL2GasLimit == nil {
+		value := new(big.Int)
+		log.Info("Sanitizing minimum L2 gas limit", "value", value)
+		cfg.MinL2GasLimit = value
+	}
 
 	service := SyncService{
 		ctx:                            ctx,
@@ -155,6 +161,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		gasPriceOracleOwnerAddressLock: new(sync.RWMutex),
 		enforceFees:                    cfg.EnforceFees,
 		signer:                         types.NewEIP155Signer(chainID),
+		minL2GasLimit:                  cfg.MinL2GasLimit,
 		feeThresholdDown:               cfg.FeeThresholdDown,
 		feeThresholdUp:                 cfg.FeeThresholdUp,
 	}
@@ -854,6 +861,12 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 	// Calculate the fee based on decoded L2 gas limit
 	gas := new(big.Int).SetUint64(tx.Gas())
 	l2GasLimit := fees.DecodeL2GasLimit(gas)
+
+	// When the L2 gas limit is smaller than the min L2 gas limit,
+	// reject the transaction
+	if l2GasLimit.Cmp(s.minL2GasLimit) == -1 {
+		return fmt.Errorf("%w: %d, use at least %d", fees.ErrL2GasLimitTooLow, l2GasLimit, s.minL2GasLimit)
+	}
 
 	// Only count the calldata here as the overhead of the fully encoded
 	// RLP transaction is handled inside of EncodeL2GasLimit
