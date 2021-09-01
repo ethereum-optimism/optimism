@@ -100,23 +100,6 @@ library Lib_BytesUtils {
         return slice(_bytes, _start, _bytes.length - _start);
     }
 
-    function toBytes32PadLeft(
-        bytes memory _bytes
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        bytes32 ret;
-        uint256 len = _bytes.length <= 32 ? _bytes.length : 32;
-        assembly {
-            ret := shr(mul(sub(32, len), 8), mload(add(_bytes, 32)))
-        }
-        return ret;
-    }
-
     function toBytes32(
         bytes memory _bytes
     )
@@ -147,69 +130,6 @@ library Lib_BytesUtils {
         )
     {
         return uint256(toBytes32(_bytes));
-    }
-
-    function toUint24(
-        bytes memory _bytes,
-        uint256 _start
-    )
-        internal
-        pure
-        returns (
-            uint24
-        )
-    {
-        require(_start + 3 >= _start, "toUint24_overflow");
-        require(_bytes.length >= _start + 3 , "toUint24_outOfBounds");
-        uint24 tempUint;
-
-        assembly {
-            tempUint := mload(add(add(_bytes, 0x3), _start))
-        }
-
-        return tempUint;
-    }
-
-    function toUint8(
-        bytes memory _bytes,
-        uint256 _start
-    )
-        internal
-        pure
-        returns (
-            uint8
-        )
-    {
-        require(_start + 1 >= _start, "toUint8_overflow");
-        require(_bytes.length >= _start + 1 , "toUint8_outOfBounds");
-        uint8 tempUint;
-
-        assembly {
-            tempUint := mload(add(add(_bytes, 0x1), _start))
-        }
-
-        return tempUint;
-    }
-
-    function toAddress(
-        bytes memory _bytes,
-        uint256 _start
-    )
-        internal
-        pure
-        returns (
-            address
-        )
-    {
-        require(_start + 20 >= _start, "toAddress_overflow");
-        require(_bytes.length >= _start + 20, "toAddress_outOfBounds");
-        address tempAddress;
-
-        assembly {
-            tempAddress := div(mload(add(add(_bytes, 0x20), _start)), 0x1000000000000000000000000)
-        }
-
-        return tempAddress;
     }
 
     function toNibbles(
