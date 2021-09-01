@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.12
+
+### Patch Changes
+
+- 0e14855c: Add in min accepted L2 gas limit config flag
+
 ## 0.4.11
 
 ### Patch Changes
