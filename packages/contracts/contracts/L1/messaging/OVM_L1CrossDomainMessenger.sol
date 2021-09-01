@@ -212,7 +212,7 @@ contract OVM_L1CrossDomainMessenger is
             _gasLimit
         );
 
-        emit SentMessage(xDomainCalldata);
+        emit SentMessage(_target, _message, nonce, _gasLimit);
     }
 
     /**

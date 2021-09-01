@@ -10,7 +10,7 @@ contract MockL2CrossDomainMessenger {
         uint256 messageNonce;
     }
 
-    event SentMessage(bytes message);
+    event SentMessage(address indexed target, bytes message, uint256 messageNonce, uint256 gasLimit);
 
     function emitSentMessageEvent(
         MessageData memory _message
@@ -18,13 +18,10 @@ contract MockL2CrossDomainMessenger {
         public
     {
         emit SentMessage(
-            abi.encodeWithSignature(
-                "relayMessage(address,address,bytes,uint256)",
-                _message.target,
-                _message.sender,
-                _message.message,
-                _message.messageNonce
-            )
+            _message.target,
+            _message.message,
+            _message.messageNonce,
+            0
         );
     }
 
