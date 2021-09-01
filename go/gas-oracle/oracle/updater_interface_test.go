@@ -56,7 +56,7 @@ func TestWrapUpdateL2GasPriceFn(t *testing.T) {
 	sim, _ := newSimulatedBackend(key)
 
 	opts, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
-	addr, _, gpo, err := bindings.DeployGasPriceOracle(opts, sim, opts.From, big.NewInt(0))
+	addr, _, gpo, err := bindings.DeployGasPriceOracle(opts, sim, opts.From)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +64,9 @@ func TestWrapUpdateL2GasPriceFn(t *testing.T) {
 
 	cfg := &Config{
 		privateKey:            key,
-		chainID:               big.NewInt(1337),
+		l2ChainID:             big.NewInt(1337),
 		gasPriceOracleAddress: addr,
-		gasPrice:              big.NewInt(676167759),
+		gasPrice:              big.NewInt(783460975),
 	}
 
 	updateL2GasPriceFn, err := wrapUpdateL2GasPriceFn(sim, cfg)
@@ -96,7 +96,7 @@ func TestWrapUpdateL2GasPriceFnNoUpdates(t *testing.T) {
 
 	opts, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
 	// Deploy the contract
-	addr, _, gpo, err := bindings.DeployGasPriceOracle(opts, sim, opts.From, big.NewInt(0))
+	addr, _, gpo, err := bindings.DeployGasPriceOracle(opts, sim, opts.From)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,11 +104,11 @@ func TestWrapUpdateL2GasPriceFnNoUpdates(t *testing.T) {
 
 	cfg := &Config{
 		privateKey:            key,
-		chainID:               big.NewInt(1337),
+		l2ChainID:             big.NewInt(1337),
 		gasPriceOracleAddress: addr,
 		gasPrice:              big.NewInt(772763153),
 		// the new gas price must change be 50% for it to actually update
-		significanceFactor: 0.5,
+		l2GasPriceSignificanceFactor: 0.5,
 	}
 	updateL2GasPriceFn, err := wrapUpdateL2GasPriceFn(sim, cfg)
 	if err != nil {
