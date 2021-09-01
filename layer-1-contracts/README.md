@@ -9,7 +9,8 @@ We want our ORU contracts to be built in compliance with the following goals:
     - Provides a cryptoeconomic mechanism to propose, assert, challenge, and finalize optimistic states of the L2 machine
         - Does NOT require that the entire execution trace is provable, just the execution output
             - i.e. an honest party may not necessarily ever post a hash of the full trace
-        - DOES require that there is a winning strategy for all, and only for all, possible state proposals
+        - DOES require that there is a winning strategy for all correct state proposals
+        - DOES require that there is a winning strategy for challenging all incorrect state proposals
     - Provides "useful" state hash proposals, i.e. block roots or state roots, which may not be equal to the `_inputHash`es above
     - Is optimized to minimize the number of rounds of interaction, so as to be most resistant to hostile L1 censorship and griefing
 - A set of **data feed** contracts which:
