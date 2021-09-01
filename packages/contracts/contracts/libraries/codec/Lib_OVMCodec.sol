@@ -119,41 +119,6 @@ library Lib_OVMCodec {
     }
 
     /**
-     * @notice RLP-encodes an account state struct.
-     * @param _account Account state struct.
-     * @return RLP-encoded account state.
-     */
-    function encodeEVMAccount(
-        EVMAccount memory _account
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
-        bytes[] memory raw = new bytes[](4);
-
-        // Unfortunately we can't create this array outright because
-        // Lib_RLPWriter.writeList will reject fixed-size arrays. Assigning
-        // index-by-index circumvents this issue.
-        raw[0] = Lib_RLPWriter.writeBytes(
-            Lib_Bytes32Utils.removeLeadingZeros(
-                bytes32(_account.nonce)
-            )
-        );
-        raw[1] = Lib_RLPWriter.writeBytes(
-            Lib_Bytes32Utils.removeLeadingZeros(
-                bytes32(_account.balance)
-            )
-        );
-        raw[2] = Lib_RLPWriter.writeBytes(abi.encodePacked(_account.storageRoot));
-        raw[3] = Lib_RLPWriter.writeBytes(abi.encodePacked(_account.codeHash));
-
-        return Lib_RLPWriter.writeList(raw);
-    }
-
-    /**
      * @notice Decodes an RLP-encoded account state into a useful struct.
      * @param _encoded RLP-encoded account state.
      * @return Account state struct.
