@@ -23,6 +23,14 @@ $ cd ops
 $ BUILD=2 DAEMON=0 ./up_local.sh
 ```
 
+If you need a L1 that advances blocks even without transactions, then you can use an upstream Geth with a 5s blocktime
+
+```bash
+$ cd ops
+$ BUILD=1 DAEMON=0 ./up_local_g5.sh
+```
+That one takes a while to spin up all the right services, and you can help it along in Docker, by restarting needed services that time out. 
+
 ### 2. Initial state of preconfigured accounts 
 
 To facilitate development and testing, there are three accounts that will receive defined tokens and NFTs:
