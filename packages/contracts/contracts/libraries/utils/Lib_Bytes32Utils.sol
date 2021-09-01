@@ -77,41 +77,4 @@ library Lib_Bytes32Utils {
     {
         return bytes32(uint256(_in));
     }
-
-    /**
-     * Removes the leading zeros from a bytes32 value and returns a new (smaller) bytes value.
-     * @param _in Input bytes32 value.
-     * @return Bytes32 without any leading zeros.
-     */
-    function removeLeadingZeros(
-        bytes32 _in
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
-        bytes memory out;
-
-        assembly {
-            // Figure out how many leading zero bytes to remove.
-            let shift := 0
-            for { let i := 0 } and(lt(i, 32), eq(byte(i, _in), 0)) { i := add(i, 1) } {
-                shift := add(shift, 1)
-            }
-
-            // Reserve some space for our output and fix the free memory pointer.
-            out := mload(0x40)
-            mstore(0x40, add(out, 0x40))
-
-            // Shift the value and store it into the output bytes.
-            mstore(add(out, 0x20), shl(mul(shift, 8), _in))
-
-            // Store the new size (with leading zero bytes removed) in the output byte size.
-            mstore(out, sub(32, shift))
-        }
-
-        return out;
-    }
 }
