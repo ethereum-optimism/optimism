@@ -22,7 +22,6 @@ describe('connectL1Contracts', () => {
     'messagePasser',
     'messageSender',
     'deployerWhiteList',
-    'addressManager',
   ]
 
   before(async () => {

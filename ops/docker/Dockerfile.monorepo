@@ -60,8 +60,6 @@ COPY --from=downloader ovm-solc /root/.cache/hardhat-nodejs/compilers/ovm/0.7.6.
 RUN yarn build
 # build integration tests' contracts
 RUN yarn workspace @eth-optimism/integration-tests build:integration
-# get the dump
-RUN yarn --cwd ./packages/contracts ts-node bin/take-dump.ts
 
 # TODO: Consider thinning up the container by trimming non-production
 # dependencies
