@@ -1,6 +1,8 @@
 import { Signer, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
-import { getL1ContractData, getL2ContractData } from './contract-data'
+import { getContractArtifact } from './contract-artifacts'
+import { getDeployedContractArtifact } from './contract-deployed-artifacts'
+import { predeploys } from './predeploys'
 
 export type Network = 'goerli' | 'kovan' | 'mainnet'
 interface L1Contracts {
@@ -53,23 +55,21 @@ export const connectL1Contracts = async (
     throw Error('Must specify network: mainnet, kovan, or goerli.')
   }
 
-  const l1ContractData = getL1ContractData(network)
-
-  const toEthersContract = (data) =>
-    new Contract(data.address, data.abi, signerOrProvider)
+  const getEthersContract = (name: string) => {
+    const artifact = getDeployedContractArtifact(name, network)
+    return new Contract(artifact.address, artifact.abi, signerOrProvider)
+  }
 
   return {
-    addressManager: toEthersContract(l1ContractData.Lib_AddressManager),
-    canonicalTransactionChain: toEthersContract(
-      l1ContractData.OVM_CanonicalTransactionChain
+    addressManager: getEthersContract('Lib_AddressManager'),
+    canonicalTransactionChain: getEthersContract(
+      'OVM_CanonicalTransactionChain'
     ),
-    stateCommitmentChain: toEthersContract(
-      l1ContractData.OVM_StateCommitmentChain
+    stateCommitmentChain: getEthersContract('OVM_StateCommitmentChain'),
+    xDomainMessengerProxy: getEthersContract(
+      'Proxy__OVM_L1CrossDomainMessenger'
     ),
-    xDomainMessengerProxy: toEthersContract(
-      l1ContractData.Proxy__OVM_L1CrossDomainMessenger
-    ),
-    bondManager: toEthersContract(l1ContractData.OVM_BondManager),
+    bondManager: getEthersContract('mockOVM_BondManager'),
   }
 }
 
@@ -80,21 +80,24 @@ export const connectL1Contracts = async (
  * @returns l2 contracts connected to signer/provider
  */
 export const connectL2Contracts = async (
-  signerOrProvider
+  signerOrProvider: any
 ): Promise<L2Contracts> => {
-  const l2ContractData = await getL2ContractData()
   checkSignerType(signerOrProvider)
 
-  const toEthersContract = (data) =>
-    new Contract(data.address, data.abi, signerOrProvider)
+  const getEthersContract = (name: string, iface?: string) => {
+    const artifact = getContractArtifact(iface || name)
+    const address = predeploys[name]
+    return new Contract(address, artifact.abi, signerOrProvider)
+  }
 
   return {
-    eth: toEthersContract(l2ContractData.OVM_ETH),
-    xDomainMessenger: toEthersContract(
-      l2ContractData.OVM_L2CrossDomainMessenger
+    eth: getEthersContract('OVM_ETH'),
+    xDomainMessenger: getEthersContract('OVM_L2CrossDomainMessenger'),
+    messagePasser: getEthersContract('OVM_L2ToL1MessagePasser'),
+    messageSender: getEthersContract(
+      'OVM_L1MessageSender',
+      'iOVM_L1MessageSender'
     ),
-    messagePasser: toEthersContract(l2ContractData.OVM_L2ToL1MessagePasser),
-    messageSender: toEthersContract(l2ContractData.OVM_L1MessageSender),
-    deployerWhiteList: toEthersContract(l2ContractData.OVM_DeployerWhitelist),
+    deployerWhiteList: getEthersContract('OVM_DeployerWhitelist'),
   }
 }
