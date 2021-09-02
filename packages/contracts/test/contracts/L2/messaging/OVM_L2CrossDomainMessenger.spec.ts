@@ -8,24 +8,17 @@ import { solidityKeccak256 } from 'ethers/lib/utils'
 
 /* Internal Imports */
 import {
-  makeAddressManager,
-  setProxyTarget,
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
   encodeXDomainCalldata,
   getNextBlockNumber,
 } from '../../../helpers'
-import { getContractInterface } from '../../../../src'
+import { getContractInterface, predeploys } from '../../../../src'
 
 describe('OVM_L2CrossDomainMessenger', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
-  })
-
-  let AddressManager: Contract
-  before(async () => {
-    AddressManager = await makeAddressManager()
   })
 
   let Mock__TargetContract: MockContract
@@ -40,26 +33,12 @@ describe('OVM_L2CrossDomainMessenger', () => {
       await ethers.getContractFactory('OVM_L1CrossDomainMessenger')
     )
     Mock__OVM_L1MessageSender = await smockit(
-      getContractInterface('iOVM_L1MessageSender')
+      getContractInterface('iOVM_L1MessageSender'),
+      { address: predeploys.OVM_L1MessageSender }
     )
     Mock__OVM_L2ToL1MessagePasser = await smockit(
-      await ethers.getContractFactory('OVM_L2ToL1MessagePasser')
-    )
-
-    await AddressManager.setAddress(
-      'OVM_L1CrossDomainMessenger',
-      Mock__OVM_L1CrossDomainMessenger.address
-    )
-
-    await setProxyTarget(
-      AddressManager,
-      'OVM_L1MessageSender',
-      Mock__OVM_L1MessageSender
-    )
-    await setProxyTarget(
-      AddressManager,
-      'OVM_L2ToL1MessagePasser',
-      Mock__OVM_L2ToL1MessagePasser
+      await ethers.getContractFactory('OVM_L2ToL1MessagePasser'),
+      { address: predeploys.OVM_L2ToL1MessagePasser }
     )
   })
 
@@ -73,7 +52,9 @@ describe('OVM_L2CrossDomainMessenger', () => {
   let OVM_L2CrossDomainMessenger: Contract
   beforeEach(async () => {
     OVM_L2CrossDomainMessenger =
-      await Factory__OVM_L2CrossDomainMessenger.deploy(AddressManager.address)
+      await Factory__OVM_L2CrossDomainMessenger.deploy(
+        Mock__OVM_L1CrossDomainMessenger.address
+      )
   })
 
   describe('sendMessage', () => {
@@ -164,7 +145,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
         Mock__OVM_L1CrossDomainMessenger.address
       )
-      target = await AddressManager.getAddress('OVM_L2ToL1MessagePasser')
+      target = predeploys.OVM_L2ToL1MessagePasser
       message = Mock__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
         'passMessageToL1(bytes)',
         [NON_NULL_BYTES32]

@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -39,7 +38,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rollup/dump"
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
@@ -66,15 +64,6 @@ type Genesis struct {
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
-
-	// OVM Specific, used to initialize the l1XDomainMessengerAddress
-	// in the genesis state
-	L1FeeWalletAddress            common.Address `json:"-"`
-	L1CrossDomainMessengerAddress common.Address `json:"-"`
-	AddressManagerOwnerAddress    common.Address `json:"-"`
-	GasPriceOracleOwnerAddress    common.Address `json:"-"`
-	L1StandardBridgeAddress       common.Address `json:"-"`
-	ChainID                       *big.Int       `json:"-"`
 }
 
 // GenesisAlloc specifies the initial state that is part of the genesis block.
@@ -267,69 +256,6 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	}
 }
 
-// UsingOVM
-// ApplyOvmStateToState applies the initial OVM state to a statedb.
-// It inserts a bunch of runtime config into the state.
-// It is fragile to storage slots changing as it directly writes to storage
-// slots instead of applying messages with well formed calldata.
-// This function could be replaced in the future using GenesisAlloc
-func ApplyOvmStateToState(statedb *state.StateDB, stateDump *dump.OvmDump, l1XDomainMessengerAddress, l1StandardBridgeAddress, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, chainID *big.Int, gasLimit uint64) {
-	if len(stateDump.Accounts) == 0 {
-		return
-	}
-	acctKeys := make([]string, len(stateDump.Accounts))
-	i := 0
-	for k := range stateDump.Accounts {
-		acctKeys[i] = k
-		i++
-	}
-	sort.Strings(acctKeys)
-	for _, acctKey := range acctKeys {
-		account := stateDump.Accounts[acctKey]
-		statedb.SetCode(account.Address, common.FromHex(account.Code))
-		statedb.SetNonce(account.Address, account.Nonce)
-		for key, val := range account.Storage {
-			statedb.SetState(account.Address, key, common.HexToHash(val))
-		}
-	}
-	AddressManager, ok := stateDump.Accounts["Lib_AddressManager"]
-	if ok {
-		// Set the owner of the address manager
-		ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
-		ownerValue := common.BytesToHash(addrManagerOwnerAddress.Bytes())
-		statedb.SetState(AddressManager.Address, ownerSlot, ownerValue)
-		log.Info("Setting AddressManager Owner", "owner", addrManagerOwnerAddress.Hex())
-		// Set the storage slot associated with the cross domain messenger
-		// to the cross domain messenger address.
-		log.Info("Setting OVM_L1CrossDomainMessenger in AddressManager", "address", l1XDomainMessengerAddress.Hex())
-		l1MessengerSlot := common.HexToHash("0x515216935740e67dfdda5cf8e248ea32b3277787818ab59153061ac875c9385e")
-		l1MessengerValue := common.BytesToHash(l1XDomainMessengerAddress.Bytes())
-		statedb.SetState(AddressManager.Address, l1MessengerSlot, l1MessengerValue)
-	}
-	OVM_L2StandardBridge, ok := stateDump.Accounts["OVM_L2StandardBridge"]
-	if ok {
-		log.Info("Setting OVM_L1StandardBridge in OVM_L2StandardBridge", "address", l1StandardBridgeAddress.Hex())
-		// Set the gateway of OVM_L2StandardBridge at new dump
-		l1BridgeSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-		l1BridgeValue := common.BytesToHash(l1StandardBridgeAddress.Bytes())
-		statedb.SetState(OVM_L2StandardBridge.Address, l1BridgeSlot, l1BridgeValue)
-	}
-	OVM_SequencerFeeVault, ok := stateDump.Accounts["OVM_SequencerFeeVault"]
-	if ok {
-		log.Info("Setting l1FeeWallet in OVM_SequencerFeeVault", "wallet", l1FeeWalletAddress.Hex())
-		l1FeeWalletSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
-		l1FeeWalletValue := common.BytesToHash(l1FeeWalletAddress.Bytes())
-		statedb.SetState(OVM_SequencerFeeVault.Address, l1FeeWalletSlot, l1FeeWalletValue)
-		GasPriceOracle, ok := stateDump.Accounts["OVM_GasPriceOracle"]
-		if ok {
-			ownerSlot := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
-			ownerValue := common.BytesToHash(gpoOwnerAddress.Bytes())
-			statedb.SetState(GasPriceOracle.Address, ownerSlot, ownerValue)
-			log.Info("Setting GasPriceOracle Owner", "owner", gpoOwnerAddress.Hex())
-		}
-	}
-}
-
 // ToBlock creates the genesis block and writes state of a genesis specification
 // to the given database (or discards it if nil).
 func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
@@ -337,12 +263,6 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		db = rawdb.NewMemoryDatabase()
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
-
-	// Apply the OVM genesis state, including setting storage dynamically
-	// in particular system contracts.
-	if rcfg.UsingOVM {
-		ApplyOvmStateToState(statedb, g.Config.StateDump, g.L1CrossDomainMessengerAddress, g.L1StandardBridgeAddress, g.AddressManagerOwnerAddress, g.GasPriceOracleOwnerAddress, g.L1FeeWalletAddress, g.ChainID, g.GasLimit)
-	}
 
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, account.Balance)
@@ -472,7 +392,7 @@ func DefaultGoerliGenesisBlock() *Genesis {
 // Additional runtime parameters are passed through that impact
 // the genesis state. An "incompatible genesis block" error means that
 // these params were altered since the initial creation of the datadir.
-func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress common.Address, l1StandardBridgeAddress common.Address, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
+func DeveloperGenesisBlock(period uint64, faucet common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
 	// Override the default period to the user requested one
 	config := *params.AllCliqueProtocolChanges
 	config.Clique.Period = period
@@ -481,7 +401,7 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 		config.ChainID = chainID
 	}
 
-	stateDump := dump.OvmDump{}
+	stateDump := GenesisAlloc{}
 	if rcfg.UsingOVM {
 		// Fetch the state dump from the state dump path
 		// The system cannot start without a state dump as it depends on
@@ -496,12 +416,22 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 		if err != nil {
 			panic(fmt.Sprintf("Cannot fetch state dump: %s", err))
 		}
-		_, ok := stateDump.Accounts["Lib_AddressManager"]
-		if !ok {
-			panic("Lib_AddressManager not in state dump")
-		}
 	}
-	config.StateDump = &stateDump
+
+	alloc := GenesisAlloc{
+		common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
+		common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
+		common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
+		common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
+		common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
+		common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
+		common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
+		common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
+	}
+
+	for k, v := range stateDump {
+		alloc[k] = v
+	}
 
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
@@ -509,25 +439,7 @@ func DeveloperGenesisBlock(period uint64, faucet, l1XDomainMessengerAddress comm
 		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, crypto.SignatureLength)...),
 		GasLimit:   gasLimit,
 		Difficulty: big.NewInt(1),
-		Alloc: map[common.Address]GenesisAccount{
-			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
-			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
-			common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
-			common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
-			common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
-			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
-			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
-			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
-		},
-		// UsingOVM
-		// Add additional properties to the genesis block so that they can
-		// be added into the initial genesis state at runtime
-		L1CrossDomainMessengerAddress: l1XDomainMessengerAddress,
-		L1FeeWalletAddress:            l1FeeWalletAddress,
-		AddressManagerOwnerAddress:    addrManagerOwnerAddress,
-		GasPriceOracleOwnerAddress:    gpoOwnerAddress,
-		L1StandardBridgeAddress:       l1StandardBridgeAddress,
-		ChainID:                       config.ChainID,
+		Alloc:      alloc,
 	}
 }
 
@@ -547,7 +459,7 @@ func decodePrealloc(data string) GenesisAlloc {
 // fetchStateDump will fetch a state dump from a remote HTTP endpoint.
 // This state dump includes the OVM system contracts as well as previous
 // user state if the network has previously had a regenesis.
-func fetchStateDump(path string, stateDump *dump.OvmDump) error {
+func fetchStateDump(path string, stateDump *GenesisAlloc) error {
 	if stateDump == nil {
 		return errors.New("Unable to fetch state dump")
 	}
