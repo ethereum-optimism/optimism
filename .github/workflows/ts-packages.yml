@@ -104,6 +104,7 @@ jobs:
         with:
           fail_ci_if_error: false
           verbose: true
+          flags: contracts
   lint:
     name: Linting
     runs-on: ubuntu-latest
