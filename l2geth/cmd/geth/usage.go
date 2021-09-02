@@ -68,12 +68,8 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.Eth1SyncServiceEnable,
 			utils.Eth1CanonicalTransactionChainDeployHeightFlag,
-			utils.Eth1L1CrossDomainMessengerAddressFlag,
-			utils.Eth1L1FeeWalletAddressFlag,
-			utils.Eth1StandardBridgeAddressFlag,
 			utils.Eth1ChainIdFlag,
 			utils.RollupClientHttpFlag,
-			utils.RollupAddressManagerOwnerAddressFlag,
 			utils.RollupEnableVerifierFlag,
 			utils.RollupTimstampRefreshFlag,
 			utils.RollupPollIntervalFlag,
@@ -84,7 +80,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupMinL2GasLimitFlag,
 			utils.RollupFeeThresholdDownFlag,
 			utils.RollupFeeThresholdUpFlag,
-			utils.GasPriceOracleOwnerAddress,
 		},
 	},
 	{

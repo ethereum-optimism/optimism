@@ -67,9 +67,8 @@ export const getL1ContractData = (network: Network) => {
 const OVM_ETH = require('../artifacts/contracts/L2/predeploys/OVM_ETH.sol/OVM_ETH.json')
 const OVM_L2CrossDomainMessenger = require('../artifacts/contracts/L2/messaging/OVM_L2CrossDomainMessenger.sol/OVM_L2CrossDomainMessenger.json')
 const OVM_L2ToL1MessagePasser = require('../artifacts/contracts/L2/predeploys/OVM_L2ToL1MessagePasser.sol/OVM_L2ToL1MessagePasser.json')
-const OVM_L1MessageSender = require('../artifacts/contracts/L2/predeploys/OVM_L1MessageSender.sol/OVM_L1MessageSender.json')
+const OVM_L1MessageSender = require('../artifacts/contracts/L2/predeploys/iOVM_L1MessageSender.sol/iOVM_L1MessageSender.json')
 const OVM_DeployerWhitelist = require('../artifacts/contracts/L2/predeploys/OVM_DeployerWhitelist.sol/OVM_DeployerWhitelist.json')
-const Lib_AddressManager = require('../artifacts/contracts/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json')
 
 export const getL2ContractData = () => {
   return {
@@ -92,10 +91,6 @@ export const getL2ContractData = () => {
     OVM_DeployerWhitelist: {
       abi: OVM_DeployerWhitelist.abi,
       address: l2Addresses.OVM_DeployerWhitelist,
-    },
-    Lib_AddressManager: {
-      abi: Lib_AddressManager.abi,
-      address: l2Addresses.Lib_AddressManager,
     },
   }
 }
