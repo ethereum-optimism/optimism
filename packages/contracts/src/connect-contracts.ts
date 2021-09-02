@@ -17,7 +17,6 @@ interface L2Contracts {
   messagePasser: Contract
   messageSender: Contract
   deployerWhiteList: Contract
-  addressManager: Contract
 }
 
 /**
@@ -97,6 +96,5 @@ export const connectL2Contracts = async (
     messagePasser: toEthersContract(l2ContractData.OVM_L2ToL1MessagePasser),
     messageSender: toEthersContract(l2ContractData.OVM_L1MessageSender),
     deployerWhiteList: toEthersContract(l2ContractData.OVM_DeployerWhitelist),
-    addressManager: toEthersContract(l2ContractData.Lib_AddressManager),
   }
 }
