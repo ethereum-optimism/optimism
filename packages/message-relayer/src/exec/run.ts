@@ -84,6 +84,8 @@ const main = async () => {
   if (!L2_NODE_WEB3_URL) {
     throw new Error('Must pass L2_NODE_WEB3_URL')
   }
+  const USE_CHAIN_STORE = config.bool('user-chain-store', env.USE_CHAIN_STORE === 'true')
+  const STORE_DB_URL: string = config.str('store-db-url', env.STORE_DB_URL)
 
   const l2Provider = new providers.JsonRpcProvider(L2_NODE_WEB3_URL)
   const l1Provider = new providers.JsonRpcProvider(L1_NODE_WEB3_URL)
@@ -114,6 +116,8 @@ const main = async () => {
     l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
     logger,
+    useChainStore: USE_CHAIN_STORE,
+    storeDbUrl: STORE_DB_URL
   })
 
   await service.start()

@@ -1,30 +1,26 @@
-# <h1 align="center"> Optimism Monorepo </h1>
+# <h1 align="center"> Metis Virtual Machine </h1>
 
-**Monorepo implementing the Optimistic Ethereum protocol**
-
-[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/typescript%20/%20contracts/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/ts-packages.yml?query=branch%3Amaster)
-[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/integration/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/integration.yml?query=branch%3Amaster)
-[![Github Actions](https://github.com/ethereum-optimism/optimism/workflows/geth%20unit%20tests/badge.svg)](https://github.com/ethereum-optimism/optimism/actions/workflows/geth.yml?query=branch%3Amaster)
+**Repo for running a Metis Node**
 
 ## Documentation
 
-Extensive documentation is available [here](http://community.optimism.io/docs/)
+Documentation is available [here](https://docs.metis.io)
 
 ## Directory Structure
 
-* [`packages`](./packages): Contains all the typescript packages and contracts
-    * [`contracts`](./packages/contracts): Solidity smart contracts implementing the OVM
-    * [`core-utils`](./packages/core-utils): Low-level utilities and encoding packages
-    * [`common-ts`](./packages/common-ts): Common tools for TypeScript code that runs in Node
-    * [`hardhat-ovm`](./packages/hardhat-ovm): Hardhat plugin which enables the [OVM Compiler](https://github.com/ethereum-optimism/solidity)
-    * [`smock`](./packages/smock): Testing utility for mocking smart contract return values and storage
-    * [`data-transport-layer`](./packages/data-transport-layer): Event indexer, allowing the `l2geth` node to access L1 data
-    * [`batch-submitter`](./packages/batch-submitter): Daemon for submitting L2 transaction and state root batches to L1
-    * [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
-* [`l2geth`](./l2geth): Fork of [go-ethereum v1.9.10](https://github.com/ethereum/go-ethereum/tree/v1.9.10) implementing the [OVM](https://research.paradigm.xyz/optimism#optimistic-geth).
-* [`integration-tests`](./integration-tests): Integration tests between a L1 testnet, `l2geth`,
-* [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
-as well as a docker-compose file for bringing up local testnets easily
+- [`packages`](./packages): Contains all the typescript packages and contracts
+  - [`contracts`](./packages/contracts): Solidity smart contracts implementing the OVM
+  - [`core-utils`](./packages/core-utils): Low-level utilities and encoding packages
+  - [`common-ts`](./packages/common-ts): Common tools for TypeScript code that runs in Node
+  - [`hardhat-ovm`](./packages/hardhat-ovm): Hardhat plugin which enables the [OVM Compiler](https://github.com/ethereum-optimism/solidity)
+  - [`smock`](./packages/smock): Testing utility for mocking smart contract return values and storage
+  - [`data-transport-layer`](./packages/data-transport-layer): Event indexer, allowing the `l2geth` node to access L1 data
+  - [`batch-submitter`](./packages/batch-submitter): Daemon for submitting L2 transaction and state root batches to L1
+  - [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
+- [`l2geth`](./l2geth): Fork of [go-ethereum v1.9.10](https://github.com/ethereum/go-ethereum/tree/v1.9.10) implementing the [OVM](https://research.paradigm.xyz/optimism#optimistic-geth).
+- [`integration-tests`](./integration-tests): Integration tests between a L1 testnet, `l2geth`,
+- [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
+  as well as a docker-compose file for bringing up local testnets easily
 
 ## Quickstart
 
@@ -33,8 +29,8 @@ as well as a docker-compose file for bringing up local testnets easily
 Dependency management is done using `yarn`.
 
 ```bash
-git clone git@github.com:ethereum-optimism/optimism.git
-cd optimism
+git clone https://github.com/MetisProtocol/mvm.git
+cd mvm
 yarn
 ```
 

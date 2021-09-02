@@ -9,6 +9,8 @@ import { Logger, BaseService, Metrics } from '@eth-optimism/common-ts'
 
 import { loadContract, loadContractFromManager } from '@metis.io/contracts'
 import { StateRootBatchHeader, SentMessage, SentMessageProof } from './types'
+import mongoose from "mongoose"
+import ChainStore from "./store/chain-store"
 
 interface MessageRelayerOptions {
   // Providers for interacting with L1 and L2.
@@ -47,6 +49,12 @@ interface MessageRelayerOptions {
 
   // A custom metrics tracker to manage metrics; default undefined
   metrics?: Metrics
+
+  // user chain store flag.
+  useChainStore?: boolean,
+
+  // user chain store mongo database url.
+  storeDbUrl?: string
 }
 
 const optionSettings = {
@@ -57,6 +65,8 @@ const optionSettings = {
   l2BlockOffset: { default: 1 },
   l1StartOffset: { default: 0 },
   getLogsInterval: { default: 2000 },
+  useChainStore: { default: false },
+  storeDbUrl: { default: "" }
 }
 
 export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
@@ -78,12 +88,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
   protected async _init(): Promise<void> {
     this.logger.info('Initializing message relayer', {
-      l2ChainId:this.options.l2ChainId,
+      l2ChainId: this.options.l2ChainId,
       relayGasLimit: this.options.relayGasLimit,
       fromL2TransactionIndex: this.options.fromL2TransactionIndex,
       pollingInterval: this.options.pollingInterval,
       l2BlockOffset: this.options.l2BlockOffset,
       getLogsInterval: this.options.getLogsInterval,
+      useChainStore: this.options.useChainStore,
+      storeDbUrl: this.options.storeDbUrl
     })
     // Need to improve this, sorry.
     this.state = {} as any
@@ -143,6 +155,22 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.state.lastQueriedL1Block = this.options.l1StartOffset
     this.state.eventCache = []
 
+    if(this.options.useChainStore && this.options.storeDbUrl) {
+      await mongoose.connect(this.options.storeDbUrl, {
+        useNewUrlParser: true,
+        useCreateIndex: true,
+        useUnifiedTopology: true,
+        useFindAndModify: false,
+      })
+      const chainStore = await ChainStore.findOne({'chainId': this.options.l2ChainId})
+      if(chainStore && chainStore.lastFinalizedTxHeight > 0) {
+        this.logger.info('Find lastFinalizedTxHeight in chain store, use it as default', {
+          'lastFinalizedTxHeight': chainStore.lastFinalizedTxHeight
+        })
+        this.options.fromL2TransactionIndex = chainStore.lastFinalizedTxHeight
+      }
+    }
+
     this.state.lastFinalizedTxHeight = this.options.fromL2TransactionIndex || 0
     this.state.nextUnfinalizedTxHeight =
       this.options.fromL2TransactionIndex || 0
@@ -167,19 +195,34 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           }
         }
 
-        //this.logger.info('Checking for newly finalized transactions...')
+        // this.logger.info('Checking for newly finalized transactions...')
         if (
           !(await this._isTransactionFinalized(
             this.state.nextUnfinalizedTxHeight
           ))
         ) {
-          //this.logger.info('Did not find any newly finalized transactions', {
+          // this.logger.info('Did not find any newly finalized transactions', {
           //  retryAgainInS: Math.floor(this.options.pollingInterval / 1000),
-          //})
+          // })
 
           continue
         }
-
+        if(this.options.useChainStore && this.options.storeDbUrl) {
+          this.logger.info('Save lastFinalizedTxHeight to store', {
+            useChainStore: this.options.useChainStore,
+            chainId: this.options.l2ChainId,
+            nextUnfinalizedTxHeight: this.state.nextUnfinalizedTxHeight
+          })
+          try {
+            await ChainStore.findOneAndUpdate({'chainId': this.options.l2ChainId}, {'lastFinalizedTxHeight': this.state.nextUnfinalizedTxHeight}, {upsert: true})
+          } catch (err) {
+            this.logger.error('Save lastFinalizedTxHeight to store error', {
+              message: err.toString(),
+              stack: err.stack,
+              code: err.code,
+            })
+          }
+        }
         this.state.lastFinalizedTxHeight = this.state.nextUnfinalizedTxHeight
         while (
           await this._isTransactionFinalized(this.state.nextUnfinalizedTxHeight)
@@ -193,14 +236,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           )
           this.state.nextUnfinalizedTxHeight += size
 
-          // Only deal with ~1000 transactions at a time so we can limit the amount of stuff we
+          // Only deal with ~100 transactions at a time so we can limit the amount of stuff we
           // need to keep in memory. We operate on full batches at a time so the actual amount
           // depends on the size of the batches we're processing.
           const numTransactionsToProcess =
             this.state.nextUnfinalizedTxHeight -
             this.state.lastFinalizedTxHeight
 
-          if (numTransactionsToProcess > 1000) {
+          if (numTransactionsToProcess > 100) {
             break
           }
         }
