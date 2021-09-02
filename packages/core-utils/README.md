@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=core-utils)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 # @eth-optimism/core-utils
 
 ## What is this?
