@@ -59,7 +59,7 @@ yarn test ./test/path/to/my/test.spec.ts
 yarn test:coverage
 ```
 
-The output is most easily viewable by opening the html file in your browser:
+The output is most easily viewable by opening the `html` file in your browser:
 ```shell
 open ./coverage/index.html
 ```
