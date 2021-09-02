@@ -61,10 +61,11 @@ export class Watcher {
     for (const log of receipt.logs) {
       if (
         log.address === layer.messengerAddress &&
-        log.topics[0] === ethers.utils.id('SentMessage(bytes)')
+        log.topics[0] ===
+          ethers.utils.id('SentMessage(address,address,bytes,uint256,uint256)')
       ) {
-        const [message] = ethers.utils.defaultAbiCoder.decode(
-          ['bytes'],
+        const [, , message, ,] = ethers.utils.defaultAbiCoder.decode(
+          ['address', 'address', 'bytes', 'uint256', 'uint256'],
           log.data
         )
         msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [message]))
