@@ -92,17 +92,11 @@ export const getMessagesByTransactionHash = async (
 
   // Decode the messages and turn them into a nicer struct.
   const sentMessages = sentMessageEvents.map((sentMessageEvent) => {
-    const encodedMessage = sentMessageEvent.args.message
-    const decodedMessage = l2CrossDomainMessenger.interface.decodeFunctionData(
-      'relayMessage',
-      encodedMessage
-    )
-
     return {
-      target: decodedMessage._target,
-      sender: decodedMessage._sender,
-      message: decodedMessage._message,
-      messageNonce: decodedMessage._messageNonce.toNumber(),
+      target: sentMessageEvent.args.target,
+      sender: sentMessageEvent.args.sender,
+      message: sentMessageEvent.args.message, // decoded message
+      messageNonce: sentMessageEvent.args.messageNonce.toNumber(),
     }
   })
 
