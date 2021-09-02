@@ -25,6 +25,8 @@ import 'hardhat-gas-reporter'
 dotenv.config()
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
+const privateKey = process.env.PRIVATE_KEY ||
+  "0x0000000000000000000000000000000000000000000000000000000000000000"; // this is to avoid hardhat error
 
 const config: HardhatUserConfig = {
   networks: {
@@ -45,17 +47,17 @@ const config: HardhatUserConfig = {
     'optimism-kovan': {
       chainId: 69,
       url: 'https://kovan.optimism.io',
-      accounts: [process.env.PRIVATE_KEY],
+      accounts: [privateKey],
       gasPrice: 15000000,
       ovm: true,
     },
     'optimism-mainnet': {
       chainId: 10,
       url: 'https://mainnet.optimism.io',
-      accounts: [process.env.PRIVATE_KEY],
+      accounts: [privateKey],
       gasPrice: 15000000,
       ovm: true,
-    }
+    },
   },
   mocha: {
     timeout: 50000,
