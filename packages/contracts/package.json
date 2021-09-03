@@ -55,6 +55,7 @@
   },
   "devDependencies": {
     "@codechecks/client": "0.1.10-beta",
+    "@defi-wonderland/smock": "^2.0.2",
     "@eth-optimism/smock": "^1.1.10",
     "@ethersproject/transactions": "^5.4.0",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
@@ -90,7 +91,6 @@
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.4.5",
-    "ganache-core": "^2.13.2",
     "hardhat": "^2.2.1",
     "hardhat-deploy": "^0.7.4",
     "hardhat-gas-reporter": "^1.0.4",

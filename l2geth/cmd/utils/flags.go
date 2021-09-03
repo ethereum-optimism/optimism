@@ -817,24 +817,6 @@ var (
 		Usage:  "Deployment of the canonical transaction chain",
 		EnvVar: "ETH1_CTC_DEPLOYMENT_HEIGHT",
 	}
-	Eth1L1CrossDomainMessengerAddressFlag = cli.StringFlag{
-		Name:   "eth1.l1crossdomainmessengeraddress",
-		Usage:  "Deployment address of the L1 cross domain messenger",
-		Value:  "0x0000000000000000000000000000000000000000",
-		EnvVar: "ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS",
-	}
-	Eth1L1FeeWalletAddressFlag = cli.StringFlag{
-		Name:   "eth1.l1feewalletaddress",
-		Usage:  "Address of the L1 wallet that will collect fees",
-		Value:  "0x0000000000000000000000000000000000000000",
-		EnvVar: "ETH1_L1_FEE_WALLET_ADDRESS",
-	}
-	Eth1StandardBridgeAddressFlag = cli.StringFlag{
-		Name:   "eth1.l1standardbridgeaddress",
-		Usage:  "Deployment address of the Standard Bridge",
-		Value:  "0x0000000000000000000000000000000000000000",
-		EnvVar: "ETH1_L1_STANDARD_BRIDGE_ADDRESS",
-	}
 	Eth1ChainIdFlag = cli.Uint64Flag{
 		Name:   "eth1.chainid",
 		Usage:  "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby)",
@@ -869,12 +851,6 @@ var (
 		Usage:  "Enable the verifier",
 		EnvVar: "ROLLUP_VERIFIER_ENABLE",
 	}
-	RollupAddressManagerOwnerAddressFlag = cli.StringFlag{
-		Name:   "rollup.addressmanagerowneraddress",
-		Usage:  "Owner address of the address manager",
-		Value:  "0x0000000000000000000000000000000000000000",
-		EnvVar: "ROLLUP_ADDRESS_MANAGER_OWNER_ADDRESS",
-	}
 	RollupStateDumpPathFlag = cli.StringFlag{
 		Name:   "rollup.statedumppath",
 		Usage:  "Path to the state dump",
@@ -901,11 +877,6 @@ var (
 		Name:   "rollup.feethresholdup",
 		Usage:  "Allow txs with fees above the current fee up to this amount, must be > 1",
 		EnvVar: "ROLLUP_FEE_THRESHOLD_UP",
-	}
-	GasPriceOracleOwnerAddress = cli.StringFlag{
-		Name:   "rollup.gaspriceoracleowneraddress",
-		Usage:  "Owner of the OVM_GasPriceOracle",
-		EnvVar: "ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS",
 	}
 )
 
@@ -1137,18 +1108,6 @@ func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 		height := ctx.GlobalUint64(Eth1CanonicalTransactionChainDeployHeightFlag.Name)
 		cfg.CanonicalTransactionChainDeployHeight = new(big.Int).SetUint64(height)
 	}
-	if ctx.GlobalIsSet(Eth1L1CrossDomainMessengerAddressFlag.Name) {
-		addr := ctx.GlobalString(Eth1L1CrossDomainMessengerAddressFlag.Name)
-		cfg.L1CrossDomainMessengerAddress = common.HexToAddress(addr)
-	}
-	if ctx.GlobalIsSet(Eth1L1FeeWalletAddressFlag.Name) {
-		addr := ctx.GlobalString(Eth1L1FeeWalletAddressFlag.Name)
-		cfg.L1FeeWalletAddress = common.HexToAddress(addr)
-	}
-	if ctx.GlobalIsSet(Eth1StandardBridgeAddressFlag.Name) {
-		addr := ctx.GlobalString(Eth1StandardBridgeAddressFlag.Name)
-		cfg.L1StandardBridgeAddress = common.HexToAddress(addr)
-	}
 	if ctx.GlobalIsSet(Eth1ChainIdFlag.Name) {
 		cfg.Eth1ChainId = ctx.GlobalUint64(Eth1ChainIdFlag.Name)
 	}
@@ -1163,10 +1122,6 @@ func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 // UsingOVM
 // setRollup configures the rollup
 func setRollup(ctx *cli.Context, cfg *rollup.Config) {
-	if ctx.GlobalIsSet(RollupAddressManagerOwnerAddressFlag.Name) {
-		addr := ctx.GlobalString(RollupAddressManagerOwnerAddressFlag.Name)
-		cfg.AddressManagerOwnerAddress = common.HexToAddress(addr)
-	}
 	if ctx.GlobalIsSet(RollupEnableVerifierFlag.Name) {
 		cfg.IsVerifier = true
 	}
@@ -1186,10 +1141,6 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupTimstampRefreshFlag.Name) {
 		cfg.TimestampRefreshThreshold = ctx.GlobalDuration(RollupTimstampRefreshFlag.Name)
-	}
-	if ctx.GlobalIsSet(GasPriceOracleOwnerAddress.Name) {
-		addr := ctx.GlobalString(GasPriceOracleOwnerAddress.Name)
-		cfg.GasPriceOracleOwnerAddress = common.HexToAddress(addr)
 	}
 	if ctx.GlobalIsSet(RollupBackendFlag.Name) {
 		val := ctx.GlobalString(RollupBackendFlag.Name)
@@ -1775,13 +1726,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if gasLimit == 0 {
 			gasLimit = params.GenesisGasLimit
 		}
-		xdomainAddress := cfg.Rollup.L1CrossDomainMessengerAddress
-		l1FeeWalletAddress := cfg.Rollup.L1FeeWalletAddress
-		addrManagerOwnerAddress := cfg.Rollup.AddressManagerOwnerAddress
-		l1StandardBridgeAddress := cfg.Rollup.L1StandardBridgeAddress
-		gpoOwnerAddress := cfg.Rollup.GasPriceOracleOwnerAddress
 		stateDumpPath := cfg.Rollup.StateDumpPath
-		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, xdomainAddress, l1StandardBridgeAddress, addrManagerOwnerAddress, gpoOwnerAddress, l1FeeWalletAddress, stateDumpPath, chainID, gasLimit)
+		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, stateDumpPath, chainID, gasLimit)
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}

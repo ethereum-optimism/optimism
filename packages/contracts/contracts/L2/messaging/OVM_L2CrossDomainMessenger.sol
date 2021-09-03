@@ -3,8 +3,8 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
 import { iOVM_L2CrossDomainMessenger } from "./iOVM_L2CrossDomainMessenger.sol";
@@ -26,7 +26,6 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
   */
 contract OVM_L2CrossDomainMessenger is
     iOVM_L2CrossDomainMessenger,
-    Lib_AddressResolver,
     ReentrancyGuard
 {
 
@@ -48,18 +47,19 @@ contract OVM_L2CrossDomainMessenger is
     mapping (bytes32 => bool) public sentMessages;
     uint256 public messageNonce;
     address internal xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+    address public l1CrossDomainMessenger;
 
     /***************
      * Constructor *
      ***************/
 
-    /**
-     * @param _libAddressManager Address of the Address Manager.
-     */
-    constructor(address _libAddressManager)
-        Lib_AddressResolver(_libAddressManager)
+    constructor(
+        address _l1CrossDomainMessenger
+    )
         ReentrancyGuard()
-        {}
+    {
+        l1CrossDomainMessenger = _l1CrossDomainMessenger;
+    }
 
     /********************
      * Public Functions *
@@ -141,7 +141,7 @@ contract OVM_L2CrossDomainMessenger is
         // Prevent calls to OVM_L2ToL1MessagePasser, which would enable
         // an attacker to maliciously craft the _message to spoof
         // a call from any L2 account.
-        if(_target == resolve("OVM_L2ToL1MessagePasser")){
+        if (_target == Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER) {
             // Write to the successfulMessages mapping and return immediately.
             successfulMessages[xDomainCalldataHash] = true;
             return;
@@ -191,8 +191,8 @@ contract OVM_L2CrossDomainMessenger is
     {
         return (
             iOVM_L1MessageSender(
-                resolve("OVM_L1MessageSender")
-            ).getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
+                Lib_PredeployAddresses.L1_MESSAGE_SENDER
+            ).getL1MessageSender() == l1CrossDomainMessenger
         );
     }
 
@@ -207,6 +207,8 @@ contract OVM_L2CrossDomainMessenger is
     )
         internal
     {
-        iOVM_L2ToL1MessagePasser(resolve("OVM_L2ToL1MessagePasser")).passMessageToL1(_message);
+        iOVM_L2ToL1MessagePasser(
+            Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER
+        ).passMessageToL1(_message);
     }
 }
