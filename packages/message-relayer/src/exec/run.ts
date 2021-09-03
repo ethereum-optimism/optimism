@@ -46,6 +46,15 @@ const main = async () => {
   const RELAYER_PRIVATE_KEY = config.str('relayer-private-key', env.RELAYER_PRIVATE_KEY)
   const MNEMONIC = config.str('mnemonic', env.MNEMONIC)
   const HD_PATH = config.str('hd-path', env.HD_PATH)
+  //batch system
+  const MIN_BATCH_SIZE = config.uint(
+    'min-batch-size',
+    parseInt(env.MIN_BATCH_SIZE, 10) || 2
+  )
+  const MAX_WAIT_TIME_S = config.uint(
+    'max-wait-time-s',
+    parseInt(env.MAX_WAIT_TIME_S, 10) || 60
+  )
   const RELAY_GAS_LIMIT = config.uint(
     'relay-gas-limit',
     parseInt(env.RELAY_GAS_LIMIT, 10) || 4000000
@@ -71,7 +80,7 @@ const main = async () => {
     parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
   )
   const FILTER_ENDPOINT = config.str(
-    'filter-endpoint', 
+    'filter-endpoint',
     env.FILTER_ENDPOINT
   ) || ''
   const FILTER_POLLING_INTERVAL = config.uint(
@@ -108,6 +117,9 @@ const main = async () => {
     addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
     l1Wallet: wallet,
     relayGasLimit: RELAY_GAS_LIMIT,
+    //batch system
+    minBatchSize: MIN_BATCH_SIZE,
+    maxWaitTimeS: MAX_WAIT_TIME_S,
     fromL2TransactionIndex: FROM_L2_TRANSACTION_INDEX,
     pollingInterval: POLLING_INTERVAL,
     l2BlockOffset: L2_BLOCK_OFFSET,
@@ -115,7 +127,7 @@ const main = async () => {
     getLogsInterval: GET_LOGS_INTERVAL,
     logger,
     filterEndpoint: FILTER_ENDPOINT,
-    filterPollingInterval: FILTER_POLLING_INTERVAL
+    filterPollingInterval: FILTER_POLLING_INTERVAL,
   })
 
   await service.start()
