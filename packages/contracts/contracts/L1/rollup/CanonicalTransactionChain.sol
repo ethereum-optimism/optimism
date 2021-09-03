@@ -12,7 +12,7 @@ import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
 import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /* External Imports */
-import { Math } from "@openzeppelin/contracts/math/Math.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title CanonicalTransactionChain
