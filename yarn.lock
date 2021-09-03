@@ -2116,10 +2116,15 @@
   dependencies:
     "@octokit/openapi-types" "^9.5.0"
 
-"@openzeppelin/contracts-upgradeable@^3.3.0":
-  version "3.4.2"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-3.4.2.tgz#2c2a1b0fa748235a1f495b6489349776365c51b3"
-  integrity sha512-mDlBS17ymb2wpaLcrqRYdnBAmP1EwqhOXMvqWk2c5Q1N1pm5TkiCtXM9Xzznh4bYsQBq0aIWEkFFE2+iLSN1Tw==
+"@openzeppelin/contracts-upgradeable@4.3.1":
+  version "4.3.1"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.3.1.tgz#d2fdbacd010f9bc2228d58f9d3d3db4e49818ea6"
+  integrity sha512-vqS3gb1J5xlKc+7a931a5Qmg3HDR168E6aCfPY6lPrdFZV4TymN2+HVJNCqCo+KP2UMYDtqRsXu+KB/0L0E34g==
+
+"@openzeppelin/contracts@4.3.1":
+  version "4.3.1"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.3.1.tgz#c01f791ce6c9d3989ac1a643267501dbe336b9e3"
+  integrity sha512-QjgbPPlmDK2clK1hzjw2ROfY8KA5q+PfhDUUxZFEBCZP9fi6d5FuNoh/Uq0oCTMEKPmue69vhX2jcl0N/tFKGw==
 
 "@openzeppelin/contracts@^3.3.0":
   version "3.4.2"
