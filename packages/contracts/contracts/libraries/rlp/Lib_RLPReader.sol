@@ -403,7 +403,7 @@ library Lib_RLPReader {
             "Invalid RLP address value."
         );
 
-        return address(readUint256(_in));
+        return address(uint160(readUint256(_in)));
     }
 
     /**
