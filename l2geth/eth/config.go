@@ -63,7 +63,6 @@ var DefaultConfig = Config{
 		Percentile: 60,
 	},
 	Rollup: rollup.Config{
-		StateDumpPath: "https://raw.githubusercontent.com/ethereum-optimism/regenesis/master/master.json",
 		// The max size of a transaction that is sent over the p2p network is 128kb
 		// https://github.com/ethereum/go-ethereum/blob/c2d2f4ed8f232bb11663a1b01a2e578aa22f24bd/core/tx_pool.go#L51
 		// The batch overhead is:
