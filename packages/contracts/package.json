@@ -34,7 +34,6 @@
     "lint:contracts": "yarn solhint -f table contracts/**/*.sol",
     "clean": "rm -rf ./dist ./artifacts ./cache ./tsconfig.build.tsbuildinfo",
     "deploy": "ts-node bin/deploy.ts && yarn autogen:markdown",
-    "serve": "./bin/serve_dump.sh",
     "prepublishOnly": "yarn copyfiles -u 1 -e \"**/test-*/**/*\" \"contracts/**/*\" ./",
     "postpublish": "rimraf chugsplash L1 L2 libraries",
     "prepack": "yarn prepublishOnly",
