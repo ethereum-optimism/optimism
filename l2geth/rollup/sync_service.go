@@ -62,7 +62,6 @@ type SyncService struct {
 	txLock                         sync.Mutex
 	loopLock                       sync.Mutex
 	enable                         bool
-	eth1ChainId                    uint64
 	bc                             *core.BlockChain
 	txpool                         *core.TxPool
 	RollupGpo                      *gasprice.RollupOracle
@@ -145,7 +144,6 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		bc:                             bc,
 		txpool:                         txpool,
 		chainHeadCh:                    make(chan core.ChainHeadEvent, 1),
-		eth1ChainId:                    cfg.Eth1ChainId,
 		client:                         client,
 		db:                             db,
 		pollInterval:                   pollInterval,
@@ -251,7 +249,7 @@ func (s *SyncService) Start() error {
 		log.Info("Running without syncing enabled")
 		return nil
 	}
-	log.Info("Initializing Sync Service", "eth1-chainid", s.eth1ChainId)
+	log.Info("Initializing Sync Service")
 	if err := s.updateGasPriceOracleCache(nil); err != nil {
 		return err
 	}
