@@ -22,9 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
-	"net/http"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -38,7 +36,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 //go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
@@ -263,7 +260,6 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		db = rawdb.NewMemoryDatabase()
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
-
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, account.Balance)
 		statedb.SetCode(addr, account.Code)
@@ -387,59 +383,29 @@ func DefaultGoerliGenesisBlock() *Genesis {
 	}
 }
 
-// UsingOVM
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.
-// Additional runtime parameters are passed through that impact
-// the genesis state. An "incompatible genesis block" error means that
-// these params were altered since the initial creation of the datadir.
-func DeveloperGenesisBlock(period uint64, faucet common.Address, stateDumpPath string, chainID *big.Int, gasLimit uint64) *Genesis {
+func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	// Override the default period to the user requested one
 	config := *params.AllCliqueProtocolChanges
 	config.Clique.Period = period
-
-	if chainID != nil {
-		config.ChainID = chainID
-	}
-
-	stateDump := GenesisAlloc{}
-	if rcfg.UsingOVM {
-		// Fetch the state dump from the state dump path
-		// The system cannot start without a state dump as it depends on
-		// the ABIs that are included in the state dump. Check that all
-		// required state dump entries are present to prevent a faulty
-		// state dump from being used
-		if stateDumpPath == "" {
-			panic("Must pass state dump path")
-		}
-		log.Info("Fetching state dump", "path", stateDumpPath)
-		err := fetchStateDump(stateDumpPath, &stateDump)
-		if err != nil {
-			panic(fmt.Sprintf("Cannot fetch state dump: %s", err))
-		}
-	}
-
-	alloc := GenesisAlloc{
-		common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
-		common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
-		common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
-		common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
-		common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
-		common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
-		common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
-		common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
-	}
-
-	for k, v := range stateDump {
-		alloc[k] = v
-	}
 
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
 		Config:     &config,
 		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, crypto.SignatureLength)...),
-		GasLimit:   gasLimit,
+		GasLimit:   6283185,
 		Difficulty: big.NewInt(1),
-		Alloc:      alloc,
+		Alloc: map[common.Address]GenesisAccount{
+			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
+			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
+			common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
+			common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
+			common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
+			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
+			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
+			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
+			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
+		},
 	}
 }
 
@@ -453,31 +419,4 @@ func decodePrealloc(data string) GenesisAlloc {
 		ga[common.BigToAddress(account.Addr)] = GenesisAccount{Balance: account.Balance}
 	}
 	return ga
-}
-
-// UsingOVM
-// fetchStateDump will fetch a state dump from a remote HTTP endpoint.
-// This state dump includes the OVM system contracts as well as previous
-// user state if the network has previously had a regenesis.
-func fetchStateDump(path string, stateDump *GenesisAlloc) error {
-	if stateDump == nil {
-		return errors.New("Unable to fetch state dump")
-	}
-	resp, err := http.Get(path)
-	if err != nil {
-		return fmt.Errorf("Unable to GET state dump: %w", err)
-	}
-	if resp.StatusCode >= 400 {
-		return errors.New("State dump not found")
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("Unable to read response body: %w", err)
-	}
-	err = json.Unmarshal(body, stateDump)
-	if err != nil {
-		return fmt.Errorf("Unable to unmarshal response body: %w", err)
-	}
-	return nil
 }
