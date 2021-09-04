@@ -1,0 +1,26 @@
+{
+  "name": "@eth-optimism/regenesis-surgery",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Optimism PBC",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
+    "lint": "yarn run lint:fix && yarn run lint:check",
+    "lint:fix": "yarn lint:check --fix",
+    "lint:check": "eslint .",
+    "build": "tsc -p tsconfig.build.json",
+    "pre-commit": "lint-staged"
+  },
+  "devDependencies": {
+    "@types/node": "^15.12.2",
+    "ts-mocha": "^8.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.3.2"
+  },
+  "dependencies": {
+    "@eth-optimism/contracts": "^0.4.10",
+    "dotenv": "^10.0.0",
+    "ethers": "^5.4.5"
+  }
+}
