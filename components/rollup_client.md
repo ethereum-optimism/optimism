@@ -1,2 +1,2 @@
-# Rollup Synchronizer
+# Rollup Client
 
