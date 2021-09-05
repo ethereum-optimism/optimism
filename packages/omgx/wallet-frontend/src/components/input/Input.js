@@ -55,14 +55,31 @@ function Input({
       {label && <div className={styles.label}>{label}</div>}
       <div className={[styles.field, overMax ? styles.error : ''].join(' ')}>
         {icon && <Search className={styles.icon} />}
-        <input
-          className={[styles.input, small ? styles.small : ''].join(' ')}
-          placeholder={placeholder}
-          type={type}
-          value={value}
-          onChange={onChange}
-          disabled={disabled}
-        />
+        {
+          type === 'textArea' ?
+            <textarea
+              className={[styles.input, small ? styles.small : ''].join(' ')}
+              placeholder={placeholder}
+              value={value}
+              onChange={onChange}
+              disabled={disabled}
+              rows="4"
+              style={{
+                height: 'auto'
+              }}
+            />
+            : <input
+              className={[styles.input, small ? styles.small : ''].join(' ')}
+              placeholder={placeholder}
+              type={type}
+              value={value}
+              onChange={onChange}
+              disabled={disabled}
+              style={{
+                paddingLeft: `${icon ? '40px' : '5px'}`
+              }}
+            />
+        }
         {unit && (
           <div className={`${styles.unit} ${!maxValue ? styles.isPaste : ''}`}>
             {maxValue && value !== maxValue && (

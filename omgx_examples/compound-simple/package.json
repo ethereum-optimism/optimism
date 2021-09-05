@@ -1,0 +1,39 @@
+{
+  "name": "compound-simple",
+  "version": "0.2.1",
+  "description": "The Compound Governance Protocol",
+  "scripts": {
+    "ganache": "npx ganache-cli -l 10000038 -i 1234 -e 100000 -a 10 -u 0 -g 1000000000 --allowUnlimitedContractSize",
+    "migrate": "npx truffle migrate",
+    "compile:ovm": "truffle compile --config truffle-config-ovm.js",
+    "migrate:local_l1": "truffle migrate --network local_l1 --config truffle-config.js",
+    "migrate:local_l2": "truffle migrate --network local_l2 --config truffle-config-ovm.js",
+    "migrate:rinkeby_l1": "truffle migrate --network rinkeby_l1 --config truffle-config.js",
+    "migrate:rinkeby_l2": "truffle migrate --network rinkeby_l2 --config truffle-config-ovm.js",
+    "delegateVotes": "node scripts/delegateVotes.js",
+    "submitProposal": "node scripts/submitProposal.js",
+    "castVotes": "node scripts/castVotes.js",
+    "queueProposal": "node scripts/queueProposal.js",
+    "executeProposal": "node scripts/executeProposal.js",
+    "cancelProposal": "node scripts/cancelProposal.js"
+
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "bignumber.js": "9.0.0",
+    "jest-diff": "^26.4.2",
+    "jest-junit": "^11.1.0",
+    "solium": "^1.2.5",
+    "solparse": "^2.2.8"
+  },
+  "dependencies": {
+    "@eth-optimism/solc": "0.5.16-alpha.6",
+    "@truffle/hdwallet-provider": "^1.4.0",
+    "eth-saddle": "^0.1.21",
+    "rimraf": "^3.0.2",
+    "truffle": "^5.3.6",
+    "truffle-contract-size": "^2.0.1",
+    "web3":"^1.4.0",
+    "ethers": "^5.4.0"
+  }
+}

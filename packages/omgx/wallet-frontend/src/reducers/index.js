@@ -31,6 +31,7 @@ import setupReducer from './setupReducer';
 import notificationReducer from './notificationReducer';
 import farmReduer from './farmReducer';
 import lookupReducer from './lookupReducer';
+import daoReducer from './daoReducer';
 
 const rootReducer = combineReducers({
   loading: loadingReducer,
@@ -49,6 +50,7 @@ const rootReducer = combineReducers({
   notification: notificationReducer,
   farm: farmReduer,
   lookup: lookupReducer,
+  dao: daoReducer,
 });
 
 export default rootReducer;

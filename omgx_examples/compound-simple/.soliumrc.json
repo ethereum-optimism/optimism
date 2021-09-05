@@ -1,0 +1,22 @@
+{
+  "extends": "solium:recommended",
+  "plugins": [
+    "security"
+  ],
+  "rules": {
+    "quotes": [
+      "error",
+      "double"
+    ],
+    "indentation": "off",
+    "max-len": [
+      "error",
+      200
+    ],
+    "security/no-block-members": "off",
+    "security/no-inline-assembly": "off",
+    "security/no-low-level-calls": "off",
+    "security/no-tx-origin": "off",
+    "imports-on-top": "off"
+  }
+}

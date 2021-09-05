@@ -18,7 +18,7 @@ import { makeStyles } from '@material-ui/core/styles';
 import {
   Modal,
   Backdrop,
-  Fade
+  Fade,
 } from '@material-ui/core';
 
 import { gray2 } from 'index.scss';
@@ -31,6 +31,8 @@ const useStyles = makeStyles({
     outline: 'none'
   },
   paper: {
+    // backgroundColor: 'rgba(38, 35, 56, 0.9);',
+    // color: white,
     backgroundColor: 'white',
     color: gray2,
     padding: '20px',
@@ -40,6 +42,7 @@ const useStyles = makeStyles({
     boxSizing: 'border-box',
     maxWidth: '100%',
     borderRadius: '4px'
+    // borderRadius: '12px'
   },
 });
 
@@ -47,7 +50,8 @@ function _Modal ({
   children,
   open,
   onClose,
-  light
+  light,
+  width = '500px'
 }) {
   const classes = useStyles();
 
@@ -61,12 +65,19 @@ function _Modal ({
       closeAfterTransition
       BackdropComponent={Backdrop}
       BackdropProps={{
-        timeout: 500
+        timeout: 500,
+        // style: {
+        //   backgroundColor: 'linear-gradient(181deg, rgb(6 18 35 / 70%) 0%, rgb(8 22 44 / 70%) 100%)'
+        // }
+
       }}
     >
       <Fade in={open}>
         <div
           className={classes.paper}
+          style={{
+            width: width
+          }}
         >
           {children}
         </div>
