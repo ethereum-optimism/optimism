@@ -27,18 +27,15 @@ async function getTimestamp(web3URL, chainID){
     return block.timestamp;
 }
 
-
 async function main(){
 
-
-    const l2_provider = new ethers.providers.JsonRpcProvider(env.L2_NODE_WEB3_URL, { chainId: 28 });
-    const wallet1 = new ethers.Wallet(env.pk_0, l2_provider);
+    const l2_provider = new ethers.providers.JsonRpcProvider(env.L2_NODE_WEB3_URL, { chainId: 28 })
+    const wallet1 = new ethers.Wallet(env.pk_0, l2_provider)
 
     // const comp = new ethers.Contract(compAddress , Comp.abi , wallet1);
-    const governorBravoDelegate = new ethers.Contract(governorBravoDelegateAddress , GovernorBravoDelegate.abi , wallet1);
-    const timelock = new ethers.Contract(timelockAddress, Timelock.abi, wallet1);
-    const governorBravoDelegator = new ethers.Contract(governorBravoDelegatorAddress, GovernorBravoDelegator.abi, wallet1);
-
+    const governorBravoDelegate = new ethers.Contract(governorBravoDelegateAddress , GovernorBravoDelegate.abi , wallet1)
+    const timelock = new ethers.Contract(timelockAddress, Timelock.abi, wallet1)
+    const governorBravoDelegator = new ethers.Contract(governorBravoDelegatorAddress, GovernorBravoDelegator.abi, wallet1)
 
     const governorBravo = await governorBravoDelegate.attach(
         governorBravoDelegator.address

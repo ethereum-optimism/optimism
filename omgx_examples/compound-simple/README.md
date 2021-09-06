@@ -1,3 +1,21 @@
+- [DAO explained](#dao-explained)
+  * [Overview](#overview)
+    + [Token](#token)
+    + [Governor Bravo Delegate](#governor-bravo-delegate)
+    + [Governor Bravo Delegator](#governor-bravo-delegator)
+    + [Timelock](#timelock)
+  * [Deployment](#deployment)
+  * [Changes to Compound's Governance Contracts](#changes-to-compound-s-governance-contracts)
+  * [Testing Notes](#testing-notes)
+- [Deploying on Rinkeby-Boba Network and Initiating](#deploying-on-rinkeby-boba-network-and-initiating)
+- [Using Compound Governance Protocol](#using-compound-governance-protocol)
+  * [Delegating Votes](#delegating-votes)
+  * [Submitting an Example Proposal](#submitting-an-example-proposal)
+  * [Casting Votes](#casting-votes)
+  * [Queuing a Proposal](#queuing-a-proposal)
+  * [Executing a Proposal](#executing-a-proposal)
+  * [Canceling a Proposal](#canceling-a-proposal)
+
 # DAO explained
 
 ## Overview
@@ -61,19 +79,18 @@ In `GovernorBravoInterfaces.sol`, delete `GovernorAlpha` Interface:
 - MINIMUM_DELAY in Timelock.sol set to 0 to allow for timely testing
 - MIN_VOTING_PERIOD in GovernorBravoDelegate.sol set to 0 to allow for timely testing
 
-
 # Deploying on Rinkeby-Boba Network and Initiating
 
-
-Instructions for deploying Compound Governance Protocol on Rinkeby-Boba.
-First create a `.env` file that follows the structure of `.env.example`.
+Instructions or Deploying Compound Governance Protocol on Rinkeby-Boba. 
+**PLEASE BE PATIENT - THIS TAKES A LONG TIME** 
+First create a `.env` file that follows the structure of `.env.example`. Then, run
 
 ```bash
 $ yarn
-$ yarn compile:ovm
+$ yarn migrate:rinkeby_l2
 ```
 
-You should expect the following output:
+You should expect the following output. If you get an `Error: ESOCKETTIMEDOUT`, just try again - this can happen if Boba utilization is low. 
 
 ```bash
 yarn run v1.22.10
@@ -82,8 +99,6 @@ $ truffle migrate --network rinkeby_l2 --config truffle-config-ovm.js
 Compiling your contracts...
 ===========================
 > Everything is up to date, there is nothing to compile.
-
-
 
 Starting migrations...
 ======================
@@ -187,9 +202,11 @@ Attempt: 6
 	Timestamp: 1630691149
 	executed setPendingAdmin
 Current time: 1630691344
+
 Time at which transaction can be executed: 1630691644
 queued initiate
 execute initiate
+
 Timestamp: 1630691344
 	Transaction hasn't surpassed time lock
 
@@ -219,37 +236,31 @@ Summary
 ```
 
 # Using Compound Governance Protocol
-This section will guide you in delegating votes, submitting a poroposal, voting on it, queueing it and executing it. The files in the `scripts` folder can be used to accomplish all of these tasks and more.
 
+This section will guide you in delegating votes, submitting a proposal, voting on it, queuing it and executing it. The files in the `scripts` folder can be used to accomplish all of these tasks and more. High level, that are **FOUR** steps:
 
-First paste the contract addresses, generated from the previous section, into the file `networks/rinkeby-l2.json`. Using the addresses above the file should look as follows.
-
-```json
-{
-"Comp":"0x286b85cAcc1dca2AdA813a72De696de141a99bE8",
-"Timelock":"0xC44D6745a1e0Fd5456646E0f05EE4704b283E6B0",
-"GovernorBravoDelegate":"0x1a078ae5651591BA4A5c447D29eA68D44Bf30f62",
-"GovernorBravoDelegator":"0xCD7239aeCBc66b1A77D5b19e7CF00380fA9Bf529"
-}
-```
+1. Submit a proposal (only possible if you have sufficient Comp) - `yarn submitProposal`
+2. Let people vote - `yarn castVotes`. The duration of the voting period has been set to ??????
+3. If the proposal has succeeded, then the vote can be queued - `yarn queueProposal`.
+4. If the proposal has been queued, and enough time has elapsed, it can then be executed - `yarn executeProposal`
 
 ## Delegating Votes
 
-First Comp must be trasnferred to other entities so that they may have voting power. Then these entities can delegate votes.
-The file `scripts/delegateVotes.js` accomplishes this goal.
-Run the following command.
+First Comp must be transferred to other entities so that they may have voting power. Then these entities can delegate votes.
+The file `scripts/delegateVotes.js` accomplishes this goal. Run the following command.
 
 ```bash
 $ yarn delegateVotes
 ```
+
 You should expect output similar to the following:
 
 ```bash
 yarn run v1.22.10
 $ node scripts/delegateVotes.js
-Wallet1: Comp power:  10000000000000000000000000
-Wallet2: Comp power:  1000000000000000000000000
-Wallet3: Comp power:  1000000000000000000000000
+Wallet1:   Comp power:  10000000000000000000000000
+Wallet2:   Comp power:  1000000000000000000000000
+Wallet3:   Comp power:  1000000000000000000000000
 wallet1 current votes:  8000000000000000000000000
 wallet2 current votes:  1000000000000000000000000
 wallet3 current votes:  1000000000000000000000000
@@ -257,28 +268,41 @@ Wait 5 minutes to make sure votes are processed.
 ✨  Done in 405.07s.
 ```
 
-## Submitting a Proposal
+## Submitting an Example Proposal
 
-After the voting power has been allocated proposals can be submitted. The proposal to be submitted by `scripts/submitProposal.js` is to reduce the number of votes necessary to make a proposal to 65000 votes.
-Run the following command.
+After the voting power has been allocated proposals can be submitted. The proposal to be submitted by `scripts/submitProposal.js` is to reduce the number of votes necessary to make a proposal to 65000 votes. Run the following command.
 
 ```bash
 $ yarn submitProposal
 ```
+
 You should expect output similar to the following:
+
 ```bash
+yarn run v1.22.11
+$ node scripts/submitProposal.js
+Comp needed to propose:  100000000000000000000000
+Proposing to change to:  65000000000000000000000
+wallet1 current votes:  8000000000000000000000000
+Proposing
+
+Proposed. Proposal ID: 0x02
+Block Number: 23398
+State is :  Pending
+Waiting for voting delay.
+✨  Done in 156.47s.
 ```
 
 ## Casting Votes
-After a proposal has been submitted votes must cast during the voting period. If enough votes are in favor of the proposal, then the proposal can be queued and executed. Votes will be cast by `scripts/castVotes.js`.
 
-
-Run the following command.
+After a proposal has been submitted votes must cast during the voting period. If enough votes are in favor of the proposal, then the proposal can be queued and executed. Votes will be cast by `scripts/castVotes.js`. Run the following command.
 
 ```bash
 $ yarn castVotes
 ```
+
 You should expect output similar to the following:
+
 ```bash
 yarn run v1.22.10
 $ node scripts/castVotes.js
@@ -302,15 +326,16 @@ Waiting for voting period to end.
 ✨  Done in 206.16s.
 ```
 
-## Queueing a Proposal
-After the voting period has ended a proposal can be queued if it has succeed, if it has recieved enough votes in favor. The proposal can be queued using `scripts/queueProposal.js`.
+## Queuing a Proposal
 
-Run the following command.
+After the voting period has ended a proposal can be queued if it has succeeded, if it has received enough votes in favor. The proposal can be queued using `scripts/queueProposal.js`. Run the following command.
 
 ```bash
 $ yarn queueProposal
 ```
+
 You should expect output similar to the following:
+
 ```bash
 yarn run v1.22.10
 $ node scripts/queueProposal.js
@@ -320,18 +345,18 @@ Attempt: 1
 Success: Queued
 State is :  Queued
 ✨  Done in 5.44s.
-
 ```
 
 ## Executing a Proposal
-The last step is to execute the proposal, this means that the proposal will take effect. This can only happen after the proposal has been queued.
 
-Run the following command.
+The last step is to execute the proposal, this means that the proposal will take effect. This can only happen after the proposal has been queued. Run the following command.
 
 ```bash
 $ yarn executeProposal
 ```
+
 You should expect output similar to the following:
+
 ```bash
 yarn run v1.22.10
 $ node scripts/executeProposal.js
@@ -347,22 +372,21 @@ Proposal Threshold :  65000000000000000000000
 proposalId :  0x03
 ✨  Done in 6.26s.
 ```
-Congratulations! You have successfuly executed a proposal on a Decentralized Autonomous Organization!
+
+Congratulations! You have successfully executed a proposal on a Decentralized Autonomous Organization!
 
 ## Canceling a Proposal
+
 If at any point you wish to cancel a proposal you can cancel it by using the proposal id. Only the entity that proposed a proposal can cancel the proposal. The proposal can be canceled with `scripts/cancelProposal.js`.
 
-In order to cancel a proposal first change line 33 of `scripts/cancelProposal.js`.
+To cancel a proposal first change line 33 of `scripts/cancelProposal.js`.
 
 ```js
 const proposalID = 1; // proposal to cancel
 ```
 
-Then run the following command.
+Then run the following...
 
 ```bash
 $ yarn cancelProposal
 ```
-
-
-

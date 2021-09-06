@@ -34,6 +34,7 @@ module.exports = async function (deployer) {
 
   console.log('STARTING HERE')
   console.log(user)
+  
   // Deploy Comp
   await deployer.deploy(Comp, user)
   const comp = await Comp.deployed()
@@ -85,17 +86,16 @@ module.exports = async function (deployer) {
 
   console.log('Queue setPendingAdmin')
 
-
-
-  let eta = (await getTimestamp()) + 300;
+  let eta = (await getTimestamp()) + 300
+  
   const setPendingAdminData = ethers.utils.defaultAbiCoder.encode( // the parameters for the setPendingAdmin function
     ['address'],
     [governorBravoDelegator.address]
-    );
+  )
 
   const governorBravo = await GovernorBravoDelegate.at(
     governorBravoDelegator.address
-  );
+  )
 
   await timelock.queueTransaction(
     timelock.address,
@@ -109,10 +109,13 @@ module.exports = async function (deployer) {
   console.log(`Time at which transaction may be executed: ${eta}`)
   console.log(`Please be patient and wait for 300 seconds...`)
 
-  await sleep(300 * 1000);
+  await sleep(300 * 1000)
+
   for(let i = 0; i < 30; i++){
+    
     console.log(`Attempt: ${i + 1}`)
     console.log(`\tTimestamp: ${await getTimestamp()}`);
+    
     try{
       // Execute the transaction that will set the admin of Timelock to the GovernorBravoDelegator contract
       await timelock.executeTransaction(
@@ -124,7 +127,7 @@ module.exports = async function (deployer) {
       );
       console.log('\texecuted setPendingAdmin')
       break;
-    }catch(error){
+    } catch(error) {
       if(i === 29){
         console.log("\tFailed. Please try again.\n");
         return;
@@ -132,29 +135,32 @@ module.exports = async function (deployer) {
       // console.log(error);
       console.log("\tTransaction hasn't surpassed time lock\n");
     }
-    await sleep(15 * 1000);
+    await sleep(15 * 1000)
   }
 
-    eta = (await getTimestamp()) + 300;
+  eta = (await getTimestamp()) + 300;
     var initiateData = ethers.utils.defaultAbiCoder.encode( // parameters to initate the GovernorBravoDelegate contract
     ['bytes'],
     [[]]
-    );
+  )
 
-    console.log(`Current time: ${await getTimestamp()}`);
-    console.log(`Time at which transaction can be executed: ${(await getTimestamp()) + 300}`);
+  console.log(`Current time: ${await getTimestamp()}`);
+  console.log(`Time at which transaction can be executed: ${(await getTimestamp()) + 300}`);
 
-    await timelock.queueTransaction(
+  await timelock.queueTransaction(
     governorBravo.address,
     0,
     '_initiate()',
     initiateData,
     eta
-    )
-    console.log('queued initiate');
-    console.log('execute initiate');
-    await sleep(300 * 1000);
-    for(let i = 0; i < 30; i++ ){
+  )
+
+  console.log('queued initiate')
+  console.log('execute initiate')
+    
+  await sleep(300 * 1000)
+    
+    for(let i = 0; i < 30; i++ ) {
         console.log(`Timestamp: ${await getTimestamp()}`);
         try{
             await timelock.executeTransaction(
