@@ -45,7 +45,7 @@ import L1LPJson from '../deployment/artifacts/contracts/LP/L1LiquidityPool.sol/L
 import L2LPJson from '../deployment/artifacts-ovm/contracts/LP/L2LiquidityPool.sol/L2LiquidityPool.json'
 
 //Standard ERC20 jsons - should be very similar?
-import L1ERC20Json from '../deployment/artifacts/contracts/L1ERC20.sol/L1ERC20.json'
+import L1ERC20Json from '../deployment/artifacts/contracts/test-helpers/L1ERC20.sol/L1ERC20.json'
 import L2ERC20Json from '../deployment/artifacts-ovm/optimistic-ethereum/libraries/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
 //OMGX L2 Contracts

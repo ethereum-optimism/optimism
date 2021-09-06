@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
+pragma solidity 0.7.6;
 /* Interface Imports */
 import { iOVM_CrossDomainMessenger } from "@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/bridge/messaging/iOVM_CrossDomainMessenger.sol";
 

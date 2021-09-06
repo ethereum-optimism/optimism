@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0;
+pragma solidity 0.7.6;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -39,7 +39,7 @@ contract ERC721Genesis is Ownable, ERC721 {
         );
     }
 
-    function mintNFT(address recipient, string memory tokenURI) public onlyOwner returns (uint256)
+    function mintNFT(address recipient, string memory tokenURI) external onlyOwner returns (uint256)
     {
         _mint(recipient, tID);
         _setTokenURI(tID, tokenURI);
@@ -47,11 +47,11 @@ contract ERC721Genesis is Ownable, ERC721 {
         return tID;
     }
 
-    function getLastTID() public view returns(uint256) {
+    function getLastTID() external view returns(uint256) {
         return tID;
     }
 
-    function getGenesis() public view returns (
+    function getGenesis() external view returns (
         address,
         string memory,
         string memory) {
@@ -59,19 +59,19 @@ contract ERC721Genesis is Ownable, ERC721 {
     }
 
     //for a specific tokenId, get the associated NFT
-    function getTokenURI(uint256 tokenId) public view returns (string memory) {
+    function getTokenURI(uint256 tokenId) external view returns (string memory) {
         return tokenURI(tokenId);
     }
 
-    function exists(uint256 tokenId) public view returns (bool) {
+    function exists(uint256 tokenId) external view returns (bool) {
         return _exists(tokenId);
     }
 
-    function safeMint(address to, uint256 tokenId, bytes memory _data) public onlyOwner {
+    function safeMint(address to, uint256 tokenId, bytes memory _data) external onlyOwner {
         _safeMint(to, tokenId, _data);
     }
 
-    function burn(uint256 tokenId) public {
+    function burn(uint256 tokenId) external {
         require(_isApprovedOrOwner(_msgSender(), tokenId), "Caller is not owner nor approved");
         _burn(tokenId);
     }

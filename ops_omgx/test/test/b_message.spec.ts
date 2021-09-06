@@ -6,8 +6,8 @@ import chalk from 'chalk';
 
 import { Direction } from './shared/watcher-utils'
 
-import L1MessageJson from '../artifacts/contracts/Message/L1Message.sol/L1Message.json'
-import L2MessageJson from '../artifacts-ovm/contracts/Message/L2Message.sol/L2Message.json'
+import L1MessageJson from '../artifacts/contracts/test-helpers/Message/L1Message.sol/L1Message.json'
+import L2MessageJson from '../artifacts-ovm/contracts/test-helpers/Message/L2Message.sol/L2Message.json'
 
 import { OptimismEnv } from './shared/env'
 

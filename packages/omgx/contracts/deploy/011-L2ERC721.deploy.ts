@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { getContractFactory } from '@eth-optimism/contracts';
 
 import preSupportedNFTs from '../preSupportedNFTs.json';
-import L1ERC721Json from '../artifacts/contracts/L1ERC721.sol/L1ERC721.json'
+import L1ERC721Json from '../artifacts/contracts/test-helpers/L1ERC721.sol/L1ERC721.json'
 import L2ERC721Json from '../artifacts-ovm/contracts/standards/L2StandardERC721.sol/L2StandardERC721.json'
 
 

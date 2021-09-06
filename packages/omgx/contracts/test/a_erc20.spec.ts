@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { getContractFactory } from '@eth-optimism/contracts';
 import { Direction } from './shared/watcher-utils'
 
-import L1ERC20Json from '../artifacts/contracts/L1ERC20.sol/L1ERC20.json'
+import L1ERC20Json from '../artifacts/contracts/test-helpers/L1ERC20.sol/L1ERC20.json'
 
 import { OptimismEnv } from './shared/env'
 import { promises as fs } from 'fs'

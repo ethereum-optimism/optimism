@@ -4,8 +4,8 @@ import { Contract, ContractFactory, utils } from 'ethers'
 import { Direction } from './libs/watcher-utils'
 import { OptimismEnv } from './libs/env'
 
-import L1MessageJson from './artifacts/contracts/Message/L1Message.sol/L1Message.json'
-import L2MessageJson from './artifacts-ovm/contracts/Message/L2Message.sol/L2Message.json'
+import L1MessageJson from './artifacts/contracts/test-helpers/Message/L1Message.sol/L1Message.json'
+import L2MessageJson from './artifacts-ovm/contracts/test-helpers/Message/L2Message.sol/L2Message.json'
 
 import logger from './logger'
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0;
+pragma solidity 0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -40,38 +40,40 @@ contract AtomicSwap {
     event Close(bytes32 _swapID);
 
     modifier onlyInvalidSwaps(bytes32 _swapID) {
-        require (swapStates[_swapID] == States.INVALID);
+        require (swapStates[_swapID] == States.INVALID, "Swap Id is not fresh");
         _;
     }
 
     modifier onlyOpenSwaps(bytes32 _swapID) {
-        require (swapStates[_swapID] == States.OPEN);
+        require (swapStates[_swapID] == States.OPEN, "Swap Id is not open");
         _;
     }
 
     modifier onlyCloseTrader(bytes32 _swapID) {
         Swap memory swap = swaps[_swapID];
-        require(msg.sender == swap.closeTrader);
+        require(msg.sender == swap.closeTrader, "Caller not authorized close Trader");
         _;
     }
 
     modifier onlyTraders(bytes32 _swapID) {
         Swap memory swap = swaps[_swapID];
-        require(msg.sender == swap.openTrader || msg.sender == swap.closeTrader);
+        require(msg.sender == swap.openTrader || msg.sender == swap.closeTrader, "Caller not authorized for swap");
         _;
     }
 
     function open(
-        bytes32 _swapID, 
-        uint256 _openValue, 
-        address _openContractAddress, 
-        uint256 _closeValue, 
-        address _closeTrader, 
+        bytes32 _swapID,
+        uint256 _openValue,
+        address _openContractAddress,
+        uint256 _closeValue,
+        address _closeTrader,
         address _closeContractAddress
-    ) 
-        public 
-        onlyInvalidSwaps(_swapID) 
-    {   
+    )
+        public
+        onlyInvalidSwaps(_swapID)
+    {
+        require(_openContractAddress != address(0) && _closeContractAddress != address(0), "Address should be non zero");
+        require(_closeTrader != address(0) && _closeTrader != msg.sender, "Close trader incorrect");
         // Store the details of the swap.
         swaps[_swapID] = Swap({
             openValue: _openValue,
@@ -88,12 +90,14 @@ contract AtomicSwap {
 
     function close(
         bytes32 _swapID
-    ) 
-        public 
-        onlyOpenSwaps(_swapID) 
-        onlyCloseTrader(_swapID) 
+    )
+        public
+        onlyOpenSwaps(_swapID)
+        onlyCloseTrader(_swapID)
     {
         Swap memory swap = swaps[_swapID];
+
+        swapStates[_swapID] = States.CLOSED;
 
         // Transfer the closing funds from the closing trader to the opening trader.
         IERC20(swap.closeContractAddress).safeTransferFrom(swap.closeTrader, swap.openTrader, swap.closeValue);
@@ -101,16 +105,14 @@ contract AtomicSwap {
         // Transfer the opening funds from opening trader to the closing trader.
         IERC20(swap.openContractAddress).safeTransferFrom(swap.openTrader, swap.closeTrader, swap.openValue);
 
-        swapStates[_swapID] = States.CLOSED;
-
         emit Close(_swapID);
     }
 
     function expire(
         bytes32 _swapID
-    ) 
-        public 
-        onlyOpenSwaps(_swapID) 
+    )
+        public
+        onlyOpenSwaps(_swapID)
         onlyTraders(_swapID)
     {
         // Expire the swap.
@@ -121,23 +123,23 @@ contract AtomicSwap {
 
     function check(
         bytes32 _swapID
-    ) 
-        public 
-        view 
+    )
+        public
+        view
         returns (
-            uint256 openValue, 
-            address openContractAddress, 
-            uint256 closeValue, 
-            address closeTrader, 
+            uint256 openValue,
+            address openContractAddress,
+            uint256 closeValue,
+            address closeTrader,
             address closeContractAddress
-        ) 
+        )
     {
         Swap memory swap = swaps[_swapID];
         return (
-            swap.openValue, 
-            swap.openContractAddress, 
-            swap.closeValue, 
-            swap.closeTrader, 
+            swap.openValue,
+            swap.openContractAddress,
+            swap.closeValue,
+            swap.closeTrader,
             swap.closeContractAddress
         );
     }

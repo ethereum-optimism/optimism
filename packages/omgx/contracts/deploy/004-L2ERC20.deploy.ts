@@ -4,7 +4,7 @@ import { Contract, ContractFactory, utils} from 'ethers'
 import chalk from 'chalk';
 import { getContractFactory } from '@eth-optimism/contracts';
 
-import L1ERC20Json from '../artifacts/contracts/L1ERC20.sol/L1ERC20.json'
+import L1ERC20Json from '../artifacts/contracts/test-helpers/L1ERC20.sol/L1ERC20.json'
 import preSupportedTokens from '../preSupportedTokens.json';
 
 let Factory__L1ERC20: ContractFactory
