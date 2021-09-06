@@ -35,6 +35,8 @@ packages/omgx/wallet/wallet/build
 .env-docker
 env.js
 env.yml
+env-rinkeby.yml
+env-mainnet.yml
 *.log
 
 .serverless

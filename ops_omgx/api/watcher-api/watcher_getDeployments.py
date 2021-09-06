@@ -13,7 +13,7 @@ def watcher_getDeployments(event, context):
   # Parse incoming event
   body = json.loads(event["body"])
   address = body.get("address")
-  
+
   # Read YML
   with open("env.yml", 'r') as ymlfile:
     config = yaml.load(ymlfile)
@@ -38,14 +38,14 @@ def watcher_getDeployments(event, context):
           "hash": transactionDataRaw[0],
           "blockNumber": int(transactionDataRaw[1]),
           "from": transactionDataRaw[2],
-          "timestamp": transactionDataRaw[3],
+          "timeStamp": transactionDataRaw[3],
           "contractAddress": transactionDataRaw[4]
         })
     except Exception as e:
       transactionData = []
 
   con.close()
-  
+
   response = {
     "statusCode": 201,
     "headers": {

@@ -1,12 +1,12 @@
-service: sls-boba-mainnet-watcher # NOTE: update this with your service name
+service: sls-boba-rinkeby-watcher # NOTE: update this with your service name
 
 provider:
   name: aws
   runtime: python3.7
-  stackName: sls-boba-mainnet-watcher
+  stackName: sls-boba-rinkeby-watcher
   stage: prod
   region: us-east-1
-  role: ${file(env.yml):ROLE}
+  role: ${file(env-rinkeby.yml):ROLE}
 
 package:
   exclude:
@@ -20,48 +20,48 @@ functions:
     timeout: 60 # optional, in seconds, default is 6
     vpc:
       securityGroupIds:
-        - ${file(env.yml):SECURITY_GROUPS}
+        - ${file(env-rinkeby.yml):SECURITY_GROUPS}
       subnetIds:
-        - ${file(env.yml):SUBNET_ID_1}
-        - ${file(env.yml):SUBNET_ID_2}
+        - ${file(env-rinkeby.yml):SUBNET_ID_1}
+        - ${file(env-rinkeby.yml):SUBNET_ID_2}
     events:
       - http:
           path: get.transaction
           method: post
           cors: true
     layers:
-      - ${file(env.yml):LAYERS}
+      - ${file(env-rinkeby.yml):LAYERS}
   watcher_getDeployments:
     handler: watcher_getDeployments.watcher_getDeployments
     memorySize: 10240 # optional, in MB, default is 1024
     timeout: 60 # optional, in seconds, default is 6
     vpc:
       securityGroupIds:
-        - ${file(env.yml):SECURITY_GROUPS}
+        - ${file(env-rinkeby.yml):SECURITY_GROUPS}
       subnetIds:
-        - ${file(env.yml):SUBNET_ID_1}
-        - ${file(env.yml):SUBNET_ID_2}
+        - ${file(env-rinkeby.yml):SUBNET_ID_1}
+        - ${file(env-rinkeby.yml):SUBNET_ID_2}
     events:
       - http:
           path: get.deployments
           method: post
           cors: true
     layers:
-      - ${file(env.yml):LAYERS}
+      - ${file(env-rinkeby.yml):LAYERS}
   watcher_getCrossDomainMessage:
     handler: watcher_getCrossDomainMessage.watcher_getCrossDomainMessage
     memorySize: 10240 # optional, in MB, default is 1024
     timeout: 60 # optional, in seconds, default is 6
     vpc:
       securityGroupIds:
-        - ${file(env.yml):SECURITY_GROUPS}
+        - ${file(env-rinkeby.yml):SECURITY_GROUPS}
       subnetIds:
-        - ${file(env.yml):SUBNET_ID_1}
-        - ${file(env.yml):SUBNET_ID_2}
+        - ${file(env-rinkeby.yml):SUBNET_ID_1}
+        - ${file(env-rinkeby.yml):SUBNET_ID_2}
     events:
       - http:
           path: get.crossdomainmessage
           method: post
           cors: true
     layers:
-      - ${file(env.yml):LAYERS}
+      - ${file(env-rinkeby.yml):LAYERS}

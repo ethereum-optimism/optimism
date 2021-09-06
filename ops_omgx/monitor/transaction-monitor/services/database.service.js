@@ -78,6 +78,34 @@ class DatabaseService extends OptimismEnv{
         PRIMARY KEY ( blockNumber )
       )`
     );
+    await this.query(`CREATE TABLE IF NOT EXISTS stateRoot
+      (
+        hash VARCHAR(255) NOT NULL,
+        blockHash VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
+        stateRootHash VARCHAR(255),
+        stateRootBlockNumber INT,
+        stateRootBlockHash VARCHAR(255),
+        stateRootBlockTimestamp INT,
+        PRIMARY KEY ( blockNumber )
+      )`
+    );
+    await this.query(`CREATE TABLE IF NOT EXISTS exitL2
+    (
+      hash VARCHAR(255) NOT NULL,
+      blockHash VARCHAR(255) NOT NULL,
+      blockNumber INT NOT NULL,
+      exitSender VARCHAR(255),
+      exitTo VARCHAR(255),
+      exitToken VARCHAR(255),
+      exitAmount VARCHAR(255),
+      exitReceive VARCHAR(255),
+      exitFeeRate VARCHAR(255),
+      fastRelay BOOL,
+      status VARCHAR(255),
+      PRIMARY KEY ( blockNumber )
+    )`
+  );
     this.logger.info('Initialized the database.');
   }
 
@@ -161,9 +189,56 @@ class DatabaseService extends OptimismEnv{
     `);
   }
 
-  async getNewestBlock(){
+  async insertStateRootData(stateRootData) {
+    await this.query(`USE ${this.MySQLDatabaseName}`);
+    await this.query(`INSERT IGNORE INTO stateRoot
+      SET hash='${stateRootData.hash}',
+      blockHash='${stateRootData.blockHash}',
+      blockNumber=${Number(stateRootData.blockNumber)},
+      stateRootHash='${stateRootData.stateRootHash}',
+      stateRootBlockNumber=${Number(stateRootData.stateRootBlockNumber)},
+      stateRootBlockHash='${stateRootData.stateRootBlockHash}',
+      stateRootBlockTimestamp='${Number(stateRootData.stateRootBlockTimestamp)}'
+  `);
+  }
+
+  async insertExitData(exitData) {
+    await this.query(`USE ${this.MySQLDatabaseName}`);
+    await this.query(`INSERT IGNORE INTO exitL2
+      SET hash='${exitData.hash}',
+      blockHash='${exitData.blockHash}',
+      blockNumber=${Number(exitData.blockNumber)},
+      exitSender='${exitData.exitSender}',
+      exitTo='${exitData.exitTo}',
+      exitToken='${exitData.exitToken}',
+      exitAmount='${exitData.exitAmount}',
+      exitReceive='${exitData.exitReceive}',
+      exitFeeRate='${exitData.exitFeeRate}',
+      fastRelay=${exitData.fastRelay},
+      status='pending'
+  `);
+  }
+
+  async updateExitData(exitData) {
+    await this.query(`UPDATE exitL2
+      SET status='${exitData.status}'
+      WHERE blockNumber=${Number(exitData.blockNumber)}
+  `);
+  }
+
+  async getNewestBlockFromBlockTable() {
     await this.query(`USE ${this.MySQLDatabaseName}`);
     return await this.query(`SELECT MAX(blockNumber) from block`);
+  }
+
+  async getNewestBlockFromStateRootTable() {
+    await this.query(`USE ${this.MySQLDatabaseName}`);
+    return await this.query(`SELECT MAX(stateRootBlockNumber) from stateRoot`);
+  }
+
+  async getNewestBlockFromExitTable() {
+    await this.query(`USE ${this.MySQLDatabaseName}`);
+    return await this.query(`SELECT MAX(blockNumber) from exitL2`);
   }
 }
 
