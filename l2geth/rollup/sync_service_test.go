@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 )
 
 func setupLatestEthContextTest() (*SyncService, *EthContext) {
@@ -569,6 +570,38 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 
 	if l2GasPrice.Cmp(post) != 0 {
 		t.Fatal("Gas price not updated")
+	}
+}
+
+func TestSyncServiceMinL2GasPrice(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.minL2GasLimit = new(big.Int).SetUint64(10_000_000)
+	signer := types.NewEIP155Signer(big.NewInt(420))
+	// Generate a key
+	key, _ := crypto.GenerateKey()
+	// Create a transaction
+	gasLimit := uint64(100)
+	tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), gasLimit, big.NewInt(15000000), []byte{})
+	// Make sure the gas limit is set correctly
+	if tx.Gas() != gasLimit {
+		t.Fatal("gas limit not set correctly")
+	}
+	// Sign the dummy tx with the owner key
+	signedTx, err := types.SignTx(tx, signer, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Sanity check the L2 gas limit
+	if tx.L2Gas() > service.minL2GasLimit.Uint64() {
+		t.Fatal("L2 gas limit expected to be smaller than min accepted by sequencer")
+	}
+	// Verify the fee of the signed tx, ensure it does not error
+	err = service.verifyFee(signedTx)
+	if !errors.Is(err, fees.ErrL2GasLimitTooLow) {
+		t.Fatal(err)
 	}
 }
 

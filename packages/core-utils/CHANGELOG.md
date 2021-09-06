@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.5.4
+
+### Patch Changes
+
+- 085b35ba: Watcher: Even lower num blocks to fetch
+
 ## 0.5.3
 
 ### Patch Changes
