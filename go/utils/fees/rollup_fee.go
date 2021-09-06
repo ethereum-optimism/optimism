@@ -9,7 +9,7 @@ import (
 
 // overhead represents the fixed cost of batch submission of a single
 // transaction in gas.
-const overhead uint64 = 4200 + 200*params.TxDataNonZeroGasEIP2028
+const overhead uint64 = 2750
 
 // feeScalar is used to scale the calculations in EncodeL2GasLimit
 // to prevent them from being too large

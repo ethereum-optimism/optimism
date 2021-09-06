@@ -8,7 +8,7 @@ import { remove0x } from './common'
 const feeScalar = 10_000_000
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
-const overhead = 4200 + 200 * txDataNonZeroGasEIP2028
+const overhead = 2750
 const tenThousand = BigNumber.from(10_000)
 export const TxGasPrice = BigNumber.from(feeScalar + feeScalar / 2)
 export interface EncodableL2GasLimit {
