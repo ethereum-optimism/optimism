@@ -12,7 +12,7 @@ Enabling rollups on execution-layer data today, and shard-data in the future.
 
 Components (under construction):
 - [Layer 1 Contracts](./components/layer1.md)
-- [Rollup Synchronizer](./components/rollup_synchronizer.md)
+- [Rollup Client](./components/rollup_client.md)
 - [Execution Engine](./components/exec_engine.md)
 - [Batch Submitter](./components/batch_submitter.md)
 - [Witness Generator](./components/witness_gen.md)

@@ -50,7 +50,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
 
 ### L2 Components
 
-- **Rollup Synchronizer** (previously "Data Transport Layer"):
+- **Rollup Node** (previously "Data Transport Layer"):
   - Sync data from the L1: call payload-insertion method of Engine API
   - Track L1 data tip, and track state-roots: call forkchoice method of Engine API to finalize (undisputed state root) and reorg (follow head derived from L1)
   - Create execution payloads:
