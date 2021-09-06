@@ -1,0 +1,13 @@
+{
+  "network": "rinkeby",
+  "contracts": {
+    "L1LiquidityPool": {
+      "address": "0x99F5557012b681A51E5FBf39FbAa1469D6DDb390",
+      "startBlock": 9098146
+    },
+    "OVM_L1StandardBridge": {
+      "address": "0xDe085C82536A06b40D20654c2AbA342F2abD7077",
+      "startBlock": 8845222
+    }
+  }
+}

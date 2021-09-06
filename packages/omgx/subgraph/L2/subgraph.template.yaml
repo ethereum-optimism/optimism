@@ -1,0 +1,59 @@
+specVersion: 0.0.2
+description: L2 Bridges
+repository: https://github.com/omgnetwork/optimism
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: L2LiquidityPool
+    network: {{network}}
+    source:
+      address: '{{contracts.L2LiquidityPool.address}}'
+      abi: L2LiquidityPool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities:
+        - L2LiquidityPool
+      abis:
+        - name: L2LiquidityPool
+          file: ./abis/L2LiquidityPool.json
+      eventHandlers:
+        - event: AddLiquidity(address,uint256,address)
+          handler: handleLPAddLiquidity
+        - event: ClientDepositL2(address,uint256,address)
+          handler: handleLPClientDepositL2
+        - event: ClientPayL2(address,uint256,uint256,uint256,uint256,address)
+          handler: handleLPClientPayL2
+        - event: OwnerRecoverFee(address,address,uint256,address)
+          handler: handleLPOwnerRecoverFee
+        - event: WithdrawLiquidity(address,address,uint256,address)
+          handler: handleLPWithdrawLiquidity
+        - event: WithdrawReward(address,address,uint256,address)
+          handler: handleLPWithdrawReward
+      file: ./src/L2LiquidityPoolMapping.ts
+
+  - kind: ethereum/contract
+    name: OVM_L2StandardBridge
+    network: {{network}}
+    source:
+      address: '{{contracts.OVM_L2StandardBridge.address}}'
+      abi: OVM_L2StandardBridge
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities:
+        - OVM_L2StandardBridge
+      abis:
+        - name: OVM_L2StandardBridge
+          file: ./abis/OVM_L2StandardBridge.json
+      eventHandlers:
+        - event: WithdrawalInitiated(indexed address,indexed address,indexed address,address,uint256,bytes)
+          handler: handleSBWithdrawalInitiated
+        - event: DepositFinalized(indexed address,indexed address,indexed address,address,uint256,bytes)
+          handler: handleSBDepositFinalized
+        - event: DepositFailed(indexed address,indexed address,indexed address,address,uint256,bytes)
+          handler: handleSBDepositFailed
+      file: ./src/OVM_L2StandardBridgeMapping.ts

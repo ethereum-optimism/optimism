@@ -1,0 +1,83 @@
+type LPAddLiquidity @entity {
+  id: ID!
+  sender: Bytes
+  amount: String
+  token: Bytes
+}
+
+type LPClientDepositL1 @entity {
+  id: ID!
+  sender: Bytes
+  amount: String
+  token: Bytes
+}
+
+type LPClientPayL1 @entity {
+  id: ID!
+  sender: Bytes
+  amount: String
+  userRewardFee: String
+  ownerRewardFee: String
+  totalFee: String
+  token: Bytes
+}
+
+type LPOwnerRecoverFee @entity {
+  id: ID!
+  sender: Bytes
+  receiver: Bytes
+  amount: String
+  token: Bytes
+}
+
+type LPWithdrawLiquidity @entity {
+  id: ID!
+  sender: Bytes
+  receiver: Bytes
+  amount: String
+  token: Bytes
+}
+
+type LPWithdrawReward @entity {
+  id: ID!
+  sender: Bytes
+  receiver: Bytes
+  amount: String
+  token: Bytes
+}
+
+type SBETHDepositInitiated @entity {
+  id: ID!
+  from: Bytes
+  to: Bytes
+  amount: String
+  data: Bytes
+}
+
+type SBERC20DepositInitiated @entity {
+  id: ID!
+  l1Token: Bytes
+  l2Token: Bytes
+  from: Bytes
+  to: Bytes
+  amount: String
+  data: Bytes
+}
+
+type SBETHWithdrawalFinalized @entity {
+  id: ID!
+  from: Bytes
+  to: Bytes
+  amount: String
+  data: Bytes
+}
+
+type SBERC20WithdrawalFinalized @entity {
+  id: ID!
+  l1Token: Bytes
+  l2Token: Bytes
+  from: Bytes
+  to: Bytes
+  amount: String
+  data: Bytes
+}

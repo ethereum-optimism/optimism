@@ -1,0 +1,27 @@
+{
+  "name": "boba_bridges",
+  "version": "0.1.0",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "prepare:rinkeby": "mustache config/rinkeby.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:mainnet": "mustache config/mainnet.json subgraph.template.yaml > subgraph.yaml",
+    "create:subgraph:rinkeby": "graph create --node https://graph.rinkeby.boba.network:8020 boba/Bridges",
+    "deploy:subgraph:rinkeby": "graph deploy boba/Bridges --ipfs https://graph.rinkeby.boba.network:5001 --node https://graph.rinkeby.boba.network:8020",
+    "create:subgraph:mainnet": "graph create --node https://graph.mainnet.boba.network:8020 boba/Bridges",
+    "deploy:subgraph:mainnet": "graph deploy boba/Bridges --ipfs https://graph.mainnet.boba.network:5001 --node https://graph.mainnet.boba.network:8020"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.20.1",
+    "@graphprotocol/graph-ts": "^0.20.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "3.4.1",
+    "babel-polyfill": "^6.26.0",
+    "babel-register": "^6.26.0",
+    "mustache": "^4.2.0",
+    "truffle": "^5.0.4",
+    "truffle-contract": "^4.0.5",
+    "truffle-hdwallet-provider": "^1.0.4"
+  }
+}

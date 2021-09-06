@@ -1,0 +1,63 @@
+specVersion: 0.0.2
+description: L1 Bridges
+repository: https://github.com/omgnetwork/optimism
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: L1LiquidityPool
+    network: {{network}}
+    source:
+      address: '{{contracts.L1LiquidityPool.address}}'
+      startBlock: {{ contracts.L1LiquidityPool.startBlock }}
+      abi: L1LiquidityPool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities:
+        - L1LiquidityPool
+      abis:
+        - name: L1LiquidityPool
+          file: ./abis/L1LiquidityPool.json
+      eventHandlers:
+        - event: AddLiquidity(address,uint256,address)
+          handler: handleLPAddLiquidity
+        - event: ClientDepositL1(address,uint256,address)
+          handler: handleLPClientDepositL1
+        - event: ClientPayL1(address,uint256,uint256,uint256,uint256,address)
+          handler: handleLPClientPayL1
+        - event: OwnerRecoverFee(address,address,uint256,address)
+          handler: handleLPOwnerRecoverFee
+        - event: WithdrawLiquidity(address,address,uint256,address)
+          handler: handleLPWithdrawLiquidity
+        - event: WithdrawReward(address,address,uint256,address)
+          handler: handleLPWithdrawReward
+      file: ./src/L1LiquidityPoolMapping.ts
+
+  - kind: ethereum/contract
+    name: OVM_L1StandardBridge
+    network: {{network}}
+    source:
+      address: '{{contracts.OVM_L1StandardBridge.address}}'
+      startBlock: {{ contracts.OVM_L1StandardBridge.startBlock }}
+      abi: OVM_L1StandardBridge
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities:
+        - OVM_L1StandardBridge
+      abis:
+        - name: OVM_L1StandardBridge
+          file: ./abis/OVM_L1StandardBridge.json
+      eventHandlers:
+        - event: ERC20DepositInitiated(indexed address,indexed address,indexed address,address,uint256,bytes)
+          handler: handleSBERC20DepositInitiated
+        - event: ERC20WithdrawalFinalized(indexed address,indexed address,indexed address,address,uint256,bytes)
+          handler: handleSBERC20WithdrawalFinalized
+        - event: ETHDepositInitiated(indexed address,indexed address,uint256,bytes)
+          handler: handleSBETHDepositInitiated
+        - event: ETHWithdrawalFinalized(indexed address,indexed address,uint256,bytes)
+          handler: handleSBETHWithdrawalFinalized
+      file: ./src/OVM_L1StandardBridgeMapping.ts

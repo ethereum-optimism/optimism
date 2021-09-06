@@ -1,0 +1,13 @@
+{
+  "network": "mainnet",
+  "contracts": {
+    "L1LiquidityPool": {
+      "address": "0x6b4eab8D55A4f701C3FE58bDb8b3e1f181eA7087",
+      "startBlock": 13013879
+    },
+    "OVM_L1StandardBridge": {
+      "address": "0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00",
+      "startBlock": 13012048
+    }
+  }
+}
