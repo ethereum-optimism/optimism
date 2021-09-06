@@ -19,7 +19,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
 
 ## Components
 
-![Architecture Diagram](architecture.svg)
+![Architecture Diagram](./assets/architecture.svg)
 
 ### L1 Contracts
 - **Feeds**: "Data availability layer"--append-only logs (e.g. of deposits, transactions, and batched transactions) which must guarantee that:
