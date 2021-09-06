@@ -19,11 +19,13 @@ interface GasPriceOracleOptions {
   OVM_SequencerFeeVault: string,
 
   // Wallet
-  deployerWallet: Wallet,
-  sequencerWallet: Wallet,
-  proposerWallet: Wallet,
-  relayerWallet: Wallet,
-  fastRelayerWallet: Wallet,
+  gasPriceOracleOwnerWallet: Wallet,
+
+  // monitor accounts
+  sequencerAddress: string,
+  proposerAddress: string,
+  relayerAddress: string,
+  fastRelayerAddress: string,
 
   // Floor pice
   gasFloorPrice: number
@@ -63,11 +65,11 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
       gasPriceOracleAddress: this.options.gasPriceOracleAddress,
       OVM_SequencerFeeVault: this.options.OVM_SequencerFeeVault,
       OVM_oETHAddress: this.options.OVM_oETHAddress,
-      deployerAddress: this.options.deployerWallet.address,
-      sequencerWallet: this.options.sequencerWallet.address,
-      proposerWallet: this.options.proposerWallet.address,
-      relayerWallet: this.options.relayerWallet.address,
-      fastRelayerWallet: this.options.fastRelayerWallet.address,
+      gasOracleOwnerAddress: this.options.gasPriceOracleOwnerWallet.address,
+      sequencerWallet: this.options.sequencerAddress,
+      proposerWallet: this.options.proposerAddress,
+      relayerWallet: this.options.relayerAddress,
+      fastRelayerWallet: this.options.fastRelayerAddress,
       gasFloorPrice: this.options.gasFloorPrice,
       pollingInterval: this.options.pollingInterval,
     })
@@ -79,7 +81,7 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
       'OVM_GasPriceOracle',
       this.options.gasPriceOracleAddress,
       this.options.l2RpcProvider,
-    ).connect(this.options.deployerWallet)
+    ).connect(this.options.gasPriceOracleOwnerWallet)
     this.logger.info('Connected to OVM_GasPriceOracle', {
       address: this.state.OVM_GasPriceOracle.address,
     })
@@ -89,7 +91,7 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
       'L2StandardERC20',
       this.options.OVM_oETHAddress,
       this.options.l2RpcProvider,
-    ).connect(this.options.deployerWallet)
+    ).connect(this.options.gasPriceOracleOwnerWallet)
     this.logger.info('Connected to oETH', {
       address: this.state.OVM_oETH.address,
     })
@@ -153,10 +155,10 @@ export class GasPriceOracleService extends BaseService<GasPriceOracleOptions> {
 
   private async _getL1Balance(): Promise<void> {
     const balances = await Promise.all([
-      this.options.l1RpcProvider.getBalance(this.options.sequencerWallet.address),
-      this.options.l1RpcProvider.getBalance(this.options.proposerWallet.address),
-      this.options.l1RpcProvider.getBalance(this.options.relayerWallet.address),
-      this.options.l1RpcProvider.getBalance(this.options.fastRelayerWallet.address),
+      this.options.l1RpcProvider.getBalance(this.options.sequencerAddress),
+      this.options.l1RpcProvider.getBalance(this.options.proposerAddress),
+      this.options.l1RpcProvider.getBalance(this.options.relayerAddress),
+      this.options.l1RpcProvider.getBalance(this.options.fastRelayerAddress),
     ])
     const L1ETHBalanceLatest = balances.reduce(
       (acc,cur) => { return acc.add(cur) }, BigNumber.from('0')

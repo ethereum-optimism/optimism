@@ -18,25 +18,41 @@ const main = async () => {
   const L2_NODE_WEB3_URL = config.str('l2-node-web3-url', env.L2_NODE_WEB3_URL)
   const L1_NODE_WEB3_URL = config.str('l1-node-web3-url', env.L1_NODE_WEB3_URL)
 
-  const DEPLOYER_PRIVATE_KEY = config.str(
-    'deployer-private-key',
-    env.DEPLOYER_PRIVATE_KEY
+  const GAS_PRICE_ORACLE_OWNER_PRIVATE_KEY = config.str(
+    'gas-price-oracle-owner-key',
+    env.GAS_PRICE_ORACLE_OWNER_PRIVATE_KEY
   )
   const SEQUENCER_PRIVATE_KEY = config.str(
     'sequencer-private-key',
     env.SEQUENCER_PRIVATE_KEY
   )
+  const SEQUENCER_ADDRESS = config.str(
+    'sequencer-address',
+    env.SEQUENCER_ADDRESS
+  )
   const PROPOSER_PRIVATE_KEY = config.str(
     'proposer-private-key',
     env.PROPOSER_PRIVATE_KEY
+  )
+  const PROPOSER_ADDRESS = config.str(
+    'proposer-address',
+    env.PROPOSER_ADDRESS
   )
   const RELAYER_PRIVATE_KEY = config.str(
     'relayer-private-key',
     env.RELAYER_PRIVATE_KEY
   )
+  const RELAYER_ADDRESS = config.str(
+    'relayer-address',
+    env.RELAYER_ADDRESS
+  )
   const FAST_RELAYER_PRIVATE_KEY = config.str(
     'fast-relayer-private-key',
     env.FAST_RELAYER_PRIVATE_KEY
+  )
+  const FAST_RELAYER_ADDRESS = config.str(
+    'fast-relayer-address',
+    env.FAST_RELAYER_ADDRESS
   )
 
   const GAS_PRICE_ORACLE_ADDRESS = config.str(
@@ -71,34 +87,40 @@ const main = async () => {
   if (!L2_NODE_WEB3_URL) {
     throw new Error('Must pass L2_NODE_WEB3_URL')
   }
-  if (!DEPLOYER_PRIVATE_KEY) {
-    throw new Error('Must pass DEPLOYER_PRIVATE_KEY')
+  if (!GAS_PRICE_ORACLE_OWNER_PRIVATE_KEY) {
+    throw new Error('Must pass GAS_PRICE_ORACLE_OWNER_PRIVATE_KEY')
   }
-  if (!SEQUENCER_PRIVATE_KEY) {
-    throw new Error('Must pass SEQUENCER_PRIVATE_KEY')
+  if (!SEQUENCER_ADDRESS && !SEQUENCER_PRIVATE_KEY) {
+    throw new Error('Must pass SEQUENCER_ADDRESS or SEQUENCER_PRIVATE_KEY')
   }
-  if (!PROPOSER_PRIVATE_KEY) {
-    throw new Error('Must pass PROPOSER_PRIVATE_KEY')
+  if (!PROPOSER_ADDRESS && !PROPOSER_PRIVATE_KEY) {
+    throw new Error('Must pass PROPOSER_ADDRESS or PROPOSER_PRIVATE_KEY')
   }
-  if (!RELAYER_PRIVATE_KEY) {
-    throw new Error('Must pass RELAYER_PRIVATE_KEY')
+  if (!RELAYER_ADDRESS && !RELAYER_PRIVATE_KEY) {
+    throw new Error('Must pass RELAYER_ADDRESS or RELAYER_PRIVATE_KEY')
   }
-  if (!FAST_RELAYER_PRIVATE_KEY) {
-    throw new Error('Must pass FAST_RELAYER_PRIVATE_KEY')
+  if (!FAST_RELAYER_ADDRESS && !FAST_RELAYER_PRIVATE_KEY) {
+    throw new Error('Must pass FAST_RELAYER_ADDRESS or FAST_RELAYER_PRIVATE_KEY')
   }
 
   const l1Provider = new providers.JsonRpcProvider(L1_NODE_WEB3_URL)
   const l2Provider = new providers.JsonRpcProvider(L2_NODE_WEB3_URL)
 
-  const deployerWallet = new Wallet(DEPLOYER_PRIVATE_KEY, l2Provider)
-  const sequencerWallet = new Wallet(SEQUENCER_PRIVATE_KEY, l1Provider)
-  const proposerWallet = new Wallet(PROPOSER_PRIVATE_KEY, l1Provider)
-  const relayerWallet = new Wallet(RELAYER_PRIVATE_KEY, l1Provider)
-  const fastRelayerWallet = new Wallet(FAST_RELAYER_PRIVATE_KEY, l1Provider)
+  const gasPriceOracleOwnerWallet = new Wallet(GAS_PRICE_ORACLE_OWNER_PRIVATE_KEY, l2Provider)
 
-  // Fix address
+  // Fixed address
   const OVM_oETHAddress = "0x4200000000000000000000000000000000000006"
   const OVM_SequencerFeeVault = "0x4200000000000000000000000000000000000011"
+
+  // sequencer, proposer, relayer and fast relayer addresses
+  const sequencerAddress = SEQUENCER_ADDRESS ? SEQUENCER_ADDRESS:
+    (new Wallet(SEQUENCER_PRIVATE_KEY, l2Provider)).address;
+  const proposerAddress = PROPOSER_ADDRESS ? PROPOSER_ADDRESS:
+    (new Wallet(PROPOSER_PRIVATE_KEY, l2Provider)).address;
+  const relayerAddress = RELAYER_ADDRESS ? RELAYER_ADDRESS:
+    (new Wallet(RELAYER_PRIVATE_KEY, l2Provider)).address;
+  const fastRelayerAddress = FAST_RELAYER_ADDRESS ? FAST_RELAYER_ADDRESS:
+    (new Wallet(FAST_RELAYER_PRIVATE_KEY, l2Provider)).address;
 
   const service = new GasPriceOracleService({
     l1RpcProvider: l1Provider,
@@ -106,11 +128,11 @@ const main = async () => {
     gasPriceOracleAddress: GAS_PRICE_ORACLE_ADDRESS,
     OVM_oETHAddress,
     OVM_SequencerFeeVault,
-    deployerWallet,
-    sequencerWallet,
-    proposerWallet,
-    relayerWallet,
-    fastRelayerWallet,
+    gasPriceOracleOwnerWallet,
+    sequencerAddress,
+    proposerAddress,
+    relayerAddress,
+    fastRelayerAddress,
     gasFloorPrice: GAS_PRICE_ORACLE_FLOOR_PRICE,
     gasRoofPrice: GAS_PRICE_ORACLE_ROOF_PRICE,
     gasPriceMinPercentChange: GAS_PRICE_ORACLE_MIN_PERCENT_CHANGE,

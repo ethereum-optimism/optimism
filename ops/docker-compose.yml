@@ -66,7 +66,7 @@ x-deployer_pk: &deployer_pk
 # Account #0
 # Same as the deployer - allows the deployer to bypass the fee enforcement
 x-gas-price-oracle_pk: &gas-price-oracle_pk
-  GAS_PRICE_ORACLE_PRIVATE_KEY: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+  GAS_PRICE_ORACLE_OWNER_PRIVATE_KEY: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 
 # Account #1
 x-sequencer_pk: &sequencer_pk
