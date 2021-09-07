@@ -483,6 +483,11 @@
     rxjs "^7.2.0"
     semver "^7.3.5"
 
+"@discoveryjs/json-ext@^0.5.3":
+  version "0.5.3"
+  resolved "https://registry.yarnpkg.com/@discoveryjs/json-ext/-/json-ext-0.5.3.tgz#90420f9f9c6d3987f176a19a7d8e764271a2f55d"
+  integrity sha512-Fxt+AfXgjMoin2maPIYzFZnQjAXjAL0PHscM5pRTtatFqB+vZxAM9tLp2Optnuw3QOQC40jTNeGYFOMvyf7v9g==
+
 "@ensdomains/ens@^0.4.4":
   version "0.4.5"
   resolved "https://registry.yarnpkg.com/@ensdomains/ens/-/ens-0.4.5.tgz#e0aebc005afdc066447c6e22feb4eda89a5edbfc"
@@ -2974,6 +2979,11 @@
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
+
+"@uniswap/v3-core-optimism@^1.0.0-rc.0":
+  version "1.0.0-rc.0"
+  resolved "https://registry.yarnpkg.com/@uniswap/v3-core-optimism/-/v3-core-optimism-1.0.0-rc.0.tgz#fafe94c2d435a2133a470fc2793370c544463dd3"
+  integrity sha512-mJ5TwiWabR02G8lceVc2+3lmFOqVI3p++wpQQcvVHv+pfGq38NSaHbirmGB8sbv7x29wUteiNL7soHoD6tGe7g==
 
 "@yarnpkg/lockfile@^1.1.0":
   version "1.1.0"
