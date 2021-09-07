@@ -6,23 +6,21 @@
 
 ## Getting started
 
-### Building and usage
-
 After cloning and switching to the repository, install dependencies:
 
 ```bash
 $ yarn
 ```
 
-Use the following commands to build, use, test, and lint:
-
-```bash
-$ yarn build
-$ yarn start
-$ yarn test
-$ yarn lint
-```
-
 ### Configuration
 
 We're using `dotenv` for our configuration.
+To configure the project, clone this repository and copy the `env.example` file to `.env`.
+
+### Runnign scripts
+
+To run an individual script directly:
+
+```bash
+$ npx ts-node scripts/event-indexer.ts
+```
