@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.11
+
+### Patch Changes
+
+- 888dafca: Add etherscan verification support
+- Updated dependencies [eb0854e7]
+- Updated dependencies [21b17edd]
+- Updated dependencies [dfe3598f]
+  - @eth-optimism/core-utils@0.5.5
+
 ## 0.4.10
 
 ### Patch Changes
