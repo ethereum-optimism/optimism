@@ -22,6 +22,10 @@ pragma solidity ^0.7.0;
 
 pragma experimental ABIEncoderV2;
 
+// Can't do this until the package is published.
+//import { iOVM_L1BlockNumber } from "@eth-optimism/contracts/iOVM_L1BlockNumber";
+import { iOVM_L1BlockNumber } from "./OVMContextStorage.sol";
+
 /// @title OVMMulticall - Aggregate results from multiple read-only function calls
 contract OVMMulticall {
     struct Call {
@@ -44,8 +48,14 @@ contract OVMMulticall {
         timestamp = block.timestamp;
     }
 
-    function getCurrentBlockNumber() public view returns (uint256 blockNumber) {
-        blockNumber = block.number;
+    function getCurrentL1BlockNumber() public view returns (uint256) {
+        return iOVM_L1BlockNumber(
+            0x4200000000000000000000000000000000000013
+        ).getL1BlockNumber();
+    }
+
+    function getCurrentBlockNumber() public view returns (uint256) {
+        return block.number;
     }
 
     function getChainID() external view returns (uint256) {
