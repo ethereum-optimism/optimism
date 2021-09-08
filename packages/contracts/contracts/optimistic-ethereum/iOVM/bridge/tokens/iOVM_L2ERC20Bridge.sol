@@ -44,6 +44,12 @@ interface iOVM_L2ERC20Bridge {
      ********************/
 
     /**
+     * @dev get the address of the corresponding L1 bridge contract.
+     * @return Address of the corresponding L1 bridge contract.
+     */
+    function l1TokenBridge() external returns(address);
+
+    /**
      * @dev initiate a withdraw of some tokens to the caller's account on L1
      * @param _l2Token Address of L2 token where withdrawal was initiated.
      * @param _amount Amount of the token to withdraw.
