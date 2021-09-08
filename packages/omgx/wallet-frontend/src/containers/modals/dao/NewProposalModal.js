@@ -22,7 +22,6 @@ import * as styles from './daoModal.module.scss'
 import Modal from 'components/modal/Modal'
 import Button from 'components/button/Button'
 import Input from 'components/input/Input'
-import ProposalAction from './ProposalAction'
 import { createDaoProposal } from 'actions/daoAction'
 
 function NewProposalModal({ open }) {
