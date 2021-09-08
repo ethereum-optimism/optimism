@@ -67,12 +67,13 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 			GetHash:         GetHashFn(header, chain),
 			Origin:          msg.From(),
 			Coinbase:        dump.OvmFeeWallet, // Coinbase is the fee vault.
-			BlockNumber:     msg.L1BlockNumber(),
+			BlockNumber:     new(big.Int).Set(header.Number),
 			Time:            new(big.Int).SetUint64(msg.L1Timestamp()),
 			Difficulty:      new(big.Int), // Difficulty always returns zero.
 			GasLimit:        header.GasLimit,
 			GasPrice:        new(big.Int).Set(msg.GasPrice()),
 			L1MessageSender: l1MessageSender,
+			L1BlockNumber:   msg.L1BlockNumber(),
 		}
 	} else {
 		return vm.Context{
