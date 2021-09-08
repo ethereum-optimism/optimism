@@ -14,8 +14,8 @@ package:
   individually: true
 
 functions:
-  watcher_getTransactions:
-    handler: watcher_getTransactions.watcher_getTransactions
+  watcher_getL2Transactions:
+    handler: watcher_getL2Transactions.watcher_getL2Transactions
     memorySize: 10240 # optional, in MB, default is 1024
     timeout: 60 # optional, in seconds, default is 6
     vpc:
@@ -26,13 +26,13 @@ functions:
         - ${file(env-mainnet.yml):SUBNET_ID_2}
     events:
       - http:
-          path: get.transaction
+          path: get.l2.transactions
           method: post
           cors: true
     layers:
       - ${file(env-mainnet.yml):LAYERS}
-  watcher_getDeployments:
-    handler: watcher_getDeployments.watcher_getDeployments
+  watcher_getL2Deployments:
+    handler: watcher_getL2Deployments.watcher_getL2Deployments
     memorySize: 10240 # optional, in MB, default is 1024
     timeout: 60 # optional, in seconds, default is 6
     vpc:
@@ -43,13 +43,13 @@ functions:
         - ${file(env-mainnet.yml):SUBNET_ID_2}
     events:
       - http:
-          path: get.deployments
+          path: get.l2.deployments
           method: post
           cors: true
     layers:
       - ${file(env-mainnet.yml):LAYERS}
-  watcher_getCrossDomainMessage:
-    handler: watcher_getCrossDomainMessage.watcher_getCrossDomainMessage
+  watcher_getL2CrossDomainMessage:
+    handler: watcher_getL2CrossDomainMessage.watcher_getL2CrossDomainMessage
     memorySize: 10240 # optional, in MB, default is 1024
     timeout: 60 # optional, in seconds, default is 6
     vpc:
@@ -60,7 +60,24 @@ functions:
         - ${file(env-mainnet.yml):SUBNET_ID_2}
     events:
       - http:
-          path: get.crossdomainmessage
+          path: get.l2.crossdomainmessage
+          method: post
+          cors: true
+    layers:
+      - ${file(env-mainnet.yml):LAYERS}
+  watcher_getL1Transactions:
+    handler: watcher_getL1Transactions.watcher_getL1Transactions
+    memorySize: 10240 # optional, in MB, default is 1024
+    timeout: 60 # optional, in seconds, default is 6
+    vpc:
+      securityGroupIds:
+        - ${file(env-mainnet.yml):SECURITY_GROUPS}
+      subnetIds:
+        - ${file(env-mainnet.yml):SUBNET_ID_1}
+        - ${file(env-mainnet.yml):SUBNET_ID_2}
+    events:
+      - http:
+          path: get.l1.transactions
           method: post
           cors: true
     layers:

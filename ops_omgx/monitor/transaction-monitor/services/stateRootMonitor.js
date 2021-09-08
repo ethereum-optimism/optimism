@@ -59,7 +59,6 @@ class stateRootMonitorService extends OptimismEnv {
     }
 
     await this.initOptimismEnv();
-    await this.databaseService.initDatabaseService();
     await this.databaseService.initMySQL();
 
     // fetch the last end block
@@ -71,9 +70,6 @@ class stateRootMonitorService extends OptimismEnv {
   }
 
   async startStateRootMonitor() {
-    // Create tables
-    await this.startDatabaseService();
-
     const latestL1Block = await this.L1Provider.getBlockNumber();
     const latestL2Block = await this.L2Provider.getBlockNumber();
 
@@ -135,41 +131,9 @@ class stateRootMonitorService extends OptimismEnv {
     this.latestL1Block = latestL1Block;
     this.latestL2Block = latestL2Block;
 
-    await this.endDatabaseService();
     await sleep(this.stateRootMonitorInterval);
   }
 
-    // starts up connection with mysql database safely
-    async startDatabaseService(){
-      await this.databaseConnectedMutex.acquire().then(async (release) => {
-        try {
-          if(!this.databaseConnected){
-            await this.databaseService.initDatabaseService();
-            this.databaseConnected = true;
-          }
-          release();
-        } catch (error) {
-          release();
-          throw error;
-        }
-      });
-    }
-
-    // ends connection with mysql database safely
-    async endDatabaseService(){
-      await this.databaseConnectedMutex.acquire().then(async (release) => {
-          try {
-            if(this.databaseConnected){
-                this.databaseService.con.end();
-                this.databaseConnected = false;
-            }
-            release();
-          } catch (error) {
-            release();
-            throw error;
-          }
-      });
-    }
 }
 
 module.exports = stateRootMonitorService;

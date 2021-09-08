@@ -58,7 +58,6 @@ class exitMonitorService extends OptimismEnv {
     }
 
     await this.initOptimismEnv();
-    await this.databaseService.initDatabaseService();
     await this.databaseService.initMySQL();
 
     // fetch the last end block
@@ -70,9 +69,6 @@ class exitMonitorService extends OptimismEnv {
   }
 
   async startExitMonitor() {
-    // Create tables
-    await this.startDatabaseService();
-
     const latestL2Block = await this.L2Provider.getBlockNumber();
 
     const endBlock = Math.min(latestL2Block, this.endBlock);
@@ -145,41 +141,8 @@ class exitMonitorService extends OptimismEnv {
     this.endBlock = Number(endBlock) + Number(this.exitMonitorLogInterval);
     this.latestL2Block = latestL2Block;
 
-    await this.endDatabaseService();
     await sleep(this.exitMonitorInterval);
   }
-
-    // starts up connection with mysql database safely
-    async startDatabaseService(){
-      await this.databaseConnectedMutex.acquire().then(async (release) => {
-        try {
-          if(!this.databaseConnected){
-            await this.databaseService.initDatabaseService();
-            this.databaseConnected = true;
-          }
-          release();
-        } catch (error) {
-          release();
-          throw error;
-        }
-      });
-    }
-
-    // ends connection with mysql database safely
-    async endDatabaseService(){
-      await this.databaseConnectedMutex.acquire().then(async (release) => {
-          try {
-            if(this.databaseConnected){
-                this.databaseService.con.end();
-                this.databaseConnected = false;
-            }
-            release();
-          } catch (error) {
-            release();
-            throw error;
-          }
-      });
-    }
 }
 
 module.exports = exitMonitorService;

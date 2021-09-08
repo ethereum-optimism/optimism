@@ -3,12 +3,14 @@
 const ethers = require('ethers');
 const core_utils_1 = require('@eth-optimism/core-utils');
 const Mutex = require('async-mutex').Mutex;
-const { loadContractFromManager } = require('@eth-optimism/contracts')
+const { loadContractFromManager, getContractFactory } = require('@eth-optimism/contracts')
 const fetch = require("node-fetch");
+const { Watcher } = require('@eth-optimism/watcher');
 
 const addressManagerJSON = require('../../artifacts/contracts/optimistic-ethereum/libraries/resolver/Lib_AddressManager.sol/Lib_AddressManager.json');
 const L1LiquidityPoolJson = require('../../artifacts/contracts/LP/L1LiquidityPool.sol/L1LiquidityPool.json');
 const L2LiquidityPoolJson = require('../../artifacts-ovm/contracts/LP/L2LiquidityPool.sol/L2LiquidityPool.json');
+const OVM_L1StandardBridgeJson = require('../../artifacts/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L1StandardBridge.sol/OVM_L1StandardBridge.json');
 const OVM_L2StandardBridgeJson = require('../../artifacts-ovm/contracts/optimistic-ethereum/OVM/bridge/tokens/OVM_L2StandardBridge.sol/OVM_L2StandardBridge.json');
 
 require('dotenv').config();
@@ -29,6 +31,7 @@ const TRANSACTION_MONITOR_INTERVAL = env.TRANSACTION_MONITOR_INTERVAL || 3 * 100
 const CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL = env.CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL || 5 * 1000;
 const STATE_ROOT_MONITOR_INTERVAL = env.STATE_ROOT_MONITOR_INTERVAL || 5 * 1000;
 const EXIT_MONITOR_INTERVAL = env.EXIT_MONITOR_INTERVAL || 3 * 1000;
+const L1_BRIDGE_MONITOR_INTERVAL = env.L1_BRIDGE_MONITOR_INTERVAL || 3 * 1000;
 
 const SQL_DISCONNECTED = "disconnected";
 
@@ -51,7 +54,15 @@ const L2LiquidityPoolAddress = env.PROXY__L2_LIQUIDITY_POOL_ADDRESS;
 
 const EXIT_MONITOR_LOG_INTERVAL = env.STATE_ROOT_MONITOR_LOG_INTERVAL || 2000;
 
+const L1_BRIDGE_MONITOR_START_BLOCK = env.L1_BRIDGE_MONITOR_START_BLOCK || 0;
+const L1_BRIDGE_MONITOR_LOG_INTERVAL = env.L1_BRIDGE_MONITOR_LOG_INTERVAL || 2000;
+
+// seconds
+const L1_CROSS_DOMAIN_MESSAGE_WAITING_TIME = env.L1_CROSS_DOMAIN_MESSAGE_WAITING_TIME || 30;
+const L2_CROSS_DOMAIN_MESSAGE_WAITING_TIME = env.L2_CROSS_DOMAIN_MESSAGE_WAITING_TIME || 60;
+
 const OVM_L2_STANDARD_BRIDGE_ADDRESS = env.OVM_L2_STANDARD_BRIDGE_ADDRESS || "0x4200000000000000000000000000000000000010"
+const OVM_L2_CROSS_DOMAIN_MESSENGER = "0x4200000000000000000000000000000000000007";
 
 class OptimismEnv {
   constructor() {
@@ -75,6 +86,7 @@ class OptimismEnv {
     this.crossDomainMessageMonitorInterval = CROSS_DOMAIN_MESSAGE_MONITOR_INTERVAL;
     this.stateRootMonitorInterval = STATE_ROOT_MONITOR_INTERVAL;
     this.exitMonitorInterval = EXIT_MONITOR_INTERVAL;
+    this.l1BridgeMonitorInterval = L1_BRIDGE_MONITOR_INTERVAL;
 
     this.whitelistSleep = WHITELIST_SLEEP;
     this.nonWhitelistSleep = NON_WHITELIST_SLEEP;
@@ -98,7 +110,11 @@ class OptimismEnv {
     this.OVM_StateCommitmentChainContract = null;
     this.L1LiquidityPoolContract = null;
     this.L2LiquidityPoolContract = null;
+    this.OVM_L1StandardBridgeContract = null;
     this.OVM_L2StandardBridgeContract = null;
+
+    this.L1LiquidityPoolInterface = null;
+    this.OVM_L1StandardBridgeInterface = null;
 
     this.filterEndpoint = FILTER_ENDPOINT;
 
@@ -106,6 +122,14 @@ class OptimismEnv {
     this.stateRootMonitorLogInterval = STATE_ROOT_MONITOR_LOG_INTERVAL;
 
     this.exitMonitorLogInterval = EXIT_MONITOR_LOG_INTERVAL;
+
+    this.l1BridgeMonitorStartBlock = L1_BRIDGE_MONITOR_START_BLOCK;
+    this.l1BridgeMonitorLogInterval = L1_BRIDGE_MONITOR_LOG_INTERVAL;
+
+    this.l1CrossDomainMessageWaitingTime = L1_CROSS_DOMAIN_MESSAGE_WAITING_TIME;
+    this.l2CrossDomainMessageWaitingTime = L2_CROSS_DOMAIN_MESSAGE_WAITING_TIME;
+
+    this.watcher = null;
   }
 
   async initOptimismEnv() {
@@ -118,9 +142,12 @@ class OptimismEnv {
     // Get addresses
     this.OVM_L1CrossDomainMessenger = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessenger');
     this.OVM_L1CrossDomainMessengerFast = await addressManager.getAddress('Proxy__OVM_L1CrossDomainMessengerFast');
-    this.logger.info('Found OVM_L1CrossDomainMessenger and OVM_L1CrossDomainMessengerFast', {
+    this.Proxy__OVM_L1StandardBridge = await addressManager.getAddress('Proxy__OVM_L1StandardBridge');
+
+    this.logger.info('Found OVM_L1CrossDomainMessenger, OVM_L1CrossDomainMessengerFast and Proxy__OVM_L1StandardBridge', {
       OVM_L1CrossDomainMessenger: this.OVM_L1CrossDomainMessenger,
       OVM_L1CrossDomainMessengerFast: this.OVM_L1CrossDomainMessengerFast,
+      Proxy__OVM_L1StandardBridge: this.Proxy__OVM_L1StandardBridge
     });
 
     // Load L2 CDM
@@ -135,6 +162,15 @@ class OptimismEnv {
       Lib_AddressManager: addressManager,
       provider: this.L1Provider,
     });
+    // Load L1 Standard Bridge
+    this.OVM_L1StandardBridgeContract = new ethers.Contract(
+      this.Proxy__OVM_L1StandardBridge,
+      OVM_L1StandardBridgeJson.abi,
+      this.L1Provider
+    )
+    // Interface
+    this.L1LiquidityPoolInterface = new ethers.utils.Interface(L1LiquidityPoolJson.abi);
+    this.OVM_L1StandardBridgeInterface = new ethers.utils.Interface(OVM_L1StandardBridgeJson.abi);
 
     if (BOBA_DEPLOYER_URL) {
       const response = await fetch(BOBA_DEPLOYER_URL);
@@ -168,6 +204,19 @@ class OptimismEnv {
       OVM_L2StandardBridgeJson.abi,
       this.L2Provider
     )
+
+    // watcher
+    this.watcher = new Watcher({
+      l1: {
+        provider: this.L1Provider,
+        messengerAddress: this.OVM_L1CrossDomainMessenger,
+      },
+      l2: {
+        provider: this.L2Provider,
+        messengerAddress: OVM_L2_CROSS_DOMAIN_MESSENGER,
+      },
+    });
+
     this.logger.info("Set up")
   }
 }

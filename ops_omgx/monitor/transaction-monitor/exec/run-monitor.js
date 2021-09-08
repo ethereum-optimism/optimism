@@ -3,6 +3,8 @@
 const BlockMonitorService = require('../services/blockMonitor');
 const stateRootMonitorService = require('../services/stateRootMonitor');
 const exitMonitorService = require('../services/exitMonitor');
+const l1BridgeMonitorService = require('../services/l1BridgeMonitor');
+const { sleep } = require('@eth-optimism/core-utils');
 
 const loop = async (func) => {
   while (true) {
@@ -14,11 +16,19 @@ const loop = async (func) => {
         stack: error.stack,
         code: error.code,
       });
+      await sleep(1000);
     }
   }
 }
 
 const main = async () => {
+  // l1 bridge monitor
+  const l1BridgeService = new l1BridgeMonitorService();
+  await l1BridgeService.initConnection();
+
+  loop(() => l1BridgeService.startL1BridgeMonitor());
+  loop(() => l1BridgeService.startCrossDomainMessageMonitor());
+
   // liquidity pool
   const exitService = new exitMonitorService();
   await exitService.initConnection();

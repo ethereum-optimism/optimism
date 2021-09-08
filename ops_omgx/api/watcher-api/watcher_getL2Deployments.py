@@ -8,7 +8,7 @@ import time
 import requests
 import redis
 
-def watcher_getDeployments(event, context):
+def watcher_getL2Deployments(event, context):
 
   # Parse incoming event
   body = json.loads(event["body"])

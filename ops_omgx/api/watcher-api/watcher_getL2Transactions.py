@@ -8,7 +8,7 @@ import time
 import requests
 import redis
 
-def watcher_getTransactions(event, context):
+def watcher_getL2Transactions(event, context):
 
   # Parse incoming event
   body = json.loads(event["body"])
@@ -85,7 +85,7 @@ def watcher_getTransactions(event, context):
             "crossDomainMessageFinalize": transactionDataRaw[10],
             "crossDomainMessageSendTime": crossDomainMessageSendTime,
             "crossDomainMessageEstimateFinalizedTime": crossDomainMessageEstimateFinalizedTime,
-            "fastRelay": fastRelay,
+            "fast": fastRelay,
             "l1Hash": transactionDataRaw[12],
             "l1BlockNumber": transactionDataRaw[13],
             "l1BlockHash": transactionDataRaw[14],
@@ -98,14 +98,14 @@ def watcher_getTransactions(event, context):
             "stateRootBlockHash": transactionDataRaw[2],
             "stateRootBlockTimeStamp": transactionDataRaw[3]
           },
-          "exit": {
-            "exitSender": transactionDataRaw[17],
-            "exitTo": transactionDataRaw[18],
-            "exitToken": transactionDataRaw[19],
-            "exitAmount": transactionDataRaw[20],
-            "exitReceive": transactionDataRaw[21],
-            "exitFeeRate": transactionDataRaw[22],
-            "fastRelay": fastRelay,
+          "action": {
+            "sender": transactionDataRaw[17],
+            "to": transactionDataRaw[18],
+            "token": transactionDataRaw[19],
+            "amount": transactionDataRaw[20],
+            "receive": transactionDataRaw[21],
+            "feeRate": transactionDataRaw[22],
+            "fast": fastRelay,
             "status": transactionDataRaw[23]
           }
         })
@@ -131,7 +131,3 @@ def watcher_getTransactions(event, context):
     "body": json.dumps(transactionData),
   }
   return response
-
-print(watcher_getTransactions({"body": json.dumps({
-  "address":"0xfC29826180212F542B30ae8b636F1cfb5C0734Ae","fromRange":"0","toRange":"1"
-})}, "B"))

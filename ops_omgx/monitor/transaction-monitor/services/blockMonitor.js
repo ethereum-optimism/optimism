@@ -62,12 +62,10 @@ class BlockMonitorService extends OptimismEnv {
     }
 
     await this.initOptimismEnv();
-    await this.databaseService.initDatabaseService();
   }
 
   async initScan() {
     // Create tables
-    await this.databaseService.initDatabaseService();
     await this.databaseService.initMySQL();
 
     // get whitelist
@@ -118,8 +116,6 @@ class BlockMonitorService extends OptimismEnv {
 
     // update scannedLastBlock
     this.scannedLastBlock = this.latestBlock;
-    this.databaseService.con.end();
-
   }
 
   async startTransactionMonitor() {
@@ -127,10 +123,6 @@ class BlockMonitorService extends OptimismEnv {
     if (latestBlock > this.latestBlock) {
       this.logger.info('Finding new blocks...');
       this.latestBlock = latestBlock;
-
-      // connect to MySQL
-      this.transactionMonitorSQL = true;
-      await this.startDatabaseService();
 
       // get the blocks, transactions and receipts
       this.logger.info('Fetching the block data...');
@@ -172,9 +164,6 @@ class BlockMonitorService extends OptimismEnv {
       // update scannedLastBlock
       this.scannedLastBlock = this.latestBlock;
 
-      this.transactionMonitorSQL = false;
-      await this.endDatabaseService();
-
       this.logger.info(`Found block, receipt and transaction data. Sleeping ${this.transactionMonitorInterval} ms...`);
     } else {
       // this.logger.info('No new block found.');
@@ -184,13 +173,8 @@ class BlockMonitorService extends OptimismEnv {
   }
 
   async startCrossDomainMessageMonitor() {
-    // connect to MySQL
-    this.crossDomainMessageMonitorSQL = true;
-    await this.startDatabaseService();
-
-
     this.logger.info('Searching cross domain messages...');
-    const crossDomainData = await this.databaseService.getCrossDomainData();
+    const crossDomainData = await this.databaseService.getL2CrossDomainData();
 
     // counts the number of server request
     let promiseCount = 0;
@@ -225,9 +209,6 @@ class BlockMonitorService extends OptimismEnv {
 
     if(checkWhitelist) checkWhitelist = false;
     if(checkNonWhitelist) checkNonWhitelist = false;
-
-    this.crossDomainMessageMonitorSQL = false;
-    await this.endDatabaseService();
 
     this.logger.info(`End searching cross domain messages. Sleeping ${this.crossDomainMessageMonitorInterval} ms...`);
 
@@ -288,7 +269,8 @@ class BlockMonitorService extends OptimismEnv {
     if (filteredBlockData.length) {
       crossDomainMessageSendTime = filteredBlockData[0].timestamp ;
       crossDomainMessageEstimateFinalizedTime = fastRelay ?
-        crossDomainMessageSendTime + 60 : crossDomainMessageSendTime + 60 * 60 * 24 * 6;
+        crossDomainMessageSendTime + Number(this.l2CrossDomainMessageWaitingTime) :
+        crossDomainMessageSendTime + 60 * 60 * 24 * 6;
     }
 
     receiptData.crossDomainMessageSendTime = crossDomainMessageSendTime;
@@ -410,38 +392,6 @@ class BlockMonitorService extends OptimismEnv {
     return false;
   }
 
-  // starts up connection with mysql database safely
-  async startDatabaseService(){
-    await this.databaseConnectedMutex.acquire().then(async (release) => {
-      try {
-        if(!this.databaseConnected){
-          await this.databaseService.initDatabaseService();
-          this.databaseConnected = true;
-        }
-        release();
-      } catch (error) {
-        release();
-        throw error;
-      }
-    });
-  }
-
-  // ends connection with mysql database safely
-  async endDatabaseService(){
-    await this.databaseConnectedMutex.acquire().then(async (release) => {
-        try {
-          if(this.databaseConnected && !this.transactionMonitorSQL && !this.crossDomainMessageMonitorSQL){
-              this.databaseService.con.end();
-              this.databaseConnected = false;
-          }
-          release();
-        } catch (error) {
-          release();
-          throw error;
-        }
-    });
-  }
-
   errorCatcher(func, param){
     return (async () =>{
       for(let i=0; i < 2; i++){
@@ -456,7 +406,5 @@ class BlockMonitorService extends OptimismEnv {
     })();
   }
 }
-
-
 
 module.exports = BlockMonitorService;

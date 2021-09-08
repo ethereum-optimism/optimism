@@ -13,6 +13,7 @@
   "dependencies": {
     "@eth-optimism/contracts": "^0.2.4",
     "@eth-optimism/core-utils": "0.3.2",
+    "@eth-optimism/watcher": "^0.0.1-alpha.9",
     "async-mutex": "^0.3.1",
     "dotenv": "^9.0.0",
     "ethers": "^5.1.4",

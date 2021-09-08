@@ -8,25 +8,20 @@ const OptimismEnv = require('./utilities/optimismEnv');
 class DatabaseService extends OptimismEnv{
   constructor() {
     super(...arguments);
-    this.con = null;
-    this.query = null;
   }
 
-  async initDatabaseService() {
-    this.con = mysql.createConnection({
+  async initMySQL() {
+    const con = mysql.createConnection({
       host: this.MySQLHostURL,
       port: this.MySQLPort,
       user: this.MySQLUsername,
       password: this.MySQLPassword,
     });
-    this.query = util.promisify(this.con.query).bind(this.con);
-  }
-
-  async initMySQL() {
+    const query = util.promisify(con.query).bind(con);
     this.logger.info('Initializing the database...');
-    await this.query(`CREATE DATABASE IF NOT EXISTS ${this.MySQLDatabaseName}`);
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    await this.query(`CREATE TABLE IF NOT EXISTS block
+    await query(`CREATE DATABASE IF NOT EXISTS ${this.MySQLDatabaseName}`);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`CREATE TABLE IF NOT EXISTS block
       (
         hash VARCHAR(255) NOT NULL,
         parentHash VARCHAR(255) NOT NULL,
@@ -38,7 +33,7 @@ class DatabaseService extends OptimismEnv{
         PRIMARY KEY ( blockNumber )
       )`
     );
-    await this.query(`CREATE TABLE IF NOT EXISTS transaction
+    await query(`CREATE TABLE IF NOT EXISTS transaction
       (
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
@@ -53,7 +48,7 @@ class DatabaseService extends OptimismEnv{
         PRIMARY KEY ( blockNumber )
       )`
     );
-    await this.query(`CREATE TABLE IF NOT EXISTS receipt
+    await query(`CREATE TABLE IF NOT EXISTS receipt
       (
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
@@ -78,7 +73,7 @@ class DatabaseService extends OptimismEnv{
         PRIMARY KEY ( blockNumber )
       )`
     );
-    await this.query(`CREATE TABLE IF NOT EXISTS stateRoot
+    await query(`CREATE TABLE IF NOT EXISTS stateRoot
       (
         hash VARCHAR(255) NOT NULL,
         blockHash VARCHAR(255) NOT NULL,
@@ -90,28 +85,77 @@ class DatabaseService extends OptimismEnv{
         PRIMARY KEY ( blockNumber )
       )`
     );
-    await this.query(`CREATE TABLE IF NOT EXISTS exitL2
-    (
-      hash VARCHAR(255) NOT NULL,
-      blockHash VARCHAR(255) NOT NULL,
-      blockNumber INT NOT NULL,
-      exitSender VARCHAR(255),
-      exitTo VARCHAR(255),
-      exitToken VARCHAR(255),
-      exitAmount VARCHAR(255),
-      exitReceive VARCHAR(255),
-      exitFeeRate VARCHAR(255),
-      fastRelay BOOL,
-      status VARCHAR(255),
-      PRIMARY KEY ( blockNumber )
-    )`
-  );
+    await query(`CREATE TABLE IF NOT EXISTS exitL2
+      (
+        hash VARCHAR(255) NOT NULL,
+        blockHash VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
+        exitSender VARCHAR(255),
+        exitTo VARCHAR(255),
+        exitToken VARCHAR(255),
+        exitAmount VARCHAR(255),
+        exitReceive VARCHAR(255),
+        exitFeeRate VARCHAR(255),
+        fastRelay BOOL,
+        status VARCHAR(255),
+        PRIMARY KEY ( blockNumber )
+      )`
+    );
+    await query(`CREATE TABLE IF NOT EXISTS l1Bridge
+      (
+        hash VARCHAR(255) NOT NULL,
+        blockHash VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
+        \`from\` VARCHAR(255),
+        \`to\` VARCHAR(255),
+        contractAddress VARCHAR(255),
+        contractName VARCHAR(255),
+        activity VARCHAR(255),
+        crossDomainMessage BOOL,
+        crossDomainMessageFinalize BOOL,
+        crossDomainMessageSendTime INT,
+        crossDomainMessageEstimateFinalizedTime INT,
+        crossDomainMessageFinalizedTime INT,
+        timestamp INT,
+        l2Hash VARCHAR(255),
+        l2BlockNumber INT,
+        l2BlockHash VARCHAR(255),
+        l2From VARCHAR(255),
+        l2To VARCHAR(255),
+        fastDeposit BOOL,
+        PRIMARY KEY ( hash, blockNumber )
+      )`
+    );
+    await query(`CREATE TABLE IF NOT EXISTS depositL2
+      (
+        hash VARCHAR(255) NOT NULL,
+        blockHash VARCHAR(255) NOT NULL,
+        blockNumber INT NOT NULL,
+        depositSender VARCHAR(255),
+        depositTo VARCHAR(255),
+        depositToken VARCHAR(255),
+        depositAmount VARCHAR(255),
+        depositReceive VARCHAR(255),
+        depositFeeRate VARCHAR(255),
+        fastDeposit BOOL,
+        status VARCHAR(255),
+        PRIMARY KEY ( hash, blockNumber )
+      )`
+    );
+    con.end()
     this.logger.info('Initialized the database.');
   }
 
   async insertBlockData(blockData) {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    await this.query(`INSERT IGNORE INTO block
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`INSERT IGNORE INTO block
       SET hash='${blockData.hash.toString()}',
       parentHash='${blockData.parentHash.toString()}',
       blockNumber='${blockData.number.toString()}',
@@ -120,11 +164,19 @@ class DatabaseService extends OptimismEnv{
       gasLimit='${blockData.gasLimit.toString()}',
       gasUsed='${blockData.gasUsed.toString()}'
     `);
+    con.end();
   }
 
   async insertTransactionData(transactionData) {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    await this.query(`INSERT IGNORE INTO transaction
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`INSERT IGNORE INTO transaction
       SET hash='${transactionData.hash.toString()}',
       blockHash='${transactionData.blockHash.toString()}',
       blockNumber='${transactionData.blockNumber.toString()}',
@@ -136,11 +188,19 @@ class DatabaseService extends OptimismEnv{
       gasPrice='${transactionData.gasPrice.toString()}',
       timestamp='${transactionData.timestamp.toString()}'
     `);
+    con.end();
   }
 
   async insertReceiptData(receiptData) {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    await this.query(`INSERT IGNORE INTO receipt
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`INSERT IGNORE INTO receipt
       SET hash='${receiptData.transactionHash.toString()}',
       blockHash='${receiptData.blockHash.toString()}',
       blockNumber='${receiptData.blockNumber.toString()}',
@@ -162,20 +222,57 @@ class DatabaseService extends OptimismEnv{
       l1From=${receiptData.l1From ? `'${receiptData.l1From.toString()}'` : null},
       l1To=${receiptData.l1To ? `'${receiptData.l1To.toString()}'` : null}
     `);
+    con.end();
   }
 
-  async getCrossDomainData() {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    return await this.query(`SELECT * FROM receipt
+  async getL2CrossDomainData() {
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    const crossDomainMessage = await query(`SELECT * FROM receipt
       WHERE crossDomainMessage=${true}
       AND crossDomainMessageFinalize=${false}
       AND UNIX_TIMESTAMP() > crossDomainMessageEstimateFinalizedTime
     `);
+    con.end();
+    return crossDomainMessage;
+  }
+
+  async getL1CrossDomainData() {
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    const crossDomainMessage = await query(`SELECT * FROM depositL2
+      LEFT JOIN l1Bridge
+      on depositL2.hash = l1Bridge.hash
+      WHERE crossDomainMessage=${true}
+      AND depositL2.status='pending'
+      AND UNIX_TIMESTAMP() > crossDomainMessageEstimateFinalizedTime
+    `);
+    con.end();
+    return crossDomainMessage;
   }
 
   async updateCrossDomainData(receiptData) {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    return await this.query(`UPDATE receipt
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`UPDATE receipt
       SET crossDomainMessageFinalize=${receiptData.crossDomainMessageFinalize},
       crossDomainMessageFinalizedTime=${receiptData.crossDomainMessageFinalizedTime},
       fastRelay = ${receiptData.fastRelay},
@@ -187,11 +284,19 @@ class DatabaseService extends OptimismEnv{
       WHERE hash='${receiptData.transactionHash.toString()}'
       AND blockHash='${receiptData.blockHash.toString()}'
     `);
+    con.end();
   }
 
   async insertStateRootData(stateRootData) {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    await this.query(`INSERT IGNORE INTO stateRoot
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`INSERT IGNORE INTO stateRoot
       SET hash='${stateRootData.hash}',
       blockHash='${stateRootData.blockHash}',
       blockNumber=${Number(stateRootData.blockNumber)},
@@ -199,12 +304,20 @@ class DatabaseService extends OptimismEnv{
       stateRootBlockNumber=${Number(stateRootData.stateRootBlockNumber)},
       stateRootBlockHash='${stateRootData.stateRootBlockHash}',
       stateRootBlockTimestamp='${Number(stateRootData.stateRootBlockTimestamp)}'
-  `);
+    `);
+    con.end();
   }
 
   async insertExitData(exitData) {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    await this.query(`INSERT IGNORE INTO exitL2
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`INSERT IGNORE INTO exitL2
       SET hash='${exitData.hash}',
       blockHash='${exitData.blockHash}',
       blockNumber=${Number(exitData.blockNumber)},
@@ -216,29 +329,179 @@ class DatabaseService extends OptimismEnv{
       exitFeeRate='${exitData.exitFeeRate}',
       fastRelay=${exitData.fastRelay},
       status='pending'
-  `);
+    `);
+    con.end();
+  }
+
+  async insertL1BridgeData(bridgeData) {
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`INSERT IGNORE INTO l1Bridge
+      SET hash='${bridgeData.hash.toString()}',
+      blockHash='${bridgeData.blockHash.toString()}',
+      blockNumber='${bridgeData.blockNumber.toString()}',
+      \`from\`=${bridgeData.from ? "'" + bridgeData.from + "'" : null},
+      \`to\`=${bridgeData.to ? "'" + bridgeData.to + "'" : null},
+      contractAddress=${bridgeData.contractAddress ? "'" + bridgeData.contractAddress + "'" : null},
+      contractName=${bridgeData.contractName ? "'" + bridgeData.contractName + "'" : null},
+      \`activity\`=${bridgeData.activity ? "'" + bridgeData.activity + "'" : null},
+      crossDomainMessage=${bridgeData.crossDomainMessage},
+      crossDomainMessageFinalize=${bridgeData.crossDomainMessageFinalize},
+      crossDomainMessageSendTime=${bridgeData.crossDomainMessageSendTime ? bridgeData.crossDomainMessageSendTime: null},
+      crossDomainMessageEstimateFinalizedTime=${bridgeData.crossDomainMessage ? bridgeData.crossDomainMessageEstimateFinalizedTime : null},
+      crossDomainMessageFinalizedTime = ${bridgeData.crossDomainMessageFinalizedTime ? bridgeData.crossDomainMessageFinalizedTime : null},
+      timestamp=${bridgeData.timestamp ? bridgeData.timestamp.toString() : null},
+      l2Hash=${bridgeData.l2Hash ? `'${bridgeData.l2Hash.toString()}'` : null},
+      l2BlockNumber=${bridgeData.l2BlockNumber ? Number(bridgeData.l2BlockNumber) : null},
+      l2BlockHash=${bridgeData.l2BlockHash ? `'${bridgeData.l2BlockHash.toString()}'` : null},
+      l2From=${bridgeData.l2From ? `'${bridgeData.l2From.toString()}'` : null},
+      l2To=${bridgeData.l2To ? `'${bridgeData.l2To.toString()}'` : null},
+      fastDeposit=${bridgeData.fastDeposit}
+    `);
+    con.end()
+  }
+
+  async insertDepositL2(depositL2Data) {
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`INSERT IGNORE INTO depositL2
+      SET hash='${depositL2Data.hash}',
+      blockHash='${depositL2Data.blockHash}',
+      blockNumber=${Number(depositL2Data.blockNumber)},
+      depositSender='${depositL2Data.depositSender}',
+      depositTo='${depositL2Data.depositTo}',
+      depositToken='${depositL2Data.depositToken}',
+      depositAmount='${depositL2Data.depositAmount}',
+      depositReceive='${depositL2Data.depositReceive}',
+      depositFeeRate='${depositL2Data.depositFeeRate}',
+      fastDeposit=${depositL2Data.fastDeposit},
+      status='pending'
+    `);
+    con.end();
   }
 
   async updateExitData(exitData) {
-    await this.query(`UPDATE exitL2
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`UPDATE exitL2
       SET status='${exitData.status}'
       WHERE blockNumber=${Number(exitData.blockNumber)}
-  `);
+    `);
+    con.end();
+  }
+
+  async updateL1BridgeData(l1BridgeData) {
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`UPDATE l1Bridge
+      SET l2Hash='${l1BridgeData.l2Hash}',
+      l2BlockNumber=${l1BridgeData.l2BlockNumber},
+      l2BlockHash='${l1BridgeData.l2BlockHash}',
+      l2From='${l1BridgeData.l2From}',
+      l2To='${l1BridgeData.l2To}',
+      crossDomainMessageFinalizedTime=${l1BridgeData.crossDomainMessageFinalizedTime},
+      crossDomainMessageFinalize=${l1BridgeData.crossDomainMessageFinalize}
+      WHERE blockNumber=${Number(l1BridgeData.blockNumber)} AND
+      hash='${l1BridgeData.hash}'
+    `);
+    con.end();
+  }
+
+  async updateDepositL2Data(depositL2Data) {
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    await query(`UPDATE depositL2
+      SET status='${depositL2Data.status}'
+      WHERE blockNumber=${Number(depositL2Data.blockNumber)}
+      AND hash='${depositL2Data.hash}'
+    `);
+    con.end();
   }
 
   async getNewestBlockFromBlockTable() {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    return await this.query(`SELECT MAX(blockNumber) from block`);
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    const latestBlock = await query(`SELECT MAX(blockNumber) from block`);
+    con.end();
+    return latestBlock;
   }
 
   async getNewestBlockFromStateRootTable() {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    return await this.query(`SELECT MAX(stateRootBlockNumber) from stateRoot`);
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    const latestBlock = await query(`SELECT MAX(stateRootBlockNumber) from stateRoot`);
+    con.end();
+    return latestBlock;
   }
 
   async getNewestBlockFromExitTable() {
-    await this.query(`USE ${this.MySQLDatabaseName}`);
-    return await this.query(`SELECT MAX(blockNumber) from exitL2`);
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    const latestBlock = await query(`SELECT MAX(blockNumber) from exitL2`);
+    con.end();
+    return latestBlock;
+  }
+
+  async getNewestBlockFromL1BridgeTable() {
+    const con = mysql.createConnection({
+      host: this.MySQLHostURL,
+      port: this.MySQLPort,
+      user: this.MySQLUsername,
+      password: this.MySQLPassword,
+    });
+    const query = util.promisify(con.query).bind(con);
+    await query(`USE ${this.MySQLDatabaseName}`);
+    const blockNumber = await query(`SELECT MAX(blockNumber) from l1Bridge`);
+    con.end();
+    return blockNumber;
   }
 }
 
