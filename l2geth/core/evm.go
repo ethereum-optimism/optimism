@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/rollup/dump"
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
@@ -65,7 +66,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 			Transfer:        Transfer,
 			GetHash:         GetHashFn(header, chain),
 			Origin:          msg.From(),
-			Coinbase:        beneficiary,
+			Coinbase:        dump.OvmFeeWallet, // Coinbase is the fee vault.
 			BlockNumber:     msg.L1BlockNumber(),
 			Time:            new(big.Int).SetUint64(msg.L1Timestamp()),
 			Difficulty:      new(big.Int), // Difficulty always returns zero.
