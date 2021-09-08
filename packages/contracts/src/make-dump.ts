@@ -74,6 +74,9 @@ export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
       // directly used in Solidity (yet). This bytecode string simply executes the 0x4A opcode
       // and returns the address given by that opcode.
       dump[predeployAddress].code = '0x4A60005260206000F3'
+    } else if (predeployName === 'OVM_L1BlockNumber') {
+      // Same as above but for OVM_L1BlockNumber (0x4B).
+      dump[predeployAddress].code = '0x4B60005260206000F3'
     } else {
       const artifact = getContractArtifact(predeployName)
       dump[predeployAddress].code = artifact.deployedBytecode

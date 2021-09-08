@@ -1162,5 +1162,12 @@ func newFrontierInstructionSet() JumpTable {
 			maxStack:    maxStack(0, 1),
 			valid:       true,
 		},
+		L1BLOCKNUMBER: {
+			execute:     opL1BlockNumber,
+			constantGas: GasQuickStep,
+			minStack:    minStack(0, 1),
+			maxStack:    maxStack(0, 1),
+			valid:       true,
+		},
 	}
 }
