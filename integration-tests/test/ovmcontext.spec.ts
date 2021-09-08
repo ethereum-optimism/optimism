@@ -72,6 +72,10 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       expect(receipt.blockNumber).to.deep.equal(blockNumber.toNumber())
       const timestamp = await OVMContextStorage.timestamps(i)
       expect(block.timestamp).to.deep.equal(timestamp.toNumber())
+
+      // Difficulty should always be zero.
+      const difficulty = await OVMContextStorage.difficulty(i)
+      expect(difficulty.toNumber()).to.equal(0)
     }
   }).timeout(150000) // this specific test takes a while because it involves L1 to L2 txs
 
