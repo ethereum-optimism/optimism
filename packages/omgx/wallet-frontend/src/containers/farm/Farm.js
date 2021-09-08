@@ -66,20 +66,14 @@ class Farm extends React.Component {
 
   componentDidMount() {
 
-    const { totalFeeRate, userRewardFeeRate } = this.props.farm;
+    const { totalFeeRate, userRewardFeeRate } = this.props.farm
 
     if (!totalFeeRate || !userRewardFeeRate) {
-      this.props.dispatch(getFee());
+      this.props.dispatch(getFee())
     }
 
-    this.props.dispatch(getFarmInfo());
+    this.props.dispatch(getFarmInfo())
 
-    if (networkService.masterSystemConfig === 'mainnet') {
-      this.props.dispatch(openError(`You are using Mainnet Beta.
-        WARNING: the mainnet smart contracts are not fully audited and funds may
-        be at risk. Please exercise caution when using Mainnet Beta.`
-      ))
-    }
   }
 
   componentDidUpdate(prevState) {

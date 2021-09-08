@@ -8,10 +8,15 @@ import ListNFTfactory from 'components/listNFTfactory/listNFTfactory'
 
 import { openAlert, openError } from 'actions/uiAction'
 
+import * as styles from './Nft.module.scss'
+
 import { Box, Grid, Typography } from '@material-ui/core'
 import PageHeader from 'components/pageHeader/PageHeader'
 
 import networkService from 'services/networkService'
+
+import LayerSwitcher from 'components/mainMenu/layerSwitcher/LayerSwitcher'
+import AlertIcon from 'components/icons/AlertIcon';
 
 import Button from 'components/button/Button'
 import Input from 'components/input/Input'
@@ -34,10 +39,11 @@ class Nft extends React.Component {
       newNFTname: '',
       newNFTsymbol: '',
       deployModalOpen: false,
-      minModalOpen: false
+      minModalOpen: false,
     }
 
     this.closeMintModal = this.closeMintModal.bind(this)
+
   }
 
   componentDidMount() {
@@ -109,11 +115,51 @@ class Nft extends React.Component {
       contracts,
       newNFTsymbol,
       newNFTname,
-      loading
+      loading,
     } = this.state;
 
     const numberOfNFTs = Object.keys(list).length
     const numberOfContracts = Object.keys(contracts).length
+    const layer = networkService.L1orL2
+
+    if(layer === 'L1') {
+        return <div className={styles.container}>
+            <div className={styles.header}>
+                <h2 className={styles.title}>
+                    BOBA DAO
+                </h2>
+            </div>
+            <div className={styles.content}>
+                <Box
+                    sx={{
+                        //background: theme.palette.background.secondary,
+                        borderRadius: '12px',
+                        margin: '20px 5px',
+                        padding: '10px 20px',
+                        display: 'flex',
+                        justifyContent: 'space-between'
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                        }}
+                    >
+                        <AlertIcon />
+                        <Typography
+                            sx={{ wordBreak: 'break-all', marginLeft: '10px' }}
+                            variant="body1"
+                            component="p"
+                        >
+                            To use Boba NFTs, you must be on L2 - SWITCH LAYER to L2
+                        </Typography>
+                    </div>
+                    <LayerSwitcher isButton={true} />
+                </Box>
+            </div>
+        </div>
+    }
 
     return (
       <>

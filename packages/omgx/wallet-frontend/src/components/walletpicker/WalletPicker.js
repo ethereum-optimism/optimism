@@ -74,7 +74,7 @@ function WalletPicker ({ onEnable, enabled }) {
       //default to mainnet for normal user, unless set otherwise later 
       //which is then captured in the localStorage cache
       const selectedNetwork = masterConfig ? masterConfig : "mainnet"
-      const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
+      const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork)
       //console.log("walletEnabled:",walletEnabled)
       return walletEnabled
         ? setWalletEnabled(true)
@@ -87,9 +87,7 @@ function WalletPicker ({ onEnable, enabled }) {
 
     async function initializeAccounts () {
 
-      //console.log("initializeAccounts() for:",masterConfig)
-
-      const initialized = await networkService.initializeAccounts(masterConfig);
+      const initialized = await networkService.initializeAccounts(masterConfig)
 
       if (!initialized) {
         console.log("Error !initialized for:",masterConfig)
@@ -161,7 +159,7 @@ function WalletPicker ({ onEnable, enabled }) {
             <Grid item xs={12} md={6}>
               <S.WalletCard
                 // disabled={!browserEnabled}
-                pulsate={true} onClick={() => dispatchSetWalletMethod('browser')} isMobile={isMobile}>
+                pulsate={true} onClick={()=>dispatchSetWalletMethod('browser')} isMobile={isMobile}>
                 <S.WalletCardHeading>
                   <S.WalletCardTitle>
                     <S.PlusIcon>+</S.PlusIcon>

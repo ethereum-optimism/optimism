@@ -565,31 +565,33 @@ class NetworkService {
         },
       })
 
-      this.comp = new ethers.Contract(
-        addresses.DAO_Comp,
-        Comp.abi,
-        this.provider.getSigner()
-      )
+      if(masterSystemConfig === 'rinkeby') {
 
-      this.delegate = new ethers.Contract(
-        addresses.DAO_GovernorBravoDelegate,
-        GovernorBravoDelegate.abi,
-        this.provider.getSigner()
-      )
+        this.comp = new ethers.Contract(
+          addresses.DAO_Comp,
+          Comp.abi,
+          this.provider.getSigner()
+        )
 
-      this.delegator = new ethers.Contract(
-        addresses.DAO_GovernorBravoDelegator,
-        GovernorBravoDelegator.abi,
-        this.provider.getSigner()
-      )
+        this.delegate = new ethers.Contract(
+          addresses.DAO_GovernorBravoDelegate,
+          GovernorBravoDelegate.abi,
+          this.provider.getSigner()
+        )
 
-      this.timelock = new ethers.Contract(
-        addresses.DAO_Timelock,
-        Timelock.abi,
-        this.provider.getSigner()
-      )
+        this.delegator = new ethers.Contract(
+          addresses.DAO_GovernorBravoDelegator,
+          GovernorBravoDelegator.abi,
+          this.provider.getSigner()
+        )
 
+        this.timelock = new ethers.Contract(
+          addresses.DAO_Timelock,
+          Timelock.abi,
+          this.provider.getSigner()
+        )
 
+      }
 
 /*
   this.comp = null
@@ -1189,7 +1191,7 @@ class NetworkService {
         getBalancePromise.push(getERC20Balance(token, token.addressL2, "L2", this.L2Provider))
       })
 
-      const tokenBalances = await Promise.all(getBalancePromise);
+      const tokenBalances = await Promise.all(getBalancePromise)
       tokenBalances.forEach((token) => {
         if (token.layer === 'L1' && token.balance.gt(new BN(0))) {
           layer1Balances.push(token)
@@ -1987,8 +1989,8 @@ class NetworkService {
 
   // get DAO Balance
   async getDaoBalance() {
-    //console.log("comp:",this.comp)
-    //console.log("comp:",this.comp.address)
+    if(this.masterSystemConfig !== 'rinkeby' || this.L1orL2 !== 'L2') return
+
     try {
       let balance = await this.comp.balanceOf(this.account)
       return { balance: formatEther(balance) }
@@ -1998,9 +2000,9 @@ class NetworkService {
     }
   }
 
-
   // get DAO Votes
   async getDaoVotes() {
+    if(this.masterSystemConfig !== 'rinkeby' || this.L1orL2 !== 'L2') return
     try {
       let votes = await this.comp.getCurrentVotes(this.account)
       return { votes: formatEther(votes) }
@@ -2071,8 +2073,9 @@ class NetworkService {
   //Fetch Proposals
   async fetchProposals() {
     
+    if(this.masterSystemConfig !== 'rinkeby' || this.L1orL2 !== 'L2') return
+      
     const delegateCheck = await this.delegate.attach(this.delegator.address)
-    
     
     try {
       let proposalList = [];

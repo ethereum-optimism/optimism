@@ -125,16 +125,6 @@ function Account () {
     getGasPrice()
   },[childBalance, rootBalance, getLookupPrice, getGasPrice])
 
-  useEffect(()=>{
-    if (network === 'mainnet') {
-      dispatch(openError(
-        `You are using Mainnet Beta. 
-        WARNING: the mainnet smart contracts are not fully audited and funds may be at risk. 
-        Please exercise caution when using Mainnet Beta.`)
-      )
-    }
-  },[dispatch, network])
-
   useInterval(() => {
     batch(() => {
       dispatch(fetchTransactions())
@@ -208,7 +198,7 @@ function Account () {
         })}
       </Box>
     </S.AccountWrapper>
-  );
+  )
 
   const L2Column = () => (
     <S.AccountWrapper>
@@ -251,9 +241,15 @@ function Account () {
 
       <S.CardTag>
         
-        
         <S.CardContentTag>
           <S.CardInfo>Boba Balances</S.CardInfo>
+          {(network === 'mainnet') && 
+          <Typography>
+             You are using Mainnet Beta.<br/> 
+             WARNING: the mainnet smart contracts are not fully audited and funds may be at risk.<br/> 
+             Please exercise caution when using Mainnet Beta.
+          </Typography>
+          }
           {/*
             <S.BalanceValue component ="div">{balances['oETH'].amountShort}</S.BalanceValue>
             <Typography>oETH</Typography>

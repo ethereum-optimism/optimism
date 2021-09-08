@@ -27,7 +27,7 @@ import Button from 'components/button/Button';
 import ProposalList from './proposal/ProposalList';
 import { selectDaoBalance, selectDaoVotes } from 'selectors/daoSelector';
 import { selectLayer } from 'selectors/setupSelector';
-import AlertIcon from 'components/icons/AlertIcon';
+import AlertIcon from 'components/icons/AlertIcon'
 import LayerSwitcher from 'components/mainMenu/layerSwitcher/LayerSwitcher'
 import networkService from 'services/networkService'
 
@@ -35,17 +35,17 @@ import PageHeader from 'components/pageHeader/PageHeader'
 
 function DAO() {
 
-    const theme = useTheme();
-    const dispatch = useDispatch();
-    const balance = useSelector(selectDaoBalance);
-    const votes = useSelector(selectDaoVotes);
+    const theme = useTheme()
+    const dispatch = useDispatch()
+    const balance = useSelector(selectDaoBalance)
+    const votes = useSelector(selectDaoVotes)
     
-    let layer = useSelector(selectLayer());
+    let layer = useSelector(selectLayer())
 
     if (networkService.L1orL2 !== layer) {
         //networkService.L1orL2 is always right...
         layer = networkService.L1orL2
-      }
+    }
 
 
     if(layer === 'L1') {
