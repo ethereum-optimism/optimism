@@ -195,6 +195,9 @@ export abstract class BatchSubmitter {
       beforeSendTransaction: (tx: PopulatedTransaction) => {
         this.logger.info(`Submitting ${txName} transaction`, {
           gasPrice: tx.gasPrice,
+          maxFeePerGas: tx.maxFeePerGas,
+          maxPriorityFeePerGas: tx.maxPriorityFeePerGas,
+          gasLimit: tx.gasLimit,
           nonce: tx.nonce,
           contractAddr: this.chainContract.address,
         })

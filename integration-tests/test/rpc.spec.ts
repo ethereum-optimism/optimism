@@ -420,9 +420,7 @@ describe('Basic RPC tests', () => {
         expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
         expect(estimate.toString().endsWith(l2Gaslimit.toString()))
 
-        const l2GasPrice = BigNumber.from(0)
-        // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
-        // but it does not yet exist. Use the default value for now
+        const l2GasPrice = await env.gasPriceOracle.gasPrice()
         const expected = TxGasLimit.encode({
           data: tx.data,
           l1GasPrice,

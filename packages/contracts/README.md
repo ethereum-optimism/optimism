@@ -1,4 +1,4 @@
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR)](https://codecov.io/gh/ethereum-optimism/optimism)
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=contracts)](https://codecov.io/gh/ethereum-optimism/optimism)
 
 # Optimistic Ethereum Smart Contracts
 
