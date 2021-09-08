@@ -14,75 +14,67 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React from 'react';
-import { makeStyles } from '@material-ui/core/styles';
 import {
-  Modal,
-  Backdrop,
   Fade,
+  Typography,
+  Grid,
+  Container,
+  Box,
+  useMediaQuery
 } from '@material-ui/core';
-
-import { gray2 } from 'index.scss';
-
-const useStyles = makeStyles({
-  modal: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    outline: 'none'
-  },
-  paper: {
-    // backgroundColor: 'rgba(38, 35, 56, 0.9);',
-    // color: white,
-    backgroundColor: 'white',
-    color: gray2,
-    padding: '20px',
-    border: 'none',
-    outline: 'none',
-    width: '500px',
-    boxSizing: 'border-box',
-    maxWidth: '100%',
-    borderRadius: '4px'
-    // borderRadius: '12px'
-  },
-});
+import { ReactComponent as CloseIcon } from './../../images/icons/close-modal.svg';
+// import CloseIcon  from '../icons/CloseIcon.js';
+import * as S from "./Modal.styles"
+import { useTheme } from '@emotion/react';
 
 function _Modal ({
   children,
   open,
   onClose,
   light,
-  width = '500px'
+  title,
+  transparent,
+  maxWidth
 }) {
-  const classes = useStyles();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
-    <Modal
+    <S.StyledModal
       aria-labelledby='transition-modal-title'
       aria-describedby='transition-modal-description'
-      className={classes.modal}
       open={open}
       onClose={onClose}
-      closeAfterTransition
-      BackdropComponent={Backdrop}
-      BackdropProps={{
-        timeout: 500,
-        // style: {
-        //   backgroundColor: 'linear-gradient(181deg, rgb(6 18 35 / 70%) 0%, rgb(8 22 44 / 70%) 100%)'
-        // }
-
-      }}
+      ismobile={isMobile ? 1 : 0}
+      // closeAfterTransition
+      BackdropComponent={S.Backdrop}
+      disableAutoFocus={true}
     >
       <Fade in={open}>
-        <div
-          className={classes.paper}
-          style={{
-            width: width
-          }}
-        >
-          {children}
-        </div>
+        <Container maxWidth={maxWidth || "lg"} sx={{border: 'none', position: 'relative'}}>
+          <Grid container>
+            <Grid item xs={12} md={title ? 2 : 1}>
+              <Box sx={{mr: 8}}>
+                <Typography variant="h2" component="h3" sx={{ fontWeight: "700"}}>{title}</Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} md={title ? 10 : 9}>
+              <S.Style isMobile={isMobile} transparent={transparent || isMobile}>
+                {children}
+              </S.Style>
+            </Grid>
+
+            <Grid item xs={12} md={1}>
+              <S.IconButtonTag onClick={onClose}>
+                <CloseIcon />
+              </S.IconButtonTag>
+            </Grid>
+
+          </Grid>
+        </Container>
       </Fade>
-    </Modal>
+    </S.StyledModal>
   );
 }
 

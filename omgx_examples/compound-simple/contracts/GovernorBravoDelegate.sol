@@ -90,6 +90,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
         uint endBlock = add256(startBlock, votingPeriod);
 
         proposalCount++;
+
         Proposal memory newProposal = Proposal({
             id: proposalCount,
             proposer: msg.sender,
@@ -98,6 +99,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
             values: values,
             signatures: signatures,
             calldatas: calldatas,
+            description: description,
             startBlock: startBlock,
             endBlock: endBlock,
             forVotes: 0,

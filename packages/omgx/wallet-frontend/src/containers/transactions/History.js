@@ -23,67 +23,48 @@ import "react-datepicker/dist/react-datepicker.css";
 import moment from 'moment';
 
 import { setActiveHistoryTab1 } from 'actions/uiAction'
-import { setActiveHistoryTab2 } from 'actions/uiAction'
 import { fetchTransactions } from 'actions/networkAction';
 
 import { selectActiveHistoryTab1 } from 'selectors/uiSelector'
-import { selectActiveHistoryTab2 } from 'selectors/uiSelector'
 import { selectTransactions } from 'selectors/transactionSelector';
 import { selectNetwork } from 'selectors/setupSelector'
 
 import Tabs from 'components/tabs/Tabs'
-import Input from 'components/input/Input'
 
 import Exits from './Exits';
 import Deposits from './Deposits';
-import Transactions from './Transactions';
 
 import * as styles from './Transactions.module.scss';
 
 import { getAllNetworks } from 'util/masterConfig';
 import useInterval from 'util/useInterval';
+import PageHeader from 'components/pageHeader/PageHeader';
+import Transactions from './Transactions';
 
 const POLL_INTERVAL = 5000; //milliseconds
 
 function History () {
 
-  const dispatch = useDispatch();
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const dispatch = useDispatch()
+  const [startDate, setStartDate] = useState(null)
+  const [endDate, setEndDate] = useState(null)
 
-  const [ searchHistory, setSearchHistory ] = useState('');
+  const [ searchHistory, setSearchHistory ] = useState('')
 
-  const activeTab1 = useSelector(selectActiveHistoryTab1, isEqual);
-  const activeTab2 = useSelector(selectActiveHistoryTab2, isEqual);
+  const activeTab1 = useSelector(selectActiveHistoryTab1, isEqual)
 
   const unorderedTransactions = useSelector(selectTransactions, isEqual)
 
-  const orderedTransactions = orderBy(unorderedTransactions, i => i.timeStamp, 'desc');
-    
+  //sort transactions by timeStamp
+  const orderedTransactions = orderBy(unorderedTransactions, i => i.timeStamp, 'desc')
+  //'desc' or 'asc'
+
   const transactions = orderedTransactions.filter((i)=>{
     if(startDate && endDate) {
       return (moment.unix(i.timeStamp).isSameOrAfter(startDate) && moment.unix(i.timeStamp).isSameOrBefore(endDate));
     }
     return true;
-  })  
-
-  const currentNetwork = useSelector(selectNetwork());
-
-  const nw = getAllNetworks();
-
-
-  const chainLink = (item) => {
-    let network = nw[currentNetwork];
-    if (!!network && !!network[item.chain]) {
-      // network object should have L1 & L2
-      if(item.chain === 'L1') {
-        return `${network[item.chain].transaction}${item.hash}`;
-      } else {
-        return `${network[item.chain].transaction}${item.hash}?network=${currentNetwork[0].toUpperCase()+currentNetwork.slice(1)}`;
-      }
-    }
-    return '';
-  }
+  })
 
   useInterval(() => {
     batch(() => {
@@ -92,12 +73,26 @@ function History () {
   }, POLL_INTERVAL * 2);
 
   return (
-    <div className={styles.container}>
+    <>
+      <PageHeader title="Transaction History" />
+
+    {
+    /*TODO: fix the search history
+    <Input
+            icon
+            placeholder='Search by hash'
+            value={searchHistory}
+            onChange={i => {
+              setSearchHistory(i.target.value);
+            }}
+            className={styles.searchBar}
+          />
+
+    */}
 
       <div className={styles.header}>
-        <h2>Search</h2>
         <div className={styles.actions}>
-          <div style={{margin: '0px 10px'}}>Show period from </div>
+          <div style={{margin: '0px 10px', opacity: 0.7}}>Show period from </div>
           <DatePicker
             wrapperClassName={styles.datePickerInput}
             selected={startDate}
@@ -107,7 +102,7 @@ function History () {
             endDate={endDate}
           />
 
-          <div style={{margin: '0px 10px'}}>to </div>
+          <div style={{margin: '0px 10px', opacity: 0.7}}>to </div>
           <DatePicker
             wrapperClassName={styles.datePickerInput}
             selected={endDate}
@@ -116,15 +111,6 @@ function History () {
             startDate={startDate}
             endDate={endDate}
             minDate={startDate}
-          />
-          <Input
-            icon
-            placeholder='Search by hash'
-            value={searchHistory}
-            onChange={i => {
-              setSearchHistory(i.target.value);
-            }}
-            className={styles.searchBar}
           />
         </div>
       </div>
@@ -135,46 +121,32 @@ function History () {
               dispatch(setActiveHistoryTab1(tab));
             }}
             activeTab={activeTab1}
-            tabs={[ 'Transactions', 'Deposits' ]}
+            tabs={['All', 'Deposits', 'Exits']}
           />
 
-          {activeTab1 === 'Transactions' && (
-           <Transactions 
-             searchHistory={searchHistory} 
-             transactions={transactions} 
-             chainLink={chainLink}
-           />
+          {activeTab1 === 'All' && (
+            <Transactions
+              searchHistory={searchHistory}
+              transactions={transactions}
+            />
           )}
 
-          {activeTab1=== 'Deposits' && <
-            Deposits 
-              searchHistory={searchHistory} 
-              transactions={transactions} 
-              chainLink={chainLink}
+          {activeTab1 === 'Deposits' &&
+            <Deposits
+              searchHistory={searchHistory}
+              transactions={transactions}
             />
           }
 
-        </div>
-
-        <div className={styles.section}>
-          <Tabs
-            onClick={tab => {
-              dispatch(setActiveHistoryTab2(tab));
-            }}
-            activeTab={activeTab2}
-            tabs={[ 'Exits', 'TBD' ]}
-          />
-
-          {activeTab2 === 'Exits' && 
-            <Exits 
+          {activeTab1 === 'Exits' &&
+            <Exits
               searchHistory={searchHistory}
-              transactions={transactions}  
-              chainLink={chainLink}
+              transactions={transactions}
             />
           }
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

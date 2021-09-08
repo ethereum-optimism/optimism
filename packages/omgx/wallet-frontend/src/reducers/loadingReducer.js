@@ -16,9 +16,10 @@ limitations under the License. */
 const initialLoadingState = {};
 
 function loadingReducer (state = initialLoadingState, action) {
-  const segments = action.type.split('/');
-  const requestName = `${segments[0]}/${segments[1]}`;
-  const requestState = segments[2];
+  
+  const segments = action.type.split('/')
+  const requestName = `${segments[0]}/${segments[1]}`
+  const requestState = segments[2]
 
   if (
     requestState !== 'REQUEST' &&
@@ -31,7 +32,7 @@ function loadingReducer (state = initialLoadingState, action) {
   return {
     ...state,
     [requestName]: requestState === 'REQUEST'
-  };
+  }
 }
 
-export default loadingReducer;
+export default loadingReducer

@@ -1,21 +1,21 @@
 @import 'index.scss';
 
 .Input {
-
   display: flex;
   flex-direction: column;
   margin-bottom: 5px;
 
-  .label {
-    font-size: 0.9em;
-    margin-bottom: 5px;
-  }
+//   .label {
+//     font-size: 0.9em;
+//     margin-bottom: 5px;
+//   }
 
   .field {
     position: relative;
     transition: all 200ms ease-in-out;
     display: flex;
     flex-direction: row;
+    gap: 15px;
     align-items: center;
     margin-bottom: 5px;
 
@@ -53,15 +53,15 @@
       color: $gray2;
       background-color: white;
     }
-    .unit {
-      margin: 0 10px;
-      position: absolute;
-      right: 0;
-      // background-color: $gray6;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-    }
+    // .unit {
+    //   margin: 0 10px;
+    //   position: absolute;
+    //   right: 0;
+    //   background-color: $gray6;
+    //   display: flex;
+    //   flex-direction: row;
+    //   align-items: center;
+    // }
     .isPaste {
       position: relative;
     }
@@ -71,8 +71,8 @@
       cursor: pointer;
     }
     &.error {
-      border: 2px solid $red;
-      color: $red;
+      // border: 2px solid $red;
+      color: '#ccc';
       .input {
         color: $red;
       }

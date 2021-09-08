@@ -27,7 +27,7 @@ const initialState = {
   ledger: false,
   alert: null,
   error: null,
-  activeHistoryTab1: 'Transactions',
+  activeHistoryTab1: 'All',
   activeHistoryTab2: 'Exits',
 };
 

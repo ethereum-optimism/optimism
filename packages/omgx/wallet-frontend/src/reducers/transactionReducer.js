@@ -14,14 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import { keyBy } from 'lodash';
-const initialState = {};
+const initialState = {}
 
 function transactionReducer (state = initialState, action) {
   switch (action.type) {
     case 'TRANSACTION/GETALL/SUCCESS':
-      return { ...state, ...keyBy(action.payload, 'blockNumber', 'hash') };
+      return { 
+        ...state, 
+        ...keyBy(action.payload, 'blockNumber', 'hash') 
+      }
     case 'TRANSFER/CREATE/SUCCESS':
-      return { ...state };
+      return {
+        ...state
+      }
     default:
       return state;
   }

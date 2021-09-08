@@ -15,7 +15,7 @@ limitations under the License. */
 import React, { useState } from 'react'
 import { useDispatch } from 'react-redux'
 
-import { closeModal } from 'actions/uiAction'
+import { closeModal, openAlert, openError } from 'actions/uiAction'
 
 import * as styles from './daoModal.module.scss'
 
@@ -23,92 +23,82 @@ import Modal from 'components/modal/Modal'
 import Button from 'components/button/Button'
 import Input from 'components/input/Input'
 import ProposalAction from './ProposalAction'
+import { createDaoProposal } from 'actions/daoAction'
 
 function NewProposalModal({ open }) {
-
-    const [title, setTitle] = useState('')
-    const [description, setDescription] = useState('')
-
-    const [actionList, setActionList] = useState([])
-    const [contracts, setContracts] = useState(['select'])
-
-    const [calldata, setCalldata] = useState(undefined)
-
     const dispatch = useDispatch()
 
-    const renderActions = () => {
-        return actionList.map((action, index) => {
-            return <div key={index}>
-                <ProposalAction index={index}
-                    setActionList={setActionList}
-                    actionList={actionList}
-                    contracts={contracts}
-                    setContracts={setContracts}
-                    setCalldata={setCalldata}
-                />
-            </div>
-        })
-    }
+    const [action, setAction] = useState(null);
+    const [votingThreshold, setVotingThreshold] = useState(0);
+    const [proposeText, setProposeText] = useState();
 
-    const addAction = () => {
-        setActionList([...actionList, ''])
-        setContracts([...contracts, 'select'])
+    const onActionChange = (e) =>{
+        setVotingThreshold('0');
+        setProposeText('');
+        setAction(e.target.value);
     }
-
 
     function handleClose() {
-        setTitle('');
+        setVotingThreshold(null);
+        setAction(null);
         dispatch(closeModal('newProposalModal'))
     }
 
     const submit = async () => {
-        console.log({
-            description,
-            title, 
-            actionList,
-            contracts,
-            calldata
-        })
+        let res = await dispatch(createDaoProposal({ votingThreshold, text: proposeText }));
+    
+        if (res) {
+            dispatch(openAlert(`Proposal has been submitted!`))
+            handleClose()
+        } else {
+            dispatch(openError(`Failed to create proposal`));
+            handleClose()
+        }
     }
 
-    const disabledProposal = !title;
+    const disabledProposal = () => {
+        if (action === 'change-threshold') {
+            return !votingThreshold
+        } else {
+            return !proposeText
+        }
+    };
 
     return (
         <Modal open={open}
-            width="700px"
+            onClose={handleClose}
+            width="400px"
         >
             <h2>New Proposal</h2>
             <div className={styles.modalContent}>
                 <div className={styles.proposalAction}>
-                    <div className={styles.actionTitle}>
-                        <h3>Actions</h3>
-                        <Button
-                            style={{
-                                borderRadius: '8px',
-                                width: '110px'
-                            }}
-                            size="small"
-                            type="outline"
-                            onClick={addAction}
-                        >
-                            + Add an action
-                        </Button>
-                    </div>
-                    {renderActions()}
 
-                </div>
-                <div className={styles.proposalDetail}>
-                    <Input
-                        label='Proposal Title'
-                        value={title}
-                        onChange={i => setTitle(i.target.value)}
+                    <select
+                        className={styles.actionPicker}
+                        onChange={onActionChange}
+                    >
+                        <option>Select Proposal Type...</option>
+                        <option value="change-threshold">Change Voting Threshold</option>
+                        <option value="text-proposal">Propose text</option>
+                    </select>
+                    {action === 'change-threshold' && <Input
+                        label="Enter voting threshold"
+                        placeholder="0000"
+                        value={votingThreshold}
+                        type="number"
+                        onChange={(i) => setVotingThreshold(i.target.value)}
+                        variant="standard"
+                        newStyle
                     />
-                    <Input
-                        label='Proposal Description'
-                        value={description}
-                        type="textArea"
-                        onChange={i => setDescription(i.target.value)}
+                    }
+                    {action === 'text-proposal' && <Input
+                        label="Enter proposal text"
+                        value={proposeText}
+                        onChange={(i) => setProposeText(i.target.value)}
+                        variant="standard"
+                        newStyle
                     />
+                    }
                 </div>
             </div>
 
@@ -126,9 +116,9 @@ function NewProposalModal({ open }) {
                     onClick={() => { submit({ useLedgerSign: false }) }}
                     type='primary'
                     // loading={loading} // TODO: Implement loading base on the action trigger
-                    disabled={disabledProposal}
+                    disabled={disabledProposal()}
                 >
-                    SUBMIT PROPOSAL
+                    PROPOSE
                 </Button>
             </div>
         </Modal >

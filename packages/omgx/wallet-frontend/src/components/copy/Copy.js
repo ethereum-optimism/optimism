@@ -16,32 +16,31 @@ limitations under the License. */
 import React, { useState } from 'react';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
 import { FileCopyOutlined } from '@material-ui/icons';
+import { IconButton, Tooltip } from '@material-ui/core';
+import { useEffect } from 'react';
 
-import Alert from 'components/alert/Alert';
-
-import * as styles from './Copy.module.scss';
-
-function Copy ({ value, light }) {
+function Copy ({ value }) {
   const [ open, setOpen ] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        setOpen(false);
+      }, 1500);
+    }
+  }, [open, setOpen]);
+
   return (
-    <div className={styles.Copy}>
-      <CopyToClipboard
-        text={value}
-        onCopy={() => setOpen(true)}
-      >
-        <div
-          className={[
-            styles.icon,
-            light ? styles.light : ''
-          ].join(' ')}>
-          <FileCopyOutlined />
-        </div>
-      </CopyToClipboard>
-      <Alert open={open} onClose={() => setOpen(false)}>
-        Copied to clipboard!
-      </Alert>
-    </div>
+    <CopyToClipboard
+      text={value}
+      onCopy={() => setOpen(true)}
+    >
+      <Tooltip open={open} title="Copied to clipboard!">
+        <IconButton>
+          <FileCopyOutlined sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Tooltip>
+    </CopyToClipboard>
   );
 }
 

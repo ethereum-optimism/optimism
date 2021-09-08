@@ -12,7 +12,8 @@ import { logAmount } from 'util/amountConvert';
 
 import networkService from 'services/networkService';
 
-import * as styles from './Farm.module.scss';
+import * as S from './FarmModal.styles';
+import { Typography } from '@material-ui/core';
 
 class FarmWithdrawModal extends React.Component {
   constructor(props) {
@@ -30,7 +31,7 @@ class FarmWithdrawModal extends React.Component {
       layer1Balance: balance.layer1,
       layer2Balance: balance.layer2,
       LPBalance: 0,
-      // loading 
+      // loading
       loading: false,
     }
   }
@@ -58,9 +59,9 @@ class FarmWithdrawModal extends React.Component {
     }
 
     if (!isEqual(prevState.balance, balance)) {
-      this.setState({ 
+      this.setState({
         layer1Balance: balance.layer1,
-        layer2Balance: balance.layer2 
+        layer2Balance: balance.layer2
       });
     }
   }
@@ -80,7 +81,7 @@ class FarmWithdrawModal extends React.Component {
 
   async handleConfirm() {
     const { withdrawToken, withdrawValue } = this.state;
-    
+
     this.setState({ loading: true });
 
     const withdrawLiquidityTX = await networkService.withdrawLiquidity(
@@ -100,15 +101,15 @@ class FarmWithdrawModal extends React.Component {
   }
 
   render() {
-    const { 
-      open, 
+    const {
+      open,
       withdrawToken, withdrawValue,
-      userInfo, 
-      layer1Balance, layer2Balance, 
+      userInfo,
+      layer1Balance, layer2Balance,
       LPBalance,
       loading,
     } = this.state;
-    
+
 
     const selectOptions = (withdrawToken.L1orL2Pool === 'L1LP' ? layer1Balance : layer2Balance)
       .reduce((acc, cur) => {
@@ -123,65 +124,72 @@ class FarmWithdrawModal extends React.Component {
     }, []);
 
     return (
-      <Modal open={open}>
-        <h2>Withdraw {`${withdrawToken.symbol}`}</h2>
+      <Modal open={open} maxWidth="md" onClose={()=>{this.handleClose()}}>
+        <Typography variant="h2" sx={{fontWeight: 700, mb: 3}}>
+          Withdraw {`${withdrawToken.symbol}`}
+        </Typography>
 
         <InputSelect
           label='Amount to withdraw'
           placeholder={0}
           value={withdrawValue}
+          type="number"
           onChange={i => {
             this.setState({withdrawValue: i.target.value});
           }}
           onSelect={i => {}}
           selectOptions={selectOptions}
           selectValue={withdrawToken.currency}
+          unit={withdrawToken.symbol}
           maxValue={this.getMaxTransferValue()}
           disabledSelect={true}
+          variant="standard"
+          newStyle
         />
 
-        {Number(withdrawValue) > Number(this.getMaxTransferValue()) && 
-          <div className={styles.disclaimer}>
+        {Number(withdrawValue) > Number(this.getMaxTransferValue()) &&
+          <Typography variant="body2" sx={{mt: 2}}>
             You don't have enough {withdrawToken.symbol} to withdraw.
-          </div>
+          </Typography>
         }
-        {Number(withdrawValue) > Number(LPBalance) && 
-          <div className={styles.disclaimer}>
+        {Number(withdrawValue) > Number(LPBalance) &&
+          <Typography variant="body2" sx={{mt: 2}}>
             We don't have enough {withdrawToken.symbol} in the {' '}
-            {withdrawToken.L1orL2Pool === 'L1LP' ? 'L1' : 'L2'} liquidity pool. 
+            {withdrawToken.L1orL2Pool === 'L1LP' ? 'L1' : 'L2'} liquidity pool.
             Please contact us.
-          </div>
+          </Typography>
         }
 
-        <div className={styles.buttons}>
+        <S.WrapperActions>
           <Button
             onClick={()=>{this.handleClose()}}
-            type='outline'
-            className={styles.button}
+            color="neutral"
+            size="large"
           >
             CANCEL
           </Button>
           <Button
             onClick={()=>{this.handleConfirm()}}
-            type='primary'
-            className={styles.button}
+            color='primary'
+            size="large"
+            variant="contained"
             disabled={
-              Number(this.getMaxTransferValue()) < Number(withdrawValue) || 
+              Number(this.getMaxTransferValue()) < Number(withdrawValue) ||
               Number(withdrawValue) > Number(LPBalance) ||
-              withdrawValue === '' || 
-              !withdrawValue 
+              withdrawValue === '' ||
+              !withdrawValue
             }
             loading={loading}
           >
             CONFIRM
           </Button>
-        </div> 
+        </S.WrapperActions>
 
 
       </Modal>
     )
   }
-}
+};
 
 const mapStateToProps = state => ({
   ui: state.ui,

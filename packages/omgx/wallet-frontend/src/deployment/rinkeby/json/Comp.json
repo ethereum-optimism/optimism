@@ -27509,9 +27509,17 @@
     "name": "solc",
     "version": "0.5.16"
   },
-  "networks": {},
+  "networks": {
+    "28": {
+      "events": {},
+      "links": {},
+      "address": "0x96bE6f37EF5183809C369a2024b3055f6cF15C62",
+      "transactionHash": "0x66dce8dd5cfc3ad93f9335ae02c89b4af88e95980a6d74cffd01af5a8a264e63"
+    }
+  },
   "schemaVersion": "3.4.3",
-  "updatedAt": "2021-09-01T23:59:59.170Z",
+  "updatedAt": "2021-09-07T01:09:21.023Z",
+  "networkType": "ethereum",
   "devdoc": {
     "methods": {
       "allowance(address,address)": {

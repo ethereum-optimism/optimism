@@ -13,7 +13,8 @@ import { logAmount, powAmount } from 'util/amountConvert';
 
 import networkService from 'services/networkService';
 
-import * as styles from './Farm.module.scss';
+import * as S from './FarmModal.styles';
+import { Typography } from '@material-ui/core';
 
 class FarmDepositModal extends React.Component {
   constructor(props) {
@@ -71,7 +72,7 @@ class FarmDepositModal extends React.Component {
   }
 
   async handleApprove() {
-    
+
     const { stakeToken, stakeValue } = this.state;
 
     this.setState({ loading: true })
@@ -82,15 +83,15 @@ class FarmDepositModal extends React.Component {
       approveTX = await networkService.approveERC20_L2LP(
         powAmount(stakeValue, 18),
         stakeToken.currency,
-      )
-    } else if (stakeToken.L1orL2Pool === 'L1LP') {
-      approveTX = await networkService.approveERC20_L1LP(
-        powAmount(stakeValue, 18),
-        stakeToken.currency,
-      )
-    }
+        )
+      } else if (stakeToken.L1orL2Pool === 'L1LP') {
+        approveTX = await networkService.approveERC20_L1LP(
+          powAmount(stakeValue, 18),
+          stakeToken.currency,
+          )
+        }
 
-    console.log("stakeToken.LPAddress:",stakeToken.LPAddress)
+        console.log("stakeToken.LPAddress:",stakeToken.LPAddress)
     //0x2C12649A5A4FC61F146E0a3409f3e4c7FbeD15Dc
     //for trying to stake TST
 
@@ -134,20 +135,21 @@ class FarmDepositModal extends React.Component {
   }
 
   render() {
-    
+
     const {
       open,
-      stakeToken, 
+      stakeToken,
       stakeValue,
       approvedAllowance,
       loading,
     } = this.state;
 
     return (
+      <Modal open={open} maxWidth="md" onClose={()=>{this.handleClose()}}>
 
-      <Modal open={open}>
-        
-        <h2>Stake {`${stakeToken.symbol}`}</h2>
+        <Typography variant="h2" sx={{fontWeight: 700, mb: 3}}>
+          Stake {`${stakeToken.symbol}`}
+        </Typography>
 
         <Input
           placeholder={`Amount to stake`}
@@ -156,62 +158,69 @@ class FarmDepositModal extends React.Component {
           onChange={i=>{this.setState({stakeValue: i.target.value})}}
           unit={stakeToken.symbol}
           maxValue={this.getMaxTransferValue()}
+          newStyle
+          variant="standard"
         />
 
         {Number(stakeValue) > Number(this.getMaxTransferValue()) &&
-          <div className={styles.disclaimer}>
+          <Typography variant="body2" sx={{mt: 2}}>
             You don't have enough {stakeToken.symbol} to stake.
-          </div>
+          </Typography>
         }
 
         {(new BN(approvedAllowance).gte(powAmount(stakeValue, 18)) || stakeValue === '') &&
-          <div className={styles.buttons}>
-            <Button
-              onClick={()=>{this.handleClose()}}
-              type='outline'
-              className={styles.button}
-            >
-              CANCEL
-            </Button>
+          <S.WrapperActions>
+            {/* {!isMobile ? ( */}
+              <Button
+                onClick={()=>{this.handleClose()}}
+                color="neutral"
+                size="large"
+              >
+                CANCEL
+              </Button>
+            {/* ) : null} */}
             <Button
               onClick={()=>{this.handleConfirm()}}
-              type='primary'
-              className={styles.button}
               disabled={Number(this.getMaxTransferValue()) < Number(stakeValue) || stakeValue === '' || !stakeValue}
               loading={loading}
+              color='primary'
+              size="large"
+              variant="contained"
+              // fullWidth={isMobile}
             >
               STAKE!
             </Button>
-          </div>
+          </S.WrapperActions>
         }
 
         {new BN(approvedAllowance).lt(new BN(powAmount(stakeValue, 18))) &&
           <>
-            <div className={styles.disclaimer}>
+            <Typography variant="body2" sx={{mt: 2}}>
               To stake {stakeValue} {stakeToken.symbol},
               you first need to approve this amount.
-            </div>
-            <div className={styles.buttons}>
+            </Typography>
+
+            <S.WrapperActions>
               <Button
                 onClick={()=>{this.handleClose()}}
-                type='outline'
-                className={styles.button}
+                color="neutral"
+                size="large"
               >
                 CANCEL
               </Button>
               <Button
                 onClick={()=>{this.handleApprove()}}
-                type='primary'
-                className={styles.button}
                 loading={loading}
                 disabled={Number(this.getMaxTransferValue()) < Number(stakeValue)}
+                color='primary'
+                size="large"
+                variant="contained"
               >
                 APPROVE AMOUNT
               </Button>
-            </div>
+            </S.WrapperActions>
           </>
         }
-
       </Modal>
     )
   }

@@ -16,13 +16,15 @@
     "deploy:dev": "GENERATE_SOURCEMAP=false REACT_APP_ENV=dev react-scripts build && aws s3 rm s3://boba-gateway-test --recursive && aws s3 sync build s3://boba-gateway-test && aws s3 cp s3://boba-gateway-test/index.html s3://boba-gateway-test/index.html --metadata-directive REPLACE --cache-control max-age=0 --content-type text/html"
   },
   "dependencies": {
+    "@emotion/react": "^11.4.0",
+    "@emotion/styled": "^11.3.0",
     "@eth-optimism/contracts": "^0.4.1",
     "@eth-optimism/watcher": "^0.0.1-alpha.9",
     "@ethersproject/providers": "^5.0.24",
     "@ethersproject/units": "^5.0.11",
-    "@material-ui/core": "^4.11.3",
-    "@material-ui/icons": "^4.11.2",
-    "@material-ui/lab": "^4.0.0-alpha.57",
+    "@material-ui/core": "^5.0.0-beta.2",
+    "@material-ui/icons": "^5.0.0-beta.1",
+    "@material-ui/styles": "^4.11.4",
     "@metamask/legacy-web3": "^2.0.0",
     "@sentry/react": "^6.0.2",
     "axios": "^0.21.1",

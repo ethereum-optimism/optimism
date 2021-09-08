@@ -112,6 +112,9 @@ contract GovernorBravoDelegateStorageV1 is GovernorBravoDelegatorStorage {
         /// @notice The ordered list of calldata to be passed to each call
         bytes[] calldatas;
 
+        /// @notice Proposal metadata such as description and URI
+        string description;
+
         /// @notice The block at which voting begins: holders must delegate their votes prior to this block
         uint startBlock;
 

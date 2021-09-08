@@ -17,34 +17,69 @@ import React from 'react';
 import { NavigateNext, NavigateBefore } from '@material-ui/icons';
 
 import * as styles from './Pager.module.scss';
+import * as S from './Pager.styles';
+import { useTheme } from '@emotion/react';
 
 function Pager ({ currentPage, totalPages, isLastPage, onClickNext, onClickBack, label }) {
+  const theme = useTheme();
   return (
-    <div className={styles.Pager}>
+    <S.PagerContainer>
       <div className={styles.numberLeft}>{label}</div>
-      <div className={styles.numberRight}>
-        <div className={styles.number}>{`Page ${currentPage} of ${totalPages}`}</div>
-        <div
-          className={[
-            styles.box,
-            currentPage === 1 ? styles.disabled : ''
-          ].join(' ')}
+      <S.PagerContent>
+        <S.PagerLabel>
+        {`Page ${currentPage} of ${totalPages}`}
+        </S.PagerLabel>
+
+        <S.PagerNavigation
+          variant={theme.palette.mode === "light" ? "contained" : "outlined"}
+          size="small"
+          color='primary'
+          disabled={currentPage === 1}
           onClick={onClickBack}
         >
-          <NavigateBefore className={styles.icon} />
-        </div>
-        <div
-          className={[
-            styles.box,
-            isLastPage ? styles.disabled : ''
-          ].join(' ')}
+          <NavigateBefore />
+        </S.PagerNavigation>
+
+        <S.PagerNavigation
+          variant={theme.palette.mode === "light" ? "contained" : "outlined"}
+          size="small"
+          color='primary'
+          disabled={isLastPage}
           onClick={onClickNext}
         >
-          <NavigateNext className={styles.icon} />
-        </div>
-        </div>
-    </div>
-  );
+          <NavigateNext />
+        </S.PagerNavigation>
+
+      </S.PagerContent>
+    </S.PagerContainer>
+  )
+
+  // return (
+  //   <div className={styles.Pager}>
+  //     <div className={styles.numberLeft}>{label}</div>
+  //     <div className={styles.numberRight}>
+  //       <div className={styles.number}>{`Page ${currentPage} of ${totalPages}`}</div>
+  //       <div
+  //         className={[
+  //           styles.box,
+  //           currentPage === 1 ? styles.disabled : ''
+  //         ].join(' ')}
+  //         onClick={onClickBack}
+  //       >
+  //         <NavigateBefore className={styles.icon} />
+  //       </div>
+  //       <div
+  //         className={[
+  //           styles.box,
+  //           isLastPage ? styles.disabled : ''
+  //         ].join(' ')}
+  //         onClick={onClickNext}
+  //       >
+  //         <NavigateNext className={styles.icon} />
+  //       </div>
+  //       </div>
+  //   </div>
+  // );
 }
 
 export default Pager;

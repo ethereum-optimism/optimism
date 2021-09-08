@@ -5,37 +5,35 @@ $boxDropDownHeight: 50px;
 
 .proposalCard {
     margin: 10px auto;
-    width: 90%;
-    padding: 5px 10px;
+    width: 95%;
+    padding: 5px;
+    padding-left: 10px;
     border-radius: 8px;
     .proposalHeader {
         display: flex;
         justify-content: space-between;
-        margin: 10px;
         .title {
-            font-size: 1.2em;
+            font-size: 1.1em;
             color: $white;
             p{
               margin: 0px;
             }
-
             .muted {
+              font-size: 0.7em;
               color: $white700;
             }
         }
     }
     .proposalContent {
-        padding: 10px 5px;
-        display: flex;
-        justify-content: space-between;
-        color: $white;
-        span {
-            font-size: 1.3em;
-            color: $white700;
-        }   
+      display: flex;
+      justify-content: flex-start;
+      font-size: 0.7em;
+      color: $white700;
+      font-weight: 700;
     }
-
-    
+    .vote {
+      min-width: 120px;
+    }
 }
 
 .proposalDetail {
@@ -50,7 +48,6 @@ $boxDropDownHeight: 50px;
     height: $dropDownHeight;
     animation: openDropDown 1s;
     overflow: hidden;
-    // background-color: $gray7;
     padding: 10px;
     display: flex;
     flex-direction: row;
@@ -61,7 +58,6 @@ $boxDropDownHeight: 50px;
     height: 0px;
     animation: closeDropDown 1s;
     overflow: hidden;
-    // background-color: $gray7;
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -97,30 +93,4 @@ $boxDropDownHeight: 50px;
     100% {
       height: 0px;
     }
-  }
-
-  /*************************/
-
-
-
-.divider {
-    height: 0px;
-    width: 90%;
-    margin: 5px auto;
-    position: relative;
-    z-index: 1;
-  
-    &::before{ 
-      content: "";
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      left: 0;
-      z-index: -1;
-      margin: -1px;
-      border-radius: inherit;
-      background: linear-gradient(90deg, rgba(255, 255, 255, 0) -0.74%, rgba(255, 255, 255, 0.0414) 8.18%, rgba(255, 255, 255, 0.0408) 90.07%, rgba(255, 255, 255, 0) 100.04%);
-    }
-  
   }

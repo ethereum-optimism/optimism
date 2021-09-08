@@ -15,15 +15,18 @@ limitations under the License. */
 
 import React from 'react';
 import { CircularProgress } from '@material-ui/core';
-import * as styles from './Button.module.scss';
+import { Button as ButtonMUI } from '@material-ui/core';
 
 function Button ({
   children,
   style,
   onClick,
-  type,
+  color,
+  variant,
+  fullWidth,
   disabled,
   loading,
+  sx,
   pulsate,
   tooltip = '',
   size,
@@ -41,7 +44,7 @@ function Button ({
   }
 
   // Save the current date to be able to trigger an update
-  const [now, setTime] = React.useState(new Date()); 
+  const [now, setTime] = React.useState(new Date());
 
   React.useEffect(() => {
     const timer = setInterval(()=>{setTime(new Date())}, 1000);
@@ -52,23 +55,18 @@ function Button ({
   if(waitTime < 0) waitTime = 0;
   waitTime = Math.round(waitTime);
 
+  const muiProps = {
+    color,
+    variant,
+    fullWidth,
+    onClick: loading || disabled ? null : onClick,
+    disabled,
+    size,
+    sx,
+  }
+
   return (
-    <div
-      style={style}
-      className={[
-        styles.Button,
-        type === 'primary' ? styles.primary : '',
-        type === 'secondary' ? styles.secondary : '',
-        type === 'outline' ? styles.outline : '',
-        size === 'small' ? styles.small : '',
-        size === 'tiny' ? styles.tiny : '',
-        loading ? styles.disabled : '',
-        disabled ? styles.disabled : '',
-        pulsate ? styles.pulsate : '',
-        className
-      ].join(' ')}
-      onClick={loading || disabled ? null : onClick}
-    >
+    <ButtonMUI {...muiProps}>
       {children}
       {(disabled || loading) && timeDefined && (waitTime > 3) &&
         <div style={{marginLeft: '10px'}}
@@ -76,13 +74,13 @@ function Button ({
           {waitTime}s ago
         </div>
       }
-      {loading && 
+      {loading &&
         <div style={{paddingTop: '4px', marginLeft: '10px'}}>
           <CircularProgress size={14} color='inherit' />
         </div>
       }
-    </div>
-  );
+    </ButtonMUI>
+  )
 }
 
 export default React.memo(Button);

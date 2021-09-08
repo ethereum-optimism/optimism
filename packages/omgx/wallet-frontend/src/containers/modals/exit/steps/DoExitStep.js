@@ -13,16 +13,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import { exitOMGX } from 'actions/networkAction'
+import React, { useState, useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+
+import { useTheme } from '@emotion/react'
+
+import { Typography, useMediaQuery } from '@material-ui/core'
+
+import { exitBOBA } from 'actions/networkAction'
 import { openAlert, openError } from 'actions/uiAction'
+
 import Button from 'components/button/Button'
 import Input from 'components/input/Input'
-import React, { useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+
 import { selectLoading } from 'selectors/loadingSelector'
+import { selectSignatureStatus_exitTRAD } from 'selectors/signatureSelector'
 import { selectLookupPrice } from 'selectors/lookupSelector'
+
 import { amountToUsd, logAmount } from 'util/amountConvert'
-import * as styles from '../ExitModal.module.scss'
+
+import * as S from './DoExitSteps.styles'
 
 function DoExitStep({ handleClose, token }) {
 
@@ -31,23 +41,24 @@ function DoExitStep({ handleClose, token }) {
   const [value, setValue] = useState('')
   const [disabledSubmit, setDisabledSubmit] = useState(true)
   const exitLoading = useSelector(selectLoading(['EXIT/CREATE']))
-  const lookupPrice = useSelector(selectLookupPrice);
+  const signatureStatus = useSelector(selectSignatureStatus_exitTRAD)
+  const lookupPrice = useSelector(selectLookupPrice)
 
   async function doExit() {
 
-    let res = await dispatch(exitOMGX(token.address, value))
+    let res = await dispatch(exitBOBA(token.address, value))
 
     //person will receive ETH on the L1, not oETH
     let currencyL1 = token.symbol
 
-    if (currencyL1 === 'oETH') 
+    if (currencyL1 === 'oETH')
       currencyL1 = 'ETH'
-    
+
     if (res) {
       dispatch(
         openAlert(
-          `${token.symbol} was exited to L1. You will receive 
-          ${Number(value).toFixed(2)} ${currencyL1} 
+          `${token.symbol} was exited to L1. You will receive
+          ${Number(value).toFixed(2)} ${currencyL1}
           on L1 in 7 days.`
         )
       )
@@ -66,66 +77,88 @@ function DoExitStep({ handleClose, token }) {
     setValue(value)
   }
 
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
+  let buttonLabel = 'CANCEL'
+  if( exitLoading ) buttonLabel = 'CLOSE WINDOW'
+
+  useEffect(() => {
+    if (signatureStatus && exitLoading) {
+      //we are all set - can close the window
+      //transaction has been sent and signed
+      handleClose()
+    }
+  }, [ signatureStatus, exitLoading, handleClose ])
+
   return (
     <>
-      <h2>
-        Standard Exit : {` ${token ? token.symbol : ''}`}
-      </h2>
+      <Typography variant="h2" sx={{fontWeight: 700, mb: 3}}>
+        Standard Exit ({`${token ? token.symbol : ''}`})
+      </Typography>
 
       <Input
-        placeholder={'Amount to exit'}
+        label={'Amount to exit'}
+        placeholder="0.0"
         value={value}
         type="number"
         onChange={(i)=>{setExitAmount(i.target.value)}}
         unit={token.symbol}
         maxValue={logAmount(token.balance, token.decimals)}
+        variant="standard"
+        newStyle
       />
-      
+
       {token && token.symbol === 'oETH' && (
-        <h3>
+        <Typography variant="body2" sx={{mt: 2}}>
           {value &&
-            `You will receive ${Number(value).toFixed(2)} ETH 
+            `You will receive ${Number(value).toFixed(2)} ETH
             ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''}
-            on L1. 
+            on L1.
             Your funds will be available on L1 in 7 days.`}
-        </h3>
+        </Typography>
       )}
 
       {token && token.symbol !== 'oETH' && (
-        <h3>
+        <Typography variant="body2" sx={{mt: 2}}>
           {value &&
-            `You will receive ${Number(value).toFixed(2)} 
-            ${token.symbol}
+            `You will receive ${Number(value).toFixed(2)} ${token.symbol}
             ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''}
-            on L1. 
+            on L1.
             Your funds will be available on L1 in 7 days.`}
-        </h3>
+        </Typography>
       )}
 
-      <div className={styles.buttons}>
-        <Button
-          onClick={handleClose}
-          className={styles.button}
-          type="outline"
-          style={{ flex: 0 }}
-        >
-          CANCEL
-        </Button>
-        {token && (
+      {exitLoading && (
+        <Typography variant="body2" sx={{mt: 2, color: 'green'}}>
+          This window will automatically close when your transaction has been signed and submitted.
+        </Typography>
+      )}
+
+      <S.WrapperActions>
           <Button
-            onClick={doExit}
-            type="primary"
-            style={{ flex: 0 }}
-            loading={exitLoading}
-            className={styles.button}
-            tooltip="Your exit is still pending. Please wait for confirmation."
-            disabled={disabledSubmit}
-            triggerTime={new Date()}
+            onClick={handleClose}
+            color="neutral"
+            size="large"
           >
-            EXIT
+            {buttonLabel}
           </Button>
-        )}
-      </div>
+          {token && (
+            <Button
+              onClick={doExit}
+              color="primary"
+              variant="contained"
+              loading={exitLoading}
+              tooltip="Your exit is still pending. Please wait for confirmation."
+              disabled={disabledSubmit}
+              triggerTime={new Date()}
+              fullWidth={isMobile}
+              size="large"
+            >
+              Exit
+            </Button>
+          )}
+      </S.WrapperActions>
     </>
   )
 }

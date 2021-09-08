@@ -1,0 +1,14 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<mask id="path-1-inside-1" fill="white">
+<path d="M21.5 16C21.5 19.0376 19.0376 21.5 16 21.5C12.9624 21.5 10.5 19.0376 10.5 16C10.5 12.9624 12.9624 10.5 16 10.5C19.0376 10.5 21.5 12.9624 21.5 16Z"/>
+</mask>
+<path d="M20 16C20 18.2091 18.2091 20 16 20V23C19.866 23 23 19.866 23 16H20ZM16 20C13.7909 20 12 18.2091 12 16H9C9 19.866 12.134 23 16 23V20ZM12 16C12 13.7909 13.7909 12 16 12V9C12.134 9 9 12.134 9 16H12ZM16 12C18.2091 12 20 13.7909 20 16H23C23 12.134 19.866 9 16 9V12Z" fill="white" fill-opacity="0.7" mask="url(#path-1-inside-1)"/>
+<line x1="16.25" y1="5.25" x2="16.25" y2="7.75" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="23.7783" y1="8.57629" x2="22.0106" y2="10.3441" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="26.75" y1="16.25" x2="24.25" y2="16.25" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="23.4247" y1="23.7773" x2="21.6569" y2="22.0096" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="7.75" y1="16.25" x2="5.25" y2="16.25" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="9.98963" y1="10.3438" x2="8.22187" y2="8.57598" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="16.25" y1="24.25" x2="16.25" y2="26.75" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="10.3433" y1="22.0099" x2="8.57549" y2="23.7776" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

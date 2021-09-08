@@ -15,25 +15,31 @@ limitations under the License. */
 
 export function selectWalletMethod () {
   return function (state) {
-    return state.setup['walletMethod'];
+    return state.setup['walletMethod']
   }
 }
 
 //local, rinkeby, mainnet...
 export function selectNetwork () {
   return function (state) {
-    return state.setup['masterConfig'];
+    return state.setup['masterConfig']
+  }
+}
+
+export function selectLayer () {
+  return function (state) {
+    return state.setup['netLayer']
   }
 }
 
 export function selectNetworkBURL () {
   return function (state) {
-    return state.setup['blockexplorerURL'];
+    return state.setup['blockexplorerURL']
   }
 }
 
 export function selectEtherscan () {
   return function (state) {
-    return state.setup['etherscan'];
+    return state.setup['etherscan']
   }
 }

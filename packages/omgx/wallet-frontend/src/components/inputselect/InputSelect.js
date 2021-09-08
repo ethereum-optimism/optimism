@@ -31,6 +31,8 @@ function InputSelect({
   disabledSelect = false,
   type = 'number',
   paste = false,
+  variant,
+  newStyle,
 }) {
   const selected = selectOptions.find((i) => i.value === selectValue)
 
@@ -70,6 +72,8 @@ function InputSelect({
       value={value}
       onChange={onChange}
       paste={paste}
+      newStyle={newStyle}
+      variant={variant}
     />
   )
 }

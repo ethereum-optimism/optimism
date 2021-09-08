@@ -15,6 +15,7 @@ limitations under the License. */
 
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
+import { Typography } from '@material-ui/core'
 
 import { closeModal, openAlert, openError } from 'actions/uiAction';
 
@@ -37,9 +38,8 @@ function DelegateDaoModal({ open }) {
     }
 
     const submit = async () => {
-        let res = await dispatch(delegateVotes({recipient}));
-        console.log(res);
-        if(res) {
+        let res = await dispatch(delegateVotes({ recipient }));
+        if (res) {
             dispatch(openAlert(`Votes delegated successfully!`));
             handleClose();
         } else {
@@ -50,8 +50,7 @@ function DelegateDaoModal({ open }) {
 
     return (
         <Modal open={open}>
-            <h2>Delegate Boba</h2>
-
+            <Typography variant="h2">Delegate Boba</Typography>
             <Input
                 label='Delegate Address'
                 placeholder='Hash'
@@ -63,7 +62,7 @@ function DelegateDaoModal({ open }) {
             <div className={styles.buttons}>
                 <Button
                     onClick={handleClose}
-                    type='secondary'
+                    color='neutral'
                     className={styles.button}
                 >
                     CANCEL
@@ -72,7 +71,8 @@ function DelegateDaoModal({ open }) {
                 <Button
                     className={styles.button}
                     onClick={() => { submit() }}
-                    type='primary'
+                    color='primary'
+                    variant="outlined"
                     // loading={loading} // TODO: Implement loading base on the action trigger
                     disabled={disabledTransfer}
                 >

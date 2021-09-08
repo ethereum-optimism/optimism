@@ -1,7 +1,6 @@
 @import 'index.scss';
 
-
-$dropDownHeight: 120px;
+$dropDownHeight: 80px;
 $boxDropDownHeight: 50px;
 
 .Transaction {
@@ -55,61 +54,6 @@ $boxDropDownHeight: 50px;
       text-decoration: underline;
     }
 
-    .dropDownContainer {
-      height: $dropDownHeight;
-      animation: openDropDown 1s;
-      overflow: hidden;
-      background: rgba(9, 22, 43, 0.5);
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      padding: 10px;
-    }
-  
-    .closeDropDown {
-      height: 0px;
-      animation: closeDropDown 1s;
-      overflow: hidden;
-      background: rgba(9, 22, 43, 0.5);
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-  
-    .dropDownInit {
-      height: 0px;
-      overflow: hidden;
-    }
-  
-    .boxContainer {
-      height: $boxDropDownHeight;
-      padding: 5px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-  
-    /*************************/
-    @keyframes openDropDown {
-      0% {
-        height: 0px;
-      }
-      100% {
-        height: $dropDownHeight;
-      }
-    }
-  
-    @keyframes closeDropDown {
-      0% {
-        height: $dropDownHeight;
-      }
-      100% {
-        height: 0px;
-      }
-    }
-  
-    /*************************/
   }
 }
 
@@ -206,7 +150,8 @@ $boxDropDownHeight: 50px;
 
 .href {
   text-decoration: underline;
-} 
+  color: white
+}
 
 .divider {
   height: 0px;
@@ -215,7 +160,7 @@ $boxDropDownHeight: 50px;
   position: relative;
   z-index: 1;
 
-  &::before{ 
+  &::before{
     content: "";
     position: absolute;
     top: 0;
@@ -228,4 +173,87 @@ $boxDropDownHeight: 50px;
     background: linear-gradient(90deg, rgba(255, 255, 255, 0) -0.74%, rgba(255, 255, 255, 0.0414) 8.18%, rgba(255, 255, 255, 0.0408) 90.07%, rgba(255, 255, 255, 0) 100.04%);
   }
 
+}
+
+.dropDownContent {
+  display: flex;
+  margin-left: 0px !important;
+  margin-top: -5px !important;
+  div {
+    display: flex;
+
+    &:nth-child(2) {
+      color: $white700;
+    }
+  }
+}
+
+.dropDownTitle {
+  display: flex;
+  div {
+    display: flex;
+  }
+}
+
+.dropDownContainer {
+  height: $dropDownHeight;
+  animation: openDropDown 1s;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.closeDropDown {
+  height: 0px;
+  animation: closeDropDown 1s;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dropDownInit {
+  height: 0px;
+  overflow: hidden;
+}
+
+.boxContainer {
+  height: $boxDropDownHeight;
+  padding: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/*************************/
+@keyframes openDropDown {
+  0% {
+    height: 0px;
+  }
+  100% {
+    height: $dropDownHeight;
+  }
+}
+
+@keyframes closeDropDown {
+  0% {
+    height: $dropDownHeight;
+  }
+  100% {
+    height: 0px;
+  }
+}
+
+.muted {
+  font-size: 0.7em;
+  color: $white700;
+  margin: 0;
+  padding: 0;
+}
+
+.mutedMI {
+  font-size: 0.7em;
+  color: $white700;
+  margin: 0;
+  padding: 0;
 }

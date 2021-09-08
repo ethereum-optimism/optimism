@@ -34,6 +34,24 @@
       }
 
     }
+    .actionPicker {
+      flex: 1;
+      height: 50px;
+      width: 100%;
+      padding: 0px 5px;
+      margin: 10px 0px;
+      line-height: 40px;
+      border: 2px solid #5E6170;
+      color: $white700;
+      border-radius: 8px;
+      font-size: 16px;
+      background: rgba(9, 22, 43, 0.5);
+      box-shadow: -13px 15px 19px rgba(0, 0, 0, 0.15), inset 53px 36px 120px rgba(255, 255, 255, 0.06);
+      
+      &:focus-within {
+        box-shadow: 0 0 0 1px $blue inset;
+      }
+    }
   }
   .proposalAction, .proposalDetail {
     margin: 10px;

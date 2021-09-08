@@ -11,21 +11,18 @@ $gray3: #565656;
 $gray4: #7d7d7d;
 $gray5: #f8e5e5;
 $gray6: #d2d2d2; //v. light gray
-$gray7: #F8F8F8;
+$gray7: #f8f8f8;
 
-$bunnyRed: #C83950;
-
+$bunnyRed: #c83950;
 
 // redesign color;
 
 $background: linear-gradient(180deg, #061122 0%, #08162C 100%);
 $background400: rgba(255, 255, 255, 0.04);
 
-
 $white: #ffffff;
 $white700: rgba(255, 255, 255, 0.7);
 $white500: rgba(255, 255, 255, 0.5);
-
 
 :export {
   red: $red;
@@ -49,22 +46,22 @@ $white500: rgba(255, 255, 255, 0.5);
   white500:$white500;
 }
 
-/* small screens */
+// /* small screens */
 @mixin tablet {
   @media screen and (max-width: 1360px) {
-    @content
+    @content;
   }
 }
 
 @mixin mobile {
   @media screen and (max-width: 800px) {
-    @content
+    @content;
   }
 }
 
 @mixin miniphone {
   @media screen and (max-width: 450px) {
-    @content
+    @content;
   }
 }
 
@@ -86,100 +83,159 @@ $white500: rgba(255, 255, 255, 0.5);
 
 
 @font-face {
-  font-family: 'MrEavesXL', 'Messina';
-  src: url(./fonts/MessinaSans-Regular.otf) format('opentype');
+  font-family: 'MrEavesXL';
+  src: url(./fonts/MrEavesXLModOT-Reg.ttf) format('opentype');
 }
 
 @font-face {
-  font-family: 'MessinaMono';
-  src: url(./fonts/MessinaSansMono-Regular.otf) format('opentype');
+  font-family: 'MrEavesXLBold';
+  src: url(./fonts/MrEavesXLModOT-Bold.ttf) format('opentype');
 }
 
 @font-face {
-  font-family: 'MessinaMonoSemiBold';
-  src: url(./fonts/MessinaSansMono-SemiBold.ttf) format('truetype');
-  src: url(./fonts/MessinaSansMono-SemiBold.woff) format('woff');
+  font-family: 'MrEavesXLThin';
+  src: url(./fonts/MrEavesXLModOT-Thin.ttf) format('opentype');
 }
 
-@font-face {
-  font-family: 'MessinaMonoBold';
-  src: url(./fonts/MessinaSansMono-Bold.ttf) format('truetype');
-  src: url(./fonts/MessinaSansMono-Bold.woff) format('woff');
-  src: url(./fonts/MessinaSansMono-Bold.woff2) format('woff2');
-}
+// //Messina Font
+// @font-face {
+//   font-family: 'Messina';
+//   src: url(./fonts/MessinaSans-Regular.otf) format('opentype');
+// }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+// @font-face {
+//   font-family: 'MessinaMono';
+//   src: url(./fonts/MessinaSansMono-Regular.otf) format('opentype');
+// }
 
-body {
-  margin: 0;
-  padding: 0;
-  color: $white ;//$gray1;
-  background:  $background; //white;
-  font-family: 'MrEavesXL', 'MessinaMono', monospace !important;
-  // font-size: 14px;
-  font-size: 16px;
-}
+// @font-face {
+//   font-family: 'MessinaMonoSemiBold';
+//   src: url(./fonts/MessinaSansMono-SemiBold.ttf) format('truetype');
+//   src: url(./fonts/MessinaSansMono-SemiBold.woff) format('woff');
+// }
 
-button {
-  font-family: 'MrEavesXL', 'MessinaMono', monospace !important;
-}
+// @font-face {
+//   font-family: 'MessinaMonoBold';
+//   src: url(./fonts/MessinaSansMono-Bold.ttf) format('truetype');
+//   src: url(./fonts/MessinaSansMono-Bold.woff) format('woff');
+//   src: url(./fonts/MessinaSansMono-Bold.woff2) format('woff2');
+// }
 
-input {
-  font-family: 'MrEavesXL', 'MessinaMono', monospace;
-  font-size: 0.8em;
+// a {
+//   color: inherit;
+//   text-decoration: none;
+// }
+
+// body {
+//   margin: 0;
+//   padding: 0;
+//   color: $gray1;
+//   background-color: white;
+//   font-family: 'MessinaMono', monospace !important;
+//   font-size: 14px;
+// }
+
+// button {
+//   font-family: 'MessinaMono', monospace !important;
+// }
+
+// input {
+//   font-family: 'MessinaMono', monospace;
+//   font-size: 0.8em;
+//   border: none;
+//   outline: none;
+//   border: 1px solid $gray6;
+//   background-color: $gray7;
+//   padding: 7px;
+//   width: calc(100% - 16px); /*not sure why this is 16???*/
+//   max-width: 500px;
+// }
+
+// input::focus {
+//   border: 1px solid $blue;
+// }
+
+// input::-webkit-outer-spin-button,
+// input::-webkit-inner-spin-button {
+//   -webkit-appearance: none;
+//   margin: 0;
+// }
+
+// h1 {
+//   margin: 0;
+//   white-space: pre;
+//   font-family: 'Messina';
+//   font-weight: 400;
+//   font-size: 2em;
+//   color: $blue;
+// }
+
+// h2 {
+//   color: $gray2;
+//   font-family: 'Messina';
+//   font-weight: 200;
+//   margin: 0 0 10px 0;
+//   font-size: 1.5em;
+//   @include mobile {
+//     font-size: 1.2em;
+//   }
+// }
+
+// h3 {
+//   color: $gray2;
+//   font-family: 'Messina';
+//   margin-bottom: 3px;
+//   font-size: 1.1em;
+//   @include mobile {
+//     font-size: 1em;
+//   }
+// }
+
+// // override globals and third party libs
+// .walletconnect-modal__base {
+//   max-width: 225px !important;
+// }
+
+
+.react-datepicker {
+  background: #09162B;
+  box-shadow: -13px 15px 19px rgb(0 0 0 / 15%), inset 53px 36px 120px rgb(255 255 255 / 6%);
+  border-radius: 12px;
   border: none;
-  outline: none;
-  border: 1px solid $gray6;
-  background-color: $gray7;
-  padding: 7px;
-  width: calc(100% - 16px); /*not sure why this is 16???*/
-  max-width: 500px;
-}
-
-input::focus {
-  border: 1px solid $blue;
-}
-
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-h1 {
-  margin: 0;
-  white-space: pre;
-  font-family: 'MrEavesXL','Messina';
-  font-weight: 400;
-  font-size: 2em;
-  color: $blue;
-}
-
-h2 {
-  font-family: 'MrEavesXL', 'Messina';
-  font-weight: 200;
-  margin: 0 0 10px 0;
-  font-size: 1.5em;
-  @include mobile {
-    font-size: 1.2em;
+  &__header {
+    background: transparent;
+    border: none;
   }
-}
 
-h3 {
-  // color: $gray2;
-  // color: $white700;
-  font-family: 'MrEavesXL','Messina';
-  margin-bottom: 3px;
-  font-size: 1.1em;
-  @include mobile {
-    font-size: 1.0em;
+  &__triangle {
+    &::after {
+      border-bottom-color: #09162B !important;
+    }
+    
+    &::before {
+      border-bottom-color: #09162B !important;
+    }
   }
+
+  &__current-month {
+    color: #FFFFFF !important;
+  }
+  
+  &__month {
+    padding: 5px;
+  }
+
+  &__day-name, &__day, &__time-name {
+    color: #FFFFFF !important;
+  }
+
+  &__day--keyboard-selected, 
+  &__month-text--keyboard-selected, 
+  &__quarter-text--keyboard-selected, 
+  &__year-text--keyboard-selected {
+    border-radius: 50%;
+    background-color: #3C5DFC;
+    color: #fff;
 }
 
-// override globals and third party libs
-.walletconnect-modal__base {
-  max-width: 225px !important;
 }

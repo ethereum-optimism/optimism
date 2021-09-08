@@ -23,7 +23,7 @@ import InputStep from './steps/InputStep'
 import InputStepFast from './steps/InputStepFast'
 
 function DepositModal({ open, token, fast }) {
-  
+
   const dispatch = useDispatch()
 
   function handleClose() {
@@ -31,7 +31,7 @@ function DepositModal({ open, token, fast }) {
   }
 
   return (
-    <Modal open={open}>
+    <Modal open={open} maxWidth="md" onClose={handleClose}>
       {!!fast ? (
           <InputStepFast handleClose={handleClose} token={token}/>
         ) : (

@@ -1,33 +1,32 @@
-import React from 'react';
-import { connect } from 'react-redux';
-import { logAmount } from 'util/amountConvert';
-import { isEqual } from 'lodash';
+import React from 'react'
+import { connect } from 'react-redux'
+import { logAmount } from 'util/amountConvert'
+import { isEqual } from 'lodash'
 
-import { openModal } from 'actions/uiAction';
-import Button from 'components/button/Button';
+import { openModal } from 'actions/uiAction'
+import Button from 'components/button/Button'
 
-import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore'
 
-import * as styles from './listAccount.module.scss';
+import { Box, Typography, Fade } from '@material-ui/core'
+import * as S from './ListAccount.styles'
+import EthereumIcon from 'components/icons/EthereumIcon'
+import LayerSwitcher from 'components/mainMenu/layerSwitcher/LayerSwitcher'
 
 class ListAccount extends React.Component {
-  
-  constructor(props) {
-    
-    super(props);
-    
-    const { token, chain, networkLayer, disabled } = this.props;
 
+  constructor(props) {
+    super(props)
+    const { token, chain, networkLayer, disabled } = this.props
     this.state = {
       token,
       chain,
       dropDownBox: false,
-      dropDownBoxInit: true,
       networkLayer,
       disabled
     }
   }
-  
+
   componentDidUpdate(prevState) {
 
     const { token, chain, networkLayer, disabled } = this.props;
@@ -56,11 +55,10 @@ class ListAccount extends React.Component {
 
   render() {
 
-    const { 
-      token, 
+    const {
+      token,
       chain,
-      dropDownBox, 
-      dropDownBoxInit,
+      dropDownBox,
       networkLayer,
       disabled
     } = this.state;
@@ -68,158 +66,152 @@ class ListAccount extends React.Component {
     const enabled = (networkLayer === chain) ? true : false
 
     return (
-      <div className={styles.ListAccount}
-        style={{
-          background: `${!!dropDownBox ? 'linear-gradient(132.17deg, rgba(255, 255, 255, 0.019985) 0.24%, rgba(255, 255, 255, 0.03) 94.26%)': 'none'}`,
-          borderRadius: `${!!dropDownBox? '12px': ''}`
-        }}
-      >
-        
-        <div 
-          className={styles.topContainer}
-          disabled={true} 
-          onClick={()=>{
-              this.setState({ 
-                dropDownBox: !dropDownBox, 
-                dropDownBoxInit: false 
-              })
-          }}
-        >
-          <div className={styles.Table1}>
-            <div className={styles.BasicText}>{token.symbol}</div>
-          </div>
-          <div className={styles.Table2}>
-            <div className={styles.BasicLightText}>{`${logAmount(token.balance, 18, 2)}`}</div>
-          </div>
-          <div className={styles.Table3}>
-            {chain === 'L1' && 
-              <div className={enabled ? styles.LinkText : styles.LinkTextOff}>Deposit</div>
-            }
-            {chain === 'L2' && 
-              <div className={enabled ? styles.LinkText : styles.LinkTextOff}>Transact</div>
-            }
-            <ExpandMoreIcon 
-              className={enabled ? styles.LinkButton : styles.LinkButtonOff} 
-            />
-          </div>
-        </div>
+      <>
+        <S.Content>
+            <S.TableBody disabled={true}>
 
-        {/*********************************************/
-        /**************  Drop Down Box ****************/
-        /**********************************************/
-        }
-        <div 
-          className={dropDownBox ? 
-            styles.dropDownContainer: dropDownBoxInit ? styles.dropDownInit : styles.closeDropDown}
-        >
-          
-          {!enabled && chain === 'L1' && 
-            <div className={styles.boxContainer}>
-              <div className={styles.underRed}>MetaMask is set to L2. To transact on L1, please change the chain in MetaMask to L1.</div>
-            </div>
+              <S.TableCell sx={{gap: "10px", justifyContent: "flex-start"}}>
+                <EthereumIcon width={42} height={42}/>
+
+                <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div">
+                  {token.symbol}
+                </S.TextTableCell>
+              </S.TableCell>
+
+              <S.TableCell>
+                <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div" sx={{fontWeight:"700"}}>
+                  {`${logAmount(token.balance, 18, 2)}`}
+                </S.TextTableCell>
+              </S.TableCell>
+            {/*
+              <S.TableCell>
+                <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div" sx={{fontWeight:"700"}}>
+                  $ 26.43
+                </S.TextTableCell>
+              </S.TableCell>
+
+              <S.TableCell>
+                <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div" sx={{fontWeight:"700"}}>
+                  $ 1,556,43
+                </S.TextTableCell>
+              </S.TableCell>
+            */}
+
+              <S.TableCell
+                onClick={() => {
+                  this.setState({
+                    dropDownBox: !dropDownBox,
+                    dropDownBoxInit: false
+                  })
+                }}
+                sx={{cursor: "pointer", gap: "5px", justifyContent: "flex-end"}}
+              >
+                {chain === 'L1' &&
+                  <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div">
+                    Deposit
+                  </S.TextTableCell>
+                }
+                {chain === 'L2' &&
+                  <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div">
+                    Transact
+                  </S.TextTableCell>
+                }
+                <Box sx={{display: "flex", opacity: !enabled ? "0.4" : "1.0", transform: dropDownBox ? "rotate(-180deg)" : ""}}>
+                  <ExpandMoreIcon sx={{width: "12px"}}/>
+                </Box>
+              </S.TableCell>
+            </S.TableBody>
+
+          {/*********************************************/
+          /**************  Drop Down Box ****************/
+          /**********************************************/
           }
 
-          {!enabled && chain === 'L2' && 
-            <div className={styles.boxContainer}>
-              <div className={styles.underRed}>MetaMask is set to L1. To transact on L2, please change the chain in MetaMask to L2.</div>
-            </div>
-          }
+          {dropDownBox ? (
+          <Fade in={dropDownBox}>
+            <S.DropdownWrapper>
+              {!enabled && chain === 'L1' &&
+                  <S.AccountAlertBox>
+                    <Typography variant="body2" component="p" sx={{flex: 2}}>
+                      MetaMask is set to L2. To transact on L1, - SWITCH LAYER to L1
+                    </Typography>
+                    <LayerSwitcher isButton={true} />
+                  </S.AccountAlertBox>
+              }
 
-          {enabled && chain === 'L1' && 
-          <>
-            <div className={styles.boxContainer}>
-              <Button
-                onClick={()=>{this.handleModalClick('depositModal', token, false)}}
-                type='secondary'
-                disabled={disabled}
-                style={{
-                  width: '185px', 
-                  padding: '5px 10px', 
-                  borderRadius: '8px',
-                  height: '40px'
-                }}
-              >
-                DEPOSIT
-              </Button>
-            </div>
-            <div className={styles.boxContainer}>
-              <Button
-                onClick={()=>{this.handleModalClick('depositModal', token, true)}}
-                type='primary'
-                disabled={disabled}
-                style={{
-                  width: '185px', 
-                  padding: '5px 10px', 
-                  borderRadius: '8px',
-                  height: '40px'
-                }}
-              >
-                FAST DEPOSIT
-              </Button>
-            </div>
-          </>
-          }
+              {!enabled && chain === 'L2' &&
+                <S.AccountAlertBox>
+                  <Typography variant="body2" component="p" sx={{flex: 2}}>
+                    MetaMask is set to L1. To transact on L2, - SWITCH LAYER to L2
+                  </Typography>
+                  <LayerSwitcher isButton={true} />
+                </S.AccountAlertBox>
+              }
 
-          {enabled && chain === 'L2' && 
-          <>
-            <div className={styles.boxContainer}>
-              <Button
-                onClick={()=>{this.handleModalClick('transferModal', token, false)}}
-                type='primary'
-                disabled={disabled}
-                style={{
-                  width: '120px', 
-                  padding: '5px 10px', 
-                  borderRadius: '8px',
-                  height: '40px'
-                }}
-              >
-                TRANSFER
-              </Button>
-            </div>
-            <div className={styles.boxContainer}>
-              <Button
-                onClick={()=>{this.handleModalClick('exitModal', token, false)}}
-                type='secondary'
-                disabled={disabled}
-                style={{
-                  width: '120px', 
-                  padding: '5px 10px', 
-                  borderRadius: '8px',
-                  height: '40px'  
-                }}
-              >
-                7 DAY EXIT
-              </Button>
-            </div>
-            <div className={styles.boxContainer}>
-              <Button
-                onClick={()=>{this.handleModalClick('exitModal', token, true)}}
-                type='primary'
-                disabled={disabled}
-                style={{
-                  width: '120px', 
-                  padding: '5px 10px', 
-                  borderRadius: '8px',
-                  height: '40px'
-                }}
-              >
-                FAST EXIT
-              </Button>
-            </div>
-          </>
-          }
+              {enabled && chain === 'L1' &&
+              <>
+                <Button
+                  onClick={()=>{this.handleModalClick('depositModal', token, false)}}
+                  color='neutral'
+                  variant="outlined"
+                  disabled={disabled}
+                  fullWidth
+                >
+                  Deposit
+                </Button>
 
-        </div>
+                <Button
+                  onClick={()=>{this.handleModalClick('depositModal', token, true)}}
+                  color='primary'
+                  disabled={disabled}
+                  variant="contained"
+                  fullWidth
+                >
+                  Fast Deposit
+                </Button>
+              </>
+              }
 
-        <div className={styles.divider}></div>
+              {enabled && chain === 'L2' &&
+                <>
+                  <Button
+                    onClick={()=>{this.handleModalClick('exitModal', token, false)}}
+                    variant="outlined"
+                    disabled={disabled}
+                    fullWidth
+                  >
+                    Standard Exit
+                  </Button>
 
-      </div>
+                  <Button
+                    onClick={()=>{this.handleModalClick('exitModal', token, true)}}
+                    variant="contained"
+                    disabled={disabled}
+                    fullWidth
+                  >
+                    Fast Exit
+                  </Button>
+
+                  <Button
+                    onClick={()=>{this.handleModalClick('transferModal', token, false)}}
+                    variant="contained"
+                    disabled={disabled}
+                    fullWidth
+                  >
+                    Transfer
+                  </Button>
+                </>
+              }
+            </S.DropdownWrapper>
+          </Fade>
+          ) : null}
+        </S.Content>
+      </>
     )
   }
 }
 
-const mapStateToProps = state => ({ 
+const mapStateToProps = state => ({
   //login: state.login,
   //sell: state.sell,
   //sellTask: state.sellTask,

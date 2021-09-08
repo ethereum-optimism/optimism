@@ -1,5 +1,5 @@
 /*
-Copyright 2019-present OmiseGO Pte Ltd
+Copyright 2021 OMG/BOBA
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,64 +13,67 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useCallback, useState, useEffect, useRef } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import React, { useCallback, useState, useEffect } from 'react'
+import { useSelector, useDispatch } from 'react-redux'
 
-import WrongNetworkModal from 'containers/modals/wrongnetwork/WrongNetworkModal';
-import networkService from 'services/networkService';
+import WrongNetworkModal from 'containers/modals/wrongnetwork/WrongNetworkModal'
+import networkService from 'services/networkService'
 
-import { selectModalState } from 'selectors/uiSelector';
+import { selectModalState } from 'selectors/uiSelector'
 
 import {
   selectWalletMethod,
   selectNetwork,
-} from 'selectors/setupSelector';
+} from 'selectors/setupSelector'
 
-import { openModal } from 'actions/uiAction';
-import { setWalletMethod, setNetwork } from 'actions/setupAction';
-import { getAllNetworks } from 'util/masterConfig';
+import { openModal } from 'actions/uiAction'
+import { setWalletMethod } from 'actions/setupAction'
+import { getAllNetworks } from 'util/masterConfig'
 
-// import logo from 'images/omgx.png';
-import logo from 'images/logo-boba.svg';
-import chevron from 'images/chevron.svg';
+import { isChangingChain } from 'util/changeChain'
+import * as S from "./WalletPicker.styles"
+import { ReactComponent as Fox } from './../../images/icons/fox-icon.svg'
+import { Container, Grid, useMediaQuery } from '@material-ui/core'
+import Typography from '@material-ui/core/Typography'
+import { styled } from '@material-ui/core/styles'
+import { useTheme } from '@emotion/react'
 
-import * as styles from './WalletPicker.module.scss';
-import { isChangingChain } from 'util/changeChain';
-import Button from 'components/button/Button';
+const Root = styled('div')(({ theme }) => ({
+  paddingTop: theme.spacing(10),
+  paddingBottom: theme.spacing(10),
+}))
 
 function WalletPicker ({ onEnable, enabled }) {
+
   const dispatch = useDispatch();
-  const dropdownNode = useRef(null);
 
   const [ walletEnabled, setWalletEnabled ] = useState(false);
   const [ accountsEnabled, setAccountsEnabled ] = useState(false);
   const [ wrongNetwork, setWrongNetwork ] = useState(false);
-  const [ showAllNetworks, setShowAllNetworks ] = useState(false);
-
+  
   const walletMethod = useSelector(selectWalletMethod())
   const masterConfig = useSelector(selectNetwork())
 
-  const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
+  const wrongNetworkModalState = useSelector(selectModalState('wrongNetworkModal'));
+  
   const dispatchSetWalletMethod = useCallback((methodName) => {
     dispatch(setWalletMethod(methodName));
-  }, [ dispatch ])
-
-  const dispatchSetNetwork = useCallback((network) => {
-    //console.log("dispatchSetNetwork:",network)
-    setShowAllNetworks(false);
-    dispatch(setNetwork(network));
   }, [ dispatch ])
 
   useEffect(() => {
 
     if (walletMethod === 'browser') {
-      enableBrowserWallet();
+      enableBrowserWallet()
     }
 
     async function enableBrowserWallet () {
-      // The default network is rinkeby
-      const selectedNetwork = masterConfig ? masterConfig : "rinkeby";
+      //console.log("enableBrowserWallet() for",masterConfig)
+      //default to mainnet for normal user, unless set otherwise later 
+      //which is then captured in the localStorage cache
+      const selectedNetwork = masterConfig ? masterConfig : "mainnet"
       const walletEnabled = await networkService.enableBrowserWallet(selectedNetwork);
       //console.log("walletEnabled:",walletEnabled)
       return walletEnabled
@@ -99,12 +102,12 @@ function WalletPicker ({ onEnable, enabled }) {
       }
 
       if (initialized === 'enabled') {
-        return setAccountsEnabled(true);
+        return setAccountsEnabled(true)
       }
 
     }
     if (walletEnabled) {
-      initializeAccounts();
+      initializeAccounts()
     }
   }, [ walletEnabled, masterConfig ]);
 
@@ -122,129 +125,66 @@ function WalletPicker ({ onEnable, enabled }) {
   }, [ dispatch, walletEnabled, wrongNetwork ]);
 
   function resetSelection () {
-    dispatchSetWalletMethod(null);
-    setWalletEnabled(false);
-    setAccountsEnabled(false);
+    dispatchSetWalletMethod(null)
+    setWalletEnabled(false)
+    setAccountsEnabled(false)
   }
 
-  const browserEnabled = !!window.ethereum;
-
   // defines the set of possible networks
-  const networks = getAllNetworks();
+  const networks = getAllNetworks()
 
-  let allNetworks = [];
+  let allNetworks = []
   for (var prop in networks) allNetworks.push(prop)
 
   if (!wrongNetwork && !enabled && isChangingChain) {
-    return <div className={styles.loading}>Switching Chain...</div>
+    return <S.Loading>Switching Chain...</S.Loading>
   }
 
   return (
     <>
-
       <WrongNetworkModal
         open={wrongNetworkModalState}
         onClose={resetSelection}
       />
+      <Root>
+        <Container maxWidth="md">
+          <Grid container spacing={8}>
+            <Grid item xs={12} md={6}>
+              <Typography variant="h1" component="h1">
+                Connect a Wallet to access BOBA
+              </Typography>
+              <S.Subtitle variant="body1" component="p" paragraph={true}>
+                  Select a wallet to connect to BOBA.
+              </S.Subtitle>
+            </Grid>
 
-      <div className={styles.WalletPicker}>
-        <div className={styles.title}>
-          <img src={logo} alt='logo' />
-          <div className={styles.menu}>
+            <Grid item xs={12} md={6}>
+              <S.WalletCard
+                // disabled={!browserEnabled}
+                pulsate={true} onClick={() => dispatchSetWalletMethod('browser')} isMobile={isMobile}>
+                <S.WalletCardHeading>
+                  <S.WalletCardTitle>
+                    <S.PlusIcon>+</S.PlusIcon>
+                    <Typography variant="h2" component="h2" paragraph={true} mb={0}>
+                      Metamask
+                    </Typography>
+                  </S.WalletCardTitle>
+                  <Typography variant="body1" component="p" gutterBottom paragraph={true} mb={0}>
+                    Connect using <strong>browser </strong>wallet
+                  </Typography>
+                </S.WalletCardHeading>
 
-            <div
-              onClick={()=>setShowAllNetworks(prev => !prev)}
-              className={styles.network}
-            >
-              <div className={styles.indicator} />
-              <div>
-              BOBA {masterConfig}
-              </div>
-              {!!allNetworks.length && (
-                <img
-                  src={chevron}
-                  alt='chevron'
-                  className={[
-                    styles.chevron,
-                    showAllNetworks ? styles.open : ''
-                  ].join(' ')}
-                />
-              )}
-            </div>
+                <S.WalletCardDescription>
+                  <Fox width={isMobile ? 100 : 50} />
+                </S.WalletCardDescription>
 
-            <div
-              ref={dropdownNode}
-              className={styles.dropdown}
-            >
-              {!!allNetworks.length && showAllNetworks && allNetworks.map((network, index) => (
-                <div
-                  style={{background: '#2A308E', color: 'white', marginTop: 5, padding: 5, borderRadius: 3, cursor: 'pointer'}}
-                  key={index}
-                  onClick={()=>dispatchSetNetwork(network)}
-                >
-                  {network}
-                </div>))
-              }
-            </div>
+              </S.WalletCard>
 
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.MainBar} >
-        <div className={styles.MainLeft}>
-          BOBA Gateway<br/>
-          90 Second Swap-On and Swap-Off<br/>
-          Traditional Deposits and 7 Day Exits<br/>
-        </div>
-        <div className={styles.MainRightContainer}>
-          <Button
-            type="primary"
-            disabled={!browserEnabled}
-            pulsate={true}
-            className={styles.ButtonConnect}
-            onClick={() => dispatchSetWalletMethod('browser')}
-          >
-            Connect to MetaMask
-          </Button>
-          {!browserEnabled &&
-            <div className={styles.disabledMM}>Your browser does not have a web3 provider.</div>
-          }
-
-          <Button
-            type="primary"
-            className={styles.ButtonAdd}
-            onClick={() => networkService.addL2Network()}
-          >
-            Add BOBA L2 Provider
-          </Button>
-        </div>
-      </div>
-
-      <div className={styles.WalletPicker}>
-
-        <div className={styles.directive}>
-
-          <div className={styles.Title}>
-            <span className={styles.B}>Traditional Deposit and Exit.</span><br/><br/>
-            <span className={styles.B}>NEW.</span>{' '}Fast (90 second) Swap-On and Swap-Off, from L1 to L2, and back from L2 to L1. Depositing ETH on L1
-            transfers oETH to you on the L2, and vice versa. No more waiting to exit.<br/><br/>
-            <span className={styles.B}>Staking and Community-provided Liquidity.</span>{' '}This fast on/off capability is
-            based on paired Liquidity Pools on L1 and L2 provided by the operator and the broader community,
-            who can earn rewards for providing liquidity.<br/><br/>
-            <span className={styles.B}>Easy to customize.</span>{' '}We have tried to keep the code simple to make it easy to customize and modify.<br/><br/>
-            <span className={styles.B}>Requirements.</span>{' '}You will need Metamask and,
-            to test on the Rinkeby testnet, some Rinkeby ETH. On Mainnet, you will need some ETH to get started.<br/><br/>
-            <span className={styles.B}>MetaMask L2 Setup.</span>{' '}Click `Add BOBA L2 Provider` on the top right, or, add it manually at MetaMask&#62;Settings&#62;Networks&#62;Add Network. Specify `https://mainnet.boba.network` as the New RPC URL.<br/><br/>
-            <br/>
-            <br/>
-          </div>
-
-        </div>
-
-      </div>
+            </Grid>
+          </Grid>
+        </Container>
+      </Root>
     </>
   );
 }
-
-export default React.memo(WalletPicker);
+export default React.memo(WalletPicker)

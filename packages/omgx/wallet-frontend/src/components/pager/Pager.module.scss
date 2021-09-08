@@ -1,7 +1,6 @@
 @import 'index.scss';
 
 .Pager {
-
   // background: $gray6;
   display: flex;
   flex-direction: row;
@@ -36,7 +35,7 @@
     transition: all 200ms ease-in-out;
     cursor: pointer;
     // background-color: #506DFA;//$green;
-    border: 2px solid #506DFA;
+    border: 2px solid #506dfa;
     padding: 2px;
     border-radius: 8px; /// 100%;
     width: 25px;
@@ -44,7 +43,7 @@
     margin: 0px 5px;
 
     &:hover {
-      background-color: #506DFA;//$green;
+      background-color: #506dfa; //$green;
     }
   }
 

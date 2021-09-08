@@ -15,28 +15,30 @@ limitations under the License. */
 
 import { combineReducers } from 'redux';
 
-import loadingReducer from './loadingReducer';
-import depositReducer from './depositReducer';
-import transactionReducer from './transactionReducer';
-import statusReducer from './statusReducer';
-import balanceReducer from './balanceReducer';
-import exitReducer from './exitReducer';
-import queueReducer from './queueReducer';
-import tokenReducer from './tokenReducer';
-import nftReducer from './nftReducer';
-import feeReducer from './feeReducer';
-import gasReducer from './gasReducer';
-import uiReducer from './uiReducer';
-import setupReducer from './setupReducer';
-import notificationReducer from './notificationReducer';
-import farmReduer from './farmReducer';
-import lookupReducer from './lookupReducer';
-import daoReducer from './daoReducer';
+import loadingReducer from './loadingReducer'
+import depositReducer from './depositReducer'
+import transactionReducer from './transactionReducer'
+import statusReducer from './statusReducer'
+import balanceReducer from './balanceReducer'
+import exitReducer from './exitReducer'
+import queueReducer from './queueReducer'
+import tokenReducer from './tokenReducer'
+import nftReducer from './nftReducer'
+import feeReducer from './feeReducer'
+import gasReducer from './gasReducer'
+import uiReducer from './uiReducer'
+import setupReducer from './setupReducer'
+import notificationReducer from './notificationReducer'
+import farmReduer from './farmReducer'
+import lookupReducer from './lookupReducer'
+import signatureReducer from './signatureReducer'
+import daoReducer from './daoReducer'
 
 const rootReducer = combineReducers({
   loading: loadingReducer,
   deposit: depositReducer,
   transaction: transactionReducer,
+  signature: signatureReducer,
   status: statusReducer,
   balance: balanceReducer,
   exit: exitReducer,

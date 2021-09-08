@@ -51,7 +51,7 @@ async function main(){
     value = await comp.balanceOf(wallet2.address);
     console.log('Wallet2: Comp power: ', value.toString());
 
-    comp.transfer(wallet3.address, ethers.utils.parseEther("1000000"));
+    comp.transfer(wallet3.address, ethers.utils.parseEther("900000"));
     await sleep(5 * 1000);
     value = await comp.balanceOf(wallet3.address);
     console.log('Wallet3: Comp power: ', value.toString());

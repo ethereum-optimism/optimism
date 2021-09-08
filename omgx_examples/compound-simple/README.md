@@ -246,8 +246,7 @@ This section will guide you in delegating votes, submitting a proposal, voting o
 
 ## Delegating Votes
 
-First Comp must be transferred to other entities so that they may have voting power. Then these entities can delegate votes.
-The file `scripts/delegateVotes.js` accomplishes this goal. Run the following command.
+First Comp must be transferred to other entities so that they may have voting power. Then these entities can delegate votes. The file `scripts/delegateVotes.js` accomplishes this goal. Run the following command.
 
 ```bash
 $ yarn delegateVotes

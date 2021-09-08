@@ -72,10 +72,10 @@ async function main(){
             await governorBravo.castVote(proposalID, 1, gasSet)
             console.log('\tSuccess: vote cast by wallet1')
             await sleep(5 * 1000);
-            await governorBravo.connect(wallet2).castVote(proposalID, 1, gasSet)
+            await governorBravo.connect(wallet2).castVote(proposalID, 0, gasSet)
             console.log('\tSuccess: vote cast by wallet2')
             await sleep(5 * 1000);
-            await governorBravo.connect(wallet3).castVote(proposalID, 1, gasSet)
+            await governorBravo.connect(wallet3).castVote(proposalID, 2, gasSet)
             console.log('\tSuccess: vote cast by wallet3')
             break;
         }catch(error){

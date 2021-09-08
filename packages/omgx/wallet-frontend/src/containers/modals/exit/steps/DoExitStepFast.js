@@ -14,31 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React, { useState, useEffect } from 'react'
+
 import { useDispatch, useSelector } from 'react-redux'
+
 import { depositL2LP } from 'actions/networkAction'
 import { openAlert, openError } from 'actions/uiAction'
+
 import { selectLoading } from 'selectors/loadingSelector'
+import { selectSignatureStatus_exitLP } from 'selectors/signatureSelector'
+import { selectLookupPrice } from 'selectors/lookupSelector'
 
 import Button from 'components/button/Button'
+import Input from 'components/input/Input'
 
 import { amountToUsd, logAmount, powAmount } from 'util/amountConvert'
 import networkService from 'services/networkService'
 
-import * as styles from '../ExitModal.module.scss'
-import Input from 'components/input/Input'
-import { selectLookupPrice } from 'selectors/lookupSelector'
+import { Typography, useMediaQuery } from '@material-ui/core'
+import { useTheme } from '@emotion/react'
+import * as S from './DoExitSteps.styles'
 
 function DoExitStepFast({ handleClose, token }) {
 
   const dispatch = useDispatch()
-    
+
   const [value, setValue] = useState('')
   const [LPBalance, setLPBalance] = useState(0)
   const [feeRate, setFeeRate] = useState(0)
   const [disabledSubmit, setDisabledSubmit] = useState(true)
 
   const exitLoading = useSelector(selectLoading(['EXIT/CREATE']))
-  const lookupPrice = useSelector(selectLookupPrice);
+  const lookupPrice = useSelector(selectLookupPrice)
+  const signatureStatus = useSelector(selectSignatureStatus_exitLP)
 
   function setAmount(value) {
     if (
@@ -74,9 +81,9 @@ function DoExitStepFast({ handleClose, token }) {
     }
 
     if (res) {
-      dispatch(openAlert(`${token.symbol} was deposited into the L2 liquidity pool. 
-        You will receive ${receivableAmount(value)} ${currencyL1} on L1.`));
-      handleClose();
+      dispatch(openAlert(`${token.symbol} was deposited into the L2 liquidity pool.
+        You will receive ${receivableAmount(value)} ${currencyL1} on L1.`))
+      handleClose()
     } else {
       dispatch(openError(`Failed to fast exit funds from L2`));
     }
@@ -92,77 +99,103 @@ function DoExitStepFast({ handleClose, token }) {
         setFeeRate(feeRate)
       })
     }
-  }, [token])
+  }, [ token ])
+
+  useEffect(() => {
+    if (signatureStatus && exitLoading) {
+      //we are all set - can close the window
+      //transaction has been sent and signed
+      handleClose()
+    }
+  }, [ signatureStatus, exitLoading, handleClose ])
 
   const label = 'There is a ' + feeRate + '% fee.'
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
+  let buttonLabel = 'CANCEL'
+  if( exitLoading ) buttonLabel = 'CLOSE WINDOW'
 
   return (
     <>
-      <h2>Fast Exit</h2>
-      
+
+      <Typography variant="h2" sx={{fontWeight: 700, mb: 1}}>
+        Fast Exit
+      </Typography>
+
+      <Typography variant="body2" sx={{mb: 3}}>{label}</Typography>
+
       <Input
-        label={label}
-        placeholder={`Amount to exit`}
+        label={`Enter amount to exit`}
+        placeholder="0.0000"
         value={value}
         type="number"
         onChange={(i)=>{setAmount(i.target.value)}}
         unit={token.symbol}
         maxValue={logAmount(token.balance, token.decimals)}
+        newStyle
+        variant="standard"
       />
 
       {token && token.symbol === 'oETH' && (
-        <h3>
+        <Typography variant="body2" sx={{mt: 2}}>
           {value &&
-            `You will receive 
-            ${receivableAmount(value)} 
-            ETH 
+            `You will receive
+            ${receivableAmount(value)}
+            ETH
             ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''}
             on L1.`
           }
-        </h3>
+        </Typography>
       )}
 
       {token && token.symbol !== 'oETH' && (
-        <h3>
+        <Typography variant="body2" sx={{mt: 2}}>
           {value &&
-            `You will receive 
-            ${receivableAmount(value)} 
-            ${token.symbol} 
+            `You will receive
+            ${receivableAmount(value)}
+            ${token.symbol}
             ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''}
             on L1.`
           }
-        </h3>
+        </Typography>
       )}
 
       {Number(LPBalance) < Number(value) && (
-        <h3 style={{color: 'red'}}>
-          The liquidity pool balance (of {LPBalance}) is too low to cover your swap - please
-          use the traditional exit or reduce the amount to swap.
-        </h3>
+        <Typography variant="body2" sx={{mt: 2, color: 'red'}}>
+          The liquidity pool balance (of {LPBalance}) is too low to cover your exit - please
+          use the traditional exit or reduce the amount to exit.
+        </Typography>
       )}
 
-      <div className={styles.buttons}>
-        <Button
-          onClick={handleClose}
-          className={styles.button}
-          type="outline"
-          style={{flex: 0}}
-        >
-          CANCEL
-        </Button>        
-        <Button
-          onClick={doExit}
-          type='primary'
-          style={{flex: 0, minWidth: 200}}
-          loading={exitLoading}
-          className={styles.button}
-          tooltip='Your exit is still pending. Please wait for confirmation.'
-          disabled={disabledSubmit}
-          triggerTime={new Date()}
-        >
-          FAST EXIT
-        </Button>
-      </div>
+      {exitLoading && (
+        <Typography variant="body2" sx={{mt: 2, color: 'green'}}>
+          This window will automatically close when your transaction has been signed and submitted.
+        </Typography>
+      )}
+
+      <S.WrapperActions>
+          <Button
+            onClick={handleClose}
+            color='neutral'
+            size='large'
+          >
+            {buttonLabel}
+          </Button>
+          <Button
+            onClick={doExit}
+            color='primary'
+            variant='contained'
+            loading={exitLoading}
+            tooltip='Your exit is still pending. Please wait for confirmation.'
+            disabled={disabledSubmit}
+            triggerTime={new Date()}
+            fullWidth={isMobile}
+            size='large'
+          >
+            Exit L2
+          </Button>
+      </S.WrapperActions>
     </>
   )
 }

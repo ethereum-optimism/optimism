@@ -16,15 +16,20 @@ limitations under the License. */
 import store from 'store';
 
 export function setWalletMethod (methodName) {
-  //console.log("dispatch SWM:", dispatch)
   return function (dispatch) {
-    return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: methodName });
+    return dispatch({ type: 'SETUP/WALLET_METHOD/SET', payload: methodName })
   }
 }
 
 export function setNetwork (network) {
   return function (dispatch) {
-    return dispatch({ type: 'SETUP/NETWORK/SET', payload: network });
+    return dispatch({ type: 'SETUP/NETWORK/SET', payload: network })
+  }
+}
+
+export function setLayer (layer) {
+  return function (dispatch) {
+    return dispatch({ type: 'SETUP/LAYER/SET', payload: layer })
   }
 }
 

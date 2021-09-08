@@ -14,24 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import Modal from 'components/modal/Modal';
-import { closeModal } from 'actions/uiAction';
-import close from 'images/close.png';
-import arrow from 'images/arrow.png';
+import { useDispatch } from 'react-redux'
+import Modal from 'components/modal/Modal'
+import { closeModal } from 'actions/uiAction'
 
-import * as styles from './WrongNetworkModal.module.scss';
+import ArrowUpwardIcon from '@material-ui/icons/ArrowUpward'
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore'
 
-import { selectNetwork } from 'selectors/setupSelector';
+import { Box, Typography, useMediaQuery } from '@material-ui/core'
+import { ReactComponent as Fox } from './../../../images/icons/fox-icon.svg'
+import { ReactComponent as Account } from './../../../images/icons/mm-account.svg'
+
+import { getAllNetworks } from 'util/masterConfig'
+import store from 'store'
+
+import * as styles from './WrongNetworkModal.module.scss'
+import { useTheme } from '@emotion/react'
 
 function WrongNetworkModal ({ open, onClose }) {
 
-  const masterConfig = useSelector(selectNetwork());
-  const dispatch = useDispatch();
+  const dispatch = useDispatch()
+
+  const nw = getAllNetworks()
+  const masterConfig = store.getState().setup.masterConfig
+  const textLabel = nw[masterConfig].MM_Label
+  const iconLabel = nw[masterConfig].MM_Label
+
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   function handleClose () {
-    onClose();
-    dispatch(closeModal('wrongNetworkModal'));
+    onClose()
+    dispatch(closeModal('wrongNetworkModal'))
   }
 
   return (
@@ -39,39 +53,27 @@ function WrongNetworkModal ({ open, onClose }) {
       open={open}
       onClose={handleClose}
       light
+      maxWidth="sm"
     >
-      <div className={styles.WrongNetworkModal}>
-        <img
-          className={styles.close}
-          onClick={handleClose}
-          src={close}
-          alt='close'
-        />
-        <h2>Wrong Network</h2>
+      <Typography variant="h2" gutterBottom>
+        Wrong Network
+      </Typography>
 
-        <div className={styles.content}>
-          <div className={styles.description}>
-            Metamask is set to the wrong network. Please switch Metamask to {masterConfig} to continue.
+      <Typography variant="body1">
+        MetaMask is set to the wrong network. Please switch MetaMask to "{textLabel}" to continue.
+      </Typography>
+
+      <Box display="flex" sx={{ flexDirection: 'column', alignItems: 'center', mt: 3 }}>
+        <div className={styles.metamask}>
+          <Fox width={isMobile ? 30 : 30} />
+          <div className={styles.button}>
+            {iconLabel}
+            <ExpandMoreIcon/>
           </div>
-
-          <div className={styles.currentNetwork}>
-            <div
-              className={[
-                styles.indicator,
-                styles.active
-              ].join(' ')}
-            />
-            <span>{masterConfig}</span>
-          </div>
-
-          <img
-            className={styles.arrow}
-            src={arrow}
-            alt='arrow'
-          />
-          
+          <Account width={isMobile ? 40 : 40} />
         </div>
-      </div>
+        <ArrowUpwardIcon fontSize={'large'} color={'primary'}/>
+      </Box>
     </Modal>
   );
 }

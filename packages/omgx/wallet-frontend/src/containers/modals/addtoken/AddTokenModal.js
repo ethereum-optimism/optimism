@@ -23,6 +23,8 @@ import Modal from 'components/modal/Modal';
 import Input from 'components/input/Input';
 
 import * as styles from './AddTokenModal.module.scss';
+import * as S from './AddTokenModal.styles';
+import { Typography } from '@material-ui/core';
 
 function AddTokenModal ({ open }) {
 
@@ -55,69 +57,76 @@ function AddTokenModal ({ open }) {
   function renderAddTokenScreen () {
 
     return (
-
       <div className={`${tokenInfo.error ? styles.alert : styles.normal}`}>
 
-        <h2>Add Token</h2>
+        <Typography variant="h2" sx={{fontWeight: 700, mb: 2}}>
+          Add Token
+        </Typography>
+
+        <Typography variant="body1" sx={{mb: 1}}>
+          Token Contract Address
+        </Typography>
 
         <Input
-          label='Token Contract Address'
           placeholder='Hash (0x...)'
           paste
           value={tokenContractAddress}
           onChange={i=>{handleUpdateTokenContractAddress(i.target.value)}}
+          sx={{fontSize: '50px', boxShadow: '-13px 15px 19px rgba(0, 0, 0, 0.15), inset 53px 36px 120px rgba(255, 255, 255, 0.06)', backgroundColor: 'rgba(9, 22, 43, 0.5)'}}
         />
 
-        <div className={styles.disclaimer}>
+        <Typography variant="body1" component="p" sx={{mt: 3, opacity: 0.7}}>
           Token symbol: {tokenInfo.symbol}<br/>
           Token name: {tokenInfo.name}<br/>
           Token decimals: {tokenInfo.decimals}
-        </div>
+        </Typography>
 
-        {tokenInfo.error && 
-          <div style={{background: 'white', color:'black', marginTop: '10px'}}>
+        {tokenInfo.error &&
+          <Typography variant="body2" component="p" sx={{background: 'white', color: 'black', marginTop: '10px'}}>
             WARNING: {tokenContractAddress}<br/>could not be found on Ethereum.
             Please check for typos.
-          </div>
+          </Typography>
         }
-        
+
         {buttonDisplay === "Waiting" &&
-          <div className={styles.buttons}>
+          <S.WrapperActions>
             <Button
               onClick={handleClose}
-              type='secondary'
-              className={styles.button}
+              color="neutral"
+              size="large"
             >
               CANCEL
             </Button>
             <Button
               onClick={handleLookup}
-              type='primary'
-              className={styles.button}
+              color='primary'
+              variant="contained"
               disabled={!tokenContractAddress}
+              size="large"
             >
               LOOKUP
             </Button>
-          </div>
+          </S.WrapperActions>
         }
 
         {buttonDisplay === "Success" &&
-          <div className={styles.buttons}>
+          <S.WrapperActions>
             <Button
               onClick={handleClose}
-              type='secondary'
-              className={styles.button}
+              color="neutral"
+              size="large"
             >
               CANCEL
             </Button>
             <Button
               onClick={handleClose}
-              type='primary'
-              className={styles.button}
+              color='primary'
+              variant="contained"
+              size="large"
             >
               OK
             </Button>
-          </div>
+          </S.WrapperActions>
         }
       </div>
 
@@ -125,7 +134,7 @@ function AddTokenModal ({ open }) {
   }
 
   return (
-    <Modal open={open}>
+    <Modal open={open} onClose={handleClose} maxWidth="md">
       {renderAddTokenScreen()}
     </Modal>
   );

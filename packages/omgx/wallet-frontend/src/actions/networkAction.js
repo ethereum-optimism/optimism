@@ -99,9 +99,9 @@ export function addExitQueue(token, gasPrice) {
   )
 }
 
-export function exitOMGX(token, value) {
+export function exitBOBA(token, value) {
   return createAction('EXIT/CREATE', () =>
-    networkService.exitOMGX(token, value)
+    networkService.exitBOBA(token, value)
   )
 }
 
@@ -112,7 +112,7 @@ export function depositL2LP(token, value) {
   )
 }
 
-export function depositETHL2(value,gasLimit) {
+export function depositETHL2(value, gasLimit) {
   return createAction('DEPOSIT/CREATE', () =>
     networkService.depositETHL2(value,gasLimit)
   )

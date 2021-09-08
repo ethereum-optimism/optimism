@@ -4,14 +4,7 @@ $dropDownHeight: 92px;
 
 .ListNFT {
 
-  box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
-  border-radius: 5px;
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid $green;
-
   .topContainer {
-
     cursor: pointer;
     display: flex;
     flex-direction: row;
@@ -20,7 +13,7 @@ $dropDownHeight: 92px;
     .Table1 {
       display: flex;
       justify-content: center;
-      align-items: center;    
+      align-items: center;
       .Image {
         width: 80px;
         height: 80px;
@@ -34,12 +27,12 @@ $dropDownHeight: 92px;
       justify-content: flex-start;
       align-items: flex-start;
       padding: 10px;
-      padding-left: 0px;
+      padding-left: 10px;
       min-width: 250px;
     }
     .Table3 {
       display: flex;
-      padding: 10px;
+      width: 120px;
       justify-content: center;
       align-items: center;
     }
@@ -48,23 +41,17 @@ $dropDownHeight: 92px;
   .dropDownContainer {
     animation: openDropDown 1s;
     overflow: hidden;
-    background-color: $gray7;
     display: flex;
-    padding-top: 10px;
     flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
+    padding-top: 10px;
   }
 
   .closeDropDown {
     height: 0px;
     animation: closeDropDown 1s;
     overflow: hidden;
-    background-color: $gray7;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
   }
 
   .dropDownInit {
@@ -75,9 +62,7 @@ $dropDownHeight: 92px;
   .boxContainer {
     display: flex;
     flex-direction: column;
-    width: 90%;
-    padding: 0px;
-    margin: 8px;
+    margin-top: 20px;
   }
 
   .boxOrigin {
@@ -88,14 +73,14 @@ $dropDownHeight: 92px;
     margin: 0px;
     align-items: center;
     .Image {
-        width: 75px;
-        height: 75px;
-        border-radius: 10px;
-        padding: 0px;
+      width: 75px;
+      height: 75px;
+      border-radius: 10px;
+      padding: 0px;
     }
     .originRight {
-        flex-direction: column;
-        padding-left: 6px;
+      flex-direction: column;
+      padding-left: 6px;
     }
   }
 
@@ -120,15 +105,14 @@ $dropDownHeight: 92px;
 
   /*************************/
   .BasicText {
-    font-size: 1em;
+    font-size: 0.9em;
     font-weight: 700;
+    color: $gray3;
   }
 
-  .BasicLightText {
+  .BasicTextLight {
     font-size: 0.7em;
-    font-weight: 700;
     color: $gray4;
-    padding-top: 2px;
   }
 
   .LargeBlueText {
@@ -140,30 +124,27 @@ $dropDownHeight: 92px;
   .LinkText {
     font-size: 1em;
     font-weight: 700;
-    color: $green;
+    color: $gray4;
   }
 
   .LinkButton {
-    color: $green;
+    color: $gray4;
   }
   /************************/
 
-  .smallButton{
+  .smallButton {
     border-radius: 10px;
     width: 100px !important;
     flex: none;
-    color: white;
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
-  
-  .largeButton{
-    border-radius: 10px;
-    width: calc(100% - 30px);
-    flex: none;
-    color: white;
     padding-top: 10px;
     padding-bottom: 10px;
   }
 
+  .largeButton {
+    border-radius: 10px;
+    width: calc(100% - 30px);
+    flex: none;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
 }

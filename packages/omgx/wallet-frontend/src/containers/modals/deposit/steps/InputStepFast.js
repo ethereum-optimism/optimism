@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
+import { useTheme } from '@emotion/react'
+import { Typography, useMediaQuery } from '@material-ui/core'
 import { depositL1LP, approveERC20 } from 'actions/networkAction'
 import { openAlert, openError, setActiveHistoryTab1 } from 'actions/uiAction'
 import Button from 'components/button/Button'
@@ -20,14 +22,17 @@ import Input from 'components/input/Input'
 
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+
 import { selectLoading } from 'selectors/loadingSelector'
 import { selectLookupPrice } from 'selectors/lookupSelector'
+import { selectSignatureStatus_depositLP } from 'selectors/signatureSelector'
+
 import networkService from 'services/networkService'
 import { powAmount, logAmount, amountToUsd } from 'util/amountConvert'
-import * as styles from '../DepositModal.module.scss'
+import * as S from './InputSteps.styles'
 
 function InputStepFast({ handleClose, token }) {
-  
+
   const dispatch = useDispatch()
 
   const [value, setValue] = useState('')
@@ -37,7 +42,8 @@ function InputStepFast({ handleClose, token }) {
 
   const depositLoading = useSelector(selectLoading(['DEPOSIT/CREATE']))
   const approvalLoading = useSelector(selectLoading(['APPROVE/CREATE']))
-  const lookupPrice = useSelector(selectLookupPrice);
+  const lookupPrice = useSelector(selectLookupPrice)
+  const signatureStatus = useSelector(selectSignatureStatus_depositLP)
 
   function setAmount(value) {
     if (
@@ -57,17 +63,17 @@ function InputStepFast({ handleClose, token }) {
     let res
 
     if(token.symbol === 'ETH') {
-      
+
       console.log("ETH Fast swap on")
-      
+
       if (value > 0) {
         res = await dispatch(depositL1LP(token.address, value))
         if (res) {
           dispatch(setActiveHistoryTab1('Deposits'))
           dispatch(
             openAlert(
-              `ETH was deposited into the L1LP. You will receive 
-              ${((Number(value) * (100 - Number(feeRate)))/100).toFixed(2)} 
+              `ETH was deposited into the L1LP. You will receive
+              ${((Number(value) * (100 - Number(feeRate)))/100).toFixed(2)}
               oETH on L2`
             )
           )
@@ -78,15 +84,15 @@ function InputStepFast({ handleClose, token }) {
           return
         }
       }
-    } 
-    
+    }
+
     //at this point we know it's not ETH
     console.log("ERC20 Fast swap on")
 
     res = await dispatch(
       approveERC20(
-        powAmount(value, token.decimals), 
-        token.address, 
+        powAmount(value, token.decimals),
+        token.address,
         networkService.L1LPAddress
       )
     )
@@ -103,7 +109,7 @@ function InputStepFast({ handleClose, token }) {
       dispatch(setActiveHistoryTab1('Deposits'))
       dispatch(
         openAlert(
-          `${token.symbol} was deposited to the L1LP. You will receive 
+          `${token.symbol} was deposited to the L1LP. You will receive
            ${receivableAmount(value)} ${token.symbol} on L2`
         )
       )
@@ -129,69 +135,98 @@ function InputStepFast({ handleClose, token }) {
     }
   }, [token])
 
+  useEffect(() => {
+    if (signatureStatus && depositLoading) {
+      //we are all set - can close the window
+      //transaction has been sent and signed
+      handleClose()
+    }
+  }, [ signatureStatus, depositLoading, handleClose ])
+
   const label = 'There is a ' + feeRate + '% fee.'
-  
-  let buttonLabel = 'DEPOSIT'
+
+  let buttonLabel_1 = 'CANCEL'
+  if( depositLoading || approvalLoading ) buttonLabel_1 = 'CLOSE WINDOW'
+
+  let buttonLabel_2 = 'Deposit'
 
   if(depositLoading) {
-    buttonLabel = "Depositing..."
+    buttonLabel_2 = "Depositing..."
   } else if (approvalLoading) {
-    buttonLabel = "Approving..."
+    buttonLabel_2 = "Approving..."
   }
+  
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
     <>
-      <h2>Fast Deposit</h2>
+      <Typography variant="h2" sx={{fontWeight: 700, mb: 1}}>
+        Fast Deposit
+      </Typography>
+
+      <Typography variant="body2" sx={{mb: 3}}>{label}</Typography>
 
       <Input
-        label={label}
-        placeholder={`Amount to deposit`}
+        label={`Enter amount to deposit`}
+        placeholder="0.0000"
         value={value}
         type="number"
         onChange={(i)=>{setAmount(i.target.value)}}
         unit={token.symbol}
         maxValue={logAmount(token.balance, token.decimals)}
+        variant="standard"
+        newStyle
       />
-      
+
       {token && token.symbol === 'ETH' && (
-        <h3>
+        <Typography variant="body2" sx={{mt: 2}}>
           {value && `You will receive ${receivableAmount(value)} oETH ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''} on L2.`}
-        </h3>
+        </Typography>
       )}
 
       {token && token.symbol !== 'ETH' && (
-        <h3>
+        <Typography variant="body2" sx={{mt: 2}}>
           {value && `You will receive ${receivableAmount(value)} ${token.symbol} ${!!amountToUsd(value, lookupPrice, token) ?  `($${amountToUsd(value, lookupPrice, token).toFixed(2)})`: ''} on L2.`}
-        </h3>
+        </Typography>
       )}
 
       {Number(LPBalance) < Number(value) && (
-        <h3 style={{ color: 'red' }}>
+        <Typography variant="body2" sx={{ color: 'red', my: 2}}>
           The liquidity pool balance (of {LPBalance}) is too low to cover your fast deposit. Please
           use the traditional deposit or reduce the amount.
-        </h3>
+        </Typography>
       )}
 
-      <div className={styles.buttons}>
-        <Button 
-          onClick={handleClose} 
-          type="outline" 
-          style={{flex: 0}}
+      {(depositLoading || approvalLoading) && (
+        <Typography variant="body2" sx={{mt: 2, color: 'green'}}>
+          This window will automatically close when your transaction has been signed and submitted.
+        </Typography>
+      )}
+
+      <S.WrapperActions>
+        <Button
+          onClick={handleClose}
+          color="neutral"
+          size="large"
         >
-          CANCEL
-        </Button>        
+          {buttonLabel_1}
+        </Button>
         <Button
           onClick={doDeposit}
-          type="primary"
-          style={{flex: 0, minWidth: 200}}
+          color='primary'
+          variant="contained"
           loading={depositLoading || approvalLoading}
           tooltip="Your deposit is still pending. Please wait for confirmation."
           disabled={disabledSubmit}
           triggerTime={new Date()}
+          size="large"
+          fullWidth={isMobile}
+          newStyle
         >
-          {buttonLabel}
-        </Button>       
-      </div>
+          {buttonLabel_2}
+        </Button>
+      </S.WrapperActions>
     </>
   )
 }

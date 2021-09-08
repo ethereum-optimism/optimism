@@ -24,9 +24,15 @@ import { getFarmInfo, getFee } from 'actions/farmAction'
 import { openError } from 'actions/uiAction';
 
 import ListFarm from 'components/listFarm/listFarm'
+import Tabs from 'components/tabs/Tabs'
+import AlertIcon from 'components/icons/AlertIcon'
 import networkService from 'services/networkService'
 
-import * as styles from './Farm.module.scss'
+import * as S from './Farm.styles'
+import { Box, Typography } from '@material-ui/core';
+import PageHeader from 'components/pageHeader/PageHeader';
+import { tableHeadList } from './tableHeadList';
+import LayerSwitcher from 'components/mainMenu/layerSwitcher/LayerSwitcher';
 
 class Farm extends React.Component {
 
@@ -52,7 +58,8 @@ class Farm extends React.Component {
       poolInfo,
       userInfo,
       layer1,
-      layer2
+      layer2,
+      value: 'L1 Liquidity Pool'
     }
 
   }
@@ -70,7 +77,7 @@ class Farm extends React.Component {
     if (networkService.masterSystemConfig === 'mainnet') {
       this.props.dispatch(openError(`You are using Mainnet Beta.
         WARNING: the mainnet smart contracts are not fully audited and funds may
-        be at risk. Please exercise caution when using mainnet beta.`
+        be at risk. Please exercise caution when using Mainnet Beta.`
       ))
     }
   }
@@ -144,72 +151,119 @@ class Farm extends React.Component {
 
   }
 
+  handleChange = (event, value) => {
+    this.setState({ value });
+  };
+
   render() {
     const {
       // Pool
       poolInfo,
       // user
       userInfo,
+      value,
     } = this.state;
+
+    const { isMobile } = this.props;
 
     const networkLayer = networkService.L1orL2
 
     return (
-      <div className={styles.Farm}>
-        <h2>Stake tokens to the liquidity pool to earn</h2>
-        <div className={styles.Note}>
-          Your tokens will be deposited into the liquidity pool.
-          You will share the fees collected from the swap users.
-        </div>
-        <div className={styles.PoolContainer}>
-          <h3>L1 Liquidity Pool</h3>
-          {networkLayer === 'L2' &&
-            <div className={styles.NoteStrong}>
-              Note: MetaMask is set to L2. To interact with the L1 liquidity pool, please switch MetaMask to L1.
-            </div>
-          }
-          <div className={styles.TableContainer}>
-            {Object.keys(poolInfo.L1LP).map((v, i) => {
-              const ret = this.getBalance(v, 'L1')
-              return (
-                <ListFarm
-                  key={i}
-                  poolInfo={poolInfo.L1LP[v]}
-                  userInfo={userInfo.L1LP[v]}
-                  L1orL2Pool='L1LP'
-                  balance={ret[0]}
-                  decimals={ret[1]}
-                />
-              )
-            })}
-          </div>
-        </div>
-        <div className={styles.PoolContainer}>
-          <h3>L2 Liquidity Pool</h3>
-          {networkLayer === 'L1' &&
-            <div className={styles.NoteStrong}>
-              Note: MetaMask is set to L1. To interact with the L2 liquidity pool, please switch MetaMask to L2.
-            </div>
-          }
-          <div className={styles.TableContainer}>
-            {Object.keys(poolInfo.L2LP).map((v, i) => {
-              const ret = this.getBalance(v, 'L2')
-              return (
-                <ListFarm
-                  key={i}
-                  poolInfo={poolInfo.L2LP[v]}
-                  userInfo={userInfo.L2LP[v]}
-                  L1orL2Pool='L2LP'
-                  balance={ret[0]}
-                  decimals={ret[1]}
-                />
-              )
-            })}
-          </div>
+      <>
+        <PageHeader title="Earn" />
 
-        </div>
+        <Box sx={{ my: 3, width: '100%' }}>
+          <Box sx={{ mb: 2 }}>
+            <Tabs
+              activeTab={value}
+              onClick={(t) => this.handleChange(null, t)}
+              aria-label="basic tabs example"
+              tabs={["L1 Liquidity Pool", "L2 Liquidity Pool"]}
+            />
+          </Box>
 
-      </div>
+          {networkLayer === 'L2' && value === 'L1 Liquidity Pool' &&
+            <S.LayerAlert>
+              <Box className="info">
+                <AlertIcon />
+                <Typography
+                  sx={{wordBreak:'break-all', marginLeft: '10px'}}
+                  variant="body1"
+                  component="p"
+                >
+                  Note: MetaMask is set to L2. To interact with the L1 liquidity pool, please switch MetaMask to L1.
+                </Typography>
+              </Box>
+              <LayerSwitcher isButton={true} />
+            </S.LayerAlert>
+          }
+
+          {networkLayer === 'L1' && value === 'L2 Liquidity Pool' &&
+            <S.LayerAlert>
+              <Box className="info">
+                <AlertIcon />
+                <Typography
+                  sx={{wordBreak:'break-all', marginLeft: '10px'}}
+                  variant="body2"
+                  component="p"
+                >
+                  Note: MetaMask is set to L1. To interact with the L2 liquidity pool, please switch MetaMask to L2.
+                </Typography>
+              </Box>
+              <LayerSwitcher isButton={true} />
+            </S.LayerAlert>
+          }
+
+          {!isMobile ? (
+            <S.TableHeading>
+              {tableHeadList.map((item) => {
+                return (
+                  <S.TableHeadingItem key={item.label} variant="body2" component="div">
+                    {item.label}
+                  </S.TableHeadingItem>
+                )
+              })}
+            </S.TableHeading>
+          ) : (null)}
+
+          {value === 'L1 Liquidity Pool' &&
+            <Box>
+              {Object.keys(poolInfo.L1LP).map((v, i) => {
+                const ret = this.getBalance(v, 'L1')
+                return (
+                  <ListFarm
+                    key={i}
+                    poolInfo={poolInfo.L1LP[v]}
+                    userInfo={userInfo.L1LP[v]}
+                    L1orL2Pool='L1LP'
+                    balance={ret[0]}
+                    decimals={ret[1]}
+                    isMobile={isMobile}
+                  />
+                )
+              })}
+            </Box>}
+
+          {value === 'L2 Liquidity Pool' &&
+            <Box>
+              {Object.keys(poolInfo.L2LP).map((v, i) => {
+                const ret = this.getBalance(v, 'L2')
+                return (
+                  <ListFarm
+                    key={i}
+                    poolInfo={poolInfo.L2LP[v]}
+                    userInfo={userInfo.L2LP[v]}
+                    L1orL2Pool='L2LP'
+                    balance={ret[0]}
+                    decimals={ret[1]}
+                    isMobile={isMobile}
+                  />
+                )
+              })}
+            </Box>
+          }
+        </Box>
+      </>
     )
   }
 }

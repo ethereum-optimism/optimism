@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import { parseUnits, parseEther, formatEther } from '@ethersproject/units'
+
 import { Watcher } from '@eth-optimism/watcher'
 
 import { ethers, BigNumber, utils, ContractFactory } from 'ethers'
@@ -28,11 +29,16 @@ import { getToken } from 'actions/tokenAction'
 import {
   addNFT,
   getNFTs,
-  addNFTFactory,
-  getNFTFactories,
   addNFTContract,
   getNFTContracts,
 } from 'actions/nftAction'
+
+import {
+  updateSignatureStatus_exitLP,
+  updateSignatureStatus_exitTRAD,
+  updateSignatureStatus_depositLP,
+  updateSignatureStatus_depositTRAD
+} from 'actions/signAction'
 
 import { WebWalletError } from 'services/errorService'
 
@@ -45,7 +51,7 @@ import L1LPJson from '../deployment/artifacts/contracts/LP/L1LiquidityPool.sol/L
 import L2LPJson from '../deployment/artifacts-ovm/contracts/LP/L2LiquidityPool.sol/L2LiquidityPool.json'
 
 //Standard ERC20 jsons - should be very similar?
-import L1ERC20Json from '../deployment/artifacts/contracts/test-helpers/L1ERC20.sol/L1ERC20.json'
+import L1ERC20Json from '../deployment/artifacts/contracts/L1ERC20.sol/L1ERC20.json'
 import L2ERC20Json from '../deployment/artifacts-ovm/optimistic-ethereum/libraries/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
 //OMGX L2 Contracts
@@ -56,14 +62,14 @@ import L2TokenPoolJson from '../deployment/artifacts-ovm/contracts/TokenPool.sol
 import AtomicSwapJson from '../deployment/artifacts-ovm/contracts/AtomicSwap.sol/AtomicSwap.json'
 
 // DAO 
-import Comp from "../deployment/rinkeby/json/Comp.json";
-import GovernorBravoDelegate from "../deployment/rinkeby/json/GovernorBravoDelegate.json";
-import GovernorBravoDelegator from "../deployment/rinkeby/json/GovernorBravoDelegator.json";
-import Timelock from "../deployment/rinkeby/json/Timelock.json";
+import Comp from "../deployment/rinkeby/json/Comp.json"
+import GovernorBravoDelegate from "../deployment/rinkeby/json/GovernorBravoDelegate.json"
+import GovernorBravoDelegator from "../deployment/rinkeby/json/GovernorBravoDelegator.json"
+import Timelock from "../deployment/rinkeby/json/Timelock.json"
 
 import { powAmount, logAmount } from 'util/amountConvert'
 import { accDiv, accMul } from 'util/calculation'
-
+import {getNftImageUrl} from 'util/nftImage'
 import { getAllNetworks } from 'util/masterConfig'
 
 import etherScanInstance from 'api/etherScanAxios'
@@ -169,18 +175,14 @@ class NetworkService {
       console.log('chainChanged')
       localStorage.setItem('changeChain', true)
       window.location.reload()
-      // window.location.href = `?change_chain`
     })
   }
 
-  async mintAndSendNFT(receiverAddress, contractAddress, ownerName, tokenURI, type) {
+  async mintAndSendNFT(receiverAddress, contractAddress, tokenURI) {
 
     try {
 
-      let meta = ownerName + '#' + Date.now().toString() + '#' + tokenURI + '#' + type
-
-      console.log('meta:', meta)
-      console.log('receiverAddress:', receiverAddress)
+      let meta = Date.now().toString() + '#' + tokenURI + '#'
 
       const contract = new ethers.Contract(
         contractAddress,
@@ -203,26 +205,28 @@ class NetworkService {
         this.L2Provider
       )
 
+      //what types of NFTs does this address already own? 
       const addresses = await registry.lookupAddress(
         receiverAddress
       )
 
-      console.log("the receiver's NFT contract addresses:", addresses)
-
+      //console.log("the receiver's NFT contract addresses:", addresses)
+      
+      //the receiverAddress already knows about this contract
       const alreadyHaveAddresss = addresses.find((str) => str.toLowerCase() === contractAddress.toLowerCase())
 
       if (alreadyHaveAddresss) {
         //we are done - no need to double register addresss
-        console.log('done - no need to double register address')
+        console.log('Done - no need to double register address')
       } else {
         //register address for the recipiant
-        let reg = await registry.connect(
+        await registry.connect(
           this.provider.getSigner()
         ).registerAddress(
           receiverAddress,
           contractAddress
         )
-        console.log("Reg:",reg)
+        //console.log("Reg:",reg)
         console.log(`Contract registered in recipient's wallet`)
       }
 
@@ -233,79 +237,14 @@ class NetworkService {
     }
   }
 
-  async addNFTFactoryNS( address ) {
-
-    let contract = new ethers.Contract(
-      address,
-      L2ERC721Json.abi,
-      this.L2Provider
-    )
-
-    let haveRights = false
-
-    try {
-
-      let owner = await contract.owner()
-      owner = owner.toLowerCase()
-
-      if ( this.account.toLowerCase() === owner )
-        haveRights = true
-
-      let nftName = await contract.name()
-      let nftSymbol = await contract.symbol()
-      let genesis = await contract.getGenesis()
-
-      let genesisContractAddress = genesis[0]
-
-      if( genesisContractAddress === '0x0000000000000000000000000000000000000000') {
-        //special case - this is the default NFT factory....
-        genesisContractAddress = this.ERC721Address
-      }
-
-      let simpleAddress = '0x0000000000000000000000000000000000000042'
-      let feeRecipient = simpleAddress
-
-      if( genesisContractAddress !== simpleAddress) {
-        //this is a derived NFT
-        //wallet address of whomever owns the parent
-        const genesisContract = new ethers.Contract(
-          genesisContractAddress,
-          L2ERC721Json.abi,
-          this.L2Provider
-        )
-        feeRecipient = await genesisContract.owner()
-      }
-
-      addNFTFactory({
-        name: nftName,
-        symbol: nftSymbol,
-        owner,
-        layer: 'L2',
-        address,
-        originAddress: genesis[0],
-        originID: genesis[1],
-        originChain: genesis[2],
-        originFeeRecipient: feeRecipient,
-        haveRights
-      })
-
-    } catch (error) {
-      console.log("addNFTFactoryNS cache is stale:",error)
-    }
-
-  }
-
-  async deployNewNFTContract(
+  async deployNFTContract(
       nftSymbol,
-      nftName,
-      oriAddress,
-      oriID,
-      oriChain)
+      nftName)
   {
 
     try {
 
-      console.log("Deploying new NFT factory")
+      console.log("Deploying NFT Contract")
 
       let Factory__L2ERC721 = new ContractFactory(
         L2ERC721Json.abi,
@@ -317,16 +256,31 @@ class NetworkService {
         nftSymbol,
         nftName,
         BigNumber.from(String(0)), //starting index for the tokenIDs
-        oriAddress,
-        oriID,
-        oriChain
+        '0x0000000000000000000000000000000000000042',
+        'simple',
+        'boba_L2'
       )
 
       await contract.deployTransaction.wait()
+      console.log('New NFT ERC721 contract deployed to:', contract.address)
 
-      this.addNFTFactoryNS( contract.address )
+      const registry = new ethers.Contract(
+        this.ERC721RegAddress,
+        L2ERC721RegJson.abi,
+        this.L2Provider
+      )
 
-      console.log('New NFT ERC721 deployed to:', contract.address)
+      //register address for the contract owner
+      await registry.connect(
+        this.provider.getSigner()
+      ).registerAddress(
+        this.account,
+        contract.address
+      )
+      console.log(`New NFT ERC721 contract registered in Boba NFT registry`)
+
+      //addNFTContract({address: contract.address})
+      //this will get picked up automatically from the blockchain
 
       return true
     } catch (error) {
@@ -336,7 +290,7 @@ class NetworkService {
 
   }
 
-  async initializeAccounts(masterSystemConfig) {
+  async initializeAccounts( masterSystemConfig ) {
 
     console.log('NS: initializeAccounts() for', masterSystemConfig)
 
@@ -436,6 +390,7 @@ class NetworkService {
         //rinkeby, L2
         this.L1orL2 = 'L2'
       } else {
+        console.log("ERROR: masterSystemConfig does not match actual network.chainId")
         this.bindProviderListeners()
         return 'wrongnetwork'
       }
@@ -573,20 +528,20 @@ class NetworkService {
       )
 
       //this one is always there...
-      await addNFTContract(this.ERC721Contract.address)
+      //await addNFTContract(this.ERC721Contract.address)
 
       //yes, this looks weird, but think before you change it...
       //there may be some in the cache, and this makes sure we get them all, and if not,
       //we at least have the basic one
-      const NFTcontracts = Object.values(await getNFTContracts())
+      //const NFTcontracts = Object.values(await getNFTContracts())
 
       //Add factories based on cached contract addresses
       //this information is also used for the balance lookup
-      for(var i = 0; i < NFTcontracts.length; i++) {
-        const address = NFTcontracts[i]
-        console.log("Adding NFT contract:",address)
-        this.addNFTFactoryNS( address )
-      }
+      //for(var i = 0; i < NFTcontracts.length; i++) {
+      // const address = NFTcontracts[i]
+      //  console.log("Adding NFT contract:",address)
+      //  this.addNFTFactoryNS( address )
+      //}
 
       this.watcher = new Watcher({
         l1: {
@@ -614,25 +569,34 @@ class NetworkService {
         addresses.DAO_Comp,
         Comp.abi,
         this.provider.getSigner()
-      );
+      )
 
       this.delegate = new ethers.Contract(
         addresses.DAO_GovernorBravoDelegate,
         GovernorBravoDelegate.abi,
         this.provider.getSigner()
-      );
+      )
 
       this.delegator = new ethers.Contract(
         addresses.DAO_GovernorBravoDelegator,
         GovernorBravoDelegator.abi,
         this.provider.getSigner()
-      );
+      )
 
       this.timelock = new ethers.Contract(
         addresses.DAO_Timelock,
         Timelock.abi,
         this.provider.getSigner()
-      );
+      )
+
+
+
+/*
+  this.comp = null
+  this.delegate = null
+  this.delegator = null
+  this.timelock = null
+*/
 
       this.bindProviderListeners()
 
@@ -653,26 +617,158 @@ class NetworkService {
   }
 
   async addL2Network() {
+    
     const nw = getAllNetworks()
     const masterConfig = store.getState().setup.masterConfig;
     let chainParam = {}
+    
     if (masterConfig === 'mainnet') {
       chainParam = {
         chainId: '0x' + nw.mainnet.L2.chainId.toString(16),
-        chainName: 'OMGX L2 Mainnet',
+        chainName: nw.mainnet.L2.name,
         rpcUrls: [nw.mainnet.L2.rpcUrl],
       }
-    } else {
+    } else if (masterConfig === 'rinkeby') {
       chainParam = {
         chainId: '0x' + nw.rinkeby.L2.chainId.toString(16),
-        chainName: 'OMGX L2 Rinkeby',
+        chainName: nw.rinkeby.L2.name,
         rpcUrls: [nw.rinkeby.L2.rpcUrl],
       }
+    } else if (masterConfig === 'rinkeby_integration') {
+      chainParam = {
+        chainId: '0x' + nw.rinkeby_integration.L2.chainId.toString(16),
+        chainName: nw.rinkeby_integration.L2.name,
+        rpcUrls: [nw.rinkeby_integration.L2.rpcUrl],
+      }
+    } else if (masterConfig === 'local') {
+      chainParam = {
+        chainId: '0x' + nw.local.L2.chainId.toString(16),
+        chainName: nw.local.L2.name,
+        rpcUrls: [nw.local.L2.rpcUrl],
+      }
+    }
+    
+    console.log("MetaMask: Trying to add ", chainParam)
+    
+    // connect to the wallet
+    this.provider = new ethers.providers.Web3Provider(window.ethereum)
+    let res = await this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
+
+    if( res === null ){
+      console.log("MetaMask - Added new RPC")
+    } else {
+      console.log("MetaMask - Error adding new RPC: ", res)
+    }
+    
+  }
+
+  async switchChain( layer ) {
+
+    if(this.L1orL2 === layer) {
+      console.log("Nothing to do - You are already on ",layer)
+      return
+    }
+
+    const nw = getAllNetworks()
+    const masterConfig = store.getState().setup.masterConfig
+    
+    const chainParam = {
+      chainId: '0x' + nw[masterConfig].L2.chainId.toString(16),
+      chainName: nw[masterConfig].L2.name,
+      rpcUrls: [nw[masterConfig].L2.rpcUrl],
     }
 
     // connect to the wallet
     this.provider = new ethers.providers.Web3Provider(window.ethereum)
-    this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
+    
+    /********************* Switch to Mainnet L2 ****************/
+    if (masterConfig === 'mainnet' && this.L1orL2 === 'L1') {
+      //ok, so then, we want to switch to 'mainnet' && 'L2'
+      try {
+        await this.provider.send('wallet_switchEthereumChain', [{ chainId: '0x120' }]) //ChainID 288
+      } catch (error) {
+        // This error code indicates that the chain has not been added to MetaMask.
+        if (error.code === 4902) {
+          try {
+            await this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
+          } catch (addError) {
+            console.log("MetaMask - Error adding new RPC: ", addError)
+            // handle "add" error via alert message
+          }
+        } else { //some other error code
+          console.log("MetaMask - Switch Error: ", error.code)
+        }
+      }
+    } else if ( masterConfig === 'mainnet' && this.L1orL2 === 'L2') {
+      //ok, so then, we want to switch to 'mainnet' && 'L1' - no need to add 
+      //if(fail) since mainnet L1 is always there unless the planet 
+      //has been vaporized by space aliens with a blaster ray
+      try {
+        await this.provider.send('wallet_switchEthereumChain',[{ chainId: '0x1' }]) //ChainID 1
+      } catch (switchError) {
+        console.log("MetaMask - could not switch to Ethereum Mainchain. Needless to say, this should never happen.")
+      }
+    } else if (masterConfig === 'rinkeby' && this.L1orL2 === 'L1') {
+      //ok, so then, we want to switch to 'rinkeby' && 'L2'
+      try {
+        await this.provider.send('wallet_switchEthereumChain', [{ chainId: '0x1C' }]) //ChainID 28
+      } catch (error) {
+        if (error.code === 4902) {
+          try {
+            await this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
+          } catch (addError) {
+            console.log("MetaMask - Error adding new RPC: ", addError)
+            // handle "add" error via alert message
+          }
+        } else { //some other error code
+          console.log("MetaMask - Switch Error: ", error.code)
+        }
+      }
+    } else if (masterConfig === 'rinkeby_integration' && this.L1orL2 === 'L1') {
+      //ok, so then, we want to switch to 'rinkeby_integration' && 'L2'
+      try {
+        await this.provider.send('wallet_switchEthereumChain', [{ chainId: '0x1D' }]) //ChainID 29
+      } catch (error) {
+        if (error.code === 4902) {
+          try {
+            await this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
+          } catch (addError) {
+            console.log("MetaMask - Error adding new RPC: ", addError)
+            // handle "add" error via alert message
+          }
+        } else { //some other error code
+          console.log("MetaMask - Switch Error: ", error.code)
+        }
+      }
+    } else if ((masterConfig === 'rinkeby' || masterConfig === 'rinkeby_integration') && this.L1orL2 === 'L2') {
+      try {
+        await this.provider.send('wallet_switchEthereumChain',[{ chainId: '0x4' }]) //ChainID 4
+      } catch (switchError) {
+        console.log("MetaMask - could not switch to Rinkeby. Needless to say, this should never happen.")
+      }
+    } else if (masterConfig === 'local' && this.L1orL2 === 'L1') {
+      //ok, so then, we want to switch to 'local' && 'L2'
+      try {
+        await this.provider.send('wallet_switchEthereumChain', [{ chainId: '0x7A6A' }]) //ChainID 31338
+      } catch (error) {
+        if (error.code === 4902) {
+          try {
+            await this.provider.send('wallet_addEthereumChain', [chainParam, this.account])
+          } catch (addError) {
+            console.log("MetaMask - Error adding new RPC: ", addError)
+            // handle "add" error via alert message
+          }
+        } else { //some other error code
+          console.log("MetaMask - Switch Error: ", error.code)
+        }
+      }
+    } else if (masterConfig === 'local' && this.L1orL2 === 'L2') {
+      try {
+        await this.provider.send('wallet_switchEthereumChain',[{ chainId: '0x7A69' }]) //ChainID 31337
+      } catch (switchError) {
+        console.log("MetaMask - could not switch to Local L1")
+      }
+    } 
   }
 
   async getTransactions() {
@@ -680,32 +776,72 @@ class NetworkService {
     // NOT SUPPORTED on LOCAL
     if (this.masterSystemConfig === 'local') return
 
+    console.log("Getting transactions...")
+    
     let txL1
+    let txL1pending
     let txL2
+
+    //console.log("trying")
 
     const responseL1 = await etherScanInstance(
       this.masterSystemConfig,
-      /*this.L1orL2*/ 'L1'
+      'L1'
     ).get(`&address=${this.account}`)
+
+    //console.log("responseL1",responseL1)
+
     if (responseL1.status === 200) {
       const transactionsL1 = await responseL1.data
       if (transactionsL1.status === '1') {
         //thread in ChainID
-        txL1 = transactionsL1.result.map(v => ({...v, chain: 'L1'}))
+        txL1 = transactionsL1.result.map(v => ({
+          ...v,
+          blockNumber: parseInt(v.blockNumber), //fix bug - sometimes this is string, sometimes an integer
+          timeStamp: parseInt(v.timeStamp),     //fix bug - sometimes this is string, sometimes an integer 
+          chain: 'L1'
+        }))
+        //console.log("txL1",txL1)
         //return transactions.result
       }
     }
 
     const responseL2 = await omgxWatcherAxiosInstance(
       this.masterSystemConfig
-    ).post('get.transaction', {
+    ).post('get.l2.transactions', {
       address: this.account,
-      fromRange: 0,
+      fromRange:  0,
       toRange: 1000,
     })
+
     if (responseL2.status === 201) {
+      //add the chain: 'L2' field 
       txL2 = responseL2.data.map(v => ({...v, chain: 'L2'}))
-      const annotated = await this.parseTransaction( [...txL1, ...txL2] )
+      //console.log("txL2",txL2)
+      //const annotated = await this.parseTransaction( [...txL1, ...txL2] )
+      //return annotated
+    }
+
+    const responseL1pending = await omgxWatcherAxiosInstance(
+      this.masterSystemConfig
+    ).post('get.l1.transactions', {
+      address: this.account,
+      fromRange:  0,
+      toRange: 1000,
+    })
+
+    if (responseL1pending.status === 201) {
+      //add the chain: 'L1pending' field 
+      txL1pending = responseL1pending.data.map(v => ({...v, chain: 'L1pending'}))
+      //console.log("txL1pending",txL1pending)
+      const annotated = await this.parseTransaction( 
+        [
+          ...txL1, 
+          ...txL2,
+          ...txL1pending //the new data product
+        ]
+      )
+      //console.log("annotated:",annotated)
       return annotated
     }
 
@@ -749,7 +885,6 @@ class NetworkService {
       }
 
       if (to === this.L2StandardBridgeAddress.toLowerCase()) {
-        //0x4200000000000000000000000000000000000010
         //console.log("L2 Standard Bridge")
         return Object.assign({}, item, { typeTX: 'L2 Standard Bridge' })
       }
@@ -809,10 +944,10 @@ class NetworkService {
 
     const response = await omgxWatcherAxiosInstance(
       this.masterSystemConfig
-    ).post('get.transaction', {
+    ).post('get.l2.transactions', {
       address: this.account,
-      fromRange: 0,
-      toRange: 100,
+      fromRange:  0,
+      toRange: 1000,
     })
     if (response.status === 201) {
       const transactions = response.data
@@ -829,52 +964,74 @@ class NetworkService {
 
   }
 
+  //goal is to find your NFTs and NFT contracts based on local cache and registry data 
   async fetchNFTs() {
 
-    /*
-      Metacomment on how this is coded:
-      Is it messy? Yes.
-      Does it use arrow functions well? No.
-      Is it elegant? No.
-      Is it hard to maintain and understand? Yes.
-      Does it work? Yes.
-    */
+    //the current list of contracts we know about
+    //based in part on the cache and anything we recently generated in this session
+    //console.log("NFTContracts 1:",await getNFTContracts())
 
-    //console.log('fetchNFTs')
+    let NFTContracts = Object.entries(await getNFTContracts())
+    //console.log("Step 1 - NFTContracts:",NFTContracts)
 
-    //the current list of factories we know about
-    //based in part on the cahce, and anything we recently generated in this session
-    let NFTfactories = Object.entries(await getNFTFactories())
+    //list of NFT contract addresses we know about, locally
+    const localCache = NFTContracts.map(item => {
+      return item[0].toLowerCase()
+    })
 
-    //list of NFT factory addresses we know about, locally
-    const localCache = NFTfactories.map(item => {return item[0].toLowerCase()})
+    //console.log("Step 2 - localCache addresses:",localCache)
 
-    //the user's blockchain NFT registry
-    const registry = new ethers.Contract(this.ERC721RegAddress,L2ERC721RegJson.abi,this.L2Provider)
+    //the Boba NFT registry
+    const registry = new ethers.Contract(
+      this.ERC721RegAddress,
+      L2ERC721RegJson.abi,
+      this.L2Provider
+    )
+    
+    //This account's NFT contract addresses in that registry
     const addresses = await registry.lookupAddress(this.account)
-    //console.log("Blockchain NFT wallet:", addresses)
+    //console.log("Step 3 - Blockchain NFT wallet addresses:", addresses)
 
-    //make sure we have all the factories relevant to this user
+    //make sure we have all the contracts relevant to this user
     for(let i = 0; i < addresses.length; i++) {
-      const newAddress = addresses[i]
-      var inCache = (localCache.indexOf(newAddress.toLowerCase()) > -1)
+      const address = addresses[i]
+      var inCache = (localCache.indexOf(address.toLowerCase()) > -1)
       if(!inCache) {
-        console.log("Found a new NFT contract:",newAddress)
-        await addNFTContract( newAddress )
-        this.addNFTFactoryNS( newAddress )
+        console.log("Found a new NFT contract - adding:",address)
+        //Add to local NFT contracts structure
+        const contract = new ethers.Contract(
+          address,
+          L2ERC721Json.abi,
+          this.L2Provider
+        )
+
+        //always the same, no need to have in the loop
+        let nftName = await contract.name()
+        let nftSymbol = await contract.symbol()
+        let owner = await contract.owner()
+
+        const newContract = {
+          name: nftName,
+          symbol: nftSymbol,
+          owner: owner.toLowerCase(), 
+          address,
+        }
+
+        console.log("newContract just added:",newContract)
+
+        await addNFTContract( newContract )
       }
     }
 
     //How many NFTs do you have right now?
     let numberOfNFTS = 0
 
-    //need to call this again because it might have changed since the iniital call
-    NFTfactories = Object.entries(await getNFTFactories())
+    NFTContracts = Object.entries(await getNFTContracts())
 
-    for(let i = 0; i < NFTfactories.length; i++) {
+    for(let i = 0; i < NFTContracts.length; i++) {
 
       let contract = new ethers.Contract(
-        NFTfactories[i][1].address,
+        NFTContracts[i][1].address,
         L2ERC721Json.abi,
         this.L2Provider
       )
@@ -883,22 +1040,6 @@ class NetworkService {
       const balance = await contract.connect(
         this.L2Provider
       ).balanceOf(this.account)
-
-      const rights = NFTfactories[i][1].haveRights
-      //console.log("NFT Rights:", rights)
-
-      let owner = await contract.owner()
-      owner = owner.toLowerCase()
-
-      if ( this.account.toLowerCase() === owner && rights === false ) {
-        //we need to give rights
-        //haveRights = true
-        //ToDo
-      } else if ( this.account.toLowerCase() !== owner && rights === true ) {
-        //we need to remove rights
-        //haveRights = false
-        //ToDo
-      }
 
       numberOfNFTS = numberOfNFTS + Number(balance.toString())
 
@@ -912,9 +1053,9 @@ class NetworkService {
 
       console.log('NFT change - need to add one or more NFTs')
 
-      for(let i = 0; i < NFTfactories.length; i++) {
+      for(let i = 0; i < NFTContracts.length; i++) {
 
-        const address = NFTfactories[i][1].address
+        const address = NFTContracts[i][1].address
 
         const contract = new ethers.Contract(
           address,
@@ -929,27 +1070,6 @@ class NetworkService {
         //always the same, no need to have in the loop
         let nftName = await contract.name()
         let nftSymbol = await contract.symbol()
-        let genesis = await contract.getGenesis()
-        let feeRecipient = '0x0000000000000000000000000000000000000042'
-
-        let genesisContractAddress = genesis[0]
-
-        if( genesisContractAddress === '0x0000000000000000000000000000000000000000') {
-          //special case - this is just the default NFT factory....
-          genesisContractAddress = this.ERC721Address
-        }
-
-        if( genesisContractAddress !== '0x0000000000000000000000000000000000000042') {
-          const genesisContract = new ethers.Contract(
-            genesisContractAddress,
-            L2ERC721Json.abi,
-            this.L2Provider
-          )
-          //console.log("genesisContract:", genesisContract)
-
-          feeRecipient = await genesisContract.owner()
-          //console.log("NFT feeRecipient:", feeRecipient)
-        }
 
         //can have more than 1 per contract
         for (let i = 0; i < Number(balance.toString()); i++) {
@@ -964,15 +1084,10 @@ class NetworkService {
           )
 
           const nftMeta = await contract.getTokenURI(tokenID)
+          
           const meta = nftMeta.split('#')
-          const time = new Date(parseInt(meta[1]))
-
-          let type = 0
-          //new flavor of NFT has type field
-          //default to zero for old NFTs
-          if(meta.length === 4) {
-            type = parseInt(meta[3])
-          }
+          
+          const time = new Date(parseInt(meta[0]))
 
           const mintedTime = String(
               time.toLocaleString('en-US', {
@@ -987,30 +1102,28 @@ class NetworkService {
 
           const UUID = address.substring(1, 6) + '_' + tokenID.toString() + '_' + this.account.substring(1, 6)
 
+          const { url , attributes = []} = await getNftImageUrl(meta[1]);
+          // Uncomment Just to test locally
+          // const { url , attributes = []} = await getNftImageUrl('https://boredapeyachtclub.com/api/mutants/111');
+
+          // const { url , attributes = []} = await getNftImageUrl('ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/6190');
+          
           const NFT = {
             UUID,
-            owner: meta[0],
             mintedTime,
-            url: meta[2],
+            url,
             tokenID,
             name: nftName,
             symbol: nftSymbol,
             address,
-            originAddress: genesis[0],
-            originID: genesis[1],
-            originChain: genesis[2],
-            originFeeRecipient: feeRecipient,
-            type
+            attributes,
           }
 
-          await addNFT( NFT)
+          await addNFT( NFT )
 
         }
-
       }
-
     }
-
   }
 
   async addTokenList() {
@@ -1026,13 +1139,7 @@ class NetworkService {
     try {
       // Always check ETH and oETH
       const layer1Balance = await this.L1Provider.getBalance(this.account)
-      //console.log('ETH balance on L1:', layer1Balance.toString())
-
       const layer2Balance = await this.L2Provider.getBalance(this.account)
-      //console.log("oETH balance on L2:", layer2Balance.toString())
-
-      //const ethToken = await getToken(this.L1_ETH_Address)
-      //console.log('Checking ethToken:', ethToken)
 
       const layer1Balances = [
         {
@@ -1106,6 +1213,9 @@ class NetworkService {
 
   //Move ETH from L1 to L2 using the standard deposit system
   depositETHL2 = async (value = '1', gasPrice) => {
+
+    updateSignatureStatus_depositTRAD(false)
+
     try {
       const depositTxStatus = await this.L1StandardBridgeContract.depositETH(
         this.L2GasLimit,
@@ -1115,6 +1225,10 @@ class NetworkService {
           gasPrice: ethers.utils.parseUnits(`${gasPrice}`, 'wei'),
         }
       )
+      //closes the Deposit modal
+      updateSignatureStatus_depositTRAD(true)
+      
+      //at this point the tx has been submitted, and we are waiting...
       await depositTxStatus.wait()
 
       const [l1ToL2msgHash] = await this.watcher.getMessageHashesFromL1Tx(
@@ -1239,11 +1353,6 @@ class NetworkService {
       )
       await approveStatus.wait()
 
-      // let allowance_BN = await ERC20Contract.allowance(
-      //   this.account,
-      //   this.L1LPAddress
-      // )
-
       return true
     } catch (error) {
       return false
@@ -1317,6 +1426,8 @@ class NetworkService {
   //Used to move ERC20 Tokens from L1 to L2
   async depositErc20(value, currency, gasPrice, currencyL2) {
 
+    updateSignatureStatus_depositTRAD(false)
+
     try {
       //could use any ERC20 here...
       const L1_TEST_Contract = this.L1_TEST_Contract.attach(currency)
@@ -1334,6 +1445,11 @@ class NetworkService {
         this.L2GasLimit,
         utils.formatBytes32String(new Date().getTime().toString())
       )
+      
+      //closes the Deposit modal
+      updateSignatureStatus_depositTRAD(true)
+      
+      //at this point the tx has been submitted, and we are waiting...
       await depositTxStatus.wait()
 
       const [l1ToL2msgHash] = await this.watcher.getMessageHashesFromL1Tx(
@@ -1360,9 +1476,10 @@ class NetworkService {
     }
   }
 
-  //Standard 7 day exit from OMGX
-  //updated
-  async exitOMGX(currencyAddress, value) {
+  //Standard 7 day exit from BOBA
+  async exitBOBA(currencyAddress, value) {
+
+    updateSignatureStatus_exitTRAD(false)
 
     const allowance = await this.checkAllowance(
       currencyAddress,
@@ -1392,6 +1509,8 @@ class NetworkService {
       this.L1GasLimit,
       utils.formatBytes32String(new Date().getTime().toString())
     )
+    //can close window now
+    updateSignatureStatus_exitTRAD(true)    
     await tx.wait()
 
     const [L2ToL1msgHash] = await this.watcher.getMessageHashesFromL2Tx(tx.hash)
@@ -1677,10 +1796,11 @@ class NetworkService {
   }
 
   /***********************************************************/
-  /***** SWAP ON to OMGX by depositing funds to the L1LP *****/
+  /***** SWAP ON to BOBA by depositing funds to the L1LP *****/
   /***********************************************************/
   async depositL1LP(currency, value) {
 
+    updateSignatureStatus_depositLP(false)
     const decimals = 18 //bit dangerous?
     let depositAmount = powAmount(value, decimals)
 
@@ -1689,6 +1809,9 @@ class NetworkService {
       currency,
       currency === this.L1_ETH_Address ? { value: depositAmount } : {}
     )
+
+    updateSignatureStatus_depositLP(true)
+    //at this point the tx has been submitted, and we are waiting...
     await depositTX.wait()
 
     // Waiting the response from L2
@@ -1760,9 +1883,11 @@ class NetworkService {
   }
 
   /**************************************************************/
-  /***** SWAP OFF from OMGX by depositing funds to the L2LP *****/
+  /***** SWAP OFF from BOBA by depositing funds to the L2LP *****/
   /**************************************************************/
   async depositL2LP(currencyAddress, depositAmount_string) {
+
+    updateSignatureStatus_exitLP(false)
 
     const L2ERC20Contract = new ethers.Contract(
       currencyAddress,
@@ -1774,8 +1899,6 @@ class NetworkService {
       this.account,
       this.L2LPAddress
     )
-
-    //const decimals = await L2ERC20Contract.decimals()
 
     let depositAmount_BN = new BN(depositAmount_string)
 
@@ -1792,6 +1915,9 @@ class NetworkService {
       depositAmount_string,
       currencyAddress
     )
+
+    updateSignatureStatus_exitLP(true)
+    //at this point the tx has been submitted, and we are waiting...
     await depositTX.wait()
 
     // Waiting for the response from L1
@@ -1807,97 +1933,6 @@ class NetworkService {
 
     return L1Receipt
   }
-
-  // async getPriorityTokens() {
-  //   try {
-
-  //     return priorityTokens.map((token) => {
-
-  //       let L1 = ''
-  //       let L2 = ''
-
-  //       if (token.symbol === 'ETH') {
-  //         L1 = this.L1_ETH_Address
-  //         L2 = this.L2_ETH_Address
-  //       } else {
-  //         L1 = this.tokenAddresses[token.symbol].L1
-  //         L2 = this.tokenAddresses[token.symbol].L2
-  //       }
-
-  //       return {
-  //         symbol: token.symbol,
-  //         icon: token.icon,
-  //         name: token.name,
-  //         L1,
-  //         L2,
-  //       }
-
-  //     })
-
-  //   } catch (error) {
-  //     return error
-  //   }
-  // }
-
-  // async getSwapTokens() {
-  //   try {
-
-  //     return swapTokens.map((token) => {
-
-  //       let L1 = ''
-  //       let L2 = ''
-
-  //       if (token.symbol === 'ETH') {
-  //         L1 = this.L1_ETH_Address
-  //         L2 = this.L2_ETH_Address
-  //       } else {
-  //         L1 = this.tokenAddresses[token.symbol].L1
-  //         L2 = this.tokenAddresses[token.symbol].L2
-  //       }
-
-  //       return {
-  //         symbol: token.symbol,
-  //         icon: token.icon,
-  //         name: token.name,
-  //         L1,
-  //         L2,
-  //       }
-  //     })
-
-  //   } catch (error) {
-  //     return error
-  //   }
-  // }
-
-  // async getDropdownTokens() {
-  //   try {
-
-  //     return dropdownTokens.map((token) => {
-
-  //       let L1 = ''
-  //       let L2 = ''
-
-  //       if (token.symbol === 'ETH') {
-  //         L1 = this.L1_ETH_Address
-  //         L2 = this.L2_ETH_Address
-  //       } else {
-  //         L1 = this.tokenAddresses[token.symbol].L1
-  //         L2 = this.tokenAddresses[token.symbol].L2
-  //       }
-
-  //       return {
-  //         symbol: token.symbol,
-  //         icon: token.icon,
-  //         name: token.name,
-  //         L1,
-  //         L2,
-  //       }
-  //     })
-
-  //   } catch (error) {
-  //     return error
-  //   }
-  // }
 
   async fetchLookUpPrice(params) {
     try {
@@ -1952,6 +1987,8 @@ class NetworkService {
 
   // get DAO Balance
   async getDaoBalance() {
+    //console.log("comp:",this.comp)
+    //console.log("comp:",this.comp.address)
     try {
       let balance = await this.comp.balanceOf(this.account)
       return { balance: formatEther(balance) }
@@ -1973,7 +2010,7 @@ class NetworkService {
     }
   }
 
-  //Transfer DAO funds
+  //Transfer DAO Funds
   async transferDao({ recipient, amount }) {
     try {
       const tx = await this.comp.transfer(recipient, parseEther(amount.toString()))
@@ -1985,7 +2022,7 @@ class NetworkService {
     }
   }
 
-  //Delegate DAO
+  //Delegate DAO Authority
   async delegateVotes({ recipient }) {
     try {
       const tx = await this.comp.delegate(recipient)
@@ -1998,9 +2035,32 @@ class NetworkService {
   }
 
   //Create Proposal
-  async createProposal(payload) {
+  async createProposal({ votingThreshold = null, text = null }) {
     try {
-      let res = await this.delegate.propose(payload)
+      const delegateCheck = await this.delegate.attach(this.delegator.address)
+      let address = [delegateCheck.address];
+      let values = [0];
+      let signatures = !text ? ['_setProposalThreshold(uint256)'] : [''] // the function that will carry out the proposal
+      let voting = !text ? ethers.utils.parseEther(votingThreshold) : 0;
+      let calldatas = [ethers.utils.defaultAbiCoder.encode( // the parameter for the above function
+        ['uint256'],
+        [voting]
+      )]
+      let description = !text ? `# Changing Proposal Threshold to ${votingThreshold} Comp` : text;
+      
+      let setGas = {
+        gasPrice: 15000000,
+        gasLimit: 8000000
+      };
+
+      let res = await delegateCheck.propose(
+        address,
+        values,
+        signatures,
+        calldatas,
+        description,
+        setGas
+      )
       return res;
     } catch (error) {
       console.log(error);
@@ -2010,11 +2070,16 @@ class NetworkService {
 
   //Fetch Proposals
   async fetchProposals() {
+    
+    const delegateCheck = await this.delegate.attach(this.delegator.address)
+    
+    
     try {
       let proposalList = [];
-      const proposalCounts = await this.delegate.proposalCount()
-      const totalProposal = await proposalCounts.toNumber()
-      const filter = this.delegate.filters.ProposalCreated(
+      const proposalCounts = await delegateCheck.proposalCount()
+      const totalProposals = await proposalCounts.toNumber() - 1 //it's always off by one??
+      
+      const filter = delegateCheck.filters.ProposalCreated(
         null,
         null,
         null,
@@ -2024,23 +2089,71 @@ class NetworkService {
         null,
         null,
         null
-      );
-      const descriptionList = await this.delegate.queryFilter(filter);
-      for (let i = totalProposal; i > 1 && i > totalProposal - 3; i--) {
-        let proposal = await this.delegate.getActions(i);
-        let fullDescription = descriptionList[i - 2].args[8].toString();
-        let titleEnd = fullDescription.search(/\n/);
-        let title = fullDescription.substring(0, titleEnd);
-        let description = fullDescription.substring(titleEnd + 1);
+      )
+      
+      const descriptionList = await delegateCheck.queryFilter(filter);
+      for (let i = 0; i < totalProposals; i++) {
+        
+        let proposalID = descriptionList[i].args[0]
+        //this is a number such as 2
+        let proposalData = await delegateCheck.proposals(proposalID)
+        const proposalStates = [
+          'Pending',
+          'Active',
+          'Canceled',
+          'Defeated',
+          'Succeeded',
+          'Queued',
+          'Expired',
+          'Executed',
+        ]
+
+        let state = await delegateCheck.state(proposalID)
+        let againstVotes = parseInt(formatEther(proposalData.againstVotes))
+        let forVotes = parseInt(formatEther(proposalData.forVotes))
+        let abstainVotes = parseInt(formatEther(proposalData.abstainVotes))
+
+        let startBlock = proposalData.startBlock.toString()
+        let endBlock = proposalData.endBlock.toString()
+
+        let proposal = await delegateCheck.getActions(i+2)
+        
+        let description = descriptionList[i].args[8].toString()
+        
         proposalList.push({
-          proposal,
-          title,
-          description
+           id: proposalID.toString(),
+           proposal,
+           description,
+           totalVotes: forVotes + againstVotes,
+           forVotes,
+           againstVotes,
+           abstainVotes,
+           state: proposalStates[state],
+           startBlock,
+           endBlock
+
         })
+
       }
-      return { proposalList };
+      return { proposalList }
     } catch (error) {
       console.log(error)
+      throw new Error(error.message)
+    }
+  }
+
+  //Cast vote for proposal 
+  async castProposalVote({id, userVote}) {
+    try {
+      
+      const delegateCheck = await this.delegate.attach(this.delegator.address);
+      let res = delegateCheck.castVote(id, userVote, {
+        gasPrice: 15000000,
+        gasLimit: 8000000
+      });
+      return res;
+    } catch(error) {
+      console.log('Error: cast vote', error);
       throw new Error(error.message);
     }
   }

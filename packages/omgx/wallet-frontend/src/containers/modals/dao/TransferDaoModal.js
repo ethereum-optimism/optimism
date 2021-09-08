@@ -15,6 +15,7 @@ limitations under the License. */
 
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
+import {Typography} from '@material-ui/core';
 
 import { closeModal, openAlert, openError } from 'actions/uiAction';
 import { transferDao } from 'actions/daoAction';
@@ -53,8 +54,7 @@ function TransferDaoModal({ open }) {
 
     return (
         <Modal open={open}>
-            <h2>Transfer Boba</h2>
-
+            <Typography variant="h2">Transfer Boba</Typography>
             <Input
                 label='To Address'
                 placeholder='Hash or ENS name'
@@ -74,7 +74,7 @@ function TransferDaoModal({ open }) {
             <div className={styles.buttons}>
                 <Button
                     onClick={handleClose}
-                    type='secondary'
+                    color='neutral'
                     className={styles.button}
                 >
                     CANCEL
@@ -83,7 +83,8 @@ function TransferDaoModal({ open }) {
                 <Button
                     className={styles.button}
                     onClick={() => { submit() }}
-                    type='primary'
+                    color='primary'
+                    variant="outlined"
                     // loading={loading} // TODO: Implement loading base on the action trigger
                     disabled={disabledTransfer}
                 >

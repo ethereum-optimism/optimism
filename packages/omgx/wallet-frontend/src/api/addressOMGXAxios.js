@@ -6,7 +6,6 @@ export default function addressOMGXAxiosInstance(masterSystemConfig){
   
   if(masterSystemConfig === 'local') {
     return axios.create({baseURL: nw.local.addressOMGXUrl})
-    //return axios.create({baseURL: 'grabage'})
   } 
   else if (masterSystemConfig === 'rinkeby') {
     return axios.create({baseURL: nw.rinkeby.addressOMGXUrl})

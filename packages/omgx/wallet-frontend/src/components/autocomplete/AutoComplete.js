@@ -1,5 +1,5 @@
 import React from 'react';
-import Autocomplete from '@material-ui/lab/Autocomplete';
+import Autocomplete from '@material-ui/core/Autocomplete';
 import { isEqual } from 'lodash';
 
 class AutoComplete extends React.Component {
@@ -71,7 +71,7 @@ class AutoComplete extends React.Component {
 
   render() {
 
-    const { 
+    const {
       selectedItem,
       placeholder,
       selectionList,
@@ -87,7 +87,7 @@ class AutoComplete extends React.Component {
 
     let options = [];
     Object.values(selectionList).forEach(val => {
-      if (val.symbol !== excludeItem && 
+      if (val.symbol !== excludeItem &&
         !excludeList.includes(val.symbol) &&
         val.symbol !== 'Not found' &&
         val.symbol !== 'ETH'
@@ -113,12 +113,12 @@ class AutoComplete extends React.Component {
         onInputChange={(event, value, reason)=>{this.handleInputValue(value, reason)}}
         renderInput={(params) => (
           <div ref={params.InputProps.ref}>
-            <input 
+            <input
               placeholder={placeholder}
               type="text"
               {...params.inputProps}
-              value={onBlurDisappear ? 
-                selectedItem ? params.inputProps.value : '': 
+              value={onBlurDisappear ?
+                selectedItem ? params.inputProps.value : '':
                 params.inputProps.value
               }
             >

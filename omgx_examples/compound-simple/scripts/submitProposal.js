@@ -47,9 +47,7 @@ async function main(){
 
     const comp = new ethers.Contract(compAddress, Comp.abi, wallet1)
 
-    const governorBravo = await governorBravoDelegate.attach(
-        governorBravoDelegator.address
-    )
+    const governorBravo = await governorBravoDelegate.attach(governorBravoDelegator.address)
 
     console.log(
         'Comp needed to propose: ',
@@ -112,7 +110,7 @@ async function main(){
     console.log(`Proposed. Proposal ID: ${proposalID}`)
     
     let proposal = await governorBravo.proposals(proposalID)
-    console.log(`Proposal:`, proposal)
+    console.log(`Full Proposal:`, proposal)
 
     console.log(`Block Number: ${await getBlockNumber(env.L2_NODE_WEB3_URL, 28)}`)
     

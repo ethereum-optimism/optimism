@@ -13,40 +13,35 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-//localStorage.removeItem("nftContracts")
+//do not deal with account switching right now
+//with cache - ToDo
+//need to keep track of wgich account the cache is for, otherwise incorrect NFTs will be shown
+
+localStorage.removeItem("nftContracts")
+localStorage.removeItem("nftList")
 
 let nftContracts = localStorage.getItem("nftContracts")
+let nftList = localStorage.getItem("nftList")
 
 if (nftContracts) {
   nftContracts = JSON.parse(nftContracts)
   console.log("NFT Contracts Cache:",nftContracts)
 }
 
-let nftFactories = localStorage.getItem("nftFactories")
-
-if (nftFactories) {
-  nftFactories = JSON.parse(nftFactories)
-  console.log("NFT Factories Cache:",nftFactories)
-}
-
-let nftList = localStorage.getItem("nftList")
-
 if (nftList) {
   nftList = JSON.parse(nftList)
   console.log("NFT List Cache:",nftList)
 }
 
-
 const initialState = {
   list: nftList ? nftList : {},
-  factories: nftFactories ? nftFactories : {},
   contracts: nftContracts ? nftContracts : {}
 }
 
 function nftReducer (state = initialState, action) {
   switch (action.type) {
     
-    case 'NFT/GET/SUCCESS':
+    case 'NFT/ADDNFT/SUCCESS':
 
       localStorage.setItem("nftList", JSON.stringify({
           ...state.list,
@@ -64,11 +59,11 @@ function nftReducer (state = initialState, action) {
 
     case 'NFT/ADDCONTRACT/SUCCESS':
 
-      const address = action.payload
+      //console.log("added to state:", action.payload)
 
       localStorage.setItem("nftContracts", JSON.stringify({
           ...state.contracts,
-          [address]: address
+          [action.payload.address]: action.payload
         })
       )
 
@@ -76,22 +71,6 @@ function nftReducer (state = initialState, action) {
         ...state,
         contracts: {
           ...state.contracts,
-          [address]: address
-        }
-      }
-
-    case 'NFT/CREATEFACTORY/SUCCESS':
-
-      localStorage.setItem("nftFactories", JSON.stringify({
-          ...state.factories,
-          [action.payload.address]: action.payload
-        })
-      )
-
-      return { 
-        ...state,
-        factories: {
-          ...state.factories,
           [action.payload.address]: action.payload
         }
       }

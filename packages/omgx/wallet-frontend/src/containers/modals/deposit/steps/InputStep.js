@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 import { depositETHL2, depositErc20 } from 'actions/networkAction'
@@ -10,10 +10,13 @@ import Input from 'components/input/Input'
 import GasPicker from 'components/gaspicker/GasPicker'
 
 import { selectLoading } from 'selectors/loadingSelector'
+import { selectSignatureStatus_depositTRAD } from 'selectors/signatureSelector'
 import { amountToUsd, logAmount, powAmount } from 'util/amountConvert'
 
-import * as styles from '../DepositModal.module.scss'
+import * as S from './InputSteps.styles'
 import { selectLookupPrice } from 'selectors/lookupSelector'
+import { Typography, useMediaQuery } from '@material-ui/core'
+import { useTheme } from '@emotion/react'
 
 function InputStep({ handleClose, token }) {
 
@@ -23,7 +26,8 @@ function InputStep({ handleClose, token }) {
   const [gasPrice, setGasPrice] = useState()
   const [selectedSpeed, setSelectedSpeed] = useState('normal')
   const depositLoading = useSelector(selectLoading(['DEPOSIT/CREATE']))
-  const lookupPrice = useSelector(selectLookupPrice);
+  const signatureStatus = useSelector(selectSignatureStatus_depositTRAD)
+  const lookupPrice = useSelector(selectLookupPrice)
 
   async function doDeposit() {
 
@@ -70,22 +74,38 @@ function InputStep({ handleClose, token }) {
       setGasPrice={setGasPrice}
     />
   )
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  useEffect(() => {
+    if (signatureStatus && depositLoading) {
+      //we are all set - can close the window
+      //transaction has been sent and signed
+      handleClose()
+    }
+  }, [ signatureStatus, depositLoading, handleClose ])
 
   console.log("Loading:", depositLoading)
 
+  let buttonLabel_1 = 'CANCEL'
+  if( depositLoading ) buttonLabel_1 = 'CLOSE WINDOW'
+
   return (
     <>
-      <h2>
+      <Typography variant="h2" sx={{fontWeight: 700, mb: 3}}>
         {`Deposit ${token && token.symbol ? token.symbol : ''}`}
-      </h2>
+      </Typography>
 
       <Input
-        placeholder={'Amount to deposit'}
+        label="Enter amount to deposit"
+        placeholder="0.0000"
         value={value}
         type="number"
         onChange={(i)=>setAmount(i.target.value)}
         unit={token.symbol}
         maxValue={logAmount(token.balance, token.decimals)}
+        variant="standard"
+        newStyle
       />
 
       {Object.keys(lookupPrice) && !!value && !!amountToUsd(value, lookupPrice, token) && (
@@ -96,26 +116,28 @@ function InputStep({ handleClose, token }) {
 
       {renderGasPicker}
 
-      <div className={styles.buttons}>
-        <Button 
-          onClick={handleClose} 
-          type="outline" 
-          style={{ flex: 0 }}
+      <S.WrapperActions>
+        <Button
+          onClick={handleClose}
+          color="neutral"
+          size="large"
         >
-          CANCEL
+          {buttonLabel_1}
         </Button>
         <Button
           onClick={doDeposit}
-          type="primary"
-          style={{flex: 0, minWidth: 200}}
+          color='primary'
+          size="large"
+          variant="contained"
           loading={depositLoading}
-          tooltip="Your swap is still pending. Please wait for confirmation."
+          tooltip='Your swap is still pending. Please wait for confirmation.'
           disabled={disabledSubmit}
           triggerTime={new Date()}
+          fullWidth={isMobile}
         >
-          DEPOSIT
+          Deposit
         </Button>
-      </div>
+      </S.WrapperActions>
     </>
   )
 }

@@ -13,7 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-
 const initialState = {
   balance: 0,
   votes: 0,
@@ -23,21 +22,20 @@ const initialState = {
 function daoReducer(state = initialState, action) {
   switch (action.type) {
     case 'BALANCE/DAO/GET/SUCCESS':
-
-      const { balance } = action.payload;
-      return { ...state, balance };
+      const { balance } = action.payload
+      return { ...state, balance }
 
     case 'VOTES/DAO/GET/SUCCESS':
-      const { votes } = action.payload;
-      return { ...state, votes };
+      const { votes } = action.payload
+      return { ...state, votes }
 
-    case 'PROPOSAL/GET/SUCCESS':
-      const { proposalList } = action.payload;
-      return { ...state, proposalList };
+    case 'PROPOSALS/GET/SUCCESS':
+      const { proposalList } = action.payload
+      return { ...state, proposalList }
 
     default:
-      return state;
+      return state
   }
 }
 
-export default daoReducer;
+export default daoReducer

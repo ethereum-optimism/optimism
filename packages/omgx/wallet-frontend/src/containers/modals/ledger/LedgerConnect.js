@@ -106,7 +106,7 @@ function LedgerConnect ({ submit, open }) {
   }
 
   return (
-    <Modal open={open}>
+    <Modal open={open} onClose={handleClose} maxWidth="md">
       <div className={styles.header}>
         <div className={styles.logoContainer}>
           <img src={ledger} className={styles.logo} alt='ledger_logo' />

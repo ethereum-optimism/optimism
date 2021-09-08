@@ -23,7 +23,7 @@ import DoExitStep from './steps/DoExitStep'
 import DoExitStepFast from './steps/DoExitStepFast'
 
 function ExitModal({ open, token, fast }) {
-  
+
   const dispatch = useDispatch()
 
   function handleClose() {
@@ -31,7 +31,7 @@ function ExitModal({ open, token, fast }) {
   }
 
   return (
-    <Modal open={open}>
+    <Modal open={open} maxWidth="md" onClose={handleClose}>
       {!!fast ? (
         <DoExitStepFast handleClose={handleClose} token={token} />
       ) : (

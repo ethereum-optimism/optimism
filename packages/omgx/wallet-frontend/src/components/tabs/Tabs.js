@@ -14,28 +14,43 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 import React from 'react';
+import * as S from './Tabs.styles';
 
-import * as styles from './Tabs.module.scss';
-
+// TODO @deprecated;
+// @deprecated;
 function Tabs ({ tabs, activeTab, onClick, className }) {
+
   return (
-    <div className={[ styles.Tabs, className ].join(' ')}>
+    <S.Tabs className={className}>
       {tabs.map((i, index) => {
-        return (
-          <div
-            key={index}
-            onClick={() => onClick(i)}
-            className={[
-              styles.tab,
-              activeTab === i ? styles.active : ''
-            ].join(' ')}
-          >
-            {i}
-          </div>
-        );
+        return <S.TabItem
+          key={index}
+          onClick={() => onClick(i)}
+          className={activeTab === i ? 'active': ''}
+        >
+          {i}
+        </S.TabItem>
       })}
-    </div>
+    </S.Tabs>
   );
+  // return (
+  //   <div className={[ styles.Tabs, className ].join(' ')}>
+  //     {tabs.map((i, index) => {
+  //       return (
+  //         <div
+  //           key={index}
+  //           onClick={() => onClick(i)}
+  //           className={[
+  //             styles.tab,
+  //             activeTab === i ? styles.active : ''
+  //           ].join(' ')}
+  //         >
+  //           {i}
+  //         </div>
+  //       );
+  //     })}
+  //   </div>
+  // );
 }
 
 export default React.memo(Tabs);
