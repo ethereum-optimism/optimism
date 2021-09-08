@@ -68,7 +68,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 			Coinbase:        beneficiary,
 			BlockNumber:     msg.L1BlockNumber(),
 			Time:            new(big.Int).SetUint64(msg.L1Timestamp()),
-			Difficulty:      new(big.Int).Set(header.Difficulty),
+			Difficulty:      new(big.Int), // Difficulty always returns zero.
 			GasLimit:        header.GasLimit,
 			GasPrice:        new(big.Int).Set(msg.GasPrice()),
 			L1MessageSender: l1MessageSender,
