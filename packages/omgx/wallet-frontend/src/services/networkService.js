@@ -2040,6 +2040,8 @@ class NetworkService {
   async createProposal({ votingThreshold = null, text = null }) {
     try {
       const delegateCheck = await this.delegate.attach(this.delegator.address)
+
+      //console.log(":",delegateCheck)
       let address = [delegateCheck.address];
       let values = [0];
       let signatures = !text ? ['_setProposalThreshold(uint256)'] : [''] // the function that will carry out the proposal

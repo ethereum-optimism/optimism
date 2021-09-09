@@ -82,14 +82,14 @@ function NewProposalModal({ open }) {
                     >
                         <option>Select Proposal Type...</option>
                         <option value="change-threshold">Change Voting Threshold</option>
-                        <option value="text-proposal">Propose text</option>
+                        <option value="text-proposal">Freeform Text Proposal</option>
                     </select>
                     {action === 'change-threshold' && <Input
                         label="Enter voting threshold"
                         placeholder="0000"
                         value={votingThreshold}
                         type="number"
-                        onChange={(i) => setVotingThreshold(i.target.value)}
+                        onChange={(i)=>setVotingThreshold(i.target.value)}
                         variant="standard"
                         newStyle
                     />
@@ -97,7 +97,7 @@ function NewProposalModal({ open }) {
                     {action === 'text-proposal' && <Input
                         label="Enter proposal text"
                         value={proposeText}
-                        onChange={(i) => setProposeText(i.target.value)}
+                        onChange={(i)=>setProposeText(i.target.value)}
                         variant="standard"
                         newStyle
                     />
