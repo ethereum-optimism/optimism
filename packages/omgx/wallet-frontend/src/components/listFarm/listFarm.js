@@ -168,7 +168,7 @@ class ListFarm extends React.Component {
     const disabled = !L1orL2Pool.includes(networkService.L1orL2)
     const symbol = poolInfo.symbol
     const name = poolInfo.name
-    const logo = getCoinImage(symbol);
+    const logo = getCoinImage(symbol)
 
     return (
       <S.Wrapper dropDownBox={dropDownBox}>

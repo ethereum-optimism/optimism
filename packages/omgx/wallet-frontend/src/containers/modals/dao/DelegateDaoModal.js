@@ -21,19 +21,20 @@ import { closeModal, openAlert, openError } from 'actions/uiAction';
 
 import * as styles from './daoModal.module.scss';
 
-import Modal from 'components/modal/Modal';
-import Input from 'components/input/Input';
-import Button from 'components/button/Button';
-import { delegateVotes } from 'actions/daoAction';
+import Modal from 'components/modal/Modal'
+import Input from 'components/input/Input'
+import Button from 'components/button/Button'
+import { delegateVotes } from 'actions/daoAction'
 
 function DelegateDaoModal({ open }) {
+
     const [recipient, setRecipient] = useState('');
     const dispatch = useDispatch()
 
     const disabledTransfer = !recipient;
 
     function handleClose() {
-        setRecipient('');
+        setRecipient('')
         dispatch(closeModal('delegateDaoModal'))
     }
 
