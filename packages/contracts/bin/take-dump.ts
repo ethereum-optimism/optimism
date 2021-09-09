@@ -10,10 +10,16 @@ import { makeStateDump } from '../src/make-dump'
   const outfile = path.join(outdir, 'state-dump.latest.json')
   mkdirp.sync(outdir)
 
+  // Basic warning so users know that the whitelist will be disabled if the owner is the zero address.
+  if (process.env.WHITELIST_OWNER === '0x' + '00'.repeat(20)) {
+    console.log(
+      'WARNING: whitelist owner is address(0), whitelist will be disabled'
+    )
+  }
+
   const dump = await makeStateDump({
     whitelistConfig: {
       owner: process.env.WHITELIST_OWNER,
-      allowArbitraryContractDeployment: true,
     },
     gasPriceOracleConfig: {
       owner: process.env.GAS_PRICE_ORACLE_OWNER,
