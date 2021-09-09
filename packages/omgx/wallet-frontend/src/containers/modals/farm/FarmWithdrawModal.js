@@ -72,7 +72,7 @@ class FarmWithdrawModal extends React.Component {
     if (typeof userInfo[withdrawToken.L1orL2Pool][withdrawToken.currency] !== 'undefined') {
       transferingBalance = userInfo[withdrawToken.L1orL2Pool][withdrawToken.currency].amount
     }
-    return logAmount(transferingBalance, 18);
+    return logAmount(transferingBalance, withdrawToken.decimals);
   }
 
   handleClose() {
@@ -87,7 +87,8 @@ class FarmWithdrawModal extends React.Component {
     const withdrawLiquidityTX = await networkService.withdrawLiquidity(
       withdrawToken.currency,
       withdrawValue,
-      withdrawToken.L1orL2Pool
+      withdrawToken.L1orL2Pool,
+      withdrawToken.decimals,
     );
     if (withdrawLiquidityTX) {
       this.props.dispatch(openAlert("Your liquidity was withdrawn."));

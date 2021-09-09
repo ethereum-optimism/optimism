@@ -54,7 +54,7 @@ import TransferDaoModal from 'containers/modals/dao/TransferDaoModal';
 import DelegateDaoModal from 'containers/modals/dao/DelegateDaoModal';
 import NewProposalModal from 'containers/modals/dao/NewProposalModal';
 
-import { fetchDaoBalance, fetchDaoVotes, fetchDaoProposals } from 'actions/daoAction';
+import { fetchDaoBalance, fetchDaoVotes, fetchDaoProposals, getProposalThreshold } from 'actions/daoAction';
 
 //Wallet Functions
 import Account from 'containers/account/Account';
@@ -146,6 +146,7 @@ function Home () {
     dispatch(fetchDaoBalance())
     dispatch(fetchDaoVotes())
     dispatch(fetchDaoProposals())
+    dispatch(getProposalThreshold())
   }, POLL_INTERVAL);
 
   useEffect(() => {

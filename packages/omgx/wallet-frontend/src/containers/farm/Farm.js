@@ -21,7 +21,6 @@ import { connect } from 'react-redux';
 import { isEqual } from 'lodash';
 
 import { getFarmInfo, getFee } from 'actions/farmAction'
-import { openError } from 'actions/uiAction';
 
 import ListFarm from 'components/listFarm/listFarm'
 import Tabs from 'components/tabs/Tabs'

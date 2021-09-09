@@ -67,7 +67,7 @@ function InputStepFast({ handleClose, token }) {
       console.log("ETH Fast swap on")
 
       if (value > 0) {
-        res = await dispatch(depositL1LP(token.address, value))
+        res = await dispatch(depositL1LP(token.address, value, token.decimals))
         if (res) {
           dispatch(setActiveHistoryTab1('Deposits'))
           dispatch(
@@ -126,7 +126,7 @@ function InputStepFast({ handleClose, token }) {
 
   useEffect(() => {
     if (typeof(token) !== 'undefined') {
-      networkService.L2LPBalance(token.addressL2).then((res) => {
+      networkService.L2LPBalance(token.addressL2,token.decimals).then((res) => {
         setLPBalance(Number(res).toFixed(2))
       })
       networkService.getTotalFeeRate().then((feeRate) => {

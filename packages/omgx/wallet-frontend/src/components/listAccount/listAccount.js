@@ -10,7 +10,7 @@ import ExpandMoreIcon from '@material-ui/icons/ExpandMore'
 
 import { Box, Typography, Fade } from '@material-ui/core'
 import * as S from './ListAccount.styles'
-import EthereumIcon from 'components/icons/EthereumIcon'
+
 import LayerSwitcher from 'components/mainMenu/layerSwitcher/LayerSwitcher'
 import { getCoinImage } from 'util/coinImage'
 

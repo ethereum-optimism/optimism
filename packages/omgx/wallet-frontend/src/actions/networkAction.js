@@ -28,7 +28,6 @@ export function fetchEthStats() {
 }
 
 export function fetchBalances() {
-  console.log("fetchBalances")
   return createAction('BALANCE/GET', () => networkService.getBalances())
 }
 
@@ -118,9 +117,9 @@ export function depositETHL2(value, gasLimit) {
   )
 }
 
-export function depositL1LP(currency, value) {
+export function depositL1LP(currency, value, decimals) {
   return createAction('DEPOSIT/CREATE', () =>
-    networkService.depositL1LP(currency, value)
+    networkService.depositL1LP(currency, value, decimals)
   )
 }
 

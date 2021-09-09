@@ -26,7 +26,7 @@ import Modal from 'components/modal/Modal'
 import Button from 'components/button/Button'
 import Input from 'components/input/Input'
 
-function TransferDaoModal({ open }) {
+function TransferDaoModal({ open = false }) {
 
     const [recipient, setRecipient] = useState('')
     const [amount, setAmount] = useState('')

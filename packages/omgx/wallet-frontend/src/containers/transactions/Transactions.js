@@ -19,7 +19,6 @@ import "react-datepicker/dist/react-datepicker.css";
 import { Grid, Box } from '@material-ui/core';
 
 import moment from 'moment';
-import truncate from 'truncate-middle';
 
 import { selectLoading } from 'selectors/loadingSelector'
 

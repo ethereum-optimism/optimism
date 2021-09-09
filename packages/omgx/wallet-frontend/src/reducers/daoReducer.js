@@ -16,6 +16,7 @@ limitations under the License. */
 const initialState = {
   balance: 0,
   votes: 0,
+  proposalThreshold: 0,
   proposalList: []
 }
 
@@ -32,6 +33,10 @@ function daoReducer(state = initialState, action) {
     case 'PROPOSALS/GET/SUCCESS':
       const { proposalList } = action.payload
       return { ...state, proposalList }
+
+    case 'PROPOSAL/THRESHOLD/GET/SUCCESS':
+      const { threshold } = action.payload
+      return { ...state, proposalThreshold: threshold }
 
     default:
       return state

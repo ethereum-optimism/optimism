@@ -25,3 +25,7 @@ export function selectDaoVotes(state) {
 export function selectProposals(state) {
     return state.dao.proposalList;
 }
+
+export function selectProposalThreshold(state) {
+    return state.dao.proposalThreshold;
+}

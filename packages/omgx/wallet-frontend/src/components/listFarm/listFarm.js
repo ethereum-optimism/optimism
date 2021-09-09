@@ -30,12 +30,10 @@ class ListFarm extends React.Component {
       userInfo,
       L1orL2Pool,
       balance,
-      decimals,
     } = this.props;
 
     this.state = {
       balance,
-      decimals,
       L1orL2Pool,
       // data
       poolInfo,
@@ -50,7 +48,7 @@ class ListFarm extends React.Component {
 
   componentDidUpdate(prevState) {
 
-    const { poolInfo, userInfo, balance, decimals } = this.props;
+    const { poolInfo, userInfo, balance } = this.props;
 
     if (!isEqual(prevState.poolInfo, poolInfo)) {
       this.setState({ poolInfo });
@@ -64,15 +62,11 @@ class ListFarm extends React.Component {
       this.setState({ balance });
     }
 
-    if (!isEqual(prevState.decimals, decimals)) {
-      this.setState({ decimals });
-    }
-
   }
 
   handleStakeToken() {
 
-    const { poolInfo, L1orL2Pool, balance, decimals } = this.state
+    const { poolInfo, L1orL2Pool, balance } = this.state
 
     this.props.dispatch(updateStakeToken({
       symbol: poolInfo.symbol,
@@ -80,7 +74,7 @@ class ListFarm extends React.Component {
       LPAddress: L1orL2Pool === 'L1LP' ? networkService.L1LPAddress : networkService.L2LPAddress,
       L1orL2Pool,
       balance,
-      decimals
+      decimals: poolInfo.decimals
     }))
 
     this.props.dispatch(openModal('farmDepositModal'))
@@ -88,7 +82,7 @@ class ListFarm extends React.Component {
 
   handleWithdrawToken() {
 
-    const { poolInfo, L1orL2Pool, balance, decimals } = this.state;
+    const { poolInfo, L1orL2Pool, balance } = this.state;
 
     this.props.dispatch(updateWithdrawToken({
       symbol: poolInfo.symbol,
@@ -96,7 +90,7 @@ class ListFarm extends React.Component {
       LPAddress: L1orL2Pool === 'L1LP' ? networkService.L1LPAddress : networkService.L2LPAddress,
       L1orL2Pool,
       balance,
-      decimals
+      decimals: poolInfo.decimals
     }))
 
     this.props.dispatch(openModal('farmWithdrawModal'));

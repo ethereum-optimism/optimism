@@ -20,7 +20,7 @@ import { openModal } from 'actions/uiAction';
 
 import * as styles from './Dao.module.scss';
 
-import { Box, Typography, Fade } from '@material-ui/core'
+import { Box, Typography } from '@material-ui/core'
 import { useTheme } from '@emotion/react'
 
 import Button from 'components/button/Button';
@@ -139,7 +139,9 @@ function DAO() {
                     </div>
                 </div>
                 <div className={styles.proposal}>
-                    <ProposalList />
+                    <ProposalList
+                        balance={balance}
+                    />
                 </div>
             </div>
         </>

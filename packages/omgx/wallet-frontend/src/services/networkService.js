@@ -1575,28 +1575,32 @@ class NetworkService {
       let tokenBalance
       let tokenSymbol
       let tokenName
+      let decimals
 
       if (tokenAddress === this.L1_ETH_Address) {
         tokenBalance = await this.L1Provider.getBalance(this.L1LPAddress)
         tokenSymbol = 'ETH'
         tokenName = 'Ethereum'
+        decimals = 18
       } else {
         tokenBalance = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).balanceOf(this.L1LPAddress)
         tokenSymbol = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).symbol()
         tokenName = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).name()
+        decimals = await this.L1_TEST_Contract.attach(tokenAddress).connect(this.L1Provider).decimals()
       }
       const poolTokenInfo = await L1LPContract.poolInfo(tokenAddress)
       const userTokenInfo = await L1LPContract.userInfo(tokenAddress, this.account)
-      return { tokenAddress, tokenBalance, tokenSymbol, tokenName, poolTokenInfo, userTokenInfo }
+      return { tokenAddress, tokenBalance, tokenSymbol, tokenName, poolTokenInfo, userTokenInfo,decimals }
     }
 
     tokenAddressList.forEach((tokenAddress) => L1LPInfoPromise.push(getL1LPInfoPromise(tokenAddress)))
     const L1LPInfo = await Promise.all(L1LPInfoPromise);
-
+    
     L1LPInfo.forEach((token) => {
       poolInfo[token.tokenAddress] = {
         symbol: token.tokenSymbol,
         name: token.tokenName,
+        decimals: token.decimals,
         l1TokenAddress: token.poolTokenInfo.l1TokenAddress,
         l2TokenAddress: token.poolTokenInfo.l2TokenAddress,
         accUserReward: token.poolTokenInfo.accUserReward.toString(),
@@ -1635,9 +1639,15 @@ class NetworkService {
   async getL2LPInfo() {
 
     const tokenAddressList = Object.keys(this.addresses.TOKENS).reduce((acc, cur) => {
-      acc.push(this["L2_" + cur + "_Address"]);
+      acc.push({
+        L1: this["L1_" + cur + "_Address"],
+        L2: this["L2_" + cur + "_Address"]
+      });
       return acc;
-    }, [this.L2_ETH_Address]);
+    }, [{
+      L1: this.L1_ETH_Address, 
+      L2: this.L2_ETH_Address
+    }]);
 
     const L2LPContract = new ethers.Contract(
       this.L2LPAddress,
@@ -1650,32 +1660,36 @@ class NetworkService {
 
     const L2LPInfoPromise = [];
 
-    const getL2LPInfoPromise = async(tokenAddress) => {
+    const getL2LPInfoPromise = async(tokenAddress, tokenAddressL1 ) => {
       let tokenBalance
       let tokenSymbol
       let tokenName
+      let decimals
 
       if (tokenAddress === this.L2_ETH_Address) {
         tokenBalance = await this.L2Provider.getBalance(this.L2LPAddress)
         tokenSymbol = 'oETH'
         tokenName = 'Ethereum'
+        decimals = 18;
       } else {
         tokenBalance = await this.L2_TEST_Contract.attach(tokenAddress).connect(this.L2Provider).balanceOf(this.L2LPAddress)
         tokenSymbol = await this.L2_TEST_Contract.attach(tokenAddress).connect(this.L2Provider).symbol()
         tokenName = await this.L2_TEST_Contract.attach(tokenAddress).connect(this.L2Provider).name()
+        decimals = await this.L1_TEST_Contract.attach(tokenAddressL1).connect(this.L1Provider).decimals()
       }
       const poolTokenInfo = await L2LPContract.poolInfo(tokenAddress)
       const userTokenInfo = await L2LPContract.userInfo(tokenAddress, this.account)
-      return { tokenAddress, tokenBalance, tokenSymbol, tokenName, poolTokenInfo, userTokenInfo }
+      return { tokenAddress, tokenBalance, tokenSymbol, tokenName, poolTokenInfo, userTokenInfo, decimals}
     }
 
-    tokenAddressList.forEach((tokenAddress) => L2LPInfoPromise.push(getL2LPInfoPromise(tokenAddress)))
-    const L2LPInfo = await Promise.all(L2LPInfoPromise);
+    tokenAddressList.forEach(({L1, L2}) => L2LPInfoPromise.push(getL2LPInfoPromise(L2, L1)))
 
+    const L2LPInfo = await Promise.all(L2LPInfoPromise);
     L2LPInfo.forEach((token) => {
       poolInfo[token.tokenAddress] = {
         symbol: token.tokenSymbol,
         name: token.tokenName,
+        decimals: token.decimals,
         l1TokenAddress: token.poolTokenInfo.l1TokenAddress,
         l2TokenAddress: token.poolTokenInfo.l2TokenAddress,
         accUserReward: token.poolTokenInfo.accUserReward.toString(),
@@ -1715,9 +1729,8 @@ class NetworkService {
   /***********************************************/
   /*****            Add Liquidity            *****/
   /***********************************************/
-  async addLiquidity(currency, value, L1orL2Pool) {
+  async addLiquidity(currency, value, L1orL2Pool, decimals) {
 
-    const decimals = 18 //should not assume?
     let depositAmount = powAmount(value, decimals)
 
     try {
@@ -1777,8 +1790,8 @@ class NetworkService {
   /***********************************************/
   /*****          Withdraw Liquidity         *****/
   /***********************************************/
-  async withdrawLiquidity(currency, value, L1orL2Pool) {
-    const decimals = 18 //bit dangerous?
+  async withdrawLiquidity(currency, value, L1orL2Pool, decimals) {
+    
     let withdrawAmount = powAmount(value, decimals)
     try {
       // Deposit
@@ -1800,10 +1813,9 @@ class NetworkService {
   /***********************************************************/
   /***** SWAP ON to BOBA by depositing funds to the L1LP *****/
   /***********************************************************/
-  async depositL1LP(currency, value) {
+  async depositL1LP(currency, value, decimals) {
 
     updateSignatureStatus_depositLP(false)
-    const decimals = 18 //bit dangerous?
     let depositAmount = powAmount(value, decimals)
 
     const depositTX = await this.L1LPContract.clientDepositL1(
@@ -1830,9 +1842,8 @@ class NetworkService {
   /***************************************/
   /************ L1LP Pool size ***********/
   /***************************************/
-  async L1LPBalance(tokenAddress) {
+  async L1LPBalance(tokenAddress, decimals) {
     let balance
-    const decimals = 18
     let tokenAddressLC = tokenAddress.toLowerCase()
     if (
       tokenAddressLC === this.L2_ETH_Address ||
@@ -1856,9 +1867,8 @@ class NetworkService {
   /***************************************/
   /************ L2LP Pool size ***********/
   /***************************************/
-  async L2LPBalance(tokenAddress) {
+  async L2LPBalance(tokenAddress, decimals) {
     let balance
-    const decimals = 18
     let tokenAddressLC = tokenAddress.toLowerCase()
     if (
       tokenAddressLC === this.L2_ETH_Address ||
@@ -1873,8 +1883,6 @@ class NetworkService {
         this.L2LPAddress
       )
     }
-
-    console.log("L2LPBalance:",typeof(balance))
 
     if(typeof(balance) === 'undefined') {
       return logAmount('0', decimals)
@@ -2033,6 +2041,25 @@ class NetworkService {
     } catch (error) {
       console.log('Error: DAO Delegate', error)
       throw new Error(error.message)
+    }
+  }
+
+  // Proposal Create Threshold
+
+  async getProposalThreshold() {
+    try {
+      // get the threshold proposal only in case of L2
+      if(this.L1orL2 === 'L2') { 
+        const delegateCheck = await this.delegate.attach(this.delegator.address);
+        let rawThreshold = await delegateCheck.proposalThreshold();
+        return { threshold: formatEther(rawThreshold) };
+      }
+      else {
+        return { threshold: 0 };
+      }
+    } catch (error) {
+      console.log(error);
+      throw new Error(error.message);
     }
   }
 

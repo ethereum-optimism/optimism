@@ -83,17 +83,17 @@ class FarmDepositModal extends React.Component {
 
     if (stakeToken.L1orL2Pool === 'L2LP') {
       approveTX = await networkService.approveERC20_L2LP(
-        powAmount(stakeValue, 18),
+        powAmount(stakeValue, stakeToken.decimals),
         stakeToken.currency,
       )
     } else if (stakeToken.L1orL2Pool === 'L1LP') {
       approveTX = await networkService.approveERC20_L1LP(
-        powAmount(stakeValue, 18),
+        powAmount(stakeValue, stakeToken.decimals),
         stakeToken.currency,
       )
     }
 
-    console.log("stakeToken.LPAddress:",stakeToken.LPAddress)
+    
 
     if (approveTX) {
       this.props.dispatch(openAlert("Amount was approved"))
@@ -105,7 +105,7 @@ class FarmDepositModal extends React.Component {
           stakeToken.LPAddress
         )
       }
-      console.log("approvedAllowance:",approvedAllowance)
+
       this.setState({ approvedAllowance, loading: false })
     } else {
       this.props.dispatch(openError("Failed to approve amount"))
@@ -122,7 +122,8 @@ class FarmDepositModal extends React.Component {
     const addLiquidityTX = await networkService.addLiquidity(
       stakeToken.currency,
       stakeValue,
-      stakeToken.L1orL2Pool
+      stakeToken.L1orL2Pool,
+      stakeToken.decimals
     )
 
     if (addLiquidityTX) {
@@ -137,7 +138,7 @@ class FarmDepositModal extends React.Component {
   }
 
   render() {
-
+    
     const {
       open,
       stakeToken,
@@ -145,9 +146,6 @@ class FarmDepositModal extends React.Component {
       approvedAllowance,
       loading,
     } = this.state;
-
-    console.log("stakeValue:",stakeValue)
-    console.log("approvedAllowance:",approvedAllowance)
 
     return (
 

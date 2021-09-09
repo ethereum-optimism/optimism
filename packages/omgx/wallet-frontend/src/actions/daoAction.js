@@ -40,6 +40,10 @@ export function delegateVotes({ recipient }) {
     return createAction('DELEGATE/VOTES/CREATE', () => networkService.delegateVotes({ recipient }))
 }
 
+export function getProposalThreshold() {
+    return createAction('PROPOSAL/THRESHOLD/GET', () => networkService.getProposalThreshold())
+}
+
 export function fetchDaoProposals() {
     return createAction('PROPOSALS/GET', () => networkService.fetchProposals())
 }
