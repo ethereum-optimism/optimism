@@ -49,7 +49,6 @@ function LayerSwitcher({ walletEnabled, isButton = false }) {
   const dispatchSetLayer = useCallback((layer) => {
     dispatch(setLayer(layer))
     networkService.switchChain(layer)
-    //setShowAllLayers(false)
   }, [ dispatch ])
 
   if (!!isButton) {
