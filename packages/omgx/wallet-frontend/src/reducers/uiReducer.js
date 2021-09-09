@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 const initialState = {
+  theme: 'dark',
+  page: 'AccountNow',
   depositModal: false,
   transferModal: false,
   exitModal: false,
@@ -33,8 +35,12 @@ const initialState = {
 
 function uiReducer (state = initialState, action) {
   switch (action.type) {
+    case 'UI/THEME/UPDATE':
+      return { ...state, theme: action.payload }
+    case 'UI/PAGE/UPDATE':
+      return { ...state, page: action.payload }
     case 'UI/MODAL/OPEN':
-      return { ...state, 
+      return { ...state,
         [action.payload]: true,
         fast: action.fast,
         token: action.token
@@ -56,8 +62,8 @@ function uiReducer (state = initialState, action) {
       if(action.payload.modal === 'confirmationModal') {
         dataType = 'cMD';
       }
-      return { ...state, 
-        [dataType]: action.payload.data, 
+      return { ...state,
+        [dataType]: action.payload.data,
       }
     default:
       return state;

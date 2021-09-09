@@ -8,13 +8,18 @@ import WalletIcon from 'components/icons/WalletIcon'
 import HistoryIcon from 'components/icons/HistoryIcon'
 import NFTIcon from 'components/icons/NFTIcon'
 import DAOIcon from 'components/icons/DAOIcon'
+import { useDispatch, useSelector } from 'react-redux';
+import { selectModalState } from 'selectors/uiSelector';
+import { setPage } from 'actions/uiAction';
 
-function MenuItems ({handleSetPage, pageDisplay, setOpen }) {
+function MenuItems ({setOpen }) {
 
   const [ activeItem, setActiveItem ] = useState(false)
   const theme = useTheme()
   const isLight = theme.palette.mode === 'light'
   const colorIcon = theme.palette.common[isLight ? 'black' : 'white']
+  const pageDisplay = useSelector(selectModalState('page'))
+  const dispatch = useDispatch();
 
   const iconObj = {
     WalletIcon,
@@ -35,7 +40,7 @@ function MenuItems ({handleSetPage, pageDisplay, setOpen }) {
             <li key={title}>
               <S.MenuItem
                 onClick={() => {
-                  handleSetPage(item.key)
+                  dispatch(setPage(item.key))
                   setOpen(false)
                 }}
                 onMouseEnter={() => setActiveItem(title)}
@@ -43,9 +48,9 @@ function MenuItems ({handleSetPage, pageDisplay, setOpen }) {
                 // to={item.url}
                 selected={isActive}
               >
-                <Icon 
+                <Icon
                   color={isActive || activeItem === title ? theme.palette.secondary.main : colorIcon}
-                  width={'20px'} 
+                  width={'20px'}
                 />
                   {item.title}
               </S.MenuItem>

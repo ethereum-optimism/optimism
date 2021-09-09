@@ -17,19 +17,18 @@ import { Box, useMediaQuery } from '@material-ui/core';
 import CssBaseline from '@material-ui/core/CssBaseline';
 import { createTheme, responsiveFontSizes, ThemeProvider } from '@material-ui/core/styles';
 import { setWalletMethod } from 'actions/setupAction';
-import { closeAlert, closeError } from 'actions/uiAction';
-import Alert from 'components/alert/Alert';
+import { setTheme } from 'actions/uiAction';
 import WalletPicker from 'components/walletpicker/WalletPicker';
 import Home from 'containers/home/Home';
 import Notification from 'containers/notification/Notification';
 import React, { Suspense, useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   BrowserRouter as Router,
   Route,
   Switch
 } from "react-router-dom";
-
+import { selectModalState } from 'selectors/uiSelector';
 import { isChangingChain } from 'util/changeChain';
 //import oracleService from 'services/oracleService';
 import * as styles from './layout.module.scss';
@@ -37,15 +36,15 @@ import * as S from './layout.style';
 
 
 function App () {
-  const dispatch = useDispatch()
-  const themeFromLocalStorage = localStorage.getItem('theme')
+  const dispatch = useDispatch();
+  const theme = useSelector(selectModalState('theme'));
+  const light = theme === 'light';
 
-  const [ enabled, setEnabled ] = useState(false)
-  const [light, setLight] = useState(themeFromLocalStorage === 'light')
+  const [ enabled, setEnabled ] = useState(false);
 
-  let theme = createTheme({
+  let MUItheme = createTheme({
     palette: {
-      mode: light ? 'light' : 'dark',
+      mode: theme === 'light' ? 'light' : 'dark',
       primary: {
         main: '#506DFA',
         gradient: 'linear-gradient(131.81deg, #4A6FEF 2.66%, #4251F0 124.21%)',
@@ -205,9 +204,9 @@ function App () {
       }
     }
   });
-  theme = responsiveFontSizes(theme);
+  MUItheme = responsiveFontSizes(MUItheme);
 
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(MUItheme.breakpoints.down('md'));
 
   useEffect(() => {
     //dispatch(oracleService.initialize());
@@ -217,10 +216,15 @@ function App () {
     if (enabled) {
       localStorage.setItem('changeChain', false)
     }
-  }, [dispatch, enabled])
+  }, [dispatch, enabled]);
+
+  useEffect(() => {
+    const themeFromLocalStorage = localStorage.getItem('theme');
+    dispatch(setTheme(themeFromLocalStorage))
+  }, [dispatch])
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={MUItheme}>
       <CssBaseline />
       <Router>
         <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
@@ -237,7 +241,7 @@ function App () {
                       // <Route {...routeProps} enabled={enabled} onEnable={setEnabled} key={routeProps.path} />
                     })
                   } */}
-                  <Route exact path="/" component={enabled ? () => <Home light={light} setLight={setLight} /> : ()=> <WalletPicker enabled={enabled} onEnable={setEnabled} />} />
+                  <Route exact path="/" component={enabled ? () => <Home /> : ()=> <WalletPicker enabled={enabled} onEnable={setEnabled} />} />
                 </Switch>
               </Suspense>
 

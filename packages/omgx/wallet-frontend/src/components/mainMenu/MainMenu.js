@@ -13,6 +13,8 @@ import { ReactComponent as CloseIcon } from './../../images/icons/close-modal.sv
 import NavIcon from '../icons/NavIcon'
 import ThemeSwitcher from './themeSwitcher/ThemeSwitcher'
 import { Box } from '@material-ui/system'
+import { useDispatch } from 'react-redux'
+import { setPage } from 'actions/uiAction'
 
 const useStyles = makeStyles({
   root: {
@@ -21,11 +23,12 @@ const useStyles = makeStyles({
   },
 });
 
-function MainMenu ({ light, setLight, pageDisplay, handleSetPage }) {
+function MainMenu ({ pageDisplay, handleSetPage }) {
   const [ open, setOpen ] = useState(false);
   const classes = useStyles()
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const dispatch = useDispatch();
 
   return (
     <>
@@ -54,7 +57,7 @@ function MainMenu ({ light, setLight, pageDisplay, handleSetPage }) {
                   <LayerSwitcher />
                 </S.DrawerHeader>
 
-                <MenuItems pageDisplay={pageDisplay} handleSetPage={handleSetPage} setOpen={setOpen} />
+                <MenuItems setOpen={setOpen} />
               </S.StyleDrawer>
             </Drawer>
 
@@ -64,13 +67,13 @@ function MainMenu ({ light, setLight, pageDisplay, handleSetPage }) {
         </Container>
       ) : (
         <S.Menu>
-          <Link to="/" onClick={() => handleSetPage("AccountNow")}>
+          <Link to="/" onClick={() => dispatch(setPage('AccountNow'))}>
             <Logo />
           </Link>
           <NetworkSwitcher />
           <LayerSwitcher />
-          <MenuItems pageDisplay={pageDisplay} handleSetPage={handleSetPage} setOpen={setOpen}/>
-          <ThemeSwitcher light={light} setLight={setLight} />
+          <MenuItems setOpen={setOpen}/>
+          <ThemeSwitcher />
         </S.Menu>
       )}
     </>
