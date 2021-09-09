@@ -23,13 +23,13 @@ import WalletPicker from 'components/walletpicker/WalletPicker';
 import Home from 'containers/home/Home';
 import Notification from 'containers/notification/Notification';
 import React, { Suspense, useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import {
   BrowserRouter as Router,
   Route,
   Switch
 } from "react-router-dom";
-import { selectAlert, selectError } from 'selectors/uiSelector';
+
 import { isChangingChain } from 'util/changeChain';
 //import oracleService from 'services/oracleService';
 import * as styles from './layout.module.scss';
@@ -37,17 +37,11 @@ import * as S from './layout.style';
 
 
 function App () {
-  const dispatch = useDispatch();
-  const themeFromLocalStorage = localStorage.getItem('theme');
+  const dispatch = useDispatch()
+  const themeFromLocalStorage = localStorage.getItem('theme')
 
-  const errorMessage = useSelector(selectError);
-  const alertMessage = useSelector(selectAlert);
-
-  const [ enabled, setEnabled ] = useState(false);
-  const [light, setLight] = useState(themeFromLocalStorage === 'light');
-
-  const handleErrorClose=()=>dispatch(closeError());
-  const handleAlertClose=()=>dispatch(closeAlert());
+  const [ enabled, setEnabled ] = useState(false)
+  const [light, setLight] = useState(themeFromLocalStorage === 'light')
 
   let theme = createTheme({
     palette: {
@@ -232,26 +226,6 @@ function App () {
         <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
           <S.Content>
             <div className={styles.App}>
-
-              <Alert
-                type='error'
-                duration={0}
-                open={!!errorMessage}
-                onClose={handleErrorClose}
-                position={50}
-              >
-                {errorMessage}
-              </Alert>
-
-              <Alert
-                type='success'
-                duration={0}
-                open={!!alertMessage}
-                onClose={handleAlertClose}
-                position={0}
-              >
-                {alertMessage}
-              </Alert>
 
               <Notification/>
               <Suspense fallback={<>Loading...</>}>

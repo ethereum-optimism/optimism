@@ -1,7 +1,5 @@
-// TODO
-// 2. Testing
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import * as S from './ThemeSwitcher.styles.js'
 import DarkIcon from 'components/icons/DarkIcon.js';
 import LightIcon from 'components/icons/LightIcon.js';

@@ -41,9 +41,6 @@ export const TableBody = styled(Box)`
 
 export const AccountAlertBox = styled(Box)`
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   align-items: center;
-  p {
-    flex: 1
-  }
 `

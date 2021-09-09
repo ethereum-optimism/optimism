@@ -102,7 +102,7 @@ function Transactions({ searchHistory, transactions }) {
                 <Transaction
                   key={index}
                   title={`${chain} Hash: ${i.hash}`}
-                  time={moment.unix(i.timeStamp).format('lll')}
+                  time={time}
                   blockNumber={`Block ${i.blockNumber}`}
                   chain={`${chain} Chain`}
                   typeTX={`TX Type: ${metaData}`}

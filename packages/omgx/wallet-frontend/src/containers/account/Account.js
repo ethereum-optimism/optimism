@@ -26,7 +26,6 @@ import { selectTransactions } from 'selectors/transactionSelector'
 
 import ListAccount from 'components/listAccount/listAccount'
 
-import { logAmount } from 'util/amountConvert'
 import networkService from 'services/networkService'
 
 import * as S from './Account.styles'

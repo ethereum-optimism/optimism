@@ -34,6 +34,9 @@ import {
 
 import { checkVersion } from 'actions/serviceAction';
 
+import { closeAlert, closeError } from 'actions/uiAction';
+ import { selectAlert, selectError } from 'selectors/uiSelector';
+
 import DepositModal from 'containers/modals/deposit/DepositModal';
 import TransferModal from 'containers/modals/transfer/TransferModal';
 import ExitModal from 'containers/modals/exit/ExitModal';
@@ -65,6 +68,8 @@ import { Box, Container, useMediaQuery } from '@material-ui/core'
 import MainMenu from 'components/mainMenu/MainMenu'
 import FarmWrapper from 'containers/farm/FarmWrapper'
 
+import Alert from 'components/alert/Alert';
+
 const POLL_INTERVAL = 5000 //milliseconds
 
 function Home ({ light, setLight }) {
@@ -72,6 +77,9 @@ function Home ({ light, setLight }) {
   const dispatch = useDispatch();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const errorMessage = useSelector(selectError)
+  const alertMessage = useSelector(selectAlert)
 
   const [ mobileMenuOpen, setMobileMenuOpen ] = useState(false)
 
@@ -97,6 +105,9 @@ function Home ({ light, setLight }) {
 
   const walletMethod = useSelector(selectWalletMethod())
   //const transactions = useSelector(selectlayer2Transactions, isEqual);
+
+  const handleErrorClose=()=>dispatch(closeError())
+  const handleAlertClose=()=>dispatch(closeAlert())
 
   useEffect(() => {
     const body = document.getElementsByTagName('body')[0];
@@ -158,6 +169,26 @@ function Home ({ light, setLight }) {
       <TransferDaoModal open={tranferBobaDaoModalState} />
       <DelegateDaoModal open={delegateBobaDaoModalState} />
       <NewProposalModal open={proposalBobaDaoModalState} />
+
+      <Alert
+         type='error'
+         duration={0}
+         open={!!errorMessage}
+         onClose={handleErrorClose}
+         position={50}
+       >
+         {errorMessage}
+       </Alert>
+
+       <Alert
+         type='success'
+         duration={0}
+         open={!!alertMessage}
+         onClose={handleAlertClose}
+         position={0}
+       >
+         {alertMessage}
+       </Alert>
 
       <LedgerConnect
         open={walletMethod === 'browser'

@@ -12,6 +12,7 @@ import { Box, Typography, Fade } from '@material-ui/core'
 import * as S from './ListAccount.styles'
 import EthereumIcon from 'components/icons/EthereumIcon'
 import LayerSwitcher from 'components/mainMenu/layerSwitcher/LayerSwitcher'
+import { getCoinImage } from 'util/coinImage'
 
 class ListAccount extends React.Component {
 
@@ -64,6 +65,7 @@ class ListAccount extends React.Component {
     } = this.state;
 
     const enabled = (networkLayer === chain) ? true : false
+    const logo = getCoinImage(token.symbol)
 
     return (
       <>
@@ -71,7 +73,7 @@ class ListAccount extends React.Component {
             <S.TableBody disabled={true}>
 
               <S.TableCell sx={{gap: "10px", justifyContent: "flex-start"}}>
-                <EthereumIcon width={42} height={42}/>
+                <img src={logo} alt="logo" width={42} height={42} />
 
                 <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div">
                   {token.symbol}
@@ -83,19 +85,6 @@ class ListAccount extends React.Component {
                   {`${logAmount(token.balance, 18, 2)}`}
                 </S.TextTableCell>
               </S.TableCell>
-            {/*
-              <S.TableCell>
-                <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div" sx={{fontWeight:"700"}}>
-                  $ 26.43
-                </S.TextTableCell>
-              </S.TableCell>
-
-              <S.TableCell>
-                <S.TextTableCell enabled={`${enabled}`} variant="body2" component="div" sx={{fontWeight:"700"}}>
-                  $ 1,556,43
-                </S.TextTableCell>
-              </S.TableCell>
-            */}
 
               <S.TableCell
                 onClick={() => {
@@ -131,20 +120,50 @@ class ListAccount extends React.Component {
           <Fade in={dropDownBox}>
             <S.DropdownWrapper>
               {!enabled && chain === 'L1' &&
-                  <S.AccountAlertBox>
-                    <Typography variant="body2" component="p" sx={{flex: 2}}>
-                      MetaMask is set to L2. To transact on L1, - SWITCH LAYER to L1
-                    </Typography>
-                    <LayerSwitcher isButton={true} />
-                  </S.AccountAlertBox>
+                <S.AccountAlertBox>
+                  <Box
+                       sx={{
+                         wordBreak: 'break-all',
+                         flex: 1,
+                         width: '75%'
+                       }}
+                     >
+                       <Typography variant="body2" component="p" >
+                         MetaMask is set to L2. To transact on L1, - SWITCH LAYER to L1
+                       </Typography>
+                     </Box>
+                     <Box
+                       sx={{
+                         textAlign: 'center',
+                         width: '25%'
+                       }}
+                     >
+                       <LayerSwitcher isButton={true} />
+                     </Box>
+                </S.AccountAlertBox>
               }
 
               {!enabled && chain === 'L2' &&
                 <S.AccountAlertBox>
-                  <Typography variant="body2" component="p" sx={{flex: 2}}>
-                    MetaMask is set to L1. To transact on L2, - SWITCH LAYER to L2
-                  </Typography>
-                  <LayerSwitcher isButton={true} />
+                  <Box
+                       sx={{
+                         wordBreak: 'break-all',
+                         flex: 1,
+                         width: '75%'
+                       }}
+                     >
+                       <Typography variant="body2" component="p" >
+                         MetaMask is set to L1. To transact on L2, - SWITCH LAYER to L2
+                       </Typography>
+                     </Box>
+                     <Box
+                       sx={{
+                         textAlign: 'center',
+                         width: '25%'
+                       }}
+                     >
+                       <LayerSwitcher isButton={true} />
+                     </Box>
                 </S.AccountAlertBox>
               }
 

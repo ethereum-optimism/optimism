@@ -53,7 +53,7 @@ function TransferDaoModal({ open }) {
     const disabledTransfer = amount <= 0 || !recipient;
 
     return (
-        <Modal open={open}>
+        <Modal open={open} onClose={handleClose}>
             <Typography variant="h2">Transfer Boba</Typography>
             <Input
                 label='To Address'

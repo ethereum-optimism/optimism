@@ -15,7 +15,7 @@ limitations under the License. */
 
 import React, { useState } from 'react'
 
-import { Button as ButtonMUI, Grid, Typography } from '@material-ui/core'
+import { Grid, Typography } from '@material-ui/core'
 import * as styles from './Transaction.module.scss'
 import * as S from './Transaction.styles'
 import { useTheme } from '@emotion/react'

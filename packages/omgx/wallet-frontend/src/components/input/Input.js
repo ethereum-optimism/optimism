@@ -19,7 +19,7 @@ import * as S from './Input.styles'
 import Button from 'components/button/Button'
 import { Box, Typography } from '@material-ui/core'
 import { useTheme } from '@emotion/react'
-import EthereumIcon from 'components/icons/EthereumIcon'
+import { getCoinImage } from 'util/coinImage'
 
 function Input({
   placeholder,
@@ -67,7 +67,7 @@ function Input({
         <S.UnitContent>
           <div>
             <Typography variant="body2" component="div">{unit}</Typography>
-            <EthereumIcon width={50} />
+            <img src={getCoinImage(unit)} alt="logo" width={50} height={50} />
           </div>
         </S.UnitContent>
       )}

@@ -13,33 +13,31 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-import React, { useState } from 'react';
-import { batch, useDispatch } from 'react-redux';
-import { isEqual, orderBy } from 'lodash';
-import { useSelector } from 'react-redux';
-import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
+import React, { useState } from 'react'
+import { batch, useDispatch } from 'react-redux'
+import { isEqual, orderBy } from 'lodash'
+import { useSelector } from 'react-redux'
+import DatePicker from 'react-datepicker'
+import "react-datepicker/dist/react-datepicker.css"
 
 import moment from 'moment';
 
 import { setActiveHistoryTab1 } from 'actions/uiAction'
-import { fetchTransactions } from 'actions/networkAction';
+import { fetchTransactions } from 'actions/networkAction'
 
 import { selectActiveHistoryTab1 } from 'selectors/uiSelector'
-import { selectTransactions } from 'selectors/transactionSelector';
-import { selectNetwork } from 'selectors/setupSelector'
+import { selectTransactions } from 'selectors/transactionSelector'
 
 import Tabs from 'components/tabs/Tabs'
 
-import Exits from './Exits';
-import Deposits from './Deposits';
+import Exits from './Exits'
+import Deposits from './Deposits'
 
-import * as styles from './Transactions.module.scss';
+import * as styles from './Transactions.module.scss'
 
-import { getAllNetworks } from 'util/masterConfig';
-import useInterval from 'util/useInterval';
-import PageHeader from 'components/pageHeader/PageHeader';
-import Transactions from './Transactions';
+import useInterval from 'util/useInterval'
+import PageHeader from 'components/pageHeader/PageHeader'
+import Transactions from './Transactions'
 
 const POLL_INTERVAL = 5000; //milliseconds
 
