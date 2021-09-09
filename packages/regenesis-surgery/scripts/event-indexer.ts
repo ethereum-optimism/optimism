@@ -27,7 +27,7 @@ interface FindAllEventsOptions {
   blockInterval?: number
 }
 
-interface AllEventsOutput {
+export interface AllEventsOutput {
   ethTransfers: ethers.Event[]
   uniV3FeeAmountEnabled: ethers.Event[]
   uniV3PoolCreated: ethers.Event[]
