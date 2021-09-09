@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"fmt"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/dump"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
+	"github.com/ethereum/go-ethereum/rollup/util"
+	"golang.org/x/crypto/sha3"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
@@ -393,6 +398,20 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
+	if rcfg.UsingOVM {
+		// Make sure the creator address should be able to deploy.
+		if !evm.AddressWhitelisted(caller.Address()) {
+			// Try to encode this error as a Solidity error message so it's more clear to end-users
+			// what's going on when a contract creation fails.
+			solerr := fmt.Errorf("deployer address not whitelisted: %s", caller.Address().Hex())
+			ret, err := util.EncodeSolidityError(solerr)
+			if err != nil {
+				// If we're unable to properly encode the error then just return the original message.
+				return nil, common.Address{}, gas, solerr
+			}
+			return ret, common.Address{}, gas, errExecutionReverted
+		}
+	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
 	evm.StateDB.SetNonce(caller.Address(), nonce+1)
 
@@ -478,3 +497,23 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+func (evm *EVM) AddressWhitelisted(addr common.Address) bool {
+	// First check if the owner is address(0), which implicitly disables the whitelist.
+	ownerKey := common.Hash{}
+	owner := evm.StateDB.GetState(dump.OvmWhitelistAddress, ownerKey)
+	if (owner == common.Hash{}) {
+		return true
+	}
+
+	// Next check if the user is whitelisted by resolving the position where the
+	// true/false value would be.
+	position := common.Big1
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(common.LeftPadBytes(addr.Bytes(), 32))
+	hasher.Write(common.LeftPadBytes(position.Bytes(), 32))
+	digest := hasher.Sum(nil)
+	key := common.BytesToHash(digest)
+	isWhitelisted := evm.StateDB.GetState(dump.OvmWhitelistAddress, key)
+	return isWhitelisted != common.Hash{}
+}

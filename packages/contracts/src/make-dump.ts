@@ -12,7 +12,6 @@ import { getContractArtifact } from './contract-artifacts'
 export interface RollupDeployConfig {
   whitelistConfig: {
     owner: string | Signer
-    allowArbitraryContractDeployment: boolean
   }
   gasPriceOracleConfig: {
     owner: string | Signer
@@ -32,9 +31,6 @@ export interface RollupDeployConfig {
 export const makeStateDump = async (cfg: RollupDeployConfig): Promise<any> => {
   const variables = {
     OVM_DeployerWhitelist: {
-      initialized: true,
-      allowArbitraryDeployment:
-        cfg.whitelistConfig.allowArbitraryContractDeployment,
       owner: cfg.whitelistConfig.owner,
     },
     OVM_GasPriceOracle: {
