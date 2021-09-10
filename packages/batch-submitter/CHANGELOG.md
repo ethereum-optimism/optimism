@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.13
+
+### Patch Changes
+
+- 7482d09c: Fixes a bug in the batch submitted that would cause it to submit transactions with increasing nonces
+
 ## 0.3.12
 
 ### Patch Changes
