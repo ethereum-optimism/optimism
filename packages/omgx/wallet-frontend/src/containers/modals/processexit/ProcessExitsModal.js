@@ -51,7 +51,7 @@ function ProcessExitsModal ({ exitData, open, toggle }) {
   }
 
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal open={open} onClose={handleClose} maxWidth="md">
       <h2>Process Exit</h2>
 
       <div className={styles.note}>

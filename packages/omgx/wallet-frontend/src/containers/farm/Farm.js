@@ -50,11 +50,11 @@ class Farm extends React.Component {
       layer1,
       layer2
     } = this.props.balance
-    
-    
+
+
     let initialViewLayer = 'L1 Liquidity Pool'
     let initialLayer = 'L1LP'
-    
+
     if(networkService.L1orL2 === 'L2') {
       initialViewLayer = 'L2 Liquidity Pool'
       initialLayer = 'L2LP'
@@ -174,7 +174,6 @@ class Farm extends React.Component {
     const { isMobile } = this.props
 
     const networkLayer = networkService.L1orL2
-
     return (
       <>
         <PageHeader title="Earn" />
@@ -191,32 +190,30 @@ class Farm extends React.Component {
 
           {networkLayer === 'L2' && lpChoice === 'L1LP' &&
             <S.LayerAlert>
-              <Box className="info" sx={{flex: 1}}>
-                <AlertIcon />
-                <Typography
-                  sx={{marginLeft: '10px'}}
+              <S.AlertInfo>
+                <AlertIcon sx={{flex: 1}} />
+                <S.AlertText
                   variant="body1"
                   component="p"
                 >
                   Note: MetaMask is set to L2. To interact with the L1 liquidity pool, please switch MetaMask to L1.
-                </Typography>
-              </Box>
-              <LayerSwitcher isButton={true} size="large"/>
+                </S.AlertText>
+              </S.AlertInfo>
+              <LayerSwitcher isButton={true} size={isMobile ? "small" : "medium"}/>
             </S.LayerAlert>
           }
 
           {networkLayer === 'L1' && lpChoice === 'L2LP' &&
             <S.LayerAlert>
-              <Box className="info">
+              <S.AlertInfo>
                 <AlertIcon />
-                <Typography
-                  sx={{marginLeft: '10px'}}
+                <S.AlertText
                   variant="body2"
                   component="p"
                 >
                   Note: MetaMask is set to L1. To interact with the L2 liquidity pool, please switch MetaMask to L2.
-                </Typography>
-              </Box>
+                </S.AlertText>
+              </S.AlertInfo>
               <LayerSwitcher isButton={true} />
             </S.LayerAlert>
           }

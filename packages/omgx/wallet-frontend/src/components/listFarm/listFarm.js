@@ -16,7 +16,7 @@ import networkService from 'services/networkService';
 
 import { getCoinImage } from 'util/coinImage';
 
-import { Box, Typography, Fade, Grid } from '@material-ui/core';
+import { Box, Typography, Fade, Grid, CircularProgress } from '@material-ui/core';
 import * as S from "./ListFarm.styles"
 
 class ListFarm extends React.Component {
@@ -144,6 +144,7 @@ class ListFarm extends React.Component {
       loading, L1orL2Pool
     } = this.state;
 
+    const pageLoading = Object.keys(poolInfo).length === 0;
     const { isMobile } = this.props
 
     let userReward = 0;
@@ -169,78 +170,84 @@ class ListFarm extends React.Component {
 
     return (
       <S.Wrapper dropDownBox={dropDownBox}>
-        <Grid container spacing={2} direction="row" justifyContent="center" alignItems="center" >
+        {pageLoading ? (
+          <Box sx={{textAlign: 'center'}}>
+            <CircularProgress color="secondary" />
+          </Box>
+        ) : (
+          <Grid container spacing={2} direction="row" justifyContent="center" alignItems="center" >
 
-          <S.GridItemTag item xs={4} md={1.7}>
-              <img src={logo} alt="logo" width={30} />
-              <Typography variant="overline">{name}</Typography>
-          </S.GridItemTag>
+            <S.GridItemTag item xs={4} md={1.7}>
+                <img src={logo} alt="logo" width={30} />
+                <Typography variant="overline">{name}</Typography>
+            </S.GridItemTag>
 
-          <S.GridItemTag item xs={4} md={1.7}>
-            {isMobile ? (
-              <Typography variant="overline" sx={{opacity: 0.7}}>Earned</Typography>
-            ) : (null)}
-            <Typography variant="body1">
-              {userReward ?
-                `${logAmount(userReward, decimals, 2)}` : `0`
-              }
-            </Typography>
-          </S.GridItemTag>
+            <S.GridItemTag item xs={4} md={1.7}>
+              {isMobile ? (
+                <Typography variant="overline" sx={{opacity: 0.7}}>Earned</Typography>
+              ) : (null)}
+              <Typography variant="body1">
+                {userReward ?
+                  `${logAmount(userReward, decimals, 2)}` : `0`
+                }
+              </Typography>
+            </S.GridItemTag>
 
-          <S.GridItemTag item xs={4} md={1.7}>
-            {isMobile ? (
-              <Typography variant="overline" sx={{opacity: 0.7}}>Your Stake</Typography>
-            ) : (null)}
-            <Typography variant="body1">
-              {userInfo.amount ?
-                `${logAmount(userInfo.amount, decimals, 2)}` : `0`
-              }
-            </Typography>
-          </S.GridItemTag>
+            <S.GridItemTag item xs={4} md={1.7}>
+              {isMobile ? (
+                <Typography variant="overline" sx={{opacity: 0.7}}>Your Stake</Typography>
+              ) : (null)}
+              <Typography variant="body1">
+                {userInfo.amount ?
+                  `${logAmount(userInfo.amount, decimals, 2)}` : `0`
+                }
+              </Typography>
+            </S.GridItemTag>
 
-          <S.GridItemTag item xs={4} md={1.7}>
-            {isMobile ? (
-              <Typography variant="overline" sx={{opacity: 0.7}}>APR</Typography>
-            ) : (null)}
-            <Typography variant="body1">
-              {userInfo.amount ?
-                `${logAmount(poolInfo.APR, 0, 2)}` : `0`
-              }
-            </Typography>
-          </S.GridItemTag>
+            <S.GridItemTag item xs={4} md={1.7}>
+              {isMobile ? (
+                <Typography variant="overline" sx={{opacity: 0.7}}>APR</Typography>
+              ) : (null)}
+              <Typography variant="body1">
+                {userInfo.amount ?
+                  `${logAmount(poolInfo.APR, 0, 2)}` : `0`
+                }
+              </Typography>
+            </S.GridItemTag>
 
-          <S.GridItemTag item xs={4} md={1.7}>
-            {isMobile ? (
-              <Typography variant="overline" sx={{opacity: 0.7}}>Liquidity</Typography>
-            ) : (null)}
-            <Typography variant="body1">
-              {poolInfo.userDepositAmount ?
-                `${logAmount(poolInfo.userDepositAmount, decimals, 2)}` : `0`
-              }
-            </Typography>
-          </S.GridItemTag>
+            <S.GridItemTag item xs={4} md={1.7}>
+              {isMobile ? (
+                <Typography variant="overline" sx={{opacity: 0.7}}>Liquidity</Typography>
+              ) : (null)}
+              <Typography variant="body1">
+                {poolInfo.userDepositAmount ?
+                  `${logAmount(poolInfo.userDepositAmount, decimals, 2)}` : `0`
+                }
+              </Typography>
+            </S.GridItemTag>
 
-          <S.GridItemTag item xs={4} md={1.7}>
-            {isMobile ? (
-              <Typography variant="overline" sx={{opacity: 0.7}}>Balance</Typography>
-            ) : (null)}
-            <Typography variant="body1">
-              {poolInfo.tokenBalance ?
-                `${logAmount(poolInfo.tokenBalance, decimals, 2)}` : `0`
-              }
-            </Typography>
-          </S.GridItemTag>
+            <S.GridItemTag item xs={4} md={1.7}>
+              {isMobile ? (
+                <Typography variant="overline" sx={{opacity: 0.7}}>Balance</Typography>
+              ) : (null)}
+              <Typography variant="body1">
+                {poolInfo.tokenBalance ?
+                  `${logAmount(poolInfo.tokenBalance, decimals, 2)}` : `0`
+                }
+              </Typography>
+            </S.GridItemTag>
 
-          <S.GridItemTag item xs={12} md={1.7}>
-            <Box
-              disabled={disabled}
-              onClick={()=>{this.setState({ dropDownBox: !dropDownBox, dropDownBoxInit: false })}}
-              sx={{display: 'flex', cursor: 'pointer', color: "#0ebf9a", transform: dropDownBox ? "rotate(-180deg)" : ""}}
-            >
-              <ExpandMoreIcon />
-            </Box>
-          </S.GridItemTag>
-        </Grid>
+            <S.GridItemTag item xs={12} md={1.7}>
+              <Box
+                disabled={disabled}
+                onClick={()=>{this.setState({ dropDownBox: !dropDownBox, dropDownBoxInit: false })}}
+                sx={{display: 'flex', cursor: 'pointer', color: "#0ebf9a", transform: dropDownBox ? "rotate(-180deg)" : ""}}
+              >
+                <ExpandMoreIcon />
+              </Box>
+            </S.GridItemTag>
+          </Grid>
+        )}
 
         {/*********************************************/
         /**************  Drop Down Box ****************/

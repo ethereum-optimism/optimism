@@ -22,20 +22,32 @@ export const TableHeadingItem = styled(Typography)`
   opacity: 0.7;
 `;
 
-export const LayerAlert = styled(Box)`
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 30px;
-  padding: 27px 50px;
-  border-radius: 8px;
-  margin: 20px 0px;
-  background: ${props => props.theme.palette.background.secondary};
+export const LayerAlert = styled(Box)(({ theme }) => ({
+  width: "100%",
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '30px',
+  borderRadius: '8px',
+  margin: '20px 0px',
+  padding: '25px',
+  background: theme.palette.background.secondary,
+  [theme.breakpoints.up('md')]: {
+    padding: '25px 50px',
+  },
 
-  .info {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-  }
-`
+}));
+
+export const AlertText = styled(Typography)(({ theme }) => ({
+  marginLeft: '10px',
+  flex: 4,
+  [theme.breakpoints.up('md')]: {
+  },
+}));
+
+export const AlertInfo = styled(Box)`
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  flex: 1;
+`;

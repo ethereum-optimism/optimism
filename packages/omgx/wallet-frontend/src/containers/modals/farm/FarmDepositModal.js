@@ -78,19 +78,19 @@ class FarmDepositModal extends React.Component {
   handleStakeValue(value) {
 
     if( value &&
-        Number(value) > 0 && 
-        Number(value) < Number(this.getMaxTransferValue()) 
+        Number(value) > 0 &&
+        Number(value) < Number(this.getMaxTransferValue())
     ) {
-        this.setState({ 
-          stakeValue: value, 
+        this.setState({
+          stakeValue: value,
           stakeValueValid: true,
-          stakeValueBadEntry: false, 
+          stakeValueBadEntry: false,
         })
     } else {
-      this.setState({ 
-        stakeValue: null, 
+      this.setState({
+        stakeValue: null,
         stakeValueValid: false,
-        stakeValueBadEntry: true,  
+        stakeValueBadEntry: true,
       })
     }
 
@@ -109,7 +109,7 @@ class FarmDepositModal extends React.Component {
         powAmount(stakeValue, stakeToken.decimals),
         stakeToken.currency,
       )
-    } 
+    }
     else if (stakeToken.L1orL2Pool === 'L1LP') {
       approveTX = await networkService.approveERC20_L1LP(
         powAmount(stakeValue, stakeToken.decimals),
@@ -172,7 +172,7 @@ class FarmDepositModal extends React.Component {
     } = this.state
 
 
-    let allowanceGTstake = false 
+    let allowanceGTstake = false
 
     if ( approvedAllowance > 0 &&
         Number(stakeValue) > 0 &&
@@ -206,8 +206,8 @@ class FarmDepositModal extends React.Component {
 
         {stakeValueBadEntry ?
           <Typography variant="body2" sx={{mt: 2}}>
-            Staking value limits: You can't add 0 to the pool (otherwise you would just burn gas 
-            for no reason) and you can't stake more than your {stakeToken.symbol} balance. 
+            Staking value limits: You can't add 0 to the pool (otherwise you would just burn gas
+            for no reason) and you can't stake more than your {stakeToken.symbol} balance.
           </Typography>
           : null
         }
