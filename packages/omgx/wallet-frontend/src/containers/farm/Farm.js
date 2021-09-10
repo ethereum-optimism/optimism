@@ -156,9 +156,15 @@ class Farm extends React.Component {
 
   handleChange = (event, t) => {
     if( t === 'L1 Liquidity Pool' )
-      this.setState({ lpChoice: 'L1LP' })
+      this.setState({ 
+        lpChoice: 'L1LP',
+        poolTab: t  
+      })
     else if(t === 'L2 Liquidity Pool')
-      this.setState({ lpChoice: 'L2LP' })
+      this.setState({ 
+        lpChoice: 'L2LP',
+        poolTab: t 
+      })
   }
 
   render() {
