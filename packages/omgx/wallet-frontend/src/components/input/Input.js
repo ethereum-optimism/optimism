@@ -58,7 +58,7 @@ function Input({
 
   const overMax = new BN(value).gt(new BN(maxValue))
 
-  const theme = useTheme();
+  const theme = useTheme()
 
   return (
 
@@ -96,16 +96,16 @@ function Input({
       {unit && (
         <S.ActionsWrapper>
           <Typography variant="body2" component="p" sx={{opacity: 0.7, textAlign: "end", mb: 2}}>
-            Available: {Number(maxValue).toFixed(3)}
+            Max Available: {Number(maxValue).toFixed(3)}
           </Typography>
 
-          {maxValue && value !== maxValue && (
+          {/* maxValue && value !== maxValue && (
             <Box>
               <Button onClick={handleMaxClick} variant="small" >
                 Use All
               </Button>
             </Box>
-          )}
+          )*/}
         </S.ActionsWrapper>
       )}
       {paste && (

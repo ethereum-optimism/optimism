@@ -165,7 +165,7 @@ class ListFarm extends React.Component {
     const decimals = poolInfo.decimals
     const logo = getCoinImage(symbol)
 
-    console.log('poolinfo',poolInfo)
+    //console.log('poolinfo',poolInfo)
 
     return (
       <S.Wrapper dropDownBox={dropDownBox}>
