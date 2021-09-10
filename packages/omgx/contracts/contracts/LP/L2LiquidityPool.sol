@@ -9,13 +9,14 @@ import "@eth-optimism/contracts/contracts/optimistic-ethereum/libraries/bridge/O
 /* External Imports */
 import '@openzeppelin/contracts/math/SafeMath.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 /**
  * @dev An L2 LiquidityPool implementation
  */
 
-contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
+contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuardUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -198,12 +199,17 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
         public
         onlyOwner()
         onlyNotInitialized()
+        initializer()
     {
         messenger = _l2CrossDomainMessenger;
         L1LiquidityPoolAddress = _L1LiquidityPoolAddress;
         owner = msg.sender;
         configureFee(35, 15);
         configureGas(100000);
+
+        __Context_init_unchained();
+        __Pausable_init_unchained();
+        __ReentrancyGuard_init_unchained();
     }
 
     /**
@@ -320,6 +326,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
     )
         external
         nonReentrant
+        whenNotPaused
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
@@ -364,6 +371,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
         address _tokenAddress
     )
         external
+        whenNotPaused
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
 
@@ -406,6 +414,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
         address payable _to
     )
         external
+        whenNotPaused
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
@@ -480,6 +489,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
         address _to
     )
         external
+        whenNotPaused
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
         UserInfo storage user = userInfo[_tokenAddress][msg.sender];
@@ -505,6 +515,20 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
         );
     }
 
+    /**
+     * Pause contract
+     */
+    function pause() external onlyOwner() {
+        _pause();
+    }
+
+    /**
+     * UnPause contract
+     */
+    function unpause() external onlyOwner() {
+        _unpause();
+    }
+
     /*************************
      * Cross-chain Functions *
      *************************/
@@ -523,6 +547,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
         external
         onlyInitialized()
         onlyFromCrossDomainAccount(address(L1LiquidityPoolAddress))
+        whenNotPaused
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
 
@@ -577,6 +602,7 @@ contract L2LiquidityPool is OVM_CrossDomainEnabled, ReentrancyGuard {
         external
         onlyInitialized()
         onlyFromCrossDomainAccount(address(L1LiquidityPoolAddress))
+        whenNotPaused
     {
         PoolInfo storage pool = poolInfo[_tokenAddress];
 

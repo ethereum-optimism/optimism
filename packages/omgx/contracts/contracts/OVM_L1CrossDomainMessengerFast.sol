@@ -14,6 +14,10 @@ import { iOVM_L1CrossDomainMessenger } from "@eth-optimism/contracts/contracts/o
 import { iOVM_CanonicalTransactionChain } from "@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 import { iOVM_StateCommitmentChain } from "@eth-optimism/contracts/contracts/optimistic-ethereum/iOVM/chain/iOVM_StateCommitmentChain.sol";
 
+/* External Imports */
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /**
  * @title OVM_L1CrossDomainMessenger
@@ -24,7 +28,7 @@ import { iOVM_StateCommitmentChain } from "@eth-optimism/contracts/contracts/opt
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_L1CrossDomainMessengerFast is iOVM_L1CrossDomainMessenger, Lib_AddressResolver {
+contract OVM_L1CrossDomainMessengerFast is iOVM_L1CrossDomainMessenger, Lib_AddressResolver, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
 
 
     /*************
@@ -86,10 +90,16 @@ contract OVM_L1CrossDomainMessengerFast is iOVM_L1CrossDomainMessenger, Lib_Addr
         address _libAddressManager
     )
         public
+        initializer
     {
         require(address(libAddressManager) == address(0), "L1CrossDomainMessenger already intialized.");
         libAddressManager = Lib_AddressManager(_libAddressManager);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+
+        __Context_init_unchained();
+        __Ownable_init_unchained();
+        __Pausable_init_unchained();
+        __ReentrancyGuard_init_unchained();
     }
 
 
@@ -139,7 +149,9 @@ contract OVM_L1CrossDomainMessengerFast is iOVM_L1CrossDomainMessenger, Lib_Addr
     )
         override
         public
-        onlyRelayer()
+        onlyRelayer
+        nonReentrant
+        whenNotPaused
     {
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
@@ -229,6 +241,20 @@ contract OVM_L1CrossDomainMessengerFast is iOVM_L1CrossDomainMessenger, Lib_Addr
         );
 
         _sendXDomainMessage(canonicalTransactionChain, l2CrossDomainMessenger, xDomainCalldata, _gasLimit);
+    }
+
+    /**
+     * Pause fast exit relays
+     */
+    function pause() external onlyOwner() {
+        _pause();
+    }
+
+    /**
+     * UnPause fast exit relays
+     */
+    function unpause() external onlyOwner() {
+        _unpause();
     }
 
 

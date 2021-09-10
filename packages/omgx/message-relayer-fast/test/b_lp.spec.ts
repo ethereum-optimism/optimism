@@ -627,4 +627,94 @@ describe('Liquidity Pool Test', async () => {
       expect(preL2ERC20Balance).to.deep.eq(postBobL2ERC20Balance)
       expect(postBobL1ERC20Balance).to.deep.eq(preL1ERC20Balance.sub(swapOnFees))
    })
+
+   it("should be able to pause L1LiquidityPool contract", async function () {
+
+     const poolOwner = await L1LiquidityPool.owner()
+
+     // since tests are with deployed contracts
+     if(env.bobl1Wallet.address == poolOwner) {
+
+        const pauseStatusTogglePrior = await L1LiquidityPool.paused()
+
+        expect(pauseStatusTogglePrior).to.eq(false)
+
+        await expect(L1LiquidityPool.connect(env.alicel1Wallet).pause()).to.be.revertedWith('caller is not the owner')
+
+        // only owner can pause
+        await L1LiquidityPool.connect(env.bobl1Wallet).pause();
+
+        // expect pause variable is updated
+        const pauseStatus = await L1LiquidityPool.paused()
+
+        expect(pauseStatus).to.eq(true)
+
+        // check addLiquidity is paused
+        const addLiquidityAmount = utils.parseEther("100")
+
+        const approveBobL1TX = await L1ERC20.approve(
+          L1LiquidityPool.address,
+          addLiquidityAmount,
+        )
+        await approveBobL1TX.wait()
+
+        await expect(L1LiquidityPool.connect(env.bobl1Wallet).addLiquidity(
+            addLiquidityAmount,
+            L1ERC20.address
+        )).to.be.revertedWith('Pausable: paused')
+
+        // unpause contracts for next tests
+        await L1LiquidityPool.connect(env.bobl1Wallet).unpause();
+        const pauseStatusToggleAfter = await L1LiquidityPool.paused()
+
+        expect(pauseStatusToggleAfter).to.eq(false)
+     } else {
+        this.skip()
+     }
+   })
+
+   it("should be able to pause L2LiquidityPool contract", async function () {
+
+    const poolOwner = await L2LiquidityPool.owner()
+
+    // since tests are with deployed contracts
+    if(env.bobl2Wallet.address == poolOwner) {
+
+       const pauseStatusTogglePrior = await L2LiquidityPool.paused()
+
+       expect(pauseStatusTogglePrior).to.eq(false)
+
+       await expect(L2LiquidityPool.connect(env.alicel2Wallet).pause()).to.be.revertedWith('caller is not the owner')
+
+       // only owner can pause
+       await L2LiquidityPool.connect(env.bobl2Wallet).pause();
+
+       // expect pause variable is updated
+       const pauseStatus = await L2LiquidityPool.paused()
+
+       expect(pauseStatus).to.eq(true)
+
+       // check addLiquidity is paused
+       const addLiquidityAmount = utils.parseEther("100")
+
+       const approveBobL2TX = await L2ERC20.approve(
+         L2LiquidityPool.address,
+         addLiquidityAmount,
+       )
+       await approveBobL2TX.wait()
+
+       await expect(L2LiquidityPool.connect(env.bobl2Wallet).addLiquidity(
+           addLiquidityAmount,
+           L2ERC20.address
+       )).to.be.revertedWith('Pausable: paused')
+
+       // unpause contracts for next tests
+       await L2LiquidityPool.connect(env.bobl2Wallet).unpause();
+       const pauseStatusToggleAfter = await L2LiquidityPool.paused()
+
+       expect(pauseStatusToggleAfter).to.eq(false)
+    } else {
+       this.skip()
+    }
+  })
 })
