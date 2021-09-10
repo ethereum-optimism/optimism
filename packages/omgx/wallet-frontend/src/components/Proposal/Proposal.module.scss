@@ -9,6 +9,7 @@ $boxDropDownHeight: 50px;
     padding: 5px;
     padding-left: 10px;
     border-radius: 8px;
+    background: red;
     .proposalHeader {
         display: flex;
         justify-content: space-between;
@@ -32,7 +33,10 @@ $boxDropDownHeight: 50px;
       font-weight: 700;
     }
     .vote {
+      font-size: 0.7em;
       min-width: 120px;
+      color: $white700;
+      font-weight: 700;
     }
 }
 
@@ -44,10 +48,10 @@ $boxDropDownHeight: 50px;
   width: 100%;
 }
 
-.dropDownContainer {
+  .dropDownContainer {
     height: $dropDownHeight;
-    animation: openDropDown 1s;
     overflow: hidden;
+    animation: openDropDown 1s;
     padding: 10px;
     display: flex;
     flex-direction: row;
@@ -56,8 +60,9 @@ $boxDropDownHeight: 50px;
 
   .closeDropDown {
     height: 0px;
-    animation: closeDropDown 1s;
     overflow: hidden;
+    animation: closeDropDown 1s;
+    padding: 10px;
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -66,6 +71,9 @@ $boxDropDownHeight: 50px;
   .dropDownInit {
     height: 0px;
     overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
   }
 
   .boxContainer {

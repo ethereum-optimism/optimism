@@ -88,7 +88,6 @@ function Input({
           size={size}
           variant={variant}
           error={overMax}
-          InputProps={{ disableUnderline: true }}
           sx={sx}
           newstyle={newStyle ? 1 : 0}
         />

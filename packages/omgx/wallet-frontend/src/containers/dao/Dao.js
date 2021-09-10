@@ -99,13 +99,13 @@ function DAO() {
                             <div className={styles.info}>
                                 <Typography variant="h3">{balance} Comp</Typography>
                                 <Typography variant="h4">Wallet Balance</Typography>
-                                <Typography variant="body2" className={styles.helpText}>You can transfer your goveranance tokens to someone else. To do so, select "Transfer".</Typography>
+                                <Typography variant="body2" className={styles.helpText}>To transfer goveranance tokens to another wallet, select "Transfer".</Typography>
                             </div>
                             <Button
                                 color="primary"
                                 variant="outlined"
                                 style={{
-                                    maxWidth: '180px',
+                                    width: '60%',
                                     padding: '15px 10px',
                                     borderRadius: '8px',
                                     alignSelf: 'center'
@@ -119,7 +119,7 @@ function DAO() {
                             <div className={styles.info}>
                                 <Typography variant="h3">{votes} Votes</Typography>
                                 <Typography variant="h4">Voting Power</Typography>
-                                <Typography variant="body2" className={styles.helpText}>If you would like another wallet to be able to vote on your behalf, you can delegate voting authority. To do that, select "Delegate Votes".</Typography>
+                                <Typography variant="body2" className={styles.helpText}>To delegate voting authority, select "Delegate Votes".</Typography>
                             </div>
                             <Button
                                 color="primary"
