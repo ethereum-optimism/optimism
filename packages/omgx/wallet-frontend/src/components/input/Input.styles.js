@@ -13,6 +13,13 @@ export const Wrapper = styled(Box)`
 `;
 
 export const TextFieldTag = styled(TextField)(({ ...props }) => ({
+  "input::-webkit-outer-spin-button, input::-webkit-inner-spin-button": {
+    "WebkitAppearance": "none",
+    "margin": 0,
+  },
+  "input[type=number]": {
+    "MozAppearance": "textfield"
+  },
   '& .MuiInputBase-input': {
     fontSize: props.newstyle ? '24px' : '16px',
     fontWeight: 700,

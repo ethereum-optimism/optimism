@@ -9,7 +9,6 @@ export const Nav = styled('nav')(({ theme }) => ({
   },
   [theme.breakpoints.up('md')]: {
     paddingTop: "30px",
-    width: '220px',
   },
 }));
 

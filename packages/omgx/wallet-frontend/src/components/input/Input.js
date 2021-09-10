@@ -74,7 +74,7 @@ function Input({
 
       <S.InputWrapper>
         {label && (
-          <Typography variant="body2" component="div" sx={{opacity: 0.7, mb: 1, ml: '15px'}}>
+          <Typography variant="body2" component="div" sx={{opacity: 0.7, mb: 1  , ml: '15px'}}>
             {label}
           </Typography>
         )}

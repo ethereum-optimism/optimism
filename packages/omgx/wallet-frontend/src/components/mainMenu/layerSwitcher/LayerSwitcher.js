@@ -27,7 +27,7 @@ import Button from 'components/button/Button'
 
 import LayerIcon from 'components/icons/LayerIcon'
 
-function LayerSwitcher({ walletEnabled, isButton = false }) {
+function LayerSwitcher({ walletEnabled, isButton = false, size }) {
 
   const dispatch = useDispatch()
 
@@ -55,7 +55,7 @@ function LayerSwitcher({ walletEnabled, isButton = false }) {
     return (<>
       <Button
         onClick={() => { dispatchSetLayer(otherLayer) }}
-        size='medium'
+        size={size}
         variant="contained"
         >
           SWITCH LAYER

@@ -177,17 +177,17 @@ class Farm extends React.Component {
 
           {networkLayer === 'L2' && value === 'L1 Liquidity Pool' &&
             <S.LayerAlert>
-              <Box className="info">
+              <Box className="info" sx={{flex: 1}}>
                 <AlertIcon />
                 <Typography
-                  sx={{wordBreak:'break-all', marginLeft: '10px'}}
+                  sx={{marginLeft: '10px'}}
                   variant="body1"
                   component="p"
                 >
                   Note: MetaMask is set to L2. To interact with the L1 liquidity pool, please switch MetaMask to L1.
                 </Typography>
               </Box>
-              <LayerSwitcher isButton={true} />
+              <LayerSwitcher isButton={true} size="large"/>
             </S.LayerAlert>
           }
 
@@ -196,7 +196,7 @@ class Farm extends React.Component {
               <Box className="info">
                 <AlertIcon />
                 <Typography
-                  sx={{wordBreak:'break-all', marginLeft: '10px'}}
+                  sx={{marginLeft: '10px'}}
                   variant="body2"
                   component="p"
                 >

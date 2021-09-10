@@ -2,7 +2,7 @@ import styled from '@emotion/styled';
 import { Box } from '@material-ui/core';
 
 export const Menu = styled.div`
-  flex: 0 0 260px;
+  flex: 0 0 320px;
   width: 260px;
   padding-top: 40px;
   padding-left: 40px;

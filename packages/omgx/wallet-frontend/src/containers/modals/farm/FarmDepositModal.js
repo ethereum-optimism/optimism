@@ -17,7 +17,7 @@ import * as S from './FarmModal.styles';
 import { Typography } from '@material-ui/core';
 
 class FarmDepositModal extends React.Component {
-  
+
   constructor(props) {
     super(props);
 
@@ -45,7 +45,7 @@ class FarmDepositModal extends React.Component {
     }
 
     if (!isEqual(prevState.farm.stakeToken, stakeToken)) {
-      let approvedAllowance = powAmount(10, 50) 
+      let approvedAllowance = powAmount(10, 50)
       // Set to some very big number
       // There is no need to check allowance for depositing ETH
       if (stakeToken.currency !== networkService.L1_ETH_Address) {
@@ -93,8 +93,6 @@ class FarmDepositModal extends React.Component {
       )
     }
 
-    
-
     if (approveTX) {
       this.props.dispatch(openAlert("Amount was approved"))
       let approvedAllowance = powAmount(10, 50)
@@ -138,7 +136,7 @@ class FarmDepositModal extends React.Component {
   }
 
   render() {
-    
+
     const {
       open,
       stakeToken,
@@ -147,11 +145,13 @@ class FarmDepositModal extends React.Component {
       loading,
     } = this.state;
 
+    const valueIsValid = Number(stakeValue) > 0
+
     return (
 
-      <Modal 
-        open={open} 
-        maxWidth="md" 
+      <Modal
+        open={open}
+        maxWidth="md"
         onClose={()=>{this.handleClose()}}
       >
 
@@ -170,6 +170,13 @@ class FarmDepositModal extends React.Component {
           variant="standard"
         />
 
+        {!valueIsValid && stakeValue !== '' ?
+          <Typography variant="body2" sx={{mt: 2}}>
+            You can't add 0 to the pool
+          </Typography>
+          : null
+        }
+
         {Number(stakeValue) > Number(this.getMaxTransferValue()) &&
           <Typography variant="body2" sx={{mt: 2}}>
             You don't have enough {stakeToken.symbol} to stake.
@@ -187,7 +194,7 @@ class FarmDepositModal extends React.Component {
             </Button>
             <Button
               onClick={()=>{this.handleConfirm()}}
-              disabled={Number(this.getMaxTransferValue()) < Number(stakeValue) || stakeValue === '' || !stakeValue}
+              disabled={Number(this.getMaxTransferValue()) < Number(stakeValue) || stakeValue === '' || !stakeValue || !valueIsValid}
               loading={loading}
               color='primary'
               size="large"

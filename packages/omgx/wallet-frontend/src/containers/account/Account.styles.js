@@ -44,22 +44,26 @@ export const AccountWrapper = styled(Box)(({ theme }) => ({
 
 export const CardTag = styled(Card)(({ theme }) => ({
   display: 'flex',
+  position: 'relative',
   padding: '10px',
   border: '2px solid rgba(255, 255, 255, 0.2)',
   overflow: 'initial',
-  maxHeight: '190px',
-  [theme.breakpoints.up('md')]: {
-    margin: '60px 0 30px 0'
-  },
+  minHeight: '225px',
+  [theme.breakpoints.up('lg')]: {
+    margin: '60px 0 30px 0',
+    },
 }));
 
 export const CardContentTag = styled(CardContent)(({ theme }) => ({
   clipPath: 'polygon(0 0, 93% 0, 100% 100%, 0% 100%)',
   backgroundColor: theme.palette.background.secondary,
   borderRadius: '6px',
-  flex: 12,
+  padding: '24px 34px 24px 24px',
   [theme.breakpoints.down('md')]: {
-    // backgroundColor: "transparent",
+    flex: 5,
+  },
+  [theme.breakpoints.up('md')]: {
+    flex: 12,
   },
 }));
 
@@ -72,20 +76,20 @@ export const BalanceValue = styled(Typography)(({ theme }) => ({
 export const CardInfo = styled(Typography)`
   opacity: 0.7;
   font-size: 20px !important;
+  margin-bottom: 10px;
 `;
 
 export const ContentGlass = styled(Box)(({ theme }) => ({
   transform: 'rotateZ(350deg)',
-  position: 'relative',
-  top: '-87px',
-  left: '-12px',
-  flex: 3,
+  position: 'absolute',
+  top: '-50px',
+  right: '-2px',
   [theme.breakpoints.up('md')]: {
-  top: '-83px',
-  left: '-20px',
+  top: '-50px',
+  right: '15px',
   },
   [theme.breakpoints.up('lg')]: {
-  top: '-85px',
-  left: '-13px',
+  top: '-55px',
+  right: '45px',
   },
 }));

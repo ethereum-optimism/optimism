@@ -43,4 +43,5 @@ export const AccountAlertBox = styled(Box)`
   display: flex;
   justify-content: space-around;
   align-items: center;
+  gap: 30px;
 `

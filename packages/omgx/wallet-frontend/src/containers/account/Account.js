@@ -75,10 +75,10 @@ function Account () {
 
   const unorderedTransactions = useSelector(selectTransactions, isEqual)
   //console.log("Transactions:",unorderedTransactions)
-  
+
   const orderedTransactions = orderBy(unorderedTransactions, i => i.timeStamp, 'desc')
   //console.log("orderedTransactions:",orderedTransactions)
-  
+
   const pendingL1 = orderedTransactions.filter((i) => {
       if (i.chain === 'L1pending' && //use the custom API watcher for fast data on pending L1->L2 TXs
           i.crossDomainMessage &&
@@ -162,7 +162,7 @@ function Account () {
 
   const L1Column = () => (
     <S.AccountWrapper >
-      
+
       {!isMobile ? (
         <S.WrapperHeading>
           <Typography variant="h3" sx={{opacity: networkLayer === 'L1' ? "1.0" : "0.2", fontWeight: "700"}}>L1 ({network})</Typography>
@@ -238,13 +238,12 @@ function Account () {
       <PageHeader title="Wallet"/>
 
       <S.CardTag>
-        
         <S.CardContentTag>
           <S.CardInfo>Boba Balances</S.CardInfo>
-          {(network === 'mainnet') && 
-          <Typography>
-             You are using Mainnet Beta.<br/> 
-             WARNING: the mainnet smart contracts are not fully audited and funds may be at risk.<br/> 
+          {(network === 'mainnet') &&
+          <Typography variant="body2">
+             You are using Mainnet Beta.<br/>
+             WARNING: the mainnet smart contracts are not fully audited and funds may be at risk.<br/>
              Please exercise caution when using Mainnet Beta.
           </Typography>
           }
@@ -253,16 +252,15 @@ function Account () {
             <Typography>oETH</Typography>
           */}
         </S.CardContentTag>
-
-        <S.ContentGlass>
-          <img src={Drink} href="#" width={135} alt="Boba Drink"/>
-        </S.ContentGlass>
+        <Box sx={{flex: 3}}>
+          <S.ContentGlass>
+            <img src={Drink} href="#" width={135} alt="Boba Drink"/>
+          </S.ContentGlass>
+        </Box>
 
       </S.CardTag>
       {pending.length > 0 &&
-        <Grid 
-          sx={{margin: '10px 0px'}}
-        >
+        <Grid sx={{margin: '10px 0px'}}>
           <Grid item xs={12}>
             <PendingTransaction />
           </Grid>
