@@ -363,7 +363,7 @@ describe('BatchSubmitter', () => {
           queueOrigin: QueueOrigin.L1ToL2,
         } as any)
 
-        const highGasPriceWei = BigNumber.from(200).mul(1_000_000_000)
+        const highGasPriceWei = BigNumber.from(600).mul(1_000_000_000)
 
         sinon
           .stub(sequencer, 'getGasPrice')
