@@ -7,7 +7,7 @@ export RELAYER_PRIVATE_KEY=`/opt/secret2env -name $SECRETNAME|grep -w RELAYER_PR
 export FAST_RELAYER_PRIVATE_KEY=`/opt/secret2env -name $SECRETNAME|grep -w FAST_RELAYER_PRIVATE_KEY|sed 's/FAST_RELAYER_PRIVATE_KEY=//g'`
 export ETHERSCAN_API=`/opt/secret2env -name $SECRETNAME|grep -w ETHERSCAN_API|sed 's/ETHERSCAN_API=//g'`
 export L1_NODE_WEB3_URL=`/opt/secret2env -name $SECRETNAME|grep -w L1_NODE_WEB3_URL|sed 's/L1_NODE_WEB3_URL=//g'`
-
+export GAS_PRICE_ORACLE_OWNER_PRIVATE_KEY=`/opt/secret2env -name $SECRETNAME|grep -w ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS|sed 's/ROLLUP_GAS_PRICE_ORACLE_OWNER_ADDRESS=//g'`
 RETRIES=${RETRIES:-40}
 
 cmd="$@"

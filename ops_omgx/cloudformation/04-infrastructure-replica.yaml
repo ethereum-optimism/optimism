@@ -16,58 +16,10 @@ Parameters:
     Type: String
     Default: t3a.xlarge
 
-  EcsMinSize:
-    Description: Minimum number of instances in the ECS cluster
-    Type: Number
-    Default: 2
-    MinValue: 2
-    MaxValue: 2 # This is set to prevent accidental huge costs
-
-  EcsMaxSize:
-    Description: Maximum number of instances in the ECS cluster
-    Type: Number
-    Default: 2
-    MinValue: 2
-    MaxValue: 2 # This is set to prevent accidental huge costs
-
-  EcsDesiredCapacity:
-    Description: Default number of instances in the ECS cluster
-    Type: Number
-    Default: 2
-    MinValue: 2
-    MaxValue: 2 # This is set to prevent accidental huge costs
-
-  DomainName:
-    Description: The domain for the Common Name of the wildcard certificate on the Load Balancer listener
-    Type: String
-    Default: dev-integration.omgx.network
-
   InfrastructureStackName:
     Description: Infrastructure stack to associate this stack with
     Type: String
     Default: infrastructure-core
-
-
-Metadata:
-  AWS::CloudFormation::Interface:
-    ParameterGroups:
-    - Label:
-        default: Compute
-      Parameters:
-      - ECSInstanceType
-      - ECSMinSize
-      - ECSMaxSize
-      - ECSDesiredCapacity
-      - ECSImageId
-    ParameterLabels:
-      InstanceType:
-        default: AWS EC2 Instance Type for ECS nodes
-      ECSMinSize:
-        default: Minimum number of instances in the ECS cluster
-      ECSMaxSize:
-        default: Maximum number of instances in the ECS cluster
-      ECSDesiredCapacity:
-        default: Default number of instances in the ECS cluster
 
 Resources:
 
@@ -75,41 +27,13 @@ Resources:
     Type: AWS::EFS::FileSystem
     Properties:
       FileSystemTags:
-      - Key: Name
-        Value:
-          Ref: InfrastructureStackName
-
-  LoadBalancerIntSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: !Sub "SG for ${AWS::StackName} Internal LB"
-      VpcId:
-        Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 8081
-        ToPort: 8081
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 8081
-        ToPort: 8081
-        CidrIpv6: ::/0
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIpv6: ::/0
-      Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-IntLB"
+          Value: !Sub "${AWS::StackName}"
 
-  LoadBalancerSecurityGroup:
+  LoadBalancerReplicaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub "SG for ${AWS::StackName} External LB"
+      GroupDescription: !Sub "SG for ${AWS::StackName} Replica LB"
       VpcId:
         Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
       SecurityGroupIngress:
@@ -211,20 +135,9 @@ Resources:
         CidrIpv6: ::/0
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-LB"
+          Value: !Sub "${AWS::StackName}-Replica-LB"
 
-  LoadBalancerGraph:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      IpAddressType: ipv4
-      Scheme: internet-facing
-      SecurityGroups:
-      - !Ref LoadBalancerSecurityGroup
-      Subnets:
-      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet1
-      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet2
-
-  LoadBalancerInt:
+  LoadBalancerReplica:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Scheme: internal
@@ -232,34 +145,10 @@ Resources:
       - Key: idle_timeout.timeout_seconds
         Value: '3600'
       SecurityGroups:
-      - !Ref LoadBalancerIntSecurityGroup
+      - !Ref LoadBalancerReplicaSecurityGroup
       Subnets:
       - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet1
       - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet2
-
-  LoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      IpAddressType: dualstack
-      Scheme: internet-facing
-      SecurityGroups:
-      - !Ref LoadBalancerSecurityGroup
-      Subnets:
-      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet1
-      - Fn::ImportValue: !Sub ${InfrastructureStackName}:PublicSubnet2
-
-  DataTransportLayerListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref LoadBalancerInt
-      Port: 80
-      Protocol: HTTP
-      DefaultActions:
-      - Type: fixed-response
-        FixedResponseConfig:
-          ContentType: text/html
-          MessageBody: ""
-          StatusCode: 404
 
   EcsCluster:
     Type: AWS::ECS::Cluster
@@ -303,26 +192,22 @@ Resources:
     Properties:
       Roles: [!Ref EcsInstanceRole]
 
-  EcsSecurityGroup:
+  EcsSecurityGroupReplica:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub "SG for ${AWS::StackName} Landscape ECS Cluster"
+      GroupDescription: !Sub "SG for ${AWS::StackName} Landscape ECS Cluster Replica"
       VpcId:
         Fn::ImportValue: !Sub ${InfrastructureStackName}:VpcId
       SecurityGroupIngress:
-      - SourceSecurityGroupId: !Ref LoadBalancerIntSecurityGroup
-        IpProtocol: tcp
-        FromPort: 22
-        ToPort: 65535
-      - SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      - SourceSecurityGroupId: !Ref LoadBalancerReplicaSecurityGroup
         IpProtocol: tcp
         FromPort: 22
         ToPort: 65535
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-ECS-Cluster"
+          Value: !Sub "${AWS::StackName}-Replica-ECS-Cluster"
 
-  EcsLaunchConfiguration:
+  EcsLaunchConfigurationReplica:
     Type: AWS::AutoScaling::LaunchConfiguration
     Metadata:
       AWS::CloudFormation::Init:
@@ -338,7 +223,7 @@ Resources:
     Properties:
       InstanceType: !Ref EcsInstanceType
       SecurityGroups:
-      - !Ref EcsSecurityGroup
+      - !Ref EcsSecurityGroupReplica
       IamInstanceProfile: !Ref EcsInstanceProfile
       ImageId: !Ref EcsImageId
       UserData:
@@ -347,74 +232,45 @@ Resources:
             yum -y install aws-cfn-bootstrap amazon-ssm-agent amazon-efs-utils
             systemctl enable --now amazon-ssm-agent
             mkdir -p /mnt/efs /mnt/efs/db
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EcsLaunchConfiguration --region ${AWS::Region}
-            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region} || true
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EcsLaunchConfigurationReplica --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroupReplica --region ${AWS::Region} || true
 
-  AutoScalingGroup:
+  AutoScalingGroupReplica:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      LaunchConfigurationName: !Ref EcsLaunchConfiguration
+      LaunchConfigurationName: !Ref EcsLaunchConfigurationReplica
       MetricsCollection:
       - Granularity: 1Minute
         Metrics:
         - GroupTotalInstances
-      MinSize: !Ref EcsMinSize
-      MaxSize: !Ref EcsMaxSize
-      DesiredCapacity: !Ref EcsDesiredCapacity
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
       VPCZoneIdentifier:
       - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet1
       - Fn::ImportValue: !Sub ${InfrastructureStackName}:PrivateSubnet2
       Tags:
         - Key: Name
-          Value: !Sub "${AWS::StackName}-ECS"
+          Value: !Sub "${AWS::StackName}-Replica-ECS"
           PropagateAtLaunch: true
-
 Outputs:
   EcsCluster:
     Value: !Ref EcsCluster
     Export:
-      Name: !Sub "${InfrastructureStackName}:EcsCluster"
+      Name: !Sub "${InfrastructureStackName}:EcsClusterReplica"
   EcsSecurityGroup:
-    Value: !Ref EcsSecurityGroup
+    Value: !Ref EcsSecurityGroupReplica
     Export:
-      Name: !Sub "${InfrastructureStackName}:EcsSecurityGroup"
-  DomainName:
-    Value: !Ref DomainName
+      Name: !Sub "${InfrastructureStackName}:EcsSecurityGroupReplica"
+  LoadBalancerReplicaDNSName:
+    Value: !GetAtt LoadBalancerReplica.DNSName
     Export:
-      Name: !Sub "${InfrastructureStackName}:DomainName"
-  LoadBalancerIntDNSName:
-    Value: !GetAtt LoadBalancerInt.DNSName
+      Name: !Sub "${InfrastructureStackName}:LoadBalancerReplica:DNSName"
+  LoadBalancerReplicaArn:
+    Value: !Ref LoadBalancerReplica
     Export:
-      Name: !Sub "${InfrastructureStackName}:LoadBalancerInt:DNSName"
-  LoadBalancerDNSName:
-    Value: !GetAtt LoadBalancer.DNSName
-    Export:
-      Name: !Sub "${InfrastructureStackName}:LoadBalancer:DNSName"
-  LoadBalancerGraphDNSName:
-    Value: !GetAtt LoadBalancerGraph.DNSName
-    Export:
-      Name: !Sub "${InfrastructureStackName}:LoadBalancerGraph:DNSName"
-  LoadBalancerIntArn:
-    Value: !Ref LoadBalancerInt
-    Export:
-      Name: !Sub "${InfrastructureStackName}:LoadBalancerInt:ARN"
-  LoadBalancerArn:
-    Value: !Ref LoadBalancer
-    Export:
-      Name: !Sub "${InfrastructureStackName}:LoadBalancer:ARN"
-  LoadBalancerGraphArn:
-    Value: !Ref LoadBalancerGraph
-    Export:
-      Name: !Sub "${InfrastructureStackName}:LoadBalancerGraph:ARN"
-  LoadBalancerCanonicalHostedZoneID:
-    Value: !GetAtt LoadBalancerInt.CanonicalHostedZoneID
-    Export:
-      Name: !Sub "${InfrastructureStackName}:LoadBalancer:CanonicalHostedZoneID"
-  DataTransportLayerListener:
-    Value: !Ref DataTransportLayerListener
-    Export:
-      Name: !Sub "${InfrastructureStackName}:DataTransportLayerListener"
+      Name: !Sub "${InfrastructureStackName}:LoadBalancerReplica:ARN"
   EFSFilesystem:
     Value: !Ref FileSystem
     Export:
-      Name: !Sub "${InfrastructureStackName}:EFSFilesystem"
+      Name: !Sub "${InfrastructureStackName}:EFSFilesystemReplica"

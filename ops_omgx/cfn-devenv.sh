@@ -15,7 +15,8 @@ SUBCMD=
 FORCE=no
 AWS_ECR="942431445534.dkr.ecr.${REGION}.amazonaws.com"
 SKIPSERVICE=
-DOCKER_IMAGES_LIST=`ls ${PATH_TO_CFN}|egrep -v '^0|^datadog|^optimism|^graph'|sed 's/.yaml//g'`
+ALL_DOCKER_IMAGES_LIST=`ls ${PATH_TO_CFN}|egrep -v '^0|^datadog|^optimism|^graph'|sed 's/.yaml//g'`
+DOCKER_IMAGES_LIST=`ls ${PATH_TO_CFN}|egrep -v '^0|^datadog|^optimism|^graph|^replica'|sed 's/.yaml//g'`
 ENV_PREFIX=
 FORCE=no
 
@@ -169,9 +170,12 @@ function verify_images_in_ecr {
           cp -fRv ../../secret2env .
           if [[ ${image} == "omgx-gas-price-oracle" ]]; then
               docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/omgx_gas-price-oracle" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
-	  elif
-	     [[ ${image} == "message-relayer-fast" ]]; then
-	     docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/omgx_message-relayer-fast" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+	        elif
+	           [[ ${image} == "message-relayer-fast" ]]; then
+	           docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/omgx_message-relayer-fast" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+          elif
+             [[ ${image} == "replica-l2" ]]; then
+             docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/l2geth" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
           else
           docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/${image}" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
           fi
@@ -183,11 +187,27 @@ function verify_images_in_ecr {
         cd ${PATH_TO_DOCKER}/${SERVICE_NAME}
         cp -fRv ../../secret2env .
         if [ -z ${FROMTAG} ]; then
-          docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/${image}" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
-          docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          if [[ ${SERVICE_NAME} == "replica-l2" ]]; then
+            docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/l2geth" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+            docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          elif [[ ${SERVICE_NAME} == "omgx-gas-price-oracle" ]]; then
+              docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${image}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/omgx_gas-price-oracle" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+              docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          else
+            docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/${image}" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+            docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          fi
         else
-          docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/${SERVICE_NAME}" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
-          docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          if [[ ${SERVICE_NAME} == "replica-l2" ]]; then
+            docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/l2geth" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+            docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          elif [[ ${SERVICE_NAME} == "omgx-gas-price-oracle" ]]; then
+            docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/omgx_gas-price-oracle" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+            docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          else
+            docker build . -t ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG} --build-arg BUILD_IMAGE="${REGISTRY_PREFIX}/${SERVICE_NAME}" --build-arg BUILD_IMAGE_VERSION="${FROMTAG}"
+            docker push ${AWS_ECR}/${REGISTRY_PREFIX}/${SERVICE_NAME}:${DEPLOYTAG}
+          fi
         fi
         cd ../..
         info "${SERVICE_NAME} rebuild and pushed to AWS ECR"
@@ -304,7 +324,7 @@ function check_dev_environment {
 function deploy_dev_services {
     if [ -z ${SERVICE_NAME} ]; then
       notice "Deploying ..."
-      for SERVICE in ${DOCKER_IMAGES_LIST}; do
+      for SERVICE in ${ALL_DOCKER_IMAGES_LIST}; do
         cd ${PATH_TO_CFN}
         info "$SERVICE provisioning ..."
         aws cloudformation create-stack \
@@ -321,7 +341,7 @@ function deploy_dev_services {
         info "$SERVICE provisioning ..."
         cd ..
       done
-      for SERVICE in ${DOCKER_IMAGES_LIST}; do
+      for SERVICE in ${ALL_DOCKER_IMAGES_LIST}; do
         aws cloudformation wait stack-create-complete --stack-name=${ENV_PREFIX}-$SERVICE
         info "Provisioned $SERVICE in ${REGION}"
       done
@@ -348,7 +368,7 @@ function deploy_dev_services {
 function update_dev_services {
     if [ -z ${SERVICE_NAME} ]; then
       notice "Updating all services"
-      for SERVICE in ${DOCKER_IMAGES_LIST}; do
+      for SERVICE in ${ALL_DOCKER_IMAGES_LIST}; do
         cd ${PATH_TO_CFN}
         info "Updating $SERVICE"
         aws cloudformation update-stack \
@@ -391,14 +411,14 @@ function update_dev_services {
 function destroy_dev_services {
     if [ -z ${SERVICE_NAME} ]; then
       notice "Destroying all services"
-      for SERVICE in ${DOCKER_IMAGES_LIST}; do
+      for SERVICE in ${ALL_DOCKER_IMAGES_LIST}; do
         cd ${PATH_TO_CFN}
         info "Removing $SERVICE"
         aws cloudformation delete-stack \
             --stack-name ${ENV_PREFIX}-$SERVICE
         cd ..
       done
-      for SERVICE in ${DOCKER_IMAGES_LIST}; do
+      for SERVICE in ${ALL_DOCKER_IMAGES_LIST}; do
           aws cloudformation wait stack-delete-complete --stack-name=${ENV_PREFIX}-$SERVICE
           info "$SERVICE delete completed"
       done
@@ -417,10 +437,15 @@ function destroy_dev_services {
 
   function restart_service {
       local force="${1:-}"
-      ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep ${ENV_PREFIX}|tail -1|cut -d/ -f2|sed 's#"##g'|sed 's#,##g'`
-      SERVICE4RESTART=`aws ecs list-services --region ${REGION} --cluster $ECS_CLUSTER|grep -i ${ENV_PREFIX}|cut -d/ -f3|sed 's#,##g'|tr '\n' ' '|sed 's#"##g'`
-      CONTAINER_INSTANCE=`aws ecs list-container-instances --region ${REGION} --cluster $ECS_CLUSTER|grep ${ENV_PREFIX}|tail -1|cut -d/ -f3|sed 's#"##g'`
-      ECS_TASKS=`aws ecs list-tasks --cluster $ECS_CLUSTER --region ${REGION}|grep ${ENV_PREFIX}|cut -d/ -f3|sed 's#"##g'|egrep -vi ^datadog|tr '\n' ' '`
+      CLUSTER_NAME=$(echo ${ENV_PREFIX}|sed 's#-replica##')
+      if [[ ${ENV_PREFIX} == *"-replica"* ]];then
+        ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep $CLUSTER_NAME|grep replica|tail -1|cut -d/ -f2|sed 's#,##g'|sed 's#"##g'`
+      else
+        ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep ${ENV_PREFIX}|grep -v replica|tail -1|cut -d/ -f2|sed 's#,##g'|sed 's#"##g'`
+      fi
+      SERVICE4RESTART=`aws ecs list-services --region ${REGION} --cluster $ECS_CLUSTER|grep -i $CLUSTER_NAME|cut -d/ -f3|sed 's#,##g'|tr '\n' ' '|sed 's#"##g'`
+      CONTAINER_INSTANCE=`aws ecs list-container-instances --region ${REGION} --cluster $ECS_CLUSTER|grep $CLUSTER_NAME|tail -1|cut -d/ -f3|sed 's#"##g'`
+      ECS_TASKS=`aws ecs list-tasks --cluster $ECS_CLUSTER --region ${REGION}|grep $CLUSTER_NAME|cut -d/ -f3|sed 's#"##g'|egrep -vi ^datadog|tr '\n' ' '`
       EC2_INSTANCE=`aws ecs describe-container-instances --region ${REGION} --cluster $ECS_CLUSTER --container-instance $CONTAINER_INSTANCE|jq '.containerInstances[0] .ec2InstanceId'`
       if [ -z ${SERVICE_NAME} ]; then
         info "Restarting ${ECS_CLUSTER}"
@@ -460,11 +485,16 @@ function destroy_dev_services {
 
     function stop_cluster {
         local force="${1:-}"
-        ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep ${ENV_PREFIX}|tail -1|cut -d/ -f2|sed 's#"##g'|sed 's#,##g'`
-        SERVICE4RESTART=`aws ecs list-services --region ${REGION} --cluster $ECS_CLUSTER|grep -i ${ENV_PREFIX}|cut -d/ -f3|sed 's#,##g'|egrep -vi ^datadog|tr '\n' ' '|sed 's#"##g'`
-        DATADOGTASK=`aws ecs list-tasks --cluster $ECS_CLUSTER --region ${REGION} --service-name Datadog-prod|grep ${ENV_PREFIX}|cut -d/ -f3|sed 's#"##g'|tr '\n' ' '`
-        CONTAINER_INSTANCE=`aws ecs list-container-instances --region ${REGION} --cluster $ECS_CLUSTER|grep ${ENV_PREFIX}|tail -1|cut -d/ -f3|sed 's#"##g'`
-        ECS_TASKS=`aws ecs list-tasks --cluster $ECS_CLUSTER --region ${REGION}|grep ${ENV_PREFIX}|cut -d/ -f3|sed 's#"##g'|egrep -vi ^datadog|tr '\n' ' '`
+        CLUSTER_NAME=$(echo ${ENV_PREFIX}|sed 's#-replica##')
+        if [[ ${ENV_PREFIX} == *"-replica"* ]];then
+          ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep $CLUSTER_NAME|grep replica|tail -1|cut -d/ -f2|sed 's#,##g'|sed 's#"##g'`
+        else
+          ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep ${ENV_PREFIX}|grep -v replica|tail -1|cut -d/ -f2|sed 's#,##g'|sed 's#"##g'`
+        fi
+        SERVICE4RESTART=`aws ecs list-services --region ${REGION} --cluster $ECS_CLUSTER|grep -i $CLUSTER_NAME|cut -d/ -f3|sed 's#,##g'|egrep -vi ^datadog|tr '\n' ' '|sed 's#"##g'`
+        DATADOGTASK=`aws ecs list-tasks --cluster $ECS_CLUSTER --region ${REGION} --service-name Datadog-prod|grep $CLUSTER_NAME|cut -d/ -f3|sed 's#"##g'|tr '\n' ' '`
+        CONTAINER_INSTANCE=`aws ecs list-container-instances --region ${REGION} --cluster $ECS_CLUSTER|grep $CLUSTER_NAME|tail -1|cut -d/ -f3|sed 's#"##g'`
+        ECS_TASKS=`aws ecs list-tasks --cluster $ECS_CLUSTER --region ${REGION}|grep ${CLUSTER_NAME|cut -d/ -f3|sed 's#"##g'|egrep -vi ^datadog|tr '\n' ' '`
         info "STOP ${ECS_CLUSTER}"
           for num in $SERVICE4RESTART; do
             aws ecs update-service  --region ${REGION} --service $num --cluster $ECS_CLUSTER --service $num --desired-count 0 >> /dev/null
@@ -475,8 +505,14 @@ function destroy_dev_services {
 
 
     function ssh_to_ecs_cluster {
-        ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep ${ENV_PREFIX}|tail -1|cut -d/ -f2|sed 's#,##g'|sed 's#"##g'`
-        CONTAINER_INSTANCE=`aws ecs list-container-instances --region ${REGION} --cluster $ECS_CLUSTER|grep ${ENV_PREFIX}|tail -1|cut -d/ -f3|sed 's#"##g'`
+        #set -x
+        CLUSTER_NAME=$(echo ${ENV_PREFIX}|sed 's#-replica##')
+        if [[ ${ENV_PREFIX} == *"-replica"* ]];then
+          ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep $CLUSTER_NAME|grep replica|tail -1|cut -d/ -f2|sed 's#,##g'|sed 's#"##g'`
+        else
+          ECS_CLUSTER=`aws ecs list-clusters  --region ${REGION}|grep ${ENV_PREFIX}|grep -v replica|tail -1|cut -d/ -f2|sed 's#,##g'|sed 's#"##g'`
+        fi
+        CONTAINER_INSTANCE=`aws ecs list-container-instances --region ${REGION} --cluster $ECS_CLUSTER|grep $CLUSTER_NAME|tail -1|cut -d/ -f3|sed 's#"##g'`
         EC2_INSTANCE=`aws ecs describe-container-instances --region ${REGION} --cluster $ECS_CLUSTER --container-instance $CONTAINER_INSTANCE|jq '.containerInstances[0] .ec2InstanceId'|sed 's#"##g'`
         info "SSH to server $EC2_INSTANCE"
         aws ssm start-session --target $EC2_INSTANCE
@@ -485,9 +521,11 @@ function destroy_dev_services {
       function list_clusters {
           ECS_CLUSTERS=$(aws ecs list-clusters --region ${REGION}|grep infrastructure-application|cut -d/ -f2|sed 's#"##g'|sed 's#,##g')
           for ecs in $ECS_CLUSTERS; do
-          URL=$(echo $ecs|sed 's#-infrastructure-application.*#.omgx.network#')
+          URL=$(echo $ecs|sed 's#-infrastructure-application.*#\.boba.network#')
           STACK_NAME=$(echo $ecs|sed 's#-infrastructure-application.*##')
-          echo -e " --------------- \n CLUSTER: $ecs \n L2-URL: https://$URL \n STACK-NAME: $STACK_NAME \n --------------- \n"
+          ECS_CLUSTERS_REPLICA=$(aws ecs list-clusters --region ${REGION}|grep infrastructure-replica|cut -d/ -f2|sed 's#"##g'|sed 's#,##g'|sed 's#-infrastructure##g')
+          REPLICA_NAME=$(echo $ECS_CLUSTERS_REPLICA|sed 's#-EcsCluster.*##')
+          echo -e " --------------- \n CLUSTER: $ecs \n L2-URL: https://$URL \n STACK-NAME: $STACK_NAME \n REPLICA-NAME: $REPLICA_NAME \n--------------- \n"
           done
         }
 

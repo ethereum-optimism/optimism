@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Enya L2Geth Application Deployment"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+
+  ServiceCount:
+    Type: Number
+    Default: 1
+
+  ImageTag:
+    Type: String
+    Default: push2aws
+
+  ReplicaL2Image:
+    Type: String
+    Default: l2geth
+
+  DockerPrefix:
+    Type: String
+    Default: omgx
+
+  ECRRegistry:
+    Type: String
+    Default: 942431445534.dkr.ecr.us-east-1.amazonaws.com
+
+  InfrastructureStackName:
+    Description: Infrastructure stack to associate this stack with
+    Type: String
+    Default: infrastructure-coredev
+
+  SecretName:
+    Description: AWS Secret Name used for the service
+    Type: String
+
+Conditions:
+  IsProduction:
+    !Equals [!Ref EnvironmentName, "production"]
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub ecs-tasks.${AWS::URLSuffix}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowAccessToSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetResourcePolicy"
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:ListSecretVersionIds"
+                Resource:
+                  - arn:aws:secretsmanager:us-east-1:942431445534:secret:*
+        - PolicyName: AllowAccessToELB
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ec2:AuthorizeSecurityGroupIngress"
+                  - "ec2:Describe*"
+                  - "elasticloadbalancing:*"
+                  - "elasticloadbalancing:Describe*"
+                  - "elasticloadbalancing:RegisterInstancesWithLoadBalancer"
+                  - "elasticloadbalancing:DeregisterTargets"
+                  - "elasticloadbalancing:DescribeTargetGroups"
+                  - "elasticloadbalancing:DescribeTargetHealth"
+                  - "elasticloadbalancing:RegisterTargets"
+                  - "elasticloadbalancing:DeregisterInstancesFromLoadBalancer"
+                Resource: "*"
+
+  ReplicaL2Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerReplica:ARN"
+      Port: 8545
+      Protocol: HTTP
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref GoEthereumReplicaLBTargetGroup
+
+  GoEthereumReplicaLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 8545
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:VpcId"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+      HealthCheckIntervalSeconds: 20
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP # TODO Implement proper healthcheck
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: 200
+
+
+  GoEthereumReplicaLBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref GoEthereumReplicaLBTargetGroup
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+            - Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerReplica:DNSName"
+      ListenerArn: !Ref ReplicaL2Listener
+      Priority: 1
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Volumes:
+        - Name: l2-node
+          Host:
+            SourcePath: "/mnt/efs/replica_l2"
+      ContainerDefinitions:
+        - Image: !Sub "${ECRRegistry}/${DockerPrefix}/${ReplicaL2Image}:${ImageTag}"
+          Name: geth_l2
+          PortMappings:
+            - ContainerPort: 8545
+              HostPort: 0
+            - ContainerPort: 8546
+              HostPort: 0
+          Environment:
+            - Name: SECRETNAME
+              Value: !Ref SecretName
+            - Name: RETRIES
+              Value: 3600
+            - Name: ROLLUP_BACKEND
+              Value: l2
+            - Name: ROLLUP_VERIFIER_ENABLE
+              Value: true
+            - Name: DEPLOYER_HTTP
+              Value: !Sub
+                - "https://${EndpointAddress}:8081"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+            - Name: URL
+              Value: !Sub
+                - "https://${EndpointAddress}:8081/addresses.json"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+            - Name: ROLLUP_CLIENT_HTTP
+              Value: !Sub
+                - "http://${EndpointAddress}"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:LoadBalancerReplica:DNSName"
+            - Name: ROLLUP_STATE_DUMP_PATH
+              Value: !Sub
+                - "https://${EndpointAddress}:8081/state-dump.latest.json"
+                - EndpointAddress:
+                    Fn::ImportValue: !Sub "${InfrastructureStackName}:DomainName"
+            - Name: RPC_ADDR
+              Value: "0.0.0.0"
+            - Name: ROLLUP_ENABLE_L2_GAS_POLLING
+              Value: true
+            - Name: ROLLUP_ENFORCE_FEES
+              Value: true
+            - Name: GCMODE
+              Value: archive
+            - Name: NO_DISCOVER
+              Value: true
+            - Name: ETH1_SYNC_SERVICE_ENABLE
+              Value: true
+            - Name: ETH1_CONFIRMATION_DEPTH
+              Value: 0
+          EntryPoint:
+            - "/geth.sh"
+          MountPoints:
+            - ContainerPath: "/root/.ethereum"
+              SourceVolume: l2-node
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["geth_l2"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "replica_l2", "service": "replica_l2"}]'
+          Essential: true
+          Memory: "2048"
+        - Image: 942431445534.dkr.ecr.us-east-1.amazonaws.com/omgx/nginx-eth-proxy:rpc_proxy
+          Ulimits:
+            - Name: nofile
+              SoftLimit: 8192
+              HardLimit: 8192
+            - Name: nproc
+              SoftLimit: 8192
+              HardLimit: 8192
+          Name: replica-l2-proxy
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 0
+          Environment:
+            - Name: SEQUENCER
+              Value: geth_l2:8545
+            - Name: ETH_CALLS_ALLOWED
+              Value: web3_clientVersion,eth_chainId,eth_getProof,rollup_getInfo,web3_sha3,net_version,net_peerCount,net_listening,eth_protocolVersion,eth_syncing,eth_coinbase,eth_mining,eth_hashrate,eth_gasPrice,eth_accounts,eth_blockNumber,eth_getBalance,eth_getStorageAt,eth_getTransactionCount,eth_getBlockTransactionCountByHash,eth_getBlockTransactionCountByNumber,eth_getUncleCountByBlockHash,eth_getUncleCountByBlockNumber,eth_getCode,eth_sign,eth_signTransaction,eth_sendTransaction,eth_sendRawTransaction,eth_call,eth_estimateGas,eth_getBlockByHash,eth_getBlockByNumber,eth_getTransactionByHash,eth_getTransactionByBlockHashAndIndex,eth_getTransactionByBlockNumberAndIndex,eth_getTransactionReceipt,eth_getUncleByBlockHashAndIndex,eth_getUncleByBlockNumberAndIndex,eth_getCompilers,eth_compileLLL,eth_compileSolidity,eth_compileSerpent,eth_newFilter,eth_newBlockFilter,eth_newPendingTransactionFilter,eth_uninstallFilter,eth_getFilterChanges,eth_getFilterLogs,eth_getLogs,eth_getWork,eth_submitWork,eth_submitHashrate,db_putString,db_getString,db_putHex,db_getHex,shh_post,shh_version,shh_newIdentity,shh_hasIdentity,shh_newGroup,shh_addToGroup,shh_newFilter,shh_uninstallFilter,shh_getFilterChanges,shh_getMessages,eth_getBlockRange
+          DockerLabels:
+            com.datadoghq.ad.check_names: '["replica-l2-proxy"]'
+            com.datadoghq.ad.init_configs: '[{}]'
+            com.datadoghq.ad.logs: '[{"source": "replica-l2-proxy", "service": "replica-l2-proxy"}]'
+          Essential: true
+          Memory: "64"
+          Links:
+            - geth_l2
+      NetworkMode: bridge
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Family: !Sub "L2Replica-${EnvironmentName}"
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: GoEthereumReplicaLBListenerRule
+    Properties:
+      Cluster:
+        Fn::ImportValue: !Sub "${InfrastructureStackName}:EcsClusterReplica"
+      LoadBalancers:
+        - ContainerName: replica-l2-proxy
+          ContainerPort: 80
+          TargetGroupArn: !Ref GoEthereumReplicaLBTargetGroup
+      DesiredCount: !Ref ServiceCount
+      LaunchType: EC2
+      SchedulingStrategy: REPLICA
+      ServiceName: "replica-l2"
+      TaskDefinition: !Ref TaskDefinition
