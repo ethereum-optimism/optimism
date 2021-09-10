@@ -4,7 +4,7 @@ This repository holds the open-source specification for Optimistic Ethereum, an 
 
 ## Work in Progress
 Please note that this specification is currently heavily under construction.
-You will find that several pages are incomplete or [under discussion](https://github.com/ethereum-optimism/optimistic-specs/discussions).
+You will find that several pages are incomplete or [under discussion](https://github.com/ethereum-optimism/optimistic-specs/issues).
 
 ## About the project
 
