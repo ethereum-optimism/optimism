@@ -173,9 +173,11 @@ export class StateBatchSubmitter extends BatchSubmitter {
     this.logger.debug('Submitting batch.', { calldata })
 
     // Generate the transaction we will repeatedly submit
+    const nonce = await this.signer.getTransactionCount()
     const tx = await this.chainContract.populateTransaction.appendStateBatch(
       batch,
-      offsetStartsAtIndex
+      offsetStartsAtIndex,
+      { nonce }
     )
     const submitTransaction = (): Promise<TransactionReceipt> => {
       return this.transactionSubmitter.submitTransaction(
