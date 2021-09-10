@@ -29,7 +29,7 @@ For those interested in contributing to this specification, please refer to [Con
 ## Contributing
 ### Basic Contributions
 Contributing to the Optimistic Ethereum specification is easy.
-You'll find a list of open questions and active research topics over on the [Discussions](https://github.com/ethereum-optimism/optimistic-specs/discussions) page.
+You'll find a list of open questions and active research topics over on the [Fellowship of Ethereum Magicians](https://ethereum-magicians.org) forum.
 Specific tasks and TODOs can be found on the [Issues](https://github.com/ethereum-optimism/optimistic-specs/issues) page.
 You can edit content or add new pages by creating a [Pull Request](https://github.com/ethereum-optimism/optimistic-specs/pulls).
 
