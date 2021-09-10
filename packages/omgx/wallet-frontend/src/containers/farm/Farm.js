@@ -37,19 +37,28 @@ class Farm extends React.Component {
 
   constructor(props) {
 
-    super(props);
+    super(props)
 
     const {
       totalFeeRate,
       userRewardFeeRate,
       poolInfo,
       userInfo,
-    } = this.props.farm;
+    } = this.props.farm
 
     const {
       layer1,
       layer2
-    } = this.props.balance;
+    } = this.props.balance
+    
+    
+    let initialViewLayer = 'L1 Liquidity Pool'
+    let initialLayer = 'L1LP'
+    
+    if(networkService.L1orL2 === 'L2') {
+      initialViewLayer = 'L2 Liquidity Pool'
+      initialLayer = 'L2LP'
+    }
 
     this.state = {
       totalFeeRate,
@@ -58,7 +67,8 @@ class Farm extends React.Component {
       userInfo,
       layer1,
       layer2,
-      value: 'L1 Liquidity Pool'
+      lpChoice: initialLayer,
+      poolTab: initialViewLayer
     }
 
   }
@@ -144,9 +154,12 @@ class Farm extends React.Component {
 
   }
 
-  handleChange = (event, value) => {
-    this.setState({ value });
-  };
+  handleChange = (event, t) => {
+    if( t === 'L1 Liquidity Pool' )
+      this.setState({ lpChoice: 'L1LP' })
+    else if(t === 'L2 Liquidity Pool')
+      this.setState({ lpChoice: 'L2LP' })
+  }
 
   render() {
     const {
@@ -154,10 +167,11 @@ class Farm extends React.Component {
       poolInfo,
       // user
       userInfo,
-      value,
+      lpChoice,
+      poolTab
     } = this.state;
 
-    const { isMobile } = this.props;
+    const { isMobile } = this.props
 
     const networkLayer = networkService.L1orL2
 
@@ -168,14 +182,14 @@ class Farm extends React.Component {
         <Box sx={{ my: 3, width: '100%' }}>
           <Box sx={{ mb: 2 }}>
             <Tabs
-              activeTab={value}
-              onClick={(t) => this.handleChange(null, t)}
-              aria-label="basic tabs example"
+              activeTab={poolTab}
+              onClick={(t)=>this.handleChange(null, t)}
+              aria-label="Liquidity Pool Tab"
               tabs={["L1 Liquidity Pool", "L2 Liquidity Pool"]}
             />
           </Box>
 
-          {networkLayer === 'L2' && value === 'L1 Liquidity Pool' &&
+          {networkLayer === 'L2' && lpChoice === 'L1LP' &&
             <S.LayerAlert>
               <Box className="info" sx={{flex: 1}}>
                 <AlertIcon />
@@ -191,7 +205,7 @@ class Farm extends React.Component {
             </S.LayerAlert>
           }
 
-          {networkLayer === 'L1' && value === 'L2 Liquidity Pool' &&
+          {networkLayer === 'L1' && lpChoice === 'L2LP' &&
             <S.LayerAlert>
               <Box className="info">
                 <AlertIcon />
@@ -219,7 +233,7 @@ class Farm extends React.Component {
             </S.TableHeading>
           ) : (null)}
 
-          {value === 'L1 Liquidity Pool' &&
+          {lpChoice === 'L1LP' &&
             <Box>
               {Object.keys(poolInfo.L1LP).map((v, i) => {
                 const ret = this.getBalance(v, 'L1')
@@ -228,7 +242,7 @@ class Farm extends React.Component {
                     key={i}
                     poolInfo={poolInfo.L1LP[v]}
                     userInfo={userInfo.L1LP[v]}
-                    L1orL2Pool='L1LP'
+                    L1orL2Pool={lpChoice}
                     balance={ret[0]}
                     decimals={ret[1]}
                     isMobile={isMobile}
@@ -237,7 +251,7 @@ class Farm extends React.Component {
               })}
             </Box>}
 
-          {value === 'L2 Liquidity Pool' &&
+          {lpChoice === 'L2LP' &&
             <Box>
               {Object.keys(poolInfo.L2LP).map((v, i) => {
                 const ret = this.getBalance(v, 'L2')
@@ -246,7 +260,7 @@ class Farm extends React.Component {
                     key={i}
                     poolInfo={poolInfo.L2LP[v]}
                     userInfo={userInfo.L2LP[v]}
-                    L1orL2Pool='L2LP'
+                    L1orL2Pool={lpChoice}
                     balance={ret[0]}
                     decimals={ret[1]}
                     isMobile={isMobile}
@@ -264,6 +278,6 @@ class Farm extends React.Component {
 const mapStateToProps = state => ({
   farm: state.farm,
   balance: state.balance
-});
+})
 
-export default connect(mapStateToProps)(Farm);
+export default connect(mapStateToProps)(Farm)
