@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "[Optimism] Cross Domain Message Relayer service",
   "main": "dist/index",
   "types": "dist/index",
@@ -18,7 +18,8 @@
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint .",
-    "test": "hardhat test --show-stack-traces"
+    "test": "hardhat test --show-stack-traces",
+    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
   },
   "keywords": [
     "optimism",
@@ -34,8 +35,8 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.5",
-    "@eth-optimism/contracts": "^0.4.10",
-    "@eth-optimism/core-utils": "^0.5.2",
+    "@eth-optimism/contracts": "^0.4.11",
+    "@eth-optimism/core-utils": "^0.5.5",
     "@sentry/node": "6.2.5",
     "bcfg": "^0.1.6",
     "dotenv": "^8.2.0",

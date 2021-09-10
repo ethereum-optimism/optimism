@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.13
+
+### Patch Changes
+
+- dfe3598f: Lower per tx fee overhead to more accurately represent L1 costs
+
 ## 0.4.12
 
 ### Patch Changes

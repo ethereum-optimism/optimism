@@ -1,5 +1,13 @@
 # @eth-optimism/core-utils
 
+## 0.5.5
+
+### Patch Changes
+
+- eb0854e7: increased coverage of core-utils
+- 21b17edd: Added coverage for packages
+- dfe3598f: Lower per tx fee overhead to more accurately represent L1 costs
+
 ## 0.5.4
 
 ### Patch Changes

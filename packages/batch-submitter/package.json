@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/batch-submitter",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "private": true,
   "description": "[Optimism] Batch submission for sequencer & aggregators",
   "main": "dist/index",
@@ -16,7 +16,8 @@
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint .",
-    "test": "hardhat test --show-stack-traces"
+    "test": "hardhat test --show-stack-traces",
+    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
   },
   "keywords": [
     "optimism",
@@ -33,8 +34,8 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.5",
-    "@eth-optimism/contracts": "^0.4.10",
-    "@eth-optimism/core-utils": "^0.5.2",
+    "@eth-optimism/contracts": "^0.4.11",
+    "@eth-optimism/core-utils": "^0.5.5",
     "@eth-optimism/ynatm": "^0.2.2",
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/providers": "^5.4.4",

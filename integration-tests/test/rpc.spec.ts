@@ -449,6 +449,9 @@ describe('Basic RPC tests', () => {
         ).connect(wallet)
         const l2GasPrice = BigNumber.from(await OVM_GasPriceOracle.gasPrice())
 
+        //This is current upstream approach
+        //const l2GasPrice = await env.gasPriceOracle.gasPrice()
+
         const expected = TxGasLimit.encode({
           data: tx.data,
           l1GasPrice,

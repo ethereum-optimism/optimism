@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "private": true,
   "main": "dist/index",
   "files": [
@@ -18,13 +18,14 @@
     "start": "ts-node ./src/services/run.ts",
     "start:local": "ts-node ./src/services/run.ts | pino-pretty",
     "test": "hardhat --config test/config/hardhat.config.ts test",
+    "test:coverage": "nyc hardhat --config test/config/hardhat.config.ts test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p tsconfig.build.json",
     "pre-commit": "lint-staged"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.5",
-    "@eth-optimism/contracts": "^0.4.10",
-    "@eth-optimism/core-utils": "^0.5.2",
+    "@eth-optimism/contracts": "^0.4.11",
+    "@eth-optimism/core-utils": "^0.5.5",
     "@ethersproject/providers": "^5.4.4",
     "@ethersproject/transactions": "^5.0.21",
     "@sentry/node": "^6.3.1",
