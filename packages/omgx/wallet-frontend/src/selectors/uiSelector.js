@@ -15,26 +15,26 @@ limitations under the License. */
 
 export function selectModalState (modal) {
   return function (state) {
-    return state.ui[modal];
+    return state.ui[modal]
   }
 }
 
 export function selectAlert (state) {
-  return state.ui.alert;
+  return state.ui.alert
 }
 
 export function selectError (state) {
-  return state.ui.error;
+  return state.ui.error
 }
 
 export function selectLedger (state) {
-  return state.ui.ledger;
+  return state.ui.ledger
 }
 
 export function selectActiveHistoryTab1 (state) {
-  return state.ui.activeHistoryTab1;
+  return state.ui.activeHistoryTab1
 }
 
 export function selectActiveHistoryTab2 (state) {
-  return state.ui.activeHistoryTab2;
+  return state.ui.activeHistoryTab2
 }

@@ -13,9 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
+//localStorage.removeItem("activePage")
+
+let activePage = localStorage.getItem("activePage")
+
+if (activePage) {
+  activePage = JSON.parse(activePage)
+}
+
 const initialState = {
   theme: 'dark',
-  page: 'AccountNow',
+  page: activePage ? activePage : 'AccountNow',
   depositModal: false,
   transferModal: false,
   exitModal: false,
@@ -41,7 +49,12 @@ function uiReducer (state = initialState, action) {
     case 'UI/THEME/UPDATE':
       return { ...state, theme: action.payload }
     case 'UI/PAGE/UPDATE':
-      return { ...state, page: action.payload }
+      //save currently active page
+      localStorage.setItem("activePage", JSON.stringify(action.payload))
+      return { 
+        ...state, 
+        page: action.payload
+      }
     case 'UI/MODAL/OPEN':
       return { ...state,
         [action.payload]: true,

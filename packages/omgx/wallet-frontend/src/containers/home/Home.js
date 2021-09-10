@@ -50,38 +50,36 @@ import FarmWithdrawModal from 'containers/modals/farm/FarmWithdrawModal';
 
 //DAO
 import DAO from 'containers/dao/Dao';
-import TransferDaoModal from 'containers/modals/dao/TransferDaoModal';
-import DelegateDaoModal from 'containers/modals/dao/DelegateDaoModal';
-import NewProposalModal from 'containers/modals/dao/NewProposalModal';
+import TransferDaoModal from 'containers/modals/dao/TransferDaoModal'
+import DelegateDaoModal from 'containers/modals/dao/DelegateDaoModal'
+import NewProposalModal from 'containers/modals/dao/NewProposalModal'
 
-import { fetchDaoBalance, fetchDaoVotes, fetchDaoProposals, getProposalThreshold } from 'actions/daoAction';
+import { fetchDaoBalance, fetchDaoVotes, fetchDaoProposals, getProposalThreshold } from 'actions/daoAction'
 
 //Wallet Functions
-import Account from 'containers/account/Account';
-import Transactions from 'containers/transactions/History';
+import Account from 'containers/account/Account'
+import Transactions from 'containers/transactions/History'
 
 //NFT Example Page
-import NFT from 'containers/nft/Nft';
+import NFT from 'containers/nft/Nft'
 
 import { useTheme } from '@material-ui/core/styles'
 import { Box, Container, useMediaQuery } from '@material-ui/core'
 import MainMenu from 'components/mainMenu/MainMenu'
 import FarmWrapper from 'containers/farm/FarmWrapper'
 
-import Alert from 'components/alert/Alert';
+import Alert from 'components/alert/Alert'
 
 const POLL_INTERVAL = 5000 //milliseconds
 
 function Home () {
 
-  const dispatch = useDispatch();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const dispatch = useDispatch()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
-  const errorMessage = useSelector(selectError);
-  const alertMessage = useSelector(selectAlert);
-
-  
+  const errorMessage = useSelector(selectError)
+  const alertMessage = useSelector(selectAlert)
 
   const [ mobileMenuOpen, setMobileMenuOpen ] = useState(false)
 
@@ -107,8 +105,8 @@ function Home () {
   const walletMethod = useSelector(selectWalletMethod())
   //const transactions = useSelector(selectlayer2Transactions, isEqual);
 
-  const handleErrorClose=()=>dispatch(closeError());
-  const handleAlertClose=()=>dispatch(closeAlert());
+  const handleErrorClose=()=>dispatch(closeError())
+  const handleAlertClose=()=>dispatch(closeAlert())
 
   useEffect(() => {
     const body = document.getElementsByTagName('body')[0];
@@ -119,8 +117,8 @@ function Home () {
 
   // calls only on boot
   useEffect(() => {
-    window.scrollTo(0, 0);
-    dispatch(fetchDeposits());
+    window.scrollTo(0, 0)
+    dispatch(fetchDeposits())
   }, [ dispatch ]);
 
   useInterval(() => {
@@ -133,7 +131,7 @@ function Home () {
       // watcher only calls
       dispatch(checkWatcherStatus());
       dispatch(fetchExits());
-    });
+    })
   }, POLL_INTERVAL * 2);
 
   //get all account balances
@@ -195,8 +193,8 @@ function Home () {
       />
 
       <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', width: '100%' }}>
-          <MainMenu />
-          {/* The Top SubMenu Bar, non-mobile */}
+        <MainMenu />
+        {/* The Top SubMenu Bar, non-mobile */}
 
         <Container maxWidth="lg">
           {pageDisplay === "AccountNow" &&
@@ -224,4 +222,4 @@ function Home () {
   );
 }
 
-export default React.memo(Home);
+export default React.memo(Home)
