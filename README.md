@@ -38,15 +38,6 @@ We hold weekly R&D calls that are open to anyone interested in contributing to t
 Contact [@karlfloersch](https://twitter.com/karl_dot_tech/), [@protolambda](https://github.com/protolambda/), or [@kelvinfichter](https://twitter.com/kelvinfichter) if you'd like to join these calls.
 Please note that these calls may be recorded and shared publicly (we will ask for consent before recording).
 
-### Contributors List
-Refer to the [Contributors](https://github.com/ethereum-optimism/optimistic-specs/graphs/contributors) page for a complete list of active contributors.
-Members of following organizations have contributed to the spec:
-- Optimism
-- Quilt/ConsenSys
-- EF Research
-
-Make a [Contribution](#basic-contributions) of your own to be added to this list!
-
 ## License
 
 CC0 1.0 Universal, see [`LICENSE`](./LICENSE) file.
