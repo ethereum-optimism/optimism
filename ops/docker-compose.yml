@@ -151,6 +151,7 @@ services:
       URL: http://dtl:8081/addresses.json
       # DO NOT use in production
       << : *deployer_pk
+      << : *fast-relayer_pk
       RETRIES: 70
       DTL_REGISTRY_URL: http://dtl:8081/omgx-addr.json
     ports:
