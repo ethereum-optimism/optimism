@@ -3,6 +3,7 @@ import { expect } from 'chai'
 /* Imports: External */
 import { ethers } from 'hardhat'
 import { injectL2Context } from '@eth-optimism/core-utils'
+import { predeploys } from '@eth-optimism/contracts'
 import { Contract, BigNumber } from 'ethers'
 
 /* Imports: Internal */
@@ -72,6 +73,14 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       expect(receipt.blockNumber).to.deep.equal(blockNumber.toNumber())
       const timestamp = await OVMContextStorage.timestamps(i)
       expect(block.timestamp).to.deep.equal(timestamp.toNumber())
+
+      // Difficulty should always be zero.
+      const difficulty = await OVMContextStorage.difficulty(i)
+      expect(difficulty.toNumber()).to.equal(0)
+
+      // Coinbase should always be sequencer fee vault.
+      const coinbase = await OVMContextStorage.coinbases(i)
+      expect(coinbase).to.equal(predeploys.OVM_SequencerFeeVault)
     }
   }).timeout(150000) // this specific test takes a while because it involves L1 to L2 txs
 
