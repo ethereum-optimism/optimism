@@ -7,6 +7,7 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
+import { Lib_DefaultValues } from "../../libraries/utils/Lib_DefaultValues.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
@@ -37,7 +38,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
+contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver, Lib_DefaultValues {
 
     /********************************
      * External Contract References *
@@ -77,15 +78,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     // Public so we can access and make assertions in integration tests.
     uint256 public constant CALL_WITH_VALUE_INTRINSIC_GAS = 90000;
-
-
-    /**************************
-     * Default Context Values *
-     **************************/
-
-    uint256 constant DEFAULT_UINT256 =
-        0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
-    address constant DEFAULT_ADDRESS = 0xdEfa017defA017DeFA017DEfa017DeFA017DeFa0;
 
 
     /*************************************
