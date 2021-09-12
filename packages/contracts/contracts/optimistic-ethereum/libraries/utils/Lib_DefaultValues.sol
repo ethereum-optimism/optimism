@@ -7,7 +7,7 @@ pragma experimental ABIEncoderV2;
  */
 contract Lib_DefaultValues {
 
-  address public constant DEFAULT_ADDRESS = 0xE0f5206BBD039e7b0592d8918820024e2a7437b9;
+  address public constant DEFAULT_ADDRESS = 0xdEfa017defA017DeFA017DEfa017DeFA017DeFa0;
 
   uint256 public constant DEFAULT_UINT256 =
     0xdefa017defa017defa017defa017defa017defa017defa017defa017defa017d;
