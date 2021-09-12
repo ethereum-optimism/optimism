@@ -7,9 +7,9 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_Bytes32Utils } from "../../libraries/utils/Lib_Bytes32Utils.sol";
-import { Lib_DefaultValues } from "../../libraries/utils/Lib_DefaultValues.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_ErrorUtils } from "../../libraries/utils/Lib_ErrorUtils.sol";
+import { Lib_DefaultValues } from "../../libraries/constants/Lib_DefaultValues.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
@@ -38,7 +38,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
  * Compiler used: solc
  * Runtime target: EVM
  */
-contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver, Lib_DefaultValues {
+contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
     /********************************
      * External Contract References *
@@ -187,7 +187,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver, Lib
     {
         // Make sure that run() is not re-enterable.  This condition should always be satisfied
         // Once run has been called once, due to the behavior of _isValidInput().
-        if (transactionContext.ovmNUMBER != DEFAULT_UINT256) {
+        if (transactionContext.ovmNUMBER != Lib_DefaultValues.DEFAULT_UINT256) {
             return bytes("");
         }
 
@@ -1925,11 +1925,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver, Lib
         // Prevent reentrancy to run():
         // This check prevents calling run with the default ovmNumber.
         // Combined with the first check in run():
-        //      if (transactionContext.ovmNUMBER != DEFAULT_UINT256) { return; }
+        //      if (transactionContext.ovmNUMBER != Lib_DefaultValues.DEFAULT_UINT256) { return; }
         // It should be impossible to re-enter since run() returns before any other call frames are
         // created. Since this value is already being written to storage, we save much gas compared
         // to using the standard nonReentrant pattern.
-        if (_transaction.blockNumber == DEFAULT_UINT256)  {
+        if (_transaction.blockNumber == Lib_DefaultValues.DEFAULT_UINT256)  {
             return false;
         }
 
@@ -2114,20 +2114,20 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver, Lib
     function _resetContext()
         internal
     {
-        transactionContext.ovmL1TXORIGIN = DEFAULT_ADDRESS;
-        transactionContext.ovmTIMESTAMP = DEFAULT_UINT256;
-        transactionContext.ovmNUMBER = DEFAULT_UINT256;
-        transactionContext.ovmGASLIMIT = DEFAULT_UINT256;
-        transactionContext.ovmTXGASLIMIT = DEFAULT_UINT256;
+        transactionContext.ovmL1TXORIGIN = Lib_DefaultValues.DEFAULT_ADDRESS;
+        transactionContext.ovmTIMESTAMP = Lib_DefaultValues.DEFAULT_UINT256;
+        transactionContext.ovmNUMBER = Lib_DefaultValues.DEFAULT_UINT256;
+        transactionContext.ovmGASLIMIT = Lib_DefaultValues.DEFAULT_UINT256;
+        transactionContext.ovmTXGASLIMIT = Lib_DefaultValues.DEFAULT_UINT256;
         transactionContext.ovmL1QUEUEORIGIN = Lib_OVMCodec.QueueOrigin.SEQUENCER_QUEUE;
 
-        transactionRecord.ovmGasRefund = DEFAULT_UINT256;
+        transactionRecord.ovmGasRefund = Lib_DefaultValues.DEFAULT_UINT256;
 
-        messageContext.ovmCALLER = DEFAULT_ADDRESS;
-        messageContext.ovmADDRESS = DEFAULT_ADDRESS;
+        messageContext.ovmCALLER = Lib_DefaultValues.DEFAULT_ADDRESS;
+        messageContext.ovmADDRESS = Lib_DefaultValues.DEFAULT_ADDRESS;
         messageContext.isStatic = false;
 
-        messageRecord.nuisanceGasLeft = DEFAULT_UINT256;
+        messageRecord.nuisanceGasLeft = Lib_DefaultValues.DEFAULT_UINT256;
 
         // Reset the ovmStateManager.
         ovmStateManager = iOVM_StateManager(address(0));
