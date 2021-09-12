@@ -3,17 +3,37 @@
 This repository holds the open-source specification for Optimistic Ethereum, an ultra-minimal optimistic rollup protocol that maintains 1:1 compatibility with Ethereum.
 
 ## Work in Progress
+
 Please note that this specification is currently heavily under construction.
 You will find that several pages are incomplete or [under discussion](https://github.com/ethereum-optimism/optimistic-specs/issues).
 
-## About the project
+## Design Philosophy
 
-Early designs for Optimistic Ethereum were spearheaded by [Optimism](https://optimism.io/), which actively maintains an implementation of the protocol at the [optimism monorepo](https://github.com/ethereum-optimism/optimism).
-Recent versions of the protocol have been vastly simplified to the point that we can now envision a future in which Optimistic Ethereum can act as a standardized optimistic rollup design.
-We aim to make this specification open and accessible to anyone interesting in building their own ORU system.
-Toward that end, this repository is distributed under the [Creative Commons Zero v1.0 Universal](https://github.com/ethereum-optimism/optimistic-specs/blob/main/LICENSE) license which dedicates this work to the public domain.
+We believe that **the best optimistic rollup design needs to be minimal, open, and accessible.**
 
-For those interested in contributing to this specification, please refer to [Contributing](#contributing).
+### Minimalism
+
+Ethereum-focused optimistic rollups should be minimal to best take advantage of the battle-tested infrastructure (like Geth) that already runs Ethereum.
+An ideal optimistic rollup design should be representable as a *diff* against Ethereum client software.
+We imagine a world in which any Ethereum client can, with only minor modifications, participate in an Optimistic Ethereum network.
+
+### Openness
+
+We think it's time to coordinate the Ethereum community around a well-specified optimistic rollup design.
+We acknowledge that this is only possible if the design process remains open to the feedback of the many teams already working on optimistic rollup architectures.
+We aim to make this both this specification and the process by which this specification is built available to anyone interesting in building their own ORU system.
+
+Anyone interested in contributing to this specification should refer to the [Contributing](#contributing) section.
+You will find multiple options for contributing to this project.
+
+This repository is distributed under the [Creative Commons Zero v1.0 Universal](https://github.com/ethereum-optimism/optimistic-specs/blob/main/LICENSE) license which dedicates this work to the public domain.
+An MIT licensed implementation of this protocol can be found [here](https://github.com/ethereum-optimism/optimism).
+
+### Accessibility
+
+Users, developers, and protocol designers need to be confident that a given optimistic rollup is robust and secure.
+We believe that this confidence can only truly come from an accessible specification and codebase that developers can reasonably be expected to understand.
+Without this accessibility we'll always fundamentally have to trust the knowledge and competence of a very small group of core developers, a fact antithetical to the ideal decentralized nature of these systems.
 
 ## Specification structure
 
