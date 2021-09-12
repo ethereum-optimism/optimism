@@ -33,7 +33,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    address public l2TokenBridge;
+    address public override l2TokenBridge;
 
     // Maps L1 token to L2 token to balance of the L1 token deposited
     mapping(address => mapping (address => uint256)) public deposits;
