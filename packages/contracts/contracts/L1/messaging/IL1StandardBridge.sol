@@ -5,9 +5,9 @@ pragma experimental ABIEncoderV2;
 import "./IL1ERC20Bridge.sol";
 
 /**
- * @title iOVM_L1StandardBridge
+ * @title IL1StandardBridge
  */
-interface iOVM_L1StandardBridge is IL1ERC20Bridge {
+interface IL1StandardBridge is IL1ERC20Bridge {
 
     /**********
      * Events *
