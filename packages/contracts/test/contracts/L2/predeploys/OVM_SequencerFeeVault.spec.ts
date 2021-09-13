@@ -14,12 +14,8 @@ describe('OVM_SequencerFeeVault', () => {
     ;[signer1] = await hre.ethers.getSigners()
   })
 
-  let Mock__OVM_ETH: MockContract
   let Mock__OVM_L2StandardBridge: MockContract
   before(async () => {
-    Mock__OVM_ETH = await smockit('OVM_ETH', {
-      address: predeploys.OVM_ETH,
-    })
     Mock__OVM_L2StandardBridge = await smockit('OVM_L2StandardBridge', {
       address: predeploys.OVM_L2StandardBridge,
     })
@@ -33,14 +29,17 @@ describe('OVM_SequencerFeeVault', () => {
 
   describe('withdraw', async () => {
     it('should fail if the contract does not have more than the minimum balance', async () => {
-      Mock__OVM_ETH.smocked.balanceOf.will.return.with(0)
-
       await expect(OVM_SequencerFeeVault.withdraw()).to.be.reverted
     })
 
     it('should succeed when the contract has exactly sufficient balance', async () => {
+      // Send just the balance that the contract needs.
       const amount = await OVM_SequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
-      Mock__OVM_ETH.smocked.balanceOf.will.return.with(amount)
+
+      await signer1.sendTransaction({
+        to: OVM_SequencerFeeVault.address,
+        value: amount,
+      })
 
       await expect(OVM_SequencerFeeVault.withdraw()).to.not.be.reverted
 
@@ -56,8 +55,14 @@ describe('OVM_SequencerFeeVault', () => {
     })
 
     it('should succeed when the contract has more than sufficient balance', async () => {
-      const amount = hre.ethers.utils.parseEther('100')
-      Mock__OVM_ETH.smocked.balanceOf.will.return.with(amount)
+      // Send just twice the balance that the contract needs.
+      let amount = await OVM_SequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
+      amount = amount.mul(2)
+
+      await signer1.sendTransaction({
+        to: OVM_SequencerFeeVault.address,
+        value: amount,
+      })
 
       await expect(OVM_SequencerFeeVault.withdraw()).to.not.be.reverted
 
