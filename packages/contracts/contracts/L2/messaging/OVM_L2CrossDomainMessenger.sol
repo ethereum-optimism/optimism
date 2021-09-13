@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
+import { Lib_DefaultValues } from "../../libraries/constants/Lib_DefaultValues.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
@@ -30,15 +31,6 @@ contract OVM_L2CrossDomainMessenger is
 {
 
     /*************
-     * Constants *
-     *************/
-
-    // The default x-domain message sender being set to a non-zero value makes
-    // deployment a bit more expensive, but in exchange the refund on every call to
-    // `relayMessage` by the L1 and L2 messengers will be higher.
-    address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
-
-    /*************
      * Variables *
      *************/
 
@@ -46,7 +38,7 @@ contract OVM_L2CrossDomainMessenger is
     mapping (bytes32 => bool) public successfulMessages;
     mapping (bytes32 => bool) public sentMessages;
     uint256 public messageNonce;
-    address internal xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+    address internal xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
     address public l1CrossDomainMessenger;
 
     /***************
@@ -73,7 +65,7 @@ contract OVM_L2CrossDomainMessenger is
             address
         )
     {
-        require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
+        require(xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
         return xDomainMsgSender;
     }
 
@@ -150,7 +142,7 @@ contract OVM_L2CrossDomainMessenger is
 
         xDomainMsgSender = _sender;
         (bool success, ) = _target.call(_message);
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
 
         // Mark the message as received if the call was successful. Ensures that a message can be
         // relayed multiple times in the case that the call reverted.
