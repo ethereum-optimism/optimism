@@ -30,7 +30,7 @@ describe('OVM_L2StandardBridge', () => {
   let bob: Signer
   let bobsAddress: string
   let l2MessengerImpersonator: Signer
-  let Factory__OVM_L1StandardBridge: ContractFactory
+  let Factory__L1StandardBridge: ContractFactory
   let IL2ERC20Bridge: Interface
   const INITIAL_TOTAL_SUPPLY = 100_000
   const ALICE_INITIAL_BALANCE = 50_000
@@ -39,8 +39,8 @@ describe('OVM_L2StandardBridge', () => {
     ;[alice, bob, l2MessengerImpersonator] = await ethers.getSigners()
     aliceAddress = await alice.getAddress()
     bobsAddress = await bob.getAddress()
-    Factory__OVM_L1StandardBridge = await ethers.getContractFactory(
-      'OVM_L1StandardBridge'
+    Factory__L1StandardBridge = await ethers.getContractFactory(
+      'L1StandardBridge'
     )
 
     // get an L2ER20Bridge Interface
@@ -152,7 +152,7 @@ describe('OVM_L2StandardBridge', () => {
 
       expect(withdrawalCallToMessenger._target).to.equal(DUMMY_L1BRIDGE_ADDRESS)
       expect(withdrawalCallToMessenger._message).to.equal(
-        Factory__OVM_L1StandardBridge.interface.encodeFunctionData(
+        Factory__L1StandardBridge.interface.encodeFunctionData(
           'finalizeERC20Withdrawal',
           [
             DUMMY_L1TOKEN_ADDRESS,
@@ -245,7 +245,7 @@ describe('OVM_L2StandardBridge', () => {
       expect(withdrawalCallToMessenger._target).to.equal(DUMMY_L1BRIDGE_ADDRESS)
       // Message data should be a call telling the L1L1StandardBridge to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
-        Factory__OVM_L1StandardBridge.interface.encodeFunctionData(
+        Factory__L1StandardBridge.interface.encodeFunctionData(
           'finalizeERC20Withdrawal',
           [
             DUMMY_L1TOKEN_ADDRESS,
@@ -291,7 +291,7 @@ describe('OVM_L2StandardBridge', () => {
       expect(withdrawalCallToMessenger._target).to.equal(DUMMY_L1BRIDGE_ADDRESS)
       // The message data should be a call telling the L1L1StandardBridge to finalize the withdrawal
       expect(withdrawalCallToMessenger._message).to.equal(
-        Factory__OVM_L1StandardBridge.interface.encodeFunctionData(
+        Factory__L1StandardBridge.interface.encodeFunctionData(
           'finalizeERC20Withdrawal',
           [
             DUMMY_L1TOKEN_ADDRESS,
