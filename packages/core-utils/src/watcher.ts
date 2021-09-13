@@ -58,7 +58,9 @@ export class Watcher {
     }
 
     const msgHashes = []
-    const sentMessageEventId = ethers.utils.id('SentMessage(address,address,bytes,uint256,uint256)')
+    const sentMessageEventId = ethers.utils.id(
+      'SentMessage(address,address,bytes,uint256,uint256)'
+    )
     const l2CrossDomainMessengerRelayAbi = [
       'function relayMessage(address _target,address _sender,bytes memory _message,uint256 _messageNonce)',
     ]
@@ -68,8 +70,7 @@ export class Watcher {
     for (const log of receipt.logs) {
       if (
         log.address === layer.messengerAddress &&
-        log.topics[0] ===
-          sentMessageEventId
+        log.topics[0] === sentMessageEventId
       ) {
         const [sender, message, messageNonce] =
           ethers.utils.defaultAbiCoder.decode(
