@@ -5,7 +5,6 @@ pragma solidity >0.5.0 <0.8.0;
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
-import { OVM_ETH } from "./OVM_ETH.sol";
 import { OVM_L2StandardBridge } from "../messaging/OVM_L2StandardBridge.sol";
 
 /**
@@ -49,6 +48,13 @@ contract OVM_SequencerFeeVault {
     }
 
 
+    /************
+     * Fallback *
+     ************/
+
+    receive() external payable {}
+
+
     /********************
      * Public Functions *
      ********************/
@@ -56,10 +62,8 @@ contract OVM_SequencerFeeVault {
     function withdraw()
         public
     {
-        uint256 balance = OVM_ETH(Lib_PredeployAddresses.OVM_ETH).balanceOf(address(this));
-
         require(
-            balance >= MIN_WITHDRAWAL_AMOUNT,
+            address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
             // solhint-disable-next-line max-line-length
             "OVM_SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
@@ -67,7 +71,7 @@ contract OVM_SequencerFeeVault {
         OVM_L2StandardBridge(Lib_PredeployAddresses.L2_STANDARD_BRIDGE).withdrawTo(
             Lib_PredeployAddresses.OVM_ETH,
             l1FeeWallet,
-            balance,
+            address(this).balance,
             0,
             bytes("")
         );
