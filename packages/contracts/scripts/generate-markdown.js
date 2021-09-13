@@ -55,8 +55,7 @@ const networks = {
 
     // Do not display the Goerli network
     // because it is for internal use only
-    if (deployment.match(/goerli/i))
-       continue;
+    if (deployment.match(/goerli/i)) { continue; }
 
     md += `## ${deployment.toUpperCase()}\n\n`
 
