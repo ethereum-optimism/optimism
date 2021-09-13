@@ -30,16 +30,16 @@ const deployProxyXDomainMessenger = async (
   l1XDomainMessenger: Contract
 ): Promise<Contract> => {
   await addressManager.setAddress(
-    'OVM_L1CrossDomainMessenger',
+    'L1CrossDomainMessenger',
     l1XDomainMessenger.address
   )
   const proxy = await (
     await ethers.getContractFactory('Lib_ResolvedDelegateProxy')
-  ).deploy(addressManager.address, 'OVM_L1CrossDomainMessenger')
+  ).deploy(addressManager.address, 'L1CrossDomainMessenger')
   return l1XDomainMessenger.attach(proxy.address)
 }
 
-describe('OVM_L1CrossDomainMessenger', () => {
+describe('L1CrossDomainMessenger', () => {
   let signer: Signer
   let signer2: Signer
   before(async () => {
@@ -94,7 +94,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     )
 
     Factory__OVM_L1CrossDomainMessenger = await ethers.getContractFactory(
-      'OVM_L1CrossDomainMessenger'
+      'L1CrossDomainMessenger'
     )
     OVM_CanonicalTransactionChain =
       await Factory__OVM_CanonicalTransactionChain.deploy(
@@ -129,31 +129,31 @@ describe('OVM_L1CrossDomainMessenger', () => {
     )
   })
 
-  let OVM_L1CrossDomainMessenger: Contract
+  let L1CrossDomainMessenger: Contract
   beforeEach(async () => {
     const xDomainMessengerImpl =
       await Factory__OVM_L1CrossDomainMessenger.deploy()
     // We use an upgradable proxy for the XDomainMessenger--deploy & set up the proxy.
-    OVM_L1CrossDomainMessenger = await deployProxyXDomainMessenger(
+    L1CrossDomainMessenger = await deployProxyXDomainMessenger(
       AddressManager,
       xDomainMessengerImpl
     )
-    await OVM_L1CrossDomainMessenger.initialize(AddressManager.address)
+    await L1CrossDomainMessenger.initialize(AddressManager.address)
   })
 
   describe('pause', () => {
     describe('when called by the current owner', () => {
       it('should pause the contract', async () => {
-        await OVM_L1CrossDomainMessenger.pause()
+        await L1CrossDomainMessenger.pause()
 
-        expect(await OVM_L1CrossDomainMessenger.paused()).to.be.true
+        expect(await L1CrossDomainMessenger.paused()).to.be.true
       })
     })
 
     describe('when called by account other than the owner', () => {
       it('should not pause the contract', async () => {
         await expect(
-          OVM_L1CrossDomainMessenger.connect(signer2).pause()
+          L1CrossDomainMessenger.connect(signer2).pause()
         ).to.be.revertedWith('Ownable: caller is not the owner')
       })
     })
@@ -186,7 +186,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     it('should be able to send a single message', async () => {
       await expect(
-        OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
+        L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
       ).to.not.be.reverted
 
       const calldata = encodeXDomainCalldata(
@@ -196,7 +196,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
         0
       )
       const transactionHash = getTransactionHash(
-        OVM_L1CrossDomainMessenger.address,
+        L1CrossDomainMessenger.address,
         Mock__OVM_L2CrossDomainMessenger.address,
         gasLimit,
         calldata
@@ -210,10 +210,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
     })
 
     it('should be able to send the same message twice', async () => {
-      await OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
+      await L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
 
       await expect(
-        OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
+        L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
       ).to.not.be.reverted
     })
   })
@@ -224,11 +224,11 @@ describe('OVM_L1CrossDomainMessenger', () => {
     const gasLimit = 100_000
 
     it('should revert if given the wrong queue index', async () => {
-      await OVM_L1CrossDomainMessenger.sendMessage(target, message, 100_001)
+      await L1CrossDomainMessenger.sendMessage(target, message, 100_001)
 
       const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
       await expect(
-        OVM_L1CrossDomainMessenger.replayMessage(
+        L1CrossDomainMessenger.replayMessage(
           target,
           await signer.getAddress(),
           message,
@@ -239,7 +239,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     })
 
     it('should succeed if the message exists', async () => {
-      await OVM_L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
+      await L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
       const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
 
       const calldata = encodeXDomainCalldata(
@@ -249,7 +249,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
         queueLength - 1
       )
       await expect(
-        OVM_L1CrossDomainMessenger.replayMessage(
+        L1CrossDomainMessenger.replayMessage(
           Mock__OVM_L2CrossDomainMessenger.address,
           await signer.getAddress(),
           calldata,
@@ -366,7 +366,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       }
 
       await expect(
-        OVM_L1CrossDomainMessenger.relayMessage(
+        L1CrossDomainMessenger.relayMessage(
           target,
           sender,
           message,
@@ -384,7 +384,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       )
 
       await expect(
-        OVM_L1CrossDomainMessenger.relayMessage(
+        L1CrossDomainMessenger.relayMessage(
           OVM_CanonicalTransactionChain.address,
           sender,
           message,
@@ -410,7 +410,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       }
 
       await expect(
-        OVM_L1CrossDomainMessenger.relayMessage(
+        L1CrossDomainMessenger.relayMessage(
           target,
           sender,
           message,
@@ -422,7 +422,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     it('should revert if provided an invalid storage trie witness', async () => {
       await expect(
-        OVM_L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
+        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
           ...proof,
           storageTrieWitness: '0x',
         })
@@ -431,7 +431,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     it('should revert if provided an invalid state trie witness', async () => {
       await expect(
-        OVM_L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
+        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
           ...proof,
           stateTrieWitness: '0x',
         })
@@ -441,7 +441,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     it('should send a successful call to the target contract', async () => {
       const blockNumber = await getNextBlockNumber(ethers.provider)
 
-      await OVM_L1CrossDomainMessenger.relayMessage(
+      await L1CrossDomainMessenger.relayMessage(
         target,
         sender,
         message,
@@ -450,11 +450,11 @@ describe('OVM_L1CrossDomainMessenger', () => {
       )
 
       expect(
-        await OVM_L1CrossDomainMessenger.successfulMessages(keccak256(calldata))
+        await L1CrossDomainMessenger.successfulMessages(keccak256(calldata))
       ).to.equal(true)
 
       expect(
-        await OVM_L1CrossDomainMessenger.relayedMessages(
+        await L1CrossDomainMessenger.relayedMessages(
           keccak256(
             calldata +
               remove0x(await signer.getAddress()) +
@@ -469,9 +469,9 @@ describe('OVM_L1CrossDomainMessenger', () => {
 
     it('the xDomainMessageSender is reset to the original value', async () => {
       await expect(
-        OVM_L1CrossDomainMessenger.xDomainMessageSender()
+        L1CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
-      await OVM_L1CrossDomainMessenger.relayMessage(
+      await L1CrossDomainMessenger.relayMessage(
         target,
         sender,
         message,
@@ -479,12 +479,12 @@ describe('OVM_L1CrossDomainMessenger', () => {
         proof
       )
       await expect(
-        OVM_L1CrossDomainMessenger.xDomainMessageSender()
+        L1CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
     })
 
     it('should revert if trying to send the same message twice', async () => {
-      await OVM_L1CrossDomainMessenger.relayMessage(
+      await L1CrossDomainMessenger.relayMessage(
         target,
         sender,
         message,
@@ -493,7 +493,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
       )
 
       await expect(
-        OVM_L1CrossDomainMessenger.relayMessage(
+        L1CrossDomainMessenger.relayMessage(
           target,
           sender,
           message,
@@ -504,10 +504,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
     })
 
     it('should revert if paused', async () => {
-      await OVM_L1CrossDomainMessenger.pause()
+      await L1CrossDomainMessenger.pause()
 
       await expect(
-        OVM_L1CrossDomainMessenger.relayMessage(
+        L1CrossDomainMessenger.relayMessage(
           target,
           sender,
           message,
@@ -520,7 +520,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
     describe('blockMessage and allowMessage', () => {
       it('should revert if called by an account other than the owner', async () => {
         const OVM_L1CrossDomainMessenger2 =
-          OVM_L1CrossDomainMessenger.connect(signer2)
+          L1CrossDomainMessenger.connect(signer2)
         await expect(
           OVM_L1CrossDomainMessenger2.blockMessage(keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')
@@ -531,10 +531,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
       })
 
       it('should revert if the message is blocked', async () => {
-        await OVM_L1CrossDomainMessenger.blockMessage(keccak256(calldata))
+        await L1CrossDomainMessenger.blockMessage(keccak256(calldata))
 
         await expect(
-          OVM_L1CrossDomainMessenger.relayMessage(
+          L1CrossDomainMessenger.relayMessage(
             target,
             sender,
             message,
@@ -545,10 +545,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
       })
 
       it('should succeed if the message is blocked, then unblocked', async () => {
-        await OVM_L1CrossDomainMessenger.blockMessage(keccak256(calldata))
+        await L1CrossDomainMessenger.blockMessage(keccak256(calldata))
 
         await expect(
-          OVM_L1CrossDomainMessenger.relayMessage(
+          L1CrossDomainMessenger.relayMessage(
             target,
             sender,
             message,
@@ -557,10 +557,10 @@ describe('OVM_L1CrossDomainMessenger', () => {
           )
         ).to.be.revertedWith('Provided message has been blocked.')
 
-        await OVM_L1CrossDomainMessenger.allowMessage(keccak256(calldata))
+        await L1CrossDomainMessenger.allowMessage(keccak256(calldata))
 
         await expect(
-          OVM_L1CrossDomainMessenger.relayMessage(
+          L1CrossDomainMessenger.relayMessage(
             target,
             sender,
             message,
@@ -580,7 +580,7 @@ describe('OVM_L1CrossDomainMessenger', () => {
         )
 
         await expect(
-          OVM_L1CrossDomainMessenger.relayMessage(
+          L1CrossDomainMessenger.relayMessage(
             target,
             sender,
             message,
