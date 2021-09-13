@@ -56,7 +56,7 @@ export const makeL2GenesisFile = async (
     },
     OVM_L2StandardBridge: {
       l1TokenBridge: cfg.l1StandardBridgeAddress,
-      messenger: predeploys.OVM_L2CrossDomainMessenger,
+      messenger: predeploys.L2CrossDomainMessenger,
     },
     OVM_SequencerFeeVault: {
       l1FeeWallet: cfg.l1FeeWalletAddress,
@@ -67,7 +67,7 @@ export const makeL2GenesisFile = async (
       _symbol: 'ETH',
       _decimals: 18,
     },
-    OVM_L2CrossDomainMessenger: {
+    L2CrossDomainMessenger: {
       _status: 1,
       l1CrossDomainMessenger: cfg.l1CrossDomainMessengerAddress,
     },

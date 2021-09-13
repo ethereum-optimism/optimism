@@ -48,7 +48,7 @@ const main = async () => {
         l1RpcProviderUrl,
         l2RpcProviderUrl,
         l1StateCommitmentChainAddress,
-        predeploys.OVM_L2CrossDomainMessenger,
+        predeploys.L2CrossDomainMessenger,
         l2TransactionHash
       )
       break

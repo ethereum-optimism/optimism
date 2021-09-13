@@ -6,9 +6,9 @@ pragma experimental ABIEncoderV2;
 import { iOVM_CrossDomainMessenger } from "../../libraries/bridge/iOVM_CrossDomainMessenger.sol";
 
 /**
- * @title iOVM_L2CrossDomainMessenger
+ * @title IL2CrossDomainMessenger
  */
-interface iOVM_L2CrossDomainMessenger is iOVM_CrossDomainMessenger {
+interface IL2CrossDomainMessenger is iOVM_CrossDomainMessenger {
 
     /********************
      * Public Functions *

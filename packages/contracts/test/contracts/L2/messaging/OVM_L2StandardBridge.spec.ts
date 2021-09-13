@@ -49,19 +49,19 @@ describe('OVM_L2StandardBridge', () => {
 
   let OVM_L2StandardBridge: Contract
   let L2ERC20: Contract
-  let Mock__OVM_L2CrossDomainMessenger: MockContract
+  let Mock__L2CrossDomainMessenger: MockContract
   beforeEach(async () => {
     // Get a new mock L2 messenger
-    Mock__OVM_L2CrossDomainMessenger = await smockit(
-      await ethers.getContractFactory('OVM_L2CrossDomainMessenger'),
-      // This allows us to use an ethers override {from: Mock__OVM_L2CrossDomainMessenger.address} to mock calls
+    Mock__L2CrossDomainMessenger = await smockit(
+      await ethers.getContractFactory('L2CrossDomainMessenger'),
+      // This allows us to use an ethers override {from: Mock__L2CrossDomainMessenger.address} to mock calls
       { address: await l2MessengerImpersonator.getAddress() }
     )
 
     // Deploy the contract under test
     OVM_L2StandardBridge = await (
       await ethers.getContractFactory('OVM_L2StandardBridge')
-    ).deploy(Mock__OVM_L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
+    ).deploy(Mock__L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
 
     // Deploy an L2 ERC20
     L2ERC20 = await (
@@ -90,7 +90,7 @@ describe('OVM_L2StandardBridge', () => {
     })
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1L1StandardBridge)', async () => {
-      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+      Mock__L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         NON_ZERO_ADDRESS
       )
 
@@ -103,7 +103,7 @@ describe('OVM_L2StandardBridge', () => {
           0,
           NON_NULL_BYTES32,
           {
-            from: Mock__OVM_L2CrossDomainMessenger.address,
+            from: Mock__L2CrossDomainMessenger.address,
           }
         )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
@@ -125,11 +125,11 @@ describe('OVM_L2StandardBridge', () => {
         0,
         NON_NULL_BYTES32,
         {
-          from: Mock__OVM_L2CrossDomainMessenger.address,
+          from: Mock__L2CrossDomainMessenger.address,
         }
       )
 
-      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+      Mock__L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => DUMMY_L1BRIDGE_ADDRESS
       )
 
@@ -143,12 +143,12 @@ describe('OVM_L2StandardBridge', () => {
         100,
         NON_NULL_BYTES32,
         {
-          from: Mock__OVM_L2CrossDomainMessenger.address,
+          from: Mock__L2CrossDomainMessenger.address,
         }
       )
 
       const withdrawalCallToMessenger =
-        Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
+        Mock__L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       expect(withdrawalCallToMessenger._target).to.equal(DUMMY_L1BRIDGE_ADDRESS)
       expect(withdrawalCallToMessenger._message).to.equal(
@@ -169,7 +169,7 @@ describe('OVM_L2StandardBridge', () => {
     it('should credit funds to the depositor', async () => {
       const depositAmount = 100
 
-      Mock__OVM_L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+      Mock__L2CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => DUMMY_L1BRIDGE_ADDRESS
       )
 
@@ -183,7 +183,7 @@ describe('OVM_L2StandardBridge', () => {
         depositAmount,
         NON_NULL_BYTES32,
         {
-          from: Mock__OVM_L2CrossDomainMessenger.address,
+          from: Mock__L2CrossDomainMessenger.address,
         }
       )
 
@@ -224,7 +224,7 @@ describe('OVM_L2StandardBridge', () => {
         NON_NULL_BYTES32
       )
       const withdrawalCallToMessenger =
-        Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
+        Mock__L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       // Assert Alice's balance went down
       const aliceBalance = await SmoddedL2Token.balanceOf(
@@ -270,7 +270,7 @@ describe('OVM_L2StandardBridge', () => {
         NON_NULL_BYTES32
       )
       const withdrawalCallToMessenger =
-        Mock__OVM_L2CrossDomainMessenger.smocked.sendMessage.calls[0]
+        Mock__L2CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       // Assert Alice's balance went down
       const aliceBalance = await SmoddedL2Token.balanceOf(

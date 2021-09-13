@@ -52,7 +52,7 @@ describe('L1CrossDomainMessenger', () => {
   })
 
   let Mock__TargetContract: MockContract
-  let Mock__OVM_L2CrossDomainMessenger: MockContract
+  let Mock__L2CrossDomainMessenger: MockContract
   let Mock__OVM_StateCommitmentChain: MockContract
 
   let Factory__OVM_CanonicalTransactionChain: ContractFactory
@@ -64,10 +64,10 @@ describe('L1CrossDomainMessenger', () => {
     Mock__TargetContract = await smockit(
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
-    Mock__OVM_L2CrossDomainMessenger = await smockit(
-      await ethers.getContractFactory('OVM_L2CrossDomainMessenger'),
+    Mock__L2CrossDomainMessenger = await smockit(
+      await ethers.getContractFactory('L2CrossDomainMessenger'),
       {
-        address: predeploys.OVM_L2CrossDomainMessenger,
+        address: predeploys.L2CrossDomainMessenger,
       }
     )
     Mock__OVM_StateCommitmentChain = await smockit(
@@ -75,8 +75,8 @@ describe('L1CrossDomainMessenger', () => {
     )
 
     await AddressManager.setAddress(
-      'OVM_L2CrossDomainMessenger',
-      Mock__OVM_L2CrossDomainMessenger.address
+      'L2CrossDomainMessenger',
+      Mock__L2CrossDomainMessenger.address
     )
 
     await setProxyTarget(
@@ -197,7 +197,7 @@ describe('L1CrossDomainMessenger', () => {
       )
       const transactionHash = getTransactionHash(
         L1CrossDomainMessenger.address,
-        Mock__OVM_L2CrossDomainMessenger.address,
+        Mock__L2CrossDomainMessenger.address,
         gasLimit,
         calldata
       )
@@ -250,7 +250,7 @@ describe('L1CrossDomainMessenger', () => {
       )
       await expect(
         L1CrossDomainMessenger.replayMessage(
-          Mock__OVM_L2CrossDomainMessenger.address,
+          Mock__L2CrossDomainMessenger.address,
           await signer.getAddress(),
           calldata,
           queueLength - 1,
@@ -277,7 +277,7 @@ describe('L1CrossDomainMessenger', () => {
     )
 
     const storageKey = keccak256(
-      keccak256(calldata + remove0x(Mock__OVM_L2CrossDomainMessenger.address)) +
+      keccak256(calldata + remove0x(Mock__L2CrossDomainMessenger.address)) +
         '00'.repeat(32)
     )
     const storageGenerator = await TrieTestGenerator.fromNodes({
