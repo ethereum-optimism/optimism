@@ -33,7 +33,10 @@ const networks = {
 ### Chain IDs:
 - Mainnet: 10
 - Kovan: 69
+<!-- 
 - Goerli: 420
+-->
+
 *The contracts relevant for the majority of developers are \`OVM_ETH\` and the cross-domain messengers. The L2 addresses don't change.*
 
 ### Predeploy contracts:
@@ -49,6 +52,12 @@ const networks = {
 ## LAYER 1\n\n`
 
   for (const deployment of deployments) {
+
+    // Do not display the Goerli network
+    // because it is for internal use only
+    if (deployment.match(/goerli/i))
+       continue;
+
     md += `## ${deployment.toUpperCase()}\n\n`
 
     const chainId = Number(
@@ -74,7 +83,7 @@ const networks = {
       if (contracts[i] === 'OVM_L1CrossDomainMessenger') {
         proxiedContracts.push(contracts.splice(i, 1)[0])
       }
-      if (contracts[i] === 'OVM_L1ETHGateway') {
+      if (contracts[i] === 'PROXY__OVM_L1ETHGateway') {
         proxiedContracts.push(contracts.splice(i, 1)[0])
       }
     }
