@@ -15,11 +15,11 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
 
 **Starting on L2:**
 
-- Any account on L2 may call `OVM_L2CrossDomainMessenger.sendMessage()` with the information for the L1 message (aka `xDomainCalldata`)
+- Any account on L2 may call `L2CrossDomainMessenger.sendMessage()` with the information for the L1 message (aka `xDomainCalldata`)
   - (ie. `_target`, `msg.sender`, `_message`)
   - This data is hashed with the `messageNonce` storage variable, and the hash is store in the `sentMessages` mapping (this is not actually used AFAIK)
   - The `messageNonce` is then incremented.
-- The `OVM_L2CrossDomainMessenger` then passes the `xDomainCalldata` to `OVM_L2ToL1MessagePasser.passMessageToL1()`
+- The `L2CrossDomainMessenger` then passes the `xDomainCalldata` to `OVM_L2ToL1MessagePasser.passMessageToL1()`
   - the `xDomainCalldata` is hashed with `msg.sender` (ie. `ovmCaller`), and written to the `sentMessages` mapping.
 
 **Then on L1:**
@@ -47,11 +47,11 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
 
 - Any account may call the L1xDM's `sendMessage()`, specifying the details of the call that the L2xDM should make.
 - The L1xDM call `enqueue` on the CTC to add to the Transaction Queue, with the L2xDM as the `target`.
-  - The [`Transaction.data`](../data-structures.md#transaction) field should be ABI encoded to call `OVM_L2CrossDomainMessenger.relayMessage()`.
+  - The [`Transaction.data`](../data-structures.md#transaction) field should be ABI encoded to call `L2CrossDomainMessenger.relayMessage()`.
 
 **Then on L2:**
 
-- A transaction will be sent to the `OVM_L2CrossDomainMessenger`.
+- A transaction will be sent to the `L2CrossDomainMessenger`.
 - The cross-domain message is deemed valid if the `ovmL1TXORIGIN` is the `L1CrossDomainMessenger`.
   - If not valid, execution reverts.
 - If the message is valid, the arguments are ABI encoded and keccak256 hashed to `xDomainCalldataHash`.
