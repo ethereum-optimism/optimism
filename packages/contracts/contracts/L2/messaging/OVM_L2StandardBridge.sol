@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_L1StandardBridge } from "../../L1/messaging/iOVM_L1StandardBridge.sol";
-import { iOVM_L1ERC20Bridge } from "../../L1/messaging/iOVM_L1ERC20Bridge.sol";
+import { IL1ERC20Bridge } from "../../L1/messaging/IL1ERC20Bridge.sol";
 import { iOVM_L2ERC20Bridge } from "./iOVM_L2ERC20Bridge.sol";
 
 /* Library Imports */
@@ -142,7 +142,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
                     );
         } else {
             message = abi.encodeWithSelector(
-                        iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
+                        IL1ERC20Bridge.finalizeERC20Withdrawal.selector,
                         l1Token,
                         _l2Token,
                         _from,
@@ -202,7 +202,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
             // There is no way to prevent malicious token contracts altogether, but this does limit
             // user error and mitigate some forms of malicious contract behavior.
             bytes memory message = abi.encodeWithSelector(
-                iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
+                IL1ERC20Bridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
                 _l2Token,
                 _to,   // switched the _to and _from here to bounce back the deposit to the sender

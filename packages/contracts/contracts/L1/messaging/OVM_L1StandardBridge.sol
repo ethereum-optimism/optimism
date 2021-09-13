@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_L1StandardBridge } from "./iOVM_L1StandardBridge.sol";
-import { iOVM_L1ERC20Bridge } from "./iOVM_L1ERC20Bridge.sol";
+import { IL1ERC20Bridge } from "./IL1ERC20Bridge.sol";
 import { iOVM_L2ERC20Bridge } from "../../L2/messaging/iOVM_L2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -178,7 +178,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1ERC20Bridge
+     * @inheritdoc IL1ERC20Bridge
      */
     function depositERC20(
         address _l1Token,
@@ -196,7 +196,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
      /**
-     * @inheritdoc iOVM_L1ERC20Bridge
+     * @inheritdoc IL1ERC20Bridge
      */
     function depositERC20To(
         address _l1Token,
@@ -294,7 +294,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1ERC20Bridge
+     * @inheritdoc IL1ERC20Bridge
      */
     function finalizeERC20Withdrawal(
         address _l1Token,

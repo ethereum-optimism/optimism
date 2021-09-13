@@ -2,12 +2,12 @@
 pragma solidity >0.5.0;
 pragma experimental ABIEncoderV2;
 
-import "./iOVM_L1ERC20Bridge.sol";
+import "./IL1ERC20Bridge.sol";
 
 /**
  * @title iOVM_L1StandardBridge
  */
-interface iOVM_L1StandardBridge is iOVM_L1ERC20Bridge {
+interface iOVM_L1StandardBridge is IL1ERC20Bridge {
 
     /**********
      * Events *
