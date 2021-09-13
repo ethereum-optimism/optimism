@@ -7,6 +7,7 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressManager } from "../../libraries/resolver/Lib_AddressManager.sol";
 import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.sol";
+import { Lib_DefaultValues } from "../../libraries/constants/Lib_DefaultValues.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
@@ -51,14 +52,6 @@ contract OVM_L1CrossDomainMessenger is
         bytes32 indexed _xDomainCalldataHash
     );
 
-    /*************
-     * Constants *
-     *************/
-
-    // The default x-domain message sender being set to a non-zero value makes
-    // deployment a bit more expensive, but in exchange the refund on every call to
-    // `relayMessage` by the L1 and L2 messengers will be higher.
-    address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**********************
      * Contract Variables *
@@ -68,7 +61,7 @@ contract OVM_L1CrossDomainMessenger is
     mapping (bytes32 => bool) public relayedMessages;
     mapping (bytes32 => bool) public successfulMessages;
 
-    address internal xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+    address internal xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
 
     /***************
      * Constructor *
@@ -121,7 +114,7 @@ contract OVM_L1CrossDomainMessenger is
             "L1CrossDomainMessenger already intialized."
         );
         libAddressManager = Lib_AddressManager(_libAddressManager);
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
 
         // Initialize upgradable OZ contracts
         __Context_init_unchained(); // Context is a dependency for both Ownable and Pausable
@@ -176,7 +169,7 @@ contract OVM_L1CrossDomainMessenger is
             address
         )
     {
-        require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
+        require(xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
         return xDomainMsgSender;
     }
 
@@ -266,7 +259,7 @@ contract OVM_L1CrossDomainMessenger is
 
         xDomainMsgSender = _sender;
         (bool success, ) = _target.call(_message);
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
 
         // Mark the message as received if the call was successful. Ensures that a message can be
         // relayed multiple times in the case that the call reverted.
