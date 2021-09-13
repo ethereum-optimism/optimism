@@ -74,7 +74,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     Lib_AddressManager: Contract
     OVM_StateCommitmentChain: Contract
     L1CrossDomainMessenger: Contract
-    OVM_L2CrossDomainMessenger: Contract
+    L2CrossDomainMessenger: Contract
     OVM_L2ToL1MessagePasser: Contract
   }
 
@@ -119,14 +119,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       address: this.state.L1CrossDomainMessenger.address,
     })
 
-    this.logger.info('Connecting to OVM_L2CrossDomainMessenger...')
-    this.state.OVM_L2CrossDomainMessenger = await loadContractFromManager({
-      name: 'OVM_L2CrossDomainMessenger',
+    this.logger.info('Connecting to L2CrossDomainMessenger...')
+    this.state.L2CrossDomainMessenger = await loadContractFromManager({
+      name: 'L2CrossDomainMessenger',
       Lib_AddressManager: this.state.Lib_AddressManager,
       provider: this.options.l2RpcProvider,
     })
-    this.logger.info('Connected to OVM_L2CrossDomainMessenger', {
-      address: this.state.OVM_L2CrossDomainMessenger.address,
+    this.logger.info('Connected to L2CrossDomainMessenger', {
+      address: this.state.L2CrossDomainMessenger.address,
     })
 
     this.logger.info('Connecting to OVM_L2ToL1MessagePasser...')
@@ -379,8 +379,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     startHeight: number,
     endHeight: number
   ): Promise<SentMessage[]> {
-    const filter = this.state.OVM_L2CrossDomainMessenger.filters.SentMessage()
-    const events = await this.state.OVM_L2CrossDomainMessenger.queryFilter(
+    const filter = this.state.L2CrossDomainMessenger.filters.SentMessage()
+    const events = await this.state.L2CrossDomainMessenger.queryFilter(
       filter,
       startHeight + this.options.l2BlockOffset,
       endHeight + this.options.l2BlockOffset - 1
@@ -388,7 +388,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
 
     const messages = events.map((event) => {
       const encodedMessage =
-        this.state.OVM_L2CrossDomainMessenger.interface.encodeFunctionData(
+        this.state.L2CrossDomainMessenger.interface.encodeFunctionData(
           'relayMessage',
           [
             event.args.target,
@@ -428,7 +428,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     const messageSlot = ethers.utils.keccak256(
       ethers.utils.keccak256(
         message.encodedMessage +
-          this.state.OVM_L2CrossDomainMessenger.address.slice(2)
+          this.state.L2CrossDomainMessenger.address.slice(2)
       ) + '00'.repeat(32)
     )
 

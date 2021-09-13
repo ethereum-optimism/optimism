@@ -78,7 +78,7 @@ export const getMessagesByTransactionHash = async (
 
   const l2CrossDomainMessenger = new ethers.Contract(
     l2CrossDomainMessengerAddress,
-    getContractInterface('OVM_L2CrossDomainMessenger'),
+    getContractInterface('L2CrossDomainMessenger'),
     l2RpcProvider
   )
 
@@ -110,7 +110,7 @@ export const getMessagesByTransactionHash = async (
  * @returns Encoded message.
  */
 const encodeCrossDomainMessage = (message: CrossDomainMessage): string => {
-  return getContractInterface('OVM_L2CrossDomainMessenger').encodeFunctionData(
+  return getContractInterface('L2CrossDomainMessenger').encodeFunctionData(
     'relayMessage',
     [message.target, message.sender, message.message, message.messageNonce]
   )

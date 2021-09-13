@@ -92,7 +92,7 @@ export const connectL2Contracts = async (
 
   return {
     eth: getEthersContract('OVM_ETH'),
-    xDomainMessenger: getEthersContract('OVM_L2CrossDomainMessenger'),
+    xDomainMessenger: getEthersContract('L2CrossDomainMessenger'),
     messagePasser: getEthersContract('OVM_L2ToL1MessagePasser'),
     messageSender: getEthersContract(
       'OVM_L1MessageSender',
