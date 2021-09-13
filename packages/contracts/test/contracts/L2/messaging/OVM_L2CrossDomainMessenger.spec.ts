@@ -30,7 +30,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
     Mock__OVM_L1CrossDomainMessenger = await smockit(
-      await ethers.getContractFactory('OVM_L1CrossDomainMessenger')
+      await ethers.getContractFactory('L1CrossDomainMessenger')
     )
     Mock__OVM_L1MessageSender = await smockit(
       getContractInterface('iOVM_L1MessageSender'),
@@ -101,7 +101,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       )
     })
 
-    it('should revert if the L1 message sender is not the OVM_L1CrossDomainMessenger', async () => {
+    it('should revert if the L1 message sender is not the L1CrossDomainMessenger', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
         constants.AddressZero
       )

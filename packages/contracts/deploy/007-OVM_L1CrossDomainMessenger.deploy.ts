@@ -16,7 +16,7 @@ const deployFn: DeployFunction = async (hre) => {
     }
   )
 
-  const result = await deploy('OVM_L1CrossDomainMessenger', {
+  const result = await deploy('L1CrossDomainMessenger', {
     from: deployer,
     args: [],
     log: true,
@@ -26,9 +26,9 @@ const deployFn: DeployFunction = async (hre) => {
     return
   }
 
-  const OVM_L1CrossDomainMessenger = await getDeployedContract(
+  const L1CrossDomainMessenger = await getDeployedContract(
     hre,
-    'OVM_L1CrossDomainMessenger',
+    'L1CrossDomainMessenger',
     {
       signerOrProvider: deployer,
     }
@@ -37,13 +37,13 @@ const deployFn: DeployFunction = async (hre) => {
   // NOTE: this initialization is *not* technically required (we only need to initialize the proxy)
   // but it feels safer to initialize this anyway. Otherwise someone else could come along and
   // initialize this.
-  await OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
+  await L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
 
-  const libAddressManager = await OVM_L1CrossDomainMessenger.libAddressManager()
+  const libAddressManager = await L1CrossDomainMessenger.libAddressManager()
   if (libAddressManager !== Lib_AddressManager.address) {
     throw new Error(
       `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `OVM_L1CrossDomainMessenger could not be succesfully initialized.\n` +
+        `L1CrossDomainMessenger could not be succesfully initialized.\n` +
         `Attempted to set Lib_AddressManager to: ${Lib_AddressManager.address}\n` +
         `Actual address after initialization: ${libAddressManager}\n` +
         `This could indicate a compromised deployment.`
@@ -51,12 +51,12 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   await Lib_AddressManager.setAddress(
-    'OVM_L1CrossDomainMessenger',
+    'L1CrossDomainMessenger',
     result.address
   )
 }
 
 deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['OVM_L1CrossDomainMessenger']
+deployFn.tags = ['L1CrossDomainMessenger']
 
 export default deployFn

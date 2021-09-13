@@ -24,7 +24,7 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
 
 **Then on L1:**
 
-- The `Relayer` (and currently only the `Relayer`) may call `OVM_L1CrossDomainMessenger.relayMessage()` providing the raw message inputs and an L2 inclusion proof.
+- The `Relayer` (and currently only the `Relayer`) may call `L1CrossDomainMessenger.relayMessage()` providing the raw message inputs and an L2 inclusion proof.
 - The validity of the message is confirmed by the following functions:
   - `_verifyStateRootProof()`:
     - checks that the fraud proof window has closed for the batch to which the transaction belongs.
@@ -33,13 +33,13 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
     - checks the proof to confirm that the message data provided is in the `OVM_L2ToL1MessagePasser.sentMessages` mapping
     - checks that this transaction has not already been written to the `successfulMessages` mapping.
 - The address of the L2 `ovmCALLER` is then written to the `xDomainMessageSender` state variable
-  - the call is then executed, allow the `target` to query the value of the `OVM_L1CrossDomainMessenger.xDomainMessageSender` for authorization.
+  - the call is then executed, allow the `target` to query the value of the `L1CrossDomainMessenger.xDomainMessageSender` for authorization.
 - if it succeeds it is added to the `successfulMessages` and cannot be relayed again.
 - regardless of success, an entry is written to the `relayedMessages` mapping.
 
 **Then the receiver (ie. `SynthetixBridgeToOptimism`):**
 
-- Checks that the caller is the `OVM_L1CrossDomainMessenger` and that the `xDomainMessageSender` is the `synthetixBridgeToBase` on L2.
+- Checks that the caller is the `L1CrossDomainMessenger` and that the `xDomainMessageSender` is the `synthetixBridgeToBase` on L2.
 
 ## L1 to L2 messaging flow
 
@@ -52,7 +52,7 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
 **Then on L2:**
 
 - A transaction will be sent to the `OVM_L2CrossDomainMessenger`.
-- The cross-domain message is deemed valid if the `ovmL1TXORIGIN` is the `OVM_L1CrossDomainMessenger`.
+- The cross-domain message is deemed valid if the `ovmL1TXORIGIN` is the `L1CrossDomainMessenger`.
   - If not valid, execution reverts.
 - If the message is valid, the arguments are ABI encoded and keccak256 hashed to `xDomainCalldataHash`.
 - The `succesfulMessages` mapping is checked to verify that `xDomainCalldataHash` has not already been executed successfully.
@@ -61,5 +61,5 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
   - Execution reverts if the check fails.
   - **Future note:** The `OVM_L2ToL1MessagePasser`, and this check should be removed, in favor of putting the `sentMessages` mapping into the L2xDM.
 - The address of the L2 `ovmCALLER` is then written to the `xDomainMessageSender` state variable
-  - the call is then executed, allow the `target` to query the value of the `OVM_L1CrossDomainMessenger.xDomainMessageSender` for authorization.
+  - the call is then executed, allow the `target` to query the value of the `L1CrossDomainMessenger.xDomainMessageSender` for authorization.
 - If it succeeds it is added to the `successfulMessages`.

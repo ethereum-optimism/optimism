@@ -31,7 +31,7 @@ fi
 
 envSet L1_CROSS_DOMAIN_MESSENGER_ADDRESS Proxy__OVM_L1CrossDomainMessenger
 if [ $L1_CROSS_DOMAIN_MESSENGER_ADDRESS == null ]; then
-    envSet L1_CROSS_DOMAIN_MESSENGER_ADDRESS OVM_L1CrossDomainMessenger
+    envSet L1_CROSS_DOMAIN_MESSENGER_ADDRESS L1CrossDomainMessenger
 fi
 
 # build the dump file
