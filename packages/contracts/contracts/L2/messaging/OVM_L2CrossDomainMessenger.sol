@@ -98,11 +98,12 @@ contract OVM_L2CrossDomainMessenger is
             messageNonce
         );
 
-        messageNonce += 1;
         sentMessages[keccak256(xDomainCalldata)] = true;
 
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
-        emit SentMessage(xDomainCalldata);
+        emit SentMessage(_target, msg.sender, _message, messageNonce, _gasLimit);
+
+        messageNonce += 1;
     }
 
     /**

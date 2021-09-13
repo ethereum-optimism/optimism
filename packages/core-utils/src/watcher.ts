@@ -58,16 +58,40 @@ export class Watcher {
     }
 
     const msgHashes = []
+    const sentMessageEventId = ethers.utils.id(
+      'SentMessage(address,address,bytes,uint256,uint256)'
+    )
+    const l2CrossDomainMessengerRelayAbi = [
+      'function relayMessage(address _target,address _sender,bytes memory _message,uint256 _messageNonce)',
+    ]
+    const l2CrossDomainMessengerRelayinterface = new ethers.utils.Interface(
+      l2CrossDomainMessengerRelayAbi
+    )
     for (const log of receipt.logs) {
       if (
         log.address === layer.messengerAddress &&
-        log.topics[0] === ethers.utils.id('SentMessage(bytes)')
+        log.topics[0] === sentMessageEventId
       ) {
-        const [message] = ethers.utils.defaultAbiCoder.decode(
-          ['bytes'],
-          log.data
+        const [sender, message, messageNonce] =
+          ethers.utils.defaultAbiCoder.decode(
+            ['address', 'bytes', 'uint256'],
+            log.data
+          )
+
+        const [target] = ethers.utils.defaultAbiCoder.decode(
+          ['address'],
+          log.topics[1]
         )
-        msgHashes.push(ethers.utils.solidityKeccak256(['bytes'], [message]))
+
+        const encodedMessage =
+          l2CrossDomainMessengerRelayinterface.encodeFunctionData(
+            'relayMessage',
+            [target, sender, message, messageNonce]
+          )
+
+        msgHashes.push(
+          ethers.utils.solidityKeccak256(['bytes'], [encodedMessage])
+        )
       }
     }
     return msgHashes
@@ -97,7 +121,9 @@ export class Watcher {
       const successLogs = await layer.provider.getLogs(successFilter)
       const failureLogs = await layer.provider.getLogs(failureFilter)
       const logs = successLogs.concat(failureLogs)
-      matches = logs.filter((log: ethers.providers.Log) => log.data === msgHash)
+      matches = logs.filter(
+        (log: ethers.providers.Log) => log.topics[1] === msgHash
+      )
 
       // exit loop after first iteration if not polling
       if (!pollForPending) {
