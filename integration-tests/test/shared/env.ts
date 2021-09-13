@@ -78,7 +78,7 @@ export class OptimismEnv {
       .attach(watcher.l1.messengerAddress)
     const ovmEth = getOvmEth(l2Wallet)
     const l2Bridge = await getL2Bridge(l2Wallet)
-    const l2Messenger = getContractFactory('iOVM_L2CrossDomainMessenger')
+    const l2Messenger = getContractFactory('IL2CrossDomainMessenger')
       .connect(l2Wallet)
       .attach(watcher.l2.messengerAddress)
 
@@ -140,7 +140,7 @@ export class OptimismEnv {
           l1Provider,
           l2Provider,
           this.scc.address,
-          predeploys.OVM_L2CrossDomainMessenger,
+          predeploys.L2CrossDomainMessenger,
           tx.hash
         )
         break

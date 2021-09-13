@@ -16,7 +16,7 @@ export const initWatcher = async (
     'Proxy__OVM_L1CrossDomainMessenger'
   )
   const l2MessengerAddress = await AddressManager.getAddress(
-    'OVM_L2CrossDomainMessenger'
+    'L2CrossDomainMessenger'
   )
   return new Watcher({
     l1: {
