@@ -12,7 +12,7 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
-import { iOVM_L1CrossDomainMessenger } from "./iOVM_L1CrossDomainMessenger.sol";
+import { IL1CrossDomainMessenger } from "./IL1CrossDomainMessenger.sol";
 import { iOVM_CanonicalTransactionChain } from "../rollup/iOVM_CanonicalTransactionChain.sol";
 import { iOVM_StateCommitmentChain } from "../rollup/iOVM_StateCommitmentChain.sol";
 
@@ -33,7 +33,7 @@ import { ReentrancyGuardUpgradeable } from
  * Runtime target: EVM
  */
 contract OVM_L1CrossDomainMessenger is
-        iOVM_L1CrossDomainMessenger,
+        IL1CrossDomainMessenger,
         Lib_AddressResolver,
         OwnableUpgradeable,
         PausableUpgradeable,
@@ -210,7 +210,7 @@ contract OVM_L1CrossDomainMessenger is
 
     /**
      * Relays a cross domain message to a contract.
-     * @inheritdoc iOVM_L1CrossDomainMessenger
+     * @inheritdoc IL1CrossDomainMessenger
      */
     function relayMessage(
         address _target,
@@ -284,7 +284,7 @@ contract OVM_L1CrossDomainMessenger is
 
     /**
      * Replays a cross domain message to the target messenger.
-     * @inheritdoc iOVM_L1CrossDomainMessenger
+     * @inheritdoc IL1CrossDomainMessenger
      */
     function replayMessage(
         address _target,

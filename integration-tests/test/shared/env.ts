@@ -73,7 +73,7 @@ export class OptimismEnv {
     if (balance.isZero()) {
       await fundUser(watcher, l1Bridge, utils.parseEther('20'))
     }
-    const l1Messenger = getContractFactory('iOVM_L1CrossDomainMessenger')
+    const l1Messenger = getContractFactory('IL1CrossDomainMessenger')
       .connect(l1Wallet)
       .attach(watcher.l1.messengerAddress)
     const ovmEth = getOvmEth(l2Wallet)
