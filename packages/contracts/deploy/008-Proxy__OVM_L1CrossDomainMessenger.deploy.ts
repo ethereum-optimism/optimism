@@ -19,7 +19,7 @@ const deployFn: DeployFunction = async (hre) => {
   const result = await deploy('Proxy__OVM_L1CrossDomainMessenger', {
     contract: 'Lib_ResolvedDelegateProxy',
     from: deployer,
-    args: [Lib_AddressManager.address, 'OVM_L1CrossDomainMessenger'],
+    args: [Lib_AddressManager.address, 'L1CrossDomainMessenger'],
     log: true,
   })
 
@@ -32,7 +32,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy__OVM_L1CrossDomainMessenger',
     {
       signerOrProvider: deployer,
-      iface: 'OVM_L1CrossDomainMessenger',
+      iface: 'L1CrossDomainMessenger',
     }
   )
 
@@ -56,7 +56,7 @@ const deployFn: DeployFunction = async (hre) => {
   )
 }
 
-deployFn.dependencies = ['Lib_AddressManager', 'OVM_L1CrossDomainMessenger']
+deployFn.dependencies = ['Lib_AddressManager', 'L1CrossDomainMessenger']
 deployFn.tags = ['Proxy__OVM_L1CrossDomainMessenger']
 
 export default deployFn
