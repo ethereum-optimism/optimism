@@ -3,7 +3,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1StandardBridge } from "../../L1/messaging/iOVM_L1StandardBridge.sol";
+import { IL1StandardBridge } from "../../L1/messaging/IL1StandardBridge.sol";
 import { IL1ERC20Bridge } from "../../L1/messaging/IL1ERC20Bridge.sol";
 import { iOVM_L2ERC20Bridge } from "./iOVM_L2ERC20Bridge.sol";
 
@@ -134,7 +134,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
 
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
             message = abi.encodeWithSelector(
-                        iOVM_L1StandardBridge.finalizeETHWithdrawal.selector,
+                        IL1StandardBridge.finalizeETHWithdrawal.selector,
                         _from,
                         _to,
                         _amount,
