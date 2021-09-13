@@ -17,14 +17,14 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
- * @title OVM_L1StandardBridge
+ * @title L1StandardBridge
  * @dev The L1 ETH and ERC20 Bridge is a contract which stores deposited L1 funds and standard
  * tokens that are in use on L2. It synchronizes a corresponding L2 Bridge, informing it of deposits
  * and listening to it for newly finalized withdrawals.
  *
  * Runtime target: EVM
  */
-contract OVM_L1StandardBridge is IL1StandardBridge, OVM_CrossDomainEnabled {
+contract L1StandardBridge is IL1StandardBridge, OVM_CrossDomainEnabled {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 

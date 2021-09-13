@@ -24,9 +24,9 @@ function envSet() {
 }
 
 # set the address to the proxy gateway if possible
-envSet L1_STANDARD_BRIDGE_ADDRESS Proxy__OVM_L1StandardBridge
+envSet L1_STANDARD_BRIDGE_ADDRESS Proxy__L1StandardBridge
 if [ $L1_STANDARD_BRIDGE_ADDRESS == null ]; then
-    envSet L1_STANDARD_BRIDGE_ADDRESS OVM_L1StandardBridge
+    envSet L1_STANDARD_BRIDGE_ADDRESS L1StandardBridge
 fi
 
 envSet L1_CROSS_DOMAIN_MESSENGER_ADDRESS Proxy__OVM_L1CrossDomainMessenger
