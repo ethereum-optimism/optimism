@@ -55,14 +55,6 @@ describe('Native ETH Integration Tests', async () => {
   })
 
   describe('estimateGas', () => {
-    it('Should estimate gas for ETH transfer', async () => {
-      const amount = utils.parseEther('0.0000001')
-      const addr = '0x' + '1234'.repeat(10)
-      const gas = await env.ovmEth.estimateGas.transfer(addr, amount)
-      // Expect gas to be less than or equal to the target plus 1%
-      expectApprox(gas, 6430020, { upperPercentDeviation: 1 })
-    })
-
     it('Should estimate gas for ETH withdraw', async () => {
       const amount = utils.parseEther('0.0000001')
       const gas = await env.l2Bridge.estimateGas.withdraw(
@@ -292,7 +284,10 @@ describe('Native ETH Integration Tests', async () => {
 
     // 2. trnsfer to another address
     const other = Wallet.createRandom().connect(env.l2Wallet.provider)
-    const tx = await env.ovmEth.transfer(other.address, amount)
+    const tx = await env.l2Wallet.sendTransaction({
+      to: other.address,
+      value: amount,
+    })
     await tx.wait()
 
     const l1BalanceBefore = await other
@@ -324,70 +319,5 @@ describe('Native ETH Integration Tests', async () => {
     const l2BalanceAfter = await other.getBalance()
     expect(l1BalanceAfter).to.deep.eq(l1BalanceBefore.add(withdrawnAmount))
     expect(l2BalanceAfter).to.deep.eq(amount.sub(withdrawnAmount).sub(fee))
-  })
-
-  describe('WETH9 functionality', async () => {
-    let initialBalance: BigNumber
-    const value = 10
-
-    beforeEach(async () => {
-      await fundUser(env.watcher, env.l1Bridge, value, env.l2Wallet.address)
-      initialBalance = await env.l2Wallet.provider.getBalance(
-        env.l2Wallet.address
-      )
-    })
-
-    it('successfully deposits', async () => {
-      const depositTx = await env.ovmEth.deposit({ value, gasPrice: 0 })
-      const receipt = await depositTx.wait()
-
-      expect(
-        await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
-      ).to.equal(initialBalance)
-      expect(receipt.events.length).to.equal(2)
-
-      const [transferEvent, depositEvent] = receipt.events
-
-      expect(transferEvent.event).to.equal('Transfer')
-      expect(transferEvent.args.from).to.equal(env.ovmEth.address)
-      expect(transferEvent.args.to).to.equal(env.l2Wallet.address)
-      expect(transferEvent.args.value).to.equal(value)
-
-      expect(depositEvent.event).to.equal('Deposit')
-      expect(depositEvent.args.dst).to.equal(env.l2Wallet.address)
-      expect(depositEvent.args.wad).to.equal(value)
-    })
-
-    it('successfully deposits on fallback', async () => {
-      const fallbackTx = await env.l2Wallet.sendTransaction({
-        to: env.ovmEth.address,
-        value,
-        gasPrice: 0,
-      })
-      const receipt = await fallbackTx.wait()
-      expect(receipt.status).to.equal(1)
-      expect(
-        await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
-      ).to.equal(initialBalance)
-    })
-
-    it('successfully withdraws', async () => {
-      const withdrawTx = await env.ovmEth.withdraw(value, { gasPrice: 0 })
-      const receipt = await withdrawTx.wait()
-      expect(
-        await env.l2Wallet.provider.getBalance(env.l2Wallet.address)
-      ).to.equal(initialBalance)
-      expect(receipt.events.length).to.equal(1)
-
-      const depositEvent = receipt.events[0]
-      expect(depositEvent.event).to.equal('Withdrawal')
-      expect(depositEvent.args.src).to.equal(env.l2Wallet.address)
-      expect(depositEvent.args.wad).to.equal(value)
-    })
-
-    it('reverts on invalid withdraw', async () => {
-      await expect(env.ovmEth.withdraw(initialBalance.add(1), { gasPrice: 0 }))
-        .to.be.reverted
-    })
   })
 })

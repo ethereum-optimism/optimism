@@ -6,7 +6,6 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 
 /* Contract Imports */
 import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
-import { IWETH9 } from "../../libraries/standards/IWETH9.sol";
 
 /**
  * @title OVM_ETH
@@ -15,7 +14,7 @@ import { IWETH9 } from "../../libraries/standards/IWETH9.sol";
  *
  * Runtime target: OVM
  */
-contract OVM_ETH is L2StandardERC20, IWETH9 {
+contract OVM_ETH is L2StandardERC20 {
 
     /***************
      * Constructor *
@@ -31,52 +30,26 @@ contract OVM_ETH is L2StandardERC20, IWETH9 {
     {}
 
 
-    /******************************
-     * Custom WETH9 Functionality *
-     ******************************/
-    fallback() external payable {
-        deposit();
+    // ETH ERC20 features are disabled until further notice.
+    // Discussion here: https://github.com/ethereum-optimism/optimism/discussions/1444
+
+    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+        revert("OVM_ETH: transfer is disabled pending further community discussion.");
     }
 
-    /**
-     * Implements the WETH9 deposit() function as a no-op.
-     * WARNING: this function does NOT have to do with cross-chain asset bridging. The relevant
-     * deposit and withdraw functions for that use case can be found at L2StandardBridge.sol.
-     * This function allows developers to treat OVM_ETH as WETH without any modifications to their
-     * code.
-     */
-    function deposit()
-        public
-        payable
-        override
-    {
-        // Calling deposit() with nonzero value will send the ETH to this contract address.
-        // Once received here, we transfer it back by sending to the msg.sender.
-        _transfer(address(this), msg.sender, msg.value);
-
-        emit Deposit(msg.sender, msg.value);
+    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+        revert("OVM_ETH: approve is disabled pending further community discussion.");
     }
 
-    /**
-     * Implements the WETH9 withdraw() function as a no-op.
-     * WARNING: this function does NOT have to do with cross-chain asset bridging. The relevant
-     * deposit and withdraw functions for that use case can be found at L2StandardBridge.sol.
-     * This function allows developers to treat OVM_ETH as WETH without any modifications to their
-     * code.
-     * @param _wad Amount being withdrawn
-     */
-    function withdraw(
-        uint256 _wad
-    )
-        external
-        override
-    {
-        // Calling withdraw() with value exceeding the withdrawer's ovmBALANCE should revert,
-        // as in WETH9.
-        require(balanceOf(msg.sender) >= _wad);
+    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
+        revert("OVM_ETH: transferFrom is disabled pending further community discussion.");
+    }
 
-        // Other than emitting an event, OVM_ETH already is native ETH, so we don't need to do
-        // anything else.
-        emit Withdrawal(msg.sender, _wad);
+    function increaseAllowance(address spender, uint256 addedValue) public virtual override returns (bool) {
+        revert("OVM_ETH: increaseAllowance is disabled pending further community discussion.");
+    }
+
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual override returns (bool) {
+        revert("OVM_ETH: decreaseAllowance is disabled pending further community discussion.");
     }
 }
