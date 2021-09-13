@@ -103,8 +103,8 @@ contract OVM_L2StandardERC721Bridge is iOVM_L2ERC721Bridge, OVM_CrossDomainEnabl
     }
 
     /**
-     * @dev Performs the logic for NFT deposits by storing the token and informing the L2 token Gateway
-     * of the deposit.
+     * @dev Performs the logic for NFT deposits by storing the token and informing the L2 token
+     * Gateway of the deposit.
      * @param _l2Token Address of L2 token where withdrawal was initiated.
      * @param _from Account to pull the deposit from on L2.
      * @param _to Account to give the withdrawal to on L1.

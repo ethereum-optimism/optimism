@@ -36,7 +36,11 @@ contract L2StandardERC721 is IL2StandardERC721, ERC721 {
         _;
     }
 
-    function supportsInterface(bytes4 _interfaceId) public override(IERC165, ERC165) pure returns (bool) {
+    function supportsInterface(bytes4 _interfaceId)
+        public
+        override(IERC165, ERC165)
+        pure
+    returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
         bytes4 secondSupportedInterface = IL2StandardERC721.l1Token.selector
             ^ IL2StandardERC721.mint.selector

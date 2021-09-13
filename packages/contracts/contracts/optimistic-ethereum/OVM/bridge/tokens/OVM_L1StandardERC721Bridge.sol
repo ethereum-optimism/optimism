@@ -154,8 +154,8 @@ contract OVM_L1StandardERC721Bridge is iOVM_L1ERC721Bridge, OVM_CrossDomainEnabl
         internal
     {
         // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future
-        // withdrawals. safeTransferFrom also checks if this contract knows how to handle ERC721, which
-        // it does.
+        // withdrawals. safeTransferFrom also checks if this contract knows how to handle ERC721,
+        // which it does.
         IERC721(_l1Token).safeTransferFrom(_from, address(this), _tokenId);
 
         // Construct calldata for _l2Token.finalizeERC721Deposit(_to, _amount)
