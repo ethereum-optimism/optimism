@@ -4,7 +4,7 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1StandardBridge } from "./iOVM_L1StandardBridge.sol";
+import { IL1StandardBridge } from "./IL1StandardBridge.sol";
 import { IL1ERC20Bridge } from "./IL1ERC20Bridge.sol";
 import { iOVM_L2ERC20Bridge } from "../../L2/messaging/iOVM_L2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -24,7 +24,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  *
  * Runtime target: EVM
  */
-contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
+contract OVM_L1StandardBridge is IL1StandardBridge, OVM_CrossDomainEnabled {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 
@@ -98,7 +98,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1StandardBridge
+     * @inheritdoc IL1StandardBridge
      */
     function depositETH(
         uint32 _l2Gas,
@@ -118,7 +118,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1StandardBridge
+     * @inheritdoc IL1StandardBridge
      */
     function depositETHTo(
         address _to,
@@ -275,7 +275,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
      *************************/
 
      /**
-     * @inheritdoc iOVM_L1StandardBridge
+     * @inheritdoc IL1StandardBridge
      */
     function finalizeETHWithdrawal(
         address _from,
