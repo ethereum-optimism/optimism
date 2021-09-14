@@ -29,7 +29,7 @@ if [ $L1_STANDARD_BRIDGE_ADDRESS == null ]; then
     envSet L1_STANDARD_BRIDGE_ADDRESS L1StandardBridge
 fi
 
-envSet L1_CROSS_DOMAIN_MESSENGER_ADDRESS Proxy__OVM_L1CrossDomainMessenger
+envSet L1_CROSS_DOMAIN_MESSENGER_ADDRESS Proxy__L1CrossDomainMessenger
 if [ $L1_CROSS_DOMAIN_MESSENGER_ADDRESS == null ]; then
     envSet L1_CROSS_DOMAIN_MESSENGER_ADDRESS L1CrossDomainMessenger
 fi

@@ -88,7 +88,7 @@ describe('BatchSubmitter', () => {
 
   let AddressManager: Contract
   let Mock__OVM_ExecutionManager: MockContract
-  let Mock__OVM_BondManager: MockContract
+  let Mock__BondManager: MockContract
   let Mock__StateCommitmentChain: MockContract
   before(async () => {
     AddressManager = await makeAddressManager()
@@ -101,8 +101,8 @@ describe('BatchSubmitter', () => {
       await getContractFactory('OVM_ExecutionManager')
     )
 
-    Mock__OVM_BondManager = await smockit(
-      await getContractFactory('OVM_BondManager')
+    Mock__BondManager = await smockit(
+      await getContractFactory('BondManager')
     )
 
     Mock__StateCommitmentChain = await smockit(
@@ -117,8 +117,8 @@ describe('BatchSubmitter', () => {
 
     await setProxyTarget(
       AddressManager,
-      'OVM_BondManager',
-      Mock__OVM_BondManager
+      'BondManager',
+      Mock__BondManager
     )
 
     await setProxyTarget(
@@ -131,7 +131,7 @@ describe('BatchSubmitter', () => {
     Mock__OVM_ExecutionManager.smocked.getMaxTransactionGasLimit.will.return.with(
       MAX_GAS_LIMIT
     )
-    Mock__OVM_BondManager.smocked.isCollateralized.will.return.with(true)
+    Mock__BondManager.smocked.isCollateralized.will.return.with(true)
   })
 
   let Factory__CanonicalTransactionChain: ContractFactory
