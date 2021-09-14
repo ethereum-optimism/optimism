@@ -65,14 +65,14 @@ We need to retrieve the following information reliably:
 
 All relevant data can be retrieved by parsing data from the following functions:
 
-- `OVM_CanonicalTransactionChain.enqueue`
-- `OVM_CanonicalTransactionChain.appendQueueBatch`
-- `OVM_CanonicalTransactionChain.appendSequencerBatch`
-- `OVM_StateCommitmentChain.appendStateBatch`
+- `CanonicalTransactionChain.enqueue`
+- `CanonicalTransactionChain.appendQueueBatch`
+- `CanonicalTransactionChain.appendSequencerBatch`
+- `StateCommitmentChain.appendStateBatch`
 
 #### Enqueued Transactions
 
-Transactions are "enqueued" when users make calls to `OVM_CanonicalTransactionChain.enqueue`.
+Transactions are "enqueued" when users make calls to `CanonicalTransactionChain.enqueue`.
 Calls to this function can be detected by searching for [`TransactionEnqueued`](#transactionenqueued) events.
 All relevant transaction data can be pulled out of the event, here's a pseudocode function for doing so:
 

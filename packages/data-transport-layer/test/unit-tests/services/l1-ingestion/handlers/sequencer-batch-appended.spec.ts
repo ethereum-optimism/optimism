@@ -5,7 +5,7 @@ import { expect } from '../../../../setup'
 import { handleEventsSequencerBatchAppended } from '../../../../../src/services/l1-ingestion/handlers/sequencer-batch-appended'
 import { SequencerBatchAppendedExtraData } from '../../../../../src/types'
 
-describe('Event Handlers: OVM_CanonicalTransactionChain.SequencerBatchAppended', () => {
+describe('Event Handlers: CanonicalTransactionChain.SequencerBatchAppended', () => {
   describe('handleEventsSequencerBatchAppended.parseEvent', () => {
     // This tests the behavior of parsing a real mainnet transaction,
     // so it will break if the encoding scheme changes.

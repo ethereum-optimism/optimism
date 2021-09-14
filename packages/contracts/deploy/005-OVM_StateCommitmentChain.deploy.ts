@@ -15,7 +15,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndRegister({
     hre,
-    name: 'OVM_StateCommitmentChain',
+    name: 'StateCommitmentChain',
     args: [
       Lib_AddressManager.address,
       (hre as any).deployConfig.sccFraudProofWindow,
@@ -25,6 +25,6 @@ const deployFn: DeployFunction = async (hre) => {
 }
 
 deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['OVM_StateCommitmentChain']
+deployFn.tags = ['StateCommitmentChain']
 
 export default deployFn

@@ -53,13 +53,13 @@ describe('L1CrossDomainMessenger', () => {
 
   let Mock__TargetContract: MockContract
   let Mock__L2CrossDomainMessenger: MockContract
-  let Mock__OVM_StateCommitmentChain: MockContract
+  let Mock__StateCommitmentChain: MockContract
 
-  let Factory__OVM_CanonicalTransactionChain: ContractFactory
-  let Factory__OVM_ChainStorageContainer: ContractFactory
+  let Factory__CanonicalTransactionChain: ContractFactory
+  let Factory__ChainStorageContainer: ContractFactory
   let Factory__OVM_L1CrossDomainMessenger: ContractFactory
 
-  let OVM_CanonicalTransactionChain: Contract
+  let CanonicalTransactionChain: Contract
   before(async () => {
     Mock__TargetContract = await smockit(
       await ethers.getContractFactory('Helper_SimpleProxy')
@@ -70,8 +70,8 @@ describe('L1CrossDomainMessenger', () => {
         address: predeploys.L2CrossDomainMessenger,
       }
     )
-    Mock__OVM_StateCommitmentChain = await smockit(
-      await ethers.getContractFactory('OVM_StateCommitmentChain')
+    Mock__StateCommitmentChain = await smockit(
+      await ethers.getContractFactory('StateCommitmentChain')
     )
 
     await AddressManager.setAddress(
@@ -81,51 +81,51 @@ describe('L1CrossDomainMessenger', () => {
 
     await setProxyTarget(
       AddressManager,
-      'OVM_StateCommitmentChain',
-      Mock__OVM_StateCommitmentChain
+      'StateCommitmentChain',
+      Mock__StateCommitmentChain
     )
 
-    Factory__OVM_CanonicalTransactionChain = await ethers.getContractFactory(
-      'OVM_CanonicalTransactionChain'
+    Factory__CanonicalTransactionChain = await ethers.getContractFactory(
+      'CanonicalTransactionChain'
     )
 
-    Factory__OVM_ChainStorageContainer = await ethers.getContractFactory(
-      'OVM_ChainStorageContainer'
+    Factory__ChainStorageContainer = await ethers.getContractFactory(
+      'ChainStorageContainer'
     )
 
     Factory__OVM_L1CrossDomainMessenger = await ethers.getContractFactory(
       'L1CrossDomainMessenger'
     )
-    OVM_CanonicalTransactionChain =
-      await Factory__OVM_CanonicalTransactionChain.deploy(
+    CanonicalTransactionChain =
+      await Factory__CanonicalTransactionChain.deploy(
         AddressManager.address,
         FORCE_INCLUSION_PERIOD_SECONDS,
         FORCE_INCLUSION_PERIOD_BLOCKS,
         MAX_GAS_LIMIT
       )
 
-    const batches = await Factory__OVM_ChainStorageContainer.deploy(
+    const batches = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     )
-    const queue = await Factory__OVM_ChainStorageContainer.deploy(
+    const queue = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer-CTC-batches',
+      'ChainStorageContainer-CTC-batches',
       batches.address
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer-CTC-queue',
+      'ChainStorageContainer-CTC-queue',
       queue.address
     )
 
     await AddressManager.setAddress(
-      'OVM_CanonicalTransactionChain',
-      OVM_CanonicalTransactionChain.address
+      'CanonicalTransactionChain',
+      CanonicalTransactionChain.address
     )
   })
 
@@ -202,8 +202,8 @@ describe('L1CrossDomainMessenger', () => {
         calldata
       )
 
-      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
-      const queueElement = await OVM_CanonicalTransactionChain.getQueueElement(
+      const queueLength = await CanonicalTransactionChain.getQueueLength()
+      const queueElement = await CanonicalTransactionChain.getQueueElement(
         queueLength - 1
       )
       expect(queueElement[0]).to.equal(transactionHash)
@@ -226,7 +226,7 @@ describe('L1CrossDomainMessenger', () => {
     it('should revert if given the wrong queue index', async () => {
       await L1CrossDomainMessenger.sendMessage(target, message, 100_001)
 
-      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
+      const queueLength = await CanonicalTransactionChain.getQueueLength()
       await expect(
         L1CrossDomainMessenger.replayMessage(
           target,
@@ -240,7 +240,7 @@ describe('L1CrossDomainMessenger', () => {
 
     it('should succeed if the message exists', async () => {
       await L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
-      const queueLength = await OVM_CanonicalTransactionChain.getQueueLength()
+      const queueLength = await CanonicalTransactionChain.getQueueLength()
 
       const calldata = encodeXDomainCalldata(
         target,
@@ -344,16 +344,16 @@ describe('L1CrossDomainMessenger', () => {
     })
 
     beforeEach(async () => {
-      Mock__OVM_StateCommitmentChain.smocked.verifyStateCommitment.will.return.with(
+      Mock__StateCommitmentChain.smocked.verifyStateCommitment.will.return.with(
         true
       )
-      Mock__OVM_StateCommitmentChain.smocked.insideFraudProofWindow.will.return.with(
+      Mock__StateCommitmentChain.smocked.insideFraudProofWindow.will.return.with(
         false
       )
     })
 
     it('should revert if still inside the fraud proof window', async () => {
-      Mock__OVM_StateCommitmentChain.smocked.insideFraudProofWindow.will.return.with(
+      Mock__StateCommitmentChain.smocked.insideFraudProofWindow.will.return.with(
         true
       )
 
@@ -378,14 +378,14 @@ describe('L1CrossDomainMessenger', () => {
 
     it('should revert if attempting to relay a message sent to an L1 system contract', async () => {
       const maliciousProof = await generateMockRelayMessageProof(
-        OVM_CanonicalTransactionChain.address,
+        CanonicalTransactionChain.address,
         sender,
         message
       )
 
       await expect(
         L1CrossDomainMessenger.relayMessage(
-          OVM_CanonicalTransactionChain.address,
+          CanonicalTransactionChain.address,
           sender,
           message,
           0,
@@ -397,7 +397,7 @@ describe('L1CrossDomainMessenger', () => {
     })
 
     it('should revert if provided an invalid state root proof', async () => {
-      Mock__OVM_StateCommitmentChain.smocked.verifyStateCommitment.will.return.with(
+      Mock__StateCommitmentChain.smocked.verifyStateCommitment.will.return.with(
         false
       )
 

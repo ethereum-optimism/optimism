@@ -6,10 +6,10 @@ import { Lib_Buffer } from "../../libraries/utils/Lib_Buffer.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
-import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
+import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /**
- * @title OVM_ChainStorageContainer
+ * @title ChainStorageContainer
  * @dev The Chain Storage Container provides its owner contract with read, write and delete
  * functionality. This provides gas efficiency gains by enabling it to overwrite storage slots which
  * can no longer be used in a fraud proof due to the fraud window having passed, and the associated
@@ -21,7 +21,7 @@ import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
  *
  * Runtime target: EVM
  */
-contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressResolver {
+contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
 
     /*************
      * Libraries *
@@ -63,7 +63,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     modifier onlyOwner() {
         require(
             msg.sender == resolve(owner),
-            "OVM_ChainStorageContainer: Function can only be called by the owner."
+            "ChainStorageContainer: Function can only be called by the owner."
         );
         _;
     }
@@ -74,7 +74,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
      ********************/
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function setGlobalMetadata(
         bytes27 _globalMetadata
@@ -87,7 +87,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     }
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function getGlobalMetadata()
         override
@@ -101,7 +101,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     }
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function length()
         override
@@ -115,7 +115,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     }
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function push(
         bytes32 _object
@@ -128,7 +128,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     }
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function push(
         bytes32 _object,
@@ -142,7 +142,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     }
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function get(
         uint256 _index
@@ -158,7 +158,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     }
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function deleteElementsAfterInclusive(
         uint256 _index
@@ -173,7 +173,7 @@ contract OVM_ChainStorageContainer is iOVM_ChainStorageContainer, Lib_AddressRes
     }
 
     /**
-     * @inheritdoc iOVM_ChainStorageContainer
+     * @inheritdoc IChainStorageContainer
      */
     function deleteElementsAfterInclusive(
         uint256 _index,

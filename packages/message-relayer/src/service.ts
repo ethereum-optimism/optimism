@@ -72,7 +72,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     lastQueriedL1Block: number
     eventCache: ethers.Event[]
     Lib_AddressManager: Contract
-    OVM_StateCommitmentChain: Contract
+    StateCommitmentChain: Contract
     L1CrossDomainMessenger: Contract
     L2CrossDomainMessenger: Contract
     OVM_L2ToL1MessagePasser: Contract
@@ -98,14 +98,14 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       this.options.l1RpcProvider
     )
 
-    this.logger.info('Connecting to OVM_StateCommitmentChain...')
-    this.state.OVM_StateCommitmentChain = await loadContractFromManager({
-      name: 'OVM_StateCommitmentChain',
+    this.logger.info('Connecting to StateCommitmentChain...')
+    this.state.StateCommitmentChain = await loadContractFromManager({
+      name: 'StateCommitmentChain',
       Lib_AddressManager: this.state.Lib_AddressManager,
       provider: this.options.l1RpcProvider,
     })
-    this.logger.info('Connected to OVM_StateCommitmentChain', {
-      address: this.state.OVM_StateCommitmentChain.address,
+    this.logger.info('Connected to StateCommitmentChain', {
+      address: this.state.StateCommitmentChain.address,
     })
 
     this.logger.info('Connecting to L1CrossDomainMessenger...')
@@ -307,8 +307,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       })
 
       const events: ethers.Event[] =
-        await this.state.OVM_StateCommitmentChain.queryFilter(
-          this.state.OVM_StateCommitmentChain.filters.StateBatchAppended(),
+        await this.state.StateCommitmentChain.queryFilter(
+          this.state.StateCommitmentChain.filters.StateBatchAppended(),
           startingBlock,
           startingBlock + this.options.getLogsInterval
         )
@@ -333,7 +333,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     )
 
     const [stateRoots] =
-      this.state.OVM_StateCommitmentChain.interface.decodeFunctionData(
+      this.state.StateCommitmentChain.interface.decodeFunctionData(
         'appendStateBatch',
         transaction.data
       )
@@ -361,7 +361,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
       this.logger.info('Got state batch header', { header })
     }
 
-    return !(await this.state.OVM_StateCommitmentChain.insideFraudProofWindow(
+    return !(await this.state.StateCommitmentChain.insideFraudProofWindow(
       header.batch
     ))
   }

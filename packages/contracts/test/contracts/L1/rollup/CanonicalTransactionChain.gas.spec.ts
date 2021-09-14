@@ -21,31 +21,31 @@ import {
   NON_ZERO_ADDRESS,
 } from '../../../helpers'
 
-// Still have some duplication from OVM_CanonicalTransactionChain.spec.ts, but it's so minimal that
+// Still have some duplication from CanonicalTransactionChain.spec.ts, but it's so minimal that
 // this is probably cleaner for now. Particularly since we're planning to move all of this out into
 // core-utils soon anyway.
 const MAX_GAS_LIMIT = 8_000_000
 
 const appendSequencerBatch = async (
-  OVM_CanonicalTransactionChain: Contract,
+  CanonicalTransactionChain: Contract,
   batch: AppendSequencerBatchParams
 ): Promise<TransactionResponse> => {
   const methodId = keccak256(Buffer.from('appendSequencerBatch()')).slice(2, 10)
   const calldata = encodeAppendSequencerBatch(batch)
-  return OVM_CanonicalTransactionChain.signer.sendTransaction({
-    to: OVM_CanonicalTransactionChain.address,
+  return CanonicalTransactionChain.signer.sendTransaction({
+    to: CanonicalTransactionChain.address,
     data: '0x' + methodId + calldata,
   })
 }
 
-describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
+describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
   let sequencer: Signer
   before(async () => {
     ;[sequencer] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
-  let Mock__OVM_StateCommitmentChain: MockContract
+  let Mock__StateCommitmentChain: MockContract
   before(async () => {
     AddressManager = await makeAddressManager()
     await AddressManager.setAddress(
@@ -53,71 +53,71 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
       await sequencer.getAddress()
     )
 
-    Mock__OVM_StateCommitmentChain = await smockit(
-      await ethers.getContractFactory('OVM_StateCommitmentChain')
+    Mock__StateCommitmentChain = await smockit(
+      await ethers.getContractFactory('StateCommitmentChain')
     )
 
     await setProxyTarget(
       AddressManager,
-      'OVM_StateCommitmentChain',
-      Mock__OVM_StateCommitmentChain
+      'StateCommitmentChain',
+      Mock__StateCommitmentChain
     )
   })
 
-  let Factory__OVM_CanonicalTransactionChain: ContractFactory
-  let Factory__OVM_ChainStorageContainer: ContractFactory
+  let Factory__CanonicalTransactionChain: ContractFactory
+  let Factory__ChainStorageContainer: ContractFactory
   before(async () => {
-    Factory__OVM_CanonicalTransactionChain = await ethers.getContractFactory(
-      'OVM_CanonicalTransactionChain'
+    Factory__CanonicalTransactionChain = await ethers.getContractFactory(
+      'CanonicalTransactionChain'
     )
 
-    Factory__OVM_ChainStorageContainer = await ethers.getContractFactory(
-      'OVM_ChainStorageContainer'
+    Factory__ChainStorageContainer = await ethers.getContractFactory(
+      'ChainStorageContainer'
     )
   })
 
-  let OVM_CanonicalTransactionChain: Contract
+  let CanonicalTransactionChain: Contract
   beforeEach(async () => {
     // Use a larger FIP for blocks so that we can send a large number of
     // enqueue() transactions without having to manipulate the block number.
     const forceInclusionPeriodBlocks = 101
-    OVM_CanonicalTransactionChain =
-      await Factory__OVM_CanonicalTransactionChain.deploy(
+    CanonicalTransactionChain =
+      await Factory__CanonicalTransactionChain.deploy(
         AddressManager.address,
         FORCE_INCLUSION_PERIOD_SECONDS,
         forceInclusionPeriodBlocks,
         MAX_GAS_LIMIT
       )
 
-    const batches = await Factory__OVM_ChainStorageContainer.deploy(
+    const batches = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     )
-    const queue = await Factory__OVM_ChainStorageContainer.deploy(
+    const queue = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer-CTC-batches',
+      'ChainStorageContainer-CTC-batches',
       batches.address
     )
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer-CTC-queue',
+      'ChainStorageContainer-CTC-queue',
       queue.address
     )
 
     await AddressManager.setAddress(
-      'OVM_CanonicalTransactionChain',
-      OVM_CanonicalTransactionChain.address
+      'CanonicalTransactionChain',
+      CanonicalTransactionChain.address
     )
   })
 
   describe('appendSequencerBatch [ @skip-on-coverage ]', () => {
     beforeEach(() => {
-      OVM_CanonicalTransactionChain =
-        OVM_CanonicalTransactionChain.connect(sequencer)
+      CanonicalTransactionChain =
+        CanonicalTransactionChain.connect(sequencer)
     })
 
     it('200 transactions in a single context', async () => {
@@ -135,7 +135,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
       const fixedCalldataCost =
         (transactionTemplate.slice(2).length / 2) * 16 * numTxs
 
-      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+      const res = await appendSequencerBatch(CanonicalTransactionChain, {
         shouldStartAtElement: 0,
         totalElementsToAppend: numTxs,
         contexts: [
@@ -175,7 +175,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
       const fixedCalldataCost =
         (transactionTemplate.slice(2).length / 2) * 16 * numTxs
 
-      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+      const res = await appendSequencerBatch(CanonicalTransactionChain, {
         shouldStartAtElement: 0,
         totalElementsToAppend: numTxs,
         contexts: [...Array(numTxs)].map(() => {
