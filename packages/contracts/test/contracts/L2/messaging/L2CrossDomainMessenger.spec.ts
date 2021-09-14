@@ -22,14 +22,14 @@ describe('L2CrossDomainMessenger', () => {
   })
 
   let Mock__TargetContract: MockContract
-  let Mock__OVM_L1CrossDomainMessenger: MockContract
+  let Mock__L1CrossDomainMessenger: MockContract
   let Mock__OVM_L1MessageSender: MockContract
   let Mock__OVM_L2ToL1MessagePasser: MockContract
   before(async () => {
     Mock__TargetContract = await smockit(
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
-    Mock__OVM_L1CrossDomainMessenger = await smockit(
+    Mock__L1CrossDomainMessenger = await smockit(
       await ethers.getContractFactory('L1CrossDomainMessenger')
     )
     Mock__OVM_L1MessageSender = await smockit(
@@ -53,7 +53,7 @@ describe('L2CrossDomainMessenger', () => {
   beforeEach(async () => {
     L2CrossDomainMessenger =
       await Factory__L2CrossDomainMessenger.deploy(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
   })
 
@@ -97,7 +97,7 @@ describe('L2CrossDomainMessenger', () => {
 
     beforeEach(async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
     })
 
@@ -131,7 +131,7 @@ describe('L2CrossDomainMessenger', () => {
 
     it('should revert if trying to send the same message twice', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
 
       await L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
@@ -143,7 +143,7 @@ describe('L2CrossDomainMessenger', () => {
 
     it('should not make a call if the target is the L2 MessagePasser', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
       target = predeploys.OVM_L2ToL1MessagePasser
       message = Mock__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
@@ -184,7 +184,7 @@ describe('L2CrossDomainMessenger', () => {
 
     it('should revert if trying to reenter `relayMessage`', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
 
       const reentrantMessage =

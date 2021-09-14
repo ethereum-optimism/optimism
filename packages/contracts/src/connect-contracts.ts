@@ -67,7 +67,7 @@ export const connectL1Contracts = async (
     ),
     stateCommitmentChain: getEthersContract('StateCommitmentChain'),
     xDomainMessengerProxy: getEthersContract(
-      'Proxy__OVM_L1CrossDomainMessenger'
+      'Proxy__L1CrossDomainMessenger'
     ),
     bondManager: getEthersContract('mockBondManager'),
   }

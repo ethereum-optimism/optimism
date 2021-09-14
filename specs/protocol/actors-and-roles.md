@@ -31,7 +31,7 @@ This bond will be slashed in the event of a successful fraud proof on a state ro
 ### Roles
 
 - Process transactions from the CTC, and propose new state roots by posting them to the SCC.
-- MUST be collateralized by depositing a bond to the `OVM_BondManager` .
+- MUST be collateralized by depositing a bond to the `BondManager` .
 
 **Future note:** The Proposer is currently identical to the Sequencer. This is expected to change.
 

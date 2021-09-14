@@ -53,10 +53,10 @@ describe('L1StandardBridge', () => {
 
   let L1ERC20: Contract
   let L1StandardBridge: Contract
-  let Mock__OVM_L1CrossDomainMessenger: MockContract
+  let Mock__L1CrossDomainMessenger: MockContract
   beforeEach(async () => {
     // Get a new mock L1 messenger
-    Mock__OVM_L1CrossDomainMessenger = await smockit(
+    Mock__L1CrossDomainMessenger = await smockit(
       await ethers.getContractFactory('L1CrossDomainMessenger'),
       { address: await l1MessengerImpersonator.getAddress() } // This allows us to use an ethers override {from: Mock__L2CrossDomainMessenger.address} to mock calls
     )
@@ -66,7 +66,7 @@ describe('L1StandardBridge', () => {
       await ethers.getContractFactory('L1StandardBridge')
     ).deploy()
     await L1StandardBridge.initialize(
-      Mock__OVM_L1CrossDomainMessenger.address,
+      Mock__L1CrossDomainMessenger.address,
       DUMMY_L2_BRIDGE_ADDRESS
     )
 
@@ -108,7 +108,7 @@ describe('L1StandardBridge', () => {
       )
 
       const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
+        Mock__L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       const depositerBalance = await ethers.provider.getBalance(depositer)
 
@@ -153,7 +153,7 @@ describe('L1StandardBridge', () => {
         }
       )
       const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
+        Mock__L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       const depositerBalance = await ethers.provider.getBalance(aliceAddress)
       expect(depositerBalance).to.equal(initialBalance.sub(depositAmount))
@@ -214,11 +214,11 @@ describe('L1StandardBridge', () => {
         await ethers.getContractFactory('L1StandardBridge')
       ).deploy()
       await L1StandardBridge.initialize(
-        Mock__OVM_L1CrossDomainMessenger.address,
+        Mock__L1CrossDomainMessenger.address,
         DUMMY_L2_BRIDGE_ADDRESS
       )
 
-      Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+      Mock__L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         '0x' + '22'.repeat(20)
       )
 
@@ -229,7 +229,7 @@ describe('L1StandardBridge', () => {
           1,
           NON_NULL_BYTES32,
           {
-            from: Mock__OVM_L1CrossDomainMessenger.address,
+            from: Mock__L1CrossDomainMessenger.address,
           }
         )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
@@ -240,7 +240,7 @@ describe('L1StandardBridge', () => {
       expect(await ethers.provider.getBalance(NON_ZERO_ADDRESS)).to.be.equal(0)
 
       const withdrawalAmount = 100
-      Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+      Mock__L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => DUMMY_L2_BRIDGE_ADDRESS
       )
 
@@ -260,7 +260,7 @@ describe('L1StandardBridge', () => {
         withdrawalAmount,
         NON_NULL_BYTES32,
         {
-          from: Mock__OVM_L1CrossDomainMessenger.address,
+          from: Mock__L1CrossDomainMessenger.address,
         }
       )
 
@@ -291,7 +291,7 @@ describe('L1StandardBridge', () => {
       )
 
       const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
+        Mock__L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       const depositerBalance = await L1ERC20.balanceOf(aliceAddress)
 
@@ -333,7 +333,7 @@ describe('L1StandardBridge', () => {
         NON_NULL_BYTES32
       )
       const depositCallToMessenger =
-        Mock__OVM_L1CrossDomainMessenger.smocked.sendMessage.calls[0]
+        Mock__L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       const depositerBalance = await L1ERC20.balanceOf(aliceAddress)
       expect(depositerBalance).to.equal(INITIAL_TOTAL_L1_SUPPLY - depositAmount)
@@ -476,7 +476,7 @@ describe('L1StandardBridge', () => {
     })
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L2DepositedERC20)', async () => {
-      Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+      Mock__L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         '0x' + '22'.repeat(20)
       )
 
@@ -489,7 +489,7 @@ describe('L1StandardBridge', () => {
           1,
           NON_NULL_BYTES32,
           {
-            from: Mock__OVM_L1CrossDomainMessenger.address,
+            from: Mock__L1CrossDomainMessenger.address,
           }
         )
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
@@ -518,7 +518,7 @@ describe('L1StandardBridge', () => {
       // make sure no balance at start of test
       expect(await L1ERC20.balanceOf(NON_ZERO_ADDRESS)).to.be.equal(0)
 
-      Mock__OVM_L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
+      Mock__L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         () => DUMMY_L2_BRIDGE_ADDRESS
       )
 
@@ -529,7 +529,7 @@ describe('L1StandardBridge', () => {
         NON_ZERO_ADDRESS,
         withdrawalAmount,
         NON_NULL_BYTES32,
-        { from: Mock__OVM_L1CrossDomainMessenger.address }
+        { from: Mock__L1CrossDomainMessenger.address }
       )
 
       expect(await L1ERC20.balanceOf(NON_ZERO_ADDRESS)).to.be.equal(
