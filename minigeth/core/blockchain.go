@@ -24,3 +24,19 @@ func (bc *BlockChain) Engine() consensus.Engine { return bc.engine }
 func (bc *BlockChain) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return nil
 }
+
+func (bc *BlockChain) CurrentHeader() *types.Header {
+	return nil
+}
+
+// GetHeaderByHash retrieves a block header from the database by hash, caching it if
+// found.
+func (bc *BlockChain) GetHeaderByHash(hash common.Hash) *types.Header {
+	return nil
+}
+
+// GetHeaderByNumber retrieves a block header from the database by number,
+// caching it (associated with its hash) if found.
+func (bc *BlockChain) GetHeaderByNumber(number uint64) *types.Header {
+	return nil
+}

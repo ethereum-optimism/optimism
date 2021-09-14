@@ -157,3 +157,8 @@ func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addre
 func (s *StateDB) Snapshot() int {
 	return 0
 }
+
+// Prepare sets the current transaction hash and index which are
+// used when the EVM emits new state logs.
+func (s *StateDB) Prepare(thash common.Hash, ti int) {
+}
