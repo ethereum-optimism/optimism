@@ -9,7 +9,7 @@ import { IL2ERC20Bridge } from "./IL2ERC20Bridge.sol";
 
 /* Library Imports */
 import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
-import { OVM_CrossDomainEnabled } from "../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
@@ -26,7 +26,7 @@ import { IL2StandardERC20 } from "../../libraries/standards/IL2StandardERC20.sol
  *
  * Runtime target: OVM
  */
-contract L2StandardBridge is IL2ERC20Bridge, OVM_CrossDomainEnabled {
+contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
 
     /********************************
      * External Contract References *
@@ -46,7 +46,7 @@ contract L2StandardBridge is IL2ERC20Bridge, OVM_CrossDomainEnabled {
         address _l2CrossDomainMessenger,
         address _l1TokenBridge
     )
-        OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
+        CrossDomainEnabled(_l2CrossDomainMessenger)
     {
         l1TokenBridge = _l1TokenBridge;
     }
