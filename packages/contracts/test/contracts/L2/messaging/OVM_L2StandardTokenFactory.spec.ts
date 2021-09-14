@@ -47,7 +47,7 @@ describe('OVM_L2StandardTokenFactory', () => {
         signer
       )
 
-      expect(await l2Token.l2Bridge()).to.equal(predeploys.OVM_L2StandardBridge)
+      expect(await l2Token.l2Bridge()).to.equal(predeploys.L2StandardBridge)
       expect(await l2Token.l1Token()).to.equal(L1ERC20.address)
       expect(await l2Token.name()).to.equal('L2ERC20')
       expect(await l2Token.symbol()).to.equal('ERC')

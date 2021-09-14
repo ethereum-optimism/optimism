@@ -54,7 +54,7 @@ export const makeL2GenesisFile = async (
       _owner: cfg.gasPriceOracleOwner,
       gasPrice: cfg.initialGasPrice,
     },
-    OVM_L2StandardBridge: {
+    L2StandardBridge: {
       l1TokenBridge: cfg.l1StandardBridgeAddress,
       messenger: predeploys.L2CrossDomainMessenger,
     },
@@ -62,7 +62,7 @@ export const makeL2GenesisFile = async (
       l1FeeWallet: cfg.l1FeeWalletAddress,
     },
     OVM_ETH: {
-      l2Bridge: predeploys.OVM_L2StandardBridge,
+      l2Bridge: predeploys.L2StandardBridge,
       _name: 'Ether',
       _symbol: 'ETH',
       _decimals: 18,

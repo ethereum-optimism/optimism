@@ -16,7 +16,7 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 import { IL2StandardERC20 } from "../../libraries/standards/IL2StandardERC20.sol";
 
 /**
- * @title OVM_L2StandardBridge
+ * @title L2StandardBridge
  * @dev The L2 Standard bridge is a contract which works together with the L1 Standard bridge to
  * enable ETH and ERC20 transitions between L1 and L2.
  * This contract acts as a minter for new tokens when it hears about deposits into the L1 Standard
@@ -26,7 +26,7 @@ import { IL2StandardERC20 } from "../../libraries/standards/IL2StandardERC20.sol
  *
  * Runtime target: OVM
  */
-contract OVM_L2StandardBridge is IL2ERC20Bridge, OVM_CrossDomainEnabled {
+contract L2StandardBridge is IL2ERC20Bridge, OVM_CrossDomainEnabled {
 
     /********************************
      * External Contract References *
