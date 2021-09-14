@@ -77,13 +77,13 @@ const deployFn: DeployFunction = async (hre) => {
   // Set Slot 1 to the L2 Standard Bridge Address
   await Proxy__WithChugSplashInterface.setStorage(
     hre.ethers.utils.hexZeroPad('0x01', 32),
-    hre.ethers.utils.hexZeroPad(predeploys.OVM_L2StandardBridge, 32)
+    hre.ethers.utils.hexZeroPad(predeploys.L2StandardBridge, 32)
   )
   // Verify that the slot was set correctly
   const l2TokenBridgeStored =
     await Proxy__WithBridgeInterface.callStatic.l2TokenBridge()
   console.log('l2TokenBridgeStored:', l2TokenBridgeStored)
-  if (l2TokenBridgeStored !== predeploys.OVM_L2StandardBridge) {
+  if (l2TokenBridgeStored !== predeploys.L2StandardBridge) {
     throw new Error(
       'L2 bridge address was not correctly set, check the key value used in setStorage'
     )
