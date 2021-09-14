@@ -26,7 +26,7 @@ import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-rela
 const main = async () => {
   const l1RpcProviderUrl = 'https://layer1.endpoint'
   const l2RpcProviderUrl = 'https://layer2.endpoint'
-  const l1StateCommitmentChainAddress = 'address of OVM_StateCommitmentChain from deployments page'
+  const l1StateCommitmentChainAddress = 'address of StateCommitmentChain from deployments page'
   const l2CrossDomainMessengerAddress = 'address of L2CrossDomainMessenger from deployments page'
   const l2TransactionHash = 'hash of the transaction with messages to relay'
 

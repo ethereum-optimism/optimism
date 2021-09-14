@@ -131,7 +131,7 @@ export const getStateBatchAppendedEventByTransactionIndex = async (
 ): Promise<ethers.Event | null> => {
   const l1StateCommitmentChain = new ethers.Contract(
     l1StateCommitmentChainAddress,
-    getContractInterface('OVM_StateCommitmentChain'),
+    getContractInterface('StateCommitmentChain'),
     l1RpcProvider
   )
 
@@ -213,7 +213,7 @@ export const getStateRootBatchByTransactionIndex = async (
 ): Promise<StateRootBatch | null> => {
   const l1StateCommitmentChain = new ethers.Contract(
     l1StateCommitmentChainAddress,
-    getContractInterface('OVM_StateCommitmentChain'),
+    getContractInterface('StateCommitmentChain'),
     l1RpcProvider
   )
 
