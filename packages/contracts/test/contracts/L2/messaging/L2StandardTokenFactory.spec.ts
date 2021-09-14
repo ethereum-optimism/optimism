@@ -8,11 +8,11 @@ import { smoddit } from '@eth-optimism/smock'
 /* Internal Imports */
 import { predeploys, getContractInterface } from '../../../../src'
 
-describe('OVM_L2StandardTokenFactory', () => {
+describe('L2StandardTokenFactory', () => {
   let signer: Signer
   let Factory__L1ERC20: ContractFactory
   let L1ERC20: Contract
-  let OVM_L2StandardTokenFactory: Contract
+  let L2StandardTokenFactory: Contract
   before(async () => {
     ;[signer] = await ethers.getSigners()
     // deploy an ERC20 contract on L1
@@ -21,14 +21,14 @@ describe('OVM_L2StandardTokenFactory', () => {
     )
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
 
-    OVM_L2StandardTokenFactory = await (
-      await ethers.getContractFactory('OVM_L2StandardTokenFactory')
+    L2StandardTokenFactory = await (
+      await ethers.getContractFactory('L2StandardTokenFactory')
     ).deploy()
   })
 
   describe('Standard token factory', () => {
     it('should be able to create a standard token', async () => {
-      const tx = await OVM_L2StandardTokenFactory.createStandardL2Token(
+      const tx = await L2StandardTokenFactory.createStandardL2Token(
         L1ERC20.address,
         'L2ERC20',
         'ERC'
@@ -55,7 +55,7 @@ describe('OVM_L2StandardTokenFactory', () => {
 
     it('should not be able to create a standard token with a 0 address for l1 token', async () => {
       await expect(
-        OVM_L2StandardTokenFactory.createStandardL2Token(
+        L2StandardTokenFactory.createStandardL2Token(
           ethers.constants.AddressZero,
           'L2ERC20',
           'ERC'
