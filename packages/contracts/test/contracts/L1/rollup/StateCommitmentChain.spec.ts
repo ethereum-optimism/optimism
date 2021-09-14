@@ -27,7 +27,7 @@ describe('StateCommitmentChain', () => {
   })
 
   let Mock__CanonicalTransactionChain: MockContract
-  let Mock__OVM_BondManager: MockContract
+  let Mock__BondManager: MockContract
   before(async () => {
     Mock__CanonicalTransactionChain = await smockit(
       await ethers.getContractFactory('CanonicalTransactionChain')
@@ -39,17 +39,17 @@ describe('StateCommitmentChain', () => {
       Mock__CanonicalTransactionChain
     )
 
-    Mock__OVM_BondManager = await smockit(
-      await ethers.getContractFactory('OVM_BondManager')
+    Mock__BondManager = await smockit(
+      await ethers.getContractFactory('BondManager')
     )
 
     await setProxyTarget(
       AddressManager,
-      'OVM_BondManager',
-      Mock__OVM_BondManager
+      'BondManager',
+      Mock__BondManager
     )
 
-    Mock__OVM_BondManager.smocked.isCollateralized.will.return.with(true)
+    Mock__BondManager.smocked.isCollateralized.will.return.with(true)
 
     await AddressManager.setAddress(
       'OVM_Proposer',
