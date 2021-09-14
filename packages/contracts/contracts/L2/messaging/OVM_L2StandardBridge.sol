@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { IL1StandardBridge } from "../../L1/messaging/IL1StandardBridge.sol";
 import { IL1ERC20Bridge } from "../../L1/messaging/IL1ERC20Bridge.sol";
-import { iOVM_L2ERC20Bridge } from "./iOVM_L2ERC20Bridge.sol";
+import { IL2ERC20Bridge } from "./IL2ERC20Bridge.sol";
 
 /* Library Imports */
 import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
@@ -26,7 +26,7 @@ import { IL2StandardERC20 } from "../../libraries/standards/IL2StandardERC20.sol
  *
  * Runtime target: OVM
  */
-contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
+contract OVM_L2StandardBridge is IL2ERC20Bridge, OVM_CrossDomainEnabled {
 
     /********************************
      * External Contract References *
@@ -56,7 +56,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
      ***************/
 
     /**
-     * @inheritdoc iOVM_L2ERC20Bridge
+     * @inheritdoc IL2ERC20Bridge
      */
     function withdraw(
         address _l2Token,
@@ -79,7 +79,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L2ERC20Bridge
+     * @inheritdoc IL2ERC20Bridge
      */
     function withdrawTo(
         address _l2Token,
@@ -167,7 +167,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
      ************************************/
 
     /**
-     * @inheritdoc iOVM_L2ERC20Bridge
+     * @inheritdoc IL2ERC20Bridge
      */
     function finalizeDeposit(
         address _l1Token,
