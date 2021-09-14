@@ -10,7 +10,7 @@ import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 /* Interface Imports */
 import { IStateCommitmentChain } from "./IStateCommitmentChain.sol";
 import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
-import { iOVM_BondManager } from "../verification/iOVM_BondManager.sol";
+import { IBondManager } from "../verification/IBondManager.sol";
 import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /* External Imports */
@@ -137,7 +137,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
 
         // Proposers must have previously staked at the BondManager
         require(
-            iOVM_BondManager(resolve("OVM_BondManager")).isCollateralized(msg.sender),
+            IBondManager(resolve("BondManager")).isCollateralized(msg.sender),
             "Proposer does not have enough collateral posted"
         );
 

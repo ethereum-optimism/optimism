@@ -13,21 +13,21 @@ const Mainnet__CanonicalTransactionChain = require('../deployments/mainnet/Canon
 const Mainnet__OVM_L1CrossDomainMessenger = require('../deployments/mainnet/L1CrossDomainMessenger.json')
 const Mainnet__StateCommitmentChain = require('../deployments/mainnet/StateCommitmentChain.json')
 const Mainnet__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/mainnet/Proxy__OVM_L1CrossDomainMessenger.json')
-const Mainnet__OVM_BondManager = require('../deployments/mainnet/mockOVM_BondManager.json')
+const Mainnet__BondManager = require('../deployments/mainnet/mockBondManager.json')
 
 const Kovan__Lib_AddressManager = require('../deployments/kovan/Lib_AddressManager.json')
 const Kovan__CanonicalTransactionChain = require('../deployments/kovan/CanonicalTransactionChain.json')
 const Kovan__OVM_L1CrossDomainMessenger = require('../deployments/kovan/L1CrossDomainMessenger.json')
 const Kovan__StateCommitmentChain = require('../deployments/kovan/StateCommitmentChain.json')
 const Kovan__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/kovan/Proxy__OVM_L1CrossDomainMessenger.json')
-const Kovan__OVM_BondManager = require('../deployments/kovan/mockOVM_BondManager.json')
+const Kovan__BondManager = require('../deployments/kovan/mockBondManager.json')
 
 const Goerli__Lib_AddressManager = require('../deployments/goerli/Lib_AddressManager.json')
 const Goerli__CanonicalTransactionChain = require('../deployments/goerli/CanonicalTransactionChain.json')
 const Goerli__OVM_L1CrossDomainMessenger = require('../deployments/goerli/L1CrossDomainMessenger.json')
 const Goerli__StateCommitmentChain = require('../deployments/goerli/StateCommitmentChain.json')
 const Goerli__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/goerli/Proxy__OVM_L1CrossDomainMessenger.json')
-const Goerli__OVM_BondManager = require('../deployments/goerli/mockOVM_BondManager.json')
+const Goerli__BondManager = require('../deployments/goerli/mockBondManager.json')
 
 export const getL1ContractData = (network: Network) => {
   return {
@@ -56,10 +56,10 @@ export const getL1ContractData = (network: Network) => {
       kovan: Kovan__Proxy__OVM_L1CrossDomainMessenger,
       goerli: Goerli__Proxy__OVM_L1CrossDomainMessenger,
     }[network],
-    OVM_BondManager: {
-      mainnet: Mainnet__OVM_BondManager,
-      kovan: Kovan__OVM_BondManager,
-      goerli: Goerli__OVM_BondManager,
+    BondManager: {
+      mainnet: Mainnet__BondManager,
+      kovan: Kovan__BondManager,
+      goerli: Goerli__BondManager,
     }[network],
   }
 }
