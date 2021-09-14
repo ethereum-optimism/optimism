@@ -105,14 +105,14 @@ export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
 }
 
 export const getL2Bridge = async (wallet: Wallet) => {
-  const L2BridgeInterface = getContractInterface('OVM_L2StandardBridge')
+  const L2BridgeInterface = getContractInterface('L2StandardBridge')
 
-  const OVM_L2StandardBridge = new Contract(
-    predeploys.OVM_L2StandardBridge,
+  const L2StandardBridge = new Contract(
+    predeploys.L2StandardBridge,
     L2BridgeInterface,
     wallet
   )
-  return OVM_L2StandardBridge
+  return L2StandardBridge
 }
 
 export const getOvmEth = (wallet: Wallet) => {

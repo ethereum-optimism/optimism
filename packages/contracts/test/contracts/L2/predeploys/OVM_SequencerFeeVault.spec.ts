@@ -14,10 +14,10 @@ describe('OVM_SequencerFeeVault', () => {
     ;[signer1] = await hre.ethers.getSigners()
   })
 
-  let Mock__OVM_L2StandardBridge: MockContract
+  let Mock__L2StandardBridge: MockContract
   before(async () => {
-    Mock__OVM_L2StandardBridge = await smockit('OVM_L2StandardBridge', {
-      address: predeploys.OVM_L2StandardBridge,
+    Mock__L2StandardBridge = await smockit('OVM_L2StandardBridge', {
+      address: predeploys.L2StandardBridge,
     })
   })
 
@@ -44,7 +44,7 @@ describe('OVM_SequencerFeeVault', () => {
       await expect(OVM_SequencerFeeVault.withdraw()).to.not.be.reverted
 
       expect(
-        Mock__OVM_L2StandardBridge.smocked.withdrawTo.calls[0]
+        Mock__L2StandardBridge.smocked.withdrawTo.calls[0]
       ).to.deep.equal([
         predeploys.OVM_ETH,
         await signer1.getAddress(),
@@ -67,7 +67,7 @@ describe('OVM_SequencerFeeVault', () => {
       await expect(OVM_SequencerFeeVault.withdraw()).to.not.be.reverted
 
       expect(
-        Mock__OVM_L2StandardBridge.smocked.withdrawTo.calls[0]
+        Mock__L2StandardBridge.smocked.withdrawTo.calls[0]
       ).to.deep.equal([
         predeploys.OVM_ETH,
         await signer1.getAddress(),

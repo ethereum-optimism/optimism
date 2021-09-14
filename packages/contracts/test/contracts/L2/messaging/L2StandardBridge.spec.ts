@@ -24,7 +24,7 @@ const DUMMY_L1BRIDGE_ADDRESS: string =
 const DUMMY_L1TOKEN_ADDRESS: string =
   '0x2234223412342234223422342234223422342234'
 
-describe('OVM_L2StandardBridge', () => {
+describe('L2StandardBridge', () => {
   let alice: Signer
   let aliceAddress: string
   let bob: Signer
@@ -47,7 +47,7 @@ describe('OVM_L2StandardBridge', () => {
     IL2ERC20Bridge = getContractInterface('IL2ERC20Bridge')
   })
 
-  let OVM_L2StandardBridge: Contract
+  let L2StandardBridge: Contract
   let L2ERC20: Contract
   let Mock__L2CrossDomainMessenger: MockContract
   beforeEach(async () => {
@@ -59,15 +59,15 @@ describe('OVM_L2StandardBridge', () => {
     )
 
     // Deploy the contract under test
-    OVM_L2StandardBridge = await (
-      await ethers.getContractFactory('OVM_L2StandardBridge')
+    L2StandardBridge = await (
+      await ethers.getContractFactory('L2StandardBridge')
     ).deploy(Mock__L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
 
     // Deploy an L2 ERC20
     L2ERC20 = await (
       await ethers.getContractFactory('L2StandardERC20', alice)
     ).deploy(
-      OVM_L2StandardBridge.address,
+      L2StandardBridge.address,
       DUMMY_L1TOKEN_ADDRESS,
       'L2Token',
       'L2T'
@@ -78,7 +78,7 @@ describe('OVM_L2StandardBridge', () => {
   describe('finalizeDeposit', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L2 account', async () => {
       await expect(
-        OVM_L2StandardBridge.finalizeDeposit(
+        L2StandardBridge.finalizeDeposit(
           DUMMY_L1TOKEN_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
@@ -95,7 +95,7 @@ describe('OVM_L2StandardBridge', () => {
       )
 
       await expect(
-        OVM_L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
+        L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
           DUMMY_L1TOKEN_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
@@ -117,7 +117,7 @@ describe('OVM_L2StandardBridge', () => {
         )
       ).deploy('L2Token', 'L2T')
 
-      OVM_L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
+      L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
         NON_ZERO_ADDRESS,
         NON_ZERO_ADDRESS,
@@ -133,7 +133,7 @@ describe('OVM_L2StandardBridge', () => {
         () => DUMMY_L1BRIDGE_ADDRESS
       )
 
-      await OVM_L2StandardBridge.connect(
+      await L2StandardBridge.connect(
         l2MessengerImpersonator
       ).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
@@ -173,7 +173,7 @@ describe('OVM_L2StandardBridge', () => {
         () => DUMMY_L1BRIDGE_ADDRESS
       )
 
-      await OVM_L2StandardBridge.connect(
+      await L2StandardBridge.connect(
         l2MessengerImpersonator
       ).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
@@ -200,7 +200,7 @@ describe('OVM_L2StandardBridge', () => {
       SmoddedL2Token = await (
         await smoddit('L2StandardERC20', alice)
       ).deploy(
-        OVM_L2StandardBridge.address,
+        L2StandardBridge.address,
         DUMMY_L1TOKEN_ADDRESS,
         'L2Token',
         'L2T'
@@ -212,12 +212,12 @@ describe('OVM_L2StandardBridge', () => {
         _balances: {
           [aliceAddress]: ALICE_INITIAL_BALANCE,
         },
-        l2Bridge: OVM_L2StandardBridge.address,
+        l2Bridge: L2StandardBridge.address,
       })
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await OVM_L2StandardBridge.withdraw(
+      await L2StandardBridge.withdraw(
         SmoddedL2Token.address,
         withdrawAmount,
         0,
@@ -262,7 +262,7 @@ describe('OVM_L2StandardBridge', () => {
     })
 
     it('withdrawTo() burns and sends the correct withdrawal message', async () => {
-      await OVM_L2StandardBridge.withdrawTo(
+      await L2StandardBridge.withdrawTo(
         SmoddedL2Token.address,
         await bob.getAddress(),
         withdrawAmount,
