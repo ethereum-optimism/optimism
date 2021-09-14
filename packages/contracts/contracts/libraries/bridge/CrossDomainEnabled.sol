@@ -2,16 +2,16 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
-import { iOVM_CrossDomainMessenger } from "./iOVM_CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "./ICrossDomainMessenger.sol";
 
 /**
- * @title OVM_CrossDomainEnabled
+ * @title CrossDomainEnabled
  * @dev Helper contract for contracts performing cross-domain communications
  *
  * Compiler used: defined by inheriting contract
  * Runtime target: defined by inheriting contract
  */
-contract OVM_CrossDomainEnabled {
+contract CrossDomainEnabled {
 
     /*************
      * Variables *
@@ -74,10 +74,10 @@ contract OVM_CrossDomainEnabled {
         internal
         virtual
         returns (
-            iOVM_CrossDomainMessenger
+            ICrossDomainMessenger
         )
     {
-        return iOVM_CrossDomainMessenger(messenger);
+        return ICrossDomainMessenger(messenger);
     }
 
     /**

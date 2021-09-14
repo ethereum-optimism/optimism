@@ -10,7 +10,7 @@ import { IL2ERC20Bridge } from "../../L2/messaging/IL2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
-import { OVM_CrossDomainEnabled } from "../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -24,7 +24,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  *
  * Runtime target: EVM
  */
-contract L1StandardBridge is IL1StandardBridge, OVM_CrossDomainEnabled {
+contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 
@@ -43,7 +43,7 @@ contract L1StandardBridge is IL1StandardBridge, OVM_CrossDomainEnabled {
 
     // This contract lives behind a proxy, so the constructor parameters will go unused.
     constructor()
-        OVM_CrossDomainEnabled(address(0))
+        CrossDomainEnabled(address(0))
     {}
 
     /******************
