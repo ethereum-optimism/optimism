@@ -6,7 +6,7 @@ pragma experimental ABIEncoderV2;
 /* Interface Imports */
 import { IL1StandardBridge } from "./IL1StandardBridge.sol";
 import { IL1ERC20Bridge } from "./IL1ERC20Bridge.sol";
-import { iOVM_L2ERC20Bridge } from "../../L2/messaging/iOVM_L2ERC20Bridge.sol";
+import { IL2ERC20Bridge } from "../../L2/messaging/IL2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
@@ -158,7 +158,7 @@ contract L1StandardBridge is IL1StandardBridge, OVM_CrossDomainEnabled {
         // Construct calldata for finalizeDeposit call
         bytes memory message =
             abi.encodeWithSelector(
-                iOVM_L2ERC20Bridge.finalizeDeposit.selector,
+                IL2ERC20Bridge.finalizeDeposit.selector,
                 address(0),
                 Lib_PredeployAddresses.OVM_ETH,
                 _from,
@@ -249,7 +249,7 @@ contract L1StandardBridge is IL1StandardBridge, OVM_CrossDomainEnabled {
 
         // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L2ERC20Bridge.finalizeDeposit.selector,
+            IL2ERC20Bridge.finalizeDeposit.selector,
             _l1Token,
             _l2Token,
             _from,

@@ -3,9 +3,9 @@ pragma solidity >0.5.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * @title iOVM_L2ERC20Bridge
+ * @title IL2ERC20Bridge
  */
-interface iOVM_L2ERC20Bridge {
+interface IL2ERC20Bridge {
 
     /**********
      * Events *
