@@ -57,7 +57,7 @@ describe('L1CrossDomainMessenger', () => {
 
   let Factory__CanonicalTransactionChain: ContractFactory
   let Factory__ChainStorageContainer: ContractFactory
-  let Factory__OVM_L1CrossDomainMessenger: ContractFactory
+  let Factory__L1CrossDomainMessenger: ContractFactory
 
   let CanonicalTransactionChain: Contract
   before(async () => {
@@ -93,7 +93,7 @@ describe('L1CrossDomainMessenger', () => {
       'ChainStorageContainer'
     )
 
-    Factory__OVM_L1CrossDomainMessenger = await ethers.getContractFactory(
+    Factory__L1CrossDomainMessenger = await ethers.getContractFactory(
       'L1CrossDomainMessenger'
     )
     CanonicalTransactionChain =
@@ -132,7 +132,7 @@ describe('L1CrossDomainMessenger', () => {
   let L1CrossDomainMessenger: Contract
   beforeEach(async () => {
     const xDomainMessengerImpl =
-      await Factory__OVM_L1CrossDomainMessenger.deploy()
+      await Factory__L1CrossDomainMessenger.deploy()
     // We use an upgradable proxy for the XDomainMessenger--deploy & set up the proxy.
     L1CrossDomainMessenger = await deployProxyXDomainMessenger(
       AddressManager,
@@ -519,14 +519,14 @@ describe('L1CrossDomainMessenger', () => {
 
     describe('blockMessage and allowMessage', () => {
       it('should revert if called by an account other than the owner', async () => {
-        const OVM_L1CrossDomainMessenger2 =
+        const L1CrossDomainMessenger2 =
           L1CrossDomainMessenger.connect(signer2)
         await expect(
-          OVM_L1CrossDomainMessenger2.blockMessage(keccak256(calldata))
+          L1CrossDomainMessenger2.blockMessage(keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')
 
         await expect(
-          OVM_L1CrossDomainMessenger2.allowMessage(keccak256(calldata))
+          L1CrossDomainMessenger2.allowMessage(keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')
       })
 
