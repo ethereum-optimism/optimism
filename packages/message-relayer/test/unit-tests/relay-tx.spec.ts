@@ -40,7 +40,7 @@ describe('relay transaction generation functions', () => {
     const factory2 = getContractFactory('ChainStorageContainer')
     const factory3 = getContractFactory('StateCommitmentChain')
 
-    const mockBondManager = await smockit(getContractFactory('OVM_BondManager'))
+    const mockBondManager = await smockit(getContractFactory('BondManager'))
     const mockCanonicalTransactionChain = await smockit(
       getContractFactory('CanonicalTransactionChain')
     )
@@ -68,7 +68,7 @@ describe('relay transaction generation functions', () => {
       StateCommitmentChain.address
     )
 
-    await AddressManager.setAddress('OVM_BondManager', mockBondManager.address)
+    await AddressManager.setAddress('BondManager', mockBondManager.address)
 
     await AddressManager.setAddress(
       'CanonicalTransactionChain',

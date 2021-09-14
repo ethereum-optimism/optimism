@@ -58,7 +58,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Set slot 0 to the L1 Messenger Address
   const l1MessengerAddress = await Lib_AddressManager.getAddress(
-    'Proxy__OVM_L1CrossDomainMessenger'
+    'Proxy__L1CrossDomainMessenger'
   )
   await Proxy__WithChugSplashInterface.setStorage(
     hre.ethers.constants.HashZero,
