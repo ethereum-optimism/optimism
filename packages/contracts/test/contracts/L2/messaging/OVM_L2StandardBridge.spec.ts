@@ -44,7 +44,7 @@ describe('OVM_L2StandardBridge', () => {
     )
 
     // get an L2ER20Bridge Interface
-    IL2ERC20Bridge = getContractInterface('iOVM_L2ERC20Bridge')
+    IL2ERC20Bridge = getContractInterface('IL2ERC20Bridge')
   })
 
   let OVM_L2StandardBridge: Contract
