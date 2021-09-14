@@ -63,9 +63,9 @@ export const connectL1Contracts = async (
   return {
     addressManager: getEthersContract('Lib_AddressManager'),
     canonicalTransactionChain: getEthersContract(
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     ),
-    stateCommitmentChain: getEthersContract('OVM_StateCommitmentChain'),
+    stateCommitmentChain: getEthersContract('StateCommitmentChain'),
     xDomainMessengerProxy: getEthersContract(
       'Proxy__OVM_L1CrossDomainMessenger'
     ),

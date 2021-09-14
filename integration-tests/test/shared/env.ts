@@ -83,9 +83,9 @@ export class OptimismEnv {
       .attach(watcher.l2.messengerAddress)
 
     const ctcAddress = await addressManager.getAddress(
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     )
-    const ctc = getContractFactory('OVM_CanonicalTransactionChain')
+    const ctc = getContractFactory('CanonicalTransactionChain')
       .connect(l1Wallet)
       .attach(ctcAddress)
 
@@ -94,9 +94,9 @@ export class OptimismEnv {
       .attach(predeploys.OVM_GasPriceOracle)
 
     const sccAddress = await addressManager.getAddress(
-      'OVM_StateCommitmentChain'
+      'StateCommitmentChain'
     )
-    const scc = getContractFactory('OVM_StateCommitmentChain')
+    const scc = getContractFactory('StateCommitmentChain')
       .connect(l1Wallet)
       .attach(sccAddress)
 

@@ -6,12 +6,12 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
-import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
+import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /**
- * @title iOVM_CanonicalTransactionChain
+ * @title ICanonicalTransactionChain
  */
-interface iOVM_CanonicalTransactionChain {
+interface ICanonicalTransactionChain {
 
     /**********
      * Events *
@@ -72,7 +72,7 @@ interface iOVM_CanonicalTransactionChain {
         external
         view
         returns (
-            iOVM_ChainStorageContainer
+            IChainStorageContainer
         );
 
     /**
@@ -83,7 +83,7 @@ interface iOVM_CanonicalTransactionChain {
         external
         view
         returns (
-            iOVM_ChainStorageContainer
+            IChainStorageContainer
         );
 
     /**

@@ -30,8 +30,8 @@ export const loadProxyFromManager = async (
 
 export interface OptimismContracts {
   Lib_AddressManager: Contract
-  OVM_StateCommitmentChain: Contract
-  OVM_CanonicalTransactionChain: Contract
+  StateCommitmentChain: Contract
+  CanonicalTransactionChain: Contract
 }
 
 export const loadOptimismContracts = async (
@@ -47,12 +47,12 @@ export const loadOptimismContracts = async (
 
   const inputs = [
     {
-      name: 'OVM_StateCommitmentChain',
-      interface: 'iOVM_StateCommitmentChain',
+      name: 'StateCommitmentChain',
+      interface: 'IStateCommitmentChain',
     },
     {
-      name: 'OVM_CanonicalTransactionChain',
-      interface: 'iOVM_CanonicalTransactionChain',
+      name: 'CanonicalTransactionChain',
+      interface: 'ICanonicalTransactionChain',
     },
   ]
 

@@ -9,14 +9,14 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
-import { iOVM_CanonicalTransactionChain } from "./iOVM_CanonicalTransactionChain.sol";
-import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
+import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
+import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /* External Imports */
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
 
 /**
- * @title OVM_CanonicalTransactionChain
+ * @title CanonicalTransactionChain
  * @dev The Canonical Transaction Chain (CTC) contract is an append-only log of transactions
  * which must be applied to the rollup state. It defines the ordering of rollup transactions by
  * writing them to the 'CTC:batches' instance of the Chain Storage Container.
@@ -27,7 +27,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
  *
  * Runtime target: EVM
  */
-contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_AddressResolver {
+contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressResolver {
 
     /*************
      * Constants *
@@ -88,11 +88,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         public
         view
         returns (
-            iOVM_ChainStorageContainer
+            IChainStorageContainer
         )
     {
-        return iOVM_ChainStorageContainer(
-            resolve("OVM_ChainStorageContainer-CTC-batches")
+        return IChainStorageContainer(
+            resolve("ChainStorageContainer-CTC-batches")
         );
     }
 
@@ -105,11 +105,11 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         public
         view
         returns (
-            iOVM_ChainStorageContainer
+            IChainStorageContainer
         )
     {
-        return iOVM_ChainStorageContainer(
-            resolve("OVM_ChainStorageContainer-CTC-queue")
+        return IChainStorageContainer(
+            resolve("ChainStorageContainer-CTC-queue")
         );
     }
 
@@ -314,7 +314,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             timestampAndBlockNumber := or(timestampAndBlockNumber, shl(40, number()))
         }
 
-        iOVM_ChainStorageContainer queueRef = queue();
+        IChainStorageContainer queueRef = queue();
 
         queueRef.push(transactionHash);
         queueRef.push(timestampAndBlockNumber);
@@ -430,7 +430,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         // Take a reference to the queue and its length so we don't have to keep resolving it.
         // Length isn't going to change during the course of execution, so it's fine to simply
         // resolve this once at the start. Saves gas.
-        iOVM_ChainStorageContainer queueRef = queue();
+        IChainStorageContainer queueRef = queue();
         uint40 queueLength = _getQueueLength(queueRef);
 
         // Reserve some memory to save gas on hashing later on. This is a relatively safe estimate
@@ -718,7 +718,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
      */
     function _getQueueElement(
         uint256 _index,
-        iOVM_ChainStorageContainer _queueRef
+        IChainStorageContainer _queueRef
     )
         internal
         view
@@ -754,7 +754,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
      * @return Length of the queue.
      */
     function _getQueueLength(
-        iOVM_ChainStorageContainer _queueRef
+        IChainStorageContainer _queueRef
     )
         internal
         view
@@ -875,7 +875,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     )
         internal
     {
-        iOVM_ChainStorageContainer batchesRef = batches();
+        IChainStorageContainer batchesRef = batches();
         (uint40 totalElements, uint40 nextQueueIndex,,) = _getBatchExtraData();
 
         Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({
