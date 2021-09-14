@@ -2,19 +2,19 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Interface Imports */
-import { iOVM_BondManager } from "./iOVM_BondManager.sol";
+import { IBondManager } from "./IBondManager.sol";
 
 /* Contract Imports */
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /**
- * @title OVM_BondManager
- * @dev This contract is, for now, a stub of the "real" OVM_BondManager that does nothing but
+ * @title BondManager
+ * @dev This contract is, for now, a stub of the "real" BondManager that does nothing but
  * allow the "OVM_Proposer" to submit state root batches.
  *
  * Runtime target: EVM
  */
-contract OVM_BondManager is iOVM_BondManager, Lib_AddressResolver {
+contract BondManager is IBondManager, Lib_AddressResolver {
 
     constructor(
         address _libAddressManager

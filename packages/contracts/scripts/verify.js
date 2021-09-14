@@ -6,7 +6,7 @@ const { hideBin } = require('yargs/helpers')
 const argv = yargs(hideBin(process.argv)).argv
 
 const nicknames = {
-  mockOVM_BondManager: 'OVM_BondManager',
+  mockBondManager: 'BondManager',
 }
 
 ;(async () => {
