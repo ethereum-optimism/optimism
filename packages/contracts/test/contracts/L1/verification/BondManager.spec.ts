@@ -7,7 +7,7 @@ import { Signer, Contract } from 'ethers'
 /* Internal Imports */
 import { makeAddressManager } from '../../../helpers'
 
-describe('OVM_BondManager', () => {
+describe('BondManager', () => {
   let sequencer: Signer
   let nonSequencer: Signer
   before(async () => {
@@ -19,10 +19,10 @@ describe('OVM_BondManager', () => {
     AddressManager = await makeAddressManager()
   })
 
-  let OVM_BondManager: Contract
+  let BondManager: Contract
   before(async () => {
-    OVM_BondManager = await (
-      await ethers.getContractFactory('OVM_BondManager')
+    BondManager = await (
+      await ethers.getContractFactory('BondManager')
     ).deploy(AddressManager.address)
 
     AddressManager.setAddress('OVM_Proposer', await sequencer.getAddress())
@@ -31,13 +31,13 @@ describe('OVM_BondManager', () => {
   describe('isCollateralized', () => {
     it('should return true for OVM_Proposer', async () => {
       expect(
-        await OVM_BondManager.isCollateralized(await sequencer.getAddress())
+        await BondManager.isCollateralized(await sequencer.getAddress())
       ).to.equal(true)
     })
 
     it('should return false for non-sequencer', async () => {
       expect(
-        await OVM_BondManager.isCollateralized(await nonSequencer.getAddress())
+        await BondManager.isCollateralized(await nonSequencer.getAddress())
       ).to.equal(false)
     })
   })

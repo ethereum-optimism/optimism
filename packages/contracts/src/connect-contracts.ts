@@ -69,7 +69,7 @@ export const connectL1Contracts = async (
     xDomainMessengerProxy: getEthersContract(
       'Proxy__OVM_L1CrossDomainMessenger'
     ),
-    bondManager: getEthersContract('mockOVM_BondManager'),
+    bondManager: getEthersContract('mockBondManager'),
   }
 }
 
