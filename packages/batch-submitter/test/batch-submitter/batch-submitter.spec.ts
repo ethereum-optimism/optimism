@@ -8,7 +8,7 @@ import ganache from 'ganache-core'
 import sinon from 'sinon'
 import { Web3Provider } from '@ethersproject/providers'
 
-import scc from '@eth-optimism/contracts/artifacts/contracts/L1/rollup/OVM_StateCommitmentChain.sol/OVM_StateCommitmentChain.json'
+import scc from '@eth-optimism/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
@@ -89,7 +89,7 @@ describe('BatchSubmitter', () => {
   let AddressManager: Contract
   let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_BondManager: MockContract
-  let Mock__OVM_StateCommitmentChain: MockContract
+  let Mock__StateCommitmentChain: MockContract
   before(async () => {
     AddressManager = await makeAddressManager()
     await AddressManager.setAddress(
@@ -105,8 +105,8 @@ describe('BatchSubmitter', () => {
       await getContractFactory('OVM_BondManager')
     )
 
-    Mock__OVM_StateCommitmentChain = await smockit(
-      await getContractFactory('OVM_StateCommitmentChain')
+    Mock__StateCommitmentChain = await smockit(
+      await getContractFactory('StateCommitmentChain')
     )
 
     await setProxyTarget(
@@ -123,74 +123,76 @@ describe('BatchSubmitter', () => {
 
     await setProxyTarget(
       AddressManager,
-      'OVM_StateCommitmentChain',
-      Mock__OVM_StateCommitmentChain
+      'StateCommitmentChain',
+      Mock__StateCommitmentChain
     )
 
-    Mock__OVM_StateCommitmentChain.smocked.canOverwrite.will.return.with(false)
+    Mock__StateCommitmentChain.smocked.canOverwrite.will.return.with(false)
     Mock__OVM_ExecutionManager.smocked.getMaxTransactionGasLimit.will.return.with(
       MAX_GAS_LIMIT
     )
     Mock__OVM_BondManager.smocked.isCollateralized.will.return.with(true)
   })
 
-  let Factory__OVM_CanonicalTransactionChain: ContractFactory
-  let Factory__OVM_StateCommitmentChain: ContractFactory
+  let Factory__CanonicalTransactionChain: ContractFactory
+  let Factory__StateCommitmentChain: ContractFactory
   before(async () => {
-    Factory__OVM_CanonicalTransactionChain = await getContractFactory(
-      'OVM_CanonicalTransactionChain'
+    Factory__CanonicalTransactionChain = await getContractFactory(
+      'CanonicalTransactionChain'
     )
 
-    Factory__OVM_StateCommitmentChain = await getContractFactory(
-      'OVM_StateCommitmentChain'
+    Factory__StateCommitmentChain = await getContractFactory(
+      'StateCommitmentChain'
     )
+
+    Factory__StateCommitmentChain = Factory__StateCommitmentChain.connect(signer)
   })
 
-  let OVM_CanonicalTransactionChain: CanonicalTransactionChainContract
-  let OVM_StateCommitmentChain: Contract
+  let CanonicalTransactionChain: CanonicalTransactionChainContract
+  let StateCommitmentChain: Contract
   let l2Provider: MockchainProvider
   beforeEach(async () => {
-    const unwrapped_OVM_CanonicalTransactionChain =
-      await Factory__OVM_CanonicalTransactionChain.deploy(
+    const unwrapped_CanonicalTransactionChain =
+      await Factory__CanonicalTransactionChain.deploy(
         AddressManager.address,
         FORCE_INCLUSION_PERIOD_SECONDS
       )
-    await unwrapped_OVM_CanonicalTransactionChain.init()
+    await unwrapped_CanonicalTransactionChain.init()
 
     await AddressManager.setAddress(
-      'OVM_CanonicalTransactionChain',
-      unwrapped_OVM_CanonicalTransactionChain.address
+      'CanonicalTransactionChain',
+      unwrapped_CanonicalTransactionChain.address
     )
 
-    OVM_CanonicalTransactionChain = new CanonicalTransactionChainContract(
-      unwrapped_OVM_CanonicalTransactionChain.address,
-      getContractInterface('OVM_CanonicalTransactionChain'),
+    CanonicalTransactionChain = new CanonicalTransactionChainContract(
+      unwrapped_CanonicalTransactionChain.address,
+      getContractInterface('CanonicalTransactionChain'),
       sequencer
     )
 
-    const unwrapped_OVM_StateCommitmentChain =
-      await Factory__OVM_StateCommitmentChain.deploy(
+    const unwrapped_StateCommitmentChain =
+      await Factory__StateCommitmentChain.deploy(
         AddressManager.address,
         0, // fraudProofWindowSeconds
         0 // sequencerPublishWindowSeconds
       )
 
-    await unwrapped_OVM_StateCommitmentChain.init()
+    await unwrapped_StateCommitmentChain.init()
 
     await AddressManager.setAddress(
-      'OVM_StateCommitmentChain',
-      unwrapped_OVM_StateCommitmentChain.address
+      'StateCommitmentChain',
+      unwrapped_StateCommitmentChain.address
     )
 
-    OVM_StateCommitmentChain = new Contract(
-      unwrapped_OVM_StateCommitmentChain.address,
-      getContractInterface('OVM_StateCommitmentChain'),
+    StateCommitmentChain = new Contract(
+      unwrapped_StateCommitmentChain.address,
+      getContractInterface('StateCommitmentChain'),
       sequencer
     )
 
     l2Provider = new MockchainProvider(
-      OVM_CanonicalTransactionChain.address,
-      OVM_StateCommitmentChain.address
+      CanonicalTransactionChain.address,
+      StateCommitmentChain.address
     )
   })
 
@@ -240,7 +242,7 @@ describe('BatchSubmitter', () => {
       let batchSubmitter
       beforeEach(async () => {
         for (let i = 1; i < 15; i++) {
-          await OVM_CanonicalTransactionChain.enqueue(
+          await CanonicalTransactionChain.enqueue(
             '0x' + '01'.repeat(20),
             50_000,
             '0x' + i.toString().repeat(64),
@@ -255,7 +257,7 @@ describe('BatchSubmitter', () => {
       it('should submit a sequencer batch correctly', async () => {
         l2Provider.setNumBlocksToReturn(5)
         const nextQueueElement = await getQueueElement(
-          OVM_CanonicalTransactionChain
+          CanonicalTransactionChain
         )
         l2Provider.setL2BlockData(
           {
@@ -303,7 +305,7 @@ describe('BatchSubmitter', () => {
         } as any)
         // Turn blocks 3-5 into sequencer txs
         const nextQueueElement = await getQueueElement(
-          OVM_CanonicalTransactionChain,
+          CanonicalTransactionChain,
           2
         )
         l2Provider.setL2BlockData(
@@ -394,7 +396,7 @@ describe('BatchSubmitter', () => {
     let stateBatchSubmitter
     beforeEach(async () => {
       for (let i = 1; i < 15; i++) {
-        await OVM_CanonicalTransactionChain.enqueue(
+        await CanonicalTransactionChain.enqueue(
           '0x' + '01'.repeat(20),
           50_000,
           '0x' + i.toString().repeat(64),
@@ -408,7 +410,7 @@ describe('BatchSubmitter', () => {
 
       l2Provider.setNumBlocksToReturn(5)
       const nextQueueElement = await getQueueElement(
-        OVM_CanonicalTransactionChain
+        CanonicalTransactionChain
       )
       l2Provider.setL2BlockData(
         {

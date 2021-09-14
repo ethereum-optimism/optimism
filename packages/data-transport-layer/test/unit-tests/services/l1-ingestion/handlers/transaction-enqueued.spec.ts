@@ -8,7 +8,7 @@ import { handleEventsTransactionEnqueued } from '../../../../../src/services/l1-
 
 const MAX_ITERATIONS = 128
 
-describe('Event Handlers: OVM_CanonicalTransactionChain.TransactionEnqueued', () => {
+describe('Event Handlers: CanonicalTransactionChain.TransactionEnqueued', () => {
   describe('getExtraData', () => {
     it('should return null', async () => {
       const output1 = await handleEventsTransactionEnqueued.getExtraData()

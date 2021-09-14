@@ -6,9 +6,9 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /**
- * @title iOVM_StateCommitmentChain
+ * @title IStateCommitmentChain
  */
-interface iOVM_StateCommitmentChain {
+interface IStateCommitmentChain {
 
     /**********
      * Events *

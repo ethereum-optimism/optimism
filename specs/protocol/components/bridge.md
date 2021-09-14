@@ -28,7 +28,7 @@ There are two 'low level' bridge contracts (the L1 and L2 Cross Domain Messenger
 - The validity of the message is confirmed by the following functions:
   - `_verifyStateRootProof()`:
     - checks that the fraud proof window has closed for the batch to which the transaction belongs.
-    - checks that the batch is stored in the `OVM_ChainStorageContainer`.
+    - checks that the batch is stored in the `ChainStorageContainer`.
   - `_verifyStorageProof()`:
     - checks the proof to confirm that the message data provided is in the `OVM_L2ToL1MessagePasser.sentMessages` mapping
     - checks that this transaction has not already been written to the `successfulMessages` mapping.

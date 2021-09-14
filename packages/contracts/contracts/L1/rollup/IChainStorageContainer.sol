@@ -2,9 +2,9 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /**
- * @title iOVM_ChainStorageContainer
+ * @title IChainStorageContainer
  */
-interface iOVM_ChainStorageContainer {
+interface IChainStorageContainer {
 
     /********************
      * Public Functions *

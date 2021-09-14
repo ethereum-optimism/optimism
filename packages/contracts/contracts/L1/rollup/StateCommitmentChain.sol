@@ -8,16 +8,16 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
-import { iOVM_StateCommitmentChain } from "./iOVM_StateCommitmentChain.sol";
-import { iOVM_CanonicalTransactionChain } from "./iOVM_CanonicalTransactionChain.sol";
+import { IStateCommitmentChain } from "./IStateCommitmentChain.sol";
+import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
 import { iOVM_BondManager } from "../verification/iOVM_BondManager.sol";
-import { iOVM_ChainStorageContainer } from "./iOVM_ChainStorageContainer.sol";
+import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /* External Imports */
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
- * @title OVM_StateCommitmentChain
+ * @title StateCommitmentChain
  * @dev The State Commitment Chain (SCC) contract contains a list of proposed state roots which
  * Proposers assert to be a result of each transaction in the Canonical Transaction Chain (CTC).
  * Elements here have a 1:1 correspondence with transactions in the CTC, and should be the unique
@@ -25,7 +25,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
  *
  * Runtime target: EVM
  */
-contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResolver {
+contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
 
     /*************
      * Constants *
@@ -66,16 +66,16 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
         public
         view
         returns (
-            iOVM_ChainStorageContainer
+            IChainStorageContainer
         )
     {
-        return iOVM_ChainStorageContainer(
-            resolve("OVM_ChainStorageContainer-SCC-batches")
+        return IChainStorageContainer(
+            resolve("ChainStorageContainer-SCC-batches")
         );
     }
 
     /**
-     * @inheritdoc iOVM_StateCommitmentChain
+     * @inheritdoc IStateCommitmentChain
      */
     function getTotalElements()
         override
@@ -90,7 +90,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     }
 
     /**
-     * @inheritdoc iOVM_StateCommitmentChain
+     * @inheritdoc IStateCommitmentChain
      */
     function getTotalBatches()
         override
@@ -104,7 +104,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     }
 
     /**
-     * @inheritdoc iOVM_StateCommitmentChain
+     * @inheritdoc IStateCommitmentChain
      */
     function getLastSequencerTimestamp()
         override
@@ -119,7 +119,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     }
 
     /**
-     * @inheritdoc iOVM_StateCommitmentChain
+     * @inheritdoc IStateCommitmentChain
      */
     function appendStateBatch(
         bytes32[] memory _batch,
@@ -148,7 +148,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
 
         require(
             getTotalElements() + _batch.length <=
-                iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"))
+                ICanonicalTransactionChain(resolve("CanonicalTransactionChain"))
                 .getTotalElements(),
             "Number of state roots cannot exceed the number of canonical transactions."
         );
@@ -162,7 +162,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     }
 
     /**
-     * @inheritdoc iOVM_StateCommitmentChain
+     * @inheritdoc IStateCommitmentChain
      */
     function deleteStateBatch(
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader
@@ -189,7 +189,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     }
 
     /**
-     * @inheritdoc iOVM_StateCommitmentChain
+     * @inheritdoc IStateCommitmentChain
      */
     function verifyStateCommitment(
         bytes32 _element,
@@ -223,7 +223,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, Lib_AddressResol
     }
 
     /**
-     * @inheritdoc iOVM_StateCommitmentChain
+     * @inheritdoc IStateCommitmentChain
      */
     function insideFraudProofWindow(
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader
