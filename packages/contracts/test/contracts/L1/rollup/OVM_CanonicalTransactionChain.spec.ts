@@ -201,13 +201,23 @@ describe('OVM_CanonicalTransactionChain', () => {
     })
 
     it('should revert if transaction gas limit does not cover rollup burn', async () => {
+      const ENQUEUE_L2_GAS_PREPAID =
+        await OVM_CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
       const L2_GAS_DISCOUNT_DIVISOR =
         await OVM_CanonicalTransactionChain.L2_GAS_DISCOUNT_DIVISOR()
       const data = '0x' + '12'.repeat(1234)
 
+      // Create a tx with high L2 gas limit, but insufficient L1 gas limit to cover burn.
+      const l2GasLimit = 2 * ENQUEUE_L2_GAS_PREPAID
+      // This l1GasLimit is equivalent to the gasToConsume amount calculated in the CTC. After
+      // additional gas overhead, it will be enough trigger the gas burn, but not enough to cover
+      // it.
+      const l1GasLimit =
+        (l2GasLimit - ENQUEUE_L2_GAS_PREPAID) / L2_GAS_DISCOUNT_DIVISOR
+
       await expect(
-        OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data, {
-          gasLimit: gasLimit / L2_GAS_DISCOUNT_DIVISOR + 30_000, // offset constant overhead
+        OVM_CanonicalTransactionChain.enqueue(target, l2GasLimit, data, {
+          gasLimit: l1GasLimit,
         })
       ).to.be.revertedWith('Insufficient gas for L2 rate limiting burn.')
     })
@@ -236,6 +246,39 @@ describe('OVM_CanonicalTransactionChain', () => {
             }
           })
         }
+      })
+    })
+
+    describe('with _gaslimit below the ENQUEUE_L2_GAS_PREPAID threshold', async () => {
+      it('the cost to enqueue transactions is consistent for different L2 gas amounts below the prepaid threshold', async () => {
+        const ENQUEUE_L2_GAS_PREPAID =
+          await OVM_CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+        const data = '0x' + '12'.repeat(1234)
+        const l2GasLimit1 = ENQUEUE_L2_GAS_PREPAID - 1
+        const l2GasLimit2 = ENQUEUE_L2_GAS_PREPAID - 100
+
+        // The first enqueue is more expensive because it's writing to an empty slot,
+        // so we need to pre-load the buffer or the test will fail.
+        await OVM_CanonicalTransactionChain.enqueue(
+          NON_ZERO_ADDRESS,
+          l2GasLimit1,
+          data
+        )
+
+        const res1 = await OVM_CanonicalTransactionChain.enqueue(
+          NON_ZERO_ADDRESS,
+          l2GasLimit1,
+          data
+        )
+        const receipt1 = await res1.wait()
+
+        const res2 = await OVM_CanonicalTransactionChain.enqueue(
+          NON_ZERO_ADDRESS,
+          l2GasLimit2,
+          data
+        )
+        const receipt2 = await res2.wait()
+        expect(receipt1.gasUsed).to.equal(receipt2.gasUsed)
       })
     })
   })
