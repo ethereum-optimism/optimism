@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -140,6 +141,10 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		value := new(big.Int)
 		log.Info("Sanitizing minimum L2 gas limit", "value", value)
 		cfg.MinL2GasLimit = value
+	}
+
+	if vm.EnableArbitraryContractDeployment != nil {
+		log.Info("Setting arbitrary contract deployment", "value", *vm.EnableArbitraryContractDeployment)
 	}
 
 	service := SyncService{

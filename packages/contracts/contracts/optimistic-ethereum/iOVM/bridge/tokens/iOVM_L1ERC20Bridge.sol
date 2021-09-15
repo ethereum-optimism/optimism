@@ -34,6 +34,12 @@ interface iOVM_L1ERC20Bridge {
      ********************/
 
     /**
+     * @dev get the address of the corresponding L2 bridge contract.
+     * @return Address of the corresponding L2 bridge contract.
+     */
+    function l2TokenBridge() external returns(address);
+
+    /**
      * @dev deposit an amount of the ERC20 to the caller's balance on L2.
      * @param _l1Token Address of the L1 ERC20 we are depositing
      * @param _l2Token Address of the L1 respective L2 ERC20
