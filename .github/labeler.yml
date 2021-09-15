@@ -9,21 +9,14 @@
   - 'packages/message-relayer/**/*'
   - 'patches/**/*'
 
-A-ci:
+M-ci:
   - any: ['.github/**/*']
 
-A-contracts:
-  - any: ['packages/contracts/**/*']
-
-A-geth:
+M-l2geth:
   - any: ['l2geth/**/*']
 
-A-integration-tests:
+M-integration:
   - any: ['integration-tests/**/*']
-
-A-ts-packages:
-  - any: ['packages/**/*']
-    all: ['!packages/contracts/**/*']
 
 M-batch-submitter:
   - any: ['packages/batch-submitter/**/*']
