@@ -138,10 +138,10 @@ export abstract class BatchSubmitter {
       await getContractFactory('Lib_AddressManager', this.signer)
     ).attach(this.addressManagerAddress)
     const sccAddress = await addressManager.getAddress(
-      'StateCommitmentChain'
+      'OVM_StateCommitmentChain'
     )
     const ctcAddress = await addressManager.getAddress(
-      'CanonicalTransactionChain'
+      'OVM_CanonicalTransactionChain'
     )
     return {
       ctcAddress,

@@ -15,7 +15,7 @@ import {
 export { encodeAppendSequencerBatch, BatchContext, AppendSequencerBatchParams }
 
 /*
- * CanonicalTransactionChainContract is a wrapper around a normal Ethers contract
+ * OVM_CanonicalTransactionChainContract is a wrapper around a normal Ethers contract
  * where the `appendSequencerBatch(...)` function uses a specialized encoding for improved efficiency.
  */
 export class CanonicalTransactionChainContract extends Contract {
@@ -57,12 +57,12 @@ const APPEND_SEQUENCER_BATCH_METHOD_ID = keccak256(
 ).slice(2, 10)
 
 const appendSequencerBatch = async (
-  CanonicalTransactionChain: Contract,
+  OVM_CanonicalTransactionChain: Contract,
   batch: AppendSequencerBatchParams,
   options?: TransactionRequest
 ): Promise<TransactionResponse> => {
-  return CanonicalTransactionChain.signer.sendTransaction({
-    to: CanonicalTransactionChain.address,
+  return OVM_CanonicalTransactionChain.signer.sendTransaction({
+    to: OVM_CanonicalTransactionChain.address,
     data: getEncodedCalldata(batch),
     ...options,
   })
