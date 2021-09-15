@@ -47,7 +47,12 @@ describe('Fee Payment Integration Tests', async () => {
     }
 
     // Transfer the minimum required to withdraw.
-    await env.ovmEth.transfer(ovmSequencerFeeVault.address, withdrawalAmount)
+    const tx = await env.l2Wallet.sendTransaction({
+      to: ovmSequencerFeeVault.address,
+      value: withdrawalAmount,
+      gasLimit: 500000,
+    })
+    await tx.wait()
 
     const vaultBalance = await env.ovmEth.balanceOf(
       ovmSequencerFeeVault.address
