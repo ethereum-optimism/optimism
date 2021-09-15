@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.14
+
+### Patch Changes
+
+- 0d429564: Add ROLLUP_ENABLE_ARBITRARY_CONTRACT_DEPLOYMENT_FLAG
+
 ## 0.4.13
 
 ### Patch Changes
