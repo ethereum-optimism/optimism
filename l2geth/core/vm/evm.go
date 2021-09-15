@@ -135,6 +135,24 @@ func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, err
 			}
 			return callStateManager(input, evm, contract)
 		}
+
+		// Only in the case where EnableArbitraryContractDeployment is
+		// set, allows codepath to be skipped when it is not set
+		if EnableArbitraryContractDeployment != nil {
+			// When the address manager is called
+			if contract.Address() == WhitelistAddress {
+				// If the first four bytes match `isDeployerAllowed(address)`
+				if bytes.Equal(input[0:4], isDeployerAllowedSig) {
+					// Already checked to make sure this value is not nil
+					switch *EnableArbitraryContractDeployment {
+					case EnableArbitraryContractDeploymentTrue:
+						return AbiBytesTrue, nil
+					case EnableArbitraryContractDeploymentFalse:
+						return AbiBytesFalse, nil
+					}
+				}
+			}
+		}
 	}
 
 	if contract.CodeAddr != nil {
