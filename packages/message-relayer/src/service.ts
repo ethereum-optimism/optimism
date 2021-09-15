@@ -16,8 +16,8 @@ import { StateRootBatchHeader, SentMessage, SentMessageProof } from './types'
 
 interface MessageRelayerOptions {
   // Providers for interacting with L1 and L2.
-  l1RpcProvider: providers.JsonRpcProvider
-  l2RpcProvider: providers.JsonRpcProvider
+  l1RpcProvider: providers.StaticJsonRpcProvider
+  l2RpcProvider: providers.StaticJsonRpcProvider
 
   // Address of the AddressManager contract, used to resolve the various addresses we'll need
   // within this service.
