@@ -110,13 +110,13 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return
     }
 
-    const unwrapped_CanonicalTransactionChain = (
-      await getContractFactory('CanonicalTransactionChain', this.signer)
+    const unwrapped_OVM_CanonicalTransactionChain = (
+      await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
     ).attach(ctcAddress)
 
     this.chainContract = new CanonicalTransactionChainContract(
-      unwrapped_CanonicalTransactionChain.address,
-      getContractInterface('CanonicalTransactionChain'),
+      unwrapped_OVM_CanonicalTransactionChain.address,
+      getContractInterface('OVM_CanonicalTransactionChain'),
       this.signer
     )
     this.logger.info('Initialized new CTC', {
@@ -593,12 +593,12 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     )
 
     const addr = await manager.getAddress(
-      'ChainStorageContainer-CTC-batches'
+      'OVM_ChainStorageContainer-CTC-batches'
     )
 
     const container = new Contract(
       addr,
-      getNewContractInterface('IChainStorageContainer'),
+      getNewContractInterface('iOVM_ChainStorageContainer'),
       this.signer.provider
     )
 
