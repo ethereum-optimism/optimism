@@ -37,6 +37,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
     uint256 constant public MIN_ROLLUP_TX_GAS = 100000;
     uint256 constant public MAX_ROLLUP_TX_SIZE = 50000;
     uint256 constant public L2_GAS_DISCOUNT_DIVISOR = 32;
+    uint256 constant public ENQUEUE_GAS_COST = 60000;
+    uint256 public ENQUEUE_L2_GAS_PREPAID = L2_GAS_DISCOUNT_DIVISOR * ENQUEUE_GAS_COST;
 
     // Encoding-related (all in bytes)
     uint256 constant internal BATCH_CONTEXT_SIZE = 16;
@@ -273,24 +275,28 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             "Transaction gas limit too low to enqueue."
         );
 
-        // We need to consume some amount of L1 gas in order to rate limit transactions going into
-        // L2. However, L2 is cheaper than L1 so we only need to burn some small proportion of the
-        // provided L1 gas.
-        uint256 gasToConsume = _gasLimit/L2_GAS_DISCOUNT_DIVISOR;
-        uint256 startingGas = gasleft();
+        // Transactions submitted to the queue lack a method for paying gas fees to the Sequencer.
+        // So we need to prevent spam attacks by ensuring that the cost of enqueueing a transaction
+        // from L1 to L2 is not underpriced. Therefore, we define 'ENQUEUE_L2_GAS_PREPAID' as a
+        // threshold. If the _gasLimit for the enqueued transaction is above this threshold, then we
+        // 'charge' to user by burning additional L1 gas. Since gas is cheaper on L2 than L1, we
+        // only need to burn a fraction of the provided L1 gas, which is determined by the
+        // L2_GAS_DISCOUNT_DIVISOR.
+        if(_gasLimit > ENQUEUE_L2_GAS_PREPAID) {
+            uint256 gasToConsume = (_gasLimit - ENQUEUE_L2_GAS_PREPAID) / L2_GAS_DISCOUNT_DIVISOR;
+            uint256 startingGas = gasleft();
 
-        // Although this check is not necessary (burn below will run out of gas if not true), it
-        // gives the user an explicit reason as to why the enqueue attempt failed.
-        require(
-            startingGas > gasToConsume,
-            "Insufficient gas for L2 rate limiting burn."
-        );
+            // Although this check is not necessary (burn below will run out of gas if not true), it
+            // gives the user an explicit reason as to why the enqueue attempt failed.
+            require(
+                startingGas > gasToConsume,
+                "Insufficient gas for L2 rate limiting burn."
+            );
 
-        // Here we do some "dumb" work in order to burn gas, although we should probably replace
-        // this with something like minting gas token later on.
-        uint256 i;
-        while(startingGas - gasleft() < gasToConsume) {
-            i++;
+            uint256 i;
+            while(startingGas - gasleft() < gasToConsume) {
+                i++;
+            }
         }
 
         bytes32 transactionHash = keccak256(
