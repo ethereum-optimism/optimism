@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.12
+
+### Patch Changes
+
+- 468779ce: Add a getter to the ERC20 bridge interfaces, to return the address of the corresponding cross domain bridge
+
 ## 0.4.11
 
 ### Patch Changes
