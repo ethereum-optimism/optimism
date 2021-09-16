@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.7.0;
+pragma solidity ^0.8.4;
 
 contract Reverter {
     string constant public revertMessage = "This is a simple reversion.";
