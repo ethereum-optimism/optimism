@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
-pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { IL1StandardBridge } from "../../L1/messaging/IL1StandardBridge.sol";

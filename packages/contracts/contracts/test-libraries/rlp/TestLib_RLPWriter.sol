@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
-pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_RLPWriter } from "../../libraries/rlp/Lib_RLPWriter.sol";
