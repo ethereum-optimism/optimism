@@ -16,7 +16,7 @@ const config: HardhatUserConfig = {
   mocha: {
     timeout: 50000,
   },
-  solidity: '0.7.6',
+  solidity: '0.8.4',
   gasReporter: {
     enabled: enableGasReport,
     currency: 'USD',

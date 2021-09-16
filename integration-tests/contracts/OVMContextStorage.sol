@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.7.0;
+pragma solidity ^0.8.4;
 
 // Can't do this until the package is published.
 //import { iOVM_L1BlockNumber } from "@eth-optimism/contracts/iOVM_L1BlockNumber";
