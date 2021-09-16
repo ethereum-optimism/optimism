@@ -715,27 +715,6 @@ describe('OVM_CanonicalTransactionChain', () => {
       )
     })
 
-    it('should revert if not all sequencer transactions are processed', async () => {
-      const timestamp = await getEthTime(ethers.provider)
-      const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
-
-      await expect(
-        appendSequencerBatch(OVM_CanonicalTransactionChain, {
-          transactions: ['0x1234', '0x1234'],
-          contexts: [
-            {
-              numSequencedTransactions: 0,
-              numSubsequentQueueTransactions: 0,
-              timestamp,
-              blockNumber,
-            },
-          ],
-          shouldStartAtElement: 0,
-          totalElementsToAppend: 1,
-        })
-      ).to.be.revertedWith('Not all sequencer transactions were processed.')
-    })
-
     it('should revert if not called by the sequencer', async () => {
       await expect(
         appendSequencerBatch(OVM_CanonicalTransactionChain.connect(signer), {
@@ -752,35 +731,6 @@ describe('OVM_CanonicalTransactionChain', () => {
           totalElementsToAppend: 1,
         })
       ).to.be.revertedWith('Function can only be called by the Sequencer.')
-    })
-
-    it('should revert if no contexts are provided', async () => {
-      await expect(
-        appendSequencerBatch(OVM_CanonicalTransactionChain, {
-          transactions: ['0x1234'],
-          contexts: [],
-          shouldStartAtElement: 0,
-          totalElementsToAppend: 1,
-        })
-      ).to.be.revertedWith('Must provide at least one batch context.')
-    })
-
-    it('should revert if total elements to append is zero', async () => {
-      await expect(
-        appendSequencerBatch(OVM_CanonicalTransactionChain, {
-          transactions: ['0x1234'],
-          contexts: [
-            {
-              numSequencedTransactions: 0,
-              numSubsequentQueueTransactions: 0,
-              timestamp: 0,
-              blockNumber: 0,
-            },
-          ],
-          shouldStartAtElement: 0,
-          totalElementsToAppend: 0,
-        })
-      ).to.be.revertedWith('Must append at least one element.')
     })
 
     it('should revert when trying to input more data than the max data size', async () => {
