@@ -12,9 +12,6 @@ import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
 import { IBondManager } from "../verification/IBondManager.sol";
 import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
-/* External Imports */
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-
 /**
  * @title StateCommitmentChain
  * @dev The State Commitment Chain (SCC) contract contains a list of proposed state roots which
@@ -243,7 +240,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
             timestamp != 0,
             "Batch header timestamp cannot be zero"
         );
-        return SafeMath.add(timestamp, FRAUD_PROOF_WINDOW) > block.timestamp;
+        return (timestamp + FRAUD_PROOF_WINDOW) > block.timestamp;
     }
 
 
