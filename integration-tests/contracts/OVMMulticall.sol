@@ -18,7 +18,7 @@ copies or substantial portions of the Software.
 
 */
 
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.4;
 
 pragma experimental ABIEncoderV2;
 
