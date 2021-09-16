@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.7;
 
 contract ERC20 {
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
