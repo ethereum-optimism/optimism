@@ -418,16 +418,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             "Function can only be called by the Sequencer."
         );
 
-        require(
-            numContexts > 0,
-            "Must provide at least one batch context."
-        );
-
-        require(
-            totalElementsToAppend > 0,
-            "Must append at least one element."
-        );
-
         uint40 nextTransactionPtr = uint40(
             BATCH_CONTEXT_START_POS + BATCH_CONTEXT_SIZE * numContexts
         );
@@ -503,16 +493,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
                 leafIndex++;
             }
         }
-
-        require(
-            msg.data.length == nextTransactionPtr,
-            "Not all sequencer transactions were processed."
-        );
-
-        require(
-            leafIndex == totalElementsToAppend,
-            "Actual transaction index does not match expected total elements to append."
-        );
 
         // Generate the required metadata that we need to append this batch
         uint40 numQueuedTransactions = totalElementsToAppend - numSequencerTransactions;
