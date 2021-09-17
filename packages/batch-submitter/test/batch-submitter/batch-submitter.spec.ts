@@ -142,11 +142,13 @@ describe('BatchSubmitter', () => {
       'OVM_CanonicalTransactionChain'
     )
 
+    Factory__OVM_CanonicalTransactionChain = Factory__OVM_CanonicalTransactionChain.connect(signer)
+
     Factory__OVM_StateCommitmentChain = await getContractFactory(
       'OVM_StateCommitmentChain'
     )
 
-    Factory__StateCommitmentChain = Factory__StateCommitmentChain.connect(signer)
+    Factory__OVM_StateCommitmentChain = Factory__OVM_StateCommitmentChain.connect(signer)
   })
 
   let OVM_CanonicalTransactionChain: CanonicalTransactionChainContract
@@ -158,16 +160,17 @@ describe('BatchSubmitter', () => {
         AddressManager.address,
         FORCE_INCLUSION_PERIOD_SECONDS
       )
+
     await unwrapped_OVM_CanonicalTransactionChain.init()
 
     await AddressManager.setAddress(
-      'OVM_CanonicalTransactionChain',
+      'CanonicalTransactionChain',
       unwrapped_OVM_CanonicalTransactionChain.address
     )
 
     OVM_CanonicalTransactionChain = new CanonicalTransactionChainContract(
       unwrapped_OVM_CanonicalTransactionChain.address,
-      getContractInterface('OVM_CanonicalTransactionChain'),
+      getContractInterface('CanonicalTransactionChain'),
       sequencer
     )
 
@@ -181,13 +184,13 @@ describe('BatchSubmitter', () => {
     await unwrapped_OVM_StateCommitmentChain.init()
 
     await AddressManager.setAddress(
-      'OVM_StateCommitmentChain',
+      'StateCommitmentChain',
       unwrapped_OVM_StateCommitmentChain.address
     )
 
     OVM_StateCommitmentChain = new Contract(
       unwrapped_OVM_StateCommitmentChain.address,
-      getContractInterface('OVM_StateCommitmentChain'),
+      getContractInterface('StateCommitmentChain'),
       sequencer
     )
 
