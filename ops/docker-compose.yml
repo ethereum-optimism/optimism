@@ -38,6 +38,9 @@ services:
         # setting the whitelist owner to address(0) disables the whitelist
         WHITELIST_OWNER: "0x0000000000000000000000000000000000000000"
         L1_FEE_WALLET_ADDRESS: "0x391716d440c151c42cdf1c95c1d83a5427bca52c"
+        L2_CHAIN_ID: 420
+        L2_BLOCK_GAS_LIMIT: 11000000
+        BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
         # skip compilation when run in docker-compose, since the contracts
         # were already compiled in the builder step
         NO_COMPILE: 1
@@ -87,12 +90,13 @@ services:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_TIMESTAMP_REFRESH: 5s
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        # used for getting the addresses
-        URL: http://deployer:8081/addresses.json
         # connecting to the DTL
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
+        # no need to keep this secret, only used internally to sign blocks
+        BLOCK_SIGNER_KEY: "6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27"
+        BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
@@ -152,7 +156,6 @@ services:
     environment:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        URL: http://deployer:8081/addresses.json
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l1'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
@@ -177,7 +180,6 @@ services:
     environment:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        URL: http://deployer:8081/addresses.json
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l2'
         ROLLUP_VERIFIER_ENABLE: 'true'

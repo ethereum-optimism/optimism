@@ -172,12 +172,6 @@ var (
 
 		EnvVar: "NETWORK_ID",
 	}
-	ChainIdFlag = cli.Uint64Flag{
-		Name:   "chainid",
-		Usage:  "Chain ID identifier",
-		Value:  420,
-		EnvVar: "CHAIN_ID",
-	}
 	TestnetFlag = cli.BoolFlag{
 		Name:  "testnet",
 		Usage: "Ropsten network: pre-configured proof-of-work test network",
@@ -817,11 +811,6 @@ var (
 		Usage:  "Deployment of the canonical transaction chain",
 		EnvVar: "ETH1_CTC_DEPLOYMENT_HEIGHT",
 	}
-	Eth1ChainIdFlag = cli.Uint64Flag{
-		Name:   "eth1.chainid",
-		Usage:  "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby)",
-		EnvVar: "ETH1_CHAINID",
-	}
 	RollupClientHttpFlag = cli.StringFlag{
 		Name:   "rollup.clienthttp",
 		Usage:  "HTTP endpoint for the rollup client",
@@ -850,12 +839,6 @@ var (
 		Name:   "rollup.verifier",
 		Usage:  "Enable the verifier",
 		EnvVar: "ROLLUP_VERIFIER_ENABLE",
-	}
-	RollupStateDumpPathFlag = cli.StringFlag{
-		Name:   "rollup.statedumppath",
-		Usage:  "Path to the state dump",
-		Value:  eth.DefaultConfig.Rollup.StateDumpPath,
-		EnvVar: "ROLLUP_STATE_DUMP_PATH",
 	}
 	RollupMaxCalldataSizeFlag = cli.IntFlag{
 		Name:   "rollup.maxcalldatasize",
@@ -1108,9 +1091,6 @@ func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 		height := ctx.GlobalUint64(Eth1CanonicalTransactionChainDeployHeightFlag.Name)
 		cfg.CanonicalTransactionChainDeployHeight = new(big.Int).SetUint64(height)
 	}
-	if ctx.GlobalIsSet(Eth1ChainIdFlag.Name) {
-		cfg.Eth1ChainId = ctx.GlobalUint64(Eth1ChainIdFlag.Name)
-	}
 	if ctx.GlobalIsSet(Eth1SyncServiceEnable.Name) {
 		cfg.Eth1SyncServiceEnable = ctx.GlobalBool(Eth1SyncServiceEnable.Name)
 	}
@@ -1124,11 +1104,6 @@ func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(RollupEnableVerifierFlag.Name) {
 		cfg.IsVerifier = true
-	}
-	if ctx.GlobalIsSet(RollupStateDumpPathFlag.Name) {
-		cfg.StateDumpPath = ctx.GlobalString(RollupStateDumpPathFlag.Name)
-	} else {
-		cfg.StateDumpPath = eth.DefaultConfig.Rollup.StateDumpPath
 	}
 	if ctx.GlobalIsSet(RollupMaxCalldataSizeFlag.Name) {
 		cfg.MaxCallDataSize = ctx.GlobalInt(RollupMaxCalldataSizeFlag.Name)
@@ -1711,23 +1686,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 		log.Info("Using developer account", "address", developer.Address)
 
-		// Allow for a configurable chain id
-		var chainID *big.Int
-		if ctx.GlobalIsSet(ChainIdFlag.Name) {
-			id := ctx.GlobalUint64(ChainIdFlag.Name)
-			chainID = new(big.Int).SetUint64(id)
-		}
-
-		// UsingOVM
-		// The genesis block includes state that is set at runtime.
-		// This allows the statedump to be generic and not created
-		// specific for each network.
-		gasLimit := cfg.Rollup.GasLimit
-		if gasLimit == 0 {
-			gasLimit = params.GenesisGasLimit
-		}
-		stateDumpPath := cfg.Rollup.StateDumpPath
-		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address, stateDumpPath, chainID, gasLimit)
+		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address)
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
