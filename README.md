@@ -10,4 +10,6 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 
 ...and then there's more stuff, but just that for now
 
+All my code is MIT license, minigeth is LGPL3
+
 TODO: update to picture of increasingly futuristic cannon as it starts to work
