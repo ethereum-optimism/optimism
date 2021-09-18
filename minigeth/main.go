@@ -32,7 +32,7 @@ func main() {
 	// read txs
 	var txs []*types.Transaction
 	{
-		f, _ := os.Open("data/tx_13247502")
+		f, _ := os.Open("data/txs_13247502")
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&txs)
