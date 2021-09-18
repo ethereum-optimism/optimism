@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -11,6 +12,10 @@ type BlockChain struct {
 	// TODO: write stub BlockChain
 	chainConfig *params.ChainConfig // Chain & network configuration
 	engine      consensus.Engine
+}
+
+func NewBlockChain() *BlockChain {
+	return &BlockChain{engine: &ethash.Ethash{}}
 }
 
 // Config retrieves the chain's fork configuration.
