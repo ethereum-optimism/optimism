@@ -1,6 +1,6 @@
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import {
   AppendSequencerBatchParams,
@@ -18,6 +18,7 @@ import {
   FORCE_INCLUSION_PERIOD_BLOCKS,
   getEthTime,
   getNextBlockNumber,
+  NON_ZERO_ADDRESS,
 } from '../../../helpers'
 
 // Still have some duplication from OVM_CanonicalTransactionChain.spec.ts, but it's so minimal that
@@ -195,5 +196,45 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
         (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
       )
     }).timeout(100000000)
+  })
+
+  describe('enqueue [ @skip-on-coverage ]', () => {
+    let ENQUEUE_L2_GAS_PREPAID
+    let data
+    beforeEach(async () => {
+      OVM_CanonicalTransactionChain =
+        OVM_CanonicalTransactionChain.connect(sequencer)
+      ENQUEUE_L2_GAS_PREPAID =
+        await OVM_CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+      data = '0x' + '12'.repeat(1234)
+    })
+
+    it('cost to enqueue a transaction above the prepaid threshold', async () => {
+      const l2GasLimit = 2 * ENQUEUE_L2_GAS_PREPAID
+
+      const res = await OVM_CanonicalTransactionChain.enqueue(
+        NON_ZERO_ADDRESS,
+        l2GasLimit,
+        data
+      )
+      const receipt = await res.wait()
+
+      console.log('Benchmark complete.')
+      console.log('Gas used:', receipt.gasUsed.toNumber())
+    })
+
+    it('cost to enqueue a transaction below the prepaid threshold', async () => {
+      const l2GasLimit = ENQUEUE_L2_GAS_PREPAID - 1
+
+      const res = await OVM_CanonicalTransactionChain.enqueue(
+        NON_ZERO_ADDRESS,
+        l2GasLimit,
+        data
+      )
+      const receipt = await res.wait()
+
+      console.log('Benchmark complete.')
+      console.log('Gas used:', receipt.gasUsed.toNumber())
+    })
   })
 })
