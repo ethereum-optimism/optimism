@@ -20,16 +20,31 @@ func main() {
 	processor := core.NewStateProcessor(params.MainnetChainConfig, bc, bc.Engine())
 	fmt.Println("made state processor")
 
-	f, _ := os.Open("../data/block_13247502")
-	defer f.Close()
+	// read header
 	var header types.Header
-	rlpheader := rlp.NewStream(f, 0)
-	rlpheader.Decode(&header)
+	{
+		f, _ := os.Open("data/block_13247502")
+		defer f.Close()
+		rlpheader := rlp.NewStream(f, 0)
+		rlpheader.Decode(&header)
+	}
+
+	// read txs
 	var txs []*types.Transaction
+	{
+		f, _ := os.Open("data/tx_13247502")
+		defer f.Close()
+		rlpheader := rlp.NewStream(f, 0)
+		rlpheader.Decode(&txs)
+	}
+	fmt.Println("read", len(txs), "transactions")
+
 	var uncles []*types.Header
 	var receipts []*types.Receipt
 	block := types.NewBlock(&header, txs, uncles, receipts, trie.NewStackTrie(nil))
 	fmt.Println("made block, parent:", header.ParentHash)
 
-	processor.Process(block, statedb, vmconfig)
+	_, _, _, err := processor.Process(block, statedb, vmconfig)
+	fmt.Println(err)
+	fmt.Println("process done")
 }

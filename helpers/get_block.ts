@@ -15,6 +15,21 @@ type extblock struct {
 	Uncles []*Header
 }
 */
+function getTransactionRlp(tx : any) {
+  let dat = [
+    tx.nonce,
+    tx.gasPrice,
+    tx.gas,
+    tx.to,
+    tx.value,
+    tx.input,
+    tx.v,
+    tx.r,
+    tx.s,
+  ];
+  dat = dat.map((x) => (x == "0x0") ? "0x" : x)
+  return dat
+}
 
 function getBlockRlp(block : any) {
   let dat = [
@@ -35,18 +50,20 @@ function getBlockRlp(block : any) {
     block['nonce'],
     block['baseFeePerGas']
   ];
-  // special case for 0
   dat = dat.map((x) => (x == "0x0") ? "0x" : x)
-  return rlp.encode(dat);
+  return dat
 }
 
 async function main() {
   const blockNumber = 13247502;
   let blockData = await provider.send("eth_getBlockByNumber", ["0x"+(blockNumber).toString(16), true])
-  const blockHeaderRlp = getBlockRlp(blockData)
+  const blockHeaderRlp = rlp.encode(getBlockRlp(blockData))
   assert(keccak256(blockHeaderRlp) == blockData['hash'])
+  //console.log(blockData)
+  const txsRlp = rlp.encode(blockData.transactions.map(getTransactionRlp))
 
   fs.writeFileSync(`data/block_${blockNumber}`, blockHeaderRlp)
+  fs.writeFileSync(`data/tx_${blockNumber}`, txsRlp)
 }
 
 main().then(() => process.exit(0))
