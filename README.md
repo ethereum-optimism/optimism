@@ -10,6 +10,17 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 
 ...and then there's more stuff, but just that for now
 
+## Usage
+```
+# running block 13247502
+ts-node helpers/get_block.ts    # not needed, the data is committed for now
+./run.sh
+```
+
+## License
+
 All my code is MIT license, minigeth is LGPL3
+
+# Very important TODO
 
 TODO: update to picture of increasingly futuristic cannon as it starts to work
