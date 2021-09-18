@@ -1,0 +1,9 @@
+The cannon (cannon cannon cannon) is an on chain interactive fraud prover
+It's half geth, half of what I think truebit was supposed to be
+When it's done, we'll be able to prove L1 blocks aren't fraud
+
+1. Get minigeth to verify a block locally paying attention to oracle
+2. Compile embedded minigeth 
+3. Get embedded minigeth to verify a block using the oracle
+
+...and then there's more stuff, but just that for now

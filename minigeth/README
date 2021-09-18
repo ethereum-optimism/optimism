@@ -1,0 +1,6 @@
+The pieces of geth needed to verify a block
+
+Stubbed files are:
+core/blockchain.go
+core/state/statedb.go
+consensus/ethash/fake_ethash.go
