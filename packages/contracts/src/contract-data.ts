@@ -10,23 +10,23 @@ import { Network } from './connect-contracts'
 
 const Mainnet__Lib_AddressManager = require('../deployments/mainnet/Lib_AddressManager.json')
 const Mainnet__CanonicalTransactionChain = require('../deployments/mainnet/CanonicalTransactionChain.json')
-const Mainnet__OVM_L1CrossDomainMessenger = require('../deployments/mainnet/L1CrossDomainMessenger.json')
+const Mainnet__L1CrossDomainMessenger = require('../deployments/mainnet/L1CrossDomainMessenger.json')
 const Mainnet__StateCommitmentChain = require('../deployments/mainnet/StateCommitmentChain.json')
-const Mainnet__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/mainnet/Proxy__OVM_L1CrossDomainMessenger.json')
+const Mainnet__Proxy__L1CrossDomainMessenger = require('../deployments/mainnet/Proxy__L1CrossDomainMessenger.json')
 const Mainnet__BondManager = require('../deployments/mainnet/mockBondManager.json')
 
 const Kovan__Lib_AddressManager = require('../deployments/kovan/Lib_AddressManager.json')
 const Kovan__CanonicalTransactionChain = require('../deployments/kovan/CanonicalTransactionChain.json')
-const Kovan__OVM_L1CrossDomainMessenger = require('../deployments/kovan/L1CrossDomainMessenger.json')
+const Kovan__L1CrossDomainMessenger = require('../deployments/kovan/L1CrossDomainMessenger.json')
 const Kovan__StateCommitmentChain = require('../deployments/kovan/StateCommitmentChain.json')
-const Kovan__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/kovan/Proxy__OVM_L1CrossDomainMessenger.json')
+const Kovan__Proxy__L1CrossDomainMessenger = require('../deployments/kovan/Proxy__L1CrossDomainMessenger.json')
 const Kovan__BondManager = require('../deployments/kovan/mockBondManager.json')
 
 const Goerli__Lib_AddressManager = require('../deployments/goerli/Lib_AddressManager.json')
 const Goerli__CanonicalTransactionChain = require('../deployments/goerli/CanonicalTransactionChain.json')
-const Goerli__OVM_L1CrossDomainMessenger = require('../deployments/goerli/L1CrossDomainMessenger.json')
+const Goerli__L1CrossDomainMessenger = require('../deployments/goerli/L1CrossDomainMessenger.json')
 const Goerli__StateCommitmentChain = require('../deployments/goerli/StateCommitmentChain.json')
-const Goerli__Proxy__OVM_L1CrossDomainMessenger = require('../deployments/goerli/Proxy__OVM_L1CrossDomainMessenger.json')
+const Goerli__Proxy__L1CrossDomainMessenger = require('../deployments/goerli/Proxy__L1CrossDomainMessenger.json')
 const Goerli__BondManager = require('../deployments/goerli/mockBondManager.json')
 
 export const getL1ContractData = (network: Network) => {
@@ -42,19 +42,19 @@ export const getL1ContractData = (network: Network) => {
       goerli: Goerli__CanonicalTransactionChain,
     }[network],
     L1CrossDomainMessenger: {
-      mainnet: Mainnet__OVM_L1CrossDomainMessenger,
-      kovan: Kovan__OVM_L1CrossDomainMessenger,
-      goerli: Goerli__OVM_L1CrossDomainMessenger,
+      mainnet: Mainnet__L1CrossDomainMessenger,
+      kovan: Kovan__L1CrossDomainMessenger,
+      goerli: Goerli__L1CrossDomainMessenger,
     }[network],
     StateCommitmentChain: {
       mainnet: Mainnet__StateCommitmentChain,
       kovan: Kovan__StateCommitmentChain,
       goerli: Goerli__StateCommitmentChain,
     }[network],
-    Proxy__OVM_L1CrossDomainMessenger: {
-      mainnet: Mainnet__Proxy__OVM_L1CrossDomainMessenger,
-      kovan: Kovan__Proxy__OVM_L1CrossDomainMessenger,
-      goerli: Goerli__Proxy__OVM_L1CrossDomainMessenger,
+    Proxy__L1CrossDomainMessenger: {
+      mainnet: Mainnet__Proxy__L1CrossDomainMessenger,
+      kovan: Kovan__Proxy__L1CrossDomainMessenger,
+      goerli: Goerli__Proxy__L1CrossDomainMessenger,
     }[network],
     BondManager: {
       mainnet: Mainnet__BondManager,
