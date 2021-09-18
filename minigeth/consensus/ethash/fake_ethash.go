@@ -1,6 +1,7 @@
 package ethash
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -9,10 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type Ethash struct {
-	/*Author
-	Finalize*/
-}
+type Ethash struct{}
 
 func (ethash *Ethash) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
@@ -27,6 +25,7 @@ func (ethash *Ethash) Close() error {
 }
 
 func (ethash *Ethash) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
+	fmt.Println("consensus finalize")
 }
 
 func (ethash *Ethash) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -13,20 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-type DumbEngine struct {
-	/*Author
-	Finalize*/
-}
-
-func (ethash *DumbEngine) Author(header *types.Header) (common.Address, error) {
-	return header.Coinbase, nil
-}
-
 func main() {
 	bc := core.NewBlockChain()
 	statedb := &state.StateDB{}
 	vmconfig := vm.Config{}
-	processor := core.NewStateProcessor(params.MainnetChainConfig, bc, nil)
+	processor := core.NewStateProcessor(params.MainnetChainConfig, bc, bc.Engine())
 	fmt.Println("made state processor")
 
 	f, _ := os.Open("../data/block_13247502")
