@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,10 +18,16 @@ func (s *StateDB) AddAddressToAccessList(addr common.Address) {
 
 // AddBalance adds amount to the account associated with addr.
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
+	fmt.Println("AddBalance", addr, amount)
 }
 
 // SubBalance subtracts amount from the account associated with addr.
 func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
+	fmt.Println("SubBalance", addr, amount)
+}
+
+func (s *StateDB) AddLog(log *types.Log) {
+	fmt.Println("AddLog", log)
 }
 
 // IntermediateRoot computes the current root hash of the state trie.
@@ -30,10 +37,8 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	return common.HexToHash("0x0")
 }
 
-func (s *StateDB) AddLog(log *types.Log) {
-}
-
 func (s *StateDB) GetLogs(hash common.Hash, blockHash common.Hash) []*types.Log {
+	fmt.Println("GetLogs", hash, blockHash)
 	return nil
 }
 
@@ -91,45 +96,55 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 
 // GetBalance retrieves the balance from the given address or 0 if object not found
 func (s *StateDB) GetBalance(addr common.Address) *big.Int {
-	return nil
+	fmt.Println("GetBalance", addr)
+	return big.NewInt(1e18)
 }
 
 func (s *StateDB) GetCode(addr common.Address) []byte {
+	fmt.Println("GetCode", addr)
 	return nil
 }
 
 func (s *StateDB) GetCodeSize(addr common.Address) int {
+	fmt.Println("GetCodeSize", addr)
 	return 0
 }
 
 func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
+	fmt.Println("GetCodeHash", addr)
 	return common.HexToHash("0x0")
 }
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
 func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
+	fmt.Println("GetCommittedState", addr, hash)
 	return common.Hash{}
 }
 
 // GetState retrieves a value from the given account's storage trie.
 func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
+	fmt.Println("GetState", addr, hash)
 	return common.Hash{}
 }
 
 func (s *StateDB) GetNonce(addr common.Address) uint64 {
-	return 0
+	fmt.Println("GetNonce", addr)
+	return 2122
 }
 
 // GetRefund returns the current value of the refund counter.
 func (s *StateDB) GetRefund() uint64 {
+	fmt.Println("GetRefund")
 	return 0
 }
 
 func (s *StateDB) Suicide(addr common.Address) bool {
+	fmt.Println("Suicide", addr)
 	return true
 }
 
 func (s *StateDB) HasSuicided(addr common.Address) bool {
+	fmt.Println("HasSuicided", addr)
 	return false
 }
 
@@ -141,12 +156,15 @@ func (s *StateDB) RevertToSnapshot(revid int) {
 }
 
 func (s *StateDB) SetCode(addr common.Address, code []byte) {
+	fmt.Println("SetCode", addr, code)
 }
 
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
+	fmt.Println("SetNonce", addr, nonce)
 }
 
 func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
+	fmt.Println("SetState", addr, key)
 }
 
 // SlotInAccessList returns true if the given (address, slot)-tuple is in the access list.

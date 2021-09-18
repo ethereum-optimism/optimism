@@ -18,6 +18,7 @@ type extblock struct {
 */
 function getTransactionRlp(tx : any): Buffer {
   let dat: any
+  // TODO: there are also type 1 transactions
   if (tx.type == "0x2") {
     let accesslist = tx.accessList.map((x : any) => [x.address, x.storageKeys])
     // london
