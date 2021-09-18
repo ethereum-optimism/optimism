@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 func main() {
@@ -24,7 +25,10 @@ func main() {
 	var header types.Header
 	rlpheader := rlp.NewStream(f, 0)
 	rlpheader.Decode(&header)
-	block := types.NewBlockWithHeader(&header)
+	var txs []*types.Transaction
+	var uncles []*types.Header
+	var receipts []*types.Receipt
+	block := types.NewBlock(&header, txs, uncles, receipts, trie.NewStackTrie(nil))
 	fmt.Println("made block, parent:", header.ParentHash)
 
 	processor.Process(block, statedb, vmconfig)
