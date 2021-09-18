@@ -34,6 +34,10 @@ func (s *StateDB) AddLog(log *types.Log) {
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
+	// hopefully we don't have to implement this
+	// hmm, if we want the right receipt hash we do
+	// but for stateRoot we don't
+	fmt.Println("IntermediateRoot")
 	return common.HexToHash("0x0")
 }
 
