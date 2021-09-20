@@ -418,16 +418,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
             "Function can only be called by the Sequencer."
         );
 
-        require(
-            numContexts > 0,
-            "Must provide at least one batch context."
-        );
-
-        require(
-            totalElementsToAppend > 0,
-            "Must append at least one element."
-        );
-
         uint40 nextTransactionPtr = uint40(
             BATCH_CONTEXT_START_POS + BATCH_CONTEXT_SIZE * numContexts
         );
@@ -464,19 +454,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         BatchContext memory curContext;
         for (uint32 i = 0; i < numContexts; i++) {
             BatchContext memory nextContext = _getBatchContext(i);
-
-            if (i == 0) {
-                // Execute a special check for the first batch.
-                _validateFirstBatchContext(nextContext);
-            }
-
-            // Execute this check on every single batch, including the first one.
-            _validateNextBatchContext(
-                curContext,
-                nextContext,
-                nextQueueIndex,
-                queueRef
-            );
 
             // Now we can update our current context.
             curContext = nextContext;
@@ -516,23 +493,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
                 leafIndex++;
             }
         }
-
-        _validateFinalBatchContext(
-            curContext,
-            nextQueueIndex,
-            queueLength,
-            queueRef
-        );
-
-        require(
-            msg.data.length == nextTransactionPtr,
-            "Not all sequencer transactions were processed."
-        );
-
-        require(
-            leafIndex == totalElementsToAppend,
-            "Actual transaction index does not match expected total elements to append."
-        );
 
         // Generate the required metadata that we need to append this batch
         uint40 numQueuedTransactions = totalElementsToAppend - numSequencerTransactions;
@@ -945,156 +905,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, Lib_Ad
         batchesRef.push(batchHeaderHash, latestBatchContext);
     }
 
-    /**
-     * Checks that the first batch context in a sequencer submission is valid
-     * @param _firstContext The batch context to validate.
-     */
-    function _validateFirstBatchContext(
-        BatchContext memory _firstContext
-    )
-        internal
-        view
-    {
-        // If there are existing elements, this batch must have the same context
-        // or a later timestamp and block number.
-        if (getTotalElements() > 0) {
-            (,, uint40 lastTimestamp, uint40 lastBlockNumber) = _getBatchExtraData();
-
-            require(
-                _firstContext.blockNumber >= lastBlockNumber,
-                "Context block number is lower than last submitted."
-            );
-
-            require(
-                _firstContext.timestamp >= lastTimestamp,
-                "Context timestamp is lower than last submitted."
-            );
-        }
-
-        // Sequencer cannot submit contexts which are more than the force inclusion period old.
-        require(
-            _firstContext.timestamp + forceInclusionPeriodSeconds >= block.timestamp,
-            "Context timestamp too far in the past."
-        );
-
-        require(
-            _firstContext.blockNumber + forceInclusionPeriodBlocks >= block.number,
-            "Context block number too far in the past."
-        );
-    }
-
-    /**
-     * Checks that a given batch context has a time context which is below a given que element
-     * @param _context The batch context to validate has values lower.
-     * @param _queueIndex Index of the queue element we are validating came later than the context.
-     * @param _queueRef The storage container for the queue.
-     */
-    function _validateContextBeforeEnqueue(
-        BatchContext memory _context,
-        uint40 _queueIndex,
-        iOVM_ChainStorageContainer _queueRef
-    )
-        internal
-        view
-    {
-            Lib_OVMCodec.QueueElement memory nextQueueElement = _getQueueElement(
-                _queueIndex,
-                _queueRef
-            );
-
-            // If the force inclusion period has passed for an enqueued transaction, it MUST be the
-            // next chain element.
-            require(
-                block.timestamp < nextQueueElement.timestamp + forceInclusionPeriodSeconds,
-                // solhint-disable-next-line max-line-length
-                "Previously enqueued batches have expired and must be appended before a new sequencer batch."
-            );
-
-            // Just like sequencer transaction times must be increasing relative to each other,
-            // We also require that they be increasing relative to any interspersed queue elements.
-            require(
-                _context.timestamp <= nextQueueElement.timestamp,
-                "Sequencer transaction timestamp exceeds that of next queue element."
-            );
-
-            require(
-                _context.blockNumber <= nextQueueElement.blockNumber,
-                "Sequencer transaction blockNumber exceeds that of next queue element."
-            );
-    }
-
-    /**
-     * Checks that a given batch context is valid based on its previous context, and the next queue
-     * elemtent.
-     * @param _prevContext The previously validated batch context.
-     * @param _nextContext The batch context to validate with this call.
-     * @param _nextQueueIndex Index of the next queue element to process for the _nextContext's
-     * subsequentQueueElements.
-     * @param _queueRef The storage container for the queue.
-     */
-    function _validateNextBatchContext(
-        BatchContext memory _prevContext,
-        BatchContext memory _nextContext,
-        uint40 _nextQueueIndex,
-        iOVM_ChainStorageContainer _queueRef
-    )
-        internal
-        view
-    {
-        // All sequencer transactions' times must be greater than or equal to the previous ones.
-        require(
-            _nextContext.timestamp >= _prevContext.timestamp,
-            "Context timestamp values must monotonically increase."
-        );
-
-        require(
-            _nextContext.blockNumber >= _prevContext.blockNumber,
-            "Context blockNumber values must monotonically increase."
-        );
-
-        // If there is going to be a queue element pulled in from this context:
-        if (_nextContext.numSubsequentQueueTransactions > 0) {
-            _validateContextBeforeEnqueue(
-                _nextContext,
-                _nextQueueIndex,
-                _queueRef
-            );
-        }
-    }
-
-    /**
-     * Checks that the final batch context in a sequencer submission is valid.
-     * @param _finalContext The batch context to validate.
-     * @param _queueLength The length of the queue at the start of the batchAppend call.
-     * @param _nextQueueIndex The next element in the queue that will be pulled into the CTC.
-     * @param _queueRef The storage container for the queue.
-     */
-    function _validateFinalBatchContext(
-        BatchContext memory _finalContext,
-        uint40 _nextQueueIndex,
-        uint40 _queueLength,
-        iOVM_ChainStorageContainer _queueRef
-    )
-        internal
-        view
-    {
-        // If the queue is not now empty, check the mononoticity of whatever the next batch that
-        // will come in is.
-        if (_queueLength - _nextQueueIndex > 0 && _finalContext.numSubsequentQueueTransactions == 0)
-        {
-            _validateContextBeforeEnqueue(
-                _finalContext,
-                _nextQueueIndex,
-                _queueRef
-            );
-        }
-        // Batches cannot be added from the future, or subsequent enqueue() contexts would violate
-        // monotonicity.
-        require(_finalContext.timestamp <= block.timestamp,
-            "Context timestamp is from the future.");
-        require(_finalContext.blockNumber <= block.number,
-            "Context block number is from the future.");
-    }
 
     /**
      * Hashes a transaction chain element.
