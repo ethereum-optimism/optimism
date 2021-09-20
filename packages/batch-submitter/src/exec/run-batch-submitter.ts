@@ -334,6 +334,11 @@ export const run = async () => {
     }
   }
 
+  if (requiredEnvVars.MIN_L1_TX_SIZE === 0) {
+    logger.error('Must configure a MIN_L1_TX_SIZE greater than 0')
+    process.exit(1)
+  }
+
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS
 
   const l2Provider = injectL2Context(
