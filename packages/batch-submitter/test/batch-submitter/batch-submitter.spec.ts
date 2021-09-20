@@ -142,13 +142,15 @@ describe('BatchSubmitter', () => {
       'OVM_CanonicalTransactionChain'
     )
 
-    Factory__OVM_CanonicalTransactionChain = Factory__OVM_CanonicalTransactionChain.connect(signer)
+    Factory__OVM_CanonicalTransactionChain =
+      Factory__OVM_CanonicalTransactionChain.connect(signer)
 
     Factory__OVM_StateCommitmentChain = await getContractFactory(
       'OVM_StateCommitmentChain'
     )
 
-    Factory__OVM_StateCommitmentChain = Factory__OVM_StateCommitmentChain.connect(signer)
+    Factory__OVM_StateCommitmentChain =
+      Factory__OVM_StateCommitmentChain.connect(signer)
   })
 
   let OVM_CanonicalTransactionChain: CanonicalTransactionChainContract
