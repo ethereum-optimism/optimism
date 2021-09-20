@@ -158,7 +158,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
       )
-    }).timeout(100000000)
+    }).timeout(10_000_000)
 
     it('200 transactions in 200 contexts', async () => {
       console.log(`Benchmark: 200 transactions in 200 contexts.`)
@@ -198,7 +198,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
       )
-    }).timeout(100000000)
+    }).timeout(10_000_000)
 
     it('100 Sequencer transactions and 100 Queue transactions in 100 contexts', async () => {
       console.log(
