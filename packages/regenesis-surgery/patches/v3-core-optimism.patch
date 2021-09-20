@@ -1,0 +1,16 @@
+diff --git a/hardhat.config.ts b/hardhat.config.ts
+index 186e59a..1233731 100644
+--- a/hardhat.config.ts
++++ b/hardhat.config.ts
+@@ -250,6 +250,11 @@ export default {
+         // https://docs.soliditylang.org/en/v0.7.6/metadata.html
+         bytecodeHash: 'none',
+       },
++      outputSelection: {
++        '*': {
++          '*': ['storageLayout'],
++        },
++      },
+     },
+   },
+   ovm: {

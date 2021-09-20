@@ -1,3 +1,9 @@
 [submodule "tests"]
 	path = l2geth/tests/testdata
 	url = https://github.com/ethereum/tests
+[submodule "packages/regenesis-surgery/contracts/v3-core"]
+	path = packages/regenesis-surgery/contracts/v3-core
+	url = https://github.com/Uniswap/v3-core.git
+[submodule "packages/regenesis-surgery/contracts/v3-core-optimism"]
+	path = packages/regenesis-surgery/contracts/v3-core-optimism
+	url = https://github.com/Uniswap/v3-core-optimism.git
