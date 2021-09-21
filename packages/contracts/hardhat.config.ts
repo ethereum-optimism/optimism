@@ -46,15 +46,11 @@ const config: HardhatUserConfig = {
       chainId: 69,
       url: 'https://kovan.optimism.io',
       accounts: [privateKey],
-      gasPrice: 15000000,
-      ovm: true,
     },
     'optimism-mainnet': {
       chainId: 10,
       url: 'https://mainnet.optimism.io',
       accounts: [privateKey],
-      gasPrice: 15000000,
-      ovm: true,
     },
   },
   mocha: {
