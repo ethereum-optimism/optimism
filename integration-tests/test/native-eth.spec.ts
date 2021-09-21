@@ -2,6 +2,7 @@ import { expect } from 'chai'
 
 /* Imports: External */
 import { Wallet, utils, BigNumber } from 'ethers'
+import { serialize } from '@ethersproject/transactions'
 import { predeploys } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
@@ -248,24 +249,44 @@ describe('Native ETH Integration Tests', async () => {
       DEFAULT_TEST_GAS_L2,
       '0xFFFF'
     )
+
     await transaction.wait()
     await env.relayXDomainMessages(transaction)
     const receipts = await env.waitForXDomainTransaction(
       transaction,
       Direction.L2ToL1
     )
-    const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
+
+    const l2Fee = receipts.tx.gasPrice.mul(receipts.receipt.gasUsed)
+
+    // Calculate the L1 portion of the fee
+    const raw = serialize({
+      nonce: transaction.nonce,
+      value: transaction.value,
+      gasPrice: transaction.gasPrice,
+      gasLimit: transaction.gasLimit,
+      to: transaction.to,
+      data: transaction.data,
+    })
+
+    const l1Fee = await env.gasPriceOracle.getL1Fee(raw)
+    const fee = l2Fee.add(l1Fee)
 
     const postBalances = await getBalances(env)
 
     expect(postBalances.l1BridgeBalance).to.deep.eq(
-      preBalances.l1BridgeBalance.sub(withdrawAmount)
+      preBalances.l1BridgeBalance.sub(withdrawAmount),
+      'L1 Bridge Balance Mismatch'
     )
+
     expect(postBalances.l2UserBalance).to.deep.eq(
-      preBalances.l2UserBalance.sub(withdrawAmount.add(fee))
+      preBalances.l2UserBalance.sub(withdrawAmount.add(fee)),
+      'L2 User Balance Mismatch'
     )
+
     expect(postBalances.l1BobBalance).to.deep.eq(
-      preBalances.l1BobBalance.add(withdrawAmount)
+      preBalances.l1BobBalance.add(withdrawAmount),
+      'L1 User Balance Mismatch'
     )
   })
 
@@ -282,7 +303,7 @@ describe('Native ETH Integration Tests', async () => {
       Direction.L1ToL2
     )
 
-    // 2. trnsfer to another address
+    // 2. transfer to another address
     const other = Wallet.createRandom().connect(env.l2Wallet.provider)
     const tx = await env.l2Wallet.sendTransaction({
       to: other.address,
@@ -311,8 +332,22 @@ describe('Native ETH Integration Tests', async () => {
       Direction.L2ToL1
     )
 
+    // Compute the L1 portion of the fee
+    const l1Fee = await env.gasPriceOracle.getL1Fee(
+      serialize({
+        nonce: transaction.nonce,
+        value: transaction.value,
+        gasPrice: transaction.gasPrice,
+        gasLimit: transaction.gasLimit,
+        to: transaction.to,
+        data: transaction.data,
+      })
+    )
+
     // check that correct amount was withdrawn and that fee was charged
-    const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
+    const l2Fee = receipts.tx.gasPrice.mul(receipts.receipt.gasUsed)
+
+    const fee = l1Fee.add(l2Fee)
     const l1BalanceAfter = await other
       .connect(env.l1Wallet.provider)
       .getBalance()

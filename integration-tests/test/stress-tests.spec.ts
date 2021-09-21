@@ -155,8 +155,7 @@ describe('stress tests', () => {
     }).timeout(STRESS_TEST_TIMEOUT)
   })
 
-  // SKIP: needs message passing PR
-  describe.skip('C-C-C-Combo breakers', () => {
+  describe('C-C-C-Combo breakers', () => {
     const numTransactions = 10
 
     it(`${numTransactions} L2 transactions, L1 => L2 transactions, L2 => L1 transactions (txs serial, suites parallel)`, async () => {
