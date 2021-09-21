@@ -23,8 +23,6 @@ import { IL2StandardERC20 } from "../../libraries/standards/IL2StandardERC20.sol
  * bridge.
  * This contract also acts as a burner of the tokens intended for withdrawal, informing the L1
  * bridge to release L1 funds.
- *
- * Runtime target: OVM
  */
 contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
 

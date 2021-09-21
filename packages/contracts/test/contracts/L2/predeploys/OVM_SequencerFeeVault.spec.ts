@@ -16,7 +16,7 @@ describe('OVM_SequencerFeeVault', () => {
 
   let Mock__L2StandardBridge: MockContract
   before(async () => {
-    Mock__L2StandardBridge = await smockit('OVM_L2StandardBridge', {
+    Mock__L2StandardBridge = await smockit('L2StandardBridge', {
       address: predeploys.L2StandardBridge,
     })
   })
