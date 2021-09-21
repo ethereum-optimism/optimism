@@ -22,6 +22,7 @@
     "@eth-optimism/contracts": "^0.4.10",
     "@uniswap/v3-core-optimism": "^1.0.0-rc.0",
     "dotenv": "^10.0.0",
-    "ethers": "^5.4.5"
+    "ethers": "^5.4.5",
+    "solc": "^0.8.7-fixed"
   }
 }
