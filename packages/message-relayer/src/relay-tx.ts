@@ -258,7 +258,10 @@ export const getStateRootBatchByTransactionIndex = async (
  * @param index Index to generate a proof for.
  * @returns Merkle proof sibling leaves, as hex strings.
  */
-const getMerkleTreeProof = (leaves: string[], index: number): string[] => {
+export const getMerkleTreeProof = (
+  leaves: string[],
+  index: number
+): string[] => {
   // Our specific Merkle tree implementation requires that the number of leaves is a power of 2.
   // If the number of given leaves is less than a power of 2, we need to round up to the next
   // available power of 2. We fill the remaining space with the hash of bytes32(0).

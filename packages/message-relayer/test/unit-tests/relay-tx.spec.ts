@@ -9,6 +9,7 @@ import { toPlainObject } from 'lodash'
 
 /* Imports: Internal */
 import {
+  getMerkleTreeProof,
   getMessagesAndProofsForL2Transaction,
   getStateRootBatchByTransactionIndex,
   getStateBatchAppendedEventByTransactionIndex,
@@ -373,5 +374,39 @@ describe('relay transaction generation functions', () => {
     it.skip('should otherwise return the encoded transaction data', () => {
       // TODO?
     })
+  })
+})
+
+describe('getMerkleTreeProof', () => {
+  let leaves: string[] = [
+    'the',
+    'quick',
+    'brown',
+    'fox',
+    'jumps',
+    'over',
+    'the',
+    'lazy',
+    'dog',
+  ]
+  const index: number = 4
+  it('should generate a merkle tree proof from an odd number of leaves at the correct index', () => {
+    const expectedProof = [
+      '0x6f766572',
+      '0x123268ec1a3f9aac2bc68e899fe4329eefef783c76265722508b8abbfbf11440',
+      '0x12aaa1b2e09f26e14d86aa3b157b94cfeabe815e44b6742d00c47441a576b12d',
+      '0x297d90df3f77f93eefdeab4e9f6e9a074b41a3508f9d265e92e9b5449c7b11c8',
+    ]
+    expect(getMerkleTreeProof(leaves, index)).to.deep.equal(expectedProof)
+  })
+
+  it('should generate a merkle tree proof from an even number of leaves at the correct index', () => {
+    const expectedProof = [
+      '0x6f766572',
+      '0x09e430fa7b513203dd9c74afd734267a73f64299d9dac61ef09e96c3b3b3fe96',
+      '0x12aaa1b2e09f26e14d86aa3b157b94cfeabe815e44b6742d00c47441a576b12d',
+    ]
+    leaves = leaves.slice(0, leaves.length - 2)
+    expect(getMerkleTreeProof(leaves, index)).to.deep.equal(expectedProof)
   })
 })
