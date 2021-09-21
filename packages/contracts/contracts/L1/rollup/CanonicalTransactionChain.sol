@@ -362,14 +362,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         IChainStorageContainer queueRef = queue();
         uint40 queueLength = _getQueueLength(queueRef);
 
-        // Reserve some memory to save gas on hashing later on. This is a relatively safe estimate
-        // for the average transaction size that will prevent having to resize this chunk of memory
-        // later on. Saves gas.
-        bytes memory hashMemory = new bytes((msg.data.length / totalElementsToAppend) * 2);
-
-        // Initialize the array of canonical chain leaves that we will append.
-        bytes32[] memory leaves = new bytes32[](totalElementsToAppend);
-
         // Each leaf index corresponds to a tx, either sequenced or enqueued.
         uint32 leafIndex = 0;
 
@@ -388,39 +380,10 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             curContext = nextContext;
 
             // Process sequencer transactions first.
-            for (uint32 j = 0; j < curContext.numSequencedTransactions; j++) {
-                uint256 txDataLength;
-                assembly {
-                    txDataLength := shr(232, calldataload(nextTransactionPtr))
-                }
-                require(
-                    txDataLength <= MAX_ROLLUP_TX_SIZE,
-                    "Transaction data size exceeds maximum for rollup transaction."
-                );
-
-                leaves[leafIndex] = _getSequencerLeafHash(
-                    curContext,
-                    nextTransactionPtr,
-                    txDataLength,
-                    hashMemory
-                );
-
-                nextTransactionPtr += uint40(TX_DATA_HEADER_SIZE + txDataLength);
-                numSequencerTransactions++;
-                leafIndex++;
-            }
+            numSequencerTransactions += uint32(curContext.numSequencedTransactions);
 
             // Now process any subsequent queue transactions.
-            for (uint32 j = 0; j < curContext.numSubsequentQueueTransactions; j++) {
-                require(
-                    nextQueueIndex < queueLength,
-                    "Not enough queued transactions to append."
-                );
-
-                leaves[leafIndex] = _getQueueLeafHash(nextQueueIndex);
-                nextQueueIndex++;
-                leafIndex++;
-            }
+            nextQueueIndex += uint40(curContext.numSubsequentQueueTransactions);
         }
 
         // Generate the required metadata that we need to append this batch
@@ -447,11 +410,9 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             blockNumber = lastElement.blockNumber;
         }
 
-        // For efficiency reasons getMerkleRoot modifies the `leaves` argument in place
-        // while calculating the root hash therefore any arguments passed to it must not
-        // be used again afterwards
+        // Cache the previous blockhash to ensure all transaction data can be retrieved efficiently.
         _appendBatch(
-            Lib_MerkleTree.getMerkleRoot(leaves),
+            blockhash(block.number-1),
             totalElementsToAppend,
             numQueuedTransactions,
             blockTimestamp,

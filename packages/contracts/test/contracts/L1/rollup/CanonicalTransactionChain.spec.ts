@@ -620,86 +620,35 @@ describe('CanonicalTransactionChain', () => {
       ).to.be.revertedWith('Function can only be called by the Sequencer.')
     })
 
-    it('should revert when trying to input more data than the max data size', async () => {
-      const MAX_ROLLUP_TX_SIZE =
-        await CanonicalTransactionChain.MAX_ROLLUP_TX_SIZE()
-      const data = '0x' + '12'.repeat(MAX_ROLLUP_TX_SIZE + 1)
-
+    it('should emit the previous blockhash in the TransactionBatchAppended event', async () => {
       const timestamp = await getEthTime(ethers.provider)
-      const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
-
-      await expect(
-        appendSequencerBatch(CanonicalTransactionChain, {
-          transactions: [data],
-          contexts: [
-            {
-              numSequencedTransactions: 1,
-              numSubsequentQueueTransactions: 0,
-              timestamp,
-              blockNumber,
-            },
-          ],
-          shouldStartAtElement: 0,
-          totalElementsToAppend: 1,
-        })
-      ).to.be.revertedWith(
-        'Transaction data size exceeds maximum for rollup transaction.'
-      )
-    })
-
-    describe('Sad path cases', () => {
-      const target = NON_ZERO_ADDRESS
-      const gasLimit = 500_000
-      const data = '0x' + '12'.repeat(1234)
-
-      describe('when the sequencer attempts to add more queue transactions than exist', () => {
-        it('reverts when there are zero transactions in the queue', async () => {
-          const timestamp = await getEthTime(ethers.provider)
-          const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
-
-          await expect(
-            appendSequencerBatch(CanonicalTransactionChain, {
-              transactions: ['0x1234'],
-              contexts: [
-                {
-                  numSequencedTransactions: 1,
-                  numSubsequentQueueTransactions: 1,
-                  timestamp,
-                  blockNumber,
-                },
-              ],
-              shouldStartAtElement: 0,
-              totalElementsToAppend: 1,
-            })
-          ).to.be.revertedWith('Not enough queued transactions to append.')
-        })
-
-        it('reverts when there are insufficient (but nonzero) transactions in the queue', async () => {
-          const timestamp = await getEthTime(ethers.provider)
-          const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
-
-          const numEnqueues = 7
-          for (let i = 0; i < numEnqueues; i++) {
-            await CanonicalTransactionChain.enqueue(target, gasLimit, data)
-          }
-
-          await expect(
-            appendSequencerBatch(CanonicalTransactionChain, {
-              transactions: ['0x1234'],
-              contexts: [
-                {
-                  numSequencedTransactions: 1,
-                  numSubsequentQueueTransactions: numEnqueues + 1,
-                  timestamp,
-                  blockNumber,
-                },
-              ],
-              shouldStartAtElement: 0,
-              totalElementsToAppend: numEnqueues + 1,
-            })
-          ).to.be.revertedWith('Not enough queued transactions to append.')
-        })
+      const currentBlockHash = await (
+        await ethers.provider.getBlock('latest')
+      ).hash
+      const blockNumber = await getNextBlockNumber(ethers.provider)
+      const res = await appendSequencerBatch(CanonicalTransactionChain, {
+        transactions: ['0x1234'],
+        contexts: [
+          {
+            numSequencedTransactions: 1,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        shouldStartAtElement: 0,
+        totalElementsToAppend: 1,
       })
+      const receipt = await res.wait()
+
+      // Because the res value is returned by a sendTransaction type, we need to manually
+      // decode the logs.
+      const eventArgs = ethers.utils.defaultAbiCoder.decode(
+        ['uint256', 'bytes32', 'uint256', 'uint256', 'bytes'],
+        receipt.logs[0].data
+      )
+
+      await expect(eventArgs[0]).to.eq(currentBlockHash)
     })
 
     for (const size of ELEMENT_TEST_SIZES) {
