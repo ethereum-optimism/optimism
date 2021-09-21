@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/rollup/fees"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 var (
@@ -35,18 +36,6 @@ var (
 	// with gas price zero and fees are currently enforced
 	errZeroGasPriceTx = errors.New("cannot accept 0 gas price transaction")
 	float1            = big.NewFloat(1)
-)
-
-var (
-	// l2GasPriceSlot refers to the storage slot that the L2 gas price is stored
-	// in in the OVM_GasPriceOracle predeploy
-	l2GasPriceSlot = common.BigToHash(big.NewInt(1))
-	// l2GasPriceOracleOwnerSlot refers to the storage slot that the owner of
-	// the OVM_GasPriceOracle is stored in
-	l2GasPriceOracleOwnerSlot = common.BigToHash(big.NewInt(0))
-	// l2GasPriceOracleAddress is the address of the OVM_GasPriceOracle
-	// predeploy
-	l2GasPriceOracleAddress = common.HexToAddress("0x420000000000000000000000000000000000000F")
 )
 
 // SyncService implements the main functionality around pulling in transactions
@@ -95,8 +84,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		log.Info("Running in verifier mode", "sync-backend", cfg.Backend.String())
 	} else {
 		log.Info("Running in sequencer mode", "sync-backend", cfg.Backend.String())
-		log.Info("Fees", "gas-price", fees.BigTxGasPrice, "threshold-up", cfg.FeeThresholdUp,
-			"threshold-down", cfg.FeeThresholdDown)
+		log.Info("Fees", "threshold-up", cfg.FeeThresholdUp, "threshold-down", cfg.FeeThresholdDown)
 		log.Info("Enforce Fees", "set", cfg.EnforceFees)
 	}
 
@@ -260,9 +248,6 @@ func (s *SyncService) Start() error {
 	if err := s.updateGasPriceOracleCache(nil); err != nil {
 		return err
 	}
-	if err := s.updateL1GasPrice(); err != nil {
-		return err
-	}
 
 	if s.verifier {
 		go s.VerifierLoop()
@@ -382,14 +367,8 @@ func (s *SyncService) VerifierLoop() {
 	log.Info("Starting Verifier Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	t := time.NewTicker(s.pollInterval)
 	for ; true; <-t.C {
-		if err := s.updateL1GasPrice(); err != nil {
-			log.Error("Cannot update L1 gas price", "msg", err)
-		}
 		if err := s.verify(); err != nil {
 			log.Error("Could not verify", "error", err)
-		}
-		if err := s.updateGasPriceOracleCache(nil); err != nil {
-			log.Error("Cannot update L2 gas price", "msg", err)
 		}
 	}
 }
@@ -416,18 +395,12 @@ func (s *SyncService) SequencerLoop() {
 	log.Info("Starting Sequencer Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	t := time.NewTicker(s.pollInterval)
 	for ; true; <-t.C {
-		if err := s.updateL1GasPrice(); err != nil {
-			log.Error("Cannot update L1 gas price", "msg", err)
-		}
 		s.txLock.Lock()
 		if err := s.sequence(); err != nil {
 			log.Error("Could not sequence", "error", err)
 		}
 		s.txLock.Unlock()
 
-		if err := s.updateGasPriceOracleCache(nil); err != nil {
-			log.Error("Cannot update L2 gas price", "msg", err)
-		}
 		if err := s.updateContext(); err != nil {
 			log.Error("Could not update execution context", "error", err)
 		}
@@ -480,50 +453,81 @@ func (s *SyncService) syncTransactionsToTip() error {
 // updateL1GasPrice queries for the current L1 gas price and then stores it
 // in the L1 Gas Price Oracle. This must be called over time to properly
 // estimate the transaction fees that the sequencer should charge.
-func (s *SyncService) updateL1GasPrice() error {
-	l1GasPrice, err := s.client.GetL1GasPrice()
+func (s *SyncService) updateL1GasPrice(statedb *state.StateDB) error {
+	value, err := s.readGPOStorageSlot(statedb, rcfg.L1GasPriceSlot)
 	if err != nil {
-		return fmt.Errorf("cannot fetch L1 gas price: %w", err)
+		return err
 	}
-	s.RollupGpo.SetL1GasPrice(l1GasPrice)
-	return nil
+	return s.RollupGpo.SetL1GasPrice(value)
 }
 
 // updateL2GasPrice accepts a state db and reads the gas price from the gas
 // price oracle at the state that corresponds to the state db. If no state db
 // is passed in, then the tip is used.
 func (s *SyncService) updateL2GasPrice(statedb *state.StateDB) error {
-	var err error
-	if statedb == nil {
-		statedb, err = s.bc.State()
-		if err != nil {
-			return err
-		}
+	value, err := s.readGPOStorageSlot(statedb, rcfg.L2GasPriceSlot)
+	if err != nil {
+		return err
 	}
-	result := statedb.GetState(l2GasPriceOracleAddress, l2GasPriceSlot)
-	s.RollupGpo.SetL2GasPrice(result.Big())
-	return nil
+	return s.RollupGpo.SetL2GasPrice(value)
+}
+
+// updateOverhead will update the overhead value from the OVM_GasPriceOracle
+// in the local cache
+func (s *SyncService) updateOverhead(statedb *state.StateDB) error {
+	value, err := s.readGPOStorageSlot(statedb, rcfg.OverheadSlot)
+	if err != nil {
+		return err
+	}
+	return s.RollupGpo.SetOverhead(value)
+}
+
+// updateScalar will update the scalar value from the OVM_GasPriceOracle
+// in the local cache
+func (s *SyncService) updateScalar(statedb *state.StateDB) error {
+	scalar, err := s.readGPOStorageSlot(statedb, rcfg.ScalarSlot)
+	if err != nil {
+		return err
+	}
+	decimals, err := s.readGPOStorageSlot(statedb, rcfg.DecimalsSlot)
+	if err != nil {
+		return err
+	}
+	return s.RollupGpo.SetScalar(scalar, decimals)
 }
 
 // cacheGasPriceOracleOwner accepts a statedb and caches the gas price oracle
 // owner address locally
 func (s *SyncService) cacheGasPriceOracleOwner(statedb *state.StateDB) error {
+	s.gasPriceOracleOwnerAddressLock.Lock()
+	defer s.gasPriceOracleOwnerAddressLock.Unlock()
+
+	value, err := s.readGPOStorageSlot(statedb, rcfg.L2GasPriceOracleOwnerSlot)
+	if err != nil {
+		return err
+	}
+	s.gasPriceOracleOwnerAddress = common.BigToAddress(value)
+	return nil
+}
+
+// readGPOStorageSlot is a helper function for reading storage
+// slots from the OVM_GasPriceOracle
+func (s *SyncService) readGPOStorageSlot(statedb *state.StateDB, hash common.Hash) (*big.Int, error) {
 	var err error
 	if statedb == nil {
 		statedb, err = s.bc.State()
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	s.gasPriceOracleOwnerAddressLock.Lock()
-	defer s.gasPriceOracleOwnerAddressLock.Unlock()
-	result := statedb.GetState(l2GasPriceOracleAddress, l2GasPriceOracleOwnerSlot)
-	s.gasPriceOracleOwnerAddress = common.BytesToAddress(result.Bytes())
-	return nil
+	result := statedb.GetState(rcfg.L2GasPriceOracleAddress, hash)
+	return result.Big(), nil
 }
 
 // updateGasPriceOracleCache caches the owner as well as updating the
-// the L2 gas price from the OVM_GasPriceOracle
+// the L2 gas price from the OVM_GasPriceOracle.
+// This should be sure to read all public variables from the
+// OVM_GasPriceOracle
 func (s *SyncService) updateGasPriceOracleCache(hash *common.Hash) error {
 	var statedb *state.StateDB
 	var err error
@@ -539,6 +543,15 @@ func (s *SyncService) updateGasPriceOracleCache(hash *common.Hash) error {
 		return err
 	}
 	if err := s.updateL2GasPrice(statedb); err != nil {
+		return err
+	}
+	if err := s.updateL1GasPrice(statedb); err != nil {
+		return err
+	}
+	if err := s.updateOverhead(statedb); err != nil {
+		return err
+	}
+	if err := s.updateScalar(statedb); err != nil {
 		return err
 	}
 	return nil
@@ -790,7 +803,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
 	// The index was set above so it is safe to dereference
-	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex())
+	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
 
 	txs := types.Transactions{tx}
 	s.txFeed.Send(core.NewTxsEvent{Txs: txs})
@@ -798,6 +811,15 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	log.Trace("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
 	<-s.chainHeadCh
 
+	// Update the cache when the transaction is from the owner
+	// of the gas price oracle
+	sender, _ := types.Sender(s.signer, tx)
+	owner := s.GasPriceOracleOwnerAddress()
+	if owner != nil && sender == *owner {
+		if err := s.updateGasPriceOracleCache(nil); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -824,15 +846,35 @@ func (s *SyncService) applyBatchedTransaction(tx *types.Transaction) error {
 
 // verifyFee will verify that a valid fee is being paid.
 func (s *SyncService) verifyFee(tx *types.Transaction) error {
+	fee, err := fees.CalculateTotalFee(tx, s.RollupGpo)
+	if err != nil {
+		return fmt.Errorf("invalid transaction: %w", err)
+	}
+
+	// Prevent transactions without enough balance from
+	// being accepted by the chain but allow through 0
+	// gas price transactions
+	cost := tx.Value()
+	if tx.GasPrice().Cmp(common.Big0) != 0 {
+		cost = cost.Add(cost, fee)
+	}
+	state, err := s.bc.State()
+	if err != nil {
+		return err
+	}
+	from, err := types.Sender(s.signer, tx)
+	if err != nil {
+		return fmt.Errorf("invalid transaction: %w", core.ErrInvalidSender)
+	}
+	if state.GetBalance(from).Cmp(cost) < 0 {
+		return fmt.Errorf("invalid transaction: %w", core.ErrInsufficientFunds)
+	}
+
 	if tx.GasPrice().Cmp(common.Big0) == 0 {
 		// Allow 0 gas price transactions only if it is the owner of the gas
 		// price oracle
 		gpoOwner := s.GasPriceOracleOwnerAddress()
 		if gpoOwner != nil {
-			from, err := types.Sender(s.signer, tx)
-			if err != nil {
-				return fmt.Errorf("invalid transaction: %w", core.ErrInvalidSender)
-			}
 			if from == *gpoOwner {
 				return nil
 			}
@@ -844,54 +886,32 @@ func (s *SyncService) verifyFee(tx *types.Transaction) error {
 		// If fees are not enforced and the gas price is 0, return early
 		return nil
 	}
-	// When the gas price is non zero, it must be equal to the constant
-	if tx.GasPrice().Cmp(fees.BigTxGasPrice) != 0 {
-		return fmt.Errorf("tx.gasPrice must be %d", fees.TxGasPrice)
-	}
-	l1GasPrice, err := s.RollupGpo.SuggestL1GasPrice(context.Background())
-	if err != nil {
-		return err
-	}
+
+	// Ensure that the user L2 gas price is high enough
 	l2GasPrice, err := s.RollupGpo.SuggestL2GasPrice(context.Background())
 	if err != nil {
 		return err
 	}
-	// Calculate the fee based on decoded L2 gas limit
-	gas := new(big.Int).SetUint64(tx.Gas())
-	l2GasLimit := fees.DecodeL2GasLimit(gas)
 
-	// When the L2 gas limit is smaller than the min L2 gas limit,
-	// reject the transaction
-	if l2GasLimit.Cmp(s.minL2GasLimit) == -1 {
-		return fmt.Errorf("%w: %d, use at least %d", fees.ErrL2GasLimitTooLow, l2GasLimit, s.minL2GasLimit)
-	}
-
-	// Only count the calldata here as the overhead of the fully encoded
-	// RLP transaction is handled inside of EncodeL2GasLimit
-	expectedTxGasLimit := fees.EncodeTxGasLimit(tx.Data(), l1GasPrice, l2GasLimit, l2GasPrice)
-
-	// This should only happen if the unscaled transaction fee is greater than 18.44 ETH
-	if !expectedTxGasLimit.IsUint64() {
-		return fmt.Errorf("fee overflow: %s", expectedTxGasLimit.String())
-	}
-
-	userFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
-	expectedFee := new(big.Int).Mul(expectedTxGasLimit, fees.BigTxGasPrice)
+	// Reject user transactions that do not have large enough of a gas price.
+	// Allow for a buffer in case the gas price changes in between the user
+	// calling `eth_gasPrice` and submitting the transaction.
 	opts := fees.PaysEnoughOpts{
-		UserFee:       userFee,
-		ExpectedFee:   expectedFee,
-		ThresholdUp:   s.feeThresholdUp,
-		ThresholdDown: s.feeThresholdDown,
+		UserGasPrice:     tx.GasPrice(),
+		ExpectedGasPrice: l2GasPrice,
+		ThresholdUp:      s.feeThresholdUp,
+		ThresholdDown:    s.feeThresholdDown,
 	}
+
 	// Check the error type and return the correct error message to the user
 	if err := fees.PaysEnough(&opts); err != nil {
-		if errors.Is(err, fees.ErrFeeTooLow) {
-			return fmt.Errorf("%w: %d, use at least tx.gasLimit = %d and tx.gasPrice = %d",
-				fees.ErrFeeTooLow, userFee, expectedTxGasLimit, fees.BigTxGasPrice)
+		if errors.Is(err, fees.ErrGasPriceTooLow) {
+			return fmt.Errorf("%w: %d wei, use at least tx.gasPrice = %s wei",
+				fees.ErrGasPriceTooLow, tx.GasPrice(), l2GasPrice)
 		}
-		if errors.Is(err, fees.ErrFeeTooHigh) {
-			return fmt.Errorf("%w: %d, use less than %d * %f", fees.ErrFeeTooHigh, userFee,
-				expectedFee, s.feeThresholdUp)
+		if errors.Is(err, fees.ErrGasPriceTooHigh) {
+			return fmt.Errorf("%w: %d wei, use at most tx.gasPrice = %s wei",
+				fees.ErrGasPriceTooHigh, tx.GasPrice(), l2GasPrice)
 		}
 		return err
 	}
