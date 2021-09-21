@@ -34,6 +34,7 @@
     "lerna": "^4.0.0",
     "patch-package": "^6.4.7",
     "prettier": "^2.3.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.18",
     "typescript": "^4.3.5"
   },
   "scripts": {
