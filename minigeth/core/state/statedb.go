@@ -6,10 +6,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type StateDB struct {
-	// TODO: write stub StateDB
+	// This map holds 'live' objects, which will get modified while processing a state transition.
+	stateObjects map[common.Address]*stateObject
 }
 
 // AddAddressToAccessList adds the given address to the access list
@@ -48,15 +51,18 @@ func (s *StateDB) GetLogs(hash common.Hash, blockHash common.Hash) []*types.Log 
 
 // AddPreimage records a SHA3 preimage seen by the VM.
 func (s *StateDB) AddPreimage(hash common.Hash, preimage []byte) {
+	fmt.Println("AddPreimage", hash)
 }
 
 // AddRefund adds gas to the refund counter
 func (s *StateDB) AddRefund(gas uint64) {
+	fmt.Println("AddRefund", gas)
 }
 
 // SubRefund removes gas from the refund counter.
 // This method will panic if the refund counter goes below zero
 func (s *StateDB) SubRefund(gas uint64) {
+	fmt.Println("SubRefund", gas)
 }
 
 // AddSlotToAccessList adds the given (address, slot)-tuple to the access list
@@ -133,7 +139,14 @@ func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 
 func (s *StateDB) GetNonce(addr common.Address) uint64 {
 	fmt.Println("GetNonce", addr)
-	return 2122
+	//return 2122
+
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.Nonce()
+	}
+
+	return 0
 }
 
 // GetRefund returns the current value of the refund counter.
@@ -183,4 +196,52 @@ func (s *StateDB) Snapshot() int {
 // Prepare sets the current transaction hash and index which are
 // used when the EVM emits new state logs.
 func (s *StateDB) Prepare(thash common.Hash, ti int) {
+}
+
+// lower level
+
+func (s *StateDB) setStateObject(object *stateObject) {
+	s.stateObjects[object.Address()] = object
+}
+
+// getStateObject retrieves a state object given by the address, returning nil if
+// the object is not found or was deleted in this execution context. If you need
+// to differentiate between non-existent/just-deleted, use getDeletedStateObject.
+func (s *StateDB) getStateObject(addr common.Address) *stateObject {
+	if obj := s.getDeletedStateObject(addr); obj != nil && !obj.deleted {
+		return obj
+	}
+	return nil
+}
+
+// getDeletedStateObject is similar to getStateObject, but instead of returning
+// nil for a deleted state object, it returns the actual object with the deleted
+// flag set. This is needed by the state journal to revert to the correct s-
+// destructed object instead of wiping all knowledge about the state object.
+func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
+	// Prefer live objects if any is available
+	if obj := s.stateObjects[addr]; obj != nil {
+		return obj
+	}
+
+	fmt.Println("getDeletedStateObject:", addr)
+	// If snapshot unavailable or reading from it failed, load from the database
+	/*enc, err := s.trie.TryGet(addr.Bytes())
+	if err != nil {
+		fmt.Printf("getDeleteStateObject (%x) error: %v\n", addr.Bytes(), err)
+		return nil
+	}*/
+	enc := []byte("12")
+	if len(enc) == 0 {
+		return nil
+	}
+	data := new(Account)
+	if err := rlp.DecodeBytes(enc, data); err != nil {
+		log.Error("Failed to decode state object", "addr", addr, "err", err)
+		return nil
+	}
+	// Insert into the live set
+	obj := newObject(s, addr, *data)
+	s.setStateObject(obj)
+	return obj
 }
