@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rollup/fees"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 func setupLatestEthContextTest() (*SyncService, *EthContext) {
@@ -500,16 +501,23 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 		t.Fatal("expected 0 gas price, got", gasBefore)
 	}
 
+	state, err := service.bc.State()
+	if err != nil {
+		t.Fatal("Cannot get state db")
+	}
+	l1GasPrice := big.NewInt(100000000000)
+	state.SetState(rcfg.L2GasPriceOracleAddress, rcfg.L1GasPriceSlot, common.BigToHash(l1GasPrice))
+	_, _ = state.Commit(false)
+
 	// Update the gas price
-	service.updateL1GasPrice()
+	service.updateL1GasPrice(state)
 
 	gasAfter, err := service.RollupGpo.SuggestL1GasPrice(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expect, _ := service.client.GetL1GasPrice()
-	if gasAfter.Cmp(expect) != 0 {
+	if gasAfter.Cmp(l1GasPrice) != 0 {
 		t.Fatal("expected 100 gas price, got", gasAfter)
 	}
 }
@@ -534,7 +542,7 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 		t.Fatal("Cannot get state db")
 	}
 	l2GasPrice := big.NewInt(100000000000)
-	state.SetState(l2GasPriceOracleAddress, l2GasPriceSlot, common.BigToHash(l2GasPrice))
+	state.SetState(rcfg.L2GasPriceOracleAddress, rcfg.L2GasPriceSlot, common.BigToHash(l2GasPrice))
 	_, _ = state.Commit(false)
 
 	service.updateL2GasPrice(state)
@@ -600,7 +608,7 @@ func TestSyncServiceGasPriceOracleOwnerAddress(t *testing.T) {
 
 	// Update the owner in the state to a non zero address
 	updatedOwner := common.HexToAddress("0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8")
-	state.SetState(l2GasPriceOracleAddress, l2GasPriceOracleOwnerSlot, updatedOwner.Hash())
+	state.SetState(rcfg.L2GasPriceOracleAddress, rcfg.L2GasPriceOracleOwnerSlot, updatedOwner.Hash())
 	hash, _ := state.Commit(false)
 
 	// Update the cache based on the latest state root
