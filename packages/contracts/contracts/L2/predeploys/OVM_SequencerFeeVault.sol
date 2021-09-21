@@ -11,8 +11,6 @@ import { L2StandardBridge } from "../messaging/L2StandardBridge.sol";
  * @title OVM_SequencerFeeVault
  * @dev Simple holding contract for fees paid to the Sequencer. Likely to be replaced in the future
  * but "good enough for now".
- *
- * Runtime target: OVM
  */
 contract OVM_SequencerFeeVault {
 

@@ -7,8 +7,6 @@ pragma solidity >0.5.0 <0.8.0;
  * initial phases of our mainnet roll out. It is owned by the Optimism team, and defines accounts
  * which are allowed to deploy contracts on Layer2. The Execution Manager will only allow an
  * ovmCREATE or ovmCREATE2 operation to proceed if the deployer's address whitelisted.
- *
- * Runtime target: OVM
  */
 contract OVM_DeployerWhitelist {
 

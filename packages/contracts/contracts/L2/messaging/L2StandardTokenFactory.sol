@@ -10,8 +10,6 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
  * @title L2StandardTokenFactory
  * @dev Factory contract for creating standard L2 token representations of L1 ERC20s
  * compatible with and working on the standard bridge.
- *
- * Runtime target: OVM
  */
 contract L2StandardTokenFactory {
 
