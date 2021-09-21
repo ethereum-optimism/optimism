@@ -4,6 +4,7 @@ import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import {
   AppendSequencerBatchParams,
+  BatchContext,
   encodeAppendSequencerBatch,
 } from '@eth-optimism/core-utils'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
@@ -15,7 +16,6 @@ import {
   makeAddressManager,
   setProxyTarget,
   FORCE_INCLUSION_PERIOD_SECONDS,
-  FORCE_INCLUSION_PERIOD_BLOCKS,
   getEthTime,
   getNextBlockNumber,
   NON_ZERO_ADDRESS,
@@ -78,11 +78,14 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
 
   let OVM_CanonicalTransactionChain: Contract
   beforeEach(async () => {
+    // Use a larger FIP for blocks so that we can send a large number of
+    // enqueue() transactions without having to manipulate the block number.
+    const forceInclusionPeriodBlocks = 101
     OVM_CanonicalTransactionChain =
       await Factory__OVM_CanonicalTransactionChain.deploy(
         AddressManager.address,
         FORCE_INCLUSION_PERIOD_SECONDS,
-        FORCE_INCLUSION_PERIOD_BLOCKS,
+        forceInclusionPeriodBlocks,
         MAX_GAS_LIMIT
       )
 
@@ -155,7 +158,7 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
       )
-    }).timeout(100000000)
+    }).timeout(10_000_000)
 
     it('200 transactions in 200 contexts', async () => {
       console.log(`Benchmark: 200 transactions in 200 contexts.`)
@@ -195,7 +198,57 @@ describe('[GAS BENCHMARK] OVM_CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
       )
-    }).timeout(100000000)
+    }).timeout(10_000_000)
+
+    it('100 Sequencer transactions and 100 Queue transactions in 100 contexts', async () => {
+      console.log(
+        `Benchmark: 100 Sequencer transactions and 100 Queue transactions in 100 contexts`
+      )
+      const transactionTemplate = '0x' + '11'.repeat(400)
+      const transactions = []
+      const numTxs = 100
+      for (let i = 0; i < numTxs; i++) {
+        transactions.push(transactionTemplate)
+      }
+
+      // Enqueue the transactions and record their contexts
+      const target = NON_ZERO_ADDRESS
+      const gasLimit = 500_000
+      const data = '0x' + '12'.repeat(1234)
+      const numEnqueues = numTxs
+
+      const queueContexts: BatchContext[] = []
+      for (let i = 0; i < numEnqueues; i++) {
+        await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+
+        queueContexts.push({
+          blockNumber: (await getNextBlockNumber(ethers.provider)) - 1,
+          timestamp: await getEthTime(ethers.provider),
+          numSequencedTransactions: 1,
+          numSubsequentQueueTransactions: 1,
+        })
+      }
+
+      const fixedCalldataCost =
+        (transactionTemplate.slice(2).length / 2) * 16 * numTxs
+
+      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+        shouldStartAtElement: 0,
+        totalElementsToAppend: numTxs + numEnqueues,
+        contexts: queueContexts,
+        transactions,
+      })
+
+      const receipt = await res.wait()
+
+      console.log('Benchmark complete.')
+      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Fixed calldata cost:', fixedCalldataCost)
+      console.log(
+        'Non-calldata overhead gas cost per transaction:',
+        (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
+      )
+    }).timeout(10_000_000)
   })
 
   describe('enqueue [ @skip-on-coverage ]', () => {
