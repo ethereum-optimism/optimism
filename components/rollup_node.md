@@ -1,23 +1,18 @@
 # Rollup Node
 
-The consensus module of Optimisc Ethereum.
+The consensus module of Optimistic Ethereum.
 
 ## Summary
 
-The Rollup Node is a consenus client that determines the latest state of the
-rollup. It reads state from the canon chain (L1) to compute the rollup state.
+The Rollup Node is a consensus client that determines the latest state of the rollup. It reads state from the canon chain (L1) to compute the rollup state.
 
 ## Components
 
 #### Feed Oracle
 
-The Feed Oracle is an adapter that monitors the canon chain for new events in
-the rollup contract. The rollup contract provides the *canonical* order for the
-rollup chain.
+The Feed Oracle is an adapter that monitors the canon chain for new events in the rollup contract. The rollup contract provides the *canonical* order for the rollup chain.
 
-The Feed Oracle can index the batch submissions and deposits locally into the
-database. The batch submissions should be converted into equivalent rollup
-blocks.
+The Feed Oracle can index the batch submissions and deposits locally into the database. The batch submissions should be converted into equivalent rollup blocks.
 
 #### Consensus
 
@@ -43,39 +38,24 @@ def on_block(db, block):
 
 #### Execution Engine
 
-The execution engine implements the [execution specification][execution-spec].
-There already many teams who plan to transition their legacy clients into
-execution engines. The rollup client will communicate to the engine via a
-bidirectional JSON-RPC interface ([WIP][execution-engine-rpc]).
+The execution engine implements the [execution specification][execution-spec].  There already many teams who plan to transition their legacy clients into execution engines. The rollup client will communicate to the engine via a bidirectional JSON-RPC interface ([WIP][execution-engine-rpc]).
 
-One of the main goal of the rollup client is to use the exeuction engine
-without modification.
+One of the main goal of the rollup client is to use the execution engine without modification.
 
 ### Miner
 
-The miner assembles the block via the Execution Engine. It injects context
-transactions that update the light client to the canon chain and it inject new
-depsit transactions. It submits the transaction batch to and waits until the
-transaction is mined (potentially bumping fee price if needed). 
+The miner assembles the block via the Execution Engine. It injects context transactions that update the light client to the canon chain and it inject new deposit transactions. It submits the transaction batch to and waits until the transaction is mined (potentially bumping fee price if needed). 
 
 #### Database
 
-The database persists the rollup chain and indexed data from the canon chain.
-Pruning of canon chain data can be aggressive since indexed data is only relavent
-to consensus during the force-inclusion period of deposits.
+The database persists the rollup chain and indexed data from the canon chain.  Pruning of canon chain data can be aggressive since indexed data is only relevant to consensus during the force-inclusion period of deposits.
 
 #### Networking
 
-The Rollup Node should provide proxied access to the Execution Engine's
-networking stack. This allows for two main things:
+The Rollup Node should provide proxied access to the Execution Engine's networking stack. This allows for two main things:
 
-* Context updates and deposits are injected into the execution engine via
-  transactions. This means that it's possible for the Execution Engine to
-  recieve signed system updates in the public mempool. This could cause block
-  producing rollup nodes to submit bundles with invalid contexts/deposits.
-* To provide fast-confirmations, a group of rollup block producers can define a
-  "unconfirmed" blocks that haven't yet been submitted to mainnet (but will
-  likely be in the near future). 
+* Context updates and deposits are injected into the execution engine via transactions. This means that it's possible for the Execution Engine to receive signed system updates in the public mempool. This could cause block producing rollup nodes to submit bundles with invalid contexts/deposits.
+* To provide fast-confirmations, a group of rollup block producers can define a "unconfirmed" blocks that haven't yet been submitted to mainnet (but will likely be in the near future). 
 
 [execution-spec]: https://github.com/ethereum/execution-specs
 [execution-engine-rpc]: https://hackmd.io/@n0ble/consensus_api_design_space
