@@ -1,5 +1,5 @@
 /* Imports: External */
-import { Contract, utils, Wallet } from 'ethers'
+import { Contract, utils, Wallet, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
 import { Watcher } from '@eth-optimism/core-utils'
@@ -40,6 +40,7 @@ export class OptimismEnv {
   l2Bridge: Contract
   l2Messenger: Contract
   gasPriceOracle: Contract
+  sequencerFeeVault: Contract
 
   // The L1 <> L2 State watcher
   watcher: Watcher
@@ -47,6 +48,10 @@ export class OptimismEnv {
   // The wallets
   l1Wallet: Wallet
   l2Wallet: Wallet
+
+  // The providers
+  l1Provider: providers.JsonRpcProvider
+  l2Provider: providers.JsonRpcProvider
 
   constructor(args: any) {
     this.addressManager = args.addressManager
@@ -56,9 +61,12 @@ export class OptimismEnv {
     this.l2Bridge = args.l2Bridge
     this.l2Messenger = args.l2Messenger
     this.gasPriceOracle = args.gasPriceOracle
+    this.sequencerFeeVault = args.sequencerFeeVault
     this.watcher = args.watcher
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
+    this.l1Provider = args.l1Provider
+    this.l2Provider = args.l2Provider
     this.ctc = args.ctc
     this.scc = args.scc
   }
@@ -100,6 +108,10 @@ export class OptimismEnv {
       .connect(l1Wallet)
       .attach(sccAddress)
 
+    const sequencerFeeVault = getContractFactory('OVM_SequencerFeeVault')
+      .connect(l2Wallet)
+      .attach(predeploys.OVM_SequencerFeeVault)
+
     return new OptimismEnv({
       addressManager,
       l1Bridge,
@@ -108,11 +120,14 @@ export class OptimismEnv {
       l1Messenger,
       ovmEth,
       gasPriceOracle,
+      sequencerFeeVault,
       l2Bridge,
       l2Messenger,
       watcher,
       l1Wallet,
       l2Wallet,
+      l1Provider,
+      l2Provider,
     })
   }
 

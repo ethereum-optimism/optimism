@@ -1,8 +1,4 @@
-import {
-  injectL2Context,
-  TxGasLimit,
-  TxGasPrice,
-} from '@eth-optimism/core-utils'
+import { injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
