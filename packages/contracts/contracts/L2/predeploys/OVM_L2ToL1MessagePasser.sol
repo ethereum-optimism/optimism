@@ -10,8 +10,6 @@ import { iOVM_L2ToL1MessagePasser } from "./iOVM_L2ToL1MessagePasser.sol";
  * of a message on L2. The L1 Cross Domain Messenger performs this proof in its
  * _verifyStorageProof function, which verifies the existence of the transaction hash in this
  * contract's `sentMessages` mapping.
- *
- * Runtime target: OVM
  */
 contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
 

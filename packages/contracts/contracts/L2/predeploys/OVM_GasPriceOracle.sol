@@ -10,8 +10,6 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * currently is. This measure is used by the Sequencer to determine what fee to charge for
  * transactions. When the system is more congested, the l2 gas price will increase and fees
  * will also increase as a result.
- *
- * Runtime target: OVM
  */
 contract OVM_GasPriceOracle is Ownable {
 
