@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
@@ -61,6 +62,8 @@ type StateTransition struct {
 	data       []byte
 	state      vm.StateDB
 	evm        *vm.EVM
+	// UsingOVM
+	l1Fee *big.Int
 }
 
 // Message represents a message sent to a contract.
@@ -122,6 +125,15 @@ func IntrinsicGas(data []byte, contractCreation, isHomestead bool, isEIP2028 boo
 
 // NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
+	l1Fee := new(big.Int)
+	if rcfg.UsingOVM {
+		if msg.GasPrice().Cmp(common.Big0) != 0 {
+			// Compute the L1 fee before the state transition
+			// so it only has to be read from state one time.
+			l1Fee, _ = fees.CalculateL1MsgFee(msg, evm.StateDB, nil)
+		}
+	}
+
 	return &StateTransition{
 		gp:       gp,
 		evm:      evm,
@@ -130,6 +142,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 		value:    msg.Value(),
 		data:     msg.Data(),
 		state:    evm.StateDB,
+		l1Fee:    l1Fee,
 	}
 }
 
@@ -163,6 +176,15 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
+	if rcfg.UsingOVM {
+		// Only charge the L1 fee for QueueOrigin sequencer transactions
+		if st.msg.QueueOrigin() == types.QueueOriginSequencer {
+			mgval = mgval.Add(mgval, st.l1Fee)
+			if st.msg.CheckNonce() {
+				log.Debug("Adding L1 fee", "l1-fee", st.l1Fee)
+			}
+		}
+	}
 	if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
 		return errInsufficientBalanceForGas
 	}
@@ -243,7 +265,16 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		}
 	}
 	st.refundGas()
-	st.state.AddBalance(evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+	if rcfg.UsingOVM {
+		// The L2 Fee is the same as the fee that is charged in the normal geth
+		// codepath. Add the L1 fee to the L2 fee for the total fee that is sent
+		// to the sequencer.
+		l2Fee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
+		fee := new(big.Int).Add(st.l1Fee, l2Fee)
+		st.state.AddBalance(evm.Coinbase, fee)
+	} else {
+		st.state.AddBalance(evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+	}
 
 	return ret, st.gasUsed(), vmerr != nil, err
 }

@@ -51,10 +51,6 @@ import (
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
 
-// TEMPORARY: Set the gas price to 0 until message passing and ETH value work again.
-// Otherwise the integration tests won't pass because the accounts have no ETH.
-var bigDefaultGasPrice = new(big.Int).SetUint64(0)
-
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -66,9 +62,13 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 	return &PublicEthereumAPI{b}
 }
 
-// GasPrice always returns 1 gwei. See `DoEstimateGas` below for context.
+// GasPrice returns the L2 gas price in the OVM_GasPriceOracle
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	return (*hexutil.Big)(bigDefaultGasPrice), nil
+	gasPrice, err := s.b.SuggestL2GasPrice(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return (*hexutil.Big)(gasPrice), nil
 }
 
 // ProtocolVersion returns the current Ethereum protocol version this node supports
