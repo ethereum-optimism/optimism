@@ -255,17 +255,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
     let ENQUEUE_L2_GAS_PREPAID
     let data
     beforeEach(async () => {
-      OVM_CanonicalTransactionChain =
-        OVM_CanonicalTransactionChain.connect(sequencer)
+      CanonicalTransactionChain =
+        CanonicalTransactionChain.connect(sequencer)
       ENQUEUE_L2_GAS_PREPAID =
-        await OVM_CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+        await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
       data = '0x' + '12'.repeat(1234)
     })
 
     it('cost to enqueue a transaction above the prepaid threshold', async () => {
       const l2GasLimit = 2 * ENQUEUE_L2_GAS_PREPAID
 
-      const res = await OVM_CanonicalTransactionChain.enqueue(
+      const res = await CanonicalTransactionChain.enqueue(
         NON_ZERO_ADDRESS,
         l2GasLimit,
         data
@@ -279,7 +279,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
     it('cost to enqueue a transaction below the prepaid threshold', async () => {
       const l2GasLimit = ENQUEUE_L2_GAS_PREPAID - 1
 
-      const res = await OVM_CanonicalTransactionChain.enqueue(
+      const res = await CanonicalTransactionChain.enqueue(
         NON_ZERO_ADDRESS,
         l2GasLimit,
         data
