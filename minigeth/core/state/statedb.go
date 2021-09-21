@@ -231,6 +231,8 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		fmt.Printf("getDeleteStateObject (%x) error: %v\n", addr.Bytes(), err)
 		return nil
 	}*/
+	// TODO: call eth_getProof
+	// In a higher level, write getProvedAccountBytes(addr)
 	enc := []byte("12")
 	if len(enc) == 0 {
 		return nil

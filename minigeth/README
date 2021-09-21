@@ -4,3 +4,22 @@ Stubbed files are:
 core/blockchain.go
 core/state/statedb.go
 consensus/ethash/fake_ethash.go
+
+// See https://medium.com/@eiki1212/ethereum-state-trie-architecture-explained-a30237009d4e
+// Or better picture https://i.stack.imgur.com/afWDt.jpg
+Types needed for the oracle:
+
+// Account is the Ethereum consensus representation of accounts.
+// These objects are stored in the main account trie.
+type Account struct {
+	Nonce    uint64
+	Balance  *big.Int
+	Root     common.Hash // merkle root of the storage trie
+	CodeHash []byte
+}
+
+// TODO: oracle for
+//   getProvedAccountBytes(blockNumber, addr) -> rlpAccount
+//   getProvedCodeBytes(blockNumber, addr, codehash) -> []byte
+//   getProvedStorage(blockNumber, addr, root, key) -> uint256
+// These functions access the backend oracle, and will assert if the proof is bad
