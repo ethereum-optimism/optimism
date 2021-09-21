@@ -13513,6 +13513,21 @@ solc@^0.6.3:
     semver "^5.5.0"
     tmp "0.0.33"
 
+solc@^0.8.7-fixed:
+  version "0.8.7-fixed"
+  resolved "https://registry.yarnpkg.com/solc/-/solc-0.8.7-fixed.tgz#76eb37d33637ad278ad858e2633e9da597d877ac"
+  integrity sha512-nWZRkdPwfBpimAelO30Bz7/hxoj+mylb30gEpBL8hhEWR4xqu2ezQAxWK1Hz5xx1NqesbgGjSgnGul49tRHWgQ==
+  dependencies:
+    command-exists "^1.2.8"
+    commander "3.0.2"
+    follow-redirects "^1.12.1"
+    fs-extra "^0.30.0"
+    js-sha3 "0.8.0"
+    memorystream "^0.3.1"
+    require-from-string "^2.0.0"
+    semver "^5.5.0"
+    tmp "0.0.33"
+
 solhint@^3.3.6:
   version "3.3.6"
   resolved "https://registry.yarnpkg.com/solhint/-/solhint-3.3.6.tgz#abe9af185a9a7defefba480047b3e42cbe9a1210"
