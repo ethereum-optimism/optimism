@@ -252,27 +252,27 @@ describe('CanonicalTransactionChain', () => {
     describe('with _gaslimit below the ENQUEUE_L2_GAS_PREPAID threshold', async () => {
       it('the cost to enqueue transactions is consistent for different L2 gas amounts below the prepaid threshold', async () => {
         const ENQUEUE_L2_GAS_PREPAID =
-          await OVM_CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+          await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
         const data = '0x' + '12'.repeat(1234)
         const l2GasLimit1 = ENQUEUE_L2_GAS_PREPAID - 1
         const l2GasLimit2 = ENQUEUE_L2_GAS_PREPAID - 100
 
         // The first enqueue is more expensive because it's writing to an empty slot,
         // so we need to pre-load the buffer or the test will fail.
-        await OVM_CanonicalTransactionChain.enqueue(
+        await CanonicalTransactionChain.enqueue(
           NON_ZERO_ADDRESS,
           l2GasLimit1,
           data
         )
 
-        const res1 = await OVM_CanonicalTransactionChain.enqueue(
+        const res1 = await CanonicalTransactionChain.enqueue(
           NON_ZERO_ADDRESS,
           l2GasLimit1,
           data
         )
         const receipt1 = await res1.wait()
 
-        const res2 = await OVM_CanonicalTransactionChain.enqueue(
+        const res2 = await CanonicalTransactionChain.enqueue(
           NON_ZERO_ADDRESS,
           l2GasLimit2,
           data
