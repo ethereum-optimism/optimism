@@ -117,3 +117,7 @@ func newObject(db *StateDB, address common.Address, data Account) *stateObject {
 		dirtyStorage:   make(Storage),
 	}
 }
+
+func (s *stateObject) setBalance(amount *big.Int) {
+	s.data.Balance = amount
+}

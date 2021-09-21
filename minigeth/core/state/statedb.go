@@ -13,6 +13,9 @@ import (
 type StateDB struct {
 	// This map holds 'live' objects, which will get modified while processing a state transition.
 	stateObjects map[common.Address]*stateObject
+
+	// Per-transaction access list
+	accessList *accessList
 }
 
 // AddAddressToAccessList adds the given address to the access list
@@ -67,14 +70,19 @@ func (s *StateDB) SubRefund(gas uint64) {
 
 // AddSlotToAccessList adds the given (address, slot)-tuple to the access list
 func (s *StateDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {
+	s.accessList.AddSlot(addr, slot)
 }
 
 // AddressInAccessList returns true if the given address is in the access list.
 func (s *StateDB) AddressInAccessList(addr common.Address) bool {
-	return false
+	return s.accessList.ContainsAddress(addr)
 }
 
 func (s *StateDB) CreateAccount(addr common.Address) {
+	newObj, prev := s.createObject(addr)
+	if prev != nil {
+		newObj.setBalance(prev.data.Balance)
+	}
 }
 
 // Finalise finalises the state by removing the s destructed objects and clears
@@ -88,16 +96,17 @@ func (s *StateDB) TxIndex() int {
 	return 0
 }
 
-// Empty returns whether the state object is either non-existent
-// or empty according to the EIP161 specification (balance = nonce = code = 0)
-func (s *StateDB) Empty(addr common.Address) bool {
-	return true
-}
-
 // Exist reports whether the given account address exists in the state.
 // Notably this also returns true for suicided accounts.
 func (s *StateDB) Exist(addr common.Address) bool {
-	return true
+	return s.getStateObject(addr) != nil
+}
+
+// Empty returns whether the state object is either non-existent
+// or empty according to the EIP161 specification (balance = nonce = code = 0)
+func (s *StateDB) Empty(addr common.Address) bool {
+	so := s.getStateObject(addr)
+	return so == nil || so.empty()
 }
 
 func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.Hash) bool) error {
@@ -246,4 +255,16 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	obj := newObject(s, addr, *data)
 	s.setStateObject(obj)
 	return obj
+}
+
+// createObject creates a new state object. If there is an existing account with
+// the given address, it is overwritten and returned as the second return value.
+func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) {
+	prev = s.getDeletedStateObject(addr) // Note, prev might have been deleted, we need that!
+	newobj = newObject(s, addr, Account{})
+	s.setStateObject(newobj)
+	if prev != nil && !prev.deleted {
+		return newobj, prev
+	}
+	return newobj, nil
 }
