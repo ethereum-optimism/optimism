@@ -18,6 +18,11 @@ var (
 	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 )
 
+type revision struct {
+	id           int
+	journalIndex int
+}
+
 type StateDB struct {
 	db           Database
 	prefetcher   *triePrefetcher
@@ -81,7 +86,7 @@ func NewStateDB(header types.Header) *StateDB {
 		stateObjectsDirty:   make(map[common.Address]struct{}),
 		stateRoot:           header.Root,
 		db:                  Database{BlockNumber: header.Number, StateRoot: header.Root},
-		trie:                Trie{BlockNumber: header.Number, StateRoot: header.Root},
+		trie:                SimpleTrie{BlockNumber: header.Number, StateRoot: header.Root},
 		accessList:          newAccessList(),
 		logs:                make(map[common.Hash][]*types.Log),
 	}

@@ -43,7 +43,7 @@ func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash)
 
 // OpenStorageTrie opens the storage trie of an account.
 func (db *Database) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	return simpleTrie{}, nil
+	return SimpleTrie{}, nil
 }
 
 type LeafCallback func(paths [][]byte, hexpath []byte, leaf []byte, parent common.Hash) error
@@ -73,28 +73,28 @@ type Trie interface {
 	Commit(onleaf LeafCallback) (common.Hash, error)
 }
 
-type simpleTrie struct {
+type SimpleTrie struct {
 	BlockNumber *big.Int
 	StateRoot   common.Hash
 }
 
-func (trie simpleTrie) Commit(onleaf LeafCallback) (common.Hash, error) {
+func (trie SimpleTrie) Commit(onleaf LeafCallback) (common.Hash, error) {
 	return trie.StateRoot, nil
 }
 
-func (trie simpleTrie) Hash() common.Hash {
+func (trie SimpleTrie) Hash() common.Hash {
 	return trie.StateRoot
 }
 
-func (trie simpleTrie) TryUpdate(key, value []byte) error {
+func (trie SimpleTrie) TryUpdate(key, value []byte) error {
 	return nil
 }
 
-func (trie simpleTrie) TryDelete(key []byte) error {
+func (trie SimpleTrie) TryDelete(key []byte) error {
 	return nil
 }
 
-func (trie simpleTrie) TryGet(key []byte) ([]byte, error) {
+func (trie SimpleTrie) TryGet(key []byte) ([]byte, error) {
 	address := common.BytesToAddress(key)
 	addrHash := crypto.Keccak256Hash(address[:])
 	unhashMap[addrHash] = address
