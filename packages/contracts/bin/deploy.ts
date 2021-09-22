@@ -36,6 +36,8 @@ const parseEnv = () => {
       'number'
     ),
     ctcMaxTransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
+    ctcL2GasDiscountDivisor: ensure('L2_GAS_DISCOUNT_DIVISOR', 'number'),
+    ctcEnqueueGasCost: ensure('ENQUEUE_GAS_COST', 'number'),
     sccFraudProofWindow: ensure('FRAUD_PROOF_WINDOW_SECONDS', 'number'),
     sccSequencerPublishWindow: ensure(
       'SEQUENCER_PUBLISH_WINDOW_SECONDS',
@@ -51,6 +53,8 @@ const main = async () => {
     l1BlockTimeSeconds: config.l1BlockTimeSeconds,
     ctcForceInclusionPeriodSeconds: config.ctcForceInclusionPeriodSeconds,
     ctcMaxTransactionGasLimit: config.ctcMaxTransactionGasLimit,
+    ctcL2GasDiscountDivisor: config.ctcL2GasDiscountDivisor,
+    ctcEnqueueGasCost: config.ctcEnqueueGasCost,
     sccFraudProofWindow: config.sccFraudProofWindow,
     sccSequencerPublishWindow: config.sccFraudProofWindow,
     ovmSequencerAddress: sequencer.address,

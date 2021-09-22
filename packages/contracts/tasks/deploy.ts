@@ -6,6 +6,8 @@ import * as types from 'hardhat/internal/core/params/argumentTypes'
 const DEFAULT_L1_BLOCK_TIME_SECONDS = 15
 const DEFAULT_CTC_FORCE_INCLUSION_PERIOD_SECONDS = 60 * 60 * 24 * 30 // 30 days
 const DEFAULT_CTC_MAX_TRANSACTION_GAS_LIMIT = 11_000_000
+const DEFAULT_CTC_L2_GAS_DISCOUNT_DIVISOR = 32
+const DEFAULT_CTC_ENQUEUE_GAS_COST = 60_000
 const DEFAULT_SCC_FRAUD_PROOF_WINDOW = 60 * 60 * 24 * 7 // 7 days
 const DEFAULT_SCC_SEQUENCER_PUBLISH_WINDOW = 60 * 30 // 30 minutes
 
@@ -26,6 +28,18 @@ task('deploy')
     'ctcMaxTransactionGasLimit',
     'Max gas limit for L1 queue transactions.',
     DEFAULT_CTC_MAX_TRANSACTION_GAS_LIMIT,
+    types.int
+  )
+  .addOptionalParam(
+    'ctcL2GasDiscountDivisor',
+    'Max gas limit for L1 queue transactions.',
+    DEFAULT_CTC_L2_GAS_DISCOUNT_DIVISOR,
+    types.int
+  )
+  .addOptionalParam(
+    'ctcEnqueueGasCost',
+    'Max gas limit for L1 queue transactions.',
+    DEFAULT_CTC_ENQUEUE_GAS_COST,
     types.int
   )
   .addOptionalParam(
