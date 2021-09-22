@@ -121,3 +121,11 @@ func newObject(db *StateDB, address common.Address, data Account) *stateObject {
 func (s *stateObject) setBalance(amount *big.Int) {
 	s.data.Balance = amount
 }
+
+func (s *stateObject) SetNonce(nonce uint64) {
+	s.setNonce(nonce)
+}
+
+func (s *stateObject) setNonce(nonce uint64) {
+	s.data.Nonce = nonce
+}

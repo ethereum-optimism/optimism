@@ -199,6 +199,10 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	fmt.Println("SetNonce", addr, nonce)
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetNonce(nonce)
+	}
 }
 
 func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
@@ -280,4 +284,13 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 		return newobj, prev
 	}
 	return newobj, nil
+}
+
+// GetOrNewStateObject retrieves a state object or create a new state object if nil.
+func (s *StateDB) GetOrNewStateObject(addr common.Address) *stateObject {
+	stateObject := s.getStateObject(addr)
+	if stateObject == nil {
+		stateObject, _ = s.createObject(addr)
+	}
+	return stateObject
 }
