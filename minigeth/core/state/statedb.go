@@ -45,6 +45,7 @@ func NewStateDB(header types.Header) *StateDB {
 		stateRoot:    header.Root,
 		db:           Database{BlockNumber: header.Number},
 		accessList:   newAccessList(),
+		logs:         make(map[common.Hash][]*types.Log),
 	}
 }
 
