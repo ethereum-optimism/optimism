@@ -1,15 +1,34 @@
+// Copyright 2014 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package state
 
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+
 var emptyCodeHash = crypto.Keccak256(nil)
 
 type Code []byte
@@ -87,15 +106,6 @@ type Account struct {
 	CodeHash []byte
 }
 
-func (s *stateObject) Nonce() uint64 {
-	return s.data.Nonce
-}
-
-// Returns the address of the contract/account
-func (s *stateObject) Address() common.Address {
-	return s.address
-}
-
 // newObject creates a state object.
 func newObject(db *StateDB, address common.Address, data Account) *stateObject {
 	if data.Balance == nil {
@@ -118,8 +128,115 @@ func newObject(db *StateDB, address common.Address, data Account) *stateObject {
 	}
 }
 
+// EncodeRLP implements rlp.Encoder.
+func (s *stateObject) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, s.data)
+}
+
+// setError remembers the first non-nil error it is called with.
+func (s *stateObject) setError(err error) {
+	if s.dbErr == nil {
+		s.dbErr = err
+	}
+}
+
+func (s *stateObject) markSuicided() {
+	s.suicided = true
+}
+
+// AddBalance adds amount to s's balance.
+// It is used to add funds to the destination account of a transfer.
+func (s *stateObject) AddBalance(amount *big.Int) {
+	// EIP161: We must check emptiness for the objects such that the account
+	// clearing (0,0,0 objects) can take effect.
+	if amount.Sign() == 0 {
+		if s.empty() {
+			//s.touch()
+		}
+		return
+	}
+	s.SetBalance(new(big.Int).Add(s.Balance(), amount))
+}
+
+// SubBalance removes amount from s's balance.
+// It is used to remove funds from the origin account of a transfer.
+func (s *stateObject) SubBalance(amount *big.Int) {
+	if amount.Sign() == 0 {
+		return
+	}
+	s.SetBalance(new(big.Int).Sub(s.Balance(), amount))
+}
+
+func (s *stateObject) SetBalance(amount *big.Int) {
+	s.setBalance(amount)
+}
+
 func (s *stateObject) setBalance(amount *big.Int) {
 	s.data.Balance = amount
+}
+
+func (s *stateObject) deepCopy(db *StateDB) *stateObject {
+	stateObject := newObject(db, s.address, s.data)
+	stateObject.code = s.code
+	stateObject.dirtyStorage = s.dirtyStorage.Copy()
+	stateObject.originStorage = s.originStorage.Copy()
+	stateObject.pendingStorage = s.pendingStorage.Copy()
+	stateObject.suicided = s.suicided
+	stateObject.dirtyCode = s.dirtyCode
+	stateObject.deleted = s.deleted
+	return stateObject
+}
+
+//
+// Attribute accessors
+//
+
+// Returns the address of the contract/account
+func (s *stateObject) Address() common.Address {
+	return s.address
+}
+
+// Code returns the contract code associated with this object, if any.
+/*func (s *stateObject) Code(db Database) []byte {
+	if s.code != nil {
+		return s.code
+	}
+	if bytes.Equal(s.CodeHash(), emptyCodeHash) {
+		return nil
+	}
+	code, err := db.ContractCode(s.addrHash, common.BytesToHash(s.CodeHash()))
+	if err != nil {
+		s.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
+	}
+	s.code = code
+	return code
+}
+
+// CodeSize returns the size of the contract code associated with this object,
+// or zero if none. This method is an almost mirror of Code, but uses a cache
+// inside the database to avoid loading codes seen recently.
+func (s *stateObject) CodeSize(db Database) int {
+	if s.code != nil {
+		return len(s.code)
+	}
+	if bytes.Equal(s.CodeHash(), emptyCodeHash) {
+		return 0
+	}
+	size, err := db.ContractCodeSize(s.addrHash, common.BytesToHash(s.CodeHash()))
+	if err != nil {
+		s.setError(fmt.Errorf("can't load code size %x: %v", s.CodeHash(), err))
+	}
+	return size
+}*/
+
+func (s *stateObject) SetCode(codeHash common.Hash, code []byte) {
+	s.setCode(codeHash, code)
+}
+
+func (s *stateObject) setCode(codeHash common.Hash, code []byte) {
+	s.code = code
+	s.data.CodeHash = codeHash[:]
+	s.dirtyCode = true
 }
 
 func (s *stateObject) SetNonce(nonce uint64) {
@@ -128,4 +245,23 @@ func (s *stateObject) SetNonce(nonce uint64) {
 
 func (s *stateObject) setNonce(nonce uint64) {
 	s.data.Nonce = nonce
+}
+
+func (s *stateObject) CodeHash() []byte {
+	return s.data.CodeHash
+}
+
+func (s *stateObject) Balance() *big.Int {
+	return s.data.Balance
+}
+
+func (s *stateObject) Nonce() uint64 {
+	return s.data.Nonce
+}
+
+// Never called, but must be present to allow stateObject to be used
+// as a vm.Account interface that also satisfies the vm.ContractRef
+// interface. Interfaces are awesome.
+func (s *stateObject) Value() *big.Int {
+	panic("Value on stateObject should never be called")
 }
