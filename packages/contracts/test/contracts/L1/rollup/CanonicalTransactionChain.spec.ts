@@ -19,6 +19,8 @@ import {
   setProxyTarget,
   FORCE_INCLUSION_PERIOD_SECONDS,
   FORCE_INCLUSION_PERIOD_BLOCKS,
+  L2_GAS_DISCOUNT_DIVISOR,
+  ENQUEUE_GAS_COST,
   setEthTime,
   NON_ZERO_ADDRESS,
   getEthTime,
@@ -132,7 +134,9 @@ describe('CanonicalTransactionChain', () => {
       AddressManager.address,
       FORCE_INCLUSION_PERIOD_SECONDS,
       FORCE_INCLUSION_PERIOD_BLOCKS,
-      MAX_GAS_LIMIT
+      MAX_GAS_LIMIT,
+      L2_GAS_DISCOUNT_DIVISOR,
+      ENQUEUE_GAS_COST
     )
 
     const batches = await Factory__ChainStorageContainer.deploy(
@@ -200,19 +204,19 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should revert if transaction gas limit does not cover rollup burn', async () => {
-      const ENQUEUE_L2_GAS_PREPAID =
+      const _enqueueL2GasPrepaid =
         await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
-      const L2_GAS_DISCOUNT_DIVISOR =
+      const l2GasDiscountDivisor =
         await CanonicalTransactionChain.L2_GAS_DISCOUNT_DIVISOR()
       const data = '0x' + '12'.repeat(1234)
 
       // Create a tx with high L2 gas limit, but insufficient L1 gas limit to cover burn.
-      const l2GasLimit = 2 * ENQUEUE_L2_GAS_PREPAID
+      const l2GasLimit = 2 * _enqueueL2GasPrepaid
       // This l1GasLimit is equivalent to the gasToConsume amount calculated in the CTC. After
       // additional gas overhead, it will be enough trigger the gas burn, but not enough to cover
       // it.
       const l1GasLimit =
-        (l2GasLimit - ENQUEUE_L2_GAS_PREPAID) / L2_GAS_DISCOUNT_DIVISOR
+        (l2GasLimit - _enqueueL2GasPrepaid) / l2GasDiscountDivisor
 
       await expect(
         CanonicalTransactionChain.enqueue(target, l2GasLimit, data, {
