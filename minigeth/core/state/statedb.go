@@ -23,7 +23,11 @@ type StateDB struct {
 }
 
 func NewStateDB(header types.Header) *StateDB {
-	return &StateDB{blockNumber: header.Number, stateRoot: header.Root}
+	return &StateDB{
+		blockNumber:  header.Number,
+		stateObjects: make(map[common.Address]*stateObject),
+		stateRoot:    header.Root,
+	}
 }
 
 // AddAddressToAccessList adds the given address to the access list
