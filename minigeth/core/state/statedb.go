@@ -43,6 +43,8 @@ func NewStateDB(header types.Header) *StateDB {
 		blockNumber:  header.Number,
 		stateObjects: make(map[common.Address]*stateObject),
 		stateRoot:    header.Root,
+		db:           Database{BlockNumber: header.Number},
+		accessList:   newAccessList(),
 	}
 }
 

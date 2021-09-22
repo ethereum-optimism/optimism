@@ -2,6 +2,7 @@ package oracle
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -11,20 +12,27 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type jsonreq struct {
-	Jsonrpc string         `json:"jsonrpc"`
-	Method  string         `json:"method"`
-	Params  [3]interface{} `json:"params"`
-	Id      uint64         `json:"id"`
+	Jsonrpc string        `json:"jsonrpc"`
+	Method  string        `json:"method"`
+	Params  []interface{} `json:"params"`
+	Id      uint64        `json:"id"`
 }
 
 type jsonresp struct {
 	Jsonrpc string        `json:"jsonrpc"`
 	Id      uint64        `json:"id"`
 	Result  AccountResult `json:"result"`
+}
+
+type jsonresps struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Id      uint64 `json:"id"`
+	Result  string `json:"result"`
 }
 
 // Result structs for GetProof
@@ -69,14 +77,13 @@ func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr com
 	}
 
 	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
+	r.Params = make([]interface{}, 3)
 	r.Params[0] = addr
 	r.Params[1] = []common.Hash{}
 	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
-
 	jsonData, _ := json.Marshal(r)
 	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
 	defer resp.Body.Close()
-
 	jr := jsonresp{}
 	json.NewDecoder(resp.Body).Decode(&jr)
 
@@ -93,6 +100,48 @@ func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr com
 	fmt.Println(jr)*/
 
 	ret, _ := rlp.EncodeToBytes(account)
+	os.WriteFile(cachePath, ret, 0644)
+	return ret
+}
+
+func GetProvedCodeBytes(blockNumber *big.Int, addr common.Address, codehash common.Hash) []byte {
+	fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
+	cachePath := fmt.Sprintf("data/code_%s", codehash)
+
+	// read cache if we can
+	{
+		dat, err := ioutil.ReadFile(cachePath)
+		if err == nil {
+			return dat
+		}
+	}
+
+	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
+	r.Params = make([]interface{}, 2)
+	r.Params[0] = addr
+	r.Params[1] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+	jsonData, _ := json.Marshal(r)
+	//fmt.Println(string(jsonData))
+	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+	defer resp.Body.Close()
+
+	/*tmp, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(string(tmp))*/
+
+	jr := jsonresps{}
+	json.NewDecoder(resp.Body).Decode(&jr)
+
+	//fmt.Println(jr.Result)
+
+	// curl -X POST --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b", "0x2"],"id":1}'
+
+	ret, _ := hex.DecodeString(jr.Result[2:])
+	//fmt.Println(ret)
+
+	if crypto.Keccak256Hash(ret) != codehash {
+		panic("wrong code hash")
+	}
+
 	os.WriteFile(cachePath, ret, 0644)
 	return ret
 }
