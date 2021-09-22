@@ -11,7 +11,14 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var (
+	// emptyRoot is the known root hash of an empty trie.
+	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+)
+
 type StateDB struct {
+	db Database
+
 	blockNumber *big.Int
 	stateRoot   common.Hash
 
@@ -20,6 +27,15 @@ type StateDB struct {
 
 	// Per-transaction access list
 	accessList *accessList
+
+	logs    map[common.Hash][]*types.Log
+	logSize uint
+
+	thash   common.Hash
+	txIndex int
+
+	// The refund counter, also used by state transitioning.
+	refund uint64
 }
 
 func NewStateDB(header types.Header) *StateDB {
@@ -28,6 +44,88 @@ func NewStateDB(header types.Header) *StateDB {
 		stateObjects: make(map[common.Address]*stateObject),
 		stateRoot:    header.Root,
 	}
+}
+
+func (s *StateDB) AddLog(log *types.Log) {
+	log.TxHash = s.thash
+	log.TxIndex = uint(s.txIndex)
+	log.Index = s.logSize
+	s.logs[s.thash] = append(s.logs[s.thash], log)
+	s.logSize++
+}
+
+// AddRefund adds gas to the refund counter
+func (s *StateDB) AddRefund(gas uint64) {
+	s.refund += gas
+}
+
+// SubRefund removes gas from the refund counter.
+// This method will panic if the refund counter goes below zero
+func (s *StateDB) SubRefund(gas uint64) {
+	if gas > s.refund {
+		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
+	}
+	s.refund -= gas
+}
+
+// Exist reports whether the given account address exists in the state.
+// Notably this also returns true for suicided accounts.
+func (s *StateDB) Exist(addr common.Address) bool {
+	return s.getStateObject(addr) != nil
+}
+
+// Empty returns whether the state object is either non-existent
+// or empty according to the EIP161 specification (balance = nonce = code = 0)
+func (s *StateDB) Empty(addr common.Address) bool {
+	so := s.getStateObject(addr)
+	return so == nil || so.empty()
+}
+
+// GetBalance retrieves the balance from the given address or 0 if object not found
+func (s *StateDB) GetBalance(addr common.Address) *big.Int {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.Balance()
+	}
+	return common.Big0
+}
+
+func (s *StateDB) GetNonce(addr common.Address) uint64 {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.Nonce()
+	}
+
+	return 0
+}
+
+// TxIndex returns the current transaction index set by Prepare.
+func (s *StateDB) TxIndex() int {
+	return s.txIndex
+}
+
+func (s *StateDB) GetCode(addr common.Address) []byte {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.Code(s.db)
+	}
+	return nil
+}
+
+func (s *StateDB) GetCodeSize(addr common.Address) int {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.CodeSize(s.db)
+	}
+	return 0
+}
+
+func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
+	stateObject := s.getStateObject(addr)
+	if stateObject == nil {
+		return common.Hash{}
+	}
+	return common.BytesToHash(stateObject.CodeHash())
 }
 
 // AddAddressToAccessList adds the given address to the access list
@@ -42,10 +140,6 @@ func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 // SubBalance subtracts amount from the account associated with addr.
 func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 	fmt.Println("SubBalance", addr, amount)
-}
-
-func (s *StateDB) AddLog(log *types.Log) {
-	fmt.Println("AddLog", log)
 }
 
 // IntermediateRoot computes the current root hash of the state trie.
@@ -67,17 +161,6 @@ func (s *StateDB) GetLogs(hash common.Hash, blockHash common.Hash) []*types.Log 
 // AddPreimage records a SHA3 preimage seen by the VM.
 func (s *StateDB) AddPreimage(hash common.Hash, preimage []byte) {
 	fmt.Println("AddPreimage", hash)
-}
-
-// AddRefund adds gas to the refund counter
-func (s *StateDB) AddRefund(gas uint64) {
-	fmt.Println("AddRefund", gas)
-}
-
-// SubRefund removes gas from the refund counter.
-// This method will panic if the refund counter goes below zero
-func (s *StateDB) SubRefund(gas uint64) {
-	fmt.Println("SubRefund", gas)
 }
 
 // AddSlotToAccessList adds the given (address, slot)-tuple to the access list
@@ -103,47 +186,8 @@ func (s *StateDB) CreateAccount(addr common.Address) {
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 }
 
-// TxIndex returns the current transaction index set by Prepare.
-func (s *StateDB) TxIndex() int {
-	return 0
-}
-
-// Exist reports whether the given account address exists in the state.
-// Notably this also returns true for suicided accounts.
-func (s *StateDB) Exist(addr common.Address) bool {
-	return s.getStateObject(addr) != nil
-}
-
-// Empty returns whether the state object is either non-existent
-// or empty according to the EIP161 specification (balance = nonce = code = 0)
-func (s *StateDB) Empty(addr common.Address) bool {
-	so := s.getStateObject(addr)
-	return so == nil || so.empty()
-}
-
 func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.Hash) bool) error {
 	return nil
-}
-
-// GetBalance retrieves the balance from the given address or 0 if object not found
-func (s *StateDB) GetBalance(addr common.Address) *big.Int {
-	fmt.Println("GetBalance", addr)
-	return big.NewInt(1e18)
-}
-
-func (s *StateDB) GetCode(addr common.Address) []byte {
-	fmt.Println("GetCode", addr)
-	return nil
-}
-
-func (s *StateDB) GetCodeSize(addr common.Address) int {
-	fmt.Println("GetCodeSize", addr)
-	return 0
-}
-
-func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
-	fmt.Println("GetCodeHash", addr)
-	return common.HexToHash("0x0")
 }
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
@@ -156,18 +200,6 @@ func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) commo
 func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 	fmt.Println("GetState", addr, hash)
 	return common.Hash{}
-}
-
-func (s *StateDB) GetNonce(addr common.Address) uint64 {
-	fmt.Println("GetNonce", addr)
-	//return 2122
-
-	stateObject := s.getStateObject(addr)
-	if stateObject != nil {
-		return stateObject.Nonce()
-	}
-
-	return 0
 }
 
 // GetRefund returns the current value of the refund counter.

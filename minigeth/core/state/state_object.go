@@ -27,8 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-var emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-
 var emptyCodeHash = crypto.Keccak256(nil)
 
 type Code []byte
@@ -264,4 +262,37 @@ func (s *stateObject) Nonce() uint64 {
 // interface. Interfaces are awesome.
 func (s *stateObject) Value() *big.Int {
 	panic("Value on stateObject should never be called")
+}
+
+// Code returns the contract code associated with this object, if any.
+func (s *stateObject) Code(db Database) []byte {
+	if s.code != nil {
+		return s.code
+	}
+	if bytes.Equal(s.CodeHash(), emptyCodeHash) {
+		return nil
+	}
+	code, err := db.ContractCode(s.addrHash, common.BytesToHash(s.CodeHash()))
+	if err != nil {
+		s.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
+	}
+	s.code = code
+	return code
+}
+
+// CodeSize returns the size of the contract code associated with this object,
+// or zero if none. This method is an almost mirror of Code, but uses a cache
+// inside the database to avoid loading codes seen recently.
+func (s *stateObject) CodeSize(db Database) int {
+	if s.code != nil {
+		return len(s.code)
+	}
+	if bytes.Equal(s.CodeHash(), emptyCodeHash) {
+		return 0
+	}
+	size, err := db.ContractCodeSize(s.addrHash, common.BytesToHash(s.CodeHash()))
+	if err != nil {
+		s.setError(fmt.Errorf("can't load code size %x: %v", s.CodeHash(), err))
+	}
+	return size
 }
