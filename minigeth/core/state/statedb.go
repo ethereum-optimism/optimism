@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/oracle"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -144,14 +145,77 @@ func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 func (s *StateDB) AddAddressToAccessList(addr common.Address) {
 }
 
+/*
+ * SETTERS
+ */
+
 // AddBalance adds amount to the account associated with addr.
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
-	fmt.Println("AddBalance", addr, amount)
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.AddBalance(amount)
+	}
 }
 
 // SubBalance subtracts amount from the account associated with addr.
 func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
-	fmt.Println("SubBalance", addr, amount)
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SubBalance(amount)
+	}
+}
+
+func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetBalance(amount)
+	}
+}
+
+func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetNonce(nonce)
+	}
+}
+
+func (s *StateDB) SetCode(addr common.Address, code []byte) {
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetCode(crypto.Keccak256Hash(code), code)
+	}
+}
+
+func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetState(s.db, key, value)
+	}
+}
+
+// SetStorage replaces the entire storage for the specified account with given
+// storage. This function should only be used for debugging.
+func (s *StateDB) SetStorage(addr common.Address, storage map[common.Hash]common.Hash) {
+	stateObject := s.GetOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetStorage(storage)
+	}
+}
+
+// Suicide marks the given account as suicided.
+// This clears the account balance.
+//
+// The account's state object is still available until the state is committed,
+// getStateObject will return a non-nil account after Suicide.
+func (s *StateDB) Suicide(addr common.Address) bool {
+	stateObject := s.getStateObject(addr)
+	if stateObject == nil {
+		return false
+	}
+	stateObject.markSuicided()
+	stateObject.data.Balance = new(big.Int)
+
+	return true
 }
 
 // IntermediateRoot computes the current root hash of the state trie.
@@ -204,7 +268,11 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
 func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
-	fmt.Println("GetCommittedState", addr, hash)
+	// TODO: this is wrong
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.GetState(s.db, hash)
+	}
 	return common.Hash{}
 }
 
@@ -212,11 +280,6 @@ func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) commo
 func (s *StateDB) GetRefund() uint64 {
 	fmt.Println("GetRefund")
 	return 0
-}
-
-func (s *StateDB) Suicide(addr common.Address) bool {
-	fmt.Println("Suicide", addr)
-	return true
 }
 
 func (s *StateDB) HasSuicided(addr common.Address) bool {
@@ -229,22 +292,6 @@ func (s *StateDB) PrepareAccessList(sender common.Address, dst *common.Address, 
 
 // RevertToSnapshot reverts all state changes made since the given revision.
 func (s *StateDB) RevertToSnapshot(revid int) {
-}
-
-func (s *StateDB) SetCode(addr common.Address, code []byte) {
-	fmt.Println("SetCode", addr, code)
-}
-
-func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
-	fmt.Println("SetNonce", addr, nonce)
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.SetNonce(nonce)
-	}
-}
-
-func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
-	fmt.Println("SetState", addr, key)
 }
 
 // SlotInAccessList returns true if the given (address, slot)-tuple is in the access list.
@@ -287,7 +334,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		return obj
 	}
 
-	fmt.Println("getDeletedStateObject:", addr)
+	//fmt.Println("getDeletedStateObject:", addr)
 	// If snapshot unavailable or reading from it failed, load from the database
 	/*enc, err := s.trie.TryGet(addr.Bytes())
 	if err != nil {
