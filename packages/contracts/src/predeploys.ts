@@ -21,4 +21,7 @@ export const predeploys = {
   // We're temporarily disabling OVM_ETH because the jury is still out on whether or not ETH as an
   // ERC20 is desirable.
   OVM_ETH: '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
+
+  // We're also putting WETH9 at the old OVM_ETH address.
+  WETH9: '0x4200000000000000000000000000000000000006',
 }
