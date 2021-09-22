@@ -26,3 +26,13 @@ func (db *Database) ContractCodeSize(addr common.Address, codeHash common.Hash) 
 	code := oracle.GetProvedCodeBytes(db.BlockNumber, addr, codeHash)
 	return len(code), nil
 }
+
+type Trie struct {
+	BlockNumber *big.Int
+	StateRoot   common.Hash
+}
+
+func (trie *Trie) TryGet(key []byte) ([]byte, error) {
+	enc := oracle.GetProvedAccountBytes(trie.BlockNumber, trie.StateRoot, common.BytesToAddress(key))
+	return enc, nil
+}

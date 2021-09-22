@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/oracle"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -18,7 +17,8 @@ var (
 )
 
 type StateDB struct {
-	db Database
+	db   Database
+	trie Trie
 
 	blockNumber *big.Int
 	stateRoot   common.Hash
@@ -45,6 +45,7 @@ func NewStateDB(header types.Header) *StateDB {
 		stateObjects: make(map[common.Address]*stateObject),
 		stateRoot:    header.Root,
 		db:           Database{BlockNumber: header.Number, StateRoot: header.Root},
+		trie:         Trie{BlockNumber: header.Number, StateRoot: header.Root},
 		accessList:   newAccessList(),
 		logs:         make(map[common.Hash][]*types.Log),
 	}
@@ -336,15 +337,15 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 
 	//fmt.Println("getDeletedStateObject:", addr)
 	// If snapshot unavailable or reading from it failed, load from the database
-	/*enc, err := s.trie.TryGet(addr.Bytes())
+	enc, err := s.trie.TryGet(addr.Bytes())
 	if err != nil {
 		fmt.Printf("getDeleteStateObject (%x) error: %v\n", addr.Bytes(), err)
 		return nil
-	}*/
+	}
 	// TODO: call eth_getProof
 	// In a higher level, write getProvedAccountBytes(addr)
 	//enc := []byte("12")
-	enc := oracle.GetProvedAccountBytes(s.blockNumber, s.stateRoot, addr)
+	//enc := oracle.GetProvedAccountBytes(s.blockNumber, s.stateRoot, addr)
 	if len(enc) == 0 {
 		return nil
 	}
