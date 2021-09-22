@@ -12,6 +12,7 @@ import (
 
 type Database struct {
 	BlockNumber *big.Int
+	StateRoot   common.Hash
 }
 
 // ContractCode retrieves a particular contract's code.

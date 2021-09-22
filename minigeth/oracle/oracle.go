@@ -145,3 +145,39 @@ func GetProvedCodeBytes(blockNumber *big.Int, addr common.Address, codehash comm
 	os.WriteFile(cachePath, ret, 0644)
 	return ret
 }
+
+func GetProvedStorage(blockNumber *big.Int, addr common.Address, root common.Hash, key common.Hash) common.Hash {
+	fmt.Println("ORACLE GetProvedStorage:", blockNumber, addr, root, key)
+	cachePath := fmt.Sprintf("data/storage_%d_%s_%s_%s", blockNumber, addr, root, key)
+
+	// read cache if we can
+	{
+		dat, err := ioutil.ReadFile(cachePath)
+		if err == nil {
+			return common.BytesToHash(dat)
+		}
+	}
+
+	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
+	r.Params = make([]interface{}, 3)
+	r.Params[0] = addr
+	r.Params[1] = [1]common.Hash{key}
+	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+	jsonData, _ := json.Marshal(r)
+	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+	defer resp.Body.Close()
+	jr := jsonresp{}
+	json.NewDecoder(resp.Body).Decode(&jr)
+
+	//fmt.Println(string(jsonData))
+	/*fmt.Println(resp)*/
+
+	// TODO: check proof
+	val := jr.Result.StorageProof[0].Value
+	ret := common.HexToHash(val.String())
+	//fmt.Println(ret)
+
+	//ret, _ := rlp.EncodeToBytes(account)
+	os.WriteFile(cachePath, ret.Bytes(), 0644)
+	return ret
+}

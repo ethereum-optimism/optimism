@@ -43,7 +43,7 @@ func NewStateDB(header types.Header) *StateDB {
 		blockNumber:  header.Number,
 		stateObjects: make(map[common.Address]*stateObject),
 		stateRoot:    header.Root,
-		db:           Database{BlockNumber: header.Number},
+		db:           Database{BlockNumber: header.Number, StateRoot: header.Root},
 		accessList:   newAccessList(),
 		logs:         make(map[common.Hash][]*types.Log),
 	}
@@ -131,6 +131,15 @@ func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 	return common.BytesToHash(stateObject.CodeHash())
 }
 
+// GetState retrieves a value from the given account's storage trie.
+func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.GetState(s.db, hash)
+	}
+	return common.Hash{}
+}
+
 // AddAddressToAccessList adds the given address to the access list
 func (s *StateDB) AddAddressToAccessList(addr common.Address) {
 }
@@ -196,12 +205,6 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 // GetCommittedState retrieves a value from the given account's committed storage trie.
 func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
 	fmt.Println("GetCommittedState", addr, hash)
-	return common.Hash{}
-}
-
-// GetState retrieves a value from the given account's storage trie.
-func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
-	fmt.Println("GetState", addr, hash)
 	return common.Hash{}
 }
 
