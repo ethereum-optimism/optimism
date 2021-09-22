@@ -3,8 +3,10 @@ package state
 import (
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,17 +19,36 @@ var (
 )
 
 type StateDB struct {
-	db   Database
-	trie Trie
+	db           Database
+	prefetcher   *triePrefetcher
+	originalRoot common.Hash // The pre-state root, before any changes were made
+	trie         Trie
+	hasher       crypto.KeccakState
 
 	blockNumber *big.Int
 	stateRoot   common.Hash
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
-	stateObjects map[common.Address]*stateObject
+	stateObjects        map[common.Address]*stateObject
+	stateObjectsPending map[common.Address]struct{} // State objects finalized but not yet written to the trie
+	stateObjectsDirty   map[common.Address]struct{} // State objects modified in the current execution
 
 	// Per-transaction access list
 	accessList *accessList
+
+	preimages map[common.Hash][]byte
+
+	snaps         *snapshot.Tree
+	snap          snapshot.Snapshot
+	snapDestructs map[common.Hash]struct{}
+	snapAccounts  map[common.Hash][]byte
+	snapStorage   map[common.Hash]map[common.Hash][]byte
+
+	// Journal of state modifications. This is the backbone of
+	// Snapshot and RevertToSnapshot.
+	journal        *journal
+	validRevisions []revision
+	nextRevisionId int
 
 	logs    map[common.Hash][]*types.Log
 	logSize uint
@@ -37,17 +58,32 @@ type StateDB struct {
 
 	// The refund counter, also used by state transitioning.
 	refund uint64
+
+	// Measurements gathered during execution for debugging purposes
+	AccountReads         time.Duration
+	AccountHashes        time.Duration
+	AccountUpdates       time.Duration
+	AccountCommits       time.Duration
+	StorageReads         time.Duration
+	StorageHashes        time.Duration
+	StorageUpdates       time.Duration
+	StorageCommits       time.Duration
+	SnapshotAccountReads time.Duration
+	SnapshotStorageReads time.Duration
+	SnapshotCommits      time.Duration
 }
 
 func NewStateDB(header types.Header) *StateDB {
 	return &StateDB{
-		blockNumber:  header.Number,
-		stateObjects: make(map[common.Address]*stateObject),
-		stateRoot:    header.Root,
-		db:           Database{BlockNumber: header.Number, StateRoot: header.Root},
-		trie:         Trie{BlockNumber: header.Number, StateRoot: header.Root},
-		accessList:   newAccessList(),
-		logs:         make(map[common.Hash][]*types.Log),
+		blockNumber:         header.Number,
+		stateObjects:        make(map[common.Address]*stateObject),
+		stateObjectsPending: make(map[common.Address]struct{}),
+		stateObjectsDirty:   make(map[common.Address]struct{}),
+		stateRoot:           header.Root,
+		db:                  Database{BlockNumber: header.Number, StateRoot: header.Root},
+		trie:                Trie{BlockNumber: header.Number, StateRoot: header.Root},
+		accessList:          newAccessList(),
+		logs:                make(map[common.Hash][]*types.Log),
 	}
 }
 
