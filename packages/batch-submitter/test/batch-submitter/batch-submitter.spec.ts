@@ -166,6 +166,11 @@ describe('BatchSubmitter', () => {
     await unwrapped_OVM_CanonicalTransactionChain.init()
 
     await AddressManager.setAddress(
+      'OVM_CanonicalTransactionChain',
+      unwrapped_OVM_CanonicalTransactionChain.address
+    )
+
+    await AddressManager.setAddress(
       'CanonicalTransactionChain',
       unwrapped_OVM_CanonicalTransactionChain.address
     )
@@ -184,6 +189,11 @@ describe('BatchSubmitter', () => {
       )
 
     await unwrapped_OVM_StateCommitmentChain.init()
+
+    await AddressManager.setAddress(
+      'OVM_StateCommitmentChain',
+      unwrapped_OVM_StateCommitmentChain.address
+    )
 
     await AddressManager.setAddress(
       'StateCommitmentChain',
