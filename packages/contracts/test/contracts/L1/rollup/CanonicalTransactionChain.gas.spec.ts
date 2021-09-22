@@ -16,6 +16,8 @@ import {
   makeAddressManager,
   setProxyTarget,
   FORCE_INCLUSION_PERIOD_SECONDS,
+  L2_GAS_DISCOUNT_DIVISOR,
+  ENQUEUE_GAS_COST,
   getEthTime,
   getNextBlockNumber,
   NON_ZERO_ADDRESS,
@@ -85,7 +87,9 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       AddressManager.address,
       FORCE_INCLUSION_PERIOD_SECONDS,
       forceInclusionPeriodBlocks,
-      MAX_GAS_LIMIT
+      MAX_GAS_LIMIT,
+      L2_GAS_DISCOUNT_DIVISOR,
+      ENQUEUE_GAS_COST
     )
 
     const batches = await Factory__ChainStorageContainer.deploy(
