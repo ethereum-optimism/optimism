@@ -7,15 +7,23 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/oracle"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type StateDB struct {
+	blockNumber *big.Int
+	stateRoot   common.Hash
+
 	// This map holds 'live' objects, which will get modified while processing a state transition.
 	stateObjects map[common.Address]*stateObject
 
 	// Per-transaction access list
 	accessList *accessList
+}
+
+func NewStateDB(header types.Header) *StateDB {
+	return &StateDB{blockNumber: header.Number, stateRoot: header.Root}
 }
 
 // AddAddressToAccessList adds the given address to the access list
@@ -242,7 +250,8 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	}*/
 	// TODO: call eth_getProof
 	// In a higher level, write getProvedAccountBytes(addr)
-	enc := []byte("12")
+	//enc := []byte("12")
+	enc := oracle.GetProvedAccountBytes(s.blockNumber, s.stateRoot, addr)
 	if len(enc) == 0 {
 		return nil
 	}

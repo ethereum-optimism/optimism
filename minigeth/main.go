@@ -14,12 +14,6 @@ import (
 )
 
 func main() {
-	bc := core.NewBlockChain()
-	statedb := &state.StateDB{}
-	vmconfig := vm.Config{}
-	processor := core.NewStateProcessor(params.MainnetChainConfig, bc, bc.Engine())
-	fmt.Println("made state processor")
-
 	// read header
 	var header types.Header
 	{
@@ -28,6 +22,12 @@ func main() {
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&header)
 	}
+
+	bc := core.NewBlockChain()
+	statedb := state.NewStateDB(header)
+	vmconfig := vm.Config{}
+	processor := core.NewStateProcessor(params.MainnetChainConfig, bc, bc.Engine())
+	fmt.Println("made state processor")
 
 	// read txs
 	var txs []*types.Transaction

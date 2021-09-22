@@ -19,7 +19,7 @@ type Account struct {
 }
 
 // TODO: oracle for
-//   getProvedAccountBytes(blockNumber, addr) -> rlpAccount
-//   getProvedCodeBytes(blockNumber, addr, codehash) -> []byte
-//   getProvedStorage(blockNumber, addr, root, key) -> uint256
+//   GetProvedAccountBytes(blockNumber, stateRoot, addr) -> rlpAccount
+//   GetProvedCodeBytes(blockNumber, stateRoot, addr, codehash) -> []byte
+//   GetProvedStorage(blockNumber, stateRoot, addr, root, key) -> uint256
 // These functions access the backend oracle, and will assert if the proof is bad
