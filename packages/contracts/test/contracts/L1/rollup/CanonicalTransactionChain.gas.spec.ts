@@ -219,7 +219,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
       const queueContexts: BatchContext[] = []
       for (let i = 0; i < numEnqueues; i++) {
-        await OVM_CanonicalTransactionChain.enqueue(target, gasLimit, data)
+        await CanonicalTransactionChain.enqueue(target, gasLimit, data)
 
         queueContexts.push({
           blockNumber: (await getNextBlockNumber(ethers.provider)) - 1,
@@ -232,7 +232,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const fixedCalldataCost =
         (transactionTemplate.slice(2).length / 2) * 16 * numTxs
 
-      const res = await appendSequencerBatch(OVM_CanonicalTransactionChain, {
+      const res = await appendSequencerBatch(CanonicalTransactionChain, {
         shouldStartAtElement: 0,
         totalElementsToAppend: numTxs + numEnqueues,
         contexts: queueContexts,
