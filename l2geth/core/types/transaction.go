@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rollup/fees"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 //go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
@@ -309,6 +310,7 @@ func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 
 	if tx.meta.L1MessageSender != nil {
 		msg.l1MessageSender = tx.meta.L1MessageSender
+		msg.from = rcfg.DefaultL1MessageSender
 	} else {
 		addr := common.Address{}
 		msg.l1MessageSender = &addr

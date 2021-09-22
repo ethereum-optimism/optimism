@@ -27,10 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
-// DefaultL1MessageSender is the default L1MessageSender value attached to a transaction that is
-// not an L1 to L2 message.
-var DefaultL1MessageSender = common.HexToAddress("0x00000000000000000000000000000000000beef")
-
 // ChainContext supports retrieving headers and consensus parameters from the
 // current blockchain to be used during transaction processing.
 type ChainContext interface {
@@ -57,7 +53,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 		// (3) Set the Time to be the msg.L1Timestamp
 		var l1MessageSender common.Address
 		if msg.L1MessageSender() == nil {
-			l1MessageSender = DefaultL1MessageSender
+			l1MessageSender = rcfg.DefaultL1MessageSender
 		} else {
 			l1MessageSender = *msg.L1MessageSender()
 		}

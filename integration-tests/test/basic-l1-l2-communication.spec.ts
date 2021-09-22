@@ -1,54 +1,53 @@
 import { expect } from 'chai'
 
 /* Imports: External */
+import { ethers } from 'hardhat'
 import { Contract, ContractFactory } from 'ethers'
-import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
-import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
-import l2ReverterJson from '../artifacts/contracts/Reverter.sol/Reverter.json'
-import { Direction } from './shared/watcher-utils'
-import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
+import {
+  Direction,
+  OptimismEnv,
+  useDynamicTimeoutForWithdrawals,
+  DEFAULT_SENDER_ADDRESS,
+} from './shared'
 
 describe('Basic L1<>L2 Communication', async () => {
-  let Factory__L1SimpleStorage: ContractFactory
-  let Factory__L2SimpleStorage: ContractFactory
-  let Factory__L2Reverter: ContractFactory
+  let env: OptimismEnv
+  before(async () => {
+    env = await OptimismEnv.new()
+  })
+
+  let Factory__SimpleStorage: ContractFactory
+  let Factory__Reverter: ContractFactory
+  before(async () => {
+    Factory__SimpleStorage = await ethers.getContractFactory('SimpleStorage')
+    Factory__Reverter = await ethers.getContractFactory('Reverter')
+  })
+
   let L1SimpleStorage: Contract
   let L2SimpleStorage: Contract
   let L2Reverter: Contract
-  let env: OptimismEnv
-
-  before(async () => {
-    env = await OptimismEnv.new()
-    Factory__L1SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
-      env.l1Wallet
-    )
-    Factory__L2SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
-      env.l2Wallet
-    )
-    Factory__L2Reverter = new ContractFactory(
-      l2ReverterJson.abi,
-      l2ReverterJson.bytecode,
-      env.l2Wallet
-    )
-  })
-
   beforeEach(async () => {
-    L1SimpleStorage = await Factory__L1SimpleStorage.deploy()
+    // Deploy SimpleStorage on L1.
+    L1SimpleStorage = await Factory__SimpleStorage.connect(
+      env.l1Wallet
+    ).deploy()
     await L1SimpleStorage.deployTransaction.wait()
-    L2SimpleStorage = await Factory__L2SimpleStorage.deploy()
+
+    // Deploy SimpleStorage on L2.
+    L2SimpleStorage = await Factory__SimpleStorage.connect(
+      env.l2Wallet
+    ).deploy()
     await L2SimpleStorage.deployTransaction.wait()
-    L2Reverter = await Factory__L2Reverter.deploy()
+
+    // Deploy Reverter on L2.
+    L2Reverter = await Factory__Reverter.connect(env.l2Wallet).deploy()
     await L2Reverter.deployTransaction.wait()
   })
 
   describe('L2 => L1', () => {
-    it('should be able to perform a withdrawal from L2 -> L1', async function () {
+    it('should be able to send L2 -> L1 via the L2CrossDomainMessenger', async function () {
       await useDynamicTimeoutForWithdrawals(this, env)
 
       const value = `0x${'77'.repeat(32)}`
@@ -75,7 +74,7 @@ describe('Basic L1<>L2 Communication', async () => {
   })
 
   describe('L1 => L2', () => {
-    it('should deposit from L1 -> L2', async () => {
+    it('should be able to send L1 -> L2 via the L1CrossDomainMessenger', async () => {
       const value = `0x${'42'.repeat(32)}`
 
       // Send L1 -> L2 message.
@@ -93,6 +92,25 @@ describe('Basic L1<>L2 Communication', async () => {
       expect(await L2SimpleStorage.xDomainSender()).to.equal(
         env.l1Wallet.address
       )
+      expect(await L2SimpleStorage.value()).to.equal(value)
+      expect((await L2SimpleStorage.totalCount()).toNumber()).to.equal(1)
+    })
+
+    it('should be able to send L1 -> L2 directly via enqueue', async () => {
+      const value = `0x${'42'.repeat(32)}`
+
+      // Send L1 -> L2 message.
+      const transaction = await env.ctc.enqueue(
+        L2SimpleStorage.address,
+        5000000,
+        L2SimpleStorage.interface.encodeFunctionData('setValueNotXDomain', [
+          value,
+        ])
+      )
+
+      await env.waitForXDomainTransaction(transaction, Direction.L1ToL2)
+
+      expect(await L2SimpleStorage.msgSender()).to.equal(DEFAULT_SENDER_ADDRESS)
       expect(await L2SimpleStorage.value()).to.equal(value)
       expect((await L2SimpleStorage.totalCount()).toNumber()).to.equal(1)
     })
