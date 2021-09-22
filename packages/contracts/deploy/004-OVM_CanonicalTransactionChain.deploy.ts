@@ -21,6 +21,8 @@ const deployFn: DeployFunction = async (hre) => {
       (hre as any).deployConfig.ctcForceInclusionPeriodSeconds,
       (hre as any).deployConfig.ctcForceInclusionPeriodBlocks,
       (hre as any).deployConfig.ctcMaxTransactionGasLimit,
+      (hre as any).deployConfig.ctcL2GasDiscountDivisor,
+      (hre as any).deployConfig.ctcEnqueueGasCost,
     ],
   })
 }
