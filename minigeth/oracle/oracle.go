@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"net/http"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -51,8 +53,20 @@ type Account struct {
 	CodeHash []byte
 }
 
+//var nodeUrl = "http://192.168.1.213:8545"
+var nodeUrl = "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+
 func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []byte {
 	fmt.Println("ORACLE GetProvedAccountBytes:", blockNumber, stateRoot, addr)
+	cachePath := fmt.Sprintf("data/accounts_%d_%s", blockNumber, addr)
+
+	// read cache if we can
+	{
+		dat, err := ioutil.ReadFile(cachePath)
+		if err == nil {
+			return dat
+		}
+	}
 
 	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
 	r.Params[0] = addr
@@ -60,7 +74,7 @@ func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr com
 	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
 
 	jsonData, _ := json.Marshal(r)
-	resp, _ := http.Post("http://192.168.1.213:8545", "application/json", bytes.NewBuffer(jsonData))
+	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
 	defer resp.Body.Close()
 
 	jr := jsonresp{}
@@ -79,6 +93,6 @@ func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr com
 	fmt.Println(jr)*/
 
 	ret, _ := rlp.EncodeToBytes(account)
+	os.WriteFile(cachePath, ret, 0644)
 	return ret
-	//return []byte("12")
 }
