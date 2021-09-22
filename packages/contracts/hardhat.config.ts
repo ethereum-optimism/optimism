@@ -57,7 +57,14 @@ const config: HardhatUserConfig = {
     timeout: 50000,
   },
   solidity: {
-    version: '0.7.6',
+    compilers: [
+      {
+        version: '0.7.6',
+      },
+      {
+        version: '0.5.17', // Required for WETH9
+      },
+    ],
     settings: {
       optimizer: { enabled: true, runs: 200 },
       metadata: {
