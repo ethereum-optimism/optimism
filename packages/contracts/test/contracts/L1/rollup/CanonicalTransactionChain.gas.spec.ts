@@ -21,6 +21,7 @@ import {
   getEthTime,
   getNextBlockNumber,
   NON_ZERO_ADDRESS,
+  expectApprox,
 } from '../../../helpers'
 
 // Still have some duplication from CanonicalTransactionChain.spec.ts, but it's so minimal that
@@ -152,14 +153,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       })
 
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
-        (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
+        (gasUsed - fixedCalldataCost) / numTxs
       )
+      expectApprox(gasUsed, 1_605_796, { upperPercentDeviation: 0 })
     }).timeout(10_000_000)
 
     it('200 transactions in 200 contexts', async () => {
@@ -192,14 +196,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       })
 
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
-        (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
+        (gasUsed - fixedCalldataCost) / numTxs
       )
+      expectApprox(gasUsed, 1_739_811, { upperPercentDeviation: 0 })
     }).timeout(10_000_000)
 
     it('100 Sequencer transactions and 100 Queue transactions in 100 contexts', async () => {
@@ -242,14 +249,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       })
 
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
-        (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
+        (gasUsed - fixedCalldataCost) / numTxs
       )
+      expectApprox(gasUsed, 1_126_553, { upperPercentDeviation: 0 })
     }).timeout(10_000_000)
   })
 
@@ -272,9 +282,12 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         data
       )
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
+      expectApprox(gasUsed, 217_615, { upperPercentDeviation: 0 })
     })
 
     it('cost to enqueue a transaction below the prepaid threshold', async () => {
@@ -286,9 +299,12 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         data
       )
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
+      expectApprox(gasUsed, 156_711, { upperPercentDeviation: 0 })
     })
   })
 })
