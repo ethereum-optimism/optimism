@@ -43,7 +43,7 @@ func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash)
 
 // OpenStorageTrie opens the storage trie of an account.
 func (db *Database) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	return SimpleTrie{db.BlockNumber, db.StateRoot}, nil
+	return SimpleTrie{db.BlockNumber, root, true, unhash(addrHash)}, nil
 }
 
 type LeafCallback func(paths [][]byte, hexpath []byte, leaf []byte, parent common.Hash) error
@@ -75,15 +75,17 @@ type Trie interface {
 
 type SimpleTrie struct {
 	BlockNumber *big.Int
-	StateRoot   common.Hash
+	Root        common.Hash
+	Storage     bool
+	Address     common.Address
 }
 
 func (trie SimpleTrie) Commit(onleaf LeafCallback) (common.Hash, error) {
-	return trie.StateRoot, nil
+	return trie.Root, nil
 }
 
 func (trie SimpleTrie) Hash() common.Hash {
-	return trie.StateRoot
+	return trie.Root
 }
 
 func (trie SimpleTrie) TryUpdate(key, value []byte) error {
@@ -95,11 +97,16 @@ func (trie SimpleTrie) TryDelete(key []byte) error {
 }
 
 func (trie SimpleTrie) TryGet(key []byte) ([]byte, error) {
-	address := common.BytesToAddress(key)
-	addrHash := crypto.Keccak256Hash(address[:])
-	unhashMap[addrHash] = address
-	enc := oracle.GetProvedAccountBytes(trie.BlockNumber, trie.StateRoot, address)
-	return enc, nil
+	if trie.Storage {
+		enc := oracle.GetProvedStorage(trie.BlockNumber, trie.Address, trie.Root, common.BytesToHash(key))
+		return enc.Bytes(), nil
+	} else {
+		address := common.BytesToAddress(key)
+		addrHash := crypto.Keccak256Hash(address[:])
+		unhashMap[addrHash] = address
+		enc := oracle.GetProvedAccountBytes(trie.BlockNumber, trie.Root, address)
+		return enc, nil
+	}
 }
 
 // stubbed: we don't prefetch

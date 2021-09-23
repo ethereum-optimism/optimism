@@ -86,7 +86,7 @@ func NewStateDB(header types.Header) *StateDB {
 		stateObjectsDirty:   make(map[common.Address]struct{}),
 		stateRoot:           header.Root,
 		db:                  Database{BlockNumber: header.Number, StateRoot: header.Root},
-		trie:                SimpleTrie{BlockNumber: header.Number, StateRoot: header.Root},
+		trie:                SimpleTrie{BlockNumber: header.Number, Root: header.Root, Storage: false},
 		journal:             newJournal(),
 		accessList:          newAccessList(),
 		logs:                make(map[common.Hash][]*types.Log),
