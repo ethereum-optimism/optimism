@@ -5,11 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -85,6 +85,18 @@ func cacheWrite(key string, value []byte) {
 	os.WriteFile(toFilename(key), value, 0644)
 }
 
+func getAPI(jsonData []byte) io.Reader {
+	key := hexutil.Encode(crypto.Keccak256(jsonData))
+	if cacheExists(key) {
+		return bytes.NewReader(cacheRead(key))
+	}
+	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+	defer resp.Body.Close()
+	ret, _ := ioutil.ReadAll(resp.Body)
+	cacheWrite(key, ret)
+	return bytes.NewReader(ret)
+}
+
 var unhashMap = make(map[common.Hash]common.Address)
 
 func unhash(addrHash common.Hash) common.Address {
@@ -136,70 +148,45 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 	preimages[hash] = ret
 }
 
-func getProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {
-	var key string
-	if storage {
-		key = fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
-	} else {
-		key = fmt.Sprintf("proof_%d_%s", blockNumber, addr)
-	}
+func PrefetchBlock(blockNumber *big.Int) {
+}
 
+func getProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {
 	addrHash := crypto.Keccak256Hash(addr[:])
 	unhashMap[addrHash] = addr
 
-	if !cacheExists(key) {
-		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
-		r.Params = make([]interface{}, 3)
-		r.Params[0] = addr
-		r.Params[1] = [1]common.Hash{skey}
-		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
-		jsonData, _ := json.Marshal(r)
-		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-		defer resp.Body.Close()
-		jr := jsonresp{}
-		json.NewDecoder(resp.Body).Decode(&jr)
+	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
+	r.Params = make([]interface{}, 3)
+	r.Params[0] = addr
+	r.Params[1] = [1]common.Hash{skey}
+	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
+	jsonData, _ := json.Marshal(r)
+	jr := jsonresp{}
+	json.NewDecoder(getAPI(jsonData)).Decode(&jr)
 
-		if storage {
-			arr := jr.Result.StorageProof[0].Proof
-			cacheWrite(key, []byte(strings.Join(arr, "\n")))
-		} else {
-			arr := jr.Result.AccountProof
-			cacheWrite(key, []byte(strings.Join(arr, "\n")))
-		}
-
+	if storage {
+		return jr.Result.StorageProof[0].Proof
+	} else {
+		return jr.Result.AccountProof
 	}
-	return strings.Split(string(cacheRead(key)), "\n")
 }
 
 func getProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash) []byte {
 	addr := unhash(addrHash)
-	//fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
-	key := fmt.Sprintf("code_%d_%s", blockNumber, addr)
-	if !cacheExists(key) {
-		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
-		r.Params = make([]interface{}, 2)
-		r.Params[0] = addr
-		r.Params[1] = fmt.Sprintf("0x%x", blockNumber.Int64())
-		jsonData, _ := json.Marshal(r)
-		//fmt.Println(string(jsonData))
-		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-		defer resp.Body.Close()
 
-		/*tmp, _ := ioutil.ReadAll(resp.Body)
-		fmt.Println(string(tmp))*/
+	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
+	r.Params = make([]interface{}, 2)
+	r.Params[0] = addr
+	r.Params[1] = fmt.Sprintf("0x%x", blockNumber.Int64())
+	jsonData, _ := json.Marshal(r)
+	jr := jsonresps{}
+	json.NewDecoder(getAPI(jsonData)).Decode(&jr)
 
-		jr := jsonresps{}
-		json.NewDecoder(resp.Body).Decode(&jr)
+	//fmt.Println(jr.Result)
 
-		//fmt.Println(jr.Result)
+	// curl -X POST --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b", "0x2"],"id":1}'
 
-		// curl -X POST --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b", "0x2"],"id":1}'
-
-		ret, _ := hex.DecodeString(jr.Result[2:])
-		//fmt.Println(ret)
-
-		cacheWrite(key, ret)
-	}
-
-	return cacheRead(key)
+	ret, _ := hex.DecodeString(jr.Result[2:])
+	//fmt.Println(ret)
+	return ret
 }
