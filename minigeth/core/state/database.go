@@ -46,8 +46,11 @@ func (db *Database) CopyTrie(trie Trie) Trie {
 
 // OpenTrie opens the main account trie at a specific root hash.
 func (db *Database) OpenTrie(root common.Hash) (Trie, error) {
-	//tr, err := trie.NewSecure(root, db.db)
-	return trie.NewSecure(root, db.db)
+	tr, err := trie.NewSecure(root, db.db)
+	if err != nil {
+		return nil, err
+	}
+	return tr, nil
 }
 
 // OpenStorageTrie opens the storage trie of an account.

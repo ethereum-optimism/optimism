@@ -21,7 +21,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/oracle"
 )
 
 // SecureTrie wraps a trie with key hashing. In a secure trie, all
@@ -77,9 +76,6 @@ func (t *SecureTrie) Get(key []byte) []byte {
 // The value bytes must not be modified by the caller.
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *SecureTrie) TryGet(key []byte) ([]byte, error) {
-	oracle.PrefetchAddress(t.trie.db.BlockNumber, common.BytesToAddress(key))
-
-	//t.trie.db.Fetch(common.BytesToAddress(key))
 	return t.trie.TryGet(t.hashKey(key))
 }
 
