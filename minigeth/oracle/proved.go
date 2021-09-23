@@ -64,120 +64,124 @@ type Account struct {
 //var nodeUrl = "http://192.168.1.213:8545"
 var nodeUrl = "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 
+func toFilename(key string) string {
+	return fmt.Sprintf("data/%s", key)
+}
+
+func cacheRead(key string) []byte {
+	dat, err := ioutil.ReadFile(toFilename(key))
+	if err == nil {
+		return dat
+	}
+	panic("cache missing")
+}
+
+func cacheExists(key string) bool {
+	_, err := os.Stat(toFilename(key))
+	return err == nil
+}
+
+func cacheWrite(key string, value []byte) {
+	os.WriteFile(toFilename(key), value, 0644)
+}
+
 func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []byte {
 	fmt.Println("ORACLE GetProvedAccountBytes:", blockNumber, stateRoot, addr)
-	cachePath := fmt.Sprintf("data/accounts_%d_%s", blockNumber, addr)
+	key := fmt.Sprintf("accounts_%d_%s", blockNumber, addr)
 
-	// read cache if we can
-	{
-		dat, err := ioutil.ReadFile(cachePath)
-		if err == nil {
-			return dat
+	if !cacheExists(key) {
+		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
+		r.Params = make([]interface{}, 3)
+		r.Params[0] = addr
+		r.Params[1] = []common.Hash{}
+		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+		jsonData, _ := json.Marshal(r)
+		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+		defer resp.Body.Close()
+		jr := jsonresp{}
+		json.NewDecoder(resp.Body).Decode(&jr)
+
+		// TODO: check proof
+		account := Account{
+			Nonce:    uint64(jr.Result.Nonce),
+			Balance:  jr.Result.Balance.ToInt(),
+			Root:     jr.Result.StorageHash,
+			CodeHash: jr.Result.CodeHash.Bytes(),
 		}
+
+		/*fmt.Println(string(jsonData))
+		fmt.Println(resp)
+		fmt.Println(jr)*/
+
+		ret, _ := rlp.EncodeToBytes(account)
+		cacheWrite(key, ret)
 	}
 
-	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
-	r.Params = make([]interface{}, 3)
-	r.Params[0] = addr
-	r.Params[1] = []common.Hash{}
-	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
-	jsonData, _ := json.Marshal(r)
-	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-	defer resp.Body.Close()
-	jr := jsonresp{}
-	json.NewDecoder(resp.Body).Decode(&jr)
-
-	// TODO: check proof
-	account := Account{
-		Nonce:    uint64(jr.Result.Nonce),
-		Balance:  jr.Result.Balance.ToInt(),
-		Root:     jr.Result.StorageHash,
-		CodeHash: jr.Result.CodeHash.Bytes(),
-	}
-
-	/*fmt.Println(string(jsonData))
-	fmt.Println(resp)
-	fmt.Println(jr)*/
-
-	ret, _ := rlp.EncodeToBytes(account)
-	os.WriteFile(cachePath, ret, 0644)
-	return ret
+	return cacheRead(key)
 }
 
 func GetProvedCodeBytes(blockNumber *big.Int, addr common.Address, codehash common.Hash) []byte {
 	fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
-	cachePath := fmt.Sprintf("data/code_%s", codehash)
+	key := fmt.Sprintf("code_%s", codehash)
+	if !cacheExists(key) {
+		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
+		r.Params = make([]interface{}, 2)
+		r.Params[0] = addr
+		r.Params[1] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+		jsonData, _ := json.Marshal(r)
+		//fmt.Println(string(jsonData))
+		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+		defer resp.Body.Close()
 
-	// read cache if we can
-	{
-		dat, err := ioutil.ReadFile(cachePath)
-		if err == nil {
-			return dat
+		/*tmp, _ := ioutil.ReadAll(resp.Body)
+		fmt.Println(string(tmp))*/
+
+		jr := jsonresps{}
+		json.NewDecoder(resp.Body).Decode(&jr)
+
+		//fmt.Println(jr.Result)
+
+		// curl -X POST --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b", "0x2"],"id":1}'
+
+		ret, _ := hex.DecodeString(jr.Result[2:])
+		//fmt.Println(ret)
+
+		if crypto.Keccak256Hash(ret) != codehash {
+			panic("wrong code hash")
 		}
+		cacheWrite(key, ret)
 	}
 
-	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
-	r.Params = make([]interface{}, 2)
-	r.Params[0] = addr
-	r.Params[1] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
-	jsonData, _ := json.Marshal(r)
-	//fmt.Println(string(jsonData))
-	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-	defer resp.Body.Close()
-
-	/*tmp, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(tmp))*/
-
-	jr := jsonresps{}
-	json.NewDecoder(resp.Body).Decode(&jr)
-
-	//fmt.Println(jr.Result)
-
-	// curl -X POST --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b", "0x2"],"id":1}'
-
-	ret, _ := hex.DecodeString(jr.Result[2:])
-	//fmt.Println(ret)
-
-	if crypto.Keccak256Hash(ret) != codehash {
-		panic("wrong code hash")
-	}
-
-	os.WriteFile(cachePath, ret, 0644)
-	return ret
+	return cacheRead(key)
 }
 
-func GetProvedStorage(blockNumber *big.Int, addr common.Address, root common.Hash, key common.Hash) common.Hash {
-	fmt.Println("ORACLE GetProvedStorage:", blockNumber, addr, root, key)
-	cachePath := fmt.Sprintf("data/storage_%d_%s_%s_%s", blockNumber, addr, root, key)
+func GetProvedStorage(blockNumber *big.Int, addr common.Address, root common.Hash, skey common.Hash) common.Hash {
+	key := fmt.Sprintf("storage_%d_%s_%s_%s", blockNumber, addr, root, skey)
 
-	// read cache if we can
-	{
-		dat, err := ioutil.ReadFile(cachePath)
-		if err == nil {
-			return common.BytesToHash(dat)
-		}
+	if !cacheExists(key) {
+		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
+		r.Params = make([]interface{}, 3)
+		r.Params[0] = addr
+		r.Params[1] = [1]common.Hash{skey}
+		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+		jsonData, _ := json.Marshal(r)
+		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+		defer resp.Body.Close()
+		jr := jsonresp{}
+		json.NewDecoder(resp.Body).Decode(&jr)
+
+		//fmt.Println(string(jsonData))
+		/*fmt.Println(resp)*/
+
+		// TODO: check proof
+		val := jr.Result.StorageProof[0].Value
+		ret := common.HexToHash(val.String())
+		//fmt.Println(ret)
+
+		//ret, _ := rlp.EncodeToBytes(account)
+		cacheWrite(key, ret.Bytes())
 	}
-
-	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
-	r.Params = make([]interface{}, 3)
-	r.Params[0] = addr
-	r.Params[1] = [1]common.Hash{key}
-	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
-	jsonData, _ := json.Marshal(r)
-	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-	defer resp.Body.Close()
-	jr := jsonresp{}
-	json.NewDecoder(resp.Body).Decode(&jr)
-
-	//fmt.Println(string(jsonData))
-	/*fmt.Println(resp)*/
-
-	// TODO: check proof
-	val := jr.Result.StorageProof[0].Value
-	ret := common.HexToHash(val.String())
-	//fmt.Println(ret)
-
-	//ret, _ := rlp.EncodeToBytes(account)
-	os.WriteFile(cachePath, ret.Bytes(), 0644)
+	ret := common.BytesToHash(cacheRead(key))
+	fmt.Println("ORACLE GetProvedStorage:", blockNumber, addr, root, skey, ret)
 	return ret
 }
