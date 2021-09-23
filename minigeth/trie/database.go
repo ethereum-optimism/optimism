@@ -1,7 +1,9 @@
 package trie
 
 import (
+	"fmt"
 	"io"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -21,18 +23,22 @@ func (n rawNode) EncodeRLP(w io.Writer) error {
 }
 
 type Database struct {
-	lock sync.RWMutex
+	BlockNumber *big.Int
+	lock        sync.RWMutex
 }
 
 // Node retrieves an encoded cached trie node from memory. If it cannot be found
 // cached, the method queries the persistent database for the content.
 func (db *Database) Node(hash common.Hash) ([]byte, error) {
+	fmt.Println("trie Node", hash)
 	return []byte{}, nil
 }
 
 // node retrieves a cached trie node from memory, or returns nil if none can be
 // found in the memory cache.
 func (db *Database) node(hash common.Hash) node {
+	fmt.Println("trie node", hash)
+	//return hashNode(hash.Bytes())
 	return nilValueNode
 }
 

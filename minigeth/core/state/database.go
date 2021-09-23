@@ -5,16 +5,24 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/oracle"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // TODO: add oracle calls here
 // wrapper for the oracle
 
 type Database struct {
+	db          *trie.Database
 	BlockNumber *big.Int
 	StateRoot   common.Hash
+}
+
+func NewDatabase(header types.Header) Database {
+	triedb := trie.Database{BlockNumber: header.Number}
+	return Database{db: &triedb, BlockNumber: header.Number, StateRoot: header.Root}
 }
 
 var unhashMap = make(map[common.Hash]common.Address)
@@ -42,12 +50,16 @@ func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash)
 	return len(code), nil
 }
 
+// OpenTrie opens the main account trie at a specific root hash.
+func (db *Database) OpenTrie(root common.Hash) (Trie, error) {
+	//tr, err := trie.NewSecure(root, db.db)
+	return trie.New(root, db.db)
+}
+
 // OpenStorageTrie opens the storage trie of an account.
 func (db *Database) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
 	return SimpleTrie{db.BlockNumber, root, true, unhash(addrHash)}, nil
 }
-
-type LeafCallback func(paths [][]byte, hexpath []byte, leaf []byte, parent common.Hash) error
 
 type Trie interface {
 	// TryGet returns the value for key stored in the trie. The value bytes must
@@ -71,7 +83,7 @@ type Trie interface {
 
 	// Commit writes all nodes to the trie's memory database, tracking the internal
 	// and external (for account tries) references.
-	Commit(onleaf LeafCallback) (common.Hash, error)
+	Commit(onleaf trie.LeafCallback) (common.Hash, error)
 }
 
 type SimpleTrie struct {
@@ -81,7 +93,7 @@ type SimpleTrie struct {
 	Address     common.Address
 }
 
-func (trie SimpleTrie) Commit(onleaf LeafCallback) (common.Hash, error) {
+func (trie SimpleTrie) Commit(onleaf trie.LeafCallback) (common.Hash, error) {
 	fmt.Println("trie.Commit")
 	return trie.Root, nil
 }

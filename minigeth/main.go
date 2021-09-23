@@ -24,7 +24,8 @@ func main() {
 	}
 
 	bc := core.NewBlockChain()
-	statedb := state.NewStateDB(header)
+	database := state.NewDatabase(header)
+	statedb, _ := state.New(header.Root, database, nil)
 	vmconfig := vm.Config{}
 	processor := core.NewStateProcessor(params.MainnetChainConfig, bc, bc.Engine())
 	fmt.Println("made state processor")

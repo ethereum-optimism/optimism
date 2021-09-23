@@ -117,23 +117,35 @@ type StateDB struct {
 	SnapshotAccountReads time.Duration
 	SnapshotStorageReads time.Duration
 	SnapshotCommits      time.Duration
-
-	blockNumber *big.Int
 }
 
-func NewStateDB(header types.Header) *StateDB {
-	return &StateDB{
-		blockNumber:         header.Number,
+func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) {
+	tr, err := db.OpenTrie(root)
+	if err != nil {
+		return nil, err
+	}
+	sdb := &StateDB{
+		db:                  db,
+		trie:                tr,
+		originalRoot:        root,
+		snaps:               snaps,
 		stateObjects:        make(map[common.Address]*stateObject),
 		stateObjectsPending: make(map[common.Address]struct{}),
 		stateObjectsDirty:   make(map[common.Address]struct{}),
-		originalRoot:        header.Root,
-		db:                  Database{BlockNumber: header.Number, StateRoot: header.Root},
-		trie:                SimpleTrie{BlockNumber: header.Number, Root: header.Root, Storage: false},
+		logs:                make(map[common.Hash][]*types.Log),
+		preimages:           make(map[common.Hash][]byte),
 		journal:             newJournal(),
 		accessList:          newAccessList(),
-		logs:                make(map[common.Hash][]*types.Log),
+		hasher:              crypto.NewKeccakState(),
 	}
+	/*if sdb.snaps != nil {
+		if sdb.snap = sdb.snaps.Snapshot(root); sdb.snap != nil {
+			sdb.snapDestructs = make(map[common.Hash]struct{})
+			sdb.snapAccounts = make(map[common.Hash][]byte)
+			sdb.snapStorage = make(map[common.Hash]map[common.Hash][]byte)
+		}
+	}*/
+	return sdb, nil
 }
 
 // setError remembers the first non-nil error it is called with.
