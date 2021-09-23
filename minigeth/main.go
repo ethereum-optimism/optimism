@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -14,15 +15,7 @@ import (
 )
 
 func main() {
-
-	// 0 tx
-	//blockNumber := 13284491
-
-	// low tx
-	blockNumber := 13284469
-
-	// more tx with delete issue
-	//blockNumber := 13284053
+	blockNumber, _ := strconv.Atoi(os.Args[1])
 
 	// read header
 	var header types.Header
@@ -76,4 +69,9 @@ func main() {
 	}
 
 	fmt.Println("process done with hash", header.Root, "->", block.Header().Root, "real", newheader.Root)
+	if block.Header().Root == newheader.Root {
+		fmt.Println("good transition")
+	} else {
+		fmt.Println("BAD transition :((")
+	}
 }
