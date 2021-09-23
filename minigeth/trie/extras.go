@@ -2,9 +2,9 @@ package trie
 
 import (
 	"io"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // rawNode is a simple binary blob used to differentiate between collapsed trie
@@ -20,10 +20,25 @@ func (n rawNode) EncodeRLP(w io.Writer) error {
 	return err
 }
 
-var (
-	// emptyRoot is the known root hash of an empty trie.
-	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+type Database struct {
+	lock sync.RWMutex
+}
 
-	// emptyState is the known hash of an empty state trie entry.
-	emptyState = crypto.Keccak256Hash(nil)
-)
+// Node retrieves an encoded cached trie node from memory. If it cannot be found
+// cached, the method queries the persistent database for the content.
+func (db *Database) Node(hash common.Hash) ([]byte, error) {
+	return []byte{}, nil
+}
+
+// node retrieves a cached trie node from memory, or returns nil if none can be
+// found in the memory cache.
+func (db *Database) node(hash common.Hash) node {
+	return nilValueNode
+}
+
+// insert inserts a collapsed trie node into the memory database.
+// The blob size must be specified to allow proper size tracking.
+// All nodes inserted by this function will be reference tracked
+// and in theory should only used for **trie nodes** insertion.
+func (db *Database) insert(hash common.Hash, size int, node node) {
+}
