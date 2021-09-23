@@ -53,7 +53,7 @@ func main() {
 
 	var uncles []*types.Header
 	var receipts []*types.Receipt
-	block := types.NewBlock(&header, txs, uncles, receipts, trie.NewStackTrie(nil))
+	block := types.NewBlock(&newheader, txs, uncles, receipts, trie.NewStackTrie(nil))
 	fmt.Println("made block, parent:", header.ParentHash)
 
 	// if this is correct, the trie is working
