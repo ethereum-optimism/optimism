@@ -1,7 +1,6 @@
 package state
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -55,7 +54,12 @@ func (db *Database) OpenTrie(root common.Hash) (Trie, error) {
 
 // OpenStorageTrie opens the storage trie of an account.
 func (db *Database) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	return SimpleTrie{db.BlockNumber, root, true, addrHash}, nil
+	//return SimpleTrie{db.BlockNumber, root, true, addrHash}, nil
+	tr, err := trie.NewSecure(root, db.db)
+	if err != nil {
+		return nil, err
+	}
+	return tr, nil
 }
 
 type Trie interface {
@@ -81,38 +85,6 @@ type Trie interface {
 	// Commit writes all nodes to the trie's memory database, tracking the internal
 	// and external (for account tries) references.
 	Commit(onleaf trie.LeafCallback) (common.Hash, error)
-}
-
-type SimpleTrie struct {
-	BlockNumber *big.Int
-	Root        common.Hash
-	Storage     bool
-	AddressHash common.Hash
-}
-
-func (trie SimpleTrie) Commit(onleaf trie.LeafCallback) (common.Hash, error) {
-	fmt.Println("trie.Commit")
-	return trie.Root, nil
-}
-
-func (trie SimpleTrie) Hash() common.Hash {
-	fmt.Println("trie.Hash")
-	return trie.Root
-}
-
-func (trie SimpleTrie) TryUpdate(key, value []byte) error {
-	fmt.Println("trie.TryUpdate")
-	return nil
-}
-
-func (trie SimpleTrie) TryDelete(key []byte) error {
-	fmt.Println("trie.TryDelete")
-	return nil
-}
-
-func (trie SimpleTrie) TryGet(key []byte) ([]byte, error) {
-	enc := oracle.GetProvedStorage(trie.BlockNumber, trie.AddressHash, trie.Root, common.BytesToHash(key))
-	return enc.Bytes(), nil
 }
 
 // stubbed: we don't prefetch

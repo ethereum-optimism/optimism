@@ -65,7 +65,7 @@ func NewDatabase(header types.Header) Database {
 	triedb := Database{BlockNumber: header.Number, Root: header.Root}
 	triedb.preimages = make(map[common.Hash][]byte)
 	fmt.Println("init database")
-	oracle.PrefetchAddress(header.Number, common.Address{})
+	oracle.PrefetchAddress(header.Number, common.Address{}, common.Hash{})
 
 	//panic("preseed")
 	return triedb

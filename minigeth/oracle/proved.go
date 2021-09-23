@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type jsonreq struct {
@@ -102,8 +101,8 @@ func Preimage(hash common.Hash) []byte {
 	return val
 }
 
-func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
-	ap := GetProofAccount(blockNumber, addr)
+func PrefetchAddress(blockNumber *big.Int, addr common.Address, skey common.Hash) {
+	ap := GetProofAccount(blockNumber, addr, skey)
 	for _, s := range ap {
 		ret, _ := hex.DecodeString(s[2:])
 		hash := crypto.Keccak256Hash(ret)
@@ -111,8 +110,8 @@ func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
 	}
 }
 
-func GetProofAccount(blockNumber *big.Int, addr common.Address) []string {
-	key := fmt.Sprintf("proof_%d_%s", blockNumber, addr)
+func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash) []string {
+	key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
 
 	addrHash := crypto.Keccak256Hash(addr[:])
 	unhashMap[addrHash] = addr
@@ -121,7 +120,7 @@ func GetProofAccount(blockNumber *big.Int, addr common.Address) []string {
 		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
 		r.Params = make([]interface{}, 3)
 		r.Params[0] = addr
-		r.Params[1] = []common.Hash{}
+		r.Params[1] = [1]common.Hash{skey}
 		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
 		jsonData, _ := json.Marshal(r)
 		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
@@ -129,47 +128,12 @@ func GetProofAccount(blockNumber *big.Int, addr common.Address) []string {
 		jr := jsonresp{}
 		json.NewDecoder(resp.Body).Decode(&jr)
 
-		cacheWrite(key, []byte(strings.Join(jr.Result.AccountProof, "\n")))
+		arr := jr.Result.AccountProof
+		arr = append(arr, jr.Result.StorageProof[0].Proof...)
+
+		cacheWrite(key, []byte(strings.Join(arr, "\n")))
 	}
 	return strings.Split(string(cacheRead(key)), "\n")
-}
-
-func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []byte {
-	fmt.Println("ORACLE GetProvedAccountBytes:", blockNumber, stateRoot, addr)
-	key := fmt.Sprintf("accounts_%d_%s", blockNumber, addr)
-
-	addrHash := crypto.Keccak256Hash(addr[:])
-	unhashMap[addrHash] = addr
-
-	if !cacheExists(key) {
-		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
-		r.Params = make([]interface{}, 3)
-		r.Params[0] = addr
-		r.Params[1] = []common.Hash{}
-		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
-		jsonData, _ := json.Marshal(r)
-		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-		defer resp.Body.Close()
-		jr := jsonresp{}
-		json.NewDecoder(resp.Body).Decode(&jr)
-
-		// TODO: check proof
-		account := Account{
-			Nonce:    uint64(jr.Result.Nonce),
-			Balance:  jr.Result.Balance.ToInt(),
-			Root:     jr.Result.StorageHash,
-			CodeHash: jr.Result.CodeHash.Bytes(),
-		}
-
-		/*fmt.Println(string(jsonData))
-		fmt.Println(resp)
-		fmt.Println(jr)*/
-
-		ret, _ := rlp.EncodeToBytes(account)
-		cacheWrite(key, ret)
-	}
-
-	return cacheRead(key)
 }
 
 func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash, codehash common.Hash) []byte {
@@ -206,36 +170,4 @@ func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash, codehash com
 	}
 
 	return cacheRead(key)
-}
-
-func GetProvedStorage(blockNumber *big.Int, addrHash common.Hash, root common.Hash, skey common.Hash) common.Hash {
-	addr := unhash(addrHash)
-	key := fmt.Sprintf("storage_%d_%s_%s_%s", blockNumber, addr, root, skey)
-
-	if !cacheExists(key) {
-		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
-		r.Params = make([]interface{}, 3)
-		r.Params[0] = addr
-		r.Params[1] = [1]common.Hash{skey}
-		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
-		jsonData, _ := json.Marshal(r)
-		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-		defer resp.Body.Close()
-		jr := jsonresp{}
-		json.NewDecoder(resp.Body).Decode(&jr)
-
-		//fmt.Println(string(jsonData))
-		/*fmt.Println(resp)*/
-
-		// TODO: check proof
-		val := jr.Result.StorageProof[0].Value
-		ret := common.HexToHash(val.String())
-		//fmt.Println(ret)
-
-		//ret, _ := rlp.EncodeToBytes(account)
-		cacheWrite(key, ret.Bytes())
-	}
-	ret := common.BytesToHash(cacheRead(key))
-	fmt.Println("ORACLE GetProvedStorage:", blockNumber, addr, root, skey, ret)
-	return ret
 }
