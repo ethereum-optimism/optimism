@@ -91,6 +91,7 @@ func unhash(addrHash common.Hash) common.Address {
 	return unhashMap[addrHash]
 }
 
+var cached = make(map[string]bool)
 var preimages = make(map[common.Hash][]byte)
 
 func Preimage(hash common.Hash) []byte {
@@ -102,6 +103,13 @@ func Preimage(hash common.Hash) []byte {
 }
 
 func PrefetchAddress(blockNumber *big.Int, addr common.Address, skey common.Hash) {
+	key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
+	if cached[key] {
+		//fmt.Println("hit", key)
+		return
+	}
+	cached[key] = true
+
 	ap := GetProofAccount(blockNumber, addr, skey)
 	for _, s := range ap {
 		ret, _ := hex.DecodeString(s[2:])
@@ -138,7 +146,7 @@ func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash
 
 func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash, codehash common.Hash) []byte {
 	addr := unhash(addrHash)
-	fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
+	//fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
 	key := fmt.Sprintf("code_%s", codehash)
 	if !cacheExists(key) {
 		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
