@@ -1,27 +1,21 @@
-/* Imports: External */
-import { DeployFunction } from 'hardhat-deploy/dist/types'
+import { ethers } from 'hardhat'
 
-/* Imports: Internal */
-import { getContractDefinition } from '../src'
-
-const deployFn: DeployFunction = async (hre: any) => {
-  const { deployments, getNamedAccounts } = hre
-  const { deploy } = deployments
-  const { deployer } = await getNamedAccounts()
-
-  const l2TokenFactory = getContractDefinition(
-    'OVM_L2StandardTokenFactory',
-    true
+// eslint-disable-next-line prefer-arrow/prefer-arrow-functions
+async function main() {
+  const l2TokenFactory = await ethers.getContractFactory(
+    'OVM_L2StandardTokenFactory'
   )
+  const l2StandardTokenFactory = await l2TokenFactory.deploy()
 
-  await deploy('OVM_L2StandardTokenFactory', {
-    contract: l2TokenFactory,
-    args: [],
-    from: deployer,
-    log: true,
-  })
+  console.log(
+    'L2 Standard Token Factory deployed to:',
+    l2StandardTokenFactory.address
+  )
 }
 
-deployFn.tags = ['OVM_L2StandardTokenFactory']
-
-export default deployFn
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })

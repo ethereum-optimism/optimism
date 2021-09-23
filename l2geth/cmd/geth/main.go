@@ -149,6 +149,9 @@ var (
 		configFileFlag,
 	}
 
+	// UsingOVM
+	// Optimism specific flags must be added to the application
+	// flag parsing logic
 	optimismFlags = []cli.Flag{
 		utils.Eth1SyncServiceEnable,
 		utils.Eth1CanonicalTransactionChainDeployHeightFlag,
@@ -162,10 +165,12 @@ var (
 		utils.RollupTimstampRefreshFlag,
 		utils.RollupPollIntervalFlag,
 		utils.RollupStateDumpPathFlag,
-		utils.RollupDiffDbFlag,
 		utils.RollupMaxCalldataSizeFlag,
 		utils.RollupBackendFlag,
 		utils.RollupEnforceFeesFlag,
+		utils.RollupMinL2GasLimitFlag,
+		utils.RollupFeeThresholdDownFlag,
+		utils.RollupFeeThresholdUpFlag,
 		utils.GasPriceOracleOwnerAddress,
 	}
 
@@ -247,6 +252,7 @@ func init() {
 	sort.Sort(cli.CommandsByName(app.Commands))
 
 	app.Flags = append(app.Flags, nodeFlags...)
+	// UsingOVM
 	app.Flags = append(app.Flags, optimismFlags...)
 	app.Flags = append(app.Flags, rpcFlags...)
 	app.Flags = append(app.Flags, consoleFlags...)
@@ -453,6 +459,11 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		if err := ethereum.StartMining(threads); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
+		// UsingOVM
+		// Can optionally configure the sync service. Turning it off allows
+		// for statically serving historical data and is also useful for
+		// local development. When it is turned on, it will attempt to sync
+		// using the `RollupClient`
 		if ctx.GlobalBool(utils.Eth1SyncServiceEnable.Name) {
 			if err := ethereum.SyncService().Start(); err != nil {
 				utils.Fatalf("Failed to start syncservice: %v", err)

@@ -4,7 +4,10 @@ import * as Sentry from '@sentry/node'
 import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
 import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
-import { JsonRpcProvider, TransactionReceipt } from '@ethersproject/providers'
+import {
+  StaticJsonRpcProvider,
+  TransactionReceipt,
+} from '@ethersproject/providers'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
 
@@ -16,6 +19,11 @@ import {
   STATE_BATCH_SUBMITTER_LOG_TAG,
   TX_BATCH_SUBMITTER_LOG_TAG,
 } from '..'
+import {
+  TransactionSubmitter,
+  YnatmTransactionSubmitter,
+  ResubmissionConfig,
+} from '../utils'
 
 interface RequiredEnvVars {
   // The HTTP provider URL for L1.
@@ -131,7 +139,9 @@ export const run = async () => {
   )
 
   const getSequencerSigner = async (): Promise<Signer> => {
-    const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
+    const l1Provider = new StaticJsonRpcProvider(
+      requiredEnvVars.L1_NODE_WEB3_URL
+    )
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
@@ -156,7 +166,9 @@ export const run = async () => {
   }
 
   const getProposerSigner = async (): Promise<Signer> => {
-    const l1Provider = new JsonRpcProvider(requiredEnvVars.L1_NODE_WEB3_URL)
+    const l1Provider = new StaticJsonRpcProvider(
+      requiredEnvVars.L1_NODE_WEB3_URL
+    )
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
@@ -330,7 +342,7 @@ export const run = async () => {
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS
 
   const l2Provider = injectL2Context(
-    new JsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
+    new StaticJsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
   )
 
   const sequencerSigner: Signer = await getSequencerSigner()
@@ -349,6 +361,18 @@ export const run = async () => {
     addressManagerAddress: requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
   })
 
+  const resubmissionConfig: ResubmissionConfig = {
+    resubmissionTimeout: requiredEnvVars.RESUBMISSION_TIMEOUT * 1_000,
+    minGasPriceInGwei: MIN_GAS_PRICE_IN_GWEI,
+    maxGasPriceInGwei: GAS_THRESHOLD_IN_GWEI,
+    gasRetryIncrement: GAS_RETRY_INCREMENT,
+  }
+  const txBatchTxSubmitter: TransactionSubmitter =
+    new YnatmTransactionSubmitter(
+      sequencerSigner,
+      resubmissionConfig,
+      requiredEnvVars.NUM_CONFIRMATIONS
+    )
   const txBatchSubmitter = new TransactionBatchSubmitter(
     sequencerSigner,
     l2Provider,
@@ -360,10 +384,8 @@ export const run = async () => {
     requiredEnvVars.RESUBMISSION_TIMEOUT * 1_000,
     requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
     requiredEnvVars.SAFE_MINIMUM_ETHER_BALANCE,
-    MIN_GAS_PRICE_IN_GWEI,
-    MAX_GAS_PRICE_IN_GWEI,
-    GAS_RETRY_INCREMENT,
     GAS_THRESHOLD_IN_GWEI,
+    txBatchTxSubmitter,
     BLOCK_OFFSET,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     metrics,
@@ -371,6 +393,12 @@ export const run = async () => {
     autoFixBatchOptions
   )
 
+  const stateBatchTxSubmitter: TransactionSubmitter =
+    new YnatmTransactionSubmitter(
+      proposerSigner,
+      resubmissionConfig,
+      requiredEnvVars.NUM_CONFIRMATIONS
+    )
   const stateBatchSubmitter = new StateBatchSubmitter(
     proposerSigner,
     l2Provider,
@@ -383,10 +411,7 @@ export const run = async () => {
     requiredEnvVars.FINALITY_CONFIRMATIONS,
     requiredEnvVars.ADDRESS_MANAGER_ADDRESS,
     requiredEnvVars.SAFE_MINIMUM_ETHER_BALANCE,
-    MIN_GAS_PRICE_IN_GWEI,
-    MAX_GAS_PRICE_IN_GWEI,
-    GAS_RETRY_INCREMENT,
-    GAS_THRESHOLD_IN_GWEI,
+    stateBatchTxSubmitter,
     BLOCK_OFFSET,
     logger.child({ name: STATE_BATCH_SUBMITTER_LOG_TAG }),
     metrics,

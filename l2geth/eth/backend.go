@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -190,9 +189,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		}
 	)
 
-	// Save the diffdb under chaindata/diffdb
-	diffdbPath := filepath.Join(ctx.ResolvePath("chaindata"), "diffdb")
-	eth.blockchain, err = core.NewBlockChainWithDiffDb(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve, diffdbPath, config.DiffDbCache)
+	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve)
 	if err != nil {
 		return nil, err
 	}
@@ -241,6 +238,16 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 }
 
 func makeExtraData(extra []byte) []byte {
+	if vm.UsingOVM {
+		// Make the extradata deterministic
+		extra, _ = rlp.EncodeToBytes([]interface{}{
+			uint(params.VersionMajor<<16 | params.VersionMinor<<8 | params.VersionPatch),
+			"geth",
+			"go1.15.13",
+			"linux",
+		})
+		return extra
+	}
 	if len(extra) == 0 {
 		// create default extradata
 		extra, _ = rlp.EncodeToBytes([]interface{}{

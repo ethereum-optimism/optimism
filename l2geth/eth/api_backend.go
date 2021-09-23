@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/diffdb"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -95,10 +94,6 @@ func (b *EthAPIBackend) ChainConfig() *params.ChainConfig {
 
 func (b *EthAPIBackend) CurrentBlock() *types.Block {
 	return b.eth.blockchain.CurrentBlock()
-}
-
-func (b *EthAPIBackend) GetDiff(block *big.Int) (diffdb.Diff, error) {
-	return b.eth.blockchain.GetDiff(block)
 }
 
 func (b *EthAPIBackend) SetHead(number uint64) {
@@ -309,9 +304,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 	if b.UsingOVM {
 		to := signedTx.To()
 		if to != nil {
-			if *to == (common.Address{}) {
-				return errors.New("Cannot send transaction to zero address")
-			}
 			// Prevent QueueOriginSequencer transactions that are too large to
 			// be included in a batch. The `MaxCallDataSize` should be set to
 			// the layer one consensus max transaction size in bytes minus the
@@ -326,10 +318,6 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 	}
 	// OVM Disabled
 	return b.eth.txPool.AddLocal(signedTx)
-}
-
-func (b *EthAPIBackend) SetTimestamp(timestamp int64) {
-	b.eth.blockchain.SetCurrentTimestamp(timestamp)
 }
 
 func (b *EthAPIBackend) GetPoolTransactions() (types.Transactions, error) {

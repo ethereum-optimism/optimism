@@ -161,6 +161,8 @@ func (t *Trie) Update(key, value []byte) {
 // stored in the trie.
 //
 // If a node was not found in the database, a MissingNodeError is returned.
+// UsingOVM
+// Do not delete empty nodes
 func (t *Trie) TryUpdate(key, value []byte) error {
 	k := keybytesToHex(key)
 	_, n, err := t.insert(t.root, nil, k, valueNode(value))

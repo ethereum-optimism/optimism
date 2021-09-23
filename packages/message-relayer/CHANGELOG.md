@@ -1,5 +1,52 @@
 # @eth-optimism/message-relayer
 
+## 0.1.12
+
+### Patch Changes
+
+- 21b17edd: Added coverage for packages
+- Updated dependencies [888dafca]
+- Updated dependencies [eb0854e7]
+- Updated dependencies [21b17edd]
+- Updated dependencies [dfe3598f]
+  - @eth-optimism/contracts@0.4.11
+  - @eth-optimism/core-utils@0.5.5
+
+## 0.1.11
+
+### Patch Changes
+
+- 918c08ca: Bump ethers dependency to 5.4.x to support eip1559
+- Updated dependencies [918c08ca]
+  - @eth-optimism/contracts@0.4.10
+  - @eth-optimism/core-utils@0.5.2
+
+## 0.1.10
+
+### Patch Changes
+
+- ecc2f8c1: Patch so contracts package will correctly use the browser-compatible contract artifacts import
+- Updated dependencies [ecc2f8c1]
+  - @eth-optimism/contracts@0.4.9
+
+## 0.1.9
+
+### Patch Changes
+
+- e4fea5e0: Use latest contracts package for browser compatibility support
+- Updated dependencies [e4fea5e0]
+  - @eth-optimism/contracts@0.4.8
+
+## 0.1.8
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+- Updated dependencies [c73c3939]
+  - @eth-optimism/common-ts@0.1.5
+  - @eth-optimism/contracts@0.4.5
+  - @eth-optimism/core-utils@0.5.1
+
 ## 0.1.7
 
 ### Patch Changes

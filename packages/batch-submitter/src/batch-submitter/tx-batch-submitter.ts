@@ -22,6 +22,7 @@ import {
 } from '../transaction-chain-contract'
 
 import { BlockRange, BatchSubmitter } from '.'
+import { TransactionSubmitter } from '../utils'
 
 export interface AutoFixBatchOptions {
   fixDoublePlayedDeposits: boolean
@@ -35,10 +36,12 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   protected syncing: boolean
   private disableQueueBatchAppend: boolean
   private autoFixBatchOptions: AutoFixBatchOptions
+  private transactionSubmitter: TransactionSubmitter
+  private gasThresholdInGwei: number
 
   constructor(
     signer: Signer,
-    l2Provider: providers.JsonRpcProvider,
+    l2Provider: providers.StaticJsonRpcProvider,
     minTxSize: number,
     maxTxSize: number,
     maxBatchSize: number,
@@ -47,10 +50,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     resubmissionTimeout: number,
     addressManagerAddress: string,
     minBalanceEther: number,
-    minGasPriceInGwei: number,
-    maxGasPriceInGwei: number,
-    gasRetryIncrement: number,
     gasThresholdInGwei: number,
+    transactionSubmitter: TransactionSubmitter,
     blockOffset: number,
     logger: Logger,
     metrics: Metrics,
@@ -73,16 +74,14 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       0, // Supply dummy value because it is not used.
       addressManagerAddress,
       minBalanceEther,
-      minGasPriceInGwei,
-      maxGasPriceInGwei,
-      gasRetryIncrement,
-      gasThresholdInGwei,
       blockOffset,
       logger,
       metrics
     )
     this.disableQueueBatchAppend = disableQueueBatchAppend
     this.autoFixBatchOptions = autoFixBatchOptions
+    this.gasThresholdInGwei = gasThresholdInGwei
+    this.transactionSubmitter = transactionSubmitter
   }
 
   /*****************************
@@ -140,34 +139,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       )
 
       if (!this.disableQueueBatchAppend) {
-        const nonce = await this.signer.getTransactionCount()
-        const contractFunction = async (
-          gasPrice
-        ): Promise<TransactionReceipt> => {
-          this.logger.info('Submitting appendQueueBatch transaction', {
-            gasPrice,
-            nonce,
-            contractAddr: this.chainContract.address,
-          })
-          const tx = await this.chainContract.appendQueueBatch(99999999, {
-            nonce,
-            gasPrice,
-          })
-          this.logger.info('Submitted appendQueueBatch transaction', {
-            txHash: tx.hash,
-            from: tx.from,
-          })
-          this.logger.debug('appendQueueBatch transaction data', {
-            data: tx.data,
-          })
-          return this.signer.provider.waitForTransaction(
-            tx.hash,
-            this.numConfirmations
-          )
-        }
-
-        // Empty the queue with a huge `appendQueueBatch(..)` call
-        return this._submitAndLogTx(contractFunction, 'Cleared queue!')
+        return this.submitAppendQueueBatch()
       }
     }
     this.logger.info('Syncing mode enabled but queue is empty. Skipping...')
@@ -250,35 +222,42 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       l1tipHeight,
     })
 
-    const nonce = await this.signer.getTransactionCount()
-    const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
-      this.logger.info('Submitting appendSequencerBatch transaction', {
-        gasPrice,
-        nonce,
-        contractAddr: this.chainContract.address,
-      })
-      const tx = await this.chainContract.appendSequencerBatch(batchParams, {
-        nonce,
-        gasPrice,
-      })
-      this.logger.info('Submitted appendSequencerBatch transaction', {
-        txHash: tx.hash,
-        from: tx.from,
-      })
-      this.logger.debug('appendSequencerBatch transaction data', {
-        data: tx.data,
-      })
-      return this.signer.provider.waitForTransaction(
-        tx.hash,
-        this.numConfirmations
-      )
-    }
-    return this._submitAndLogTx(contractFunction, 'Submitted batch!')
+    return this.submitAppendSequencerBatch(batchParams)
   }
 
   /*********************
    * Private Functions *
    ********************/
+
+  private async submitAppendQueueBatch(): Promise<TransactionReceipt> {
+    const tx = await this.chainContract.populateTransaction.appendQueueBatch(
+      ethers.constants.MaxUint256 // Completely empty the queue by appending (up to) an enormous number of queue elements.
+    )
+    const submitTransaction = (): Promise<TransactionReceipt> => {
+      return this.transactionSubmitter.submitTransaction(
+        tx,
+        this._makeHooks('appendQueueBatch')
+      )
+    }
+    // Empty the queue with a huge `appendQueueBatch(..)` call
+    return this._submitAndLogTx(submitTransaction, 'Cleared queue!')
+  }
+
+  private async submitAppendSequencerBatch(
+    batchParams: AppendSequencerBatchParams
+  ): Promise<TransactionReceipt> {
+    const tx =
+      await this.chainContract.customPopulateTransaction.appendSequencerBatch(
+        batchParams
+      )
+    const submitTransaction = (): Promise<TransactionReceipt> => {
+      return this.transactionSubmitter.submitTransaction(
+        tx,
+        this._makeHooks('appendSequencerBatch')
+      )
+    }
+    return this._submitAndLogTx(submitTransaction, 'Submitted batch!')
+  }
 
   private async _generateSequencerBatchParams(
     startBlock: number,

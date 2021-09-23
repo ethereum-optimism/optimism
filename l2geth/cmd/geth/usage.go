@@ -63,6 +63,7 @@ type flagGroup struct {
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flagGroup{
 	{
+		// UsingOVM
 		Name: "OPTIMISM",
 		Flags: []cli.Flag{
 			utils.Eth1SyncServiceEnable,
@@ -77,10 +78,12 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupTimstampRefreshFlag,
 			utils.RollupPollIntervalFlag,
 			utils.RollupStateDumpPathFlag,
-			utils.RollupDiffDbFlag,
 			utils.RollupMaxCalldataSizeFlag,
 			utils.RollupBackendFlag,
 			utils.RollupEnforceFeesFlag,
+			utils.RollupMinL2GasLimitFlag,
+			utils.RollupFeeThresholdDownFlag,
+			utils.RollupFeeThresholdUpFlag,
 			utils.GasPriceOracleOwnerAddress,
 		},
 	},

@@ -1,0 +1,41 @@
+{
+  "name": "@eth-optimism/replica-healthcheck",
+  "version": "0.2.2",
+  "private": true,
+  "main": "dist/index",
+  "files": [
+    "dist/index"
+  ],
+  "types": "dist/index",
+  "author": "Optimism PBC",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
+    "lint": "yarn run lint:fix && yarn run lint:check",
+    "lint:fix": "yarn lint:check --fix",
+    "lint:check": "eslint .",
+    "build": "tsc -p tsconfig.build.json",
+    "pre-commit": "lint-staged",
+    "test": "ts-mocha test/*.spec.ts",
+    "start": "ts-node ./src/exec/run-healthcheck-server.ts"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.12",
+    "@types/node": "^15.12.2",
+    "@types/node-cron": "^2.0.4",
+    "supertest": "^6.1.4",
+    "ts-mocha": "^8.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.3.2"
+  },
+  "dependencies": {
+    "@eth-optimism/common-ts": "0.1.5",
+    "@eth-optimism/core-utils": "^0.5.1",
+    "ethers": "^5.4.5",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "express-prom-bundle": "^6.3.6",
+    "node-cron": "^3.0.0",
+    "prom-client": "^13.1.0"
+  }
+}

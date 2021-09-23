@@ -1,3 +1,4 @@
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=batch-submitter)](https://codecov.io/gh/ethereum-optimism/optimism)
 # Batch Submitter
 
 Contains an executable batch submitter service which watches L1 and a local L2 node and submits batches to the
@@ -31,9 +32,9 @@ Examples:
 
 ### Submission
 
-You may test a submission locally against a local Hardhat fork. 
+You may test a submission locally against a local Hardhat fork.
 
-1. Follow the instructions [here](https://github.com/ethereum-optimism/hardhat) to run a Hardhat node. 
+1. Follow the instructions [here](https://github.com/ethereum-optimism/hardhat) to run a Hardhat node.
 2. Change the Batch Submitter `.env` field `L1_NODE_WEB3_URL` to the local Hardhat url. Depending on which network you are using, update `ADDRESS_MANAGER_ADDRESS` according to the [Regenesis repo](https://github.com/ethereum-optimism/regenesis).
 3. Also check `L2_NODE_WEB3_URL` is correctly set and has transactions to submit.
 3. Run `yarn build` to build your changes.

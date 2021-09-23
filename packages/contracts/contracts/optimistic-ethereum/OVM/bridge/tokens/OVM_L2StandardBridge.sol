@@ -33,7 +33,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    address public l1TokenBridge;
+    address public override l1TokenBridge;
 
     /***************
      * Constructor *

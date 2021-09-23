@@ -17,9 +17,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 )
 
 func setupLatestEthContextTest() (*SyncService, *EthContext) {
@@ -532,9 +535,9 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 	}
 	l2GasPrice := big.NewInt(100000000000)
 	state.SetState(l2GasPriceOracleAddress, l2GasPriceSlot, common.BigToHash(l2GasPrice))
-	root, _ := state.Commit(false)
+	_, _ = state.Commit(false)
 
-	service.updateL2GasPrice(&root)
+	service.updateL2GasPrice(state)
 
 	post, err := service.RollupGpo.SuggestL2GasPrice(context.Background())
 	if err != nil {
@@ -543,6 +546,127 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 
 	if l2GasPrice.Cmp(post) != 0 {
 		t.Fatal("Gas price not updated")
+	}
+}
+
+func TestSyncServiceMinL2GasPrice(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.minL2GasLimit = new(big.Int).SetUint64(10_000_000)
+	signer := types.NewEIP155Signer(big.NewInt(420))
+	// Generate a key
+	key, _ := crypto.GenerateKey()
+	// Create a transaction
+	gasLimit := uint64(100)
+	tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), gasLimit, big.NewInt(15000000), []byte{})
+	// Make sure the gas limit is set correctly
+	if tx.Gas() != gasLimit {
+		t.Fatal("gas limit not set correctly")
+	}
+	// Sign the dummy tx with the owner key
+	signedTx, err := types.SignTx(tx, signer, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Sanity check the L2 gas limit
+	if tx.L2Gas() > service.minL2GasLimit.Uint64() {
+		t.Fatal("L2 gas limit expected to be smaller than min accepted by sequencer")
+	}
+	// Verify the fee of the signed tx, ensure it does not error
+	err = service.verifyFee(signedTx)
+	if !errors.Is(err, fees.ErrL2GasLimitTooLow) {
+		t.Fatal(err)
+	}
+}
+
+func TestSyncServiceGasPriceOracleOwnerAddress(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// newTestSyncService doesn't set the initial owner address
+	// so it initializes to the zero value
+	owner := service.GasPriceOracleOwnerAddress()
+	if *owner != (common.Address{}) {
+		t.Fatal("address not initialized to 0")
+	}
+
+	state, err := service.bc.State()
+	if err != nil {
+		t.Fatal("cannot get state db")
+	}
+
+	// Update the owner in the state to a non zero address
+	updatedOwner := common.HexToAddress("0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8")
+	state.SetState(l2GasPriceOracleAddress, l2GasPriceOracleOwnerSlot, updatedOwner.Hash())
+	hash, _ := state.Commit(false)
+
+	// Update the cache based on the latest state root
+	if err := service.updateGasPriceOracleCache(&hash); err != nil {
+		t.Fatal(err)
+	}
+	got := service.GasPriceOracleOwnerAddress()
+	if *got != updatedOwner {
+		t.Fatalf("mismatch:\ngot %s\nexpected %s", got.Hex(), updatedOwner.Hex())
+	}
+}
+
+// Only the gas price oracle owner can send 0 gas price txs
+// when fees are enforced
+func TestFeeGasPriceOracleOwnerTransactions(t *testing.T) {
+	service, _, _, err := newTestSyncService(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := types.NewEIP155Signer(big.NewInt(420))
+
+	// Fees must be enforced for this test
+	service.enforceFees = true
+	// Generate a key
+	key, _ := crypto.GenerateKey()
+	owner := crypto.PubkeyToAddress(key.PublicKey)
+	// Set as the owner on the SyncService
+	service.gasPriceOracleOwnerAddress = owner
+	if owner != *service.GasPriceOracleOwnerAddress() {
+		t.Fatal("owner mismatch")
+	}
+	// Create a mock transaction and sign using the
+	// owner's key
+	tx := mockTx()
+	// Make sure the gas price is 0 on the dummy tx
+	if tx.GasPrice().Cmp(common.Big0) != 0 {
+		t.Fatal("gas price not 0")
+	}
+	// Sign the dummy tx with the owner key
+	signedTx, err := types.SignTx(tx, signer, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Verify the fee of the signed tx, ensure it does not error
+	if err := service.verifyFee(signedTx); err != nil {
+		t.Fatal(err)
+	}
+	// Generate a new random key that is not the owner
+	badKey, _ := crypto.GenerateKey()
+	// Ensure that it is not the owner
+	if owner == crypto.PubkeyToAddress(badKey.PublicKey) {
+		t.Fatal("key mismatch")
+	}
+	// Sign the transaction with the bad key
+	badSignedTx, err := types.SignTx(tx, signer, badKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Attempt to verify the fee of the bad tx
+	// It should error and be a errZeroGasPriceTx
+	if err := service.verifyFee(badSignedTx); err != nil {
+		if !errors.Is(errZeroGasPriceTx, err) {
+			t.Fatal(err)
+		}
+	} else {
+		t.Fatal("err is nil")
 	}
 }
 
@@ -664,7 +788,54 @@ func TestInitializeL1ContextPostGenesis(t *testing.T) {
 	}
 }
 
-func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
+func TestBadFeeThresholds(t *testing.T) {
+	// Create the deps for the sync service
+	cfg, txPool, chain, db, err := newTestSyncServiceDeps(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := map[string]struct {
+		thresholdUp   *big.Float
+		thresholdDown *big.Float
+		err           error
+	}{
+		"nil-values": {
+			thresholdUp:   nil,
+			thresholdDown: nil,
+			err:           nil,
+		},
+		"good-values": {
+			thresholdUp:   new(big.Float).SetFloat64(2),
+			thresholdDown: new(big.Float).SetFloat64(0.8),
+			err:           nil,
+		},
+		"bad-value-up": {
+			thresholdUp:   new(big.Float).SetFloat64(0.8),
+			thresholdDown: nil,
+			err:           errBadConfig,
+		},
+		"bad-value-down": {
+			thresholdUp:   nil,
+			thresholdDown: new(big.Float).SetFloat64(1.1),
+			err:           errBadConfig,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg.FeeThresholdDown = tt.thresholdDown
+			cfg.FeeThresholdUp = tt.thresholdUp
+
+			_, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("%s: %s", name, err)
+			}
+		})
+	}
+}
+
+func newTestSyncServiceDeps(isVerifier bool) (Config, *core.TxPool, *core.BlockChain, ethdb.Database, error) {
 	chainCfg := params.AllEthashProtocolChanges
 	chainID := big.NewInt(420)
 	chainCfg.ChainID = chainID
@@ -674,7 +845,7 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 	_ = new(core.Genesis).MustCommit(db)
 	chain, err := core.NewBlockChain(db, nil, chainCfg, engine, vm.Config{}, nil)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Cannot initialize blockchain: %w", err)
+		return Config{}, nil, nil, nil, fmt.Errorf("Cannot initialize blockchain: %w", err)
 	}
 	chaincfg := params.ChainConfig{ChainID: chainID}
 
@@ -687,7 +858,14 @@ func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, e
 		RollupClientHttp: "",
 		Backend:          BackendL2,
 	}
+	return cfg, txPool, chain, db, nil
+}
 
+func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
+	cfg, txPool, chain, db, err := newTestSyncServiceDeps(isVerifier)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
+	}
 	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)

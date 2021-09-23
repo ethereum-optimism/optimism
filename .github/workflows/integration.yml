@@ -50,62 +50,12 @@ jobs:
         working-directory: ./ops
         run: docker-compose run integration_tests
 
-      # Examples Tests
-      # - name: Test & deploy hardhat-example on Ethereum (regression)
-      #  working-directory: ./examples/hardhat
-      #  run: |
-      #    yarn
-      #    yarn deploy
-      #    yarn test:integration
-
-      # - name: Test & deploy hardhat-example on Optimistic Ethereum
-      #  working-directory: ./examples/hardhat
-      #  run: |
-      #    yarn deploy:ovm
-      #    yarn test:integration:ovm
-
-      - name: Test & deploy waffle-example on Ethereum (regression)
-        working-directory: ./examples/waffle
-        run: |
-          yarn
-          yarn compile
-          yarn test:integration
-
-      - name: Test & deploy waffle-example on Optimistic Ethereum
-        working-directory: ./examples/waffle
-        run: |
-          yarn compile:ovm
-          yarn test:integration:ovm
-
-      - name: Test & deploy truffle-example on Ethereum (regression)
-        working-directory: ./examples/truffle
-        run: |
-          yarn
-          yarn compile
-          yarn test:integration
-          yarn deploy
-
-      - name: Test & deploy truffle-example on Optimistic Ethereum
-        working-directory: ./examples/truffle
-        run: |
-          yarn compile:ovm
-          yarn test:integration:ovm
-          yarn deploy:ovm
-
-      # - name: Test l1-l2-deposit-withdrawal example on Optimistic Ethereum with cross-domain message passing
-      #   working-directory: ./examples/l1-l2-deposit-withdrawal
-      #   run: |
-      #     yarn
-      #     yarn compile
-      #     yarn compile:ovm
-      #     yarn test:integration:ovm
-
       - name: Collect docker logs on failure
         if: failure()
         uses: jwalton/gh-docker-logs@v1
         with:
           images: 'ethereumoptimism/builder,ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
-          dest: '~/logs'
+          dest: '/home/runner/logs'
 
       - name: Tar logs
         if: failure()

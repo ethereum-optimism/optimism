@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.1.7",
+  "version": "0.1.12",
   "description": "[Optimism] Cross Domain Message Relayer service",
   "main": "dist/index",
   "types": "dist/index",
@@ -18,7 +18,8 @@
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint .",
-    "test": "hardhat test --show-stack-traces"
+    "test": "hardhat test --show-stack-traces",
+    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
   },
   "keywords": [
     "optimism",
@@ -33,18 +34,19 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "^0.1.4",
-    "@eth-optimism/contracts": "^0.4.2",
-    "@eth-optimism/core-utils": "^0.5.0",
+    "@eth-optimism/common-ts": "^0.1.5",
+    "@eth-optimism/contracts": "^0.4.11",
+    "@eth-optimism/core-utils": "^0.5.5",
     "@sentry/node": "6.2.5",
     "bcfg": "^0.1.6",
     "dotenv": "^8.2.0",
-    "ethers": "^5.1.0",
+    "ethers": "^5.4.5",
     "merkletreejs": "^0.2.18",
     "rlp": "^2.2.6"
   },
   "devDependencies": {
-    "@eth-optimism/smock": "^1.1.7",
+    "@eth-optimism/smock": "^1.1.9",
+    "@nomiclabs/ethereumjs-vm": "^4",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@types/chai": "^4.2.18",
@@ -52,23 +54,23 @@
     "@types/mocha": "^8.2.2",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
+    "babel-eslint": "^10.1.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "eslint-plugin-prettier": "^3.4.0",
+    "eslint": "^7.27.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-ban": "^1.5.2",
     "eslint-plugin-import": "^2.23.4",
     "eslint-plugin-jsdoc": "^35.1.2",
     "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-prettier": "^3.4.0",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "^3.3.0",
     "hardhat": "^2.3.0",
+    "lint-staged": "11.0.0",
     "lodash": "^4.17.21",
     "mocha": "^8.4.0",
-    "babel-eslint": "^10.1.0",
-    "eslint": "^7.27.0",
-    "lint-staged": "11.0.0",
     "prettier": "^2.2.1",
     "typescript": "^4.2.3"
   }

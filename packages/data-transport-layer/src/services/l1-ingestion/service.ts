@@ -1,7 +1,7 @@
 /* Imports: External */
 import { fromHexString } from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
-import { JsonRpcProvider } from '@ethersproject/providers'
+import { StaticJsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 import { ethers, constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
@@ -98,7 +98,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
   private state: {
     db: TransportDB
     contracts: OptimismContracts
-    l1RpcProvider: JsonRpcProvider
+    l1RpcProvider: StaticJsonRpcProvider
     startingL1BlockNumber: number
   } = {} as any
 
@@ -109,7 +109,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     this.state.l1RpcProvider =
       typeof this.options.l1RpcProvider === 'string'
-        ? new JsonRpcProvider(this.options.l1RpcProvider)
+        ? new StaticJsonRpcProvider(this.options.l1RpcProvider)
         : this.options.l1RpcProvider
 
     this.logger.info('Using AddressManager', {

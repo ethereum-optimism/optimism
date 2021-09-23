@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.3.13
+
+### Patch Changes
+
+- 7482d09c: Fixes a bug in the batch submitted that would cause it to submit transactions with increasing nonces
+
+## 0.3.12
+
+### Patch Changes
+
+- 21b17edd: Added coverage for packages
+- 78ca518b: Add loglines for eip1559 related fields before sending a transaction
+- Updated dependencies [888dafca]
+- Updated dependencies [eb0854e7]
+- Updated dependencies [21b17edd]
+- Updated dependencies [dfe3598f]
+  - @eth-optimism/contracts@0.4.11
+  - @eth-optimism/core-utils@0.5.5
+
+## 0.3.11
+
+### Patch Changes
+
+- 918c08ca: Bump ethers dependency to 5.4.x to support eip1559
+- Updated dependencies [918c08ca]
+  - @eth-optimism/contracts@0.4.10
+  - @eth-optimism/core-utils@0.5.2
+
+## 0.3.10
+
+### Patch Changes
+
+- b5b9fd89: Migrate to using `ethers.StaticJsonRpcProvider`
+- Updated dependencies [ecc2f8c1]
+  - @eth-optimism/contracts@0.4.9
+
+## 0.3.9
+
+### Patch Changes
+
+- 3b132974: Fix tx resubmission estimateGas bug in batch submitter
+- Updated dependencies [7f26667d]
+- Updated dependencies [77511b68]
+  - @eth-optimism/contracts@0.4.7
+
+## 0.3.8
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+- Updated dependencies [c73c3939]
+  - @eth-optimism/common-ts@0.1.5
+  - @eth-optimism/contracts@0.4.5
+  - @eth-optimism/core-utils@0.5.1
+
 ## 0.3.7
 
 ### Patch Changes

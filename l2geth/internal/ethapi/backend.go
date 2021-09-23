@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/diffdb"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -87,13 +86,11 @@ type Backend interface {
 	CurrentBlock() *types.Block
 
 	// Optimism-specific API
-	SetTimestamp(timestamp int64)
 	IsVerifier() bool
 	IsSyncing() bool
 	GetEthContext() (uint64, uint64)
 	GetRollupContext() (uint64, uint64, uint64)
 	GasLimit() uint64
-	GetDiff(*big.Int) (diffdb.Diff, error)
 	SuggestL1GasPrice(ctx context.Context) (*big.Int, error)
 	SetL1GasPrice(context.Context, *big.Int) error
 	SuggestL2GasPrice(context.Context) (*big.Int, error)

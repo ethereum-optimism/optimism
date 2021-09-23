@@ -328,10 +328,21 @@ describe('Basic RPC tests', () => {
 
       // Get latest block once to start.
       const prev = await provider.getBlockWithTransactions('latest')
+      // set wait to null to allow a deep object comparison
+      prev.transactions[0].wait = null
 
       // Over ten seconds, repeatedly check the latest block to make sure nothing has changed.
       for (let i = 0; i < 5; i++) {
         const latest = await provider.getBlockWithTransactions('latest')
+        latest.transactions[0].wait = null
+        // Check each key of the transaction individually
+        // for easy debugging if one field changes
+        for (const [key, value] of Object.entries(latest.transactions[0])) {
+          expect(value).to.deep.equal(
+            prev.transactions[0][key],
+            `mismatch ${key}`
+          )
+        }
         expect(latest).to.deep.equal(prev)
         await sleep(2000)
       }
@@ -409,9 +420,7 @@ describe('Basic RPC tests', () => {
         expect(decoded).to.deep.eq(BigNumber.from(l2Gaslimit))
         expect(estimate.toString().endsWith(l2Gaslimit.toString()))
 
-        const l2GasPrice = BigNumber.from(0)
-        // The L2GasPrice should be fetched from the L2GasPrice oracle contract,
-        // but it does not yet exist. Use the default value for now
+        const l2GasPrice = await env.gasPriceOracle.gasPrice()
         const expected = TxGasLimit.encode({
           data: tx.data,
           l1GasPrice,

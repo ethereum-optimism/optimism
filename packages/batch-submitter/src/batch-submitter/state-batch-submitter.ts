@@ -13,6 +13,7 @@ import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
 import { BlockRange, BatchSubmitter } from '.'
+import { TransactionSubmitter } from '../utils'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!
@@ -23,10 +24,11 @@ export class StateBatchSubmitter extends BatchSubmitter {
   protected syncing: boolean
   protected ctcContract: Contract
   private fraudSubmissionAddress: string
+  private transactionSubmitter: TransactionSubmitter
 
   constructor(
     signer: Signer,
-    l2Provider: providers.JsonRpcProvider,
+    l2Provider: providers.StaticJsonRpcProvider,
     minTxSize: number,
     maxTxSize: number,
     maxBatchSize: number,
@@ -36,10 +38,7 @@ export class StateBatchSubmitter extends BatchSubmitter {
     finalityConfirmations: number,
     addressManagerAddress: string,
     minBalanceEther: number,
-    minGasPriceInGwei: number,
-    maxGasPriceInGwei: number,
-    gasRetryIncrement: number,
-    gasThresholdInGwei: number,
+    transactionSubmitter: TransactionSubmitter,
     blockOffset: number,
     logger: Logger,
     metrics: Metrics,
@@ -57,15 +56,12 @@ export class StateBatchSubmitter extends BatchSubmitter {
       finalityConfirmations,
       addressManagerAddress,
       minBalanceEther,
-      minGasPriceInGwei,
-      maxGasPriceInGwei,
-      gasRetryIncrement,
-      gasThresholdInGwei,
       blockOffset,
       logger,
       metrics
     )
     this.fraudSubmissionAddress = fraudSubmissionAddress
+    this.transactionSubmitter = transactionSubmitter
   }
 
   /*****************************
@@ -159,14 +155,14 @@ export class StateBatchSubmitter extends BatchSubmitter {
     endBlock: number
   ): Promise<TransactionReceipt> {
     const batch = await this._generateStateCommitmentBatch(startBlock, endBlock)
-    const tx = this.chainContract.interface.encodeFunctionData(
+    const calldata = this.chainContract.interface.encodeFunctionData(
       'appendStateBatch',
       [batch, startBlock]
     )
-    const batchSizeInBytes = remove0x(tx).length / 2
+    const batchSizeInBytes = remove0x(calldata).length / 2
     this.logger.debug('State batch generated', {
       batchSizeInBytes,
-      tx,
+      calldata,
     })
 
     if (!this._shouldSubmitBatch(batchSizeInBytes)) {
@@ -174,33 +170,25 @@ export class StateBatchSubmitter extends BatchSubmitter {
     }
 
     const offsetStartsAtIndex = startBlock - this.blockOffset
-    this.logger.debug('Submitting batch.', { tx })
+    this.logger.debug('Submitting batch.', { calldata })
 
+    // Generate the transaction we will repeatedly submit
     const nonce = await this.signer.getTransactionCount()
-    const contractFunction = async (gasPrice): Promise<TransactionReceipt> => {
-      this.logger.info('Submitting appendStateBatch transaction', {
-        gasPrice,
-        nonce,
-        contractAddr: this.chainContract.address,
-      })
-      const contractTx = await this.chainContract.appendStateBatch(
-        batch,
-        offsetStartsAtIndex,
-        { nonce, gasPrice }
-      )
-      this.logger.info('Submitted appendStateBatch transaction', {
-        txHash: contractTx.hash,
-        from: contractTx.from,
-      })
-      this.logger.debug('appendStateBatch transaction data', {
-        data: contractTx.data,
-      })
-      return this.signer.provider.waitForTransaction(
-        contractTx.hash,
-        this.numConfirmations
+    const tx = await this.chainContract.populateTransaction.appendStateBatch(
+      batch,
+      offsetStartsAtIndex,
+      { nonce }
+    )
+    const submitTransaction = (): Promise<TransactionReceipt> => {
+      return this.transactionSubmitter.submitTransaction(
+        tx,
+        this._makeHooks('appendStateBatch')
       )
     }
-    return this._submitAndLogTx(contractFunction, 'Submitted state root batch!')
+    return this._submitAndLogTx(
+      submitTransaction,
+      'Submitted state root batch!'
+    )
   }
 
   /*********************

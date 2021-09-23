@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.4.3",
+  "version": "0.4.7",
   "private": true,
   "main": "dist/index",
   "files": [
@@ -18,14 +18,15 @@
     "start": "ts-node ./src/services/run.ts",
     "start:local": "ts-node ./src/services/run.ts | pino-pretty",
     "test": "hardhat --config test/config/hardhat.config.ts test",
+    "test:coverage": "nyc hardhat --config test/config/hardhat.config.ts test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p tsconfig.build.json",
     "pre-commit": "lint-staged"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "^0.1.4",
-    "@eth-optimism/contracts": "^0.4.2",
-    "@eth-optimism/core-utils": "^0.5.0",
-    "@ethersproject/providers": "^5.0.21",
+    "@eth-optimism/common-ts": "^0.1.5",
+    "@eth-optimism/contracts": "^0.4.11",
+    "@eth-optimism/core-utils": "^0.5.5",
+    "@ethersproject/providers": "^5.4.4",
     "@ethersproject/transactions": "^5.0.21",
     "@sentry/node": "^6.3.1",
     "@sentry/tracing": "^6.3.1",
@@ -36,7 +37,7 @@
     "browser-or-node": "^1.3.0",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
-    "ethers": "^5.0.26",
+    "ethers": "^5.4.0",
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
     "level": "^6.0.1",
@@ -44,7 +45,7 @@
     "node-fetch": "^2.6.1"
   },
   "devDependencies": {
-    "@ethersproject/abstract-provider": "^5.1.0",
+    "@ethersproject/abstract-provider": "^5.4.1",
     "@types/browser-or-node": "^1.3.0",
     "@types/chai": "^4.2.17",
     "@types/chai-as-promised": "^7.1.3",

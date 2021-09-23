@@ -1,5 +1,3 @@
-import * as path from 'path'
-import * as glob from 'glob'
 import {
   ethers,
   ContractFactory,
@@ -11,16 +9,16 @@ import {
 import { Interface } from 'ethers/lib/utils'
 
 export const getContractDefinition = (name: string, ovm?: boolean): any => {
-  const match = glob.sync(
-    path.resolve(__dirname, `../artifacts${ovm ? '-ovm' : ''}`) +
-      `/**/${name.split('-').join(':')}.json`
-  )
-
-  if (match.length > 0) {
-    return require(match[0])
-  } else {
+  // We import this using `require` because hardhat tries to build this file when compiling
+  // the contracts, but we need the contracts to be compiled before the contract-artifacts.ts
+  // file can be generated.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getContractArtifact } = require('./contract-artifacts')
+  const artifact = getContractArtifact(name, ovm)
+  if (artifact === undefined) {
     throw new Error(`Unable to find artifact for contract: ${name}`)
   }
+  return artifact
 }
 
 export const getContractInterface = (

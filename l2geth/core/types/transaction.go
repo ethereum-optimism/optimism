@@ -403,44 +403,12 @@ func (s *TxByPrice) Pop() interface{} {
 	return x
 }
 
-type TxByIndexAndPrice Transactions
-
-func (s TxByIndexAndPrice) Len() int { return len(s) }
-func (s TxByIndexAndPrice) Less(i, j int) bool {
-	metai, metaj := s[i].GetMeta(), s[j].GetMeta()
-	// They should never be the same integer but they
-	// can both be nil. Sort by gasPrice in this case.
-	if metai.Index == nil && metaj.Index == nil {
-		return s[i].data.Price.Cmp(s[j].data.Price) > 0
-	}
-	// When the index is nil, it means that it is unknown. This
-	// indicates queue origin sequencer.
-	if metai.Index == nil && metaj.Index != nil {
-		return false
-	}
-	if metai.Index != nil && metaj.Index == nil {
-		return true
-	}
-	return *metai.Index < *metaj.Index
-}
-func (s TxByIndexAndPrice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s *TxByIndexAndPrice) Push(x interface{}) {
-	*s = append(*s, x.(*Transaction))
-}
-func (s *TxByIndexAndPrice) Pop() interface{} {
-	old := *s
-	n := len(old)
-	x := old[n-1]
-	*s = old[0 : n-1]
-	return x
-}
-
 // TransactionsByPriceAndNonce represents a set of transactions that can return
 // transactions in a profit-maximizing sorted order, while supporting removing
 // entire batches of transactions for non-executable accounts.
 type TransactionsByPriceAndNonce struct {
 	txs    map[common.Address]Transactions // Per account nonce-sorted list of transactions
-	heads  TxByIndexAndPrice               // Next transaction for each unique account (price heap)
+	heads  TxByPrice                       // Next transaction for each unique account (price heap)
 	signer Signer                          // Signer for the set of transactions
 }
 
@@ -451,7 +419,7 @@ type TransactionsByPriceAndNonce struct {
 // if after providing it to the constructor.
 func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions) *TransactionsByPriceAndNonce {
 	// Initialize a price based heap with the head transactions
-	heads := make(TxByIndexAndPrice, 0, len(txs))
+	heads := make(TxByPrice, 0, len(txs))
 	for from, accTxs := range txs {
 		// This prevents a panic, not ideal.
 		if len(accTxs) > 0 {

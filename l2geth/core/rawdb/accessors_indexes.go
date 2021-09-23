@@ -86,6 +86,10 @@ func ReadTransaction(db ethdb.Reader, hash common.Hash) (*types.Transaction, com
 	}
 	for txIndex, tx := range body.Transactions {
 		if tx.Hash() == hash {
+			// UsingOVM
+			// Read the transaction meta from the database and attach it
+			// to the transaction. Since there is 1 transaction per block, the
+			// blocknumber is used as the key.
 			txMeta := ReadTransactionMeta(db, *blockNumber)
 			if txMeta != nil {
 				tx.SetTransactionMeta(txMeta)

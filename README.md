@@ -28,10 +28,10 @@ Extensive documentation is available [here](http://community.optimism.io/docs/).
   * [`core-utils`](./packages/core-utils): Low-level utilities and encoding packages
   * [`common-ts`](./packages/common-ts): Common tools for TypeScript code that runs in Node
   * [`hardhat-ovm`](./packages/hardhat-ovm): Hardhat plugin which enables the [OVM Compiler](https://github.com/ethereum-optimism/solidity)
-  * [`smock`](./packages/smock): Testing utility for mocking smart contract return values and storage
   * [`data-transport-layer`](./packages/data-transport-layer): Event indexer, allowing the `l2geth` node to access L1 data
   * [`batch-submitter`](./packages/batch-submitter): Daemon for submitting L2 transaction and state root batches to L1
   * [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
+  * [`replica-healthcheck`](./packages/replica-healthcheck): Service to monitor the health of different replica deployments
 * [`l2geth`](./l2geth): Fork of [go-ethereum v1.9.10](https://github.com/ethereum/go-ethereum/tree/v1.9.10) implementing the [OVM](https://research.paradigm.xyz/optimism#optimistic-geth).
 * [`integration-tests`](./integration-tests): Integration tests between a L1 testnet, `l2geth`,
 * [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,

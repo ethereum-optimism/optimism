@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/hardhat-ovm",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
@@ -20,7 +20,7 @@
     "node-fetch": "^2.6.1"
   },
   "peerDependencies": {
-    "ethers": "^5.1.4",
+    "ethers": "^5.4.0",
     "hardhat": "^2.2.1"
   },
   "devDependencies": {

@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.4.12
+
+### Patch Changes
+
+- 468779ce: Add a getter to the ERC20 bridge interfaces, to return the address of the corresponding cross domain bridge
+
+## 0.4.11
+
+### Patch Changes
+
+- 888dafca: Add etherscan verification support
+- Updated dependencies [eb0854e7]
+- Updated dependencies [21b17edd]
+- Updated dependencies [dfe3598f]
+  - @eth-optimism/core-utils@0.5.5
+
+## 0.4.10
+
+### Patch Changes
+
+- 918c08ca: Bump ethers dependency to 5.4.x to support eip1559
+- Updated dependencies [918c08ca]
+  - @eth-optimism/core-utils@0.5.2
+
+## 0.4.9
+
+### Patch Changes
+
+- ecc2f8c1: Patch so contracts package will correctly use the browser-compatible contract artifacts import
+
+## 0.4.8
+
+### Patch Changes
+
+- e4fea5e0: Makes the contracts package browser compatible.
+
+## 0.4.7
+
+### Patch Changes
+
+- 7f26667d: Add hardhat task for whitelisting addresses
+- 77511b68: Add a hardhat task to withdraw ETH fees from L2 to L1
+
+## 0.4.6
+
+### Patch Changes
+
+- 8feac092: Make it possible to override mint & burn methods in L2StandardERC20
+- 4736eb2e: Add a task for setting the gas price oracle
+
+## 0.4.5
+
+### Patch Changes
+
+- c73c3939: Update the typescript version to `4.3.5`
+- Updated dependencies [c73c3939]
+  - @eth-optimism/core-utils@0.5.1
+
+## 0.4.4
+
+### Patch Changes
+
+- 063151a6: Run lint over the tasks directory
+
+## 0.4.3
+
+### Patch Changes
+
+- 694cf429: Add a hardhat task for setting the L2 gas price
+
 ## 0.4.2
 
 ### Patch Changes

@@ -881,12 +881,6 @@ var (
 		Value:  eth.DefaultConfig.Rollup.StateDumpPath,
 		EnvVar: "ROLLUP_STATE_DUMP_PATH",
 	}
-	RollupDiffDbFlag = cli.Uint64Flag{
-		Name:   "rollup.diffdbcache",
-		Usage:  "Number of diffdb batch updates",
-		Value:  eth.DefaultConfig.DiffDbCache,
-		EnvVar: "ROLLUP_DIFFDB_CACHE",
-	}
 	RollupMaxCalldataSizeFlag = cli.IntFlag{
 		Name:   "rollup.maxcalldatasize",
 		Usage:  "Maximum allowed calldata size for Queue Origin Sequencer Txs",
@@ -897,6 +891,21 @@ var (
 		Name:   "rollup.enforcefeesflag",
 		Usage:  "Disable transactions with 0 gas price",
 		EnvVar: "ROLLUP_ENFORCE_FEES",
+	}
+	RollupMinL2GasLimitFlag = cli.Uint64Flag{
+		Name:   "rollup.minl2gaslimit",
+		Usage:  "Minimum accepted L2 gas limit",
+		EnvVar: "ROLLUP_MIN_L2_GAS_LIMIT",
+	}
+	RollupFeeThresholdDownFlag = cli.Float64Flag{
+		Name:   "rollup.feethresholddown",
+		Usage:  "Allow txs with fees below the current fee up to this amount, must be < 1",
+		EnvVar: "ROLLUP_FEE_THRESHOLD_DOWN",
+	}
+	RollupFeeThresholdUpFlag = cli.Float64Flag{
+		Name:   "rollup.feethresholdup",
+		Usage:  "Allow txs with fees above the current fee up to this amount, must be > 1",
+		EnvVar: "ROLLUP_FEE_THRESHOLD_UP",
 	}
 	GasPriceOracleOwnerAddress = cli.StringFlag{
 		Name:   "rollup.gaspriceoracleowneraddress",
@@ -1126,6 +1135,7 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 	}
 }
 
+// UsingOVM
 // setEth1 configures the sync service
 func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(Eth1CanonicalTransactionChainDeployHeightFlag.Name) {
@@ -1155,6 +1165,8 @@ func setEth1(ctx *cli.Context, cfg *rollup.Config) {
 	}
 }
 
+// UsingOVM
+// setRollup configures the rollup
 func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(RollupAddressManagerOwnerAddressFlag.Name) {
 		addr := ctx.GlobalString(RollupAddressManagerOwnerAddressFlag.Name)
@@ -1195,6 +1207,18 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupEnforceFeesFlag.Name) {
 		cfg.EnforceFees = true
+	}
+	if ctx.GlobalIsSet(RollupMinL2GasLimitFlag.Name) {
+		val := ctx.GlobalUint64(RollupMinL2GasLimitFlag.Name)
+		cfg.MinL2GasLimit = new(big.Int).SetUint64(val)
+	}
+	if ctx.GlobalIsSet(RollupFeeThresholdDownFlag.Name) {
+		val := ctx.GlobalFloat64(RollupFeeThresholdDownFlag.Name)
+		cfg.FeeThresholdDown = new(big.Float).SetFloat64(val)
+	}
+	if ctx.GlobalIsSet(RollupFeeThresholdUpFlag.Name) {
+		val := ctx.GlobalFloat64(RollupFeeThresholdUpFlag.Name)
+		cfg.FeeThresholdUp = new(big.Float).SetFloat64(val)
 	}
 }
 
@@ -1658,9 +1682,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	setEth1(ctx, &cfg.Rollup)
 	setRollup(ctx, &cfg.Rollup)
 
-	if ctx.GlobalIsSet(RollupDiffDbFlag.Name) {
-		cfg.DiffDbCache = ctx.GlobalUint64(RollupDiffDbFlag.Name)
-	}
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
 	}
@@ -1755,6 +1776,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			chainID = new(big.Int).SetUint64(id)
 		}
 
+		// UsingOVM
+		// The genesis block includes state that is set at runtime.
+		// This allows the statedump to be generic and not created
+		// specific for each network.
 		gasLimit := cfg.Rollup.GasLimit
 		if gasLimit == 0 {
 			gasLimit = params.GenesisGasLimit
