@@ -1,7 +1,6 @@
 package trie
 
 import (
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/oracle"
 )
 
@@ -30,7 +28,6 @@ type Database struct {
 	BlockNumber *big.Int
 	Root        common.Hash
 	lock        sync.RWMutex
-	lookup      map[common.Hash][]byte
 
 	preimages     map[common.Hash][]byte // Preimages of nodes from the secure trie
 	preimagesSize common.StorageSize     // Storage size of the preimages cache
@@ -64,25 +61,11 @@ func (db *Database) preimage(hash common.Hash) []byte {
 	return db.preimages[hash]
 }
 
-func (db *Database) Fetch(addr common.Address) {
-	fmt.Println("prefetch", addr)
-	ap := oracle.GetProofAccount(db.BlockNumber, db.Root, addr)
-
-	for i, s := range ap {
-		ret, _ := hex.DecodeString(s[2:])
-		hash := crypto.Keccak256Hash(ret)
-		db.lookup[hash] = ret
-		fmt.Println(i, hash)
-	}
-}
-
 func NewDatabase(header types.Header) Database {
 	triedb := Database{BlockNumber: header.Number, Root: header.Root}
-	triedb.lookup = make(map[common.Hash][]byte)
+	triedb.preimages = make(map[common.Hash][]byte)
 	fmt.Println("init database")
-
-	// fetch the root node
-	triedb.Fetch(common.Address{})
+	oracle.PrefetchAddress(header.Number, common.Address{})
 
 	//panic("preseed")
 	return triedb
@@ -91,27 +74,15 @@ func NewDatabase(header types.Header) Database {
 // Node retrieves an encoded cached trie node from memory. If it cannot be found
 // cached, the method queries the persistent database for the content.
 func (db *Database) Node(hash common.Hash) ([]byte, error) {
-	fmt.Println("trie Node", hash)
-	return []byte{}, nil
+	/*fmt.Println("trie Node", hash)
+	return []byte{}, nil*/
+	panic("no Node")
 }
 
 // node retrieves a cached trie node from memory, or returns nil if none can be
 // found in the memory cache.
 func (db *Database) node(hash common.Hash) node {
-	fmt.Println("trie node", hash)
-	emptyHash := common.Hash{}
-	if hash == emptyHash {
-		panic("empty")
-	}
-	/*emptyHash := common.Hash{}
-	if hash == emptyHash {
-		return nilValueNode
-	}
-	//return hashNode(hash.Bytes())*/
-
-	enc := db.lookup[hash]
-	return mustDecodeNode(hash[:], enc)
-	//return nilValueNode
+	return mustDecodeNode(hash[:], oracle.Preimage(hash))
 }
 
 // insert inserts a collapsed trie node into the memory database.

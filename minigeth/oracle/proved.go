@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -91,21 +92,46 @@ func unhash(addrHash common.Hash) common.Address {
 	return unhashMap[addrHash]
 }
 
-func GetProofAccount(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []string {
+var preimages = make(map[common.Hash][]byte)
+
+func Preimage(hash common.Hash) []byte {
+	val, ok := preimages[hash]
+	if !ok {
+		panic("preimage missing")
+	}
+	return val
+}
+
+func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
+	ap := GetProofAccount(blockNumber, addr)
+	for _, s := range ap {
+		ret, _ := hex.DecodeString(s[2:])
+		hash := crypto.Keccak256Hash(ret)
+		preimages[hash] = ret
+	}
+}
+
+func GetProofAccount(blockNumber *big.Int, addr common.Address) []string {
+	key := fmt.Sprintf("proof_%d_%s", blockNumber, addr)
+
 	addrHash := crypto.Keccak256Hash(addr[:])
 	unhashMap[addrHash] = addr
 
-	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
-	r.Params = make([]interface{}, 3)
-	r.Params[0] = addr
-	r.Params[1] = []common.Hash{}
-	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
-	jsonData, _ := json.Marshal(r)
-	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
-	defer resp.Body.Close()
-	jr := jsonresp{}
-	json.NewDecoder(resp.Body).Decode(&jr)
-	return jr.Result.AccountProof
+	if !cacheExists(key) {
+		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
+		r.Params = make([]interface{}, 3)
+		r.Params[0] = addr
+		r.Params[1] = []common.Hash{}
+		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
+		jsonData, _ := json.Marshal(r)
+		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+		defer resp.Body.Close()
+		jr := jsonresp{}
+		json.NewDecoder(resp.Body).Decode(&jr)
+
+		cacheWrite(key, []byte(strings.Join(jr.Result.AccountProof, "\n")))
+	}
+	return strings.Split(string(cacheRead(key)), "\n")
 }
 
 func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []byte {
