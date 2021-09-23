@@ -135,6 +135,12 @@ func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
 	}
 }
 
+func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
+	ret := GetProvedCodeBytes(blockNumber, addrHash)
+	hash := crypto.Keccak256Hash(ret)
+	preimages[hash] = ret
+}
+
 func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {
 	var key string
 	if storage {
@@ -170,10 +176,10 @@ func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash
 	return strings.Split(string(cacheRead(key)), "\n")
 }
 
-func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash, codehash common.Hash) []byte {
+func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash) []byte {
 	addr := unhash(addrHash)
 	//fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
-	key := fmt.Sprintf("code_%s", codehash)
+	key := fmt.Sprintf("code_%d_%s", blockNumber, addr)
 	if !cacheExists(key) {
 		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
 		r.Params = make([]interface{}, 2)
@@ -197,9 +203,6 @@ func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash, codehash com
 		ret, _ := hex.DecodeString(jr.Result[2:])
 		//fmt.Println(ret)
 
-		if crypto.Keccak256Hash(ret) != codehash {
-			panic("wrong code hash")
-		}
 		cacheWrite(key, ret)
 	}
 

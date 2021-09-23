@@ -132,12 +132,12 @@ func (t *SecureTrie) TryDelete(key []byte) error {
 
 // GetKey returns the sha3 preimage of a hashed key that was
 // previously used to store a value.
-func (t *SecureTrie) GetKey(shaKey []byte) []byte {
+/*func (t *SecureTrie) GetKey(shaKey []byte) []byte {
 	if key, ok := t.getSecKeyCache()[string(shaKey)]; ok {
 		return key
 	}
 	return t.trie.db.preimage(common.BytesToHash(shaKey))
-}
+}*/
 
 // Commit writes all nodes and the secure hash pre-images to the trie's database.
 // Nodes are stored with their sha3 hash as the key.
@@ -146,7 +146,7 @@ func (t *SecureTrie) GetKey(shaKey []byte) []byte {
 // from the database.
 func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
 	// Write all the pre-images to the actual disk database
-	if len(t.getSecKeyCache()) > 0 {
+	/*if len(t.getSecKeyCache()) > 0 {
 		if t.trie.db.preimages != nil { // Ugly direct check but avoids the below write lock
 			t.trie.db.lock.Lock()
 			for hk, key := range t.secKeyCache {
@@ -155,7 +155,7 @@ func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
 			t.trie.db.lock.Unlock()
 		}
 		t.secKeyCache = make(map[string][]byte)
-	}
+	}*/
 	// Commit the trie to its intermediate node database
 	return t.trie.Commit(onleaf)
 }

@@ -27,13 +27,15 @@ func NewDatabase(header types.Header) Database {
 
 // ContractCode retrieves a particular contract's code.
 func (db *Database) ContractCode(addrHash common.Hash, codeHash common.Hash) ([]byte, error) {
-	code := oracle.GetProvedCodeBytes(db.BlockNumber, addrHash, codeHash)
+	oracle.PrefetchCode(db.BlockNumber, addrHash)
+	code := oracle.Preimage(codeHash)
 	return code, nil
 }
 
 // ContractCodeSize retrieves a particular contracts code's size.
 func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash) (int, error) {
-	code := oracle.GetProvedCodeBytes(db.BlockNumber, addrHash, codeHash)
+	oracle.PrefetchCode(db.BlockNumber, addrHash)
+	code := oracle.Preimage(codeHash)
 	return len(code), nil
 }
 

@@ -368,7 +368,6 @@ func (t *Trie) TryDelete(key []byte) error {
 func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 	switch n := n.(type) {
 	case *shortNode:
-		fmt.Println("delete shortNode", prefix, key, n.Key, n.Val)
 		matchlen := prefixLen(key, n.Key)
 		if matchlen < len(n.Key) {
 			return false, n, nil // don't replace n on mismatch
@@ -398,7 +397,6 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 		}
 
 	case *fullNode:
-		fmt.Println("delete fullNode", prefix, key)
 		dirty, nn, err := t.delete(n.Children[key[0]], append(prefix, key[0]), key[1:])
 		if !dirty || err != nil {
 			return false, n, err

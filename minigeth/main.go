@@ -66,14 +66,14 @@ func main() {
 
 	// if this is correct, the trie is working
 	// TODO: it's the previous block now
-	/*if header.TxHash != block.Header().TxHash {
+	if newheader.TxHash != block.Header().TxHash {
 		panic("wrong transactions for block")
-	}*/
+	}
 
 	_, _, _, err := processor.Process(block, statedb, vmconfig)
-	fmt.Println(err)
-	/*outHash, err := statedb.Commit(true)
-	fmt.Println(err)*/
+	if err != nil {
+		panic("processor error")
+	}
 
 	fmt.Println("process done with hash", header.Root, "->", block.Header().Root, "real", newheader.Root)
 }

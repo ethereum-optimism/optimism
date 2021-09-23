@@ -28,37 +28,6 @@ type Database struct {
 	BlockNumber *big.Int
 	Root        common.Hash
 	lock        sync.RWMutex
-
-	preimages     map[common.Hash][]byte // Preimages of nodes from the secure trie
-	preimagesSize common.StorageSize     // Storage size of the preimages cache
-}
-
-// insertPreimage writes a new trie node pre-image to the memory database if it's
-// yet unknown. The method will NOT make a copy of the slice,
-// only use if the preimage will NOT be changed later on.
-//
-// Note, this method assumes that the database's lock is held!
-func (db *Database) insertPreimage(hash common.Hash, preimage []byte) {
-	// Short circuit if preimage collection is disabled
-	if db.preimages == nil {
-		return
-	}
-	// Track the preimage if a yet unknown one
-	if _, ok := db.preimages[hash]; ok {
-		return
-	}
-	db.preimages[hash] = preimage
-	db.preimagesSize += common.StorageSize(common.HashLength + len(preimage))
-}
-
-// preimage retrieves a cached trie node pre-image from memory. If it cannot be
-// found cached, the method queries the persistent database for the content.
-func (db *Database) preimage(hash common.Hash) []byte {
-	// Short circuit if preimage collection is disabled
-	if db.preimages == nil {
-		return nil
-	}
-	return db.preimages[hash]
 }
 
 func NewDatabase(header types.Header) Database {
@@ -74,9 +43,7 @@ func NewDatabase(header types.Header) Database {
 // Node retrieves an encoded cached trie node from memory. If it cannot be found
 // cached, the method queries the persistent database for the content.
 func (db *Database) Node(hash common.Hash) ([]byte, error) {
-	/*fmt.Println("trie Node", hash)
-	return []byte{}, nil*/
-	panic("no Node")
+	panic("no Node function")
 }
 
 // node retrieves a cached trie node from memory, or returns nil if none can be
@@ -91,7 +58,6 @@ func (db *Database) node(hash common.Hash) node {
 // All nodes inserted by this function will be reference tracked
 // and in theory should only used for **trie nodes** insertion.
 func (db *Database) insert(hash common.Hash, size int, node node) {
-	//panic("insert")
-	//fmt.Println("insert", hash, size)
 	// can put things in the oracle here if we care
+	//fmt.Println("insert", hash, size)
 }

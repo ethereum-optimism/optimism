@@ -249,7 +249,6 @@ func (s *stateObject) GetCommittedState(db Database, key common.Hash) common.Has
 			meter = &s.db.StorageReads
 		}
 		oracle.PrefetchStorage(db.BlockNumber, s.address, key)
-		fmt.Println("get", s.address, key)
 		if enc, err = s.getTrie(db).TryGet(key.Bytes()); err != nil {
 			s.setError(err)
 			return common.Hash{}
@@ -358,10 +357,10 @@ func (s *stateObject) updateTrie(db Database) Trie {
 		oracle.PrefetchStorage(db.BlockNumber, s.address, key)
 		//oracle.PrefetchStorage(big.NewInt(db.BlockNumber.Int64()+1), s.address, key)
 		if (value == common.Hash{}) {
-			fmt.Println("delete", s.address, key)
+			//fmt.Println("delete", s.address, key)
 			s.setError(tr.TryDelete(key[:]))
 		} else {
-			fmt.Println("update", s.address, key, value)
+			//fmt.Println("update", s.address, key, value)
 			// Encoding []byte cannot fail, ok to ignore the error.
 			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
 			s.setError(tr.TryUpdate(key[:], v))
