@@ -5,79 +5,48 @@
 import { BigNumber } from 'ethers'
 import { remove0x } from './common'
 
-const feeScalar = 10_000_000
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
-const overhead = 2750
-const tenThousand = BigNumber.from(10_000)
-export const TxGasPrice = BigNumber.from(feeScalar + feeScalar / 2)
-export interface EncodableL2GasLimit {
-  data: Buffer | string
-  l1GasPrice: BigNumber | number
-  l2GasLimit: BigNumber | number
-  l2GasPrice: BigNumber | number
+const big10 = BigNumber.from(10)
+
+export const scaleDecimals = (
+  value: number | BigNumber,
+  decimals: number | BigNumber
+): BigNumber => {
+  value = BigNumber.from(value)
+  decimals = BigNumber.from(decimals)
+  // 10**decimals
+  const divisor = big10.pow(decimals)
+  return value.div(divisor)
 }
 
-const encode = (input: EncodableL2GasLimit): BigNumber => {
-  const { data } = input
-  let { l1GasPrice, l2GasLimit, l2GasPrice } = input
-  if (typeof l1GasPrice === 'number') {
-    l1GasPrice = BigNumber.from(l1GasPrice)
-  }
-  if (typeof l2GasLimit === 'number') {
-    l2GasLimit = BigNumber.from(l2GasLimit)
-  }
-  if (typeof l2GasPrice === 'number') {
-    l2GasPrice = BigNumber.from(l2GasPrice)
-  }
-  const l1GasLimit = calculateL1GasLimit(data)
-  const roundedL2GasLimit = ceilmod(l2GasLimit, tenThousand)
-  const l1Fee = l1GasLimit.mul(l1GasPrice)
-  const l2Fee = roundedL2GasLimit.mul(l2GasPrice)
-  const sum = l1Fee.add(l2Fee)
-  const scaled = sum.div(feeScalar)
-  const rounded = ceilmod(scaled, tenThousand)
-  const roundedScaledL2GasLimit = roundedL2GasLimit.div(tenThousand)
-  return rounded.add(roundedScaledL2GasLimit)
-}
-
-const decode = (fee: BigNumber | number): BigNumber => {
-  if (typeof fee === 'number') {
-    fee = BigNumber.from(fee)
-  }
-  const scaled = fee.mod(tenThousand)
-  return scaled.mul(tenThousand)
-}
-
-export const TxGasLimit = {
-  encode,
-  decode,
-}
-
-export const ceilmod = (a: BigNumber | number, b: BigNumber | number) => {
-  if (typeof a === 'number') {
-    a = BigNumber.from(a)
-  }
-  if (typeof b === 'number') {
-    b = BigNumber.from(b)
-  }
-  const remainder = a.mod(b)
-  if (remainder.eq(0)) {
-    return a
-  }
-  const sum = a.add(b)
-  const rounded = sum.sub(remainder)
-  return rounded
-}
-
-export const calculateL1GasLimit = (data: string | Buffer): BigNumber => {
+// data is the RLP encoded unsigned transaction
+export const calculateL1GasUsed = (
+  data: string | Buffer,
+  overhead: number | BigNumber
+): BigNumber => {
   const [zeroes, ones] = zeroesAndOnes(data)
   const zeroesCost = zeroes * txDataZeroGas
-  const onesCost = ones * txDataNonZeroGasEIP2028
-  const gasLimit = zeroesCost + onesCost + overhead
-  return BigNumber.from(gasLimit)
+  // Add a buffer to account for the signature
+  const onesCost = (ones + 68) * txDataNonZeroGasEIP2028
+  return BigNumber.from(onesCost).add(zeroesCost).add(overhead)
 }
 
+export const calculateL1Fee = (
+  data: string | Buffer,
+  overhead: number | BigNumber,
+  l1GasPrice: number | BigNumber,
+  scalar: number | BigNumber,
+  decimals: number | BigNumber
+): BigNumber => {
+  const l1GasUsed = calculateL1GasUsed(data, overhead)
+  const l1Fee = l1GasUsed.mul(l1GasPrice)
+  const scaled = l1Fee.mul(scalar)
+  const result = scaleDecimals(scaled, decimals)
+  return result
+}
+
+// Count the number of zero bytes and non zero bytes in a buffer
 export const zeroesAndOnes = (data: Buffer | string): Array<number> => {
   if (typeof data === 'string') {
     data = Buffer.from(remove0x(data), 'hex')

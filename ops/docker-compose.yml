@@ -41,6 +41,11 @@ services:
         L2_CHAIN_ID: 420
         L2_BLOCK_GAS_LIMIT: 11000000
         BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
+        GAS_PRICE_ORACLE_OVERHEAD: "2750"
+        GAS_PRICE_ORACLE_SCALAR: "1500000"
+        GAS_PRICE_ORACLE_L1_BASE_FEE: "1"
+        GAS_PRICE_ORACLE_GAS_PRICE: "1"
+        GAS_PRICE_ORACLE_DECIMALS: "6"
         # skip compilation when run in docker-compose, since the contracts
         # were already compiled in the builder step
         NO_COMPILE: 1
