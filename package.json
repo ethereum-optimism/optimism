@@ -45,7 +45,7 @@
     "test:coverage": "yarn lerna run test:coverage --parallel",
     "lint": "yarn lerna run lint",
     "lint:check": "yarn lerna run lint:check",
-    "lint:fix": "yarn lerna run lint:fix",
+    "lint:fix": "yarn lerna run lint:fix --parallel",
     "postinstall": "patch-package",
     "ready": "yarn lint && yarn test",
     "prepare": "husky install",

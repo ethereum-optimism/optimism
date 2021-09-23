@@ -94,10 +94,7 @@ const deployFn: DeployFunction = async (hre) => {
   await Proxy__WithChugSplashInterface.setOwner(addressManagerOwner)
 
   // Todo: remove this after adding chugsplash proxy
-  await Lib_AddressManager.setAddress(
-    'Proxy__L1StandardBridge',
-    result.address
-  )
+  await Lib_AddressManager.setAddress('Proxy__L1StandardBridge', result.address)
 }
 
 deployFn.dependencies = ['Lib_AddressManager', 'L1StandardBridge']

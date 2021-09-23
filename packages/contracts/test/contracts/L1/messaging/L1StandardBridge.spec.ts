@@ -298,9 +298,7 @@ describe('L1StandardBridge', () => {
       expect(depositerBalance).to.equal(INITIAL_TOTAL_L1_SUPPLY - depositAmount)
 
       // bridge's balance is increased
-      const bridgeBalance = await L1ERC20.balanceOf(
-        L1StandardBridge.address
-      )
+      const bridgeBalance = await L1ERC20.balanceOf(L1StandardBridge.address)
       expect(bridgeBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
@@ -339,9 +337,7 @@ describe('L1StandardBridge', () => {
       expect(depositerBalance).to.equal(INITIAL_TOTAL_L1_SUPPLY - depositAmount)
 
       // bridge's balance is increased
-      const bridgeBalance = await L1ERC20.balanceOf(
-        L1StandardBridge.address
-      )
+      const bridgeBalance = await L1ERC20.balanceOf(L1StandardBridge.address)
       expect(bridgeBalance).to.equal(depositAmount)
 
       // Check the correct cross-chain call was sent:
