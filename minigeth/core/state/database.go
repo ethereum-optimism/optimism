@@ -20,7 +20,9 @@ type Database struct {
 }
 
 func NewDatabase(header types.Header) Database {
-	triedb := trie.Database{BlockNumber: header.Number, Root: header.Root}
+	//triedb := trie.Database{BlockNumber: header.Number, Root: header.Root}
+	//triedb.Preseed()
+	triedb := trie.NewDatabase(header)
 	return Database{db: &triedb, BlockNumber: header.Number, StateRoot: header.Root}
 }
 
@@ -30,21 +32,22 @@ func (db *Database) ContractCode(addrHash common.Hash, codeHash common.Hash) ([]
 	return code, nil
 }
 
-func (db *Database) CopyTrie(trie Trie) Trie {
-	// TODO: this is wrong
-	return trie
-}
-
 // ContractCodeSize retrieves a particular contracts code's size.
 func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash) (int, error) {
 	code := oracle.GetProvedCodeBytes(db.BlockNumber, addrHash, codeHash)
 	return len(code), nil
 }
 
+func (db *Database) CopyTrie(trie Trie) Trie {
+	// TODO: this is wrong
+	//return trie
+	panic("don't copy tries")
+}
+
 // OpenTrie opens the main account trie at a specific root hash.
 func (db *Database) OpenTrie(root common.Hash) (Trie, error) {
 	//tr, err := trie.NewSecure(root, db.db)
-	return trie.New(root, db.db)
+	return trie.NewSecure(root, db.db)
 }
 
 // OpenStorageTrie opens the storage trie of an account.

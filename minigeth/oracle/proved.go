@@ -91,6 +91,23 @@ func unhash(addrHash common.Hash) common.Address {
 	return unhashMap[addrHash]
 }
 
+func GetProofAccount(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []string {
+	addrHash := crypto.Keccak256Hash(addr[:])
+	unhashMap[addrHash] = addr
+
+	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
+	r.Params = make([]interface{}, 3)
+	r.Params[0] = addr
+	r.Params[1] = []common.Hash{}
+	r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
+	jsonData, _ := json.Marshal(r)
+	resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
+	defer resp.Body.Close()
+	jr := jsonresp{}
+	json.NewDecoder(resp.Body).Decode(&jr)
+	return jr.Result.AccountProof
+}
+
 func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []byte {
 	fmt.Println("ORACLE GetProvedAccountBytes:", blockNumber, stateRoot, addr)
 	key := fmt.Sprintf("accounts_%d_%s", blockNumber, addr)
@@ -103,7 +120,7 @@ func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr com
 		r.Params = make([]interface{}, 3)
 		r.Params[0] = addr
 		r.Params[1] = []common.Hash{}
-		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
 		jsonData, _ := json.Marshal(r)
 		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
 		defer resp.Body.Close()
@@ -137,7 +154,7 @@ func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash, codehash com
 		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getCode", Id: 1}
 		r.Params = make([]interface{}, 2)
 		r.Params[0] = addr
-		r.Params[1] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+		r.Params[1] = fmt.Sprintf("0x%x", blockNumber.Int64())
 		jsonData, _ := json.Marshal(r)
 		//fmt.Println(string(jsonData))
 		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
@@ -174,7 +191,7 @@ func GetProvedStorage(blockNumber *big.Int, addrHash common.Hash, root common.Ha
 		r.Params = make([]interface{}, 3)
 		r.Params[0] = addr
 		r.Params[1] = [1]common.Hash{skey}
-		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64()-1)
+		r.Params[2] = fmt.Sprintf("0x%x", blockNumber.Int64())
 		jsonData, _ := json.Marshal(r)
 		resp, _ := http.Post(nodeUrl, "application/json", bytes.NewBuffer(jsonData))
 		defer resp.Body.Close()

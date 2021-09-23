@@ -87,8 +87,7 @@ function getBlockRlp(block : any): Buffer {
   return rdat
 }
 
-async function main() {
-  const blockNumber = 13247502;
+async function getBlock(blockNumber: Number) {
   let blockData = await provider.send("eth_getBlockByNumber", ["0x"+(blockNumber).toString(16), true])
   const blockHeaderRlp = getBlockRlp(blockData)
   //console.log(blockData)
@@ -96,6 +95,12 @@ async function main() {
 
   fs.writeFileSync(`data/block_${blockNumber}`, blockHeaderRlp)
   fs.writeFileSync(`data/txs_${blockNumber}`, rlp.encode(txsRlp))
+}
+
+
+async function main() {
+  await getBlock(13247501)
+  await getBlock(13247502)
 }
 
 main().then(() => process.exit(0))

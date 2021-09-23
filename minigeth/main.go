@@ -17,7 +17,7 @@ func main() {
 	// read header
 	var header types.Header
 	{
-		f, _ := os.Open("data/block_13247502")
+		f, _ := os.Open("data/block_13247501")
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&header)
@@ -46,9 +46,10 @@ func main() {
 	fmt.Println("made block, parent:", header.ParentHash)
 
 	// if this is correct, the trie is working
-	if header.TxHash != block.Header().TxHash {
+	// TODO: it's the previous block now
+	/*if header.TxHash != block.Header().TxHash {
 		panic("wrong transactions for block")
-	}
+	}*/
 
 	_, _, _, err := processor.Process(block, statedb, vmconfig)
 	fmt.Println(err)

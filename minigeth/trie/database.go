@@ -1,12 +1,16 @@
 package trie
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oracle"
 )
 
 // rawNode is a simple binary blob used to differentiate between collapsed trie
@@ -26,6 +30,62 @@ type Database struct {
 	BlockNumber *big.Int
 	Root        common.Hash
 	lock        sync.RWMutex
+	lookup      map[common.Hash][]byte
+
+	preimages     map[common.Hash][]byte // Preimages of nodes from the secure trie
+	preimagesSize common.StorageSize     // Storage size of the preimages cache
+}
+
+// insertPreimage writes a new trie node pre-image to the memory database if it's
+// yet unknown. The method will NOT make a copy of the slice,
+// only use if the preimage will NOT be changed later on.
+//
+// Note, this method assumes that the database's lock is held!
+func (db *Database) insertPreimage(hash common.Hash, preimage []byte) {
+	// Short circuit if preimage collection is disabled
+	if db.preimages == nil {
+		return
+	}
+	// Track the preimage if a yet unknown one
+	if _, ok := db.preimages[hash]; ok {
+		return
+	}
+	db.preimages[hash] = preimage
+	db.preimagesSize += common.StorageSize(common.HashLength + len(preimage))
+}
+
+// preimage retrieves a cached trie node pre-image from memory. If it cannot be
+// found cached, the method queries the persistent database for the content.
+func (db *Database) preimage(hash common.Hash) []byte {
+	// Short circuit if preimage collection is disabled
+	if db.preimages == nil {
+		return nil
+	}
+	return db.preimages[hash]
+}
+
+func (db *Database) Fetch(addr common.Address) {
+	fmt.Println("prefetch", addr)
+	ap := oracle.GetProofAccount(db.BlockNumber, db.Root, addr)
+
+	for i, s := range ap {
+		ret, _ := hex.DecodeString(s[2:])
+		hash := crypto.Keccak256Hash(ret)
+		db.lookup[hash] = ret
+		fmt.Println(i, hash)
+	}
+}
+
+func NewDatabase(header types.Header) Database {
+	triedb := Database{BlockNumber: header.Number, Root: header.Root}
+	triedb.lookup = make(map[common.Hash][]byte)
+	fmt.Println("init database")
+
+	// fetch the root node
+	triedb.Fetch(common.Address{})
+
+	//panic("preseed")
+	return triedb
 }
 
 // Node retrieves an encoded cached trie node from memory. If it cannot be found
@@ -41,10 +101,16 @@ func (db *Database) node(hash common.Hash) node {
 	fmt.Println("trie node", hash)
 	emptyHash := common.Hash{}
 	if hash == emptyHash {
+		panic("empty")
+	}
+	/*emptyHash := common.Hash{}
+	if hash == emptyHash {
 		return nilValueNode
 	}
-	//return hashNode(hash.Bytes())
-	return hashNode(nil)
+	//return hashNode(hash.Bytes())*/
+
+	enc := db.lookup[hash]
+	return mustDecodeNode(hash[:], enc)
 	//return nilValueNode
 }
 
