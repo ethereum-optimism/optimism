@@ -50,10 +50,7 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  await Lib_AddressManager.setAddress(
-    'L1CrossDomainMessenger',
-    result.address
-  )
+  await Lib_AddressManager.setAddress('L1CrossDomainMessenger', result.address)
 }
 
 deployFn.dependencies = ['Lib_AddressManager']

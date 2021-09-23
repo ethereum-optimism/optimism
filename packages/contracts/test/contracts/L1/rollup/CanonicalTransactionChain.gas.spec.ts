@@ -81,13 +81,12 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
     // Use a larger FIP for blocks so that we can send a large number of
     // enqueue() transactions without having to manipulate the block number.
     const forceInclusionPeriodBlocks = 101
-    CanonicalTransactionChain =
-      await Factory__CanonicalTransactionChain.deploy(
-        AddressManager.address,
-        FORCE_INCLUSION_PERIOD_SECONDS,
-        forceInclusionPeriodBlocks,
-        MAX_GAS_LIMIT
-      )
+    CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
+      AddressManager.address,
+      FORCE_INCLUSION_PERIOD_SECONDS,
+      forceInclusionPeriodBlocks,
+      MAX_GAS_LIMIT
+    )
 
     const batches = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
@@ -116,8 +115,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
   describe('appendSequencerBatch [ @skip-on-coverage ]', () => {
     beforeEach(() => {
-      CanonicalTransactionChain =
-        CanonicalTransactionChain.connect(sequencer)
+      CanonicalTransactionChain = CanonicalTransactionChain.connect(sequencer)
     })
 
     it('200 transactions in a single context', async () => {
@@ -255,8 +253,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
     let ENQUEUE_L2_GAS_PREPAID
     let data
     beforeEach(async () => {
-      CanonicalTransactionChain =
-        CanonicalTransactionChain.connect(sequencer)
+      CanonicalTransactionChain = CanonicalTransactionChain.connect(sequencer)
       ENQUEUE_L2_GAS_PREPAID =
         await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
       data = '0x' + '12'.repeat(1234)
