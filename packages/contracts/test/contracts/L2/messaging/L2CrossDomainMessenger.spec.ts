@@ -51,10 +51,9 @@ describe('L2CrossDomainMessenger', () => {
 
   let L2CrossDomainMessenger: Contract
   beforeEach(async () => {
-    L2CrossDomainMessenger =
-      await Factory__L2CrossDomainMessenger.deploy(
-        Mock__L1CrossDomainMessenger.address
-      )
+    L2CrossDomainMessenger = await Factory__L2CrossDomainMessenger.deploy(
+      Mock__L1CrossDomainMessenger.address
+    )
   })
 
   describe('sendMessage', () => {
@@ -188,10 +187,12 @@ describe('L2CrossDomainMessenger', () => {
       )
 
       const reentrantMessage =
-        L2CrossDomainMessenger.interface.encodeFunctionData(
-          'relayMessage',
-          [target, sender, message, 1]
-        )
+        L2CrossDomainMessenger.interface.encodeFunctionData('relayMessage', [
+          target,
+          sender,
+          message,
+          1,
+        ])
 
       // Calculate xDomainCallData used for indexing
       // (within the first call to the L2 Messenger).
@@ -233,8 +234,7 @@ describe('L2CrossDomainMessenger', () => {
         ]
       )
 
-      expect(await L2CrossDomainMessenger.relayedMessages(relayId)).to.be
-        .true
+      expect(await L2CrossDomainMessenger.relayedMessages(relayId)).to.be.true
 
       // Criteria 3: the target contract did not receive a call.
       expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.be.undefined

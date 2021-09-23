@@ -101,9 +101,7 @@ export class OptimismEnv {
       .connect(l2Wallet)
       .attach(predeploys.OVM_GasPriceOracle)
 
-    const sccAddress = await addressManager.getAddress(
-      'StateCommitmentChain'
-    )
+    const sccAddress = await addressManager.getAddress('StateCommitmentChain')
     const scc = getContractFactory('StateCommitmentChain')
       .connect(l1Wallet)
       .attach(sccAddress)

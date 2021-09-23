@@ -43,11 +43,7 @@ describe('StateCommitmentChain', () => {
       await ethers.getContractFactory('BondManager')
     )
 
-    await setProxyTarget(
-      AddressManager,
-      'BondManager',
-      Mock__BondManager
-    )
+    await setProxyTarget(AddressManager, 'BondManager', Mock__BondManager)
 
     Mock__BondManager.smocked.isCollateralized.will.return.with(true)
 
@@ -141,8 +137,8 @@ describe('StateCommitmentChain', () => {
         })
 
         it('should append the state batch', async () => {
-          await expect(StateCommitmentChain.appendStateBatch(batch, 0)).to
-            .not.be.reverted
+          await expect(StateCommitmentChain.appendStateBatch(batch, 0)).to.not
+            .be.reverted
         })
       })
 
@@ -259,8 +255,8 @@ describe('StateCommitmentChain', () => {
 
         describe('when the provided batch header is valid', () => {
           it('should remove the batch and all following batches', async () => {
-            await expect(StateCommitmentChain.deleteStateBatch(batchHeader))
-              .to.not.be.reverted
+            await expect(StateCommitmentChain.deleteStateBatch(batchHeader)).to
+              .not.be.reverted
           })
         })
       })

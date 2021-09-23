@@ -62,13 +62,9 @@ export const connectL1Contracts = async (
 
   return {
     addressManager: getEthersContract('Lib_AddressManager'),
-    canonicalTransactionChain: getEthersContract(
-      'CanonicalTransactionChain'
-    ),
+    canonicalTransactionChain: getEthersContract('CanonicalTransactionChain'),
     stateCommitmentChain: getEthersContract('StateCommitmentChain'),
-    xDomainMessengerProxy: getEthersContract(
-      'Proxy__L1CrossDomainMessenger'
-    ),
+    xDomainMessengerProxy: getEthersContract('Proxy__L1CrossDomainMessenger'),
     bondManager: getEthersContract('mockBondManager'),
   }
 }
