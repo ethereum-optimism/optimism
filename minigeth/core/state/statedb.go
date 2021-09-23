@@ -1,3 +1,20 @@
+// Copyright 2014 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
+// Package state provides a caching layer atop the Ethereum state trie.
 package state
 
 import (
@@ -15,16 +32,35 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-var (
-	// emptyRoot is the known root hash of an empty trie.
-	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-)
+// for includes we don't have
+//
 
 type revision struct {
 	id           int
 	journalIndex int
 }
 
+var (
+	// emptyRoot is the known root hash of an empty trie.
+	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+)
+
+type proofList [][]byte
+
+func (n *proofList) Put(key []byte, value []byte) error {
+	*n = append(*n, value)
+	return nil
+}
+
+func (n *proofList) Delete(key []byte) error {
+	panic("not supported")
+}
+
+// StateDB structs within the ethereum protocol are used to store anything
+// within the merkle trie. StateDBs take care of caching and storing
+// nested states. It's the general query interface to retrieve:
+// * Contracts
+// * Accounts
 type StateDB struct {
 	db           Database
 	prefetcher   *triePrefetcher
@@ -32,36 +68,17 @@ type StateDB struct {
 	trie         Trie
 	hasher       crypto.KeccakState
 
-	blockNumber *big.Int
-	stateRoot   common.Hash
-
-	// This map holds 'live' objects, which will get modified while processing a state transition.
-	stateObjects        map[common.Address]*stateObject
-	stateObjectsPending map[common.Address]struct{} // State objects finalized but not yet written to the trie
-	stateObjectsDirty   map[common.Address]struct{} // State objects modified in the current execution
-
-	// Per-transaction access list
-	accessList *accessList
-
-	preimages map[common.Hash][]byte
-
 	snaps         *snapshot.Tree
 	snap          snapshot.Snapshot
 	snapDestructs map[common.Hash]struct{}
 	snapAccounts  map[common.Hash][]byte
 	snapStorage   map[common.Hash]map[common.Hash][]byte
 
-	// Journal of state modifications. This is the backbone of
-	// Snapshot and RevertToSnapshot.
-	journal        *journal
-	validRevisions []revision
-	nextRevisionId int
+	// This map holds 'live' objects, which will get modified while processing a state transition.
+	stateObjects        map[common.Address]*stateObject
+	stateObjectsPending map[common.Address]struct{} // State objects finalized but not yet written to the trie
+	stateObjectsDirty   map[common.Address]struct{} // State objects modified in the current execution
 
-	logs    map[common.Hash][]*types.Log
-	logSize uint
-
-	thash   common.Hash
-	txIndex int
 	// DB error.
 	// State objects are used by the consensus core and VM which are
 	// unable to deal with database-level errors. Any error that occurs
@@ -71,6 +88,22 @@ type StateDB struct {
 
 	// The refund counter, also used by state transitioning.
 	refund uint64
+
+	thash   common.Hash
+	txIndex int
+	logs    map[common.Hash][]*types.Log
+	logSize uint
+
+	preimages map[common.Hash][]byte
+
+	// Per-transaction access list
+	accessList *accessList
+
+	// Journal of state modifications. This is the backbone of
+	// Snapshot and RevertToSnapshot.
+	journal        *journal
+	validRevisions []revision
+	nextRevisionId int
 
 	// Measurements gathered during execution for debugging purposes
 	AccountReads         time.Duration
@@ -84,6 +117,8 @@ type StateDB struct {
 	SnapshotAccountReads time.Duration
 	SnapshotStorageReads time.Duration
 	SnapshotCommits      time.Duration
+
+	blockNumber *big.Int
 }
 
 func NewStateDB(header types.Header) *StateDB {
@@ -92,7 +127,7 @@ func NewStateDB(header types.Header) *StateDB {
 		stateObjects:        make(map[common.Address]*stateObject),
 		stateObjectsPending: make(map[common.Address]struct{}),
 		stateObjectsDirty:   make(map[common.Address]struct{}),
-		stateRoot:           header.Root,
+		originalRoot:        header.Root,
 		db:                  Database{BlockNumber: header.Number, StateRoot: header.Root},
 		trie:                SimpleTrie{BlockNumber: header.Number, Root: header.Root, Storage: false},
 		journal:             newJournal(),
