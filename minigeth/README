@@ -29,3 +29,9 @@ type Account struct {
 The oracle ensures a correct output given the input, these are the high level methods
 
 GetUnproved...need to be written also
+
+# diving in more
+
+core/state/database.go
+
+

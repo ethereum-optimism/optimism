@@ -513,7 +513,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		if metrics.EnabledExpensive {
 			defer func(start time.Time) { s.AccountReads += time.Since(start) }(time.Now())
 		}
-		oracle.PrefetchAddress(s.db.BlockNumber, addr, common.Hash{})
+		oracle.PrefetchAddress(s.db.BlockNumber, addr)
 		enc, err := s.trie.TryGet(addr.Bytes())
 		if err != nil {
 			s.setError(fmt.Errorf("getDeleteStateObject (%x) error: %v", addr.Bytes(), err))
@@ -879,6 +879,20 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	// Finalize any pending changes and merge everything into the tries
 	s.IntermediateRoot(deleteEmptyObjects)
 
+	for addr := range s.stateObjectsDirty {
+		if obj := s.stateObjects[addr]; !obj.deleted {
+			fmt.Println("dirty state object", addr)
+			// Write any contract code associated with the state object
+			if obj.code != nil && obj.dirtyCode {
+				fmt.Println("write code", common.BytesToHash(obj.CodeHash()))
+			}
+			// Write any storage changes in the state object to its storage trie
+			if err := obj.CommitTrie(s.db); err != nil {
+				return common.Hash{}, err
+			}
+		}
+	}
+
 	// Commit objects to the trie, measuring the elapsed time
 	/*codeWriter := s.db.TrieDB().DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
@@ -943,7 +957,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		}
 		s.snap, s.snapDestructs, s.snapAccounts, s.snapStorage = nil, nil, nil, nil
 	}*/
-	fmt.Println("Commit doesn't work!!!")
+	//fmt.Println("Commit doesn't work!!!")
 	return root, err
 }
 

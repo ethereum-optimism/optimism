@@ -14,10 +14,12 @@ import (
 )
 
 func main() {
+	//blockNumber := 13284469
+	blockNumber := 13284491
 	// read header
 	var header types.Header
 	{
-		f, _ := os.Open("data/block_13284053")
+		f, _ := os.Open(fmt.Sprintf("data/block_%d", blockNumber))
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&header)
@@ -26,7 +28,7 @@ func main() {
 	// read header
 	var newheader types.Header
 	{
-		f, _ := os.Open("data/block_13284054")
+		f, _ := os.Open(fmt.Sprintf("data/block_%d", blockNumber+1))
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&newheader)
@@ -42,7 +44,7 @@ func main() {
 	// read txs
 	var txs []*types.Transaction
 	{
-		f, _ := os.Open("data/txs_13284054")
+		f, _ := os.Open(fmt.Sprintf("data/txs_%d", blockNumber+1))
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&txs)

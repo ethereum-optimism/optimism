@@ -103,16 +103,31 @@ func Preimage(hash common.Hash) []byte {
 	return val
 }
 
-func PrefetchAddress(blockNumber *big.Int, addr common.Address, skey common.Hash) {
-	key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
-	fmt.Println("prefetch", key)
+func PrefetchStorage(blockNumber *big.Int, addr common.Address, skey common.Hash) {
+	/*key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
 	if cached[key] {
-		//fmt.Println("hit", key)
+		return
+	}
+	cached[key] = true*/
+
+	ap := GetProofAccount(blockNumber, addr, skey, true)
+	//fmt.Println("PrefetchStorage", blockNumber, addr, skey, len(ap))
+	for _, s := range ap {
+		ret, _ := hex.DecodeString(s[2:])
+		hash := crypto.Keccak256Hash(ret)
+		//fmt.Println("   ", i, hash)
+		preimages[hash] = ret
+	}
+}
+
+func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
+	key := fmt.Sprintf("proof_%d_%s", blockNumber, addr)
+	if cached[key] {
 		return
 	}
 	cached[key] = true
 
-	ap := GetProofAccount(blockNumber, addr, skey)
+	ap := GetProofAccount(blockNumber, addr, common.Hash{}, false)
 	for _, s := range ap {
 		ret, _ := hex.DecodeString(s[2:])
 		hash := crypto.Keccak256Hash(ret)
@@ -120,8 +135,13 @@ func PrefetchAddress(blockNumber *big.Int, addr common.Address, skey common.Hash
 	}
 }
 
-func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash) []string {
-	key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
+func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {
+	var key string
+	if storage {
+		key = fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
+	} else {
+		key = fmt.Sprintf("proof_%d_%s", blockNumber, addr)
+	}
 
 	addrHash := crypto.Keccak256Hash(addr[:])
 	unhashMap[addrHash] = addr
@@ -138,10 +158,14 @@ func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash
 		jr := jsonresp{}
 		json.NewDecoder(resp.Body).Decode(&jr)
 
-		arr := jr.Result.AccountProof
-		arr = append(arr, jr.Result.StorageProof[0].Proof...)
+		if storage {
+			arr := jr.Result.StorageProof[0].Proof
+			cacheWrite(key, []byte(strings.Join(arr, "\n")))
+		} else {
+			arr := jr.Result.AccountProof
+			cacheWrite(key, []byte(strings.Join(arr, "\n")))
+		}
 
-		cacheWrite(key, []byte(strings.Join(arr, "\n")))
 	}
 	return strings.Split(string(cacheRead(key)), "\n")
 }

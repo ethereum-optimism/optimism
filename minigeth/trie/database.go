@@ -63,9 +63,9 @@ func (db *Database) preimage(hash common.Hash) []byte {
 
 func NewDatabase(header types.Header) Database {
 	triedb := Database{BlockNumber: header.Number, Root: header.Root}
-	triedb.preimages = make(map[common.Hash][]byte)
+	//triedb.preimages = make(map[common.Hash][]byte)
 	fmt.Println("init database")
-	oracle.PrefetchAddress(header.Number, common.Address{}, common.Hash{})
+	oracle.PrefetchAddress(header.Number, common.Address{})
 
 	//panic("preseed")
 	return triedb
@@ -82,7 +82,7 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 // node retrieves a cached trie node from memory, or returns nil if none can be
 // found in the memory cache.
 func (db *Database) node(hash common.Hash) node {
-	fmt.Println("node", hash)
+	//fmt.Println("node", hash)
 	return mustDecodeNode(hash[:], oracle.Preimage(hash))
 }
 
@@ -93,4 +93,5 @@ func (db *Database) node(hash common.Hash) node {
 func (db *Database) insert(hash common.Hash, size int, node node) {
 	//panic("insert")
 	//fmt.Println("insert", hash, size)
+	// can put things in the oracle here if we care
 }
