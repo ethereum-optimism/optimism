@@ -859,14 +859,14 @@ func (s *StateDB) clearJournalAndRefund() {
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
-	/*if s.dbErr != nil {
+	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
 	}
 	// Finalize any pending changes and merge everything into the tries
 	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Commit objects to the trie, measuring the elapsed time
-	codeWriter := s.db.TrieDB().DiskDB().NewBatch()
+	/*codeWriter := s.db.TrieDB().DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
 			// Write any contract code associated with the state object
@@ -887,7 +887,8 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		if err := codeWriter.Write(); err != nil {
 			log.Crit("Failed to commit dirty codes", "error", err)
 		}
-	}
+	}*/
+
 	// Write the account trie changes, measuing the amount of wasted time
 	var start time.Time
 	if metrics.EnabledExpensive {
@@ -900,16 +901,16 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		if err := rlp.DecodeBytes(leaf, &account); err != nil {
 			return nil
 		}
-		if account.Root != emptyRoot {
+		/*if account.Root != emptyRoot {
 			s.db.TrieDB().Reference(account.Root, parent)
-		}
+		}*/
 		return nil
 	})
 	if metrics.EnabledExpensive {
 		s.AccountCommits += time.Since(start)
 	}
 	// If snapshotting is enabled, update the snapshot tree with this new version
-	if s.snap != nil {
+	/*if s.snap != nil {
 		if metrics.EnabledExpensive {
 			defer func(start time.Time) { s.SnapshotCommits += time.Since(start) }(time.Now())
 		}
@@ -927,10 +928,9 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 			}
 		}
 		s.snap, s.snapDestructs, s.snapAccounts, s.snapStorage = nil, nil, nil, nil
-	}
-	return root, err*/
+	}*/
 	fmt.Println("Commit doesn't work!!!")
-	return common.Hash{}, nil
+	return root, err
 }
 
 // PrepareAccessList handles the preparatory steps for executing a state transition with

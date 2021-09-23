@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -81,18 +82,22 @@ type SimpleTrie struct {
 }
 
 func (trie SimpleTrie) Commit(onleaf LeafCallback) (common.Hash, error) {
+	fmt.Println("trie.Commit")
 	return trie.Root, nil
 }
 
 func (trie SimpleTrie) Hash() common.Hash {
+	fmt.Println("trie.Hash")
 	return trie.Root
 }
 
 func (trie SimpleTrie) TryUpdate(key, value []byte) error {
+	fmt.Println("trie.TryUpdate")
 	return nil
 }
 
 func (trie SimpleTrie) TryDelete(key []byte) error {
+	fmt.Println("trie.TryDelete")
 	return nil
 }
 
