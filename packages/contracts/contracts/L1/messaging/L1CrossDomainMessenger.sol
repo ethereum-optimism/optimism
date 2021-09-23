@@ -12,9 +12,9 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /* Interface Imports */
-import { iOVM_L1CrossDomainMessenger } from "./iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_CanonicalTransactionChain } from "../rollup/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_StateCommitmentChain } from "../rollup/iOVM_StateCommitmentChain.sol";
+import { IL1CrossDomainMessenger } from "./IL1CrossDomainMessenger.sol";
+import { ICanonicalTransactionChain } from "../rollup/ICanonicalTransactionChain.sol";
+import { IStateCommitmentChain } from "../rollup/IStateCommitmentChain.sol";
 
 /* External Imports */
 import { OwnableUpgradeable } from
@@ -25,15 +25,15 @@ import { ReentrancyGuardUpgradeable } from
     "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /**
- * @title OVM_L1CrossDomainMessenger
+ * @title L1CrossDomainMessenger
  * @dev The L1 Cross Domain Messenger contract sends messages from L1 to L2, and relays messages
  * from L2 onto L1. In the event that a message sent from L1 to L2 is rejected for exceeding the L2
  * epoch gas limit, it can be resubmitted via this contract's replay function.
  *
  * Runtime target: EVM
  */
-contract OVM_L1CrossDomainMessenger is
-        iOVM_L1CrossDomainMessenger,
+contract L1CrossDomainMessenger is
+        IL1CrossDomainMessenger,
         Lib_AddressResolver,
         OwnableUpgradeable,
         PausableUpgradeable,
@@ -187,10 +187,10 @@ contract OVM_L1CrossDomainMessenger is
         override
         public
     {
-        address ovmCanonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
+        address ovmCanonicalTransactionChain = resolve("CanonicalTransactionChain");
         // Use the CTC queue length as nonce
         uint40 nonce =
-            iOVM_CanonicalTransactionChain(ovmCanonicalTransactionChain).getQueueLength();
+            ICanonicalTransactionChain(ovmCanonicalTransactionChain).getQueueLength();
 
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
@@ -210,7 +210,7 @@ contract OVM_L1CrossDomainMessenger is
 
     /**
      * Relays a cross domain message to a contract.
-     * @inheritdoc iOVM_L1CrossDomainMessenger
+     * @inheritdoc IL1CrossDomainMessenger
      */
     function relayMessage(
         address _target,
@@ -253,7 +253,7 @@ contract OVM_L1CrossDomainMessenger is
         );
 
         require(
-            _target != resolve("OVM_CanonicalTransactionChain"),
+            _target != resolve("CanonicalTransactionChain"),
             "Cannot send L2->L1 messages to L1 system contracts."
         );
 
@@ -284,7 +284,7 @@ contract OVM_L1CrossDomainMessenger is
 
     /**
      * Replays a cross domain message to the target messenger.
-     * @inheritdoc iOVM_L1CrossDomainMessenger
+     * @inheritdoc IL1CrossDomainMessenger
      */
     function replayMessage(
         address _target,
@@ -297,9 +297,9 @@ contract OVM_L1CrossDomainMessenger is
         public
     {
         // Verify that the message is in the queue:
-        address canonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
+        address canonicalTransactionChain = resolve("CanonicalTransactionChain");
         Lib_OVMCodec.QueueElement memory element =
-            iOVM_CanonicalTransactionChain(canonicalTransactionChain).getQueueElement(_queueIndex);
+            ICanonicalTransactionChain(canonicalTransactionChain).getQueueElement(_queueIndex);
 
         // Compute the transactionHash
         bytes32 transactionHash = keccak256(
@@ -371,8 +371,8 @@ contract OVM_L1CrossDomainMessenger is
             bool
         )
     {
-        iOVM_StateCommitmentChain ovmStateCommitmentChain = iOVM_StateCommitmentChain(
-            resolve("OVM_StateCommitmentChain")
+        IStateCommitmentChain ovmStateCommitmentChain = IStateCommitmentChain(
+            resolve("StateCommitmentChain")
         );
 
         return (
@@ -441,7 +441,7 @@ contract OVM_L1CrossDomainMessenger is
 
     /**
      * Sends a cross domain message.
-     * @param _canonicalTransactionChain Address of the OVM_CanonicalTransactionChain instance.
+     * @param _canonicalTransactionChain Address of the CanonicalTransactionChain instance.
      * @param _message Message to send.
      * @param _gasLimit OVM gas limit for the message.
      */
@@ -452,7 +452,7 @@ contract OVM_L1CrossDomainMessenger is
     )
         internal
     {
-        iOVM_CanonicalTransactionChain(_canonicalTransactionChain).enqueue(
+        ICanonicalTransactionChain(_canonicalTransactionChain).enqueue(
             Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
             _gasLimit,
             _message

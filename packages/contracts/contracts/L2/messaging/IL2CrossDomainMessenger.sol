@@ -3,12 +3,12 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_CrossDomainMessenger } from "../../libraries/bridge/iOVM_CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "../../libraries/bridge/ICrossDomainMessenger.sol";
 
 /**
- * @title iOVM_L2CrossDomainMessenger
+ * @title IL2CrossDomainMessenger
  */
-interface iOVM_L2CrossDomainMessenger is iOVM_CrossDomainMessenger {
+interface IL2CrossDomainMessenger is ICrossDomainMessenger {
 
     /********************
      * Public Functions *

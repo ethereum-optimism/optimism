@@ -5,14 +5,12 @@ pragma solidity >0.5.0 <0.8.0;
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
-import { OVM_L2StandardBridge } from "../messaging/OVM_L2StandardBridge.sol";
+import { L2StandardBridge } from "../messaging/L2StandardBridge.sol";
 
 /**
  * @title OVM_SequencerFeeVault
  * @dev Simple holding contract for fees paid to the Sequencer. Likely to be replaced in the future
  * but "good enough for now".
- *
- * Runtime target: OVM
  */
 contract OVM_SequencerFeeVault {
 
@@ -68,7 +66,7 @@ contract OVM_SequencerFeeVault {
             "OVM_SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
 
-        OVM_L2StandardBridge(Lib_PredeployAddresses.L2_STANDARD_BRIDGE).withdrawTo(
+        L2StandardBridge(Lib_PredeployAddresses.L2_STANDARD_BRIDGE).withdrawTo(
             Lib_PredeployAddresses.OVM_ETH,
             l1FeeWallet,
             address(this).balance,

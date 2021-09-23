@@ -63,13 +63,13 @@ export const connectL1Contracts = async (
   return {
     addressManager: getEthersContract('Lib_AddressManager'),
     canonicalTransactionChain: getEthersContract(
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     ),
-    stateCommitmentChain: getEthersContract('OVM_StateCommitmentChain'),
+    stateCommitmentChain: getEthersContract('StateCommitmentChain'),
     xDomainMessengerProxy: getEthersContract(
-      'Proxy__OVM_L1CrossDomainMessenger'
+      'Proxy__L1CrossDomainMessenger'
     ),
-    bondManager: getEthersContract('mockOVM_BondManager'),
+    bondManager: getEthersContract('mockBondManager'),
   }
 }
 
@@ -92,7 +92,7 @@ export const connectL2Contracts = async (
 
   return {
     eth: getEthersContract('OVM_ETH'),
-    xDomainMessenger: getEthersContract('OVM_L2CrossDomainMessenger'),
+    xDomainMessenger: getEthersContract('L2CrossDomainMessenger'),
     messagePasser: getEthersContract('OVM_L2ToL1MessagePasser'),
     messageSender: getEthersContract(
       'OVM_L1MessageSender',

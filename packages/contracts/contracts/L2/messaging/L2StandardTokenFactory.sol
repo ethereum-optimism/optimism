@@ -7,13 +7,11 @@ import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /**
- * @title OVM_L2StandardTokenFactory
+ * @title L2StandardTokenFactory
  * @dev Factory contract for creating standard L2 token representations of L1 ERC20s
  * compatible with and working on the standard bridge.
- *
- * Runtime target: OVM
  */
-contract OVM_L2StandardTokenFactory {
+contract L2StandardTokenFactory {
 
     event StandardL2TokenCreated(address indexed _l1Token, address indexed _l2Token);
 

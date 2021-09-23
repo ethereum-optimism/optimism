@@ -84,35 +84,35 @@ export const getAddressManager = (provider: any) => {
 
 // Gets the bridge contract
 export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
-  const l1BridgeInterface = getContractInterface('OVM_L1StandardBridge')
+  const l1BridgeInterface = getContractInterface('L1StandardBridge')
   const ProxyBridgeAddress = await AddressManager.getAddress(
-    'Proxy__OVM_L1StandardBridge'
+    'Proxy__L1StandardBridge'
   )
 
   if (
     !utils.isAddress(ProxyBridgeAddress) ||
     ProxyBridgeAddress === constants.AddressZero
   ) {
-    throw new Error('Proxy__OVM_L1StandardBridge not found')
+    throw new Error('Proxy__L1StandardBridge not found')
   }
 
-  const OVM_L1StandardBridge = new Contract(
+  const L1StandardBridge = new Contract(
     ProxyBridgeAddress,
     l1BridgeInterface,
     wallet
   )
-  return OVM_L1StandardBridge
+  return L1StandardBridge
 }
 
 export const getL2Bridge = async (wallet: Wallet) => {
-  const L2BridgeInterface = getContractInterface('OVM_L2StandardBridge')
+  const L2BridgeInterface = getContractInterface('L2StandardBridge')
 
-  const OVM_L2StandardBridge = new Contract(
-    predeploys.OVM_L2StandardBridge,
+  const L2StandardBridge = new Contract(
+    predeploys.L2StandardBridge,
     L2BridgeInterface,
     wallet
   )
-  return OVM_L2StandardBridge
+  return L2StandardBridge
 }
 
 export const getOvmEth = (wallet: Wallet) => {

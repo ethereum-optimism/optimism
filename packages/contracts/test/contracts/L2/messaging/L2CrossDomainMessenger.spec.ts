@@ -15,22 +15,22 @@ import {
 } from '../../../helpers'
 import { getContractInterface, predeploys } from '../../../../src'
 
-describe('OVM_L2CrossDomainMessenger', () => {
+describe('L2CrossDomainMessenger', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
   })
 
   let Mock__TargetContract: MockContract
-  let Mock__OVM_L1CrossDomainMessenger: MockContract
+  let Mock__L1CrossDomainMessenger: MockContract
   let Mock__OVM_L1MessageSender: MockContract
   let Mock__OVM_L2ToL1MessagePasser: MockContract
   before(async () => {
     Mock__TargetContract = await smockit(
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
-    Mock__OVM_L1CrossDomainMessenger = await smockit(
-      await ethers.getContractFactory('OVM_L1CrossDomainMessenger')
+    Mock__L1CrossDomainMessenger = await smockit(
+      await ethers.getContractFactory('L1CrossDomainMessenger')
     )
     Mock__OVM_L1MessageSender = await smockit(
       getContractInterface('iOVM_L1MessageSender'),
@@ -42,18 +42,18 @@ describe('OVM_L2CrossDomainMessenger', () => {
     )
   })
 
-  let Factory__OVM_L2CrossDomainMessenger: ContractFactory
+  let Factory__L2CrossDomainMessenger: ContractFactory
   before(async () => {
-    Factory__OVM_L2CrossDomainMessenger = await ethers.getContractFactory(
-      'OVM_L2CrossDomainMessenger'
+    Factory__L2CrossDomainMessenger = await ethers.getContractFactory(
+      'L2CrossDomainMessenger'
     )
   })
 
-  let OVM_L2CrossDomainMessenger: Contract
+  let L2CrossDomainMessenger: Contract
   beforeEach(async () => {
-    OVM_L2CrossDomainMessenger =
-      await Factory__OVM_L2CrossDomainMessenger.deploy(
-        Mock__OVM_L1CrossDomainMessenger.address
+    L2CrossDomainMessenger =
+      await Factory__L2CrossDomainMessenger.deploy(
+        Mock__L1CrossDomainMessenger.address
       )
   })
 
@@ -64,7 +64,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
 
     it('should be able to send a single message', async () => {
       await expect(
-        OVM_L2CrossDomainMessenger.sendMessage(target, message, gasLimit)
+        L2CrossDomainMessenger.sendMessage(target, message, gasLimit)
       ).to.not.be.reverted
 
       expect(
@@ -75,10 +75,10 @@ describe('OVM_L2CrossDomainMessenger', () => {
     })
 
     it('should be able to send the same message twice', async () => {
-      await OVM_L2CrossDomainMessenger.sendMessage(target, message, gasLimit)
+      await L2CrossDomainMessenger.sendMessage(target, message, gasLimit)
 
       await expect(
-        OVM_L2CrossDomainMessenger.sendMessage(target, message, gasLimit)
+        L2CrossDomainMessenger.sendMessage(target, message, gasLimit)
       ).to.not.be.reverted
     })
   })
@@ -97,22 +97,22 @@ describe('OVM_L2CrossDomainMessenger', () => {
 
     beforeEach(async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
     })
 
-    it('should revert if the L1 message sender is not the OVM_L1CrossDomainMessenger', async () => {
+    it('should revert if the L1 message sender is not the L1CrossDomainMessenger', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
         constants.AddressZero
       )
 
       await expect(
-        OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+        L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
       ).to.be.revertedWith('Provided message could not be verified.')
     })
 
     it('should send a call to the target contract', async () => {
-      await OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+      await L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
 
       expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.deep.equal([
         NON_ZERO_ADDRESS,
@@ -121,29 +121,29 @@ describe('OVM_L2CrossDomainMessenger', () => {
 
     it('the xDomainMessageSender is reset to the original value', async () => {
       await expect(
-        OVM_L2CrossDomainMessenger.xDomainMessageSender()
+        L2CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
-      await OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+      await L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
       await expect(
-        OVM_L2CrossDomainMessenger.xDomainMessageSender()
+        L2CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
     })
 
     it('should revert if trying to send the same message twice', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
 
-      await OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+      await L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
 
       await expect(
-        OVM_L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+        L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
       ).to.be.revertedWith('Provided message has already been received.')
     })
 
     it('should not make a call if the target is the L2 MessagePasser', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
       target = predeploys.OVM_L2ToL1MessagePasser
       message = Mock__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
@@ -151,7 +151,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
         [NON_NULL_BYTES32]
       )
 
-      const resProm = OVM_L2CrossDomainMessenger.relayMessage(
+      const resProm = L2CrossDomainMessenger.relayMessage(
         target,
         sender,
         message,
@@ -173,7 +173,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
 
       // The message should be registered as successful.
       expect(
-        await OVM_L2CrossDomainMessenger.successfulMessages(
+        await L2CrossDomainMessenger.successfulMessages(
           solidityKeccak256(
             ['bytes'],
             [encodeXDomainCalldata(target, sender, message, 0)]
@@ -184,11 +184,11 @@ describe('OVM_L2CrossDomainMessenger', () => {
 
     it('should revert if trying to reenter `relayMessage`', async () => {
       Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__OVM_L1CrossDomainMessenger.address
+        Mock__L1CrossDomainMessenger.address
       )
 
       const reentrantMessage =
-        OVM_L2CrossDomainMessenger.interface.encodeFunctionData(
+        L2CrossDomainMessenger.interface.encodeFunctionData(
           'relayMessage',
           [target, sender, message, 1]
         )
@@ -196,15 +196,15 @@ describe('OVM_L2CrossDomainMessenger', () => {
       // Calculate xDomainCallData used for indexing
       // (within the first call to the L2 Messenger).
       const xDomainCallData = encodeXDomainCalldata(
-        OVM_L2CrossDomainMessenger.address,
+        L2CrossDomainMessenger.address,
         sender,
         reentrantMessage,
         0
       )
 
       // Make the call.
-      await OVM_L2CrossDomainMessenger.relayMessage(
-        OVM_L2CrossDomainMessenger.address,
+      await L2CrossDomainMessenger.relayMessage(
+        L2CrossDomainMessenger.address,
         sender,
         reentrantMessage,
         0
@@ -215,7 +215,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
       // right things are happening.
       // Criteria 1: the reentrant message is NOT listed in successful messages.
       expect(
-        await OVM_L2CrossDomainMessenger.successfulMessages(
+        await L2CrossDomainMessenger.successfulMessages(
           solidityKeccak256(['bytes'], [xDomainCallData])
         )
       ).to.be.false
@@ -233,7 +233,7 @@ describe('OVM_L2CrossDomainMessenger', () => {
         ]
       )
 
-      expect(await OVM_L2CrossDomainMessenger.relayedMessages(relayId)).to.be
+      expect(await L2CrossDomainMessenger.relayedMessages(relayId)).to.be
         .true
 
       // Criteria 3: the target contract did not receive a call.

@@ -36,15 +36,15 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     // TODO: We need to update our events so that we actually have enough information to parse this
     // batch without having to pull out this extra event. For the meantime, we need to find this
     // "TransactonBatchAppended" event to get the rest of the data.
-    const OVM_CanonicalTransactionChain = getContractFactory(
-      'OVM_CanonicalTransactionChain'
+    const CanonicalTransactionChain = getContractFactory(
+      'CanonicalTransactionChain'
     )
       .attach(event.address)
       .connect(l1RpcProvider)
 
     const batchSubmissionEvent = (
-      await OVM_CanonicalTransactionChain.queryFilter(
-        OVM_CanonicalTransactionChain.filters.TransactionBatchAppended(),
+      await CanonicalTransactionChain.queryFilter(
+        CanonicalTransactionChain.filters.TransactionBatchAppended(),
         eventBlock.number,
         eventBlock.number
       )

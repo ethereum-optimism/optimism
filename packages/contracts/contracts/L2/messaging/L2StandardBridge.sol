@@ -3,30 +3,28 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1StandardBridge } from "../../L1/messaging/iOVM_L1StandardBridge.sol";
-import { iOVM_L1ERC20Bridge } from "../../L1/messaging/iOVM_L1ERC20Bridge.sol";
-import { iOVM_L2ERC20Bridge } from "./iOVM_L2ERC20Bridge.sol";
+import { IL1StandardBridge } from "../../L1/messaging/IL1StandardBridge.sol";
+import { IL1ERC20Bridge } from "../../L1/messaging/IL1ERC20Bridge.sol";
+import { IL2ERC20Bridge } from "./IL2ERC20Bridge.sol";
 
 /* Library Imports */
 import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
-import { OVM_CrossDomainEnabled } from "../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
 import { IL2StandardERC20 } from "../../libraries/standards/IL2StandardERC20.sol";
 
 /**
- * @title OVM_L2StandardBridge
+ * @title L2StandardBridge
  * @dev The L2 Standard bridge is a contract which works together with the L1 Standard bridge to
  * enable ETH and ERC20 transitions between L1 and L2.
  * This contract acts as a minter for new tokens when it hears about deposits into the L1 Standard
  * bridge.
  * This contract also acts as a burner of the tokens intended for withdrawal, informing the L1
  * bridge to release L1 funds.
- *
- * Runtime target: OVM
  */
-contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
+contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
 
     /********************************
      * External Contract References *
@@ -46,7 +44,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
         address _l2CrossDomainMessenger,
         address _l1TokenBridge
     )
-        OVM_CrossDomainEnabled(_l2CrossDomainMessenger)
+        CrossDomainEnabled(_l2CrossDomainMessenger)
     {
         l1TokenBridge = _l1TokenBridge;
     }
@@ -56,7 +54,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
      ***************/
 
     /**
-     * @inheritdoc iOVM_L2ERC20Bridge
+     * @inheritdoc IL2ERC20Bridge
      */
     function withdraw(
         address _l2Token,
@@ -79,7 +77,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L2ERC20Bridge
+     * @inheritdoc IL2ERC20Bridge
      */
     function withdrawTo(
         address _l2Token,
@@ -134,7 +132,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
 
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
             message = abi.encodeWithSelector(
-                        iOVM_L1StandardBridge.finalizeETHWithdrawal.selector,
+                        IL1StandardBridge.finalizeETHWithdrawal.selector,
                         _from,
                         _to,
                         _amount,
@@ -142,7 +140,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
                     );
         } else {
             message = abi.encodeWithSelector(
-                        iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
+                        IL1ERC20Bridge.finalizeERC20Withdrawal.selector,
                         l1Token,
                         _l2Token,
                         _from,
@@ -167,7 +165,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
      ************************************/
 
     /**
-     * @inheritdoc iOVM_L2ERC20Bridge
+     * @inheritdoc IL2ERC20Bridge
      */
     function finalizeDeposit(
         address _l1Token,
@@ -202,7 +200,7 @@ contract OVM_L2StandardBridge is iOVM_L2ERC20Bridge, OVM_CrossDomainEnabled {
             // There is no way to prevent malicious token contracts altogether, but this does limit
             // user error and mitigate some forms of malicious contract behavior.
             bytes memory message = abi.encodeWithSelector(
-                iOVM_L1ERC20Bridge.finalizeERC20Withdrawal.selector,
+                IL1ERC20Bridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
                 _l2Token,
                 _to,   // switched the _to and _from here to bounce back the deposit to the sender

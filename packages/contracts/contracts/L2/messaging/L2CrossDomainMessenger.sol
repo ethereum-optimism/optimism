@@ -8,7 +8,7 @@ import { Lib_DefaultValues } from "../../libraries/constants/Lib_DefaultValues.s
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
-import { iOVM_L2CrossDomainMessenger } from "./iOVM_L2CrossDomainMessenger.sol";
+import { IL2CrossDomainMessenger } from "./IL2CrossDomainMessenger.sol";
 import { iOVM_L1MessageSender } from "../predeploys/iOVM_L1MessageSender.sol";
 import { iOVM_L2ToL1MessagePasser } from "../predeploys/iOVM_L2ToL1MessagePasser.sol";
 
@@ -19,14 +19,13 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title OVM_L2CrossDomainMessenger
+ * @title L2CrossDomainMessenger
  * @dev The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point
  * for L2 messages sent via the L1 Cross Domain Messenger.
  *
- * Runtime target: OVM
-  */
-contract OVM_L2CrossDomainMessenger is
-    iOVM_L2CrossDomainMessenger,
+*/
+contract L2CrossDomainMessenger is
+    IL2CrossDomainMessenger,
     ReentrancyGuard
 {
 
@@ -100,7 +99,7 @@ contract OVM_L2CrossDomainMessenger is
 
     /**
      * Relays a cross domain message to a contract.
-     * @inheritdoc iOVM_L2CrossDomainMessenger
+     * @inheritdoc IL2CrossDomainMessenger
      */
     function relayMessage(
         address _target,

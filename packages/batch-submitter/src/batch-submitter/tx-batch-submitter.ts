@@ -592,12 +592,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       this.signer.provider
     )
 
-    const addr = await manager.getAddress(
-      'OVM_ChainStorageContainer-CTC-batches'
-    )
+    const addr = await manager.getAddress('ChainStorageContainer-CTC-batches')
+
     const container = new Contract(
       addr,
-      getNewContractInterface('iOVM_ChainStorageContainer'),
+      getNewContractInterface('IChainStorageContainer'),
       this.signer.provider
     )
 

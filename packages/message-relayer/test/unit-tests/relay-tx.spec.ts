@@ -36,12 +36,12 @@ describe('relay transaction generation functions', () => {
   let StateCommitmentChain: Contract
   beforeEach(async () => {
     const factory1 = getContractFactory('Lib_AddressManager')
-    const factory2 = getContractFactory('OVM_ChainStorageContainer')
-    const factory3 = getContractFactory('OVM_StateCommitmentChain')
+    const factory2 = getContractFactory('ChainStorageContainer')
+    const factory3 = getContractFactory('StateCommitmentChain')
 
-    const mockBondManager = await smockit(getContractFactory('OVM_BondManager'))
+    const mockBondManager = await smockit(getContractFactory('BondManager'))
     const mockCanonicalTransactionChain = await smockit(
-      getContractFactory('OVM_CanonicalTransactionChain')
+      getContractFactory('CanonicalTransactionChain')
     )
 
     mockBondManager.smocked.isCollateralized.will.return.with(true)
@@ -52,25 +52,25 @@ describe('relay transaction generation functions', () => {
     const AddressManager = await factory1.connect(signer1).deploy()
     const ChainStorageContainer = await factory2
       .connect(signer1)
-      .deploy(AddressManager.address, 'OVM_StateCommitmentChain')
+      .deploy(AddressManager.address, 'StateCommitmentChain')
     StateCommitmentChain = await factory3
       .connect(signer1)
       .deploy(AddressManager.address, 0, 0)
 
     await AddressManager.setAddress(
-      'OVM_ChainStorageContainer-SCC-batches',
+      'ChainStorageContainer-SCC-batches',
       ChainStorageContainer.address
     )
 
     await AddressManager.setAddress(
-      'OVM_StateCommitmentChain',
+      'StateCommitmentChain',
       StateCommitmentChain.address
     )
 
-    await AddressManager.setAddress('OVM_BondManager', mockBondManager.address)
+    await AddressManager.setAddress('BondManager', mockBondManager.address)
 
     await AddressManager.setAddress(
-      'OVM_CanonicalTransactionChain',
+      'CanonicalTransactionChain',
       mockCanonicalTransactionChain.address
     )
   })

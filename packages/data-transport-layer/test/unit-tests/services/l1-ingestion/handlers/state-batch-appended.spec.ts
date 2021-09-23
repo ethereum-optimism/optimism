@@ -9,7 +9,7 @@ import { handleEventsStateBatchAppended } from '../../../../../src/services/l1-i
 import { StateBatchAppendedExtraData } from '../../../../../src/types'
 import { l1StateBatchData } from '../../../examples/l1-data'
 
-describe('Event Handlers: OVM_CanonicalTransactionChain.StateBatchAppended', () => {
+describe('Event Handlers: CanonicalTransactionChain.StateBatchAppended', () => {
   describe('getExtraData', () => {
     it('should return event block and transaction', async () => {
       // Source: https://etherscan.io/tx/0x4ca72484e93cdb50fe1089984db152258c2bbffc2534dcafbfe032b596bd5b49

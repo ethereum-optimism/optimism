@@ -2,9 +2,9 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /**
- * @title iOVM_BondManager
+ * @title IBondManager
  */
-interface iOVM_BondManager {
+interface IBondManager {
 
     /********************
      * Public Functions *

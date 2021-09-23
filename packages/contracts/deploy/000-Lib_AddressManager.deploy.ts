@@ -17,8 +17,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   await registerAddress({
     hre,
-    name: 'OVM_L2CrossDomainMessenger',
-    address: predeploys.OVM_L2CrossDomainMessenger,
+    name: 'L2CrossDomainMessenger',
+    address: predeploys.L2CrossDomainMessenger,
   })
 
   await registerAddress({

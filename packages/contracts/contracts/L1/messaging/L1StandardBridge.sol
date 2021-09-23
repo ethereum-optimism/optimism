@@ -1,30 +1,29 @@
 // SPDX-License-Identifier: MIT
-// @unsupported: ovm
 pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
-import { iOVM_L1StandardBridge } from "./iOVM_L1StandardBridge.sol";
-import { iOVM_L1ERC20Bridge } from "./iOVM_L1ERC20Bridge.sol";
-import { iOVM_L2ERC20Bridge } from "../../L2/messaging/iOVM_L2ERC20Bridge.sol";
+import { IL1StandardBridge } from "./IL1StandardBridge.sol";
+import { IL1ERC20Bridge } from "./IL1ERC20Bridge.sol";
+import { IL2ERC20Bridge } from "../../L2/messaging/IL2ERC20Bridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
-import { OVM_CrossDomainEnabled } from "../../libraries/bridge/OVM_CrossDomainEnabled.sol";
+import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
- * @title OVM_L1StandardBridge
+ * @title L1StandardBridge
  * @dev The L1 ETH and ERC20 Bridge is a contract which stores deposited L1 funds and standard
  * tokens that are in use on L2. It synchronizes a corresponding L2 Bridge, informing it of deposits
  * and listening to it for newly finalized withdrawals.
  *
  * Runtime target: EVM
  */
-contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
+contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
 
@@ -43,7 +42,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
 
     // This contract lives behind a proxy, so the constructor parameters will go unused.
     constructor()
-        OVM_CrossDomainEnabled(address(0))
+        CrossDomainEnabled(address(0))
     {}
 
     /******************
@@ -98,7 +97,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1StandardBridge
+     * @inheritdoc IL1StandardBridge
      */
     function depositETH(
         uint32 _l2Gas,
@@ -118,7 +117,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1StandardBridge
+     * @inheritdoc IL1StandardBridge
      */
     function depositETHTo(
         address _to,
@@ -158,7 +157,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
         // Construct calldata for finalizeDeposit call
         bytes memory message =
             abi.encodeWithSelector(
-                iOVM_L2ERC20Bridge.finalizeDeposit.selector,
+                IL2ERC20Bridge.finalizeDeposit.selector,
                 address(0),
                 Lib_PredeployAddresses.OVM_ETH,
                 _from,
@@ -178,7 +177,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1ERC20Bridge
+     * @inheritdoc IL1ERC20Bridge
      */
     function depositERC20(
         address _l1Token,
@@ -196,7 +195,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
      /**
-     * @inheritdoc iOVM_L1ERC20Bridge
+     * @inheritdoc IL1ERC20Bridge
      */
     function depositERC20To(
         address _l1Token,
@@ -249,7 +248,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
 
         // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
-            iOVM_L2ERC20Bridge.finalizeDeposit.selector,
+            IL2ERC20Bridge.finalizeDeposit.selector,
             _l1Token,
             _l2Token,
             _from,
@@ -275,7 +274,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
      *************************/
 
      /**
-     * @inheritdoc iOVM_L1StandardBridge
+     * @inheritdoc IL1StandardBridge
      */
     function finalizeETHWithdrawal(
         address _from,
@@ -294,7 +293,7 @@ contract OVM_L1StandardBridge is iOVM_L1StandardBridge, OVM_CrossDomainEnabled {
     }
 
     /**
-     * @inheritdoc iOVM_L1ERC20Bridge
+     * @inheritdoc IL1ERC20Bridge
      */
     function finalizeERC20Withdrawal(
         address _l1Token,

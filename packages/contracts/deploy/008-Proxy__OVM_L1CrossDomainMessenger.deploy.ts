@@ -16,10 +16,10 @@ const deployFn: DeployFunction = async (hre) => {
     }
   )
 
-  const result = await deploy('Proxy__OVM_L1CrossDomainMessenger', {
+  const result = await deploy('Proxy__L1CrossDomainMessenger', {
     contract: 'Lib_ResolvedDelegateProxy',
     from: deployer,
-    args: [Lib_AddressManager.address, 'OVM_L1CrossDomainMessenger'],
+    args: [Lib_AddressManager.address, 'L1CrossDomainMessenger'],
     log: true,
   })
 
@@ -27,23 +27,23 @@ const deployFn: DeployFunction = async (hre) => {
     return
   }
 
-  const Proxy__OVM_L1CrossDomainMessenger = await getDeployedContract(
+  const Proxy__L1CrossDomainMessenger = await getDeployedContract(
     hre,
-    'Proxy__OVM_L1CrossDomainMessenger',
+    'Proxy__L1CrossDomainMessenger',
     {
       signerOrProvider: deployer,
-      iface: 'OVM_L1CrossDomainMessenger',
+      iface: 'L1CrossDomainMessenger',
     }
   )
 
-  await Proxy__OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
+  await Proxy__L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
 
   const libAddressManager =
-    await Proxy__OVM_L1CrossDomainMessenger.libAddressManager()
+    await Proxy__L1CrossDomainMessenger.libAddressManager()
   if (libAddressManager !== Lib_AddressManager.address) {
     throw new Error(
       `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `Proxy__OVM_L1CrossDomainMessenger could not be succesfully initialized.\n` +
+        `Proxy__L1CrossDomainMessenger could not be succesfully initialized.\n` +
         `Attempted to set Lib_AddressManager to: ${Lib_AddressManager.address}\n` +
         `Actual address after initialization: ${libAddressManager}\n` +
         `This could indicate a compromised deployment.`
@@ -51,12 +51,12 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   await Lib_AddressManager.setAddress(
-    'Proxy__OVM_L1CrossDomainMessenger',
+    'Proxy__L1CrossDomainMessenger',
     result.address
   )
 }
 
-deployFn.dependencies = ['Lib_AddressManager', 'OVM_L1CrossDomainMessenger']
-deployFn.tags = ['Proxy__OVM_L1CrossDomainMessenger']
+deployFn.dependencies = ['Lib_AddressManager', 'L1CrossDomainMessenger']
+deployFn.tags = ['Proxy__L1CrossDomainMessenger']
 
 export default deployFn

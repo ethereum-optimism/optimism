@@ -73,19 +73,19 @@ export class OptimismEnv {
     if (balance.isZero()) {
       await fundUser(watcher, l1Bridge, utils.parseEther('20'))
     }
-    const l1Messenger = getContractFactory('iOVM_L1CrossDomainMessenger')
+    const l1Messenger = getContractFactory('L1CrossDomainMessenger')
       .connect(l1Wallet)
       .attach(watcher.l1.messengerAddress)
     const ovmEth = getOvmEth(l2Wallet)
     const l2Bridge = await getL2Bridge(l2Wallet)
-    const l2Messenger = getContractFactory('iOVM_L2CrossDomainMessenger')
+    const l2Messenger = getContractFactory('L2CrossDomainMessenger')
       .connect(l2Wallet)
       .attach(watcher.l2.messengerAddress)
 
     const ctcAddress = await addressManager.getAddress(
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     )
-    const ctc = getContractFactory('OVM_CanonicalTransactionChain')
+    const ctc = getContractFactory('CanonicalTransactionChain')
       .connect(l1Wallet)
       .attach(ctcAddress)
 
@@ -94,9 +94,9 @@ export class OptimismEnv {
       .attach(predeploys.OVM_GasPriceOracle)
 
     const sccAddress = await addressManager.getAddress(
-      'OVM_StateCommitmentChain'
+      'StateCommitmentChain'
     )
-    const scc = getContractFactory('OVM_StateCommitmentChain')
+    const scc = getContractFactory('StateCommitmentChain')
       .connect(l1Wallet)
       .attach(sccAddress)
 
@@ -140,7 +140,7 @@ export class OptimismEnv {
           l1Provider,
           l2Provider,
           this.scc.address,
-          predeploys.OVM_L2CrossDomainMessenger,
+          predeploys.L2CrossDomainMessenger,
           tx.hash
         )
         break
