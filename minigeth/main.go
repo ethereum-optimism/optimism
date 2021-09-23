@@ -52,8 +52,8 @@ func main() {
 
 	_, _, _, err := processor.Process(block, statedb, vmconfig)
 	fmt.Println(err)
-	outHash, err := statedb.Commit(false)
+	/*outHash, err := statedb.Commit(false)
 	fmt.Println(err)
 
-	fmt.Println("process done with hash", outHash, header.Root)
+	fmt.Println("process done with hash", outHash, header.Root)*/
 }

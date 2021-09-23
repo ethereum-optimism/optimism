@@ -24,6 +24,7 @@ func (n rawNode) EncodeRLP(w io.Writer) error {
 
 type Database struct {
 	BlockNumber *big.Int
+	Root        common.Hash
 	lock        sync.RWMutex
 }
 
@@ -38,8 +39,13 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 // found in the memory cache.
 func (db *Database) node(hash common.Hash) node {
 	fmt.Println("trie node", hash)
+	emptyHash := common.Hash{}
+	if hash == emptyHash {
+		return nilValueNode
+	}
 	//return hashNode(hash.Bytes())
-	return nilValueNode
+	return hashNode(nil)
+	//return nilValueNode
 }
 
 // insert inserts a collapsed trie node into the memory database.

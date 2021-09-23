@@ -85,9 +85,18 @@ func cacheWrite(key string, value []byte) {
 	os.WriteFile(toFilename(key), value, 0644)
 }
 
+var unhashMap = make(map[common.Hash]common.Address)
+
+func unhash(addrHash common.Hash) common.Address {
+	return unhashMap[addrHash]
+}
+
 func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr common.Address) []byte {
 	fmt.Println("ORACLE GetProvedAccountBytes:", blockNumber, stateRoot, addr)
 	key := fmt.Sprintf("accounts_%d_%s", blockNumber, addr)
+
+	addrHash := crypto.Keccak256Hash(addr[:])
+	unhashMap[addrHash] = addr
 
 	if !cacheExists(key) {
 		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getProof", Id: 1}
@@ -120,7 +129,8 @@ func GetProvedAccountBytes(blockNumber *big.Int, stateRoot common.Hash, addr com
 	return cacheRead(key)
 }
 
-func GetProvedCodeBytes(blockNumber *big.Int, addr common.Address, codehash common.Hash) []byte {
+func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash, codehash common.Hash) []byte {
+	addr := unhash(addrHash)
 	fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
 	key := fmt.Sprintf("code_%s", codehash)
 	if !cacheExists(key) {
@@ -155,7 +165,8 @@ func GetProvedCodeBytes(blockNumber *big.Int, addr common.Address, codehash comm
 	return cacheRead(key)
 }
 
-func GetProvedStorage(blockNumber *big.Int, addr common.Address, root common.Hash, skey common.Hash) common.Hash {
+func GetProvedStorage(blockNumber *big.Int, addrHash common.Hash, root common.Hash, skey common.Hash) common.Hash {
+	addr := unhash(addrHash)
 	key := fmt.Sprintf("storage_%d_%s_%s_%s", blockNumber, addr, root, skey)
 
 	if !cacheExists(key) {

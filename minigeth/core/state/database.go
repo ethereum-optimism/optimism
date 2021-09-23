@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/oracle"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -21,20 +20,13 @@ type Database struct {
 }
 
 func NewDatabase(header types.Header) Database {
-	triedb := trie.Database{BlockNumber: header.Number}
+	triedb := trie.Database{BlockNumber: header.Number, Root: header.Root}
 	return Database{db: &triedb, BlockNumber: header.Number, StateRoot: header.Root}
-}
-
-var unhashMap = make(map[common.Hash]common.Address)
-
-func unhash(addrHash common.Hash) common.Address {
-	return unhashMap[addrHash]
 }
 
 // ContractCode retrieves a particular contract's code.
 func (db *Database) ContractCode(addrHash common.Hash, codeHash common.Hash) ([]byte, error) {
-	addr := unhash(addrHash)
-	code := oracle.GetProvedCodeBytes(db.BlockNumber, addr, codeHash)
+	code := oracle.GetProvedCodeBytes(db.BlockNumber, addrHash, codeHash)
 	return code, nil
 }
 
@@ -45,8 +37,7 @@ func (db *Database) CopyTrie(trie Trie) Trie {
 
 // ContractCodeSize retrieves a particular contracts code's size.
 func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash) (int, error) {
-	addr := unhash(addrHash)
-	code := oracle.GetProvedCodeBytes(db.BlockNumber, addr, codeHash)
+	code := oracle.GetProvedCodeBytes(db.BlockNumber, addrHash, codeHash)
 	return len(code), nil
 }
 
@@ -58,7 +49,7 @@ func (db *Database) OpenTrie(root common.Hash) (Trie, error) {
 
 // OpenStorageTrie opens the storage trie of an account.
 func (db *Database) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	return SimpleTrie{db.BlockNumber, root, true, unhash(addrHash)}, nil
+	return SimpleTrie{db.BlockNumber, root, true, addrHash}, nil
 }
 
 type Trie interface {
@@ -90,7 +81,7 @@ type SimpleTrie struct {
 	BlockNumber *big.Int
 	Root        common.Hash
 	Storage     bool
-	Address     common.Address
+	AddressHash common.Hash
 }
 
 func (trie SimpleTrie) Commit(onleaf trie.LeafCallback) (common.Hash, error) {
@@ -114,16 +105,8 @@ func (trie SimpleTrie) TryDelete(key []byte) error {
 }
 
 func (trie SimpleTrie) TryGet(key []byte) ([]byte, error) {
-	if trie.Storage {
-		enc := oracle.GetProvedStorage(trie.BlockNumber, trie.Address, trie.Root, common.BytesToHash(key))
-		return enc.Bytes(), nil
-	} else {
-		address := common.BytesToAddress(key)
-		addrHash := crypto.Keccak256Hash(address[:])
-		unhashMap[addrHash] = address
-		enc := oracle.GetProvedAccountBytes(trie.BlockNumber, trie.Root, address)
-		return enc, nil
-	}
+	enc := oracle.GetProvedStorage(trie.BlockNumber, trie.AddressHash, trie.Root, common.BytesToHash(key))
+	return enc.Bytes(), nil
 }
 
 // stubbed: we don't prefetch
