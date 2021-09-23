@@ -1184,7 +1184,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // the nuisance gas left in this call frame, and the gas limit provided to the call. This
         // protects against an attack where an untrusted contract intentionally uses up all
         // available nuisance gas.
-        uint256 nuisanceGasLimit = Math.min(_gasLimit, prevNuisanceGasLeft);
+        uint256 nuisanceGasLimit = Math.min(_gasLimit * 3, prevNuisanceGasLeft);
         messageRecord.nuisanceGasLeft = nuisanceGasLimit;
 
         // Make the call and make sure to pass in the gas limit. Another instance of hidden
@@ -2122,7 +2122,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         transactionContext.ovmL1TXORIGIN = _transaction.l1TxOrigin;
         transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
 
-        messageRecord.nuisanceGasLeft = _transaction.gasLimit;
+        messageRecord.nuisanceGasLeft = _transaction.gasLimit * 3;
     }
 
     /**
