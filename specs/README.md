@@ -1,15 +1,8 @@
-# Optimistic Specs
+# The Optimistic Ethereum Spec
 
-Welcome to Optimism's specs.
+## Notice
 
-Please refer to the README in each of the subdirectories for a table of contents.
-
-### Usage
-
-We provide some basic yarn scripts to ensure consistent formatting.
-
-After modifying any of the markdown files here, run `yarn format`.
-
-```bash
-yarn format
-```
+We're in the process of moving our specifications to the [optimistic-specs](https://github.com/ethereum-optimism/optimistic-specs) repository.
+**The specifications within this folder may be entirely outdated**.
+Please refer to the `optimistic-specs` repository for the most up-to-date system specifications.
+We will remove this folder once the migration process is complete.
