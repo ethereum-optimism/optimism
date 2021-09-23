@@ -17,10 +17,19 @@ func main() {
 	// read header
 	var header types.Header
 	{
-		f, _ := os.Open("data/block_13247501")
+		f, _ := os.Open("data/block_13284053")
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&header)
+	}
+
+	// read header
+	var newheader types.Header
+	{
+		f, _ := os.Open("data/block_13284054")
+		defer f.Close()
+		rlpheader := rlp.NewStream(f, 0)
+		rlpheader.Decode(&newheader)
 	}
 
 	bc := core.NewBlockChain()
@@ -33,7 +42,7 @@ func main() {
 	// read txs
 	var txs []*types.Transaction
 	{
-		f, _ := os.Open("data/txs_13247502")
+		f, _ := os.Open("data/txs_13284054")
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&txs)
@@ -53,8 +62,8 @@ func main() {
 
 	_, _, _, err := processor.Process(block, statedb, vmconfig)
 	fmt.Println(err)
-	/*outHash, err := statedb.Commit(false)
+	outHash, err := statedb.Commit(true)
 	fmt.Println(err)
 
-	fmt.Println("process done with hash", outHash, header.Root)*/
+	fmt.Println("process done with hash", header.Root, "->", outHash, newheader.Root)
 }

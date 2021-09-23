@@ -82,6 +82,7 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 // node retrieves a cached trie node from memory, or returns nil if none can be
 // found in the memory cache.
 func (db *Database) node(hash common.Hash) node {
+	fmt.Println("node", hash)
 	return mustDecodeNode(hash[:], oracle.Preimage(hash))
 }
 
@@ -90,4 +91,6 @@ func (db *Database) node(hash common.Hash) node {
 // All nodes inserted by this function will be reference tracked
 // and in theory should only used for **trie nodes** insertion.
 func (db *Database) insert(hash common.Hash, size int, node node) {
+	//panic("insert")
+	//fmt.Println("insert", hash, size)
 }

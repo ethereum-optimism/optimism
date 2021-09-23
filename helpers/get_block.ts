@@ -99,8 +99,10 @@ async function getBlock(blockNumber: Number) {
 
 
 async function main() {
-  await getBlock(13247501)
-  await getBlock(13247502)
+  /*await getBlock(13247501)
+  await getBlock(13247502)*/
+  await getBlock(13284053)
+  await getBlock(13284054)
 }
 
 main().then(() => process.exit(0))

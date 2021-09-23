@@ -97,6 +97,7 @@ var preimages = make(map[common.Hash][]byte)
 func Preimage(hash common.Hash) []byte {
 	val, ok := preimages[hash]
 	if !ok {
+		fmt.Println("can't find preimage", hash)
 		panic("preimage missing")
 	}
 	return val
@@ -104,6 +105,7 @@ func Preimage(hash common.Hash) []byte {
 
 func PrefetchAddress(blockNumber *big.Int, addr common.Address, skey common.Hash) {
 	key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
+	fmt.Println("prefetch", key)
 	if cached[key] {
 		//fmt.Println("hit", key)
 		return

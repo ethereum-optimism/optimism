@@ -354,8 +354,9 @@ func (s *stateObject) updateTrie(db Database) Trie {
 		s.originStorage[key] = value
 
 		var v []byte
+		oracle.PrefetchAddress(db.BlockNumber, s.address, key)
 		if (value == common.Hash{}) {
-			s.setError(tr.TryDelete(key[:]))
+			//s.setError(tr.TryDelete(key[:]))
 		} else {
 			// Encoding []byte cannot fail, ok to ignore the error.
 			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
