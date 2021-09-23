@@ -14,8 +14,16 @@ import (
 )
 
 func main() {
-	//blockNumber := 13284469
-	blockNumber := 13284491
+
+	// 0 tx
+	//blockNumber := 13284491
+
+	// low tx
+	blockNumber := 13284469
+
+	// more tx with delete issue
+	//blockNumber := 13284053
+
 	// read header
 	var header types.Header
 	{
@@ -67,5 +75,5 @@ func main() {
 	/*outHash, err := statedb.Commit(true)
 	fmt.Println(err)*/
 
-	fmt.Println("process done with hash", header.Root, "-?>", newheader.Root)
+	fmt.Println("process done with hash", header.Root, "->", block.Header().Root, "real", newheader.Root)
 }
