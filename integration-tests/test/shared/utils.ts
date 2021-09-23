@@ -182,11 +182,11 @@ export const expectApprox = (
 
   expect(
     actual.lte(upper),
-    `Actual value is more than ${upperPercentDeviation}% greater than target`
+    `Actual value (${actual}) is more than ${upperPercentDeviation}% greater than target (${target})`
   ).to.be.true
   expect(
     actual.gte(lower),
-    `Actual value is more than ${lowerPercentDeviation}% less than target`
+    `Actual value (${actual}) is more than ${lowerPercentDeviation}% less than target (${target})`
   ).to.be.true
 }
 
