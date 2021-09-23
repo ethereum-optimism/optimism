@@ -19,3 +19,7 @@ func Warn(msg string, ctx ...interface{}) {
 func Error(msg string, ctx ...interface{}) {
 	fmt.Println(msg, ctx)
 }
+
+func Crit(msg string, ctx ...interface{}) {
+	fmt.Println(msg, ctx)
+}

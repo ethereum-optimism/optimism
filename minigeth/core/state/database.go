@@ -120,6 +120,13 @@ func (p *triePrefetcher) prefetch(root common.Hash, keys [][]byte) {
 func (p *triePrefetcher) used(root common.Hash, used [][]byte) {
 }
 
+func (p *triePrefetcher) close() {
+}
+
+func (p *triePrefetcher) copy() *triePrefetcher {
+	return p
+}
+
 func (p *triePrefetcher) trie(root common.Hash) Trie {
 	return nil
 }
