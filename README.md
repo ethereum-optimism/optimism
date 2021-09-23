@@ -12,14 +12,19 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 
 ## Usage
 ```
-# running block 13247502
-ts-node helpers/get_block.ts    # not needed, the data is committed for now
+# verify the transition from 13284469 -> 13284470
 ./run.sh
 ```
 
+## State Oracle API
+
+hash -> value such that hash(value) == hash
+
+This works for the three types of state in ethereum, Accounts, Storage, and Code.
+
 ## License
 
-All my code is MIT license, minigeth is LGPL3
+All my code is MIT license, minigeth is LGPL3. Being developed under contract for @optimismPBC
 
 # Very important TODO
 

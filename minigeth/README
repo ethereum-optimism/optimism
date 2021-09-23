@@ -32,6 +32,18 @@ GetUnproved...need to be written also
 
 # diving in more
 
+Custom: 
+consensus/ethash/fake_ethash.go
+core/fake_blockchain.go
 core/state/database.go
+trie/database.go
+oracle
+main.go
+
+Minor mods (add prefetches):
+core/state/statedb.go
+core/state/state_object.go
+
+
 
 
