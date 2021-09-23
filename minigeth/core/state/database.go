@@ -43,7 +43,7 @@ func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash)
 
 // OpenStorageTrie opens the storage trie of an account.
 func (db *Database) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	return SimpleTrie{}, nil
+	return SimpleTrie{db.BlockNumber, db.StateRoot}, nil
 }
 
 type LeafCallback func(paths [][]byte, hexpath []byte, leaf []byte, parent common.Hash) error
