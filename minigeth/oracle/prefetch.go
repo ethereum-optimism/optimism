@@ -110,7 +110,7 @@ func PrefetchStorage(blockNumber *big.Int, addr common.Address, skey common.Hash
 	}
 }
 
-func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
+func PrefetchAccount(blockNumber *big.Int, addr common.Address) {
 	key := fmt.Sprintf("proof_%d_%s", blockNumber, addr)
 	if cached[key] {
 		return

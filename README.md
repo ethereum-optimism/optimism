@@ -18,9 +18,9 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 
 ## State Oracle API
 
-hash -> value such that hash(value) == hash
+Preimage(hash) -> value    # hash(value) == hash
 
-This works for the three types of state in ethereum, Accounts, Storage, and Code.
+PrefetchAccount, PrefetchStorage, PrefetchCode can be NOP in the VM
 
 ## License
 
