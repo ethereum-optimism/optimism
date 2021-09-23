@@ -19,7 +19,13 @@ type Account struct {
 }
 
 // TODO: oracle for
+//   GetProvedBlockHeader(blockNumber, blockHash) -> Types.block
+//   GetProvedTransactions(blockNumber, transactionHash) -> []Types.transaction
 //   GetProvedAccountBytes(blockNumber, stateRoot, addr) -> rlpAccount
 //   GetProvedCodeBytes(blockNumber, addr, codehash) -> []byte
 //   GetProvedStorage(blockNumber, addr, root, key) -> common.Hash
 // These functions access the backend oracle, and will assert if the proof is bad
+
+The oracle ensures a correct output given the input, these are the high level methods
+
+GetUnproved...need to be written also
