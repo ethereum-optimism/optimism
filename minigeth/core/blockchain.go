@@ -15,7 +15,10 @@ type BlockChain struct {
 }
 
 func NewBlockChain() *BlockChain {
-	return &BlockChain{engine: &ethash.Ethash{}}
+	return &BlockChain{
+		chainConfig: params.MainnetChainConfig,
+		engine:      &ethash.Ethash{},
+	}
 }
 
 // Config retrieves the chain's fork configuration.
