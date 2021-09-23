@@ -92,25 +92,15 @@ func unhash(addrHash common.Hash) common.Address {
 }
 
 var cached = make(map[string]bool)
-var preimages = make(map[common.Hash][]byte)
-
-func Preimage(hash common.Hash) []byte {
-	val, ok := preimages[hash]
-	if !ok {
-		fmt.Println("can't find preimage", hash)
-		panic("preimage missing")
-	}
-	return val
-}
 
 func PrefetchStorage(blockNumber *big.Int, addr common.Address, skey common.Hash) {
-	/*key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
+	key := fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
 	if cached[key] {
 		return
 	}
-	cached[key] = true*/
+	cached[key] = true
 
-	ap := GetProofAccount(blockNumber, addr, skey, true)
+	ap := getProofAccount(blockNumber, addr, skey, true)
 	//fmt.Println("PrefetchStorage", blockNumber, addr, skey, len(ap))
 	for _, s := range ap {
 		ret, _ := hex.DecodeString(s[2:])
@@ -127,7 +117,7 @@ func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
 	}
 	cached[key] = true
 
-	ap := GetProofAccount(blockNumber, addr, common.Hash{}, false)
+	ap := getProofAccount(blockNumber, addr, common.Hash{}, false)
 	for _, s := range ap {
 		ret, _ := hex.DecodeString(s[2:])
 		hash := crypto.Keccak256Hash(ret)
@@ -136,12 +126,17 @@ func PrefetchAddress(blockNumber *big.Int, addr common.Address) {
 }
 
 func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
-	ret := GetProvedCodeBytes(blockNumber, addrHash)
+	key := fmt.Sprintf("code_%d_%s", blockNumber, addrHash)
+	if cached[key] {
+		return
+	}
+	cached[key] = true
+	ret := getProvedCodeBytes(blockNumber, addrHash)
 	hash := crypto.Keccak256Hash(ret)
 	preimages[hash] = ret
 }
 
-func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {
+func getProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {
 	var key string
 	if storage {
 		key = fmt.Sprintf("proof_%d_%s_%s", blockNumber, addr, skey)
@@ -176,7 +171,7 @@ func GetProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash
 	return strings.Split(string(cacheRead(key)), "\n")
 }
 
-func GetProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash) []byte {
+func getProvedCodeBytes(blockNumber *big.Int, addrHash common.Hash) []byte {
 	addr := unhash(addrHash)
 	//fmt.Println("ORACLE GetProvedCodeBytes:", blockNumber, addr, codehash)
 	key := fmt.Sprintf("code_%d_%s", blockNumber, addr)
