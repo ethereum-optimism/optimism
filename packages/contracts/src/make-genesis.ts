@@ -14,8 +14,16 @@ export interface RollupDeployConfig {
   whitelistOwner: string
   // Address that will own the L2 gas price oracle.
   gasPriceOracleOwner: string
-  // Initial value for the L2 gas price.
-  initialGasPrice: number
+  // Overhead value of the gas price oracle
+  gasPriceOracleOverhead: number
+  // Scalar value of the gas price oracle
+  gasPriceOracleScalar: number
+  // L1 base fee of the gas price oracle
+  gasPriceOracleL1BaseFee: number
+  // L2 gas price of the gas price oracle
+  gasPriceOracleGasPrice: number
+  // Number of decimals of the gas price oracle scalar
+  gasPriceOracleDecimals: number
   // Initial value for the L2 block gas limit.
   l2BlockGasLimit: number
   // Chain ID to give the L2 network.
@@ -52,7 +60,11 @@ export const makeL2GenesisFile = async (
     },
     OVM_GasPriceOracle: {
       _owner: cfg.gasPriceOracleOwner,
-      gasPrice: cfg.initialGasPrice,
+      gasPrice: cfg.gasPriceOracleGasPrice,
+      l1BaseFee: cfg.gasPriceOracleL1BaseFee,
+      overhead: cfg.gasPriceOracleOverhead,
+      scalar: cfg.gasPriceOracleScalar,
+      decimals: cfg.gasPriceOracleDecimals,
     },
     L2StandardBridge: {
       l1TokenBridge: cfg.l1StandardBridgeAddress,
