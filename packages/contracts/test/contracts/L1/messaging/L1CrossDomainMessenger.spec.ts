@@ -96,13 +96,12 @@ describe('L1CrossDomainMessenger', () => {
     Factory__L1CrossDomainMessenger = await ethers.getContractFactory(
       'L1CrossDomainMessenger'
     )
-    CanonicalTransactionChain =
-      await Factory__CanonicalTransactionChain.deploy(
-        AddressManager.address,
-        FORCE_INCLUSION_PERIOD_SECONDS,
-        FORCE_INCLUSION_PERIOD_BLOCKS,
-        MAX_GAS_LIMIT
-      )
+    CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
+      AddressManager.address,
+      FORCE_INCLUSION_PERIOD_SECONDS,
+      FORCE_INCLUSION_PERIOD_BLOCKS,
+      MAX_GAS_LIMIT
+    )
 
     const batches = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
@@ -131,8 +130,7 @@ describe('L1CrossDomainMessenger', () => {
 
   let L1CrossDomainMessenger: Contract
   beforeEach(async () => {
-    const xDomainMessengerImpl =
-      await Factory__L1CrossDomainMessenger.deploy()
+    const xDomainMessengerImpl = await Factory__L1CrossDomainMessenger.deploy()
     // We use an upgradable proxy for the XDomainMessenger--deploy & set up the proxy.
     L1CrossDomainMessenger = await deployProxyXDomainMessenger(
       AddressManager,
@@ -366,13 +364,7 @@ describe('L1CrossDomainMessenger', () => {
       }
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(
-          target,
-          sender,
-          message,
-          0,
-          proof1
-        )
+        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof1)
       ).to.be.revertedWith('Provided message could not be verified.')
     })
 
@@ -410,13 +402,7 @@ describe('L1CrossDomainMessenger', () => {
       }
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(
-          target,
-          sender,
-          message,
-          0,
-          proof1
-        )
+        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof1)
       ).to.be.revertedWith('Provided message could not be verified.')
     })
 
@@ -493,13 +479,7 @@ describe('L1CrossDomainMessenger', () => {
       )
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(
-          target,
-          sender,
-          message,
-          0,
-          proof
-        )
+        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
       ).to.be.revertedWith('Provided message has already been received.')
     })
 
@@ -507,20 +487,13 @@ describe('L1CrossDomainMessenger', () => {
       await L1CrossDomainMessenger.pause()
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(
-          target,
-          sender,
-          message,
-          0,
-          proof
-        )
+        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
       ).to.be.revertedWith('Pausable: paused')
     })
 
     describe('blockMessage and allowMessage', () => {
       it('should revert if called by an account other than the owner', async () => {
-        const L1CrossDomainMessenger2 =
-          L1CrossDomainMessenger.connect(signer2)
+        const L1CrossDomainMessenger2 = L1CrossDomainMessenger.connect(signer2)
         await expect(
           L1CrossDomainMessenger2.blockMessage(keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')
@@ -534,13 +507,7 @@ describe('L1CrossDomainMessenger', () => {
         await L1CrossDomainMessenger.blockMessage(keccak256(calldata))
 
         await expect(
-          L1CrossDomainMessenger.relayMessage(
-            target,
-            sender,
-            message,
-            0,
-            proof
-          )
+          L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
         ).to.be.revertedWith('Provided message has been blocked.')
       })
 
@@ -548,25 +515,13 @@ describe('L1CrossDomainMessenger', () => {
         await L1CrossDomainMessenger.blockMessage(keccak256(calldata))
 
         await expect(
-          L1CrossDomainMessenger.relayMessage(
-            target,
-            sender,
-            message,
-            0,
-            proof
-          )
+          L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
         ).to.be.revertedWith('Provided message has been blocked.')
 
         await L1CrossDomainMessenger.allowMessage(keccak256(calldata))
 
         await expect(
-          L1CrossDomainMessenger.relayMessage(
-            target,
-            sender,
-            message,
-            0,
-            proof
-          )
+          L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
         ).to.not.be.reverted
       })
     })
@@ -580,13 +535,7 @@ describe('L1CrossDomainMessenger', () => {
         )
 
         await expect(
-          L1CrossDomainMessenger.relayMessage(
-            target,
-            sender,
-            message,
-            0,
-            proof
-          )
+          L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
         ).to.be.revertedWith(
           'Only OVM_L2MessageRelayer can relay L2-to-L1 messages.'
         )

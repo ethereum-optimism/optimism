@@ -66,12 +66,7 @@ describe('L2StandardBridge', () => {
     // Deploy an L2 ERC20
     L2ERC20 = await (
       await ethers.getContractFactory('L2StandardERC20', alice)
-    ).deploy(
-      L2StandardBridge.address,
-      DUMMY_L1TOKEN_ADDRESS,
-      'L2Token',
-      'L2T'
-    )
+    ).deploy(L2StandardBridge.address, DUMMY_L1TOKEN_ADDRESS, 'L2Token', 'L2T')
   })
 
   // test the transfer flow of moving a token from L2 to L1
@@ -133,9 +128,7 @@ describe('L2StandardBridge', () => {
         () => DUMMY_L1BRIDGE_ADDRESS
       )
 
-      await L2StandardBridge.connect(
-        l2MessengerImpersonator
-      ).finalizeDeposit(
+      await L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
         NonCompliantERC20.address,
         aliceAddress,
@@ -173,9 +166,7 @@ describe('L2StandardBridge', () => {
         () => DUMMY_L1BRIDGE_ADDRESS
       )
 
-      await L2StandardBridge.connect(
-        l2MessengerImpersonator
-      ).finalizeDeposit(
+      await L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
         DUMMY_L1TOKEN_ADDRESS,
         L2ERC20.address,
         aliceAddress,
