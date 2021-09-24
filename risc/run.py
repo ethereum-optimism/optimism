@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import struct
 from elftools.elf.elffile import ELFFile
 
 from hexdump import hexdump
@@ -54,13 +55,13 @@ for seg in elffile.iter_segments():
 
 entry = elffile.header.e_entry
 print("entrypoint: %x" % entry)
+#hexdump(mu.mem_read(entry, 0x10))
 
+mu.reg_write(UC_MIPS_REG_SP, SIZE-0x2000)
 
-#mu.mem_write(0x10000, data)
-
-hexdump(mu.mem_read(entry, 0x10))
-
-mu.reg_write(UC_MIPS_REG_SP, SIZE-0x1000)
+# http://articles.manugarg.com/aboutelfauxiliaryvectors.html
+mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIII", 1, SIZE-0x1000, 0, SIZE-0x1000, 0, SIZE-0x1000, 0))
+hexdump(mu.mem_read(SIZE-0x2000, 0x100))
 
 mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 #mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
