@@ -10,11 +10,12 @@ RUN apt-get update -y && apt-get install -y git
 # Pre-download the compilers so that they do not need to be downloaded inside
 # the image when building
 FROM alpine as downloader
-ARG VERSION=v0.7.6
-ARG SOLC_VERSION=${VERSION}+commit.7338295f
+ARG VERSION=v0.8.7
+ARG SOLC_VERSION=${VERSION}+commit.e28d00a7
 ARG SOLC_UPSTREAM=https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-${SOLC_VERSION}
 
 ADD $SOLC_UPSTREAM ./solc
+ADD https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 ./solc
 
 FROM node as builder
 # copy over the needed configs to run the dep installation
@@ -51,7 +52,8 @@ COPY *.json yarn.lock ./
 COPY ./packages ./packages
 COPY ./integration-tests ./integration-tests
 # copy over solc to save time building (35+ seconds vs not doing this step)
-COPY --from=downloader solc /root/.cache/hardhat-nodejs/compilers/linux-amd64/solc-linux-amd64-v0.7.6+commit.7338295f
+COPY --from=downloader solc /root/.cache/hardhat-nodejs/compilers/linux-amd64/solc-linux-amd64-${SOLC_VERSION}
+COPY --from=downloader solc /root/.cache/hardhat-nodejs/compilers/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13
 
 # build it!
 RUN yarn build
