@@ -82,7 +82,7 @@ func cacheExists(key string) bool {
 }
 
 func cacheWrite(key string, value []byte) {
-	os.WriteFile(toFilename(key), value, 0644)
+	ioutil.WriteFile(toFilename(key), value, 0644)
 }
 
 func getAPI(jsonData []byte) io.Reader {
