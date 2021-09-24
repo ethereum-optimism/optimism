@@ -592,20 +592,21 @@ library Lib_RLPReader {
         }
 
         // Pick out the remaining bytes.
+        uint256 mask;
         unchecked {
-            uint256 mask = 256 ** (32 - (_length % 32)) - 1;
-            assembly {
-                mstore(
-                    dest,
-                    or(
-                        and(mload(src), not(mask)),
-                        and(mload(dest), mask)
-                    )
-                )
-            }
-
-            return out;
+            mask = 256 ** (32 - (_length % 32)) - 1;
         }
+
+        assembly {
+            mstore(
+                dest,
+                or(
+                    and(mload(src), not(mask)),
+                    and(mload(dest), mask)
+                )
+            )
+        }
+        return out;
     }
 
     /**
