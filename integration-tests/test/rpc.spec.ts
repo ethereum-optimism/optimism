@@ -1,4 +1,4 @@
-import { injectL2Context } from '@eth-optimism/core-utils'
+import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
@@ -8,7 +8,6 @@ import {
   l2Provider,
   DEFAULT_TRANSACTION,
   fundUser,
-  expectApprox,
   L2_CHAINID,
   IS_LIVE_NETWORK,
 } from './shared/utils'
