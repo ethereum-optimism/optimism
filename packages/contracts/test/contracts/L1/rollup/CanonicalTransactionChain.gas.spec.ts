@@ -6,6 +6,7 @@ import {
   AppendSequencerBatchParams,
   BatchContext,
   encodeAppendSequencerBatch,
+  expectApprox,
 } from '@eth-optimism/core-utils'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { keccak256 } from 'ethers/lib/utils'
@@ -21,7 +22,6 @@ import {
   getEthTime,
   getNextBlockNumber,
   NON_ZERO_ADDRESS,
-  expectApprox,
 } from '../../../helpers'
 
 // Still have some duplication from CanonicalTransactionChain.spec.ts, but it's so minimal that
