@@ -15,8 +15,8 @@ regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 
 SIZE = 16*1024*1024
 
-# 0x40000000
-heap_start = 1024*1024*1024
+heap_start = 0x20000000 # 0x20000000-0x30000000
+brk_start = 0x40000000  # 0x40000000-0x80000000
 
 tfd = 10
 files = {}
@@ -27,6 +27,7 @@ def hook_interrupt(uc, intno, user_data):
   if intno == 17:
     syscall_no = uc.reg_read(UC_MIPS_REG_V0)
     uc.reg_write(UC_MIPS_REG_V0, 0)
+    uc.reg_write(UC_MIPS_REG_A3, 0)
     if syscall_no == 4004:
       # write
       fd = uc.reg_read(UC_MIPS_REG_A0)
@@ -49,8 +50,14 @@ def hook_interrupt(uc, intno, user_data):
     elif syscall_no == 4194:
       # rt_sigaction
       return
+    elif syscall_no == 4195:
+      # rt_sigprocmask
+      return
     elif syscall_no == 4055:
       # fcntl
+      return
+    elif syscall_no == 4220:
+      # fcntl64
       return
     elif syscall_no == 4249:
       # epoll_ctl
@@ -58,11 +65,26 @@ def hook_interrupt(uc, intno, user_data):
     elif syscall_no == 4263:
       # clock_gettime
       return
+    elif syscall_no == 4326:
+      # epoll_create1
+      return
+    elif syscall_no == 4328:
+      # pipe2
+      return
+    elif syscall_no == 4206:
+      # sigaltstack
+      return
+    elif syscall_no == 4222:
+      # gettid
+      return
 
     if syscall_no == 4005:
       filename = uc.reg_read(UC_MIPS_REG_A0)
       print('open("%s")' % uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8'))
       uc.reg_write(UC_MIPS_REG_V0, 4)
+    elif syscall_no == 4045:
+      print("brk", hex(brk_start))
+      uc.reg_write(UC_MIPS_REG_V0, brk_start)
     elif syscall_no == 4288:
       dfd = uc.reg_read(UC_MIPS_REG_A0)
       filename = uc.reg_read(UC_MIPS_REG_A1)
@@ -91,7 +113,7 @@ def hook_interrupt(uc, intno, user_data):
     elif syscall_no == 4006:
       fd = uc.reg_read(UC_MIPS_REG_A0)
       if fd >= 10:
-        print("close(%d)" % fd)
+        #print("close(%d)" % fd)
         files[fd].close()
         del files[fd]
       uc.reg_write(UC_MIPS_REG_V0, 0)
@@ -101,7 +123,7 @@ def hook_interrupt(uc, intno, user_data):
       count = uc.reg_read(UC_MIPS_REG_A2)
       # changing this works if we want smaller oracle
       #count = 4
-      print("read", fd, hex(buf), count)
+      #print("read", fd, hex(buf), count)
       if fd == 4:
         val = b"2097152\n"
         uc.mem_write(buf, val)
@@ -135,7 +157,6 @@ def hook_interrupt(uc, intno, user_data):
       for i,r in zip(mregs, regs):
         jj += "%s: %8x " % (r, uc.reg_read(i))
       print(''.join(jj))
-    uc.reg_write(UC_MIPS_REG_A3, 0)
     return True
 
   print("interrupt", intno, hex(pc))
@@ -182,12 +203,11 @@ elf.seek(0)
 # program memory (16 MB)
 mu.mem_map(0, SIZE)
 
-# extra memory (16 MB) @ 0x1000000
-# TODO: why do we need this?
-mu.mem_map(SIZE, SIZE)
-
-# heap (256 MB) @ 0x40000000
+# heap (256 MB) @ 0x20000000
 mu.mem_map(heap_start, 256*1024*1024)
+
+# brk (1024 MB) @ 0x40000000
+mu.mem_map(brk_start, 1024*1024*1024)
 
 # regs at 0xC0000000 in merkle
 
