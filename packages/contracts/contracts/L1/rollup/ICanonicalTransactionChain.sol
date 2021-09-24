@@ -216,24 +216,4 @@ interface ICanonicalTransactionChain {
         // bytes[] _transactionDataFields
     )
         external;
-
-    /**
-     * Verifies whether a transaction is included in the chain.
-     * @param _transaction Transaction to verify.
-     * @param _txChainElement Transaction chain element corresponding to the transaction.
-     * @param _batchHeader Header of the batch the transaction was included in.
-     * @param _inclusionProof Inclusion proof for the provided transaction chain element.
-     * @return True if the transaction exists in the CTC, false if not.
-     */
-    function verifyTransaction(
-        Lib_OVMCodec.Transaction memory _transaction,
-        Lib_OVMCodec.TransactionChainElement memory _txChainElement,
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _inclusionProof
-    )
-        external
-        view
-        returns (
-            bool
-        );
 }
