@@ -27,6 +27,10 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 		BlockHash         common.Hash    `json:"blockHash,omitempty"`
 		BlockNumber       *hexutil.Big   `json:"blockNumber,omitempty"`
 		TransactionIndex  hexutil.Uint   `json:"transactionIndex"`
+		L1GasPrice        *big.Int       `json:"l1GasPrice" gencodec:"required"`
+		L1GasUsed         *big.Int       `json:"l1GasUsed" gencodec:"required"`
+		L1Fee             *big.Int       `json:"l1Fee" gencodec:"required"`
+		FeeScalar         *big.Float     `json:"l1FeeScalar" gencodec:"required"`
 	}
 	var enc Receipt
 	enc.PostState = r.PostState
@@ -40,6 +44,10 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 	enc.BlockHash = r.BlockHash
 	enc.BlockNumber = (*hexutil.Big)(r.BlockNumber)
 	enc.TransactionIndex = hexutil.Uint(r.TransactionIndex)
+	enc.L1GasPrice = r.L1GasPrice
+	enc.L1GasUsed = r.L1GasUsed
+	enc.L1Fee = r.L1Fee
+	enc.FeeScalar = r.FeeScalar
 	return json.Marshal(&enc)
 }
 
@@ -57,6 +65,10 @@ func (r *Receipt) UnmarshalJSON(input []byte) error {
 		BlockHash         *common.Hash    `json:"blockHash,omitempty"`
 		BlockNumber       *hexutil.Big    `json:"blockNumber,omitempty"`
 		TransactionIndex  *hexutil.Uint   `json:"transactionIndex"`
+		L1GasPrice        *big.Int        `json:"l1GasPrice" gencodec:"required"`
+		L1GasUsed         *big.Int        `json:"l1GasUsed" gencodec:"required"`
+		L1Fee             *big.Int        `json:"l1Fee" gencodec:"required"`
+		FeeScalar         *big.Float      `json:"l1FeeScalar" gencodec:"required"`
 	}
 	var dec Receipt
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -100,5 +112,21 @@ func (r *Receipt) UnmarshalJSON(input []byte) error {
 	if dec.TransactionIndex != nil {
 		r.TransactionIndex = uint(*dec.TransactionIndex)
 	}
+	if dec.L1GasPrice == nil {
+		return errors.New("missing required field 'l1GasPrice' for Receipt")
+	}
+	r.L1GasPrice = dec.L1GasPrice
+	if dec.L1GasUsed == nil {
+		return errors.New("missing required field 'l1GasUsed' for Receipt")
+	}
+	r.L1GasUsed = dec.L1GasUsed
+	if dec.L1Fee == nil {
+		return errors.New("missing required field 'l1Fee' for Receipt")
+	}
+	r.L1Fee = dec.L1Fee
+	if dec.FeeScalar == nil {
+		return errors.New("missing required field 'l1FeeScalar' for Receipt")
+	}
+	r.FeeScalar = dec.FeeScalar
 	return nil
 }

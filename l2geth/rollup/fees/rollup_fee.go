@@ -9,6 +9,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
@@ -153,6 +154,22 @@ func CalculateL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 	return new(big.Int).Add(l1Gas, overhead)
 }
 
+// DeriveL1GasInfo reads L1 gas related information to be included
+// on the receipt
+func DeriveL1GasInfo(msg Message, state StateDB) (*big.Int, *big.Int, *big.Int, *big.Float, error) {
+	tx := asTransaction(msg)
+	raw, err := rlpEncode(tx)
+	fmt.Println(hexutil.Encode(raw))
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	l1GasPrice, overhead, scalar := readGPOStorageSlots(rcfg.L2GasPriceOracleAddress, state)
+	l1GasUsed := CalculateL1GasUsed(raw, overhead)
+	l1Fee := CalculateL1Fee(raw, overhead, l1GasPrice, scalar)
+	return l1Fee, l1GasPrice, l1GasUsed, scalar, nil
+}
+
 func readGPOStorageSlots(addr common.Address, state StateDB) (*big.Int, *big.Int, *big.Float) {
 	l1GasPrice := state.GetState(addr, rcfg.L1GasPriceSlot)
 	overhead := state.GetState(addr, rcfg.OverheadSlot)
@@ -183,7 +200,7 @@ func rlpEncode(tx *types.Transaction) ([]byte, error) {
 
 	r, v, s := tx.RawSignatureValues()
 	if r.Cmp(common.Big0) != 0 || v.Cmp(common.Big0) != 0 || s.Cmp(common.Big0) != 0 {
-		return []byte{}, errTransactionSigned
+		return nil, errTransactionSigned
 	}
 
 	// Slice off the 0 bytes representing the signature

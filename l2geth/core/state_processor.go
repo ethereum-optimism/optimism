@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
@@ -107,11 +108,22 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
+
+	// UsingOVM
+	// Compute the fee related information that is to be included
+	// on the receipt. This must happen before the state transition
+	// to ensure that the correct information is used.
+	l1Fee, l1GasPrice, l1GasUsed, scalar, err := fees.DeriveL1GasInfo(msg, statedb)
+	if err != nil {
+		return nil, err
+	}
+
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
 	if err != nil {
 		return nil, err
 	}
+
 	// Update the state with pending changes
 	var root []byte
 	if config.IsByzantium(header.Number) {
@@ -124,6 +136,10 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// Create a new receipt for the transaction, storing the intermediate root and gas used by the tx
 	// based on the eip phase, we're passing whether the root touch-delete accounts.
 	receipt := types.NewReceipt(root, failed, *usedGas)
+	receipt.L1GasPrice = l1GasPrice
+	receipt.L1GasUsed = l1GasUsed
+	receipt.L1Fee = l1Fee
+	receipt.FeeScalar = scalar
 	receipt.TxHash = tx.Hash()
 	receipt.GasUsed = gas
 	// if the transaction created a contract, store the creation address in the receipt.
