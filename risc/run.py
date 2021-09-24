@@ -15,9 +15,12 @@ cnt = 0
 def hook_code(uc, address, size, user_data):
   global cnt
   cnt += 1
+
+  """
   dat = mu.mem_read(address, size)
   if dat == "\x0c\x00\x00\x00" or dat == "\x00\x00\x00\x0c":
     raise Exception("syscall")
+  """
   
   #if cnt == 2000:
   #  raise Exception("too many instructions")
@@ -26,7 +29,7 @@ def hook_code(uc, address, size, user_data):
     jj = []
     for i in range(16):
       jj += "r%d: %x " % (i, uc.reg_read(i))
-    print(''.join(jj))
+    #print(''.join(jj))
     #print('    code hook: pc=%08x sp=%08x' % (
     #  uc.reg_read(UC_MIPS_REG_PC),
     #  uc.reg_read(UC_MIPS_REG_SP)
@@ -59,8 +62,8 @@ hexdump(mu.mem_read(entry, 0x10))
 
 mu.reg_write(UC_MIPS_REG_SP, SIZE-0x1000)
 
-#mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
-mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
+mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
+#mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
 
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 #mu.hook_add(UC_HOOK_INSN, hook_interrupt, None, 1, 0, 0x0c000000)
