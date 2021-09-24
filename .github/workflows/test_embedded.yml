@@ -9,10 +9,10 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v2
-    - name: Install Go
+    - name: Install Go and Python
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install golang python3 python3-pip
+        sudo apt-get -y --no-install-recommends install golang-1.17 python3 python3-pip
     - name: Install Python deps
       run: pip3 install -r risc/requirements.txt
     - name: Build minigeth and run default block (cache)

@@ -12,7 +12,7 @@ jobs:
     - name: Install Go
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install golang
+        sudo apt-get -y --no-install-recommends install golang-1.17
     - name: Build minigeth
       run: |
         (cd minigeth/ && go build)
