@@ -16,7 +16,9 @@ jobs:
     - name: Install Python deps
       run: pip3 install -r risc/requirements.txt
     - name: Build minigeth and run default block (cache)
-      run: ./run.sh
+      run: |
+        ./run.sh
+        minigeth/go-ethereum 13284491
     - name: Test in the embedded world
       run: |
         cd risc

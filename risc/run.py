@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import math
 import struct
 import traceback
 from elftools.elf.elffile import ELFFile
@@ -15,6 +16,9 @@ from rangetree import RangeTree
 
 mu = Uc(UC_ARCH_MIPS, UC_MODE_32 + UC_MODE_BIG_ENDIAN)
 
+# memory trie
+# register trie
+
 mregs = [UC_MIPS_REG_AT, UC_MIPS_REG_V0, UC_MIPS_REG_V1, UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3]
 regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 
@@ -27,14 +31,20 @@ brk_start = 0x40000000  # 0x40000000-0x80000000
 icount = 0
 bcount = 0
 
+instrumenting = False
+instrumenting_all = False
 def hook_code_simple(uc, address, size, user_data):
   global icount, bcount
   #assert size == 4
   try:
-    if bcount%100000 == 0:
-      dat = next(md.disasm(uc.mem_read(address, size), address))
-      print("%10d: %s %s" % (icount, r[address], dat))
-    icount += size//4
+    newicount = size//4
+    if bcount%10000 == 0 or instrumenting_all:
+      if size > 0:
+        dat = next(md.disasm(uc.mem_read(address, size), address))
+      else:
+        dat = "EMPTY BASIC BLOCK?!?"
+      print("%10d(%2d): %8x %-80s %s" % (icount, newicount, address, r[address], dat))
+    icount += newicount
     bcount += 1
     return True
   except Exception as e:
@@ -42,14 +52,17 @@ def hook_code_simple(uc, address, size, user_data):
   except:
     raise Exception
 
-started = False
 def start_instrumenting():
-  global started
-  if not started:
-    #mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
-    if os.getenv("TRACE") != "0":
+  global instrumenting, instrumenting_all
+  if not instrumenting:
+    tracelevel = int(os.getenv("TRACE", 0))
+    if tracelevel >= 2:
+      mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
+    elif tracelevel == 1:
       mu.hook_add(UC_HOOK_BLOCK, hook_code_simple, user_data=mu)
-    started = True
+    if tracelevel >= 3:
+      instrumenting_all = True
+    instrumenting = True
 
 tfd = 10
 files = {}
@@ -171,7 +184,10 @@ def hook_interrupt(uc, intno, user_data):
         uc.reg_write(UC_MIPS_REG_V0, len(ret))
     elif syscall_no == 4246:
       a0 = uc.reg_read(UC_MIPS_REG_A0)
-      print("exit(%d) ran %.2f million instructions" % (a0, icount/1_000_000))
+      if icount > 0:
+        print("exit(%d) ran %.2f million instructions, %d binary searches" % (a0, icount/1_000_000, math.ceil(math.log2(icount))))
+      else:
+        print("exit(%d)" % a0)
       sys.stdout.flush()
       sys.stderr.flush()
       os._exit(a0)
@@ -270,8 +286,9 @@ mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIIII",
   _AT_PAGESZ, 0x1000, 0)) # auxv
 
 # block
-#mu.mem_write(SIZE-0x800, b"13284491\x00")
-mu.mem_write(SIZE-0x800, b"13284469\x00")
+mu.mem_write(SIZE-0x800, b"13284491\x00")
+#mu.mem_write(SIZE-0x800, b"13284469\x00")
+
 mu.mem_write(SIZE-0x400, b"GOGC=off\x00")
 
 #hexdump(mu.mem_read(SIZE-0x2000, 0x100))
