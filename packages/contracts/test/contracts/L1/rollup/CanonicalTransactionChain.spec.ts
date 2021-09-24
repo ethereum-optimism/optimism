@@ -128,13 +128,12 @@ describe('CanonicalTransactionChain', () => {
 
   let CanonicalTransactionChain: Contract
   beforeEach(async () => {
-    CanonicalTransactionChain =
-      await Factory__CanonicalTransactionChain.deploy(
-        AddressManager.address,
-        FORCE_INCLUSION_PERIOD_SECONDS,
-        FORCE_INCLUSION_PERIOD_BLOCKS,
-        MAX_GAS_LIMIT
-      )
+    CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
+      AddressManager.address,
+      FORCE_INCLUSION_PERIOD_SECONDS,
+      FORCE_INCLUSION_PERIOD_BLOCKS,
+      MAX_GAS_LIMIT
+    )
 
     const batches = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
@@ -353,11 +352,7 @@ describe('CanonicalTransactionChain', () => {
                   data
                 )
 
-                await CanonicalTransactionChain.enqueue(
-                  target,
-                  gasLimit,
-                  data
-                )
+                await CanonicalTransactionChain.enqueue(target, gasLimit, data)
               } else {
                 await CanonicalTransactionChain.enqueue(
                   target,
@@ -400,11 +395,7 @@ describe('CanonicalTransactionChain', () => {
                   data
                 )
 
-                await CanonicalTransactionChain.enqueue(
-                  target,
-                  gasLimit,
-                  data
-                )
+                await CanonicalTransactionChain.enqueue(target, gasLimit, data)
               } else {
                 await CanonicalTransactionChain.enqueue(
                   target,
@@ -459,20 +450,14 @@ describe('CanonicalTransactionChain', () => {
         describe(`when the queue has ${size} elements`, () => {
           beforeEach(async () => {
             for (let i = 0; i < size; i++) {
-              await CanonicalTransactionChain.enqueue(
-                target,
-                gasLimit,
-                data
-              )
+              await CanonicalTransactionChain.enqueue(target, gasLimit, data)
             }
           })
 
           describe('when the sequencer inclusion period has not passed', () => {
             it('should revert if not called by the sequencer', async () => {
               await expect(
-                CanonicalTransactionChain.connect(signer).appendQueueBatch(
-                  1
-                )
+                CanonicalTransactionChain.connect(signer).appendQueueBatch(1)
               ).to.be.revertedWith(
                 'Queue transactions cannot be submitted during the sequencer inclusion period.'
               )
@@ -480,9 +465,7 @@ describe('CanonicalTransactionChain', () => {
 
             it('should succeed if called by the sequencer', async () => {
               await expect(
-                CanonicalTransactionChain.connect(
-                  sequencer
-                ).appendQueueBatch(1)
+                CanonicalTransactionChain.connect(sequencer).appendQueueBatch(1)
               )
                 .to.emit(CanonicalTransactionChain, 'QueueBatchAppended')
                 .withArgs(0, 1, 1)
@@ -510,9 +493,7 @@ describe('CanonicalTransactionChain', () => {
             })
 
             it(`should be able to append ${size} elements even if attempting to append ${size} + 1 elements`, async () => {
-              await expect(
-                CanonicalTransactionChain.appendQueueBatch(size + 1)
-              )
+              await expect(CanonicalTransactionChain.appendQueueBatch(size + 1))
                 .to.emit(CanonicalTransactionChain, 'QueueBatchAppended')
                 .withArgs(0, size, size)
             })
@@ -534,22 +515,19 @@ describe('CanonicalTransactionChain', () => {
 
       const blockNumber = await ethers.provider.getBlockNumber()
 
-      await appendSequencerBatch(
-        CanonicalTransactionChain.connect(sequencer),
-        {
-          shouldStartAtElement: 0,
-          totalElementsToAppend: 1,
-          contexts: [
-            {
-              numSequencedTransactions: 0,
-              numSubsequentQueueTransactions: 1,
-              timestamp,
-              blockNumber,
-            },
-          ],
-          transactions: [],
-        }
-      )
+      await appendSequencerBatch(CanonicalTransactionChain.connect(sequencer), {
+        shouldStartAtElement: 0,
+        totalElementsToAppend: 1,
+        contexts: [
+          {
+            numSequencedTransactions: 0,
+            numSubsequentQueueTransactions: 1,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: [],
+      })
 
       expect(
         await CanonicalTransactionChain.verifyTransaction(
@@ -638,22 +616,19 @@ describe('CanonicalTransactionChain', () => {
       const timestamp = (await getEthTime(ethers.provider)) - 10
       const blockNumber = (await ethers.provider.getBlockNumber()) - 1
 
-      await appendSequencerBatch(
-        CanonicalTransactionChain.connect(sequencer),
-        {
-          shouldStartAtElement: 0,
-          totalElementsToAppend: 1,
-          contexts: [
-            {
-              numSequencedTransactions: 1,
-              numSubsequentQueueTransactions: 0,
-              timestamp,
-              blockNumber,
-            },
-          ],
-          transactions: [data],
-        }
-      )
+      await appendSequencerBatch(CanonicalTransactionChain.connect(sequencer), {
+        shouldStartAtElement: 0,
+        totalElementsToAppend: 1,
+        contexts: [
+          {
+            numSequencedTransactions: 1,
+            numSubsequentQueueTransactions: 0,
+            timestamp,
+            blockNumber,
+          },
+        ],
+        transactions: [data],
+      })
 
       expect(
         await CanonicalTransactionChain.verifyTransaction(
@@ -691,8 +666,7 @@ describe('CanonicalTransactionChain', () => {
 
   describe('appendSequencerBatch', () => {
     beforeEach(() => {
-      CanonicalTransactionChain =
-        CanonicalTransactionChain.connect(sequencer)
+      CanonicalTransactionChain = CanonicalTransactionChain.connect(sequencer)
     })
 
     it('should revert if expected start does not match current total batches', async () => {
@@ -853,10 +827,7 @@ describe('CanonicalTransactionChain', () => {
                   totalElementsToAppend: size,
                 })
               )
-                .to.emit(
-                  CanonicalTransactionChain,
-                  'SequencerBatchAppended'
-                )
+                .to.emit(CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, 0, size)
             })
           })
@@ -865,11 +836,7 @@ describe('CanonicalTransactionChain', () => {
         describe('when inserting queue elements in between', () => {
           beforeEach(async () => {
             for (let i = 0; i < size; i++) {
-              await CanonicalTransactionChain.enqueue(
-                target,
-                gasLimit,
-                data
-              )
+              await CanonicalTransactionChain.enqueue(target, gasLimit, data)
             }
           })
 
@@ -904,10 +871,7 @@ describe('CanonicalTransactionChain', () => {
                   totalElementsToAppend: size * 2,
                 })
               )
-                .to.emit(
-                  CanonicalTransactionChain,
-                  'SequencerBatchAppended'
-                )
+                .to.emit(CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, size, size * 2)
             })
           })
@@ -944,10 +908,7 @@ describe('CanonicalTransactionChain', () => {
                   totalElementsToAppend: size + spacing,
                 })
               )
-                .to.emit(
-                  CanonicalTransactionChain,
-                  'SequencerBatchAppended'
-                )
+                .to.emit(CanonicalTransactionChain, 'SequencerBatchAppended')
                 .withArgs(0, spacing, size + spacing)
             })
           })
@@ -993,9 +954,9 @@ describe('CanonicalTransactionChain', () => {
         })
 
         it(`should return ${size}`, async () => {
-          expect(
-            await CanonicalTransactionChain.getTotalElements()
-          ).to.equal(size)
+          expect(await CanonicalTransactionChain.getTotalElements()).to.equal(
+            size
+          )
         })
       })
     }
