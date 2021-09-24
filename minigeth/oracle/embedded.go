@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func Preimage(hash common.Hash) []byte {
@@ -22,6 +23,12 @@ func Preimage(hash common.Hash) []byte {
 	if err != nil {
 		panic("preimage read failed")
 	}
+
+	realhash := crypto.Keccak256Hash(ret)
+	if realhash != hash {
+		panic("preimage has wrong hash")
+	}
+
 	return ret
 }
 

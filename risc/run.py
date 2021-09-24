@@ -70,9 +70,19 @@ def hook_interrupt(uc, intno, user_data):
       uc.reg_write(UC_MIPS_REG_V0, 1238238)
       uc.reg_write(UC_MIPS_REG_A3, 0)
       return True
+    elif syscall_no == 4218:
+      # madvise
+      return
     elif syscall_no == 4194:
       # rt_sigaction	
       return
+    elif syscall_no == 4006:
+      fd = uc.reg_read(UC_MIPS_REG_A0)
+      if fd >= 10:
+        print("close(%d)" % fd)
+        files[fd].close()
+        del files[fd]
+      uc.reg_write(UC_MIPS_REG_V0, 0)
     elif syscall_no == 4263:
       print("clock gettime")
       #raise Exception
@@ -82,8 +92,9 @@ def hook_interrupt(uc, intno, user_data):
       count = uc.reg_read(UC_MIPS_REG_A2)
       print("read", fd, hex(buf), count)
       if fd == 4:
-        uc.mem_write(buf, b"16384\n\x00")
-        uc.reg_write(UC_MIPS_REG_V0, 6)
+        val = b"2097152\n"
+        uc.mem_write(buf, val)
+        uc.reg_write(UC_MIPS_REG_V0, len(val))
       else:
         ret = files[fd].read(count)
         uc.mem_write(buf, ret)
@@ -156,10 +167,11 @@ elf.seek(0)
 #rte = data.find(b"\x08\x02\x2c\x95")
 #print(hex(rte))
 
+# program memory (16 MB)
 mu.mem_map(0, SIZE)
 
-# heap
-mu.mem_map(heap_start, 0x10000000)
+# heap (256 MB)
+mu.mem_map(heap_start, 256*1024*1024)
 
 elffile = ELFFile(elf)
 for seg in elffile.iter_segments():
@@ -174,11 +186,15 @@ mu.reg_write(UC_MIPS_REG_SP, SIZE-0x2000)
 
 # http://articles.manugarg.com/aboutelfauxiliaryvectors.html
 _AT_PAGESZ = 6
-mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIIII", 2, SIZE-0x1000, SIZE-0x800, 0, SIZE-0x1000, 0,
-  _AT_PAGESZ, 0x1000, 0))
+mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIIII",
+  2,  # argc
+  SIZE-0x1000, SIZE-0x800, 0,  # argv
+  SIZE-0x400, 0,  # envp
+  _AT_PAGESZ, 0x1000, 0)) # auxv
 
 # block
 mu.mem_write(SIZE-0x800, b"13284469\x00")
+mu.mem_write(SIZE-0x400, b"GOGC=off\x00")
 
 #hexdump(mu.mem_read(SIZE-0x2000, 0x100))
 
@@ -199,6 +215,12 @@ for section in elffile.iter_sections():
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 #mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
 
+def hook_mem_invalid(uc, access, address, size, value, user_data):
+  pc = uc.reg_read(UC_MIPS_REG_PC)
+  print("UNMAPPED MEMORY:", access, hex(address), size, "at", hex(pc))
+  return False
+mu.hook_add(UC_HOOK_MEM_READ_UNMAPPED, hook_mem_invalid)
+
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 #mu.hook_add(UC_HOOK_INSN, hook_interrupt, None, 1, 0, 0x0c000000)
-mu.emu_start(entry, SIZE)
+mu.emu_start(entry, 0)
