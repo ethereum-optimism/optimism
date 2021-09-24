@@ -1,0 +1,71 @@
+Two oracles:
+Implement as three MIPS instructions
+
+InputOracle -- Preagreed upon inputs
+  $a0 = input choice
+    0 -- StateRoot(n)
+    1 -- Transactions(n+1)
+    2 -- Coinbase(n+1)
+    3 -- Uncles(n+1)
+  $a1 = shift amount
+  returns
+  $v0 = inputs[$a0] >> $a1
+
+PreimageOracle -- key value store
+  $a0 = dword index in value
+  $t0 = hash[31:0]
+  $t1 = hash[63:32]
+  $t2 = hash[95:64]
+  $t3 = hash[127:96]
+  $t4 = hash[159:128]
+  $t5 = hash[191:160]
+  $t6 = hash[223:192]
+  $t7 = hash[255:224]
+  returns
+  $v0 = preimage[$t7...$t0] >> ($a0 * 32)
+
+Program returns a hash in [$t7...$t0] and exits(special instruction) with the hash in the state
+
+Challenge Flow:
+C is challenger, D is defender
+Super nice, the defender barely needs to spend gas!
+
+C: InitiateChallenge(bytes blockHeaderN, bytes blockHeaderNp1,
+                     bytes32 assertionHash, bytes32 finalSystemHash, string[] assertionProof, uint256 stepCount)
+  * checks hashes of the block headers
+  * saves inputs for input oracle
+  * confirms assertionHash != blockHeaderNp1.Hash
+  * expectCorrect = (assertionHash == blockHeaderNp1.Hash)
+  * confirm assertionProof proves the final state of [$t7...$t0] in finalSystemHash is assertionHash
+  * confirm assertionProof proves the final state of *$pc in finalSystemHash is special exit instruction
+  * L = 0, R = stepCount-1   # we agree at L=0, we disagree at R=stepCount
+  * return new challengeId
+  * assertedRiscState[0] = GlobalStartSystemHash
+  * assertedRiscState[stepCount-1] = finalSystemHash
+C: ProposeRiscState(uint256 challengeId, uint256 riscState)
+  * stepNumber = GetStepNumber(uint256 challengeId) returns floor((L + R) / 2)
+  * assert assertedRiscState[stepNumber] == 0
+  * assertedRiscState[stepNumber] = riscState
+D: RespondRiscState(uint256 challengeId, bool yes) onlyOwner
+  * off-chain: run to step = stepNumber, get state hash, check if it matches
+  * if yes:
+      L = stepNumber     # we agree at stepNumber
+    else:
+      R = stepNumber     # we disagree at stepNumber
+    # issue is between [L...R]
+........
+binary search until L+1 == R
+the issue is with the L->R transition
+aka assertedRiscState[L] -> assertedRiscState[R]
+........
+# call this at any time (global), adds them to a preimage lookup for PreimageOracle
+C: ProposePreimage(bytes anything)
+  * preimageLookup[keccak256(anything)] = anything
+C: ConfirmStateTransition(uint256 challengeId, ustrings proofs)
+  * assert L+1 == R
+  * validate all proofs in assertedRiscState[L]
+  * do the state transition
+  * if any needed pieces of start state are missing, challenge fails (it can try again)
+  * reconstruct the riscState after transition -> newRiscState 
+  * assert assertedRiscState[R] == newRiscState
+  * pay out bounty
