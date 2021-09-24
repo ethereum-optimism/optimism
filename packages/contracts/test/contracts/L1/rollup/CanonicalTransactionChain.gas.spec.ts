@@ -163,7 +163,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (gasUsed - fixedCalldataCost) / numTxs
       )
-      expectApprox(gasUsed, 1_605_796, {
+      expectApprox(gasUsed, 1_604_975, {
         upperPercentDeviation: 0,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -211,7 +211,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (gasUsed - fixedCalldataCost) / numTxs
       )
-      expectApprox(gasUsed, 1_739_811, {
+      expectApprox(gasUsed, 1_738_990, {
         upperPercentDeviation: 0,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -297,7 +297,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       console.log('Benchmark complete.')
       console.log('Gas used:', gasUsed)
 
-      expectApprox(gasUsed, 217_615, {
+      expectApprox(gasUsed, 217_218, {
         upperPercentDeviation: 0,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -319,7 +319,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       console.log('Benchmark complete.')
       console.log('Gas used:', gasUsed)
 
-      expectApprox(gasUsed, 156_711, {
+      expectApprox(gasUsed, 156_314, {
         upperPercentDeviation: 0,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
