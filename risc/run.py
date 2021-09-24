@@ -47,7 +47,7 @@ def start_instrumenting():
   global started
   if not started:
     #mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
-    if os.getenv("TRACE") == "1":
+    if os.getenv("TRACE") != "0":
       mu.hook_add(UC_HOOK_BLOCK, hook_code_simple, user_data=mu)
     started = True
 
