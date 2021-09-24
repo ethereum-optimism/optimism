@@ -15,8 +15,9 @@ regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 SIZE = 16*1024*1024
 heap_start = 16*1024*1024
 
+fcnt = 0
 def hook_interrupt(uc, intno, user_data):
-  global heap_start
+  global heap_start, fcnt
   pc = uc.reg_read(UC_MIPS_REG_PC)
   if intno == 17:
     syscall_no = uc.reg_read(UC_MIPS_REG_V0)
@@ -30,17 +31,31 @@ def hook_interrupt(uc, intno, user_data):
       uc.reg_write(UC_MIPS_REG_A3, 0)
       return True
 
-    print("syscall", syscall_no, hex(pc))
     if syscall_no == 4005:
       filename = uc.reg_read(UC_MIPS_REG_A0)
       print('open("%s")' % uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8'))
       # open fd=4
       uc.reg_write(UC_MIPS_REG_V0, 4)
+    elif syscall_no == 4238:
+      addr = uc.reg_read(UC_MIPS_REG_A0)
+      print("futex", hex(addr))
+      uc.mem_write(addr, b"\x00\x00\x00\x01")
+      #raise Exception("not support")
+      uc.reg_write(UC_MIPS_REG_V0, 1)
+      uc.reg_write(UC_MIPS_REG_A3, 0)
+      fcnt += 1
+      if fcnt == 20:
+        raise Exception("too much futex")
+      return True
     elif syscall_no == 4120:
       print("clone not supported")
-      uc.reg_write(UC_MIPS_REG_V0, -1)
+      #uc.reg_write(UC_MIPS_REG_V0, -1)
+      uc.reg_write(UC_MIPS_REG_V0, 1238238)
       uc.reg_write(UC_MIPS_REG_A3, 0)
       return True
+    elif syscall_no == 4194:
+      # rt_sigaction	
+      return
     elif syscall_no == 4263:
       print("clock gettime")
       #raise Exception
@@ -69,8 +84,8 @@ def hook_interrupt(uc, intno, user_data):
         heap_start += a1
       else:
         uc.reg_write(UC_MIPS_REG_V0, a0)
-
     else:
+      print("syscall", syscall_no, hex(pc))
       jj = []
       for i,r in zip(mregs, regs):
         jj += "%s: %8x " % (r, uc.reg_read(i))
@@ -138,10 +153,14 @@ mu.reg_write(UC_MIPS_REG_SP, SIZE-0x2000)
 _AT_PAGESZ = 6
 mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIII", 1, SIZE-0x1000, 0, SIZE-0x1000, 0,
   _AT_PAGESZ, 0x1000, 0))
-hexdump(mu.mem_read(SIZE-0x2000, 0x100))
+#mu.mem_write(SIZE-0x1000, b"GOMAXPROCS=1\x00")
+#hexdump(mu.mem_read(SIZE-0x2000, 0x100))
 
 # nop osinit
 #mu.mem_write(0x44524, b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+
+# nop gcenable
+mu.mem_write(0x29448, b"\x03\xe0\x00\x08\x00\x00\x00\x00")
 
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 #mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
