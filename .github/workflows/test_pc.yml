@@ -1,10 +1,10 @@
-name: Tests
+name: Test PC
 
 on: [push, pull_request]
 
 jobs:
   unit:
-    name: Tests
+    name: Test PC
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code

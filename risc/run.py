@@ -102,8 +102,9 @@ def hook_interrupt(uc, intno, user_data):
         uc.mem_write(buf, ret)
         uc.reg_write(UC_MIPS_REG_V0, len(ret))
     elif syscall_no == 4246:
-      print("EXIT")
-      return False
+      a0 = uc.reg_read(UC_MIPS_REG_A0)
+      print("exit(%d)" % a0)
+      os._exit(a0)
     elif syscall_no == 4090:
       a0 = uc.reg_read(UC_MIPS_REG_A0)
       a1 = uc.reg_read(UC_MIPS_REG_A1)
