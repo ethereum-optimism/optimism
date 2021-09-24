@@ -9,7 +9,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
@@ -159,7 +158,6 @@ func CalculateL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 func DeriveL1GasInfo(msg Message, state StateDB) (*big.Int, *big.Int, *big.Int, *big.Float, error) {
 	tx := asTransaction(msg)
 	raw, err := rlpEncode(tx)
-	fmt.Println(hexutil.Encode(raw))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
