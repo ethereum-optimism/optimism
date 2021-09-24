@@ -99,7 +99,13 @@ var (
 		Name:   "significant-factor",
 		Value:  0.05,
 		Usage:  "only update when the gas price changes by more than this factor",
-		EnvVar: "GAS_PRICE_ORACLE_SIGNIFICANT_FACTOR",
+		EnvVar: "GAS_PRICE_ORACLE_L2_GAS_PRICE_SIGNIFICANT_FACTOR",
+	}
+	MaxPercentChangeL1BaseFeeFlag = cli.Float64Flag{
+		Name:   "max-percent-change-l1-base-fee",
+		Value:  0.10,
+		Usage:  "max change of the base fee between 2 updates, a float that represents a percent",
+		EnvVar: "GAS_PRICE_ORACLE_MAX_PERCENT_CHANGE_L1_BASE_FEE",
 	}
 	WaitForReceiptFlag = cli.BoolFlag{
 		Name:   "wait-for-receipt",

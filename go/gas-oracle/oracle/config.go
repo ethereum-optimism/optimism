@@ -30,6 +30,7 @@ type Config struct {
 	epochLengthSeconds           uint64
 	l2GasPriceSignificanceFactor float64
 	l1BaseFeeSignificanceFactor  float64
+	maxPercentChangeL1BaseFee    float64
 	enableL1BaseFee              bool
 	enableL2GasPrice             bool
 	// Metrics config
@@ -57,6 +58,7 @@ func NewConfig(ctx *cli.Context) *Config {
 	cfg.l2GasPriceSignificanceFactor = ctx.GlobalFloat64(flags.L2GasPriceSignificanceFactorFlag.Name)
 	cfg.floorPrice = ctx.GlobalUint64(flags.FloorPriceFlag.Name)
 	cfg.l1BaseFeeSignificanceFactor = ctx.GlobalFloat64(flags.L1BaseFeeSignificanceFactorFlag.Name)
+	cfg.maxPercentChangeL1BaseFee = ctx.GlobalFloat64(flags.MaxPercentChangeL1BaseFeeFlag.Name)
 	cfg.enableL1BaseFee = ctx.GlobalBool(flags.EnableL1BaseFeeFlag.Name)
 	cfg.enableL2GasPrice = ctx.GlobalBool(flags.EnableL2GasPriceFlag.Name)
 
