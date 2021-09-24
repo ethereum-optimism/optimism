@@ -21,9 +21,9 @@ func main() {
 	var header types.Header
 	{
 		f, _ := os.Open(fmt.Sprintf("data/block_%d", blockNumber))
-		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&header)
+		f.Close()
 		fmt.Println("read old block")
 	}
 
@@ -31,9 +31,9 @@ func main() {
 	var newheader types.Header
 	{
 		f, _ := os.Open(fmt.Sprintf("data/block_%d", blockNumber+1))
-		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&newheader)
+		f.Close()
 		fmt.Println("read new block")
 	}
 
@@ -48,9 +48,9 @@ func main() {
 	var txs []*types.Transaction
 	{
 		f, _ := os.Open(fmt.Sprintf("data/txs_%d", blockNumber+1))
-		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&txs)
+		f.Close()
 	}
 	fmt.Println("read", len(txs), "transactions")
 
