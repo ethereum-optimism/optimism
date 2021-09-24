@@ -9,12 +9,19 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
 func main() {
+	// init secp256k1BytePoints
+	crypto.S256()
+
+	// before this isn't run on chain (confirm this isn't cached)
+	os.Stderr.WriteString("********* on chain starts here *********\n")
+
 	blockNumber, _ := strconv.Atoi(os.Args[1])
 
 	// read header

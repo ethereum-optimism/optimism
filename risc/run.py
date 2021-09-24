@@ -7,9 +7,6 @@ from elftools.elf.elffile import ELFFile
 from capstone import *
 md = Cs(CS_ARCH_MIPS, CS_MODE_32 + CS_MODE_BIG_ENDIAN)
 
-icount = 0
-bcount = 0
-
 from termcolor import colored, cprint
 from hexdump import hexdump
 from unicorn import *
@@ -26,6 +23,34 @@ SIZE = 16*1024*1024
 heap_start = 0x20000000 # 0x20000000-0x30000000
 brk_start = 0x40000000  # 0x40000000-0x80000000
 
+# hmm, very slow
+icount = 0
+bcount = 0
+
+def hook_code_simple(uc, address, size, user_data):
+  global icount, bcount
+  #assert size == 4
+  try:
+    if bcount%100000 == 0:
+      dat = next(md.disasm(uc.mem_read(address, size), address))
+      print("%10d: %s %s" % (icount, r[address], dat))
+    icount += size//4
+    bcount += 1
+    return True
+  except Exception as e:
+    raise e
+  except:
+    raise Exception
+
+started = False
+def start_instrumenting():
+  global started
+  if not started:
+    #mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
+    if os.getenv("TRACE") == "1":
+      mu.hook_add(UC_HOOK_BLOCK, hook_code_simple, user_data=mu)
+    started = True
+
 tfd = 10
 files = {}
 fcnt = 0
@@ -41,6 +66,7 @@ def hook_interrupt(uc, intno, user_data):
       fd = uc.reg_read(UC_MIPS_REG_A0)
       buf = uc.reg_read(UC_MIPS_REG_A1)
       count = uc.reg_read(UC_MIPS_REG_A2)
+      #print("write(%d, %x, %d)" % (fd, buf, count))
       if fd == 1:
         # stdout
         os.write(fd, colored(uc.mem_read(buf, count).decode('utf-8'), 'green').encode('utf-8'))
@@ -50,6 +76,8 @@ def hook_interrupt(uc, intno, user_data):
       else:
         os.write(fd, uc.mem_read(buf, count))
       uc.reg_write(UC_MIPS_REG_A3, 0)
+      if fd == 2:
+        start_instrumenting()
       return True
 
     if syscall_no == 4218:
@@ -273,24 +301,6 @@ for section in elffile.iter_sections():
 
 #mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
 
-# hmm, very slow
-def hook_code_simple(uc, address, size, user_data):
-  global icount, bcount
-  #assert size == 4
-  try:
-    if bcount%1000000 == 0:
-      dat = next(md.disasm(uc.mem_read(address, size), address))
-      print("%10d: %s %s" % (icount, r[address], dat))
-    icount += size//4
-    bcount += 1
-    return True
-  except Exception as e:
-    raise e
-  except:
-    raise Exception
-#mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
-if os.getenv("TRACE") == "1":
-  mu.hook_add(UC_HOOK_BLOCK, hook_code_simple, user_data=mu)
 
 def hook_mem_invalid(uc, access, address, size, value, user_data):
   pc = uc.reg_read(UC_MIPS_REG_PC)
