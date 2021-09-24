@@ -66,6 +66,12 @@ type Receipt struct {
 	BlockHash        common.Hash `json:"blockHash,omitempty"`
 	BlockNumber      *big.Int    `json:"blockNumber,omitempty"`
 	TransactionIndex uint        `json:"transactionIndex"`
+
+	// UsingOVM
+	L1GasPrice *big.Int   `json:"l1GasPrice" gencodec:"required"`
+	L1GasUsed  *big.Int   `json:"l1GasUsed" gencodec:"required"`
+	L1Fee      *big.Int   `json:"l1Fee" gencodec:"required"`
+	FeeScalar  *big.Float `json:"l1FeeScalar" gencodec:"required"`
 }
 
 type receiptMarshaling struct {
@@ -90,6 +96,11 @@ type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*LogForStorage
+	// UsingOVM
+	L1GasUsed  *big.Int
+	L1GasPrice *big.Int
+	L1Fee      *big.Int
+	FeeScalar  string
 }
 
 // v4StoredReceiptRLP is the storage encoding of a receipt used in database version 4.
@@ -191,6 +202,10 @@ func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 		PostStateOrStatus: (*Receipt)(r).statusEncoding(),
 		CumulativeGasUsed: r.CumulativeGasUsed,
 		Logs:              make([]*LogForStorage, len(r.Logs)),
+		L1GasUsed:         r.L1GasUsed,
+		L1GasPrice:        r.L1GasPrice,
+		L1Fee:             r.L1Fee,
+		FeeScalar:         r.FeeScalar.String(),
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -232,6 +247,16 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 		r.Logs[i] = (*Log)(log)
 	}
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
+
+	// UsingOVM
+	scalar, ok := new(big.Float).SetString(stored.FeeScalar)
+	if !ok {
+		return errors.New("cannot parse fee scalar")
+	}
+	r.L1GasUsed = stored.L1GasUsed
+	r.L1GasPrice = stored.L1GasPrice
+	r.L1Fee = stored.L1Fee
+	r.FeeScalar = scalar
 
 	return nil
 }
