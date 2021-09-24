@@ -77,7 +77,6 @@ export const makeL2GenesisFile = async (
       l2Bridge: predeploys.L2StandardBridge,
       _name: 'Ether',
       _symbol: 'ETH',
-      _decimals: 18,
     },
     L2CrossDomainMessenger: {
       _status: 1,
