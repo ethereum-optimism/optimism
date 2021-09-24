@@ -9,6 +9,8 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 2. Compile embedded minigeth to MIPS (done)
 3. Get embedded minigeth to verify a block using the oracle (done)
 4. Merkleize the state of the embedded machine
+5. Write Solidity code to verify any MIPS/oracle transitions
+6. Write binary search engine to play on chain game
 
 ...and then there's more stuff, but just that for now.
 
