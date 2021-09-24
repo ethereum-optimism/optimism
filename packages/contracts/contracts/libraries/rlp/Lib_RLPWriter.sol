@@ -227,13 +227,14 @@ library Lib_RLPWriter {
             src += 32;
         }
 
+        uint256 mask;
         unchecked {
-            uint256 mask = 256 ** (32 - len) - 1;
-            assembly {
-                let srcpart := and(mload(src), not(mask))
-                let destpart := and(mload(dest), mask)
-                mstore(dest, or(destpart, srcpart))
-            }
+            mask = 256 ** (32 - len) - 1;
+        }
+        assembly {
+            let srcpart := and(mload(src), not(mask))
+            let destpart := and(mload(dest), mask)
+            mstore(dest, or(destpart, srcpart))
         }
     }
 
