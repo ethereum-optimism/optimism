@@ -528,6 +528,26 @@ describe('CanonicalTransactionChain', () => {
       )
     })
 
+    it('should revert if attempting to append more elements than are available in the queue.', async () => {
+      await expect(
+        appendSequencerBatch(CanonicalTransactionChain, {
+          transactions: ['0x1234'],
+          contexts: [
+            {
+              numSequencedTransactions: 1,
+              numSubsequentQueueTransactions: 1,
+              timestamp: 0,
+              blockNumber: 0,
+            },
+          ],
+          shouldStartAtElement: 0,
+          totalElementsToAppend: 2,
+        })
+      ).to.be.revertedWith(
+        'Attempted to append more elements than are available in the queue.'
+      )
+    })
+
     it('should revert if not called by the sequencer', async () => {
       await expect(
         appendSequencerBatch(CanonicalTransactionChain.connect(signer), {
