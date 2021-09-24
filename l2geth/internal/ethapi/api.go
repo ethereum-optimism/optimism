@@ -1438,6 +1438,11 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 		"contractAddress":   nil,
 		"logs":              receipt.Logs,
 		"logsBloom":         receipt.Bloom,
+		// UsingOVM
+		"l1GasPrice":  (*hexutil.Big)(receipt.L1GasPrice),
+		"l1GasUsed":   (*hexutil.Big)(receipt.L1GasUsed),
+		"l1Fee":       (*hexutil.Big)(receipt.L1Fee),
+		"l1FeeScalar": receipt.FeeScalar.String(),
 	}
 
 	// Assign receipt status or post state.
