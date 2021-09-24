@@ -1,3 +1,5 @@
+//go:build !mips
+
 package oracle
 
 import (
@@ -65,7 +67,7 @@ type Account struct {
 var nodeUrl = "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 
 func toFilename(key string) string {
-	return fmt.Sprintf("/tmp/eth/%s", key)
+	return fmt.Sprintf("/tmp/eth/json_%s", key)
 }
 
 func cacheRead(key string) []byte {

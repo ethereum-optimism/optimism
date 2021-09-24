@@ -16,9 +16,11 @@ regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 SIZE = 16*1024*1024
 heap_start = 16*1024*1024
 
+tfd = 10
+files = {}
 fcnt = 0
 def hook_interrupt(uc, intno, user_data):
-  global heap_start, fcnt
+  global heap_start, fcnt, files, tfd
   pc = uc.reg_read(UC_MIPS_REG_PC)
   if intno == 17:
     syscall_no = uc.reg_read(UC_MIPS_REG_V0)
@@ -42,12 +44,15 @@ def hook_interrupt(uc, intno, user_data):
     if syscall_no == 4005:
       filename = uc.reg_read(UC_MIPS_REG_A0)
       print('open("%s")' % uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8'))
-      # open fd=4
       uc.reg_write(UC_MIPS_REG_V0, 4)
     elif syscall_no == 4288:
       dfd = uc.reg_read(UC_MIPS_REG_A0)
       filename = uc.reg_read(UC_MIPS_REG_A1)
-      print('openat(%d, "%s")' % (dfd, uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8')))
+      filename = uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8')
+      print('openat(%d, "%s")' % (dfd, filename))
+      files[tfd] = open(filename, "rb")
+      uc.reg_write(UC_MIPS_REG_V0, tfd)
+      tfd += 1
     elif syscall_no == 4238:
       addr = uc.reg_read(UC_MIPS_REG_A0)
       print("futex", hex(addr))
@@ -76,8 +81,13 @@ def hook_interrupt(uc, intno, user_data):
       buf = uc.reg_read(UC_MIPS_REG_A1)
       count = uc.reg_read(UC_MIPS_REG_A2)
       print("read", fd, hex(buf), count)
-      uc.mem_write(buf, b"16384\n\x00")
-      uc.reg_write(UC_MIPS_REG_V0, 6)
+      if fd == 4:
+        uc.mem_write(buf, b"16384\n\x00")
+        uc.reg_write(UC_MIPS_REG_V0, 6)
+      else:
+        ret = files[fd].read(count)
+        uc.mem_write(buf, ret)
+        uc.reg_write(UC_MIPS_REG_V0, len(ret))
     elif syscall_no == 4246:
       print("EXIT")
       return False
