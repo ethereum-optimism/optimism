@@ -1,4 +1,5 @@
 //go:build mips
+// +build mips
 
 package oracle
 
