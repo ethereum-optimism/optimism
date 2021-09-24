@@ -4,15 +4,12 @@ import { expect } from 'chai'
 import { Wallet, utils, BigNumber } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { predeploys } from '@eth-optimism/contracts'
+import { expectApprox } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { Direction } from './shared/watcher-utils'
 
-import {
-  expectApprox,
-  fundUser,
-  PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
-} from './shared/utils'
+import { fundUser, PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
 import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
 
 const DEFAULT_TEST_GAS_L1 = 330_000
