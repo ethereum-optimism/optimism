@@ -14,7 +14,9 @@ mregs = [UC_MIPS_REG_AT, UC_MIPS_REG_V0, UC_MIPS_REG_V1, UC_MIPS_REG_A0, UC_MIPS
 regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 
 SIZE = 16*1024*1024
-heap_start = 16*1024*1024
+
+# 0x10000000
+heap_start = 256*1024*1024
 
 tfd = 10
 files = {}
@@ -170,7 +172,11 @@ elf.seek(0)
 # program memory (16 MB)
 mu.mem_map(0, SIZE)
 
-# heap (256 MB)
+# extra memory (16 MB)
+# TODO: why do we need this?
+mu.mem_map(SIZE, SIZE)
+
+# heap (256 MB) @ 0x10000000
 mu.mem_map(heap_start, 256*1024*1024)
 
 elffile = ELFFile(elf)
@@ -193,6 +199,7 @@ mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIIII",
   _AT_PAGESZ, 0x1000, 0)) # auxv
 
 # block
+#mu.mem_write(SIZE-0x800, b"13284491\x00")
 mu.mem_write(SIZE-0x800, b"13284469\x00")
 mu.mem_write(SIZE-0x400, b"GOGC=off\x00")
 
@@ -219,7 +226,7 @@ def hook_mem_invalid(uc, access, address, size, value, user_data):
   pc = uc.reg_read(UC_MIPS_REG_PC)
   print("UNMAPPED MEMORY:", access, hex(address), size, "at", hex(pc))
   return False
-mu.hook_add(UC_HOOK_MEM_READ_UNMAPPED, hook_mem_invalid)
+mu.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED, hook_mem_invalid)
 
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 #mu.hook_add(UC_HOOK_INSN, hook_interrupt, None, 1, 0, 0x0c000000)
