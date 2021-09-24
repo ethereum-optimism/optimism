@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 import os
+import sys
 import struct
+import traceback
 from elftools.elf.elffile import ELFFile
+from capstone import *
+md = Cs(CS_ARCH_MIPS, CS_MODE_32 + CS_MODE_BIG_ENDIAN)
+
+icount = 0
+bcount = 0
 
 from termcolor import colored, cprint
 from hexdump import hexdump
 from unicorn import *
 from unicorn.mips_const import *
+from rangetree import RangeTree
 
 mu = Uc(UC_ARCH_MIPS, UC_MODE_32 + UC_MODE_BIG_ENDIAN)
 
@@ -91,7 +99,7 @@ def hook_interrupt(uc, intno, user_data):
       filename = uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8')
       files[tfd] = open(filename, "rb")
       uc.reg_write(UC_MIPS_REG_V0, tfd)
-      print('openat(%d, "%s") = %d' % (dfd, filename, tfd))
+      print('openat("%s") = %d' % (filename, tfd))
       tfd += 1
     elif syscall_no == 4238:
       addr = uc.reg_read(UC_MIPS_REG_A0)
@@ -123,18 +131,21 @@ def hook_interrupt(uc, intno, user_data):
       count = uc.reg_read(UC_MIPS_REG_A2)
       # changing this works if we want smaller oracle
       #count = 4
-      #print("read", fd, hex(buf), count)
       if fd == 4:
         val = b"2097152\n"
         uc.mem_write(buf, val)
+        print("read", fd, hex(buf), count)
         uc.reg_write(UC_MIPS_REG_V0, len(val))
       else:
         ret = files[fd].read(count)
         uc.mem_write(buf, ret)
+        #print("read", fd, hex(buf), count, len(ret))
         uc.reg_write(UC_MIPS_REG_V0, len(ret))
     elif syscall_no == 4246:
       a0 = uc.reg_read(UC_MIPS_REG_A0)
-      print("exit(%d)" % a0)
+      print("exit(%d) ran %.2f million instructions" % (a0, icount/1_000_000))
+      sys.stdout.flush()
+      sys.stderr.flush()
       os._exit(a0)
     elif syscall_no == 4090:
       a0 = uc.reg_read(UC_MIPS_REG_A0)
@@ -240,30 +251,46 @@ mu.mem_write(SIZE-0x400, b"GOGC=off\x00")
 # nop osinit
 #mu.mem_write(0x44524, b"\x03\xe0\x00\x08\x00\x00\x00\x00")
 
+r = RangeTree()
 for section in elffile.iter_sections():
   try:
     for nsym, symbol in enumerate(section.iter_symbols()):
+      ss = symbol['st_value']
+      se = ss+symbol['st_size']
+      #print(ss, se)
+      if ss != se:
+        r[ss:se] = symbol.name
+      #print(nsym, symbol.name, symbol['st_value'], symbol['st_size'])
       if symbol.name == "runtime.gcenable":
         print(nsym, symbol.name)
         # nop gcenable
         mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
   except Exception:
+    #traceback.print_exc()
     pass
-
 
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 
 #mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
 
 # hmm, very slow
-"""
-icount = 0
 def hook_code_simple(uc, address, size, user_data):
-  global icount
-  icount += 1
-  return True
-mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
-"""
+  global icount, bcount
+  #assert size == 4
+  try:
+    if bcount%1000000 == 0:
+      dat = next(md.disasm(uc.mem_read(address, size), address))
+      print("%10d: %s %s" % (icount, r[address], dat))
+    icount += size//4
+    bcount += 1
+    return True
+  except Exception as e:
+    raise e
+  except:
+    raise Exception
+#mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
+if os.getenv("TRACE") == "1":
+  mu.hook_add(UC_HOOK_BLOCK, hook_code_simple, user_data=mu)
 
 def hook_mem_invalid(uc, access, address, size, value, user_data):
   pc = uc.reg_read(UC_MIPS_REG_PC)
