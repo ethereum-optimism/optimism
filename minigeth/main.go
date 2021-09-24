@@ -24,6 +24,7 @@ func main() {
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&header)
+		fmt.Println("read old block")
 	}
 
 	// read header
@@ -33,6 +34,7 @@ func main() {
 		defer f.Close()
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&newheader)
+		fmt.Println("read new block")
 	}
 
 	bc := core.NewBlockChain()

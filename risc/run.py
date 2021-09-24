@@ -44,6 +44,10 @@ def hook_interrupt(uc, intno, user_data):
       print('open("%s")' % uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8'))
       # open fd=4
       uc.reg_write(UC_MIPS_REG_V0, 4)
+    elif syscall_no == 4288:
+      dfd = uc.reg_read(UC_MIPS_REG_A0)
+      filename = uc.reg_read(UC_MIPS_REG_A1)
+      print('openat(%d, "%s")' % (dfd, uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8')))
     elif syscall_no == 4238:
       addr = uc.reg_read(UC_MIPS_REG_A0)
       print("futex", hex(addr))
@@ -134,8 +138,8 @@ def hook_code(uc, address, size, user_data):
   except:
     raise Exception("ctrl-c")
 
-elf = open("test", "rb")
-#elf = open("go-ethereum", "rb")
+#elf = open("test", "rb")
+elf = open("go-ethereum", "rb")
 data = elf.read()
 elf.seek(0)
 
@@ -160,9 +164,12 @@ mu.reg_write(UC_MIPS_REG_SP, SIZE-0x2000)
 
 # http://articles.manugarg.com/aboutelfauxiliaryvectors.html
 _AT_PAGESZ = 6
-mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIII", 1, SIZE-0x1000, 0, SIZE-0x1000, 0,
+mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIIII", 2, SIZE-0x1000, SIZE-0x800, 0, SIZE-0x1000, 0,
   _AT_PAGESZ, 0x1000, 0))
-#mu.mem_write(SIZE-0x1000, b"GOMAXPROCS=1\x00")
+
+# block
+mu.mem_write(SIZE-0x800, b"13284469\x00")
+
 #hexdump(mu.mem_read(SIZE-0x2000, 0x100))
 
 # nop osinit
