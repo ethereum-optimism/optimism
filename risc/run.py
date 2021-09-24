@@ -11,7 +11,7 @@ cnt = 0
 def hook_code(uc, address, size, user_data):
   global cnt
   cnt += 1
-  if cnt == 1000:
+  if cnt == 2000:
     raise Exception("too many instructions")
   try:
     print(">>> Tracing instruction at 0x%x, instruction size = %u" % (address, size))
@@ -22,12 +22,12 @@ def hook_code(uc, address, size, user_data):
   except:
     raise Exception("ctrl-c")
 
-elf = open("go-ethereum", "rb")
+elf = open("test", "rb")
 data = elf.read()
 elf.seek(0)
 
-rte = data.find(b"\x08\x02\x2c\x95")
-print(hex(rte))
+#rte = data.find(b"\x08\x02\x2c\x95")
+#print(hex(rte))
 
 elffile = ELFFile(elf)
 #for seg in elffile.iter_segments():
