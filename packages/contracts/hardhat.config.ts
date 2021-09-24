@@ -61,7 +61,7 @@ const config: HardhatUserConfig = {
       {
         version: '0.8.8',
         settings: {
-          optimizer: { enabled: true, runs: 200 },
+          optimizer: { enabled: true, runs: 10_000 },
           metadata: {
             bytecodeHash: 'none',
           },
@@ -75,7 +75,7 @@ const config: HardhatUserConfig = {
       {
         version: '0.5.17', // Required for WETH9
         settings: {
-          optimizer: { enabled: true, runs: 200 },
+          optimizer: { enabled: true, runs: 10_000 },
           outputSelection: {
             '*': {
               '*': ['storageLayout'],
