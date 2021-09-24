@@ -358,9 +358,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         IChainStorageContainer queueRef = queue();
         uint40 queueLength = _getQueueLength(queueRef);
 
-        // Each leaf index corresponds to a tx, either sequenced or enqueued.
-        uint32 leafIndex = 0;
-
         // Counter for number of sequencer transactions appended so far.
         uint32 numSequencerTransactions = 0;
 
@@ -380,7 +377,12 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
             // Now process any subsequent queue transactions.
             nextQueueIndex += uint40(curContext.numSubsequentQueueTransactions);
+
         }
+        require(
+            nextQueueIndex <= queueLength,
+            "Attempted to append more elements than are available in the queue."
+        );
 
         // Generate the required metadata that we need to append this batch
         uint40 numQueuedTransactions = totalElementsToAppend - numSequencerTransactions;
@@ -588,96 +590,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         // per insertion, so to get the real queue length we need
         // to divide by 2.
         return uint40(_queueRef.length() / 2);
-    }
-
-    /**
-     * Retrieves the hash of a sequencer element.
-     * @param _context Batch context for the given element.
-     * @param _nextTransactionPtr Pointer to the next transaction in the calldata.
-     * @param _txDataLength Length of the transaction item.
-     * @return Hash of the sequencer element.
-     */
-    function _getSequencerLeafHash(
-        BatchContext memory _context,
-        uint256 _nextTransactionPtr,
-        uint256 _txDataLength,
-        bytes memory _hashMemory
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        // Only allocate more memory if we didn't reserve enough to begin with.
-        if (BYTES_TILL_TX_DATA + _txDataLength > _hashMemory.length) {
-            _hashMemory = new bytes(BYTES_TILL_TX_DATA + _txDataLength);
-        }
-
-        uint256 ctxTimestamp = _context.timestamp;
-        uint256 ctxBlockNumber = _context.blockNumber;
-
-        bytes32 leafHash;
-        assembly {
-            let chainElementStart := add(_hashMemory, 0x20)
-
-            // Set the first byte equal to `1` to indicate this is a sequencer chain element.
-            // This distinguishes sequencer ChainElements from queue ChainElements because
-            // all queue ChainElements are ABI encoded and the first byte of ABI encoded
-            // elements is always zero
-            mstore8(chainElementStart, 1)
-
-            mstore(add(chainElementStart, 1), ctxTimestamp)
-            mstore(add(chainElementStart, 33), ctxBlockNumber)
-            // solhint-disable-next-line max-line-length
-            calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_nextTransactionPtr, 3), _txDataLength)
-
-            leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, _txDataLength))
-        }
-
-        return leafHash;
-    }
-
-    /**
-     * Retrieves the hash of a sequencer element.
-     * @param _txChainElement The chain element which is hashed to calculate the leaf.
-     * @return Hash of the sequencer element.
-     */
-    function _getSequencerLeafHash(
-        Lib_OVMCodec.TransactionChainElement memory _txChainElement
-    )
-        internal
-        view
-        returns(
-            bytes32
-        )
-    {
-        bytes memory txData = _txChainElement.txData;
-        uint256 txDataLength = _txChainElement.txData.length;
-
-        bytes memory chainElement = new bytes(BYTES_TILL_TX_DATA + txDataLength);
-        uint256 ctxTimestamp = _txChainElement.timestamp;
-        uint256 ctxBlockNumber = _txChainElement.blockNumber;
-
-        bytes32 leafHash;
-        assembly {
-            let chainElementStart := add(chainElement, 0x20)
-
-            // Set the first byte equal to `1` to indicate this is a sequencer chain element.
-            // This distinguishes sequencer ChainElements from queue ChainElements because
-            // all queue ChainElements are ABI encoded and the first byte of ABI encoded
-            // elements is always zero
-            mstore8(chainElementStart, 1)
-
-            mstore(add(chainElementStart, 1), ctxTimestamp)
-            mstore(add(chainElementStart, 33), ctxBlockNumber)
-            // solhint-disable-next-line max-line-length
-            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, BYTES_TILL_TX_DATA), txDataLength))
-
-            leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, txDataLength))
-        }
-
-        return leafHash;
     }
 
     /**
