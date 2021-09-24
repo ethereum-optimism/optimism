@@ -14,9 +14,9 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 
 The system is checking an embedded block in CI now
 
-TODO: Fix missing trie nodes [see issue](https://github.com/geohot/cannon/issues/1)
-TODO: Get initial block info / txs with oracle
-TODO: Stub all syscalls after it's "booted"
+* TODO: Fix missing trie nodes [see issue](https://github.com/geohot/cannon/issues/1)
+* TODO: Get initial block info / txs with oracle
+* TODO: Stub all syscalls after it's "booted"
 
 ## Usage
 ```
