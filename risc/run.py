@@ -12,7 +12,10 @@ mu = Uc(UC_ARCH_MIPS, UC_MODE_32 + UC_MODE_BIG_ENDIAN)
 mregs = [UC_MIPS_REG_AT, UC_MIPS_REG_V0, UC_MIPS_REG_V1, UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3]
 regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 
+heap_start = 16*1024*1024
+
 def hook_interrupt(uc, intno, user_data):
+  global heap_start
   pc = uc.reg_read(UC_MIPS_REG_PC)
   if intno == 17:
     syscall_no = uc.reg_read(UC_MIPS_REG_V0)
@@ -39,6 +42,19 @@ def hook_interrupt(uc, intno, user_data):
       print("read", fd, hex(buf), count)
       uc.mem_write(buf, b"16384\n\x00")
       uc.reg_write(UC_MIPS_REG_V0, 6)
+    elif syscall_no == 4090:
+      a0 = uc.reg_read(UC_MIPS_REG_A0)
+      a1 = uc.reg_read(UC_MIPS_REG_A1)
+      a2 = uc.reg_read(UC_MIPS_REG_A2)
+      print("mmap", hex(a0), hex(a1), hex(a2), "at", hex(heap_start))
+      if a0 == 0:
+        print("malloced new")
+        #mu.mem_map(heap_start, a1)
+        heap_start += a1
+        uc.reg_write(UC_MIPS_REG_V0, heap_start)
+      else:
+        uc.reg_write(UC_MIPS_REG_V0, a0)
+
     else:
       jj = []
       for i,r in zip(mregs, regs):
@@ -47,7 +63,7 @@ def hook_interrupt(uc, intno, user_data):
     return True
 
   print("interrupt", intno, hex(pc))
-  if intno == 22:
+  if intno != 17:
     raise Exception
   return True
 
@@ -88,6 +104,9 @@ elf.seek(0)
 
 SIZE = 16*1024*1024
 mu.mem_map(0, SIZE)
+
+# heap
+mu.mem_map(SIZE, 0x10000000)
 
 elffile = ELFFile(elf)
 for seg in elffile.iter_segments():
