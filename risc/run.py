@@ -16,6 +16,8 @@ def hook_interrupt(uc, intno, user_data):
   pc = uc.reg_read(UC_MIPS_REG_PC)
   if intno == 17:
     syscall_no = uc.reg_read(UC_MIPS_REG_V0)
+    uc.reg_write(UC_MIPS_REG_A3, 0)
+    uc.reg_write(UC_MIPS_REG_V0, 0)
     if syscall_no == 4004:
       # write
       fd = uc.reg_read(UC_MIPS_REG_A0)
@@ -28,6 +30,15 @@ def hook_interrupt(uc, intno, user_data):
     if syscall_no == 4005:
       filename = uc.reg_read(UC_MIPS_REG_A0)
       print('open("%s")' % uc.mem_read(filename, 0x100).split(b"\x00")[0].decode('utf-8'))
+      # open fd=4
+      uc.reg_write(UC_MIPS_REG_V0, 4)
+    elif syscall_no == 4003:
+      fd = uc.reg_read(UC_MIPS_REG_A0)
+      buf = uc.reg_read(UC_MIPS_REG_A1)
+      count = uc.reg_read(UC_MIPS_REG_A2)
+      print("read", fd, hex(buf), count)
+      uc.mem_write(buf, b"16384\n\x00")
+      uc.reg_write(UC_MIPS_REG_V0, 6)
     else:
       jj = []
       for i,r in zip(mregs, regs):
@@ -90,8 +101,10 @@ print("entrypoint: %x" % entry)
 mu.reg_write(UC_MIPS_REG_SP, SIZE-0x2000)
 
 # http://articles.manugarg.com/aboutelfauxiliaryvectors.html
-mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIII", 1, SIZE-0x1000, 0, SIZE-0x1000, 0, SIZE-0x1000, 0))
-#hexdump(mu.mem_read(SIZE-0x2000, 0x100))
+_AT_PAGESZ = 6
+mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIII", 1, SIZE-0x1000, 0, SIZE-0x1000, 0,
+  _AT_PAGESZ, 0x1000, 0))
+hexdump(mu.mem_read(SIZE-0x2000, 0x100))
 
 # nop osinit
 #mu.mem_write(0x44524, b"\x03\xe0\x00\x08\x00\x00\x00\x00")
