@@ -5,11 +5,18 @@ The cannon (cannon cannon cannon) is an on chain interactive fraud prover
 
 It's half geth, half of what I think truebit was supposed to be. When it's done, we'll be able to prove L1 blocks aren't fraud
 
-1. Get minigeth to verify a block locally paying attention to oracle
-2. Compile embedded minigeth 
-3. Get embedded minigeth to verify a block using the oracle
+1. Get minigeth to verify a block locally paying attention to oracle (done)
+2. Compile embedded minigeth to MIPS (done)
+3. Get embedded minigeth to verify a block using the oracle (done)
+4. Merkleize the state of the embedded machine
 
-...and then there's more stuff, but just that for now
+...and then there's more stuff, but just that for now.
+
+The system is checking an embedded block in CI now
+
+TODO: Fix missing trie nodes [see issue](https://github.com/geohot/cannon/issues/1)
+TODO: Get initial block info / txs with oracle
+TODO: Stub all syscalls after it's "booted"
 
 ## Usage
 ```
