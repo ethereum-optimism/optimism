@@ -3,6 +3,7 @@ import os
 import struct
 from elftools.elf.elffile import ELFFile
 
+from termcolor import colored, cprint
 from hexdump import hexdump
 from unicorn import *
 from unicorn.mips_const import *
@@ -27,7 +28,14 @@ def hook_interrupt(uc, intno, user_data):
       fd = uc.reg_read(UC_MIPS_REG_A0)
       buf = uc.reg_read(UC_MIPS_REG_A1)
       count = uc.reg_read(UC_MIPS_REG_A2)
-      os.write(fd, uc.mem_read(buf, count))
+      if fd == 1:
+        # stdout
+        os.write(fd, colored(uc.mem_read(buf, count).decode('utf-8'), 'green').encode('utf-8'))
+      elif fd == 2:
+        # stderr
+        os.write(fd, colored(uc.mem_read(buf, count).decode('utf-8'), 'red').encode('utf-8'))
+      else:
+        os.write(fd, uc.mem_read(buf, count))
       uc.reg_write(UC_MIPS_REG_A3, 0)
       return True
 
@@ -127,6 +135,7 @@ def hook_code(uc, address, size, user_data):
     raise Exception("ctrl-c")
 
 elf = open("test", "rb")
+#elf = open("go-ethereum", "rb")
 data = elf.read()
 elf.seek(0)
 
@@ -159,8 +168,16 @@ mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIII", 1, SIZE-0x1000, 0, SIZE-0x100
 # nop osinit
 #mu.mem_write(0x44524, b"\x03\xe0\x00\x08\x00\x00\x00\x00")
 
-# nop gcenable
-mu.mem_write(0x29448, b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+for section in elffile.iter_sections():
+  try:
+    for nsym, symbol in enumerate(section.iter_symbols()):
+      if symbol.name == "runtime.gcenable":
+        print(nsym, symbol.name)
+        # nop gcenable
+        mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+  except Exception:
+    pass
+
 
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 #mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
