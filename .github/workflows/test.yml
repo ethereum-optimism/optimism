@@ -1,0 +1,25 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  unit:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Install Go
+      run: |
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install golang
+    - name: Build minigeth
+      run: |
+        (cd minigeth/ && go build)
+        mkdir -p /tmp/eth
+    - name: Test block 13284491
+      run: minigeth/go-ethereum 13284491
+    - name: Test block 13284469
+      run: minigeth/go-ethereum 13284469
+    - name: Test block 13284053
+      run: minigeth/go-ethereum 13284053

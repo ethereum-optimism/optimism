@@ -149,6 +149,7 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 }
 
 func PrefetchBlock(blockNumber *big.Int) {
+	// TODO: Write this.
 }
 
 func getProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {

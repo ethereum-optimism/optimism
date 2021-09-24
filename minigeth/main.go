@@ -72,6 +72,6 @@ func main() {
 	if block.Header().Root == newheader.Root {
 		fmt.Println("good transition")
 	} else {
-		fmt.Println("BAD transition :((")
+		panic("BAD transition :((")
 	}
 }
