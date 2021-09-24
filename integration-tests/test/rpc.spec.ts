@@ -1,5 +1,6 @@
 import { injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
+import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
 import {
@@ -234,6 +235,41 @@ describe('Basic RPC tests', () => {
       )
 
       expect(receipt.status).to.eq(0)
+    })
+
+    // Optimistic Ethereum special fields on the receipt
+    it('includes L1 gas price and L1 gas used', async () => {
+      const tx = await env.l2Wallet.populateTransaction({
+        to: env.l2Wallet.address,
+        gasPrice: 1,
+      })
+
+      const raw = serialize({
+        nonce: parseInt(tx.nonce.toString(), 10),
+        to: tx.to,
+        gasLimit: tx.gasLimit,
+        gasPrice: tx.gasPrice,
+        type: tx.type,
+        data: tx.data,
+      })
+
+      const l1Fee = await env.gasPriceOracle.getL1Fee(raw)
+      const l1GasPrice = await env.gasPriceOracle.l1BaseFee()
+      const l1GasUsed = await env.gasPriceOracle.getL1GasUsed(raw)
+      const scalar = await env.gasPriceOracle.scalar()
+      const decimals = await env.gasPriceOracle.decimals()
+
+      const scaled = scalar.toNumber() / 10 ** decimals.toNumber()
+
+      const res = await env.l2Wallet.sendTransaction(tx)
+      await res.wait()
+
+      const json = await provider.send('eth_getTransactionReceipt', [res.hash])
+
+      expect(l1GasUsed).to.deep.equal(BigNumber.from(json.l1GasUsed))
+      expect(l1GasPrice).to.deep.equal(BigNumber.from(json.l1GasPrice))
+      expect(scaled.toString()).to.deep.equal(json.l1FeeScalar)
+      expect(l1Fee).to.deep.equal(BigNumber.from(json.l1Fee))
     })
   })
 
