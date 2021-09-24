@@ -1,5 +1,5 @@
 import cloneDeep from 'lodash/cloneDeep'
-import { providers } from 'ethers'
+import { providers, BigNumber } from 'ethers'
 
 const parseNumber = (n: string | number): number => {
   if (typeof n === 'string' && n.startsWith('0x')) {
@@ -67,6 +67,18 @@ export const injectL2Context = (l1Provider: providers.JsonRpcProvider) => {
     }
     tx.l1TxOrigin = transaction.l1TxOrigin
     return tx
+  }
+
+  const formatReceiptResponse = provider.formatter.receipt.bind(
+    provider.formatter
+  )
+  provider.formatter.receipt = (receipt) => {
+    const r = formatReceiptResponse(receipt)
+    r.l1GasPrice = BigNumber.from(receipt.l1GasPrice)
+    r.l1GasUsed = BigNumber.from(receipt.l1GasUsed)
+    r.l1Fee = BigNumber.from(receipt.l1Fee)
+    r.l1FeeScalar = parseFloat(receipt.l1FeeScalar)
+    return r
   }
 
   return provider
