@@ -107,6 +107,7 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
+    console.log('depositETH gas used:', receipt.gasUsed)
     const postBalances = await getBalances(env)
 
     expect(postBalances.l1BridgeBalance).to.deep.eq(
