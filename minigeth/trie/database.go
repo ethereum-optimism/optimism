@@ -37,7 +37,7 @@ func NewDatabase(header types.Header) Database {
 	triedb := Database{BlockNumber: header.Number, Root: header.Root}
 	//triedb.preimages = make(map[common.Hash][]byte)
 	fmt.Println("init database")
-	oracle.PrefetchAccount(header.Number, common.Address{})
+	oracle.PrefetchAccount(header.Number, common.Address{}, nil)
 
 	//panic("preseed")
 	return triedb
@@ -53,7 +53,10 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 // found in the memory cache.
 func (db *Database) node(hash common.Hash) node {
 	//fmt.Println("node", hash)
-	return mustDecodeNode(hash[:], oracle.Preimage(hash))
+	if val := oracle.Preimage(hash); val != nil {
+		return mustDecodeNode(hash[:], val)
+	}
+	return nil
 }
 
 // insert inserts a collapsed trie node into the memory database.
@@ -65,8 +68,7 @@ func (db *Database) insert(hash common.Hash, size int, node node) {
 	//fmt.Println("insert", hash, size)
 }
 
-func genPossibleShortNodePreimage(pos int) {
-	preimages := oracle.Preimages()
+func GenPossibleShortNodePreimage(preimages map[common.Hash][]byte) {
 	newPreimages := make(map[common.Hash][]byte)
 
 	for _, val := range preimages {
@@ -76,16 +78,9 @@ func genPossibleShortNodePreimage(pos int) {
 		}
 
 		if node, ok := node.(*shortNode); ok {
-			var begins []int
-			for i := range node.Key {
-				if node.Key[i] == byte(pos) && i+2 < len(node.Key) {
-					begins = append(begins, i+1)
-				}
-			}
-
-			for _, begin := range begins {
+			for i := len(node.Key) - 1; i > 0; i-- {
 				n := shortNode{
-					Key: hexToCompact(node.Key[begin:]),
+					Key: hexToCompact(node.Key[i:]),
 					Val: node.Val,
 				}
 				buf := new(bytes.Buffer)

@@ -18,7 +18,6 @@ func Preimage(hash common.Hash) []byte {
 	ioutil.WriteFile(key, val, 0644)
 	if !ok {
 		fmt.Println("can't find preimage", hash)
-		panic("preimage missing")
 	}
 	return val
 }

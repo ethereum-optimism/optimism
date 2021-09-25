@@ -443,16 +443,10 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 				// might not be loaded yet, resolve it just for this
 				// check.
 
-				// TODO: Try to cache short nodes already generated
-				genPossibleShortNodePreimage(pos)
-
-				// TODO: We might want to ignore this error and remove the panic in oracle.Preimage
-				//       in case the sister node in deletion is an extension node.
-				// remove this optimisticly? if it's not a shortNode, it doesn't do anything
-				cnode, err := t.resolve(n.Children[pos], prefix)
-				if err != nil {
-					return false, nil, err
-				}
+				// When node is not resolved in next block's absence proof,
+				// it must be an extension node if the state transition is
+				// valid, so we ignore the error here.
+				cnode, _ := t.resolve(n.Children[pos], prefix)
 				if cnode, ok := cnode.(*shortNode); ok {
 					k := append([]byte{byte(pos)}, cnode.Key...)
 					return true, &shortNode{k, cnode.Val, t.newFlag()}, nil
