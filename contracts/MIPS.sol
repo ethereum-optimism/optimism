@@ -32,6 +32,15 @@ contract MIPS {
     require(addr & 3 == 0, "write memory must be 32-bit aligned");
   }
 
+  // needed for preimage oracle
+  function ReadBytes32(bytes32 stateHash, uint32 addr) public view returns (bytes32) {
+    uint256 ret = 0;
+    for (uint32 i = 0; i < 32; i += 4) {
+      ret <<= 32;
+      ret |= uint256(ReadMemory(stateHash, addr+i));
+    }
+    return bytes32(ret);
+  }
 
   function ReadMemory(bytes32 stateHash, uint32 addr) public view returns (uint32) {
     if (addr == REG_OFFSET) {
@@ -45,7 +54,7 @@ contract MIPS {
   }
 
   // compute the next state
-  // will revert if any input state is missing
+  // will revert if any required input state is missing
   function Step(bytes32 stateHash) public view returns (bytes32) {
     // instruction fetch
     uint32 pc = ReadMemory(stateHash, REG_PC);
@@ -57,7 +66,7 @@ contract MIPS {
     // register fetch
     uint32 rs;
     uint32 rt;
-    if (opcode != 2 && opcode != 3) {   // j and jal have no register fetch
+    if (opcode != 2 && opcode != 3) {   // J-type: j and jal have no register fetch
       // R-type or I-type (stores rt)
       rs = ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
       if (opcode == 0) {
@@ -82,6 +91,7 @@ contract MIPS {
 
   }
 
+  // TODO: move pure testable stuff to LibMIPS.sol
   function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) public pure returns (uint32) {
     uint32 opcode = insn >> 26;    // 6-bits
     uint32 func = insn & 0x3f; // 6-bits

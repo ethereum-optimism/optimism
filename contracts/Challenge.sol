@@ -6,6 +6,7 @@ import "./lib/Lib_RLPReader.sol";
 interface IMIPS {
   function Step(bytes32 stateHash) external view returns (bytes32);
   function ReadMemory(bytes32 stateHash, uint32 addr) external view returns (uint32);
+  function ReadBytes32(bytes32 stateHash, uint32 addr) external view returns (bytes32);
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) external pure returns (bytes32);
 }
 
@@ -52,15 +53,6 @@ contract Challenge {
     return stateHash;
   }
 
-  function readBytes32(bytes32 stateHash, uint32 addr) internal view returns (bytes32) {
-    uint256 ret = 0;
-    for (uint32 i = 0; i < 32; i += 4) {
-      ret <<= 32;
-      ret |= uint256(mips.ReadMemory(stateHash, addr+i));
-    }
-    return bytes32(ret);
-  }
-  
   // create challenge
   uint256 public lastChallengeId = 0;
 
@@ -105,6 +97,7 @@ contract Challenge {
 
     // load starting info into the input oracle
     // we both agree at the beginning
+    // the first instruction executed in MIPS should be an access of startState
     bytes32 startState = GlobalStartState;
     startState = writeBytes32(startState, 0xD0000000, root);
     startState = writeBytes32(startState, 0xD0000020, txhash);
@@ -114,7 +107,7 @@ contract Challenge {
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
     // you must load these proofs into MIPS before calling this
     // we disagree at the end
-    require(readBytes32(finalSystemState, 0xC0000020) == assertionRoot, "you are claiming a different state in machine");
+    require(mips.ReadBytes32(finalSystemState, 0xC0000020) == assertionRoot, "you are claiming a different state root in machine");
     require(mips.ReadMemory(finalSystemState, 0xC0000080) == 0xDEAD0000, "machine is not stopped in final state (PC == 0xDEAD0000)");
 
     return newChallengeTrusted(startState, finalSystemState, stepCount);
@@ -160,15 +153,37 @@ contract Challenge {
 
   // final payout
 
+  event ChallengerWins(uint256 challengeId);
+  event ChallengerLoses(uint256 challengeId);
+
   function ConfirmStateTransition(uint256 challengeId) external {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(c.challenger == msg.sender, "must be challenger");
-
     require(c.L + 1 == c.R, "binary search not finished");
+
     require(mips.Step(c.assertedState[c.L]) == c.assertedState[c.R], "wrong asserted state");
 
     // pay out bounty!!
     c.challenger.transfer(address(this).balance);
+    
+    emit ChallengerWins(challengeId);
+  }
+
+  function MockChallengerStateTransition(uint256 challengeId, bytes32 finalRiscState) external {
+    Chal storage c = challenges[challengeId];
+    require(c.challenger != address(0), "invalid challenge");
+    require(owner == msg.sender, "must be owner");
+    require(c.L + 1 == c.R, "binary search not finished");
+
+    // it's 0 if you agree with all attacker states except the final one
+    // in which case, you get a free pass to submit now
+    require(c.defendedState[c.R] == finalRiscState || c.defendedState[c.R] == bytes32(0), "must be consistent with state");
+
+    require(mips.Step(c.defendedState[c.L]) == finalRiscState, "wrong asserted state");
+
+    // consider the challenger mocked
+    // if they staked a bounty, you could claim it here
+    emit ChallengerLoses(challengeId);
   }
 }
