@@ -24,10 +24,15 @@ contract MIPS {
     state[stateHash][addr] = (1 << 32) | value;
   }
 
-  uint32 constant REG_OFFSET = 0xc0000000;
-  uint32 constant REG_PC = REG_OFFSET + 21*4;
+  uint32 constant public REG_OFFSET = 0xc0000000;
+  uint32 constant public REG_PC = REG_OFFSET + 0x20*4;
 
-  function getState(bytes32 stateHash, uint32 addr) public view returns (uint32) {
+  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) public pure returns (bytes32) {
+    // TODO: does the stateHash mutation
+  }
+
+
+  function ReadMemory(bytes32 stateHash, uint32 addr) public view returns (uint32) {
     if (addr == REG_OFFSET) {
       // zero register is always 0
       return 0;
@@ -38,13 +43,12 @@ contract MIPS {
     return uint32(ret);
   }
 
-
   // compute the next state
   // will revert if any input state is missing
   function Step(bytes32 stateHash) public view returns (bytes32) {
     // instruction fetch
-    uint32 pc = getState(stateHash, REG_PC);
-    uint32 insn = getState(stateHash, pc);
+    uint32 pc = ReadMemory(stateHash, REG_PC);
+    uint32 insn = ReadMemory(stateHash, pc);
     uint32 opcode = insn >> 26; // 6-bits
 
     // decode
@@ -54,10 +58,10 @@ contract MIPS {
     uint32 rt;
     if (opcode != 2 && opcode != 3) {   // j and jal have no register fetch
       // R-type or I-type (stores rt)
-      rs = getState(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
+      rs = ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
       if (opcode == 0) {
         // R-type (stores rd)
-        rt = getState(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+        rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
       }
     }
 
@@ -67,7 +71,7 @@ contract MIPS {
     if (opcode >= 0x20) {
       // M[R[rs]+SignExtImm]
       uint32 SignExtImm = insn&0xFFFF | (insn&0x8000 != 0 ? 0xFFFF0000 : 0);
-      mem = getState(stateHash, (rs + SignExtImm) & 0xFFFFFFFC);
+      mem = ReadMemory(stateHash, (rs + SignExtImm) & 0xFFFFFFFC);
     }
 
     // execute
