@@ -65,19 +65,27 @@ func (db *Database) insert(hash common.Hash, size int, node node) {
 	//fmt.Println("insert", hash, size)
 }
 
-// TODO: Create pairs only when seeing pos
 func genPossibleShortNodePreimage(pos int) {
 	preimages := oracle.Preimages()
 	newPreimages := make(map[common.Hash][]byte)
+
 	for _, val := range preimages {
 		node, err := decodeNode(nil, val)
 		if err != nil {
 			continue
 		}
+
 		if node, ok := node.(*shortNode); ok {
-			for i := 1; i < len(node.Key); i += 1 {
+			var begins []int
+			for i := range node.Key {
+				if node.Key[i] == byte(pos) && i+2 < len(node.Key) {
+					begins = append(begins, i+1)
+				}
+			}
+
+			for _, begin := range begins {
 				n := shortNode{
-					Key: hexToCompact(node.Key[len(node.Key)-i:]),
+					Key: hexToCompact(node.Key[begin:]),
 					Val: node.Val,
 				}
 				buf := new(bytes.Buffer)
@@ -88,7 +96,6 @@ func genPossibleShortNodePreimage(pos int) {
 				if len(preimage) < 32 {
 					continue
 				}
-
 				newPreimages[crypto.Keccak256Hash(preimage)] = preimage
 			}
 		}

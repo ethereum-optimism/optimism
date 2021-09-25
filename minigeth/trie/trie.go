@@ -445,6 +445,9 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 
 				// TODO: Try to cache short nodes already generated
 				genPossibleShortNodePreimage(pos)
+
+				// TODO: We might want to ignore this error and remove the panic in oracle.Preimage
+				//       in case the sister node in deletion is an extension node.
 				// remove this optimisticly? if it's not a shortNode, it doesn't do anything
 				cnode, err := t.resolve(n.Children[pos], prefix)
 				if err != nil {
