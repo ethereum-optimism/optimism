@@ -456,6 +456,8 @@ func (s *StateDB) deleteStateObject(obj *stateObject) {
 	}
 	// Delete the account from the trie
 	addr := obj.Address()
+	// Get absense proof of account in case the deletion needs the sister node.
+	oracle.PrefetchAccount(big.NewInt(s.db.BlockNumber.Int64()+1), addr)
 	if err := s.trie.TryDelete(addr[:]); err != nil {
 		s.setError(fmt.Errorf("deleteStateObject (%x) error: %v", addr[:], err))
 	}
