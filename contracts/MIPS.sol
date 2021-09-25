@@ -1,6 +1,14 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.7.3;
+
 // https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
+
+// This is a separate contract from the challenge contract
+// Anyone can use it to validate a MIPS state transition
+// First, to prepare, you call AddMerkleState, which adds valid state nodes in the stateHash. 
+// If you are using the Preimage oracle, you call AddPreimage
+// Then, you call Step. Step will revert if state is missing. If all state is present, it will return the next hash
 
 contract MIPS {
   // This state is global
@@ -33,7 +41,7 @@ contract MIPS {
 
   // compute the next state
   // will revert if any input state is missing
-  function Step(bytes32 stateHash) public view returns (uint64[] memory) {
+  function Step(bytes32 stateHash) public view returns (bytes32) {
     // instruction fetch
     uint32 pc = getState(stateHash, REG_PC);
     uint32 insn = getState(stateHash, pc);

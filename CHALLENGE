@@ -1,7 +1,7 @@
-Two oracles:
-Implement as three MIPS instructions
+One oracle:
+Implement as a MIPS instruction?
 
-InputOracle -- Preagreed upon inputs
+InputOracle -- Preagreed upon inputs (TODO: replace with memory reads from given address range)
   $a0 = input choice
     0 -- StateRoot(n)
     1 -- Transactions(n+1)
@@ -40,21 +40,21 @@ C: InitiateChallenge(uint blockNumberN, bytes blockHeaderN, bytes blockHeaderNp1
   * confirm assertionProof[8] proves the final state of $pc in finalSystemHash is 0xDEADDEAD
   * L = 0, R = stepCount   # we agree at L=0, we disagree at R=stepCount
   * return new challengeId
-  * assertedRiscState[0] = GlobalStartSystemHash
-  * defendedRiscState[0] = GlobalStartSystemHash
-  * assertedRiscState[stepCount] = finalSystemHash
+  * assertedState[0] = GlobalStartSystemHash + inputOracleMutations
+  * defendedState[0] = GlobalStartSystemHash + inputOracleMutations
+  * assertedState[stepCount] = finalSystemHash
 ........
 if it's one step, we are done. considering it's not, we binary search
 ........
-C: ProposeRiscState(uint256 challengeId, uint256 riscState)
+C: ProposeState(uint256 challengeId, uint256 riscState)
   * stepNumber = GetStepNumber(uint256 challengeId) returns floor((L + R) / 2)
-  * assert assertedRiscState[stepNumber] == 0
-  * assertedRiscState[stepNumber] = riscState
-D: RespondRiscState(uint256 challengeId, uint256 riscState) onlyOwner
+  * assert assertedState[stepNumber] == 0
+  * assertedState[stepNumber] = riscState
+D: RespondState(uint256 challengeId, uint256 riscState) onlyOwner
   * off-chain: run to step = stepNumber, get state hash, check if it matches
   * stepNumber = GetStepNumber(uint256 challengeId) returns floor((L + R) / 2)
-  * defendedRiscState[stepNumber] = riscState
-  * if assertedRiscState[stepNumber] == defendedRiscState[stepNumber]:
+  * defendedState[stepNumber] = riscState
+  * if assertedState[stepNumber] == defendedState[stepNumber]:
       L = stepNumber     # we agree at stepNumber
     else:
       R = stepNumber     # we disagree at stepNumber
@@ -62,14 +62,14 @@ D: RespondRiscState(uint256 challengeId, uint256 riscState) onlyOwner
 ........
 binary search until L+1 == R
 the issue is with the L->R transition
-aka assertedRiscState[L] -> assertedRiscState[R]
+aka assertedState[L] -> assertedState[R]
 ........
 # call this at any time (global), adds them to a preimage lookup for PreimageOracle
 # put these on the MIPS contract
-C: ProposePreimage(bytes anything)
+C: AddPreimage(bytes anything)
   * preimageLookup[keccak256(anything)] = anything
 C: AddMerkleState(uint256 stateHash, uint32 addr, uint32 value, string proof)
-  * validate proof in assertedRiscState[stepNumber]
+  * validate proof in assertedState[stepNumber]
   * riscMemory[stepNumber][address] = value
 
 * Final
@@ -77,12 +77,12 @@ C: ConfirmStateTransition(uint256 challengeId)
   * assert L+1 == R
   * do the state transition
   * if any needed pieces of start state are missing in riscMemory, challenge fails (it can try again)
-  * reconstruct the riscState after transition -> newRiscState 
-  * assert assertedRiscState[R] == newRiscState
+  * reconstruct the riscState after transition -> newState 
+  * assert assertedState[R] == newState
   * pay out bounty
 
 # optional claim for the defender
-# prove the defendedRiscState[L] -> defendedRiscState[R]
-# NOTE, if it's the last step, defendedRiscState[R] might not exist. 
+# prove the defendedState[L] -> defendedState[R]
+# NOTE, if it's the last step, defendedState[R] might not exist. 
 
 TODO: ensure the state merklization is canonical. if it doesn't match perfectly you can lose
