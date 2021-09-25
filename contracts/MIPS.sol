@@ -29,6 +29,7 @@ contract MIPS {
 
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) public pure returns (bytes32) {
     // TODO: does the stateHash mutation
+    require(addr & 3 == 0, "write memory must be 32-bit aligned");
   }
 
 
@@ -37,9 +38,9 @@ contract MIPS {
       // zero register is always 0
       return 0;
     }
-    assert(addr & 3 == 0);     // aligned access only
+    require(addr & 3 == 0, "read memory must be 32-bit aligned");
     uint64 ret = state[stateHash][addr];
-    assert((ret >> 32) == 1);  // was set
+    require((ret >> 32) == 1, "memory was not initialized");
     return uint32(ret);
   }
 

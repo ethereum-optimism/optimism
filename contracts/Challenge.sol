@@ -11,7 +11,11 @@ interface IMIPS {
 
 contract Challenge {
   address payable immutable owner;
+
+  // the mips machine state transition function
   IMIPS immutable mips;
+
+  // the program start state
   bytes32 immutable GlobalStartState;
 
   struct Chal {
@@ -29,7 +33,7 @@ contract Challenge {
     GlobalStartState = globalStartState;
   }
 
-  // allow getting money
+  // allow getting money (and withdrawing the bounty, honor system)
   fallback() external payable {}
   receive() external payable {}
   function withdraw() external {
@@ -58,7 +62,7 @@ contract Challenge {
   }
   
   // create challenge
-  uint256 lastChallengeId = 0;
+  uint256 public lastChallengeId = 0;
 
   function newChallengeTrusted(bytes32 startState, bytes32 finalSystemState, uint256 stepCount) internal returns (uint256) {
     uint256 challengeId = lastChallengeId;
@@ -108,6 +112,7 @@ contract Challenge {
     startState = writeBytes32(startState, 0xD0000060, uncles);
 
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
+    // you must load these proofs into MIPS before calling this
     // we disagree at the end
     require(readBytes32(finalSystemState, 0xC0000020) == assertionRoot, "you are claiming a different state in machine");
     require(mips.ReadMemory(finalSystemState, 0xC0000080) == 0xDEAD0000, "machine is not stopped in final state (PC == 0xDEAD0000)");
@@ -119,11 +124,13 @@ contract Challenge {
 
   function getStepNumber(uint256 challengeId) view public returns (uint256) {
     Chal storage c = challenges[challengeId];
+    require(c.challenger != address(0), "invalid challenge");
     return (c.L+c.R)/2;
   }
 
   function ProposeState(uint256 challengeId, bytes32 riscState) external {
     Chal storage c = challenges[challengeId];
+    require(c.challenger != address(0), "invalid challenge");
     require(c.challenger == msg.sender, "must be challenger");
 
     uint256 stepNumber = getStepNumber(challengeId);
@@ -133,7 +140,8 @@ contract Challenge {
 
   function RespondState(uint256 challengeId, bytes32 riscState) external {
     Chal storage c = challenges[challengeId];
-    require(msg.sender == owner, "must be owner");
+    require(c.challenger != address(0), "invalid challenge");
+    require(owner == msg.sender, "must be owner");
 
     uint256 stepNumber = getStepNumber(challengeId);
     require(c.assertedState[stepNumber] != bytes32(0), "challenger state not proposed");
@@ -154,13 +162,13 @@ contract Challenge {
 
   function ConfirmStateTransition(uint256 challengeId) external {
     Chal storage c = challenges[challengeId];
+    require(c.challenger != address(0), "invalid challenge");
     require(c.challenger == msg.sender, "must be challenger");
 
     require(c.L + 1 == c.R, "binary search not finished");
-    bytes32 newState = mips.Step(c.assertedState[c.L]);
-    require(newState == c.assertedState[c.R], "wrong asserted state");
+    require(mips.Step(c.assertedState[c.L]) == c.assertedState[c.R], "wrong asserted state");
 
     // pay out bounty!!
-    msg.sender.transfer(address(this).balance);
+    c.challenger.transfer(address(this).balance);
   }
 }
