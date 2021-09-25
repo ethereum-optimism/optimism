@@ -2,6 +2,7 @@
   "dependencies": {
     "@types/node": "^16.9.2",
     "ethers": "^5.4.7",
+    "hardhat": "^2.6.4",
     "rlp": "^2.2.6",
     "typescript": "^4.4.3"
   }

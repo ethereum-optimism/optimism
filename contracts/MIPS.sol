@@ -1,4 +1,4 @@
-pragma solidity ^0.8.0;
+pragma solidity ^0.7.3;
 // https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
 
