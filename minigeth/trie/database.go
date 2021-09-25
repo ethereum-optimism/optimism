@@ -1,6 +1,7 @@
 package trie
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math/big"
@@ -8,7 +9,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/oracle"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // rawNode is a simple binary blob used to differentiate between collapsed trie
@@ -60,4 +63,38 @@ func (db *Database) node(hash common.Hash) node {
 func (db *Database) insert(hash common.Hash, size int, node node) {
 	// can put things in the oracle here if we care
 	//fmt.Println("insert", hash, size)
+}
+
+// TODO: Create pairs only when seeing pos
+func genPossibleShortNodePreimage(pos int) {
+	preimages := oracle.Preimages()
+	newPreimages := make(map[common.Hash][]byte)
+	for _, val := range preimages {
+		node, err := decodeNode(nil, val)
+		if err != nil {
+			continue
+		}
+		if node, ok := node.(*shortNode); ok {
+			for i := 1; i < len(node.Key); i += 1 {
+				n := shortNode{
+					Key: hexToCompact(node.Key[len(node.Key)-i:]),
+					Val: node.Val,
+				}
+				buf := new(bytes.Buffer)
+				if err := rlp.Encode(buf, n); err != nil {
+					panic("encode error: " + err.Error())
+				}
+				preimage := buf.Bytes()
+				if len(preimage) < 32 {
+					continue
+				}
+
+				newPreimages[crypto.Keccak256Hash(preimage)] = preimage
+			}
+		}
+	}
+
+	for hash, val := range newPreimages {
+		preimages[hash] = val
+	}
 }

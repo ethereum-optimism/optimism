@@ -355,7 +355,8 @@ func (s *stateObject) updateTrie(db Database) Trie {
 
 		var v []byte
 		oracle.PrefetchStorage(db.BlockNumber, s.address, key)
-		//oracle.PrefetchStorage(big.NewInt(db.BlockNumber.Int64()+1), s.address, key)
+		// Get absense proof of current key in case the deletion make the extension node to short node.
+		oracle.PrefetchStorage(big.NewInt(db.BlockNumber.Int64()+1), s.address, key)
 		if (value == common.Hash{}) {
 			//fmt.Println("delete", s.address, key)
 			s.setError(tr.TryDelete(key[:]))

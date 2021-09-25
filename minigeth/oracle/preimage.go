@@ -22,3 +22,8 @@ func Preimage(hash common.Hash) []byte {
 	}
 	return val
 }
+
+// TODO: Maybe we will want to have a seperate preimages for next block's preimages?
+func Preimages() map[common.Hash][]byte {
+	return preimages
+}

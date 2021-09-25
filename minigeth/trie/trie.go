@@ -443,6 +443,8 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 				// might not be loaded yet, resolve it just for this
 				// check.
 
+				// TODO: Try to cache short nodes already generated
+				genPossibleShortNodePreimage(pos)
 				// remove this optimisticly? if it's not a shortNode, it doesn't do anything
 				cnode, err := t.resolve(n.Children[pos], prefix)
 				if err != nil {
