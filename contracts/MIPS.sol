@@ -16,7 +16,7 @@ contract MIPS {
   mapping(bytes32 => bytes) public preimage;
 
   function AddPreimage(bytes calldata anything) public {
-    preimage[keccak256((anything))] = anything;
+    preimage[keccak256(anything)] = anything;
   }
 
   function AddMerkleState(bytes32 stateHash, uint32 addr, uint32 value, string calldata proof) public {
