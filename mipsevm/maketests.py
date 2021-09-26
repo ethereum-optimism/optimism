@@ -13,7 +13,8 @@ for d in os.listdir("test/"):
   if not d.endswith(".asm"):
     continue
   print("building", d)
-  os.system("%s/mips-elf-as -o /tmp/mips/%s test/%s" % (path, d, d))
+  # which mips is go
+  os.system("%s/mips-elf-as -march=mips32 -o /tmp/mips/%s test/%s" % (path, d, d))
   elffile = ELFFile(open("/tmp/mips/"+d, "rb"))
   #print(elffile)
   for sec in elffile.iter_sections():

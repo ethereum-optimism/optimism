@@ -42,11 +42,12 @@ contract MIPS {
     }
     uint32 insn = m.ReadMemory(stateHash, pc);
     uint32 opcode = insn >> 26; // 6-bits
+    uint32 func = insn & 0x3f; // 6-bits
 
     // decode
 
     // register fetch
-    uint32 storeAddr;
+    uint32 storeAddr = 0xFFFFFFFF;
     uint32 rs;
     uint32 rt;
     if (opcode != 2 && opcode != 3) {   // J-type: j and jal have no register fetch
@@ -57,10 +58,18 @@ contract MIPS {
         // R-type (stores rd)
         rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
         storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
-      } else {
+      } else if (opcode < 0x20) {
         // rt is SignExtImm
         uint32 SignExtImm = insn&0xFFFF | (insn&0x8000 != 0 ? 0xFFFF0000 : 0);
-        rt = SignExtImm;
+        uint32 ZeroExtImm = insn&0xFFFF;
+        if (opcode == 0xC || opcode == 0xD) {
+          rt = ZeroExtImm;
+        } else {
+          rt = SignExtImm;
+        }
+      } else if (opcode >= 0x28) {
+        // store rt
+        rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
       }
     }
 
@@ -78,12 +87,22 @@ contract MIPS {
       }
     }
 
+    if (opcode == 0 && func == 8) {
+      // jr
+      storeAddr = REG_PC;
+    }
+
     // execute
     uint32 val = execute(insn, rs, rt, mem);
 
     // write back
-    stateHash = m.WriteMemory(stateHash, storeAddr, val);
-    stateHash = m.WriteMemory(stateHash, REG_PC, pc+4);
+    if (storeAddr != 0xFFFFFFFF) {
+      // does this ever not happen?
+      stateHash = m.WriteMemory(stateHash, storeAddr, val);
+    }
+    if (storeAddr != REG_PC) {
+      stateHash = m.WriteMemory(stateHash, REG_PC, pc+4);
+    }
 
     return stateHash;
   }
@@ -96,17 +115,20 @@ contract MIPS {
 
     // transform ArithLogI
     // TODO: replace with table
-    if (opcode == 8) { opcode = 0; func = 0x20; }
-    else if (opcode == 9) { opcode = 0; func = 0x21; }
-    else if (opcode == 0xc) { opcode = 0; func = 0x24; }
+    if (opcode == 8) { opcode = 0; func = 0x20; }        // addi
+    else if (opcode == 9) { opcode = 0; func = 0x21; }   // addiu
+    else if (opcode == 0xc) { opcode = 0; func = 0x24; } // andi
+    else if (opcode == 0xd) { opcode = 0; func = 0x25; } // ori
+    else if (opcode == 0xe) { opcode = 0; func = 0x26; } // xori
 
     if (opcode == 0) {
       uint32 shamt = (insn >> 6) & 0x1f;
       // R-type (ArithLog)
       if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
       } else if (func == 0x24) { return rs&rt;            // and
-      } else if (func == 0x27) { return ~(rs|rt);         // nor
       } else if (func == 0x25) { return (rs|rt);          // or
+      } else if (func == 0x26) { return (rs^rt);          // xor
+      } else if (func == 0x27) { return ~(rs|rt);         // nor
       } else if (func == 0x22 || func == 0x23) {
         return rs-rt;   // sub or subu
       } else if (func == 0x2a) {
@@ -120,13 +142,15 @@ contract MIPS {
       } else if (func == 0x07) { return rt >> rs;         // srav
       } else if (func == 0x02) { return rt >> shamt;      // srl
       } else if (func == 0x06) { return rt >> rs;         // srlv
+      } else if (func == 8) {    return rs;               // jr
       }
-    } else if (func == 0x20) { return mem;   // lb
-    } else if (func == 0x24) { return mem;   // lbu
-    } else if (func == 0x21) { return mem;   // lh
-    } else if (func == 0x25) { return mem;   // lhu
-    } else if (func == 0x23) { return mem;   // lw
-    } else if (func&0x3c == 0x28) { return rt;  // sb, sh, sw
+    } else if (opcode == 0x20) { return mem;   // lb
+    } else if (opcode == 0x24) { return mem;   // lbu
+    } else if (opcode == 0x21) { return mem;   // lh
+    } else if (opcode == 0x25) { return mem;   // lhu
+    } else if (opcode == 0x23) { return mem;   // lw
+    } else if (opcode&0x3c == 0x28) { return rt;  // sb, sh, sw
+    } else if (opcode == 0xf) { return rt<<16; // lui
     }
   }
 

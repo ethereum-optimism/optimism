@@ -93,7 +93,8 @@ type jsoncontract struct {
 //var ram []byte
 //var regs [4096]byte
 
-var ram = make(map[uint64](uint32))
+var debug bool = false
+var ram map[uint64](uint32)
 
 func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
@@ -117,12 +118,16 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 
 		ret := common.BigToHash(big.NewInt(int64(nret))).Bytes()
-		fmt.Println("HOOKED READ!", fmt.Sprintf("%x = %x", addr, nret))
+		if debug {
+			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
+		}
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	} else if args[0] == 184 {
 		addr := common.BytesToHash(args[0x24:0x44]).Big().Uint64()
 		dat := common.BytesToHash(args[0x44:0x64]).Big().Uint64()
-		fmt.Println("HOOKED WRITE!", fmt.Sprintf("%x = %x", addr, dat))
+		if debug {
+			fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
+		}
 		ram[addr] = uint32(dat)
 
 		// pass through stateRoot
@@ -134,17 +139,39 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 	return common.Hash{}.Bytes(), nil
 }
 
-func main() {
-	fmt.Println("hello")
-
-	dat, _ := ioutil.ReadFile("test/add.bin")
+func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte) {
+	ram = make(map[uint64](uint32))
+	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
 		ram[uint64(i)] = uint32(dat[i])<<24 |
 			uint32(dat[i+1])<<16 |
 			uint32(dat[i+2])<<8 |
 			uint32(dat[i+3])<<0
-
 	}
+
+	// 0xdb7df598
+	from := common.Address{}
+	to := common.HexToAddress("0x1337")
+	input := []byte{0xdb, 0x7d, 0xf5, 0x98} // Steps(bytes32, uint256)
+	input = append(input, common.BigToHash(common.Big0).Bytes()...)
+	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
+	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, 20000000)
+	//fmt.Println(bytecodehash, bytecode)
+	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
+
+	start := time.Now()
+	ret, err := interpreter.Run(contract, input, false)
+	elapsed := time.Now().Sub(start)
+
+	fmt.Println(ret, err, contract.Gas, elapsed,
+		ram[0xbffffff4], ram[0xbffffff8], fmt.Sprintf("%x", ram[0xc0000080]), fn)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func main() {
+	fmt.Println("hello")
 
 	/*var parent types.Header
 	database := state.NewDatabase(parent)
@@ -155,7 +182,6 @@ func main() {
 	json.NewDecoder(bytes.NewReader(mipsjson)).Decode(&jj)
 	bytecode := common.Hex2Bytes(jj.DeployedBytecode[2:])
 	//fmt.Println(bytecode, jj.Bytecode)
-	bytecodehash := crypto.Keccak256Hash(bytecode)
 	statedb := &StateDB{Bytecode: bytecode}
 
 	bc := core.NewBlockChain()
@@ -172,8 +198,6 @@ func main() {
 	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
 	fmt.Println(evm)
 
-	from := common.Address{}
-	to := common.HexToAddress("0x1337")
 	/*ret, gas, err := evm.Call(vm.AccountRef(from), to, []byte{}, 20000000, common.Big0)
 	fmt.Println(ret, gas, err)*/
 
@@ -184,22 +208,11 @@ func main() {
 	input = append(input, common.Hash{}.Bytes()...)*/
 
 	// 1.26s for 100000 steps
-	steps := 10
+	//steps := 20
+	// 19.100079097s for 1_000_000 new steps
+	//steps := 1000000
+	//debug = true
+	runTest("test/add.bin", 20, interpreter, bytecode)
+	runTest("test/addiu.bin", 20, interpreter, bytecode)
 
-	// 0xdb7df598
-	input := []byte{0xdb, 0x7d, 0xf5, 0x98} // Steps(bytes32, uint256)
-	input = append(input, common.BigToHash(common.Big0).Bytes()...)
-	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
-	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, 20000000)
-	//fmt.Println(bytecodehash, bytecode)
-	contract.SetCallCode(&to, bytecodehash, bytecode)
-
-	start := time.Now()
-	ret, err := interpreter.Run(contract, input, false)
-	elapsed := time.Now().Sub(start)
-
-	fmt.Println(ret, err, contract.Gas, elapsed)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
