@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -41,17 +42,16 @@ func main() {
 
 	// read header
 	var newheader types.Header
+	// from parent
 	newheader.ParentHash = parent.Hash()
-	newheader.TxHash = oracle.Input(1)
 	newheader.Number = big.NewInt(0).Add(parent.Number, big.NewInt(1))
 	newheader.BaseFee = misc.CalcBaseFee(params.MainnetChainConfig, &parent)
-	/*{
-		f, _ := os.Open(fmt.Sprintf("data/block_%d", blockNumber+1))
-		rlpheader := rlp.NewStream(f, 0)
-		rlpheader.Decode(&newheader)
-		f.Close()
-		fmt.Println("read new block")
-	}*/
+
+	// from input oracle
+	newheader.TxHash = oracle.Input(1)
+	newheader.Coinbase = common.BigToAddress(oracle.Input(2).Big())
+	newheader.UncleHash = oracle.Input(3)
+	newheader.GasLimit = oracle.Input(4).Big().Uint64()
 
 	bc := core.NewBlockChain()
 	database := state.NewDatabase(parent)
@@ -80,16 +80,16 @@ func main() {
 	if newheader.TxHash != block.Header().TxHash {
 		panic("wrong transactions for block")
 	}
+	if newheader.UncleHash != block.Header().UncleHash {
+		panic("wrong uncles for block")
+	}
 
 	_, _, _, err := processor.Process(block, statedb, vmconfig)
 	if err != nil {
 		log.Fatal(err)
 	}
+	newroot := statedb.IntermediateRoot(bc.Config().IsEIP158(newheader.Number))
 
-	fmt.Println("process done with hash", parent.Root, "->", block.Header().Root, "real", newheader.Root)
-	if block.Header().Root == newheader.Root {
-		fmt.Println("good transition")
-	} else {
-		panic("BAD transition :((")
-	}
+	fmt.Println("process done with hash", parent.Root, "->", newroot)
+	oracle.Output(newroot)
 }

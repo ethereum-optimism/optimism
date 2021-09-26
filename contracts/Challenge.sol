@@ -83,22 +83,22 @@ contract Challenge {
 
     // decode the blocks
     Lib_RLPReader.RLPItem[] memory blockNp1 = Lib_RLPReader.readList(blockHeaderNp1);
+    bytes32 parentHash = Lib_RLPReader.readBytes32(blockNp1[0]);
+    require(blockhash(blockNumberN) == parentHash, "parent block hash somehow wrong");
+
     bytes32 newroot = Lib_RLPReader.readBytes32(blockNp1[3]);
     require(assertionRoot != newroot, "asserting that the real state is correct is not a challenge");
-
-    // input oracle info
-    bytes32 txhash = Lib_RLPReader.readBytes32(blockNp1[4]);
-    address coinbase = Lib_RLPReader.readAddress(blockNp1[2]);
-    bytes32 uncles = Lib_RLPReader.readBytes32(blockNp1[1]);
 
     // load starting info into the input oracle
     // we both agree at the beginning
     // the first instruction executed in MIPS should be an access of startState
+    // parentblockhash, txhash, coinbase, unclehash, gaslimit
     bytes32 startState = GlobalStartState;
-    startState = writeBytes32(startState, 0xD0000000, blockhash(blockNumberN));
-    startState = writeBytes32(startState, 0xD0000020, txhash);
-    startState = writeBytes32(startState, 0xD0000040, bytes32(uint256(coinbase)));
-    startState = writeBytes32(startState, 0xD0000060, uncles);
+    startState = writeBytes32(startState, 0xD0000000, parentHash);
+    startState = writeBytes32(startState, 0xD0000020, Lib_RLPReader.readBytes32(blockNp1[4]));
+    startState = writeBytes32(startState, 0xD0000040, bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2]))));
+    startState = writeBytes32(startState, 0xD0000060, Lib_RLPReader.readBytes32(blockNp1[1]));
+    startState = writeBytes32(startState, 0xD0000080, bytes32(Lib_RLPReader.readUint256(blockNp1[9])));
 
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
     // you must load these proofs into MIPS before calling this

@@ -159,10 +159,20 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 	preimages[hash] = ret
 }
 
-var inputs [4]common.Hash
+var inputs [5]common.Hash
+var realoutput common.Hash
 
 func Input(index int) common.Hash {
 	return inputs[index]
+}
+
+func Output(output common.Hash) {
+	if output == realoutput {
+		fmt.Println("good transition")
+	} else {
+		fmt.Println(output, "!=", realoutput)
+		panic("BAD transition :((")
+	}
 }
 
 func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHasher) {
@@ -200,6 +210,8 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	inputs[1] = blockHeader.TxHash
 	inputs[2] = blockHeader.Coinbase.Hash()
 	inputs[3] = blockHeader.UncleHash
+	inputs[4] = common.BigToHash(big.NewInt(int64(blockHeader.GasLimit)))
+	realoutput = blockHeader.Root
 
 	txs := make([]*types.Transaction, len(jr.Result.Transactions))
 	for i := 0; i < len(jr.Result.Transactions); i++ {
