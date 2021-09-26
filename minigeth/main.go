@@ -20,6 +20,12 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	// init secp256k1BytePoints
 	crypto.S256()
@@ -38,10 +44,7 @@ func main() {
 
 	// read start block header
 	var parent types.Header
-	rlperr := rlp.DecodeBytes(oracle.Preimage(oracle.Input(0)), &parent)
-	if rlperr != nil {
-		log.Fatal(rlperr)
-	}
+	check(rlp.DecodeBytes(oracle.Preimage(oracle.Input(0)), &parent))
 
 	// read header
 	var newheader types.Header
@@ -74,14 +77,17 @@ func main() {
 	tt, _ := trie.New(newheader.TxHash, &triedb)
 	tni := tt.NodeIterator([]byte{})
 	for tni.Next(true) {
-		fmt.Println(tni.Hash(), tni.Leaf(), tni.Path(), tni.Error())
+		//fmt.Println(tni.Hash(), tni.Leaf(), tni.Path(), tni.Error())
 		if tni.Leaf() {
 			tx := types.Transaction{}
-			lerr := tx.UnmarshalBinary(tni.LeafBlob())
-			if lerr != nil {
-				log.Fatal(lerr)
+			var rlpKey uint64
+			check(rlp.DecodeBytes(tni.LeafKey(), &rlpKey))
+			check(tx.UnmarshalBinary(tni.LeafBlob()))
+			// TODO: resize an array in go?
+			for uint64(len(txs)) <= rlpKey {
+				txs = append(txs, nil)
 			}
-			txs = append(txs, &tx)
+			txs[rlpKey] = &tx
 		}
 	}
 	fmt.Println("read", len(txs), "transactions")

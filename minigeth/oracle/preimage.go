@@ -41,9 +41,7 @@ func (kw PreimageKeyValueWriter) Put(key []byte, value []byte) error {
 	if hash != common.BytesToHash(key) {
 		panic("bad preimage value write")
 	}
-	nval := make([]byte, len(value))
-	copy(nval, value)
-	preimages[hash] = nval
+	preimages[hash] = common.CopyBytes(value)
 	//fmt.Println("tx preimage", hash, common.Bytes2Hex(value))
 	return nil
 }

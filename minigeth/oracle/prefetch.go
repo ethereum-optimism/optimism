@@ -247,7 +247,7 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	txs := make([]*types.Transaction, len(jr.Result.Transactions))
 	for i := 0; i < len(jr.Result.Transactions); i++ {
 		txs[i] = jr.Result.Transactions[i].ToTransaction()
-		fmt.Println("tx", i, "hash", txs[i].Hash())
+		//fmt.Println("tx", i, "hash", txs[i].Hash())
 	}
 	testTxHash := types.DeriveSha(types.Transactions(txs), hasher)
 	if testTxHash != blockHeader.TxHash {
