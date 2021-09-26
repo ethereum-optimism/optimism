@@ -159,18 +159,20 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 	preimages[hash] = ret
 }
 
-var inputs [5]common.Hash
-var realoutput common.Hash
+var inputs [6]common.Hash
 
 func Input(index int) common.Hash {
+	if index < 0 || index > 5 {
+		panic("bad input index")
+	}
 	return inputs[index]
 }
 
 func Output(output common.Hash) {
-	if output == realoutput {
+	if output == inputs[5] {
 		fmt.Println("good transition")
 	} else {
-		fmt.Println(output, "!=", realoutput)
+		fmt.Println(output, "!=", inputs[5])
 		panic("BAD transition :((")
 	}
 }
@@ -211,7 +213,17 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	inputs[2] = blockHeader.Coinbase.Hash()
 	inputs[3] = blockHeader.UncleHash
 	inputs[4] = common.BigToHash(big.NewInt(int64(blockHeader.GasLimit)))
-	realoutput = blockHeader.Root
+
+	// secret input
+	inputs[5] = blockHeader.Root
+
+	// save the inputs
+	saveinput := make([]byte, 0)
+	for i := 0; i < len(inputs); i++ {
+		saveinput = append(saveinput, inputs[i].Bytes()[:]...)
+	}
+	key := fmt.Sprintf("/tmp/eth/%d", blockNumber.Uint64()-1)
+	ioutil.WriteFile(key, saveinput, 0644)
 
 	txs := make([]*types.Transaction, len(jr.Result.Transactions))
 	for i := 0; i < len(jr.Result.Transactions); i++ {

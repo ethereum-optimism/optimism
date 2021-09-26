@@ -286,7 +286,7 @@ mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIIII",
   _AT_PAGESZ, 0x1000, 0)) # auxv
 
 # block
-mu.mem_write(SIZE-0x800, b"13284491\x00")
+mu.mem_write(SIZE-0x800, b"13284469\x00")
 #mu.mem_write(SIZE-0x800, b"13284469\x00")
 
 mu.mem_write(SIZE-0x400, b"GOGC=off\x00")
