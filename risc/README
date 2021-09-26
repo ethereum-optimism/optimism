@@ -1,0 +1,5 @@
+Compiler and emulator for minigeth in MIPS
+
+Similar to mipsevm, but faster. Will likely be removed if mipsevm is fast enough.
+
+Parts will remain to build and patch the binary
