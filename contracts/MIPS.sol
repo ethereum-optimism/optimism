@@ -17,10 +17,21 @@ interface IMIPSMemory {
 }
 
 contract MIPS {
-  IMIPSMemory constant public m = IMIPSMemory(0x1338);
+  IMIPSMemory public immutable m;
 
   uint32 constant public REG_OFFSET = 0xc0000000;
   uint32 constant public REG_PC = REG_OFFSET + 0x20*4;
+
+  constructor(IMIPSMemory _m) {
+    m = _m;
+  }
+
+  function Steps(bytes32 stateHash, uint count) public view returns (bytes32) {
+    for (uint i = 0; i < count; i++) {
+      stateHash = Step(stateHash);
+    }
+    return stateHash;
+  }
 
   // will revert if any required input state is missing
   function Step(bytes32 stateHash) public view returns (bytes32) {

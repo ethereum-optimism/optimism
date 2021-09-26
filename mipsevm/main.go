@@ -40,7 +40,7 @@ func (s *StateDB) GetCode(addr common.Address) []byte {
 	return s.Bytecode
 }
 func (s *StateDB) GetCodeHash(addr common.Address) common.Hash { return common.Hash{} }
-func (s *StateDB) GetCodeSize(addr common.Address) int         { return 0 }
+func (s *StateDB) GetCodeSize(addr common.Address) int         { return 100 }
 func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
 	return common.Hash{}
 }
@@ -74,7 +74,7 @@ func (jst *Tracer) CaptureStart(env *vm.EVM, from common.Address, to common.Addr
 
 // CaptureState implements the Tracer interface to trace a single step of VM execution.
 func (jst *Tracer) CaptureState(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
-	fmt.Println(pc, op, gas)
+	//fmt.Println(pc, op, gas)
 }
 
 // CaptureFault implements the Tracer interface to trace an execution fault
@@ -88,6 +88,33 @@ func (jst *Tracer) CaptureEnd(output []byte, gasUsed uint64, t time.Duration, er
 type jsoncontract struct {
 	Bytecode         string `json:"bytecode"`
 	DeployedBytecode string `json:"deployedBytecode"`
+}
+
+func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
+	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
+	stack := scope.Stack
+
+	temp := stack.Pop()
+	returnGas := temp.Uint64()
+	_, inOffset, inSize, retOffset, retSize := stack.Pop(), stack.Pop(), stack.Pop(), stack.Pop(), stack.Pop()
+	//fmt.Println(temp, addr, inOffset, inSize, retOffset, retSize)
+
+	temp.SetOne()
+	stack.Push(&temp)
+
+	ret := common.Hash{}.Bytes()
+
+	// Get arguments from the memory.
+	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
+	//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
+
+	fmt.Println("HOOKED!", returnGas, args)
+	scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
+	//scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
+	//return ret
+
+	scope.Contract.Gas += returnGas
+	return ret, nil
 }
 
 func main() {
@@ -125,13 +152,27 @@ func main() {
 	fmt.Println(ret, gas, err)*/
 
 	interpreter := vm.NewEVMInterpreter(evm, config)
-	input := []byte{0x69, 0x37, 0x33, 0x72} // Step(bytes32)
+	interpreter.GetCfg().JumpTable[vm.STATICCALL].SetExecute(opStaticCall)
+
+	/*input := []byte{0x69, 0x37, 0x33, 0x72} // Step(bytes32)
+	input = append(input, common.Hash{}.Bytes()...)*/
+
+	// 1.26s for 100000 steps
+	steps := 10
+
+	// 0xdb7df598
+	input := []byte{0xdb, 0x7d, 0xf5, 0x98} // Steps(bytes32, uint256)
 	input = append(input, common.Hash{}.Bytes()...)
+	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
 	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, 20000000)
 	//fmt.Println(bytecodehash, bytecode)
 	contract.SetCallCode(&to, bytecodehash, bytecode)
+
+	start := time.Now()
 	ret, err := interpreter.Run(contract, input, false)
-	fmt.Println(ret, err, contract.Gas)
+	elapsed := time.Now().Sub(start)
+
+	fmt.Println(ret, err, contract.Gas, elapsed)
 	if err != nil {
 		log.Fatal(err)
 	}

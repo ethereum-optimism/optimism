@@ -50,6 +50,11 @@ func (st *Stack) Data() []uint256.Int {
 	return st.data
 }
 
+func (st *Stack) Push(d *uint256.Int) {
+	// NOTE push limit (1024) is checked in baseCheck
+	st.data = append(st.data, *d)
+}
+
 func (st *Stack) push(d *uint256.Int) {
 	// NOTE push limit (1024) is checked in baseCheck
 	st.data = append(st.data, *d)
@@ -57,6 +62,12 @@ func (st *Stack) push(d *uint256.Int) {
 func (st *Stack) pushN(ds ...uint256.Int) {
 	// FIXME: Is there a way to pass args by pointers.
 	st.data = append(st.data, ds...)
+}
+
+func (st *Stack) Pop() (ret uint256.Int) {
+	ret = st.data[len(st.data)-1]
+	st.data = st.data[:len(st.data)-1]
+	return
 }
 
 func (st *Stack) pop() (ret uint256.Int) {
