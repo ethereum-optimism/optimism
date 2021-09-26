@@ -19,6 +19,7 @@ package core
 import (
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -74,7 +75,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		fmt.Println(i, tx.Hash())
+		//fmt.Println(i, tx.Hash())
+		os.Stdout.WriteString(".")
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), header.BaseFee)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)

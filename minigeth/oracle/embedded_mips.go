@@ -15,7 +15,8 @@ import (
 )
 
 var preimages = make(map[common.Hash][]byte)
-var inputs [7]common.Hash
+// only 6 here
+var inputs [6]common.Hash
 var inputsLoaded bool = false
 
 func byteAt(addr uint64, length int) []byte {

@@ -2,7 +2,6 @@ package trie
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"math/big"
 	"sync"
@@ -36,7 +35,7 @@ type Database struct {
 func NewDatabase(header types.Header) Database {
 	triedb := Database{BlockNumber: header.Number, Root: header.Root}
 	//triedb.preimages = make(map[common.Hash][]byte)
-	fmt.Println("init database")
+	//fmt.Println("init database")
 	oracle.PrefetchAccount(header.Number, common.Address{}, nil)
 
 	//panic("preseed")
