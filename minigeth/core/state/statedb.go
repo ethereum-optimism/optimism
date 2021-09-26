@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/oracle"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // for includes we don't have
@@ -456,6 +457,8 @@ func (s *StateDB) deleteStateObject(obj *stateObject) {
 	}
 	// Delete the account from the trie
 	addr := obj.Address()
+	// Get absense proof of account in case the deletion needs the sister node.
+	oracle.PrefetchAccount(big.NewInt(s.db.BlockNumber.Int64()+1), addr, trie.GenPossibleShortNodePreimage)
 	if err := s.trie.TryDelete(addr[:]); err != nil {
 		s.setError(fmt.Errorf("deleteStateObject (%x) error: %v", addr[:], err))
 	}
@@ -513,7 +516,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		if metrics.EnabledExpensive {
 			defer func(start time.Time) { s.AccountReads += time.Since(start) }(time.Now())
 		}
-		oracle.PrefetchAccount(s.db.BlockNumber, addr)
+		oracle.PrefetchAccount(s.db.BlockNumber, addr, nil)
 		enc, err := s.trie.TryGet(addr.Bytes())
 		if err != nil {
 			s.setError(fmt.Errorf("getDeleteStateObject (%x) error: %v", addr.Bytes(), err))

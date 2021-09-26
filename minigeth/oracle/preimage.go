@@ -18,7 +18,11 @@ func Preimage(hash common.Hash) []byte {
 	ioutil.WriteFile(key, val, 0644)
 	if !ok {
 		fmt.Println("can't find preimage", hash)
-		panic("preimage missing")
 	}
 	return val
+}
+
+// TODO: Maybe we will want to have a seperate preimages for next block's preimages?
+func Preimages() map[common.Hash][]byte {
+	return preimages
 }

@@ -1,6 +1,7 @@
 package trie
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math/big"
@@ -8,7 +9,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/oracle"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // rawNode is a simple binary blob used to differentiate between collapsed trie
@@ -34,7 +37,7 @@ func NewDatabase(header types.Header) Database {
 	triedb := Database{BlockNumber: header.Number, Root: header.Root}
 	//triedb.preimages = make(map[common.Hash][]byte)
 	fmt.Println("init database")
-	oracle.PrefetchAccount(header.Number, common.Address{})
+	oracle.PrefetchAccount(header.Number, common.Address{}, nil)
 
 	//panic("preseed")
 	return triedb
@@ -50,7 +53,10 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 // found in the memory cache.
 func (db *Database) node(hash common.Hash) node {
 	//fmt.Println("node", hash)
-	return mustDecodeNode(hash[:], oracle.Preimage(hash))
+	if val := oracle.Preimage(hash); val != nil {
+		return mustDecodeNode(hash[:], val)
+	}
+	return nil
 }
 
 // insert inserts a collapsed trie node into the memory database.
@@ -60,4 +66,37 @@ func (db *Database) node(hash common.Hash) node {
 func (db *Database) insert(hash common.Hash, size int, node node) {
 	// can put things in the oracle here if we care
 	//fmt.Println("insert", hash, size)
+}
+
+func GenPossibleShortNodePreimage(preimages map[common.Hash][]byte) {
+	newPreimages := make(map[common.Hash][]byte)
+
+	for _, val := range preimages {
+		node, err := decodeNode(nil, val)
+		if err != nil {
+			continue
+		}
+
+		if node, ok := node.(*shortNode); ok {
+			for i := len(node.Key) - 1; i > 0; i-- {
+				n := shortNode{
+					Key: hexToCompact(node.Key[i:]),
+					Val: node.Val,
+				}
+				buf := new(bytes.Buffer)
+				if err := rlp.Encode(buf, n); err != nil {
+					panic("encode error: " + err.Error())
+				}
+				preimage := buf.Bytes()
+				if len(preimage) < 32 {
+					continue
+				}
+				newPreimages[crypto.Keccak256Hash(preimage)] = preimage
+			}
+		}
+	}
+
+	for hash, val := range newPreimages {
+		preimages[hash] = val
+	}
 }
