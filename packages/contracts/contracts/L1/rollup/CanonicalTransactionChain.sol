@@ -541,7 +541,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         uint40 lastTimestamp;
         uint40 lastBlockNumber;
 
-        // solhint-disable max-line-length
         assembly {
             extraData       :=  shr(40, extraData)
             totalElements   :=  and(extraData, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
@@ -549,7 +548,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             lastTimestamp   :=  shr(80, and(extraData, 0x0000000000000000000000000000000000FFFFFFFFFF00000000000000000000))
             lastBlockNumber :=  shr(120, and(extraData, 0x000000000000000000000000FFFFFFFFFF000000000000000000000000000000))
         }
-        // solhint-enable max-line-length
 
         return (
             totalElements,
