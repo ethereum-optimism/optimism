@@ -40,8 +40,6 @@ func (db *Database) ContractCodeSize(addrHash common.Hash, codeHash common.Hash)
 }
 
 func (db *Database) CopyTrie(trie Trie) Trie {
-	// TODO: this is wrong
-	//return trie
 	panic("don't copy tries")
 }
 

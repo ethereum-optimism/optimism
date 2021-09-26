@@ -80,5 +80,11 @@ func Preimage(hash common.Hash) []byte {
 // these are stubs in embedded world
 func PrefetchStorage(*big.Int, common.Address, common.Hash, func(map[common.Hash][]byte)) {}
 func PrefetchAccount(*big.Int, common.Address, func(map[common.Hash][]byte))              {}
-func PrefetchCode(blockNumber *big.Int, addrHash common.Hash)                      {}
-func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHasher) {}
+func PrefetchCode(blockNumber *big.Int, addrHash common.Hash)                             {}
+func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHasher)        {}
+
+// KeyValueWriter wraps the Put method of a backing data store.
+type PreimageKeyValueWriter struct{}
+
+func (kw PreimageKeyValueWriter) Put(key []byte, value []byte) error { return nil }
+func (kw PreimageKeyValueWriter) Delete(key []byte) error            { return nil }

@@ -21,11 +21,13 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 
 	//"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -199,12 +201,12 @@ func (st *StackTrie) TryUpdate(key, value []byte) error {
 
 func (st *StackTrie) Update(key, value []byte) {
 	if err := st.TryUpdate(key, value); err != nil {
-		//log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
+		log.Error(fmt.Sprintf("Unhandled trie error: %v", err))
 	}
 }
 
 func (st *StackTrie) Reset() {
-	st.db = nil
+	//st.db = nil
 	st.key = st.key[:0]
 	st.val = nil
 	for i := range st.children {

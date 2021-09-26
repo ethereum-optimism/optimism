@@ -26,9 +26,14 @@ func main() {
 
 	// non mips
 	if len(os.Args) > 1 {
+		pkw := oracle.PreimageKeyValueWriter{}
+		pkwtrie := trie.NewStackTrie(pkw)
+
 		blockNumber, _ := strconv.Atoi(os.Args[1])
-		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)), true, trie.NewStackTrie(nil))
-		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)+1), false, trie.NewStackTrie(nil))
+		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)), true, nil)
+		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)+1), false, pkwtrie)
+		hash, err := pkwtrie.Commit()
+		fmt.Println("commited transactions", hash, err)
 	}
 
 	// read start block header
@@ -59,14 +64,28 @@ func main() {
 	fmt.Println("made state processor")
 
 	// read txs
+	//traverseStackTrie(newheader.TxHash)
+
+	//fmt.Println(fn)
+	//fmt.Println(txTrieRoot)
 	var txs []*types.Transaction
-	{
-		f, _ := os.Open(fmt.Sprintf("data/txs_%d", newheader.Number))
-		rlpheader := rlp.NewStream(f, 0)
-		rlpheader.Decode(&txs)
-		f.Close()
+
+	triedb := trie.NewDatabase(parent)
+	tt, _ := trie.New(newheader.TxHash, &triedb)
+	tni := tt.NodeIterator([]byte{})
+	for tni.Next(true) {
+		fmt.Println(tni.Hash(), tni.Leaf(), tni.Path(), tni.Error())
+		if tni.Leaf() {
+			tx := types.Transaction{}
+			lerr := tx.UnmarshalBinary(tni.LeafBlob())
+			if lerr != nil {
+				log.Fatal(lerr)
+			}
+			txs = append(txs, &tx)
+		}
 	}
 	fmt.Println("read", len(txs), "transactions")
+	// TODO: OMG the transaction ordering isn't fixed
 
 	var uncles []*types.Header
 	var receipts []*types.Receipt
