@@ -90,6 +90,9 @@ type jsoncontract struct {
 	DeployedBytecode string `json:"deployedBytecode"`
 }
 
+var ram []byte
+var regs [4096]byte
+
 func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	stack := scope.Stack
@@ -102,15 +105,28 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 	temp.SetOne()
 	stack.Push(&temp)
 
-	ret := common.Hash{}.Bytes()
-
 	// Get arguments from the memory.
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 	addr := common.BytesToHash(args[4:]).Big().Uint64()
+	var nret int64
+	if addr >= 0xc0000000 {
+		addr -= 0xc0000000
+		nret = (int64(regs[addr]) << 24) |
+			(int64(regs[addr+1]) << 16) |
+			(int64(regs[addr+2]) << 8) |
+			(int64(regs[addr+3]) << 0)
+		addr += 0xc0000000
+	} else {
+		nret = (int64(ram[addr]) << 24) |
+			(int64(ram[addr+1]) << 16) |
+			(int64(ram[addr+2]) << 8) |
+			(int64(ram[addr+3]) << 0)
+	}
 
 	//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 
-	fmt.Println("HOOKED!", returnGas, fmt.Sprintf("%x", addr))
+	ret := common.BigToHash(big.NewInt(nret)).Bytes()
+	fmt.Println("HOOKED!", returnGas, fmt.Sprintf("%x = %x", addr, nret))
 	scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	//scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	//return ret
@@ -121,6 +137,8 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 
 func main() {
 	fmt.Println("hello")
+
+	ram, _ = ioutil.ReadFile("test/add.bin")
 
 	/*var parent types.Header
 	database := state.NewDatabase(parent)

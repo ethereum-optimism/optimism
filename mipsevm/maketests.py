@@ -20,7 +20,8 @@ for d in os.listdir("test/"):
     #print(sec, sec.name, sec.data())
     if sec.name == ".test":
       with open("test/"+(d.replace(".asm", ".bin")), "wb") as f:
-        data = sec.data()
+        # jump to 0xdead0000 when done
+        data = b"\x24\x1f\xde\xad\x00\x1f\xfc\x00" + sec.data()
         for dd in md.disasm(data, 0):
           print(dd)
         f.write(data)
