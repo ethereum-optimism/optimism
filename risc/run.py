@@ -285,7 +285,10 @@ mu.mem_map(brk_start, 1024*1024*1024)
 # input oracle
 mu.mem_map(0x30000000, 0x2000000)
 
-inputs = open("/tmp/eth/13284469", "rb").read()
+if len(sys.argv) > 1:
+  inputs = open("/tmp/eth/"+sys.argv[1], "rb").read()
+else:
+  inputs = open("/tmp/eth/13284469", "rb").read()
 mu.mem_write(0x30000000, inputs)
 
 # regs at 0xC0000000 in merkle
