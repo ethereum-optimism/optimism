@@ -30,7 +30,6 @@ heap_start = 0x20000000 # 0x20000000-0x30000000
 # output oracle             @ 0x30000800
 # preimage oracle (write)   @ 0x30001000
 # preimage oracle (read)    @ 0x31000000-0x32000000 (16 MB)
-# preimage oracle (trigger) @ 0x32000000 (returns size)
 
 brk_start = 0x40000000  # 0x40000000-0x80000000
 
