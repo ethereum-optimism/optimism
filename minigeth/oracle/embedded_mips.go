@@ -4,7 +4,6 @@
 package oracle
 
 import (
-	"fmt"
 	"math/big"
 	"os"
 	"reflect"
@@ -58,12 +57,12 @@ func Output(output common.Hash) {
 	ret := byteAt(0x30000800, 0x20)
 	copy(ret, output.Bytes())
 
-	if output == inputs[5] {
+	/*if output == inputs[5] {
 		fmt.Println("good transition")
 	} else {
 		fmt.Println(output, "!=", inputs[5])
 		panic("BAD transition :((")
-	}
+	}*/
 
 	Halt()
 }

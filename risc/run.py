@@ -286,8 +286,8 @@ mu.mem_map(brk_start, 1024*1024*1024)
 # input oracle
 mu.mem_map(0x30000000, 0x2000000)
 
-dat = open("/tmp/eth/13284469", "rb").read()
-mu.mem_write(0x30000000, dat)
+inputs = open("/tmp/eth/13284469", "rb").read()
+mu.mem_write(0x30000000, inputs)
 
 # regs at 0xC0000000 in merkle
 
@@ -353,6 +353,7 @@ def hook_mem_invalid(uc, access, address, size, value, user_data):
   pc = uc.reg_read(UC_MIPS_REG_PC)
   if pc == 0xDEAD0000:
     died_well = True
+    return False
   print("UNMAPPED MEMORY:", access, hex(address), size, "at", hex(pc))
   return False
 mu.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED, hook_mem_invalid)
@@ -365,7 +366,13 @@ try:
   mu.emu_start(entry, 0)
 except unicorn.UcError:
   pass
-hexdump(mu.mem_read(0x30000800, 0x20))
 
 if not died_well:
   raise Exception("program exitted early")
+
+real_hash = binascii.hexlify(inputs[-0x20:])
+compare_hash = binascii.hexlify(mu.mem_read(0x30000800, 0x20))
+print("compare", real_hash, "to computed", compare_hash)
+
+if real_hash != compare_hash:
+  raise Exception("wrong hash")
