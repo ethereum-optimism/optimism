@@ -41,6 +41,7 @@ func Preimage(hash common.Hash) []byte {
 }
 
 // these are stubs in embedded world
-func PrefetchStorage(blockNumber *big.Int, addr common.Address, skey common.Hash) {}
-func PrefetchAccount(blockNumber *big.Int, addr common.Address)                   {}
-func PrefetchCode(blockNumber *big.Int, addrHash common.Hash)                     {}
+func PrefetchStorage(blockNumber *big.Int, addr common.Address, skey common.Hash)  {}
+func PrefetchAccount(blockNumber *big.Int, addr common.Address)                    {}
+func PrefetchCode(blockNumber *big.Int, addrHash common.Hash)                      {}
+func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHasher) {}

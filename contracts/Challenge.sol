@@ -77,20 +77,16 @@ contract Challenge {
     return challengeId;
   }
 
-  function InitiateChallenge(uint blockNumberN,
-        bytes calldata blockHeaderN, bytes calldata blockHeaderNp1,
+  function InitiateChallenge(uint blockNumberN, bytes calldata blockHeaderNp1,
         bytes32 assertionRoot, bytes32 finalSystemState, uint256 stepCount) external returns (uint256) {
-    require(blockhash(blockNumberN) == keccak256(blockHeaderN), "start block hash wrong");
     require(blockhash(blockNumberN+1) == keccak256(blockHeaderNp1), "end block hash wrong");
 
     // decode the blocks
-    Lib_RLPReader.RLPItem[] memory blockN = Lib_RLPReader.readList(blockHeaderN);
     Lib_RLPReader.RLPItem[] memory blockNp1 = Lib_RLPReader.readList(blockHeaderNp1);
     bytes32 newroot = Lib_RLPReader.readBytes32(blockNp1[3]);
     require(assertionRoot != newroot, "asserting that the real state is correct is not a challenge");
 
     // input oracle info
-    bytes32 root = Lib_RLPReader.readBytes32(blockN[3]);
     bytes32 txhash = Lib_RLPReader.readBytes32(blockNp1[4]);
     address coinbase = Lib_RLPReader.readAddress(blockNp1[2]);
     bytes32 uncles = Lib_RLPReader.readBytes32(blockNp1[1]);
@@ -99,7 +95,7 @@ contract Challenge {
     // we both agree at the beginning
     // the first instruction executed in MIPS should be an access of startState
     bytes32 startState = GlobalStartState;
-    startState = writeBytes32(startState, 0xD0000000, root);
+    startState = writeBytes32(startState, 0xD0000000, blockhash(blockNumberN));
     startState = writeBytes32(startState, 0xD0000020, txhash);
     startState = writeBytes32(startState, 0xD0000040, bytes32(uint256(coinbase)));
     startState = writeBytes32(startState, 0xD0000060, uncles);

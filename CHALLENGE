@@ -3,7 +3,7 @@ Implement as a MIPS instruction?
 
 InputOracle -- Preagreed upon inputs (TODO: replace with memory reads from given address range)
   $a0 = input choice
-    0 -- StateRoot(n)
+    0 -- BlockHash(n)
     1 -- Transactions(n+1)
     2 -- Coinbase(n+1)
     3 -- Uncles(n+1)
