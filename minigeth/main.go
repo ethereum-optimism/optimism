@@ -96,6 +96,8 @@ func main() {
 	// TODO: OMG the transaction ordering isn't fixed
 
 	var uncles []*types.Header
+	check(rlp.DecodeBytes(oracle.Preimage(newheader.UncleHash), &uncles))
+
 	var receipts []*types.Receipt
 	block := types.NewBlock(&newheader, txs, uncles, receipts, trie.NewStackTrie(nil))
 	fmt.Println("made block, parent:", newheader.ParentHash)
@@ -106,7 +108,7 @@ func main() {
 		panic("wrong transactions for block")
 	}
 	if newheader.UncleHash != block.Header().UncleHash {
-		panic("wrong uncles for block")
+		panic("wrong uncles for block " + newheader.UncleHash.String() + " " + block.Header().UncleHash.String())
 	}
 
 	_, _, _, err := processor.Process(block, statedb, vmconfig)

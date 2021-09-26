@@ -17,9 +17,11 @@ jobs:
       run: |
         (cd minigeth/ && go build)
         mkdir -p /tmp/eth
-    - name: Test block 13284491
+    - name: Test block 13284491 (0 tx)
       run: minigeth/go-ethereum 13284491
-    - name: Test block 13284469
+    - name: Test block 13284469 (few tx)
       run: minigeth/go-ethereum 13284469
-    - name: Test block 13284053
+    - name: Test block 13284053 (deletion)
       run: minigeth/go-ethereum 13284053
+    - name: Test block 13303075 (uncles)
+      run: minigeth/go-ethereum 13303075

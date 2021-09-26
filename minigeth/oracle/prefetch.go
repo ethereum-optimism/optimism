@@ -41,6 +41,12 @@ type jsonresps struct {
 	Result  string `json:"result"`
 }
 
+type jsonrespi struct {
+	Jsonrpc string         `json:"jsonrpc"`
+	Id      uint64         `json:"id"`
+	Result  hexutil.Uint64 `json:"result"`
+}
+
 type jsonrespt struct {
 	Jsonrpc string `json:"jsonrpc"`
 	Id      uint64 `json:"id"`
@@ -196,6 +202,53 @@ func Output(output common.Hash) {
 	}
 }
 
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func prefetchUncles(blockHash common.Hash, uncleHash common.Hash, hasher types.TrieHasher) {
+	jr := jsonrespi{}
+	{
+		r := jsonreq{Jsonrpc: "2.0", Method: "eth_getUncleCountByBlockHash", Id: 1}
+		r.Params = make([]interface{}, 1)
+		r.Params[0] = blockHash.Hex()
+		jsonData, _ := json.Marshal(r)
+		check(json.NewDecoder(getAPI(jsonData)).Decode(&jr))
+	}
+
+	var uncles []*types.Header
+	for u := 0; u < int(jr.Result); u++ {
+		jr2 := jsonrespt{}
+		{
+			r := jsonreq{Jsonrpc: "2.0", Method: "eth_getUncleByBlockHashAndIndex", Id: 1}
+			r.Params = make([]interface{}, 2)
+			r.Params[0] = blockHash.Hex()
+			r.Params[1] = fmt.Sprintf("0x%x", u)
+			jsonData, _ := json.Marshal(r)
+
+			/*a, _ := ioutil.ReadAll(getAPI(jsonData))
+			fmt.Println(string(a))*/
+
+			check(json.NewDecoder(getAPI(jsonData)).Decode(&jr2))
+		}
+		uncleHeader := jr2.Result.ToHeader()
+		uncles = append(uncles, &uncleHeader)
+		//fmt.Println(uncleHeader)
+		//fmt.Println(jr2.Result)
+	}
+
+	unclesRlp, _ := rlp.EncodeToBytes(uncles)
+	hash := crypto.Keccak256Hash(unclesRlp)
+
+	if hash != uncleHash {
+		panic("wrong uncle hash")
+	}
+
+	preimages[hash] = unclesRlp
+}
+
 func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHasher) {
 	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getBlockByNumber", Id: 1}
 	r.Params = make([]interface{}, 2)
@@ -207,10 +260,7 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	fmt.Println(string(dat))*/
 
 	jr := jsonrespt{}
-	err := json.NewDecoder(getAPI(jsonData)).Decode(&jr)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(json.NewDecoder(getAPI(jsonData)).Decode(&jr))
 	//fmt.Println(jr.Result)
 	blockHeader := jr.Result.ToHeader()
 
@@ -245,10 +295,10 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	key := fmt.Sprintf("/tmp/eth/%d", blockNumber.Uint64()-1)
 	ioutil.WriteFile(key, saveinput, 0644)
 
+	// save the txs
 	txs := make([]*types.Transaction, len(jr.Result.Transactions))
 	for i := 0; i < len(jr.Result.Transactions); i++ {
 		txs[i] = jr.Result.Transactions[i].ToTransaction()
-		//fmt.Println("tx", i, "hash", txs[i].Hash())
 	}
 	testTxHash := types.DeriveSha(types.Transactions(txs), hasher)
 	if testTxHash != blockHeader.TxHash {
@@ -256,14 +306,8 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 		panic("tx hash derived wrong")
 	}
 
-	// put in transaction trie
-
-	//return blockHeader, txs
-
-	/*var uncles []*types.Header
-	var receipts []*types.Receipt
-	block := types.NewBlock(&blockHeader, txs, uncles, receipts, trie.NewStackTrie(nil))*/
-
+	// save the uncles
+	prefetchUncles(blockHeader.Hash(), blockHeader.UncleHash, hasher)
 }
 
 func getProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {
