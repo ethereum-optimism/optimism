@@ -37,6 +37,9 @@ contract MIPS {
   function Step(bytes32 stateHash) public view returns (bytes32) {
     // instruction fetch
     uint32 pc = m.ReadMemory(stateHash, REG_PC);
+    if (pc == 0xdead0000) {
+      return stateHash;
+    }
     uint32 insn = m.ReadMemory(stateHash, pc);
     uint32 opcode = insn >> 26; // 6-bits
 

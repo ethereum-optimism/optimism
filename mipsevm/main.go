@@ -106,9 +106,11 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 
 	// Get arguments from the memory.
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
+	addr := common.BytesToHash(args[4:]).Big().Uint64()
+
 	//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 
-	fmt.Println("HOOKED!", returnGas, args)
+	fmt.Println("HOOKED!", returnGas, fmt.Sprintf("%x", addr))
 	scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	//scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	//return ret
