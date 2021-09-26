@@ -24,14 +24,12 @@ func main() {
 	// init secp256k1BytePoints
 	crypto.S256()
 
-	// before this isn't run on chain (confirm this isn't cached)
-	os.Stderr.WriteString("********* on chain starts here *********\n")
-
-	blockNumber, _ := strconv.Atoi(os.Args[1])
-
 	// non mips
-	oracle.PrefetchBlock(big.NewInt(int64(blockNumber)), true, trie.NewStackTrie(nil))
-	oracle.PrefetchBlock(big.NewInt(int64(blockNumber)+1), false, trie.NewStackTrie(nil))
+	if len(os.Args) > 1 {
+		blockNumber, _ := strconv.Atoi(os.Args[1])
+		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)), true, trie.NewStackTrie(nil))
+		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)+1), false, trie.NewStackTrie(nil))
+	}
 
 	// read start block header
 	var parent types.Header
@@ -63,7 +61,7 @@ func main() {
 	// read txs
 	var txs []*types.Transaction
 	{
-		f, _ := os.Open(fmt.Sprintf("data/txs_%d", blockNumber+1))
+		f, _ := os.Open(fmt.Sprintf("data/txs_%d", newheader.Number))
 		rlpheader := rlp.NewStream(f, 0)
 		rlpheader.Decode(&txs)
 		f.Close()

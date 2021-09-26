@@ -37,6 +37,8 @@ func Input(index int) common.Hash {
 		}
 
 		inputsLoaded = true
+		// before this isn't run on chain (confirm this isn't cached)
+		os.Stderr.WriteString("********* on chain starts here *********\n")
 	}
 	return inputs[index]
 }
