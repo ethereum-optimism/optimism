@@ -15,7 +15,7 @@ import (
 )
 
 var preimages = make(map[common.Hash][]byte)
-var inputs [6]common.Hash
+var inputs [7]common.Hash
 var inputsLoaded bool = false
 
 func byteAt(addr uint64, length int) []byte {
@@ -28,7 +28,7 @@ func byteAt(addr uint64, length int) []byte {
 }
 
 func Input(index int) common.Hash {
-	if index < 0 || index > 5 {
+	if index < 0 || index > 6 {
 		panic("bad input index")
 	}
 	if !inputsLoaded {
@@ -56,31 +56,12 @@ func Halt() {
 func Output(output common.Hash) {
 	ret := byteAt(0x30000800, 0x20)
 	copy(ret, output.Bytes())
-
-	/*if output == inputs[5] {
-		fmt.Println("good transition")
-	} else {
-		fmt.Println(output, "!=", inputs[5])
-		panic("BAD transition :((")
-	}*/
-
 	Halt()
 }
 
 func Preimage(hash common.Hash) []byte {
 	val, ok := preimages[hash]
 	if !ok {
-		/*f, err := os.Open(fmt.Sprintf("/tmp/eth/%s", hash))
-		if err != nil {
-			panic("missing preimage")
-		}
-
-		defer f.Close()
-		ret, err := ioutil.ReadAll(f)
-		if err != nil {
-			panic("preimage read failed")
-		}*/
-
 		// load in hash
 		preImageHash := byteAt(0x30001000, 0x20)
 		copy(preImageHash, hash.Bytes())

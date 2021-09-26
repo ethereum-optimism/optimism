@@ -92,13 +92,14 @@ contract Challenge {
     // load starting info into the input oracle
     // we both agree at the beginning
     // the first instruction executed in MIPS should be an access of startState
-    // parentblockhash, txhash, coinbase, unclehash, gaslimit
+    // parentblockhash, txhash, coinbase, unclehash, gaslimit, time
     bytes32 startState = GlobalStartState;
     startState = writeBytes32(startState, 0x30000000, parentHash);
     startState = writeBytes32(startState, 0x30000020, Lib_RLPReader.readBytes32(blockNp1[4]));
     startState = writeBytes32(startState, 0x30000040, bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2]))));
     startState = writeBytes32(startState, 0x30000060, Lib_RLPReader.readBytes32(blockNp1[1]));
     startState = writeBytes32(startState, 0x30000080, bytes32(Lib_RLPReader.readUint256(blockNp1[9])));
+    startState = writeBytes32(startState, 0x300000a0, bytes32(Lib_RLPReader.readUint256(blockNp1[11])));
 
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
     // you must load these proofs into MIPS before calling this

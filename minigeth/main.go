@@ -59,6 +59,7 @@ func main() {
 	newheader.Coinbase = common.BigToAddress(oracle.Input(2).Big())
 	newheader.UncleHash = oracle.Input(3)
 	newheader.GasLimit = oracle.Input(4).Big().Uint64()
+	newheader.Time = oracle.Input(5).Big().Uint64()
 
 	bc := core.NewBlockChain()
 	database := state.NewDatabase(parent)

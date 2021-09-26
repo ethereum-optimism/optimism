@@ -435,7 +435,7 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 		}
 		if pos >= 0 {
 			if pos != 16 {
-				fmt.Println("delete fails here", pos, n.Children, prefix, n.Children[pos])
+				//fmt.Println("delete fails here", pos, n.Children, prefix, n.Children[pos])
 				// If the remaining entry is a short node, it replaces
 				// n and its key gets the missing nibble tacked to the
 				// front. This avoids creating an invalid
