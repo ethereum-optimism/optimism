@@ -207,10 +207,9 @@ def hook_interrupt(uc, intno, user_data):
         print("exit(%d) ran %.2f million instructions, %d binary searches" % (a0, icount/1_000_000, math.ceil(math.log2(icount))))
       else:
         print("exit(%d)" % a0)
-      hexdump(uc.mem_read(0x30000800, 0x20))
       sys.stdout.flush()
       sys.stderr.flush()
-      os._exit(a0)
+      #os._exit(a0)
     elif syscall_no == 4090:
       a0 = uc.reg_read(UC_MIPS_REG_A0)
       a1 = uc.reg_read(UC_MIPS_REG_A1)
@@ -236,7 +235,7 @@ def hook_interrupt(uc, intno, user_data):
 
   print("interrupt", intno, hex(pc))
   if intno != 17:
-    raise Exception
+    raise unicorn.UcError(0)
   return True
 
 cnt = 0
@@ -286,6 +285,7 @@ mu.mem_map(brk_start, 1024*1024*1024)
 
 # input oracle
 mu.mem_map(0x30000000, 0x2000000)
+
 dat = open("/tmp/eth/13284469", "rb").read()
 mu.mem_write(0x30000000, dat)
 
@@ -335,19 +335,37 @@ for section in elffile.iter_sections():
         print(nsym, symbol.name)
         # nop gcenable
         mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+      if symbol.name == "github.com/ethereum/go-ethereum/oracle.Halt":
+         #00400000: 2004dead ; <input:0> li $a0, 57005
+        # 00400004: 00042400 ; <input:1> sll $a0, $a0, 16
+        # 00400008: 00800008 ; <input:2> jr $a0
+        mu.mem_write(symbol['st_value'], b"\x20\x04\xde\xad\x00\x04\x24\x00\x00\x80\x00\x08")
   except Exception:
     #traceback.print_exc()
     pass
 
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 
+died_well = False
 
 def hook_mem_invalid(uc, access, address, size, value, user_data):
+  global died_well
   pc = uc.reg_read(UC_MIPS_REG_PC)
+  if pc == 0xDEAD0000:
+    died_well = True
   print("UNMAPPED MEMORY:", access, hex(address), size, "at", hex(pc))
   return False
 mu.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED, hook_mem_invalid)
+mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 #mu.hook_add(UC_HOOK_INSN, hook_interrupt, None, 1, 0, 0x0c000000)
-mu.emu_start(entry, 0)
+
+try:
+  mu.emu_start(entry, 0)
+except unicorn.UcError:
+  pass
+hexdump(mu.mem_read(0x30000800, 0x20))
+
+if not died_well:
+  raise Exception("program exitted early")

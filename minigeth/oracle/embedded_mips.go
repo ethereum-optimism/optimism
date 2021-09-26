@@ -49,6 +49,11 @@ func Input(index int) common.Hash {
 	return inputs[index]
 }
 
+func Halt() {
+	os.Stderr.WriteString("THIS SHOULD BE PATCHED OUT\n")
+	os.Exit(0)
+}
+
 func Output(output common.Hash) {
 	ret := byteAt(0x30000800, 0x20)
 	copy(ret, output.Bytes())
@@ -59,6 +64,8 @@ func Output(output common.Hash) {
 		fmt.Println(output, "!=", inputs[5])
 		panic("BAD transition :((")
 	}
+
+	Halt()
 }
 
 func Preimage(hash common.Hash) []byte {
