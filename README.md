@@ -18,13 +18,10 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 The system is checking an embedded block in CI now
 
 * TODO: Fix missing trie nodes [see issue](https://github.com/geohot/cannon/issues/1)
-* TODO: Get initial block info / txs with oracle
 * TODO: Stub all syscalls after it's "booted"
 
 ## TODO
 
-* Make minigeth use the 0xD0000000 input oracle / add input oracle to risc/run.py. See [contracts/Challenge.sol](https://github.com/geohot/cannon/blob/master/contracts/Challenge.sol)
-* Add blocks / tx trie to the preimage oracle [see issue](https://github.com/geohot/cannon/issues/2)
 * Finish and test the MIPS state transition function in contracts/MIPS.sol
 * Get minigeth running in Solidity MIPS emulator with reasonable performance (Go code using EVM with native memory)
 * Add merkleization for MIPS ReadMemory and WriteMemory
