@@ -124,6 +124,9 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		dat := common.BytesToHash(args[0x44:0x64]).Big().Uint64()
 		fmt.Println("HOOKED WRITE!", fmt.Sprintf("%x = %x", addr, dat))
 		ram[addr] = uint32(dat)
+
+		// pass through stateRoot
+		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), args[0x4:0x24])
 	}
 
 	scope.Contract.Gas += returnGas
@@ -185,7 +188,7 @@ func main() {
 
 	// 0xdb7df598
 	input := []byte{0xdb, 0x7d, 0xf5, 0x98} // Steps(bytes32, uint256)
-	input = append(input, common.Hash{}.Bytes()...)
+	input = append(input, common.BigToHash(common.Big0).Bytes()...)
 	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
 	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, 20000000)
 	//fmt.Println(bytecodehash, bytecode)

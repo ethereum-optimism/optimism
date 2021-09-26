@@ -57,6 +57,10 @@ contract MIPS {
         // R-type (stores rd)
         rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
         storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
+      } else {
+        // rt is SignExtImm
+        uint32 SignExtImm = insn&0xFFFF | (insn&0x8000 != 0 ? 0xFFFF0000 : 0);
+        rt = SignExtImm;
       }
     }
 
@@ -66,7 +70,12 @@ contract MIPS {
     if (opcode >= 0x20) {
       // M[R[rs]+SignExtImm]
       uint32 SignExtImm = insn&0xFFFF | (insn&0x8000 != 0 ? 0xFFFF0000 : 0);
-      mem = m.ReadMemory(stateHash, (rs + SignExtImm) & 0xFFFFFFFC);
+      uint32 addr = (rs + SignExtImm) & 0xFFFFFFFC;
+      mem = m.ReadMemory(stateHash, addr);
+      if (opcode >= 0x28) {
+        // store
+        storeAddr = addr;
+      }
     }
 
     // execute
@@ -84,6 +93,13 @@ contract MIPS {
     uint32 opcode = insn >> 26;    // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
     // TODO: deref the immed into a register
+
+    // transform ArithLogI
+    // TODO: replace with table
+    if (opcode == 8) { opcode = 0; func = 0x20; }
+    else if (opcode == 9) { opcode = 0; func = 0x21; }
+    else if (opcode == 0xc) { opcode = 0; func = 0x24; }
+
     if (opcode == 0) {
       uint32 shamt = (insn >> 6) & 0x1f;
       // R-type (ArithLog)

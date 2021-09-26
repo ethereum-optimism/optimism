@@ -15,9 +15,15 @@ contract MIPSMemory {
     state[stateHash][addr] = (1 << 32) | value;
   }
 
-  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) public pure returns (bytes32) {
-    // TODO: does the stateHash mutation
+  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) public pure returns (bytes32) {
     require(addr & 3 == 0, "write memory must be 32-bit aligned");
+    // TODO: do the real stateHash mutation
+    bytes32 newstateHash = keccak256(abi.encodePacked(stateHash));
+
+    // no proof required, this is obviously right
+    //state[newstateHash][addr] = (1 << 32) | value;
+
+    return newstateHash;
   }
 
   // needed for preimage oracle
