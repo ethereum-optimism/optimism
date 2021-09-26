@@ -33,6 +33,11 @@ type SendTxArgs struct {
 	// For non-legacy transactions
 	AccessList *types.AccessList `json:"accessList,omitempty"`
 	ChainID    *hexutil.Big      `json:"chainId,omitempty"`
+
+	// Signature values
+	V *hexutil.Big `json:"v" gencodec:"required"`
+	R *hexutil.Big `json:"r" gencodec:"required"`
+	S *hexutil.Big `json:"s" gencodec:"required"`
 }
 
 type Header struct {
@@ -116,6 +121,9 @@ func (args *SendTxArgs) ToTransaction() *types.Transaction {
 			Value:      (*big.Int)(&args.Value),
 			Data:       input,
 			AccessList: al,
+			V:          (*big.Int)(args.V),
+			R:          (*big.Int)(args.R),
+			S:          (*big.Int)(args.S),
 		}
 	case args.AccessList != nil:
 		data = &types.AccessListTx{
@@ -127,6 +135,9 @@ func (args *SendTxArgs) ToTransaction() *types.Transaction {
 			Value:      (*big.Int)(&args.Value),
 			Data:       input,
 			AccessList: *args.AccessList,
+			V:          (*big.Int)(args.V),
+			R:          (*big.Int)(args.R),
+			S:          (*big.Int)(args.S),
 		}
 	default:
 		data = &types.LegacyTx{
@@ -136,6 +147,9 @@ func (args *SendTxArgs) ToTransaction() *types.Transaction {
 			GasPrice: (*big.Int)(args.GasPrice),
 			Value:    (*big.Int)(&args.Value),
 			Data:     input,
+			V:        (*big.Int)(args.V),
+			R:        (*big.Int)(args.R),
+			S:        (*big.Int)(args.S),
 		}
 	}
 	return types.NewTx(data)

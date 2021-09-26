@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net/http"
 	"os"
@@ -208,7 +209,7 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	jr := jsonrespt{}
 	err := json.NewDecoder(getAPI(jsonData)).Decode(&jr)
 	if err != nil {
-		panic("bad block prefetch")
+		log.Fatal(err)
 	}
 	//fmt.Println(jr.Result)
 	blockHeader := jr.Result.ToHeader()
@@ -246,6 +247,11 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	txs := make([]*types.Transaction, len(jr.Result.Transactions))
 	for i := 0; i < len(jr.Result.Transactions); i++ {
 		txs[i] = jr.Result.Transactions[i].ToTransaction()
+	}
+	testTxHash := types.DeriveSha(types.Transactions(txs), hasher)
+	if testTxHash != blockHeader.TxHash {
+		fmt.Println(testTxHash, "!=", blockHeader.TxHash)
+		panic("tx hash derived wrong")
 	}
 
 	// put in transaction trie
