@@ -5,6 +5,10 @@ import "./lib/Lib_RLPReader.sol";
 
 interface IMIPS {
   function Step(bytes32 stateHash) external view returns (bytes32);
+  function m() external pure returns (IMIPSMemory);
+}
+
+interface IMIPSMemory {
   function ReadMemory(bytes32 stateHash, uint32 addr) external view returns (uint32);
   function ReadBytes32(bytes32 stateHash, uint32 addr) external view returns (bytes32);
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) external pure returns (bytes32);
@@ -48,7 +52,7 @@ contract Challenge {
     for (uint32 i = 0; i < 32; i += 4) {
       uint256 tv = uint256(val>>(224-(i*8)));
 
-      stateHash = mips.WriteMemory(stateHash, addr+i, uint32(tv));
+      stateHash = mips.m().WriteMemory(stateHash, addr+i, uint32(tv));
     }
     return stateHash;
   }
@@ -104,8 +108,8 @@ contract Challenge {
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
     // you must load these proofs into MIPS before calling this
     // we disagree at the end
-    require(mips.ReadBytes32(finalSystemState, 0x30000800) == assertionRoot, "you are claiming a different state root in machine");
-    require(mips.ReadMemory(finalSystemState, 0xC0000080) == 0xDEAD0000, "machine is not stopped in final state (PC == 0xDEAD0000)");
+    require(mips.m().ReadBytes32(finalSystemState, 0x30000800) == assertionRoot, "you are claiming a different state root in machine");
+    require(mips.m().ReadMemory(finalSystemState, 0xC0000080) == 0xDEAD0000, "machine is not stopped in final state (PC == 0xDEAD0000)");
 
     return newChallengeTrusted(startState, finalSystemState, stepCount);
   }
