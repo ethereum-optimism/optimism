@@ -1,0 +1,11 @@
+Running MIPS processor on chain
+
+We considered using
+https://github.com/cartesi/machine-solidity-step
+but it's around 5000 lines!
+
+* We don't have any virtual memory
+* We don't support any CSRs
+* MIPS is two files, MIPS + MIPSMemory
+
+cartesi also has a second version of the emulator in Rust. we use the EVM one in both places

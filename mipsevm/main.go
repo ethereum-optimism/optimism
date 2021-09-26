@@ -90,8 +90,10 @@ type jsoncontract struct {
 	DeployedBytecode string `json:"deployedBytecode"`
 }
 
-var ram []byte
-var regs [4096]byte
+//var ram []byte
+//var regs [4096]byte
+
+var ram = make(map[uint64](uint32))
 
 func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
@@ -107,38 +109,39 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 
 	// Get arguments from the memory.
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
-	addr := common.BytesToHash(args[4:]).Big().Uint64()
-	var nret int64
-	if addr >= 0xc0000000 {
-		addr -= 0xc0000000
-		nret = (int64(regs[addr]) << 24) |
-			(int64(regs[addr+1]) << 16) |
-			(int64(regs[addr+2]) << 8) |
-			(int64(regs[addr+3]) << 0)
-		addr += 0xc0000000
-	} else {
-		nret = (int64(ram[addr]) << 24) |
-			(int64(ram[addr+1]) << 16) |
-			(int64(ram[addr+2]) << 8) |
-			(int64(ram[addr+3]) << 0)
+	if args[0] == 98 {
+		// read
+		addr := common.BytesToHash(args[4:]).Big().Uint64()
+		nret := ram[addr]
+
+		//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
+
+		ret := common.BigToHash(big.NewInt(int64(nret))).Bytes()
+		fmt.Println("HOOKED READ!", fmt.Sprintf("%x = %x", addr, nret))
+		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
+	} else if args[0] == 184 {
+		addr := common.BytesToHash(args[0x24:0x44]).Big().Uint64()
+		dat := common.BytesToHash(args[0x44:0x64]).Big().Uint64()
+		fmt.Println("HOOKED WRITE!", fmt.Sprintf("%x = %x", addr, dat))
+		ram[addr] = uint32(dat)
 	}
 
-	//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
-
-	ret := common.BigToHash(big.NewInt(nret)).Bytes()
-	fmt.Println("HOOKED!", returnGas, fmt.Sprintf("%x = %x", addr, nret))
-	scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
-	//scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
-	//return ret
-
 	scope.Contract.Gas += returnGas
-	return ret, nil
+	// what is the return value here?
+	return common.Hash{}.Bytes(), nil
 }
 
 func main() {
 	fmt.Println("hello")
 
-	ram, _ = ioutil.ReadFile("test/add.bin")
+	dat, _ := ioutil.ReadFile("test/add.bin")
+	for i := 0; i < len(dat); i += 4 {
+		ram[uint64(i)] = uint32(dat[i])<<24 |
+			uint32(dat[i+1])<<16 |
+			uint32(dat[i+2])<<8 |
+			uint32(dat[i+3])<<0
+
+	}
 
 	/*var parent types.Header
 	database := state.NewDatabase(parent)

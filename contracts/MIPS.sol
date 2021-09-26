@@ -46,14 +46,17 @@ contract MIPS {
     // decode
 
     // register fetch
+    uint32 storeAddr;
     uint32 rs;
     uint32 rt;
     if (opcode != 2 && opcode != 3) {   // J-type: j and jal have no register fetch
       // R-type or I-type (stores rt)
       rs = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
+      storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
       if (opcode == 0) {
         // R-type (stores rd)
         rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+        storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
       }
     }
 
@@ -67,10 +70,13 @@ contract MIPS {
     }
 
     // execute
-    execute(insn, rs, rt, mem);
+    uint32 val = execute(insn, rs, rt, mem);
 
     // write back
+    stateHash = m.WriteMemory(stateHash, storeAddr, val);
+    stateHash = m.WriteMemory(stateHash, REG_PC, pc+4);
 
+    return stateHash;
   }
 
   // TODO: move pure testable stuff to LibMIPS.sol
