@@ -213,13 +213,16 @@ func main() {
 	// 19.100079097s for 1_000_000 new steps
 	//steps := 1000000
 	//debug = true
+
 	files, err := ioutil.ReadDir("test/bin")
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	for _, f := range files {
-		runTest("test/bin/"+f.Name(), 20, interpreter, bytecode)
+		runTest("test/bin/"+f.Name(), 100, interpreter, bytecode)
 	}
+
+	/*debug = true
+	runTest("test/bin/add.bin", 20, interpreter, bytecode)*/
 
 }

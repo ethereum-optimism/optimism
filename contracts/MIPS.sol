@@ -3,6 +3,7 @@ pragma solidity ^0.7.3;
 
 // https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
+// https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
 
 // This is a separate contract from the challenge contract
 // Anyone can use it to validate a MIPS state transition
@@ -117,6 +118,8 @@ contract MIPS {
     // TODO: replace with table
     if (opcode == 8) { opcode = 0; func = 0x20; }        // addi
     else if (opcode == 9) { opcode = 0; func = 0x21; }   // addiu
+    else if (opcode == 0xa) { opcode = 0; func = 0x2a; } // slti
+    else if (opcode == 0xb) { opcode = 0; func = 0x2B; } // sltiu
     else if (opcode == 0xc) { opcode = 0; func = 0x24; } // andi
     else if (opcode == 0xd) { opcode = 0; func = 0x25; } // ori
     else if (opcode == 0xe) { opcode = 0; func = 0x26; } // xori
@@ -133,7 +136,7 @@ contract MIPS {
         return rs-rt;   // sub or subu
       } else if (func == 0x2a) {
         return int32(rs)<int32(rt) ? 1 : 0; // slt
-      } else if (func == 0x26) {
+      } else if (func == 0x2B) {
         return rs<rt ? 1 : 0;            // sltu
       // Shift and ShiftV
       } else if (func == 0x00) { return rt << shamt;      // sll
