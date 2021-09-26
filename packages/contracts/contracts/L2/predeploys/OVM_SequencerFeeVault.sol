@@ -62,7 +62,6 @@ contract OVM_SequencerFeeVault {
     {
         require(
             address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
-            // solhint-disable-next-line max-line-length
             "OVM_SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
 
