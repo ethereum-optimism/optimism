@@ -8,7 +8,8 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
-	"strconv"
+	"reflect"
+	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,31 +20,40 @@ var preimages = make(map[common.Hash][]byte)
 var inputs [6]common.Hash
 var inputsLoaded bool = false
 
+func byteAt(addr uint64, length int) []byte {
+	var ret []byte
+	bh := (*reflect.SliceHeader)(unsafe.Pointer(&ret))
+	bh.Data = uintptr(addr)
+	bh.Len = length
+	bh.Cap = length
+	return ret
+}
+
 func Input(index int) common.Hash {
 	if index < 0 || index > 5 {
 		panic("bad input index")
 	}
 	if !inputsLoaded {
-		blockNumber, _ := strconv.Atoi(os.Args[1])
-		f, err := os.Open(fmt.Sprintf("/tmp/eth/%d", blockNumber))
-		if err != nil {
-			panic("missing inputs")
-		}
-		defer f.Close()
-		ret, err := ioutil.ReadAll(f)
+		// before this isn't run on chain (confirm this isn't cached)
+		// does this interact with the GC?
+		ret := byteAt(0x30000000, len(inputs)*0x20)
+
+		os.Stderr.WriteString("********* on chain starts here *********\n")
 
 		for i := 0; i < len(inputs); i++ {
 			inputs[i] = common.BytesToHash(ret[i*0x20 : i*0x20+0x20])
+			//fmt.Println(i, inputs[i])
 		}
 
 		inputsLoaded = true
-		// before this isn't run on chain (confirm this isn't cached)
-		os.Stderr.WriteString("********* on chain starts here *********\n")
 	}
 	return inputs[index]
 }
 
 func Output(output common.Hash) {
+	ret := byteAt(0x30000800, 0x20)
+	copy(ret, output.Bytes())
+
 	if output == inputs[5] {
 		fmt.Println("good transition")
 	} else {

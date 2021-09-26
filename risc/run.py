@@ -25,6 +25,7 @@ regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 SIZE = 16*1024*1024
 
 heap_start = 0x20000000 # 0x20000000-0x30000000
+# input oracle @ 0x30000000
 brk_start = 0x40000000  # 0x40000000-0x80000000
 
 # hmm, very slow
@@ -188,6 +189,7 @@ def hook_interrupt(uc, intno, user_data):
         print("exit(%d) ran %.2f million instructions, %d binary searches" % (a0, icount/1_000_000, math.ceil(math.log2(icount))))
       else:
         print("exit(%d)" % a0)
+      hexdump(uc.mem_read(0x30000800, 0x20))
       sys.stdout.flush()
       sys.stderr.flush()
       os._exit(a0)
@@ -264,6 +266,11 @@ mu.mem_map(heap_start, 256*1024*1024)
 # brk (1024 MB) @ 0x40000000
 mu.mem_map(brk_start, 1024*1024*1024)
 
+# input oracle
+mu.mem_map(0x30000000, 4096)
+dat = open("/tmp/eth/13284469", "rb").read()
+mu.mem_write(0x30000000, dat)
+
 # regs at 0xC0000000 in merkle
 
 elffile = ELFFile(elf)
@@ -279,14 +286,14 @@ mu.reg_write(UC_MIPS_REG_SP, SIZE-0x2000)
 
 # http://articles.manugarg.com/aboutelfauxiliaryvectors.html
 _AT_PAGESZ = 6
-mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIIII",
-  2,  # argc
-  SIZE-0x1000, SIZE-0x800, 0,  # argv
+mu.mem_write(SIZE-0x2000, struct.pack(">IIIIIIII",
+  1,  # argc
+  SIZE-0x1000, 0,  # argv
   SIZE-0x400, 0,  # envp
   _AT_PAGESZ, 0x1000, 0)) # auxv
 
 # block
-mu.mem_write(SIZE-0x800, b"13284469\x00")
+#mu.mem_write(SIZE-0x800, b"13284469\x00")
 #mu.mem_write(SIZE-0x800, b"13284469\x00")
 
 mu.mem_write(SIZE-0x400, b"GOGC=off\x00")

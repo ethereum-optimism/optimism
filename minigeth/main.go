@@ -39,6 +39,7 @@ func main() {
 		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)), true, nil)
 		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)+1), false, pkwtrie)
 		hash, err := pkwtrie.Commit()
+		check(err)
 		fmt.Println("commited transactions", hash, err)
 	}
 
