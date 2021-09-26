@@ -351,7 +351,6 @@ library Lib_MerkleTrie {
         TrieNode[] memory newNodes = new TrieNode[](3);
         uint256 totalNewNodes = 0;
 
-        // solhint-disable-next-line max-line-length
         // Reference: https://github.com/ethereumjs/merkle-patricia-tree/blob/c0a10395aab37d42c175a47114ebfcbd7efcf059/src/baseTrie.ts#L294-L313
         bool matchLeaf = false;
         if (lastNodeType == NodeType.LeafNode) {

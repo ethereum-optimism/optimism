@@ -256,7 +256,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     {
         bytes27 extraData = batches().getGlobalMetadata();
 
-        // solhint-disable max-line-length
         uint40 totalElements;
         uint40 lastSequencerTimestamp;
         assembly {
@@ -264,7 +263,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
             totalElements          :=         and(extraData, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
             lastSequencerTimestamp := shr(40, and(extraData, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000))
         }
-        // solhint-enable max-line-length
 
         return (
             totalElements,
