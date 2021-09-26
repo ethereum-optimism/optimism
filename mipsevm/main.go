@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/big"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -134,7 +135,8 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), args[0x4:0x24])
 	}
 
-	scope.Contract.Gas += returnGas
+	// ram access is free here
+	scope.Contract.Gas = returnGas
 	// what is the return value here?
 	return common.Hash{}.Bytes(), nil
 }
@@ -156,7 +158,7 @@ func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []by
 	input := []byte{0xdb, 0x7d, 0xf5, 0x98} // Steps(bytes32, uint256)
 	input = append(input, common.BigToHash(common.Big0).Bytes()...)
 	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
-	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, 20000000)
+	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, 1000000)
 	//fmt.Println(bytecodehash, bytecode)
 	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
 
@@ -214,15 +216,17 @@ func main() {
 	//steps := 1000000
 	//debug = true
 
-	files, err := ioutil.ReadDir("test/bin")
-	if err != nil {
-		log.Fatal(err)
+	if len(os.Args) > 1 {
+		debug = true
+		runTest(os.Args[1], 20, interpreter, bytecode)
+	} else {
+		files, err := ioutil.ReadDir("test/bin")
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, f := range files {
+			runTest("test/bin/"+f.Name(), 100, interpreter, bytecode)
+		}
 	}
-	for _, f := range files {
-		runTest("test/bin/"+f.Name(), 100, interpreter, bytecode)
-	}
-
-	/*debug = true
-	runTest("test/bin/add.bin", 20, interpreter, bytecode)*/
 
 }
