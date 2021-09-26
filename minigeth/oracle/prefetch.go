@@ -16,7 +16,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type jsonreq struct {
@@ -36,6 +38,12 @@ type jsonresps struct {
 	Jsonrpc string `json:"jsonrpc"`
 	Id      uint64 `json:"id"`
 	Result  string `json:"result"`
+}
+
+type jsonrespt struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Id      uint64 `json:"id"`
+	Result  Header `json:"result"`
 }
 
 // Result structs for GetProof
@@ -169,8 +177,85 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 	preimages[hash] = ret
 }
 
-func PrefetchBlock(blockNumber *big.Int) {
-	// TODO: Write this.
+var inputs [6]common.Hash
+
+func Input(index int) common.Hash {
+	if index < 0 || index > 5 {
+		panic("bad input index")
+	}
+	return inputs[index]
+}
+
+func Output(output common.Hash) {
+	if output == inputs[5] {
+		fmt.Println("good transition")
+	} else {
+		fmt.Println(output, "!=", inputs[5])
+		panic("BAD transition :((")
+	}
+}
+
+func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHasher) {
+	r := jsonreq{Jsonrpc: "2.0", Method: "eth_getBlockByNumber", Id: 1}
+	r.Params = make([]interface{}, 2)
+	r.Params[0] = fmt.Sprintf("0x%x", blockNumber.Int64())
+	r.Params[1] = true
+	jsonData, _ := json.Marshal(r)
+
+	/*dat, _ := ioutil.ReadAll(getAPI(jsonData))
+	fmt.Println(string(dat))*/
+
+	jr := jsonrespt{}
+	err := json.NewDecoder(getAPI(jsonData)).Decode(&jr)
+	if err != nil {
+		panic("bad block prefetch")
+	}
+	//fmt.Println(jr.Result)
+	blockHeader := jr.Result.ToHeader()
+
+	// put in the start block header
+	if startBlock {
+		blockHeaderRlp, _ := rlp.EncodeToBytes(blockHeader)
+		hash := crypto.Keccak256Hash(blockHeaderRlp)
+		preimages[hash] = blockHeaderRlp
+		inputs[0] = hash
+		return
+	}
+
+	// second block
+	if blockHeader.ParentHash != Input(0) {
+		fmt.Println(blockHeader.ParentHash, Input(0))
+		panic("block transition isn't correct")
+	}
+	inputs[1] = blockHeader.TxHash
+	inputs[2] = blockHeader.Coinbase.Hash()
+	inputs[3] = blockHeader.UncleHash
+	inputs[4] = common.BigToHash(big.NewInt(int64(blockHeader.GasLimit)))
+
+	// secret input
+	inputs[5] = blockHeader.Root
+
+	// save the inputs
+	saveinput := make([]byte, 0)
+	for i := 0; i < len(inputs); i++ {
+		saveinput = append(saveinput, inputs[i].Bytes()[:]...)
+	}
+	key := fmt.Sprintf("/tmp/eth/%d", blockNumber.Uint64()-1)
+	ioutil.WriteFile(key, saveinput, 0644)
+
+	txs := make([]*types.Transaction, len(jr.Result.Transactions))
+	for i := 0; i < len(jr.Result.Transactions); i++ {
+		txs[i] = jr.Result.Transactions[i].ToTransaction()
+	}
+
+	// put in transaction trie
+
+	//return blockHeader, txs
+
+	/*var uncles []*types.Header
+	var receipts []*types.Receipt
+	block := types.NewBlock(&blockHeader, txs, uncles, receipts, trie.NewStackTrie(nil))*/
+
 }
 
 func getProofAccount(blockNumber *big.Int, addr common.Address, skey common.Hash, storage bool) []string {

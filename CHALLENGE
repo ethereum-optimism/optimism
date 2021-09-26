@@ -1,9 +1,9 @@
-Two oracles:
-Implement as three MIPS instructions
+One oracle:
+Implement as a MIPS instruction?
 
-InputOracle -- Preagreed upon inputs
+InputOracle -- Preagreed upon inputs (TODO: replace with memory reads from given address range)
   $a0 = input choice
-    0 -- StateRoot(n)
+    0 -- BlockHash(n)
     1 -- Transactions(n+1)
     2 -- Coinbase(n+1)
     3 -- Uncles(n+1)
@@ -24,31 +24,36 @@ PreimageOracle -- key value store
   returns
   $v0 = preimage[$t7...$t0] >> ($a0 * 32)
 
-Program returns a hash in [$t7...$t0] and exits(special instruction) with the hash in the state
+Program returns a hash in [$t7...$t0] and exits(jump to 0xDEAD0000) with the hash in the state
 
 Challenge Flow:
 C is challenger, D is defender
 Super nice, the defender barely needs to spend gas!
 
-C: InitiateChallenge(bytes blockHeaderN, bytes blockHeaderNp1,
+C: InitiateChallenge(uint blockNumberN, bytes blockHeaderN, bytes blockHeaderNp1,
                      bytes32 assertionHash, bytes32 finalSystemHash, string[] assertionProof, uint256 stepCount)
   * checks hashes of the block headers
   * saves inputs for input oracle
   * confirms assertionHash != blockHeaderNp1.Hash
-  * expectCorrect = (assertionHash == blockHeaderNp1.Hash)
-  * confirm assertionProof proves the final state of [$t7...$t0] in finalSystemHash is assertionHash
-  * confirm assertionProof proves the final state of *$pc in finalSystemHash is special exit instruction
-  * L = 0, R = stepCount-1   # we agree at L=0, we disagree at R=stepCount
+  * confirm assertionProof[0..7] proves the final state of [$t7...$t0] in finalSystemHash is assertionHash
+  * confirm assertionProof[8] proves the final state of $pc in finalSystemHash is 0xDEAD0000
+  * L = 0, R = stepCount   # we agree at L=0, we disagree at R=stepCount
   * return new challengeId
-  * assertedRiscState[0] = GlobalStartSystemHash
-  * assertedRiscState[stepCount-1] = finalSystemHash
-C: ProposeRiscState(uint256 challengeId, uint256 riscState)
+  * assertedState[0] = GlobalStartSystemHash + inputOracleMutations
+  * defendedState[0] = GlobalStartSystemHash + inputOracleMutations
+  * assertedState[stepCount] = finalSystemHash
+........
+if it's one step, we are done. considering it's not, we binary search
+........
+C: ProposeState(uint256 challengeId, uint256 riscState)
   * stepNumber = GetStepNumber(uint256 challengeId) returns floor((L + R) / 2)
-  * assert assertedRiscState[stepNumber] == 0
-  * assertedRiscState[stepNumber] = riscState
-D: RespondRiscState(uint256 challengeId, bool yes) onlyOwner
+  * assert assertedState[stepNumber] == 0
+  * assertedState[stepNumber] = riscState
+D: RespondState(uint256 challengeId, uint256 riscState) onlyOwner
   * off-chain: run to step = stepNumber, get state hash, check if it matches
-  * if yes:
+  * stepNumber = GetStepNumber(uint256 challengeId) returns floor((L + R) / 2)
+  * defendedState[stepNumber] = riscState
+  * if assertedState[stepNumber] == defendedState[stepNumber]:
       L = stepNumber     # we agree at stepNumber
     else:
       R = stepNumber     # we disagree at stepNumber
@@ -56,16 +61,27 @@ D: RespondRiscState(uint256 challengeId, bool yes) onlyOwner
 ........
 binary search until L+1 == R
 the issue is with the L->R transition
-aka assertedRiscState[L] -> assertedRiscState[R]
+aka assertedState[L] -> assertedState[R]
 ........
 # call this at any time (global), adds them to a preimage lookup for PreimageOracle
-C: ProposePreimage(bytes anything)
+# put these on the MIPS contract
+C: AddPreimage(bytes anything)
   * preimageLookup[keccak256(anything)] = anything
-C: ConfirmStateTransition(uint256 challengeId, ustrings proofs)
+C: AddMerkleState(uint256 stateHash, uint32 addr, uint32 value, string proof)
+  * validate proof in assertedState[stepNumber]
+  * riscMemory[stepNumber][address] = value
+
+* Final
+C: ConfirmStateTransition(uint256 challengeId)
   * assert L+1 == R
-  * validate all proofs in assertedRiscState[L]
   * do the state transition
-  * if any needed pieces of start state are missing, challenge fails (it can try again)
-  * reconstruct the riscState after transition -> newRiscState 
-  * assert assertedRiscState[R] == newRiscState
+  * if any needed pieces of start state are missing in riscMemory, challenge fails (it can try again)
+  * reconstruct the riscState after transition -> newState 
+  * assert assertedState[R] == newState
   * pay out bounty
+
+# optional claim for the defender
+# prove the defendedState[L] -> defendedState[R]
+# NOTE, if it's the last step, defendedState[R] might not exist. 
+
+TODO: ensure the state merklization is canonical. if it doesn't match perfectly you can lose
