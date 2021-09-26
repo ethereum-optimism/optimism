@@ -11,6 +11,9 @@ InputOracle -- Preagreed upon inputs (TODO: replace with memory reads from given
   returns
   $v0 = inputs[$a0] >> $a1
 
+This has been changed to an MMIO oracle
+hash at 0x30001000 loads len at 0x31000000 and data at 0x31000004
+
 PreimageOracle -- key value store
   $a0 = dword index in value
   $t0 = hash[31:0]

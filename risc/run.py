@@ -3,6 +3,7 @@ import os
 import sys
 import math
 import struct
+import binascii
 import traceback
 from elftools.elf.elffile import ELFFile
 from capstone import *
@@ -25,7 +26,12 @@ regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 SIZE = 16*1024*1024
 
 heap_start = 0x20000000 # 0x20000000-0x30000000
-# input oracle @ 0x30000000
+# input oracle              @ 0x30000000
+# output oracle             @ 0x30000800
+# preimage oracle (write)   @ 0x30001000
+# preimage oracle (read)    @ 0x31000000-0x32000000 (16 MB)
+# preimage oracle (trigger) @ 0x32000000 (returns size)
+
 brk_start = 0x40000000  # 0x40000000-0x80000000
 
 # hmm, very slow
@@ -75,6 +81,15 @@ def hook_interrupt(uc, intno, user_data):
     syscall_no = uc.reg_read(UC_MIPS_REG_V0)
     uc.reg_write(UC_MIPS_REG_V0, 0)
     uc.reg_write(UC_MIPS_REG_A3, 0)
+
+    if syscall_no == 4020:
+      oracle_hash = binascii.hexlify(uc.mem_read(0x30001000, 0x20)).decode('utf-8')
+      dat = open("/tmp/eth/0x"+oracle_hash, "rb").read()
+      #print("oracle:", oracle_hash, len(dat))
+      uc.mem_write(0x31000000, struct.pack(">I", len(dat)))
+      uc.mem_write(0x31000004, dat)
+      return True
+
     if syscall_no == 4004:
       # write
       fd = uc.reg_read(UC_MIPS_REG_A0)
@@ -126,6 +141,9 @@ def hook_interrupt(uc, intno, user_data):
       return
     elif syscall_no == 4222:
       # gettid
+      return
+    elif syscall_no == 4166:
+      # nanosleep
       return
 
     if syscall_no == 4005:
@@ -267,7 +285,7 @@ mu.mem_map(heap_start, 256*1024*1024)
 mu.mem_map(brk_start, 1024*1024*1024)
 
 # input oracle
-mu.mem_map(0x30000000, 4096)
+mu.mem_map(0x30000000, 0x2000000)
 dat = open("/tmp/eth/13284469", "rb").read()
 mu.mem_write(0x30000000, dat)
 
@@ -322,8 +340,6 @@ for section in elffile.iter_sections():
     pass
 
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
-
-#mu.hook_add(UC_HOOK_CODE, hook_code, user_data=mu)
 
 
 def hook_mem_invalid(uc, access, address, size, value, user_data):

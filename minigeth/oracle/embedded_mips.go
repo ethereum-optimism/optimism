@@ -5,7 +5,6 @@ package oracle
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"reflect"
@@ -65,7 +64,7 @@ func Output(output common.Hash) {
 func Preimage(hash common.Hash) []byte {
 	val, ok := preimages[hash]
 	if !ok {
-		f, err := os.Open(fmt.Sprintf("/tmp/eth/%s", hash))
+		/*f, err := os.Open(fmt.Sprintf("/tmp/eth/%s", hash))
 		if err != nil {
 			panic("missing preimage")
 		}
@@ -74,7 +73,20 @@ func Preimage(hash common.Hash) []byte {
 		ret, err := ioutil.ReadAll(f)
 		if err != nil {
 			panic("preimage read failed")
-		}
+		}*/
+
+		// load in hash
+		preImageHash := byteAt(0x30001000, 0x20)
+		copy(preImageHash, hash.Bytes())
+
+		// used in unicorn emulator to trigger the load
+		// in onchain mips, it's instant
+		os.Getpid()
+
+		// ready
+		rawSize := common.CopyBytes(byteAt(0x31000000, 4))
+		size := (int(rawSize[0]) << 24) | (int(rawSize[1]) << 16) | (int(rawSize[2]) << 8) | int(rawSize[3])
+		ret := common.CopyBytes(byteAt(0x31000004, size))
 
 		realhash := crypto.Keccak256Hash(ret)
 		if realhash != hash {
