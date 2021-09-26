@@ -141,6 +141,7 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 
 func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte) {
 	ram = make(map[uint64](uint32))
+	//fmt.Println("starting", fn)
 	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
 		ram[uint64(i)] = uint32(dat[i])<<24 |
@@ -160,10 +161,10 @@ func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []by
 	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
 
 	start := time.Now()
-	ret, err := interpreter.Run(contract, input, false)
+	_, err := interpreter.Run(contract, input, false)
 	elapsed := time.Now().Sub(start)
 
-	fmt.Println(ret, err, contract.Gas, elapsed,
+	fmt.Println(err, contract.Gas, elapsed,
 		ram[0xbffffff4], ram[0xbffffff8], fmt.Sprintf("%x", ram[0xc0000080]), fn)
 	if err != nil {
 		log.Fatal(err)
@@ -196,7 +197,7 @@ func main() {
 	tracer := Tracer{}
 	config.Tracer = &tracer
 	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
-	fmt.Println(evm)
+	//fmt.Println(evm)
 
 	/*ret, gas, err := evm.Call(vm.AccountRef(from), to, []byte{}, 20000000, common.Big0)
 	fmt.Println(ret, gas, err)*/
@@ -212,7 +213,13 @@ func main() {
 	// 19.100079097s for 1_000_000 new steps
 	//steps := 1000000
 	//debug = true
-	runTest("test/add.bin", 20, interpreter, bytecode)
-	runTest("test/addiu.bin", 20, interpreter, bytecode)
+	files, err := ioutil.ReadDir("test/bin")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, f := range files {
+		runTest("test/bin/"+f.Name(), 20, interpreter, bytecode)
+	}
 
 }

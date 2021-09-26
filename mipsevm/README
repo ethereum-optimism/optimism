@@ -9,3 +9,6 @@ but it's around 5000 lines!
 * MIPS is two files, MIPS + MIPSMemory
 
 cartesi also has a second version of the emulator in Rust. we use the EVM one in both places
+
+Tests from https://github.com/grantae/OpenMIPS/tree/master/software/test/macro/tests
+Licensed GPLv3
