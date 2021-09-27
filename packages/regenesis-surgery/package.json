@@ -25,6 +25,7 @@
     "@uniswap/v3-core-optimism": "^1.0.0-rc.0",
     "@uniswap/v3-sdk": "^3.5.1",
     "byline": "^5.0.0",
+    "cli-progress": "^3.9.1",
     "dotenv": "^10.0.0",
     "ethereumjs-util": "^7.1.0",
     "ethers": "^5.4.5",

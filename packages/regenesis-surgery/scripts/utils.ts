@@ -2,6 +2,7 @@
 import * as fs from 'fs'
 import byline from 'byline'
 import { ethers } from 'ethers'
+import * as progress from 'cli-progress'
 
 /* Imports: Internal */
 import { StateDump } from './types'
@@ -87,6 +88,7 @@ export const transferStorageSlot = (opts: {
   address: string
   oldSlot: string
   newSlot: string
+  newValue?: string
 }): void => {
   const account = opts.dump.accounts[opts.address]
   if (account === undefined) {
@@ -99,9 +101,29 @@ export const transferStorageSlot = (opts: {
 
   const oldSlotVal = account.storage[opts.oldSlot]
   if (oldSlotVal === undefined) {
-    throw new Error(`old slot not found in state dump: ${opts.address}`)
+    throw new Error(
+      `old slot not found in state dump, address=${opts.address}, slot=${opts.oldSlot}`
+    )
   }
 
-  account.storage[opts.newSlot] = oldSlotVal
+  if (opts.newValue === undefined) {
+    account.storage[opts.newSlot] = oldSlotVal
+  } else {
+    if (opts.newValue.startsWith('0x')) {
+      opts.newValue = opts.newValue.slice(2)
+    }
+    account.storage[opts.newSlot] = opts.newValue
+  }
+
   delete account.storage[opts.oldSlot]
 }
+
+// export const runScriptStep = async (opts: {
+//   description: string
+//   action: (bar: any) => Promise<void>
+// }): Promise<void> => {
+//   console.log(`running script step: ${opts.description}`)
+//   const bar = new progress.SingleBar()
+//   await opts.action(bar)
+//   bar.stop()
+// }
