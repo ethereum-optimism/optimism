@@ -9,6 +9,17 @@ const config: HardhatUserConfig = {
   },
   solidity: {
     version: '0.8.7',
+    settings: {
+      optimizer: { enabled: true, runs: 200 },
+      metadata: {
+        bytecodeHash: 'none',
+      },
+      outputSelection: {
+        '*': {
+          '*': ['storageLayout'],
+        },
+      },
+    },
   },
 }
 
