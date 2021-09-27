@@ -92,6 +92,7 @@ const main = async () => {
   /* --- BEGIN UNISWAP SURGERY SECTION --- */
 
   // Set up the uniswap factory contract reference
+  // TODO: ideally we don't need to query the L2 provider and do everything based on the dump
   const UniswapV3Factory = new ethers.Contract(
     UNISWAP_FACTORY_ADDRESS,
     UNISWAP_FACTORY_ABI,
@@ -108,17 +109,13 @@ const main = async () => {
   })
 
   // Step 4. (UNISWAP) Fix the UniswapV3Factory `feeAmountTickSpacing` mapping.
-  // TODO: Instead of events, use the three known feeAmountTickSpacing entries.
   console.log(`fixing UniswapV3Factory feeAmountTickSpacing mapping`)
-  const feeEvents = await UniswapV3Factory.queryFilter(
-    UniswapV3Factory.filters.FeeAmountEnabled()
-  )
-  for (const event of feeEvents) {
+  for (const fee of [500, 3000, 10000]) {
     transferStorageSlot({
       dump,
       address: UNISWAP_FACTORY_ADDRESS,
-      oldSlot: getMappingKey([event.args.fee], 1),
-      newSlot: getMappingKey([event.args.fee], 4),
+      oldSlot: getMappingKey([fee], 1),
+      newSlot: getMappingKey([fee], 4),
     })
   }
 
