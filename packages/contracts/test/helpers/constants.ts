@@ -11,6 +11,8 @@ export const DEFAULT_ACCOUNTS_HARDHAT = defaultAccounts.map((account) => {
 
 export const RUN_OVM_TEST_GAS = 20_000_000
 export const FORCE_INCLUSION_PERIOD_SECONDS = 600
+export const L2_GAS_DISCOUNT_DIVISOR = 32
+export const ENQUEUE_GAS_COST = 60_000
 export const FORCE_INCLUSION_PERIOD_BLOCKS = 600 / 12
 
 export const NON_NULL_BYTES32 =

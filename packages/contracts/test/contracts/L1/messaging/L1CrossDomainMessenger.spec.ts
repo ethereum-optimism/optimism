@@ -16,6 +16,8 @@ import {
   DUMMY_BATCH_PROOFS,
   FORCE_INCLUSION_PERIOD_SECONDS,
   FORCE_INCLUSION_PERIOD_BLOCKS,
+  L2_GAS_DISCOUNT_DIVISOR,
+  ENQUEUE_GAS_COST,
   TrieTestGenerator,
   getNextBlockNumber,
   encodeXDomainCalldata,
@@ -100,7 +102,9 @@ describe('L1CrossDomainMessenger', () => {
       AddressManager.address,
       FORCE_INCLUSION_PERIOD_SECONDS,
       FORCE_INCLUSION_PERIOD_BLOCKS,
-      MAX_GAS_LIMIT
+      MAX_GAS_LIMIT,
+      L2_GAS_DISCOUNT_DIVISOR,
+      ENQUEUE_GAS_COST
     )
 
     const batches = await Factory__ChainStorageContainer.deploy(

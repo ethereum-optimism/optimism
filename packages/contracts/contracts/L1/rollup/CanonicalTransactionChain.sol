@@ -34,9 +34,9 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     // L2 tx gas-related
     uint256 constant public MIN_ROLLUP_TX_GAS = 100000;
     uint256 constant public MAX_ROLLUP_TX_SIZE = 50000;
-    uint256 constant public L2_GAS_DISCOUNT_DIVISOR = 32;
-    uint256 constant public ENQUEUE_GAS_COST = 60000;
-    uint256 public ENQUEUE_L2_GAS_PREPAID = L2_GAS_DISCOUNT_DIVISOR * ENQUEUE_GAS_COST;
+    uint256 immutable public L2_GAS_DISCOUNT_DIVISOR;
+    uint256 immutable public ENQUEUE_GAS_COST;
+    uint256 immutable public ENQUEUE_L2_GAS_PREPAID;
 
     // Encoding-related (all in bytes)
     uint256 constant internal BATCH_CONTEXT_SIZE = 16;
@@ -63,13 +63,18 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         address _libAddressManager,
         uint256 _forceInclusionPeriodSeconds,
         uint256 _forceInclusionPeriodBlocks,
-        uint256 _maxTransactionGasLimit
+        uint256 _maxTransactionGasLimit,
+        uint256 _l2GasDiscountDivisor,
+        uint256 _enqueueGasCost
     )
         Lib_AddressResolver(_libAddressManager)
     {
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
         forceInclusionPeriodBlocks = _forceInclusionPeriodBlocks;
         maxTransactionGasLimit = _maxTransactionGasLimit;
+        L2_GAS_DISCOUNT_DIVISOR = _l2GasDiscountDivisor;
+        ENQUEUE_GAS_COST  = _enqueueGasCost;
+        ENQUEUE_L2_GAS_PREPAID = _l2GasDiscountDivisor * _enqueueGasCost;
     }
 
 
