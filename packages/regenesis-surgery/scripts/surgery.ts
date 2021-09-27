@@ -15,7 +15,7 @@ import { Token } from '@uniswap/sdk-core'
 import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
 
 /* Imports: Internal */
-import { StateDump, ChainState } from './types'
+import { StateDump, ChainState, PoolData } from './types'
 import {
   reqenv,
   readDumpFile,
@@ -47,6 +47,12 @@ const main = async () => {
 
   // Set up the L2 provider.
   const l2Provider = new ethers.providers.JsonRpcProvider(L2_PROVIDER_URL)
+
+  // Set up the testnet wallet.
+  const wallet = new ethers.Wallet(
+    TESTNET_PRIVATE_KEY,
+    new ethers.providers.JsonRpcProvider(TESTNET_PROVIDER_URL)
+  )
 
   // Create an empty object that represents the new genesis state
   // We're going to move items from the dump into this genesis state
@@ -121,18 +127,8 @@ const main = async () => {
 
   // Step 5. (UNISWAP) Figure out the old and new pool addresses.
   console.log(`finding all UniswapV3Factory pool addresses`)
-  const pools: {
-    [oldAddress: string]: {
-      newAddress: string
-      token0: string
-      token1: string
-      fee: ethers.BigNumber
-    }
-  } = {}
-  // TODO: Get these events in a better way
-  const poolEvents = await UniswapV3Factory.queryFilter(
-    UniswapV3Factory.filters.PoolCreated()
-  )
+  const pools: PoolData[] = []
+  const poolEvents = await UniswapV3Factory.queryFilter('PoolCreated' as any)
   for (const event of poolEvents) {
     // Compute the old pool address using the OVM init code hash.
     const oldPoolAddress = computePoolAddress({
@@ -156,12 +152,13 @@ const main = async () => {
     }).toLowerCase()
 
     if (oldPoolAddress in dump.accounts) {
-      pools[oldPoolAddress] = {
+      pools.push({
+        oldAddress: oldPoolAddress,
         newAddress: newPoolAddress,
         token0: event.args.token0,
         token1: event.args.token1,
         fee: event.args.fee,
-      }
+      })
     } else {
       // throw new Error(
       //   `found pool event but contract not in state: ${oldPoolAddress}`
@@ -174,50 +171,38 @@ const main = async () => {
 
   // Step 6. (UNISWAP) Fix the UniswapV3Factory `getPool` mapping.
   console.log(`fixing UniswapV3Factory getPool mapping`)
-  for (const newPoolData of Object.values(pools)) {
+  for (const pool of pools) {
     // Fix the token0 => token1 => fee mapping
     transferStorageSlot({
       dump,
       address: UNISWAP_FACTORY_ADDRESS,
-      oldSlot: getMappingKey(
-        [newPoolData.token0, newPoolData.token1, newPoolData.fee],
-        2
-      ),
-      newSlot: getMappingKey(
-        [newPoolData.token0, newPoolData.token1, newPoolData.fee],
-        5
-      ),
+      oldSlot: getMappingKey([pool.token0, pool.token1, pool.fee], 2),
+      newSlot: getMappingKey([pool.token0, pool.token1, pool.fee], 5),
     })
 
     // Fix the token1 => token0 => fee mapping
     transferStorageSlot({
       dump,
       address: UNISWAP_FACTORY_ADDRESS,
-      oldSlot: getMappingKey(
-        [newPoolData.token1, newPoolData.token0, newPoolData.fee],
-        2
-      ),
-      newSlot: getMappingKey(
-        [newPoolData.token1, newPoolData.token0, newPoolData.fee],
-        5
-      ),
+      oldSlot: getMappingKey([pool.token1, pool.token0, pool.fee], 2),
+      newSlot: getMappingKey([pool.token1, pool.token0, pool.fee], 5),
     })
   }
 
   // Step 7. (UNISWAP) Fix the NonfungiblePositionManager `poolId` mapping.
   console.log(`fixing NonfungiblePositionManager poolId mapping`)
-  for (const [oldPoolAddress, newPoolData] of Object.entries(pools)) {
+  for (const pool of pools) {
     transferStorageSlot({
       dump,
       address: UNISWAP_NFPM_ADDRESS,
-      oldSlot: getMappingKey([oldPoolAddress], 10),
-      newSlot: getMappingKey([newPoolData.newAddress], 10),
+      oldSlot: getMappingKey([pool.oldAddress], 10),
+      newSlot: getMappingKey([pool.newAddress], 10),
     })
   }
 
   // Step 8. (UNISWAP) Perform a final bruteforce step to find any remaining references to old addresses.
   console.log(`performing final bruteforce step`)
-  for (const [oldPoolAddress, newPoolData] of Object.entries(pools)) {
+  for (const pool of pools) {
     for (const [address, account] of Object.entries(dump.accounts)) {
       if (account.storage === undefined) {
         continue
@@ -225,7 +210,7 @@ const main = async () => {
 
       // Check for any references to the pool address in storage values.
       for (const [slotKey, slotValue] of Object.entries(account.storage)) {
-        if (slotValue.includes(oldPoolAddress.slice(2))) {
+        if (slotValue.includes(pool.oldAddress.slice(2))) {
           // TODO: Figure out what to do here.
           throw new Error(`found unexpected reference to pool address`)
         }
@@ -234,13 +219,13 @@ const main = async () => {
       // TODO: Choose an appropriate ceiling for the storage slots here
       // Check for single-level nested keys (i.e., address => xxxx).
       for (let i = 0; i < 1000; i++) {
-        const oldSlotKey = getMappingKey([oldPoolAddress], i)
+        const oldSlotKey = getMappingKey([pool.oldAddress], i)
         if (account.storage[oldSlotKey] !== undefined) {
           transferStorageSlot({
             dump,
             address: UNISWAP_FACTORY_ADDRESS,
             oldSlot: oldSlotKey,
-            newSlot: getMappingKey([newPoolData.newAddress], i),
+            newSlot: getMappingKey([pool.newAddress], i),
           })
         }
       }
@@ -249,24 +234,24 @@ const main = async () => {
       for (let i = 0; i < 1000; i++) {
         for (const otherAddress of Object.keys(dump.accounts)) {
           // otherAddress => poolAddress => xxxx
-          const oldSlotKey1 = getMappingKey([otherAddress, oldPoolAddress], i)
+          const oldSlotKey1 = getMappingKey([otherAddress, pool.oldAddress], i)
           if (account.storage[oldSlotKey1] !== undefined) {
             transferStorageSlot({
               dump,
               address: UNISWAP_FACTORY_ADDRESS,
               oldSlot: oldSlotKey1,
-              newSlot: getMappingKey([otherAddress, newPoolData.newAddress], i),
+              newSlot: getMappingKey([otherAddress, pool.newAddress], i),
             })
           }
 
           // poolAddress => otherAddress => xxxx
-          const oldSlotKey2 = getMappingKey([oldPoolAddress, otherAddress], i)
+          const oldSlotKey2 = getMappingKey([pool.oldAddress, otherAddress], i)
           if (account.storage[oldSlotKey2] !== undefined) {
             transferStorageSlot({
               dump,
               address: UNISWAP_FACTORY_ADDRESS,
               oldSlot: oldSlotKey2,
-              newSlot: getMappingKey([newPoolData.newAddress, otherAddress], i),
+              newSlot: getMappingKey([pool.newAddress, otherAddress], i),
             })
           }
         }
@@ -274,32 +259,30 @@ const main = async () => {
     }
   }
 
-  // Step 9. (UNISWAP) Compute the new code for each pool.
-  // Set up a testnet wallet so we can deploy Uniswap pools.
+  // Step 9. (UNISWAP) Deploy pool code for all pools that don't already have code.
   console.log('deploying pool code')
-  const testnetWallet = new ethers.Wallet(
-    TESTNET_PRIVATE_KEY,
-    new ethers.providers.JsonRpcProvider(TESTNET_PROVIDER_URL)
-  )
-  for (const [oldPoolAddress, newPoolData] of Object.entries(pools)) {
-    let poolCode = await testnetWallet.provider.getCode(newPoolData.newAddress)
-
+  for (const pool of pools) {
+    const poolCode = await wallet.provider.getCode(pool.newAddress)
     if (poolCode === '0x') {
-      console.log(`address ${newPoolData.newAddress} has no code, deploying`)
-      const poolCreationTx = await UniswapV3Factory.connect(
-        testnetWallet
-      ).createPool(newPoolData.token0, newPoolData.token1, newPoolData.fee)
+      const poolCreationTx = await UniswapV3Factory.connect(wallet).createPool(
+        pool.token0,
+        pool.token1,
+        pool.fee
+      )
       await poolCreationTx.wait()
+    }
+  }
 
-      poolCode = await testnetWallet.provider.getCode(newPoolData.newAddress)
-      if (poolCode === '0x') {
-        throw new Error(`failed to deploy pool`)
-      }
+  // Step 10. (UNISWAP) Transfer code from testnet to state dump.
+  for (const pool of pools) {
+    const poolCode = await wallet.provider.getCode(pool.newAddress)
+    if (poolCode === '0x') {
+      throw new Error(`pool has no code: ${pool.newAddress}`)
     }
 
-    dump.accounts[newPoolData.newAddress] = dump.accounts[oldPoolAddress]
-    dump.accounts[newPoolData.newAddress].code = poolCode
-    delete dump.accounts[oldPoolAddress]
+    dump.accounts[pool.newAddress] = dump.accounts[pool.oldAddress]
+    dump.accounts[pool.newAddress].code = poolCode
+    delete dump.accounts[pool.oldAddress]
   }
 
   /* --- END UNISWAP SURGERY SECTION --- */
