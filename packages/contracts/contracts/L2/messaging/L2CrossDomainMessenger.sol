@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.7;
 
 /* Library Imports */
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
@@ -13,10 +12,7 @@ import { iOVM_L1MessageSender } from "../predeploys/iOVM_L1MessageSender.sol";
 import { iOVM_L2ToL1MessagePasser } from "../predeploys/iOVM_L2ToL1MessagePasser.sol";
 
 /* External Imports */
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
-/* External Imports */
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * @title L2CrossDomainMessenger

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.7;
 
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
@@ -12,9 +11,6 @@ import { IStateCommitmentChain } from "./IStateCommitmentChain.sol";
 import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
 import { IBondManager } from "../verification/IBondManager.sol";
 import { IChainStorageContainer } from "./IChainStorageContainer.sol";
-
-/* External Imports */
-import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
  * @title StateCommitmentChain
@@ -244,7 +240,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
             timestamp != 0,
             "Batch header timestamp cannot be zero"
         );
-        return SafeMath.add(timestamp, FRAUD_PROOF_WINDOW) > block.timestamp;
+        return (timestamp + FRAUD_PROOF_WINDOW) > block.timestamp;
     }
 
 

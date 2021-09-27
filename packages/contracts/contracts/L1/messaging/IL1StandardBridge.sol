@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0;
-pragma experimental ABIEncoderV2;
+pragma solidity >0.5.0 <0.9.0;
 
 import "./IL1ERC20Bridge.sol";
 

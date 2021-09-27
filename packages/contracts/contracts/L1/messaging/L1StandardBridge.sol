@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.7;
 
 /* Interface Imports */
 import { IL1StandardBridge } from "./IL1StandardBridge.sol";
@@ -11,9 +10,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /* Library Imports */
 import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title L1StandardBridge
@@ -24,7 +22,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Runtime target: EVM
  */
 contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
-    using SafeMath for uint;
     using SafeERC20 for IERC20;
 
     /********************************
@@ -264,7 +261,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
             message
         );
 
-        deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].add(_amount);
+        deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token] + _amount;
 
         emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
@@ -307,7 +304,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         override
         onlyFromCrossDomainAccount(l2TokenBridge)
     {
-        deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token].sub(_amount);
+        deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token] - _amount;
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer
         IERC20(_l1Token).safeTransfer(_to, _amount);

@@ -16,7 +16,20 @@ const config: HardhatUserConfig = {
   mocha: {
     timeout: 50000,
   },
-  solidity: '0.7.6',
+  solidity: {
+    version: '0.8.7',
+    settings: {
+      optimizer: { enabled: true, runs: 200 },
+      metadata: {
+        bytecodeHash: 'none',
+      },
+      outputSelection: {
+        '*': {
+          '*': ['storageLayout'],
+        },
+      },
+    },
+  },
   gasReporter: {
     enabled: enableGasReport,
     currency: 'USD',

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
+pragma solidity ^0.8.7;
 
 /**
  * @title Lib_Byte32Utils
@@ -75,6 +75,6 @@ library Lib_Bytes32Utils {
             bytes32
         )
     {
-        return bytes32(uint256(_in));
+        return bytes32(uint256(uint160(_in)));
     }
 }

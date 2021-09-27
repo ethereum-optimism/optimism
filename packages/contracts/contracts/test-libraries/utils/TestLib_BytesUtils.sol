@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.7;
 
 /* Library Imports */
 import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";

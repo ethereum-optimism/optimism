@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.7;
 
 /**
  * @title Lib_RLPWriter
@@ -150,7 +149,7 @@ library Lib_RLPWriter {
 
         if (_len < 56) {
             encoded = new bytes(1);
-            encoded[0] = byte(uint8(_len) + uint8(_offset));
+            encoded[0] = bytes1(uint8(_len) + uint8(_offset));
         } else {
             uint256 lenLen;
             uint256 i = 1;
@@ -160,9 +159,9 @@ library Lib_RLPWriter {
             }
 
             encoded = new bytes(lenLen + 1);
-            encoded[0] = byte(uint8(lenLen) + uint8(_offset) + 55);
+            encoded[0] = bytes1(uint8(lenLen) + uint8(_offset) + 55);
             for(i = 1; i <= lenLen; i++) {
-                encoded[i] = byte(uint8((_len / (256**(lenLen-i))) % 256));
+                encoded[i] = bytes1(uint8((_len / (256**(lenLen-i))) % 256));
             }
         }
 
@@ -228,7 +227,10 @@ library Lib_RLPWriter {
             src += 32;
         }
 
-        uint256 mask = 256 ** (32 - len) - 1;
+        uint256 mask;
+        unchecked {
+            mask = 256 ** (32 - len) - 1;
+        }
         assembly {
             let srcpart := and(mload(src), not(mask))
             let destpart := and(mload(dest), mask)

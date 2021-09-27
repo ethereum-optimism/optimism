@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
-
-/* Internal Imports */
-import { iOVM_GasPriceOracle } from "./iOVM_GasPriceOracle.sol";
+pragma solidity ^0.8.7;
 
 /* External Imports */
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
  * @title OVM_GasPriceOracle
@@ -19,7 +15,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
  * constructor doesn't run in practice as the L2 state generation script uses
  * the deployed bytecode instead of running the initcode.
  */
-contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
+contract OVM_GasPriceOracle is Ownable {
 
     /*************
      * Variables *
@@ -52,6 +48,15 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
         transferOwnership(_owner);
     }
 
+    /**********
+     * Events *
+     **********/
+
+    event GasPriceUpdated(uint256);
+    event L1BaseFeeUpdated(uint256);
+    event OverheadUpdated(uint256);
+    event ScalarUpdated(uint256);
+    event DecimalsUpdated(uint256);
 
     /********************
      * Public Functions *
@@ -65,7 +70,6 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
         uint256 _gasPrice
     )
         public
-        override
         onlyOwner
     {
         gasPrice = _gasPrice;
@@ -80,7 +84,6 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
         uint256 _baseFee
     )
         public
-        override
         onlyOwner
     {
         l1BaseFee = _baseFee;
@@ -95,7 +98,6 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
         uint256 _overhead
     )
         public
-        override
         onlyOwner
     {
         overhead = _overhead;
@@ -110,7 +112,6 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
         uint256 _scalar
     )
         public
-        override
         onlyOwner
     {
         scalar = _scalar;
@@ -125,7 +126,6 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
         uint256 _decimals
     )
         public
-        override
         onlyOwner
     {
         decimals = _decimals;
@@ -142,16 +142,15 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
     function getL1Fee(bytes memory _data)
         public
         view
-        override
         returns (
             uint256
         )
     {
         uint256 l1GasUsed = getL1GasUsed(_data);
-        uint256 l1Fee = SafeMath.mul(l1GasUsed, l1BaseFee);
+        uint256 l1Fee = l1GasUsed * l1BaseFee;
         uint256 divisor = 10**decimals;
-        uint256 unscaled = SafeMath.mul(l1Fee, scalar);
-        uint256 scaled = SafeMath.div(unscaled, divisor);
+        uint256 unscaled = l1Fee * scalar;
+        uint256 scaled = unscaled / divisor;
         return scaled;
     }
 
@@ -180,7 +179,6 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
     function getL1GasUsed(bytes memory _data)
         public
         view
-        override
         returns (
             uint256
         )
@@ -193,7 +191,7 @@ contract OVM_GasPriceOracle is Ownable, iOVM_GasPriceOracle {
                 total += 16;
             }
         }
-        uint256 unsigned = SafeMath.add(total, overhead);
-        return SafeMath.add(unsigned, 68 * 16);
+        uint256 unsigned = total + overhead;
+        return unsigned + (68 * 16);
     }
 }

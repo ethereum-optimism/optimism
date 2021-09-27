@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
+pragma solidity ^0.8.7;
 
 contract Helper_GasMeasurer {
     function measureCallGas(

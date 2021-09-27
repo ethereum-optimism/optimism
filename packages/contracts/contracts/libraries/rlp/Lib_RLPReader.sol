@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
+pragma solidity ^0.8.7;
 
 /**
  * @title Lib_RLPReader
@@ -403,7 +403,7 @@ library Lib_RLPReader {
             "Invalid RLP address value."
         );
 
-        return address(readUint256(_in));
+        return address(uint160(readUint256(_in)));
     }
 
     /**
@@ -592,7 +592,11 @@ library Lib_RLPReader {
         }
 
         // Pick out the remaining bytes.
-        uint256 mask = 256 ** (32 - (_length % 32)) - 1;
+        uint256 mask;
+        unchecked {
+            mask = 256 ** (32 - (_length % 32)) - 1;
+        }
+
         assembly {
             mstore(
                 dest,
@@ -602,7 +606,6 @@ library Lib_RLPReader {
                 )
             )
         }
-
         return out;
     }
 
