@@ -98,7 +98,6 @@ const main = async () => {
   /* --- BEGIN UNISWAP SURGERY SECTION --- */
 
   // Set up the uniswap factory contract reference
-  // TODO: ideally we don't need to query the L2 provider and do everything based on the dump
   const UniswapV3Factory = new ethers.Contract(
     UNISWAP_FACTORY_ADDRESS,
     UNISWAP_FACTORY_ABI,
@@ -223,7 +222,7 @@ const main = async () => {
         if (account.storage[oldSlotKey] !== undefined) {
           transferStorageSlot({
             dump,
-            address: UNISWAP_FACTORY_ADDRESS,
+            address,
             oldSlot: oldSlotKey,
             newSlot: getMappingKey([pool.newAddress], i),
           })
@@ -238,7 +237,7 @@ const main = async () => {
           if (account.storage[oldSlotKey1] !== undefined) {
             transferStorageSlot({
               dump,
-              address: UNISWAP_FACTORY_ADDRESS,
+              address,
               oldSlot: oldSlotKey1,
               newSlot: getMappingKey([otherAddress, pool.newAddress], i),
             })
@@ -249,7 +248,7 @@ const main = async () => {
           if (account.storage[oldSlotKey2] !== undefined) {
             transferStorageSlot({
               dump,
-              address: UNISWAP_FACTORY_ADDRESS,
+              address,
               oldSlot: oldSlotKey2,
               newSlot: getMappingKey([pool.newAddress, otherAddress], i),
             })
