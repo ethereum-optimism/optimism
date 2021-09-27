@@ -149,6 +149,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
       const receipt = await res.wait()
       const gasUsed = receipt.gasUsed.toNumber()
+      console.log('    - Gas used:', gasUsed)
 
       console.log('Benchmark complete.')
 
@@ -196,6 +197,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
       const receipt = await res.wait()
       const gasUsed = receipt.gasUsed.toNumber()
+      console.log('    - Gas used:', gasUsed)
 
       console.log('Benchmark complete.')
 
@@ -253,6 +255,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
       const receipt = await res.wait()
       const gasUsed = receipt.gasUsed.toNumber()
+      console.log('    - Gas used:', gasUsed)
 
       console.log('Benchmark complete.')
 
@@ -290,6 +293,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       )
       const receipt = await res.wait()
       const gasUsed = receipt.gasUsed.toNumber()
+      console.log('    - Gas used:', gasUsed)
 
       console.log('Benchmark complete.')
 
@@ -311,6 +315,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       )
       const receipt = await res.wait()
       const gasUsed = receipt.gasUsed.toNumber()
+      console.log('    - Gas used:', gasUsed)
 
       console.log('Benchmark complete.')
 

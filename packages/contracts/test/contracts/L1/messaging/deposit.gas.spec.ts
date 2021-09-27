@@ -4,11 +4,18 @@ import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smoddit } from '@eth-optimism/smock'
 import { expectApprox } from '@eth-optimism/core-utils'
 
+import _ from 'lodash'
+
 /* Internal Imports */
 import {
   makeAddressManager,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
+  setProxyTarget,
+  FORCE_INCLUSION_PERIOD_SECONDS,
+  FORCE_INCLUSION_PERIOD_BLOCKS,
+  getEthTime,
+  getNextBlockNumber,
   NON_ZERO_ADDRESS,
   NON_NULL_BYTES32,
 } from '../../../helpers'
@@ -120,7 +127,6 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
       },
     })
   })
-
   describe('[GAS BENCHMARK] L1 to L2 Deposit costs', async () => {
     const depositAmount = 1_000
     before(async () => {
