@@ -23,7 +23,17 @@ import {
   toHex32,
   getMappingKey,
   transferStorageSlot,
+  loadCompilerOutput,
 } from './utils'
+
+const UNI_CORE_EVM_OUTPUT_PATH = path.join(
+  __dirname,
+  '../contracts/v3-core/artifacts/build-info'
+)
+const UNI_CORE_OVM_OUTPUT_PATH = path.join(
+  __dirname,
+  '../contracts/v3-core-optimism/artifacts-ovm/build-info'
+)
 
 const main = async () => {
   // Load required enviorment variables
@@ -113,6 +123,84 @@ const main = async () => {
 
   /* --- BEGIN UNISWAP SURGERY SECTION --- */
 
+  // Step X. (UNISWAP) Compare storage slots for EVM and OVM code versions.
+  const movedStorageSlots = {}
+  const evmCompilerOutput = loadCompilerOutput(UNI_CORE_EVM_OUTPUT_PATH)
+  const ovmCompilerOutput = loadCompilerOutput(UNI_CORE_OVM_OUTPUT_PATH)
+  for (const contractName of Object.keys(evmCompilerOutput)) {
+    const evmContractOutput = evmCompilerOutput[contractName]
+    const ovmContractOutput = ovmCompilerOutput[contractName]
+
+    for (const evmStorageEntry of evmContractOutput.storageLayout.storage) {
+      const ovmStorageEntry = ovmContractOutput.storageLayout.storage.find(
+        (storageEntry: any) => {
+          return storageEntry.label === evmStorageEntry.label
+        }
+      )
+
+      if (ovmStorageEntry === undefined) {
+        console.log(
+          `variable defined for EVM but not for OVM`,
+          `contract=${contractName}`,
+          `variable=${evmStorageEntry.label}`
+        )
+        continue
+      }
+
+      if (
+        ovmStorageEntry.slot !== evmStorageEntry.slot ||
+        ovmStorageEntry.offset !== evmStorageEntry.offset
+      ) {
+        console.log(
+          `slot changed for variable`,
+          `contract=${contractName}`,
+          `variable=${evmStorageEntry.label}`,
+          `ovm slot=${ovmStorageEntry.slot}`,
+          `ovm offset=${ovmStorageEntry.offset}`,
+          `evm slot=${evmStorageEntry.slot}`,
+          `evm offset=${evmStorageEntry.offset}`
+        )
+        movedStorageSlots[`${contractName}.${evmStorageEntry.label}`] = {
+          ovmSlot: ovmStorageEntry.slot,
+          evmSlot: evmStorageEntry.slot,
+        }
+      }
+    }
+  }
+
+  // We expect four variables to have changed positions:
+  // UniswapV3Factory.owner: slot 0 => slot 3
+  // UniswapV3Factory.parameters: slot 3 => slot 0
+  // UniswapV3Factory.feeAmountTickSpacing: slot 1 => slot 4
+  // UniswapV3Factory.getPool: slot 2 => slot 5
+  assert.equal(
+    Object.keys(movedStorageSlots).length,
+    4,
+    `expected four changed variables but got ${
+      Object.keys(movedStorageSlots).length
+    }`
+  )
+  assert.deepEqual(
+    movedStorageSlots['UniswapV3Factory.owner'],
+    { ovmSlot: 0, evmSlot: 3 },
+    `expected UniswapV3Factory.owner to be moved from slot 0 to slot 3`
+  )
+  assert.deepEqual(
+    movedStorageSlots['UniswapV3Factory.parameters'],
+    { ovmSlot: 3, evmSlot: 0 },
+    `expected UniswapV3Factory.parameters to be moved from slot 3 to slot 0`
+  )
+  assert.deepEqual(
+    movedStorageSlots['UniswapV3Factory.feeAmountTickSpacing'],
+    { ovmSlot: 1, evmSlot: 4 },
+    `expected UniswapV3Factory.feeAmountTickSpacing to be moved from slot 1 to slot 4`
+  )
+  assert.deepEqual(
+    movedStorageSlots['UniswapV3Factory.getPool'],
+    { ovmSlot: 2, evmSlot: 5 },
+    `expected UniswapV3Factory.getPool to be moved from slot 2 to slot 5`
+  )
+
   // Set up the uniswap factory contract reference
   const UniswapV3Factory = new ethers.Contract(
     UNISWAP_FACTORY_ADDRESS,
@@ -120,15 +208,13 @@ const main = async () => {
     l2Provider
   )
 
-  // TODO: use compiler output to confirm the list of variables with different storage slots
-
   // Step X. (UNISWAP) Fix the UniswapV3Factory `owner` address.
   console.log(`fixing UniswapV3Factory owner address`)
   transferStorageSlot({
     dump,
     address: UNISWAP_FACTORY_ADDRESS,
-    oldSlot: toHex32(0),
-    newSlot: toHex32(3),
+    oldSlot: toHex32(movedStorageSlots['UniswapV3Factory.owner'].ovmSlot),
+    newSlot: toHex32(movedStorageSlots['UniswapV3Factory.owner'].evmSlot),
   })
 
   // Step X. (UNISWAP) Fix the UniswapV3Factory `feeAmountTickSpacing` mapping.
@@ -137,8 +223,14 @@ const main = async () => {
     transferStorageSlot({
       dump,
       address: UNISWAP_FACTORY_ADDRESS,
-      oldSlot: getMappingKey([fee], 1),
-      newSlot: getMappingKey([fee], 4),
+      oldSlot: getMappingKey(
+        [fee],
+        movedStorageSlots['UniswapV3Factory.feeAmountTickSpacing'].ovmSlot
+      ),
+      newSlot: getMappingKey(
+        [fee],
+        movedStorageSlots['UniswapV3Factory.feeAmountTickSpacing'].evmSlot
+      ),
     })
   }
 
@@ -193,8 +285,14 @@ const main = async () => {
     transferStorageSlot({
       dump,
       address: UNISWAP_FACTORY_ADDRESS,
-      oldSlot: getMappingKey([pool.token0, pool.token1, pool.fee], 2),
-      newSlot: getMappingKey([pool.token0, pool.token1, pool.fee], 5),
+      oldSlot: getMappingKey(
+        [pool.token0, pool.token1, pool.fee],
+        movedStorageSlots['UniswapV3Factory.getPool'].ovmSlot
+      ),
+      newSlot: getMappingKey(
+        [pool.token0, pool.token1, pool.fee],
+        movedStorageSlots['UniswapV3Factory.getPool'].evmSlot
+      ),
       newValue: pool.newAddress,
     })
 
@@ -202,8 +300,14 @@ const main = async () => {
     transferStorageSlot({
       dump,
       address: UNISWAP_FACTORY_ADDRESS,
-      oldSlot: getMappingKey([pool.token1, pool.token0, pool.fee], 2),
-      newSlot: getMappingKey([pool.token1, pool.token0, pool.fee], 5),
+      oldSlot: getMappingKey(
+        [pool.token1, pool.token0, pool.fee],
+        movedStorageSlots['UniswapV3Factory.getPool'].ovmSlot
+      ),
+      newSlot: getMappingKey(
+        [pool.token1, pool.token0, pool.fee],
+        movedStorageSlots['UniswapV3Factory.getPool'].evmSlot
+      ),
       newValue: pool.newAddress,
     })
   }

@@ -1,5 +1,6 @@
 /* Imports: External */
 import * as fs from 'fs'
+import * as path from 'path'
 import byline from 'byline'
 import { ethers } from 'ethers'
 import * as progress from 'cli-progress'
@@ -127,3 +128,19 @@ export const transferStorageSlot = (opts: {
 //   await opts.action(bar)
 //   bar.stop()
 // }
+
+export const loadCompilerOutput = (folder: string): any => {
+  const artifactFiles = fs.readdirSync(folder)
+  let jointCompilerOutput = {}
+  for (const file of artifactFiles) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const buildInfo = require(path.join(folder, file))
+    for (const contractFilePath of Object.keys(buildInfo.output.contracts)) {
+      jointCompilerOutput = {
+        ...jointCompilerOutput,
+        ...buildInfo.output.contracts[contractFilePath],
+      }
+    }
+  }
+  return jointCompilerOutput
+}
