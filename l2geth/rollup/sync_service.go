@@ -412,13 +412,11 @@ func (s *SyncService) SequencerLoop() {
 // compare against the transactions it has in its local state. The sequencer
 // should reorg based on the transaction batches that are posted because
 // L1 is the source of truth. The sequencer concurrently accepts user
-// transactions via the RPC.
+// transactions via the RPC. When reorg logic is enabled, this should
+// also call `syncBatchesToTip`
 func (s *SyncService) sequence() error {
 	if err := s.syncQueueToTip(); err != nil {
 		return fmt.Errorf("Sequencer cannot sequence queue: %w", err)
-	}
-	if err := s.syncBatchesToTip(); err != nil {
-		return fmt.Errorf("Sequencer cannot sync transaction batches: %w", err)
 	}
 	return nil
 }
