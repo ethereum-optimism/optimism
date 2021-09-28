@@ -39,6 +39,7 @@ bcount = 0
 
 instrumenting = False
 instrumenting_all = False
+instructions_seen = set()
 def hook_code_simple(uc, address, size, user_data):
   global icount, bcount
   #assert size == 4
@@ -49,6 +50,8 @@ def hook_code_simple(uc, address, size, user_data):
         dat = next(md.disasm(uc.mem_read(address, size), address))
       else:
         dat = "EMPTY BASIC BLOCK?!?"
+      #instructions_seen.add(dat.mnemonic)
+      #print(sorted(list(instructions_seen)))
       print("%10d(%2d): %8x %-80s %s" % (icount, newicount, address, r[address], dat))
     icount += newicount
     bcount += 1
