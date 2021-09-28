@@ -68,6 +68,8 @@ func main() {
 	processor := core.NewStateProcessor(params.MainnetChainConfig, bc, bc.Engine())
 	fmt.Println("processing state:", parent.Number, "->", newheader.Number)
 
+	newheader.Difficulty = bc.Engine().CalcDifficulty(bc, newheader.Time, &parent)
+
 	// read txs
 	//traverseStackTrie(newheader.TxHash)
 

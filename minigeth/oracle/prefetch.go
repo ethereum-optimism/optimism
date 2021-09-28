@@ -197,7 +197,7 @@ func Output(output common.Hash) {
 	if output == inputs[6] {
 		fmt.Println("good transition")
 	} else {
-		fmt.Println(output, "!=", inputs[5])
+		fmt.Println(output, "!=", inputs[6])
 		panic("BAD transition :((")
 	}
 }

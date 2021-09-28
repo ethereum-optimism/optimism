@@ -21,7 +21,7 @@ func Preimage(hash common.Hash) []byte {
 		fmt.Println("can't find preimage", hash)
 	}
 	comphash := crypto.Keccak256Hash(val)
-	if hash != comphash {
+	if ok && hash != comphash {
 		panic("corruption in hash " + hash.String())
 	}
 	return val
