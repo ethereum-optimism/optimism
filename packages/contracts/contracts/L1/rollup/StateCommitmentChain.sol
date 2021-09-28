@@ -74,7 +74,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * @inheritdoc IStateCommitmentChain
      */
     function getTotalElements()
-        override
         public
         view
         returns (
@@ -89,7 +88,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * @inheritdoc IStateCommitmentChain
      */
     function getTotalBatches()
-        override
         public
         view
         returns (
@@ -103,7 +101,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * @inheritdoc IStateCommitmentChain
      */
     function getLastSequencerTimestamp()
-        override
         public
         view
         returns (
@@ -121,7 +118,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
         bytes32[] memory _batch,
         uint256 _shouldStartAtElement
     )
-        override
         public
     {
         // Fail fast in to make sure our batch roots aren't accidentally made fraudulent by the
@@ -163,7 +159,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     function deleteStateBatch(
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader
     )
-        override
         public
     {
         require(
@@ -192,7 +187,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _proof
     )
-        override
         public
         view
         returns (
@@ -224,7 +218,6 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     function insideFraudProofWindow(
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader
     )
-        override
         public
         view
         returns (
