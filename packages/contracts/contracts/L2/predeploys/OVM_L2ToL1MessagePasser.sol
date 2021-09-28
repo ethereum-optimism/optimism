@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Interface Imports */
 import { iOVM_L2ToL1MessagePasser } from "./iOVM_L2ToL1MessagePasser.sol";
