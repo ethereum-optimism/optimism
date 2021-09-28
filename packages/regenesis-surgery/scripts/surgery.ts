@@ -74,7 +74,6 @@ const main = async () => {
   const genesis: ChainState = {}
 
   // Sanity check to guarantee that all addresses in dump.accounts are lower case.
-  // TODO: do more sanity checking
   console.log(`verifying that all contract addresses are lower case`)
   for (const [address, account] of Object.entries(dump.accounts)) {
     assert.equal(
@@ -83,6 +82,31 @@ const main = async () => {
       `unexpected upper case character in state dump address: ${address}`
     )
 
+    assert.ok(
+      typeof account.nonce === 'number',
+      `nonce is not a number: ${account.nonce}`
+    )
+
+    assert.equal(
+      account.codeHash.toLowerCase(),
+      account.codeHash,
+      `unexpected upper case character in state dump codeHash: ${account.codeHash}`
+    )
+
+    assert.equal(
+      account.root.toLowerCase(),
+      account.root,
+      `unexpected upper case character in state dump root: ${account.root}`
+    )
+
+    if (account.code !== undefined) {
+      assert.equal(
+        account.code.toLowerCase(),
+        account.code,
+        `unexpected upper case character in state dump code: ${account.code}`
+      )
+    }
+
     // All accounts other than precompiles should have a balance of zero.
     if (!address.startsWith('0x00000000000000000000000000000000000000')) {
       assert.equal(
@@ -90,6 +114,21 @@ const main = async () => {
         '0',
         `unexpected non-zero balance in state dump address: ${address}`
       )
+    }
+
+    if (account.storage !== undefined) {
+      for (const [storageKey, storageVal] of Object.entries(account.storage)) {
+        assert.equal(
+          storageKey.toLowerCase(),
+          storageKey,
+          `unexpected upper case character in state dump storage key: ${storageKey}`
+        )
+        assert.equal(
+          storageVal.toLowerCase(),
+          storageVal,
+          `unexpected upper case character in state dump storage value: ${storageVal}`
+        )
+      }
     }
   }
 
@@ -344,9 +383,29 @@ const main = async () => {
 
       // Check for any references to the pool address in storage values.
       for (const [slotKey, slotValue] of Object.entries(account.storage)) {
+        // TODO: Figure out what to do here.
         if (slotValue.includes(pool.oldAddress.slice(2))) {
-          // TODO: Figure out what to do here.
           throw new Error(`found unexpected reference to pool address`)
+        }
+
+        if (
+          slotValue.includes(
+            POOL_INIT_CODE_HASH_OPTIMISM.toLowerCase().slice(2)
+          )
+        ) {
+          throw new Error(
+            `found unexpected reference to mainnet pool init code hash`
+          )
+        }
+
+        if (
+          slotValue.includes(
+            POOL_INIT_CODE_HASH_OPTIMISM_KOVAN.toLowerCase().slice(2)
+          )
+        ) {
+          throw new Error(
+            `found unexpected reference to kovan pool init code hash`
+          )
         }
       }
     }
