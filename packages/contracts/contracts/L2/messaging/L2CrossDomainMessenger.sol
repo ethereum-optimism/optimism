@@ -2,17 +2,14 @@
 pragma solidity ^0.8.8;
 
 /* Library Imports */
+import { AddressAliasHelper } from "../../standards/AddressAliasHelper.sol";
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
 import { Lib_DefaultValues } from "../../libraries/constants/Lib_DefaultValues.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
 import { IL2CrossDomainMessenger } from "./IL2CrossDomainMessenger.sol";
-import { iOVM_L1MessageSender } from "../predeploys/iOVM_L1MessageSender.sol";
 import { iOVM_L2ToL1MessagePasser } from "../predeploys/iOVM_L2ToL1MessagePasser.sol";
-
-/* External Imports */
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * @title L2CrossDomainMessenger
@@ -21,8 +18,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuar
  *
 */
 contract L2CrossDomainMessenger is
-    IL2CrossDomainMessenger,
-    ReentrancyGuard
+    IL2CrossDomainMessenger
 {
 
     /*************
@@ -36,17 +32,17 @@ contract L2CrossDomainMessenger is
     address internal xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
     address public l1CrossDomainMessenger;
 
+
     /***************
      * Constructor *
      ***************/
 
     constructor(
         address _l1CrossDomainMessenger
-    )
-        ReentrancyGuard()
-    {
+    ) {
         l1CrossDomainMessenger = _l1CrossDomainMessenger;
     }
+
 
     /********************
      * Public Functions *
@@ -85,9 +81,13 @@ contract L2CrossDomainMessenger is
 
         sentMessages[keccak256(xDomainCalldata)] = true;
 
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-        emit SentMessage(_target, msg.sender, _message, messageNonce, _gasLimit);
+        // Actually send the message.
+        iOVM_L2ToL1MessagePasser(
+            Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER
+        ).passMessageToL1(xDomainCalldata);
 
+        // Emit an event before we bump the nonce or the nonce will be off by one.
+        emit SentMessage(_target, msg.sender, _message, messageNonce, _gasLimit);
         messageNonce += 1;
     }
 
@@ -101,11 +101,10 @@ contract L2CrossDomainMessenger is
         bytes memory _message,
         uint256 _messageNonce
     )
-        nonReentrant
         public
     {
         require(
-            _verifyXDomainMessage() == true,
+            AddressAliasHelper.undoL1ToL2Alias(msg.sender) == l1CrossDomainMessenger,
             "Provided message could not be verified."
         );
 
@@ -156,44 +155,5 @@ contract L2CrossDomainMessenger is
         );
 
         relayedMessages[relayId] = true;
-    }
-
-
-    /**********************
-     * Internal Functions *
-     **********************/
-
-    /**
-     * Verifies that a received cross domain message is valid.
-     * @return _valid Whether or not the message is valid.
-     */
-    function _verifyXDomainMessage()
-        internal
-        view
-        returns (
-            bool _valid
-        )
-    {
-        return (
-            iOVM_L1MessageSender(
-                Lib_PredeployAddresses.L1_MESSAGE_SENDER
-            ).getL1MessageSender() == l1CrossDomainMessenger
-        );
-    }
-
-    /**
-     * Sends a cross domain message.
-     * @param _message Message to send.
-     * param _gasLimit Gas limit for the provided message.
-     */
-    function _sendXDomainMessage(
-        bytes memory _message,
-        uint256 // _gasLimit
-    )
-        internal
-    {
-        iOVM_L2ToL1MessagePasser(
-            Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER
-        ).passMessageToL1(_message);
     }
 }

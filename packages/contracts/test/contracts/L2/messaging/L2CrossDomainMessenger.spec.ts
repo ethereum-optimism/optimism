@@ -1,19 +1,18 @@
 import { expect } from '../../../setup'
 
 /* External Imports */
-import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, constants } from 'ethers'
+import hre, { ethers } from 'hardhat'
+import { Signer, ContractFactory, Contract } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
-import { solidityKeccak256 } from 'ethers/lib/utils'
+import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
   encodeXDomainCalldata,
-  getNextBlockNumber,
 } from '../../../helpers'
-import { getContractInterface, predeploys } from '../../../../src'
+import { predeploys } from '../../../../src'
 
 describe('L2CrossDomainMessenger', () => {
   let signer: Signer
@@ -23,7 +22,6 @@ describe('L2CrossDomainMessenger', () => {
 
   let Mock__TargetContract: MockContract
   let Mock__L1CrossDomainMessenger: MockContract
-  let Mock__OVM_L1MessageSender: MockContract
   let Mock__OVM_L2ToL1MessagePasser: MockContract
   before(async () => {
     Mock__TargetContract = await smockit(
@@ -32,13 +30,27 @@ describe('L2CrossDomainMessenger', () => {
     Mock__L1CrossDomainMessenger = await smockit(
       await ethers.getContractFactory('L1CrossDomainMessenger')
     )
-    Mock__OVM_L1MessageSender = await smockit(
-      getContractInterface('iOVM_L1MessageSender'),
-      { address: predeploys.OVM_L1MessageSender }
-    )
     Mock__OVM_L2ToL1MessagePasser = await smockit(
       await ethers.getContractFactory('OVM_L2ToL1MessagePasser'),
       { address: predeploys.OVM_L2ToL1MessagePasser }
+    )
+  })
+
+  let impersonatedL1CrossDomainMessengerSender: Signer
+  before(async () => {
+    const impersonatedAddress = applyL1ToL2Alias(
+      Mock__L1CrossDomainMessenger.address
+    )
+    await hre.network.provider.request({
+      method: 'hardhat_impersonateAccount',
+      params: [impersonatedAddress],
+    })
+    await hre.network.provider.request({
+      method: 'hardhat_setBalance',
+      params: [impersonatedAddress, '0xFFFFFFFFFFFFFFFFF'],
+    })
+    impersonatedL1CrossDomainMessengerSender = await ethers.getSigner(
+      impersonatedAddress
     )
   })
 
@@ -94,24 +106,21 @@ describe('L2CrossDomainMessenger', () => {
       sender = await signer.getAddress()
     })
 
-    beforeEach(async () => {
-      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__L1CrossDomainMessenger.address
-      )
-    })
-
     it('should revert if the L1 message sender is not the L1CrossDomainMessenger', async () => {
-      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        constants.AddressZero
-      )
-
       await expect(
-        L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+        L2CrossDomainMessenger.connect(signer).relayMessage(
+          target,
+          sender,
+          message,
+          0
+        )
       ).to.be.revertedWith('Provided message could not be verified.')
     })
 
     it('should send a call to the target contract', async () => {
-      await L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+      await L2CrossDomainMessenger.connect(
+        impersonatedL1CrossDomainMessengerSender
+      ).relayMessage(target, sender, message, 0)
 
       expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.deep.equal([
         NON_ZERO_ADDRESS,
@@ -122,40 +131,38 @@ describe('L2CrossDomainMessenger', () => {
       await expect(
         L2CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
-      await L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+
+      await L2CrossDomainMessenger.connect(
+        impersonatedL1CrossDomainMessengerSender
+      ).relayMessage(target, sender, message, 0)
+
       await expect(
         L2CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
     })
 
     it('should revert if trying to send the same message twice', async () => {
-      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__L1CrossDomainMessenger.address
-      )
-
-      await L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+      await L2CrossDomainMessenger.connect(
+        impersonatedL1CrossDomainMessengerSender
+      ).relayMessage(target, sender, message, 0)
 
       await expect(
-        L2CrossDomainMessenger.relayMessage(target, sender, message, 0)
+        L2CrossDomainMessenger.connect(
+          impersonatedL1CrossDomainMessengerSender
+        ).relayMessage(target, sender, message, 0)
       ).to.be.revertedWith('Provided message has already been received.')
     })
 
     it('should not make a call if the target is the L2 MessagePasser', async () => {
-      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__L1CrossDomainMessenger.address
-      )
       target = predeploys.OVM_L2ToL1MessagePasser
       message = Mock__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
         'passMessageToL1(bytes)',
         [NON_NULL_BYTES32]
       )
 
-      const resProm = L2CrossDomainMessenger.relayMessage(
-        target,
-        sender,
-        message,
-        0
-      )
+      const resProm = L2CrossDomainMessenger.connect(
+        impersonatedL1CrossDomainMessengerSender
+      ).relayMessage(target, sender, message, 0)
 
       // The call to relayMessage() should succeed.
       await expect(resProm).to.not.be.reverted
@@ -173,71 +180,12 @@ describe('L2CrossDomainMessenger', () => {
       // The message should be registered as successful.
       expect(
         await L2CrossDomainMessenger.successfulMessages(
-          solidityKeccak256(
+          ethers.utils.solidityKeccak256(
             ['bytes'],
             [encodeXDomainCalldata(target, sender, message, 0)]
           )
         )
       ).to.be.true
-    })
-
-    it('should revert if trying to reenter `relayMessage`', async () => {
-      Mock__OVM_L1MessageSender.smocked.getL1MessageSender.will.return.with(
-        Mock__L1CrossDomainMessenger.address
-      )
-
-      const reentrantMessage =
-        L2CrossDomainMessenger.interface.encodeFunctionData('relayMessage', [
-          target,
-          sender,
-          message,
-          1,
-        ])
-
-      // Calculate xDomainCallData used for indexing
-      // (within the first call to the L2 Messenger).
-      const xDomainCallData = encodeXDomainCalldata(
-        L2CrossDomainMessenger.address,
-        sender,
-        reentrantMessage,
-        0
-      )
-
-      // Make the call.
-      await L2CrossDomainMessenger.relayMessage(
-        L2CrossDomainMessenger.address,
-        sender,
-        reentrantMessage,
-        0
-      )
-
-      // We can't test for the nonReentrant revert string because it occurs in the second call frame,
-      // and target.call() won't "bubble up" the revert. So we need to use other criteria to ensure the
-      // right things are happening.
-      // Criteria 1: the reentrant message is NOT listed in successful messages.
-      expect(
-        await L2CrossDomainMessenger.successfulMessages(
-          solidityKeccak256(['bytes'], [xDomainCallData])
-        )
-      ).to.be.false
-
-      // Criteria 2: the relayID of the reentrant message is recorded.
-      // Get blockNumber at time of the call.
-      const blockNumber = (await getNextBlockNumber(ethers.provider)) - 1
-      const relayId = solidityKeccak256(
-        ['bytes'],
-        [
-          ethers.utils.solidityPack(
-            ['bytes', 'address', 'uint256'],
-            [xDomainCallData, sender, blockNumber]
-          ),
-        ]
-      )
-
-      expect(await L2CrossDomainMessenger.relayedMessages(relayId)).to.be.true
-
-      // Criteria 3: the target contract did not receive a call.
-      expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.be.undefined
     })
   })
 })
