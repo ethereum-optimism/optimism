@@ -62,7 +62,7 @@ describe('Native ETH Integration Tests', async () => {
         '0xFFFF'
       )
       // Expect gas to be less than or equal to the target plus 1%
-      expectApprox(gas, 6700060, { upperPercentDeviation: 1 })
+      expectApprox(gas, 6700060, { absoluteUpperDeviation: 1000 })
     })
   })
 
@@ -213,17 +213,17 @@ describe('Native ETH Integration Tests', async () => {
     expectApprox(
       postBalances.l1BridgeBalance,
       preBalances.l1BridgeBalance.sub(withdrawAmount),
-      { upperPercentDeviation: 1 }
+      { percentUpperDeviation: 1 }
     )
     expectApprox(
       postBalances.l2UserBalance,
       preBalances.l2UserBalance.sub(withdrawAmount.add(fee)),
-      { upperPercentDeviation: 1 }
+      { percentUpperDeviation: 1 }
     )
     expectApprox(
       postBalances.l1UserBalance,
       preBalances.l1UserBalance.add(withdrawAmount),
-      { upperPercentDeviation: 1 }
+      { percentUpperDeviation: 1 }
     )
   })
 
