@@ -2,7 +2,7 @@ import { expect } from 'chai'
 
 /* Imports: External */
 import { Contract, ContractFactory } from 'ethers'
-import { predeploys, getContractInterface } from '@eth-optimism/contracts'
+import { applyL1ToL2Alias, sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
@@ -90,9 +90,36 @@ describe('Basic L1<>L2 Communication', async () => {
       expect(await L2SimpleStorage.msgSender()).to.equal(
         env.l2Messenger.address
       )
+      expect(await L2SimpleStorage.txOrigin()).to.equal(
+        applyL1ToL2Alias(env.l1Messenger.address)
+      )
       expect(await L2SimpleStorage.xDomainSender()).to.equal(
         env.l1Wallet.address
       )
+      expect(await L2SimpleStorage.value()).to.equal(value)
+      expect((await L2SimpleStorage.totalCount()).toNumber()).to.equal(1)
+    })
+
+    it('should deposit from L1 -> L2 directly via enqueue', async () => {
+      const value = `0x${'42'.repeat(32)}`
+
+      // Send L1 -> L2 message.
+      await env.ctc
+        .connect(env.l1Wallet)
+        .enqueue(
+          L2SimpleStorage.address,
+          5000000,
+          L2SimpleStorage.interface.encodeFunctionData('setValueNotXDomain', [
+            value,
+          ])
+        )
+
+      // TODO: We need to have a function that can wait for enqueued txs.
+      await sleep(10000)
+
+      // No aliasing when an EOA goes directly to L2.
+      expect(await L2SimpleStorage.msgSender()).to.equal(env.l1Wallet.address)
+      expect(await L2SimpleStorage.txOrigin()).to.equal(env.l1Wallet.address)
       expect(await L2SimpleStorage.value()).to.equal(value)
       expect((await L2SimpleStorage.totalCount()).toNumber()).to.equal(1)
     })

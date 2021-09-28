@@ -17,7 +17,6 @@ interface L2Contracts {
   eth: Contract
   xDomainMessenger: Contract
   messagePasser: Contract
-  messageSender: Contract
   deployerWhiteList: Contract
 }
 
@@ -90,10 +89,6 @@ export const connectL2Contracts = async (
     eth: getEthersContract('OVM_ETH'),
     xDomainMessenger: getEthersContract('L2CrossDomainMessenger'),
     messagePasser: getEthersContract('OVM_L2ToL1MessagePasser'),
-    messageSender: getEthersContract(
-      'OVM_L1MessageSender',
-      'iOVM_L1MessageSender'
-    ),
     deployerWhiteList: getEthersContract('OVM_DeployerWhitelist'),
   }
 }
