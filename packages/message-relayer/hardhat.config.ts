@@ -8,7 +8,7 @@ const config: HardhatUserConfig = {
     sources: './test/test-contracts',
   },
   solidity: {
-    version: '0.8.7',
+    version: '0.8.8',
     settings: {
       optimizer: { enabled: true, runs: 200 },
       metadata: {
