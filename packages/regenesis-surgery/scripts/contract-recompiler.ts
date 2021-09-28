@@ -1,9 +1,11 @@
 import solc from 'solc'
 import linker from 'solc/linker'
-import { createReadStream } from 'fs'
+import { createReadStream, writeFileSync, constants } from 'fs'
 import { parseChunked } from '@discoveryjs/json-ext'
 import dotenv from 'dotenv'
-import path from 'path'
+import fs from 'fs/promises'
+import { downloadSolc } from '../src/download-solc'
+import { compilerVersionsToSolc, LOCAL_SOLC_DIR } from '../src/constants'
 
 dotenv.config()
 
@@ -27,29 +29,33 @@ interface EtherscanContract {
 }
 
 ;(async () => {
+  // First download all required versions of solc
+  try {
+    await fs.mkdir(LOCAL_SOLC_DIR)
+  } catch (e) {
+    // directory already exists
+  }
+
+  for (const version of Object.values(compilerVersionsToSolc)) {
+    await downloadSolc(version)
+  }
+
+  // Read state dump from disk
   const etherscanContracts: EtherscanContract[] = await parseChunked(
     createReadStream(ETHERSCAN_CONTRACTS_PATH)
   )
-
-  // Corresponds to vanilla solidity
-  const compilerVersionsToSolc = {
-    'v0.5.16': 'v0.5.16+commit.9c3226ce',
-    'v0.5.16-alpha.7': 'v0.5.16+commit.9c3226ce',
-    'v0.6.12': 'v0.6.12+commit.27d51765',
-    'v0.7.6': 'v0.7.6+commit.7338295f',
-    'v0.7.6+commit.3b061308': 'v0.7.6+commit.7338295f', // what vanilla solidity should this be?
-    'v0.7.6-allow_kall': 'v0.7.6+commit.7338295f', // ^same q
-    'v0.8.4': 'v0.8.4+commit.c7e474f2',
-  }
 
   const noContractsCompiled = {}
   const noContractName = []
   const contractFileNameMismatch = {}
   const hasImmutables = {}
   const libraries = []
+
+  // Iterate through the contracts
   for (const contract of etherscanContracts) {
+    // TODO: sanity check the contract before processing it
+
     if (contract.sourceCode) {
-      console.log(contract)
       let input = {
         language: 'Solidity',
         sources: {
@@ -61,7 +67,6 @@ interface EtherscanContract {
         settings: {
           outputSelection: {
             '*': {
-              // '*': ['evm.bytecode', 'evm.deployedBytecode', 'abi'],
               '*': ['*'],
             },
           },
@@ -79,26 +84,27 @@ interface EtherscanContract {
       }
       try {
         const contractJson = JSON.parse(sourceCode)
-        console.log('got json', contractJson)
+        console.log('got json')
         if (contractJson.language) {
-          console.log('seems like multifile input', contractJson)
+          console.log('seems like multifile input')
           input = contractJson
         } else {
-          console.error('seems like just the source', contract.sourceCode)
+          console.error('seems like just the source')
           input.sources = contractJson
         }
       } catch (e) {
-        console.error('got error trying json', e)
+        console.error('got error trying json')
       }
 
       const version = compilerVersionsToSolc[contract.compilerVersion]
       console.log('version', version)
       /* eslint @typescript-eslint/no-var-requires: "off" */
       const currSolc = solc.setupMethods(
-        require(`../solc-bin/soljson-${version}.js`)
+        require(`../solc-bin/solc-emscripten-wasm32-${version}.js`)
       )
+
       const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
-      console.log('output!', contract.contractAddress, output)
+      console.log('output', contract.contractAddress, output)
       if (!output.contracts) {
         // There was an error compiling this contract
         noContractsCompiled[contract.contractAddress] = output
@@ -128,14 +134,14 @@ interface EtherscanContract {
 
       const immutableRefs = mainOutput.evm.deployedBytecode.immutableReferences
       if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
-        console.warn('this contract has immutables!', contract.contractAddress)
+        console.warn('this contract has immutables', contract.contractAddress)
         hasImmutables[contract.contractAddress] =
           mainOutput.evm.deployedBytecode.immutableReferences
       }
       // Link libraries
       if (contract.library) {
         const deployedBytecode = mainOutput.evm.deployedBytecode.object
-        console.log('library!', contract.library)
+        console.log('library', contract.library)
         libraries.push(contract.library)
         const LibToAddress = contract.library.split(':')
         // TEST: just to see output
@@ -159,7 +165,8 @@ interface EtherscanContract {
     'filename not found in compiled contracts',
     contractFileNameMismatch
   )
-  // TODO: handle immutables lmao
+
+  // TODO: handle immutables
   console.log('has immutables', hasImmutables)
   console.log('all libraries from etherscan file', libraries)
 
