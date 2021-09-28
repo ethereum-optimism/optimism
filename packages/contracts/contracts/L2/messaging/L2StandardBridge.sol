@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Interface Imports */
 import { IL1StandardBridge } from "../../L1/messaging/IL1StandardBridge.sol";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Library Imports */
 import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
