@@ -8,14 +8,14 @@ import { ICrossDomainMessenger } from "./ICrossDomainMessenger.sol";
  * @title CrossDomainEnabled
  * @dev Helper contract for contracts performing cross-domain communications
  */
-contract CrossDomainEnabled {
+abstract contract CrossDomainEnabled {
 
     /*************
      * Variables *
      *************/
 
     // Messenger contract used to send and recieve messages from the other domain.
-    ICrossDomainMessenger public messenger;
+    ICrossDomainMessenger public immutable messenger;
 
 
     /***************

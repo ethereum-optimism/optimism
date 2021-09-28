@@ -13,7 +13,6 @@ import { getContractInterface, predeploys } from '../../../../src'
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
-const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
 const DUMMY_L2_ERC20_ADDRESS = ethers.utils.getAddress('0x' + 'abba'.repeat(10))
 const DUMMY_L2_BRIDGE_ADDRESS = ethers.utils.getAddress(
   '0x' + 'acdc'.repeat(10)
@@ -64,11 +63,7 @@ describe('L1StandardBridge', () => {
     // Deploy the contract under test
     L1StandardBridge = await (
       await ethers.getContractFactory('L1StandardBridge')
-    ).deploy()
-    await L1StandardBridge.initialize(
-      Mock__L1CrossDomainMessenger.address,
-      DUMMY_L2_BRIDGE_ADDRESS
-    )
+    ).deploy(Mock__L1CrossDomainMessenger.address, DUMMY_L2_BRIDGE_ADDRESS)
 
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
     await L1ERC20.smodify.put({
@@ -76,17 +71,6 @@ describe('L1StandardBridge', () => {
       _balances: {
         [aliceAddress]: INITIAL_TOTAL_L1_SUPPLY,
       },
-    })
-  })
-
-  describe('initialize', () => {
-    it('Should only be callable once', async () => {
-      await expect(
-        L1StandardBridge.initialize(
-          ethers.constants.AddressZero,
-          DUMMY_L2_BRIDGE_ADDRESS
-        )
-      ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
     })
   })
 
@@ -212,11 +196,7 @@ describe('L1StandardBridge', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L2ETHToken)', async () => {
       L1StandardBridge = await (
         await ethers.getContractFactory('L1StandardBridge')
-      ).deploy()
-      await L1StandardBridge.initialize(
-        Mock__L1CrossDomainMessenger.address,
-        DUMMY_L2_BRIDGE_ADDRESS
-      )
+      ).deploy(Mock__L1CrossDomainMessenger.address, DUMMY_L2_BRIDGE_ADDRESS)
 
       Mock__L1CrossDomainMessenger.smocked.xDomainMessageSender.will.return.with(
         '0x' + '22'.repeat(20)

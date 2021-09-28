@@ -9,7 +9,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
 import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
-import { ICrossDomainMessenger } from "../../libraries/bridge/ICrossDomainMessenger.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -29,7 +28,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    address public l2TokenBridge;
+    address public immutable l2TokenBridge;
 
     // Maps L1 token to L2 token to balance of the L1 token deposited
     mapping(address => mapping (address => uint256)) public deposits;
@@ -39,26 +38,16 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      ***************/
 
     // This contract lives behind a proxy, so the constructor parameters will go unused.
-    constructor()
-        CrossDomainEnabled(address(0))
-    {}
-
-    /******************
-     * Initialization *
-     ******************/
-
-    /**
+        /**
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      * @param _l2TokenBridge L2 standard bridge address.
      */
-    function initialize(
+    constructor(
         address _l1messenger,
         address _l2TokenBridge
     )
-        public
+        CrossDomainEnabled(_l1messenger)
     {
-        require(address(messenger) == address(0), "Contract has already been initialized.");
-        messenger = ICrossDomainMessenger(_l1messenger);
         l2TokenBridge = _l2TokenBridge;
     }
 

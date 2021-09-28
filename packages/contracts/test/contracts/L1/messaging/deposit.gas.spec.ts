@@ -107,11 +107,7 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
     // Deploy the Bridge
     L1StandardBridge = await (
       await ethers.getContractFactory('L1StandardBridge')
-    ).deploy()
-    await L1StandardBridge.initialize(
-      L1CrossDomainMessenger.address,
-      NON_ZERO_ADDRESS
-    )
+    ).deploy(L1CrossDomainMessenger.address, NON_ZERO_ADDRESS)
 
     L1ERC20 = await (
       await smoddit('@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20')
