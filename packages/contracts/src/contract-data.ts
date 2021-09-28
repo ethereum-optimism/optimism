@@ -67,7 +67,6 @@ export const getL1ContractData = (network: Network) => {
 const OVM_ETH = require('../artifacts/contracts/L2/predeploys/OVM_ETH.sol/OVM_ETH.json')
 const L2CrossDomainMessenger = require('../artifacts/contracts/L2/messaging/L2CrossDomainMessenger.sol/L2CrossDomainMessenger.json')
 const OVM_L2ToL1MessagePasser = require('../artifacts/contracts/L2/predeploys/OVM_L2ToL1MessagePasser.sol/OVM_L2ToL1MessagePasser.json')
-const OVM_L1MessageSender = require('../artifacts/contracts/L2/predeploys/iOVM_L1MessageSender.sol/iOVM_L1MessageSender.json')
 const OVM_DeployerWhitelist = require('../artifacts/contracts/L2/predeploys/OVM_DeployerWhitelist.sol/OVM_DeployerWhitelist.json')
 
 export const getL2ContractData = () => {
@@ -83,10 +82,6 @@ export const getL2ContractData = () => {
     OVM_L2ToL1MessagePasser: {
       abi: OVM_L2ToL1MessagePasser.abi,
       address: l2Addresses.OVM_L2ToL1MessagePasser,
-    },
-    OVM_L1MessageSender: {
-      abi: OVM_L1MessageSender.abi,
-      address: l2Addresses.OVM_L1MessageSender,
     },
     OVM_DeployerWhitelist: {
       abi: OVM_DeployerWhitelist.abi,

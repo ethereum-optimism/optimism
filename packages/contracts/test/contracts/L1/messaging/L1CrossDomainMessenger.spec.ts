@@ -4,7 +4,11 @@ import { expect } from '../../../setup'
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
-import { remove0x, toHexString } from '@eth-optimism/core-utils'
+import {
+  remove0x,
+  toHexString,
+  applyL1ToL2Alias,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -20,7 +24,6 @@ import {
   getNextBlockNumber,
   encodeXDomainCalldata,
 } from '../../../helpers'
-import { keccak256 } from 'ethers/lib/utils'
 import { predeploys } from '../../../../src'
 
 const MAX_GAS_LIMIT = 8_000_000
@@ -157,26 +160,6 @@ describe('L1CrossDomainMessenger', () => {
     })
   })
 
-  const getTransactionHash = (
-    sender: string,
-    target: string,
-    gasLimit: number,
-    data: string
-  ): string => {
-    return keccak256(encodeQueueTransaction(sender, target, gasLimit, data))
-  }
-
-  const encodeQueueTransaction = (
-    sender: string,
-    target: string,
-    gasLimit: number,
-    data: string
-  ): string => {
-    return ethers.utils.defaultAbiCoder.encode(
-      ['address', 'address', 'uint256', 'bytes'],
-      [sender, target, gasLimit, data]
-    )
-  }
   describe('sendMessage', () => {
     const target = NON_ZERO_ADDRESS
     const message = NON_NULL_BYTES32
@@ -193,13 +176,17 @@ describe('L1CrossDomainMessenger', () => {
         message,
         0
       )
-      const transactionHash = getTransactionHash(
-        L1CrossDomainMessenger.address,
-        Mock__L2CrossDomainMessenger.address,
-        gasLimit,
-        calldata
+      const transactionHash = ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+          ['address', 'address', 'uint256', 'bytes'],
+          [
+            applyL1ToL2Alias(L1CrossDomainMessenger.address),
+            Mock__L2CrossDomainMessenger.address,
+            gasLimit,
+            calldata,
+          ]
+        )
       )
-
       const queueLength = await CanonicalTransactionChain.getQueueLength()
       const queueElement = await CanonicalTransactionChain.getQueueElement(
         queueLength - 1
@@ -274,9 +261,10 @@ describe('L1CrossDomainMessenger', () => {
       messageNonce
     )
 
-    const storageKey = keccak256(
-      keccak256(calldata + remove0x(Mock__L2CrossDomainMessenger.address)) +
-        '00'.repeat(32)
+    const storageKey = ethers.utils.keccak256(
+      ethers.utils.keccak256(
+        calldata + remove0x(Mock__L2CrossDomainMessenger.address)
+      ) + '00'.repeat(32)
     )
     const storageGenerator = await TrieTestGenerator.fromNodes({
       nodes: [
@@ -294,7 +282,7 @@ describe('L1CrossDomainMessenger', () => {
           address: predeploys.OVM_L2ToL1MessagePasser,
           nonce: 0,
           balance: 0,
-          codeHash: keccak256('0x1234'),
+          codeHash: ethers.utils.keccak256('0x1234'),
           storageRoot: toHexString(storageGenerator._trie.root),
         },
       ],
@@ -436,12 +424,14 @@ describe('L1CrossDomainMessenger', () => {
       )
 
       expect(
-        await L1CrossDomainMessenger.successfulMessages(keccak256(calldata))
+        await L1CrossDomainMessenger.successfulMessages(
+          ethers.utils.keccak256(calldata)
+        )
       ).to.equal(true)
 
       expect(
         await L1CrossDomainMessenger.relayedMessages(
-          keccak256(
+          ethers.utils.keccak256(
             calldata +
               remove0x(await signer.getAddress()) +
               remove0x(BigNumber.from(blockNumber).toHexString()).padStart(
@@ -495,16 +485,18 @@ describe('L1CrossDomainMessenger', () => {
       it('should revert if called by an account other than the owner', async () => {
         const L1CrossDomainMessenger2 = L1CrossDomainMessenger.connect(signer2)
         await expect(
-          L1CrossDomainMessenger2.blockMessage(keccak256(calldata))
+          L1CrossDomainMessenger2.blockMessage(ethers.utils.keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')
 
         await expect(
-          L1CrossDomainMessenger2.allowMessage(keccak256(calldata))
+          L1CrossDomainMessenger2.allowMessage(ethers.utils.keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')
       })
 
       it('should revert if the message is blocked', async () => {
-        await L1CrossDomainMessenger.blockMessage(keccak256(calldata))
+        await L1CrossDomainMessenger.blockMessage(
+          ethers.utils.keccak256(calldata)
+        )
 
         await expect(
           L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
@@ -512,13 +504,17 @@ describe('L1CrossDomainMessenger', () => {
       })
 
       it('should succeed if the message is blocked, then unblocked', async () => {
-        await L1CrossDomainMessenger.blockMessage(keccak256(calldata))
+        await L1CrossDomainMessenger.blockMessage(
+          ethers.utils.keccak256(calldata)
+        )
 
         await expect(
           L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
         ).to.be.revertedWith('Provided message has been blocked.')
 
-        await L1CrossDomainMessenger.allowMessage(keccak256(calldata))
+        await L1CrossDomainMessenger.allowMessage(
+          ethers.utils.keccak256(calldata)
+        )
 
         await expect(
           L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)

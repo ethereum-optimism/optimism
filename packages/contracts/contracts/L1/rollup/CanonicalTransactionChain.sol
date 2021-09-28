@@ -2,6 +2,7 @@
 pragma solidity ^0.8.8;
 
 /* Library Imports */
+import { AddressAliasHelper } from "../../standards/AddressAliasHelper.sol";
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
@@ -279,9 +280,21 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             }
         }
 
+        // Apply an aliasing unless msg.sender == tx.origin. This prevents an attack in which a
+        // contract on L1 has the same address as a contract on L2 but doesn't have the same code.
+        // We can safely ignore this for EOAs because they're guaranteed to have the same "code"
+        // (i.e. no code at all). This also makes it possible for users to interact with contracts
+        // on L2 even when the Sequencer is down.
+        address sender;
+        if (msg.sender == tx.origin) {
+            sender = msg.sender;
+        } else {
+            sender = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
+        }
+
         bytes32 transactionHash = keccak256(
             abi.encode(
-                msg.sender,
+                sender,
                 _target,
                 _gasLimit,
                 _data
@@ -304,7 +317,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         // to divide by 2 and subtract 1.
         uint256 queueIndex = queueRef.length() / 2 - 1;
         emit TransactionEnqueued(
-            msg.sender,
+            sender,
             _target,
             _gasLimit,
             _data,

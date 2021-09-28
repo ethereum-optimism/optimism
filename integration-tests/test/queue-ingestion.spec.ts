@@ -2,7 +2,7 @@ import { expect } from 'chai'
 
 /* Imports: Internal */
 import { providers } from 'ethers'
-import { injectL2Context } from '@eth-optimism/core-utils'
+import { injectL2Context, applyL1ToL2Alias } from '@eth-optimism/core-utils'
 
 /* Imports: External */
 import { OptimismEnv } from './shared/env'
@@ -57,7 +57,7 @@ describe('Queue Ingestion', () => {
       expect(params._target).to.equal('0x' + `${i}`.repeat(40))
       expect(l2Tx.queueOrigin).to.equal('l1')
       expect(l2Tx.l1TxOrigin.toLowerCase()).to.equal(
-        env.l1Messenger.address.toLowerCase()
+        applyL1ToL2Alias(env.l1Messenger.address).toLowerCase()
       )
       expect(l2Tx.l1BlockNumber).to.equal(l1TxReceipt.blockNumber)
     }
