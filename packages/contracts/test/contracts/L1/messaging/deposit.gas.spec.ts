@@ -2,6 +2,7 @@
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smoddit } from '@eth-optimism/smock'
+import { expectApprox } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -155,6 +156,12 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
         (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) +
           '%'
       )
+      expectApprox(gasUsed, 154_247, {
+        absoluteUpperDeviation: 500,
+        // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
+        // contracts are too efficient, consider updating the target value!
+        percentLowerDeviation: 1,
+      })
       // Sanity check that the message was enqueued.
       expect(await CanonicalTransactionChain.getQueueLength()).to.equal(2)
     })
@@ -186,7 +193,12 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
         (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) +
           '%'
       )
-
+      expectApprox(gasUsed, 202_088, {
+        absoluteUpperDeviation: 500,
+        // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
+        // contracts are too efficient, consider updating the target value!
+        percentLowerDeviation: 1,
+      })
       // Sanity check that the message was enqueued.
       expect(await CanonicalTransactionChain.getQueueLength()).to.equal(3)
     })

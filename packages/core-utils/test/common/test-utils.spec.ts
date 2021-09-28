@@ -2,30 +2,150 @@ import { expect } from '../setup'
 
 /* Imports: Internal */
 import { expectApprox } from '../../src'
+import { assert } from 'chai'
 
-describe('expectApprox', async () => {
-  it('should throw an error if the actual value is higher than expected', async () => {
+describe('expectApprox', () => {
+  it('should pass when the actual number is higher, but within the expected range of the target', async () => {
+    expectApprox(119, 100, {
+      percentUpperDeviation: 20,
+      percentLowerDeviation: 20,
+      absoluteUpperDeviation: 20,
+      absoluteLowerDeviation: 20,
+    })
+  })
+  it('should pass when the actual number is lower, but within the expected range of the target', async () => {
+    expectApprox(81, 100, {
+      percentUpperDeviation: 20,
+      percentLowerDeviation: 20,
+      absoluteUpperDeviation: 20,
+      absoluteLowerDeviation: 20,
+    })
+  })
+  it('should throw an error when no deviation values are given', async () => {
     try {
-      expectApprox(121, 100, {
-        upperPercentDeviation: 20,
-      })
+      expectApprox(101, 100, {})
+      assert.fail('expectApprox did not throw an error')
     } catch (error) {
       expect(error.message).to.equal(
-        'Actual value (121) is more than 20% greater than target (100): expected false to be true'
+        'Must define at least one parameter to limit the deviation of the actual value.'
       )
     }
   })
 
-  it('should throw an error if the actual value is lower than expected', async () => {
-    try {
-      expectApprox(79, 100, {
-        upperPercentDeviation: 0,
-        lowerPercentDeviation: 20,
+  describe('should throw an error if the actual value is higher than expected', () => {
+    describe('... when only one upper bound value is defined', () => {
+      it('... and percentUpperDeviation sets the upper bound', async () => {
+        try {
+          expectApprox(121, 100, {
+            percentUpperDeviation: 20,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (121) is greater than the calculated upper bound of (120): expected false to be true'
+          )
+        }
       })
-    } catch (error) {
-      expect(error.message).to.equal(
-        'Actual value (79) is more than 20% less than target (100): expected false to be true'
-      )
-    }
+      it('... and absoluteUpperDeviation sets the upper bound', async () => {
+        try {
+          expectApprox(121, 100, {
+            absoluteUpperDeviation: 20,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (121) is greater than the calculated upper bound of (120): expected false to be true'
+          )
+        }
+      })
+    })
+    describe('... when both values are defined', () => {
+      it('... and percentUpperDeviation sets the upper bound', async () => {
+        try {
+          expectApprox(121, 100, {
+            percentUpperDeviation: 20,
+            absoluteUpperDeviation: 30,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (121) is greater than the calculated upper bound of (120): expected false to be true'
+          )
+        }
+      })
+      it('... and absoluteUpperDeviation sets the upper bound', async () => {
+        try {
+          expectApprox(121, 100, {
+            percentUpperDeviation: 30,
+            absoluteUpperDeviation: 20,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (121) is greater than the calculated upper bound of (120): expected false to be true'
+          )
+        }
+      })
+    })
+  })
+
+  describe('should throw an error if the actual value is lower than expected', () => {
+    describe('... when only one lower bound value is defined', () => {
+      it('... and percentLowerDeviation sets the lower bound', async () => {
+        try {
+          expectApprox(79, 100, {
+            percentLowerDeviation: 20,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (79) is less than the calculated lower bound of (80): expected false to be true'
+          )
+        }
+      })
+
+      it('... and absoluteLowerDeviation sets the lower bound', async () => {
+        try {
+          expectApprox(79, 100, {
+            absoluteLowerDeviation: 20,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (79) is less than the calculated lower bound of (80): expected false to be true'
+          )
+        }
+      })
+    })
+
+    describe('... when both values are defined', () => {
+      it('... and percentLowerDeviation sets the lower bound', async () => {
+        try {
+          expectApprox(79, 100, {
+            percentLowerDeviation: 20,
+            absoluteLowerDeviation: 30,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (79) is less than the calculated lower bound of (80): expected false to be true'
+          )
+        }
+      })
+
+      it('... and absoluteLowerDeviation sets the lower bound', async () => {
+        try {
+          expectApprox(79, 100, {
+            percentLowerDeviation: 30,
+            absoluteLowerDeviation: 20,
+          })
+          assert.fail('expectApprox did not throw an error')
+        } catch (error) {
+          expect(error.message).to.equal(
+            'Actual value (79) is less than the calculated lower bound of (80): expected false to be true'
+          )
+        }
+      })
+    })
   })
 })
