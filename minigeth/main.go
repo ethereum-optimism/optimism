@@ -61,7 +61,7 @@ func main() {
 	newheader.GasLimit = oracle.Input(4).Big().Uint64()
 	newheader.Time = oracle.Input(5).Big().Uint64()
 
-	bc := core.NewBlockChain()
+	bc := core.NewBlockChain(&parent)
 	database := state.NewDatabase(parent)
 	statedb, _ := state.New(parent.Root, database, nil)
 	vmconfig := vm.Config{}

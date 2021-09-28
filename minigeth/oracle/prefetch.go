@@ -269,7 +269,10 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 		blockHeaderRlp, _ := rlp.EncodeToBytes(blockHeader)
 		hash := crypto.Keccak256Hash(blockHeaderRlp)
 		preimages[hash] = blockHeaderRlp
-		inputs[0] = hash
+		emptyHash := common.Hash{}
+		if inputs[0] == emptyHash {
+			inputs[0] = hash
+		}
 		return
 	}
 
