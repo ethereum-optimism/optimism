@@ -9,6 +9,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
 import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
+import { ICrossDomainMessenger } from "../../libraries/bridge/ICrossDomainMessenger.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -56,8 +57,8 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
     )
         public
     {
-        require(messenger == address(0), "Contract has already been initialized.");
-        messenger = _l1messenger;
+        require(address(messenger) == address(0), "Contract has already been initialized.");
+        messenger = ICrossDomainMessenger(_l1messenger);
         l2TokenBridge = _l2TokenBridge;
     }
 

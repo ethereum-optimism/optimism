@@ -7,9 +7,6 @@ import { ICrossDomainMessenger } from "./ICrossDomainMessenger.sol";
 /**
  * @title CrossDomainEnabled
  * @dev Helper contract for contracts performing cross-domain communications
- *
- * Compiler used: defined by inheriting contract
- * Runtime target: defined by inheriting contract
  */
 contract CrossDomainEnabled {
 
@@ -18,7 +15,7 @@ contract CrossDomainEnabled {
      *************/
 
     // Messenger contract used to send and recieve messages from the other domain.
-    address public messenger;
+    ICrossDomainMessenger public messenger;
 
 
     /***************
@@ -31,7 +28,7 @@ contract CrossDomainEnabled {
     constructor(
         address _messenger
     ) {
-        messenger = _messenger;
+        messenger = ICrossDomainMessenger(_messenger);
     }
 
 
@@ -48,12 +45,12 @@ contract CrossDomainEnabled {
         address _sourceDomainAccount
     ) {
         require(
-            msg.sender == address(getCrossDomainMessenger()),
+            msg.sender == address(messenger),
             "OVM_XCHAIN: messenger contract unauthenticated"
         );
 
         require(
-            getCrossDomainMessenger().xDomainMessageSender() == _sourceDomainAccount,
+            messenger.xDomainMessageSender() == _sourceDomainAccount,
             "OVM_XCHAIN: wrong sender of cross-domain message"
         );
 
@@ -64,23 +61,7 @@ contract CrossDomainEnabled {
     /**********************
      * Internal Functions *
      **********************/
-
     /**
-     * Gets the messenger, usually from storage. This function is exposed in case a child contract
-     * needs to override.
-     * @return The address of the cross-domain messenger contract which should be used.
-     */
-    function getCrossDomainMessenger()
-        internal
-        virtual
-        returns (
-            ICrossDomainMessenger
-        )
-    {
-        return ICrossDomainMessenger(messenger);
-    }
-
-    /**q
      * Sends a message to an account on another domain
      * @param _crossDomainTarget The intended recipient on the destination domain
      * @param _message The data to send to the target (usually calldata to a function with
@@ -94,6 +75,6 @@ contract CrossDomainEnabled {
     )
         internal
     {
-        getCrossDomainMessenger().sendMessage(_crossDomainTarget, _message, _gasLimit);
+        messenger.sendMessage(_crossDomainTarget, _message, _gasLimit);
     }
 }
