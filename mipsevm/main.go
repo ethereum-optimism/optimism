@@ -187,10 +187,10 @@ func main() {
 	//fmt.Println(bytecode, jj.Bytecode)
 	statedb := &StateDB{Bytecode: bytecode}
 
-	bc := core.NewBlockChain()
 	var header types.Header
 	header.Number = big.NewInt(13284469)
 	header.Difficulty = common.Big0
+	bc := core.NewBlockChain(&header)
 	author := common.Address{}
 	blockContext := core.NewEVMBlockContext(&header, bc, &author)
 	txContext := vm.TxContext{}

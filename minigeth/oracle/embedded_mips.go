@@ -15,6 +15,7 @@ import (
 )
 
 var preimages = make(map[common.Hash][]byte)
+
 // only 6 here
 var inputs [6]common.Hash
 var inputsLoaded bool = false
@@ -54,9 +55,11 @@ func Halt() {
 	os.Exit(0)
 }
 
-func Output(output common.Hash) {
+func Output(output common.Hash, receipts common.Hash) {
 	ret := byteAt(0x30000800, 0x20)
 	copy(ret, output.Bytes())
+	rret := byteAt(0x30000820, 0x20)
+	copy(rret, receipts.Bytes())
 	Halt()
 }
 

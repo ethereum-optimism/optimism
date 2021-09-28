@@ -375,7 +375,7 @@ except unicorn.UcError:
 if not died_well:
   raise Exception("program exitted early")
 
-real_hash = binascii.hexlify(inputs[-0x20:])
+real_hash = binascii.hexlify(inputs[-0x40:-0x20])
 compare_hash = binascii.hexlify(mu.mem_read(0x30000800, 0x20))
 print("compare", real_hash, "to computed", compare_hash)
 

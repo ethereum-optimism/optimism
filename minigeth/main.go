@@ -113,12 +113,15 @@ func main() {
 		panic("wrong uncles for block " + newheader.UncleHash.String() + " " + block.Header().UncleHash.String())
 	}
 
-	_, _, _, err := processor.Process(block, statedb, vmconfig)
+	// validateState is more complete, gas used + bloom also
+	receipts, _, _, err := processor.Process(block, statedb, vmconfig)
+	receiptSha := types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil))
 	if err != nil {
 		log.Fatal(err)
 	}
 	newroot := statedb.IntermediateRoot(bc.Config().IsEIP158(newheader.Number))
 
+	fmt.Println("receipt count", len(receipts), "hash", receiptSha)
 	fmt.Println("process done with hash", parent.Root, "->", newroot)
-	oracle.Output(newroot)
+	oracle.Output(newroot, receiptSha)
 }

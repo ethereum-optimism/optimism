@@ -184,7 +184,7 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 	preimages[hash] = ret
 }
 
-var inputs [7]common.Hash
+var inputs [8]common.Hash
 
 func Input(index int) common.Hash {
 	if index < 0 || index > 5 {
@@ -193,11 +193,12 @@ func Input(index int) common.Hash {
 	return inputs[index]
 }
 
-func Output(output common.Hash) {
-	if output == inputs[6] {
+func Output(output common.Hash, receipts common.Hash) {
+	if output == inputs[6] && receipts == inputs[7] {
 		fmt.Println("good transition")
 	} else {
 		fmt.Println(output, "!=", inputs[6])
+		fmt.Println(receipts, "!=", inputs[7])
 		panic("BAD transition :((")
 	}
 }
@@ -289,6 +290,7 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 
 	// secret input
 	inputs[6] = blockHeader.Root
+	inputs[7] = blockHeader.ReceiptHash
 
 	// save the inputs
 	saveinput := make([]byte, 0)
