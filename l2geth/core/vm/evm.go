@@ -98,8 +98,7 @@ type Context struct {
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 
 	// OVM information
-	L1MessageSender common.Address // Provides information for L1MESSAGESENDER
-	L1BlockNumber   *big.Int       // Provides information for L1BLOCKNUMBER
+	L1BlockNumber *big.Int // Provides information for L1BLOCKNUMBER
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

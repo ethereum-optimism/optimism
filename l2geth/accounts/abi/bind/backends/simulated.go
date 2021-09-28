@@ -603,10 +603,9 @@ func (m callmsg) Data() []byte         { return m.CallMsg.Data }
 
 // UsingOVM
 // These getters return OVM specific fields
-func (m callmsg) L1Timestamp() uint64              { return m.CallMsg.L1Timestamp }
-func (m callmsg) L1BlockNumber() *big.Int          { return m.CallMsg.L1BlockNumber }
-func (m callmsg) L1MessageSender() *common.Address { return m.CallMsg.L1MessageSender }
-func (m callmsg) QueueOrigin() types.QueueOrigin   { return m.CallMsg.QueueOrigin }
+func (m callmsg) L1Timestamp() uint64            { return m.CallMsg.L1Timestamp }
+func (m callmsg) L1BlockNumber() *big.Int        { return m.CallMsg.L1BlockNumber }
+func (m callmsg) QueueOrigin() types.QueueOrigin { return m.CallMsg.QueueOrigin }
 
 // filterBackend implements filters.Backend to support filtering for logs without
 // taking bloom-bits acceleration structures into account.

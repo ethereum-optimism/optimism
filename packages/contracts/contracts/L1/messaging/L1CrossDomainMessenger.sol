@@ -2,6 +2,7 @@
 pragma solidity ^0.8.8;
 
 /* Library Imports */
+import { AddressAliasHelper } from "../../standards/AddressAliasHelper.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressManager } from "../../libraries/resolver/Lib_AddressManager.sol";
@@ -62,6 +63,7 @@ contract L1CrossDomainMessenger is
 
     address internal xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
 
+
     /***************
      * Constructor *
      ***************/
@@ -74,6 +76,7 @@ contract L1CrossDomainMessenger is
     constructor()
         Lib_AddressResolver(address(0))
     {}
+
 
     /**********************
      * Function Modifiers *
@@ -299,7 +302,7 @@ contract L1CrossDomainMessenger is
         // Compute the transactionHash
         bytes32 transactionHash = keccak256(
             abi.encode(
-                address(this),
+                AddressAliasHelper.applyL1ToL2Alias(address(this)),
                 Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
                 _gasLimit,
                 _message
