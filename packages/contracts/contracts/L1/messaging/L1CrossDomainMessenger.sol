@@ -391,7 +391,7 @@ contract L1CrossDomainMessenger is
         L2MessageInclusionProof memory _proof
     )
         internal
-        view
+        pure
         returns (
             bool
         )
