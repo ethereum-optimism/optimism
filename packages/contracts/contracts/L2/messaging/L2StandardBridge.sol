@@ -29,7 +29,7 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    address public override l1TokenBridge;
+    address public l1TokenBridge;
 
     /***************
      * Constructor *
@@ -62,7 +62,6 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         virtual
     {
         _initiateWithdrawal(
@@ -86,7 +85,6 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         virtual
     {
         _initiateWithdrawal(
@@ -175,7 +173,6 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         virtual
         onlyFromCrossDomainAccount(l1TokenBridge)
     {

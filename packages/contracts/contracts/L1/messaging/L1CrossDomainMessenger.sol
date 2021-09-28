@@ -162,7 +162,6 @@ contract L1CrossDomainMessenger is
 
     function xDomainMessageSender()
         public
-        override
         view
         returns (
             address
@@ -183,7 +182,6 @@ contract L1CrossDomainMessenger is
         bytes memory _message,
         uint32 _gasLimit
     )
-        override
         public
     {
         address ovmCanonicalTransactionChain = resolve("CanonicalTransactionChain");
@@ -218,7 +216,6 @@ contract L1CrossDomainMessenger is
         uint256 _messageNonce,
         L2MessageInclusionProof memory _proof
     )
-        override
         public
         nonReentrant
         onlyRelayer
@@ -292,7 +289,6 @@ contract L1CrossDomainMessenger is
         uint256 _queueIndex,
         uint32 _gasLimit
     )
-        override
         public
     {
         // Verify that the message is in the queue:

@@ -30,7 +30,6 @@ contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
     function passMessageToL1(
         bytes memory _message
     )
-        override
         public
     {
         // Note: although this function is public, only messages sent from the

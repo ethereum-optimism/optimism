@@ -54,7 +54,6 @@ contract L2CrossDomainMessenger is
 
     function xDomainMessageSender()
         public
-        override
         view
         returns (
             address
@@ -75,7 +74,6 @@ contract L2CrossDomainMessenger is
         bytes memory _message,
         uint32 _gasLimit
     )
-        override
         public
     {
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
@@ -103,7 +101,6 @@ contract L2CrossDomainMessenger is
         bytes memory _message,
         uint256 _messageNonce
     )
-        override
         nonReentrant
         public
     {
