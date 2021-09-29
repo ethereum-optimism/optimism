@@ -41,6 +41,19 @@ const appendSequencerBatch = async (
   })
 }
 
+const printGasSavings = (gasUsed:number, regenesis040Cost:number):void => {
+  console.log('    - Gas used:', gasUsed)
+  console.log(
+    '    - Absolute savings vs regenesis/0.4.0:',
+    regenesis040Cost - gasUsed
+  )
+  console.log(
+    '    - Relative savings vs regenesis/0.4.0:',
+    (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) +
+      '%'
+  )
+}
+
 describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
   let sequencer: Signer
   before(async () => {
@@ -81,13 +94,8 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
   let CanonicalTransactionChain: Contract
   beforeEach(async () => {
-    // Use a larger FIP for blocks so that we can send a large number of
-    // enqueue() transactions without having to manipulate the block number.
-    const forceInclusionPeriodBlocks = 101
     CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
       AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS,
-      forceInclusionPeriodBlocks,
       MAX_GAS_LIMIT,
       L2_GAS_DISCOUNT_DIVISOR,
       ENQUEUE_GAS_COST
@@ -156,7 +164,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', gasUsed)
+      printGasSavings(gasUsed, 1_616_390)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
@@ -204,7 +212,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', gasUsed)
+      printGasSavings(gasUsed, 1_787_052)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
@@ -262,14 +270,14 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', gasUsed)
+      printGasSavings(gasUsed, 2_099_387)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
         (gasUsed - fixedCalldataCost) / numTxs
       )
-      expectApprox(gasUsed, 1_293_111, { upperPercentDeviation: 0 })
+      expectApprox(gasUsed, 1_293_611, { upperPercentDeviation: 0 })
     }).timeout(10_000_000)
   })
 
