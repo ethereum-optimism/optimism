@@ -192,15 +192,6 @@ interface ICanonicalTransactionChain {
         external;
 
     /**
-     * Appends a given number of queued transactions as a single batch.
-     * @param _numQueuedTransactions Number of transactions to append.
-     */
-    function appendQueueBatch(
-        uint256 _numQueuedTransactions
-    )
-        external;
-
-    /**
      * Allows the sequencer to append a batch of transactions.
      * @dev This function uses a custom encoding scheme for efficiency reasons.
      * .param _shouldStartAtElement Specific batch we expect to start appending to.

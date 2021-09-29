@@ -14,8 +14,6 @@ import {
   NON_ZERO_ADDRESS,
   DUMMY_BATCH_HEADERS,
   DUMMY_BATCH_PROOFS,
-  FORCE_INCLUSION_PERIOD_SECONDS,
-  FORCE_INCLUSION_PERIOD_BLOCKS,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
   TrieTestGenerator,
@@ -100,8 +98,6 @@ describe('L1CrossDomainMessenger', () => {
     )
     CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
       AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS,
-      FORCE_INCLUSION_PERIOD_BLOCKS,
       MAX_GAS_LIMIT,
       L2_GAS_DISCOUNT_DIVISOR,
       ENQUEUE_GAS_COST

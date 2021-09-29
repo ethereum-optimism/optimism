@@ -6,8 +6,6 @@ import { smoddit } from '@eth-optimism/smock'
 /* Internal Imports */
 import {
   makeAddressManager,
-  FORCE_INCLUSION_PERIOD_SECONDS,
-  FORCE_INCLUSION_PERIOD_BLOCKS,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
   NON_ZERO_ADDRESS,
@@ -46,8 +44,6 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
       await ethers.getContractFactory('CanonicalTransactionChain')
     ).deploy(
       AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS,
-      FORCE_INCLUSION_PERIOD_BLOCKS,
       MAX_GAS_LIMIT,
       L2_GAS_DISCOUNT_DIVISOR,
       ENQUEUE_GAS_COST

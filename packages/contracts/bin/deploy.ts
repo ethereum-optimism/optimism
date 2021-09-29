@@ -31,10 +31,6 @@ const parseEnv = () => {
 
   return {
     l1BlockTimeSeconds: ensure('BLOCK_TIME_SECONDS', 'number'),
-    ctcForceInclusionPeriodSeconds: ensure(
-      'FORCE_INCLUSION_PERIOD_SECONDS',
-      'number'
-    ),
     ctcMaxTransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
     ctcL2GasDiscountDivisor: ensure('L2_GAS_DISCOUNT_DIVISOR', 'number'),
     ctcEnqueueGasCost: ensure('ENQUEUE_GAS_COST', 'number'),
@@ -51,7 +47,6 @@ const main = async () => {
 
   await hre.run('deploy', {
     l1BlockTimeSeconds: config.l1BlockTimeSeconds,
-    ctcForceInclusionPeriodSeconds: config.ctcForceInclusionPeriodSeconds,
     ctcMaxTransactionGasLimit: config.ctcMaxTransactionGasLimit,
     ctcL2GasDiscountDivisor: config.ctcL2GasDiscountDivisor,
     ctcEnqueueGasCost: config.ctcEnqueueGasCost,
