@@ -4,10 +4,6 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 /* Imports: Internal */
 import { getDeployedContract } from '../src/hardhat-deploy-ethers'
 import { predeploys } from '../src/predeploys'
-import { NON_ZERO_ADDRESS } from '../test/helpers/constants'
-import { getContractFactory } from '../src/contract-defs'
-
-import l1StandardBridgeJson from '../artifacts/contracts/L1/messaging/L1StandardBridge.sol/L1StandardBridge.json'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments
@@ -21,14 +17,31 @@ const deployFn: DeployFunction = async (hre) => {
     }
   )
 
-  const result = await deploy('Proxy__L1StandardBridge', {
+  // Deploy the Proxy
+  const resultProxyDeploy = await deploy('Proxy__L1StandardBridge', {
     contract: 'L1ChugSplashProxy',
     from: deployer,
     args: [deployer],
     log: true,
   })
 
-  if (!result.newlyDeployed) {
+  if (!resultProxyDeploy.newlyDeployed) {
+    return
+  }
+
+  // Deploy the L1 standard bridge implementation
+  const l1MessengerAddress = await Lib_AddressManager.getAddress(
+    'Proxy__L1CrossDomainMessenger'
+  )
+
+  const resultL1BridgeDeploy = await deploy('L1StandardBridge', {
+    contract: 'L1StandardBridge',
+    from: deployer,
+    args: [l1MessengerAddress, predeploys.L2StandardBridge],
+    log: true,
+  })
+
+  if (!resultL1BridgeDeploy.newlyDeployed) {
     return
   }
 
@@ -53,36 +66,34 @@ const deployFn: DeployFunction = async (hre) => {
   )
 
   // Set the implementation code
-  const bridgeCode = l1StandardBridgeJson.deployedBytecode
+  const bridgeCode = await hre.ethers.provider.getCode(resultL1BridgeDeploy.address)
   await Proxy__WithChugSplashInterface.setCode(bridgeCode)
 
-  // Set slot 0 to the L1 Messenger Address
-  const l1MessengerAddress = await Lib_AddressManager.getAddress(
-    'Proxy__L1CrossDomainMessenger'
-  )
+  // Clear Slot 0 which used to hold the L1 Messenger Address
   await Proxy__WithChugSplashInterface.setStorage(
     hre.ethers.constants.HashZero,
-    hre.ethers.utils.hexZeroPad(l1MessengerAddress, 32)
+    hre.ethers.utils.hexZeroPad(hre.ethers.constants.AddressZero, 32)
   )
-  // Verify that the slot was set correctly
+  // Clear Slot 1 which used to hold the L2 Standard Bridge Address
+  await Proxy__WithChugSplashInterface.setStorage(
+    hre.ethers.utils.hexZeroPad('0x01', 32),
+    hre.ethers.utils.hexZeroPad(hre.ethers.constants.AddressZero, 32)
+  )
+
+  // Verify the immutable messenger property is correct
   const l1MessengerStored =
     await Proxy__WithBridgeInterface.callStatic.messenger()
-  console.log('l1MessengerStored:', l1MessengerStored)
+
   if (l1MessengerStored !== l1MessengerAddress) {
     throw new Error(
       'L1 messenger address was not correctly set, check the key value used in setStorage'
     )
   }
 
-  // Set Slot 1 to the L2 Standard Bridge Address
-  await Proxy__WithChugSplashInterface.setStorage(
-    hre.ethers.utils.hexZeroPad('0x01', 32),
-    hre.ethers.utils.hexZeroPad(predeploys.L2StandardBridge, 32)
-  )
-  // Verify that the slot was set correctly
+  // Verify the immutable l2TokenBridge property is correct
   const l2TokenBridgeStored =
     await Proxy__WithBridgeInterface.callStatic.l2TokenBridge()
-  console.log('l2TokenBridgeStored:', l2TokenBridgeStored)
+
   if (l2TokenBridgeStored !== predeploys.L2StandardBridge) {
     throw new Error(
       'L2 bridge address was not correctly set, check the key value used in setStorage'
@@ -94,7 +105,7 @@ const deployFn: DeployFunction = async (hre) => {
   await Proxy__WithChugSplashInterface.setOwner(addressManagerOwner)
 
   // Todo: remove this after adding chugsplash proxy
-  await Lib_AddressManager.setAddress('Proxy__L1StandardBridge', result.address)
+  await Lib_AddressManager.setAddress('Proxy__L1StandardBridge', resultProxyDeploy.address)
 }
 
 deployFn.dependencies = ['Lib_AddressManager', 'L1StandardBridge']
