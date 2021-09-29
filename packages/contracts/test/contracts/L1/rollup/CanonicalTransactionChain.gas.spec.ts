@@ -81,13 +81,8 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
   let CanonicalTransactionChain: Contract
   beforeEach(async () => {
-    // Use a larger FIP for blocks so that we can send a large number of
-    // enqueue() transactions without having to manipulate the block number.
-    const forceInclusionPeriodBlocks = 101
     CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
       AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS,
-      forceInclusionPeriodBlocks,
       MAX_GAS_LIMIT,
       L2_GAS_DISCOUNT_DIVISOR,
       ENQUEUE_GAS_COST
@@ -269,7 +264,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (gasUsed - fixedCalldataCost) / numTxs
       )
-      expectApprox(gasUsed, 1_293_111, { upperPercentDeviation: 0 })
+      expectApprox(gasUsed, 1_293_611, { upperPercentDeviation: 0 })
     }).timeout(10_000_000)
   })
 
