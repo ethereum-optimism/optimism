@@ -4,7 +4,6 @@ import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
 
 const DEFAULT_L1_BLOCK_TIME_SECONDS = 15
-const DEFAULT_CTC_FORCE_INCLUSION_PERIOD_SECONDS = 60 * 60 * 24 * 30 // 30 days
 const DEFAULT_CTC_MAX_TRANSACTION_GAS_LIMIT = 11_000_000
 const DEFAULT_CTC_L2_GAS_DISCOUNT_DIVISOR = 32
 const DEFAULT_CTC_ENQUEUE_GAS_COST = 60_000
@@ -16,12 +15,6 @@ task('deploy')
     'l1BlockTimeSeconds',
     'Number of seconds on average between every L1 block.',
     DEFAULT_L1_BLOCK_TIME_SECONDS,
-    types.int
-  )
-  .addOptionalParam(
-    'ctcForceInclusionPeriodSeconds',
-    'Number of seconds that the sequencer has to include transactions before the L1 queue.',
-    DEFAULT_CTC_FORCE_INCLUSION_PERIOD_SECONDS,
     types.int
   )
   .addOptionalParam(
@@ -90,10 +83,6 @@ task('deploy')
     validateAddressArg('ovmSequencerAddress')
     validateAddressArg('ovmProposerAddress')
     validateAddressArg('ovmAddressManagerOwner')
-
-    args.ctcForceInclusionPeriodBlocks = Math.floor(
-      args.ctcForceInclusionPeriodSeconds / args.l1BlockTimeSeconds
-    )
 
     hre.deployConfig = args
     return runSuper(args)

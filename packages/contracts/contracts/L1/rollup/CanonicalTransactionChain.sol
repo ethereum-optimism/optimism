@@ -20,8 +20,6 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * writing them to the 'CTC:batches' instance of the Chain Storage Container.
  * The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the
  * Sequencer will eventually append it to the rollup state.
- * If the Sequencer does not include an enqueued transaction within the 'force inclusion period',
- * then any account may force it to be included by calling appendQueueBatch().
  *
  * Runtime target: EVM
  */
@@ -50,8 +48,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Variables *
      *************/
 
-    uint256 public forceInclusionPeriodSeconds;
-    uint256 public forceInclusionPeriodBlocks;
     uint256 public maxTransactionGasLimit;
 
 
@@ -61,16 +57,12 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
     constructor(
         address _libAddressManager,
-        uint256 _forceInclusionPeriodSeconds,
-        uint256 _forceInclusionPeriodBlocks,
         uint256 _maxTransactionGasLimit,
         uint256 _l2GasDiscountDivisor,
         uint256 _enqueueGasCost
     )
         Lib_AddressResolver(_libAddressManager)
     {
-        forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
-        forceInclusionPeriodBlocks = _forceInclusionPeriodBlocks;
         maxTransactionGasLimit = _maxTransactionGasLimit;
         L2_GAS_DISCOUNT_DIVISOR = _l2GasDiscountDivisor;
         ENQUEUE_GAS_COST  = _enqueueGasCost;
@@ -250,7 +242,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         uint256 _gasLimit,
         bytes memory _data
     )
-        public
+        external
     {
         require(
             _data.length <= MAX_ROLLUP_TX_SIZE,
@@ -326,59 +318,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     }
 
     /**
-     * Appends a given number of queued transactions as a single batch.
-     * param _numQueuedTransactions Number of transactions to append.
-     */
-    function appendQueueBatch(
-        uint256 // _numQueuedTransactions
-    )
-        public
-        pure
-    {
-        // TEMPORARY: Disable `appendQueueBatch` for minnet
-        revert("appendQueueBatch is currently disabled.");
-
-        // solhint-disable max-line-length
-        // _numQueuedTransactions = Math.min(_numQueuedTransactions, getNumPendingQueueElements());
-        // require(
-        //     _numQueuedTransactions > 0,
-        //     "Must append more than zero transactions."
-        // );
-
-        // bytes32[] memory leaves = new bytes32[](_numQueuedTransactions);
-        // uint40 nextQueueIndex = getNextQueueIndex();
-
-        // for (uint256 i = 0; i < _numQueuedTransactions; i++) {
-        //     if (msg.sender != resolve("OVM_Sequencer")) {
-        //         Lib_OVMCodec.QueueElement memory el = getQueueElement(nextQueueIndex);
-        //         require(
-        //             el.timestamp + forceInclusionPeriodSeconds < block.timestamp,
-        //             "Queue transactions cannot be submitted during the sequencer inclusion period."
-        //         );
-        //     }
-        //     leaves[i] = _getQueueLeafHash(nextQueueIndex);
-        //     nextQueueIndex++;
-        // }
-
-        // Lib_OVMCodec.QueueElement memory lastElement = getQueueElement(nextQueueIndex - 1);
-
-        // _appendBatch(
-        //     Lib_MerkleTree.getMerkleRoot(leaves),
-        //     _numQueuedTransactions,
-        //     _numQueuedTransactions,
-        //     lastElement.timestamp,
-        //     lastElement.blockNumber
-        // );
-
-        // emit QueueBatchAppended(
-        //     nextQueueIndex - _numQueuedTransactions,
-        //     _numQueuedTransactions,
-        //     getTotalElements()
-        // );
-        // solhint-enable max-line-length
-    }
-
-    /**
      * Allows the sequencer to append a batch of transactions.
      * @dev This function uses a custom encoding scheme for efficiency reasons.
      * .param _shouldStartAtElement Specific batch we expect to start appending to.
@@ -387,7 +326,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * .param _transactionDataFields Array of raw transaction data.
      */
     function appendSequencerBatch()
-        public
+        external
     {
         uint40 shouldStartAtElement;
         uint24 totalElementsToAppend;
@@ -540,7 +479,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _inclusionProof
     )
-        public
+        external
         view
         returns (
             bool
