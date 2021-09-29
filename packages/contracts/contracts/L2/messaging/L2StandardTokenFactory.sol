@@ -2,7 +2,7 @@
 pragma solidity ^0.8.8;
 
 /* Contract Imports */
-import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
+import { L2StandardERC20 } from "../../standards/L2StandardERC20.sol";
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /**
