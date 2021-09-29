@@ -74,98 +74,11 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_L2CrossDomainMessenger'),
       params: [AddressManager.address],
     },
-    OVM_L1CrossDomainMessenger: {
-      factory: getContractFactory('OVM_L1CrossDomainMessenger'),
-      params: [],
-      afterDeploy: async (contracts): Promise<void> => {
-        if (config.l1CrossDomainMessengerConfig.relayerAddress) {
-          const relayer = config.l1CrossDomainMessengerConfig.relayerAddress
-          const address =
-            typeof relayer === 'string' ? relayer : await relayer.getAddress()
-          await _sendTx(
-            AddressManager.setAddress('OVM_L2MessageRelayer', address)
-          )
-        }
-      },
-    },
-    Proxy__OVM_L1CrossDomainMessenger: {
-      factory: getContractFactory('Lib_ResolvedDelegateProxy'),
-      params: [AddressManager.address, 'OVM_L1CrossDomainMessenger'],
-      afterDeploy: async (contracts): Promise<void> => {
-        const xDomainMessenger = getContractFactory(
-          'OVM_L1CrossDomainMessenger'
-        )
-          .connect(config.deploymentSigner)
-          .attach(contracts.Proxy__OVM_L1CrossDomainMessenger.address)
-        await _sendTx(
-          xDomainMessenger.initialize(
-            AddressManager.address,
-            config.deployOverrides
-          )
-        )
-        await _sendTx(
-          AddressManager.setAddress(
-            'OVM_L2CrossDomainMessenger',
-            config.ovmGlobalContext.L2CrossDomainMessengerAddress,
-            config.deployOverrides
-          )
-        )
-      },
-    },
-    OVM_L1StandardBridge: {
-      factory: getContractFactory('OVM_L1StandardBridge'),
-      params: [],
-    },
-    Proxy__OVM_L1StandardBridge: {
-      factory: getContractFactory('Lib_ResolvedDelegateProxy'),
-      params: [AddressManager.address, 'OVM_L1StandardBridge'],
-    },
     OVM_L2StandardBridge: {
       factory: getContractFactory('OVM_L2StandardBridge'),
       params: [
         predeploys.OVM_L2CrossDomainMessenger,
         constants.AddressZero, // we'll set this to the L1 Bridge address in genesis.go
-      ],
-    },
-    OVM_L1MultiMessageRelayer: {
-      factory: getContractFactory('OVM_L1MultiMessageRelayer'),
-      params: [AddressManager.address],
-    },
-    OVM_CanonicalTransactionChain: {
-      factory: getContractFactory('OVM_CanonicalTransactionChain'),
-      params: [
-        AddressManager.address,
-        config.transactionChainConfig.forceInclusionPeriodSeconds,
-        config.transactionChainConfig.forceInclusionPeriodBlocks,
-        config.ovmGasMeteringConfig.maxTransactionGasLimit,
-      ],
-      afterDeploy: async (): Promise<void> => {
-        const sequencer = config.transactionChainConfig.sequencer
-        const sequencerAddress =
-          typeof sequencer === 'string'
-            ? sequencer
-            : await sequencer.getAddress()
-        await _sendTx(
-          AddressManager.setAddress(
-            'OVM_DecompressionPrecompileAddress',
-            predeploys.OVM_SequencerEntrypoint
-          )
-        )
-        await _sendTx(
-          AddressManager.setAddress('OVM_Sequencer', sequencerAddress)
-        )
-        await _sendTx(
-          AddressManager.setAddress('OVM_Proposer', sequencerAddress)
-        )
-        await _sendTx(AddressManager.setAddress('Sequencer', sequencerAddress))
-      },
-    },
-    OVM_StateCommitmentChain: {
-      factory: getContractFactory('OVM_StateCommitmentChain'),
-      params: [
-        AddressManager.address,
-        config.stateChainConfig.fraudProofWindowSeconds,
-        config.stateChainConfig.sequencerPublishWindowSeconds,
       ],
     },
     OVM_DeployerWhitelist: {
@@ -204,46 +117,15 @@ export const makeContractDeployConfig = async (
         )
       },
     },
-    OVM_StateManagerFactory: {
-      factory: getContractFactory('OVM_StateManagerFactory'),
-      params: [],
-    },
-    OVM_FraudVerifier: {
-      factory: getContractFactory('OVM_FraudVerifier'),
-      params: [AddressManager.address],
-    },
-    OVM_StateTransitionerFactory: {
-      factory: getContractFactory('OVM_StateTransitionerFactory'),
-      params: [AddressManager.address],
-    },
     OVM_ECDSAContractAccount: {
       factory: getContractFactory('OVM_ECDSAContractAccount', undefined, true),
     },
     OVM_SequencerEntrypoint: {
       factory: getContractFactory('OVM_SequencerEntrypoint', undefined, true),
     },
-    OVM_BondManager: {
-      factory: getContractFactory('mockOVM_BondManager'),
-      params: [AddressManager.address],
-    },
     OVM_ETH: {
       factory: getContractFactory('OVM_ETH'),
       params: [],
-    },
-    'OVM_ChainStorageContainer-CTC-batches': {
-      factory: getContractFactory('OVM_ChainStorageContainer'),
-      params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
-    },
-    'OVM_ChainStorageContainer-CTC-queue': {
-      factory: getContractFactory('OVM_ChainStorageContainer'),
-      params: [AddressManager.address, 'OVM_CanonicalTransactionChain'],
-    },
-    'OVM_ChainStorageContainer-SCC-batches': {
-      factory: getContractFactory('OVM_ChainStorageContainer'),
-      params: [AddressManager.address, 'OVM_StateCommitmentChain'],
-    },
-    ERC1820Registry: {
-      factory: getContractFactory('ERC1820Registry'),
     },
     OVM_ProxyEOA: {
       factory: getContractFactory('OVM_ProxyEOA', undefined, true),
