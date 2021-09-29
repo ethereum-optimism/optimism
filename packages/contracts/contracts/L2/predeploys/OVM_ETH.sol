@@ -5,7 +5,7 @@ pragma solidity ^0.8.8;
 import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
-import { L2StandardERC20 } from "../../libraries/standards/L2StandardERC20.sol";
+import { L2StandardERC20 } from "../../standards/L2StandardERC20.sol";
 
 /**
  * @title OVM_ETH
