@@ -143,7 +143,18 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
       )
 
       const receipt = await res.wait()
-      console.log('    - Gas used:', receipt.gasUsed.toNumber())
+      const gasUsed = receipt.gasUsed.toNumber()
+      const regenesis040Cost = 196_128
+      console.log('    - Gas used:', gasUsed)
+      console.log(
+        '    - Absolute savings vs regenesis/0.4.0:',
+        regenesis040Cost - gasUsed
+      )
+      console.log(
+        '    - Relative savings vs regenesis/0.4.0:',
+        (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) +
+          '%'
+      )
       // Sanity check that the message was enqueued.
       expect(await CanonicalTransactionChain.getQueueLength()).to.equal(2)
     })
@@ -163,7 +174,19 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
       )
 
       const receipt = await res.wait()
-      console.log('    - Gas used:', receipt.gasUsed.toNumber())
+      const gasUsed = receipt.gasUsed.toNumber()
+      const regenesis040Cost = 244_358
+      console.log('    - Gas used:', gasUsed)
+      console.log(
+        '    - Absolute savings vs regenesis/0.4.0:',
+        regenesis040Cost - gasUsed
+      )
+      console.log(
+        '    - Relative savings vs regenesis/0.4.0:',
+        (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) +
+          '%'
+      )
+
       // Sanity check that the message was enqueued.
       expect(await CanonicalTransactionChain.getQueueLength()).to.equal(3)
     })
