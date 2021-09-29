@@ -17,17 +17,12 @@ import _ from 'lodash'
 import {
   makeAddressManager,
   setProxyTarget,
-  FORCE_INCLUSION_PERIOD_SECONDS,
-  FORCE_INCLUSION_PERIOD_BLOCKS,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
   setEthTime,
   NON_ZERO_ADDRESS,
   getEthTime,
   getNextBlockNumber,
-  increaseEthTime,
-  getBlockTime,
-  mineBlock,
 } from '../../../helpers'
 import { predeploys } from '../../../../src'
 
@@ -132,8 +127,6 @@ describe('CanonicalTransactionChain', () => {
   beforeEach(async () => {
     CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
       AddressManager.address,
-      FORCE_INCLUSION_PERIOD_SECONDS,
-      FORCE_INCLUSION_PERIOD_BLOCKS,
       MAX_GAS_LIMIT,
       L2_GAS_DISCOUNT_DIVISOR,
       ENQUEUE_GAS_COST
@@ -424,89 +417,6 @@ describe('CanonicalTransactionChain', () => {
     })
   })
 
-  describe('appendQueueBatch disabled', () => {
-    it('should revert', async () => {
-      await expect(
-        CanonicalTransactionChain.appendQueueBatch(0)
-      ).to.be.revertedWith('appendQueueBatch is currently disabled.')
-    })
-  })
-
-  describe.skip('appendQueueBatch', () => {
-    it('should revert if trying to append zero transactions', async () => {
-      await expect(
-        CanonicalTransactionChain.appendQueueBatch(0)
-      ).to.be.revertedWith('Must append more than zero transactions.')
-    })
-
-    it('should revert if the queue is empty', async () => {
-      await expect(
-        CanonicalTransactionChain.appendQueueBatch(1)
-      ).to.be.revertedWith('Must append more than zero transactions.')
-    })
-
-    describe('when the queue is not empty', () => {
-      const target = NON_ZERO_ADDRESS
-      const gasLimit = 500_000
-      const data = '0x' + '12'.repeat(1234)
-
-      for (const size of ELEMENT_TEST_SIZES) {
-        describe(`when the queue has ${size} elements`, () => {
-          beforeEach(async () => {
-            for (let i = 0; i < size; i++) {
-              await CanonicalTransactionChain.enqueue(target, gasLimit, data)
-            }
-          })
-
-          describe('when the sequencer inclusion period has not passed', () => {
-            it('should revert if not called by the sequencer', async () => {
-              await expect(
-                CanonicalTransactionChain.connect(signer).appendQueueBatch(1)
-              ).to.be.revertedWith(
-                'Queue transactions cannot be submitted during the sequencer inclusion period.'
-              )
-            })
-
-            it('should succeed if called by the sequencer', async () => {
-              await expect(
-                CanonicalTransactionChain.connect(sequencer).appendQueueBatch(1)
-              )
-                .to.emit(CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, 1, 1)
-            })
-          })
-
-          describe('when the sequencer inclusion period has passed', () => {
-            beforeEach(async () => {
-              await increaseEthTime(
-                ethers.provider,
-                FORCE_INCLUSION_PERIOD_SECONDS * 2
-              )
-            })
-
-            it('should be able to append a single element', async () => {
-              await expect(CanonicalTransactionChain.appendQueueBatch(1))
-                .to.emit(CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, 1, 1)
-            })
-
-            it(`should be able to append ${size} elements`, async () => {
-              await expect(CanonicalTransactionChain.appendQueueBatch(size))
-                .to.emit(CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, size, size)
-            })
-
-            it(`should be able to append ${size} elements even if attempting to append ${size} + 1 elements`, async () => {
-              await expect(CanonicalTransactionChain.appendQueueBatch(size + 1))
-                .to.emit(CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, size, size)
-            })
-          })
-        })
-      }
-    })
-  })
-
   describe('verifyTransaction', () => {
     it('should successfully verify against a valid queue transaction appended by the sequencer', async () => {
       const entrypoint = NON_ZERO_ADDRESS
@@ -576,7 +486,6 @@ describe('CanonicalTransactionChain', () => {
       await CanonicalTransactionChain.enqueue(entrypoint, gasLimit, data)
 
       const blockNumber = await ethers.provider.getBlockNumber()
-      await increaseEthTime(ethers.provider, FORCE_INCLUSION_PERIOD_SECONDS * 2)
 
       await CanonicalTransactionChain.appendQueueBatch(1)
 
