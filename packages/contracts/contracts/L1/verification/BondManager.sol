@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Interface Imports */
 import { IBondManager } from "./IBondManager.sol";
@@ -28,7 +28,6 @@ contract BondManager is IBondManager, Lib_AddressResolver {
         address _who,
         uint256 _gasSpent
     )
-        override
         public
     {}
 
@@ -37,36 +36,30 @@ contract BondManager is IBondManager, Lib_AddressResolver {
         address _publisher,
         uint256 _timestamp
     )
-        override
         public
     {}
 
     function deposit()
-        override
         public
     {}
 
     function startWithdrawal()
-        override
         public
     {}
 
     function finalizeWithdrawal()
-        override
         public
     {}
 
     function claim(
         address _who
     )
-        override
         public
     {}
 
     function isCollateralized(
         address _who
     )
-        override
         public
         view
         returns (
@@ -81,7 +74,6 @@ contract BondManager is IBondManager, Lib_AddressResolver {
         bytes32 _preStateRoot,
         address _who
     )
-        override
         public
         pure
         returns (

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import "./IL2StandardERC20.sol";
 
 contract L2StandardERC20 is IL2StandardERC20, ERC20 {
-    address public override l1Token;
+    address public l1Token;
     address public l2Bridge;
 
     /**
@@ -31,7 +31,7 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         _;
     }
 
-    function supportsInterface(bytes4 _interfaceId) public override pure returns (bool) {
+    function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
         bytes4 secondSupportedInterface = IL2StandardERC20.l1Token.selector
             ^ IL2StandardERC20.mint.selector
@@ -39,13 +39,13 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 
-    function mint(address _to, uint256 _amount) public virtual override onlyL2Bridge {
+    function mint(address _to, uint256 _amount) public virtual onlyL2Bridge {
         _mint(_to, _amount);
 
         emit Mint(_to, _amount);
     }
 
-    function burn(address _from, uint256 _amount) public virtual override onlyL2Bridge {
+    function burn(address _from, uint256 _amount) public virtual onlyL2Bridge {
         _burn(_from, _amount);
 
         emit Burn(_from, _amount);

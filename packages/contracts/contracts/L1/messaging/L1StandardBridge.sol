@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Interface Imports */
 import { IL1StandardBridge } from "./IL1StandardBridge.sol";
@@ -28,7 +28,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      * External Contract References *
      ********************************/
 
-    address public override l2TokenBridge;
+    address public l2TokenBridge;
 
     // Maps L1 token to L2 token to balance of the L1 token deposited
     mapping(address => mapping (address => uint256)) public deposits;
@@ -101,7 +101,6 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         payable
         onlyEOA()
     {
@@ -122,7 +121,6 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         payable
     {
         _initiateETHDeposit(
@@ -184,7 +182,6 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         virtual
         onlyEOA()
     {
@@ -203,7 +200,6 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         virtual
     {
         _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, _to, _amount, _l2Gas, _data);
@@ -280,7 +276,6 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         onlyFromCrossDomainAccount(l2TokenBridge)
     {
         (bool success, ) = _to.call{value: _amount}(new bytes(0));
@@ -301,7 +296,6 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     )
         external
-        override
         onlyFromCrossDomainAccount(l2TokenBridge)
     {
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token] - _amount;

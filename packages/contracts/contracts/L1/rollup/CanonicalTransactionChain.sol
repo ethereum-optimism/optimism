@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
@@ -87,7 +87,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return Reference to the batch storage container.
      */
     function batches()
-        override
         public
         view
         returns (
@@ -104,7 +103,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return Reference to the queue storage container.
      */
     function queue()
-        override
         public
         view
         returns (
@@ -121,7 +119,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return _totalElements Total submitted elements.
      */
     function getTotalElements()
-        override
         public
         view
         returns (
@@ -137,7 +134,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return _totalBatches Total submitted batches.
      */
     function getTotalBatches()
-        override
         public
         view
         returns (
@@ -152,7 +148,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return Index for the next queue element.
      */
     function getNextQueueIndex()
-        override
         public
         view
         returns (
@@ -168,7 +163,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return Timestamp for the last transaction.
      */
     function getLastTimestamp()
-        override
         public
         view
         returns (
@@ -184,7 +178,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return Blocknumber for the last transaction.
      */
     function getLastBlockNumber()
-        override
         public
         view
         returns (
@@ -203,7 +196,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     function getQueueElement(
         uint256 _index
     )
-        override
         public
         view
         returns (
@@ -221,7 +213,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return Number of pending queue elements.
      */
     function getNumPendingQueueElements()
-        override
         public
         view
         returns (
@@ -237,7 +228,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return Length of the queue.
      */
     function getQueueLength()
-        override
         public
         view
         returns (
@@ -260,7 +250,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         uint256 _gasLimit,
         bytes memory _data
     )
-        override
         public
     {
         require(
@@ -343,7 +332,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     function appendQueueBatch(
         uint256 // _numQueuedTransactions
     )
-        override
         public
         pure
     {
@@ -399,7 +387,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * .param _transactionDataFields Array of raw transaction data.
      */
     function appendSequencerBatch()
-        override
         public
     {
         uint40 shouldStartAtElement;
@@ -553,7 +540,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _inclusionProof
     )
-        override
         public
         view
         returns (

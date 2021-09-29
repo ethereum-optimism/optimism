@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Library Imports */
 import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
@@ -54,7 +54,6 @@ contract L2CrossDomainMessenger is
 
     function xDomainMessageSender()
         public
-        override
         view
         returns (
             address
@@ -75,7 +74,6 @@ contract L2CrossDomainMessenger is
         bytes memory _message,
         uint32 _gasLimit
     )
-        override
         public
     {
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
@@ -103,7 +101,6 @@ contract L2CrossDomainMessenger is
         bytes memory _message,
         uint256 _messageNonce
     )
-        override
         nonReentrant
         public
     {

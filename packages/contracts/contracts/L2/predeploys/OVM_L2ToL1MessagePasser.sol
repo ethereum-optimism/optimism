@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Interface Imports */
 import { iOVM_L2ToL1MessagePasser } from "./iOVM_L2ToL1MessagePasser.sol";
@@ -30,7 +30,6 @@ contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
     function passMessageToL1(
         bytes memory _message
     )
-        override
         public
     {
         // Note: although this function is public, only messages sent from the

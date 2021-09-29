@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.8;
 
 /* Library Imports */
 import { Lib_Buffer } from "../../libraries/utils/Lib_Buffer.sol";
@@ -79,7 +79,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
     function setGlobalMetadata(
         bytes27 _globalMetadata
     )
-        override
         public
         onlyOwner
     {
@@ -90,7 +89,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
      * @inheritdoc IChainStorageContainer
      */
     function getGlobalMetadata()
-        override
         public
         view
         returns (
@@ -104,7 +102,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
      * @inheritdoc IChainStorageContainer
      */
     function length()
-        override
         public
         view
         returns (
@@ -120,7 +117,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
     function push(
         bytes32 _object
     )
-        override
         public
         onlyOwner
     {
@@ -134,7 +130,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
         bytes32 _object,
         bytes27 _globalMetadata
     )
-        override
         public
         onlyOwner
     {
@@ -147,7 +142,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
     function get(
         uint256 _index
     )
-        override
         public
         view
         returns (
@@ -163,7 +157,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
     function deleteElementsAfterInclusive(
         uint256 _index
     )
-        override
         public
         onlyOwner
     {
@@ -179,7 +172,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
         uint256 _index,
         bytes27 _globalMetadata
     )
-        override
         public
         onlyOwner
     {
