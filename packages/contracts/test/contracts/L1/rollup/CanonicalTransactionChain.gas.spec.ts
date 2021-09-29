@@ -6,6 +6,7 @@ import {
   AppendSequencerBatchParams,
   BatchContext,
   encodeAppendSequencerBatch,
+  expectApprox,
 } from '@eth-optimism/core-utils'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { keccak256 } from 'ethers/lib/utils'
@@ -152,14 +153,22 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       })
 
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
-        (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
+        (gasUsed - fixedCalldataCost) / numTxs
       )
+      expectApprox(gasUsed, 1_767_570, {
+        upperPercentDeviation: 0,
+        // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
+        // contracts are too efficient, consider updating the target value!
+        lowerPercentDeviation: 1,
+      })
     }).timeout(10_000_000)
 
     it('200 transactions in 200 contexts', async () => {
@@ -192,14 +201,22 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       })
 
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
-        (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
+        (gasUsed - fixedCalldataCost) / numTxs
       )
+      expectApprox(gasUsed, 1_950_378, {
+        upperPercentDeviation: 0,
+        // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
+        // contracts are too efficient, consider updating the target value!
+        lowerPercentDeviation: 1,
+      })
     }).timeout(10_000_000)
 
     it('100 Sequencer transactions and 100 Queue transactions in 100 contexts', async () => {
@@ -242,14 +259,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       })
 
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
-        (receipt.gasUsed.toNumber() - fixedCalldataCost) / numTxs
+        (gasUsed - fixedCalldataCost) / numTxs
       )
+      expectApprox(gasUsed, 1_293_111, { upperPercentDeviation: 0 })
     }).timeout(10_000_000)
   })
 
@@ -272,9 +292,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         data
       )
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
+      expectApprox(gasUsed, 219_896, {
+        upperPercentDeviation: 0,
+        // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
+        // contracts are too efficient, consider updating the target value!
+        lowerPercentDeviation: 1,
+      })
     })
 
     it('cost to enqueue a transaction below the prepaid threshold', async () => {
@@ -286,9 +314,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         data
       )
       const receipt = await res.wait()
+      const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', receipt.gasUsed.toNumber())
+      console.log('Gas used:', gasUsed)
+
+      expectApprox(gasUsed, 158_709, {
+        upperPercentDeviation: 0,
+        // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
+        // contracts are too efficient, consider updating the target value!
+        lowerPercentDeviation: 1,
+      })
     })
   })
 })
