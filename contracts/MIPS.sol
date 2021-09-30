@@ -24,6 +24,7 @@ contract MIPS {
   IMIPSMemory public immutable m;
 
   uint32 constant public REG_OFFSET = 0xc0000000;
+  uint32 constant public REG_ZERO = REG_OFFSET;
   uint32 constant public REG_PC = REG_OFFSET + 0x20*4;
   uint32 constant public REG_HI = REG_OFFSET + 0x21*4;
   uint32 constant public REG_LO = REG_OFFSET + 0x22*4;
@@ -67,7 +68,7 @@ contract MIPS {
     // decode
 
     // register fetch
-    uint32 storeAddr = 0xFFFFFFFF;
+    uint32 storeAddr = REG_ZERO;
     uint32 rs;
     uint32 rt;
     if (opcode != 2 && opcode != 3) {   // J-type: j and jal have no register fetch
@@ -169,8 +170,14 @@ contract MIPS {
       storeAddr = REG_PC;
     }
 
+    if (opcode == 0 && func == 0xa) { // movz
+      if (rt != 0) storeAddr = REG_ZERO;
+    } else if (opcode == 0 && func == 0xb) { // movn
+      if (rt == 0) storeAddr = REG_ZERO;
+    }
+
     // write back
-    if (storeAddr != 0xFFFFFFFF) {
+    if (storeAddr != REG_ZERO) {
       // does this ever not happen? yes, on untaken beq/bne
       stateHash = m.WriteMemory(stateHash, storeAddr, val);
     }
