@@ -38,12 +38,17 @@ contract MIPS {
   }
 
   function SE(uint32 dat, uint32 idx) internal pure returns (uint32) {
-    if (idx == 16) {
+    bool isSigned = (dat >> (idx-1)) != 0;
+    uint256 signed = ((1 << (32-idx)) - 1) << idx;
+    uint256 mask = (1 << idx) - 1;
+    return uint32(dat&mask | (isSigned ? signed : 0));
+
+    /*if (idx == 16) {
       return dat&0xFFFF | (dat&0x8000 != 0 ? 0xFFFF0000 : 0);
     } else if (idx == 8) {
       return dat&0xFF | (dat&0x80 != 0 ? 0xFFFFFF00 : 0);
     }
-    return dat;
+    return dat;*/
   }
 
   // will revert if any required input state is missing
@@ -146,10 +151,10 @@ contract MIPS {
       // Shift and ShiftV
       if (func == 0x00) { return rt << shamt;      // sll
       } else if (func == 0x02) { return rt >> shamt;      // srl
-      } else if (func == 0x03) { return rt >> shamt;      // sra
+      } else if (func == 0x03) { return SE(rt >> shamt, 32-shamt);      // sra
       } else if (func == 0x04) { return rt << rs;         // sllv
       } else if (func == 0x06) { return rt >> rs;         // srlv
-      } else if (func == 0x07) { return rt >> rs;         // srav
+      } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
       } else if (func == 0x08) { return rs;               // jr
       } else if (func == 0x09) { return rs;               // jalr
       // 0x10-0x13 = mfhi, mthi, mflo, mtlo
