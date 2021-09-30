@@ -75,11 +75,14 @@ def start_instrumenting():
 tfd = 10
 files = {}
 fcnt = 0
+step = 0
 def hook_interrupt(uc, intno, user_data):
-  global heap_start, fcnt, files, tfd
+  global heap_start, fcnt, files, tfd, step
   pc = uc.reg_read(UC_MIPS_REG_PC)
   if intno == 17:
     syscall_no = uc.reg_read(UC_MIPS_REG_V0)
+    #print("step:%d pc:%0x v0:%d" % (step, pc, syscall_no))
+    step += 1
     uc.reg_write(UC_MIPS_REG_V0, 0)
     uc.reg_write(UC_MIPS_REG_A3, 0)
 

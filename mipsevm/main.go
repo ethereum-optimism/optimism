@@ -94,6 +94,7 @@ type jsoncontract struct {
 //var ram []byte
 //var regs [4096]byte
 
+var pcCount int = 0
 var debug int = 0
 var ram map[uint64](uint32)
 
@@ -123,7 +124,8 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
 		}
 		if addr == 0xc0000080 && debug >= 1 {
-			fmt.Printf("PC %x\n", nret)
+			fmt.Printf("%7d: PC %x\n", pcCount, nret)
+			pcCount += 1
 		}
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	} else if args[0] == 184 {
@@ -144,7 +146,40 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 	return common.Hash{}.Bytes(), nil
 }
 
-func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte) {
+func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
+	ram = make(map[uint64](uint32))
+	dat, _ := ioutil.ReadFile(fn)
+	for i := 0; i < len(dat); i += 4 {
+		ram[uint64(i)] = uint32(dat[i])<<24 |
+			uint32(dat[i+1])<<16 |
+			uint32(dat[i+2])<<8 |
+			uint32(dat[i+3])<<0
+	}
+
+	steps := 100000
+	gas := 10000 * uint64(steps)
+
+	// 0xdb7df598
+	from := common.Address{}
+	to := common.HexToAddress("0x1337")
+	input := []byte{0xdb, 0x7d, 0xf5, 0x98} // Steps(bytes32, uint256)
+	input = append(input, common.BigToHash(common.Big0).Bytes()...)
+	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
+
+	debug = 1
+	for i := 0; i < 1; i++ {
+		contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
+		contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
+		_, err := interpreter.Run(contract, input, false)
+		fmt.Printf("step:%d pc:0x%x v0:%d ", i, ram[0xc0000080], ram[0xc0000008])
+		fmt.Println(err)
+
+		ram[0xc0000008] = 0
+		ram[0xc0000000+7*4] = 0
+	}
+}
+
+func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) {
 	ram = make(map[uint64](uint32))
 	ram[0xC000007C] = 0xDEAD0000
 	//fmt.Println("starting", fn)
@@ -162,7 +197,7 @@ func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []by
 	input := []byte{0xdb, 0x7d, 0xf5, 0x98} // Steps(bytes32, uint256)
 	input = append(input, common.BigToHash(common.Big0).Bytes()...)
 	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
-	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, 1000000)
+	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
 	//fmt.Println(bytecodehash, bytecode)
 	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
 
@@ -222,11 +257,13 @@ func main() {
 
 	if len(os.Args) > 1 {
 		if os.Args[1] == "/tmp/minigeth.bin" {
-			debug = 1
-			runTest(os.Args[1], 20, interpreter, bytecode)
+			/*debug = 1
+			steps := 1000000
+			runTest(os.Args[1], steps, interpreter, bytecode, uint64(steps)*10000)*/
+			runMinigeth(os.Args[1], interpreter, bytecode)
 		} else {
 			debug = 2
-			runTest(os.Args[1], 20, interpreter, bytecode)
+			runTest(os.Args[1], 20, interpreter, bytecode, 1000000)
 		}
 	} else {
 		files, err := ioutil.ReadDir("test/bin")
@@ -234,7 +271,7 @@ func main() {
 			log.Fatal(err)
 		}
 		for _, f := range files {
-			runTest("test/bin/"+f.Name(), 100, interpreter, bytecode)
+			runTest("test/bin/"+f.Name(), 100, interpreter, bytecode, 1000000)
 		}
 	}
 

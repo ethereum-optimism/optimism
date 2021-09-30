@@ -66,6 +66,7 @@ contract MIPS {
     return stepNextPC(stateHash, pc, pc+4);
   }
 
+  // TODO: test ll and sc
   function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) public view returns (bytes32) {
     uint32 insn = m.ReadMemory(stateHash, pc);
     uint32 opcode = insn >> 26; // 6-bits
@@ -194,6 +195,7 @@ contract MIPS {
       }
     }
 
+
     // write back
     if (storeAddr != REG_ZERO) {
       stateHash = m.WriteMemory(stateHash, storeAddr, val);
@@ -204,6 +206,11 @@ contract MIPS {
     }
 
     stateHash = m.WriteMemory(stateHash, REG_PC, uint32(nextPC));
+
+    if (opcode == 0 && func == 0xC) {
+      revert("unhandled syscall");
+    }
+
     return stateHash;
   }
 
@@ -261,7 +268,7 @@ contract MIPS {
       uint32 val = mem << ((rs&3)*8);
       uint32 mask = uint32(0xFFFFFFFF) << ((rs&3)*8);
       return (rt & ~mask) | val;
-    } else if (opcode == 0x23) { return mem;   // lw
+    } else if (opcode == 0x23 || opcode == 0x30) { return mem;   // lw (or ll)
     } else if (opcode == 0x24) {  // lbu
       return (mem >> (24-(rs&3)*8)) & 0xFF;
     } else if (opcode == 0x25) {  // lhu
@@ -282,7 +289,7 @@ contract MIPS {
       uint32 val = rt >> ((rs&3)*8);
       uint32 mask = uint32(0xFFFFFFFF) >> ((rs&3)*8);
       return (mem & ~mask) | val;
-    } else if (opcode == 0x2b) { // sw
+    } else if (opcode == 0x2b || opcode == 0x38) { // sw (or sc, not right?)
       return rt;
     } else if (opcode == 0x2e) {  // swr
       uint32 val = rt << (24-(rs&3)*8);
