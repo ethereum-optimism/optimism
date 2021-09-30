@@ -25,6 +25,8 @@ contract MIPS {
 
   uint32 constant public REG_OFFSET = 0xc0000000;
   uint32 constant public REG_PC = REG_OFFSET + 0x20*4;
+  uint32 constant public REG_HI = REG_OFFSET + 0x21*4;
+  uint32 constant public REG_LO = REG_OFFSET + 0x22*4;
 
   constructor(IMIPSMemory _m) {
     m = _m;
@@ -114,21 +116,35 @@ contract MIPS {
       storeAddr = REG_PC;
     }
 
+    bool shouldBranch = false;
+
     uint32 val;
     if (opcode == 4 || opcode == 5) {   // beq/bne
       rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
-      if ((rs == rt && opcode == 4) || (rs != rt && opcode == 5)) {
-        val = pc + (SE(insn&0xFFFF, 16)<<2);
-        storeAddr = REG_PC;
-      }
-    } else if (opcode == 6 || opcode == 7) {   // blez/bgtz
-      if ((int32(rs) > 0 && opcode == 7) || (int32(rs) <= 0 && opcode == 6)) {
-        val = pc + (SE(insn&0xFFFF, 16)<<2);
-        storeAddr = REG_PC;
-      }
+      shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5);
+    } else if (opcode == 6) { shouldBranch = int32(rs) <= 0; // blez
+    } else if (opcode == 7) { shouldBranch = int32(rs) > 0; // bgtz
+    } else if (opcode == 1) {
+      // regimm
+      uint32 rtv = ((insn >> 16) & 0x1F);
+      if (rtv == 0) shouldBranch = int32(rs) < 0;  // bltz
+      if (rtv == 1) shouldBranch = int32(rs) >= 0; // bgez
     } else {
       // ALU
       val = execute(insn, rs, rt, mem);
+    }
+
+    // mflo/mthi
+    if (opcode == 0) {
+      if (func == 0x10) val = m.ReadMemory(stateHash, REG_HI); // mfhi
+      else if (func == 0x11) storeAddr = REG_HI; // mthi
+      else if (func == 0x12) val = m.ReadMemory(stateHash, REG_LO); // mflo
+      else if (func == 0x13) storeAddr = REG_LO; // mtlo
+    }
+
+    if (shouldBranch) {
+      val = pc + (SE(insn&0xFFFF, 16)<<2);
+      storeAddr = REG_PC;
     }
 
     // write back
@@ -143,7 +159,6 @@ contract MIPS {
     return stateHash;
   }
 
-  // TODO: move pure testable stuff to LibMIPS.sol
   function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) public pure returns (uint32) {
     uint32 opcode = insn >> 26;    // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
@@ -169,8 +184,8 @@ contract MIPS {
       } else if (func == 0x04) { return rt << rs;         // sllv
       } else if (func == 0x06) { return rt >> rs;         // srlv
       } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
-      } else if (func == 0x08) { return rs;               // jr
-      } else if (func == 0x09) { return rs;               // jalr
+      //} else if (func == 0x08) { return rs;               // jr
+      //} else if (func == 0x09) { return rs;               // jalr
       // 0x10-0x13 = mfhi, mthi, mflo, mtlo
       // R-type (ArithLog)
       } else if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
@@ -209,6 +224,6 @@ contract MIPS {
       return rt;
     } else if (opcode == 0xf) { return rt<<16; // lui
     }
+    return rs;
   }
-
 }
