@@ -114,8 +114,17 @@ contract MIPS {
       storeAddr = REG_PC;
     }
 
-    // execute
-    uint32 val = execute(insn, rs, rt, mem);
+    uint32 val;
+    if (opcode == 4 || opcode == 5) {   // beq/bne
+      rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+      if ((rs == rt && opcode == 4) || (rs != rt && opcode == 5)) {
+        val = pc + (SE(insn&0xFFFF, 16)<<2);
+        storeAddr = REG_PC;
+      }
+    } else {
+      // ALU
+      val = execute(insn, rs, rt, mem);
+    }
 
     // write back
     if (storeAddr != 0xFFFFFFFF) {
