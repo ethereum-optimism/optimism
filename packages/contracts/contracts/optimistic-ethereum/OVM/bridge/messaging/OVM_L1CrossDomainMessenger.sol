@@ -302,32 +302,13 @@ contract OVM_L1CrossDomainMessenger is
         address _sender,
         bytes memory _message,
         uint256 _queueIndex,
-        uint32 _gasLimit
+        uint32 _oldGasLimit,
+        uint32 _newGasLimit
     )
         override
         public
     {
-        // Verify that the message is in the queue:
-        address canonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
-        Lib_OVMCodec.QueueElement memory element =
-            iOVM_CanonicalTransactionChain(canonicalTransactionChain).getQueueElement(_queueIndex);
-
-        address l2CrossDomainMessenger = resolve("OVM_L2CrossDomainMessenger");
-        // Compute the transactionHash
-        bytes32 transactionHash = keccak256(
-            abi.encode(
-                address(this),
-                l2CrossDomainMessenger,
-                _gasLimit,
-                _message
-            )
-        );
-
-        require(
-            transactionHash == element.transactionHash,
-            "Provided message has not been enqueued."
-        );
-
+        // Compute the calldata that was originally used to send the message.
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
@@ -335,11 +316,37 @@ contract OVM_L1CrossDomainMessenger is
             _queueIndex
         );
 
+        // Get the queue element from the CTC and make sure that the provided message
+        // was indeed the message that was originally sent.
+        address l2CrossDomainMessenger = resolve("OVM_L2CrossDomainMessenger");
+        address canonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
+        Lib_OVMCodec.QueueElement memory element = iOVM_CanonicalTransactionChain(
+            canonicalTransactionChain
+        ).getQueueElement(_queueIndex);
+
+        // Verify by first computing the queue element hash that would be generated if
+        // the provided message data was correct.
+        bytes32 transactionHash = keccak256(
+            abi.encode(
+                address(this),
+                l2CrossDomainMessenger,
+                _oldGasLimit,
+                xDomainCalldata
+            )
+        );
+
+        // Now check that the provided message data matches the one in the queue element.
+        require(
+            transactionHash == element.transactionHash,
+            "Provided message has not been enqueued."
+        );
+
+        // Send the same message but with the new gas limit.
         _sendXDomainMessage(
             canonicalTransactionChain,
             l2CrossDomainMessenger,
             xDomainCalldata,
-            _gasLimit
+            _newGasLimit
         );
     }
 
