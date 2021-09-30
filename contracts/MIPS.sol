@@ -29,6 +29,7 @@ contract MIPS {
   uint32 constant public REG_PC = REG_OFFSET + 0x20*4;
   uint32 constant public REG_HI = REG_OFFSET + 0x21*4;
   uint32 constant public REG_LO = REG_OFFSET + 0x22*4;
+  uint64 constant public STORE_LINK = 0x100000000;
 
   constructor(IMIPSMemory _m) {
     m = _m;
@@ -65,12 +66,10 @@ contract MIPS {
     return stepNextPC(stateHash, pc, pc+4);
   }
 
-  function stepNextPC(bytes32 stateHash, uint32 pc, uint32 nextPC) public view returns (bytes32) {
+  function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) public view returns (bytes32) {
     uint32 insn = m.ReadMemory(stateHash, pc);
     uint32 opcode = insn >> 26; // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
-
-    // decode
 
     // register fetch
     uint32 storeAddr = REG_ZERO;
@@ -161,7 +160,8 @@ contract MIPS {
       }
 
       // lo/hi writeback
-      if (func == 0x18 || func == 0x19 || func == 0x1a || func == 0x1b) {
+      // can't stepNextPC after this
+      if (func >= 0x18 && func < 0x1c) {
         stateHash = m.WriteMemory(stateHash, REG_HI, hi);
         storeAddr = REG_LO;
       }
@@ -171,23 +171,21 @@ contract MIPS {
 
     if (opcode == 0 && func == 8) {
       // jr (val is already right)
-      return stepNextPC(stateHash, nextPC, val);
+      return stepNextPC(stateHash, uint32(nextPC), val);
     }
     if (opcode == 0 && func == 9) {
       // jalr
-      stateHash = m.WriteMemory(stateHash, storeAddr, pc+8);
-      return stepNextPC(stateHash, nextPC, val);
+      return stepNextPC(stateHash, uint32(nextPC), val | STORE_LINK);
     }
 
     if (opcode == 2 || opcode == 3) {
-      if (opcode == 3) stateHash = m.WriteMemory(stateHash, REG_LR, pc+8);
       val = SE(insn&0x03FFFFFF, 26) << 2;
-      return stepNextPC(stateHash, nextPC, val);
+      return stepNextPC(stateHash, uint32(nextPC), val | (opcode == 3 ? STORE_LINK : 0));
     }
 
     if (shouldBranch) {
       val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
-      return stepNextPC(stateHash, nextPC, val);
+      return stepNextPC(stateHash, uint32(nextPC), val);
     }
 
     if (opcode == 0 && func == 0xa) { // movz
@@ -203,9 +201,12 @@ contract MIPS {
     }
     if (storeAddr != REG_PC) {
       // should always be true now
-      stateHash = m.WriteMemory(stateHash, REG_PC, nextPC);
+      stateHash = m.WriteMemory(stateHash, REG_PC, uint32(nextPC));
     }
 
+    if (nextPC & STORE_LINK == STORE_LINK) {
+      stateHash = m.WriteMemory(stateHash, REG_LR, pc+4);
+    }
     return stateHash;
   }
 
