@@ -142,17 +142,24 @@ contract MIPS {
       else if (func == 0x12) val = m.ReadMemory(stateHash, REG_LO); // mflo
       else if (func == 0x13) storeAddr = REG_LO; // mtlo
 
-      uint64 acc;
+      uint32 hi;
       if (func == 0x18) { // mult
-        acc = uint64(int64(rs)*int64(rt));
+        uint64 acc = uint64(int64(int32(rs))*int64(int32(rt)));
+        hi = uint32(acc>>32);
+        val = uint32(acc);
       } else if (func == 0x19) { // multu
-        acc = uint64(uint64(rs)*uint64(rt));
+        uint64 acc = uint64(uint64(rs)*uint64(rt));
+        hi = uint32(acc>>32);
+        val = uint32(acc);
+      } else if (func == 0x1a) { // div
+        // TODO: totally wrong
+        val = uint32(int32(rs)/int32(rt));
+        hi = uint32(int32(rs)%int32(rt));
       }
 
       // lo/hi writeback
-      if (func == 0x18 || func == 0x19) {
-        stateHash = m.WriteMemory(stateHash, REG_HI, uint32(acc>>32));
-        val = uint32(acc);
+      if (func == 0x18 || func == 0x19 || func == 0x1a) {
+        stateHash = m.WriteMemory(stateHash, REG_HI, hi);
         storeAddr = REG_LO;
       }
     }
