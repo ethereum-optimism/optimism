@@ -94,7 +94,7 @@ type jsoncontract struct {
 //var ram []byte
 //var regs [4096]byte
 
-var debug bool = false
+var debug int = 0
 var ram map[uint64](uint32)
 
 func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
@@ -119,14 +119,17 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 
 		ret := common.BigToHash(big.NewInt(int64(nret))).Bytes()
-		if debug {
+		if debug >= 2 {
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
+		}
+		if addr == 0xc0000080 && debug >= 1 {
+			fmt.Printf("PC %x\n", nret)
 		}
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	} else if args[0] == 184 {
 		addr := common.BytesToHash(args[0x24:0x44]).Big().Uint64()
 		dat := common.BytesToHash(args[0x44:0x64]).Big().Uint64()
-		if debug {
+		if debug >= 2 {
 			fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
 		}
 		ram[addr] = uint32(dat)
@@ -218,8 +221,13 @@ func main() {
 	//debug = true
 
 	if len(os.Args) > 1 {
-		debug = true
-		runTest(os.Args[1], 20, interpreter, bytecode)
+		if os.Args[1] == "/tmp/minigeth.bin" {
+			debug = 1
+			runTest(os.Args[1], 20, interpreter, bytecode)
+		} else {
+			debug = 2
+			runTest(os.Args[1], 20, interpreter, bytecode)
+		}
 	} else {
 		files, err := ioutil.ReadDir("test/bin")
 		if err != nil {

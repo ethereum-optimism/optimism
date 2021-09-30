@@ -24,9 +24,6 @@ mu = Uc(UC_ARCH_MIPS, UC_MODE_32 + UC_MODE_BIG_ENDIAN)
 mregs = [UC_MIPS_REG_AT, UC_MIPS_REG_V0, UC_MIPS_REG_V1, UC_MIPS_REG_A0, UC_MIPS_REG_A1, UC_MIPS_REG_A2, UC_MIPS_REG_A3]
 regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 
-SIZE = 16*1024*1024
-
-
 heap_start = 0x20000000 # 0x20000000-0x30000000
 # input oracle              @ 0x30000000
 # output oracle             @ 0x30000800
@@ -279,7 +276,9 @@ elf.seek(0)
 #print(hex(rte))
 
 # program memory (16 MB)
-mu.mem_map(0, SIZE)
+prog_size = (len(data)+0xFFF) & ~0xFFF
+mu.mem_map(0, prog_size)
+print("malloced 0x%x for program" % prog_size)
 
 # heap (256 MB) @ 0x20000000
 mu.mem_map(heap_start, 256*1024*1024)
@@ -369,8 +368,14 @@ mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 if tracelevel == 4:
   start_instrumenting()
 
+with open("/tmp/minigeth.bin", "wb") as f:
+  f.write(mu.mem_read(0, prog_size))
+
+if os.getenv("COMPILE", None) == "1":
+  exit(0)
+
 try:
-  mu.emu_start(entry, SIZE)
+  mu.emu_start(entry, -1)
 except unicorn.UcError:
   pass
 
