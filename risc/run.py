@@ -8,6 +8,7 @@ import traceback
 from elftools.elf.elffile import ELFFile
 from capstone import *
 md = Cs(CS_ARCH_MIPS, CS_MODE_32 + CS_MODE_BIG_ENDIAN)
+tracelevel = int(os.getenv("TRACE", 0))
 
 from termcolor import colored, cprint
 from hexdump import hexdump
@@ -54,7 +55,7 @@ def hook_code_simple(uc, address, size, user_data):
         dat = "EMPTY BASIC BLOCK?!?"
       #instructions_seen.add(dat.mnemonic)
       #print(sorted(list(instructions_seen)))
-      print("%10d(%2d): %8x %-80s %s" % (icount, newicount, address, r[address], dat))
+      print("%10d(%2d): %8x %-80s %s" % (icount, newicount, address, r[address] if address in r else "UNKNOWN", dat))
     icount += newicount
     bcount += 1
     return True
@@ -66,7 +67,6 @@ def hook_code_simple(uc, address, size, user_data):
 def start_instrumenting():
   global instrumenting, instrumenting_all
   if not instrumenting:
-    tracelevel = int(os.getenv("TRACE", 0))
     if tracelevel >= 2:
       mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
     elif tracelevel == 1:
@@ -304,19 +304,26 @@ for seg in elffile.iter_segments():
   mu.mem_write(seg.header.p_vaddr, seg.data())
 
 entry = elffile.header.e_entry
-print("entrypoint: %x" % entry)
+print("entrypoint: 0x%x" % entry)
 #hexdump(mu.mem_read(entry, 0x10))
 
+"""
 mu.reg_write(UC_MIPS_REG_SP, stack_start-0x2000)
 
 # http://articles.manugarg.com/aboutelfauxiliaryvectors.html
 _AT_PAGESZ = 6
-mu.mem_write(stack_start-0x2000, struct.pack(">IIIIIIII",
-  1,  # argc
-  stack_start-0x1000, 0,  # argv
-  stack_start-0x400, 0,  # envp
+mu.mem_write(stack_start-0x2000, struct.pack(">IIIIII",
+  0,  # argc
+  0,  # argv
+  0,  # envp
   _AT_PAGESZ, 0x1000, 0)) # auxv
 mu.mem_write(stack_start-0x400, b"GOGC=off\x00")
+"""
+
+# moved to MIPS
+start = open("startup.bin", "rb").read() + struct.pack(">I", entry)
+mu.mem_write(0, start)
+entry = 0
 
 r = RangeTree()
 for section in elffile.iter_sections():
@@ -359,8 +366,11 @@ mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 #mu.hook_add(UC_HOOK_INSN, hook_interrupt, None, 1, 0, 0x0c000000)
 
+if tracelevel == 4:
+  start_instrumenting()
+
 try:
-  mu.emu_start(entry, 0)
+  mu.emu_start(entry, SIZE)
 except unicorn.UcError:
   pass
 
