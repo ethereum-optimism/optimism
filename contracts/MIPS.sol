@@ -25,6 +25,7 @@ contract MIPS {
 
   uint32 constant public REG_OFFSET = 0xc0000000;
   uint32 constant public REG_ZERO = REG_OFFSET;
+  uint32 constant public REG_LR = REG_OFFSET + 0x1f*4;
   uint32 constant public REG_PC = REG_OFFSET + 0x20*4;
   uint32 constant public REG_HI = REG_OFFSET + 0x21*4;
   uint32 constant public REG_LO = REG_OFFSET + 0x22*4;
@@ -113,11 +114,6 @@ contract MIPS {
       }
     }
 
-    if (opcode == 0 && func == 8) {
-      // jr
-      storeAddr = REG_PC;
-    }
-
     bool shouldBranch = false;
 
     uint32 val;
@@ -163,6 +159,24 @@ contract MIPS {
         stateHash = m.WriteMemory(stateHash, REG_HI, hi);
         storeAddr = REG_LO;
       }
+    }
+
+    // jumps
+
+    if (opcode == 0 && func == 8) {
+      // jr (val is already right)
+      storeAddr = REG_PC;
+    }
+    if (opcode == 0 && func == 9) {
+      // jalr
+      stateHash = m.WriteMemory(stateHash, storeAddr, pc+8);
+      storeAddr = REG_PC;
+    }
+
+    if (opcode == 2 || opcode == 3) {
+      if (opcode == 3) stateHash = m.WriteMemory(stateHash, REG_LR, pc+8);
+      val = SE(insn&0x03FFFFFF, 26) << 2;
+      storeAddr = REG_PC;
     }
 
     if (shouldBranch) {

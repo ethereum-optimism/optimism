@@ -143,6 +143,7 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 
 func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte) {
 	ram = make(map[uint64](uint32))
+	ram[0xC000007C] = 0xDEAD0000
 	//fmt.Println("starting", fn)
 	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
