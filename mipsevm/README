@@ -14,4 +14,12 @@ Tests from https://github.com/grantae/OpenMIPS/tree/master/software/test/macro/t
 Licensed GPLv3
 
 Instruction set used by minigeth, 55 instructions:
-['addi', 'addiu', 'addu', 'and', 'andi', 'b', 'beq', 'beqz', 'bgez', 'bgtz', 'blez', 'bltz', 'bne', 'bnez', 'clz', 'divu', 'j', 'jal', 'jalr', 'jr', 'lb', 'lbu', 'lui', 'lw', 'lwr', 'mfhi', 'mflo', 'move', 'movn', 'movz', 'mtlo', 'mul', 'multu', 'negu', 'nop', 'not', 'or', 'ori', 'sb', 'sll', 'sllv', 'slt', 'slti', 'sltiu', 'sltu', 'sra', 'srl', 'srlv', 'subu', 'sw', 'swr', 'sync', 'syscall', 'xor', 'xori']
+['addi', 'addiu', 'addu', 'and', 'andi',
+ 'b', 'beq', 'beqz', 'bgez', 'bgtz', 'blez', 'bltz', 'bne', 'bnez',
+ 'clz', 'divu',
+ 'j', 'jal', 'jalr', 'jr',
+ 'lb', 'lbu', 'lui', 'lw', 'lwr',
+ 'mfhi', 'mflo', 'move', 'movn', 'movz', 'mtlo', 'mul', 'multu',
+ 'negu', 'nop', 'not', 'or', 'ori',
+ 'sb', 'sll', 'sllv', 'slt', 'slti', 'sltiu', 'sltu', 'sra', 'srl', 'srlv', 'subu', 'sw', 'swr', 'sync', 'syscall',
+ 'xor', 'xori']

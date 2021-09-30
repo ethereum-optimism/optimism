@@ -20,6 +20,8 @@ contract MIPSMemory {
     // TODO: do the real stateHash mutation
     bytes32 newstateHash = keccak256(abi.encodePacked(stateHash));
 
+    // note that zeros are never stored in the trie, so storing a 0 is a delete
+
     // no proof required, this is obviously right
     //state[newstateHash][addr] = (1 << 32) | value;
 
