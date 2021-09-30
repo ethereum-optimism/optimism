@@ -41,7 +41,7 @@ const appendSequencerBatch = async (
   })
 }
 
-const printGasSavings = (gasUsed:number, regenesis040Cost:number):void => {
+const printGasSavings = (gasUsed: number, regenesis040Cost: number): void => {
   console.log('    - Gas used:', gasUsed)
   console.log(
     '    - Absolute savings vs regenesis/0.4.0:',
@@ -49,8 +49,7 @@ const printGasSavings = (gasUsed:number, regenesis040Cost:number):void => {
   )
   console.log(
     '    - Relative savings vs regenesis/0.4.0:',
-    (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) +
-      '%'
+    (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) + '%'
   )
 }
 
@@ -171,7 +170,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
         'Non-calldata overhead gas cost per transaction:',
         (gasUsed - fixedCalldataCost) / numTxs
       )
-      expectApprox(gasUsed, 1_767_570, {
+      expectApprox(gasUsed, 1_422_181, {
         upperPercentDeviation: 0,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -212,14 +211,14 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 1_787_052)
+      printGasSavings(gasUsed, 1_632_687)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
         (gasUsed - fixedCalldataCost) / numTxs
       )
-      expectApprox(gasUsed, 1_950_378, {
+      expectApprox(gasUsed, 1_632_687, {
         upperPercentDeviation: 0,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!

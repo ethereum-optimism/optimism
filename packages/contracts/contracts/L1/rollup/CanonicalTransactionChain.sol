@@ -4,14 +4,10 @@ pragma solidity ^0.8.8;
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
 import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
 import { IChainStorageContainer } from "./IChainStorageContainer.sol";
-
-/* External Imports */
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title CanonicalTransactionChain
@@ -362,17 +358,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         IChainStorageContainer queueRef = queue();
         uint40 queueLength = _getQueueLength(queueRef);
 
-        // Reserve some memory to save gas on hashing later on. This is a relatively safe estimate
-        // for the average transaction size that will prevent having to resize this chunk of memory
-        // later on. Saves gas.
-        bytes memory hashMemory = new bytes((msg.data.length / totalElementsToAppend) * 2);
-
-        // Initialize the array of canonical chain leaves that we will append.
-        bytes32[] memory leaves = new bytes32[](totalElementsToAppend);
-
-        // Each leaf index corresponds to a tx, either sequenced or enqueued.
-        uint32 leafIndex = 0;
-
         // Counter for number of sequencer transactions appended so far.
         uint32 numSequencerTransactions = 0;
 
@@ -388,40 +373,16 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             curContext = nextContext;
 
             // Process sequencer transactions first.
-            for (uint32 j = 0; j < curContext.numSequencedTransactions; j++) {
-                uint256 txDataLength;
-                assembly {
-                    txDataLength := shr(232, calldataload(nextTransactionPtr))
-                }
-                require(
-                    txDataLength <= MAX_ROLLUP_TX_SIZE,
-                    "Transaction data size exceeds maximum for rollup transaction."
-                );
-
-                leaves[leafIndex] = _getSequencerLeafHash(
-                    curContext,
-                    nextTransactionPtr,
-                    txDataLength,
-                    hashMemory
-                );
-
-                nextTransactionPtr += uint40(TX_DATA_HEADER_SIZE + txDataLength);
-                numSequencerTransactions++;
-                leafIndex++;
-            }
+            numSequencerTransactions += uint32(curContext.numSequencedTransactions);
 
             // Now process any subsequent queue transactions.
-            for (uint32 j = 0; j < curContext.numSubsequentQueueTransactions; j++) {
-                require(
-                    nextQueueIndex < queueLength,
-                    "Not enough queued transactions to append."
-                );
+            nextQueueIndex += uint40(curContext.numSubsequentQueueTransactions);
 
-                leaves[leafIndex] = _getQueueLeafHash(nextQueueIndex);
-                nextQueueIndex++;
-                leafIndex++;
-            }
         }
+        require(
+            nextQueueIndex <= queueLength,
+            "Attempted to append more elements than are available in the queue."
+        );
 
         // Generate the required metadata that we need to append this batch
         uint40 numQueuedTransactions = totalElementsToAppend - numSequencerTransactions;
@@ -447,11 +408,9 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             blockNumber = lastElement.blockNumber;
         }
 
-        // For efficiency reasons getMerkleRoot modifies the `leaves` argument in place
-        // while calculating the root hash therefore any arguments passed to it must not
-        // be used again afterwards
+        // Cache the previous blockhash to ensure all transaction data can be retrieved efficiently.
         _appendBatch(
-            Lib_MerkleTree.getMerkleRoot(leaves),
+            blockhash(block.number-1),
             totalElementsToAppend,
             numQueuedTransactions,
             blockTimestamp,
@@ -464,44 +423,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             getTotalElements()
         );
     }
-
-    /**
-     * Verifies whether a transaction is included in the chain.
-     * @param _transaction Transaction to verify.
-     * @param _txChainElement Transaction chain element corresponding to the transaction.
-     * @param _batchHeader Header of the batch the transaction was included in.
-     * @param _inclusionProof Inclusion proof for the provided transaction chain element.
-     * @return True if the transaction exists in the CTC, false if not.
-     */
-    function verifyTransaction(
-        Lib_OVMCodec.Transaction memory _transaction,
-        Lib_OVMCodec.TransactionChainElement memory _txChainElement,
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _inclusionProof
-    )
-        external
-        view
-        returns (
-            bool
-        )
-    {
-        if (_txChainElement.isSequenced == true) {
-            return _verifySequencerTransaction(
-                _transaction,
-                _txChainElement,
-                _batchHeader,
-                _inclusionProof
-            );
-        } else {
-            return _verifyQueueTransaction(
-                _transaction,
-                _txChainElement.queueIndex,
-                _batchHeader,
-                _inclusionProof
-            );
-        }
-    }
-
 
     /**********************
      * Internal Functions *
@@ -615,31 +536,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     }
 
     /**
-     * Retrieves the hash of a queue element.
-     * @param _index Index of the queue element to retrieve a hash for.
-     * @return Hash of the queue element.
-     */
-    function _getQueueLeafHash(
-        uint256 _index
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        return _hashTransactionChainElement(
-            Lib_OVMCodec.TransactionChainElement({
-                isSequenced: false,
-                queueIndex: _index,
-                timestamp: 0,
-                blockNumber: 0,
-                txData: hex""
-            })
-        );
-    }
-
-    /**
      * Gets the queue element at a particular index.
      * @param _index Index of the queue element to access.
      * @return _element Queue element at the given index.
@@ -694,96 +590,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         // per insertion, so to get the real queue length we need
         // to divide by 2.
         return uint40(_queueRef.length() / 2);
-    }
-
-    /**
-     * Retrieves the hash of a sequencer element.
-     * @param _context Batch context for the given element.
-     * @param _nextTransactionPtr Pointer to the next transaction in the calldata.
-     * @param _txDataLength Length of the transaction item.
-     * @return Hash of the sequencer element.
-     */
-    function _getSequencerLeafHash(
-        BatchContext memory _context,
-        uint256 _nextTransactionPtr,
-        uint256 _txDataLength,
-        bytes memory _hashMemory
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        // Only allocate more memory if we didn't reserve enough to begin with.
-        if (BYTES_TILL_TX_DATA + _txDataLength > _hashMemory.length) {
-            _hashMemory = new bytes(BYTES_TILL_TX_DATA + _txDataLength);
-        }
-
-        uint256 ctxTimestamp = _context.timestamp;
-        uint256 ctxBlockNumber = _context.blockNumber;
-
-        bytes32 leafHash;
-        assembly {
-            let chainElementStart := add(_hashMemory, 0x20)
-
-            // Set the first byte equal to `1` to indicate this is a sequencer chain element.
-            // This distinguishes sequencer ChainElements from queue ChainElements because
-            // all queue ChainElements are ABI encoded and the first byte of ABI encoded
-            // elements is always zero
-            mstore8(chainElementStart, 1)
-
-            mstore(add(chainElementStart, 1), ctxTimestamp)
-            mstore(add(chainElementStart, 33), ctxBlockNumber)
-            // solhint-disable-next-line max-line-length
-            calldatacopy(add(chainElementStart, BYTES_TILL_TX_DATA), add(_nextTransactionPtr, 3), _txDataLength)
-
-            leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, _txDataLength))
-        }
-
-        return leafHash;
-    }
-
-    /**
-     * Retrieves the hash of a sequencer element.
-     * @param _txChainElement The chain element which is hashed to calculate the leaf.
-     * @return Hash of the sequencer element.
-     */
-    function _getSequencerLeafHash(
-        Lib_OVMCodec.TransactionChainElement memory _txChainElement
-    )
-        internal
-        view
-        returns(
-            bytes32
-        )
-    {
-        bytes memory txData = _txChainElement.txData;
-        uint256 txDataLength = _txChainElement.txData.length;
-
-        bytes memory chainElement = new bytes(BYTES_TILL_TX_DATA + txDataLength);
-        uint256 ctxTimestamp = _txChainElement.timestamp;
-        uint256 ctxBlockNumber = _txChainElement.blockNumber;
-
-        bytes32 leafHash;
-        assembly {
-            let chainElementStart := add(chainElement, 0x20)
-
-            // Set the first byte equal to `1` to indicate this is a sequencer chain element.
-            // This distinguishes sequencer ChainElements from queue ChainElements because
-            // all queue ChainElements are ABI encoded and the first byte of ABI encoded
-            // elements is always zero
-            mstore8(chainElementStart, 1)
-
-            mstore(add(chainElementStart, 1), ctxTimestamp)
-            mstore(add(chainElementStart, 33), ctxBlockNumber)
-            // solhint-disable-next-line max-line-length
-            pop(staticcall(gas(), 0x04, add(txData, 0x20), txDataLength, add(chainElementStart, BYTES_TILL_TX_DATA), txDataLength))
-
-            leafHash := keccak256(chainElementStart, add(BYTES_TILL_TX_DATA, txDataLength))
-        }
-
-        return leafHash;
     }
 
     /**
@@ -857,139 +663,5 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
                 _element.txData
             )
         );
-    }
-
-    /**
-     * Verifies a sequencer transaction, returning true if it was indeed included in the CTC
-     * @param _transaction The transaction we are verifying inclusion of.
-     * @param _txChainElement The chain element that the transaction is claimed to be a part of.
-     * @param _batchHeader Header of the batch the transaction was included in.
-     * @param _inclusionProof An inclusion proof into the CTC at a particular index.
-     * @return True if the transaction was included in the specified location, else false.
-     */
-    function _verifySequencerTransaction(
-        Lib_OVMCodec.Transaction memory _transaction,
-        Lib_OVMCodec.TransactionChainElement memory _txChainElement,
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _inclusionProof
-    )
-        internal
-        view
-        returns (
-            bool
-        )
-    {
-        bytes32 leafHash = _getSequencerLeafHash(_txChainElement);
-
-        require(
-            _verifyElement(
-                leafHash,
-                _batchHeader,
-                _inclusionProof
-            ),
-            "Invalid Sequencer transaction inclusion proof."
-        );
-
-        require(
-            _transaction.blockNumber        == _txChainElement.blockNumber
-            && _transaction.timestamp       == _txChainElement.timestamp
-            && _transaction.entrypoint      == address(0)
-            && _transaction.gasLimit        == maxTransactionGasLimit
-            && _transaction.l1TxOrigin      == address(0)
-            && _transaction.l1QueueOrigin   == Lib_OVMCodec.QueueOrigin.SEQUENCER_QUEUE
-            && keccak256(_transaction.data) == keccak256(_txChainElement.txData),
-            "Invalid Sequencer transaction."
-        );
-
-        return true;
-    }
-
-    /**
-     * Verifies a queue transaction, returning true if it was indeed included in the CTC
-     * @param _transaction The transaction we are verifying inclusion of.
-     * @param _queueIndex The queueIndex of the queued transaction.
-     * @param _batchHeader Header of the batch the transaction was included in.
-     * @param _inclusionProof An inclusion proof into the CTC at a particular index (should point to
-     * queue tx).
-     * @return True if the transaction was included in the specified location, else false.
-     */
-    function _verifyQueueTransaction(
-        Lib_OVMCodec.Transaction memory _transaction,
-        uint256 _queueIndex,
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _inclusionProof
-    )
-        internal
-        view
-        returns (
-            bool
-        )
-    {
-        bytes32 leafHash = _getQueueLeafHash(_queueIndex);
-
-        require(
-            _verifyElement(
-                leafHash,
-                _batchHeader,
-                _inclusionProof
-            ),
-            "Invalid Queue transaction inclusion proof."
-        );
-
-        bytes32 transactionHash = keccak256(
-            abi.encode(
-                _transaction.l1TxOrigin,
-                _transaction.entrypoint,
-                _transaction.gasLimit,
-                _transaction.data
-            )
-        );
-
-        Lib_OVMCodec.QueueElement memory el = getQueueElement(_queueIndex);
-        require(
-            el.transactionHash      == transactionHash
-            && el.timestamp   == _transaction.timestamp
-            && el.blockNumber == _transaction.blockNumber,
-            "Invalid Queue transaction."
-        );
-
-        return true;
-    }
-
-    /**
-     * Verifies a batch inclusion proof.
-     * @param _element Hash of the element to verify a proof for.
-     * @param _batchHeader Header of the batch in which the element was included.
-     * @param _proof Merkle inclusion proof for the element.
-     */
-    function _verifyElement(
-        bytes32 _element,
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
-        Lib_OVMCodec.ChainInclusionProof memory _proof
-    )
-        internal
-        view
-        returns (
-            bool
-        )
-    {
-        require(
-            Lib_OVMCodec.hashBatchHeader(_batchHeader) ==
-                batches().get(uint32(_batchHeader.batchIndex)),
-            "Invalid batch header."
-        );
-
-        require(
-            Lib_MerkleTree.verify(
-                _batchHeader.batchRoot,
-                _element,
-                _proof.index,
-                _proof.siblings,
-                _batchHeader.batchSize
-            ),
-            "Invalid inclusion proof."
-        );
-
-        return true;
     }
 }
