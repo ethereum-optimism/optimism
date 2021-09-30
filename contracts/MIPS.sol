@@ -270,8 +270,16 @@ contract MIPS {
       uint32 val = (rt&0xFFFF) << (16-(rs&2)*8);
       uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16-(rs&2)*8));
       return (mem & mask) | val;
+    } else if (opcode == 0x2a) {  // swl
+      uint32 val = rt >> ((rs&3)*8);
+      uint32 mask = uint32(0xFFFFFFFF) >> ((rs&3)*8);
+      return (mem & ~mask) | val;
     } else if (opcode == 0x2b) { // sw
       return rt;
+    } else if (opcode == 0x2e) {  // swr
+      uint32 val = rt << (24-(rs&3)*8);
+      uint32 mask = uint32(0xFFFFFFFF) << (24-(rs&3)*8);
+      return (mem & ~mask) | val;
     }
     return rs;
   }
