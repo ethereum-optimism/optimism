@@ -10,8 +10,8 @@ RUN apt-get update -y && apt-get install -y git
 # Pre-download the compilers so that they do not need to be downloaded inside
 # the image when building
 FROM alpine as downloader
-ARG VERSION=v0.8.8
-ARG SOLC_VERSION=${VERSION}+commit.dddeac2f
+ARG VERSION=v0.8.9
+ARG SOLC_VERSION=${VERSION}+commit.e5eed63a
 ARG SOLC_UPSTREAM=https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-${SOLC_VERSION}
 
 ADD $SOLC_UPSTREAM ./solc

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.8;
+pragma solidity ^0.8.9;
 
 contract ValueContext {
     function getSelfBalance() external payable returns(uint256) {
