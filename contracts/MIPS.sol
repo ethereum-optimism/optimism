@@ -245,6 +245,10 @@ contract MIPS {
     } else if (opcode == 0xf) { return rt<<16; // lui
     } else if (opcode == 0x1c) {  // SPECIAL2
       if (func == 2) return uint32(int32(rs)*int32(rt)); // mul
+      if (func == 0x20 || func == 0x21) { // clo
+        if (func == 0x20) rs = ~rs;
+        uint32 i = 0; while (rs&0x80000000 != 0) { i++; rs <<= 1; } return i;
+      }
     } else if (opcode == 0x20) {  // lb
       return SE((mem >> (24-(rs&3)*8)) & 0xFF, 8);
     } else if (opcode == 0x21) {  // lh
