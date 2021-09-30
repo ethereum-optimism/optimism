@@ -18,7 +18,7 @@ copies or substantial portions of the Software.
 
 */
 
-pragma solidity ^0.8.8;
+pragma solidity ^0.8.9;
 
 // Can't do this until the package is published.
 //import { iOVM_L1BlockNumber } from "@eth-optimism/contracts/iOVM_L1BlockNumber";
