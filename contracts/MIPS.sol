@@ -71,6 +71,12 @@ contract MIPS {
     uint32 opcode = insn >> 26; // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
 
+    // j-type j/jal
+    if (opcode == 2 || opcode == 3) {
+      return stepNextPC(stateHash, uint32(nextPC),
+        (SE(insn&0x03FFFFFF, 26) << 2) | (opcode == 3 ? STORE_LINK : 0));
+    }
+
     // register fetch
     uint32 storeAddr = REG_ZERO;
     uint32 rs;
@@ -100,6 +106,13 @@ contract MIPS {
         // store actual rt with lwl and lwr
         storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
       }
+    }
+
+    // handle movz and movn when they don't write back
+    if (opcode == 0 && func == 0xa) { // movz
+      if (rt != 0) storeAddr = REG_ZERO;
+    } else if (opcode == 0 && func == 0xb) { // movn
+      if (rt == 0) storeAddr = REG_ZERO;
     }
 
     // memory fetch (all I-type)
@@ -135,7 +148,21 @@ contract MIPS {
       val = execute(insn, rs, rt, mem);
     }
 
-    // mflo/mthi and mult / multu
+    // jumps (with branch delay slot)
+    // nothing is written to the state by this time
+
+    if (shouldBranch) {
+      val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
+      return stepNextPC(stateHash, uint32(nextPC), val);
+    }
+
+    if (opcode == 0 && (func == 8 || func == 9)) {
+      // jr/jalr (val is already right)
+      return stepNextPC(stateHash, uint32(nextPC), val | (func == 9 ? STORE_LINK : 0));
+    }
+
+    // lo and hi registers
+    // can write back
     if (opcode == 0) {
       if (func == 0x10) val = m.ReadMemory(stateHash, REG_HI); // mfhi
       else if (func == 0x11) storeAddr = REG_HI; // mthi
@@ -167,46 +194,16 @@ contract MIPS {
       }
     }
 
-    // jumps (with branch delay slot)
-
-    if (opcode == 0 && func == 8) {
-      // jr (val is already right)
-      return stepNextPC(stateHash, uint32(nextPC), val);
-    }
-    if (opcode == 0 && func == 9) {
-      // jalr
-      return stepNextPC(stateHash, uint32(nextPC), val | STORE_LINK);
-    }
-
-    if (opcode == 2 || opcode == 3) {
-      val = SE(insn&0x03FFFFFF, 26) << 2;
-      return stepNextPC(stateHash, uint32(nextPC), val | (opcode == 3 ? STORE_LINK : 0));
-    }
-
-    if (shouldBranch) {
-      val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
-      return stepNextPC(stateHash, uint32(nextPC), val);
-    }
-
-    if (opcode == 0 && func == 0xa) { // movz
-      if (rt != 0) storeAddr = REG_ZERO;
-    } else if (opcode == 0 && func == 0xb) { // movn
-      if (rt == 0) storeAddr = REG_ZERO;
-    }
-
     // write back
     if (storeAddr != REG_ZERO) {
-      // does this ever not happen? yes, on untaken beq/bne
       stateHash = m.WriteMemory(stateHash, storeAddr, val);
-    }
-    if (storeAddr != REG_PC) {
-      // should always be true now
-      stateHash = m.WriteMemory(stateHash, REG_PC, uint32(nextPC));
     }
 
     if (nextPC & STORE_LINK == STORE_LINK) {
       stateHash = m.WriteMemory(stateHash, REG_LR, pc+4);
     }
+
+    stateHash = m.WriteMemory(stateHash, REG_PC, uint32(nextPC));
     return stateHash;
   }
 
@@ -235,8 +232,7 @@ contract MIPS {
       } else if (func == 0x04) { return rt << rs;         // sllv
       } else if (func == 0x06) { return rt >> rs;         // srlv
       } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
-      //} else if (func == 0x08) { return rs;               // jr
-      //} else if (func == 0x09) { return rs;               // jalr
+      } else if (func >= 0x08 && func < 0x20) { return rs;  // jr/jalr/div + others
       // 0x10-0x13 = mfhi, mthi, mflo, mtlo
       // R-type (ArithLog)
       } else if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
@@ -293,6 +289,6 @@ contract MIPS {
       uint32 mask = uint32(0xFFFFFFFF) << (24-(rs&3)*8);
       return (mem & ~mask) | val;
     }
-    return rs;
+    revert("invalid instruction");
   }
 }
