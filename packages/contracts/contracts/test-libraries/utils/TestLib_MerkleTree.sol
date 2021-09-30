@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.8;
+pragma solidity ^0.8.9;
 
 /* Library Imports */
 import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";

@@ -98,7 +98,7 @@ describe('Whitelist', async () => {
                 ['0x0000000000000000000000000000000000000000000000000000000000000000']:
                   '0x0000000000000000000000000000000000000000000000000000000000000001',
 
-                // See https://docs.soliditylang.org/en/v0.8.8/internals/layout_in_storage.html for
+                // See https://docs.soliditylang.org/en/v0.8.9/internals/layout_in_storage.html for
                 // reference on how the correct storage slot should be set.
                 // Whitelist mapping is located at storage slot 1.
                 // whitelist[address] will be located at:
