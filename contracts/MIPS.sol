@@ -5,6 +5,9 @@ pragma solidity ^0.7.3;
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
 // https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
 
+// https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf
+// page A-177
+
 // This is a separate contract from the challenge contract
 // Anyone can use it to validate a MIPS state transition
 // First, to prepare, you call AddMerkleState, which adds valid state nodes in the stateHash. 
@@ -32,6 +35,15 @@ contract MIPS {
       stateHash = Step(stateHash);
     }
     return stateHash;
+  }
+
+  function SE(uint32 dat, uint32 idx) internal pure returns (uint32) {
+    if (idx == 16) {
+      return dat&0xFFFF | (dat&0x8000 != 0 ? 0xFFFF0000 : 0);
+    } else if (idx == 8) {
+      return dat&0xFF | (dat&0x80 != 0 ? 0xFFFFFF00 : 0);
+    }
+    return dat;
   }
 
   // will revert if any required input state is missing
@@ -62,11 +74,12 @@ contract MIPS {
       } else if (opcode < 0x20) {
         // rt is SignExtImm
         uint32 SignExtImm = insn&0xFFFF | (insn&0x8000 != 0 ? 0xFFFF0000 : 0);
-        uint32 ZeroExtImm = insn&0xFFFF;
         if (opcode == 0xC || opcode == 0xD) {
-          rt = ZeroExtImm;
+          // ZeroExtImm
+          rt = insn&0xFFFF;
         } else {
-          rt = SignExtImm;
+          // SignExtImm
+          rt = SE(insn&0xFFFF, 16);
         }
       } else if (opcode >= 0x28) {
         // store rt
@@ -79,8 +92,9 @@ contract MIPS {
     uint32 mem;
     if (opcode >= 0x20) {
       // M[R[rs]+SignExtImm]
-      uint32 SignExtImm = insn&0xFFFF | (insn&0x8000 != 0 ? 0xFFFF0000 : 0);
-      uint32 addr = (rs + SignExtImm) & 0xFFFFFFFC;
+      uint32 SignExtImm = SE(insn&0xFFFF, 16);
+      rs += SignExtImm;
+      uint32 addr = rs & 0xFFFFFFFC;
       mem = m.ReadMemory(stateHash, addr);
       if (opcode >= 0x28) {
         // store
@@ -124,34 +138,40 @@ contract MIPS {
     else if (opcode == 0xd) { opcode = 0; func = 0x25; } // ori
     else if (opcode == 0xe) { opcode = 0; func = 0x26; } // xori
 
+    // 0 is opcode SPECIAL
     if (opcode == 0) {
       uint32 shamt = (insn >> 6) & 0x1f;
+      // Shift and ShiftV
+      if (func == 0x00) { return rt << shamt;      // sll
+      } else if (func == 0x02) { return rt >> shamt;      // srl
+      } else if (func == 0x03) { return rt >> shamt;      // sra
+      } else if (func == 0x04) { return rt << rs;         // sllv
+      } else if (func == 0x06) { return rt >> rs;         // srlv
+      } else if (func == 0x07) { return rt >> rs;         // srav
+      } else if (func == 0x08) { return rs;               // jr
+      } else if (func == 0x09) { return rs;               // jalr
+      // 0x10-0x13 = mfhi, mthi, mflo, mtlo
       // R-type (ArithLog)
-      if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
+      } else if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
+      } else if (func == 0x22 || func == 0x23) { return rs-rt;   // sub or subu
       } else if (func == 0x24) { return rs&rt;            // and
       } else if (func == 0x25) { return (rs|rt);          // or
       } else if (func == 0x26) { return (rs^rt);          // xor
       } else if (func == 0x27) { return ~(rs|rt);         // nor
-      } else if (func == 0x22 || func == 0x23) {
-        return rs-rt;   // sub or subu
       } else if (func == 0x2a) {
         return int32(rs)<int32(rt) ? 1 : 0; // slt
       } else if (func == 0x2B) {
-        return rs<rt ? 1 : 0;            // sltu
-      // Shift and ShiftV
-      } else if (func == 0x00) { return rt << shamt;      // sll
-      } else if (func == 0x04) { return rt << rs;         // sllv
-      } else if (func == 0x03) { return rt >> shamt;      // sra
-      } else if (func == 0x07) { return rt >> rs;         // srav
-      } else if (func == 0x02) { return rt >> shamt;      // srl
-      } else if (func == 0x06) { return rt >> rs;         // srlv
-      } else if (func == 8) {    return rs;               // jr
+        return rs<rt ? 1 : 0;               // sltu
       }
-    } else if (opcode == 0x20) { return mem;   // lb
-    } else if (opcode == 0x24) { return mem;   // lbu
-    } else if (opcode == 0x21) { return mem;   // lh
-    } else if (opcode == 0x25) { return mem;   // lhu
+    } else if (opcode == 0x20) {  // lb
+      return SE((mem >> (24-(rs&3)*8)) & 0xFF, 8);
+    } else if (opcode == 0x21) {  // lh
+      return SE((mem >> (16-(rs&2)*8)) & 0xFFFF, 16);
     } else if (opcode == 0x23) { return mem;   // lw
+    } else if (opcode == 0x24) {  // lbu
+      return (mem >> (24-(rs&3)*8)) & 0xFF;
+    } else if (opcode == 0x25) {  // lhu
+      return (mem >> (16-(rs&2)*8)) & 0xFFFF;
     } else if (opcode&0x3c == 0x28) { return rt;  // sb, sh, sw
     } else if (opcode == 0xf) { return rt<<16; // lui
     }
