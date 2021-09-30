@@ -51,13 +51,15 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
      * @param _sender Original sender address.
      * @param _message Message to send to the target.
      * @param _queueIndex CTC Queue index for the message to replay.
-     * @param _gasLimit Gas limit for the provided message.
+     * @param _oldGasLimit Original gas limit used to send the message.
+     * @param _newGasLimit New gas limit to be used for this message.
      */
     function replayMessage(
         address _target,
         address _sender,
         bytes memory _message,
         uint256 _queueIndex,
-        uint32 _gasLimit
+        uint32 _oldGasLimit,
+        uint32 _newGasLimit
     ) external;
 }

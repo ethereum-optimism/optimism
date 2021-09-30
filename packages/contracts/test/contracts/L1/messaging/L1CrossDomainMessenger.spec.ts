@@ -23,8 +23,11 @@ import {
   TrieTestGenerator,
   getNextBlockNumber,
   encodeXDomainCalldata,
+  getEthTime,
+  setEthTime,
 } from '../../../helpers'
 import { predeploys } from '../../../../src'
+import { keccak256 } from 'ethers/lib/utils'
 
 const MAX_GAS_LIMIT = 8_000_000
 
@@ -206,40 +209,146 @@ describe('L1CrossDomainMessenger', () => {
   describe('replayMessage', () => {
     const target = NON_ZERO_ADDRESS
     const message = NON_NULL_BYTES32
-    const gasLimit = 100_000
+    const oldGasLimit = 100_000
+    const newGasLimit = 200_000
 
-    it('should revert if given the wrong queue index', async () => {
-      await L1CrossDomainMessenger.sendMessage(target, message, 100_001)
+    let sender: string
+    before(async () => {
+      sender = await signer.getAddress()
+    })
+
+    let queueIndex: number
+    beforeEach(async () => {
+      await L1CrossDomainMessenger.connect(signer).sendMessage(
+        target,
+        message,
+        oldGasLimit
+      )
 
       const queueLength = await CanonicalTransactionChain.getQueueLength()
+      queueIndex = queueLength - 1
+    })
+
+    describe('when giving some incorrect input value', async () => {
+      it('should revert if given the wrong target', async () => {
+        await expect(
+          L1CrossDomainMessenger.replayMessage(
+            ethers.constants.AddressZero, // Wrong target
+            sender,
+            message,
+            queueIndex,
+            oldGasLimit,
+            newGasLimit
+          )
+        ).to.be.revertedWith('Provided message has not been enqueued.')
+      })
+
+      it('should revert if given the wrong sender', async () => {
+        await expect(
+          L1CrossDomainMessenger.replayMessage(
+            target,
+            ethers.constants.AddressZero, // Wrong sender
+            message,
+            queueIndex,
+            oldGasLimit,
+            newGasLimit
+          )
+        ).to.be.revertedWith('Provided message has not been enqueued.')
+      })
+
+      it('should revert if given the wrong message', async () => {
+        await expect(
+          L1CrossDomainMessenger.replayMessage(
+            target,
+            sender,
+            '0x', // Wrong message
+            queueIndex,
+            oldGasLimit,
+            newGasLimit
+          )
+        ).to.be.revertedWith('Provided message has not been enqueued.')
+      })
+
+      it('should revert if given the wrong queue index', async () => {
+        await expect(
+          L1CrossDomainMessenger.replayMessage(
+            target,
+            sender,
+            message,
+            queueIndex - 1, // Wrong queue index
+            oldGasLimit,
+            newGasLimit
+          )
+        ).to.be.revertedWith('Provided message has not been enqueued.')
+      })
+
+      it('should revert if given the wrong old gas limit', async () => {
+        await expect(
+          L1CrossDomainMessenger.replayMessage(
+            target,
+            sender,
+            message,
+            queueIndex,
+            oldGasLimit + 1, // Wrong gas limit
+            newGasLimit
+          )
+        ).to.be.revertedWith('Provided message has not been enqueued.')
+      })
+    })
+
+    describe('when all input values are the same as the existing message', () => {
+      it('should succeed', async () => {
+        await expect(
+          L1CrossDomainMessenger.replayMessage(
+            target,
+            sender,
+            message,
+            queueIndex,
+            oldGasLimit,
+            newGasLimit
+          )
+        ).to.not.be.reverted
+      })
+
+      it('should emit the TransactionEnqueued event', async () => {
+        const newQueueIndex = await CanonicalTransactionChain.getQueueLength()
+        const newTimestamp = (await getEthTime(ethers.provider)) + 100
+        await setEthTime(ethers.provider, newTimestamp)
+
+        await expect(
+          L1CrossDomainMessenger.replayMessage(
+            target,
+            sender,
+            message,
+            queueIndex,
+            oldGasLimit,
+            newGasLimit
+          )
+        )
+          .to.emit(CanonicalTransactionChain, 'TransactionEnqueued')
+          .withArgs(
+            applyL1ToL2Alias(L1CrossDomainMessenger.address),
+            Mock__L2CrossDomainMessenger.address,
+            newGasLimit,
+            encodeXDomainCalldata(target, sender, message, queueIndex),
+            newQueueIndex,
+            newTimestamp
+          )
+      })
+    })
+
+    it('should succeed if all inputs are the same as the existing message', async () => {
+      await L1CrossDomainMessenger.sendMessage(target, message, oldGasLimit)
+      const queueLength = await CanonicalTransactionChain.getQueueLength()
+
       await expect(
         L1CrossDomainMessenger.replayMessage(
           target,
           await signer.getAddress(),
           message,
           queueLength - 1,
-          gasLimit
-        )
-      ).to.be.revertedWith('Provided message has not been enqueued.')
-    })
-
-    it('should succeed if the message exists', async () => {
-      await L1CrossDomainMessenger.sendMessage(target, message, gasLimit)
-      const queueLength = await CanonicalTransactionChain.getQueueLength()
-
-      const calldata = encodeXDomainCalldata(
-        target,
-        await signer.getAddress(),
-        message,
-        queueLength - 1
-      )
-      await expect(
-        L1CrossDomainMessenger.replayMessage(
-          Mock__L2CrossDomainMessenger.address,
-          await signer.getAddress(),
-          calldata,
-          queueLength - 1,
-          gasLimit
+          oldGasLimit,
+          newGasLimit
         )
       ).to.not.be.reverted
     })
