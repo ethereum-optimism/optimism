@@ -73,7 +73,6 @@ contract MIPS {
         storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
       } else if (opcode < 0x20) {
         // rt is SignExtImm
-        uint32 SignExtImm = insn&0xFFFF | (insn&0x8000 != 0 ? 0xFFFF0000 : 0);
         if (opcode == 0xC || opcode == 0xD) {
           // ZeroExtImm
           rt = insn&0xFFFF;
@@ -81,9 +80,12 @@ contract MIPS {
           // SignExtImm
           rt = SE(insn&0xFFFF, 16);
         }
-      } else if (opcode >= 0x28) {
-        // store rt
+      } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
+        // store rt value with store
         rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+
+        // store actual rt with lwl and lwr
+        storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
       }
     }
 
@@ -167,11 +169,15 @@ contract MIPS {
       return SE((mem >> (24-(rs&3)*8)) & 0xFF, 8);
     } else if (opcode == 0x21) {  // lh
       return SE((mem >> (16-(rs&2)*8)) & 0xFFFF, 16);
+    } else if (opcode == 0x22) {  // lwl
+      return mem&0xFFFF0000 | rt&0xFFFF;
     } else if (opcode == 0x23) { return mem;   // lw
     } else if (opcode == 0x24) {  // lbu
       return (mem >> (24-(rs&3)*8)) & 0xFF;
     } else if (opcode == 0x25) {  // lhu
       return (mem >> (16-(rs&2)*8)) & 0xFFFF;
+    } else if (opcode == 0x26) {  // lwr
+      return rt&0xFFFF0000 | mem&0xFFFF;
     } else if (opcode&0x3c == 0x28) { return rt;  // sb, sh, sw
     } else if (opcode == 0xf) { return rt<<16; // lui
     }
