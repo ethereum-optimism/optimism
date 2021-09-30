@@ -1,3 +1,9 @@
+/**
+ * Optimism PBC
+ */
+
+/* eslint @typescript-eslint/no-var-requires: "off" */
+
 import solc from 'solc'
 import linker from 'solc/linker'
 import { createReadStream, writeFileSync, constants } from 'fs'
@@ -5,28 +11,35 @@ import { parseChunked } from '@discoveryjs/json-ext'
 import dotenv from 'dotenv'
 import fs from 'fs/promises'
 import { downloadSolc } from '../src/download-solc'
-import { compilerVersionsToSolc, LOCAL_SOLC_DIR } from '../src/constants'
+import {
+  compilerVersionsToSolc,
+  LOCAL_SOLC_DIR,
+  EtherscanContract,
+  EOA_CODE_HASHES,
+  ECDSA_CONTRACT_ACCOUNT_PREDEPLOY_SLOT,
+  IMPLEMENTATION_KEY,
+  skip,
+  immutableReference,
+  immutableReferences,
+} from '../src/constants'
+import {
+  isPredeploy,
+  isDeadAddress,
+  hasSourceCode,
+  isSafeToSkip,
+  isEOA,
+  solcInput,
+} from '../src/helpers'
+import { ethers } from 'ethers'
 
 dotenv.config()
 
 const env = process.env
 const STATE_DUMP_PATH = env.STATE_DUMP_PATH
 const ETHERSCAN_CONTRACTS_PATH = env.ETHERSCAN_CONTRACTS_PATH
+const ETHEREUM_HTTP_URL = env.ETHEREUM_HTTP_URL
 
-interface EtherscanContract {
-  contractAddress: string
-  code: string
-  hash: string
-  sourceCode: string
-  creationCode: string
-  contractFileName: string
-  contractName: string
-  compilerVersion: string
-  optimizationUsed: string
-  runs: string
-  constructorArguments: string
-  library: string
-}
+const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
 
 ;(async () => {
   // First download all required versions of solc
@@ -36,6 +49,9 @@ interface EtherscanContract {
     // directory already exists
   }
 
+  for (const version of Object.keys(compilerVersionsToSolc)) {
+    await downloadSolc(version, true) // using ovm
+  }
   for (const version of Object.values(compilerVersionsToSolc)) {
     await downloadSolc(version)
   }
@@ -54,58 +70,58 @@ interface EtherscanContract {
   // Iterate through the contracts
   for (const contract of etherscanContracts) {
     // TODO: sanity check the contract before processing it
+    // require certain fields exist
 
-    if (contract.sourceCode) {
-      let input = {
-        language: 'Solidity',
-        sources: {
-          // this is a .sol filename in the example
-          file: {
-            content: contract.sourceCode,
-          },
-        },
-        settings: {
-          outputSelection: {
-            '*': {
-              '*': ['*'],
-            },
-          },
-          optimizer: {
-            enabled: contract.optimizationUsed === '1',
-            runs: parseInt(contract.runs, 10),
-          },
-        },
-      }
-      let sourceCode = contract.sourceCode
-      // This is a whole input and Etherscan wraps it around a bracket
-      if (sourceCode.substr(0, 2) === '{{') {
-        // Trim the first and last bracket
-        sourceCode = sourceCode.slice(1, -1)
-      }
-      try {
-        const contractJson = JSON.parse(sourceCode)
-        console.log('got json')
-        if (contractJson.language) {
-          console.log('seems like multifile input')
-          input = contractJson
-        } else {
-          console.error('seems like just the source')
-          input.sources = contractJson
-        }
-      } catch (e) {
-        console.error('got error trying json')
-      }
+    // Skip processing of predeploy contracts
+    if (isPredeploy(contract)) {
+      console.error(`Skipping predeploy ${contract.contractAddress}`)
+      continue
+    }
+    // Skip processing of system contracts
+    if (isDeadAddress(contract)) {
+      console.error(`Skipping dead address ${contract.contractAddress}`)
+      continue
+    }
 
+    // Some contracts are safe to skip. Each contract that is
+    // safe to skip must be inspected manually
+    if (isSafeToSkip(contract)) {
+      continue
+    }
+
+    // Skip processing of EOAs and warn for other unknown contracts.
+    // These should be recorded and followed up with manually
+    if (!hasSourceCode(contract)) {
+      const eoa = await isEOA(contract, provider)
+      if (!eoa) {
+        console.error(`unknown contract ${contract.contractAddress}`)
+      }
+      continue
+    }
+
+    // Process contracts that have source code
+    if (hasSourceCode(contract)) {
+      console.error(
+        `Found contract with source code: ${contract.contractAddress}`
+      )
+      const input = solcInput(contract)
       const version = compilerVersionsToSolc[contract.compilerVersion]
-      console.log('version', version)
-      /* eslint @typescript-eslint/no-var-requires: "off" */
+      if (!version) {
+        throw new Error(
+          `Unable to find solc version ${contract.compilerVersion}`
+        )
+      }
+
+      // TODO: turn this path into a constant or add a helper function
+      // that returns a solc-js instance
       const currSolc = solc.setupMethods(
         require(`../solc-bin/solc-emscripten-wasm32-${version}.js`)
       )
 
+      // Compile the contract
       const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
-      console.log('output', contract.contractAddress, output)
       if (!output.contracts) {
+        console.error(`Cannot compile ${contract.contractAddress}`)
         // There was an error compiling this contract
         noContractsCompiled[contract.contractAddress] = output
         continue
@@ -113,11 +129,12 @@ interface EtherscanContract {
 
       // Log those without file names
       if (!contract.contractName) {
+        console.error(`Found contract without name ${contract.contractAddress}`)
         noContractName.push(contract.contractAddress)
         continue
       }
-      // const mainFile = path.parse(contract.contractFileName).name
-      console.log('contractName', contract.contractName)
+
+      // TODO: How can we make sure this is correct?
       // Contract name does not correspond with what's compiled from Etherscan sourcecode
       let mainOutput
       // there's a name for this multi-file address
@@ -132,29 +149,85 @@ interface EtherscanContract {
         continue
       }
 
-      const immutableRefs = mainOutput.evm.deployedBytecode.immutableReferences
+      // Find the immutables in the old code and move them to the new
+      const immutableRefs: immutableReference =
+        mainOutput.evm.deployedBytecode.immutableReferences
       if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
+        // Compile using the ovm compiler to find the location of the
+        // immutableRefs in the ovm contract so they can be migrated
+        // to the new contract
+        const ovmSolc = solc.setupMethods(
+          require(`../solc-bin/${contract.compilerVersion}.js`)
+        )
+        const ovmOutput = JSON.parse(ovmSolc.compile(JSON.stringify(input)))
+
+        // Iterate over the immutableRefs and slice them into the new code
+        // to carry over their values. The keys are the AST IDs
+        for (const value of Object.values(immutableRefs)) {
+          // Each value is an array of {length, start}
+          for (const ref of value) {
+            // TODO: need to use the immutableRef from the OLD contract
+            // This is currently finding the immutableRef in the NEW contract
+            const immutable = contract.code.slice(
+              ref.start,
+              ref.start + ref.length
+            )
+
+            let object = mainOutput.evm.deployedBytecode
+            if (object === undefined) {
+              throw new Error(`deployedBytecode undefined`)
+            }
+            // Sometimes the shape of the output is different?
+            if (typeof object === 'object') {
+              object = object.object
+            }
+
+            const newImmutable = object.slice(ref.start, ref.start + ref.length)
+            console.error(`Found value: ${newImmutable}`)
+
+            // TODO: need to grab the immutableRef from the old contract
+            // and slice it in
+
+            const bytecode = contract.code.slice(0, ref.start)
+              + immutable
+              + contract.code.slice(ref.start + ref.length)
+
+            if (bytecode.length !== contract.code.length) {
+              throw new Error(`mismatch in size`)
+            }
+
+            // TODO: double check this is correct
+            mainOutput.evm.deployedBytecode = bytecode
+          }
+        }
+
         console.warn('this contract has immutables', contract.contractAddress)
         hasImmutables[contract.contractAddress] =
           mainOutput.evm.deployedBytecode.immutableReferences
       }
+
       // Link libraries
       if (contract.library) {
         const deployedBytecode = mainOutput.evm.deployedBytecode.object
-        console.log('library', contract.library)
+        //console.log('library', contract.library)
         libraries.push(contract.library)
         const LibToAddress = contract.library.split(':')
         // TEST: just to see output
+        /*
         console.log(
           'link references!',
           linker.findLinkReferences(deployedBytecode)
         )
+        */
         // TODO: empty object should be all the LibToAddressPairs
         // const finalDeployedBytecode = linker.linkBytecode(deployedBytecode, {})
         // use this finalDeployedBytecode to replace in state dump
       }
     }
   }
+
+  console.log('all done')
+  /*
   console.log('had compiler errors', noContractsCompiled)
   for (const [address, output] of Object.entries(noContractsCompiled)) {
     console.log('error at address', address)
@@ -165,10 +238,11 @@ interface EtherscanContract {
     'filename not found in compiled contracts',
     contractFileNameMismatch
   )
+  */
 
   // TODO: handle immutables
-  console.log('has immutables', hasImmutables)
-  console.log('all libraries from etherscan file', libraries)
+  //console.log('has immutables', hasImmutables)
+  //console.log('all libraries from etherscan file', libraries)
 
   // TODO: Uniswap: use their published contracts or libraries and just
   // replace with bytecode from there
