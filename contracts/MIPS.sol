@@ -62,6 +62,10 @@ contract MIPS {
     if (pc == 0xdead0000) {
       return stateHash;
     }
+    return stepNextPC(stateHash, pc, pc+4);
+  }
+
+  function stepNextPC(bytes32 stateHash, uint32 pc, uint32 nextPC) public view returns (bytes32) {
     uint32 insn = m.ReadMemory(stateHash, pc);
     uint32 opcode = insn >> 26; // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
@@ -149,39 +153,41 @@ contract MIPS {
         hi = uint32(acc>>32);
         val = uint32(acc);
       } else if (func == 0x1a) { // div
-        // TODO: totally wrong
         val = uint32(int32(rs)/int32(rt));
         hi = uint32(int32(rs)%int32(rt));
+      } else if (func == 0x1b) { // divu
+        val = rs/rt;
+        hi = rs%rt;
       }
 
       // lo/hi writeback
-      if (func == 0x18 || func == 0x19 || func == 0x1a) {
+      if (func == 0x18 || func == 0x19 || func == 0x1a || func == 0x1b) {
         stateHash = m.WriteMemory(stateHash, REG_HI, hi);
         storeAddr = REG_LO;
       }
     }
 
-    // jumps
+    // jumps (with branch delay slot)
 
     if (opcode == 0 && func == 8) {
       // jr (val is already right)
-      storeAddr = REG_PC;
+      return stepNextPC(stateHash, nextPC, val);
     }
     if (opcode == 0 && func == 9) {
       // jalr
       stateHash = m.WriteMemory(stateHash, storeAddr, pc+8);
-      storeAddr = REG_PC;
+      return stepNextPC(stateHash, nextPC, val);
     }
 
     if (opcode == 2 || opcode == 3) {
       if (opcode == 3) stateHash = m.WriteMemory(stateHash, REG_LR, pc+8);
       val = SE(insn&0x03FFFFFF, 26) << 2;
-      storeAddr = REG_PC;
+      return stepNextPC(stateHash, nextPC, val);
     }
 
     if (shouldBranch) {
       val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
-      storeAddr = REG_PC;
+      return stepNextPC(stateHash, nextPC, val);
     }
 
     if (opcode == 0 && func == 0xa) { // movz
@@ -196,7 +202,8 @@ contract MIPS {
       stateHash = m.WriteMemory(stateHash, storeAddr, val);
     }
     if (storeAddr != REG_PC) {
-      stateHash = m.WriteMemory(stateHash, REG_PC, pc+4);
+      // should always be true now
+      stateHash = m.WriteMemory(stateHash, REG_PC, nextPC);
     }
 
     return stateHash;
