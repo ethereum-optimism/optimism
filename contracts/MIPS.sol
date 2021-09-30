@@ -250,14 +250,18 @@ contract MIPS {
     } else if (opcode == 0x21) {  // lh
       return SE((mem >> (16-(rs&2)*8)) & 0xFFFF, 16);
     } else if (opcode == 0x22) {  // lwl
-      return mem&0xFFFF0000 | rt&0xFFFF;
+      uint32 val = mem << ((rs&3)*8);
+      uint32 mask = uint32(0xFFFFFFFF) << ((rs&3)*8);
+      return (rt & ~mask) | val;
     } else if (opcode == 0x23) { return mem;   // lw
     } else if (opcode == 0x24) {  // lbu
       return (mem >> (24-(rs&3)*8)) & 0xFF;
     } else if (opcode == 0x25) {  // lhu
       return (mem >> (16-(rs&2)*8)) & 0xFFFF;
     } else if (opcode == 0x26) {  // lwr
-      return rt&0xFFFF0000 | mem&0xFFFF;
+      uint32 val = mem >> (24-(rs&3)*8);
+      uint32 mask = uint32(0xFFFFFFFF) >> (24-(rs&3)*8);
+      return (rt & ~mask) | val;
     } else if (opcode == 0x28) { // sb
       uint32 val = (rt&0xFF) << (24-(rs&3)*8);
       uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24-(rs&3)*8));
