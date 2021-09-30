@@ -20,9 +20,11 @@
   "dependencies": {
     "@discoveryjs/json-ext": "^0.5.3",
     "@eth-optimism/contracts": "^0.4.10",
+    "@ethersproject/providers": "^5.4.5",
     "@uniswap/v3-core-optimism": "^1.0.0-rc.0",
+    "axios": "^0.21.4",
     "dotenv": "^10.0.0",
-    "ethers": "^5.4.5",
+    "ethers": "^5.4.7",
     "solc": "^0.8.7-fixed"
   }
 }
