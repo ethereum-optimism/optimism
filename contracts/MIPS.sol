@@ -74,13 +74,14 @@ contract MIPS {
       // R-type or I-type (stores rt)
       rs = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
       storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
-      if (opcode == 0) {
+      if (opcode == 0 || opcode == 0x1c) {
         // R-type (stores rd)
         rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
         storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
       } else if (opcode < 0x20) {
         // rt is SignExtImm
-        if (opcode == 0xC || opcode == 0xD) {
+        // don't sign extend for andi, ori, xori
+        if (opcode == 0xC || opcode == 0xD || opcode == 0xe) {
           // ZeroExtImm
           rt = insn&0xFFFF;
         } else {
@@ -134,12 +135,26 @@ contract MIPS {
       val = execute(insn, rs, rt, mem);
     }
 
-    // mflo/mthi
+    // mflo/mthi and mult / multu
     if (opcode == 0) {
       if (func == 0x10) val = m.ReadMemory(stateHash, REG_HI); // mfhi
       else if (func == 0x11) storeAddr = REG_HI; // mthi
       else if (func == 0x12) val = m.ReadMemory(stateHash, REG_LO); // mflo
       else if (func == 0x13) storeAddr = REG_LO; // mtlo
+
+      uint64 acc;
+      if (func == 0x18) { // mult
+        acc = uint64(int64(rs)*int64(rt));
+      } else if (func == 0x19) { // multu
+        acc = uint64(uint64(rs)*uint64(rt));
+      }
+
+      // lo/hi writeback
+      if (func == 0x18 || func == 0x19) {
+        stateHash = m.WriteMemory(stateHash, REG_HI, uint32(acc>>32));
+        val = uint32(acc);
+        storeAddr = REG_LO;
+      }
     }
 
     if (shouldBranch) {
@@ -199,6 +214,9 @@ contract MIPS {
       } else if (func == 0x2B) {
         return rs<rt ? 1 : 0;               // sltu
       }
+    } else if (opcode == 0xf) { return rt<<16; // lui
+    } else if (opcode == 0x1c) {  // SPECIAL2
+      if (func == 2) return uint32(int32(rs)*int32(rt)); // mul
     } else if (opcode == 0x20) {  // lb
       return SE((mem >> (24-(rs&3)*8)) & 0xFF, 8);
     } else if (opcode == 0x21) {  // lh
@@ -222,7 +240,6 @@ contract MIPS {
       return (mem & mask) | val;
     } else if (opcode == 0x2b) { // sw
       return rt;
-    } else if (opcode == 0xf) { return rt<<16; // lui
     }
     return rs;
   }
