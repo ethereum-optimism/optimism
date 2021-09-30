@@ -49,6 +49,14 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
 
     /***************
+     * Queue State *
+     ***************/
+
+    uint40 private nextQueueIndex; // index of the first queue element not yet included
+    Lib_OVMCodec.QueueElement[] queueElements;
+
+
+    /***************
      * Constructor *
      ***************/
 
@@ -143,7 +151,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             uint40
         )
     {
-        (,uint40 nextQueueIndex,,) = _getBatchExtraData();
         return nextQueueIndex;
     }
 
@@ -192,8 +199,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         )
     {
         return _getQueueElement(
-            _index,
-            queue()
+            _index
         );
     }
 
@@ -223,9 +229,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             uint40
         )
     {
-        return _getQueueLength(
-            queue()
-        );
+        return uint40(transactionHashes.length);
     }
 
     /**
@@ -301,21 +305,14 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             )
         );
 
-        bytes32 timestampAndBlockNumber;
-        assembly {
-            timestampAndBlockNumber := timestamp()
-            timestampAndBlockNumber := or(timestampAndBlockNumber, shl(40, number()))
-        }
-
-        IChainStorageContainer queueRef = queue();
-
-        queueRef.push(transactionHash);
-        queueRef.push(timestampAndBlockNumber);
-
-        // The underlying queue data structure stores 2 elements
-        // per insertion, so to get the real queue length we need
-        // to divide by 2 and subtract 1.
-        uint256 queueIndex = queueRef.length() / 2 - 1;
+        queueElements.push(
+            Lib_OVMCodec.QueueElement({
+                transactionHash: transactionHash,
+                timestamp: uint40(block.timestamp),
+                blockNumber: uint40(block.number)
+            })
+        );
+        uint256 queueIndex = queueElements.length - 1;
         emit TransactionEnqueued(
             sender,
             _target,
@@ -365,18 +362,13 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             "Not enough BatchContexts provided."
         );
 
-        // Take a reference to the queue and its length so we don't have to keep resolving it.
-        // Length isn't going to change during the course of execution, so it's fine to simply
-        // resolve this once at the start. Saves gas.
-        IChainStorageContainer queueRef = queue();
-        uint40 queueLength = _getQueueLength(queueRef);
-
         // Counter for number of sequencer transactions appended so far.
         uint32 numSequencerTransactions = 0;
 
-        // We will sequentially append leaves which are pointers to the queue.
-        // The initial queue index is what is currently in storage.
-        uint40 nextQueueIndex = getNextQueueIndex();
+        // Cache the nextQueueIndex.
+        // In order to be safe, nothing should read or write to the nextQueueIndex
+        // storage variable until it is updated with the value from nextQueueIndexCached.
+        uint40 nextQueueIndexCached = nextQueueIndex;
 
         BatchContext memory curContext;
         for (uint32 i = 0; i < numContexts; i++) {
@@ -389,11 +381,11 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             numSequencerTransactions += uint32(curContext.numSequencedTransactions);
 
             // Now process any subsequent queue transactions.
-            nextQueueIndex += uint40(curContext.numSubsequentQueueTransactions);
-
+            nextQueueIndexCached += uint40(curContext.numSubsequentQueueTransactions);
         }
+
         require(
-            nextQueueIndex <= queueLength,
+            nextQueueIndexCached <= queueElements.length,
             "Attempted to append more elements than are available in the queue."
         );
 
@@ -413,8 +405,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             // least one queue element. We increment nextQueueIndex after processing each queue
             // element, so the index of the last element we processed is nextQueueIndex - 1.
             Lib_OVMCodec.QueueElement memory lastElement = _getQueueElement(
-                nextQueueIndex - 1,
-                queueRef
+                nextQueueIndexCached - 1
             );
 
             blockTimestamp = lastElement.timestamp;
@@ -431,10 +422,13 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         );
 
         emit SequencerBatchAppended(
-            nextQueueIndex - numQueuedTransactions,
+            nextQueueIndexCached - numQueuedTransactions,
             numQueuedTransactions,
             getTotalElements()
         );
+
+        // Update the nextQueueIndex storage variable.
+        nextQueueIndex = nextQueueIndexCached;
     }
 
     /**********************
@@ -554,8 +548,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return _element Queue element at the given index.
      */
     function _getQueueElement(
-        uint256 _index,
-        IChainStorageContainer _queueRef
+        uint256 _index
     )
         internal
         view
@@ -563,46 +556,8 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             Lib_OVMCodec.QueueElement memory _element
         )
     {
-        // The underlying queue data structure stores 2 elements
-        // per insertion, so to get the actual desired queue index
-        // we need to multiply by 2.
-        uint40 trueIndex = uint40(_index * 2);
-        bytes32 transactionHash = _queueRef.get(trueIndex);
-        bytes32 timestampAndBlockNumber = _queueRef.get(trueIndex + 1);
-
-        uint40 elementTimestamp;
-        uint40 elementBlockNumber;
-        // solhint-disable max-line-length
-        assembly {
-            elementTimestamp   :=         and(timestampAndBlockNumber, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
-            elementBlockNumber := shr(40, and(timestampAndBlockNumber, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000))
-        }
         // solhint-enable max-line-length
-
-        return Lib_OVMCodec.QueueElement({
-            transactionHash: transactionHash,
-            timestamp: elementTimestamp,
-            blockNumber: elementBlockNumber
-        });
-    }
-
-    /**
-     * Retrieves the length of the queue.
-     * @return Length of the queue.
-     */
-    function _getQueueLength(
-        IChainStorageContainer _queueRef
-    )
-        internal
-        view
-        returns (
-            uint40
-        )
-    {
-        // The underlying queue data structure stores 2 elements
-        // per insertion, so to get the real queue length we need
-        // to divide by 2.
-        return uint40(_queueRef.length() / 2);
+        return queueElements[_index];
     }
 
     /**
