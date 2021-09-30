@@ -121,6 +121,11 @@ contract MIPS {
         val = pc + (SE(insn&0xFFFF, 16)<<2);
         storeAddr = REG_PC;
       }
+    } else if (opcode == 6 || opcode == 7) {   // blez/bgtz
+      if ((int32(rs) > 0 && opcode == 7) || (int32(rs) <= 0 && opcode == 6)) {
+        val = pc + (SE(insn&0xFFFF, 16)<<2);
+        storeAddr = REG_PC;
+      }
     } else {
       // ALU
       val = execute(insn, rs, rt, mem);
@@ -128,7 +133,7 @@ contract MIPS {
 
     // write back
     if (storeAddr != 0xFFFFFFFF) {
-      // does this ever not happen?
+      // does this ever not happen? yes, on untaken beq/bne
       stateHash = m.WriteMemory(stateHash, storeAddr, val);
     }
     if (storeAddr != REG_PC) {
