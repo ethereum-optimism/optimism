@@ -180,7 +180,7 @@ contract MIPS {
     }
 
     if (shouldBranch) {
-      val = pc + (SE(insn&0xFFFF, 16)<<2);
+      val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
       storeAddr = REG_PC;
     }
 
