@@ -25,8 +25,8 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
 - **Feeds**: "Data availability layer"--append-only logs (e.g. of deposits, transactions, and batched transactions) which must guarantee that:
   - all values and their witnesses are indexable by off-chain parties
   - witnesses are verifiable by on-chain dispute contract
-- **State Oracle**: Cryptoeconomic light client of the L2.
-  - *Contract separation is not yet final.  Highest priority interface spec: Single-step verification API* 
+- **L2 Block Oracle**: Cryptoeconomic light client of the L2.
+  - *Contract separation is not yet final.  Highest priority interface spec: Single-step verification API*
   - **Proposal Manager**: Handles conflicting state proposals to determine malicious party
     - Maintains a set of ongoing optimistic proposals of the L2 state
     - Ensures that state proposers are sufficiently bonded
@@ -37,7 +37,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
     - merkle tree of execution steps between the trusted start and disputed end
   - **Single Step Verifier** for executing the earliest disagreed-upon step
     - Loads witness data:
-      - step witness parts can be represented as `generalized index -> bytes32`, 
+      - step witness parts can be represented as `generalized index -> bytes32`,
         to simplify interaction with the partial structure (no tree management, every lookup is a simple math evaluation to get the right key)
       - involved contract code entries can be large, TBD if put in storage or better of in call-data
       - MPT nodes are just a dict (of internal MPT node hash to MPT node content)
