@@ -88,7 +88,7 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
 - **Challenger Agent**:
   - Take generated fraud proof (e.g. JSON file)
   - Submit bond: control spam, challenges get back the bond, if they are actually valid.
-  - Run dispute game, retrieve disputed step index
+  - Run dispute game, retrieve disputed step index (WIP implementation [here](https://github.com/statechannels/dispute-game))
     - every step before this is agreed on by both parties
     - the first differing step will be verified by reproducing the correct outcome on-chain
   - Build witness data:
