@@ -79,7 +79,15 @@ export const makeL2GenesisFile = async (
       _symbol: 'ETH',
     },
     L2CrossDomainMessenger: {
+      // We default the xDomainMsgSender to this value to save gas.
+      // See usage of this default in the L2CrossDomainMessenger contract.
+      xDomainMsgSender: '0x000000000000000000000000000000000000dEaD',
       l1CrossDomainMessenger: cfg.l1CrossDomainMessengerAddress,
+    },
+    WETH9: {
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
     },
   }
 
