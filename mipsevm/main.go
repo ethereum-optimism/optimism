@@ -179,7 +179,7 @@ func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
 	}
 }
 
-func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) {
+func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) uint32 {
 	ram = make(map[uint64](uint32))
 	ram[0xC000007C] = 0xDEAD0000
 	//fmt.Println("starting", fn)
@@ -210,6 +210,7 @@ func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []by
 	if err != nil {
 		log.Fatal(err)
 	}
+	return ram[0xbffffff4] & ram[0xbffffff8]
 }
 
 func main() {
@@ -270,9 +271,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		good := true
 		for _, f := range files {
-			runTest("test/bin/"+f.Name(), 100, interpreter, bytecode, 1000000)
+			good = good && (runTest("test/bin/"+f.Name(), 100, interpreter, bytecode, 1000000) == 1)
+		}
+		if !good {
+			panic("some tests failed")
 		}
 	}
-
 }

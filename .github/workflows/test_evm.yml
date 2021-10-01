@@ -1,0 +1,21 @@
+name: Test EVM
+
+on: [push, pull_request]
+
+jobs:
+  unit:
+    name: Test EVM
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Install Go + Node
+      run: |
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm
+    - name: Install yarn
+      run: |
+        npm install --global yarn
+        yarn install
+    - name: Test MIPS on EVM
+      run: cd mipsevm && ./evm.sh
