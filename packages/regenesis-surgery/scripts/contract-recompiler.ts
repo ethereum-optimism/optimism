@@ -160,18 +160,42 @@ const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
           require(`../solc-bin/${contract.compilerVersion}.js`)
         )
         const ovmOutput = JSON.parse(ovmSolc.compile(JSON.stringify(input)))
+        let ovmFile
+        if (contract.contractFileName) {
+          ovmFile =
+            ovmOutput.contracts[contract.contractFileName][contract.contractName]
+        } else {
+          ovmFile = ovmOutput.contracts.file[contract.contractName]
+        }
+
+        const ovmImmutableRefs: immutableReference =
+          ovmFile.evm.deployedBytecode.immutableReferences
+
+        let ovmObject = ovmFile.evm.deployedBytecode
+        if (typeof ovmObject === 'object') {
+          ovmObject = ovmObject.object
+        }
 
         // Iterate over the immutableRefs and slice them into the new code
         // to carry over their values. The keys are the AST IDs
-        for (const value of Object.values(immutableRefs)) {
+        for (const [key, value] of Object.entries(immutableRefs)) {
+          const ovmValue = ovmImmutableRefs[key]
+          if (!ovmValue) {
+            throw new Error(`cannot find ast in ovm compiler output`)
+          }
           // Each value is an array of {length, start}
-          for (const ref of value) {
-            // TODO: need to use the immutableRef from the OLD contract
-            // This is currently finding the immutableRef in the NEW contract
-            const immutable = contract.code.slice(
-              ref.start,
-              ref.start + ref.length
+          for (const [i, ref] of value.entries()) {
+            const ovmRef = ovmValue[i]
+            if (ref.length !== ovmRef.length) {
+              throw new Error(`length mismatch`)
+            }
+
+            // Get the value from the contract code
+            const immutable = ovmObject.slice(
+              ovmRef.start,
+              ovmRef.start + ovmRef.length
             )
+            console.error(`Found immutable: ${immutable}`)
 
             let object = mainOutput.evm.deployedBytecode
             if (object === undefined) {
@@ -182,18 +206,14 @@ const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_HTTP_URL)
               object = object.object
             }
 
-            const newImmutable = object.slice(ref.start, ref.start + ref.length)
-            console.error(`Found value: ${newImmutable}`)
+            const pre = object.slice(0, ref.start)
+            const post = object.slice(ref.start + ref.length)
+            const bytecode = pre + immutable + post
 
-            // TODO: need to grab the immutableRef from the old contract
-            // and slice it in
-
-            const bytecode = contract.code.slice(0, ref.start)
-              + immutable
-              + contract.code.slice(ref.start + ref.length)
-
-            if (bytecode.length !== contract.code.length) {
-              throw new Error(`mismatch in size`)
+            if (bytecode.length !== object.length) {
+              throw new Error(
+                `mismatch in size: ${bytecode.length} vs ${object.length}`
+              )
             }
 
             // TODO: double check this is correct
