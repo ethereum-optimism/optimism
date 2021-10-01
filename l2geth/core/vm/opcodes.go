@@ -104,8 +104,7 @@ const (
 	CHAINID     = 0x46
 	SELFBALANCE = 0x47
 
-	L1MESSAGESENDER = 0x4A
-	L1BLOCKNUMBER   = 0x4B
+	L1BLOCKNUMBER = 0x4B
 )
 
 // 0x50 range - 'storage' and execution.
@@ -286,9 +285,8 @@ var opCodeToString = map[OpCode]string{
 	SELFBALANCE: "SELFBALANCE",
 
 	// OVM opcodes
-	// 0x4A
-	L1MESSAGESENDER: "L1MESSAGESENDER",
-	L1BLOCKNUMBER:   "L1BLOCKNUMBER",
+	// 0x4B
+	L1BLOCKNUMBER: "L1BLOCKNUMBER",
 
 	// 0x50 range - 'storage' and execution.
 	POP: "POP",
@@ -548,8 +546,7 @@ var stringToOp = map[string]OpCode{
 	"SELFDESTRUCT":   SELFDESTRUCT,
 
 	// OVM opcodes
-	"L1MESSAGESENDER": L1MESSAGESENDER,
-	"L1BLOCKNUMBER":   L1BLOCKNUMBER,
+	"L1BLOCKNUMBER": L1BLOCKNUMBER,
 }
 
 // StringToOp finds the opcode whose name is stored in `str`.

@@ -79,7 +79,6 @@ export const makeL2GenesisFile = async (
       _symbol: 'ETH',
     },
     L2CrossDomainMessenger: {
-      _status: 1,
       l1CrossDomainMessenger: cfg.l1CrossDomainMessengerAddress,
     },
   }
@@ -92,14 +91,11 @@ export const makeL2GenesisFile = async (
       storage: {},
     }
 
-    if (predeployName === 'OVM_L1MessageSender') {
-      // OVM_L1MessageSender is a special case where we just inject a specific bytecode string.
-      // We do this because it uses the custom L1MESSAGESENDER opcode (0x4A) which cannot be
-      // directly used in Solidity (yet). This bytecode string simply executes the 0x4A opcode
+    if (predeployName === 'OVM_L1BlockNumber') {
+      // OVM_L1BlockNumber is a special case where we just inject a specific bytecode string.
+      // We do this because it uses the custom L1BLOCKNUMBER opcode (0x4B) which cannot be
+      // directly used in Solidity (yet). This bytecode string simply executes the 0x4B opcode
       // and returns the address given by that opcode.
-      dump[predeployAddress].code = '0x4A60005260206000F3'
-    } else if (predeployName === 'OVM_L1BlockNumber') {
-      // Same as above but for OVM_L1BlockNumber (0x4B).
       dump[predeployAddress].code = '0x4B60005260206000F3'
     } else {
       const artifact = getContractArtifact(predeployName)
