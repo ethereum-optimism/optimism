@@ -23,12 +23,20 @@ type ovmTransaction struct {
 }
 
 func toExecutionManagerRun(evm *vm.EVM, msg Message) (Message, error) {
+	to := msg.To()
+	if to == nil {
+		to = &common.Address{}
+	}
+	l1MsgSender := msg.L1MessageSender()
+	if l1MsgSender == nil {
+		l1MsgSender = &common.Address{}
+	}
 	tx := ovmTransaction{
 		evm.Context.Time,
 		msg.L1BlockNumber(),
 		uint8(msg.QueueOrigin()),
-		*msg.L1MessageSender(),
-		*msg.To(),
+		*l1MsgSender,
+		*to,
 		big.NewInt(int64(msg.Gas())),
 		msg.Data(),
 	}

@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.4.1",
+    "@ethersproject/providers": "^5.4.5",
     "ethers": "^5.4.5",
     "lodash": "^4.17.21"
   }
