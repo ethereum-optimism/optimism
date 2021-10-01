@@ -39,10 +39,26 @@ export interface UniswapPoolData {
   fee: ethers.BigNumber
 }
 
+export interface EtherscanContract {
+  contractAddress: string
+  code: string
+  hash: string
+  sourceCode: string
+  creationCode: string
+  contractFileName: string
+  contractName: string
+  compilerVersion: string
+  optimizationUsed: string
+  runs: string
+  constructorArguments: string
+  library: string
+}
+
 export interface SurgeryDataSources {
   dump: StateDump
   genesis: StateDump
   pools: UniswapPoolData[]
+  etherscanDump: EtherscanContract[]
   l1TestnetProvider: ethers.providers.JsonRpcProvider
   l1MainnetProvider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider

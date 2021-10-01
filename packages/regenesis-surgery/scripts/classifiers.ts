@@ -82,9 +82,11 @@ export const classify = (
   account: Account,
   data: SurgeryDataSources
 ): AccountType => {
-  for (const [accountType, classifier] of Object.entries(classifiers)) {
-    if (classifier(account, data)) {
-      return parseInt(accountType, 10) as AccountType
+  for (const accountType in AccountType) {
+    if (!isNaN(Number(accountType))) {
+      if (classifiers[accountType](account, data)) {
+        return Number(accountType)
+      }
     }
   }
 }

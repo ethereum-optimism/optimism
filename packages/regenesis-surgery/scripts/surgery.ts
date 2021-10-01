@@ -1,4 +1,9 @@
-import { StateDump, UniswapPoolData, SurgeryDataSources } from './types'
+import {
+  StateDump,
+  UniswapPoolData,
+  SurgeryDataSources,
+  EtherscanContract,
+} from './types'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
 
@@ -6,10 +11,12 @@ const main = async () => {
   const dump: StateDump = null as any // TODO
   const genesis: StateDump = null as any // TODO
   const pools: UniswapPoolData[] = null as any // TODO
+  const etherscanDump: EtherscanContract[] = null as any // TODO
   const data: SurgeryDataSources = {
     dump,
     genesis,
     pools,
+    etherscanDump,
     l1TestnetProvider: null as any, // TODO
     l1MainnetProvider: null as any, // TODO
     l2Provider: null as any, // TODO
