@@ -25,8 +25,7 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
   let sequencer: Signer
   let alice: Signer
   before(async () => {
-    ;[sequencer] = await ethers.getSigners()
-    ;[alice] = await ethers.getSigners()
+    ;[sequencer, alice] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
@@ -139,14 +138,13 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
         NON_NULL_BYTES32,
         {
           value: depositAmount,
-          gasPrice: 0,
         }
       )
 
       const receipt = await res.wait()
       const gasUsed = receipt.gasUsed.toNumber()
       console.log('    - Gas used:', gasUsed)
-      expectApprox(gasUsed, 116_781, {
+      expectApprox(gasUsed, 132_481, {
         absoluteUpperDeviation: 500,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -169,11 +167,10 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
         FINALIZATION_GAS,
         NON_NULL_BYTES32
       )
-
       const receipt = await res.wait()
       const gasUsed = receipt.gasUsed.toNumber()
       console.log('    - Gas used:', gasUsed)
-      expectApprox(gasUsed, 164_622, {
+      expectApprox(gasUsed, 192_822, {
         absoluteUpperDeviation: 500,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
