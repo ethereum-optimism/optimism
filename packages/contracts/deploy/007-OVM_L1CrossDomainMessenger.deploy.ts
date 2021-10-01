@@ -37,7 +37,8 @@ const deployFn: DeployFunction = async (hre) => {
   // NOTE: this initialization is *not* technically required (we only need to initialize the proxy)
   // but it feels safer to initialize this anyway. Otherwise someone else could come along and
   // initialize this.
-  await L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
+  const tx = await L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
+  await tx.wait()
 
   const libAddressManager = await L1CrossDomainMessenger.libAddressManager()
   if (libAddressManager !== Lib_AddressManager.address) {

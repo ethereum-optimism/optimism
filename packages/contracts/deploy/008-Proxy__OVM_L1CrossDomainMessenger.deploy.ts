@@ -36,7 +36,10 @@ const deployFn: DeployFunction = async (hre) => {
     }
   )
 
-  await Proxy__L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
+  const tx = await Proxy__L1CrossDomainMessenger.initialize(
+    Lib_AddressManager.address
+  )
+  await tx.wait()
 
   const libAddressManager =
     await Proxy__L1CrossDomainMessenger.libAddressManager()

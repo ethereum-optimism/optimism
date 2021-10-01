@@ -1,7 +1,8 @@
 /* Imports: External */
-import { Contract } from 'ethers'
+import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
+import { sleep } from '@eth-optimism/core-utils'
 
 export const registerAddress = async ({
   hre,
@@ -30,7 +31,17 @@ export const registerAddress = async ({
   const tx = await Lib_AddressManager.setAddress(name, address)
   await tx.wait()
 
-  const remoteAddress = await Lib_AddressManager.getAddress(name)
+  let retries = 0
+  let remoteAddress = await Lib_AddressManager.getAddress(name)
+  while (remoteAddress === ethers.constants.AddressZero) {
+    retries++
+    if (retries > 10) {
+      throw new Error(`Could not register address for ${name} to ${address}`)
+    }
+    await sleep(5000)
+    remoteAddress = await Lib_AddressManager.getAddress(name)
+  }
+
   if (remoteAddress !== address) {
     throw new Error(
       `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
