@@ -18,10 +18,10 @@
     "clean": "rimraf cache artifacts artifacts-ovm cache-ovm"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "^0.4.10",
-    "@eth-optimism/core-utils": "^0.5.2",
+    "@eth-optimism/contracts": "^0.4.13",
+    "@eth-optimism/core-utils": "^0.6.0",
     "@eth-optimism/hardhat-ovm": "^0.2.3",
-    "@eth-optimism/message-relayer": "^0.1.11",
+    "@eth-optimism/message-relayer": "^0.1.13",
     "@ethersproject/providers": "^5.4.4",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",

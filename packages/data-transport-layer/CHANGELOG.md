@@ -1,5 +1,16 @@
 # data transport layer
 
+## 0.4.8
+
+### Patch Changes
+
+- e0be02e1: Add fallback provider support to DTL using helper function in core-utils
+- Updated dependencies [e0be02e1]
+- Updated dependencies [7f7f35c3]
+- Updated dependencies [8da04505]
+  - @eth-optimism/core-utils@0.6.0
+  - @eth-optimism/contracts@0.4.13
+
 ## 0.4.7
 
 ### Patch Changes

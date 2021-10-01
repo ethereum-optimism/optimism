@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/batch-submitter",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "private": true,
   "description": "[Optimism] Batch submission for sequencer & aggregators",
   "main": "dist/index",
@@ -34,8 +34,8 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.1.5",
-    "@eth-optimism/contracts": "^0.4.11",
-    "@eth-optimism/core-utils": "^0.5.5",
+    "@eth-optimism/contracts": "^0.4.13",
+    "@eth-optimism/core-utils": "^0.6.0",
     "@eth-optimism/ynatm": "^0.2.2",
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/providers": "^5.4.4",

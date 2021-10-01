@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "main": "dist/index",
   "files": [
     "dist/*"

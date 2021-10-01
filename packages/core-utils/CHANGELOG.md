@@ -1,5 +1,15 @@
 # @eth-optimism/core-utils
 
+## 0.6.0
+
+### Minor Changes
+
+- 8da04505: Allow a configurable L1 and L2 blocks to fetch in the watcher
+
+### Patch Changes
+
+- e0be02e1: Add fallback provider support to DTL using helper function in core-utils
+
 ## 0.5.5
 
 ### Patch Changes
