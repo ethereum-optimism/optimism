@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.15
+
+### Patch Changes
+
+- 5c9b6343: Fix execution manager run
+
 ## 0.4.14
 
 ### Patch Changes

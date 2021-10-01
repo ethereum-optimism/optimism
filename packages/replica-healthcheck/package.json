@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/replica-healthcheck",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "main": "dist/index",
   "files": [
@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.1.5",
-    "@eth-optimism/core-utils": "^0.5.1",
+    "@eth-optimism/core-utils": "^0.6.0",
     "ethers": "^5.4.5",
     "dotenv": "^10.0.0",
     "express": "^4.17.1",

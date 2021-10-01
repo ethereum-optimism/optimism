@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.14
+
+### Patch Changes
+
+- 39cea8fd: Removes the call to `appendQueueBatch` from the batch submitter
+- Updated dependencies [e0be02e1]
+- Updated dependencies [7f7f35c3]
+- Updated dependencies [8da04505]
+  - @eth-optimism/core-utils@0.6.0
+  - @eth-optimism/contracts@0.4.13
+
 ## 0.3.13
 
 ### Patch Changes

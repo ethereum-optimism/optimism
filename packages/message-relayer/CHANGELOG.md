@@ -1,5 +1,16 @@
 # @eth-optimism/message-relayer
 
+## 0.1.13
+
+### Patch Changes
+
+- e504bb47: added coverage for getMerkleTreeProof
+- Updated dependencies [e0be02e1]
+- Updated dependencies [7f7f35c3]
+- Updated dependencies [8da04505]
+  - @eth-optimism/core-utils@0.6.0
+  - @eth-optimism/contracts@0.4.13
+
 ## 0.1.12
 
 ### Patch Changes

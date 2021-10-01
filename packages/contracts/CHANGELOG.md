@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.13
+
+### Patch Changes
+
+- 7f7f35c3: contracts: remove l1 contracts from l2 state dump process
+- Updated dependencies [e0be02e1]
+- Updated dependencies [8da04505]
+  - @eth-optimism/core-utils@0.6.0
+
 ## 0.4.12
 
 ### Patch Changes
