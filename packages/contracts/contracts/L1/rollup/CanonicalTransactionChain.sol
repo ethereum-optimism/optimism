@@ -229,7 +229,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             uint40
         )
     {
-        return uint40(transactionHashes.length);
+        return uint40(queueElements.length);
     }
 
     /**
