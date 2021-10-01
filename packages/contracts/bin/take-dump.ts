@@ -64,6 +64,8 @@ import { makeL2GenesisFile } from '../src/make-genesis'
   // The L1 cross domain messenger address, used for cross domain messaging
   const l1CrossDomainMessengerAddress = env.L1_CROSS_DOMAIN_MESSENGER_ADDRESS
 
+  ensure(whitelistOwner, 'WHITELIST_OWNER')
+  ensure(gasPriceOracleOwner, 'GAS_PRICE_ORACLE_OWNER')
   ensure(l2BlockGasLimit, 'L2_BLOCK_GAS_LIMIT')
   ensure(l2ChainId, 'L2_CHAIN_ID')
   ensure(blockSignerAddress, 'BLOCK_SIGNER_ADDRESS')
