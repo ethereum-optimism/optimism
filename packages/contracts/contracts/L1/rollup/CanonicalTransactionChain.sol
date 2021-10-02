@@ -198,9 +198,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             Lib_OVMCodec.QueueElement memory _element
         )
     {
-        return _getQueueElement(
-            _index
-        );
+        return queueElements[_index];
     }
 
     /**
@@ -214,7 +212,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             uint40
         )
     {
-        return getQueueLength() - getNextQueueIndex();
+        return uint40(queueElements.length) - nextQueueIndex;
     }
 
    /**
@@ -366,7 +364,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         uint32 numSequencerTransactions = 0;
 
         // Cache the nextQueueIndex.
-        // In order to be safe, nothing should read or write to the nextQueueIndex
+        // This is safe as long as nothing reads or writes to the nextQueueIndex
         // storage variable until it is updated with the value from nextQueueIndexCached.
         uint40 nextQueueIndexCached = nextQueueIndex;
 
@@ -404,9 +402,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             // curContext.numSubsequentQueueTransactions > 0 which means that we've processed at
             // least one queue element. We increment nextQueueIndex after processing each queue
             // element, so the index of the last element we processed is nextQueueIndex - 1.
-            Lib_OVMCodec.QueueElement memory lastElement = _getQueueElement(
-                nextQueueIndexCached - 1
-            );
+            Lib_OVMCodec.QueueElement memory lastElement = queueElements[nextQueueIndexCached - 1];
 
             blockTimestamp = lastElement.timestamp;
             blockNumber = lastElement.blockNumber;
@@ -488,7 +484,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         bytes27 extraData = batches().getGlobalMetadata();
 
         uint40 totalElements;
-        uint40 nextQueueIndex;
+        uint40 nextQueueIdx;
         uint40 lastTimestamp;
         uint40 lastBlockNumber;
 
@@ -496,7 +492,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         assembly {
             extraData       :=  shr(40, extraData)
             totalElements   :=  and(extraData, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
-            nextQueueIndex  :=  shr(40, and(extraData, 0x00000000000000000000000000000000000000000000FFFFFFFFFF0000000000))
+            nextQueueIdx    :=  shr(40, and(extraData, 0x00000000000000000000000000000000000000000000FFFFFFFFFF0000000000))
             lastTimestamp   :=  shr(80, and(extraData, 0x0000000000000000000000000000000000FFFFFFFFFF00000000000000000000))
             lastBlockNumber :=  shr(120, and(extraData, 0x000000000000000000000000FFFFFFFFFF000000000000000000000000000000))
         }
@@ -504,7 +500,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
         return (
             totalElements,
-            nextQueueIndex,
+            nextQueueIdx,
             lastTimestamp,
             lastBlockNumber
         );
@@ -543,24 +539,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     }
 
     /**
-     * Gets the queue element at a particular index.
-     * @param _index Index of the queue element to access.
-     * @return _element Queue element at the given index.
-     */
-    function _getQueueElement(
-        uint256 _index
-    )
-        internal
-        view
-        returns (
-            Lib_OVMCodec.QueueElement memory _element
-        )
-    {
-        // solhint-enable max-line-length
-        return queueElements[_index];
-    }
-
-    /**
      * Inserts a batch into the chain of batches.
      * @param _transactionRoot Root of the transaction tree for this batch.
      * @param _batchSize Number of elements in the batch.
@@ -578,7 +556,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         internal
     {
         IChainStorageContainer batchesRef = batches();
-        (uint40 totalElements, uint40 nextQueueIndex,,) = _getBatchExtraData();
+        (uint40 totalElements, uint40 nextQueueIdx,,) = _getBatchExtraData();
 
         Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({
             batchIndex: batchesRef.length(),
@@ -599,37 +577,11 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         bytes32 batchHeaderHash = Lib_OVMCodec.hashBatchHeader(header);
         bytes27 latestBatchContext = _makeBatchExtraData(
             totalElements + uint40(header.batchSize),
-            nextQueueIndex + uint40(_numQueuedTransactions),
+            nextQueueIdx + uint40(_numQueuedTransactions),
             _timestamp,
             _blockNumber
         );
 
         batchesRef.push(batchHeaderHash, latestBatchContext);
-    }
-
-
-    /**
-     * Hashes a transaction chain element.
-     * @param _element Chain element to hash.
-     * @return Hash of the chain element.
-     */
-    function _hashTransactionChainElement(
-        Lib_OVMCodec.TransactionChainElement memory _element
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        return keccak256(
-            abi.encode(
-                _element.isSequenced,
-                _element.queueIndex,
-                _element.timestamp,
-                _element.blockNumber,
-                _element.txData
-            )
-        );
     }
 }
