@@ -16,6 +16,12 @@ interface ICanonicalTransactionChain {
      * Events *
      **********/
 
+    event L2GasParamsUpdated(
+        uint256 l2GasDiscountDivisor,
+        uint256 enqueueGasCost,
+        uint256 enqueueL2GasPrepaid
+    );
+
     event TransactionEnqueued(
         address indexed _l1TxOrigin,
         address indexed _target,
@@ -57,11 +63,28 @@ interface ICanonicalTransactionChain {
         uint256 blockNumber;
     }
 
+    /*******************************
+     * Authorized Setter Functions *
+     *******************************/
+
+    /**
+     * Allows the Sequencer to update the gas amount which is 'prepaid' during enqueue.
+     * The value of enqueueL2GasPrepaid is immediately updated as well.
+     */
+    function setEnqueueGasCost(uint256 _enqueueGasCost)
+        external;
+
+    /**
+     * Allows the Sequencer to update the L2 Gas Discount Divisor, which is defined as the ratio
+     * of the cost of gas on L1 to L2.
+     * The value of enqueueL2GasPrepaid is immediately updated as well.
+     */
+    function setGasDivisor(uint256 _l2GasDiscountDivisor)
+        external;
 
     /********************
      * Public Functions *
      ********************/
-
 
     /**
      * Accesses the batch storage container.
