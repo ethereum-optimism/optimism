@@ -107,7 +107,7 @@ describe('CanonicalTransactionChain', () => {
       AddressManager.address,
       MAX_GAS_LIMIT,
       L2_GAS_DISCOUNT_DIVISOR,
-      ENQUEUE_GAS_COST
+      ENQUEUE_GAS_COST,
     )
 
     const batches = await Factory__ChainStorageContainer.deploy(
@@ -133,6 +133,63 @@ describe('CanonicalTransactionChain', () => {
       'CanonicalTransactionChain',
       CanonicalTransactionChain.address
     )
+  })
+
+  describe('Gas param setters', () => {
+    describe('setGasDivisor', async () => {
+      it('should revert when not called by the sequencer', async () => {
+        await expect(
+          CanonicalTransactionChain.connect(signer).setGasDivisor(32)
+        ).to.be.revertedWith('Only callable by the Sequencer.')
+      })
+
+      it('should update the l2GasDiscountDivisor and enqueueL2GasPrepaid correctly', async () => {
+        const newGasDivisor = 19
+        await CanonicalTransactionChain.connect(sequencer).setGasDivisor(
+          newGasDivisor
+        )
+
+        const enqueueGasCost = await CanonicalTransactionChain.enqueueGasCost()
+        const enqueueL2GasPrepaid =
+          await CanonicalTransactionChain.enqueueL2GasPrepaid()
+        expect(enqueueL2GasPrepaid).to.equal(newGasDivisor * enqueueGasCost)
+      })
+
+      it('should emit an L2GasParamsUpdated event', async () => {
+        await expect(
+          CanonicalTransactionChain.connect(sequencer).setGasDivisor(88)
+        ).to.emit(CanonicalTransactionChain, 'L2GasParamsUpdated')
+      })
+    })
+
+    describe('setEnqueueGasCost', async () => {
+      it('should revert when not called by the sequencer', async () => {
+        await expect(
+          CanonicalTransactionChain.connect(signer).setEnqueueGasCost(60000)
+        ).to.be.revertedWith('Only callable by the Sequencer.')
+      })
+
+      it('should update the enqueueGasCost and enqueueL2GasPrepaid correctly', async () => {
+        const newEnqueueGasCost = 31113
+        await CanonicalTransactionChain.connect(sequencer).setEnqueueGasCost(
+          newEnqueueGasCost
+        )
+
+        const l2GasDiscountDivisor =
+          await CanonicalTransactionChain.l2GasDiscountDivisor()
+        const enqueueL2GasPrepaid =
+          await CanonicalTransactionChain.enqueueL2GasPrepaid()
+        expect(enqueueL2GasPrepaid).to.equal(
+          l2GasDiscountDivisor * newEnqueueGasCost
+        )
+      })
+
+      it('should emit an L2GasParamsUpdated event', async () => {
+        await expect(
+          CanonicalTransactionChain.connect(sequencer).setEnqueueGasCost(31514)
+        ).to.emit(CanonicalTransactionChain, 'L2GasParamsUpdated')
+      })
+    })
   })
 
   describe('enqueue', () => {
@@ -176,9 +233,9 @@ describe('CanonicalTransactionChain', () => {
 
     it('should revert if transaction gas limit does not cover rollup burn', async () => {
       const _enqueueL2GasPrepaid =
-        await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+        await CanonicalTransactionChain.enqueueL2GasPrepaid()
       const l2GasDiscountDivisor =
-        await CanonicalTransactionChain.L2_GAS_DISCOUNT_DIVISOR()
+        await CanonicalTransactionChain.l2GasDiscountDivisor()
       const data = '0x' + '12'.repeat(1234)
 
       // Create a tx with high L2 gas limit, but insufficient L1 gas limit to cover burn.
@@ -187,7 +244,7 @@ describe('CanonicalTransactionChain', () => {
       // additional gas overhead, it will be enough trigger the gas burn, but not enough to cover
       // it.
       const l1GasLimit =
-        (l2GasLimit - _enqueueL2GasPrepaid) / l2GasDiscountDivisor
+      (l2GasLimit - _enqueueL2GasPrepaid) / l2GasDiscountDivisor
 
       await expect(
         CanonicalTransactionChain.enqueue(target, l2GasLimit, data, {
@@ -223,13 +280,13 @@ describe('CanonicalTransactionChain', () => {
       })
     })
 
-    describe('with _gaslimit below the ENQUEUE_L2_GAS_PREPAID threshold', async () => {
+    describe('with _gaslimit below the enqueueL2GasPrepaid threshold', async () => {
       it('the cost to enqueue transactions is consistent for different L2 gas amounts below the prepaid threshold', async () => {
-        const ENQUEUE_L2_GAS_PREPAID =
-          await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+        const enqueueL2GasPrepaid =
+          await CanonicalTransactionChain.enqueueL2GasPrepaid()
         const data = '0x' + '12'.repeat(1234)
-        const l2GasLimit1 = ENQUEUE_L2_GAS_PREPAID - 1
-        const l2GasLimit2 = ENQUEUE_L2_GAS_PREPAID - 100
+        const l2GasLimit1 = enqueueL2GasPrepaid - 1
+        const l2GasLimit2 = enqueueL2GasPrepaid - 100
 
         // The first enqueue is more expensive because it's writing to an empty slot,
         // so we need to pre-load the buffer or the test will fail.

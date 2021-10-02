@@ -29,9 +29,15 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     // L2 tx gas-related
     uint256 constant public MIN_ROLLUP_TX_GAS = 100000;
     uint256 constant public MAX_ROLLUP_TX_SIZE = 50000;
-    uint256 immutable public L2_GAS_DISCOUNT_DIVISOR;
-    uint256 immutable public ENQUEUE_GAS_COST;
-    uint256 immutable public ENQUEUE_L2_GAS_PREPAID;
+
+    // The approximate cost of calling the enqueue function
+    uint256 public enqueueGasCost;
+    // The ratio of the cost of L1 gas to the cost of L2 gas
+    uint256 public l2GasDiscountDivisor;
+    // The amount of L2 gas which can be forwarded to L2 without spam prevention via 'gas burn'.
+    // Calculated as the product of l2GasDiscountDivisor * enqueueGasCost.
+    // See comments in enqueue() for further detail.
+    uint256 public enqueueL2GasPrepaid;
 
     // Encoding-related (all in bytes)
     uint256 constant internal BATCH_CONTEXT_SIZE = 16;
@@ -69,11 +75,69 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         Lib_AddressResolver(_libAddressManager)
     {
         maxTransactionGasLimit = _maxTransactionGasLimit;
-        L2_GAS_DISCOUNT_DIVISOR = _l2GasDiscountDivisor;
-        ENQUEUE_GAS_COST  = _enqueueGasCost;
-        ENQUEUE_L2_GAS_PREPAID = _l2GasDiscountDivisor * _enqueueGasCost;
+        l2GasDiscountDivisor = _l2GasDiscountDivisor;
+        enqueueGasCost  = _enqueueGasCost;
+        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;
     }
 
+
+
+    /**********************
+     * Function Modifiers *
+     **********************/
+
+    /**
+     * Modifier to enforce that, if configured, only the OVM_Sequencer contract may
+     * successfully call a method.
+     */
+    modifier onlySequencer() {
+        require(
+            msg.sender == resolve("OVM_Sequencer"),
+            "Only callable by the Sequencer."
+        );
+        _;
+    }
+
+    /*******************************
+     * Authorized Setter Functions *
+     *******************************/
+
+    /**
+     * Allows the Sequencer to update the gas amount which is 'prepaid' during enqueue.
+     * The value of enqueueL2GasPrepaid is immediately updated as well.
+     */
+    function setEnqueueGasCost(uint256 _enqueueGasCost)
+        external
+        onlySequencer
+    {
+        enqueueGasCost = _enqueueGasCost;
+        enqueueL2GasPrepaid = l2GasDiscountDivisor * _enqueueGasCost;
+
+        emit L2GasParamsUpdated(
+            l2GasDiscountDivisor,
+            enqueueGasCost,
+            enqueueL2GasPrepaid
+        );
+    }
+
+    /**
+     * Allows the Sequencer to update the L2 Gas Discount Divisor, which is defined as the ratio
+     * of the cost of gas on L1 to L2.
+     * The value of enqueueL2GasPrepaid is immediately updated as well.
+     */
+    function setGasDivisor(uint256 _l2GasDiscountDivisor)
+        external
+        onlySequencer
+    {
+        l2GasDiscountDivisor = _l2GasDiscountDivisor;
+        enqueueL2GasPrepaid = _l2GasDiscountDivisor * enqueueGasCost;
+
+        emit L2GasParamsUpdated(
+            l2GasDiscountDivisor,
+            enqueueGasCost,
+            enqueueL2GasPrepaid
+        );
+    }
 
     /********************
      * Public Functions *
@@ -260,13 +324,13 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
         // Transactions submitted to the queue lack a method for paying gas fees to the Sequencer.
         // So we need to prevent spam attacks by ensuring that the cost of enqueueing a transaction
-        // from L1 to L2 is not underpriced. Therefore, we define 'ENQUEUE_L2_GAS_PREPAID' as a
+        // from L1 to L2 is not underpriced. Therefore, we define 'enqueueL2GasPrepaid' as a
         // threshold. If the _gasLimit for the enqueued transaction is above this threshold, then we
         // 'charge' to user by burning additional L1 gas. Since gas is cheaper on L2 than L1, we
         // only need to burn a fraction of the provided L1 gas, which is determined by the
-        // L2_GAS_DISCOUNT_DIVISOR.
-        if(_gasLimit > ENQUEUE_L2_GAS_PREPAID) {
-            uint256 gasToConsume = (_gasLimit - ENQUEUE_L2_GAS_PREPAID) / L2_GAS_DISCOUNT_DIVISOR;
+        // l2GasDiscountDivisor.
+        if(_gasLimit > enqueueL2GasPrepaid) {
+            uint256 gasToConsume = (_gasLimit - enqueueL2GasPrepaid) / l2GasDiscountDivisor;
             uint256 startingGas = gasleft();
 
             // Although this check is not necessary (burn below will run out of gas if not true), it

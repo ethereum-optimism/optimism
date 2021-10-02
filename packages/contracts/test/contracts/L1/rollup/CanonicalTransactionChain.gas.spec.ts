@@ -271,17 +271,17 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
   })
 
   describe('enqueue [ @skip-on-coverage ]', () => {
-    let ENQUEUE_L2_GAS_PREPAID
+    let enqueueL2GasPrepaid
     let data
     beforeEach(async () => {
       CanonicalTransactionChain = CanonicalTransactionChain.connect(sequencer)
-      ENQUEUE_L2_GAS_PREPAID =
-        await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+      enqueueL2GasPrepaid =
+        await CanonicalTransactionChain.enqueueL2GasPrepaid()
       data = '0x' + '12'.repeat(1234)
     })
 
     it('cost to enqueue a transaction above the prepaid threshold', async () => {
-      const l2GasLimit = 2 * ENQUEUE_L2_GAS_PREPAID
+      const l2GasLimit = 2 * enqueueL2GasPrepaid
 
       const res = await CanonicalTransactionChain.enqueue(
         NON_ZERO_ADDRESS,
@@ -293,7 +293,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
 
       console.log('Benchmark complete.')
 
-      expectApprox(gasUsed, 187_081, {
+      expectApprox(gasUsed, 220_677, {
         absoluteUpperDeviation: 500,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -302,7 +302,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
     })
 
     it('cost to enqueue a transaction below the prepaid threshold', async () => {
-      const l2GasLimit = ENQUEUE_L2_GAS_PREPAID - 1
+      const l2GasLimit = enqueueL2GasPrepaid - 1
 
       const res = await CanonicalTransactionChain.enqueue(
         NON_ZERO_ADDRESS,
