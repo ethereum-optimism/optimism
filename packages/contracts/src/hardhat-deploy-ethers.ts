@@ -2,6 +2,27 @@
 import { Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
+import { sleep, hexStringEquals } from '@eth-optimism/core-utils'
+
+export const waitUntilTrue = async (
+  check: () => Promise<boolean>,
+  opts: {
+    retries?: number
+    delay?: number
+  } = {}
+) => {
+  opts.retries = opts.retries || 10
+  opts.delay = opts.delay || 5000
+
+  let retries = 0
+  while (!(await check())) {
+    if (retries > opts.retries) {
+      throw new Error(`check failed after ${opts.retries} attempts`)
+    }
+    retries++
+    await sleep(opts.delay)
+  }
+}
 
 export const registerAddress = async ({
   hre,
@@ -27,19 +48,12 @@ export const registerAddress = async ({
   }
 
   console.log(`Registering address for ${name} to ${address}...`)
-  const tx = await Lib_AddressManager.setAddress(name, address)
-  await tx.wait()
+  await Lib_AddressManager.setAddress(name, address)
 
-  const remoteAddress = await Lib_AddressManager.getAddress(name)
-  if (remoteAddress !== address) {
-    throw new Error(
-      `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `Call to Lib_AddressManager.setAddress(${name}) was unsuccessful.\n` +
-        `Attempted to set address to: ${address}\n` +
-        `Actual address was set to: ${remoteAddress}\n` +
-        `This could indicate a compromised deployment.`
-    )
-  }
+  console.log(`Waiting for registration to reflect on-chain...`)
+  await waitUntilTrue(async () => {
+    return hexStringEquals(await Lib_AddressManager.getAddress(name), address)
+  })
 
   console.log(`✓ Registered address for ${name}`)
 }
@@ -49,11 +63,15 @@ export const deployAndRegister = async ({
   name,
   args,
   contract,
+  iface,
+  postDeployAction,
 }: {
   hre: any
   name: string
   args: any[]
   contract?: string
+  iface?: string
+  postDeployAction?: (contract: Contract) => Promise<void>
 }) => {
   const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
@@ -68,6 +86,17 @@ export const deployAndRegister = async ({
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
 
   if (result.newlyDeployed) {
+    if (postDeployAction) {
+      const signer = hre.ethers.provider.getSigner(deployer)
+      let abi = result.abi
+      if (iface !== undefined) {
+        const factory = await hre.ethers.getContractFactory(iface)
+        abi = factory.interface
+      }
+      const instance = new Contract(result.address, abi, signer)
+      await postDeployAction(instance)
+    }
+
     await registerAddress({
       hre,
       name,

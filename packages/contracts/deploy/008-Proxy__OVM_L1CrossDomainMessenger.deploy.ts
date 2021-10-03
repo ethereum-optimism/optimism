@@ -1,59 +1,39 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import { hexStringEquals } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
-import { getDeployedContract } from '../src/hardhat-deploy-ethers'
+import {
+  getDeployedContract,
+  deployAndRegister,
+  waitUntilTrue,
+} from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const { deploy } = hre.deployments
-  const { deployer } = await hre.getNamedAccounts()
-
   const Lib_AddressManager = await getDeployedContract(
     hre,
-    'Lib_AddressManager',
-    {
-      signerOrProvider: deployer,
-    }
+    'Lib_AddressManager'
   )
 
-  const result = await deploy('Proxy__L1CrossDomainMessenger', {
-    contract: 'Lib_ResolvedDelegateProxy',
-    from: deployer,
-    args: [Lib_AddressManager.address, 'L1CrossDomainMessenger'],
-    log: true,
-  })
-
-  if (!result.newlyDeployed) {
-    return
-  }
-
-  const Proxy__L1CrossDomainMessenger = await getDeployedContract(
+  await deployAndRegister({
     hre,
-    'Proxy__L1CrossDomainMessenger',
-    {
-      signerOrProvider: deployer,
-      iface: 'L1CrossDomainMessenger',
-    }
-  )
+    name: 'Proxy__L1CrossDomainMessenger',
+    contract: 'Lib_ResolvedDelegateProxy',
+    iface: 'L1CrossDomainMessenger',
+    args: [Lib_AddressManager.address, 'L1CrossDomainMessenger'],
+    postDeployAction: async (contract) => {
+      console.log(`Initializing Proxy__L1CrossDomainMessenger...`)
+      await contract.initialize(Lib_AddressManager.address)
 
-  await Proxy__L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
-
-  const libAddressManager =
-    await Proxy__L1CrossDomainMessenger.libAddressManager()
-  if (libAddressManager !== Lib_AddressManager.address) {
-    throw new Error(
-      `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `Proxy__L1CrossDomainMessenger could not be succesfully initialized.\n` +
-        `Attempted to set Lib_AddressManager to: ${Lib_AddressManager.address}\n` +
-        `Actual address after initialization: ${libAddressManager}\n` +
-        `This could indicate a compromised deployment.`
-    )
-  }
-
-  await Lib_AddressManager.setAddress(
-    'Proxy__L1CrossDomainMessenger',
-    result.address
-  )
+      console.log(`Checking that contract was correctly initialized...`)
+      await waitUntilTrue(async () => {
+        return hexStringEquals(
+          await contract.libAddressManager(),
+          Lib_AddressManager.address
+        )
+      })
+    },
+  })
 }
 
 deployFn.dependencies = ['Lib_AddressManager', 'L1CrossDomainMessenger']
