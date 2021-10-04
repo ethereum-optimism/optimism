@@ -125,12 +125,24 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		if debug >= 2 {
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
 		}
-		if addr == 0xc0000080 && debug >= 1 {
-			fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
-				pcCount, nret, ram[nret],
-				ram[0xc0000004],
-				ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
-				ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
+		if addr == 0xc0000080 {
+			if debug >= 1 {
+				fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
+					pcCount, nret, ram[nret],
+					ram[0xc0000004],
+					ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
+					ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
+			}
+			if ram[nret] == 0xC {
+				/*syscall := ram[0xc0000008]
+				fmt.Printf("syscall %d at %x (step %d)\n", syscall, nret, pcCount)
+				if syscall == 4004 {
+					fmt.Printf("WRITE!")
+				}*/
+			}
+			if (pcCount % 10000) == 0 {
+				os.Stderr.WriteString(fmt.Sprintf("step %d\n", pcCount))
+			}
 			pcCount += 1
 		}
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
@@ -162,7 +174,7 @@ func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
 			uint32(dat[i+3])<<0
 	}
 
-	steps := 1000000
+	steps := 10000000
 	gas := 10000 * uint64(steps)
 
 	// 0xdb7df598

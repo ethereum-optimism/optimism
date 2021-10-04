@@ -22,16 +22,25 @@ def hook_interrupt(uc, intno, user_data):
   if intno != 17:
     print("interrupt", intno)
     raise unicorn.UcError(0)
-
   syscall_no = uc.reg_read(UC_MIPS_REG_V0)
+
+  """
+  pc = uc.reg_read(UC_MIPS_REG_PC)
+  inst = struct.unpack(">I", uc.mem_read(pc, 4))[0]
+  print("syscall %d at %x" % (syscall_no, pc-4))
+  """
 
   v0 = 0
   if syscall_no == 4020:
     oracle_hash = binascii.hexlify(uc.mem_read(0x30001000, 0x20)).decode('utf-8')
-    dat = open("/tmp/eth/0x"+oracle_hash, "rb").read()
-    #print("oracle:", oracle_hash, len(dat))
-    uc.mem_write(0x31000000, struct.pack(">I", len(dat)))
-    uc.mem_write(0x31000004, dat)
+    try:
+      dat = open("/tmp/eth/0x"+oracle_hash, "rb").read()
+      #print("oracle:", oracle_hash, len(dat))
+      uc.mem_write(0x31000000, struct.pack(">I", len(dat)))
+      uc.mem_write(0x31000004, dat)
+    except FileNotFoundError:
+      # oracle not found
+      uc.mem_write(0x31000000, struct.pack(">I", 0))
   elif syscall_no == 4004:
     # write
     fd = uc.reg_read(UC_MIPS_REG_A0)
@@ -86,7 +95,6 @@ mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 gt = open("/tmp/gethtrace").read().split("\n")
 
 # tracer
-STEP_COUNT = 1000000
 step = 0
 is_bds = False
 def hook_code_simple(uc, address, size, user_data):
@@ -121,10 +129,7 @@ def hook_code_simple(uc, address, size, user_data):
   print(dat)
 
   step += 1
-  if step >= STEP_COUNT:
-    os._exit(0)
 
 mu.hook_add(UC_HOOK_CODE, hook_code_simple)
-
 
 mu.emu_start(0, -1)
