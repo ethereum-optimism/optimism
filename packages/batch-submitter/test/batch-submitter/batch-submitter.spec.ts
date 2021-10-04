@@ -243,7 +243,7 @@ describe('BatchSubmitter', () => {
       txBatchTxSubmitter,
       1,
       new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
-      testMetrics,
+      testMetrics
     )
   }
 
