@@ -70,9 +70,9 @@ contract MIPS {
     return stepNextPC(stateHash, pc, pc+4);
   }
 
-  function handleSyscall(bytes32 stateHash) public view returns (bytes32) {
+  function handleSyscall(bytes32 stateHash) internal view returns (bytes32) {
     uint32 syscall_no = m.ReadMemory(stateHash, REG_OFFSET+2*4);
-    uint32 v0;
+    uint32 v0 = 0;
 
     if (syscall_no == 4090) {
       // mmap
