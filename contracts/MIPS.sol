@@ -94,7 +94,7 @@ contract MIPS {
   }
 
   // TODO: test ll and sc
-  function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) public view returns (bytes32) {
+  function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) internal view returns (bytes32) {
     uint32 insn = m.ReadMemory(stateHash, pc);
     uint32 opcode = insn >> 26; // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
@@ -264,8 +264,8 @@ contract MIPS {
       if (func == 0x00) { return rt << shamt;      // sll
       } else if (func == 0x02) { return rt >> shamt;      // srl
       } else if (func == 0x03) { return SE(rt >> shamt, 32-shamt);      // sra
-      } else if (func == 0x04) { return rt << rs;         // sllv
-      } else if (func == 0x06) { return rt >> rs;         // srlv
+      } else if (func == 0x04) { return rt << (rs&0x1F);         // sllv
+      } else if (func == 0x06) { return rt >> (rs&0x1F);         // srlv
       } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
       } else if (func >= 0x08 && func < 0x20) { return rs;  // jr/jalr/div + others
       // 0x10-0x13 = mfhi, mthi, mflo, mtlo

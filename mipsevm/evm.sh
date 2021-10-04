@@ -1,2 +1,3 @@
 #!/bin/bash -e
-(cd ../ && npx hardhat compile) && go build && ./mipsevm $1
+(cd ../ && npx hardhat compile > /dev/null)
+go build && ./mipsevm $1

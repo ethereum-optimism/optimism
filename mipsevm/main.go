@@ -126,7 +126,10 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
 		}
 		if addr == 0xc0000080 && debug >= 1 {
-			fmt.Printf("%7d %8X %08X\n", pcCount, nret, ram[nret])
+			fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X\n",
+				pcCount, nret, ram[nret],
+				ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
+				ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
 			pcCount += 1
 		}
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
@@ -158,7 +161,7 @@ func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
 			uint32(dat[i+3])<<0
 	}
 
-	steps := 100000
+	steps := 10000
 	gas := 10000 * uint64(steps)
 
 	// 0xdb7df598
@@ -216,7 +219,7 @@ func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []by
 }
 
 func main() {
-	fmt.Println("hello")
+	//fmt.Println("hello")
 
 	/*var parent types.Header
 	database := state.NewDatabase(parent)

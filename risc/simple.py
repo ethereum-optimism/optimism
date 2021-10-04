@@ -3,9 +3,12 @@ import os
 import sys
 import binascii
 import struct
+from termcolor import colored
 from unicorn import *
 from unicorn.mips_const import *
 mu = Uc(UC_ARCH_MIPS, UC_MODE_32 + UC_MODE_BIG_ENDIAN)
+from capstone import *
+md = Cs(CS_ARCH_MIPS, CS_MODE_32 + CS_MODE_BIG_ENDIAN)
 
 # heap (256 MB) @ 0x20000000
 heap_start = 0x20000000 # 0x20000000-0x30000000
@@ -80,24 +83,47 @@ def hook_mem_invalid(uc, access, address, size, value, user_data):
   return False
 mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 
+gt = open("/tmp/gethtrace").read().split("\n")
+
 # tracer
 STEP_COUNT = 10000
 step = 0
+is_bds = False
 def hook_code_simple(uc, address, size, user_data):
-  global step
+  global step, is_bds
+  if is_bds:
+    is_bds = False
+    return
   pc = uc.reg_read(UC_MIPS_REG_PC)
   assert address == pc
   assert size == 4
+
+  # check for BDS
+  dat = next(md.disasm(uc.mem_read(address, size), address))
+  if dat.insn_name() in ['jr', 'j', 'beqz', 'jal', 'bnez', 'b']:
+    is_bds = True
+
   inst = struct.unpack(">I", uc.mem_read(pc, 4))[0]
   regs = []
-  for i in range(2,10):
+  # starting at V0
+  for i in range(4,12):
     regs.append(uc.reg_read(i))
 
   rr = ' '.join(["%08X" % x for x in regs])
-  print("%7d %8X %08X : " % (step, pc, inst) + rr)
-  step += 1
-  if step > STEP_COUNT:
+  ss = "%7d %8X %08X : " % (step, pc, inst) + rr
+  if ss != gt[step]:
+    print(colored(ss, 'green'))
+    print(colored(gt[step], 'red'))
     os._exit(0)
+  else:
+    print(ss)
+  print(dat)
+
+  step += 1
+  if step >= STEP_COUNT:
+    os._exit(0)
+
 mu.hook_add(UC_HOOK_CODE, hook_code_simple)
+
 
 mu.emu_start(0, -1)
