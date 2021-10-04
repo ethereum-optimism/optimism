@@ -2,6 +2,7 @@ import { StateDump, SurgeryDataSources } from './types'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { findAccount } from './utils'
+import { downloadAllSolcVersions } from './download-solc'
 
 const doGenesisSurgery = async (
   data: SurgeryDataSources
@@ -31,6 +32,7 @@ const doGenesisSurgery = async (
 
 const main = async () => {
   // TODO
+  await downloadAllSolcVersions()
   const genesis = await doGenesisSurgery({} as any)
 }
 

@@ -17,6 +17,8 @@
     "chai-as-promised": "^7.1.1",
     "hardhat": "^2.6.5",
     "mocha": "^9.1.2",
+    "@types/node-fetch": "^3.0.3",
+    "node-fetch": "2.6.5",
     "ts-mocha": "^8.0.0",
     "ts-node": "^10.0.0",
     "typescript": "^4.3.2"

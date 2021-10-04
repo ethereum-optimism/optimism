@@ -1,3 +1,5 @@
+import path from 'path'
+
 export const EOA_CODE_HASHES = [
   '0xa73df79c90ba2496f3440188807022bed5c7e2e826b596d22bcb4e127378835a',
   '0xef2ab076db773ffc554c9f287134123439a5228e92f5b3194a28fec0a0afafe3',
@@ -84,3 +86,20 @@ export const PREDEPLOY_DEAD_ADDRESSES = [
 
 export const OLD_ETH_ADDRESS = '0x4200000000000000000000000000000000000006'
 export const NEW_ETH_ADDRESS = '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000'
+
+// TODO: confirm OVM/EVM mapps with ben-chain
+export const COMPILER_VERSIONS_TO_SOLC = {
+  'v0.5.16': 'v0.5.16+commit.9c3226ce',
+  'v0.5.16-alpha.7': 'v0.5.16+commit.9c3226ce',
+  'v0.6.12': 'v0.6.12+commit.27d51765',
+  'v0.7.6': 'v0.7.6+commit.7338295f',
+  'v0.7.6+commit.3b061308': 'v0.7.6+commit.7338295f',
+  'v0.7.6-allow_kall': 'v0.7.6+commit.7338295f',
+  'v0.7.6-no_errors': 'v0.7.6+commit.7338295f',
+  'v0.8.4': 'v0.8.4+commit.c7e474f2',
+}
+
+export const SOLC_BIN_PATH = 'https://binaries.soliditylang.org'
+export const EMSCRIPTEN_BUILD_PATH = `${SOLC_BIN_PATH}/emscripten-wasm32`
+export const EMSCRIPTEN_BUILD_LIST = `${EMSCRIPTEN_BUILD_PATH}/list.json`
+export const LOCAL_SOLC_DIR = path.join(__dirname, '..', 'solc-bin')
