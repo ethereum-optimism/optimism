@@ -3,7 +3,7 @@ import {
   computeStorageSlots,
   getStorageLayout,
 } from '@defi-wonderland/smock/dist/src/utils'
-import { remove0x } from '@eth-optimism/core-utils'
+import { remove0x, bnToAddress } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { predeploys } from './predeploys'
@@ -92,6 +92,13 @@ export const makeL2GenesisFile = async (
   }
 
   const dump = {}
+  // Add the precompiles. Only safe for up to 9
+  for (let i = 1; i <= 9; i++) {
+    const addr = bnToAddress(i)
+    dump[addr] = {
+      balance: '01',
+    }
+  }
   for (const predeployName of Object.keys(predeploys)) {
     const predeployAddress = predeploys[predeployName]
     dump[predeployAddress] = {
