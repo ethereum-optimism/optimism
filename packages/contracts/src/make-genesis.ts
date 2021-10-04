@@ -1,4 +1,6 @@
 /* External Imports */
+import { promisify } from 'util'
+import { exec } from 'child_process'
 import {
   computeStorageSlots,
   getStorageLayout,
@@ -127,7 +129,18 @@ export const makeL2GenesisFile = async (
     }
   }
 
+  // Grab the commit hash so we can stick it in the genesis file.
+  let commit: string
+  try {
+    const { stdout } = await promisify(exec)('git rev-parse HEAD')
+    commit = stdout.replace('\n', '')
+  } catch {
+    console.log('unable to get commit hash, using empty hash instead')
+    commit = '0000000000000000000000000000000000000000'
+  }
+
   return {
+    commit,
     config: {
       chainId: cfg.l2ChainId,
       homesteadBlock: 0,
