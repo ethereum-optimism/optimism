@@ -105,8 +105,8 @@ def hook_code_simple(uc, address, size, user_data):
 
   inst = struct.unpack(">I", uc.mem_read(pc, 4))[0]
   regs = []
-  # starting at V0
-  for i in range(4,12):
+  # starting at AT
+  for i in range(3,12):
     regs.append(uc.reg_read(i))
 
   rr = ' '.join(["%08X" % x for x in regs])
