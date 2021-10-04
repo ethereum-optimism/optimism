@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.3;
+import "./MIPSMemory.sol";
 
 // https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
@@ -14,14 +15,8 @@ pragma solidity ^0.7.3;
 // If you are using the Preimage oracle, you call AddPreimage
 // Then, you call Step. Step will revert if state is missing. If all state is present, it will return the next hash
 
-interface IMIPSMemory {
-  function ReadMemory(bytes32 stateHash, uint32 addr) external view returns (uint32);
-  function ReadBytes32(bytes32 stateHash, uint32 addr) external view returns (bytes32);
-  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) external pure returns (bytes32);
-}
-
 contract MIPS {
-  IMIPSMemory public immutable m;
+  MIPSMemory public immutable m;
 
   uint32 constant public REG_OFFSET = 0xc0000000;
   uint32 constant public REG_ZERO = REG_OFFSET;
@@ -35,8 +30,8 @@ contract MIPS {
   uint32 constant public HEAP_START = 0x20000000;
   uint32 constant public BRK_START = 0x40000000;
 
-  constructor(IMIPSMemory _m) {
-    m = _m;
+  constructor() {
+    m = new MIPSMemory();
   }
 
   function Steps(bytes32 stateHash, uint count) public view returns (bytes32) {
