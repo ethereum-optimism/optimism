@@ -162,7 +162,7 @@ func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
 			uint32(dat[i+3])<<0
 	}
 
-	steps := 10000
+	steps := 100000
 	gas := 10000 * uint64(steps)
 
 	// 0xdb7df598

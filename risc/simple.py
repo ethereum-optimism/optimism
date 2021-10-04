@@ -86,7 +86,7 @@ mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 gt = open("/tmp/gethtrace").read().split("\n")
 
 # tracer
-STEP_COUNT = 10000
+STEP_COUNT = 100000
 step = 0
 is_bds = False
 def hook_code_simple(uc, address, size, user_data):
@@ -99,8 +99,9 @@ def hook_code_simple(uc, address, size, user_data):
   assert size == 4
 
   # check for BDS
+  # UGH! there should be a better way to do this
   dat = next(md.disasm(uc.mem_read(address, size), address))
-  if dat.insn_name() in ['jr', 'j', 'beqz', 'jal', 'bnez', 'b', 'bltz', 'bne']:
+  if dat.insn_name() in ['jr', 'j', 'beqz', 'jal', 'bnez', 'b', 'bltz', 'bne', 'blez', 'bgez', 'beq', 'jalr']:
     is_bds = True
 
   inst = struct.unpack(">I", uc.mem_read(pc, 4))[0]
