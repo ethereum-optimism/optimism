@@ -3,7 +3,8 @@ import { ethers } from 'ethers'
 export const L1_TO_L2_ALIAS_OFFSET =
   '0x1111000000000000000000000000000000001111'
 
-const bnToAddress = (bn: ethers.BigNumber): string => {
+export const bnToAddress = (bn: ethers.BigNumber | number): string => {
+  bn = ethers.BigNumber.from(bn)
   if (bn.isNegative()) {
     bn = ethers.BigNumber.from('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
       .add(bn)
