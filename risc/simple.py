@@ -65,8 +65,9 @@ mu.mem_write(0, dat)
 # oracle @ 0x30000000
 # brk @ 0x40000000
 mu.mem_map(heap_start, 0x60000000)
-inputs = open("/tmp/eth/"+sys.argv[1], "rb").read()
-mu.mem_write(0x30000000, inputs)
+if len(sys.argv) > 1:
+  inputs = open("/tmp/eth/"+sys.argv[1], "rb").read()
+  mu.mem_write(0x30000000, inputs)
 
 def hook_mem_invalid(uc, access, address, size, value, user_data):
   global has_input_oracle
@@ -77,6 +78,26 @@ def hook_mem_invalid(uc, access, address, size, value, user_data):
     os._exit(0)
   print("UNMAPPED MEMORY:", access, hex(address), size, "at", hex(pc))
   return False
-
 mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
+
+# tracer
+STEP_COUNT = 10000
+step = 0
+def hook_code_simple(uc, address, size, user_data):
+  global step
+  pc = uc.reg_read(UC_MIPS_REG_PC)
+  assert address == pc
+  assert size == 4
+  inst = struct.unpack(">I", uc.mem_read(pc, 4))[0]
+  regs = []
+  for i in range(2,10):
+    regs.append(uc.reg_read(i))
+
+  rr = ' '.join(["%08X" % x for x in regs])
+  print("%7d %8X %08X : " % (step, pc, inst) + rr)
+  step += 1
+  if step > STEP_COUNT:
+    os._exit(0)
+mu.hook_add(UC_HOOK_CODE, hook_code_simple)
+
 mu.emu_start(0, -1)

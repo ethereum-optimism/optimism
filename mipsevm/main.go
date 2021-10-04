@@ -96,7 +96,9 @@ type jsoncontract struct {
 
 var pcCount int = 0
 var debug int = 0
-var ram map[uint64](uint32)
+
+// TODO: why is ram uint64 -> uint32 and not uint32 -> uint32
+var ram map[uint32](uint32)
 
 func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
@@ -114,7 +116,7 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 	if args[0] == 98 {
 		// read
-		addr := common.BytesToHash(args[4:]).Big().Uint64()
+		addr := uint32(common.BytesToHash(args[4:]).Big().Uint64())
 		nret := ram[addr]
 
 		//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
@@ -124,17 +126,17 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
 		}
 		if addr == 0xc0000080 && debug >= 1 {
-			fmt.Printf("%7d: PC %x\n", pcCount, nret)
+			fmt.Printf("%7d %8X %08X\n", pcCount, nret, ram[nret])
 			pcCount += 1
 		}
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	} else if args[0] == 184 {
-		addr := common.BytesToHash(args[0x24:0x44]).Big().Uint64()
-		dat := common.BytesToHash(args[0x44:0x64]).Big().Uint64()
+		addr := uint32(common.BytesToHash(args[0x24:0x44]).Big().Uint64())
+		dat := uint32(common.BytesToHash(args[0x44:0x64]).Big().Uint64())
 		if debug >= 2 {
 			fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
 		}
-		ram[addr] = uint32(dat)
+		ram[addr] = dat
 
 		// pass through stateRoot
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), args[0x4:0x24])
@@ -147,10 +149,10 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 }
 
 func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
-	ram = make(map[uint64](uint32))
+	ram = make(map[uint32](uint32))
 	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
-		ram[uint64(i)] = uint32(dat[i])<<24 |
+		ram[uint32(i)] = uint32(dat[i])<<24 |
 			uint32(dat[i+1])<<16 |
 			uint32(dat[i+2])<<8 |
 			uint32(dat[i+3])<<0
@@ -180,12 +182,12 @@ func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
 }
 
 func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) uint32 {
-	ram = make(map[uint64](uint32))
+	ram = make(map[uint32](uint32))
 	ram[0xC000007C] = 0xDEAD0000
 	//fmt.Println("starting", fn)
 	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
-		ram[uint64(i)] = uint32(dat[i])<<24 |
+		ram[uint32(i)] = uint32(dat[i])<<24 |
 			uint32(dat[i+1])<<16 |
 			uint32(dat[i+2])<<8 |
 			uint32(dat[i+3])<<0
