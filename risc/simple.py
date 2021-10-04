@@ -92,7 +92,7 @@ def hook_mem_invalid(uc, access, address, size, value, user_data):
   return False
 mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 
-gt = open("/tmp/gethtrace").read().split("\n")
+gtf = open("/tmp/gethtrace10")
 
 # tracer
 step = 0
@@ -120,9 +120,10 @@ def hook_code_simple(uc, address, size, user_data):
 
   rr = ' '.join(["%08X" % x for x in regs])
   ss = "%7d %8X %08X : " % (step, pc, inst) + rr
-  if ss != gt[step]:
+  sgt = gtf.readline().strip("\n")
+  if ss != sgt:
     print(colored(ss, 'green'))
-    print(colored(gt[step], 'red'))
+    print(colored(sgt, 'red'))
     os._exit(0)
   else:
     print(ss)

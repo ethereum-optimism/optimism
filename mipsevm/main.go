@@ -94,6 +94,7 @@ type jsoncontract struct {
 //var ram []byte
 //var regs [4096]byte
 
+var ministart time.Time
 var pcCount int = 0
 var debug int = 0
 
@@ -141,7 +142,8 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 				}*/
 			}
 			if (pcCount % 10000) == 0 {
-				os.Stderr.WriteString(fmt.Sprintf("step %d\n", pcCount))
+				steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
+				os.Stderr.WriteString(fmt.Sprintf("step %7d steps per s %f\n", pcCount, steps_per_sec))
 			}
 			pcCount += 1
 		}
@@ -164,7 +166,7 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 	return common.Hash{}.Bytes(), nil
 }
 
-func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
+func RunMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte, steps int) {
 	ram = make(map[uint32](uint32))
 	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
@@ -174,7 +176,6 @@ func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
 			uint32(dat[i+3])<<0
 	}
 
-	steps := 10000000
 	gas := 10000 * uint64(steps)
 
 	// 0xdb7df598
@@ -184,7 +185,8 @@ func runMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte) {
 	input = append(input, common.BigToHash(common.Big0).Bytes()...)
 	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
 
-	debug = 1
+	ministart = time.Now()
+	debug = 0
 	for i := 0; i < 1; i++ {
 		contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
 		contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
@@ -231,18 +233,12 @@ func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []by
 	return ram[0xbffffff4] & ram[0xbffffff8]
 }
 
-func main() {
-	//fmt.Println("hello")
-
-	/*var parent types.Header
-	database := state.NewDatabase(parent)
-	statedb, _ := state.New(parent.Root, database, nil)*/
-
+func GetInterpreterAndBytecode() (*vm.EVMInterpreter, []byte) {
 	var jj jsoncontract
 	mipsjson, _ := ioutil.ReadFile("../artifacts/contracts/MIPS.sol/MIPS.json")
 	json.NewDecoder(bytes.NewReader(mipsjson)).Decode(&jj)
 	bytecode := common.Hex2Bytes(jj.DeployedBytecode[2:])
-	//fmt.Println(bytecode, jj.Bytecode)
+
 	statedb := &StateDB{Bytecode: bytecode}
 
 	var header types.Header
@@ -257,13 +253,20 @@ func main() {
 	tracer := Tracer{}
 	config.Tracer = &tracer
 	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
-	//fmt.Println(evm)
-
-	/*ret, gas, err := evm.Call(vm.AccountRef(from), to, []byte{}, 20000000, common.Big0)
-	fmt.Println(ret, gas, err)*/
 
 	interpreter := vm.NewEVMInterpreter(evm, config)
 	interpreter.GetCfg().JumpTable[vm.STATICCALL].SetExecute(opStaticCall)
+	return interpreter, bytecode
+}
+
+func main() {
+	//fmt.Println("hello")
+
+	/*var parent types.Header
+	database := state.NewDatabase(parent)
+	statedb, _ := state.New(parent.Root, database, nil)*/
+
+	//fmt.Println(bytecode, jj.Bytecode)
 
 	/*input := []byte{0x69, 0x37, 0x33, 0x72} // Step(bytes32)
 	input = append(input, common.Hash{}.Bytes()...)*/
@@ -274,12 +277,14 @@ func main() {
 	//steps := 1000000
 	//debug = true
 
+	interpreter, bytecode := GetInterpreterAndBytecode()
+
 	if len(os.Args) > 1 {
 		if os.Args[1] == "/tmp/minigeth.bin" {
 			/*debug = 1
 			steps := 1000000
 			runTest(os.Args[1], steps, interpreter, bytecode, uint64(steps)*10000)*/
-			runMinigeth(os.Args[1], interpreter, bytecode)
+			RunMinigeth(os.Args[1], interpreter, bytecode, 10000000)
 		} else {
 			debug = 2
 			runTest(os.Args[1], 20, interpreter, bytecode, 1000000)
