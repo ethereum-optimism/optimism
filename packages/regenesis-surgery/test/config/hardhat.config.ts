@@ -7,6 +7,9 @@ const config: HardhatUserConfig = {
     cache: '../temp/cache',
     artifacts: '../temp/artifacts',
   },
+  mocha: {
+    timeout: 100000,
+  },
 }
 
 export default config

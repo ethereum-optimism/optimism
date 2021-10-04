@@ -1,3 +1,4 @@
+/* eslint @typescript-eslint/no-var-requires: "off" */
 import { access, mkdir } from 'fs/promises'
 import fetch from 'node-fetch'
 import path from 'path'

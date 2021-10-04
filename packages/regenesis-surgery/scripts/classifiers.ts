@@ -66,13 +66,17 @@ export const classifiers: {
       return hexStringEqual(account.address, addr)
     })
   },
-  [AccountType.VERIFIED]: (account) => {
-    // TODO
-    throw new Error('Not implemented')
+  [AccountType.VERIFIED]: (account, data) => {
+    const found = data.etherscanDump.find(
+      (c) => c.contractAddress === account.address
+    )
+    return found !== undefined
   },
-  [AccountType.UNVERIFIED]: (account) => {
-    // TODO
-    throw new Error('Not implemented')
+  [AccountType.UNVERIFIED]: (account, data) => {
+    const found = data.etherscanDump.find(
+      (c) => c.contractAddress === account.address
+    )
+    return found === undefined
   },
 }
 

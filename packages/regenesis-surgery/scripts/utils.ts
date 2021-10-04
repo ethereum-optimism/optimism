@@ -1,3 +1,4 @@
+/* eslint @typescript-eslint/no-var-requires: "off" */
 import { ethers } from 'ethers'
 import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
 import { parseChunked } from '@discoveryjs/json-ext'
@@ -6,8 +7,6 @@ import * as fs from 'fs'
 import byline from 'byline'
 import * as dotenv from 'dotenv'
 import * as assert from 'assert'
-
-import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 import {
   Account,
   EtherscanContract,
@@ -15,6 +14,9 @@ import {
   SurgeryConfigs,
   GenesisFile,
 } from './types'
+import path from 'path'
+import solc from 'solc'
+import { LOCAL_SOLC_DIR, UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 
 export const findAccount = (dump: StateDump, address: string): Account => {
   return dump.find((acc) => {
@@ -114,8 +116,12 @@ export const getUniswapV3Factory = (signerOrProvider: any): ethers.Contract => {
   )
 }
 
+// Returns a copy of an object
 export const clone = (obj: any): any => {
-  return JSON.parse(JSON.stringify(obj))
+  if (typeof obj === 'undefined') {
+    throw new Error(`Trying to clone undefined object`)
+  }
+  return { ...obj }
 }
 
 /**
@@ -267,4 +273,69 @@ export const checkStateDump = (dump: StateDump) => {
       }
     }
   }
+}
+
+export const getMainContract = (contract: EtherscanContract, output) => {
+  if (contract.contractFileName) {
+    return clone(output.contracts[contract.contractFileName][contract.contractName])
+  }
+  return clone(output.contracts.file[contract.contractName])
+}
+
+export const getSolc = (version: string, ovm?: boolean) => {
+  if (ovm) {
+    return solc.setupMethods(require(path.join(LOCAL_SOLC_DIR, version)))
+  }
+  return solc.setupMethods(
+    require(path.join(LOCAL_SOLC_DIR, `solc-emscripten-wasm32-${version}.js`))
+  )
+}
+
+export const solcInput = (contract: EtherscanContract) => {
+  // Create a base solc input object
+  const input = {
+    language: 'Solidity',
+    sources: {
+      file: {
+        content: contract.sourceCode,
+      },
+    },
+    settings: {
+      outputSelection: {
+        '*': {
+          '*': ['*'],
+        },
+      },
+      optimizer: {
+        enabled: contract.optimizationUsed === '1',
+        runs: parseInt(contract.runs, 10),
+      },
+    },
+  }
+
+  try {
+    // source code may be one of 3 things
+    // - raw content string
+    // - sources object
+    // - entire input
+    let sourceCode = contract.sourceCode
+    // Remove brackets that are wrapped around the source
+    // when trying to parse json
+    if (sourceCode.substr(0, 2) === '{{') {
+      // Trim the first and last bracket
+      sourceCode = sourceCode.slice(1, -1)
+    }
+    // If the source code is valid json, and
+    // has the keys of a solc input, just return it
+    const json = JSON.parse(sourceCode)
+    // If the json has language, then it is the whole input
+    if (json.language) {
+      return json
+    }
+    // Add the json file as the sources
+    input.sources = json
+  } catch (e) {
+    //
+  }
+  return input
 }
