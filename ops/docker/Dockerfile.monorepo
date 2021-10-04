@@ -22,6 +22,7 @@ FROM node as builder
 # note: this approach can be a bit unhandy to maintain, but it allows
 # us to cache the installation steps
 WORKDIR /optimism
+COPY .git ./.git
 COPY *.json yarn.lock ./
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
@@ -45,6 +46,7 @@ WORKDIR /optimism
 COPY --from=builder /optimism/node_modules ./node_modules
 COPY --from=builder /optimism/packages ./packages
 COPY --from=builder /optimism/integration-tests ./integration-tests
+COPY --from=builder /optimism/.git ./.git
 
 # the following steps are cheap
 COPY *.json yarn.lock ./
