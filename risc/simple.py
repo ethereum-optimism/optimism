@@ -21,7 +21,6 @@ def hook_interrupt(uc, intno, user_data):
     raise unicorn.UcError(0)
 
   syscall_no = uc.reg_read(UC_MIPS_REG_V0)
-  uc.reg_write(UC_MIPS_REG_A3, 0)
 
   v0 = 0
   if syscall_no == 4020:
@@ -51,7 +50,9 @@ def hook_interrupt(uc, intno, user_data):
   elif syscall_no == 4120:
     v0 = 1
     print("clone not supported")
+
   uc.reg_write(UC_MIPS_REG_V0, v0)
+  uc.reg_write(UC_MIPS_REG_A3, 0)
 
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 

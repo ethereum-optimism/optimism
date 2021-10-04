@@ -29,7 +29,11 @@ contract MIPS {
   uint32 constant public REG_PC = REG_OFFSET + 0x20*4;
   uint32 constant public REG_HI = REG_OFFSET + 0x21*4;
   uint32 constant public REG_LO = REG_OFFSET + 0x22*4;
+  uint32 constant public REG_HEAP = REG_OFFSET + 0x23*4;
   uint64 constant public STORE_LINK = 0x100000000;
+
+  uint32 constant public HEAP_START = 0x20000000;
+  uint32 constant public BRK_START = 0x40000000;
 
   constructor(IMIPSMemory _m) {
     m = _m;
@@ -64,6 +68,34 @@ contract MIPS {
       return stateHash;
     }
     return stepNextPC(stateHash, pc, pc+4);
+  }
+
+  function handleSyscall(bytes32 stateHash) public view returns (bytes32) {
+    uint32 syscall_no = m.ReadMemory(stateHash, REG_OFFSET+2*4);
+    uint32 v0;
+
+    if (syscall_no == 4090) {
+      // mmap
+      uint32 a0 = m.ReadMemory(stateHash, REG_OFFSET+4*4);
+      if (a0 == 0) {
+        uint32 sz = m.ReadMemory(stateHash, REG_OFFSET+5*4);
+        uint32 hr = m.ReadMemory(stateHash, REG_HEAP);
+        v0 = HEAP_START + hr;
+        stateHash = m.WriteMemory(stateHash, REG_HEAP, hr+sz);
+      } else {
+        v0 = a0;
+      }
+    } else if (syscall_no == 4045) {
+      // brk
+      v0 = BRK_START;
+    } else if (syscall_no == 4120) {
+      // clone (not supported)
+      v0 = 1;
+    }
+
+    stateHash = m.WriteMemory(stateHash, REG_OFFSET+2*4, v0);
+    stateHash = m.WriteMemory(stateHash, REG_OFFSET+7*4, 0);
+    return stateHash;
   }
 
   // TODO: test ll and sc
@@ -162,6 +194,12 @@ contract MIPS {
       return stepNextPC(stateHash, uint32(nextPC), val | (func == 9 ? STORE_LINK : 0));
     }
 
+    // syscall (can read and write)
+    if (opcode == 0 && func == 0xC) {
+      //revert("unhandled syscall");
+      stateHash = handleSyscall(stateHash);
+    }
+
     // lo and hi registers
     // can write back
     if (opcode == 0) {
@@ -195,7 +233,6 @@ contract MIPS {
       }
     }
 
-
     // write back
     if (storeAddr != REG_ZERO) {
       stateHash = m.WriteMemory(stateHash, storeAddr, val);
@@ -206,10 +243,6 @@ contract MIPS {
     }
 
     stateHash = m.WriteMemory(stateHash, REG_PC, uint32(nextPC));
-
-    if (opcode == 0 && func == 0xC) {
-      revert("unhandled syscall");
-    }
 
     return stateHash;
   }
