@@ -100,7 +100,7 @@ def hook_code_simple(uc, address, size, user_data):
 
   # check for BDS
   dat = next(md.disasm(uc.mem_read(address, size), address))
-  if dat.insn_name() in ['jr', 'j', 'beqz', 'jal', 'bnez', 'b']:
+  if dat.insn_name() in ['jr', 'j', 'beqz', 'jal', 'bnez', 'b', 'bltz', 'bne']:
     is_bds = True
 
   inst = struct.unpack(">I", uc.mem_read(pc, 4))[0]

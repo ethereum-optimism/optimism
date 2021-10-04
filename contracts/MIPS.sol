@@ -158,31 +158,36 @@ contract MIPS {
       }
     }
 
-    bool shouldBranch = false;
+    if (opcode == 4 || opcode == 5 || opcode == 6 || opcode == 7 || opcode == 1) {
+      bool shouldBranch = false;
 
-    uint32 val;
-    if (opcode == 4 || opcode == 5) {   // beq/bne
-      rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
-      shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5);
-    } else if (opcode == 6) { shouldBranch = int32(rs) <= 0; // blez
-    } else if (opcode == 7) { shouldBranch = int32(rs) > 0; // bgtz
-    } else if (opcode == 1) {
-      // regimm
-      uint32 rtv = ((insn >> 16) & 0x1F);
-      if (rtv == 0) shouldBranch = int32(rs) < 0;  // bltz
-      if (rtv == 1) shouldBranch = int32(rs) >= 0; // bgez
-    } else {
-      // ALU
-      val = execute(insn, rs, rt, mem);
+      if (opcode == 4 || opcode == 5) {   // beq/bne
+        rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+        shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5);
+      } else if (opcode == 6) { shouldBranch = int32(rs) <= 0; // blez
+      } else if (opcode == 7) { shouldBranch = int32(rs) > 0; // bgtz
+      } else if (opcode == 1) {
+        // regimm
+        uint32 rtv = ((insn >> 16) & 0x1F);
+        if (rtv == 0) shouldBranch = int32(rs) < 0;  // bltz
+        if (rtv == 1) shouldBranch = int32(rs) >= 0; // bgez
+      }
+
+      if (shouldBranch) {
+        uint32 val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
+        return stepNextPC(stateHash, uint32(nextPC), val);
+      } else {
+        // branch not taken
+        return stepNextPC(stateHash, uint32(nextPC), uint32(nextPC)+4);
+      }
     }
+
+    // ALU
+    uint32 val = execute(insn, rs, rt, mem);
 
     // jumps (with branch delay slot)
     // nothing is written to the state by this time
 
-    if (shouldBranch) {
-      val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
-      return stepNextPC(stateHash, uint32(nextPC), val);
-    }
 
     if (opcode == 0 && (func == 8 || func == 9)) {
       // jr/jalr (val is already right)
