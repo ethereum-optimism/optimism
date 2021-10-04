@@ -119,7 +119,7 @@ jobs:
           tags: ethereumoptimism/l2geth:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   gas-oracle:
-    name: Publish Gas Oracle ${{ needs.builder.outputs.canary-docker-tag }}
+    name: Publish Gas Oracle ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
     if: needs.canary-publish.outputs.gas-oracle != ''
     runs-on: ubuntu-latest
@@ -142,7 +142,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.gas-oracle
           push: true
-          tags: ethereumoptimism/gas-oracle:${{ needs.builder.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/gas-oracle:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   builder:
     name: Prepare the base builder image for the services
