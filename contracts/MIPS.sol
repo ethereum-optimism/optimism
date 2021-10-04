@@ -152,7 +152,7 @@ contract MIPS {
       rs += SignExtImm;
       uint32 addr = rs & 0xFFFFFFFC;
       mem = m.ReadMemory(stateHash, addr);
-      if (opcode >= 0x28) {
+      if (opcode >= 0x28 && opcode != 0x30) {
         // store
         storeAddr = addr;
       }
@@ -231,6 +231,11 @@ contract MIPS {
         stateHash = m.WriteMemory(stateHash, REG_HI, hi);
         storeAddr = REG_LO;
       }
+    }
+
+    // stupid sc, write a 1 to rt
+    if (opcode == 0x38) {
+      stateHash = m.WriteMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C), 1);
     }
 
     // write back
