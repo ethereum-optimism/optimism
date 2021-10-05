@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers'
+import { Wallet, utils } from 'ethers'
 import path from 'path'
 import dirtree from 'directory-tree'
 import fs from 'fs'
@@ -17,6 +17,7 @@ import hre from 'hardhat'
 
 const sequencer = new Wallet(process.env.SEQUENCER_PRIVATE_KEY)
 const deployer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY)
+const burnAdminAddress = utils.getAddress(process.env.BURN_ADMIN_ADDRESS)
 
 const parseEnv = () => {
   const ensure = (env, type) => {
@@ -54,6 +55,7 @@ const main = async () => {
     sccSequencerPublishWindow: config.sccFraudProofWindow,
     ovmSequencerAddress: sequencer.address,
     ovmProposerAddress: sequencer.address,
+    ovmBurnAdmin: burnAdminAddress,
     ovmAddressManagerOwner: deployer.address,
     noCompile: process.env.NO_COMPILE ? true : false,
   })
