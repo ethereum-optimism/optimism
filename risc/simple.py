@@ -102,10 +102,6 @@ def hook_code_simple(uc, address, size, user_data):
   assert address == pc
   assert size == 4
 
-  # check for BDS
-  # UGH! there should be a better way to do this
-  dat = next(md.disasm(uc.mem_read(address, size), address))
-
   inst = struct.unpack(">I", uc.mem_read(pc, 4))[0]
   regs = []
   # starting at AT
@@ -116,12 +112,14 @@ def hook_code_simple(uc, address, size, user_data):
   ss = "%7d %8X %08X : " % (step, pc, inst) + rr
   sgt = gtf.readline().strip("\n")
   if ss != sgt:
+    dat = next(md.disasm(uc.mem_read(address, size), address))
+    print(dat)
     print(colored(ss, 'green'))
     print(colored(sgt, 'red'))
     os._exit(0)
   else:
-    print(ss)
-  print(dat)
+    if step % 1000 == 0:
+      print(ss)
 
   step += 1
 
