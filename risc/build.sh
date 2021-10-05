@@ -8,7 +8,7 @@ export GOMIPS=softfloat
 #export CGO_ENABLED=1
 #export CC="$PWD/../risc/clangwrap.sh"
 
-go build
+go build -v
 cp go-ethereum ../risc/go-ethereum
 cd ../risc
 file go-ethereum
