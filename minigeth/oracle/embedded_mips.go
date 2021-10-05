@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var preimages = make(map[common.Hash][]byte)
@@ -79,10 +78,11 @@ func Preimage(hash common.Hash) []byte {
 		size := (int(rawSize[0]) << 24) | (int(rawSize[1]) << 16) | (int(rawSize[2]) << 8) | int(rawSize[3])
 		ret := common.CopyBytes(byteAt(0x31000004, size))
 
-		realhash := crypto.Keccak256Hash(ret)
+		// this is 20% of the exec instructions
+		/*realhash := crypto.Keccak256Hash(ret)
 		if realhash != hash {
 			panic("preimage has wrong hash")
-		}
+		}*/
 
 		preimages[hash] = ret
 		return ret
