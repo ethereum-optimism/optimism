@@ -301,8 +301,8 @@ describe('CanonicalTransactionChain', () => {
               )
             ).to.deep.include({
               transactionHash,
-              timestamp,
-              blockNumber,
+              timestamp: 0,
+              blockNumber: 0,
             })
           })
         }
@@ -345,8 +345,8 @@ describe('CanonicalTransactionChain', () => {
               )
             ).to.deep.include({
               transactionHash,
-              timestamp,
-              blockNumber,
+              timestamp: 0,
+              blockNumber: 0,
             })
           })
         }
@@ -388,8 +388,8 @@ describe('CanonicalTransactionChain', () => {
               )
             ).to.deep.include({
               transactionHash,
-              timestamp,
-              blockNumber,
+              timestamp: 0,
+              blockNumber: 0,
             })
           })
         }
