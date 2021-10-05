@@ -287,11 +287,6 @@ elf.seek(0)
 #rte = data.find(b"\x08\x02\x2c\x95")
 #print(hex(rte))
 
-# program memory (16 MB)
-prog_size = (len(data)+0xFFF) & ~0xFFF
-mu.mem_map(0, prog_size)
-print("malloced 0x%x for program" % prog_size)
-
 # heap (256 MB) @ 0x20000000
 mu.mem_map(heap_start, 256*1024*1024)
 
@@ -310,6 +305,16 @@ mu.mem_write(0x30000000, inputs)
 # regs at 0xC0000000 in merkle
 
 elffile = ELFFile(elf)
+
+end_addr = 0
+for seg in elffile.iter_segments():
+  end_addr = max(end_addr, seg.header.p_vaddr + seg.header.p_memsz)
+
+# program memory (16 MB)
+prog_size = (end_addr+0xFFF) & ~0xFFF
+mu.mem_map(0, prog_size)
+print("malloced 0x%x for program" % prog_size)
+
 for seg in elffile.iter_segments():
   print(seg.header, hex(seg.header.p_vaddr))
   mu.mem_write(seg.header.p_vaddr, seg.data())

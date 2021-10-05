@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 echo "compiling"
 ./build.sh
 COMPILE=1 ./run.py
