@@ -41,18 +41,6 @@ const appendSequencerBatch = async (
   })
 }
 
-const printGasSavings = (gasUsed: number, regenesis040Cost: number): void => {
-  console.log('    - Gas used:', gasUsed)
-  console.log(
-    '    - Absolute savings vs regenesis/0.4.0:',
-    regenesis040Cost - gasUsed
-  )
-  console.log(
-    '    - Relative savings vs regenesis/0.4.0:',
-    (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) + '%'
-  )
-}
-
 describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
   let sequencer: Signer
   before(async () => {
@@ -163,7 +151,6 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 1_616_390)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
@@ -211,7 +198,6 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 1_632_687)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
@@ -269,7 +255,6 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 2_099_387)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
@@ -307,7 +292,6 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 237_065)
 
       expectApprox(gasUsed, 187_081, {
         absoluteUpperDeviation: 500,
@@ -329,7 +313,6 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 196_457)
 
       expectApprox(gasUsed, 126_700, {
         absoluteUpperDeviation: 500,
