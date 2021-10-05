@@ -66,13 +66,6 @@ contract MIPS {
     uint256 signed = ((1 << (32-idx)) - 1) << idx;
     uint256 mask = (1 << idx) - 1;
     return uint32(dat&mask | (isSigned ? signed : 0));
-
-    /*if (idx == 16) {
-      return dat&0xFFFF | (dat&0x8000 != 0 ? 0xFFFF0000 : 0);
-    } else if (idx == 8) {
-      return dat&0xFF | (dat&0x80 != 0 ? 0xFFFFFF00 : 0);
-    }
-    return dat;*/
   }
 
   // will revert if any required input state is missing
@@ -209,48 +202,49 @@ contract MIPS {
     // jumps (with branch delay slot)
     // nothing is written to the state by this time
 
-
-    if (opcode == 0 && (func == 8 || func == 9)) {
-      // jr/jalr (val is already right)
-      return stepNextPC(stateHash, uint32(nextPC), val | (func == 9 ? STORE_LINK : 0));
-    }
-
-    // syscall (can read and write)
-    if (opcode == 0 && func == 0xC) {
-      //revert("unhandled syscall");
-      stateHash = handleSyscall(stateHash);
-    }
-
-    // lo and hi registers
-    // can write back
     if (opcode == 0) {
-      if (func == 0x10) val = ReadMemory(stateHash, REG_HI); // mfhi
-      else if (func == 0x11) storeAddr = REG_HI; // mthi
-      else if (func == 0x12) val = ReadMemory(stateHash, REG_LO); // mflo
-      else if (func == 0x13) storeAddr = REG_LO; // mtlo
-
-      uint32 hi;
-      if (func == 0x18) { // mult
-        uint64 acc = uint64(int64(int32(rs))*int64(int32(rt)));
-        hi = uint32(acc>>32);
-        val = uint32(acc);
-      } else if (func == 0x19) { // multu
-        uint64 acc = uint64(uint64(rs)*uint64(rt));
-        hi = uint32(acc>>32);
-        val = uint32(acc);
-      } else if (func == 0x1a) { // div
-        val = uint32(int32(rs)/int32(rt));
-        hi = uint32(int32(rs)%int32(rt));
-      } else if (func == 0x1b) { // divu
-        val = rs/rt;
-        hi = rs%rt;
+      if (func == 8 || func == 9) {
+        // jr/jalr (val is already right)
+        return stepNextPC(stateHash, uint32(nextPC), val | (func == 9 ? STORE_LINK : 0));
       }
 
-      // lo/hi writeback
-      // can't stepNextPC after this
-      if (func >= 0x18 && func < 0x1c) {
-        stateHash = WriteMemory(stateHash, REG_HI, hi);
-        storeAddr = REG_LO;
+      // syscall (can read and write)
+      if (func == 0xC) {
+        //revert("unhandled syscall");
+        stateHash = handleSyscall(stateHash);
+      }
+
+      // lo and hi registers
+      // can write back
+      if (func >= 0x10 && func < 0x1c) {
+        if (func == 0x10) val = ReadMemory(stateHash, REG_HI); // mfhi
+        else if (func == 0x11) storeAddr = REG_HI; // mthi
+        else if (func == 0x12) val = ReadMemory(stateHash, REG_LO); // mflo
+        else if (func == 0x13) storeAddr = REG_LO; // mtlo
+
+        uint32 hi;
+        if (func == 0x18) { // mult
+          uint64 acc = uint64(int64(int32(rs))*int64(int32(rt)));
+          hi = uint32(acc>>32);
+          val = uint32(acc);
+        } else if (func == 0x19) { // multu
+          uint64 acc = uint64(uint64(rs)*uint64(rt));
+          hi = uint32(acc>>32);
+          val = uint32(acc);
+        } else if (func == 0x1a) { // div
+          val = uint32(int32(rs)/int32(rt));
+          hi = uint32(int32(rs)%int32(rt));
+        } else if (func == 0x1b) { // divu
+          val = rs/rt;
+          hi = rs%rt;
+        }
+
+        // lo/hi writeback
+        // can't stepNextPC after this
+        if (func >= 0x18 && func < 0x1c) {
+          stateHash = WriteMemory(stateHash, REG_HI, hi);
+          storeAddr = REG_LO;
+        }
       }
     }
 
@@ -280,13 +274,15 @@ contract MIPS {
 
     // transform ArithLogI
     // TODO: replace with table
-    if (opcode == 8) { opcode = 0; func = 0x20; }        // addi
-    else if (opcode == 9) { opcode = 0; func = 0x21; }   // addiu
-    else if (opcode == 0xa) { opcode = 0; func = 0x2a; } // slti
-    else if (opcode == 0xb) { opcode = 0; func = 0x2B; } // sltiu
-    else if (opcode == 0xc) { opcode = 0; func = 0x24; } // andi
-    else if (opcode == 0xd) { opcode = 0; func = 0x25; } // ori
-    else if (opcode == 0xe) { opcode = 0; func = 0x26; } // xori
+    if (opcode >= 8 && opcode < 0xF) {
+      if (opcode == 8) { opcode = 0; func = 0x20; }        // addi
+      else if (opcode == 9) { opcode = 0; func = 0x21; }   // addiu
+      else if (opcode == 0xa) { opcode = 0; func = 0x2a; } // slti
+      else if (opcode == 0xb) { opcode = 0; func = 0x2B; } // sltiu
+      else if (opcode == 0xc) { opcode = 0; func = 0x24; } // andi
+      else if (opcode == 0xd) { opcode = 0; func = 0x25; } // ori
+      else if (opcode == 0xe) { opcode = 0; func = 0x26; } // xori
+    }
 
     // 0 is opcode SPECIAL
     if (opcode == 0) {
