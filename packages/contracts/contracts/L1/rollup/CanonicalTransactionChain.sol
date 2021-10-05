@@ -52,7 +52,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Queue State *
      ***************/
 
-    uint40 private nextQueueIndex; // index of the first queue element not yet included
+    uint40 private _nextQueueIndex; // index of the first queue element not yet included
     Lib_OVMCodec.QueueElement[] queueElements;
 
 
@@ -151,7 +151,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             uint40
         )
     {
-        return nextQueueIndex;
+        return _nextQueueIndex;
     }
 
     /**
@@ -212,7 +212,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             uint40
         )
     {
-        return uint40(queueElements.length) - nextQueueIndex;
+        return uint40(queueElements.length) - _nextQueueIndex;
     }
 
    /**
@@ -363,10 +363,10 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         // Counter for number of sequencer transactions appended so far.
         uint32 numSequencerTransactions = 0;
 
-        // Cache the nextQueueIndex.
-        // This is safe as long as nothing reads or writes to the nextQueueIndex
-        // storage variable until it is updated with the value from nextQueueIndexCached.
-        uint40 nextQueueIndexCached = nextQueueIndex;
+        // Cache the _nextQueueIndex storage variable to a temporary stack variable.
+        // This is safe as long as nothing reads or writes to the storage variable
+        // until it is updated by the temp variable.
+        uint40 nextQueueIndex = _nextQueueIndex;
 
         BatchContext memory curContext;
         for (uint32 i = 0; i < numContexts; i++) {
@@ -379,11 +379,11 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             numSequencerTransactions += uint32(curContext.numSequencedTransactions);
 
             // Now process any subsequent queue transactions.
-            nextQueueIndexCached += uint40(curContext.numSubsequentQueueTransactions);
+            nextQueueIndex += uint40(curContext.numSubsequentQueueTransactions);
         }
 
         require(
-            nextQueueIndexCached <= queueElements.length,
+            nextQueueIndex <= queueElements.length,
             "Attempted to append more elements than are available in the queue."
         );
 
@@ -402,7 +402,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             // curContext.numSubsequentQueueTransactions > 0 which means that we've processed at
             // least one queue element. We increment nextQueueIndex after processing each queue
             // element, so the index of the last element we processed is nextQueueIndex - 1.
-            Lib_OVMCodec.QueueElement memory lastElement = queueElements[nextQueueIndexCached - 1];
+            Lib_OVMCodec.QueueElement memory lastElement = queueElements[nextQueueIndex - 1];
 
             blockTimestamp = lastElement.timestamp;
             blockNumber = lastElement.blockNumber;
@@ -418,13 +418,13 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         );
 
         emit SequencerBatchAppended(
-            nextQueueIndexCached - numQueuedTransactions,
+            nextQueueIndex - numQueuedTransactions,
             numQueuedTransactions,
             getTotalElements()
         );
 
-        // Update the nextQueueIndex storage variable.
-        nextQueueIndex = nextQueueIndexCached;
+        // Update the _nextQueueIndex storage variable.
+        _nextQueueIndex = nextQueueIndex;
     }
 
     /**********************
@@ -484,7 +484,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         bytes27 extraData = batches().getGlobalMetadata();
 
         uint40 totalElements;
-        uint40 nextQueueIdx;
+        uint40 nextQueueIndex;
         uint40 lastTimestamp;
         uint40 lastBlockNumber;
 
@@ -492,7 +492,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         assembly {
             extraData       :=  shr(40, extraData)
             totalElements   :=  and(extraData, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
-            nextQueueIdx    :=  shr(40, and(extraData, 0x00000000000000000000000000000000000000000000FFFFFFFFFF0000000000))
+            nextQueueIndex    :=  shr(40, and(extraData, 0x00000000000000000000000000000000000000000000FFFFFFFFFF0000000000))
             lastTimestamp   :=  shr(80, and(extraData, 0x0000000000000000000000000000000000FFFFFFFFFF00000000000000000000))
             lastBlockNumber :=  shr(120, and(extraData, 0x000000000000000000000000FFFFFFFFFF000000000000000000000000000000))
         }
@@ -500,7 +500,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
         return (
             totalElements,
-            nextQueueIdx,
+            nextQueueIndex,
             lastTimestamp,
             lastBlockNumber
         );
@@ -509,14 +509,14 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     /**
      * Encodes the batch context for the extra data.
      * @param _totalElements Total number of elements submitted.
-     * @param _nextQueueIndex Index of the next queue element.
+     * @param _nextQueueIdx Index of the next queue element.
      * @param _timestamp Timestamp for the last batch.
      * @param _blockNumber Block number of the last batch.
      * @return Encoded batch context.
      */
     function _makeBatchExtraData(
         uint40 _totalElements,
-        uint40 _nextQueueIndex,
+        uint40 _nextQueueIdx,
         uint40 _timestamp,
         uint40 _blockNumber
     )
@@ -529,7 +529,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         bytes27 extraData;
         assembly {
             extraData := _totalElements
-            extraData := or(extraData, shl(40, _nextQueueIndex))
+            extraData := or(extraData, shl(40, _nextQueueIdx))
             extraData := or(extraData, shl(80, _timestamp))
             extraData := or(extraData, shl(120, _blockNumber))
             extraData := shl(40, extraData)
@@ -556,7 +556,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         internal
     {
         IChainStorageContainer batchesRef = batches();
-        (uint40 totalElements, uint40 nextQueueIdx,,) = _getBatchExtraData();
+        (uint40 totalElements, uint40 nextQueueIndex,,) = _getBatchExtraData();
 
         Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({
             batchIndex: batchesRef.length(),
@@ -577,7 +577,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         bytes32 batchHeaderHash = Lib_OVMCodec.hashBatchHeader(header);
         bytes27 latestBatchContext = _makeBatchExtraData(
             totalElements + uint40(header.batchSize),
-            nextQueueIdx + uint40(_numQueuedTransactions),
+            nextQueueIndex + uint40(_numQueuedTransactions),
             _timestamp,
             _blockNumber
         );
