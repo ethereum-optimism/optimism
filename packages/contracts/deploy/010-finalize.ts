@@ -1,8 +1,12 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import { hexStringEquals } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
-import { getDeployedContract } from '../src/hardhat-deploy-ethers'
+import {
+  getDeployedContract,
+  waitUntilTrue,
+} from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -16,7 +20,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   const owner = (hre as any).deployConfig.ovmAddressManagerOwner
   const remoteOwner = await Lib_AddressManager.owner()
-  if (remoteOwner === owner) {
+  if (hexStringEquals(owner, remoteOwner)) {
     console.log(
       `✓ Not changing owner of Lib_AddressManager because it's already correctly set`
     )
@@ -24,19 +28,12 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   console.log(`Transferring ownership of Lib_AddressManager to ${owner}...`)
-  const tx = await Lib_AddressManager.transferOwnership(owner)
-  await tx.wait()
+  await Lib_AddressManager.transferOwnership(owner)
 
-  const newRemoteOwner = await Lib_AddressManager.owner()
-  if (newRemoteOwner !== owner) {
-    throw new Error(
-      `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `Could not transfer ownership of Lib_AddressManager.\n` +
-        `Attempted to set owner of Lib_AddressManager to: ${owner}\n` +
-        `Actual owner after transaction: ${newRemoteOwner}\n` +
-        `This could indicate a compromised deployment.`
-    )
-  }
+  console.log(`Confirming transfer was successful...`)
+  await waitUntilTrue(async () => {
+    return hexStringEquals(await Lib_AddressManager.owner(), owner)
+  })
 
   console.log(`✓ Set owner of Lib_AddressManager to: ${owner}`)
 }
