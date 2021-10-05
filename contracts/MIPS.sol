@@ -39,6 +39,7 @@ contract MIPS {
       return m.WriteMemory(stateHash, addr, value);
     } else {
       assembly {
+        // TODO: this is actually doing an SLOAD first
         sstore(addr, value)
       }
     }
@@ -204,8 +205,8 @@ contract MIPS {
 
     if (opcode == 0) {
       if (func == 8 || func == 9) {
-        // jr/jalr (val is already right)
-        return stepNextPC(stateHash, uint32(nextPC), val | (func == 9 ? STORE_LINK : 0));
+        // jr/jalr
+        return stepNextPC(stateHash, uint32(nextPC), rs | (func == 9 ? STORE_LINK : 0));
       }
 
       // syscall (can read and write)

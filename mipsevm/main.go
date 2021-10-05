@@ -269,7 +269,7 @@ func main() {
 			debug = 1
 			/*steps := 1000000
 			runTest(os.Args[1], steps, interpreter, bytecode, uint64(steps)*10000)*/
-			RunMinigeth(os.Args[1], interpreter, bytecode, 100000000)
+			RunMinigeth(os.Args[1], interpreter, bytecode, 1000000000)
 		} else {
 			debug = 2
 			runTest(os.Args[1], 20, interpreter, bytecode, 1000000)
