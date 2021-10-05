@@ -68,7 +68,7 @@ def start_instrumenting():
       mu.hook_add(UC_HOOK_CODE, hook_code_simple, user_data=mu)
     elif tracelevel == 1:
       mu.hook_add(UC_HOOK_BLOCK, hook_code_simple, user_data=mu)
-    if tracelevel >= 3:
+    if tracelevel >= 4:
       instrumenting_all = True
     instrumenting = True
 
@@ -368,7 +368,7 @@ mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 #mu.hook_add(UC_HOOK_INSN, hook_interrupt, None, 1, 0, 0x0c000000)
 
-if tracelevel == 4:
+if tracelevel == 3:
   start_instrumenting()
 
 with open("/tmp/minigeth.bin", "wb") as f:

@@ -135,6 +135,9 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
 		}
 		if addr == 0xc0000080 {
+			if nret == 0xDEAD0000 {
+				fmt.Printf("exec is done")
+			}
 			if debug >= 1 {
 				fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
 					pcCount, nret, ram[nret],
@@ -143,9 +146,9 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 					ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
 			}
 			if ram[nret] == 0xC {
-				/*syscall := ram[0xc0000008]
-				fmt.Printf("syscall %d at %x (step %d)\n", syscall, nret, pcCount)
-				if syscall == 4004 {
+				syscall := ram[0xc0000008]
+				os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
+				/*if syscall == 4004 {
 					fmt.Printf("WRITE!")
 				}*/
 			}
@@ -286,7 +289,7 @@ func main() {
 			/*debug = 1
 			steps := 1000000
 			runTest(os.Args[1], steps, interpreter, bytecode, uint64(steps)*10000)*/
-			RunMinigeth(os.Args[1], interpreter, bytecode, 10000000)
+			RunMinigeth(os.Args[1], interpreter, bytecode, 100000000)
 		} else {
 			debug = 2
 			runTest(os.Args[1], 20, interpreter, bytecode, 1000000)
