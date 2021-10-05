@@ -110,7 +110,6 @@ contract MIPS {
     return stateHash;
   }
 
-  // TODO: test ll and sc
   function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) internal returns (bytes32) {
     uint32 insn = ReadMemory(stateHash, pc);
 
@@ -127,39 +126,32 @@ contract MIPS {
     uint32 storeAddr = REG_ZERO;
     uint32 rs;
     uint32 rt;
-    if (opcode != 2 && opcode != 3) {   // J-type: j and jal have no register fetch
-      // R-type or I-type (stores rt)
-      rs = ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
-      storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
-      if (opcode == 0 || opcode == 0x1c) {
-        // R-type (stores rd)
-        rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
-        storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
-      } else if (opcode < 0x20) {
-        // rt is SignExtImm
-        // don't sign extend for andi, ori, xori
-        if (opcode == 0xC || opcode == 0xD || opcode == 0xe) {
-          // ZeroExtImm
-          rt = insn&0xFFFF;
-        } else {
-          // SignExtImm
-          rt = SE(insn&0xFFFF, 16);
-        }
-      } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
-        // store rt value with store
-        rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
 
-        // store actual rt with lwl and lwr
-        storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
+    // R-type or I-type (stores rt)
+    rs = ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
+    storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
+    if (opcode == 0 || opcode == 0x1c) {
+      // R-type (stores rd)
+      rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+      storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
+    } else if (opcode < 0x20) {
+      // rt is SignExtImm
+      // don't sign extend for andi, ori, xori
+      if (opcode == 0xC || opcode == 0xD || opcode == 0xe) {
+        // ZeroExtImm
+        rt = insn&0xFFFF;
+      } else {
+        // SignExtImm
+        rt = SE(insn&0xFFFF, 16);
       }
+    } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
+      // store rt value with store
+      rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+
+      // store actual rt with lwl and lwr
+      storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
     }
 
-    // handle movz and movn when they don't write back
-    if (opcode == 0 && func == 0xa) { // movz
-      if (rt != 0) storeAddr = REG_ZERO;
-    } else if (opcode == 0 && func == 0xb) { // movn
-      if (rt == 0) storeAddr = REG_ZERO;
-    }
 
     // memory fetch (all I-type)
     // we do the load for stores also
@@ -176,7 +168,7 @@ contract MIPS {
       }
     }
 
-    if (opcode == 4 || opcode == 5 || opcode == 6 || opcode == 7 || opcode == 1) {
+    if ((opcode >= 4 && opcode < 8) || opcode == 1) {
       bool shouldBranch = false;
 
       if (opcode == 4 || opcode == 5) {   // beq/bne
@@ -206,10 +198,18 @@ contract MIPS {
     // jumps (with branch delay slot)
     // nothing is written to the state by this time
 
-    if (opcode == 0) {
+    if (opcode == 0 && func >= 8 && func < 0x1c) {
       if (func == 8 || func == 9) {
         // jr/jalr
         return stepNextPC(stateHash, uint32(nextPC), rs | (func == 9 ? STORE_LINK : 0));
+      }
+
+      // handle movz and movn when they don't write back
+      if (func == 0xa && rt != 0) { // movz
+        storeAddr = REG_ZERO;
+      }
+      if (func == 0xb && rt == 0) { // movn
+        storeAddr = REG_ZERO;
       }
 
       // syscall (can read and write)
@@ -271,7 +271,7 @@ contract MIPS {
     return stateHash;
   }
 
-  function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) public pure returns (uint32) {
+  function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32) {
     uint32 opcode = insn >> 26;    // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
     // TODO: deref the immed into a register
