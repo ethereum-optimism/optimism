@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -101,6 +102,11 @@ var debug int = 0
 // TODO: why is ram uint64 -> uint32 and not uint32 -> uint32
 var ram map[uint32](uint32)
 
+func bytesTo32(a []byte) uint32 {
+	//return uint32(common.BytesToHash(a).Big().Uint64())
+	return binary.BigEndian.Uint32(a[28:])
+}
+
 func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	stack := scope.Stack
@@ -117,7 +123,7 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 	if args[0] == 98 {
 		// read
-		addr := uint32(common.BytesToHash(args[4:]).Big().Uint64())
+		addr := bytesTo32(args[0x24:0x44])
 		nret := ram[addr]
 
 		//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
@@ -149,8 +155,8 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		}
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	} else if args[0] == 184 {
-		addr := uint32(common.BytesToHash(args[0x24:0x44]).Big().Uint64())
-		dat := uint32(common.BytesToHash(args[0x44:0x64]).Big().Uint64())
+		addr := bytesTo32(args[0x24:0x44])
+		dat := bytesTo32(args[0x44:0x64])
 		if debug >= 2 {
 			fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
 		}
@@ -199,7 +205,7 @@ func RunMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte, ste
 	}
 }
 
-func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) uint32 {
+func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) (uint32, uint64) {
 	ram = make(map[uint32](uint32))
 	ram[0xC000007C] = 0xDEAD0000
 	//fmt.Println("starting", fn)
@@ -230,7 +236,7 @@ func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []by
 	if err != nil {
 		log.Fatal(err)
 	}
-	return ram[0xbffffff4] & ram[0xbffffff8]
+	return ram[0xbffffff4] & ram[0xbffffff8], (gas - contract.Gas)
 }
 
 func GetInterpreterAndBytecode() (*vm.EVMInterpreter, []byte) {
@@ -295,11 +301,15 @@ func main() {
 			log.Fatal(err)
 		}
 		good := true
+		gas := uint64(0)
 		for _, f := range files {
-			good = good && (runTest("test/bin/"+f.Name(), 100, interpreter, bytecode, 1000000) == 1)
+			ret, lgas := runTest("test/bin/"+f.Name(), 100, interpreter, bytecode, 1000000)
+			good = good && (ret == 1)
+			gas += lgas
 		}
 		if !good {
 			panic("some tests failed")
 		}
+		fmt.Println("used", gas, "gas")
 	}
 }
