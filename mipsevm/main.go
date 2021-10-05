@@ -135,9 +135,9 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
 		}
 		if addr == 0xc0000080 {
-			if nret == 0xDEAD0000 {
-				fmt.Printf("exec is done")
-			}
+			/*if nret == 0xDEAD0000 {
+				fmt.Printf("exec is done\n")
+			}*/
 			if debug >= 1 {
 				fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
 					pcCount, nret, ram[nret],
@@ -154,7 +154,7 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 			}
 			if (pcCount % 10000) == 0 {
 				steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
-				os.Stderr.WriteString(fmt.Sprintf("step %7d steps per s %f\n", pcCount, steps_per_sec))
+				os.Stderr.WriteString(fmt.Sprintf("step %7d steps per s %f ram entries %d\n", pcCount, steps_per_sec, len(ram)))
 			}
 			pcCount += 1
 		}
@@ -165,7 +165,11 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		if debug >= 2 {
 			fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
 		}
-		ram[addr] = dat
+		if dat == 0 {
+			delete(ram, addr)
+		} else {
+			ram[addr] = dat
+		}
 
 		// pass through stateRoot
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), args[0x4:0x24])
@@ -254,9 +258,9 @@ func GetInterpreterAndBytecode() (*vm.EVMInterpreter, []byte) {
 	blockContext := core.NewEVMBlockContext(&header, bc, &author)
 	txContext := vm.TxContext{}
 	config := vm.Config{}
-	config.Debug = true
+	/*config.Debug = true
 	tracer := Tracer{}
-	config.Tracer = &tracer
+	config.Tracer = &tracer*/
 	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
 
 	interpreter := vm.NewEVMInterpreter(evm, config)

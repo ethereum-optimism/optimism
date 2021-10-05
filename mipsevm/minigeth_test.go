@@ -6,5 +6,5 @@ import (
 
 func TestProfileMinigeth(t *testing.T) {
 	interpreter, bytecode := GetInterpreterAndBytecode()
-	RunMinigeth("/tmp/minigeth.bin", interpreter, bytecode, 100000)
+	RunMinigeth("/tmp/minigeth.bin", interpreter, bytecode, 400000)
 }

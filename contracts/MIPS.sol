@@ -34,6 +34,14 @@ contract MIPS {
     m = new MIPSMemory();
   }
 
+  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal view returns (bytes32) {
+    return m.WriteMemory(stateHash, addr, value);
+  }
+
+  function ReadMemory(bytes32 stateHash, uint32 addr) internal view returns (uint32) {
+    return m.ReadMemory(stateHash, addr);
+  }
+
   function Steps(bytes32 stateHash, uint count) public view returns (bytes32) {
     for (uint i = 0; i < count; i++) {
       stateHash = Step(stateHash);
@@ -58,7 +66,7 @@ contract MIPS {
   // will revert if any required input state is missing
   function Step(bytes32 stateHash) public view returns (bytes32) {
     // instruction fetch
-    uint32 pc = m.ReadMemory(stateHash, REG_PC);
+    uint32 pc = ReadMemory(stateHash, REG_PC);
     if (pc == 0xdead0000) {
       return stateHash;
     }
@@ -66,17 +74,17 @@ contract MIPS {
   }
 
   function handleSyscall(bytes32 stateHash) internal view returns (bytes32) {
-    uint32 syscall_no = m.ReadMemory(stateHash, REG_OFFSET+2*4);
+    uint32 syscall_no = ReadMemory(stateHash, REG_OFFSET+2*4);
     uint32 v0 = 0;
 
     if (syscall_no == 4090) {
       // mmap
-      uint32 a0 = m.ReadMemory(stateHash, REG_OFFSET+4*4);
+      uint32 a0 = ReadMemory(stateHash, REG_OFFSET+4*4);
       if (a0 == 0) {
-        uint32 sz = m.ReadMemory(stateHash, REG_OFFSET+5*4);
-        uint32 hr = m.ReadMemory(stateHash, REG_HEAP);
+        uint32 sz = ReadMemory(stateHash, REG_OFFSET+5*4);
+        uint32 hr = ReadMemory(stateHash, REG_HEAP);
         v0 = HEAP_START + hr;
-        stateHash = m.WriteMemory(stateHash, REG_HEAP, hr+sz);
+        stateHash = WriteMemory(stateHash, REG_HEAP, hr+sz);
       } else {
         v0 = a0;
       }
@@ -88,14 +96,14 @@ contract MIPS {
       v0 = 1;
     }
 
-    stateHash = m.WriteMemory(stateHash, REG_OFFSET+2*4, v0);
-    stateHash = m.WriteMemory(stateHash, REG_OFFSET+7*4, 0);
+    stateHash = WriteMemory(stateHash, REG_OFFSET+2*4, v0);
+    stateHash = WriteMemory(stateHash, REG_OFFSET+7*4, 0);
     return stateHash;
   }
 
   // TODO: test ll and sc
   function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) internal view returns (bytes32) {
-    uint32 insn = m.ReadMemory(stateHash, pc);
+    uint32 insn = ReadMemory(stateHash, pc);
 
     uint32 opcode = insn >> 26; // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
@@ -112,11 +120,11 @@ contract MIPS {
     uint32 rt;
     if (opcode != 2 && opcode != 3) {   // J-type: j and jal have no register fetch
       // R-type or I-type (stores rt)
-      rs = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
+      rs = ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
       storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
       if (opcode == 0 || opcode == 0x1c) {
         // R-type (stores rd)
-        rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+        rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
         storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
       } else if (opcode < 0x20) {
         // rt is SignExtImm
@@ -130,7 +138,7 @@ contract MIPS {
         }
       } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
         // store rt value with store
-        rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+        rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
 
         // store actual rt with lwl and lwr
         storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
@@ -152,7 +160,7 @@ contract MIPS {
       uint32 SignExtImm = SE(insn&0xFFFF, 16);
       rs += SignExtImm;
       uint32 addr = rs & 0xFFFFFFFC;
-      mem = m.ReadMemory(stateHash, addr);
+      mem = ReadMemory(stateHash, addr);
       if (opcode >= 0x28 && opcode != 0x30) {
         // store
         storeAddr = addr;
@@ -163,7 +171,7 @@ contract MIPS {
       bool shouldBranch = false;
 
       if (opcode == 4 || opcode == 5) {   // beq/bne
-        rt = m.ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+        rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
         shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5);
       } else if (opcode == 6) { shouldBranch = int32(rs) <= 0; // blez
       } else if (opcode == 7) { shouldBranch = int32(rs) > 0; // bgtz
@@ -204,9 +212,9 @@ contract MIPS {
     // lo and hi registers
     // can write back
     if (opcode == 0) {
-      if (func == 0x10) val = m.ReadMemory(stateHash, REG_HI); // mfhi
+      if (func == 0x10) val = ReadMemory(stateHash, REG_HI); // mfhi
       else if (func == 0x11) storeAddr = REG_HI; // mthi
-      else if (func == 0x12) val = m.ReadMemory(stateHash, REG_LO); // mflo
+      else if (func == 0x12) val = ReadMemory(stateHash, REG_LO); // mflo
       else if (func == 0x13) storeAddr = REG_LO; // mtlo
 
       uint32 hi;
@@ -229,26 +237,26 @@ contract MIPS {
       // lo/hi writeback
       // can't stepNextPC after this
       if (func >= 0x18 && func < 0x1c) {
-        stateHash = m.WriteMemory(stateHash, REG_HI, hi);
+        stateHash = WriteMemory(stateHash, REG_HI, hi);
         storeAddr = REG_LO;
       }
     }
 
     // stupid sc, write a 1 to rt
     if (opcode == 0x38) {
-      stateHash = m.WriteMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C), 1);
+      stateHash = WriteMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C), 1);
     }
 
     // write back
     if (storeAddr != REG_ZERO) {
-      stateHash = m.WriteMemory(stateHash, storeAddr, val);
+      stateHash = WriteMemory(stateHash, storeAddr, val);
     }
 
     if (nextPC & STORE_LINK == STORE_LINK) {
-      stateHash = m.WriteMemory(stateHash, REG_LR, pc+4);
+      stateHash = WriteMemory(stateHash, REG_LR, pc+4);
     }
 
-    stateHash = m.WriteMemory(stateHash, REG_PC, uint32(nextPC));
+    stateHash = WriteMemory(stateHash, REG_PC, uint32(nextPC));
 
     return stateHash;
   }
