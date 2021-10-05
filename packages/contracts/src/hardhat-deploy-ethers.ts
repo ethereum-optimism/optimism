@@ -11,7 +11,7 @@ export const waitUntilTrue = async (
     delay?: number
   } = {}
 ) => {
-  opts.retries = opts.retries || 10
+  opts.retries = opts.retries || 100
   opts.delay = opts.delay || 5000
 
   let retries = 0
