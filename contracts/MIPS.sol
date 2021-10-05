@@ -201,7 +201,7 @@ contract MIPS {
     if (opcode == 0 && func >= 8 && func < 0x1c) {
       if (func == 8 || func == 9) {
         // jr/jalr
-        return stepNextPC(stateHash, uint32(nextPC), rs | (func == 9 ? STORE_LINK : 0));
+        return stepNextPC(stateHash, uint32(nextPC), val | (func == 9 ? STORE_LINK : 0));
       }
 
       // handle movz and movn when they don't write back
@@ -236,11 +236,11 @@ contract MIPS {
           hi = uint32(acc>>32);
           val = uint32(acc);
         } else if (func == 0x1a) { // div
-          val = uint32(int32(rs)/int32(rt));
           hi = uint32(int32(rs)%int32(rt));
+          val = uint32(int32(rs)/int32(rt));
         } else if (func == 0x1b) { // divu
-          val = rs/rt;
           hi = rs%rt;
+          val = rs/rt;
         }
 
         // lo/hi writeback
@@ -279,29 +279,33 @@ contract MIPS {
     // transform ArithLogI
     // TODO: replace with table
     if (opcode >= 8 && opcode < 0xF) {
-      if (opcode == 8) { opcode = 0; func = 0x20; }        // addi
-      else if (opcode == 9) { opcode = 0; func = 0x21; }   // addiu
-      else if (opcode == 0xa) { opcode = 0; func = 0x2a; } // slti
-      else if (opcode == 0xb) { opcode = 0; func = 0x2B; } // sltiu
-      else if (opcode == 0xc) { opcode = 0; func = 0x24; } // andi
-      else if (opcode == 0xd) { opcode = 0; func = 0x25; } // ori
-      else if (opcode == 0xe) { opcode = 0; func = 0x26; } // xori
+      if (opcode == 8) { func = 0x20; }        // addi
+      else if (opcode == 9) { func = 0x21; }   // addiu
+      else if (opcode == 0xa) { func = 0x2a; } // slti
+      else if (opcode == 0xb) { func = 0x2B; } // sltiu
+      else if (opcode == 0xc) { func = 0x24; } // andi
+      else if (opcode == 0xd) { func = 0x25; } // ori
+      else if (opcode == 0xe) { func = 0x26; } // xori
+      opcode = 0;
     }
 
     // 0 is opcode SPECIAL
     if (opcode == 0) {
       uint32 shamt = (insn >> 6) & 0x1f;
-      // Shift and ShiftV
-      if (func == 0x00) { return rt << shamt;      // sll
-      } else if (func == 0x02) { return rt >> shamt;      // srl
-      } else if (func == 0x03) { return SE(rt >> shamt, 32-shamt);      // sra
-      } else if (func == 0x04) { return rt << (rs&0x1F);         // sllv
-      } else if (func == 0x06) { return rt >> (rs&0x1F);         // srlv
-      } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
-      } else if (func >= 0x08 && func < 0x20) { return rs;  // jr/jalr/div + others
+      if (func < 0x20) {
+        if (func >= 0x08) { return rs;  // jr/jalr/div + others
+        // Shift and ShiftV
+        } else if (func == 0x00) { return rt << shamt;      // sll
+        } else if (func == 0x02) { return rt >> shamt;      // srl
+        } else if (func == 0x03) { return SE(rt >> shamt, 32-shamt);      // sra
+        } else if (func == 0x04) { return rt << (rs&0x1F);         // sllv
+        } else if (func == 0x06) { return rt >> (rs&0x1F);         // srlv
+        } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
+        }
+      }
       // 0x10-0x13 = mfhi, mthi, mflo, mtlo
       // R-type (ArithLog)
-      } else if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
+      if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
       } else if (func == 0x22 || func == 0x23) { return rs-rt;   // sub or subu
       } else if (func == 0x24) { return rs&rt;            // and
       } else if (func == 0x25) { return (rs|rt);          // or
