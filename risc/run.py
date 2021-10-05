@@ -214,14 +214,14 @@ def hook_interrupt(uc, intno, user_data):
       sys.stdout.flush()
       sys.stderr.flush()
       #os._exit(a0)
-    elif syscall_no == 4090:
+    elif syscall_no == 4090 or syscall_no == 4210:
       a0 = uc.reg_read(UC_MIPS_REG_A0)
       a1 = uc.reg_read(UC_MIPS_REG_A1)
       a2 = uc.reg_read(UC_MIPS_REG_A2)
       a3 = uc.reg_read(UC_MIPS_REG_A3)
       a4 = uc.reg_read(UC_MIPS_REG_T0)
       a5 = uc.reg_read(UC_MIPS_REG_T1)
-      print("mmap", hex(a0), hex(a1), hex(a2), hex(a3), hex(a4), hex(a5), "at", hex(heap_start))
+      print("mmap", syscall_no, hex(a0), hex(a1), hex(a2), hex(a3), hex(a4), hex(a5), "at", hex(heap_start))
       if a0 == 0:
         print("malloced new")
         #mu.mem_map(heap_start, a1)
@@ -328,28 +328,44 @@ mu.mem_write(0, start)
 entry = 0
 
 r = RangeTree()
+found = 0
 for section in elffile.iter_sections():
   try:
     for nsym, symbol in enumerate(section.iter_symbols()):
       ss = symbol['st_value']
       se = ss+symbol['st_size']
-      #print(ss, se)
       if ss != se:
-        r[ss:se] = symbol.name
+        try:
+          r[ss:se] = symbol.name
+        except KeyError:
+          continue
       #print(nsym, symbol.name, symbol['st_value'], symbol['st_size'])
       if symbol.name == "runtime.gcenable":
         print(nsym, symbol.name)
         # nop gcenable
+        mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+        found += 1
+      if symbol.name == "runtime.load_g":
+        # hardware?
+        mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+        found += 1
+      if symbol.name == "runtime.save_g":
+        # hardware?
+        mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+        found += 1
+      if symbol.name == "_cgo_sys_thread_start":
         mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
       if symbol.name == "github.com/ethereum/go-ethereum/oracle.Halt":
          #00400000: 2004dead ; <input:0> li $a0, 57005
         # 00400004: 00042400 ; <input:1> sll $a0, $a0, 16
         # 00400008: 00800008 ; <input:2> jr $a0
         mu.mem_write(symbol['st_value'], b"\x20\x04\xde\xad\x00\x04\x24\x00\x00\x80\x00\x08")
+        found += 1
   except Exception:
     #traceback.print_exc()
     pass
 
+assert(found == 4)
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 
 died_well = False
@@ -368,7 +384,7 @@ mu.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_invalid)
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 #mu.hook_add(UC_HOOK_INSN, hook_interrupt, None, 1, 0, 0x0c000000)
 
-if tracelevel == 3:
+if tracelevel >= 3:
   start_instrumenting()
 
 with open("/tmp/minigeth.bin", "wb") as f:
@@ -376,6 +392,9 @@ with open("/tmp/minigeth.bin", "wb") as f:
 
 if os.getenv("COMPILE", None) == "1":
   exit(0)
+
+# why do i need this?
+#mu.mem_map(0xfffe0000, 0x20000)
 
 try:
   mu.emu_start(entry, -1)

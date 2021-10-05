@@ -111,12 +111,15 @@ def hook_code_simple(uc, address, size, user_data):
   rr = ' '.join(["%08X" % x for x in regs])
   ss = "%7d %8X %08X : " % (step, pc, inst) + rr
   sgt = gtf.readline().strip("\n")
+  if sgt.startswith("step:0"):
+    print("compared %d steps" % step)
+    os._exit(0)
   if ss != sgt:
     dat = next(md.disasm(uc.mem_read(address, size), address))
     print(dat)
     print(colored(ss, 'green'))
     print(colored(sgt, 'red'))
-    os._exit(0)
+    os._exit(-1)
   else:
     if step % 1000 == 0:
       print(ss)
@@ -124,5 +127,4 @@ def hook_code_simple(uc, address, size, user_data):
   step += 1
 
 mu.hook_add(UC_HOOK_CODE, hook_code_simple)
-
 mu.emu_start(0, -1)

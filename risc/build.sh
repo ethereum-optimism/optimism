@@ -5,10 +5,13 @@ export GOARCH=mips
 export GOMIPS=softfloat
 
 # brew install llvm
-#export CGO_ENABLED=1
-#export CC="$PWD/../risc/clangwrap.sh"
+# ...and struggle to build musl
+# for 0 gain
+export CGO_ENABLED=1
+export CC="$PWD/../risc/clangwrap.sh"
+go build -v -ldflags "-linkmode external -extldflags -static"
 
-go build -v
+#go build
 cp go-ethereum ../risc/go-ethereum
 cd ../risc
 file go-ethereum
