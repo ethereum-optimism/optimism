@@ -107,6 +107,8 @@ func bytesTo32(a []byte) uint32 {
 	return binary.BigEndian.Uint32(a[28:])
 }
 
+var mret = make([]byte, 32)
+
 func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	stack := scope.Stack
@@ -127,8 +129,8 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 		nret := ram[addr]
 
 		//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
-
-		ret := common.BigToHash(big.NewInt(int64(nret))).Bytes()
+		binary.BigEndian.PutUint32(mret[0x1c:], nret)
+		//ret := common.BigToHash(big.NewInt(int64(nret))).Bytes()
 		if debug >= 2 {
 			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
 		}
@@ -153,7 +155,7 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 			}
 			pcCount += 1
 		}
-		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
+		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), mret)
 	} else if args[0] == 184 {
 		addr := bytesTo32(args[0x24:0x44])
 		dat := bytesTo32(args[0x44:0x64])
@@ -169,18 +171,19 @@ func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeCon
 	// ram access is free here
 	scope.Contract.Gas = returnGas
 	// what is the return value here?
-	return common.Hash{}.Bytes(), nil
+	return mret, nil
+}
+
+func LoadMappedFile(fn string, ram map[uint32](uint32)) {
+	dat, _ := ioutil.ReadFile(fn)
+	for i := 0; i < len(dat); i += 4 {
+		ram[uint32(i)] = binary.BigEndian.Uint32(dat[i : i+4])
+	}
 }
 
 func RunMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte, steps int) {
 	ram = make(map[uint32](uint32))
-	dat, _ := ioutil.ReadFile(fn)
-	for i := 0; i < len(dat); i += 4 {
-		ram[uint32(i)] = uint32(dat[i])<<24 |
-			uint32(dat[i+1])<<16 |
-			uint32(dat[i+2])<<8 |
-			uint32(dat[i+3])<<0
-	}
+	LoadMappedFile(fn, ram)
 
 	gas := 10000 * uint64(steps)
 
@@ -208,14 +211,7 @@ func RunMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte, ste
 func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) (uint32, uint64) {
 	ram = make(map[uint32](uint32))
 	ram[0xC000007C] = 0xDEAD0000
-	//fmt.Println("starting", fn)
-	dat, _ := ioutil.ReadFile(fn)
-	for i := 0; i < len(dat); i += 4 {
-		ram[uint32(i)] = uint32(dat[i])<<24 |
-			uint32(dat[i+1])<<16 |
-			uint32(dat[i+2])<<8 |
-			uint32(dat[i+3])<<0
-	}
+	LoadMappedFile(fn, ram)
 
 	// 0xdb7df598
 	from := common.Address{}

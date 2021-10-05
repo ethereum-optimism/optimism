@@ -96,6 +96,8 @@ contract MIPS {
   // TODO: test ll and sc
   function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) internal view returns (bytes32) {
     uint32 insn = m.ReadMemory(stateHash, pc);
+    //return stateHash;
+
     uint32 opcode = insn >> 26; // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
 
