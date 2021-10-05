@@ -5,6 +5,7 @@ import math
 import struct
 import binascii
 import traceback
+from collections import defaultdict
 from elftools.elf.elffile import ELFFile
 from capstone import *
 md = Cs(CS_ARCH_MIPS, CS_MODE_32 + CS_MODE_BIG_ENDIAN)
@@ -40,8 +41,10 @@ bcount = 0
 instrumenting = False
 instrumenting_all = False
 instructions_seen = set()
+profiler = defaultdict(int)
+phit = 0
 def hook_code_simple(uc, address, size, user_data):
-  global icount, bcount
+  global icount, bcount, phit
   #assert size == 4
   try:
     newicount = size//4
@@ -52,7 +55,13 @@ def hook_code_simple(uc, address, size, user_data):
         dat = "EMPTY BASIC BLOCK?!?"
       #instructions_seen.add(dat.mnemonic)
       #print(sorted(list(instructions_seen)))
-      print("%10d(%2d): %8x %-80s %s" % (icount, newicount, address, r[address] if address in r else "UNKNOWN", dat))
+      symbol = r[address] if address in r else "UNKNOWN"
+      profiler[symbol] += 1
+      phit += 1
+      print("%10d(%2d): %8x %-80s %s" % (icount, newicount, address, symbol, dat))
+      if bcount%1000000 == 0:
+        for k,v in sorted(profiler.items(), key=lambda x: -x[1])[:10]:
+          print("%-80s : %.2f%%" % (k, (v/phit)*100.))
     icount += newicount
     bcount += 1
     return True
@@ -345,6 +354,7 @@ for section in elffile.iter_sections():
         # nop gcenable
         mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
         found += 1
+      """
       if symbol.name == "runtime.load_g":
         # hardware?
         mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
@@ -355,6 +365,7 @@ for section in elffile.iter_sections():
         found += 1
       if symbol.name == "_cgo_sys_thread_start":
         mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+      """
       if symbol.name == "github.com/ethereum/go-ethereum/oracle.Halt":
          #00400000: 2004dead ; <input:0> li $a0, 57005
         # 00400004: 00042400 ; <input:1> sll $a0, $a0, 16
@@ -365,7 +376,7 @@ for section in elffile.iter_sections():
     #traceback.print_exc()
     pass
 
-assert(found == 4)
+assert(found == 2)
 #mu.hook_add(UC_HOOK_BLOCK, hook_code, user_data=mu)
 
 died_well = False
