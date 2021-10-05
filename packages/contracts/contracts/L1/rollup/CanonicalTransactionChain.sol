@@ -111,6 +111,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         onlyBurnAdmin
     {
         enqueueGasCost = _enqueueGasCost;
+        // See the comment in enqueue() for the rationale behind this formula.
         enqueueL2GasPrepaid = l2GasDiscountDivisor * _enqueueGasCost;
 
         emit L2GasParamsUpdated(
@@ -130,6 +131,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         onlyBurnAdmin
     {
         l2GasDiscountDivisor = _l2GasDiscountDivisor;
+        // See the comment in enqueue() for the rationale behind this formula.
         enqueueL2GasPrepaid = _l2GasDiscountDivisor * enqueueGasCost;
 
         emit L2GasParamsUpdated(
@@ -324,11 +326,16 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
         // Transactions submitted to the queue lack a method for paying gas fees to the Sequencer.
         // So we need to prevent spam attacks by ensuring that the cost of enqueueing a transaction
-        // from L1 to L2 is not underpriced. Therefore, we define 'enqueueL2GasPrepaid' as a
-        // threshold. If the _gasLimit for the enqueued transaction is above this threshold, then we
-        // 'charge' to user by burning additional L1 gas. Since gas is cheaper on L2 than L1, we
-        // only need to burn a fraction of the provided L1 gas, which is determined by the
-        // l2GasDiscountDivisor.
+        // from L1 to L2 is not underpriced. For transaction with a high L2 gas limit, we do this by
+        // burning some extra gas on L1. Of course there is also some intrinsic cost to enqueueing a
+        // transaction, so we want to make sure not to over-charge (by burning too much L1 gas).
+        // Therefore, we define 'enqueueL2GasPrepaid' as the L2 gas limit above which we must burn
+        // additional gas on L1. This threshold is the product of two inputs:
+        // 1. enqueueGasCost: the base cost of calling this function.
+        // 2. l2GasDiscountDivisor: the ratio between the cost of gas on L1 and L2. This is a
+        //    positive integer, meaning we assume L2 gas is always less costly.
+        // The calculation below for gasToConsume can be seen as converting the difference (between
+        // the specified L2 gas limit and the prepaid L2 gas limit) to an L1 gas amount.
         if(_gasLimit > enqueueL2GasPrepaid) {
             uint256 gasToConsume = (_gasLimit - enqueueL2GasPrepaid) / l2GasDiscountDivisor;
             uint256 startingGas = gasleft();
