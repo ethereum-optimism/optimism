@@ -42,6 +42,7 @@ contract MIPS {
         // TODO: this is actually doing an SLOAD first
         sstore(addr, value)
       }
+      return stateHash;
     }
   }
 
@@ -76,6 +77,8 @@ contract MIPS {
     if (pc == 0xdead0000) {
       return stateHash;
     }
+    /*stateHash = WriteMemory(stateHash, REG_PC, pc+4);
+    return stateHash;*/
     return stepNextPC(stateHash, pc, pc+4);
   }
 

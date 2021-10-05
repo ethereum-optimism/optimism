@@ -126,8 +126,11 @@ func (jst *Tracer) CaptureStart(env *vm.EVM, from common.Address, to common.Addr
 }
 
 // CaptureState implements the Tracer interface to trace a single step of VM execution.
+var evmInsCount uint64 = 0
+
 func (jst *Tracer) CaptureState(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
 	//fmt.Println(pc, op, gas)
+	evmInsCount += 1
 }
 
 // CaptureFault implements the Tracer interface to trace an execution fault
@@ -190,6 +193,7 @@ func RunMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte, ste
 		ram[0xc0000008] = 0
 		ram[0xc0000000+7*4] = 0
 	}
+	fmt.Println("evm ins count", evmInsCount)
 }
 
 func runTest(fn string, steps int, interpreter *vm.EVMInterpreter, bytecode []byte, gas uint64) (uint32, uint64) {
@@ -235,9 +239,11 @@ func GetInterpreterAndBytecode() (*vm.EVMInterpreter, []byte) {
 	blockContext := core.NewEVMBlockContext(&header, bc, &author)
 	txContext := vm.TxContext{}
 	config := vm.Config{}
+
 	/*config.Debug = true
 	tracer := Tracer{}
 	config.Tracer = &tracer*/
+
 	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
 
 	interpreter := vm.NewEVMInterpreter(evm, config)
