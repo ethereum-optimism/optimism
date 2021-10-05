@@ -65,8 +65,9 @@ const appendSequencerBatch = async (
 describe('CanonicalTransactionChain', () => {
   let signer: Signer
   let sequencer: Signer
+  let burnAdmin: Signer
   before(async () => {
-    ;[signer, sequencer] = await ethers.getSigners()
+    ;[signer, sequencer, burnAdmin] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
@@ -76,6 +77,11 @@ describe('CanonicalTransactionChain', () => {
     await AddressManager.setAddress(
       'OVM_Sequencer',
       await sequencer.getAddress()
+    )
+
+    await AddressManager.setAddress(
+      'OVM_BurnAdmin',
+      await burnAdmin.getAddress()
     )
 
     Mock__StateCommitmentChain = await smockit(
@@ -107,7 +113,7 @@ describe('CanonicalTransactionChain', () => {
       AddressManager.address,
       MAX_GAS_LIMIT,
       L2_GAS_DISCOUNT_DIVISOR,
-      ENQUEUE_GAS_COST,
+      ENQUEUE_GAS_COST
     )
 
     const batches = await Factory__ChainStorageContainer.deploy(
@@ -137,15 +143,15 @@ describe('CanonicalTransactionChain', () => {
 
   describe('Gas param setters', () => {
     describe('setGasDivisor', async () => {
-      it('should revert when not called by the sequencer', async () => {
+      it('should revert when not called by the Burn Admin', async () => {
         await expect(
           CanonicalTransactionChain.connect(signer).setGasDivisor(32)
-        ).to.be.revertedWith('Only callable by the Sequencer.')
+        ).to.be.revertedWith('Only callable by the Burn Admin.')
       })
 
       it('should update the l2GasDiscountDivisor and enqueueL2GasPrepaid correctly', async () => {
         const newGasDivisor = 19
-        await CanonicalTransactionChain.connect(sequencer).setGasDivisor(
+        await CanonicalTransactionChain.connect(burnAdmin).setGasDivisor(
           newGasDivisor
         )
 
@@ -157,21 +163,21 @@ describe('CanonicalTransactionChain', () => {
 
       it('should emit an L2GasParamsUpdated event', async () => {
         await expect(
-          CanonicalTransactionChain.connect(sequencer).setGasDivisor(88)
+          CanonicalTransactionChain.connect(burnAdmin).setGasDivisor(88)
         ).to.emit(CanonicalTransactionChain, 'L2GasParamsUpdated')
       })
     })
 
     describe('setEnqueueGasCost', async () => {
-      it('should revert when not called by the sequencer', async () => {
+      it('should revert when not called by the Burn Admin', async () => {
         await expect(
           CanonicalTransactionChain.connect(signer).setEnqueueGasCost(60000)
-        ).to.be.revertedWith('Only callable by the Sequencer.')
+        ).to.be.revertedWith('Only callable by the Burn Admin.')
       })
 
       it('should update the enqueueGasCost and enqueueL2GasPrepaid correctly', async () => {
         const newEnqueueGasCost = 31113
-        await CanonicalTransactionChain.connect(sequencer).setEnqueueGasCost(
+        await CanonicalTransactionChain.connect(burnAdmin).setEnqueueGasCost(
           newEnqueueGasCost
         )
 
@@ -186,7 +192,7 @@ describe('CanonicalTransactionChain', () => {
 
       it('should emit an L2GasParamsUpdated event', async () => {
         await expect(
-          CanonicalTransactionChain.connect(sequencer).setEnqueueGasCost(31514)
+          CanonicalTransactionChain.connect(burnAdmin).setEnqueueGasCost(31514)
         ).to.emit(CanonicalTransactionChain, 'L2GasParamsUpdated')
       })
     })
@@ -244,7 +250,7 @@ describe('CanonicalTransactionChain', () => {
       // additional gas overhead, it will be enough trigger the gas burn, but not enough to cover
       // it.
       const l1GasLimit =
-      (l2GasLimit - _enqueueL2GasPrepaid) / l2GasDiscountDivisor
+        (l2GasLimit - _enqueueL2GasPrepaid) / l2GasDiscountDivisor
 
       await expect(
         CanonicalTransactionChain.enqueue(target, l2GasLimit, data, {
