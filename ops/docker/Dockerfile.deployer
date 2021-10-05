@@ -20,7 +20,6 @@ COPY --from=builder /optimism/packages/contracts/dist ./dist
 COPY --from=builder /optimism/packages/contracts/*.json ./
 COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
 COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
-COPY --from=builder /optimism/.git ./.git
 
 # get non-build artifacts from the host
 COPY packages/contracts/bin ./bin
