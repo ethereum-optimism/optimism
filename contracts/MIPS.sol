@@ -27,7 +27,7 @@ contract MIPS {
   uint32 constant public REG_HEAP = REG_OFFSET + 0x23*4;
   uint32 constant public REG_PENDPC = REG_OFFSET + 0x24*4;
 
-  uint32 constant public PC_FLAG = 0x80000000;
+  uint32 constant public PC_PEND = 0x80000000;
   uint32 constant public PC_MASK = 0x7FFFFFFF;
 
   uint32 constant public HEAP_START = 0x20000000;
@@ -101,9 +101,12 @@ contract MIPS {
     return stateHash;
   }
 
-  function branchDelay(bytes32 stateHash, uint32 pc, uint32 nextPC) internal returns (bytes32) {
+  function branchDelay(bytes32 stateHash, uint32 pc, uint32 nextPC, bool link) internal returns (bytes32) {
+    if (link) {
+      stateHash = WriteMemory(stateHash, REG_LR, pc+4);
+    }
     stateHash = WriteMemory(stateHash, REG_PENDPC, nextPC);
-    stateHash = WriteMemory(stateHash, REG_PC, PC_FLAG | pc);
+    stateHash = WriteMemory(stateHash, REG_PC, PC_PEND | pc);
     return stateHash;
   }
 
@@ -116,7 +119,7 @@ contract MIPS {
     }
 
     uint32 nextPC;
-    if (pc & PC_FLAG == 0) {
+    if (pc & PC_PEND == 0) {
       nextPC = pc + 4;
     } else {
       pc = pc & PC_MASK;
@@ -131,7 +134,7 @@ contract MIPS {
     // j-type j/jal
     if (opcode == 2 || opcode == 3) {
       return branchDelay(stateHash, nextPC,
-        (SE(insn&0x03FFFFFF, 26) << 2) | (opcode == 3 ? PC_FLAG : 0));
+        SE(insn&0x03FFFFFF, 26) << 2, opcode == 3);
     }
 
     // register fetch
@@ -197,10 +200,10 @@ contract MIPS {
 
       if (shouldBranch) {
         uint32 val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
-        return branchDelay(stateHash, nextPC, val);
+        return branchDelay(stateHash, nextPC, val, false);
       } else {
         // branch not taken
-        return branchDelay(stateHash, nextPC, nextPC+4);
+        return branchDelay(stateHash, nextPC, nextPC+4, false);
       }
 
     }
@@ -214,7 +217,7 @@ contract MIPS {
     if (opcode == 0 && func >= 8 && func < 0x1c) {
       if (func == 8 || func == 9) {
         // jr/jalr
-        return branchDelay(stateHash, nextPC, rs | (func == 9 ? PC_FLAG : 0));
+        return branchDelay(stateHash, nextPC, rs, func == 9);
       }
 
       // handle movz and movn when they don't write back
@@ -273,11 +276,6 @@ contract MIPS {
     // write back
     if (storeAddr != REG_ZERO) {
       stateHash = WriteMemory(stateHash, storeAddr, val);
-    }
-
-    if (nextPC & PC_FLAG != 0 && nextPC != 0xDEAD0000) {
-      stateHash = WriteMemory(stateHash, REG_LR, pc+4);
-      nextPC &= PC_MASK;
     }
 
     stateHash = WriteMemory(stateHash, REG_PC, nextPC);
