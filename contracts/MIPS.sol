@@ -141,13 +141,14 @@ contract MIPS {
     uint32 storeAddr = REG_ZERO;
     uint32 rs;
     uint32 rt;
+    uint32 rtReg = REG_OFFSET + ((insn >> 14) & 0x7C);
 
     // R-type or I-type (stores rt)
     rs = ReadMemory(stateHash, REG_OFFSET + ((insn >> 19) & 0x7C));
     storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
     if (opcode == 0 || opcode == 0x1c) {
       // R-type (stores rd)
-      rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+      rt = ReadMemory(stateHash, rtReg);
       storeAddr = REG_OFFSET + ((insn >> 9) & 0x7C);
     } else if (opcode < 0x20) {
       // rt is SignExtImm
@@ -161,10 +162,10 @@ contract MIPS {
       }
     } else if (opcode >= 0x28 || opcode == 0x22 || opcode == 0x26) {
       // store rt value with store
-      rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+      rt = ReadMemory(stateHash, rtReg);
 
       // store actual rt with lwl and lwr
-      storeAddr = REG_OFFSET + ((insn >> 14) & 0x7C);
+      storeAddr = rtReg;
     }
 
 
@@ -187,7 +188,7 @@ contract MIPS {
       bool shouldBranch = false;
 
       if (opcode == 4 || opcode == 5) {   // beq/bne
-        rt = ReadMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C));
+        rt = ReadMemory(stateHash, rtReg);
         shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5);
       } else if (opcode == 6) { shouldBranch = int32(rs) <= 0; // blez
       } else if (opcode == 7) { shouldBranch = int32(rs) > 0; // bgtz
@@ -265,8 +266,8 @@ contract MIPS {
     }
 
     // stupid sc, write a 1 to rt
-    if (opcode == 0x38) {
-      stateHash = WriteMemory(stateHash, REG_OFFSET + ((insn >> 14) & 0x7C), 1);
+    if (opcode == 0x38 && rtReg != REG_ZERO) {
+      stateHash = WriteMemory(stateHash, rtReg, 1);
     }
 
     // write back
