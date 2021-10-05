@@ -87,13 +87,13 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      **********************/
 
     /**
-     * Modifier to enforce that, if configured, only the OVM_Sequencer contract may
+     * Modifier to enforce that only the OVM_BurnAdmin contract may
      * successfully call a method.
      */
-    modifier onlySequencer() {
+    modifier onlyBurnAdmin() {
         require(
-            msg.sender == resolve("OVM_Sequencer"),
-            "Only callable by the Sequencer."
+            msg.sender == resolve("OVM_BurnAdmin"),
+            "Only callable by the Burn Admin."
         );
         _;
     }
@@ -108,7 +108,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      */
     function setEnqueueGasCost(uint256 _enqueueGasCost)
         external
-        onlySequencer
+        onlyBurnAdmin
     {
         enqueueGasCost = _enqueueGasCost;
         enqueueL2GasPrepaid = l2GasDiscountDivisor * _enqueueGasCost;
@@ -127,7 +127,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      */
     function setGasDivisor(uint256 _l2GasDiscountDivisor)
         external
-        onlySequencer
+        onlyBurnAdmin
     {
         l2GasDiscountDivisor = _l2GasDiscountDivisor;
         enqueueL2GasPrepaid = _l2GasDiscountDivisor * enqueueGasCost;
