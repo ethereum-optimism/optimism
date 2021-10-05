@@ -275,11 +275,12 @@ contract MIPS {
       stateHash = WriteMemory(stateHash, storeAddr, val);
     }
 
-    if (nextPC & PC_FLAG != 0) {
+    if (nextPC & PC_FLAG != 0 && nextPC != 0xDEAD0000) {
       stateHash = WriteMemory(stateHash, REG_LR, pc+4);
+      nextPC &= PC_MASK;
     }
 
-    stateHash = WriteMemory(stateHash, REG_PC, nextPC & PC_MASK);
+    stateHash = WriteMemory(stateHash, REG_PC, nextPC);
 
     return stateHash;
   }
