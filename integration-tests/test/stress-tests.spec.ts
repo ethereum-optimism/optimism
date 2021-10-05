@@ -20,7 +20,7 @@ import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleSt
 // Need a big timeout to allow for all transactions to be processed.
 // For some reason I can't figure out how to set the timeout on a per-suite basis
 // so I'm instead setting it for every test.
-const STRESS_TEST_TIMEOUT = 300_000
+const STRESS_TEST_TIMEOUT = 500_000
 
 describe('stress tests', () => {
   let env: OptimismEnv
