@@ -48,17 +48,68 @@ func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) commo
 }
 func (s *StateDB) GetNonce(addr common.Address) uint64 { return 0 }
 func (s *StateDB) GetRefund() uint64                   { return 0 }
-func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
-	fmt.Println("GetState", addr, hash)
-	return common.Hash{}
+
+var seenWrite bool = true
+
+func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Hash {
+	//fmt.Println("GetState", addr, hash)
+	addr := bytesTo32(hash.Bytes())
+	nret := ram[addr]
+
+	mret := make([]byte, 32)
+	binary.BigEndian.PutUint32(mret[0x1c:], nret)
+
+	if debug >= 2 {
+		fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
+	}
+
+	if addr == 0xc0000080 && seenWrite {
+		if debug >= 1 {
+			fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
+				pcCount, nret, ram[nret],
+				ram[0xc0000004],
+				ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
+				ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
+		}
+		if ram[nret] == 0xC {
+			syscall := ram[0xc0000008]
+			os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
+		}
+		if (pcCount % 10000) == 0 {
+			steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
+			os.Stderr.WriteString(fmt.Sprintf("step %7d steps per s %f ram entries %d\n", pcCount, steps_per_sec, len(ram)))
+		}
+		pcCount += 1
+		seenWrite = false
+	}
+
+	return common.BytesToHash(mret)
 }
 func (s *StateDB) HasSuicided(addr common.Address) bool { return false }
 func (s *StateDB) PrepareAccessList(sender common.Address, dst *common.Address, precompiles []common.Address, list types.AccessList) {
 }
-func (s *StateDB) RevertToSnapshot(revid int)                           {}
-func (s *StateDB) SetCode(addr common.Address, code []byte)             {}
-func (s *StateDB) SetNonce(addr common.Address, nonce uint64)           {}
-func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {}
+func (s *StateDB) RevertToSnapshot(revid int)                 {}
+func (s *StateDB) SetCode(addr common.Address, code []byte)   {}
+func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {}
+func (s *StateDB) SetState(fakeaddr common.Address, key, value common.Hash) {
+	//fmt.Println("SetState", addr, key, value)
+	addr := bytesTo32(key.Bytes())
+	dat := bytesTo32(value.Bytes())
+
+	if addr == 0xc0000080 {
+		seenWrite = true
+	}
+
+	if debug >= 2 {
+		fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
+	}
+
+	if dat == 0 {
+		delete(ram, addr)
+	} else {
+		ram[addr] = dat
+	}
+}
 func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addressPresent bool, slotPresent bool) {
 	return true, true
 }
@@ -105,80 +156,6 @@ var ram map[uint32](uint32)
 func bytesTo32(a []byte) uint32 {
 	//return uint32(common.BytesToHash(a).Big().Uint64())
 	return binary.BigEndian.Uint32(a[28:])
-}
-
-var mret = make([]byte, 32)
-
-func opStaticCall(pc *uint64, interpreter *vm.EVMInterpreter, scope *vm.ScopeContext) ([]byte, error) {
-	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
-	stack := scope.Stack
-
-	temp := stack.Pop()
-	returnGas := temp.Uint64()
-	_, inOffset, inSize, retOffset, retSize := stack.Pop(), stack.Pop(), stack.Pop(), stack.Pop(), stack.Pop()
-	//fmt.Println(temp, addr, inOffset, inSize, retOffset, retSize)
-
-	temp.SetOne()
-	stack.Push(&temp)
-
-	// Get arguments from the memory.
-	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
-	if args[0] == 98 {
-		// read
-		addr := bytesTo32(args[0x24:0x44])
-		nret := ram[addr]
-
-		//scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
-		binary.BigEndian.PutUint32(mret[0x1c:], nret)
-		//ret := common.BigToHash(big.NewInt(int64(nret))).Bytes()
-		if debug >= 2 {
-			fmt.Println("HOOKED READ!   ", fmt.Sprintf("%x = %x", addr, nret))
-		}
-		if addr == 0xc0000080 {
-			/*if nret == 0xDEAD0000 {
-				fmt.Printf("exec is done\n")
-			}*/
-			if debug >= 1 {
-				fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
-					pcCount, nret, ram[nret],
-					ram[0xc0000004],
-					ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
-					ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
-			}
-			if ram[nret] == 0xC {
-				syscall := ram[0xc0000008]
-				os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
-				/*if syscall == 4004 {
-					fmt.Printf("WRITE!")
-				}*/
-			}
-			if (pcCount % 10000) == 0 {
-				steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
-				os.Stderr.WriteString(fmt.Sprintf("step %7d steps per s %f ram entries %d\n", pcCount, steps_per_sec, len(ram)))
-			}
-			pcCount += 1
-		}
-		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), mret)
-	} else if args[0] == 184 {
-		addr := bytesTo32(args[0x24:0x44])
-		dat := bytesTo32(args[0x44:0x64])
-		if debug >= 2 {
-			fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
-		}
-		if dat == 0 {
-			delete(ram, addr)
-		} else {
-			ram[addr] = dat
-		}
-
-		// pass through stateRoot
-		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), args[0x4:0x24])
-	}
-
-	// ram access is free here
-	scope.Contract.Gas = returnGas
-	// what is the return value here?
-	return mret, nil
 }
 
 func LoadMappedFile(fn string, ram map[uint32](uint32)) {
@@ -264,7 +241,6 @@ func GetInterpreterAndBytecode() (*vm.EVMInterpreter, []byte) {
 	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
 
 	interpreter := vm.NewEVMInterpreter(evm, config)
-	interpreter.GetCfg().JumpTable[vm.STATICCALL].SetExecute(opStaticCall)
 	return interpreter, bytecode
 }
 
@@ -290,8 +266,8 @@ func main() {
 
 	if len(os.Args) > 1 {
 		if os.Args[1] == "/tmp/minigeth.bin" {
-			/*debug = 1
-			steps := 1000000
+			debug = 1
+			/*steps := 1000000
 			runTest(os.Args[1], steps, interpreter, bytecode, uint64(steps)*10000)*/
 			RunMinigeth(os.Args[1], interpreter, bytecode, 100000000)
 		} else {

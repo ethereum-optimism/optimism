@@ -34,15 +34,27 @@ contract MIPS {
     m = new MIPSMemory();
   }
 
-  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal view returns (bytes32) {
-    return m.WriteMemory(stateHash, addr, value);
+  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal returns (bytes32) {
+    if (m != MIPSMemory(0)) {
+      return m.WriteMemory(stateHash, addr, value);
+    } else {
+      assembly {
+        sstore(addr, value)
+      }
+    }
   }
 
-  function ReadMemory(bytes32 stateHash, uint32 addr) internal view returns (uint32) {
-    return m.ReadMemory(stateHash, addr);
+  function ReadMemory(bytes32 stateHash, uint32 addr) internal view returns (uint32 ret) {
+    if (m != MIPSMemory(0)) {
+      ret = m.ReadMemory(stateHash, addr);
+    } else {
+      assembly {
+        ret := sload(addr)
+      }
+    }
   }
 
-  function Steps(bytes32 stateHash, uint count) public view returns (bytes32) {
+  function Steps(bytes32 stateHash, uint count) public returns (bytes32) {
     for (uint i = 0; i < count; i++) {
       stateHash = Step(stateHash);
     }
@@ -64,7 +76,7 @@ contract MIPS {
   }
 
   // will revert if any required input state is missing
-  function Step(bytes32 stateHash) public view returns (bytes32) {
+  function Step(bytes32 stateHash) public returns (bytes32) {
     // instruction fetch
     uint32 pc = ReadMemory(stateHash, REG_PC);
     if (pc == 0xdead0000) {
@@ -73,7 +85,7 @@ contract MIPS {
     return stepNextPC(stateHash, pc, pc+4);
   }
 
-  function handleSyscall(bytes32 stateHash) internal view returns (bytes32) {
+  function handleSyscall(bytes32 stateHash) internal returns (bytes32) {
     uint32 syscall_no = ReadMemory(stateHash, REG_OFFSET+2*4);
     uint32 v0 = 0;
 
@@ -102,7 +114,7 @@ contract MIPS {
   }
 
   // TODO: test ll and sc
-  function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) internal view returns (bytes32) {
+  function stepNextPC(bytes32 stateHash, uint32 pc, uint64 nextPC) internal returns (bytes32) {
     uint32 insn = ReadMemory(stateHash, pc);
 
     uint32 opcode = insn >> 26; // 6-bits
