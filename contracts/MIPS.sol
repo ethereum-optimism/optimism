@@ -211,9 +211,6 @@ contract MIPS {
     // ALU
     uint32 val = execute(insn, rs, rt, mem);
 
-    // jumps (with branch delay slot)
-    // nothing is written to the state by this time
-
     if (opcode == 0 && func >= 8 && func < 0x1c) {
       if (func == 8 || func == 9) {
         // jr/jalr
@@ -260,7 +257,6 @@ contract MIPS {
         }
 
         // lo/hi writeback
-        // can't stepNextPC after this
         if (func >= 0x18 && func < 0x1c) {
           stateHash = WriteMemory(stateHash, REG_HI, hi);
           storeAddr = REG_LO;
@@ -288,70 +284,74 @@ contract MIPS {
     uint32 func = insn & 0x3f; // 6-bits
     // TODO: deref the immed into a register
 
-    // transform ArithLogI
-    // TODO: replace with table
-    if (opcode >= 8 && opcode < 0xF) {
-      if (opcode == 8) { func = 0x20; }        // addi
-      else if (opcode == 9) { func = 0x21; }   // addiu
-      else if (opcode == 0xa) { func = 0x2a; } // slti
-      else if (opcode == 0xb) { func = 0x2B; } // sltiu
-      else if (opcode == 0xc) { func = 0x24; } // andi
-      else if (opcode == 0xd) { func = 0x25; } // ori
-      else if (opcode == 0xe) { func = 0x26; } // xori
-      opcode = 0;
-    }
+    if (opcode < 0x20) {
+      // transform ArithLogI
+      // TODO: replace with table
+      if (opcode >= 8 && opcode < 0xF) {
+        if (opcode == 8) { func = 0x20; }        // addi
+        else if (opcode == 9) { func = 0x21; }   // addiu
+        else if (opcode == 0xa) { func = 0x2a; } // slti
+        else if (opcode == 0xb) { func = 0x2B; } // sltiu
+        else if (opcode == 0xc) { func = 0x24; } // andi
+        else if (opcode == 0xd) { func = 0x25; } // ori
+        else if (opcode == 0xe) { func = 0x26; } // xori
+        opcode = 0;
+      }
 
-    // 0 is opcode SPECIAL
-    if (opcode == 0) {
-      uint32 shamt = (insn >> 6) & 0x1f;
-      if (func < 0x20) {
-        if (func >= 0x08) { return rs;  // jr/jalr/div + others
-        // Shift and ShiftV
-        } else if (func == 0x00) { return rt << shamt;      // sll
-        } else if (func == 0x02) { return rt >> shamt;      // srl
-        } else if (func == 0x03) { return SE(rt >> shamt, 32-shamt);      // sra
-        } else if (func == 0x04) { return rt << (rs&0x1F);         // sllv
-        } else if (func == 0x06) { return rt >> (rs&0x1F);         // srlv
-        } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
+      // 0 is opcode SPECIAL
+      if (opcode == 0) {
+        uint32 shamt = (insn >> 6) & 0x1f;
+        if (func < 0x20) {
+          if (func >= 0x08) { return rs;  // jr/jalr/div + others
+          // Shift and ShiftV
+          } else if (func == 0x00) { return rt << shamt;      // sll
+          } else if (func == 0x02) { return rt >> shamt;      // srl
+          } else if (func == 0x03) { return SE(rt >> shamt, 32-shamt);      // sra
+          } else if (func == 0x04) { return rt << (rs&0x1F);         // sllv
+          } else if (func == 0x06) { return rt >> (rs&0x1F);         // srlv
+          } else if (func == 0x07) { return SE(rt >> rs, 32-rs);     // srav
+          }
+        }
+        // 0x10-0x13 = mfhi, mthi, mflo, mtlo
+        // R-type (ArithLog)
+        if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
+        } else if (func == 0x22 || func == 0x23) { return rs-rt;   // sub or subu
+        } else if (func == 0x24) { return rs&rt;            // and
+        } else if (func == 0x25) { return (rs|rt);          // or
+        } else if (func == 0x26) { return (rs^rt);          // xor
+        } else if (func == 0x27) { return ~(rs|rt);         // nor
+        } else if (func == 0x2a) {
+          return int32(rs)<int32(rt) ? 1 : 0; // slt
+        } else if (func == 0x2B) {
+          return rs<rt ? 1 : 0;               // sltu
+        }
+      } else if (opcode == 0xf) { return rt<<16; // lui
+      } else if (opcode == 0x1c) {  // SPECIAL2
+        if (func == 2) return uint32(int32(rs)*int32(rt)); // mul
+        if (func == 0x20 || func == 0x21) { // clo
+          if (func == 0x20) rs = ~rs;
+          uint32 i = 0; while (rs&0x80000000 != 0) { i++; rs <<= 1; } return i;
         }
       }
-      // 0x10-0x13 = mfhi, mthi, mflo, mtlo
-      // R-type (ArithLog)
-      if (func == 0x20 || func == 0x21) { return rs+rt;   // add or addu
-      } else if (func == 0x22 || func == 0x23) { return rs-rt;   // sub or subu
-      } else if (func == 0x24) { return rs&rt;            // and
-      } else if (func == 0x25) { return (rs|rt);          // or
-      } else if (func == 0x26) { return (rs^rt);          // xor
-      } else if (func == 0x27) { return ~(rs|rt);         // nor
-      } else if (func == 0x2a) {
-        return int32(rs)<int32(rt) ? 1 : 0; // slt
-      } else if (func == 0x2B) {
-        return rs<rt ? 1 : 0;               // sltu
+    } else if (opcode < 0x28) {
+      if (opcode == 0x20) {  // lb
+        return SE((mem >> (24-(rs&3)*8)) & 0xFF, 8);
+      } else if (opcode == 0x21) {  // lh
+        return SE((mem >> (16-(rs&2)*8)) & 0xFFFF, 16);
+      } else if (opcode == 0x22) {  // lwl
+        uint32 val = mem << ((rs&3)*8);
+        uint32 mask = uint32(0xFFFFFFFF) << ((rs&3)*8);
+        return (rt & ~mask) | val;
+      } else if (opcode == 0x23) { return mem;   // lw
+      } else if (opcode == 0x24) {  // lbu
+        return (mem >> (24-(rs&3)*8)) & 0xFF;
+      } else if (opcode == 0x25) {  // lhu
+        return (mem >> (16-(rs&2)*8)) & 0xFFFF;
+      } else if (opcode == 0x26) {  // lwr
+        uint32 val = mem >> (24-(rs&3)*8);
+        uint32 mask = uint32(0xFFFFFFFF) >> (24-(rs&3)*8);
+        return (rt & ~mask) | val;
       }
-    } else if (opcode == 0xf) { return rt<<16; // lui
-    } else if (opcode == 0x1c) {  // SPECIAL2
-      if (func == 2) return uint32(int32(rs)*int32(rt)); // mul
-      if (func == 0x20 || func == 0x21) { // clo
-        if (func == 0x20) rs = ~rs;
-        uint32 i = 0; while (rs&0x80000000 != 0) { i++; rs <<= 1; } return i;
-      }
-    } else if (opcode == 0x20) {  // lb
-      return SE((mem >> (24-(rs&3)*8)) & 0xFF, 8);
-    } else if (opcode == 0x21) {  // lh
-      return SE((mem >> (16-(rs&2)*8)) & 0xFFFF, 16);
-    } else if (opcode == 0x22) {  // lwl
-      uint32 val = mem << ((rs&3)*8);
-      uint32 mask = uint32(0xFFFFFFFF) << ((rs&3)*8);
-      return (rt & ~mask) | val;
-    } else if (opcode == 0x23 || opcode == 0x30) { return mem;   // lw (or ll)
-    } else if (opcode == 0x24) {  // lbu
-      return (mem >> (24-(rs&3)*8)) & 0xFF;
-    } else if (opcode == 0x25) {  // lhu
-      return (mem >> (16-(rs&2)*8)) & 0xFFFF;
-    } else if (opcode == 0x26) {  // lwr
-      uint32 val = mem >> (24-(rs&3)*8);
-      uint32 mask = uint32(0xFFFFFFFF) >> (24-(rs&3)*8);
-      return (rt & ~mask) | val;
     } else if (opcode == 0x28) { // sb
       uint32 val = (rt&0xFF) << (24-(rs&3)*8);
       uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24-(rs&3)*8));
@@ -364,13 +364,16 @@ contract MIPS {
       uint32 val = rt >> ((rs&3)*8);
       uint32 mask = uint32(0xFFFFFFFF) >> ((rs&3)*8);
       return (mem & ~mask) | val;
-    } else if (opcode == 0x2b || opcode == 0x38) { // sw (or sc, not right?)
+    } else if (opcode == 0x2b) { // sw
       return rt;
     } else if (opcode == 0x2e) {  // swr
       uint32 val = rt << (24-(rs&3)*8);
       uint32 mask = uint32(0xFFFFFFFF) << (24-(rs&3)*8);
       return (mem & ~mask) | val;
+    } else if (opcode == 0x30) { return mem; // ll
+    } else if (opcode == 0x38) { return rt; // sc
     }
+
     revert("invalid instruction");
   }
 }
