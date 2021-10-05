@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -66,7 +67,7 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 	if addr == 0xc0000080 && seenWrite {
 		if debug >= 1 {
 			fmt.Printf("%7d %8X %08X : %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
-				pcCount, nret, ram[nret],
+				pcCount, nret&0x7FFFFFFF, ram[nret],
 				ram[0xc0000004],
 				ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
 				ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
@@ -182,7 +183,6 @@ func RunMinigeth(fn string, interpreter *vm.EVMInterpreter, bytecode []byte, ste
 	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
 
 	ministart = time.Now()
-	debug = 0
 	for i := 0; i < 1; i++ {
 		contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
 		contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
@@ -272,10 +272,12 @@ func main() {
 
 	if len(os.Args) > 1 {
 		if os.Args[1] == "/tmp/minigeth.bin" {
-			debug = 1
-			/*steps := 1000000
-			runTest(os.Args[1], steps, interpreter, bytecode, uint64(steps)*10000)*/
-			RunMinigeth(os.Args[1], interpreter, bytecode, 1000000000)
+			debug, _ = strconv.Atoi(os.Getenv("DEBUG"))
+			steps, _ := strconv.Atoi(os.Getenv("STEPS"))
+			if steps == 0 {
+				steps = 100000
+			}
+			RunMinigeth(os.Args[1], interpreter, bytecode, steps)
 		} else {
 			debug = 2
 			runTest(os.Args[1], 20, interpreter, bytecode, 1000000)
