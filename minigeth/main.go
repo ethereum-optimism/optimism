@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"runtime/pprof"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -27,8 +28,14 @@ func check(err error) {
 }
 
 func main() {
-	// init secp256k1BytePoints
-	crypto.S256()
+	if len(os.Args) > 2 {
+		f, err := os.Create(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	// non mips
 	if len(os.Args) > 1 {
@@ -42,6 +49,9 @@ func main() {
 		check(err)
 		fmt.Println("commited transactions", hash, err)
 	}
+
+	// init secp256k1BytePoints
+	crypto.S256()
 
 	// read start block header
 	var parent types.Header

@@ -73,7 +73,6 @@ contract MIPS {
     return uint32(dat&mask | (isSigned ? signed : 0));
   }
 
-
   function handleSyscall(bytes32 stateHash) internal returns (bytes32) {
     uint32 syscall_no = ReadMemory(stateHash, REG_OFFSET+2*4);
     uint32 v0 = 0;
@@ -215,7 +214,7 @@ contract MIPS {
     if (opcode == 0 && func >= 8 && func < 0x1c) {
       if (func == 8 || func == 9) {
         // jr/jalr
-        return branchDelay(stateHash, nextPC, val | (func == 9 ? PC_FLAG : 0));
+        return branchDelay(stateHash, nextPC, rs | (func == 9 ? PC_FLAG : 0));
       }
 
       // handle movz and movn when they don't write back
