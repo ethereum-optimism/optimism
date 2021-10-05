@@ -38,7 +38,7 @@ contract MIPS {
   }
 
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal returns (bytes32) {
-    if (m != MIPSMemory(0)) {
+    if (address(m) != address(0)) {
       return m.WriteMemory(stateHash, addr, value);
     } else {
       assembly {
@@ -50,7 +50,7 @@ contract MIPS {
   }
 
   function ReadMemory(bytes32 stateHash, uint32 addr) internal view returns (uint32 ret) {
-    if (m != MIPSMemory(0)) {
+    if (address(m) != address(0)) {
       ret = m.ReadMemory(stateHash, addr);
     } else {
       assembly {
@@ -200,8 +200,8 @@ contract MIPS {
       }
 
       if (shouldBranch) {
-        uint32 val = pc + 4 + (SE(insn&0xFFFF, 16)<<2);
-        return branchDelay(stateHash, nextPC, val, false);
+        return branchDelay(stateHash, nextPC,
+          pc + 4 + (SE(insn&0xFFFF, 16)<<2), false);
       } else {
         // branch not taken
         return branchDelay(stateHash, nextPC, nextPC+4, false);
