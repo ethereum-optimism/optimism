@@ -49,6 +49,8 @@ func main() {
 				steps = 100000
 			}
 			RunMinigeth(os.Args[1], steps, debug)
+		} else if os.Args[1] == "unicorn" {
+			RunUnicorn(os.Args[2])
 		} else {
 			runTest(os.Args[1], 20, 2)
 		}
