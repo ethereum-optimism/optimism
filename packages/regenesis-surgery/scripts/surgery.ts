@@ -1,7 +1,16 @@
-import { StateDump, SurgeryDataSources } from './types'
+import { parseChunked } from '@discoveryjs/json-ext'
+import { createReadStream } from 'fs'
+import { ethers } from 'ethers'
+import {
+  StateDump,
+  UniswapPoolData,
+  SurgeryDataSources,
+  EtherscanContract,
+  SurgeryConfigs,
+} from './types'
+import { loadConfigs, checkStateDump, readDumpFile, findAccount } from './utils'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
-import { findAccount } from './utils'
 import { downloadAllSolcVersions } from './download-solc'
 import { getUniswapPoolData } from './data'
 
@@ -34,10 +43,41 @@ const doGenesisSurgery = async (
 const main = async () => {
   await downloadAllSolcVersions()
 
-  const network = 'kovan' // TODO: make configurable
-  const l2Provider = null as any // TODO
-  const pools = await getUniswapPoolData(l2Provider, network)
-  const genesis = await doGenesisSurgery({} as any)
+  const configs: SurgeryConfigs = loadConfigs()
+
+  const dump: StateDump = await readDumpFile(configs.stateDumpFilePath)
+  // Validate state dump
+  checkStateDump(dump)
+  const genesis: StateDump = null as any
+  const etherscanDump: EtherscanContract[] = await parseChunked(
+    createReadStream(configs.etherscanFilePath)
+  )
+
+  const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
+    configs.l1TestnetProviderUrl
+  )
+  const l2Provider = new ethers.providers.JsonRpcProvider(configs.l2ProviderUrl)
+  const pools: UniswapPoolData[] = await getUniswapPoolData(
+    l2Provider,
+    configs.l2NetworkName
+  )
+  const data: SurgeryDataSources = {
+    dump,
+    genesis,
+    pools,
+    etherscanDump,
+    l1TestnetProvider,
+    l1TestnetWallet: new ethers.Wallet(
+      configs.l1TestnetPrivateKey,
+      l1TestnetProvider
+    ),
+    l1MainnetProvider: new ethers.providers.JsonRpcProvider(
+      configs.l1MainnetProviderUrl
+    ),
+    l2Provider,
+  }
+
+  const nextGenesis = await doGenesisSurgery(data)
 }
 
 main()

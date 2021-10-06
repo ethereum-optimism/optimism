@@ -1,5 +1,14 @@
 import { ethers } from 'ethers'
 
+export interface SurgeryConfigs {
+  stateDumpFilePath: string
+  etherscanFilePath: string
+  l2ProviderUrl: string
+  l2NetworkName: 'mainnet' | 'kovan'
+  l1MainnetProviderUrl: string
+  l1TestnetProviderUrl: string
+  l1TestnetPrivateKey: string
+}
 export interface Account {
   address: string
   nonce: number
