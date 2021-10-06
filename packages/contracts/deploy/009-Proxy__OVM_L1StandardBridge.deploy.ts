@@ -103,7 +103,12 @@ const deployFn: DeployFunction = async (hre) => {
 
       console.log(`Confirming that owner address was correctly set...`)
       await waitUntilTrue(async () => {
-        return hexStringEquals(await proxy.callStatic.getOwner(), owner)
+        return hexStringEquals(
+          await proxy.connect(proxy.signer.provider).callStatic.getOwner({
+            from: ethers.constants.AddressZero,
+          }),
+          owner
+        )
       })
     },
   })
