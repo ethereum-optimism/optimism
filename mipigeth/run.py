@@ -44,6 +44,7 @@ instrumenting_all = False
 instructions_seen = set()
 profiler = defaultdict(int)
 phit = 0
+PROFILE = os.getenv("PROFILE", False)
 def hook_code_simple(uc, address, size, user_data):
   global icount, bcount, phit
   #assert size == 4
@@ -57,12 +58,13 @@ def hook_code_simple(uc, address, size, user_data):
       #instructions_seen.add(dat.mnemonic)
       #print(sorted(list(instructions_seen)))
       symbol = r[address] if address in r else "UNKNOWN"
-      profiler[symbol] += 1
-      phit += 1
       print("%10d(%2d): %8x %-80s %s" % (icount, newicount, address, symbol, dat))
-      if bcount%1000000 == 0:
-        for k,v in sorted(profiler.items(), key=lambda x: -x[1])[:10]:
-          print("%-80s : %.2f%%" % (k, (v/phit)*100.))
+      if PROFILE:
+        profiler[symbol] += 1
+        phit += 1
+        if bcount%1000000 == 0:
+          for k,v in sorted(profiler.items(), key=lambda x: -x[1])[:10]:
+            print("%-80s : %.2f%%" % (k, (v/phit)*100.))
     icount += newicount
     bcount += 1
     return True

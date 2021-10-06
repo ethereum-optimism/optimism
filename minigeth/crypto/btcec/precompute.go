@@ -5,11 +5,7 @@
 package btcec
 
 import (
-	"compress/zlib"
-	"encoding/base64"
 	"encoding/binary"
-	"io/ioutil"
-	"strings"
 )
 
 //go:generate go run -tags gensecp256k1 genprecomps.go
@@ -29,7 +25,7 @@ func loadS256BytePoints() error {
 
 	// Decompress the pre-computed table used to accelerate scalar base
 	// multiplication.
-	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(bp))
+	/*decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(bp))
 	r, err := zlib.NewReader(decoder)
 	if err != nil {
 		return err
@@ -37,7 +33,8 @@ func loadS256BytePoints() error {
 	serialized, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err
-	}
+	}*/
+	serialized := []byte(bp)
 
 	// Deserialize the precomputed byte points and set the curve to them.
 	offset := 0

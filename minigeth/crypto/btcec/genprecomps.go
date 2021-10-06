@@ -11,9 +11,6 @@
 package main
 
 import (
-	"bytes"
-	"compress/zlib"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -30,7 +27,7 @@ func main() {
 
 	// Compress the serialized byte points.
 	serialized := btcec.S256().SerializedBytePoints()
-	var compressed bytes.Buffer
+	/*var compressed bytes.Buffer
 	w := zlib.NewWriter(&compressed)
 	if _, err := w.Write(serialized); err != nil {
 		fmt.Println(err)
@@ -40,7 +37,7 @@ func main() {
 
 	// Encode the compressed byte points with base64.
 	encoded := make([]byte, base64.StdEncoding.EncodedLen(compressed.Len()))
-	base64.StdEncoding.Encode(encoded, compressed.Bytes())
+	base64.StdEncoding.Encode(encoded, compressed.Bytes())*/
 
 	fmt.Fprintln(fi, "// Copyright (c) 2015 The btcsuite developers")
 	fmt.Fprintln(fi, "// Use of this source code is governed by an ISC")
@@ -51,7 +48,7 @@ func main() {
 	fmt.Fprintln(fi, "// Auto-generated file (see genprecomps.go)")
 	fmt.Fprintln(fi, "// DO NOT EDIT")
 	fmt.Fprintln(fi)
-	fmt.Fprintf(fi, "var secp256k1BytePoints = %q\n", string(encoded))
+	fmt.Fprintf(fi, "var secp256k1BytePoints = %q\n", string(serialized))
 
 	a1, b1, a2, b2 := btcec.S256().EndomorphismVectors()
 	fmt.Println("The following values are the computed linearly " +
