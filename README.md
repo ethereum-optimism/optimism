@@ -11,6 +11,14 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 * ...emulating a MIPS machine
 * ...running an EVM
 
+## Directory Layout
+
+```
+minigeth -- A standalone "geth" capable of computing a block transition
+mipigeth -- This geth compiled for MIPS. Outputs a binary that's run and mapped at 0x0
+mipsevm -- A MIPS runtime in the EVM (see also contracts/)
+```
+
 ## Steps
 
 1. Get minigeth to verify a block locally paying attention to oracle (done)
