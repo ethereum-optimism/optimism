@@ -8,3 +8,5 @@ cd ../mipigeth
 
 cp ../minigeth/go-ethereum go-ethereum
 file go-ethereum
+
+./compile.py

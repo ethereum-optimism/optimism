@@ -1,5 +1,5 @@
 #!/bin/bash -e
 (cd ../ && npx hardhat compile)
-(cd ../risc && ./build.sh && COMPILE=1 ./run.py)
+(cd ../mipigeth && ./build.sh)
 go build
-./mipsevm /tmp/minigeth.bin
+./mipsevm ../mipigeth/minigeth.bin

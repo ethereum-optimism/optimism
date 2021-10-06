@@ -8,6 +8,8 @@ test:
 lui     $sp, 0x7fff
 ori     $sp, 0xd000
 
+# http://articles.manugarg.com/aboutelfauxiliaryvectors.html
+# _AT_PAGESZ = 6
 ori $t0, $0, 6
 sw $t0, 0xC($sp)
 ori $t0, $0, 0x1000

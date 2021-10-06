@@ -271,7 +271,7 @@ func main() {
 	interpreter, bytecode := GetInterpreterAndBytecode()
 
 	if len(os.Args) > 1 {
-		if os.Args[1] == "/tmp/minigeth.bin" {
+		if os.Args[1] == "../mipigeth/minigeth.bin" {
 			debug, _ = strconv.Atoi(os.Getenv("DEBUG"))
 			steps, _ := strconv.Atoi(os.Getenv("STEPS"))
 			if steps == 0 {

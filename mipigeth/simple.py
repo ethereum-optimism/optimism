@@ -69,7 +69,7 @@ def hook_interrupt(uc, intno, user_data):
 mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 
 # load memory
-dat = open("/tmp/minigeth.bin", "rb").read()
+dat = open("minigeth.bin", "rb").read()
 mu.mem_map(0, len(dat))
 mu.mem_write(0, dat)
 
