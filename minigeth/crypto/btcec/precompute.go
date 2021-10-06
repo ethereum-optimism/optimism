@@ -18,8 +18,8 @@ import (
 // data structure at init time with this approach versus computing the table.
 func loadS256BytePoints() error {
 	// There will be no byte points to load when generating them.
-	bp := secp256k1BytePoints
-	if len(bp) == 0 {
+	serialized := secp256k1BytePoints
+	if len(serialized) == 0 {
 		return nil
 	}
 
@@ -34,7 +34,6 @@ func loadS256BytePoints() error {
 	if err != nil {
 		return err
 	}*/
-	serialized := []byte(bp)
 
 	// Deserialize the precomputed byte points and set the curve to them.
 	offset := 0
