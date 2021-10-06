@@ -16,7 +16,7 @@ jobs:
     - name: Install unicorn
       run: |
         curl -LO https://github.com/unicorn-engine/unicorn/archive/1.0.3.tar.gz
-        tar xvf 1.0.3.tar.gz
+        tar xf 1.0.3.tar.gz
         cd unicorn-1.0.3
         UNICORN_ARCHS=mips make -j8
         sudo UNICORN_ARCHS=mips make install

@@ -10,23 +10,24 @@ import (
 	"time"
 )
 
-func LoadMappedFile(fn string, ram map[uint32](uint32)) {
+func LoadMappedFile(fn string, ram map[uint32](uint32), base uint32) {
 	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
-		ram[uint32(i)] = binary.BigEndian.Uint32(dat[i : i+4])
+		ram[base+uint32(i)] = binary.BigEndian.Uint32(dat[i : i+4])
 	}
 }
 
 func RunMinigeth(fn string, steps int, debug int) {
 	ram := make(map[uint32](uint32))
-	LoadMappedFile(fn, ram)
+	LoadMappedFile(fn, ram, 0)
+	LoadMappedFile(fmt.Sprintf("/tmp/eth/%d", 13284469), ram, 0x30000000)
 	RunWithRam(ram, steps, debug)
 }
 
 func runTest(fn string, steps int, debug int) (uint32, uint64) {
 	ram := make(map[uint32](uint32))
 	ram[0xC000007C] = 0xDEAD0000
-	LoadMappedFile(fn, ram)
+	LoadMappedFile(fn, ram, 0)
 
 	start := time.Now()
 	remainingGas, err := RunWithRam(ram, steps, debug)
