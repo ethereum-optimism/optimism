@@ -53,7 +53,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      ***************/
 
     uint40 private _nextQueueIndex; // index of the first queue element not yet included
-    bytes32[] queueElements;
+    Lib_OVMCodec.QueueElement[] queueElements;
 
 
     /***************
@@ -195,15 +195,10 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         public
         view
         returns (
-            Lib_OVMCodec.QueueElement memory
+            Lib_OVMCodec.QueueElement memory _element
         )
     {
-        bytes32 transactionHash = queueElements[_index];
-        return Lib_OVMCodec.QueueElement({
-            transactionHash: transactionHash,
-            timestamp: 0,
-            blockNumber: 0
-        });
+        return queueElements[_index];
     }
 
     /**
@@ -308,9 +303,14 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             )
         );
 
-        queueElements.push(transactionHash);
+        queueElements.push(
+            Lib_OVMCodec.QueueElement({
+                transactionHash: transactionHash,
+                timestamp: uint40(block.timestamp),
+                blockNumber: uint40(block.number)
+            })
+        );
         uint256 queueIndex = queueElements.length - 1;
-
         emit TransactionEnqueued(
             sender,
             _target,
@@ -389,8 +389,24 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
         // Generate the required metadata that we need to append this batch
         uint40 numQueuedTransactions = totalElementsToAppend - numSequencerTransactions;
-        uint40 blockTimestamp = uint40(curContext.timestamp);
-        uint40 blockNumber = uint40(curContext.blockNumber);
+        uint40 blockTimestamp;
+        uint40 blockNumber;
+        if (curContext.numSubsequentQueueTransactions == 0) {
+            // The last element is a sequencer tx, therefore pull timestamp and block number from
+            // the last context.
+            blockTimestamp = uint40(curContext.timestamp);
+            blockNumber = uint40(curContext.blockNumber);
+        } else {
+            // The last element is a queue tx, therefore pull timestamp and block number from the
+            // queue element.
+            // curContext.numSubsequentQueueTransactions > 0 which means that we've processed at
+            // least one queue element. We increment nextQueueIndex after processing each queue
+            // element, so the index of the last element we processed is nextQueueIndex - 1.
+            Lib_OVMCodec.QueueElement memory lastElement = queueElements[nextQueueIndex - 1];
+
+            blockTimestamp = lastElement.timestamp;
+            blockNumber = lastElement.blockNumber;
+        }
 
         // Cache the previous blockhash to ensure all transaction data can be retrieved efficiently.
         _appendBatch(
