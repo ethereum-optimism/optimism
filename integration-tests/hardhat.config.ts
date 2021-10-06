@@ -14,7 +14,7 @@ const config: HardhatUserConfig = {
     },
   },
   mocha: {
-    timeout: 50000,
+    timeout: 75_000,
   },
   solidity: {
     version: '0.8.9',

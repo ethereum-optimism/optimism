@@ -41,18 +41,6 @@ const appendSequencerBatch = async (
   })
 }
 
-const printGasSavings = (gasUsed: number, regenesis040Cost: number): void => {
-  console.log('    - Gas used:', gasUsed)
-  console.log(
-    '    - Absolute savings vs regenesis/0.4.0:',
-    regenesis040Cost - gasUsed
-  )
-  console.log(
-    '    - Relative savings vs regenesis/0.4.0:',
-    (((regenesis040Cost - gasUsed) / regenesis040Cost) * 100).toFixed(2) + '%'
-  )
-}
-
 describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
   let sequencer: Signer
   before(async () => {
@@ -163,7 +151,6 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 1_616_390)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
@@ -211,14 +198,13 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 1_632_687)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
         'Non-calldata overhead gas cost per transaction:',
         (gasUsed - fixedCalldataCost) / numTxs
       )
-      expectApprox(gasUsed, 1_632_687, {
+      expectApprox(gasUsed, 1_619_781, {
         absoluteUpperDeviation: 1000,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -269,7 +255,6 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      printGasSavings(gasUsed, 2_099_387)
 
       console.log('Fixed calldata cost:', fixedCalldataCost)
       console.log(
@@ -307,9 +292,8 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', gasUsed)
 
-      expectApprox(gasUsed, 218_203, {
+      expectApprox(gasUsed, 187_081, {
         absoluteUpperDeviation: 500,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
@@ -329,9 +313,8 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain', () => {
       const gasUsed = receipt.gasUsed.toNumber()
 
       console.log('Benchmark complete.')
-      console.log('Gas used:', gasUsed)
 
-      expectApprox(gasUsed, 157_822, {
+      expectApprox(gasUsed, 126_700, {
         absoluteUpperDeviation: 500,
         // Assert a lower bound of 1% reduction on gas cost. If your tests are breaking because your
         // contracts are too efficient, consider updating the target value!
