@@ -68,18 +68,10 @@ interface ICanonicalTransactionChain {
      *******************************/
 
     /**
-     * Allows the Sequencer to update the gas amount which is 'prepaid' during enqueue.
+     * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.
      * The value of enqueueL2GasPrepaid is immediately updated as well.
      */
-    function setEnqueueGasCost(uint256 _enqueueGasCost)
-        external;
-
-    /**
-     * Allows the Sequencer to update the L2 Gas Discount Divisor, which is defined as the ratio
-     * of the cost of gas on L1 to L2.
-     * The value of enqueueL2GasPrepaid is immediately updated as well.
-     */
-    function setGasDivisor(uint256 _l2GasDiscountDivisor)
+    function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost)
         external;
 
     /********************
