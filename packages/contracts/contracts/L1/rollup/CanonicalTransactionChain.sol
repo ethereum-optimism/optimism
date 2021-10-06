@@ -87,7 +87,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      **********************/
 
     /**
-     * Modifier to enforce that, if configured, only the OVM_Sequencer contract may
+     * Modifier to enforce that, if configured, only the Burn Admin may
      * successfully call a method.
      */
     modifier onlyBurnAdmin() {
@@ -103,36 +103,17 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      *******************************/
 
     /**
-     * Allows the Sequencer to update the gas amount which is 'prepaid' during enqueue.
+     * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.
      * The value of enqueueL2GasPrepaid is immediately updated as well.
      */
-    function setEnqueueGasCost(uint256 _enqueueGasCost)
+    function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost)
         external
         onlyBurnAdmin
     {
         enqueueGasCost = _enqueueGasCost;
-        // See the comment in enqueue() for the rationale behind this formula.
-        enqueueL2GasPrepaid = l2GasDiscountDivisor * _enqueueGasCost;
-
-        emit L2GasParamsUpdated(
-            l2GasDiscountDivisor,
-            enqueueGasCost,
-            enqueueL2GasPrepaid
-        );
-    }
-
-    /**
-     * Allows the Sequencer to update the L2 Gas Discount Divisor, which is defined as the ratio
-     * of the cost of gas on L1 to L2.
-     * The value of enqueueL2GasPrepaid is immediately updated as well.
-     */
-    function setGasDivisor(uint256 _l2GasDiscountDivisor)
-        external
-        onlyBurnAdmin
-    {
         l2GasDiscountDivisor = _l2GasDiscountDivisor;
         // See the comment in enqueue() for the rationale behind this formula.
-        enqueueL2GasPrepaid = _l2GasDiscountDivisor * enqueueGasCost;
+        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;
 
         emit L2GasParamsUpdated(
             l2GasDiscountDivisor,
@@ -140,6 +121,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             enqueueL2GasPrepaid
         );
     }
+
 
     /********************
      * Public Functions *

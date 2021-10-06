@@ -137,63 +137,33 @@ describe('CanonicalTransactionChain', () => {
   })
 
   describe('Gas param setters', () => {
-    describe('setGasDivisor', async () => {
-      it('should revert when not called by the sequencer', async () => {
+    describe('setGasParams', async () => {
+      it('should revert when not called by the Burn Admin', async () => {
         await expect(
-          CanonicalTransactionChain.connect(otherSigner).setGasDivisor(32)
-        ).to.be.revertedWith('Only callable by the Burn Admin.')
-      })
-
-      it('should update the l2GasDiscountDivisor and enqueueL2GasPrepaid correctly', async () => {
-        const newGasDivisor = 19
-        await CanonicalTransactionChain.connect(
-          addressManagerOwner
-        ).setGasDivisor(newGasDivisor)
-
-        const enqueueGasCost = await CanonicalTransactionChain.enqueueGasCost()
-        const enqueueL2GasPrepaid =
-          await CanonicalTransactionChain.enqueueL2GasPrepaid()
-        expect(enqueueL2GasPrepaid).to.equal(newGasDivisor * enqueueGasCost)
-      })
-
-      it('should emit an L2GasParamsUpdated event', async () => {
-        await expect(
-          CanonicalTransactionChain.connect(addressManagerOwner).setGasDivisor(
-            88
-          )
-        ).to.emit(CanonicalTransactionChain, 'L2GasParamsUpdated')
-      })
-    })
-
-    describe('setEnqueueGasCost', async () => {
-      it('should revert when not called by the sequencer', async () => {
-        await expect(
-          CanonicalTransactionChain.connect(otherSigner).setEnqueueGasCost(
-            60000
-          )
+          CanonicalTransactionChain.connect(otherSigner).setGasParams(60000, 32)
         ).to.be.revertedWith('Only callable by the Burn Admin.')
       })
 
       it('should update the enqueueGasCost and enqueueL2GasPrepaid correctly', async () => {
         const newEnqueueGasCost = 31113
+        const newGasDivisor = 19
         await CanonicalTransactionChain.connect(
           addressManagerOwner
-        ).setEnqueueGasCost(newEnqueueGasCost)
+        ).setGasParams(newGasDivisor, newEnqueueGasCost)
 
         const l2GasDiscountDivisor =
           await CanonicalTransactionChain.l2GasDiscountDivisor()
         const enqueueL2GasPrepaid =
           await CanonicalTransactionChain.enqueueL2GasPrepaid()
-        expect(enqueueL2GasPrepaid).to.equal(
-          l2GasDiscountDivisor * newEnqueueGasCost
-        )
+        expect(enqueueL2GasPrepaid).to.equal(newGasDivisor * newEnqueueGasCost)
       })
 
       it('should emit an L2GasParamsUpdated event', async () => {
         await expect(
-          CanonicalTransactionChain.connect(
-            addressManagerOwner
-          ).setEnqueueGasCost(31514)
+          CanonicalTransactionChain.connect(addressManagerOwner).setGasParams(
+            88,
+            31514
+          )
         ).to.emit(CanonicalTransactionChain, 'L2GasParamsUpdated')
       })
     })
