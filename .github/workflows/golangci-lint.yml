@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'go/gas-oracle/**'
+      - 'go/batch-submitter/**'
     branches:
       - 'master'
       - 'develop'
@@ -11,6 +12,7 @@ on:
   pull_request:
     paths:
       - 'go/gas-oracle/**'
+      - 'go/batch-submitter/**'
     branches:
       - 'master'
       - 'develop'
@@ -22,8 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: golangci-lint
+      - name: golangci-lint gas-oracle
         uses: golangci/golangci-lint-action@v2
         with:
           version: v1.29
           working-directory: go/gas-oracle
+      - name: golangci-lint batch-submitter
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.29
+          working-directory: go/batch-submitter

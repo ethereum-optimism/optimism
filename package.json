@@ -9,7 +9,8 @@
       "l2geth",
       "integration-tests",
       "specs",
-      "go/gas-oracle"
+      "go/gas-oracle",
+      "go/batch-submitter"
     ],
     "nohoist": [
       "examples/*"
