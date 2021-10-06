@@ -7,6 +7,17 @@ export const findAccount = (dump: StateDump, address: string): Account => {
   })
 }
 
+export const hexStringIncludes = (a: string, b: string): boolean => {
+  if (!ethers.utils.isHexString(a)) {
+    throw new Error(`not a hex string: ${a}`)
+  }
+  if (!ethers.utils.isHexString(b)) {
+    throw new Error(`not a hex string: ${b}`)
+  }
+
+  return a.slice(2).toLowerCase().includes(b.slice(2).toLowerCase())
+}
+
 export const hexStringEqual = (a: string, b: string): boolean => {
   if (!ethers.utils.isHexString(a)) {
     throw new Error(`not a hex string: ${a}`)

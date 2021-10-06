@@ -1,12 +1,16 @@
 import { ethers } from 'ethers'
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
+import {
+  POOL_INIT_CODE_HASH_OPTIMISM,
+  POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
+} from '@uniswap/v3-sdk'
 import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
 import { sleep } from '@eth-optimism/core-utils'
 import { OLD_ETH_ADDRESS, UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 import { Account, AccountType, SurgeryDataSources } from './types'
 import {
   findAccount,
-  toHex32,
+  hexStringIncludes,
   transferStorageSlot,
   getMappingKey,
 } from './utils'
@@ -180,9 +184,99 @@ export const handlers: {
   [AccountType.UNVERIFIED]: () => {
     return undefined // delete the account
   },
-  [AccountType.VERIFIED]: () => {
+  [AccountType.VERIFIED]: (account, data) => {
+    if (account.storage) {
+      for (const pool of data.pools) {
+        // Check for references to modified values in storage.
+        for (const [key, val] of Object.entries(account.storage)) {
+          // TODO: Do we need to do anything if these statements trigger?
+          if (hexStringIncludes(val, pool.oldAddress)) {
+            throw new Error(`found unexpected reference to pool address`)
+          }
+
+          if (hexStringIncludes(val, POOL_INIT_CODE_HASH_OPTIMISM)) {
+            throw new Error(
+              `found unexpected reference to mainnet pool init code hash`
+            )
+          }
+
+          if (hexStringIncludes(val, POOL_INIT_CODE_HASH_OPTIMISM_KOVAN)) {
+            throw new Error(
+              `found unexpected reference to kovan pool init code hash`
+            )
+          }
+        }
+
+        // Fix single-level mappings (e.g., balance mappings)
+        for (let i = 0; i < 1000; i++) {
+          const oldSlotKey = getMappingKey([pool.oldAddress], i)
+          if (account.storage[oldSlotKey] !== undefined) {
+            console.log(
+              `fixing single-level mapping in contract`,
+              `address=${account.address}`,
+              `pool=${pool.oldAddress}`,
+              `slot=${oldSlotKey}`
+            )
+            transferStorageSlot({
+              account,
+              oldSlot: oldSlotKey,
+              newSlot: getMappingKey([pool.newAddress], i),
+            })
+          }
+        }
+
+        // Fix double-level mappings (e.g., allowance mappings)
+        for (let i = 0; i < 1000; i++) {
+          for (const otherAccount of data.dump) {
+            // otherAddress => poolAddress => xxxx
+            const oldSlotKey1 = getMappingKey(
+              [otherAccount.address, pool.oldAddress],
+              i
+            )
+            if (account.storage[oldSlotKey1] !== undefined) {
+              console.log(
+                `fixing double-level mapping in contract (other => pool => xxxx)`,
+                `address=${account.address}`,
+                `pool=${pool.oldAddress}`,
+                `slot=${oldSlotKey1}`
+              )
+              transferStorageSlot({
+                account,
+                oldSlot: oldSlotKey1,
+                newSlot: getMappingKey(
+                  [otherAccount.address, pool.newAddress],
+                  i
+                ),
+              })
+            }
+
+            // poolAddress => otherAddress => xxxx
+            const oldSlotKey2 = getMappingKey(
+              [pool.oldAddress, otherAccount.address],
+              i
+            )
+            if (account.storage[oldSlotKey2] !== undefined) {
+              console.log(
+                `fixing double-level mapping in contract (pool => other => xxxx)`,
+                `address=${account.address}`,
+                `pool=${pool.oldAddress}`,
+                `slot=${oldSlotKey2}`
+              )
+              transferStorageSlot({
+                account,
+                oldSlot: oldSlotKey2,
+                newSlot: getMappingKey(
+                  [pool.newAddress, otherAccount.address],
+                  i
+                ),
+              })
+            }
+          }
+        }
+      }
+    }
+
     // TODO
-    // TODO: Check for pool references in storage values, balance mappings, or allowance mappings.
     throw new Error('Not implemented')
   },
 }

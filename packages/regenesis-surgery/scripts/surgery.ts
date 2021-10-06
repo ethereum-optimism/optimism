@@ -29,7 +29,7 @@ const main = async () => {
   for (const account of dump) {
     const accountType = classify(account, data)
     const handler = handlers[accountType]
-    const newAccount = await handler(account, data)
+    const newAccount = await handler(JSON.parse(JSON.stringify(account)), data)
     if (newAccount !== undefined) {
       output.push(newAccount)
     }
