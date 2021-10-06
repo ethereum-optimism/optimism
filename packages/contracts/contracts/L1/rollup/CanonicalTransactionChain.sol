@@ -87,12 +87,12 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      **********************/
 
     /**
-     * Modifier to enforce that only the OVM_BurnAdmin contract may
+     * Modifier to enforce that, if configured, only the OVM_Sequencer contract may
      * successfully call a method.
      */
     modifier onlyBurnAdmin() {
         require(
-            msg.sender == resolve("OVM_BurnAdmin"),
+            msg.sender == libAddressManager.owner(),
             "Only callable by the Burn Admin."
         );
         _;
