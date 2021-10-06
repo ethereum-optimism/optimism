@@ -60,6 +60,7 @@ export interface SurgeryDataSources {
   pools: UniswapPoolData[]
   etherscanDump: EtherscanContract[]
   l1TestnetProvider: ethers.providers.JsonRpcProvider
+  l1TestnetWallet: ethers.Wallet
   l1MainnetProvider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
 }

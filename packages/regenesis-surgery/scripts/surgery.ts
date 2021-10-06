@@ -18,8 +18,9 @@ const main = async () => {
     pools,
     etherscanDump,
     l1TestnetProvider: null as any, // TODO
+    l1TestnetWallet: null as any, // TODO
     l1MainnetProvider: null as any, // TODO
-    l2Provider: null as any, // TODO
+    l2Provider: null as any, // TODO,
   }
 
   // TODO: Insert any accounts from genesis that aren't in the dump
