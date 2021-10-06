@@ -34,8 +34,6 @@ services:
         # these keys are hardhat's first 2 accounts, DO NOT use in production
         DEPLOYER_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-        # this address is hardhat's third accounts, DO NOT use in production
-        BURN_ADMIN_ADDRESS: "0xD1D84F0e28D6fedF03c73151f98dF95139700aa7"
         # skip compilation when run in docker-compose, since the contracts
         # were already compiled in the builder step
         NO_COMPILE: 1
