@@ -65,12 +65,6 @@ task('deploy')
     undefined,
     types.string
   )
-  .addOptionalParam(
-    'ovmBurnAdmin',
-    'Address that can update gas burn parameters in the CTC. Must be provided or this deployment will fail.',
-    undefined,
-    types.string
-  )
   .setAction(async (args, hre: any, runSuper) => {
     // Necessary because hardhat doesn't let us attach non-optional parameters to existing tasks.
     const validateAddressArg = (argName: string) => {
