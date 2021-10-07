@@ -10,6 +10,8 @@ export interface SurgeryConfigs {
   l1MainnetProviderUrl: string
   l1TestnetProviderUrl: string
   l1TestnetPrivateKey: string
+  startIndex: number
+  endIndex: number
 }
 
 export interface Account {
@@ -88,6 +90,9 @@ export interface SurgeryDataSources {
   l1TestnetWallet: ethers.Wallet
   l1MainnetProvider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
+  l2NetworkName: 'mainnet' | 'kovan'
+  startIndex: number
+  endIndex: number
 }
 
 export interface GenesisFile {

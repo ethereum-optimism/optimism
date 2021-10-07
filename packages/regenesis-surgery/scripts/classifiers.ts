@@ -66,17 +66,14 @@ export const classifiers: {
       return hexStringEqual(account.address, addr)
     })
   },
-  [AccountType.VERIFIED]: (account, data) => {
-    const found = data.etherscanDump.find(
-      (c) => c.contractAddress === account.address
-    )
-    return found !== undefined
-  },
   [AccountType.UNVERIFIED]: (account, data) => {
     const found = data.etherscanDump.find(
       (c) => c.contractAddress === account.address
     )
-    return found === undefined
+    return found === undefined || found.sourceCode === ''
+  },
+  [AccountType.VERIFIED]: (account, data) => {
+    return !classifiers[AccountType.UNVERIFIED](account, data)
   },
 }
 
