@@ -5,9 +5,10 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
 import { sleep } from '@eth-optimism/core-utils'
-import { OLD_ETH_ADDRESS } from './constants'
+import { OLD_ETH_ADDRESS, WETH_TRANSFER_ADDRESSES } from './constants'
 import { Account, AccountType, SurgeryDataSources } from './types'
 import {
+  clone,
   findAccount,
   hexStringIncludes,
   transferStorageSlot,
@@ -64,21 +65,72 @@ export const handlers: {
     }
   },
   [AccountType.PREDEPLOY_ETH]: (account, data) => {
-    const genesisAccount = findAccount(data.genesis, account.address)
-    const oldEthAccount = findAccount(data.dump, OLD_ETH_ADDRESS)
+    // Get a copy of the old account so we don't modify the one in dump by accident.
+    const oldAccount = clone(findAccount(data.dump, OLD_ETH_ADDRESS))
+
+    // Special handling for moving certain balances over to the WETH predeploy.
+    // We need to trasnfer all statically defined addresses AND all uni pools.
+    const addressesToXfer = WETH_TRANSFER_ADDRESSES.concat(
+      data.pools.map((pool) => {
+        return pool.oldAddress
+      })
+    )
+
+    // For each of the listed addresses, check if it has an ETH balance. If so, we remove the ETH
+    // balance and give WETH a balance instead.
+    let wethBalance = ethers.BigNumber.from(0)
+    for (const address of addressesToXfer) {
+      const balanceKey = getMappingKey([address], 0)
+      if (oldAccount.storage[balanceKey] !== undefined) {
+        const accBalance = ethers.BigNumber.from(oldAccount.storage[balanceKey])
+        wethBalance = wethBalance.add(accBalance)
+
+        // Remove this balance from the old account storage.
+        delete oldAccount.storage[balanceKey]
+      }
+    }
+
+    const wethBalanceKey = getMappingKey([OLD_ETH_ADDRESS], 0)
     return {
       ...account,
-      code: genesisAccount.code,
-      codeHash: genesisAccount.codeHash,
       storage: {
-        ...oldEthAccount.storage,
-        ...genesisAccount.storage,
+        ...oldAccount.storage,
+        ...account.storage,
+        [wethBalanceKey]: wethBalance.toHexString(),
       },
     }
   },
-  [AccountType.PREDEPLOY_WETH]: (account, data) => {
-    // TODO
-    throw new Error('Not implemented')
+  [AccountType.PREDEPLOY_WETH]: async (account, data) => {
+    // Treat it like a wipe of the old ETH account.
+    account = await handlers[AccountType.PREDEPLOY_WIPE](account, data)
+
+    // Get a copy of the old ETH account so we don't modify the one in dump by accident.
+    const ethAccount = clone(findAccount(data.dump, OLD_ETH_ADDRESS))
+
+    // Special handling for moving certain balances over from the old account.
+    for (const address of WETH_TRANSFER_ADDRESSES) {
+      const balanceKey = getMappingKey([address], 0)
+      if (ethAccount.storage[balanceKey] !== undefined) {
+        const newBalanceKey = getMappingKey([address], 3)
+
+        // Give this account a balance inside of WETH.
+        account.storage[newBalanceKey] = ethAccount.storage[balanceKey]
+      }
+    }
+
+    // Need to handle pools in a special manner because we want to get the balance for the old pool
+    // address but we need to transfer the balance to the new pool address.
+    for (const pool of data.pools) {
+      const balanceKey = getMappingKey([pool.oldAddress], 0)
+      if (ethAccount.storage[balanceKey] !== undefined) {
+        const newBalanceKey = getMappingKey([pool.newAddress], 3)
+
+        // Give this account a balance inside of WETH.
+        account.storage[newBalanceKey] = ethAccount.storage[balanceKey]
+      }
+    }
+
+    return account
   },
   [AccountType.UNISWAP_V3_FACTORY]: async (account, data) => {
     // Transfer the owner slot

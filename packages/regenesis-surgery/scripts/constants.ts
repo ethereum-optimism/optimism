@@ -37,6 +37,8 @@ export const UNISWAP_V3_CONTRACT_ADDRESSES = [
 ]
 
 export const PREDEPLOY_WIPE_ADDRESSES = [
+  // L2CrossDomainMessenger
+  '0x4200000000000000000000000000000000000007',
   // OVM_GasPriceOracle
   '0x420000000000000000000000000000000000000F',
   // L2StandardBridge
@@ -88,6 +90,17 @@ export const DELETE_CONTRACTS = [
   // Uniswap NFTDescriptor
   '0x042f51014b152c2d2fc9b57e36b16bc744065d8c',
 ]
+
+export const WETH_TRANSFER_ADDRESSES = [
+  // Rubicon 1
+  '0xB0bE5d911E3BD4Ee2A8706cF1fAc8d767A550497',
+  // Rubicon 2
+  '0x7a512d3609211e719737E82c7bb7271eC05Da70d',
+  // HOP (TODO)
+]
+
+export const OLD_ETH_ADDRESS = '0x4200000000000000000000000000000000000006'
+export const NEW_ETH_ADDRESS = '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000'
 
 // TODO: confirm OVM/EVM mapps with ben-chain
 export const COMPILER_VERSIONS_TO_SOLC = {

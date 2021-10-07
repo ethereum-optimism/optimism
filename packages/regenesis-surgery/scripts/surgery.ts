@@ -8,7 +8,7 @@ import {
   EtherscanContract,
   SurgeryConfigs,
 } from './types'
-import { loadConfigs, checkStateDump, readDumpFile, findAccount } from './utils'
+import { loadConfigs, checkStateDump, readDumpFile, clone, findAccount } from './utils'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { downloadAllSolcVersions } from './download-solc'
@@ -24,7 +24,7 @@ const doGenesisSurgery = async (
   for (const account of data.dump) {
     const accountType = classify(account, data)
     const handler = handlers[accountType]
-    const newAccount = await handler(JSON.parse(JSON.stringify(account)), data)
+    const newAccount = await handler(clone(account), data)
     if (newAccount !== undefined) {
       output.push(newAccount)
     }
