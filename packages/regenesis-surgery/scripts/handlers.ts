@@ -22,6 +22,15 @@ export const handlers: {
     data: SurgeryDataSources
   ) => Account | Promise<Account>
 } = {
+  [AccountType.ONEINCH_DEPLOYER]: (account, data) => {
+    return {
+      ...handlers[AccountType.EOA](account, data),
+      nonce: 0,
+    }
+  },
+  [AccountType.DELETE]: () => {
+    return undefined // delete the account
+  },
   [AccountType.EOA]: (account) => {
     return {
       address: account.address,
@@ -33,9 +42,6 @@ export const handlers: {
   },
   [AccountType.PRECOMPILE]: (account) => {
     return account
-  },
-  [AccountType.PREDEPLOY_DEAD]: () => {
-    return undefined // delete the account
   },
   [AccountType.PREDEPLOY_WIPE]: (account, data) => {
     const genesisAccount = findAccount(data.genesis, account.address)
@@ -216,9 +222,6 @@ export const handlers: {
       code: poolCode,
       codeHash: ethers.utils.keccak256(poolCode),
     }
-  },
-  [AccountType.UNISWAP_V3_LIB]: () => {
-    return undefined // delete the account
   },
   [AccountType.UNISWAP_V3_OTHER]: async (account, data) => {
     const code = await data.l1MainnetProvider.getCode(account.address)
