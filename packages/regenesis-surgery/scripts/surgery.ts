@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import fs from 'fs'
+import { add0x } from '@eth-optimism/core-utils'
 import {
   StateDump,
   UniswapPoolData,
@@ -40,7 +41,8 @@ const doGenesisSurgery = async (
       )
       const newAccount = await handler(clone(account), data)
       if (newAccount !== undefined) {
-        output.push(newAccount)
+        newAccount.nonce = add0x(newAccount.nonce.toString(16))
+        output.push(newAccount) as any
       }
     }
   }
