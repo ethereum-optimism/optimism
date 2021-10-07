@@ -2,17 +2,17 @@
 pragma solidity ^0.8.9;
 
 /* Interface Imports */
-import { IL1StandardBridge } from "../../L1/messaging/IL1StandardBridge.sol";
-import { IL1ERC20Bridge } from "../../L1/messaging/IL1ERC20Bridge.sol";
-import { IL2ERC20Bridge } from "./IL2ERC20Bridge.sol";
+import {IL1StandardBridge} from "../../L1/messaging/IL1StandardBridge.sol";
+import {IL1ERC20Bridge} from "../../L1/messaging/IL1ERC20Bridge.sol";
+import {IL2ERC20Bridge} from "./IL2ERC20Bridge.sol";
 
 /* Library Imports */
-import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
-import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {CrossDomainEnabled} from "../../libraries/bridge/CrossDomainEnabled.sol";
+import {Lib_PredeployAddresses} from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
-import { IL2StandardERC20 } from "../../standards/IL2StandardERC20.sol";
+import {IL2StandardERC20} from "../../standards/IL2StandardERC20.sol";
 
 /**
  * @title L2StandardBridge
@@ -24,7 +24,6 @@ import { IL2StandardERC20 } from "../../standards/IL2StandardERC20.sol";
  * bridge to release L1 funds.
  */
 contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
-
     /********************************
      * External Contract References *
      ********************************/
@@ -39,10 +38,7 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
      * @param _l1TokenBridge Address of the L1 bridge deployed to the main chain.
      */
-    constructor(
-        address _l2CrossDomainMessenger,
-        address _l1TokenBridge
-    )
+    constructor(address _l2CrossDomainMessenger, address _l1TokenBridge)
         CrossDomainEnabled(_l2CrossDomainMessenger)
     {
         l1TokenBridge = _l1TokenBridge;
@@ -60,18 +56,8 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
         uint256 _amount,
         uint32 _l1Gas,
         bytes calldata _data
-    )
-        external
-        virtual
-    {
-        _initiateWithdrawal(
-            _l2Token,
-            msg.sender,
-            msg.sender,
-            _amount,
-            _l1Gas,
-            _data
-        );
+    ) external virtual {
+        _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _l1Gas, _data);
     }
 
     /**
@@ -83,18 +69,8 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
         uint256 _amount,
         uint32 _l1Gas,
         bytes calldata _data
-    )
-        external
-        virtual
-    {
-        _initiateWithdrawal(
-            _l2Token,
-            msg.sender,
-            _to,
-            _amount,
-            _l1Gas,
-            _data
-        );
+    ) external virtual {
+        _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _l1Gas, _data);
     }
 
     /**
@@ -116,9 +92,7 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
         uint256 _amount,
         uint32 _l1Gas,
         bytes calldata _data
-    )
-        internal
-    {
+    ) internal {
         // When a withdrawal is initiated, we burn the withdrawer's funds to prevent subsequent L2
         // usage
         IL2StandardERC20(_l2Token).burn(msg.sender, _amount);
@@ -129,30 +103,26 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
 
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
             message = abi.encodeWithSelector(
-                        IL1StandardBridge.finalizeETHWithdrawal.selector,
-                        _from,
-                        _to,
-                        _amount,
-                        _data
-                    );
+                IL1StandardBridge.finalizeETHWithdrawal.selector,
+                _from,
+                _to,
+                _amount,
+                _data
+            );
         } else {
             message = abi.encodeWithSelector(
-                        IL1ERC20Bridge.finalizeERC20Withdrawal.selector,
-                        l1Token,
-                        _l2Token,
-                        _from,
-                        _to,
-                        _amount,
-                        _data
-                    );
+                IL1ERC20Bridge.finalizeERC20Withdrawal.selector,
+                l1Token,
+                _l2Token,
+                _from,
+                _to,
+                _amount,
+                _data
+            );
         }
 
         // Send message up to L1 bridge
-        sendCrossDomainMessage(
-            l1TokenBridge,
-            _l1Gas,
-            message
-        );
+        sendCrossDomainMessage(l1TokenBridge, _l1Gas, message);
 
         emit WithdrawalInitiated(l1Token, _l2Token, msg.sender, _to, _amount, _data);
     }
@@ -171,11 +141,7 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
         address _to,
         uint256 _amount,
         bytes calldata _data
-    )
-        external
-        virtual
-        onlyFromCrossDomainAccount(l1TokenBridge)
-    {
+    ) external virtual onlyFromCrossDomainAccount(l1TokenBridge) {
         // Check the target token is compliant and
         // verify the deposited token on L1 matches the L2 deposited token representation here
         if (
@@ -199,18 +165,14 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
                 IL1ERC20Bridge.finalizeERC20Withdrawal.selector,
                 _l1Token,
                 _l2Token,
-                _to,   // switched the _to and _from here to bounce back the deposit to the sender
+                _to, // switched the _to and _from here to bounce back the deposit to the sender
                 _from,
                 _amount,
                 _data
             );
 
             // Send message up to L1 bridge
-            sendCrossDomainMessage(
-                l1TokenBridge,
-                0,
-                message
-            );
+            sendCrossDomainMessage(l1TokenBridge, 0, message);
             emit DepositFailed(_l1Token, _l2Token, _from, _to, _amount, _data);
         }
     }

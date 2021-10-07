@@ -5,7 +5,6 @@ pragma solidity ^0.8.9;
  * @title Lib_BytesUtils
  */
 library Lib_BytesUtils {
-
     /**********************
      * Internal Functions *
      **********************/
@@ -14,13 +13,7 @@ library Lib_BytesUtils {
         bytes memory _bytes,
         uint256 _start,
         uint256 _length
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
+    ) internal pure returns (bytes memory) {
         require(_length + 31 >= _length, "slice_overflow");
         require(_start + _length >= _start, "slice_overflow");
         require(_bytes.length >= _start + _length, "slice_outOfBounds");
@@ -83,16 +76,7 @@ library Lib_BytesUtils {
         return tempBytes;
     }
 
-    function slice(
-        bytes memory _bytes,
-        uint256 _start
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
+    function slice(bytes memory _bytes, uint256 _start) internal pure returns (bytes memory) {
         if (_start >= _bytes.length) {
             return bytes("");
         }
@@ -100,15 +84,7 @@ library Lib_BytesUtils {
         return slice(_bytes, _start, _bytes.length - _start);
     }
 
-    function toBytes32(
-        bytes memory _bytes
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
+    function toBytes32(bytes memory _bytes) internal pure returns (bytes32) {
         if (_bytes.length < 32) {
             bytes32 ret;
             assembly {
@@ -117,30 +93,14 @@ library Lib_BytesUtils {
             return ret;
         }
 
-        return abi.decode(_bytes,(bytes32)); // will truncate if input length > 32 bytes
+        return abi.decode(_bytes, (bytes32)); // will truncate if input length > 32 bytes
     }
 
-    function toUint256(
-        bytes memory _bytes
-    )
-        internal
-        pure
-        returns (
-            uint256
-        )
-    {
+    function toUint256(bytes memory _bytes) internal pure returns (uint256) {
         return uint256(toBytes32(_bytes));
     }
 
-    function toNibbles(
-        bytes memory _bytes
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
+    function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
         bytes memory nibbles = new bytes(_bytes.length * 2);
 
         for (uint256 i = 0; i < _bytes.length; i++) {
@@ -151,15 +111,7 @@ library Lib_BytesUtils {
         return nibbles;
     }
 
-    function fromNibbles(
-        bytes memory _bytes
-    )
-        internal
-        pure
-        returns (
-            bytes memory
-        )
-    {
+    function fromNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
         bytes memory ret = new bytes(_bytes.length / 2);
 
         for (uint256 i = 0; i < ret.length; i++) {
@@ -169,16 +121,7 @@ library Lib_BytesUtils {
         return ret;
     }
 
-    function equal(
-        bytes memory _bytes,
-        bytes memory _other
-    )
-        internal
-        pure
-        returns (
-            bool
-        )
-    {
+    function equal(bytes memory _bytes, bytes memory _other) internal pure returns (bool) {
         return keccak256(_bytes) == keccak256(_other);
     }
 }

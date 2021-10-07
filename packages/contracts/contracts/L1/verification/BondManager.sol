@@ -2,10 +2,10 @@
 pragma solidity ^0.8.9;
 
 /* Interface Imports */
-import { IBondManager } from "./IBondManager.sol";
+import {IBondManager} from "./IBondManager.sol";
 
 /* Contract Imports */
-import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import {Lib_AddressResolver} from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /**
  * @title BondManager
@@ -15,15 +15,10 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
  * Runtime target: EVM
  */
 contract BondManager is IBondManager, Lib_AddressResolver {
-
     /**
      * @param _libAddressManager Address of the Address Manager.
      */
-    constructor(
-        address _libAddressManager
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {}
+    constructor(address _libAddressManager) Lib_AddressResolver(_libAddressManager) {}
 
     /**
      * Checks whether a given address is properly collateralized and can perform actions within
@@ -31,15 +26,7 @@ contract BondManager is IBondManager, Lib_AddressResolver {
      * @param _who Address to check.
      * @return true if the address is properly collateralized, false otherwise.
      */
-    function isCollateralized(
-        address _who
-    )
-        public
-        view
-        returns (
-            bool
-        )
-    {
+    function isCollateralized(address _who) public view returns (bool) {
         // Only authenticate sequencer to submit state root batches.
         return _who == resolve("OVM_Proposer");
     }
