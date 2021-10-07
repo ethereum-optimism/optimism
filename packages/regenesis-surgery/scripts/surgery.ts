@@ -45,10 +45,10 @@ const doGenesisSurgery = async (
     }
   }
 
-  // Injest any accounts in the genesis that aren't already in the state dump.
+  // Ingest any accounts in the genesis that aren't already in the state dump.
   // TODO: this needs to be able to be deduplicated if running in parallel
   for (const account of data.genesis) {
-    if (findAccount(data.dump, account.address) === undefined) {
+    if (findAccount(output, account.address) === undefined) {
       output.push(account)
     }
   }
