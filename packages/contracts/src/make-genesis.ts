@@ -85,6 +85,8 @@ export const makeL2GenesisFile = async (
       // See usage of this default in the L2CrossDomainMessenger contract.
       xDomainMsgSender: '0x000000000000000000000000000000000000dEaD',
       l1CrossDomainMessenger: cfg.l1CrossDomainMessengerAddress,
+      // Set the messageNonce to a high value to avoid overwriting old sent messages.
+      messageNonce: 100000,
     },
     WETH9: {
       name: 'Wrapped Ether',
