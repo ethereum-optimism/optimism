@@ -28,6 +28,9 @@ const newSurgeryDataSources = (): SurgeryDataSources => {
     l1TestnetWallet: ethers.Wallet.createRandom(),
     l1MainnetProvider: new ethers.providers.JsonRpcProvider(),
     l2Provider: new ethers.providers.JsonRpcProvider(),
+    startIndex: 0,
+    l2NetworkName: 'kovan',
+    endIndex: Infinity,
   }
 }
 

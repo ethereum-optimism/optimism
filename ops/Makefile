@@ -38,3 +38,7 @@ ps-metrics:
 		-f docker-compose-metrics.yml \
 		ps
 .PHONY: ps
+
+regenesis-surgery:
+	docker build -f ./docker/Dockerfile.regenesis-surgery \
+		-t ethereumoptimism/regenesis-surgery:latest ..

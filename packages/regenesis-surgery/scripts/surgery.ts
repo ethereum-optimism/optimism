@@ -7,6 +7,7 @@ import {
   EtherscanContract,
   SurgeryConfigs,
   GenesisFile,
+  AccountType,
 } from './types'
 import {
   loadConfigs,
@@ -28,17 +29,24 @@ const doGenesisSurgery = async (
   // We'll generate the final genesis file from this output.
   const output: StateDump = []
 
+  const size = data.dump.length
   // Handle each account in the state dump.
-  for (const account of data.dump) {
-    const accountType = classify(account, data)
-    const handler = handlers[accountType]
-    const newAccount = await handler(clone(account), data)
-    if (newAccount !== undefined) {
-      output.push(newAccount)
+  for (const [i, account] of data.dump.entries()) {
+    if (i >= data.startIndex && i <= data.endIndex) {
+      const accountType = classify(account, data)
+      const handler = handlers[accountType]
+      console.log(
+        `${i}/${size} - Handling type ${AccountType[accountType]} - ${account.address} `
+      )
+      const newAccount = await handler(clone(account), data)
+      if (newAccount !== undefined) {
+        output.push(newAccount)
+      }
     }
   }
 
   // Injest any accounts in the genesis that aren't already in the state dump.
+  // TODO: this needs to be able to be deduplicated if running in parallel
   for (const account of data.genesis) {
     if (findAccount(data.dump, account.address) === undefined) {
       output.push(account)
@@ -117,6 +125,9 @@ const main = async () => {
     l1TestnetWallet,
     l1MainnetProvider,
     l2Provider,
+    l2NetworkName: configs.l2NetworkName,
+    startIndex: configs.startIndex,
+    endIndex: configs.endIndex,
   })
 
   // Convert to the format that Geth expects.

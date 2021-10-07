@@ -284,9 +284,11 @@ export const handlers: {
     if (typeof bytecode === 'object') {
       bytecode = bytecode.object
     }
+    deployedBytecode = add0x(deployedBytecode)
 
     // Handle external library references.
     if (contract.library) {
+      console.log('Handling libraries')
       const linkReferences = linker.findLinkReferences(bytecode)
 
       // The logic only handles linking single libraries. Throw an error in the
@@ -306,6 +308,7 @@ export const handlers: {
       }
 
       // Inject the libraries at the required locations
+      console.log('Linking')
       bytecode = linker.linkBytecode(bytecode, {
         [key]: add0x(address),
       })
@@ -321,6 +324,7 @@ export const handlers: {
     const immutableRefs: ImmutableReference =
       mainOutput.evm.deployedBytecode.immutableReferences
     if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
+      console.log('Handling immutables')
       // Compile using the ovm compiler to find the location of the
       // immutableRefs in the ovm contract so they can be migrated
       // to the new contract
@@ -340,6 +344,8 @@ export const handlers: {
       if (typeof ovmObject === 'object') {
         ovmObject = ovmObject.object
       }
+
+      ovmObject = add0x(ovmObject)
 
       // Iterate over the immutableRefs and slice them into the new code
       // to carry over their values. The keys are the AST IDs
@@ -386,12 +392,25 @@ export const handlers: {
 
     // Handle migrating storage slots
     if (account.storage) {
+      console.log('Handling storage')
       for (const pool of data.pools) {
         // Check for references to modified values in storage.
-        for (const [key, val] of Object.entries(account.storage)) {
-          // TODO: Do we need to do anything if these statements trigger?
+        for (const [key, value] of Object.entries(account.storage)) {
+          // Turn into hex string or hexStringIncludes will throw
+          const val = add0x(value)
           if (hexStringIncludes(val, pool.oldAddress)) {
-            throw new Error(`found unexpected reference to pool address`)
+            console.log(
+              `found unexpected reference to pool address ${val} in ${account.address}`
+            )
+            const regex = new RegExp(
+              remove0x(pool.oldAddress).toLowerCase(),
+              'g'
+            )
+            account.storage[key] = value.replace(
+              regex,
+              remove0x(pool.newAddress).toLowerCase()
+            )
+            console.log(`updated to ${account.storage[key]}`)
           }
 
           if (hexStringIncludes(val, POOL_INIT_CODE_HASH_OPTIMISM)) {
