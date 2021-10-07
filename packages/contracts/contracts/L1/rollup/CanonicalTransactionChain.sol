@@ -29,9 +29,15 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     // L2 tx gas-related
     uint256 constant public MIN_ROLLUP_TX_GAS = 100000;
     uint256 constant public MAX_ROLLUP_TX_SIZE = 50000;
-    uint256 immutable public L2_GAS_DISCOUNT_DIVISOR;
-    uint256 immutable public ENQUEUE_GAS_COST;
-    uint256 immutable public ENQUEUE_L2_GAS_PREPAID;
+
+    // The approximate cost of calling the enqueue function
+    uint256 public enqueueGasCost;
+    // The ratio of the cost of L1 gas to the cost of L2 gas
+    uint256 public l2GasDiscountDivisor;
+    // The amount of L2 gas which can be forwarded to L2 without spam prevention via 'gas burn'.
+    // Calculated as the product of l2GasDiscountDivisor * enqueueGasCost.
+    // See comments in enqueue() for further detail.
+    uint256 public enqueueL2GasPrepaid;
 
     // Encoding-related (all in bytes)
     uint256 constant internal BATCH_CONTEXT_SIZE = 16;
@@ -69,9 +75,51 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         Lib_AddressResolver(_libAddressManager)
     {
         maxTransactionGasLimit = _maxTransactionGasLimit;
-        L2_GAS_DISCOUNT_DIVISOR = _l2GasDiscountDivisor;
-        ENQUEUE_GAS_COST  = _enqueueGasCost;
-        ENQUEUE_L2_GAS_PREPAID = _l2GasDiscountDivisor * _enqueueGasCost;
+        l2GasDiscountDivisor = _l2GasDiscountDivisor;
+        enqueueGasCost  = _enqueueGasCost;
+        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;
+    }
+
+
+
+    /**********************
+     * Function Modifiers *
+     **********************/
+
+    /**
+     * Modifier to enforce that, if configured, only the Burn Admin may
+     * successfully call a method.
+     */
+    modifier onlyBurnAdmin() {
+        require(
+            msg.sender == libAddressManager.owner(),
+            "Only callable by the Burn Admin."
+        );
+        _;
+    }
+
+    /*******************************
+     * Authorized Setter Functions *
+     *******************************/
+
+    /**
+     * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.
+     * The value of enqueueL2GasPrepaid is immediately updated as well.
+     */
+    function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost)
+        external
+        onlyBurnAdmin
+    {
+        enqueueGasCost = _enqueueGasCost;
+        l2GasDiscountDivisor = _l2GasDiscountDivisor;
+        // See the comment in enqueue() for the rationale behind this formula.
+        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;
+
+        emit L2GasParamsUpdated(
+            l2GasDiscountDivisor,
+            enqueueGasCost,
+            enqueueL2GasPrepaid
+        );
     }
 
 
@@ -260,13 +308,18 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
         // Transactions submitted to the queue lack a method for paying gas fees to the Sequencer.
         // So we need to prevent spam attacks by ensuring that the cost of enqueueing a transaction
-        // from L1 to L2 is not underpriced. Therefore, we define 'ENQUEUE_L2_GAS_PREPAID' as a
-        // threshold. If the _gasLimit for the enqueued transaction is above this threshold, then we
-        // 'charge' to user by burning additional L1 gas. Since gas is cheaper on L2 than L1, we
-        // only need to burn a fraction of the provided L1 gas, which is determined by the
-        // L2_GAS_DISCOUNT_DIVISOR.
-        if(_gasLimit > ENQUEUE_L2_GAS_PREPAID) {
-            uint256 gasToConsume = (_gasLimit - ENQUEUE_L2_GAS_PREPAID) / L2_GAS_DISCOUNT_DIVISOR;
+        // from L1 to L2 is not underpriced. For transaction with a high L2 gas limit, we do this by
+        // burning some extra gas on L1. Of course there is also some intrinsic cost to enqueueing a
+        // transaction, so we want to make sure not to over-charge (by burning too much L1 gas).
+        // Therefore, we define 'enqueueL2GasPrepaid' as the L2 gas limit above which we must burn
+        // additional gas on L1. This threshold is the product of two inputs:
+        // 1. enqueueGasCost: the base cost of calling this function.
+        // 2. l2GasDiscountDivisor: the ratio between the cost of gas on L1 and L2. This is a
+        //    positive integer, meaning we assume L2 gas is always less costly.
+        // The calculation below for gasToConsume can be seen as converting the difference (between
+        // the specified L2 gas limit and the prepaid L2 gas limit) to an L1 gas amount.
+        if(_gasLimit > enqueueL2GasPrepaid) {
+            uint256 gasToConsume = (_gasLimit - enqueueL2GasPrepaid) / l2GasDiscountDivisor;
             uint256 startingGas = gasleft();
 
             // Although this check is not necessary (burn below will run out of gas if not true), it

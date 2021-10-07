@@ -63,10 +63,11 @@ const appendSequencerBatch = async (
 }
 
 describe('CanonicalTransactionChain', () => {
-  let signer: Signer
+  let addressManagerOwner: Signer
   let sequencer: Signer
+  let otherSigner: Signer
   before(async () => {
-    ;[signer, sequencer] = await ethers.getSigners()
+    ;[addressManagerOwner, sequencer, otherSigner] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
@@ -135,6 +136,39 @@ describe('CanonicalTransactionChain', () => {
     )
   })
 
+  describe('Gas param setters', () => {
+    describe('setGasParams', async () => {
+      it('should revert when not called by the Burn Admin', async () => {
+        await expect(
+          CanonicalTransactionChain.connect(otherSigner).setGasParams(60000, 32)
+        ).to.be.revertedWith('Only callable by the Burn Admin.')
+      })
+
+      it('should update the enqueueGasCost and enqueueL2GasPrepaid correctly', async () => {
+        const newEnqueueGasCost = 31113
+        const newGasDivisor = 19
+        await CanonicalTransactionChain.connect(
+          addressManagerOwner
+        ).setGasParams(newGasDivisor, newEnqueueGasCost)
+
+        const l2GasDiscountDivisor =
+          await CanonicalTransactionChain.l2GasDiscountDivisor()
+        const enqueueL2GasPrepaid =
+          await CanonicalTransactionChain.enqueueL2GasPrepaid()
+        expect(enqueueL2GasPrepaid).to.equal(newGasDivisor * newEnqueueGasCost)
+      })
+
+      it('should emit an L2GasParamsUpdated event', async () => {
+        await expect(
+          CanonicalTransactionChain.connect(addressManagerOwner).setGasParams(
+            88,
+            31514
+          )
+        ).to.emit(CanonicalTransactionChain, 'L2GasParamsUpdated')
+      })
+    })
+  })
+
   describe('enqueue', () => {
     const target = NON_ZERO_ADDRESS
     const gasLimit = 500_000
@@ -176,9 +210,9 @@ describe('CanonicalTransactionChain', () => {
 
     it('should revert if transaction gas limit does not cover rollup burn', async () => {
       const _enqueueL2GasPrepaid =
-        await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+        await CanonicalTransactionChain.enqueueL2GasPrepaid()
       const l2GasDiscountDivisor =
-        await CanonicalTransactionChain.L2_GAS_DISCOUNT_DIVISOR()
+        await CanonicalTransactionChain.l2GasDiscountDivisor()
       const data = '0x' + '12'.repeat(1234)
 
       // Create a tx with high L2 gas limit, but insufficient L1 gas limit to cover burn.
@@ -223,13 +257,13 @@ describe('CanonicalTransactionChain', () => {
       })
     })
 
-    describe('with _gaslimit below the ENQUEUE_L2_GAS_PREPAID threshold', async () => {
+    describe('with _gaslimit below the enqueueL2GasPrepaid threshold', async () => {
       it('the cost to enqueue transactions is consistent for different L2 gas amounts below the prepaid threshold', async () => {
-        const ENQUEUE_L2_GAS_PREPAID =
-          await CanonicalTransactionChain.ENQUEUE_L2_GAS_PREPAID()
+        const enqueueL2GasPrepaid =
+          await CanonicalTransactionChain.enqueueL2GasPrepaid()
         const data = '0x' + '12'.repeat(1234)
-        const l2GasLimit1 = ENQUEUE_L2_GAS_PREPAID - 1
-        const l2GasLimit2 = ENQUEUE_L2_GAS_PREPAID - 100
+        const l2GasLimit1 = enqueueL2GasPrepaid - 1
+        const l2GasLimit2 = enqueueL2GasPrepaid - 100
 
         // The first enqueue is more expensive because it's writing to an empty slot,
         // so we need to pre-load the buffer or the test will fail.
@@ -279,7 +313,7 @@ describe('CanonicalTransactionChain', () => {
             await setEthTime(ethers.provider, timestamp)
 
             const transactionHash = getTransactionHash(
-              await signer.getAddress(),
+              await addressManagerOwner.getAddress(),
               target,
               gasLimit,
               data
@@ -323,7 +357,7 @@ describe('CanonicalTransactionChain', () => {
                 await setEthTime(ethers.provider, timestamp)
 
                 transactionHash = getTransactionHash(
-                  await signer.getAddress(),
+                  await addressManagerOwner.getAddress(),
                   target,
                   gasLimit,
                   data
@@ -366,7 +400,7 @@ describe('CanonicalTransactionChain', () => {
                 await setEthTime(ethers.provider, timestamp)
 
                 transactionHash = getTransactionHash(
-                  await signer.getAddress(),
+                  await addressManagerOwner.getAddress(),
                   target,
                   gasLimit,
                   data
@@ -444,19 +478,22 @@ describe('CanonicalTransactionChain', () => {
 
     it('should revert if not called by the sequencer', async () => {
       await expect(
-        appendSequencerBatch(CanonicalTransactionChain.connect(signer), {
-          transactions: ['0x1234'],
-          contexts: [
-            {
-              numSequencedTransactions: 0,
-              numSubsequentQueueTransactions: 0,
-              timestamp: 0,
-              blockNumber: 0,
-            },
-          ],
-          shouldStartAtElement: 0,
-          totalElementsToAppend: 1,
-        })
+        appendSequencerBatch(
+          CanonicalTransactionChain.connect(addressManagerOwner),
+          {
+            transactions: ['0x1234'],
+            contexts: [
+              {
+                numSequencedTransactions: 0,
+                numSubsequentQueueTransactions: 0,
+                timestamp: 0,
+                blockNumber: 0,
+              },
+            ],
+            shouldStartAtElement: 0,
+            totalElementsToAppend: 1,
+          }
+        )
       ).to.be.revertedWith('Function can only be called by the Sequencer.')
     })
 

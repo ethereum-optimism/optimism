@@ -16,6 +16,12 @@ interface ICanonicalTransactionChain {
      * Events *
      **********/
 
+    event L2GasParamsUpdated(
+        uint256 l2GasDiscountDivisor,
+        uint256 enqueueGasCost,
+        uint256 enqueueL2GasPrepaid
+    );
+
     event TransactionEnqueued(
         address indexed _l1TxOrigin,
         address indexed _target,
@@ -57,11 +63,20 @@ interface ICanonicalTransactionChain {
         uint256 blockNumber;
     }
 
+    /*******************************
+     * Authorized Setter Functions *
+     *******************************/
+
+    /**
+     * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.
+     * The value of enqueueL2GasPrepaid is immediately updated as well.
+     */
+    function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost)
+        external;
 
     /********************
      * Public Functions *
      ********************/
-
 
     /**
      * Accesses the batch storage container.
