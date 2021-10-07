@@ -30,7 +30,7 @@
     "posttest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat",
     "lint:typescript:check": "eslint .",
     "lint:contracts:check": "yarn prettier --check 'contracts/**/*.sol'",
-    "lint:check": "yarn lint:contracts:check && yarn lint:typescript:check",
+    "lint:check": "yarn lint:typescript:check",
     "lint": "yarn lint:check",
     "lint:typescript:fix": "eslint --fix .",
     "lint:contracts:fix": "yarn prettier --write 'contracts/**/*.sol'",
