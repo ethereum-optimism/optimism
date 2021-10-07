@@ -17,15 +17,23 @@ func TestCompare(t *testing.T) {
 	ram := make(map[uint32](uint32))
 	LoadMappedFile(fn, ram, 0)
 	go RunWithRam(ram, steps, 0, func(step int, ram map[uint32](uint32)) {
-		fmt.Printf("%d evm %x\n", step, ram[0xc0000080])
-		cevm <- []uint32{ram[0xc0000080] & 0x7FFFFFFF, ram[0xc0000008]}
+		//fmt.Printf("%d evm %x\n", step, ram[0xc0000080])
+		ret := []uint32{ram[0xc0000080] & 0x7FFFFFFF}
+		for i := uint32(0xc0000000); i < 0xc0000000+32*4; i += 4 {
+			ret = append(ret, ram[i])
+		}
+		cevm <- ret
 	})
 
 	go RunUnicorn(fn, steps, func(step int, mu uc.Unicorn) {
 		pc, _ := mu.RegRead(uc.MIPS_REG_PC)
-		v0, _ := mu.RegRead(uc.MIPS_REG_V0)
-		fmt.Printf("%d uni %x\n", step, pc)
-		cuni <- []uint32{uint32(pc), uint32(v0)}
+		//fmt.Printf("%d uni %x\n", step, pc)
+		ret := []uint32{uint32(pc)}
+		for i := uc.MIPS_REG_ZERO; i < uc.MIPS_REG_ZERO+32; i++ {
+			reg, _ := mu.RegRead(i)
+			ret = append(ret, uint32(reg))
+		}
+		cuni <- ret
 	})
 
 	for i := 0; i < steps; i++ {
@@ -35,7 +43,7 @@ func TestCompare(t *testing.T) {
 			break
 		}
 		if i%1000 == 0 {
-			fmt.Println(i, x, y)
+			fmt.Println(i, x[0:9], y[0:9])
 		}
 		for j := 0; j < len(x); j++ {
 			if x[j] != y[j] {
