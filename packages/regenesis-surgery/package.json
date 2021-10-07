@@ -14,6 +14,8 @@
   },
   "devDependencies": {
     "@types/node": "^15.12.2",
+    "@uniswap/v3-core": "^1.0.0",
+    "@uniswap/v3-sdk": "^3.5.1",
     "chai-as-promised": "^7.1.1",
     "hardhat": "^2.6.5",
     "mocha": "^9.1.2",
@@ -26,6 +28,7 @@
   "dependencies": {
     "@discoveryjs/json-ext": "^0.5.3",
     "@eth-optimism/contracts": "^0.4.10",
+    "@eth-optimism/core-utils": "^0.6.0",
     "@uniswap/v3-core-optimism": "^1.0.0-rc.0",
     "dotenv": "^10.0.0",
     "ethereumjs-util": "^7.1.2",
