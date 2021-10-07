@@ -37,6 +37,7 @@
     "patch-package": "^6.4.7",
     "prettier": "^2.3.1",
     "prettier-plugin-solidity": "^1.0.0-beta.18",
+    "solhint-plugin-prettier": "^0.0.5",
     "typescript": "^4.3.5"
   },
   "scripts": {
@@ -45,6 +46,7 @@
     "test": "yarn lerna run test --parallel",
     "test:coverage": "yarn lerna run test:coverage --parallel",
     "lint": "yarn lerna run lint",
+    "lint:ts:check": "yarn lerna run lint:ts:check",
     "lint:check": "yarn lerna run lint:check",
     "lint:fix": "yarn lerna run lint:fix --parallel",
     "postinstall": "patch-package",

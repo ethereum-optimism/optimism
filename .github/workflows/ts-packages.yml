@@ -159,7 +159,7 @@ jobs:
         run: yarn install
 
       - name: Lint JS and TS
-        run: yarn lint:check
+        run: yarn lint:ts:check
 
       - name: Lint Solidity
         working-directory: ./packages/contracts
