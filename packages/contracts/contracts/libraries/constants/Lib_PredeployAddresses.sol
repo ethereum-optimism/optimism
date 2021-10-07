@@ -5,6 +5,7 @@ pragma solidity ^0.8.9;
  * @title Lib_PredeployAddresses
  */
 library Lib_PredeployAddresses {
+    // solhint-disable max-line-length
     address internal constant L2_TO_L1_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address internal constant L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
     address internal constant DEPLOYER_WHITELIST = 0x4200000000000000000000000000000000000002;
