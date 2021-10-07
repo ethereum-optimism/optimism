@@ -33,7 +33,7 @@ func WriteBytes(fd int, bytes []byte) {
 }
 
 // reimplement simple.py in go
-func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn)) {
+func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn, map[uint32](uint32))) {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
@@ -102,7 +102,7 @@ func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn)) {
 				fmt.Printf("%10d pc: %x steps per s %f ram entries %d\n", steps, addr, steps_per_sec, len(ram))
 			}
 			if callback != nil {
-				callback(steps, mu)
+				callback(steps, mu, ram)
 			}
 			steps += 1
 			if totalSteps == steps {
