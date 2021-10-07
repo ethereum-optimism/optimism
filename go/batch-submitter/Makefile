@@ -8,7 +8,7 @@ LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 batch-submitter:
-	env GO111MODULE=on go build $(LDFLAGS) ./cmd/batch-submitter
+	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/batch-submitter
 
 clean:
 	rm batch-submitter

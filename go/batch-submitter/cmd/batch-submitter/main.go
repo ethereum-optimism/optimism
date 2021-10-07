@@ -36,27 +36,7 @@ func main() {
 	app.Description = "Service for generating and submitting batched transactions " +
 		"that synchronize L2 state to L1 contracts"
 
-	app.Action = func(ctx *cli.Context) error {
-		cfg, err := batchsubmitter.NewConfig(ctx)
-		if err != nil {
-			return err
-		}
-
-		logLevel, err := log.LvlFromString(cfg.LogLevel)
-		if err != nil {
-			return err
-		}
-
-		log.Root().SetHandler(
-			log.LvlFilterHandler(
-				logLevel,
-				log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
-			),
-		)
-
-		log.Info("Config", "message", fmt.Sprintf("%#v", cfg))
-		return nil
-	}
+	app.Action = batchsubmitter.Main(GitVersion)
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
