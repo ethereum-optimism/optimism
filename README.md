@@ -41,6 +41,28 @@ The system is checking an embedded block in CI now
 ./run.sh
 ```
 
+## WINNER
+
+The first block transition has been computed "on chain" in 14 minutes
+
+```
+  89100000 pc: 1086f8 steps per s 106820.330833 ram entries 1395627
+  89200000 pc: 107588 steps per s 106824.461317 ram entries 1395672
+  89300000 pc: 11e4a0 steps per s 106827.491612 ram entries 1395780
+  89400000 pc: 107568 steps per s 106830.298848 ram entries 1395830
+  89500000 pc: 107c50 steps per s 106833.903685 ram entries 1395881
+new Root 0x9e0261efe4509912b8862f3d45a0cb8404b99b239247df9c55871bd3844cebbd
+  89600000 pc: a6cf8 steps per s 106835.300542 ram entries 1396355
+  89700000 pc: a80c8 steps per s 106834.819235 ram entries 1396601
+  89800000 pc: 8aec0 steps per s 106837.707869 ram entries 1396753
+  89900000 pc: 1086d0 steps per s 106840.803960 ram entries 1396829
+  90000000 pc: 11e454 steps per s 106843.869077 ram entries 1396985
+  90100000 pc: 107dcc steps per s 106847.450632 ram entries 1396943
+receipt count 5 hash 0xa2947195971207f3654f635af06f2ab5d3a57af7a834ac88446afd3e8105e57c
+process done with hash 0x5c45998dfbf9ce70bcbb80574ed7a622922d2c775e0a2331fe5a8b8dcc99f490 -> 0x9e0261efe4509912b8862f3d45a0cb8404b99b239247df9c55871bd3844cebbd
+```
+
+
 ## State Oracle API
 
 On chain / in MIPS, we have two oracles
