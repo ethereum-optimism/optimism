@@ -84,18 +84,20 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 		if ram[nret] == 0xC {
 			syscall := ram[0xc0000008]
 			if syscall == 4004 {
-				len := int(ram[0xc0000018])
-				buf := make([]byte, len+3)
-				for i := 0; i < len; i += 4 {
-					binary.BigEndian.PutUint32(buf[i:i+4], ram[ram[0xc0000014]+uint32(i)])
+				len := ram[0xc0000018]
+				buf := make([]byte, len+0x10)
+				addr := ram[0xc0000014]
+				offset := addr & 3
+				for i := uint32(0); i < offset+len; i += 4 {
+					binary.BigEndian.PutUint32(buf[i:i+4], ram[(addr&0xFFFFFFFC)+uint32(i)])
 				}
-				WriteBytes(int(ram[0xc0000010]), buf[0:len])
-				//fmt.Printf("%x %x %x\n", ram[0xc0000010], ram[0xc0000014], ram[0xc0000018])
+				WriteBytes(int(ram[0xc0000010]), buf[offset:offset+len])
+				//fmt.Printf("write %x %x %x\n", ram[0xc0000010], ram[0xc0000014], ram[0xc0000018])
 			} else {
-				os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
+				//os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
 			}
 		}
-		if (pcCount % 10000) == 0 {
+		if (pcCount % 100000) == 0 {
 			steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
 			os.Stderr.WriteString(fmt.Sprintf("%10d pc: %x steps per s %f ram entries %d\n", pcCount, nret&0x7FFFFFFF, steps_per_sec, len(ram)))
 		}
