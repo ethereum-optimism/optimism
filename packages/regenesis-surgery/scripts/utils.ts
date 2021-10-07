@@ -287,11 +287,11 @@ export const getMainContract = (contract: EtherscanContract, output) => {
 }
 
 export const getSolc = (version: string, ovm?: boolean) => {
-  if (ovm) {
-    return solc.setupMethods(require(path.join(LOCAL_SOLC_DIR, version)))
-  }
   return solc.setupMethods(
-    require(path.join(LOCAL_SOLC_DIR, `solc-emscripten-wasm32-${version}.js`))
+    require(path.join(
+      LOCAL_SOLC_DIR,
+      ovm ? version : `solc-emscripten-wasm32-${version}.js`
+    ))
   )
 }
 
