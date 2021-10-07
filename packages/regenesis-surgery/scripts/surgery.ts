@@ -1,7 +1,7 @@
 import { StateDump, SurgeryDataSources } from './types'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
-import { findAccount } from './utils'
+import { clone, findAccount } from './utils'
 import { downloadAllSolcVersions } from './download-solc'
 import { getUniswapPoolData } from './data'
 
@@ -15,7 +15,7 @@ const doGenesisSurgery = async (
   for (const account of data.dump) {
     const accountType = classify(account, data)
     const handler = handlers[accountType]
-    const newAccount = await handler(JSON.parse(JSON.stringify(account)), data)
+    const newAccount = await handler(clone(account), data)
     if (newAccount !== undefined) {
       output.push(newAccount)
     }

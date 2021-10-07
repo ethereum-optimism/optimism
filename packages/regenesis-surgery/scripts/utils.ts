@@ -100,3 +100,7 @@ export const getUniswapV3Factory = (signerOrProvider: any): ethers.Contract => {
     signerOrProvider
   )
 }
+
+export const clone = (obj: any): any => {
+  return JSON.parse(JSON.stringify(obj))
+}
