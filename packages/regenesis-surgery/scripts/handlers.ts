@@ -6,7 +6,11 @@ import {
 } from '@uniswap/v3-sdk'
 import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
 import { sleep } from '@eth-optimism/core-utils'
-import { OLD_ETH_ADDRESS, UNISWAP_V3_FACTORY_ADDRESS } from './constants'
+import {
+  OLD_ETH_ADDRESS,
+  UNISWAP_V3_FACTORY_ADDRESS,
+  WETH_TRANSFER_ADDRESSES,
+} from './constants'
 import { Account, AccountType, SurgeryDataSources } from './types'
 import {
   findAccount,
@@ -58,21 +62,44 @@ export const handlers: {
     }
   },
   [AccountType.PREDEPLOY_ETH]: (account, data) => {
-    const genesisAccount = findAccount(data.genesis, account.address)
-    const oldEthAccount = findAccount(data.dump, OLD_ETH_ADDRESS)
+    const newAccount = findAccount(data.genesis, account.address)
+    const oldAccount = findAccount(data.dump, OLD_ETH_ADDRESS)
+
+    for (const address of WETH_TRANSFER_ADDRESSES) {
+      const balanceKey = getMappingKey([address], 0)
+      if (oldAccount.storage[balanceKey] !== undefined) {
+        delete oldAccount.storage[balanceKey]
+      }
+    }
+
     return {
       ...account,
-      code: genesisAccount.code,
-      codeHash: genesisAccount.codeHash,
+      code: newAccount.code,
+      codeHash: newAccount.codeHash,
       storage: {
-        ...oldEthAccount.storage,
-        ...genesisAccount.storage,
+        ...oldAccount.storage,
+        ...newAccount.storage,
       },
     }
   },
   [AccountType.PREDEPLOY_WETH]: (account, data) => {
-    // TODO
-    throw new Error('Not implemented')
+    const ethAccount = findAccount(data.dump, OLD_ETH_ADDRESS)
+
+    for (const address of WETH_TRANSFER_ADDRESSES) {
+      const balanceKey = getMappingKey([address], 0)
+      if (ethAccount.storage[balanceKey] !== undefined) {
+        const newBalanceKey = getMappingKey([address], 3)
+        account.storage[newBalanceKey] = ethAccount.storage[balanceKey]
+      }
+    }
+
+    return {
+      ...account,
+      storage: {
+        ...ethAccount.storage,
+        ...account.storage,
+      },
+    }
   },
   [AccountType.UNISWAP_V3_FACTORY]: async (account, data) => {
     // Transfer the owner slot
