@@ -73,9 +73,10 @@ contract MIPS {
     return uint32(dat&mask | (isSigned ? signed : 0));
   }
 
-  function handleSyscall(bytes32 stateHash) internal returns (bytes32) {
+  function handleSyscall(bytes32 stateHash) internal returns (bytes32, bool) {
     uint32 syscall_no = ReadMemory(stateHash, REG_OFFSET+2*4);
     uint32 v0 = 0;
+    bool exit = false;
 
     if (syscall_no == 4090) {
       // mmap
@@ -96,12 +97,12 @@ contract MIPS {
       v0 = 1;
     } else if (syscall_no == 4246) {
 			// exit group
-      stateHash = WriteMemory(stateHash, REG_PC, 0x5ead0000);
+      exit = true;
     }
 
     stateHash = WriteMemory(stateHash, REG_OFFSET+2*4, v0);
     stateHash = WriteMemory(stateHash, REG_OFFSET+7*4, 0);
-    return stateHash;
+    return (stateHash, exit);
   }
 
   function branchDelay(bytes32 stateHash, uint32 pc, uint32 nextPC, bool link) internal returns (bytes32) {
@@ -232,7 +233,11 @@ contract MIPS {
       // syscall (can read and write)
       if (func == 0xC) {
         //revert("unhandled syscall");
-        stateHash = handleSyscall(stateHash);
+        bool exit;
+        (stateHash, exit) = handleSyscall(stateHash);
+        if (exit) {
+          nextPC = 0x5ead0000;
+        }
       }
 
       // lo and hi registers
