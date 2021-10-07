@@ -2,16 +2,16 @@
 pragma solidity ^0.8.9;
 
 /* Interface Imports */
-import { IL1StandardBridge } from "./IL1StandardBridge.sol";
-import { IL1ERC20Bridge } from "./IL1ERC20Bridge.sol";
-import { IL2ERC20Bridge } from "../../L2/messaging/IL2ERC20Bridge.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IL1StandardBridge} from "./IL1StandardBridge.sol";
+import {IL1ERC20Bridge} from "./IL1ERC20Bridge.sol";
+import {IL2ERC20Bridge} from "../../L2/messaging/IL2ERC20Bridge.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
-import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
-import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {CrossDomainEnabled} from "../../libraries/bridge/CrossDomainEnabled.sol";
+import {Lib_PredeployAddresses} from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title L1StandardBridge
@@ -31,16 +31,14 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
     address public l2TokenBridge;
 
     // Maps L1 token to L2 token to balance of the L1 token deposited
-    mapping(address => mapping (address => uint256)) public deposits;
+    mapping(address => mapping(address => uint256)) public deposits;
 
     /***************
      * Constructor *
      ***************/
 
     // This contract lives behind a proxy, so the constructor parameters will go unused.
-    constructor()
-        CrossDomainEnabled(address(0))
-    {}
+    constructor() CrossDomainEnabled(address(0)) {}
 
     /******************
      * Initialization *
@@ -50,12 +48,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      * @param _l2TokenBridge L2 standard bridge address.
      */
-    function initialize(
-        address _l1messenger,
-        address _l2TokenBridge
-    )
-        public
-    {
+    function initialize(address _l1messenger, address _l2TokenBridge) public {
         require(messenger == address(0), "Contract has already been initialized.");
         messenger = _l1messenger;
         l2TokenBridge = _l2TokenBridge;
@@ -80,36 +73,15 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      * Since the receive function doesn't take data, a conservative
      * default amount is forwarded to L2.
      */
-    receive()
-        external
-        payable
-        onlyEOA()
-    {
-        _initiateETHDeposit(
-            msg.sender,
-            msg.sender,
-            1_300_000,
-            bytes("")
-        );
+    receive() external payable onlyEOA {
+        _initiateETHDeposit(msg.sender, msg.sender, 1_300_000, bytes(""));
     }
 
     /**
      * @inheritdoc IL1StandardBridge
      */
-    function depositETH(
-        uint32 _l2Gas,
-        bytes calldata _data
-    )
-        external
-        payable
-        onlyEOA()
-    {
-        _initiateETHDeposit(
-            msg.sender,
-            msg.sender,
-            _l2Gas,
-            _data
-        );
+    function depositETH(uint32 _l2Gas, bytes calldata _data) external payable onlyEOA {
+        _initiateETHDeposit(msg.sender, msg.sender, _l2Gas, _data);
     }
 
     /**
@@ -119,16 +91,8 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         address _to,
         uint32 _l2Gas,
         bytes calldata _data
-    )
-        external
-        payable
-    {
-        _initiateETHDeposit(
-            msg.sender,
-            _to,
-            _l2Gas,
-            _data
-        );
+    ) external payable {
+        _initiateETHDeposit(msg.sender, _to, _l2Gas, _data);
     }
 
     /**
@@ -146,27 +110,20 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         address _to,
         uint32 _l2Gas,
         bytes memory _data
-    )
-        internal
-    {
+    ) internal {
         // Construct calldata for finalizeDeposit call
-        bytes memory message =
-            abi.encodeWithSelector(
-                IL2ERC20Bridge.finalizeDeposit.selector,
-                address(0),
-                Lib_PredeployAddresses.OVM_ETH,
-                _from,
-                _to,
-                msg.value,
-                _data
-            );
+        bytes memory message = abi.encodeWithSelector(
+            IL2ERC20Bridge.finalizeDeposit.selector,
+            address(0),
+            Lib_PredeployAddresses.OVM_ETH,
+            _from,
+            _to,
+            msg.value,
+            _data
+        );
 
         // Send calldata into L2
-        sendCrossDomainMessage(
-            l2TokenBridge,
-            _l2Gas,
-            message
-        );
+        sendCrossDomainMessage(l2TokenBridge, _l2Gas, message);
 
         emit ETHDepositInitiated(_from, _to, msg.value, _data);
     }
@@ -180,15 +137,11 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         uint256 _amount,
         uint32 _l2Gas,
         bytes calldata _data
-    )
-        external
-        virtual
-        onlyEOA()
-    {
+    ) external virtual onlyEOA {
         _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, msg.sender, _amount, _l2Gas, _data);
     }
 
-     /**
+    /**
      * @inheritdoc IL1ERC20Bridge
      */
     function depositERC20To(
@@ -198,10 +151,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         uint256 _amount,
         uint32 _l2Gas,
         bytes calldata _data
-    )
-        external
-        virtual
-    {
+    ) external virtual {
         _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, _to, _amount, _l2Gas, _data);
     }
 
@@ -227,17 +177,11 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         uint256 _amount,
         uint32 _l2Gas,
         bytes calldata _data
-    )
-        internal
-    {
+    ) internal {
         // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future
         // withdrawals. safeTransferFrom also checks if the contract has code, so this will fail if
         // _from is an EOA or address(0).
-        IERC20(_l1Token).safeTransferFrom(
-            _from,
-            address(this),
-            _amount
-        );
+        IERC20(_l1Token).safeTransferFrom(_from, address(this), _amount);
 
         // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
         bytes memory message = abi.encodeWithSelector(
@@ -251,11 +195,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         );
 
         // Send calldata into L2
-        sendCrossDomainMessage(
-            l2TokenBridge,
-            _l2Gas,
-            message
-        );
+        sendCrossDomainMessage(l2TokenBridge, _l2Gas, message);
 
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token] + _amount;
 
@@ -266,7 +206,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      * Cross-chain Functions *
      *************************/
 
-     /**
+    /**
      * @inheritdoc IL1StandardBridge
      */
     function finalizeETHWithdrawal(
@@ -274,10 +214,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         address _to,
         uint256 _amount,
         bytes calldata _data
-    )
-        external
-        onlyFromCrossDomainAccount(l2TokenBridge)
-    {
+    ) external onlyFromCrossDomainAccount(l2TokenBridge) {
         (bool success, ) = _to.call{value: _amount}(new bytes(0));
         require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
 
@@ -294,10 +231,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         address _to,
         uint256 _amount,
         bytes calldata _data
-    )
-        external
-        onlyFromCrossDomainAccount(l2TokenBridge)
-    {
+    ) external onlyFromCrossDomainAccount(l2TokenBridge) {
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token] - _amount;
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer

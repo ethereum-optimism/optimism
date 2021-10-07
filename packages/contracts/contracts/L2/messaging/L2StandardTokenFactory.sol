@@ -2,8 +2,8 @@
 pragma solidity ^0.8.9;
 
 /* Contract Imports */
-import { L2StandardERC20 } from "../../standards/L2StandardERC20.sol";
-import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import {L2StandardERC20} from "../../standards/L2StandardERC20.sol";
+import {Lib_PredeployAddresses} from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /**
  * @title L2StandardTokenFactory
@@ -11,7 +11,6 @@ import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployA
  * compatible with and working on the standard bridge.
  */
 contract L2StandardTokenFactory {
-
     event StandardL2TokenCreated(address indexed _l1Token, address indexed _l2Token);
 
     /**
@@ -24,10 +23,8 @@ contract L2StandardTokenFactory {
         address _l1Token,
         string memory _name,
         string memory _symbol
-    )
-        external
-    {
-        require (_l1Token != address(0), "Must provide L1 token address");
+    ) external {
+        require(_l1Token != address(0), "Must provide L1 token address");
 
         L2StandardERC20 l2Token = new L2StandardERC20(
             Lib_PredeployAddresses.L2_STANDARD_BRIDGE,

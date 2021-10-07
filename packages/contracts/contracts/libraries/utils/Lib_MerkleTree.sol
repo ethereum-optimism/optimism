@@ -6,7 +6,6 @@ pragma solidity ^0.8.9;
  * @author River Keefer
  */
 library Lib_MerkleTree {
-
     /**********************
      * Internal Functions *
      **********************/
@@ -20,19 +19,8 @@ library Lib_MerkleTree {
      * @param _elements Array of hashes from which to generate a merkle root.
      * @return Merkle root of the leaves, with zero hashes for non-powers-of-two (see above).
      */
-    function getMerkleRoot(
-        bytes32[] memory _elements
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
-        require(
-            _elements.length > 0,
-            "Lib_MerkleTree: Must provide at least one leaf hash."
-        );
+    function getMerkleRoot(bytes32[] memory _elements) internal pure returns (bytes32) {
+        require(_elements.length > 0, "Lib_MerkleTree: Must provide at least one leaf hash.");
 
         if (_elements.length == 1) {
             return _elements[0];
@@ -71,18 +59,18 @@ library Lib_MerkleTree {
         uint256 depth = 0;
 
         // Common sub-expressions
-        uint256 halfRowSize;         // rowSize / 2
-        bool rowSizeIsOdd;           // rowSize % 2 == 1
+        uint256 halfRowSize; // rowSize / 2
+        bool rowSizeIsOdd; // rowSize % 2 == 1
 
         while (rowSize > 1) {
             halfRowSize = rowSize / 2;
             rowSizeIsOdd = rowSize % 2 == 1;
 
             for (uint256 i = 0; i < halfRowSize; i++) {
-                leftSibling  = _elements[(2 * i)    ];
+                leftSibling = _elements[(2 * i)];
                 rightSibling = _elements[(2 * i) + 1];
                 assembly {
-                    mstore(add(buf, 32), leftSibling )
+                    mstore(add(buf, 32), leftSibling)
                     mstore(add(buf, 64), rightSibling)
                 }
 
@@ -90,7 +78,7 @@ library Lib_MerkleTree {
             }
 
             if (rowSizeIsOdd) {
-                leftSibling  = _elements[rowSize - 1];
+                leftSibling = _elements[rowSize - 1];
                 rightSibling = bytes32(defaults[depth]);
                 assembly {
                     mstore(add(buf, 32), leftSibling)
@@ -125,22 +113,10 @@ library Lib_MerkleTree {
         uint256 _index,
         bytes32[] memory _siblings,
         uint256 _totalLeaves
-    )
-        internal
-        pure
-        returns (
-            bool
-        )
-    {
-        require(
-            _totalLeaves > 0,
-            "Lib_MerkleTree: Total leaves must be greater than zero."
-        );
+    ) internal pure returns (bool) {
+        require(_totalLeaves > 0, "Lib_MerkleTree: Total leaves must be greater than zero.");
 
-        require(
-            _index < _totalLeaves,
-            "Lib_MerkleTree: Index out of bounds."
-        );
+        require(_index < _totalLeaves, "Lib_MerkleTree: Index out of bounds.");
 
         require(
             _siblings.length == _ceilLog2(_totalLeaves),
@@ -151,19 +127,9 @@ library Lib_MerkleTree {
 
         for (uint256 i = 0; i < _siblings.length; i++) {
             if ((_index & 1) == 1) {
-                computedRoot = keccak256(
-                    abi.encodePacked(
-                        _siblings[i],
-                        computedRoot
-                    )
-                );
+                computedRoot = keccak256(abi.encodePacked(_siblings[i], computedRoot));
             } else {
-                computedRoot = keccak256(
-                    abi.encodePacked(
-                        computedRoot,
-                        _siblings[i]
-                    )
-                );
+                computedRoot = keccak256(abi.encodePacked(computedRoot, _siblings[i]));
             }
 
             _index >>= 1;
@@ -171,7 +137,6 @@ library Lib_MerkleTree {
 
         return _root == computedRoot;
     }
-
 
     /*********************
      * Private Functions *
@@ -182,19 +147,8 @@ library Lib_MerkleTree {
      * @param _in Unsigned input to calculate the log.
      * @return ceil(log_base_2(_in))
      */
-    function _ceilLog2(
-        uint256 _in
-    )
-        private
-        pure
-        returns (
-            uint256
-        )
-    {
-        require(
-            _in > 0,
-            "Lib_MerkleTree: Cannot compute ceil(log_2) of 0."
-        );
+    function _ceilLog2(uint256 _in) private pure returns (uint256) {
+        require(_in > 0, "Lib_MerkleTree: Cannot compute ceil(log_2) of 0.");
 
         if (_in == 1) {
             return 0;
@@ -205,14 +159,14 @@ library Lib_MerkleTree {
         uint256 val = _in;
         uint256 highest = 0;
         for (uint256 i = 128; i >= 1; i >>= 1) {
-            if (val & (uint(1) << i) - 1 << i != 0) {
+            if (val & (((uint256(1) << i) - 1) << i) != 0) {
                 highest += i;
                 val >>= i;
             }
         }
 
         // Increment by one if this is not a perfect logarithm.
-        if ((uint(1) << highest) != _in) {
+        if ((uint256(1) << highest) != _in) {
             highest += 1;
         }
 

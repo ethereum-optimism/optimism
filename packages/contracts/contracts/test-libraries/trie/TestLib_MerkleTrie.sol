@@ -2,31 +2,19 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import { Lib_MerkleTrie } from "../../libraries/trie/Lib_MerkleTrie.sol";
+import {Lib_MerkleTrie} from "../../libraries/trie/Lib_MerkleTrie.sol";
 
 /**
  * @title TestLib_MerkleTrie
  */
 contract TestLib_MerkleTrie {
-
     function verifyInclusionProof(
         bytes memory _key,
         bytes memory _value,
         bytes memory _proof,
         bytes32 _root
-    )
-        public
-        pure
-        returns (
-            bool
-        )
-    {
-        return Lib_MerkleTrie.verifyInclusionProof(
-            _key,
-            _value,
-            _proof,
-            _root
-        );
+    ) public pure returns (bool) {
+        return Lib_MerkleTrie.verifyInclusionProof(_key, _value, _proof, _root);
     }
 
     function update(
@@ -34,53 +22,23 @@ contract TestLib_MerkleTrie {
         bytes memory _value,
         bytes memory _proof,
         bytes32 _root
-    )
-        public
-        pure
-        returns (
-            bytes32
-        )
-    {
-        return Lib_MerkleTrie.update(
-            _key,
-            _value,
-            _proof,
-            _root
-        );
+    ) public pure returns (bytes32) {
+        return Lib_MerkleTrie.update(_key, _value, _proof, _root);
     }
 
     function get(
         bytes memory _key,
         bytes memory _proof,
         bytes32 _root
-    )
-        public
-        pure
-        returns (
-            bool,
-            bytes memory
-        )
-    {
-        return Lib_MerkleTrie.get(
-            _key,
-            _proof,
-            _root
-        );
+    ) public pure returns (bool, bytes memory) {
+        return Lib_MerkleTrie.get(_key, _proof, _root);
     }
 
-    function getSingleNodeRootHash(
-        bytes memory _key,
-        bytes memory _value
-    )
+    function getSingleNodeRootHash(bytes memory _key, bytes memory _value)
         public
         pure
-        returns (
-            bytes32
-        )
+        returns (bytes32)
     {
-        return Lib_MerkleTrie.getSingleNodeRootHash(
-            _key,
-            _value
-        );
+        return Lib_MerkleTrie.getSingleNodeRootHash(_key, _value);
     }
 }
