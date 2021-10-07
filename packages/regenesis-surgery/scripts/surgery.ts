@@ -3,6 +3,7 @@ import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { findAccount } from './utils'
 import { downloadAllSolcVersions } from './download-solc'
+import { getUniswapPoolData } from './data'
 
 const doGenesisSurgery = async (
   data: SurgeryDataSources
@@ -31,8 +32,11 @@ const doGenesisSurgery = async (
 }
 
 const main = async () => {
-  // TODO
   await downloadAllSolcVersions()
+
+  const network = 'kovan' // TODO: make configurable
+  const l2Provider = null as any // TODO
+  const pools = await getUniswapPoolData(l2Provider, network)
   const genesis = await doGenesisSurgery({} as any)
 }
 

@@ -1,4 +1,6 @@
 import { ethers } from 'ethers'
+import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
+import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 import { Account, StateDump } from './types'
 
 export const findAccount = (dump: StateDump, address: string): Account => {
@@ -89,4 +91,12 @@ export const getMappingKey = (keys: any[], slot: number) => {
     }
   }
   return key
+}
+
+export const getUniswapV3Factory = (signerOrProvider: any): ethers.Contract => {
+  return new ethers.Contract(
+    UNISWAP_V3_FACTORY_ADDRESS,
+    UNISWAP_FACTORY_ABI,
+    signerOrProvider
+  )
 }

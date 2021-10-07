@@ -4,7 +4,6 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM,
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
-import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
 import { sleep } from '@eth-optimism/core-utils'
 import {
   OLD_ETH_ADDRESS,
@@ -17,6 +16,7 @@ import {
   hexStringIncludes,
   transferStorageSlot,
   getMappingKey,
+  getUniswapV3Factory,
 } from './utils'
 
 export const handlers: {
@@ -170,12 +170,7 @@ export const handlers: {
     // Get the pool's code.
     let poolCode = await data.l1TestnetProvider.getCode(pool.newAddress)
     if (poolCode === '0x') {
-      const UniswapV3Factory = new ethers.Contract(
-        UNISWAP_V3_FACTORY_ADDRESS,
-        UNISWAP_FACTORY_ABI,
-        data.l1TestnetWallet
-      )
-
+      const UniswapV3Factory = getUniswapV3Factory(data.l1TestnetWallet)
       await UniswapV3Factory.createPool(pool.token0, pool.token1, pool.fee)
 
       let retries = 0
