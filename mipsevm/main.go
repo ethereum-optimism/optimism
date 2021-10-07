@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -50,7 +51,7 @@ func main() {
 		steps = 1000000
 	}
 	if len(os.Args) > 1 {
-		if os.Args[1] == "../mipigeth/minigeth.bin" {
+		if strings.HasPrefix(os.Args[1], "../mipigeth/") {
 			debug, _ := strconv.Atoi(os.Getenv("DEBUG"))
 			RunMinigeth(os.Args[1], steps, debug)
 		} else if os.Args[1] == "unicorn" {

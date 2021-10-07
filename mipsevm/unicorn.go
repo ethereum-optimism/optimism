@@ -22,8 +22,14 @@ func check(err error) {
 var steps int = 0
 var heap_start uint64 = 0
 
-func RegRead(u *uc.Unicorn, reg int) {
-
+func WriteBytes(fd int, bytes []byte) {
+	printer := color.New(color.FgWhite).SprintFunc()
+	if fd == 1 {
+		printer = color.New(color.FgGreen).SprintFunc()
+	} else if fd == 2 {
+		printer = color.New(color.FgRed).SprintFunc()
+	}
+	os.Stderr.WriteString(printer(string(bytes)))
 }
 
 // reimplement simple.py in go
@@ -51,14 +57,7 @@ func RunUnicorn(fn string, totalSteps int) {
 			buf, _ := mu.RegRead(uc.MIPS_REG_A1)
 			count, _ := mu.RegRead(uc.MIPS_REG_A2)
 			bytes, _ := mu.MemRead(buf, count)
-
-			printer := color.New(color.FgWhite).SprintFunc()
-			if fd == 1 {
-				printer = color.New(color.FgGreen).SprintFunc()
-			} else if fd == 2 {
-				printer = color.New(color.FgRed).SprintFunc()
-			}
-			os.Stderr.WriteString(printer(string(bytes)))
+			WriteBytes(int(fd), bytes)
 		} else if syscall_no == 4090 {
 			a0, _ := mu.RegRead(uc.MIPS_REG_A0)
 			sz, _ := mu.RegRead(uc.MIPS_REG_A1)
