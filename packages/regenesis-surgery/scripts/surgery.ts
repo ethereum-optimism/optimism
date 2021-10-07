@@ -50,16 +50,20 @@ const doGenesisSurgery = async (
 
 const main = async () => {
   // First download every solc version that we'll need during this surgery.
+  console.log('Downloading all required solc versions...')
   await downloadAllSolcVersions()
 
   // Load the configuration values, will throw if anything is missing.
+  console.log('Loading configuration values...')
   const configs: SurgeryConfigs = loadConfigs()
 
   // Load and validate the state dump.
+  console.log('Loading and validating state dump file...')
   const dump: StateDump = await readDumpFile(configs.stateDumpFilePath)
   checkStateDump(dump)
 
   // Load the genesis file.
+  console.log('Loading genesis file...')
   const genesis: GenesisFile = await readGenesisFile(configs.genesisFilePath)
   const genesisDump: StateDump = []
   for (const [address, account] of Object.entries(genesis.alloc)) {
@@ -70,18 +74,24 @@ const main = async () => {
   }
 
   // Load the etherscan dump.
+  console.log('Loading etherscan dump file...')
   const etherscanDump: EtherscanContract[] = await readEtherscanFile(
     configs.etherscanFilePath
   )
 
-  // Get a reference to the L2 provider and load all revelant pool data.
+  // Get a reference to the L2 provider so we can load pool data.
+  console.log('Connecting to L2 provider...')
   const l2Provider = new ethers.providers.JsonRpcProvider(configs.l2ProviderUrl)
+
+  // Load the pool data.
+  console.log('Loading Uniswap pool data...')
   const pools: UniswapPoolData[] = await getUniswapPoolData(
     l2Provider,
     configs.l2NetworkName
   )
 
   // Get a reference to the L1 testnet provider and wallet, used for deploying Uniswap pools.
+  console.log('Connecting to L1 testnet provider...')
   const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
     configs.l1TestnetProviderUrl
   )
@@ -91,11 +101,13 @@ const main = async () => {
   )
 
   // Get a reference to the L1 mainnet provider.
+  console.log('Connecting to L1 mainnet provider...')
   const l1MainnetProvider = new ethers.providers.JsonRpcProvider(
     configs.l1MainnetProviderUrl
   )
 
   // Do the surgery process and get the new genesis dump.
+  console.log('Starting surgery process...')
   const finalGenesisDump = await doGenesisSurgery({
     dump,
     genesis: genesisDump,
@@ -108,6 +120,7 @@ const main = async () => {
   })
 
   // Convert to the format that Geth expects.
+  console.log('Converting dump to final format...')
   const finalGenesisAlloc = {}
   for (const account of finalGenesisDump) {
     const address = account.address
@@ -122,10 +135,15 @@ const main = async () => {
   }
 
   // Write the final genesis file to disk.
+  // TODO: This WILL break because the genesis file will be larger than the allowable string size.
+  // We'll need to write it in chunks instead. Not sure of the best way to achieve this.
+  console.log('Writing final genesis to disk...')
   fs.writeFileSync(
     configs.outputFilePath,
     JSON.stringify(finalGenesis, null, 2)
   )
+
+  console.log('All done!')
 }
 
 main()

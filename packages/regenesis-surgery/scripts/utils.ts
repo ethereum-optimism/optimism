@@ -213,8 +213,6 @@ export const readGenesisFile = async (
 }
 
 export const checkStateDump = (dump: StateDump) => {
-  // Sanity check to guarantee that all addresses in dump.accounts are lower case.
-  console.log(`verifying that all contract addresses are lower case`)
   for (const account of dump) {
     assert.equal(
       account.address.toLowerCase(),
@@ -277,7 +275,9 @@ export const checkStateDump = (dump: StateDump) => {
 
 export const getMainContract = (contract: EtherscanContract, output) => {
   if (contract.contractFileName) {
-    return clone(output.contracts[contract.contractFileName][contract.contractName])
+    return clone(
+      output.contracts[contract.contractFileName][contract.contractName]
+    )
   }
   return clone(output.contracts.file[contract.contractName])
 }
