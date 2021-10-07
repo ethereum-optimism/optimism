@@ -269,7 +269,8 @@ contract L1CrossDomainMessenger is
         address _sender,
         bytes memory _message,
         uint256 _queueIndex,
-        uint32 _gasLimit
+        uint32 _oldGasLimit,
+        uint32 _newGasLimit
     )
         public
     {
@@ -278,21 +279,7 @@ contract L1CrossDomainMessenger is
         Lib_OVMCodec.QueueElement memory element =
             ICanonicalTransactionChain(canonicalTransactionChain).getQueueElement(_queueIndex);
 
-        // Compute the transactionHash
-        bytes32 transactionHash = keccak256(
-            abi.encode(
-                AddressAliasHelper.applyL1ToL2Alias(address(this)),
-                Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
-                _gasLimit,
-                _message
-            )
-        );
-
-        require(
-            transactionHash == element.transactionHash,
-            "Provided message has not been enqueued."
-        );
-
+        // Compute the calldata that was originally used to send the message.
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
@@ -300,10 +287,27 @@ contract L1CrossDomainMessenger is
             _queueIndex
         );
 
+        // Compute the transactionHash
+        bytes32 transactionHash = keccak256(
+            abi.encode(
+                AddressAliasHelper.applyL1ToL2Alias(address(this)),
+                Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+                _oldGasLimit,
+                xDomainCalldata
+            )
+        );
+
+        // Now check that the provided message data matches the one in the queue element.
+        require(
+            transactionHash == element.transactionHash,
+            "Provided message has not been enqueued."
+        );
+
+        // Send the same message but with the new gas limit.
         _sendXDomainMessage(
             canonicalTransactionChain,
             xDomainCalldata,
-            _gasLimit
+            _newGasLimit
         );
     }
 
