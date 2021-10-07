@@ -24,9 +24,10 @@ export interface Account {
 export type StateDump = Account[]
 
 export enum AccountType {
+  ONEINCH_DEPLOYER,
+  DELETE,
   EOA,
   PRECOMPILE,
-  PREDEPLOY_DEAD,
   PREDEPLOY_WIPE,
   PREDEPLOY_NO_WIPE,
   PREDEPLOY_ETH,
@@ -34,7 +35,6 @@ export enum AccountType {
   UNISWAP_V3_FACTORY,
   UNISWAP_V3_NFPM,
   UNISWAP_V3_POOL,
-  UNISWAP_V3_LIB,
   UNISWAP_V3_OTHER,
   UNVERIFIED,
   VERIFIED,
