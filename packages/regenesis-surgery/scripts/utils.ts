@@ -1,12 +1,20 @@
 import { ethers } from 'ethers'
 import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
+import { parseChunked } from '@discoveryjs/json-ext'
+import { createReadStream } from 'fs'
 import * as fs from 'fs'
 import byline from 'byline'
 import * as dotenv from 'dotenv'
 import * as assert from 'assert'
 
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
-import { Account, StateDump, SurgeryConfigs } from './types'
+import {
+  Account,
+  EtherscanContract,
+  StateDump,
+  SurgeryConfigs,
+  GenesisFile,
+} from './types'
 
 export const findAccount = (dump: StateDump, address: string): Account => {
   return dump.find((acc) => {
@@ -128,6 +136,8 @@ export const loadConfigs = (): SurgeryConfigs => {
   dotenv.config()
   const stateDumpFilePath = reqenv('REGEN__STATE_DUMP_FILE')
   const etherscanFilePath = reqenv('REGEN__ETHERSCAN_FILE')
+  const genesisFilePath = reqenv('REGEN__GENESIS_FILE')
+  const outputFilePath = reqenv('REGEN__OUTPUT_FILE')
   const l2ProviderUrl = reqenv('REGEN__L2_PROVIDER_URL')
   const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME')
   const l1MainnetProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
@@ -143,6 +153,8 @@ export const loadConfigs = (): SurgeryConfigs => {
   return {
     stateDumpFilePath,
     etherscanFilePath,
+    genesisFilePath,
+    outputFilePath,
     l2ProviderUrl,
     l2NetworkName,
     l1MainnetProviderUrl,
@@ -180,6 +192,18 @@ export const readDumpFile = async (dumppath: string): Promise<StateDump> => {
       resolve(dump)
     })
   })
+}
+
+export const readEtherscanFile = async (
+  etherscanpath: string
+): Promise<EtherscanContract[]> => {
+  return parseChunked(createReadStream(etherscanpath))
+}
+
+export const readGenesisFile = async (
+  genesispath: string
+): Promise<GenesisFile> => {
+  return JSON.parse(fs.readFileSync(genesispath, 'utf8'))
 }
 
 export const checkStateDump = (dump: StateDump) => {

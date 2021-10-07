@@ -99,9 +99,6 @@ export const WETH_TRANSFER_ADDRESSES = [
   // HOP (TODO)
 ]
 
-export const OLD_ETH_ADDRESS = '0x4200000000000000000000000000000000000006'
-export const NEW_ETH_ADDRESS = '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000'
-
 // TODO: confirm OVM/EVM mapps with ben-chain
 export const COMPILER_VERSIONS_TO_SOLC = {
   'v0.5.16': 'v0.5.16+commit.9c3226ce',

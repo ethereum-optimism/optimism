@@ -1,14 +1,22 @@
-import { parseChunked } from '@discoveryjs/json-ext'
-import { createReadStream } from 'fs'
 import { ethers } from 'ethers'
+import fs from 'fs'
 import {
   StateDump,
   UniswapPoolData,
   SurgeryDataSources,
   EtherscanContract,
   SurgeryConfigs,
+  GenesisFile,
 } from './types'
-import { loadConfigs, checkStateDump, readDumpFile, clone, findAccount } from './utils'
+import {
+  loadConfigs,
+  checkStateDump,
+  readDumpFile,
+  readEtherscanFile,
+  readGenesisFile,
+  clone,
+  findAccount,
+} from './utils'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { downloadAllSolcVersions } from './download-solc'
@@ -41,43 +49,83 @@ const doGenesisSurgery = async (
 }
 
 const main = async () => {
+  // First download every solc version that we'll need during this surgery.
   await downloadAllSolcVersions()
 
+  // Load the configuration values, will throw if anything is missing.
   const configs: SurgeryConfigs = loadConfigs()
 
+  // Load and validate the state dump.
   const dump: StateDump = await readDumpFile(configs.stateDumpFilePath)
-  // Validate state dump
   checkStateDump(dump)
-  const genesis: StateDump = null as any
-  const etherscanDump: EtherscanContract[] = await parseChunked(
-    createReadStream(configs.etherscanFilePath)
+
+  // Load the genesis file.
+  const genesis: GenesisFile = await readGenesisFile(configs.genesisFilePath)
+  const genesisDump: StateDump = []
+  for (const [address, account] of Object.entries(genesis.alloc)) {
+    genesisDump.push({
+      address,
+      ...account,
+    })
+  }
+
+  // Load the etherscan dump.
+  const etherscanDump: EtherscanContract[] = await readEtherscanFile(
+    configs.etherscanFilePath
   )
 
-  const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
-    configs.l1TestnetProviderUrl
-  )
+  // Get a reference to the L2 provider and load all revelant pool data.
   const l2Provider = new ethers.providers.JsonRpcProvider(configs.l2ProviderUrl)
   const pools: UniswapPoolData[] = await getUniswapPoolData(
     l2Provider,
     configs.l2NetworkName
   )
-  const data: SurgeryDataSources = {
+
+  // Get a reference to the L1 testnet provider and wallet, used for deploying Uniswap pools.
+  const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
+    configs.l1TestnetProviderUrl
+  )
+  const l1TestnetWallet = new ethers.Wallet(
+    configs.l1TestnetPrivateKey,
+    l1TestnetProvider
+  )
+
+  // Get a reference to the L1 mainnet provider.
+  const l1MainnetProvider = new ethers.providers.JsonRpcProvider(
+    configs.l1MainnetProviderUrl
+  )
+
+  // Do the surgery process and get the new genesis dump.
+  const finalGenesisDump = await doGenesisSurgery({
     dump,
-    genesis,
+    genesis: genesisDump,
     pools,
     etherscanDump,
     l1TestnetProvider,
-    l1TestnetWallet: new ethers.Wallet(
-      configs.l1TestnetPrivateKey,
-      l1TestnetProvider
-    ),
-    l1MainnetProvider: new ethers.providers.JsonRpcProvider(
-      configs.l1MainnetProviderUrl
-    ),
+    l1TestnetWallet,
+    l1MainnetProvider,
     l2Provider,
+  })
+
+  // Convert to the format that Geth expects.
+  const finalGenesisAlloc = {}
+  for (const account of finalGenesisDump) {
+    const address = account.address
+    delete account.address
+    finalGenesisAlloc[address] = account
   }
 
-  const nextGenesis = await doGenesisSurgery(data)
+  // Attach all of the original genesis configuration values.
+  const finalGenesis = {
+    ...genesis,
+    alloc: finalGenesisAlloc,
+  }
+
+  // Write the final genesis file to disk.
+  fs.writeFileSync(
+    configs.outputFilePath,
+    JSON.stringify(finalGenesis, null, 2)
+  )
 }
 
 main()
