@@ -395,11 +395,22 @@ export const handlers: {
       console.log('Handling storage')
       for (const pool of data.pools) {
         // Check for references to modified values in storage.
-        for (let val of Object.values(account.storage)) {
-          val = add0x(val)
-          // TODO: Do we need to do anything if these statements trigger?
+        for (const [key, value] of Object.entries(account.storage)) {
+          // Turn into hex string or hexStringIncludes will throw
+          const val = add0x(value)
           if (hexStringIncludes(val, pool.oldAddress)) {
-            throw new Error(`found unexpected reference to pool address`)
+            console.log(
+              `found unexpected reference to pool address ${val} in ${account.address}`
+            )
+            const regex = new RegExp(
+              remove0x(pool.oldAddress).toLowerCase(),
+              'g'
+            )
+            account.storage[key] = value.replace(
+              regex,
+              remove0x(pool.newAddress).toLowerCase()
+            )
+            console.log(`updated to ${account.storage[key]}`)
           }
 
           if (hexStringIncludes(val, POOL_INIT_CODE_HASH_OPTIMISM)) {
