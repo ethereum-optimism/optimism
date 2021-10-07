@@ -27,7 +27,7 @@ PreimageOracle -- key value store
   returns
   $v0 = preimage[$t7...$t0] >> ($a0 * 32)
 
-Program returns a hash in mem(0x30000800) and exits(jump to 0xDEAD0000) with the hash in the state
+Program returns a hash in mem(0x30000800) and exits(jump to 0x5EAD0000) with the hash in the state
 
 Challenge Flow:
 C is challenger, D is defender
@@ -39,7 +39,7 @@ C: InitiateChallenge(uint blockNumberN, bytes blockHeaderN, bytes blockHeaderNp1
   * saves inputs for input oracle
   * confirms assertionHash != blockHeaderNp1.Hash
   * confirm assertionProof[0..7] proves the final state of [$t7...$t0] in finalSystemHash is assertionHash
-  * confirm assertionProof[8] proves the final state of $pc in finalSystemHash is 0xDEAD0000
+  * confirm assertionProof[8] proves the final state of $pc in finalSystemHash is 0x5EAD0000
   * L = 0, R = stepCount   # we agree at L=0, we disagree at R=stepCount
   * return new challengeId
   * assertedState[0] = GlobalStartSystemHash + inputOracleMutations

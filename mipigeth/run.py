@@ -276,7 +276,7 @@ died_well = False
 def hook_mem_invalid(uc, access, address, size, value, user_data):
   global died_well
   pc = uc.reg_read(UC_MIPS_REG_PC)
-  if pc == 0xDEAD0000:
+  if pc == 0x5EAD0000:
     died_well = True
     return False
   print("UNMAPPED MEMORY:", access, hex(address), size, "at", hex(pc))

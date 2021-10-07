@@ -33,7 +33,7 @@ func WriteBytes(fd int, bytes []byte) {
 }
 
 // reimplement simple.py in go
-func RunUnicorn(fn string, totalSteps int) {
+func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn)) {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
@@ -71,6 +71,9 @@ func RunUnicorn(fn string, totalSteps int) {
 			v0 = 0x40000000
 		} else if syscall_no == 4120 {
 			v0 = 1
+		} else if syscall_no == 4246 {
+			// exit group
+			mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0000)
 		} else {
 			//fmt.Println("syscall", syscall_no)
 		}
@@ -98,12 +101,20 @@ func RunUnicorn(fn string, totalSteps int) {
 				steps_per_sec := float64(steps) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
 				fmt.Printf("%10d pc: %x steps per s %f ram entries %d\n", steps, addr, steps_per_sec, len(ram))
 			}
+			if callback != nil {
+				callback(steps, mu)
+			}
 			steps += 1
 			if totalSteps == steps {
-				os.Exit(0)
+				//os.Exit(0)
+				mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0000)
 			}
 		}, 0, 0x80000000)
 	}
+
+	// loop forever to match EVM
+	//mu.MemMap(0x5ead0000, 0x1000)
+	//mu.MemWrite(0xdead0000, []byte{0x08, 0x10, 0x00, 0x00})
 
 	check(mu.MemMap(0, 0x80000000))
 
@@ -119,6 +130,5 @@ func RunUnicorn(fn string, totalSteps int) {
 	LoadMappedFile(fn, ram, 0)
 	LoadMappedFile(inputFile, ram, 0x30000000)
 
-	mu.Start(0, 0xdead0000)
-
+	mu.Start(0, 0x5ead0004)
 }

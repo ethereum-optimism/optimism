@@ -84,7 +84,7 @@ if len(sys.argv) > 1:
 def hook_mem_invalid(uc, access, address, size, value, user_data):
   global has_input_oracle
   pc = uc.reg_read(UC_MIPS_REG_PC)
-  if pc == 0xdead0000:
+  if pc == 0x5ead0000:
     compare_hash = binascii.hexlify(mu.mem_read(0x30000800, 0x20))
     print("compare", compare_hash)
     os._exit(0)

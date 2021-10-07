@@ -24,6 +24,8 @@ var pcCount int = 0
 var ram map[uint32](uint32)
 var ministart time.Time
 
+var callback func(int, map[uint32](uint32))
+
 func bytesTo32(a []byte) uint32 {
 	//return uint32(common.BytesToHash(a).Big().Uint64())
 	return binary.BigEndian.Uint32(a[28:])
@@ -114,6 +116,9 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 		if (pcCount % 100000) == 0 {
 			steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
 			os.Stderr.WriteString(fmt.Sprintf("%10d pc: %x steps per s %f ram entries %d\n", pcCount, nret&0x7FFFFFFF, steps_per_sec, len(ram)))
+		}
+		if callback != nil {
+			callback(pcCount, ram)
 		}
 		pcCount += 1
 		seenWrite = false
@@ -210,7 +215,11 @@ func GetInterpreterAndBytecode(ldebug int) (*vm.EVMInterpreter, []byte) {
 	return interpreter, bytecode
 }
 
-func runWithRamInternal(lram map[uint32](uint32), steps int, interpreter *vm.EVMInterpreter, bytecode []byte) (uint64, error) {
+func RunWithRam(lram map[uint32](uint32), steps int, debug int, lcallback func(int, map[uint32](uint32))) (uint64, error) {
+	interpreter, bytecode := GetInterpreterAndBytecode(debug)
+
+	callback = lcallback
+
 	ram = lram
 
 	gas := 100000 * uint64(steps)
@@ -229,9 +238,4 @@ func runWithRamInternal(lram map[uint32](uint32), steps int, interpreter *vm.EVM
 	_, err := interpreter.Run(contract, input, false)
 
 	return (gas - contract.Gas), err
-}
-
-func RunWithRam(lram map[uint32](uint32), steps int, debug int) (uint64, error) {
-	interpreter, bytecode := GetInterpreterAndBytecode(debug)
-	return runWithRamInternal(lram, steps, interpreter, bytecode)
 }

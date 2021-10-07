@@ -53,12 +53,12 @@ def load_minigeth(mu, fn="minigeth"):
           # nop gcenable
           mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
           found += 1
-        if symbol.name == "github.com/ethereum/go-ethereum/oracle.Halt":
+        #if symbol.name == "github.com/ethereum/go-ethereum/oracle.Halt":
           #00400000: 2004dead ; <input:0> li $a0, 57005
           # 00400004: 00042400 ; <input:1> sll $a0, $a0, 16
           # 00400008: 00800008 ; <input:2> jr $a0
-          mu.mem_write(symbol['st_value'], b"\x20\x04\xde\xad\x00\x04\x24\x00\x00\x80\x00\x08")
-          found += 1
+          #mu.mem_write(symbol['st_value'], b"\x20\x04\xde\xad\x00\x04\x24\x00\x00\x80\x00\x08")
+          #found += 1
     except Exception:
       #traceback.print_exc()
       pass

@@ -25,16 +25,16 @@ func RunMinigeth(fn string, steps int, debug int) {
 	ram := make(map[uint32](uint32))
 	LoadMappedFile(fn, ram, 0)
 	LoadMappedFile(fmt.Sprintf("/tmp/eth/%d", 13284469), ram, 0x30000000)
-	RunWithRam(ram, steps, debug)
+	RunWithRam(ram, steps, debug, nil)
 }
 
 func runTest(fn string, steps int, debug int) (uint32, uint64) {
 	ram := make(map[uint32](uint32))
-	ram[0xC000007C] = 0xDEAD0000
+	ram[0xC000007C] = 0x5EAD0000
 	LoadMappedFile(fn, ram, 0)
 
 	start := time.Now()
-	remainingGas, err := RunWithRam(ram, steps, debug)
+	remainingGas, err := RunWithRam(ram, steps, debug, nil)
 	elapsed := time.Now().Sub(start)
 
 	fmt.Println(err, remainingGas, elapsed,
@@ -55,7 +55,7 @@ func main() {
 			debug, _ := strconv.Atoi(os.Getenv("DEBUG"))
 			RunMinigeth(os.Args[1], steps, debug)
 		} else if os.Args[1] == "unicorn" {
-			RunUnicorn(os.Args[2], steps)
+			RunUnicorn(os.Args[2], steps, nil)
 		} else {
 			runTest(os.Args[1], 20, 2)
 		}

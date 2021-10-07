@@ -111,7 +111,7 @@ contract Challenge {
     // you must load these proofs into MIPS before calling this
     // we disagree at the end
     require(mem.ReadBytes32(finalSystemState, 0x30000800) == assertionRoot, "you are claiming a different state root in machine");
-    require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0xDEAD0000, "machine is not stopped in final state (PC == 0xDEAD0000)");
+    require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0x5EAD0000, "machine is not stopped in final state (PC == 0x5EAD0000)");
 
     return newChallengeTrusted(startState, finalSystemState, stepCount);
   }

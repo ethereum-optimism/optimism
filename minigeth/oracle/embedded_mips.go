@@ -51,7 +51,8 @@ func Input(index int) common.Hash {
 }
 
 func Halt() {
-	os.Stderr.WriteString("THIS SHOULD BE PATCHED OUT\n")
+	//os.Stderr.WriteString("THIS SHOULD BE PATCHED OUT\n")
+	// the exit syscall is a jump to 0x5ead0000 now
 	os.Exit(0)
 }
 

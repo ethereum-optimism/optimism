@@ -94,6 +94,9 @@ contract MIPS {
     } else if (syscall_no == 4120) {
       // clone (not supported)
       v0 = 1;
+    } else if (syscall_no == 4246) {
+			// exit group
+      stateHash = WriteMemory(stateHash, REG_PC, 0x5ead0000);
     }
 
     stateHash = WriteMemory(stateHash, REG_OFFSET+2*4, v0);
@@ -114,7 +117,7 @@ contract MIPS {
   function Step(bytes32 stateHash) public returns (bytes32) {
     // instruction fetch
     uint32 pc = ReadMemory(stateHash, REG_PC);
-    if (pc == 0xdead0000) {
+    if (pc == 0x5ead0000) {
       return stateHash;
     }
 
