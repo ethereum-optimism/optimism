@@ -13,7 +13,10 @@ import (
 func LoadMappedFile(fn string, ram map[uint32](uint32), base uint32) {
 	dat, _ := ioutil.ReadFile(fn)
 	for i := 0; i < len(dat); i += 4 {
-		ram[base+uint32(i)] = binary.BigEndian.Uint32(dat[i : i+4])
+		value := binary.BigEndian.Uint32(dat[i : i+4])
+		if value != 0 {
+			ram[base+uint32(i)] = value
+		}
 	}
 }
 
@@ -42,16 +45,16 @@ func runTest(fn string, steps int, debug int) (uint32, uint64) {
 }
 
 func main() {
+	steps, _ := strconv.Atoi(os.Getenv("STEPS"))
+	if steps == 0 {
+		steps = 1000000
+	}
 	if len(os.Args) > 1 {
 		if os.Args[1] == "../mipigeth/minigeth.bin" {
 			debug, _ := strconv.Atoi(os.Getenv("DEBUG"))
-			steps, _ := strconv.Atoi(os.Getenv("STEPS"))
-			if steps == 0 {
-				steps = 100000
-			}
 			RunMinigeth(os.Args[1], steps, debug)
 		} else if os.Args[1] == "unicorn" {
-			RunUnicorn(os.Args[2])
+			RunUnicorn(os.Args[2], steps)
 		} else {
 			runTest(os.Args[1], 20, 2)
 		}

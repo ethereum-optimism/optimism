@@ -87,7 +87,7 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 		}
 		if (pcCount % 10000) == 0 {
 			steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
-			os.Stderr.WriteString(fmt.Sprintf("step %7d steps per s %f ram entries %d\n", pcCount, steps_per_sec, len(ram)))
+			os.Stderr.WriteString(fmt.Sprintf("%10d pc: %x steps per s %f ram entries %d\n", pcCount, nret&0x7FFFFFFF, steps_per_sec, len(ram)))
 		}
 		pcCount += 1
 		seenWrite = false

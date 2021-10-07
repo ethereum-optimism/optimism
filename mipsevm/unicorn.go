@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/fatih/color"
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
@@ -26,7 +27,7 @@ func RegRead(u *uc.Unicorn, reg int) {
 }
 
 // reimplement simple.py in go
-func RunUnicorn(fn string) {
+func RunUnicorn(fn string, totalSteps int) {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
@@ -46,10 +47,18 @@ func RunUnicorn(fn string) {
 			mu.MemWrite(0x31000000, tmp)
 			mu.MemWrite(0x31000004, value)
 		} else if syscall_no == 4004 {
+			fd, _ := mu.RegRead(uc.MIPS_REG_A0)
 			buf, _ := mu.RegRead(uc.MIPS_REG_A1)
 			count, _ := mu.RegRead(uc.MIPS_REG_A2)
 			bytes, _ := mu.MemRead(buf, count)
-			os.Stderr.Write(bytes)
+
+			printer := color.New(color.FgWhite).SprintFunc()
+			if fd == 1 {
+				printer = color.New(color.FgGreen).SprintFunc()
+			} else if fd == 2 {
+				printer = color.New(color.FgRed).SprintFunc()
+			}
+			os.Stderr.WriteString(printer(string(bytes)))
 		} else if syscall_no == 4090 {
 			a0, _ := mu.RegRead(uc.MIPS_REG_A0)
 			sz, _ := mu.RegRead(uc.MIPS_REG_A1)
@@ -68,16 +77,34 @@ func RunUnicorn(fn string) {
 		}
 		mu.RegWrite(uc.MIPS_REG_V0, v0)
 		mu.RegWrite(uc.MIPS_REG_A3, 0)
-	}, 1, 0)
+	}, 0, 0)
 
-	ministart := time.Now()
-	mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-		if steps%1000000 == 0 {
-			steps_per_sec := float64(steps) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
-			fmt.Printf("%6d Code: 0x%x, 0x%x steps per s %f\n", steps, addr, size, steps_per_sec)
-		}
-		steps += 1
-	}, 1, 0)
+	slowMode := true
+
+	ram := make(map[uint32](uint32))
+	if slowMode {
+		mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr uint64, size int, value int64) {
+			//fmt.Printf("%X(%d) = %x\n", addr, size, value)
+			// TODO: fix unaligned access
+			if value == 0 {
+				delete(ram, uint32(addr))
+			} else {
+				ram[uint32(addr)] = uint32(value)
+			}
+		}, 0, 0x80000000)
+
+		ministart := time.Now()
+		mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
+			if steps%1000000 == 0 {
+				steps_per_sec := float64(steps) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
+				fmt.Printf("%10d pc: %x steps per s %f ram entries %d\n", steps, addr, steps_per_sec, len(ram))
+			}
+			steps += 1
+			if totalSteps == steps {
+				os.Exit(0)
+			}
+		}, 0, 0x80000000)
+	}
 
 	check(mu.MemMap(0, 0x80000000))
 
@@ -86,8 +113,12 @@ func RunUnicorn(fn string) {
 	mu.MemWrite(0, dat)
 
 	// inputs
-	inputs, _ := ioutil.ReadFile(fmt.Sprintf("/tmp/eth/%d", 13284469))
+	inputFile := fmt.Sprintf("/tmp/eth/%d", 13284469)
+	inputs, _ := ioutil.ReadFile(inputFile)
 	mu.MemWrite(0x30000000, inputs)
+
+	LoadMappedFile(fn, ram, 0)
+	LoadMappedFile(inputFile, ram, 0x30000000)
 
 	mu.Start(0, 0xdead0000)
 
