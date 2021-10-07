@@ -117,6 +117,7 @@ contract OVM_GasPriceOracle is Ownable {
         return scaled;
     }
 
+    // solhint-disable max-line-length
     /**
      * Computes the amount of L1 gas used for a transaction
      * The overhead represents the per batch gas overhead of
@@ -139,6 +140,7 @@ contract OVM_GasPriceOracle is Ownable {
      * @param _data Unsigned RLP encoded tx, 6 elements
      * @return Amount of L1 gas used for a transaction
      */
+    // solhint-enable max-line-length
     function getL1GasUsed(bytes memory _data) public view returns (uint256) {
         uint256 total = 0;
         for (uint256 i = 0; i < _data.length; i++) {
