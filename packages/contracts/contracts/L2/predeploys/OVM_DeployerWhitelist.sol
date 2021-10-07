@@ -9,7 +9,6 @@ pragma solidity ^0.8.9;
  * ovmCREATE or ovmCREATE2 operation to proceed if the deployer's address whitelisted.
  */
 contract OVM_DeployerWhitelist {
-
     /**********
      * Events *
      **********/
@@ -18,15 +17,13 @@ contract OVM_DeployerWhitelist {
     event WhitelistStatusChanged(address deployer, bool whitelisted);
     event WhitelistDisabled(address oldOwner);
 
-
     /**********************
      * Contract Constants *
      **********************/
 
     // WARNING: When owner is set to address(0), the whitelist is disabled.
     address public owner;
-    mapping (address => bool) public whitelist;
-
+    mapping(address => bool) public whitelist;
 
     /**********************
      * Function Modifiers *
@@ -36,13 +33,9 @@ contract OVM_DeployerWhitelist {
      * Blocks functions to anyone except the contract owner.
      */
     modifier onlyOwner() {
-        require(
-            msg.sender == owner,
-            "Function can only be called by the owner of this contract."
-        );
+        require(msg.sender == owner, "Function can only be called by the owner of this contract.");
         _;
     }
-
 
     /********************
      * Public Functions *
@@ -53,13 +46,7 @@ contract OVM_DeployerWhitelist {
      * @param _deployer Address to update permissions for.
      * @param _isWhitelisted Whether or not the address is whitelisted.
      */
-    function setWhitelistedDeployer(
-        address _deployer,
-        bool _isWhitelisted
-    )
-        external
-        onlyOwner
-    {
+    function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) external onlyOwner {
         whitelist[_deployer] = _isWhitelisted;
         emit WhitelistStatusChanged(_deployer, _isWhitelisted);
     }
@@ -68,12 +55,7 @@ contract OVM_DeployerWhitelist {
      * Updates the owner of this contract.
      * @param _owner Address of the new owner.
      */
-    function setOwner(
-        address _owner
-    )
-        public
-        onlyOwner
-    {
+    function setOwner(address _owner) public onlyOwner {
         // Prevent users from setting the whitelist owner to address(0) except via
         // enableArbitraryContractDeployment. If you want to burn the whitelist owner, send it to any
         // other address that doesn't have a corresponding knowable private key.
@@ -89,10 +71,7 @@ contract OVM_DeployerWhitelist {
     /**
      * Permanently enables arbitrary contract deployment and deletes the owner.
      */
-    function enableArbitraryContractDeployment()
-        external
-        onlyOwner
-    {
+    function enableArbitraryContractDeployment() external onlyOwner {
         emit WhitelistDisabled(owner);
         owner = address(0);
     }
@@ -102,15 +81,7 @@ contract OVM_DeployerWhitelist {
      * @param _deployer Address to check.
      * @return _allowed Whether or not the address can deploy contracts.
      */
-    function isDeployerAllowed(
-        address _deployer
-    )
-        external
-        view
-        returns (
-            bool
-        )
-    {
+    function isDeployerAllowed(address _deployer) external view returns (bool) {
         return (owner == address(0) || whitelist[_deployer]);
     }
 }

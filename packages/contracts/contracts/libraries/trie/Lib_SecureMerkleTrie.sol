@@ -2,13 +2,12 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import { Lib_MerkleTrie } from "./Lib_MerkleTrie.sol";
+import {Lib_MerkleTrie} from "./Lib_MerkleTrie.sol";
 
 /**
  * @title Lib_SecureMerkleTrie
  */
 library Lib_SecureMerkleTrie {
-
     /**********************
      * Internal Functions *
      **********************/
@@ -30,13 +29,7 @@ library Lib_SecureMerkleTrie {
         bytes memory _value,
         bytes memory _proof,
         bytes32 _root
-    )
-        internal
-        pure
-        returns (
-            bool _verified
-        )
-    {
+    ) internal pure returns (bool _verified) {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.verifyInclusionProof(key, _value, _proof, _root);
     }
@@ -57,13 +50,7 @@ library Lib_SecureMerkleTrie {
         bytes memory _value,
         bytes memory _proof,
         bytes32 _root
-    )
-        internal
-        pure
-        returns (
-            bytes32 _updatedRoot
-        )
-    {
+    ) internal pure returns (bytes32 _updatedRoot) {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.update(key, _value, _proof, _root);
     }
@@ -80,14 +67,7 @@ library Lib_SecureMerkleTrie {
         bytes memory _key,
         bytes memory _proof,
         bytes32 _root
-    )
-        internal
-        pure
-        returns (
-            bool _exists,
-            bytes memory _value
-        )
-    {
+    ) internal pure returns (bool _exists, bytes memory _value) {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.get(key, _proof, _root);
     }
@@ -98,20 +78,14 @@ library Lib_SecureMerkleTrie {
      * @param _value Value for the single node.
      * @return _updatedRoot Hash of the trie.
      */
-    function getSingleNodeRootHash(
-        bytes memory _key,
-        bytes memory _value
-    )
+    function getSingleNodeRootHash(bytes memory _key, bytes memory _value)
         internal
         pure
-        returns (
-            bytes32 _updatedRoot
-        )
+        returns (bytes32 _updatedRoot)
     {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.getSingleNodeRootHash(key, _value);
     }
-
 
     /*********************
      * Private Functions *
@@ -122,15 +96,7 @@ library Lib_SecureMerkleTrie {
      * @param _key Key to get a secure key from.
      * @return _secureKey Secure version of the key.
      */
-    function _getSecureKey(
-        bytes memory _key
-    )
-        private
-        pure
-        returns (
-            bytes memory _secureKey
-        )
-    {
+    function _getSecureKey(bytes memory _key) private pure returns (bytes memory _secureKey) {
         return abi.encodePacked(keccak256(_key));
     }
 }

@@ -2,60 +2,50 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import { AddressAliasHelper } from "../../standards/AddressAliasHelper.sol";
-import { Lib_CrossDomainUtils } from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
-import { Lib_DefaultValues } from "../../libraries/constants/Lib_DefaultValues.sol";
-import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import {AddressAliasHelper} from "../../standards/AddressAliasHelper.sol";
+import {Lib_CrossDomainUtils} from "../../libraries/bridge/Lib_CrossDomainUtils.sol";
+import {Lib_DefaultValues} from "../../libraries/constants/Lib_DefaultValues.sol";
+import {Lib_PredeployAddresses} from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Interface Imports */
-import { IL2CrossDomainMessenger } from "./IL2CrossDomainMessenger.sol";
-import { iOVM_L2ToL1MessagePasser } from "../predeploys/iOVM_L2ToL1MessagePasser.sol";
+import {IL2CrossDomainMessenger} from "./IL2CrossDomainMessenger.sol";
+import {iOVM_L2ToL1MessagePasser} from "../predeploys/iOVM_L2ToL1MessagePasser.sol";
 
 /**
  * @title L2CrossDomainMessenger
  * @dev The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point
  * for L2 messages sent via the L1 Cross Domain Messenger.
  *
-*/
-contract L2CrossDomainMessenger is
-    IL2CrossDomainMessenger
-{
-
+ */
+contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
     /*************
      * Variables *
      *************/
 
-    mapping (bytes32 => bool) public relayedMessages;
-    mapping (bytes32 => bool) public successfulMessages;
-    mapping (bytes32 => bool) public sentMessages;
+    mapping(bytes32 => bool) public relayedMessages;
+    mapping(bytes32 => bool) public successfulMessages;
+    mapping(bytes32 => bool) public sentMessages;
     uint256 public messageNonce;
     address internal xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
     address public l1CrossDomainMessenger;
-
 
     /***************
      * Constructor *
      ***************/
 
-    constructor(
-        address _l1CrossDomainMessenger
-    ) {
+    constructor(address _l1CrossDomainMessenger) {
         l1CrossDomainMessenger = _l1CrossDomainMessenger;
     }
-
 
     /********************
      * Public Functions *
      ********************/
 
-    function xDomainMessageSender()
-        public
-        view
-        returns (
-            address
-        )
-    {
-        require(xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
+    function xDomainMessageSender() public view returns (address) {
+        require(
+            xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER,
+            "xDomainMessageSender is not set"
+        );
         return xDomainMsgSender;
     }
 
@@ -69,9 +59,7 @@ contract L2CrossDomainMessenger is
         address _target,
         bytes memory _message,
         uint32 _gasLimit
-    )
-        public
-    {
+    ) public {
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             msg.sender,
@@ -82,9 +70,9 @@ contract L2CrossDomainMessenger is
         sentMessages[keccak256(xDomainCalldata)] = true;
 
         // Actually send the message.
-        iOVM_L2ToL1MessagePasser(
-            Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER
-        ).passMessageToL1(xDomainCalldata);
+        iOVM_L2ToL1MessagePasser(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER).passMessageToL1(
+            xDomainCalldata
+        );
 
         // Emit an event before we bump the nonce or the nonce will be off by one.
         emit SentMessage(_target, msg.sender, _message, messageNonce, _gasLimit);
@@ -100,9 +88,7 @@ contract L2CrossDomainMessenger is
         address _sender,
         bytes memory _message,
         uint256 _messageNonce
-    )
-        public
-    {
+    ) public {
         require(
             AddressAliasHelper.undoL1ToL2Alias(msg.sender) == l1CrossDomainMessenger,
             "Provided message could not be verified."
@@ -146,13 +132,7 @@ contract L2CrossDomainMessenger is
 
         // Store an identifier that can be used to prove that the given message was relayed by some
         // user. Gives us an easy way to pay relayers for their work.
-        bytes32 relayId = keccak256(
-            abi.encodePacked(
-                xDomainCalldata,
-                msg.sender,
-                block.number
-            )
-        );
+        bytes32 relayId = keccak256(abi.encodePacked(xDomainCalldata, msg.sender, block.number));
 
         relayedMessages[relayId] = true;
     }

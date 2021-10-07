@@ -7,18 +7,17 @@ import "./IL1ERC20Bridge.sol";
  * @title IL1StandardBridge
  */
 interface IL1StandardBridge is IL1ERC20Bridge {
-
     /**********
      * Events *
      **********/
-    event ETHDepositInitiated (
+    event ETHDepositInitiated(
         address indexed _from,
         address indexed _to,
         uint256 _amount,
         bytes _data
     );
 
-    event ETHWithdrawalFinalized (
+    event ETHWithdrawalFinalized(
         address indexed _from,
         address indexed _to,
         uint256 _amount,
@@ -36,12 +35,7 @@ interface IL1StandardBridge is IL1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function depositETH (
-        uint32 _l2Gas,
-        bytes calldata _data
-    )
-        external
-        payable;
+    function depositETH(uint32 _l2Gas, bytes calldata _data) external payable;
 
     /**
      * @dev Deposit an amount of ETH to a recipient's balance on L2.
@@ -51,13 +45,11 @@ interface IL1StandardBridge is IL1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function depositETHTo (
+    function depositETHTo(
         address _to,
         uint32 _l2Gas,
         bytes calldata _data
-    )
-        external
-        payable;
+    ) external payable;
 
     /*************************
      * Cross-chain Functions *
@@ -74,11 +66,10 @@ interface IL1StandardBridge is IL1ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function finalizeETHWithdrawal (
+    function finalizeETHWithdrawal(
         address _from,
         address _to,
-        uint _amount,
+        uint256 _amount,
         bytes calldata _data
-    )
-        external;
+    ) external;
 }
