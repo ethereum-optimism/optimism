@@ -5,7 +5,7 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM,
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
-import { sleep, add0x } from '@eth-optimism/core-utils'
+import { sleep, add0x, remove0x } from '@eth-optimism/core-utils'
 import {
   OLD_ETH_ADDRESS,
   WETH_TRANSFER_ADDRESSES,
@@ -284,7 +284,9 @@ export const handlers: {
     if (typeof bytecode === 'object') {
       bytecode = bytecode.object
     }
-    deployedBytecode = add0x(deployedBytecode)
+
+    // Make sure the bytecode is 0x-prefixed.
+    bytecode = add0x(bytecode)
 
     // Handle external library references.
     if (contract.library) {
@@ -314,7 +316,7 @@ export const handlers: {
       })
     }
 
-    // Make sure the bytecode is 0x-prefixed.
+    // Make sure the bytecode is (still) 0x-prefixed.
     bytecode = add0x(bytecode)
 
     // If the contract has immutables in it, then the contracts
