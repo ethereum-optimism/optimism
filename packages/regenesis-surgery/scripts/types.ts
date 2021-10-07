@@ -88,6 +88,7 @@ export interface SurgeryDataSources {
   l1TestnetWallet: ethers.Wallet
   l1MainnetProvider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
+  l2NetworkName: 'mainnet' | 'kovan'
 }
 
 export interface GenesisFile {

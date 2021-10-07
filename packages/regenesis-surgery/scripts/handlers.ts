@@ -290,8 +290,10 @@ export const handlers: {
     if (typeof deployedBytecode === 'object') {
       deployedBytecode = deployedBytecode.object
     }
+    deployedBytecode = add0x(deployedBytecode)
 
     if (contract.library) {
+      console.log('Handling libraries')
       const linkReferences = linker.findLinkReferences(deployedBytecode)
 
       // The logic only handles linking single libraries. Throw an error in the
@@ -310,12 +312,13 @@ export const handlers: {
         key = name
       }
 
+      console.log('Linking')
       deployedBytecode = linker.linkBytecode(deployedBytecode, {
         [key]: add0x(address),
       })
     }
 
-    bytecode = deployedBytecode
+    bytecode = add0x(deployedBytecode)
 
     // If the contract has immutables in it, then the contracts
     // need to be compiled with the ovm compiler so that the offsets
@@ -324,6 +327,7 @@ export const handlers: {
     const immutableRefs: ImmutableReference =
       mainOutput.evm.deployedBytecode.immutableReferences
     if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
+      console.log('Handling immutables')
       // Compile using the ovm compiler to find the location of the
       // immutableRefs in the ovm contract so they can be migrated
       // to the new contract
@@ -343,6 +347,8 @@ export const handlers: {
       if (typeof ovmObject === 'object') {
         ovmObject = ovmObject.object
       }
+
+      ovmObject = add0x(ovmObject)
 
       // Iterate over the immutableRefs and slice them into the new code
       // to carry over their values. The keys are the AST IDs
@@ -370,7 +376,7 @@ export const handlers: {
           const pre = ethers.utils.hexDataSlice(deployedBytecode, 0, ref.start)
           const post = ethers.utils.hexDataSlice(
             deployedBytecode,
-            ref.start + ref.length,
+            ref.start + ref.length
           )
           // Assign to the global bytecode variable
           bytecode = ethers.utils.hexConcat([pre, immutable, post])
@@ -386,9 +392,11 @@ export const handlers: {
 
     // Handle migrating storage slots
     if (account.storage) {
+      console.log('Handling storage')
       for (const pool of data.pools) {
         // Check for references to modified values in storage.
-        for (const [key, val] of Object.entries(account.storage)) {
+        for (let val of Object.values(account.storage)) {
+          val = add0x(val)
           // TODO: Do we need to do anything if these statements trigger?
           if (hexStringIncludes(val, pool.oldAddress)) {
             throw new Error(`found unexpected reference to pool address`)
@@ -425,51 +433,53 @@ export const handlers: {
           }
         }
 
-        // Fix double-level mappings (e.g., allowance mappings)
-        for (let i = 0; i < 1000; i++) {
-          for (const otherAccount of data.dump) {
-            // otherAddress => poolAddress => xxxx
-            const oldSlotKey1 = getMappingKey(
-              [otherAccount.address, pool.oldAddress],
-              i
-            )
-            if (account.storage[oldSlotKey1] !== undefined) {
-              console.log(
-                `fixing double-level mapping in contract (other => pool => xxxx)`,
-                `address=${account.address}`,
-                `pool=${pool.oldAddress}`,
-                `slot=${oldSlotKey1}`
+        if (data.l2NetworkName === 'mainnet') {
+          // Fix double-level mappings (e.g., allowance mappings)
+          for (let i = 0; i < 1000; i++) {
+            for (const otherAccount of data.dump) {
+              // otherAddress => poolAddress => xxxx
+              const oldSlotKey1 = getMappingKey(
+                [otherAccount.address, pool.oldAddress],
+                i
               )
-              transferStorageSlot({
-                account,
-                oldSlot: oldSlotKey1,
-                newSlot: getMappingKey(
-                  [otherAccount.address, pool.newAddress],
-                  i
-                ),
-              })
-            }
+              if (account.storage[oldSlotKey1] !== undefined) {
+                console.log(
+                  `fixing double-level mapping in contract (other => pool => xxxx)`,
+                  `address=${account.address}`,
+                  `pool=${pool.oldAddress}`,
+                  `slot=${oldSlotKey1}`
+                )
+                transferStorageSlot({
+                  account,
+                  oldSlot: oldSlotKey1,
+                  newSlot: getMappingKey(
+                    [otherAccount.address, pool.newAddress],
+                    i
+                  ),
+                })
+              }
 
-            // poolAddress => otherAddress => xxxx
-            const oldSlotKey2 = getMappingKey(
-              [pool.oldAddress, otherAccount.address],
-              i
-            )
-            if (account.storage[oldSlotKey2] !== undefined) {
-              console.log(
-                `fixing double-level mapping in contract (pool => other => xxxx)`,
-                `address=${account.address}`,
-                `pool=${pool.oldAddress}`,
-                `slot=${oldSlotKey2}`
+              // poolAddress => otherAddress => xxxx
+              const oldSlotKey2 = getMappingKey(
+                [pool.oldAddress, otherAccount.address],
+                i
               )
-              transferStorageSlot({
-                account,
-                oldSlot: oldSlotKey2,
-                newSlot: getMappingKey(
-                  [pool.newAddress, otherAccount.address],
-                  i
-                ),
-              })
+              if (account.storage[oldSlotKey2] !== undefined) {
+                console.log(
+                  `fixing double-level mapping in contract (pool => other => xxxx)`,
+                  `address=${account.address}`,
+                  `pool=${pool.oldAddress}`,
+                  `slot=${oldSlotKey2}`
+                )
+                transferStorageSlot({
+                  account,
+                  oldSlot: oldSlotKey2,
+                  newSlot: getMappingKey(
+                    [pool.newAddress, otherAccount.address],
+                    i
+                  ),
+                })
+              }
             }
           }
         }
