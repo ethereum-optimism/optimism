@@ -173,7 +173,7 @@ contract Challenge {
     emit ChallengerWins(challengeId);
   }
 
-  function MockChallengerStateTransition(uint256 challengeId, bytes32 finalRiscState) external {
+  function HumiliateChallengerStateTransition(uint256 challengeId, bytes32 finalRiscState) external {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(owner == msg.sender, "must be owner");
