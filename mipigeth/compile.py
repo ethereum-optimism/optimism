@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 import struct
 from rangetree import RangeTree
 from elftools.elf.elffile import ELFFile
@@ -6,8 +7,8 @@ from elftools.elf.elffile import ELFFile
 from unicorn import *
 from unicorn.mips_const import *
 
-def load_minigeth(mu):
-  elf = open("go-ethereum", "rb")
+def load_minigeth(mu, fn="minigeth"):
+  elf = open(fn, "rb")
   data = elf.read()
   elf.seek(0)
 
@@ -62,16 +63,19 @@ def load_minigeth(mu):
       #traceback.print_exc()
       pass
 
-  assert(found == 2)
-
+  #assert(found == 2)
   return prog_size, r
 
 
 if __name__ == "__main__":
   mu = Uc(UC_ARCH_MIPS, UC_MODE_32 + UC_MODE_BIG_ENDIAN)
 
-  prog_size, _ = load_minigeth(mu)
+  fn = "minigeth"
+  if len(sys.argv) > 1:
+    fn = sys.argv[1]
+
+  prog_size, _ = load_minigeth(mu, fn)
   print("compiled %d bytes" % prog_size)
 
-  with open("minigeth.bin", "wb") as f:
+  with open(fn+".bin", "wb") as f:
     f.write(mu.mem_read(0, prog_size))
