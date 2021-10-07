@@ -83,7 +83,6 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 		}
 		if ram[nret] == 0xC {
 			syscall := ram[0xc0000008]
-			os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
 			if syscall == 4004 {
 				len := int(ram[0xc0000018])
 				buf := make([]byte, len+3)
@@ -92,6 +91,8 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 				}
 				WriteBytes(int(ram[0xc0000010]), buf[0:len])
 				//fmt.Printf("%x %x %x\n", ram[0xc0000010], ram[0xc0000014], ram[0xc0000018])
+			} else {
+				os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
 			}
 		}
 		if (pcCount % 10000) == 0 {
