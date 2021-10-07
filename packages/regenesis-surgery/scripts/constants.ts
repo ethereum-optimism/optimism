@@ -11,25 +11,6 @@ export const UNISWAP_V3_FACTORY_ADDRESS =
 export const UNISWAP_V3_NFPM_ADDRESS =
   '0xC36442b4a4522E871399CD717aBDD847Ab11FE88'
 
-export const UNISWAP_V3_LIB_ADDRESSES = [
-  // Position
-  '0x18F7E3ae7202e93984290e1195810c66e1E276FF',
-  // Oracle
-  '0x17b0f5e5850e7230136df66c5d49497b8c3be0c1',
-  // Tick
-  '0x47405b0d5f88e16701be6dc8ae185fefaa5dca2f',
-  // TickBitmap
-  '0x01d95165c3c730d6b40f55c37e24c7aac73d5e6f',
-  // TickMath
-  '0x308c3e60585ad4eab5b7677be0566fead4cb4746',
-  // SwapMath
-  '0x198dcc7cd919dd33dd72c3f981df653750901d75',
-  // UniswapV3PoolDeployer
-  '0x569e8d536ec2dd5988857147c9fcc7d8a08a7dbc',
-  // NFTDescriptor
-  '0x042f51014b152c2d2fc9b57e36b16bc744065d8c',
-]
-
 export const UNISWAP_V3_CONTRACT_ADDRESSES = [
   // PoolDeployer
   '0x569E8D536EC2dD5988857147c9FCC7d8a08a7DBc',
@@ -73,19 +54,40 @@ export const PREDEPLOY_NO_WIPE_ADDRESSES = [
   '0x4200000000000000000000000000000000000002',
 ]
 
-export const PREDEPLOY_DEAD_ADDRESSES = [
-  // OVM_L1MessageSender
-  '0x4200000000000000000000000000000000000001',
-  // ?
-  '0xDEADDEaDDeAddEADDeaDDEADdeaDdeAddeAd0005',
-  // ?
-  '0xDEADdeAdDeAddEAdDEaDdEaddEAddeaDdEaD0006',
-  // ?
-  '0xDeaDDeaDDeaddEADdeaDdEadDeaDdeADDEad0007',
-]
-
 export const OLD_ETH_ADDRESS = '0x4200000000000000000000000000000000000006'
 export const NEW_ETH_ADDRESS = '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000'
+
+export const ONEINCH_DEPLOYER_ADDRESS =
+  '0xee4f7b6c39e7e87af01fb9e4cee0c893ff4d63f2'
+
+export const DELETE_CONTRACTS = [
+  // 1inch aggregator
+  '0x11111112542D85B3EF69AE05771c2dCCff4fAa26',
+  // OVM_L1MessageSender
+  '0x4200000000000000000000000000000000000001',
+  // OVM v1 System Contract
+  '0xDEADDEaDDeAddEADDeaDDEADdeaDdeAddeAd0005',
+  // OVM v1 System Contract
+  '0xDEADdeAdDeAddEAdDEaDdEaddEAddeaDdEaD0006',
+  // OVM v1 System Contract
+  '0xDeaDDeaDDeaddEADdeaDdEadDeaDdeADDEad0007',
+  // Uniswap Position
+  '0x18F7E3ae7202e93984290e1195810c66e1E276FF',
+  // Uniswap Oracle
+  '0x17b0f5e5850e7230136df66c5d49497b8c3be0c1',
+  // Uniswap Tick
+  '0x47405b0d5f88e16701be6dc8ae185fefaa5dca2f',
+  // Uniswap TickBitmap
+  '0x01d95165c3c730d6b40f55c37e24c7aac73d5e6f',
+  // Uniswap TickMath
+  '0x308c3e60585ad4eab5b7677be0566fead4cb4746',
+  // Uniswap SwapMath
+  '0x198dcc7cd919dd33dd72c3f981df653750901d75',
+  // Uniswap UniswapV3PoolDeployer
+  '0x569e8d536ec2dd5988857147c9fcc7d8a08a7dbc',
+  // Uniswap NFTDescriptor
+  '0x042f51014b152c2d2fc9b57e36b16bc744065d8c',
+]
 
 // TODO: confirm OVM/EVM mapps with ben-chain
 export const COMPILER_VERSIONS_TO_SOLC = {

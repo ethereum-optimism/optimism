@@ -2,13 +2,13 @@ import {
   EOA_CODE_HASHES,
   UNISWAP_V3_FACTORY_ADDRESS,
   UNISWAP_V3_NFPM_ADDRESS,
-  UNISWAP_V3_LIB_ADDRESSES,
   UNISWAP_V3_CONTRACT_ADDRESSES,
   PREDEPLOY_WIPE_ADDRESSES,
   PREDEPLOY_NO_WIPE_ADDRESSES,
-  PREDEPLOY_DEAD_ADDRESSES,
   OLD_ETH_ADDRESS,
   NEW_ETH_ADDRESS,
+  ONEINCH_DEPLOYER_ADDRESS,
+  DELETE_CONTRACTS,
 } from './constants'
 import { Account, AccountType, SurgeryDataSources } from './types'
 import { hexStringEqual } from './utils'
@@ -16,6 +16,14 @@ import { hexStringEqual } from './utils'
 export const classifiers: {
   [key in AccountType]: (account: Account, data: SurgeryDataSources) => boolean
 } = {
+  [AccountType.ONEINCH_DEPLOYER]: (account) => {
+    return hexStringEqual(account.address, ONEINCH_DEPLOYER_ADDRESS)
+  },
+  [AccountType.DELETE]: (account) => {
+    return DELETE_CONTRACTS.some((codeHash) => {
+      return hexStringEqual(account.codeHash, codeHash)
+    })
+  },
   [AccountType.EOA]: (account) => {
     return EOA_CODE_HASHES.some((codeHash) => {
       return hexStringEqual(account.codeHash, codeHash)
@@ -36,11 +44,6 @@ export const classifiers: {
       return hexStringEqual(account.address, addr)
     })
   },
-  [AccountType.PREDEPLOY_DEAD]: (account) => {
-    return PREDEPLOY_DEAD_ADDRESSES.some((addr) => {
-      return hexStringEqual(account.address, addr)
-    })
-  },
   [AccountType.PREDEPLOY_ETH]: (account) => {
     return hexStringEqual(account.address, NEW_ETH_ADDRESS)
   },
@@ -56,11 +59,6 @@ export const classifiers: {
   [AccountType.UNISWAP_V3_POOL]: (account, data) => {
     return data.pools.some((pool) => {
       return hexStringEqual(pool.oldAddress, account.address)
-    })
-  },
-  [AccountType.UNISWAP_V3_LIB]: (account) => {
-    return UNISWAP_V3_LIB_ADDRESSES.some((addr) => {
-      return hexStringEqual(account.address, addr)
     })
   },
   [AccountType.UNISWAP_V3_OTHER]: (account) => {
