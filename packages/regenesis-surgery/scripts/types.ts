@@ -112,3 +112,12 @@ export interface GenesisFile {
   extraData: string
   alloc: GethStateDump
 }
+
+export interface ImmutableReference {
+  start: number
+  length: number
+}
+
+export interface ImmutableReferences {
+  [key: string]: ImmutableReference[]
+}

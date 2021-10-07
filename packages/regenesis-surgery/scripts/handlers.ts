@@ -1,12 +1,18 @@
 import { ethers } from 'ethers'
+import linker from 'solc/linker'
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
 import {
   POOL_INIT_CODE_HASH_OPTIMISM,
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
-import { sleep } from '@eth-optimism/core-utils'
-import { OLD_ETH_ADDRESS, WETH_TRANSFER_ADDRESSES } from './constants'
-import { Account, AccountType, SurgeryDataSources } from './types'
+import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
+import { sleep, add0x, remove0x } from '@eth-optimism/core-utils'
+import {
+  OLD_ETH_ADDRESS,
+  WETH_TRANSFER_ADDRESSES,
+  UNISWAP_V3_FACTORY_ADDRESS,
+  COMPILER_VERSIONS_TO_SOLC,
+} from './constants'
 import {
   clone,
   findAccount,
@@ -14,7 +20,18 @@ import {
   transferStorageSlot,
   getMappingKey,
   getUniswapV3Factory,
+  solcInput,
+  getSolc,
+  getMainContract,
 } from './utils'
+
+import {
+  Account,
+  AccountType,
+  SurgeryDataSources,
+  ImmutableReference,
+  ImmutableReferences,
+} from './types'
 
 export const handlers: {
   [key in AccountType]: (
@@ -234,7 +251,140 @@ export const handlers: {
   [AccountType.UNVERIFIED]: () => {
     return undefined // delete the account
   },
-  [AccountType.VERIFIED]: (account, data) => {
+  [AccountType.VERIFIED]: (account: Account, data: SurgeryDataSources) => {
+    // Final bytecode to be added to the account
+    let bytecode: string
+
+    // Make a copy of the account to not mutate it
+    account = { ...account }
+    // Find the account in the etherscan dump
+    const contract = data.etherscanDump.find(
+      (c) => c.contractAddress === account.address
+    )
+    // The contract must exist
+    if (!contract) {
+      throw new Error(`Unable to find ${account.address} in etherscan dump`)
+    }
+    // Create the solc input object
+    const input = solcInput(contract)
+    const version = COMPILER_VERSIONS_TO_SOLC[contract.compilerVersion]
+    if (!version) {
+      throw new Error(`Unable to find solc version ${contract.compilerVersion}`)
+    }
+
+    // Get a solc compiler
+    const currSolc = getSolc(version)
+    // Compile the contract
+    const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
+    if (!output.contracts) {
+      throw new Error(`Cannot compile ${contract.contractAddress}`)
+    }
+
+    // This copies the output so it is safe to mutate below
+    const mainOutput = getMainContract(contract, output)
+    if (!mainOutput) {
+      throw new Error(`Contract filename mismatch: ${contract.contractAddress}`)
+    }
+
+    let deployedBytecode = mainOutput.evm.deployedBytecode
+    if (typeof deployedBytecode === 'object') {
+      deployedBytecode = deployedBytecode.object
+    }
+
+    if (contract.library) {
+      const linkReferences = linker.findLinkReferences(deployedBytecode)
+
+      // The logic only handles linking single libraries. Throw an error in the
+      // case where there are multiple libraries.
+      if (contract.library.split(':').length > 2) {
+        throw new Error(
+          `Implement multi library linking handling: ${contract.contractAddress}`
+        )
+      }
+
+      const [name, address] = contract.library.split(':')
+      let key: string
+      if (Object.keys(linkReferences).length > 0) {
+        key = Object.keys(linkReferences)[0]
+      } else {
+        key = name
+      }
+
+      deployedBytecode = linker.linkBytecode(deployedBytecode, {
+        [key]: add0x(address),
+      })
+    }
+
+    bytecode = deployedBytecode
+
+    // If the contract has immutables in it, then the contracts
+    // need to be compiled with the ovm compiler so that the offsets
+    // can be found. The immutables must be pulled out of the old code
+    // and inserted into the new code
+    const immutableRefs: ImmutableReference =
+      mainOutput.evm.deployedBytecode.immutableReferences
+    if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
+      // Compile using the ovm compiler to find the location of the
+      // immutableRefs in the ovm contract so they can be migrated
+      // to the new contract
+      const ovmSolc = getSolc(contract.compilerVersion, true)
+      const ovmOutput = JSON.parse(ovmSolc.compile(JSON.stringify(input)))
+      const ovmFile = getMainContract(contract, ovmOutput)
+      if (!ovmFile) {
+        throw new Error(
+          `Contract filename mismatch: ${contract.contractAddress}`
+        )
+      }
+
+      const ovmImmutableRefs: ImmutableReference =
+        ovmFile.evm.deployedBytecode.immutableReferences
+
+      let ovmObject = ovmFile.evm.deployedBytecode
+      if (typeof ovmObject === 'object') {
+        ovmObject = ovmObject.object
+      }
+
+      // Iterate over the immutableRefs and slice them into the new code
+      // to carry over their values. The keys are the AST IDs
+      for (const [key, value] of Object.entries(immutableRefs)) {
+        const ovmValue = ovmImmutableRefs[key]
+        if (!ovmValue) {
+          throw new Error(`cannot find ast in ovm compiler output`)
+        }
+        // Each value is an array of {length, start}
+        for (const [i, ref] of value.entries()) {
+          const ovmRef = ovmValue[i]
+          if (ref.length !== ovmRef.length) {
+            throw new Error(`length mismatch`)
+          }
+
+          // Get the value from the contract code
+          const immutable = ethers.utils.hexDataSlice(
+            add0x(account.code),
+            ovmRef.start,
+            ovmRef.start + ovmRef.length
+          )
+
+          deployedBytecode = add0x(deployedBytecode)
+
+          const pre = ethers.utils.hexDataSlice(deployedBytecode, 0, ref.start)
+          const post = ethers.utils.hexDataSlice(
+            deployedBytecode,
+            ref.start + ref.length,
+          )
+          // Assign to the global bytecode variable
+          bytecode = ethers.utils.hexConcat([pre, immutable, post])
+
+          if (bytecode.length !== deployedBytecode.length) {
+            throw new Error(
+              `mismatch in size: ${bytecode.length} vs ${deployedBytecode.length}`
+            )
+          }
+        }
+      }
+    }
+
+    // Handle migrating storage slots
     if (account.storage) {
       for (const pool of data.pools) {
         // Check for references to modified values in storage.
@@ -326,7 +476,9 @@ export const handlers: {
       }
     }
 
-    // TODO
-    throw new Error('Not implemented')
+    account.code = remove0x(bytecode)
+    account.codeHash = ethers.utils.keccak256(add0x(bytecode))
+
+    return account
   },
 }
