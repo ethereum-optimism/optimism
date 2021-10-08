@@ -5,11 +5,7 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
 import { sleep, add0x, remove0x } from '@eth-optimism/core-utils'
-import {
-  OLD_ETH_ADDRESS,
-  WETH_TRANSFER_ADDRESSES,
-  COMPILER_VERSIONS_TO_SOLC,
-} from './constants'
+import { OLD_ETH_ADDRESS, WETH_TRANSFER_ADDRESSES } from './constants'
 import {
   clone,
   findAccount,
@@ -17,10 +13,8 @@ import {
   transferStorageSlot,
   getMappingKey,
   getUniswapV3Factory,
-  solcInput,
-  getSolc,
-  getMainContract,
 } from './utils'
+import { compile } from './solc'
 import {
   Account,
   AccountType,
@@ -252,28 +246,13 @@ export const handlers: {
       throw new Error(`Unable to find ${account.address} in etherscan dump`)
     }
 
-    // Get the correct solidity compiler
-    const version = COMPILER_VERSIONS_TO_SOLC[contract.compilerVersion]
-    if (!version) {
-      throw new Error(`Unable to find solc version ${contract.compilerVersion}`)
-    }
-    const currSolc = getSolc(version)
-
-    // Compile the contract
-    const input = solcInput(contract)
-    const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
-    if (!output.contracts) {
-      throw new Error(`Cannot compile ${contract.contractAddress}`)
-    }
-
-    // This copies the output so it is safe to mutate below
-    const mainOutput = getMainContract(contract, output)
-    if (!mainOutput) {
-      throw new Error(`Contract filename mismatch: ${contract.contractAddress}`)
-    }
+    const evmOutput = compile({
+      contract,
+      ovm: false,
+    })
 
     // Pull out the bytecode, exact handling depends on the Solidity version
-    let bytecode = mainOutput.evm.deployedBytecode
+    let bytecode = evmOutput.evm.deployedBytecode
     if (typeof bytecode === 'object') {
       bytecode = bytecode.object
     }
@@ -317,30 +296,20 @@ export const handlers: {
     // can be found. The immutables must be pulled out of the old code
     // and inserted into the new code
     const immutableRefs: ImmutableReference =
-      mainOutput.evm.deployedBytecode.immutableReferences
+      evmOutput.evm.deployedBytecode.immutableReferences
     if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
       console.log('Handling immutables')
+
       // Compile using the ovm compiler to find the location of the
       // immutableRefs in the ovm contract so they can be migrated
       // to the new contract
-      const ovmSolc = getSolc(contract.compilerVersion, true)
-      const ovmOutput = JSON.parse(ovmSolc.compile(JSON.stringify(input)))
-      const ovmFile = getMainContract(contract, ovmOutput)
-      if (!ovmFile) {
-        throw new Error(
-          `Contract filename mismatch: ${contract.contractAddress}`
-        )
-      }
+      const ovmOutput = compile({
+        contract,
+        ovm: true,
+      })
 
       const ovmImmutableRefs: ImmutableReference =
-        ovmFile.evm.deployedBytecode.immutableReferences
-
-      let ovmObject = ovmFile.evm.deployedBytecode
-      if (typeof ovmObject === 'object') {
-        ovmObject = ovmObject.object
-      }
-
-      ovmObject = add0x(ovmObject)
+        ovmOutput.evm.deployedBytecode.immutableReferences
 
       // Iterate over the immutableRefs and slice them into the new code
       // to carry over their values. The keys are the AST IDs

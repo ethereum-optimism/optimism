@@ -3,13 +3,15 @@ import { access, mkdir } from 'fs/promises'
 import fetch from 'node-fetch'
 import path from 'path'
 import fs from 'fs'
-
+import solc from 'solc'
 import {
   COMPILER_VERSIONS_TO_SOLC,
   EMSCRIPTEN_BUILD_LIST,
   EMSCRIPTEN_BUILD_PATH,
   LOCAL_SOLC_DIR,
 } from './constants'
+import { clone } from './utils'
+import { EtherscanContract } from './types'
 
 const OVM_BUILD_PATH = (version: string) => {
   return `https://raw.githubusercontent.com/ethereum-optimism/solc-bin/9455107699d2f7ad9b09e1005c7c07f4b5dd6857/bin/soljson-${version}.js`
@@ -102,4 +104,99 @@ export const downloadAllSolcVersions = async () => {
       }
     )
   )
+}
+
+export const getMainContract = (contract: EtherscanContract, output) => {
+  if (contract.contractFileName) {
+    return clone(
+      output.contracts[contract.contractFileName][contract.contractName]
+    )
+  }
+  return clone(output.contracts.file[contract.contractName])
+}
+
+export const getSolc = (version: string, ovm?: boolean) => {
+  return solc.setupMethods(
+    require(path.join(
+      LOCAL_SOLC_DIR,
+      ovm ? version : `solc-emscripten-wasm32-${version}.js`
+    ))
+  )
+}
+
+export const solcInput = (contract: EtherscanContract) => {
+  // Create a base solc input object
+  const input = {
+    language: 'Solidity',
+    sources: {
+      file: {
+        content: contract.sourceCode,
+      },
+    },
+    settings: {
+      outputSelection: {
+        '*': {
+          '*': ['*'],
+        },
+      },
+      optimizer: {
+        enabled: contract.optimizationUsed === '1',
+        runs: parseInt(contract.runs, 10),
+      },
+    },
+  }
+
+  try {
+    // source code may be one of 3 things
+    // - raw content string
+    // - sources object
+    // - entire input
+    let sourceCode = contract.sourceCode
+    // Remove brackets that are wrapped around the source
+    // when trying to parse json
+    if (sourceCode.substr(0, 2) === '{{') {
+      // Trim the first and last bracket
+      sourceCode = sourceCode.slice(1, -1)
+    }
+    // If the source code is valid json, and
+    // has the keys of a solc input, just return it
+    const json = JSON.parse(sourceCode)
+    // If the json has language, then it is the whole input
+    if (json.language) {
+      return json
+    }
+    // Add the json file as the sources
+    input.sources = json
+  } catch (e) {
+    //
+  }
+  return input
+}
+
+export const compile = (opts: {
+  contract: EtherscanContract
+  ovm: boolean
+}): any => {
+  const version = COMPILER_VERSIONS_TO_SOLC[opts.contract.compilerVersion]
+  if (!version) {
+    throw new Error(
+      `Unable to find solc version ${opts.contract.compilerVersion}`
+    )
+  }
+
+  const solcInstance = getSolc(version, opts.ovm)
+  const input = solcInput(opts.contract)
+  const output = JSON.parse(solcInstance.compile(JSON.stringify(input)))
+  if (!output.contracts) {
+    throw new Error(`Cannot compile ${opts.contract.contractAddress}`)
+  }
+
+  const mainOutput = getMainContract(opts.contract, output)
+  if (!mainOutput) {
+    throw new Error(
+      `Contract filename mismatch: ${opts.contract.contractAddress}`
+    )
+  }
+
+  return mainOutput
 }

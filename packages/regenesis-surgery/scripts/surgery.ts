@@ -20,7 +20,7 @@ import {
 } from './utils'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
-import { downloadAllSolcVersions } from './download-solc'
+import { downloadAllSolcVersions } from './solc'
 import { getUniswapPoolData } from './data'
 import { add0x, remove0x } from '@eth-optimism/core-utils'
 

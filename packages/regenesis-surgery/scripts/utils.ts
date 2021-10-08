@@ -14,9 +14,7 @@ import {
   SurgeryConfigs,
   GenesisFile,
 } from './types'
-import path from 'path'
-import solc from 'solc'
-import { LOCAL_SOLC_DIR, UNISWAP_V3_FACTORY_ADDRESS } from './constants'
+import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 
 export const findAccount = (dump: StateDump, address: string): Account => {
   return dump.find((acc) => {
@@ -279,71 +277,4 @@ export const checkStateDump = (dump: StateDump) => {
       }
     }
   }
-}
-
-export const getMainContract = (contract: EtherscanContract, output) => {
-  if (contract.contractFileName) {
-    return clone(
-      output.contracts[contract.contractFileName][contract.contractName]
-    )
-  }
-  return clone(output.contracts.file[contract.contractName])
-}
-
-export const getSolc = (version: string, ovm?: boolean) => {
-  return solc.setupMethods(
-    require(path.join(
-      LOCAL_SOLC_DIR,
-      ovm ? version : `solc-emscripten-wasm32-${version}.js`
-    ))
-  )
-}
-
-export const solcInput = (contract: EtherscanContract) => {
-  // Create a base solc input object
-  const input = {
-    language: 'Solidity',
-    sources: {
-      file: {
-        content: contract.sourceCode,
-      },
-    },
-    settings: {
-      outputSelection: {
-        '*': {
-          '*': ['*'],
-        },
-      },
-      optimizer: {
-        enabled: contract.optimizationUsed === '1',
-        runs: parseInt(contract.runs, 10),
-      },
-    },
-  }
-
-  try {
-    // source code may be one of 3 things
-    // - raw content string
-    // - sources object
-    // - entire input
-    let sourceCode = contract.sourceCode
-    // Remove brackets that are wrapped around the source
-    // when trying to parse json
-    if (sourceCode.substr(0, 2) === '{{') {
-      // Trim the first and last bracket
-      sourceCode = sourceCode.slice(1, -1)
-    }
-    // If the source code is valid json, and
-    // has the keys of a solc input, just return it
-    const json = JSON.parse(sourceCode)
-    // If the json has language, then it is the whole input
-    if (json.language) {
-      return json
-    }
-    // Add the json file as the sources
-    input.sources = json
-  } catch (e) {
-    //
-  }
-  return input
 }
