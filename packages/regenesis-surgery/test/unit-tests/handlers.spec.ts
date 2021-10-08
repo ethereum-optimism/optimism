@@ -1,7 +1,5 @@
-import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
 import { ethers } from 'ethers'
 import linker from 'solc/linker'
-import { add0x } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { expect } from '../setup'
@@ -43,8 +41,6 @@ describe('Handlers', () => {
     address: '0x0000000000000000000000000000000000000420',
     nonce: 69,
     balance: '0',
-    codeHash: '420e69',
-    root: '420e69',
     code: '608060405',
     storage: {
       '0x0000000000000000000000000000000000000420':
@@ -58,8 +54,6 @@ describe('Handlers', () => {
       expect(output.address).to.eq(dummyAccount.address)
       expect(output.nonce).to.eq(dummyAccount.nonce)
       expect(output.balance).to.eq(dummyAccount.balance)
-      expect(output.codeHash).to.eq(KECCAK256_NULL_S)
-      expect(output.root).to.eq(KECCAK256_RLP_S)
       expect(output.code).to.be.undefined
       expect(output.storage).to.be.undefined
     })
@@ -79,8 +73,6 @@ describe('Handlers', () => {
         address: etherscanAccount.contractAddress,
         nonce: 0,
         balance: '0',
-        codeHash: etherscanAccount.hash,
-        root: ethers.utils.keccak256(add0x(etherscanAccount.code)),
         code: etherscanAccount.code,
       }
 
@@ -93,8 +85,6 @@ describe('Handlers', () => {
       expect(output.nonce).to.eq(account.nonce)
       // Balance should not change
       expect(output.balance).to.eq(account.balance)
-      // Code hash should be different
-      expect(output.codeHash).to.not.eq(account.codeHash)
       // Code should be different
       expect(output.code).to.not.eq(account.code)
       // TODO: deploy the contract and make sure it executes
@@ -122,8 +112,6 @@ describe('Handlers', () => {
         address: etherscanAccount.contractAddress,
         nonce: 0,
         balance: '0',
-        codeHash: etherscanAccount.hash,
-        root: ethers.utils.keccak256(add0x(etherscanAccount.code)),
         code: etherscanAccount.code,
       }
       const result = await handler(account, dataSources)
@@ -154,8 +142,6 @@ describe('Handlers', () => {
         address: etherscanAccount.contractAddress,
         nonce: 0,
         balance: '0',
-        codeHash: etherscanAccount.hash,
-        root: ethers.utils.keccak256(add0x(etherscanAccount.code)),
         code: etherscanAccount.code,
       }
       const result = await handler(account, dataSources)
