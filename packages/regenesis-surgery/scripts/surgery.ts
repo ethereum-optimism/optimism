@@ -58,6 +58,11 @@ const doGenesisSurgery = async (
   // the state dump, which reduces bandwidth requirements.
   for (const account of output) {
     for (const [key, val] of Object.entries(account)) {
+      // We want to be left with the following fields:
+      // - balance
+      // - nonce
+      // - code
+      // - storage (if necessary)
       if (key === 'storage') {
         if (Object.keys(account[key]).length === 0) {
           // We don't need storage if there are no storage values.
@@ -73,15 +78,22 @@ const doGenesisSurgery = async (
         // Code MUST start with 0x.
         account[key] = add0x(val)
       } else if (key === 'codeHash' || key === 'root') {
-        // Neither of these fields are necessary.
+        // Neither of these fields are necessary. Geth will automatically generate them from the
+        // code and storage.
         delete account[key]
+      } else if (key === 'balance' || key === 'nonce') {
+        // At this point we know that the input is either a string or a number. If it's a number,
+        // we want to convert it into a string.
+        let stripped = typeof val === 'number' ? val.toString(16) : val
+        // Neither of these fields need to be 0x-prefixed. We can reduce our genesis size by
+        // removing the 0x prefix.
+        stripped = remove0x(stripped)
+        // We can further reduce our genesis size by removing leading zeros. We can even go as far
+        // as removing the entire string because Geth appears to treat the empty string as 0.
+        stripped = stripped.replace().replace(/^0+/, '')
+        account[key] = stripped
       } else {
-        // Every other value can have 0x stripped.
-        // We can remove leading zeros... even to the point of making the the value equal to the
-        // empty string. This saves a few bytes in the dump. It's not a lot, but it adds up.
-        account[key] = remove0x(
-          ethers.BigNumber.from(add0x(val)).toHexString()
-        ).replace(/^0+/, '')
+        throw new Error(`unexpected account field: ${key}`)
       }
     }
   }
