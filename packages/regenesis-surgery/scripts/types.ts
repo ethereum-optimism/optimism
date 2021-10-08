@@ -16,10 +16,10 @@ export interface SurgeryConfigs {
 
 export interface Account {
   address: string
-  nonce: number
+  nonce: number | string
   balance: string
-  codeHash: string
-  root: string
+  codeHash?: string
+  root?: string
   code?: string
   storage?: {
     [key: string]: string

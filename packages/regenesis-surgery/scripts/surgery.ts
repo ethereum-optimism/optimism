@@ -22,6 +22,7 @@ import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { downloadAllSolcVersions } from './download-solc'
 import { getUniswapPoolData } from './data'
+import { add0x, remove0x } from '@eth-optimism/core-utils'
 
 const doGenesisSurgery = async (
   data: SurgeryDataSources
@@ -29,15 +30,15 @@ const doGenesisSurgery = async (
   // We'll generate the final genesis file from this output.
   const output: StateDump = []
 
-  const size = data.dump.length
   // Handle each account in the state dump.
   for (const [i, account] of data.dump.entries()) {
     if (i >= data.startIndex && i <= data.endIndex) {
       const accountType = classify(account, data)
-      const handler = handlers[accountType]
       console.log(
-        `${i}/${size} - Handling type ${AccountType[accountType]} - ${account.address} `
+        `[${i}/${data.dump.length}] ${AccountType[accountType]}: ${account.address}`
       )
+
+      const handler = handlers[accountType]
       const newAccount = await handler(clone(account), data)
       if (newAccount !== undefined) {
         output.push(newAccount)
@@ -50,6 +51,50 @@ const doGenesisSurgery = async (
   for (const account of data.genesis) {
     if (findAccount(output, account.address) === undefined) {
       output.push(account)
+    }
+  }
+
+  // Clean up and standardize the dump. Also performs a few tricks to reduce the overall size of
+  // the state dump, which reduces bandwidth requirements.
+  for (const account of output) {
+    for (const [key, val] of Object.entries(account)) {
+      // We want to be left with the following fields:
+      // - balance
+      // - nonce
+      // - code
+      // - storage (if necessary)
+      if (key === 'storage') {
+        if (Object.keys(account[key]).length === 0) {
+          // We don't need storage if there are no storage values.
+          delete account[key]
+        } else {
+          // We can remove 0x from storage keys and vals to save space.
+          for (const [storageKey, storageVal] of Object.entries(account[key])) {
+            delete account.storage[storageKey]
+            account.storage[remove0x(storageKey)] = remove0x(storageVal)
+          }
+        }
+      } else if (key === 'code') {
+        // Code MUST start with 0x.
+        account[key] = add0x(val)
+      } else if (key === 'codeHash' || key === 'root') {
+        // Neither of these fields are necessary. Geth will automatically generate them from the
+        // code and storage.
+        delete account[key]
+      } else if (key === 'balance' || key === 'nonce') {
+        // At this point we know that the input is either a string or a number. If it's a number,
+        // we want to convert it into a string.
+        let stripped = typeof val === 'number' ? val.toString(16) : val
+        // Neither of these fields need to be 0x-prefixed. We can reduce our genesis size by
+        // removing the 0x prefix.
+        stripped = remove0x(stripped)
+        // We can further reduce our genesis size by removing leading zeros. We can even go as far
+        // as removing the entire string because Geth appears to treat the empty string as 0.
+        stripped = stripped.replace().replace(/^0+/, '')
+        account[key] = stripped
+      } else {
+        throw new Error(`unexpected account field: ${key}`)
+      }
     }
   }
 

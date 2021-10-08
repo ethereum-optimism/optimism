@@ -1,6 +1,5 @@
 import { ethers } from 'ethers'
 import linker from 'solc/linker'
-import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
 import {
   POOL_INIT_CODE_HASH_OPTIMISM,
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
@@ -49,8 +48,6 @@ export const handlers: {
       address: account.address,
       nonce: account.nonce,
       balance: account.balance,
-      codeHash: KECCAK256_NULL_S,
-      root: KECCAK256_RLP_S,
     }
   },
   [AccountType.PRECOMPILE]: (account) => {
@@ -61,7 +58,6 @@ export const handlers: {
     return {
       ...account,
       code: genesisAccount.code,
-      codeHash: genesisAccount.codeHash,
       storage: genesisAccount.storage,
     }
   },
@@ -70,7 +66,6 @@ export const handlers: {
     return {
       ...account,
       code: genesisAccount.code,
-      codeHash: genesisAccount.codeHash,
       storage: {
         ...account.storage,
         ...genesisAccount.storage,
@@ -234,7 +229,6 @@ export const handlers: {
       ...account,
       address: pool.newAddress,
       code: poolCode,
-      codeHash: ethers.utils.keccak256(poolCode),
     }
   },
   [AccountType.UNISWAP_V3_OTHER]: async (account, data) => {
@@ -242,7 +236,6 @@ export const handlers: {
     return {
       ...account,
       code,
-      codeHash: ethers.utils.keccak256(code),
     }
   },
   [AccountType.UNVERIFIED]: () => {
@@ -451,7 +444,6 @@ export const handlers: {
     return {
       ...account,
       code: bytecode,
-      codeHash: ethers.utils.keccak256(bytecode),
     }
   },
 }
