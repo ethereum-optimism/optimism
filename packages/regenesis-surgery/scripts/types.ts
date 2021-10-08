@@ -18,8 +18,8 @@ export interface Account {
   address: string
   nonce: number
   balance: string
-  codeHash: string
-  root: string
+  codeHash?: string
+  root?: string
   code?: string
   storage?: {
     [key: string]: string

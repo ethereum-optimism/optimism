@@ -229,19 +229,23 @@ export const checkStateDump = (dump: StateDump) => {
       `nonce is not a number: ${account.nonce}`
     )
 
-    assert.equal(
-      account.codeHash.toLowerCase(),
-      account.codeHash,
-      `unexpected upper case character in state dump codeHash: ${account.codeHash}`
-    )
+    if (account.codeHash) {
+      assert.equal(
+        account.codeHash.toLowerCase(),
+        account.codeHash,
+        `unexpected upper case character in state dump codeHash: ${account.codeHash}`
+      )
+    }
 
-    assert.equal(
-      account.root.toLowerCase(),
-      account.root,
-      `unexpected upper case character in state dump root: ${account.root}`
-    )
+    if (account.root) {
+      assert.equal(
+        account.root.toLowerCase(),
+        account.root,
+        `unexpected upper case character in state dump root: ${account.root}`
+      )
+    }
 
-    if (account.code !== undefined) {
+    if (account.code) {
       assert.equal(
         account.code.toLowerCase(),
         account.code,

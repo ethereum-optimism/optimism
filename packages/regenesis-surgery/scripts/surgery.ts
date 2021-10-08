@@ -22,6 +22,7 @@ import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { downloadAllSolcVersions } from './download-solc'
 import { getUniswapPoolData } from './data'
+import { add0x, remove0x } from '@eth-optimism/core-utils'
 
 const doGenesisSurgery = async (
   data: SurgeryDataSources
@@ -29,15 +30,15 @@ const doGenesisSurgery = async (
   // We'll generate the final genesis file from this output.
   const output: StateDump = []
 
-  const size = data.dump.length
   // Handle each account in the state dump.
   for (const [i, account] of data.dump.entries()) {
     if (i >= data.startIndex && i <= data.endIndex) {
       const accountType = classify(account, data)
-      const handler = handlers[accountType]
       console.log(
-        `${i}/${size} - Handling type ${AccountType[accountType]} - ${account.address} `
+        `[${i}/${data.dump.length}] ${AccountType[accountType]}: ${account.address}`
       )
+
+      const handler = handlers[accountType]
       const newAccount = await handler(clone(account), data)
       if (newAccount !== undefined) {
         output.push(newAccount)
@@ -50,6 +51,38 @@ const doGenesisSurgery = async (
   for (const account of data.genesis) {
     if (findAccount(output, account.address) === undefined) {
       output.push(account)
+    }
+  }
+
+  // Clean up and standardize the dump. Also performs a few tricks to reduce the overall size of
+  // the state dump, which reduces bandwidth requirements.
+  for (const account of output) {
+    for (const [key, val] of Object.entries(account)) {
+      if (key === 'storage') {
+        if (Object.keys(account[key]).length === 0) {
+          // We don't need storage if there are no storage values.
+          delete account[key]
+        } else {
+          // We can remove 0x from storage keys and vals to save space.
+          for (const [storageKey, storageVal] of Object.entries(account[key])) {
+            delete account.storage[storageKey]
+            account.storage[remove0x(storageKey)] = remove0x(storageVal)
+          }
+        }
+      } else if (key === 'code') {
+        // Code MUST start with 0x.
+        account[key] = add0x(val)
+      } else if (key === 'codeHash' || key === 'root') {
+        // Neither of these fields are necessary.
+        delete account[key]
+      } else {
+        // Every other value can have 0x stripped.
+        // We can remove leading zeros... even to the point of making the the value equal to the
+        // empty string. This saves a few bytes in the dump. It's not a lot, but it adds up.
+        account[key] = remove0x(
+          ethers.BigNumber.from(add0x(val)).toHexString()
+        ).replace(/^0+/, '')
+      }
     }
   }
 
