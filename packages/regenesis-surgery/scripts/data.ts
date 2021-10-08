@@ -6,8 +6,8 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
 import { Token } from '@uniswap/sdk-core'
-import { UniswapPoolData } from './types'
-import { getUniswapV3Factory } from './utils'
+import { UniswapPoolData, PoolHashCache } from './types'
+import { getUniswapV3Factory, getMappingKey } from './utils'
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 
 export const getUniswapPoolData = async (
@@ -50,4 +50,17 @@ export const getUniswapPoolData = async (
   }
 
   return pools
+}
+
+export const makePoolHashCache = (pools: UniswapPoolData[]): PoolHashCache => {
+  const cache: PoolHashCache = {}
+  for (const pool of pools) {
+    for (let i = 0; i < 1000; i++) {
+      cache[getMappingKey([pool.oldAddress], i)] = {
+        pool,
+        index: i,
+      }
+    }
+  }
+  return cache
 }

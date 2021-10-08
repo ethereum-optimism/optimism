@@ -12,9 +12,7 @@ import {
   ImmutableReference,
 } from '../../scripts/types'
 import etherscanData = require('../etherscan-contracts.json')
-import { downloadAllSolcVersions } from '../../scripts/download-solc'
-import { solcInput, getSolc, getMainContract } from '../../scripts/utils'
-import { COMPILER_VERSIONS_TO_SOLC } from '../../scripts/constants'
+import { downloadAllSolcVersions, compile } from '../../scripts/solc'
 
 const newSurgeryDataSources = (): SurgeryDataSources => {
   return {
@@ -96,12 +94,7 @@ describe('Handlers', () => {
       const etherscanAccount = etherscanData[75]
 
       // Compile the contract
-      const input = solcInput(etherscanAccount)
-      const version =
-        COMPILER_VERSIONS_TO_SOLC[etherscanAccount.compilerVersion]
-      const currSolc = getSolc(version)
-      const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
-      const contract = getMainContract(etherscanAccount, output)
+      const contract = compile({ contract: etherscanAccount, ovm: false })
 
       const immutableRefs: ImmutableReference =
         contract.evm.deployedBytecode.immutableReferences
@@ -123,12 +116,8 @@ describe('Handlers', () => {
       const etherscanAccount = etherscanData[161]
 
       // Compile the contract
-      const input = solcInput(etherscanAccount)
-      const version =
-        COMPILER_VERSIONS_TO_SOLC[etherscanAccount.compilerVersion]
-      const currSolc = getSolc(version)
-      const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
-      const contract = getMainContract(etherscanAccount, output)
+      const contract = compile({ contract: etherscanAccount, ovm: false })
+
       // Search for library references
       const libs = linker.findLinkReferences(
         contract.evm.deployedBytecode.object

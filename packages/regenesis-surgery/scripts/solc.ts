@@ -4,6 +4,7 @@ import fetch from 'node-fetch'
 import path from 'path'
 import fs from 'fs'
 import solc from 'solc'
+import { ethers } from 'ethers'
 import {
   COMPILER_VERSIONS_TO_SOLC,
   EMSCRIPTEN_BUILD_LIST,
@@ -173,20 +174,41 @@ export const solcInput = (contract: EtherscanContract) => {
   return input
 }
 
+const compilerCache: {
+  [hash: string]: any
+} = {}
+
 export const compile = (opts: {
   contract: EtherscanContract
   ovm: boolean
 }): any => {
-  const version = COMPILER_VERSIONS_TO_SOLC[opts.contract.compilerVersion]
-  if (!version) {
-    throw new Error(
-      `Unable to find solc version ${opts.contract.compilerVersion}`
-    )
+  let version: string
+  if (opts.ovm) {
+    version = opts.contract.compilerVersion
+  } else {
+    version = COMPILER_VERSIONS_TO_SOLC[opts.contract.compilerVersion]
+    if (!version) {
+      throw new Error(
+        `Unable to find solc version ${opts.contract.compilerVersion}`
+      )
+    }
   }
 
   const solcInstance = getSolc(version, opts.ovm)
-  const input = solcInput(opts.contract)
-  const output = JSON.parse(solcInstance.compile(JSON.stringify(input)))
+  const input = JSON.stringify(solcInput(opts.contract))
+  const inputHash = ethers.utils.solidityKeccak256(['string'], [input])
+
+  // Cache the compiler output to speed up repeated compilations of the same contract. If this
+  // cache is too memory intensive, then we could consider only caching if the contract has been
+  // seen more than once.
+  let output: any
+  if (compilerCache[inputHash]) {
+    output = compilerCache[inputHash]
+  } else {
+    output = JSON.parse(solcInstance.compile(input))
+    compilerCache[inputHash] = output
+  }
+
   if (!output.contracts) {
     throw new Error(`Cannot compile ${opts.contract.contractAddress}`)
   }

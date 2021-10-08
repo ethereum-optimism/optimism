@@ -17,26 +17,26 @@
     "@types/node": "^15.12.2",
     "@types/node-fetch": "^3.0.3",
     "byline": "^5.0.0",
-    "@types/node-fetch": "^3.0.3",
     "chai-as-promised": "^7.1.1",
     "hardhat": "^2.6.5",
     "mocha": "^9.1.2",
     "node-fetch": "2.6.5",
+    "p-map": "^4.0.0",
     "ts-mocha": "^8.0.0",
     "typescript": "^4.3.2"
   },
   "dependencies": {
-    "ts-node": "^10.0.0",
-    "@uniswap/sdk-core": "^3.0.1",
-    "@uniswap/v3-core": "^1.0.0",
-    "@uniswap/v3-sdk": "^3.5.1",
     "@discoveryjs/json-ext": "^0.5.3",
     "@eth-optimism/contracts": "^0.4.10",
     "@eth-optimism/core-utils": "^0.6.0",
+    "@uniswap/sdk-core": "^3.0.1",
+    "@uniswap/v3-core": "^1.0.0",
     "@uniswap/v3-core-optimism": "^1.0.0-rc.0",
+    "@uniswap/v3-sdk": "^3.5.1",
     "dotenv": "^10.0.0",
     "ethereumjs-util": "^7.1.2",
     "ethers": "^5.4.5",
-    "solc": "0.8.7-fixed"
+    "solc": "0.8.7-fixed",
+    "ts-node": "^10.0.0"
   }
 }

@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import fs from 'fs'
 import linker from 'solc/linker'
 import {
   POOL_INIT_CODE_HASH_OPTIMISM,
@@ -13,6 +14,7 @@ import {
   transferStorageSlot,
   getMappingKey,
   getUniswapV3Factory,
+  hexStringEqual,
 } from './utils'
 import { compile } from './solc'
 import {
@@ -203,6 +205,7 @@ export const handlers: {
     // Get the pool's code.
     let poolCode = await data.l1TestnetProvider.getCode(pool.newAddress)
     if (poolCode === '0x') {
+      console.log('Could not find pool code, deploying to testnet...')
       const UniswapV3Factory = getUniswapV3Factory(data.l1TestnetWallet)
       await UniswapV3Factory.createPool(pool.token0, pool.token1, pool.fee)
 
@@ -262,7 +265,6 @@ export const handlers: {
 
     // Handle external library references.
     if (contract.library) {
-      console.log('Handling libraries')
       const linkReferences = linker.findLinkReferences(bytecode)
 
       // The logic only handles linking single libraries. Throw an error in the
@@ -282,7 +284,6 @@ export const handlers: {
       }
 
       // Inject the libraries at the required locations
-      console.log('Linking')
       bytecode = linker.linkBytecode(bytecode, {
         [key]: add0x(address),
       })
@@ -298,8 +299,6 @@ export const handlers: {
     const immutableRefs: ImmutableReference =
       evmOutput.evm.deployedBytecode.immutableReferences
     if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
-      console.log('Handling immutables')
-
       // Compile using the ovm compiler to find the location of the
       // immutableRefs in the ovm contract so they can be migrated
       // to the new contract
@@ -356,10 +355,8 @@ export const handlers: {
 
     // Handle migrating storage slots
     if (account.storage) {
-      console.log('Handling storage')
-      for (const pool of data.pools) {
-        // Check for references to modified values in storage.
-        for (const [key, value] of Object.entries(account.storage)) {
+      for (const [key, value] of Object.entries(account.storage)) {
+        for (const pool of data.pools) {
           // Turn into hex string or hexStringIncludes will throw
           const val = add0x(value)
           if (hexStringIncludes(val, pool.oldAddress)) {
@@ -390,22 +387,19 @@ export const handlers: {
           }
         }
 
-        // Fix single-level mappings (e.g., balance mappings)
-        for (let i = 0; i < 1000; i++) {
-          const oldSlotKey = getMappingKey([pool.oldAddress], i)
-          if (account.storage[oldSlotKey] !== undefined) {
-            console.log(
-              `fixing single-level mapping in contract`,
-              `address=${account.address}`,
-              `pool=${pool.oldAddress}`,
-              `slot=${oldSlotKey}`
-            )
-            transferStorageSlot({
-              account,
-              oldSlot: oldSlotKey,
-              newSlot: getMappingKey([pool.newAddress], i),
-            })
-          }
+        if (data.poolHashCache[key]) {
+          const cached = data.poolHashCache[key]
+          console.log(
+            `fixing single-level mapping in contract`,
+            `address=${account.address}`,
+            `pool=${cached.pool.oldAddress}`,
+            `slot=${key}`
+          )
+          transferStorageSlot({
+            account,
+            oldSlot: key,
+            newSlot: getMappingKey([cached.pool.newAddress], cached.index),
+          })
         }
       }
     }

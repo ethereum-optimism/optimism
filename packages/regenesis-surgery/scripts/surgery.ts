@@ -21,7 +21,7 @@ import {
 import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { downloadAllSolcVersions } from './solc'
-import { getUniswapPoolData } from './data'
+import { getUniswapPoolData, makePoolHashCache } from './data'
 import { add0x, remove0x } from '@eth-optimism/core-utils'
 
 const doGenesisSurgery = async (
@@ -31,18 +31,17 @@ const doGenesisSurgery = async (
   const output: StateDump = []
 
   // Handle each account in the state dump.
-  for (const [i, account] of data.dump.entries()) {
-    if (i >= data.startIndex && i <= data.endIndex) {
-      const accountType = classify(account, data)
-      console.log(
-        `[${i}/${data.dump.length}] ${AccountType[accountType]}: ${account.address}`
-      )
+  const input = data.dump.slice(data.startIndex, data.endIndex).entries()
+  for (const [i, account] of input) {
+    const accountType = classify(account, data)
+    console.log(
+      `[${i}/${data.dump.length}] ${AccountType[accountType]}: ${account.address}`
+    )
 
-      const handler = handlers[accountType]
-      const newAccount = await handler(clone(account), data)
-      if (newAccount !== undefined) {
-        output.push(newAccount)
-      }
+    const handler = handlers[accountType]
+    const newAccount = await handler(clone(account), data)
+    if (newAccount !== undefined) {
+      output.push(newAccount)
     }
   }
 
@@ -145,6 +144,9 @@ const main = async () => {
     configs.l2NetworkName
   )
 
+  console.log('Generating pool cache...')
+  const poolHashCache = makePoolHashCache(pools)
+
   // Get a reference to the L1 testnet provider and wallet, used for deploying Uniswap pools.
   console.log('Connecting to L1 testnet provider...')
   const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
@@ -167,6 +169,7 @@ const main = async () => {
     dump,
     genesis: genesisDump,
     pools,
+    poolHashCache,
     etherscanDump,
     l1TestnetProvider,
     l1TestnetWallet,
