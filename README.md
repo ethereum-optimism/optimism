@@ -15,7 +15,7 @@ This is the primary place where [Optimism](https://optimism.io) works on stuff r
 
 ## Documentation
 
-Extensive documentation is available [here](http://community.optimism.io/docs/).
+Extensive documentation is available [here](http://community.optimism.io/).
 
 ## Community
 
