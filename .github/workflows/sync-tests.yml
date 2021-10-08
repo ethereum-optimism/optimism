@@ -54,7 +54,7 @@ jobs:
         working-directory: ./integration-tests
         run: |
           yarn
-          yarn build:integration
+          yarn build
           yarn test:sync
 
       - name: Collect docker logs on failure
