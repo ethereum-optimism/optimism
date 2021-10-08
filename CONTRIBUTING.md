@@ -192,3 +192,14 @@ cd integration-tests
 yarn build:integration
 yarn test:integration
 ```
+#### Running contract static analysis
+
+We perform static analysis with [`slither`](https://github.com/crytic/slither).
+You must have Python 3.x installed to run `slither`.
+To run `slither` locally, do:
+
+```bash
+cd packages/contracts
+pip3 install slither-analyzer
+yarn test:slither
+```
