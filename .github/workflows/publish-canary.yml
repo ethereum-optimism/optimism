@@ -177,7 +177,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.monorepo
           push: true
-          tags: ethereumoptimism/builder:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/builder
 
   message-relayer:
     name: Publish Message Relayer Version ${{ needs.builder.outputs.canary-docker-tag }}
