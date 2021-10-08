@@ -1,18 +1,18 @@
 # Optimism monorepo contributing guide
 
-# Contributing
+🎈 Thanks for your help improving the project! We are so happy to have you!
 
 There are plenty of ways to contribute, in particular we appreciate support in the following areas:
 
 - Reporting issues. For security issues see [Security policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md).
-- Fixing and responding to existing issues, you can start off with those tagged ["good first issue"](https://github.com/ethereum-optimism/optimism/contribute) which are meant as introductory issues for external contributors.
+- Fixing and responding to existing issues. You can start off with those tagged ["good first issue"](https://github.com/ethereum-optimism/optimism/contribute) which are meant as introductory issues for external contributors.
 - Improving the https://community.optimism.io/ [documentation](https://github.com/ethereum-optimism/community-hub) and [tutorials](https://github.com/ethereum-optimism/optimism-tutorial).
 - Become an "Optimizer" and answer questions in [Optimism Discord](https://discord.com/invite/jrnFEvq).
 - Get involved in the protocol design process by proposing changes or new features or write parts of the spec yourself in the [optimistic-specs repo](https://github.com/ethereum-optimism/optimistic-specs).
 
-Please note that we have a [Code of Conduct](https://github.com/ethereum-optimism/.github/blob/master/CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
+Note that we have a [Code of Conduct](https://github.com/ethereum-optimism/.github/blob/master/CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
 
-# Workflow for Pull Requests
+## Workflow for Pull Requests
 
 🚨 Before making any non-trivial change, please first open an issue describing the change to solicit feedback and guidance. This will increase the likelihood of the PR getting merged.
 
@@ -27,8 +27,6 @@ Follow the [Development Quick Start](#development-quick-start) to set up your lo
 We recommend using the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format on commit messages.
 
 Unless your PR is ready for immediate review and merging, please mark it as 'draft' (or simply do not open a PR yet).
-
-🎈 Thanks for your help improving the project! We are so happy to have you!
 
 **Bonus:** Add comments to the diff under the "Files Changed" tab on the PR page to clarify any sections where you think we might have questions about the approach taken.
 
