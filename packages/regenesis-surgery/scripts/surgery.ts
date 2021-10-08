@@ -31,11 +31,16 @@ const doGenesisSurgery = async (
   const output: StateDump = []
 
   // Handle each account in the state dump.
-  const input = data.dump.slice(data.startIndex, data.endIndex).entries()
-  for (const [i, account] of input) {
+  const input = data.dump.slice(data.startIndex, data.endIndex)
+  for (const [i, account] of input.entries()) {
+    // Broken account
+    if (i === 143805) {
+      continue
+    }
+
     const accountType = classify(account, data)
     console.log(
-      `[${i}/${data.dump.length}] ${AccountType[accountType]}: ${account.address}`
+      `[${i}/${input.length}] ${AccountType[accountType]}: ${account.address}`
     )
 
     const handler = handlers[accountType]
@@ -55,6 +60,7 @@ const doGenesisSurgery = async (
 
   // Clean up and standardize the dump. Also performs a few tricks to reduce the overall size of
   // the state dump, which reduces bandwidth requirements.
+  console.log('Cleaning up and standardizing dump format...')
   for (const account of output) {
     for (const [key, val] of Object.entries(account)) {
       // We want to be left with the following fields:
@@ -84,12 +90,16 @@ const doGenesisSurgery = async (
         // At this point we know that the input is either a string or a number. If it's a number,
         // we want to convert it into a string.
         let stripped = typeof val === 'number' ? val.toString(16) : val
-        // Neither of these fields need to be 0x-prefixed. We can reduce our genesis size by
-        // removing the 0x prefix.
+        // Remove 0x so we can strip any leading zeros.
         stripped = remove0x(stripped)
         // We can further reduce our genesis size by removing leading zeros. We can even go as far
         // as removing the entire string because Geth appears to treat the empty string as 0.
         stripped = stripped.replace().replace(/^0+/, '')
+        // We have to add 0x if the value is greater or equal to than 10 because Geth will throw an
+        // error otherwise.
+        if (stripped !== '' && ethers.BigNumber.from(add0x(stripped)).gte(10)) {
+          stripped = add0x(stripped)
+        }
         account[key] = stripped
       } else if (key === 'address') {
         // Keep the address as-is, we'll delete it eventually.
