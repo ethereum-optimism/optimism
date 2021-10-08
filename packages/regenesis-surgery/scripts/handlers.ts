@@ -1,5 +1,4 @@
 import { ethers } from 'ethers'
-import fs from 'fs'
 import linker from 'solc/linker'
 import {
   POOL_INIT_CODE_HASH_OPTIMISM,
@@ -14,7 +13,6 @@ import {
   transferStorageSlot,
   getMappingKey,
   getUniswapV3Factory,
-  hexStringEqual,
 } from './utils'
 import { compile } from './solc'
 import {
