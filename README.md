@@ -88,20 +88,6 @@ Release candidates are merged into `develop` and then into `master` once they've
 We may sometimes have more than one active `regenesis/X.X.X` branch if we're in the middle of a deployment.
 See table in the **Active Branches** section above to find the right branch to target.
 
-## Additional Reference Material
-
-### Running contract static analysis
-
-We perform static analysis with [`slither`](https://github.com/crytic/slither).
-You must have Python 3.x installed to run `slither`.
-To run `slither` locally, do:
-
-```bash
-cd packages/contracts
-pip3 install slither-analyzer
-yarn test:slither
-```
-
 ## License
 
 Code forked from [`go-ethereum`](https://github.com/ethereum/go-ethereum) under the name [`l2geth`](https://github.com/ethereum-optimism/optimism/tree/master/l2geth) is licensed under the [GNU GPLv3](https://gist.github.com/kn9ts/cbe95340d29fc1aaeaa5dd5c059d2e60) in accordance with the [original license](https://github.com/ethereum/go-ethereum/blob/master/COPYING).
