@@ -87,8 +87,7 @@ export const handlers: {
     for (const address of addressesToXfer) {
       const balanceKey = getMappingKey([address], 0)
       if (oldAccount.storage[balanceKey] !== undefined) {
-        const accBalance = ethers.BigNumber.from(oldAccount.storage[balanceKey])
-        wethBalance = wethBalance.add(accBalance)
+        wethBalance = wethBalance.add(add0x(oldAccount.storage[balanceKey]))
 
         // Remove this balance from the old account storage.
         delete oldAccount.storage[balanceKey]

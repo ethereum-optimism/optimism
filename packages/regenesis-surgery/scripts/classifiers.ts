@@ -26,6 +26,11 @@ export const classifiers: {
     })
   },
   [AccountType.EOA]: (account) => {
+    // Just in case the account doesn't have a code hash
+    if (!account.codeHash) {
+      return false
+    }
+
     return EOA_CODE_HASHES.some((codeHash) => {
       return hexStringEqual(account.codeHash, codeHash)
     })
