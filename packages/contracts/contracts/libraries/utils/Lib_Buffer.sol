@@ -183,6 +183,6 @@ library Lib_Buffer {
             )
         }
 
-        return BufferContext({length: length, extraData: extraData});
+        return BufferContext({ length: length, extraData: extraData });
     }
 }

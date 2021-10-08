@@ -45,7 +45,7 @@ library Lib_RLPReader {
             ptr := add(_in, 32)
         }
 
-        return RLPItem({length: _in.length, ptr: ptr});
+        return RLPItem({ length: _in.length, ptr: ptr });
     }
 
     /**
@@ -70,10 +70,10 @@ library Lib_RLPReader {
             require(itemCount < MAX_LIST_LENGTH, "Provided RLP list exceeds max list length.");
 
             (uint256 itemOffset, uint256 itemLength, ) = _decodeLength(
-                RLPItem({length: _in.length - offset, ptr: _in.ptr + offset})
+                RLPItem({ length: _in.length - offset, ptr: _in.ptr + offset })
             );
 
-            out[itemCount] = RLPItem({length: itemLength + itemOffset, ptr: _in.ptr + offset});
+            out[itemCount] = RLPItem({ length: itemLength + itemOffset, ptr: _in.ptr + offset });
 
             itemCount += 1;
             offset += itemOffset + itemLength;

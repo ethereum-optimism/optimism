@@ -2,15 +2,15 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import {Lib_OVMCodec} from "../../libraries/codec/Lib_OVMCodec.sol";
-import {Lib_AddressResolver} from "../../libraries/resolver/Lib_AddressResolver.sol";
-import {Lib_MerkleTree} from "../../libraries/utils/Lib_MerkleTree.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /* Interface Imports */
-import {IStateCommitmentChain} from "./IStateCommitmentChain.sol";
-import {ICanonicalTransactionChain} from "./ICanonicalTransactionChain.sol";
-import {IBondManager} from "../verification/IBondManager.sol";
-import {IChainStorageContainer} from "./IChainStorageContainer.sol";
+import { IStateCommitmentChain } from "./IStateCommitmentChain.sol";
+import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
+import { IBondManager } from "../verification/IBondManager.sol";
+import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /**
  * @title StateCommitmentChain

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import {Lib_Buffer} from "../../libraries/utils/Lib_Buffer.sol";
+import { Lib_Buffer } from "../../libraries/utils/Lib_Buffer.sol";
 
 /**
  * @title TestLib_Buffer

@@ -2,9 +2,9 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import {Lib_BytesUtils} from "../utils/Lib_BytesUtils.sol";
-import {Lib_RLPReader} from "../rlp/Lib_RLPReader.sol";
-import {Lib_RLPWriter} from "../rlp/Lib_RLPWriter.sol";
+import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
+import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
+import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
 
 /**
  * @title Lib_MerkleTrie
@@ -515,7 +515,7 @@ library Lib_MerkleTrie {
 
         for (uint256 i = 0; i < nodes.length; i++) {
             bytes memory encoded = Lib_RLPReader.readBytes(nodes[i]);
-            proof[i] = TrieNode({encoded: encoded, decoded: Lib_RLPReader.readList(encoded)});
+            proof[i] = TrieNode({ encoded: encoded, decoded: Lib_RLPReader.readList(encoded) });
         }
 
         return proof;
@@ -633,7 +633,7 @@ library Lib_MerkleTrie {
     function _makeNode(bytes[] memory _raw) private pure returns (TrieNode memory _node) {
         bytes memory encoded = Lib_RLPWriter.writeList(_raw);
 
-        return TrieNode({encoded: encoded, decoded: Lib_RLPReader.readList(encoded)});
+        return TrieNode({ encoded: encoded, decoded: Lib_RLPReader.readList(encoded) });
     }
 
     /**
