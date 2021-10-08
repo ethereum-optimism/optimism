@@ -225,6 +225,7 @@ def hook_interrupt(uc, intno, user_data):
         print("exit(%d)" % a0)
       sys.stdout.flush()
       sys.stderr.flush()
+      uc.reg_write(UC_MIPS_REG_PC, 0x5ead0000)
       #os._exit(a0)
     elif syscall_no == 4090 or syscall_no == 4210:
       a0 = uc.reg_read(UC_MIPS_REG_A0)
@@ -271,14 +272,9 @@ mu.mem_write(0x30000000, inputs)
 
 _, r = load_minigeth(mu)
 
-died_well = False
 
 def hook_mem_invalid(uc, access, address, size, value, user_data):
-  global died_well
   pc = uc.reg_read(UC_MIPS_REG_PC)
-  if pc == 0x5EAD0000:
-    died_well = True
-    return False
   print("UNMAPPED MEMORY:", access, hex(address), size, "at", hex(pc))
   return False
 mu.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED, hook_mem_invalid)
@@ -289,8 +285,10 @@ mu.hook_add(UC_HOOK_INTR, hook_interrupt)
 if tracelevel >= 3:
   start_instrumenting()
 
+died_well = False
 try:
-  mu.emu_start(0, -1)
+  mu.emu_start(0, 0x5EAD0000)
+  died_well = True
 except unicorn.UcError:
   pass
 
