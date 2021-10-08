@@ -2,16 +2,16 @@
 pragma solidity ^0.8.9;
 
 /* Interface Imports */
-import {IL1StandardBridge} from "./IL1StandardBridge.sol";
-import {IL1ERC20Bridge} from "./IL1ERC20Bridge.sol";
-import {IL2ERC20Bridge} from "../../L2/messaging/IL2ERC20Bridge.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IL1StandardBridge } from "./IL1StandardBridge.sol";
+import { IL1ERC20Bridge } from "./IL1ERC20Bridge.sol";
+import { IL2ERC20Bridge } from "../../L2/messaging/IL2ERC20Bridge.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* Library Imports */
-import {CrossDomainEnabled} from "../../libraries/bridge/CrossDomainEnabled.sol";
-import {Lib_PredeployAddresses} from "../../libraries/constants/Lib_PredeployAddresses.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title L1StandardBridge
@@ -215,7 +215,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         uint256 _amount,
         bytes calldata _data
     ) external onlyFromCrossDomainAccount(l2TokenBridge) {
-        (bool success, ) = _to.call{value: _amount}(new bytes(0));
+        (bool success, ) = _to.call{ value: _amount }(new bytes(0));
         require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
 
         emit ETHWithdrawalFinalized(_from, _to, _amount, _data);
