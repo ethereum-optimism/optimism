@@ -32,6 +32,14 @@ const doGenesisSurgery = async (
 
   // Handle each account in the state dump.
   const input = data.dump.slice(data.startIndex, data.endIndex)
+
+  // Insert any accounts in the genesis that aren't already in the state dump.
+  for (const account of data.genesis) {
+    if (findAccount(input, account.address) === undefined) {
+      input.push(account)
+    }
+  }
+
   for (const [i, account] of input.entries()) {
     // Broken account
     if (i === 143805) {
@@ -47,14 +55,6 @@ const doGenesisSurgery = async (
     const newAccount = await handler(clone(account), data)
     if (newAccount !== undefined) {
       output.push(newAccount)
-    }
-  }
-
-  // Ingest any accounts in the genesis that aren't already in the state dump.
-  // TODO: this needs to be able to be deduplicated if running in parallel
-  for (const account of data.genesis) {
-    if (findAccount(output, account.address) === undefined) {
-      output.push(account)
     }
   }
 

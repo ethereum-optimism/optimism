@@ -47,6 +47,9 @@ export const handlers: {
   [AccountType.PRECOMPILE]: (account) => {
     return account
   },
+  [AccountType.PREDEPLOY_NEW_NOT_ETH]: (account) => {
+    return account
+  },
   [AccountType.PREDEPLOY_WIPE]: (account, data) => {
     const genesisAccount = findAccount(data.genesis, account.address)
     return {
@@ -113,9 +116,8 @@ export const handlers: {
     for (const address of WETH_TRANSFER_ADDRESSES) {
       const balanceKey = getMappingKey([address], 0)
       if (ethAccount.storage[balanceKey] !== undefined) {
-        const newBalanceKey = getMappingKey([address], 3)
-
         // Give this account a balance inside of WETH.
+        const newBalanceKey = getMappingKey([address], 3)
         account.storage[newBalanceKey] = ethAccount.storage[balanceKey]
       }
     }
@@ -125,9 +127,8 @@ export const handlers: {
     for (const pool of data.pools) {
       const balanceKey = getMappingKey([pool.oldAddress], 0)
       if (ethAccount.storage[balanceKey] !== undefined) {
-        const newBalanceKey = getMappingKey([pool.newAddress], 3)
-
         // Give this account a balance inside of WETH.
+        const newBalanceKey = getMappingKey([pool.newAddress], 3)
         account.storage[newBalanceKey] = ethAccount.storage[balanceKey]
       }
     }
