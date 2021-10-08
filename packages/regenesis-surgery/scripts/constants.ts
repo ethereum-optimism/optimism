@@ -92,10 +92,16 @@ export const DELETE_CONTRACTS = [
 ]
 
 export const WETH_TRANSFER_ADDRESSES = [
-  // Rubicon 1
+  // Rubicon Mainnet 1
   '0xB0bE5d911E3BD4Ee2A8706cF1fAc8d767A550497',
-  // Rubicon 2
+  // Rubicon Mainnet 2
   '0x7a512d3609211e719737E82c7bb7271eC05Da70d',
+  // Rubicon Kovan 1
+  '0x52fBa53c876a47a64A10F111fbeA7Ed506dCc7e7',
+  // Rubicon Kovan 2
+  '0xA92E4Bd9f61e90757Cd8806D236580698Fc20C91',
+  // Rubicon Kovan 3
+  '0x80D94a6f6b0335Bfed8D04B92423B6Cd14b5d31C',
   // HOP (TODO)
 ]
 

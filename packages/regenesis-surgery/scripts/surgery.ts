@@ -92,6 +92,8 @@ const doGenesisSurgery = async (
         // as removing the entire string because Geth appears to treat the empty string as 0.
         stripped = stripped.replace().replace(/^0+/, '')
         account[key] = stripped
+      } else if (key === 'address') {
+        // Keep the address as-is, we'll delete it eventually.
       } else {
         throw new Error(`unexpected account field: ${key}`)
       }
@@ -181,7 +183,7 @@ const main = async () => {
   for (const account of finalGenesisDump) {
     const address = account.address
     delete account.address
-    finalGenesisAlloc[address] = account
+    finalGenesisAlloc[remove0x(address)] = account
   }
 
   // Attach all of the original genesis configuration values.

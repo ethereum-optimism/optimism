@@ -85,15 +85,21 @@ export const downloadAllSolcVersions = async () => {
 
   // Keys are OVM versions.
   await Promise.all(
-    Object.keys(COMPILER_VERSIONS_TO_SOLC).map(async (version) => {
-      await downloadSolc(version, true)
-    })
+    // Use a set to dedupe the list of versions.
+    [...new Set(Object.keys(COMPILER_VERSIONS_TO_SOLC))].map(
+      async (version) => {
+        await downloadSolc(version, true)
+      }
+    )
   )
 
   // Values are EVM versions.
   await Promise.all(
-    Object.values(COMPILER_VERSIONS_TO_SOLC).map(async (version) => {
-      await downloadSolc(version)
-    })
+    // Use a set to dedupe the list of versions.
+    [...new Set(Object.values(COMPILER_VERSIONS_TO_SOLC))].map(
+      async (version) => {
+        await downloadSolc(version)
+      }
+    )
   )
 }
