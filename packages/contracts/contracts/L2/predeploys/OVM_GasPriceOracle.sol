@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 /* External Imports */
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title OVM_GasPriceOracle

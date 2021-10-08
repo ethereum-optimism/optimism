@@ -2,10 +2,10 @@
 pragma solidity >0.5.0 <0.9.0;
 
 /* Library Imports */
-import {Lib_OVMCodec} from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
-import {IChainStorageContainer} from "./IChainStorageContainer.sol";
+import { IChainStorageContainer } from "./IChainStorageContainer.sol";
 
 /**
  * @title ICanonicalTransactionChain

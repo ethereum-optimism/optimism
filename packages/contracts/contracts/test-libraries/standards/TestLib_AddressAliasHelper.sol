@@ -2,7 +2,7 @@
 pragma solidity ^0.8.8;
 
 /* Library Imports */
-import {AddressAliasHelper} from "../../standards/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../../standards/AddressAliasHelper.sol";
 
 /**
  * @title TestLib_AddressAliasHelper

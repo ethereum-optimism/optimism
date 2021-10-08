@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import {iL1ChugSplashDeployer} from "./interfaces/iL1ChugSplashDeployer.sol";
+import { iL1ChugSplashDeployer } from "./interfaces/iL1ChugSplashDeployer.sol";
 
 /**
  * @title L1ChugSplashProxy

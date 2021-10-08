@@ -2,10 +2,10 @@
 pragma solidity ^0.8.9;
 
 /* Interface Imports */
-import {IBondManager} from "./IBondManager.sol";
+import { IBondManager } from "./IBondManager.sol";
 
 /* Contract Imports */
-import {Lib_AddressResolver} from "../../libraries/resolver/Lib_AddressResolver.sol";
+import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /**
  * @title BondManager

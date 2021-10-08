@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.9.0;
 
 /* Interface Imports */
-import {ICrossDomainMessenger} from "./ICrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "./ICrossDomainMessenger.sol";
 
 /**
  * @title CrossDomainEnabled

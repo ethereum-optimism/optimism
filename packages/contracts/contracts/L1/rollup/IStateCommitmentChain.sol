@@ -2,7 +2,7 @@
 pragma solidity >0.5.0 <0.9.0;
 
 /* Library Imports */
-import {Lib_OVMCodec} from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /**
  * @title IStateCommitmentChain

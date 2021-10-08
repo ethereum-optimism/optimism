@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import {Lib_MerkleTree} from "../../libraries/utils/Lib_MerkleTree.sol";
+import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
 
 /**
  * @title TestLib_MerkleTree
