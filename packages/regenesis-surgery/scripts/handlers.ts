@@ -5,12 +5,10 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM,
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
-import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
 import { sleep, add0x, remove0x } from '@eth-optimism/core-utils'
 import {
   OLD_ETH_ADDRESS,
   WETH_TRANSFER_ADDRESSES,
-  UNISWAP_V3_FACTORY_ADDRESS,
   COMPILER_VERSIONS_TO_SOLC,
 } from './constants'
 import {
@@ -24,13 +22,11 @@ import {
   getSolc,
   getMainContract,
 } from './utils'
-
 import {
   Account,
   AccountType,
   SurgeryDataSources,
   ImmutableReference,
-  ImmutableReferences,
 } from './types'
 
 export const handlers: {
@@ -221,6 +217,7 @@ export const handlers: {
       const UniswapV3Factory = getUniswapV3Factory(data.l1TestnetWallet)
       await UniswapV3Factory.createPool(pool.token0, pool.token1, pool.fee)
 
+      // Repeatedly try to get the remote pool code from the testnet.
       let retries = 0
       while (poolCode === '0x') {
         retries++
@@ -252,29 +249,25 @@ export const handlers: {
     return undefined // delete the account
   },
   [AccountType.VERIFIED]: (account: Account, data: SurgeryDataSources) => {
-    // Final bytecode to be added to the account
-    let bytecode: string
-
-    // Make a copy of the account to not mutate it
-    account = { ...account }
     // Find the account in the etherscan dump
-    const contract = data.etherscanDump.find(
-      (c) => c.contractAddress === account.address
-    )
+    const contract = data.etherscanDump.find((acc) => {
+      return acc.contractAddress === account.address
+    })
+
     // The contract must exist
     if (!contract) {
       throw new Error(`Unable to find ${account.address} in etherscan dump`)
     }
-    // Create the solc input object
-    const input = solcInput(contract)
+
+    // Get the correct solidity compiler
     const version = COMPILER_VERSIONS_TO_SOLC[contract.compilerVersion]
     if (!version) {
       throw new Error(`Unable to find solc version ${contract.compilerVersion}`)
     }
-
-    // Get a solc compiler
     const currSolc = getSolc(version)
+
     // Compile the contract
+    const input = solcInput(contract)
     const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
     if (!output.contracts) {
       throw new Error(`Cannot compile ${contract.contractAddress}`)
@@ -286,15 +279,19 @@ export const handlers: {
       throw new Error(`Contract filename mismatch: ${contract.contractAddress}`)
     }
 
-    let deployedBytecode = mainOutput.evm.deployedBytecode
-    if (typeof deployedBytecode === 'object') {
-      deployedBytecode = deployedBytecode.object
+    // Pull out the bytecode, exact handling depends on the Solidity version
+    let bytecode = mainOutput.evm.deployedBytecode
+    if (typeof bytecode === 'object') {
+      bytecode = bytecode.object
     }
-    deployedBytecode = add0x(deployedBytecode)
 
+    // Make sure the bytecode is 0x-prefixed.
+    bytecode = add0x(bytecode)
+
+    // Handle external library references.
     if (contract.library) {
       console.log('Handling libraries')
-      const linkReferences = linker.findLinkReferences(deployedBytecode)
+      const linkReferences = linker.findLinkReferences(bytecode)
 
       // The logic only handles linking single libraries. Throw an error in the
       // case where there are multiple libraries.
@@ -312,13 +309,15 @@ export const handlers: {
         key = name
       }
 
+      // Inject the libraries at the required locations
       console.log('Linking')
-      deployedBytecode = linker.linkBytecode(deployedBytecode, {
+      bytecode = linker.linkBytecode(bytecode, {
         [key]: add0x(address),
       })
     }
 
-    bytecode = add0x(deployedBytecode)
+    // Make sure the bytecode is (still) 0x-prefixed.
+    bytecode = add0x(bytecode)
 
     // If the contract has immutables in it, then the contracts
     // need to be compiled with the ovm compiler so that the offsets
@@ -357,6 +356,7 @@ export const handlers: {
         if (!ovmValue) {
           throw new Error(`cannot find ast in ovm compiler output`)
         }
+
         // Each value is an array of {length, start}
         for (const [i, ref] of value.entries()) {
           const ovmRef = ovmValue[i]
@@ -371,19 +371,21 @@ export const handlers: {
             ovmRef.start + ovmRef.length
           )
 
-          deployedBytecode = add0x(deployedBytecode)
-
-          const pre = ethers.utils.hexDataSlice(deployedBytecode, 0, ref.start)
+          const pre = ethers.utils.hexDataSlice(bytecode, 0, ref.start)
           const post = ethers.utils.hexDataSlice(
-            deployedBytecode,
+            bytecode,
             ref.start + ref.length
           )
+
+          // Make a note of the original bytecode length so we can confirm it doesn't change
+          const bytecodeLength = bytecode.length
+
           // Assign to the global bytecode variable
           bytecode = ethers.utils.hexConcat([pre, immutable, post])
 
-          if (bytecode.length !== deployedBytecode.length) {
+          if (bytecode.length !== bytecodeLength) {
             throw new Error(
-              `mismatch in size: ${bytecode.length} vs ${deployedBytecode.length}`
+              `mismatch in size: ${bytecode.length} vs ${bytecodeLength}`
             )
           }
         }
@@ -443,63 +445,13 @@ export const handlers: {
             })
           }
         }
-
-        if (data.l2NetworkName === 'mainnet') {
-          // Fix double-level mappings (e.g., allowance mappings)
-          for (let i = 0; i < 1000; i++) {
-            for (const otherAccount of data.dump) {
-              // otherAddress => poolAddress => xxxx
-              const oldSlotKey1 = getMappingKey(
-                [otherAccount.address, pool.oldAddress],
-                i
-              )
-              if (account.storage[oldSlotKey1] !== undefined) {
-                console.log(
-                  `fixing double-level mapping in contract (other => pool => xxxx)`,
-                  `address=${account.address}`,
-                  `pool=${pool.oldAddress}`,
-                  `slot=${oldSlotKey1}`
-                )
-                transferStorageSlot({
-                  account,
-                  oldSlot: oldSlotKey1,
-                  newSlot: getMappingKey(
-                    [otherAccount.address, pool.newAddress],
-                    i
-                  ),
-                })
-              }
-
-              // poolAddress => otherAddress => xxxx
-              const oldSlotKey2 = getMappingKey(
-                [pool.oldAddress, otherAccount.address],
-                i
-              )
-              if (account.storage[oldSlotKey2] !== undefined) {
-                console.log(
-                  `fixing double-level mapping in contract (pool => other => xxxx)`,
-                  `address=${account.address}`,
-                  `pool=${pool.oldAddress}`,
-                  `slot=${oldSlotKey2}`
-                )
-                transferStorageSlot({
-                  account,
-                  oldSlot: oldSlotKey2,
-                  newSlot: getMappingKey(
-                    [pool.newAddress, otherAccount.address],
-                    i
-                  ),
-                })
-              }
-            }
-          }
-        }
       }
     }
 
-    account.code = remove0x(bytecode)
-    account.codeHash = ethers.utils.keccak256(add0x(bytecode))
-
-    return account
+    return {
+      ...account,
+      code: bytecode,
+      codeHash: ethers.utils.keccak256(bytecode),
+    }
   },
 }

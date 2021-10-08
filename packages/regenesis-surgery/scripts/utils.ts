@@ -217,8 +217,6 @@ export const readGenesisFile = async (
 }
 
 export const checkStateDump = (dump: StateDump) => {
-  // Sanity check to guarantee that all addresses in dump.accounts are lower case.
-  console.log(`verifying that all contract addresses are lower case`)
   for (const account of dump) {
     assert.equal(
       account.address.toLowerCase(),
@@ -281,17 +279,19 @@ export const checkStateDump = (dump: StateDump) => {
 
 export const getMainContract = (contract: EtherscanContract, output) => {
   if (contract.contractFileName) {
-    return clone(output.contracts[contract.contractFileName][contract.contractName])
+    return clone(
+      output.contracts[contract.contractFileName][contract.contractName]
+    )
   }
   return clone(output.contracts.file[contract.contractName])
 }
 
 export const getSolc = (version: string, ovm?: boolean) => {
-  if (ovm) {
-    return solc.setupMethods(require(path.join(LOCAL_SOLC_DIR, version)))
-  }
   return solc.setupMethods(
-    require(path.join(LOCAL_SOLC_DIR, `solc-emscripten-wasm32-${version}.js`))
+    require(path.join(
+      LOCAL_SOLC_DIR,
+      ovm ? version : `solc-emscripten-wasm32-${version}.js`
+    ))
   )
 }
 
