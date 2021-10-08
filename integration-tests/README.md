@@ -6,7 +6,7 @@ Follow installation + build instructions in the [primary README](../README.md).
 Then, run:
 
 ```bash
-yarn build:integration
+yarn build
 ```
 
 ## Running tests

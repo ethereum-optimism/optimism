@@ -189,7 +189,7 @@ Build and run the integration tests:
 
 ```bash
 cd integration-tests
-yarn build:integration
+yarn build
 yarn test:integration
 ```
 #### Running contract static analysis
