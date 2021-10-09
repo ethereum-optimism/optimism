@@ -21,7 +21,9 @@ describe("MIPSMemory contract", function () {
     console.log(tst);*/
 
     const hash = await mm.AddLargePreimageFinal();
+    const realhash = keccak256(new Uint8Array(0));
     console.log("comp hash is", hash);
-    console.log("real hash is", keccak256(new Uint8Array(0)));
+    console.log("real hash is", realhash);
+    expect(hash).to.equal(realhash);
   });
 });
