@@ -12,6 +12,7 @@ describe("MIPSMemory contract", function () {
     await mm.AddLargePreimageInit();
     console.log("preimage initted");
 
+    // block size is 136
     const a = ["0x0100000000000000",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x80];
     await mm.AddLargePreimageUpdate(a);
     console.log("preimage updated");

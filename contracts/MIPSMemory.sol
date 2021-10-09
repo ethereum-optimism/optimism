@@ -43,7 +43,7 @@ contract MIPSMemory {
     return bytes32((uint256(c.A[0]) << 192) |
                    (uint256(c.A[1]) << 128) |
                    (uint256(c.A[2]) << 64) |
-                   c.A[3]);
+                   (uint256(c.A[3]) << 0));
   }
 
   function AddMerkleState(bytes32 stateHash, uint32 addr, uint32 value, string calldata proof) public {
