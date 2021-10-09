@@ -17,6 +17,7 @@ contract MIPSMemory {
 
   // one per owner (at a time)
   mapping(address => uint64[25]) public largePreimage;
+  // TODO: also track the offset into the largePreimage to know what to store
 
   function AddLargePreimageInit() public {
     Lib_Keccak256.CTX memory c;
@@ -24,6 +25,8 @@ contract MIPSMemory {
     largePreimage[msg.sender] = c.A;
   }
 
+  // TODO: input 136 bytes, as many times as you'd like
+  // Uses about 1M gas, 7352 gas/byte
   function AddLargePreimageUpdate(uint64[17] calldata data) public {
     // sha3_process_block
     Lib_Keccak256.CTX memory c;
@@ -35,6 +38,7 @@ contract MIPSMemory {
     largePreimage[msg.sender] = c.A;
   }
 
+  // TODO: input <136 bytes and do the end of hash | 0x01 / | 0x80
   function AddLargePreimageFinal() public view returns (bytes32) {
     Lib_Keccak256.CTX memory c;
     c.A = largePreimage[msg.sender];
