@@ -16,23 +16,23 @@ contract MIPSMemory {
   }
 
   // one per owner (at a time)
-  mapping(address => uint64[25]) public largePreimages;
+  mapping(address => uint64[25]) public largePreimage;
 
   function AddLargePreimageInit() public {
     Lib_Keccak256.CTX memory c;
     Lib_Keccak256.keccak_init(c);
-    largePreimages[msg.sender] = c.A;
+    largePreimage[msg.sender] = c.A;
   }
 
   function AddLargePreimageUpdate(uint64[17] calldata data) public {
     // sha3_process_block
     Lib_Keccak256.CTX memory c;
-    c.A = largePreimages[msg.sender];
+    c.A = largePreimage[msg.sender];
     for (uint i = 0; i < 17; i++) {
       c.A[i] ^= data[i];
     }
     Lib_Keccak256.sha3_permutation(c);
-    largePreimages[msg.sender] = c.A;
+    largePreimage[msg.sender] = c.A;
   }
 
   function AddLargePreimageFinal(uint64[17] calldata data) public {
