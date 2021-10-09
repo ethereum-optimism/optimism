@@ -1,13 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.3;
 
+import "./lib/Lib_Keccak256.sol";
+
 contract MIPSMemory {
   // This state is global
   mapping(bytes32 => mapping (uint32 => uint64)) public state;
+
+  // TODO: replace with mapping(bytes32 => mapping(uint, bytes4))
+  // to only save the part we care about
   mapping(bytes32 => bytes) public preimage;
 
   function AddPreimage(bytes calldata anything) public {
     preimage[keccak256(anything)] = anything;
+  }
+
+  // one per owner (at a time)
+  mapping(address => uint64[25]) public largePreimages;
+
+  function AddLargePreimageInit() public {
+    Lib_Keccak256.CTX memory c;
+    Lib_Keccak256.keccak_init(c);
+    largePreimages[msg.sender] = c.A;
+  }
+
+  function AddLargePreimageUpdate(uint64[17] calldata data) public {
+    // sha3_process_block
+    Lib_Keccak256.CTX memory c;
+    c.A = largePreimages[msg.sender];
+    for (uint i = 0; i < 17; i++) {
+      c.A[i] ^= data[i];
+    }
+    Lib_Keccak256.sha3_permutation(c);
+    largePreimages[msg.sender] = c.A;
+  }
+
+  function AddLargePreimageFinal(uint64[17] calldata data) public {
+    // TODO: do this properly and save the hash
   }
 
   function AddMerkleState(bytes32 stateHash, uint32 addr, uint32 value, string calldata proof) public {
