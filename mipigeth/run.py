@@ -295,8 +295,11 @@ except unicorn.UcError:
 if not died_well:
   raise Exception("program exitted early")
 
+magic = struct.unpack(">I", mu.mem_read(0x30000800, 4))[0]
+assert magic == 0x1337f00d
+
 real_hash = binascii.hexlify(inputs[-0x40:-0x20])
-compare_hash = binascii.hexlify(mu.mem_read(0x30000800, 0x20))
+compare_hash = binascii.hexlify(mu.mem_read(0x30000804, 0x20))
 print("compare", real_hash, "to computed", compare_hash)
 
 if real_hash != compare_hash:

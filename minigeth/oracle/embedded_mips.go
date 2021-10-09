@@ -57,10 +57,12 @@ func Halt() {
 }
 
 func Output(output common.Hash, receipts common.Hash) {
-	ret := byteAt(0x30000800, 0x20)
+	ret := byteAt(0x30000804, 0x20)
 	copy(ret, output.Bytes())
-	rret := byteAt(0x30000820, 0x20)
+	rret := byteAt(0x30000824, 0x20)
 	copy(rret, receipts.Bytes())
+	magic := byteAt(0x30000800, 4)
+	copy(magic, []byte{0x13, 0x37, 0xf0, 0x0d})
 	Halt()
 }
 
