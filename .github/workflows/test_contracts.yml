@@ -1,0 +1,21 @@
+name: Test Contracts
+
+on: [push, pull_request]
+
+jobs:
+  unit:
+    name: Test Contracts
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Install Node
+      run: |
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install nodejs npm
+    - name: Install yarn
+      run: |
+        npm install --global yarn
+        yarn install
+    - name: Hardhat Test
+      run: npx hardhat test
