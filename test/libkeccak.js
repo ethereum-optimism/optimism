@@ -1,3 +1,4 @@
+const { keccak256 } = require("@ethersproject/keccak256");
 const { expect } = require("chai");
 
 describe("MIPSMemory contract", function () {
@@ -11,11 +12,15 @@ describe("MIPSMemory contract", function () {
     await mm.AddLargePreimageInit();
     console.log("preimage initted");
 
-    var a = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    const a = ["0x0100000000000000",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x80];
     await mm.AddLargePreimageUpdate(a);
     console.log("preimage updated");
 
-    var tst = await mm.largePreimage(owner.address, 0);
-    console.log(tst);
+    /*var tst1 = await mm.largePreimage(owner.address, 0);
+    console.log(tst);*/
+
+    const hash = await mm.AddLargePreimageFinal();
+    console.log("comp hash is", hash);
+    console.log("real hash is", keccak256(new Uint8Array(0)));
   });
 });
