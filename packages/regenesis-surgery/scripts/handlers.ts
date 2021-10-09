@@ -265,26 +265,27 @@ export const handlers: {
     if (contract.library) {
       const linkReferences = linker.findLinkReferences(bytecode)
 
-      // The logic only handles linking single libraries. Throw an error in the
-      // case where there are multiple libraries.
-      if (contract.library.split(':').length > 2) {
-        throw new Error(
-          `Implement multi library linking handling: ${contract.contractAddress}`
-        )
-      }
-
-      const [name, address] = contract.library.split(':')
-      let key: string
-      if (Object.keys(linkReferences).length > 0) {
-        key = Object.keys(linkReferences)[0]
-      } else {
-        key = name
+      const libStrings = contract.library.split(';')
+      const libraries = {}
+      for (const [i, libStr] of libStrings.entries()) {
+        const [name, address] = libStr.split(':')
+        let key: string
+        if (Object.keys(linkReferences).length > i) {
+          key = Object.keys(linkReferences)[i]
+        } else {
+          key = name
+        }
+        libraries[key] = add0x(address)
       }
 
       // Inject the libraries at the required locations
-      bytecode = linker.linkBytecode(bytecode, {
-        [key]: add0x(address),
-      })
+      bytecode = linker.linkBytecode(bytecode, libraries)
+      // There should no longer be any link references if linking was done correctly
+      if (Object.keys(linker.findLinkReferences(bytecode)).length !== 0) {
+        throw new Error(
+          `Library linking did not happen correctly: ${contract.contractAddress}`
+        )
+      }
     }
 
     // Make sure the bytecode is (still) 0x-prefixed.
