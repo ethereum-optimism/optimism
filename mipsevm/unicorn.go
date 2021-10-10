@@ -32,6 +32,98 @@ func WriteBytes(fd int, bytes []byte) {
 	os.Stderr.WriteString(printer(string(bytes)))
 }
 
+func WriteRam(ram map[uint32](uint32), addr uint32, value uint32) {
+	if value != 0 {
+		ram[addr] = value
+	} else {
+		delete(ram, addr)
+	}
+}
+
+var REG_OFFSET uint32 = 0xc0000000
+var REG_PC uint32 = REG_OFFSET + 0x20*4
+var REG_HEAP uint32 = REG_OFFSET + 0x23*4
+var REG_PENDPC uint32 = REG_OFFSET + 0x24*4
+var PC_PEND uint32 = 0x80000000
+var PC_MASK uint32 = 0x7FFFFFFF
+
+func SE(dat uint32, idx uint32) uint32 {
+	isSigned := (dat >> (idx - 1)) != 0
+	signed := ((1 << (32 - idx)) - 1) << idx
+	mask := (1 << idx) - 1
+	ret := dat & uint32(mask)
+	if isSigned {
+		ret |= uint32(signed)
+	}
+	return ret
+}
+
+// UGH: is there a better way?
+// I don't see a better way to get this out
+func FixBranchDelay(ram map[uint32](uint32)) {
+	pc := ram[REG_PC] & 0x7FFFFFFF
+	insn := ram[pc-4]
+	opcode := insn >> 26
+	mfunc := insn & 0x3f
+	//fmt.Println(opcode)
+
+	if opcode == 2 || opcode == 3 {
+		WriteRam(ram, REG_PENDPC, SE(insn&0x03FFFFFF, 26)<<2)
+		WriteRam(ram, REG_PC, ram[REG_PC]|0x80000000)
+		return
+	}
+	rs := ram[REG_OFFSET+((insn>>19)&0x7C)]
+	if (opcode >= 4 && opcode < 8) || opcode == 1 {
+		shouldBranch := false
+		if opcode == 4 || opcode == 5 {
+			rt := ram[REG_OFFSET+((insn>>14)&0x7C)]
+			shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
+		} else if opcode == 6 {
+			shouldBranch = int32(rs) <= 0
+		} else if opcode == 7 {
+			shouldBranch = int32(rs) > 0
+		} else if opcode == 1 {
+			rtv := ((insn >> 16) & 0x1F)
+			if rtv == 0 {
+				shouldBranch = int32(rs) < 0
+			} else if rtv == 1 {
+				shouldBranch = int32(rs) >= 0
+			}
+		}
+		WriteRam(ram, REG_PC, ram[REG_PC]|0x80000000)
+		if shouldBranch {
+			WriteRam(ram, REG_PENDPC, pc+(SE(insn&0xFFFF, 16)<<2))
+		} else {
+			WriteRam(ram, REG_PENDPC, pc+4)
+		}
+	}
+	if opcode == 0 && (mfunc == 8 || mfunc == 9) {
+		WriteRam(ram, REG_PC, ram[REG_PC]|0x80000000)
+		WriteRam(ram, REG_PENDPC, rs)
+	}
+}
+
+func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
+	pc, _ := mu.RegRead(uc.MIPS_REG_PC)
+	//fmt.Printf("%d uni %x\n", step, pc)
+
+	addr := uint32(0xc0000000)
+	for i := uc.MIPS_REG_ZERO; i < uc.MIPS_REG_ZERO+32; i++ {
+		reg, _ := mu.RegRead(i)
+		WriteRam(ram, addr, uint32(reg))
+		addr += 4
+	}
+
+	reg_lo, _ := mu.RegRead(uc.MIPS_REG_LO0)
+	reg_hi, _ := mu.RegRead(uc.MIPS_REG_HI0)
+	WriteRam(ram, REG_OFFSET+0x21*4, uint32(reg_lo))
+	WriteRam(ram, REG_OFFSET+0x22*4, uint32(reg_hi))
+
+	WriteRam(ram, 0xc0000080, uint32(pc))
+	WriteRam(ram, REG_HEAP, uint32(heap_start))
+	FixBranchDelay(ram)
+}
+
 // reimplement simple.py in go
 func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn, map[uint32](uint32))) {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
@@ -85,14 +177,32 @@ func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn, map[ui
 
 	ram := make(map[uint32](uint32))
 	if slowMode {
-		mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr uint64, size int, value int64) {
-			//fmt.Printf("%X(%d) = %x\n", addr, size, value)
-			// TODO: fix unaligned access
-			if value == 0 {
-				delete(ram, uint32(addr))
+		mu.HookAdd(uc.HOOK_MEM_WRITE_PROT, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) bool {
+			fmt.Println("write prot")
+			return true
+		}, 0, 0x80000000)
+
+		mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
+			rt := value
+			rs := addr64 & 3
+			addr := uint32(addr64 & 0xFFFFFFFC)
+			fmt.Printf("%X(%d) = %x (at step %d)\n", addr, size, value, steps)
+			if size == 1 {
+				mem := ram[addr]
+				val := uint32((rt & 0xFF) << (24 - (rs&3)*8))
+				mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
+				WriteRam(ram, uint32(addr), (mem&mask)|val)
+			} else if size == 2 {
+				mem := ram[addr]
+				val := uint32((rt & 0xFFFF) << (16 - (rs&2)*8))
+				mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
+				WriteRam(ram, uint32(addr), (mem&mask)|val)
+			} else if size == 4 {
+				WriteRam(ram, uint32(addr), uint32(rt))
 			} else {
-				ram[uint32(addr)] = uint32(value)
+				log.Fatal("bad size write to ram")
 			}
+
 		}, 0, 0x80000000)
 
 		ministart := time.Now()

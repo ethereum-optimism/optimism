@@ -141,8 +141,8 @@ func (s *StateDB) SetState(fakeaddr common.Address, key, value common.Hash) {
 		seenWrite = true
 	}
 
-	if debug >= 2 {
-		fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x", addr, dat))
+	if debug >= 2 || true {
+		fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x (at step %d)", addr, dat, pcCount))
 	}
 
 	if dat == 0 {
