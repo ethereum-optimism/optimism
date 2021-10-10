@@ -5,7 +5,14 @@ function build() {
     echo "Tag: $2"
     echo "Dockerfile: $3"
     echo "Context: $4"
-    docker buildx build --tag "$2" --build-arg LOCAL_REGISTRY=localhost:5000 --cache-from "type=local,src=/tmp/.buildx-cache/$1" --cache-to="type=local,dest=/tmp/.buildx-cache-new/$1" --file "$3" --load "$4" &
+    docker buildx build \
+        --tag "$2" \
+        --build-arg LOCAL_REGISTRY=localhost:5000 \
+        --cache-from "type=local,src=/tmp/.buildx-cache/$1" \
+        --cache-to="type=local,dest=/tmp/.buildx-cache-new/$1" \
+        --file "$3" \
+        --load "$4" \
+        &
 }
 
 mkdir -p /tmp/.buildx-cache-new
