@@ -49,7 +49,7 @@ func TestCompare(t *testing.T) {
 		}
 		for j := 0; j < len(x); j++ {
 			if x[j] != y[j] {
-				fmt.Println(i, x, y)
+				fmt.Println(i, "cevm", x, "cuni", y)
 				t.Fatal("value mismatch")
 			}
 		}

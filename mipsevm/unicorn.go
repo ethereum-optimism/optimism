@@ -63,21 +63,22 @@ func SE(dat uint32, idx uint32) uint32 {
 func FixBranchDelay(ram map[uint32](uint32)) {
 	pc := ram[REG_PC] & 0x7FFFFFFF
 
-	tinsn := ram[pc-4]
-	topcode := tinsn >> 26
-	// TODO: WHY?
-	if topcode == 0x38 {
-		rs := ram[REG_OFFSET+((tinsn>>19)&0x7C)]
-		SignExtImm := SE(tinsn&0xFFFF, 16)
-		rs += SignExtImm
-		fmt.Printf("SC @ steps %d writing %x\n", steps, rs)
-		WriteRam(ram, rs, 1)
-	}
-
 	insn := ram[pc-4]
 	opcode := insn >> 26
 	mfunc := insn & 0x3f
 	//fmt.Println(opcode)
+
+	//fmt.Println(pc, opcode, mfunc)
+
+	// FIX SC
+	if opcode == 0x38 {
+		rt := ram[REG_OFFSET+((insn>>14)&0x7C)]
+		rs := ram[REG_OFFSET+((insn>>19)&0x7C)]
+		SignExtImm := SE(insn&0xFFFF, 16)
+		rs += SignExtImm
+		fmt.Printf("SC @ steps %d writing %x at %x\n", steps, rt, rs)
+		WriteRam(ram, rs, rt)
+	}
 
 	if opcode == 2 || opcode == 3 {
 		WriteRam(ram, REG_PENDPC, SE(insn&0x03FFFFFF, 26)<<2)
@@ -118,6 +119,8 @@ func FixBranchDelay(ram map[uint32](uint32)) {
 func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 	pc, _ := mu.RegRead(uc.MIPS_REG_PC)
 	//fmt.Printf("%d uni %x\n", step, pc)
+	WriteRam(ram, 0xc0000080, uint32(pc))
+	FixBranchDelay(ram)
 
 	addr := uint32(0xc0000000)
 	for i := uc.MIPS_REG_ZERO; i < uc.MIPS_REG_ZERO+32; i++ {
@@ -126,14 +129,14 @@ func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 		addr += 4
 	}
 
-	reg_lo, _ := mu.RegRead(uc.MIPS_REG_LO0)
-	reg_hi, _ := mu.RegRead(uc.MIPS_REG_HI0)
+	// TODO: this is broken
+	reg_lo, _ := mu.RegRead(uc.MIPS_REG_LO)
+	reg_hi, _ := mu.RegRead(uc.MIPS_REG_HI)
+	fmt.Println(reg_lo, reg_hi)
 	WriteRam(ram, REG_OFFSET+0x21*4, uint32(reg_lo))
 	WriteRam(ram, REG_OFFSET+0x22*4, uint32(reg_hi))
 
-	WriteRam(ram, 0xc0000080, uint32(pc))
 	WriteRam(ram, REG_HEAP, uint32(heap_start))
-	FixBranchDelay(ram)
 }
 
 // reimplement simple.py in go
