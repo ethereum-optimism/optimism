@@ -15,6 +15,14 @@ function build() {
         &
 }
 
+# Split across two build stages:
+#
+# 1. Build the builder and everything that doesn't depend on it, then
+# 2. Build everything else.
+#
+# Each individual build is executed in parallel, so we use wait block all builds
+# in each stage are complete.
+
 mkdir -p /tmp/.buildx-cache-new
 docker buildx build --tag "localhost:5000/ethereumoptimism/builder:latest" --cache-from "type=local,src=/tmp/.buildx-cache/builder" --cache-to="type=local,mode=max,dest=/tmp/.buildx-cache-new/builder" --file "./ops/docker/Dockerfile.monorepo" --push . &
 build l2geth "ethereumoptimism/l2geth:latest" "./ops/docker/Dockerfile.geth" .
