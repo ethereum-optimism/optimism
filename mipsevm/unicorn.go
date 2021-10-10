@@ -62,6 +62,18 @@ func SE(dat uint32, idx uint32) uint32 {
 // I don't see a better way to get this out
 func FixBranchDelay(ram map[uint32](uint32)) {
 	pc := ram[REG_PC] & 0x7FFFFFFF
+
+	tinsn := ram[pc-4]
+	topcode := tinsn >> 26
+	// TODO: WHY?
+	if topcode == 0x38 {
+		rs := ram[REG_OFFSET+((tinsn>>19)&0x7C)]
+		SignExtImm := SE(tinsn&0xFFFF, 16)
+		rs += SignExtImm
+		fmt.Printf("SC @ steps %d writing %x\n", steps, rs)
+		WriteRam(ram, rs, 1)
+	}
+
 	insn := ram[pc-4]
 	opcode := insn >> 26
 	mfunc := insn & 0x3f
@@ -177,11 +189,6 @@ func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn, map[ui
 
 	ram := make(map[uint32](uint32))
 	if slowMode {
-		mu.HookAdd(uc.HOOK_MEM_WRITE_PROT, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) bool {
-			fmt.Println("write prot")
-			return true
-		}, 0, 0x80000000)
-
 		mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
 			rt := value
 			rs := addr64 & 3
