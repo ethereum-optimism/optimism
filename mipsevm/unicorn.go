@@ -67,18 +67,18 @@ func FixBranchDelay(ram map[uint32](uint32)) {
 	opcode := insn >> 26
 	mfunc := insn & 0x3f
 	//fmt.Println(opcode)
-
+	//fmt.Printf("%d %x: %x\n", steps, pc-4, insn)
 	//fmt.Println(pc, opcode, mfunc)
 
 	// FIX SC
-	if opcode == 0x38 {
+	/*if opcode == 0x38 {
 		rt := ram[REG_OFFSET+((insn>>14)&0x7C)]
 		rs := ram[REG_OFFSET+((insn>>19)&0x7C)]
 		SignExtImm := SE(insn&0xFFFF, 16)
 		rs += SignExtImm
 		fmt.Printf("SC @ steps %d writing %x at %x\n", steps, rt, rs)
 		WriteRam(ram, rs, rt)
-	}
+	}*/
 
 	if opcode == 2 || opcode == 3 {
 		WriteRam(ram, REG_PENDPC, SE(insn&0x03FFFFFF, 26)<<2)
@@ -116,6 +116,10 @@ func FixBranchDelay(ram map[uint32](uint32)) {
 	}
 }
 
+/*func rawAccess(p unsafe.Pointer, len int) []byte {
+	return (*(*[8440]byte)(p))[:len]
+}*/
+
 func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 	pc, _ := mu.RegRead(uc.MIPS_REG_PC)
 	//fmt.Printf("%d uni %x\n", step, pc)
@@ -129,18 +133,38 @@ func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 		addr += 4
 	}
 
+	/*ctx, _ := mu.ContextSave(nil)
+	ptr := rawAccess(unsafe.Pointer(*ctx), 8440)
+	fmt.Println(ctx)*/
+
 	// TODO: this is broken
-	reg_lo, _ := mu.RegRead(uc.MIPS_REG_LO)
+	/*for i := 0; i < 1000; i++ {
+		tst, _ := mu.RegRead(i)
+		if tst == uint64(0x3b9ac9ff) {
+			fmt.Println("LOW HIT", i)
+		}
+		if tst == uint64(0xc4653600) {
+			fmt.Println("HI HIT", i)
+		}
+	}*/
+	/*hflags, _ := mu.RegRead(uc.MIPS_REG_W1)
+	pendpc, _ := mu.RegRead(uc.MIPS_REG_W0)
+	fmt.Println(pendpc, hflags)
+	if pendpc != 0 && pc != pendpc {
+		WriteRam(ram, REG_PC, uint32(pc)|0x80000000)
+		WriteRam(ram, REG_PENDPC, uint32(pendpc))
+	}*/
+
 	reg_hi, _ := mu.RegRead(uc.MIPS_REG_HI)
-	fmt.Println(reg_lo, reg_hi)
-	WriteRam(ram, REG_OFFSET+0x21*4, uint32(reg_lo))
-	WriteRam(ram, REG_OFFSET+0x22*4, uint32(reg_hi))
+	reg_lo, _ := mu.RegRead(uc.MIPS_REG_LO)
+	WriteRam(ram, REG_OFFSET+0x21*4, uint32(reg_hi))
+	WriteRam(ram, REG_OFFSET+0x22*4, uint32(reg_lo))
 
 	WriteRam(ram, REG_HEAP, uint32(heap_start))
 }
 
 // reimplement simple.py in go
-func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn, map[uint32](uint32))) {
+func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, callback func(int, uc.Unicorn, map[uint32](uint32))) {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
@@ -190,13 +214,12 @@ func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn, map[ui
 
 	slowMode := true
 
-	ram := make(map[uint32](uint32))
 	if slowMode {
 		mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
 			rt := value
 			rs := addr64 & 3
 			addr := uint32(addr64 & 0xFFFFFFFC)
-			fmt.Printf("%X(%d) = %x (at step %d)\n", addr, size, value, steps)
+			//fmt.Printf("%X(%d) = %x (at step %d)\n", addr, size, value, steps)
 			if size == 1 {
 				mem := ram[addr]
 				val := uint32((rt & 0xFF) << (24 - (rs&3)*8))
@@ -224,11 +247,12 @@ func RunUnicorn(fn string, totalSteps int, callback func(int, uc.Unicorn, map[ui
 			if callback != nil {
 				callback(steps, mu, ram)
 			}
-			steps += 1
 			if totalSteps == steps {
 				//os.Exit(0)
-				mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0000)
+				// immediate exit
+				mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)
 			}
+			steps += 1
 		}, 0, 0x80000000)
 	}
 

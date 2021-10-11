@@ -55,7 +55,8 @@ func main() {
 			debug, _ := strconv.Atoi(os.Getenv("DEBUG"))
 			RunMinigeth(os.Args[1], steps, debug)
 		} else if os.Args[1] == "unicorn" {
-			RunUnicorn(os.Args[2], steps, nil)
+			uniram := make(map[uint32](uint32))
+			RunUnicorn(os.Args[2], uniram, steps, nil)
 		} else {
 			runTest(os.Args[1], 20, 2)
 		}
