@@ -20,9 +20,9 @@ func RegSerialize(ram map[uint32](uint32)) []uint32 {
 var done sync.Mutex
 
 func TestCompare(t *testing.T) {
-	fn := "../mipigeth/test.bin"
+	//fn := "../mipigeth/test.bin"
 	//fn := "test/bin/sc.bin"
-	//fn := "../mipigeth/minigeth.bin"
+	fn := "../mipigeth/minigeth.bin"
 
 	steps := 10000000
 	//steps := 1165
@@ -59,7 +59,7 @@ func TestCompare(t *testing.T) {
 			fmt.Println("both processes exited")
 			break
 		}
-		if i%1000 == 0 {
+		if i%100000 == 0 {
 			fmt.Println(i, x[0:9], y[0:9])
 		}
 		for j := 0; j < len(x); j++ {

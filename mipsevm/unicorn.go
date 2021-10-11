@@ -43,20 +43,6 @@ func WriteRam(ram map[uint32](uint32), addr uint32, value uint32) {
 var REG_OFFSET uint32 = 0xc0000000
 var REG_PC uint32 = REG_OFFSET + 0x20*4
 var REG_HEAP uint32 = REG_OFFSET + 0x23*4
-var REG_PENDPC uint32 = REG_OFFSET + 0x24*4
-var PC_PEND uint32 = 0x80000000
-var PC_MASK uint32 = 0x7FFFFFFF
-
-func SE(dat uint32, idx uint32) uint32 {
-	isSigned := (dat >> (idx - 1)) != 0
-	signed := ((1 << (32 - idx)) - 1) << idx
-	mask := (1 << idx) - 1
-	ret := dat & uint32(mask)
-	if isSigned {
-		ret |= uint32(signed)
-	}
-	return ret
-}
 
 func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 	pc, _ := mu.RegRead(uc.MIPS_REG_PC)
