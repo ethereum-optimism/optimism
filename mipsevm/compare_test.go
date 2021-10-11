@@ -27,6 +27,7 @@ func TestCompare(t *testing.T) {
 	steps := 10000000
 	//steps := 1165
 	//steps := 1180
+	//steps := 24
 
 	cevm := make(chan []uint32, 1)
 	cuni := make(chan []uint32, 1)
@@ -51,6 +52,7 @@ func TestCompare(t *testing.T) {
 		done.Unlock()
 	})
 
+	mismatch := false
 	for i := 0; i < steps; i++ {
 		x, y := <-cevm, <-cuni
 		if x[0] == 0x5ead0000 && y[0] == 0x5ead0000 {
@@ -63,15 +65,17 @@ func TestCompare(t *testing.T) {
 		for j := 0; j < len(x); j++ {
 			if x[j] != y[j] {
 				fmt.Println(i, "mismatch at", j, "cevm", x, "cuni", y)
-				break
+				mismatch = true
 			}
+		}
+		if mismatch {
+			break
 		}
 	}
 
 	// final ram check
 	done.Lock()
 	time.Sleep(100 * time.Millisecond)
-	mismatch := false
 	for k, v := range ram {
 		if uniram[k] != v {
 			fmt.Printf("ram mismatch at %x, evm %x != uni %x\n", k, v, uniram[k])

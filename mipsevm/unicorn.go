@@ -58,73 +58,10 @@ func SE(dat uint32, idx uint32) uint32 {
 	return ret
 }
 
-// UGH: is there a better way?
-// I don't see a better way to get this out
-func FixBranchDelay(ram map[uint32](uint32)) {
-	pc := ram[REG_PC] & 0x7FFFFFFF
-
-	insn := ram[pc-4]
-	opcode := insn >> 26
-	mfunc := insn & 0x3f
-	//fmt.Println(opcode)
-	//fmt.Printf("%d %x: %x\n", steps, pc-4, insn)
-	//fmt.Println(pc, opcode, mfunc)
-
-	// FIX SC
-	/*if opcode == 0x38 {
-		rt := ram[REG_OFFSET+((insn>>14)&0x7C)]
-		rs := ram[REG_OFFSET+((insn>>19)&0x7C)]
-		SignExtImm := SE(insn&0xFFFF, 16)
-		rs += SignExtImm
-		fmt.Printf("SC @ steps %d writing %x at %x\n", steps, rt, rs)
-		WriteRam(ram, rs, rt)
-	}*/
-
-	if opcode == 2 || opcode == 3 {
-		WriteRam(ram, REG_PENDPC, SE(insn&0x03FFFFFF, 26)<<2)
-		WriteRam(ram, REG_PC, ram[REG_PC]|0x80000000)
-		return
-	}
-	rs := ram[REG_OFFSET+((insn>>19)&0x7C)]
-	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		shouldBranch := false
-		if opcode == 4 || opcode == 5 {
-			rt := ram[REG_OFFSET+((insn>>14)&0x7C)]
-			shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
-		} else if opcode == 6 {
-			shouldBranch = int32(rs) <= 0
-		} else if opcode == 7 {
-			shouldBranch = int32(rs) > 0
-		} else if opcode == 1 {
-			rtv := ((insn >> 16) & 0x1F)
-			if rtv == 0 {
-				shouldBranch = int32(rs) < 0
-			} else if rtv == 1 {
-				shouldBranch = int32(rs) >= 0
-			}
-		}
-		WriteRam(ram, REG_PC, ram[REG_PC]|0x80000000)
-		if shouldBranch {
-			WriteRam(ram, REG_PENDPC, pc+(SE(insn&0xFFFF, 16)<<2))
-		} else {
-			WriteRam(ram, REG_PENDPC, pc+4)
-		}
-	}
-	if opcode == 0 && (mfunc == 8 || mfunc == 9) {
-		WriteRam(ram, REG_PC, ram[REG_PC]|0x80000000)
-		WriteRam(ram, REG_PENDPC, rs)
-	}
-}
-
-/*func rawAccess(p unsafe.Pointer, len int) []byte {
-	return (*(*[8440]byte)(p))[:len]
-}*/
-
 func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 	pc, _ := mu.RegRead(uc.MIPS_REG_PC)
 	//fmt.Printf("%d uni %x\n", step, pc)
 	WriteRam(ram, 0xc0000080, uint32(pc))
-	FixBranchDelay(ram)
 
 	addr := uint32(0xc0000000)
 	for i := uc.MIPS_REG_ZERO; i < uc.MIPS_REG_ZERO+32; i++ {
@@ -132,28 +69,6 @@ func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 		WriteRam(ram, addr, uint32(reg))
 		addr += 4
 	}
-
-	/*ctx, _ := mu.ContextSave(nil)
-	ptr := rawAccess(unsafe.Pointer(*ctx), 8440)
-	fmt.Println(ctx)*/
-
-	// TODO: this is broken
-	/*for i := 0; i < 1000; i++ {
-		tst, _ := mu.RegRead(i)
-		if tst == uint64(0x3b9ac9ff) {
-			fmt.Println("LOW HIT", i)
-		}
-		if tst == uint64(0xc4653600) {
-			fmt.Println("HI HIT", i)
-		}
-	}*/
-	/*hflags, _ := mu.RegRead(uc.MIPS_REG_W1)
-	pendpc, _ := mu.RegRead(uc.MIPS_REG_W0)
-	fmt.Println(pendpc, hflags)
-	if pendpc != 0 && pc != pendpc {
-		WriteRam(ram, REG_PC, uint32(pc)|0x80000000)
-		WriteRam(ram, REG_PENDPC, uint32(pendpc))
-	}*/
 
 	reg_hi, _ := mu.RegRead(uc.MIPS_REG_HI)
 	reg_lo, _ := mu.RegRead(uc.MIPS_REG_LO)

@@ -25,10 +25,6 @@ contract MIPS {
   uint32 constant public REG_HI = REG_OFFSET + 0x21*4;
   uint32 constant public REG_LO = REG_OFFSET + 0x22*4;
   uint32 constant public REG_HEAP = REG_OFFSET + 0x23*4;
-  uint32 constant public REG_PENDPC = REG_OFFSET + 0x24*4;
-
-  uint32 constant public PC_PEND = 0x80000000;
-  uint32 constant public PC_MASK = 0x7FFFFFFF;
 
   uint32 constant public HEAP_START = 0x20000000;
   uint32 constant public BRK_START = 0x40000000;
@@ -105,31 +101,17 @@ contract MIPS {
     return (stateHash, exit);
   }
 
-  function branchDelay(bytes32 stateHash, uint32 pc, uint32 nextPC, bool link) internal returns (bytes32) {
-    if (link) {
-      stateHash = WriteMemory(stateHash, REG_LR, pc+4);
-    }
-    stateHash = WriteMemory(stateHash, REG_PENDPC, nextPC);
-    stateHash = WriteMemory(stateHash, REG_PC, PC_PEND | pc);
-    return stateHash;
-  }
-
-  // will revert if any required input state is missing
   function Step(bytes32 stateHash) public returns (bytes32) {
-    // instruction fetch
     uint32 pc = ReadMemory(stateHash, REG_PC);
     if (pc == 0x5ead0000) {
       return stateHash;
     }
+    return stepPC(stateHash, pc, pc+4);
+  }
 
-    uint32 nextPC;
-    if (pc & PC_PEND == 0) {
-      nextPC = pc + 4;
-    } else {
-      pc = pc & PC_MASK;
-      nextPC = ReadMemory(stateHash, REG_PENDPC);
-    }
-
+  // will revert if any required input state is missing
+  function stepPC(bytes32 stateHash, uint32 pc, uint32 nextPC) internal returns (bytes32) {
+    // instruction fetch
     uint32 insn = ReadMemory(stateHash, pc);
 
     uint32 opcode = insn >> 26; // 6-bits
@@ -137,8 +119,12 @@ contract MIPS {
 
     // j-type j/jal
     if (opcode == 2 || opcode == 3) {
-      return branchDelay(stateHash, nextPC,
-        SE(insn&0x03FFFFFF, 26) << 2, opcode == 3);
+      stateHash = stepPC(stateHash, nextPC,
+        SE(insn&0x03FFFFFF, 26) << 2);
+      if (opcode == 3) {
+        stateHash = WriteMemory(stateHash, REG_LR, pc+8);
+      }
+      return stateHash;
     }
 
     // register fetch
@@ -204,11 +190,11 @@ contract MIPS {
       }
 
       if (shouldBranch) {
-        return branchDelay(stateHash, nextPC,
-          pc + 4 + (SE(insn&0xFFFF, 16)<<2), false);
+        return stepPC(stateHash, nextPC,
+          pc + 4 + (SE(insn&0xFFFF, 16)<<2));
       } else {
         // branch not taken
-        return branchDelay(stateHash, nextPC, nextPC+4, false);
+        return stepPC(stateHash, nextPC, nextPC+4);
       }
 
     }
@@ -219,7 +205,11 @@ contract MIPS {
     if (opcode == 0 && func >= 8 && func < 0x1c) {
       if (func == 8 || func == 9) {
         // jr/jalr
-        return branchDelay(stateHash, nextPC, rs, func == 9);
+        stateHash = stepPC(stateHash, nextPC, rs);
+        if (func == 9) {
+          stateHash = WriteMemory(stateHash, REG_LR, pc+8);
+        }
+        return stateHash;
       }
 
       // handle movz and movn when they don't write back
