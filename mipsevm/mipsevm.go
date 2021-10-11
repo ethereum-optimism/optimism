@@ -83,6 +83,13 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 				ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
 				ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
 		}
+		if (pcCount % 100000) == 0 {
+			steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
+			os.Stderr.WriteString(fmt.Sprintf("%10d pc: %x steps per s %f ram entries %d\n", pcCount, nret&0x7FFFFFFF, steps_per_sec, len(ram)))
+		}
+		if callback != nil {
+			callback(pcCount, ram)
+		}
 		if ram[nret] == 0xC {
 			syscall := ram[0xc0000008]
 			if syscall == 4020 {
@@ -93,6 +100,7 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 				hash := common.BytesToHash(oracle_hash)
 				key := fmt.Sprintf("/tmp/eth/%s", hash)
 				value, _ := ioutil.ReadFile(key)
+
 				WriteRam(ram, 0x31000000, uint32(len(value)))
 				value = append(value, 0, 0, 0)
 				for i := uint32(0); i < ram[0x31000000]; i += 4 {
@@ -111,13 +119,6 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 			} else {
 				//os.Stderr.WriteString(fmt.Sprintf("syscall %d at %x (step %d)\n", syscall, nret, pcCount))
 			}
-		}
-		if (pcCount % 100000) == 0 {
-			steps_per_sec := float64(pcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
-			os.Stderr.WriteString(fmt.Sprintf("%10d pc: %x steps per s %f ram entries %d\n", pcCount, nret&0x7FFFFFFF, steps_per_sec, len(ram)))
-		}
-		if callback != nil {
-			callback(pcCount, ram)
 		}
 		pcCount += 1
 		seenWrite = false
