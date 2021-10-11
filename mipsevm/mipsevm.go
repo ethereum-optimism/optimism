@@ -93,11 +93,10 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 				hash := common.BytesToHash(oracle_hash)
 				key := fmt.Sprintf("/tmp/eth/%s", hash)
 				value, _ := ioutil.ReadFile(key)
-				ram[0x31000000] = uint32(len(value))
-
+				WriteRam(ram, 0x31000000, uint32(len(value)))
 				value = append(value, 0, 0, 0)
 				for i := uint32(0); i < ram[0x31000000]; i += 4 {
-					ram[0x31000004+i] = binary.BigEndian.Uint32(value[i : i+4])
+					WriteRam(ram, 0x31000004+i, binary.BigEndian.Uint32(value[i:i+4]))
 				}
 			} else if syscall == 4004 {
 				len := ram[0xc0000018]

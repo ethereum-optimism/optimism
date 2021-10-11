@@ -11,14 +11,18 @@ import (
 	"time"
 )
 
-func LoadMappedFile(fn string, ram map[uint32](uint32), base uint32) {
-	dat, _ := ioutil.ReadFile(fn)
+func LoadData(dat []byte, ram map[uint32](uint32), base uint32) {
 	for i := 0; i < len(dat); i += 4 {
 		value := binary.BigEndian.Uint32(dat[i : i+4])
 		if value != 0 {
 			ram[base+uint32(i)] = value
 		}
 	}
+}
+
+func LoadMappedFile(fn string, ram map[uint32](uint32), base uint32) {
+	dat, _ := ioutil.ReadFile(fn)
+	LoadData(dat, ram, base)
 }
 
 func RunMinigeth(fn string, steps int, debug int) {

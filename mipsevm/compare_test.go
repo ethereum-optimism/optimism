@@ -24,7 +24,7 @@ func TestCompare(t *testing.T) {
 	//fn := "test/bin/sc.bin"
 	fn := "../mipigeth/minigeth.bin"
 
-	steps := 10000000
+	steps := 1000000000
 	//steps := 1165
 	//steps := 1180
 	//steps := 24

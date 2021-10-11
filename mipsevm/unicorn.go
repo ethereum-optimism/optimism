@@ -80,10 +80,17 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, callback fun
 			hash := common.BytesToHash(oracle_hash)
 			key := fmt.Sprintf("/tmp/eth/%s", hash)
 			value, _ := ioutil.ReadFile(key)
+
 			tmp := []byte{0, 0, 0, 0}
 			binary.BigEndian.PutUint32(tmp, uint32(len(value)))
 			mu.MemWrite(0x31000000, tmp)
 			mu.MemWrite(0x31000004, value)
+
+			WriteRam(ram, 0x31000000, uint32(len(value)))
+			value = append(value, 0, 0, 0)
+			for i := uint32(0); i < ram[0x31000000]; i += 4 {
+				WriteRam(ram, 0x31000004+i, binary.BigEndian.Uint32(value[i:i+4]))
+			}
 		} else if syscall_no == 4004 {
 			fd, _ := mu.RegRead(uc.MIPS_REG_A0)
 			buf, _ := mu.RegRead(uc.MIPS_REG_A1)
