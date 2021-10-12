@@ -92,7 +92,7 @@ contract MIPS {
       // clone (not supported)
       v0 = 1;
     } else if (syscall_no == 4246) {
-			// exit group
+      // exit group
       exit = true;
     }
 
