@@ -5,14 +5,22 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
 type PreimageKeyValueWriter struct{}
 
+var preimages = make(map[common.Hash][]byte)
+
+// TODO: this is copied from the oracle
 func (kw PreimageKeyValueWriter) Put(key []byte, value []byte) error {
-	//fmt.Println("preimage", key, value)
-	// cache this
+	hash := crypto.Keccak256Hash(value)
+	if hash != common.BytesToHash(key) {
+		panic("bad preimage value write")
+	}
+	preimages[hash] = common.CopyBytes(value)
 	return nil
 }
 
@@ -43,4 +51,6 @@ func RamToTrie(ram map[uint32](uint32)) {
 		mt.Update(tk, tv)
 	}
 	fmt.Println("ram hash", mt.Hash())
+	fmt.Println("hash count", len(preimages))
+	fmt.Println("root node", preimages[mt.Hash()])
 }
