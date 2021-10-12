@@ -90,19 +90,19 @@ contract Challenge {
     // the first instruction executed in MIPS should be an access of startState
     // parentblockhash, txhash, coinbase, unclehash, gaslimit, time
     bytes32 startState = GlobalStartState;
-    startState = mem.WriteBytes32(startState, 0x30000000, parentHash);
-    startState = mem.WriteBytes32(startState, 0x30000020, Lib_RLPReader.readBytes32(blockNp1[4]));
-    startState = mem.WriteBytes32(startState, 0x30000040, bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2]))));
-    startState = mem.WriteBytes32(startState, 0x30000060, Lib_RLPReader.readBytes32(blockNp1[1]));
-    startState = mem.WriteBytes32(startState, 0x30000080, bytes32(Lib_RLPReader.readUint256(blockNp1[9])));
-    startState = mem.WriteBytes32(startState, 0x300000a0, bytes32(Lib_RLPReader.readUint256(blockNp1[11])));
+    startState = mem.WriteBytes32(startState, 0xB0000000, parentHash);
+    startState = mem.WriteBytes32(startState, 0xB0000020, Lib_RLPReader.readBytes32(blockNp1[4]));
+    startState = mem.WriteBytes32(startState, 0xB0000040, bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2]))));
+    startState = mem.WriteBytes32(startState, 0xB0000060, Lib_RLPReader.readBytes32(blockNp1[1]));
+    startState = mem.WriteBytes32(startState, 0xB0000080, bytes32(Lib_RLPReader.readUint256(blockNp1[9])));
+    startState = mem.WriteBytes32(startState, 0xB00000a0, bytes32(Lib_RLPReader.readUint256(blockNp1[11])));
 
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
     // you must load these proofs into MIPS before calling this
     // we disagree at the end
     require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0x5EAD0000, "machine is not stopped in final state (PC == 0x5EAD0000)");
-    require(mem.ReadMemory(finalSystemState, 0x30000800) == 0x1337f00d, "state is not outputted");
-    require(mem.ReadBytes32(finalSystemState, 0x30000804) == assertionRoot, "you are claiming a different state root in machine");
+    require(mem.ReadMemory(finalSystemState, 0xB0000800) == 0x1337f00d, "state is not outputted");
+    require(mem.ReadBytes32(finalSystemState, 0xB0000804) == assertionRoot, "you are claiming a different state root in machine");
 
     return newChallengeTrusted(startState, finalSystemState, stepCount);
   }
