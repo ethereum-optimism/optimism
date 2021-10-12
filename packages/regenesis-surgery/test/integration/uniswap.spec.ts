@@ -5,10 +5,14 @@ describe('uniswap contracts', () => {
     it('should have the same feeAmountTickSpacing map values', async () => {})
 
     it('should have the right pool addresses', async () => {})
+
+    it('should have the same code as on mainnet', async () => {})
   })
 
   describe('V3 NFPM', () => {
-    // TODO
+    it('should have the same code as on mainnet', async () => {})
+
+    // TODO: what's the best way to test the _poolIds change?
   })
 
   describe('V3 pools', () => {
