@@ -44,10 +44,7 @@ contract MIPSMemory {
     c.A = largePreimage[msg.sender];
     // TODO: do this properly and save the hash
     // when this is updated, it won't be "view"
-    return bytes32((uint256(c.A[0]) << 192) |
-                   (uint256(c.A[1]) << 128) |
-                   (uint256(c.A[2]) << 64) |
-                   (uint256(c.A[3]) << 0));
+    return Lib_Keccak256.get_hash(c);
   }
 
   function AddMerkleState(bytes32 stateHash, uint32 addr, uint32 value, string calldata proof) public {

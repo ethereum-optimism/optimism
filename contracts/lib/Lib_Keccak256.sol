@@ -101,4 +101,18 @@ library Lib_Keccak256 {
     }
   }
 
+  // https://stackoverflow.com/questions/2182002/convert-big-endian-to-little-endian-in-c-without-using-provided-func
+  function flip(uint64 val) internal pure returns (uint64) {
+    val = ((val << 8) & 0xFF00FF00FF00FF00 ) | ((val >> 8) & 0x00FF00FF00FF00FF );
+    val = ((val << 16) & 0xFFFF0000FFFF0000 ) | ((val >> 16) & 0x0000FFFF0000FFFF );
+    return (val << 32) | (val >> 32);
+  }
+
+  function get_hash(CTX memory c) internal pure returns (bytes32) {
+    return bytes32((uint256(flip(c.A[0])) << 192) |
+                   (uint256(flip(c.A[1])) << 128) |
+                   (uint256(flip(c.A[2])) << 64) |
+                   (uint256(flip(c.A[3])) << 0));
+  }
+
 }
