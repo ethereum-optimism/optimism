@@ -15,9 +15,8 @@ jobs:
         sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm
     - name: Install unicorn
       run: |
-        curl -LO https://github.com/unicorn-engine/unicorn/archive/1.0.3.tar.gz
-        tar xf 1.0.3.tar.gz
-        cd unicorn-1.0.3
+        git clone https://github.com/geohot/unicorn.git
+        cd unicorn
         UNICORN_ARCHS=mips make -j8
         sudo UNICORN_ARCHS=mips make install
     - name: Install yarn
@@ -26,3 +25,5 @@ jobs:
         yarn install
     - name: Test MIPS on EVM
       run: cd mipsevm && ./evm.sh
+    - name: Compare test.bin run on EVM/unicorn
+      run: cd mipsevm && go test

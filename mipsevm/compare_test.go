@@ -10,8 +10,9 @@ import (
 )
 
 func RegSerialize(ram map[uint32](uint32)) []uint32 {
-	ret := []uint32{ram[0xc0000080], ram[0xc00000A0], uint32(len(ram))}
-	for i := uint32(0xc0000000); i < 0xc0000000+37*4; i += 4 {
+	ret := []uint32{ram[0xc0000080], uint32(len(ram))}
+	// 36 registers, 32 basic + pc + hi/lo + heap
+	for i := uint32(0xc0000000); i < 0xc0000000+36*4; i += 4 {
 		ret = append(ret, ram[i])
 	}
 	return ret

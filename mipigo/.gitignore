@@ -1,7 +1,6 @@
 __pycache__
 go-ethereum
 sysroot
-test
-test.bin
+test/test
 minigeth
 minigeth.bin
