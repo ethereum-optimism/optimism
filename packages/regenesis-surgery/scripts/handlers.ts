@@ -5,11 +5,7 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
 import { sleep, add0x, remove0x } from '@eth-optimism/core-utils'
-import {
-  OLD_ETH_ADDRESS,
-  WETH_TRANSFER_ADDRESSES,
-  COMPILER_VERSIONS_TO_SOLC,
-} from './constants'
+import { OLD_ETH_ADDRESS, WETH_TRANSFER_ADDRESSES } from './constants'
 import {
   clone,
   findAccount,
@@ -17,10 +13,8 @@ import {
   transferStorageSlot,
   getMappingKey,
   getUniswapV3Factory,
-  solcInput,
-  getSolc,
-  getMainContract,
 } from './utils'
+import { compile } from './solc'
 import {
   Account,
   AccountType,
@@ -51,6 +45,9 @@ export const handlers: {
     }
   },
   [AccountType.PRECOMPILE]: (account) => {
+    return account
+  },
+  [AccountType.PREDEPLOY_NEW_NOT_ETH]: (account) => {
     return account
   },
   [AccountType.PREDEPLOY_WIPE]: (account, data) => {
@@ -90,8 +87,7 @@ export const handlers: {
     for (const address of addressesToXfer) {
       const balanceKey = getMappingKey([address], 0)
       if (oldAccount.storage[balanceKey] !== undefined) {
-        const accBalance = ethers.BigNumber.from(oldAccount.storage[balanceKey])
-        wethBalance = wethBalance.add(accBalance)
+        wethBalance = wethBalance.add(add0x(oldAccount.storage[balanceKey]))
 
         // Remove this balance from the old account storage.
         delete oldAccount.storage[balanceKey]
@@ -119,9 +115,8 @@ export const handlers: {
     for (const address of WETH_TRANSFER_ADDRESSES) {
       const balanceKey = getMappingKey([address], 0)
       if (ethAccount.storage[balanceKey] !== undefined) {
-        const newBalanceKey = getMappingKey([address], 3)
-
         // Give this account a balance inside of WETH.
+        const newBalanceKey = getMappingKey([address], 3)
         account.storage[newBalanceKey] = ethAccount.storage[balanceKey]
       }
     }
@@ -131,9 +126,8 @@ export const handlers: {
     for (const pool of data.pools) {
       const balanceKey = getMappingKey([pool.oldAddress], 0)
       if (ethAccount.storage[balanceKey] !== undefined) {
-        const newBalanceKey = getMappingKey([pool.newAddress], 3)
-
         // Give this account a balance inside of WETH.
+        const newBalanceKey = getMappingKey([pool.newAddress], 3)
         account.storage[newBalanceKey] = ethAccount.storage[balanceKey]
       }
     }
@@ -209,6 +203,7 @@ export const handlers: {
     // Get the pool's code.
     let poolCode = await data.l1TestnetProvider.getCode(pool.newAddress)
     if (poolCode === '0x') {
+      console.log('Could not find pool code, deploying to testnet...')
       const UniswapV3Factory = getUniswapV3Factory(data.l1TestnetWallet)
       await UniswapV3Factory.createPool(pool.token0, pool.token1, pool.fee)
 
@@ -252,28 +247,13 @@ export const handlers: {
       throw new Error(`Unable to find ${account.address} in etherscan dump`)
     }
 
-    // Get the correct solidity compiler
-    const version = COMPILER_VERSIONS_TO_SOLC[contract.compilerVersion]
-    if (!version) {
-      throw new Error(`Unable to find solc version ${contract.compilerVersion}`)
-    }
-    const currSolc = getSolc(version)
-
-    // Compile the contract
-    const input = solcInput(contract)
-    const output = JSON.parse(currSolc.compile(JSON.stringify(input)))
-    if (!output.contracts) {
-      throw new Error(`Cannot compile ${contract.contractAddress}`)
-    }
-
-    // This copies the output so it is safe to mutate below
-    const mainOutput = getMainContract(contract, output)
-    if (!mainOutput) {
-      throw new Error(`Contract filename mismatch: ${contract.contractAddress}`)
-    }
+    const evmOutput = compile({
+      contract,
+      ovm: false,
+    })
 
     // Pull out the bytecode, exact handling depends on the Solidity version
-    let bytecode = mainOutput.evm.deployedBytecode
+    let bytecode = evmOutput.evm.deployedBytecode
     if (typeof bytecode === 'object') {
       bytecode = bytecode.object
     }
@@ -283,30 +263,29 @@ export const handlers: {
 
     // Handle external library references.
     if (contract.library) {
-      console.log('Handling libraries')
       const linkReferences = linker.findLinkReferences(bytecode)
 
-      // The logic only handles linking single libraries. Throw an error in the
-      // case where there are multiple libraries.
-      if (contract.library.split(':').length > 2) {
-        throw new Error(
-          `Implement multi library linking handling: ${contract.contractAddress}`
-        )
-      }
-
-      const [name, address] = contract.library.split(':')
-      let key: string
-      if (Object.keys(linkReferences).length > 0) {
-        key = Object.keys(linkReferences)[0]
-      } else {
-        key = name
+      const libStrings = contract.library.split(';')
+      const libraries = {}
+      for (const [i, libStr] of libStrings.entries()) {
+        const [name, address] = libStr.split(':')
+        let key: string
+        if (Object.keys(linkReferences).length > i) {
+          key = Object.keys(linkReferences)[i]
+        } else {
+          key = name
+        }
+        libraries[key] = add0x(address)
       }
 
       // Inject the libraries at the required locations
-      console.log('Linking')
-      bytecode = linker.linkBytecode(bytecode, {
-        [key]: add0x(address),
-      })
+      bytecode = linker.linkBytecode(bytecode, libraries)
+      // There should no longer be any link references if linking was done correctly
+      if (Object.keys(linker.findLinkReferences(bytecode)).length !== 0) {
+        throw new Error(
+          `Library linking did not happen correctly: ${contract.contractAddress}`
+        )
+      }
     }
 
     // Make sure the bytecode is (still) 0x-prefixed.
@@ -317,30 +296,18 @@ export const handlers: {
     // can be found. The immutables must be pulled out of the old code
     // and inserted into the new code
     const immutableRefs: ImmutableReference =
-      mainOutput.evm.deployedBytecode.immutableReferences
+      evmOutput.evm.deployedBytecode.immutableReferences
     if (immutableRefs && Object.keys(immutableRefs).length !== 0) {
-      console.log('Handling immutables')
       // Compile using the ovm compiler to find the location of the
       // immutableRefs in the ovm contract so they can be migrated
       // to the new contract
-      const ovmSolc = getSolc(contract.compilerVersion, true)
-      const ovmOutput = JSON.parse(ovmSolc.compile(JSON.stringify(input)))
-      const ovmFile = getMainContract(contract, ovmOutput)
-      if (!ovmFile) {
-        throw new Error(
-          `Contract filename mismatch: ${contract.contractAddress}`
-        )
-      }
+      const ovmOutput = compile({
+        contract,
+        ovm: true,
+      })
 
       const ovmImmutableRefs: ImmutableReference =
-        ovmFile.evm.deployedBytecode.immutableReferences
-
-      let ovmObject = ovmFile.evm.deployedBytecode
-      if (typeof ovmObject === 'object') {
-        ovmObject = ovmObject.object
-      }
-
-      ovmObject = add0x(ovmObject)
+        ovmOutput.evm.deployedBytecode.immutableReferences
 
       // Iterate over the immutableRefs and slice them into the new code
       // to carry over their values. The keys are the AST IDs
@@ -387,10 +354,8 @@ export const handlers: {
 
     // Handle migrating storage slots
     if (account.storage) {
-      console.log('Handling storage')
-      for (const pool of data.pools) {
-        // Check for references to modified values in storage.
-        for (const [key, value] of Object.entries(account.storage)) {
+      for (const [key, value] of Object.entries(account.storage)) {
+        for (const pool of data.pools) {
           // Turn into hex string or hexStringIncludes will throw
           const val = add0x(value)
           if (hexStringIncludes(val, pool.oldAddress)) {
@@ -421,22 +386,19 @@ export const handlers: {
           }
         }
 
-        // Fix single-level mappings (e.g., balance mappings)
-        for (let i = 0; i < 1000; i++) {
-          const oldSlotKey = getMappingKey([pool.oldAddress], i)
-          if (account.storage[oldSlotKey] !== undefined) {
-            console.log(
-              `fixing single-level mapping in contract`,
-              `address=${account.address}`,
-              `pool=${pool.oldAddress}`,
-              `slot=${oldSlotKey}`
-            )
-            transferStorageSlot({
-              account,
-              oldSlot: oldSlotKey,
-              newSlot: getMappingKey([pool.newAddress], i),
-            })
-          }
+        if (data.poolHashCache[key]) {
+          const cached = data.poolHashCache[key]
+          console.log(
+            `fixing single-level mapping in contract`,
+            `address=${account.address}`,
+            `pool=${cached.pool.oldAddress}`,
+            `slot=${key}`
+          )
+          transferStorageSlot({
+            account,
+            oldSlot: key,
+            newSlot: getMappingKey([cached.pool.newAddress], cached.index),
+          })
         }
       }
     }

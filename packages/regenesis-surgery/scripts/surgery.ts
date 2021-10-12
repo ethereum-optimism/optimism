@@ -20,8 +20,8 @@ import {
 } from './utils'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
-import { downloadAllSolcVersions } from './download-solc'
-import { getUniswapPoolData } from './data'
+import { downloadAllSolcVersions } from './solc'
+import { getUniswapPoolData, makePoolHashCache } from './data'
 import { add0x, remove0x } from '@eth-optimism/core-utils'
 
 const doGenesisSurgery = async (
@@ -31,31 +31,31 @@ const doGenesisSurgery = async (
   const output: StateDump = []
 
   // Handle each account in the state dump.
-  for (const [i, account] of data.dump.entries()) {
-    if (i >= data.startIndex && i <= data.endIndex) {
-      const accountType = classify(account, data)
-      console.log(
-        `[${i}/${data.dump.length}] ${AccountType[accountType]}: ${account.address}`
-      )
+  const input = data.dump.slice(data.startIndex, data.endIndex)
 
-      const handler = handlers[accountType]
-      const newAccount = await handler(clone(account), data)
-      if (newAccount !== undefined) {
-        output.push(newAccount)
-      }
+  // Insert any accounts in the genesis that aren't already in the state dump.
+  for (const account of data.genesis) {
+    if (findAccount(input, account.address) === undefined) {
+      input.push(account)
     }
   }
 
-  // Ingest any accounts in the genesis that aren't already in the state dump.
-  // TODO: this needs to be able to be deduplicated if running in parallel
-  for (const account of data.genesis) {
-    if (findAccount(output, account.address) === undefined) {
-      output.push(account)
+  for (const [i, account] of input.entries()) {
+    const accountType = classify(account, data)
+    console.log(
+      `[${i}/${input.length}] ${AccountType[accountType]}: ${account.address}`
+    )
+
+    const handler = handlers[accountType]
+    const newAccount = await handler(clone(account), data)
+    if (newAccount !== undefined) {
+      output.push(newAccount)
     }
   }
 
   // Clean up and standardize the dump. Also performs a few tricks to reduce the overall size of
   // the state dump, which reduces bandwidth requirements.
+  console.log('Cleaning up and standardizing dump format...')
   for (const account of output) {
     for (const [key, val] of Object.entries(account)) {
       // We want to be left with the following fields:
@@ -85,13 +85,19 @@ const doGenesisSurgery = async (
         // At this point we know that the input is either a string or a number. If it's a number,
         // we want to convert it into a string.
         let stripped = typeof val === 'number' ? val.toString(16) : val
-        // Neither of these fields need to be 0x-prefixed. We can reduce our genesis size by
-        // removing the 0x prefix.
+        // Remove 0x so we can strip any leading zeros.
         stripped = remove0x(stripped)
         // We can further reduce our genesis size by removing leading zeros. We can even go as far
         // as removing the entire string because Geth appears to treat the empty string as 0.
         stripped = stripped.replace().replace(/^0+/, '')
+        // We have to add 0x if the value is greater or equal to than 10 because Geth will throw an
+        // error otherwise.
+        if (stripped !== '' && ethers.BigNumber.from(add0x(stripped)).gte(10)) {
+          stripped = add0x(stripped)
+        }
         account[key] = stripped
+      } else if (key === 'address') {
+        // Keep the address as-is, we'll delete it eventually.
       } else {
         throw new Error(`unexpected account field: ${key}`)
       }
@@ -143,6 +149,9 @@ const main = async () => {
     configs.l2NetworkName
   )
 
+  console.log('Generating pool cache...')
+  const poolHashCache = makePoolHashCache(pools)
+
   // Get a reference to the L1 testnet provider and wallet, used for deploying Uniswap pools.
   console.log('Connecting to L1 testnet provider...')
   const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
@@ -165,6 +174,7 @@ const main = async () => {
     dump,
     genesis: genesisDump,
     pools,
+    poolHashCache,
     etherscanDump,
     l1TestnetProvider,
     l1TestnetWallet,
@@ -181,7 +191,7 @@ const main = async () => {
   for (const account of finalGenesisDump) {
     const address = account.address
     delete account.address
-    finalGenesisAlloc[address] = account
+    finalGenesisAlloc[remove0x(address)] = account
   }
 
   // Attach all of the original genesis configuration values.

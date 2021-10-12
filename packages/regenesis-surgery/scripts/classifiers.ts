@@ -5,6 +5,7 @@ import {
   UNISWAP_V3_CONTRACT_ADDRESSES,
   PREDEPLOY_WIPE_ADDRESSES,
   PREDEPLOY_NO_WIPE_ADDRESSES,
+  PREDEPLOY_NEW_NOT_ETH_ADDRESSES,
   OLD_ETH_ADDRESS,
   NEW_ETH_ADDRESS,
   ONEINCH_DEPLOYER_ADDRESS,
@@ -20,11 +21,16 @@ export const classifiers: {
     return hexStringEqual(account.address, ONEINCH_DEPLOYER_ADDRESS)
   },
   [AccountType.DELETE]: (account) => {
-    return DELETE_CONTRACTS.some((codeHash) => {
-      return hexStringEqual(account.codeHash, codeHash)
+    return DELETE_CONTRACTS.some((addr) => {
+      return hexStringEqual(account.address, addr)
     })
   },
   [AccountType.EOA]: (account) => {
+    // Just in case the account doesn't have a code hash
+    if (!account.codeHash) {
+      return false
+    }
+
     return EOA_CODE_HASHES.some((codeHash) => {
       return hexStringEqual(account.codeHash, codeHash)
     })
@@ -33,6 +39,11 @@ export const classifiers: {
     return account.address
       .toLowerCase()
       .startsWith('0x00000000000000000000000000000000000000')
+  },
+  [AccountType.PREDEPLOY_NEW_NOT_ETH]: (account) => {
+    return PREDEPLOY_NEW_NOT_ETH_ADDRESSES.some((addr) => {
+      return hexStringEqual(account.address, addr)
+    })
   },
   [AccountType.PREDEPLOY_WIPE]: (account) => {
     return PREDEPLOY_WIPE_ADDRESSES.some((addr) => {

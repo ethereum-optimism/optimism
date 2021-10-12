@@ -4,3 +4,4 @@ solc-bin/
 outputs/
 etherscan/
 state-dumps/
+data/

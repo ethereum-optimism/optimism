@@ -46,6 +46,7 @@ export enum AccountType {
   DELETE,
   EOA,
   PRECOMPILE,
+  PREDEPLOY_NEW_NOT_ETH,
   PREDEPLOY_WIPE,
   PREDEPLOY_NO_WIPE,
   PREDEPLOY_ETH,
@@ -85,6 +86,7 @@ export interface SurgeryDataSources {
   dump: StateDump
   genesis: StateDump
   pools: UniswapPoolData[]
+  poolHashCache: PoolHashCache
   etherscanDump: EtherscanContract[]
   l1TestnetProvider: ethers.providers.JsonRpcProvider
   l1TestnetWallet: ethers.Wallet
@@ -125,4 +127,11 @@ export interface ImmutableReference {
 
 export interface ImmutableReferences {
   [key: string]: ImmutableReference[]
+}
+
+export interface PoolHashCache {
+  [key: string]: {
+    pool: UniswapPoolData
+    index: number
+  }
 }
