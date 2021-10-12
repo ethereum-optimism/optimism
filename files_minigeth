@@ -53,6 +53,69 @@ core/vm/operations_acl.go
 core/vm/stack_table.go
 core/vm/stack.go
 
+core/error.go
+core/evm.go
+#core/fake_blockchain.go
+core/gaspool.go
+#core/state_processor.go -- disable DAO, print dots
+core/state_transition.go
+
+crypto/blake2b/blake2b_generic.go
+#crypto/blake2b/blake2b_ref.go -- always build
+crypto/blake2b/blake2b.go
+
+crypto/bls12381/arithmetic_fallback.go
+crypto/bls12381/bls12_381.go
+crypto/bls12381/field_element.go
+crypto/bls12381/fp.go
+crypto/bls12381/fp2.go
+crypto/bls12381/fp6.go
+crypto/bls12381/fp12.go
+crypto/bls12381/g1.go
+crypto/bls12381/g2.go
+crypto/bls12381/gt.go
+crypto/bls12381/isogeny.go
+crypto/bls12381/pairing.go
+crypto/bls12381/swu.go
+crypto/bls12381/utils.go
+
+crypto/bn256/google/*
+#crypto/bn256/bn256_slow.go -- always build
+crypto/bn256/LICENSE
+
+# crypto/btcec -- copied in
+
+crypto/crypto.go
+#crypto/signature_nocgo.go -- always build with local btcec
+
+ethdb/batch.go
+ethdb/database.go
+ethdb/iterator.go
+
+#log/logger.go -- stubbed, this needed?
+
+#metrics/metrics.go -- all stubbed
+
+params/config.go
+params/protocol_params.go
+
+rlp/decode.go
+rlp/encode.go
+rlp/raw.go
+rlp/typecache.go
+#rlp/unsafe.go -- always build
+
 rpc/errors.go
 rpc/json.go
 rpc/types.go
+
+trie/committer.go
+#trie/database.go
+trie/encoding.go
+trie/errors.go
+trie/hasher.go
+trie/iterator.go
+trie/node.go
+#trie/secure_trie.go
+#trie/stacktrie.go
+#trie/trie.go
