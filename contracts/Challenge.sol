@@ -49,9 +49,6 @@ contract Challenge {
     owner.transfer(address(this).balance);
   }
 
-  // memory helpers
-
-
   // create challenge
   uint256 public lastChallengeId = 0;
 
@@ -103,10 +100,9 @@ contract Challenge {
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
     // you must load these proofs into MIPS before calling this
     // we disagree at the end
-
+    require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0x5EAD0000, "machine is not stopped in final state (PC == 0x5EAD0000)");
     require(mem.ReadMemory(finalSystemState, 0x30000800) == 0x1337f00d, "state is not outputted");
     require(mem.ReadBytes32(finalSystemState, 0x30000804) == assertionRoot, "you are claiming a different state root in machine");
-    require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0x5EAD0000, "machine is not stopped in final state (PC == 0x5EAD0000)");
 
     return newChallengeTrusted(startState, finalSystemState, stepCount);
   }
@@ -166,22 +162,5 @@ contract Challenge {
     c.challenger.transfer(address(this).balance);
     
     emit ChallengerWins(challengeId);
-  }
-
-  function HumiliateChallengerStateTransition(uint256 challengeId, bytes32 finalRiscState) external {
-    Chal storage c = challenges[challengeId];
-    require(c.challenger != address(0), "invalid challenge");
-    require(owner == msg.sender, "must be owner");
-    require(c.L + 1 == c.R, "binary search not finished");
-
-    // it's 0 if you agree with all attacker states except the final one
-    // in which case, you get a free pass to submit now
-    require(c.defendedState[c.R] == finalRiscState || c.defendedState[c.R] == bytes32(0), "must be consistent with state");
-
-    require(mips.Step(c.defendedState[c.L]) == finalRiscState, "wrong asserted state");
-
-    // consider the challenger mocked
-    // if they staked a bounty, you could claim it here
-    emit ChallengerLoses(challengeId);
   }
 }

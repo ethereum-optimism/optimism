@@ -2,6 +2,7 @@
 pragma solidity ^0.7.3;
 
 import "./lib/Lib_Keccak256.sol";
+import "./lib/Lib_MerkleTrie.sol";
 
 contract MIPSMemory {
   // This state is global
@@ -47,8 +48,21 @@ contract MIPSMemory {
     return Lib_Keccak256.get_hash(c);
   }
 
-  function AddMerkleState(bytes32 stateHash, uint32 addr, uint32 value, string calldata proof) public {
-    // TODO: check proof
+  function tb(uint32 dat) internal returns (bytes memory) {
+    bytes memory ret = new bytes(4);
+    ret[0] = bytes1(uint8(dat >> 24));
+    ret[1] = bytes1(uint8(dat >> 16));
+    ret[2] = bytes1(uint8(dat >> 8));
+    ret[3] = bytes1(uint8(dat >> 0));
+    return ret;
+  }
+
+  function AddMerkleState(bytes32 stateHash, uint32 addr, uint32 value, bytes calldata proof) public {
+    if (value == 0) {
+      require(Lib_MerkleTrie.verifyExclusionProof(tb(addr), proof, stateHash) == true, "couldn't verify 0 proof");
+    } else {
+      require(Lib_MerkleTrie.verifyInclusionProof(tb(addr), tb(value), proof, stateHash) == true, "couldn't verify non 0 proof");
+    }
     state[stateHash][addr] = (1 << 32) | value;
   }
 
