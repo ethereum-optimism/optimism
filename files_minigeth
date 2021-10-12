@@ -110,12 +110,12 @@ rpc/json.go
 rpc/types.go
 
 trie/committer.go
-#trie/database.go
+#trie/database.go -- uses rawdb and fastcache
 trie/encoding.go
 trie/errors.go
 trie/hasher.go
 trie/iterator.go
 trie/node.go
-#trie/secure_trie.go
-#trie/stacktrie.go
-#trie/trie.go
+#trie/secure_trie.go -- couple random comment outs, fix?
+#trie/stacktrie.go -- persist the database
+#trie/trie.go -- hacks for deletion
