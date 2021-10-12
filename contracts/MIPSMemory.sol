@@ -65,6 +65,14 @@ contract MIPSMemory {
     return newstateHash;
   }
 
+  function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public pure returns (bytes32) {
+    for (uint32 i = 0; i < 32; i += 4) {
+      uint256 tv = uint256(val>>(224-(i*8)));
+      stateHash = WriteMemory(stateHash, addr+i, uint32(tv));
+    }
+    return stateHash;
+  }
+
   // needed for preimage oracle
   function ReadBytes32(bytes32 stateHash, uint32 addr) public view returns (bytes32) {
     uint256 ret = 0;
