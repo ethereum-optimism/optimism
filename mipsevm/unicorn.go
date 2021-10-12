@@ -33,10 +33,14 @@ func WriteBytes(fd int, bytes []byte) {
 }
 
 func WriteRam(ram map[uint32](uint32), addr uint32, value uint32) {
-	if value != 0 {
-		ram[addr] = value
-	} else {
+	// we no longer delete from ram, since deleting from tries is hard
+	if value == 0 && false {
 		delete(ram, addr)
+	} else {
+		/*if addr < 0xc0000000 {
+			fmt.Printf("store %x = %x\n", addr, value)
+		}*/
+		ram[addr] = value
 	}
 }
 

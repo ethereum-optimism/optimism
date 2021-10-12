@@ -145,11 +145,7 @@ func (s *StateDB) SetState(fakeaddr common.Address, key, value common.Hash) {
 		fmt.Println("HOOKED WRITE!  ", fmt.Sprintf("%x = %x (at step %d)", addr, dat, pcCount))
 	}
 
-	if dat == 0 {
-		delete(ram, addr)
-	} else {
-		ram[addr] = dat
-	}
+	WriteRam(ram, addr, dat)
 }
 func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addressPresent bool, slotPresent bool) {
 	return true, true

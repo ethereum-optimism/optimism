@@ -32,12 +32,16 @@ func TestCompare(t *testing.T) {
 	cevm := make(chan []uint32, 1)
 	cuni := make(chan []uint32, 1)
 
-	ram := make(map[uint32](uint32))
-	LoadMappedFile(fn, ram, 0)
+	evmram := make(map[uint32](uint32))
+	LoadMappedFile(fn, evmram, 0)
 	inputFile := fmt.Sprintf("/tmp/eth/%d", 13284469)
-	LoadMappedFile(inputFile, ram, 0xB0000000)
+	LoadMappedFile(inputFile, evmram, 0xB0000000)
+	// init registers to 0 in evm
+	for i := uint32(0xC0000000); i < 0xC0000000+36*4; i += 4 {
+		WriteRam(evmram, i, 0)
+	}
 
-	go RunWithRam(ram, steps, 0, func(step int, ram map[uint32](uint32)) {
+	go RunWithRam(evmram, steps, 0, func(step int, ram map[uint32](uint32)) {
 		//fmt.Printf("%d evm %x\n", step, ram[0xc0000080])
 		cevm <- RegSerialize(ram)
 		done.Lock()
@@ -76,9 +80,9 @@ func TestCompare(t *testing.T) {
 	// final ram check
 	done.Lock()
 	time.Sleep(100 * time.Millisecond)
-	for k, v := range ram {
-		if uniram[k] != v {
-			fmt.Printf("ram mismatch at %x, evm %x != uni %x\n", k, v, uniram[k])
+	for k, v := range uniram {
+		if val, ok := evmram[k]; !ok || val != v {
+			fmt.Printf("ram mismatch at %x, evm %x != uni %x\n", k, evmram[k], uniram[k])
 			mismatch = true
 		}
 	}
