@@ -83,6 +83,7 @@ export interface EtherscanContract {
 }
 
 export interface SurgeryDataSources {
+  configs: SurgeryConfigs
   dump: StateDump
   genesis: StateDump
   pools: UniswapPoolData[]

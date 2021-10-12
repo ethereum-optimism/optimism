@@ -6,9 +6,26 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
 import { Token } from '@uniswap/sdk-core'
-import { UniswapPoolData, PoolHashCache } from './types'
-import { getUniswapV3Factory, getMappingKey } from './utils'
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
+import { downloadAllSolcVersions } from './solc'
+import {
+  PoolHashCache,
+  StateDump,
+  UniswapPoolData,
+  SurgeryDataSources,
+  EtherscanContract,
+  SurgeryConfigs,
+  GenesisFile,
+} from './types'
+import {
+  loadConfigs,
+  checkStateDump,
+  readDumpFile,
+  readEtherscanFile,
+  readGenesisFile,
+  getUniswapV3Factory,
+  getMappingKey,
+} from './utils'
 
 export const getUniswapPoolData = async (
   l2Provider: ethers.providers.BaseProvider,
@@ -63,4 +80,82 @@ export const makePoolHashCache = (pools: UniswapPoolData[]): PoolHashCache => {
     }
   }
   return cache
+}
+
+export const loadSurgeryData = async (): Promise<SurgeryDataSources> => {
+  // First download every solc version that we'll need during this surgery.
+  console.log('Downloading all required solc versions...')
+  await downloadAllSolcVersions()
+
+  // Load the configuration values, will throw if anything is missing.
+  console.log('Loading configuration values...')
+  const configs: SurgeryConfigs = loadConfigs()
+
+  // Load and validate the state dump.
+  console.log('Loading and validating state dump file...')
+  const dump: StateDump = await readDumpFile(configs.stateDumpFilePath)
+  checkStateDump(dump)
+
+  // Load the genesis file.
+  console.log('Loading genesis file...')
+  const genesis: GenesisFile = await readGenesisFile(configs.genesisFilePath)
+  const genesisDump: StateDump = []
+  for (const [address, account] of Object.entries(genesis.alloc)) {
+    genesisDump.push({
+      address,
+      ...account,
+    })
+  }
+
+  // Load the etherscan dump.
+  console.log('Loading etherscan dump file...')
+  const etherscanDump: EtherscanContract[] = await readEtherscanFile(
+    configs.etherscanFilePath
+  )
+
+  // Get a reference to the L2 provider so we can load pool data.
+  console.log('Connecting to L2 provider...')
+  const l2Provider = new ethers.providers.JsonRpcProvider(configs.l2ProviderUrl)
+
+  // Load the pool data.
+  console.log('Loading Uniswap pool data...')
+  const pools: UniswapPoolData[] = await getUniswapPoolData(
+    l2Provider,
+    configs.l2NetworkName
+  )
+
+  console.log('Generating pool cache...')
+  const poolHashCache = makePoolHashCache(pools)
+
+  // Get a reference to the L1 testnet provider and wallet, used for deploying Uniswap pools.
+  console.log('Connecting to L1 testnet provider...')
+  const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
+    configs.l1TestnetProviderUrl
+  )
+  const l1TestnetWallet = new ethers.Wallet(
+    configs.l1TestnetPrivateKey,
+    l1TestnetProvider
+  )
+
+  // Get a reference to the L1 mainnet provider.
+  console.log('Connecting to L1 mainnet provider...')
+  const l1MainnetProvider = new ethers.providers.JsonRpcProvider(
+    configs.l1MainnetProviderUrl
+  )
+
+  return {
+    configs,
+    dump,
+    genesis: genesisDump,
+    pools,
+    poolHashCache,
+    etherscanDump,
+    l1TestnetProvider,
+    l1TestnetWallet,
+    l1MainnetProvider,
+    l2Provider,
+    l2NetworkName: configs.l2NetworkName,
+    startIndex: configs.startIndex,
+    endIndex: configs.endIndex,
+  }
 }
