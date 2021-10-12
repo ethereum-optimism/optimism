@@ -9,9 +9,48 @@ common/bytes.go
 common/size.go
 common/types.go
 
+#consensus/ethash/fake_ethash.go
 consensus/misc/eip1559.go
 consensus/misc/gaslimit.go
 consensus/consensus.go
+
+#core/state/snapshot/snapshot.go
+core/state/access_list.go
+#core/state/database.go
+core/state/journal.go
+#core/state/state_object.go -- has oracle stuff in it
+#core/state/statedb.go -- uses rawdb
+
+core/types/access_list_tx.go
+core/types/block.go
+core/types/bloom9.go
+core/types/dynamic_fee_tx.go
+core/types/hashing.go
+core/types/legacy_tx.go
+core/types/log.go
+core/types/receipt.go
+core/types/transaction_signing.go
+core/types/transaction.go
+
+core/vm/analysis.go
+core/vm/common.go
+core/vm/contract.go
+core/vm/contracts.go
+core/vm/eips.go
+core/vm/errors.go
+core/vm/evm.go
+core/vm/gas_table.go
+core/vm/gas.go
+core/vm/instructions.go
+core/vm/interface.go
+#core/vm/interpreter.go
+core/vm/jump_table.go
+core/vm/memory_table.go
+core/vm/memory.go
+core/vm/opcodes.go
+core/vm/operations_acl.go
+core/vm/stack_table.go
+core/vm/stack.go
 
 rpc/errors.go
 rpc/json.go

@@ -48,10 +48,6 @@ type operation struct {
 	returns bool // determines whether the operations sets the return data content
 }
 
-func (o *operation) SetExecute(f executionFunc) {
-	o.execute = f
-}
-
 var (
 	frontierInstructionSet         = newFrontierInstructionSet()
 	homesteadInstructionSet        = newHomesteadInstructionSet()

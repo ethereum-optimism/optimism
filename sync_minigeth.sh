@@ -1,5 +1,5 @@
 #!/bin/bash
-FILES=$(cat files_minigeth)
+FILES=$(grep -v "#" files_minigeth)
 MINIGETH=$PWD/minigeth
 git clone https://github.com/ethereum/go-ethereum.git
 cd go-ethereum
