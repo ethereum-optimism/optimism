@@ -1,10 +1,10 @@
-name: Test EVM
+name: Test MIPS EVM
 
 on: [push, pull_request]
 
 jobs:
   unit:
-    name: Test EVM
+    name: Test MIPS EVM
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code

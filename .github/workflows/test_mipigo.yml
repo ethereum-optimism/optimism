@@ -1,10 +1,10 @@
-name: Test Embedded
+name: Test mipigo
 
 on: [push, pull_request]
 
 jobs:
   unit:
-    name: Test Embedded
+    name: Test mipigo
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
