@@ -41,11 +41,6 @@ const doGenesisSurgery = async (
   }
 
   for (const [i, account] of input.entries()) {
-    // Broken account
-    if (i === 143805) {
-      continue
-    }
-
     const accountType = classify(account, data)
     console.log(
       `[${i}/${input.length}] ${AccountType[accountType]}: ${account.address}`
