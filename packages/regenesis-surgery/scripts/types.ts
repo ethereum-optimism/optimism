@@ -82,13 +82,15 @@ export interface EtherscanContract {
   library: string
 }
 
+export type EtherscanDump = EtherscanContract[]
+
 export interface SurgeryDataSources {
   configs: SurgeryConfigs
   dump: StateDump
   genesis: StateDump
   pools: UniswapPoolData[]
   poolHashCache: PoolHashCache
-  etherscanDump: EtherscanContract[]
+  etherscanDump: EtherscanDump
   l1TestnetProvider: ethers.providers.JsonRpcProvider
   l1TestnetWallet: ethers.Wallet
   l1MainnetProvider: ethers.providers.JsonRpcProvider

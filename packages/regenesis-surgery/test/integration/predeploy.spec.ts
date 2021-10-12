@@ -1,4 +1,5 @@
-describe('predeploys', () => {
+/* eslint-disable @typescript-eslint/no-empty-function */
+describe.skip('predeploys', () => {
   describe('new predeploys that are not ETH', () => {
     it('should have the exact state specified in the base genesis file', async () => {})
   })

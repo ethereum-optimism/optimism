@@ -11,7 +11,7 @@ import {
   EMSCRIPTEN_BUILD_PATH,
   LOCAL_SOLC_DIR,
 } from './constants'
-import { clone } from './utils'
+import { clone } from '@eth-optimism/core-utils'
 import { EtherscanContract } from './types'
 
 const OVM_BUILD_PATH = (version: string) => {
