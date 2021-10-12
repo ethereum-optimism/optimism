@@ -43,8 +43,9 @@ core/vm/gas_table.go
 core/vm/gas.go
 core/vm/instructions.go
 core/vm/interface.go
-#core/vm/interpreter.go
+core/vm/interpreter.go
 core/vm/jump_table.go
+core/vm/logger.go
 core/vm/memory_table.go
 core/vm/memory.go
 core/vm/opcodes.go

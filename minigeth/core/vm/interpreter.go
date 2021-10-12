@@ -18,40 +18,12 @@ package vm
 
 import (
 	"hash"
-	"math/big"
 	"sync/atomic"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-	//"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
-
-// **** stub Tracer ****
-type Tracer interface {
-	CaptureStart(env *EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int)
-	CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, rData []byte, depth int, err error)
-	CaptureFault(env *EVM, pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, depth int, err error)
-	CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error)
-}
-
-/*type StubTracer struct{}
-
-// CaptureStart implements the Tracer interface to initialize the tracing operation.
-func (jst *StubTracer) CaptureStart(env *EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
-}
-
-// CaptureState implements the Tracer interface to trace a single step of VM execution.
-func (jst *StubTracer) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, rData []byte, depth int, err error) {
-}
-
-// CaptureFault implements the Tracer interface to trace an execution fault
-func (jst *StubTracer) CaptureFault(env *EVM, pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, depth int, err error) {
-}
-
-// CaptureEnd is called after the call finishes to finalize the tracing.
-func (jst *StubTracer) CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error) {
-}*/
 
 // Config are the configuration options for the Interpreter
 type Config struct {
@@ -125,7 +97,7 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 			if err := EnableEIP(eip, &jt); err != nil {
 				// Disable it, so caller can check if it's activated or not
 				cfg.ExtraEips = append(cfg.ExtraEips[:i], cfg.ExtraEips[i+1:]...)
-				//log.Error("EIP activation failed", "eip", eip, "error", err)
+				log.Error("EIP activation failed", "eip", eip, "error", err)
 			}
 		}
 		cfg.JumpTable = jt
@@ -135,10 +107,6 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 		evm: evm,
 		cfg: cfg,
 	}
-}
-
-func (in *EVMInterpreter) GetCfg() *Config {
-	return &in.cfg
 }
 
 // Run loops and evaluates the contract's code with the given input data and returns
