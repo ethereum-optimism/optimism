@@ -28,7 +28,7 @@ func LoadMappedFile(fn string, ram map[uint32](uint32), base uint32) {
 func RunMinigeth(fn string, steps int, debug int) {
 	ram := make(map[uint32](uint32))
 	LoadMappedFile(fn, ram, 0)
-	LoadMappedFile(fmt.Sprintf("/tmp/eth/%d", 13284469), ram, 0x30000000)
+	LoadMappedFile(fmt.Sprintf("/tmp/eth/%d", 13284469), ram, 0xB0000000)
 	RunWithRam(ram, steps, debug, nil)
 }
 

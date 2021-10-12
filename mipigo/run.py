@@ -27,10 +27,10 @@ mregs = [UC_MIPS_REG_AT, UC_MIPS_REG_V0, UC_MIPS_REG_V1, UC_MIPS_REG_A0, UC_MIPS
 regs = ["at", "v0", "v1", "a0", "a1", "a2", "a3"]
 
 heap_start = 0x20000000 # 0x20000000-0x30000000
-# input oracle              @ 0x30000000
-# output oracle             @ 0x30000800
-# preimage oracle (write)   @ 0x30001000
-# preimage oracle (read)    @ 0x31000000-0x32000000 (16 MB)
+# input oracle              @ 0xB0000000
+# output oracle             @ 0xB0000800
+# preimage oracle (write)   @ 0xB0001000
+# preimage oracle (read)    @ 0xB1000000-0xB2000000 (16 MB)
 
 brk_start = 0x40000000  # 0x40000000-0x80000000
 stack_start = 0x7FFFF000
@@ -99,11 +99,11 @@ def hook_interrupt(uc, intno, user_data):
     uc.reg_write(UC_MIPS_REG_A3, 0)
 
     if syscall_no == 4020:
-      oracle_hash = binascii.hexlify(uc.mem_read(0x30001000, 0x20)).decode('utf-8')
+      oracle_hash = binascii.hexlify(uc.mem_read(0xB0001000, 0x20)).decode('utf-8')
       dat = open("/tmp/eth/0x"+oracle_hash, "rb").read()
       #print("oracle:", oracle_hash, len(dat))
-      uc.mem_write(0x31000000, struct.pack(">I", len(dat)))
-      uc.mem_write(0x31000004, dat)
+      uc.mem_write(0xB1000000, struct.pack(">I", len(dat)))
+      uc.mem_write(0xB1000004, dat)
       return True
 
     if syscall_no == 4004:
@@ -262,13 +262,13 @@ mu.mem_map(heap_start, 256*1024*1024)
 mu.mem_map(brk_start, 1024*1024*1024)
 
 # input oracle
-mu.mem_map(0x30000000, 0x2000000)
+mu.mem_map(0xB0000000, 0x2000000)
 
 if len(sys.argv) > 1:
   inputs = open("/tmp/eth/"+sys.argv[1], "rb").read()
 else:
   inputs = open("/tmp/eth/13284469", "rb").read()
-mu.mem_write(0x30000000, inputs)
+mu.mem_write(0xB0000000, inputs)
 
 _, r = load_minigeth(mu)
 
@@ -290,16 +290,17 @@ try:
   mu.emu_start(0, 0x5EAD0000)
   died_well = True
 except unicorn.UcError:
+  traceback.print_exc()
   pass
 
 if not died_well:
   raise Exception("program exitted early")
 
-magic = struct.unpack(">I", mu.mem_read(0x30000800, 4))[0]
+magic = struct.unpack(">I", mu.mem_read(0xB0000800, 4))[0]
 assert magic == 0x1337f00d
 
 real_hash = binascii.hexlify(inputs[-0x40:-0x20])
-compare_hash = binascii.hexlify(mu.mem_read(0x30000804, 0x20))
+compare_hash = binascii.hexlify(mu.mem_read(0xB0000804, 0x20))
 print("compare", real_hash, "to computed", compare_hash)
 
 if real_hash != compare_hash:

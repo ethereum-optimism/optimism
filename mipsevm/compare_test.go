@@ -20,8 +20,8 @@ func RegSerialize(ram map[uint32](uint32)) []uint32 {
 var done sync.Mutex
 
 func TestCompare(t *testing.T) {
-	//fn := "../mipigo/test.bin"
-	fn := "../mipigo/minigeth.bin"
+	fn := "../mipigo/test/test.bin"
+	//fn := "../mipigo/minigeth.bin"
 
 	steps := 1000000000
 	//steps := 1165
@@ -34,7 +34,7 @@ func TestCompare(t *testing.T) {
 	ram := make(map[uint32](uint32))
 	LoadMappedFile(fn, ram, 0)
 	inputFile := fmt.Sprintf("/tmp/eth/%d", 13284469)
-	LoadMappedFile(inputFile, ram, 0x30000000)
+	LoadMappedFile(inputFile, ram, 0xB0000000)
 
 	go RunWithRam(ram, steps, 0, func(step int, ram map[uint32](uint32)) {
 		//fmt.Printf("%d evm %x\n", step, ram[0xc0000080])
