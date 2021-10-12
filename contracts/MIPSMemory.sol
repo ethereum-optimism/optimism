@@ -5,9 +5,6 @@ import "./lib/Lib_Keccak256.sol";
 import "./lib/Lib_MerkleTrie.sol";
 
 contract MIPSMemory {
-  // This state is global
-  mapping(bytes32 => mapping (uint32 => uint64)) public state;
-
   // TODO: replace with mapping(bytes32 => mapping(uint, bytes4))
   // to only save the part we care about
   mapping(bytes32 => bytes) public preimage;
@@ -48,7 +45,7 @@ contract MIPSMemory {
     return Lib_Keccak256.get_hash(c);
   }
 
-  function tb(uint32 dat) internal returns (bytes memory) {
+  function tb(uint32 dat) internal pure returns (bytes memory) {
     bytes memory ret = new bytes(4);
     ret[0] = bytes1(uint8(dat >> 24));
     ret[1] = bytes1(uint8(dat >> 16));
@@ -57,29 +54,31 @@ contract MIPSMemory {
     return ret;
   }
 
-  function AddMerkleState(bytes32 stateHash, uint32 addr, uint32 value, bytes calldata proof) public {
-    if (value == 0) {
-      require(Lib_MerkleTrie.verifyExclusionProof(tb(addr), proof, stateHash) == true, "couldn't verify 0 proof");
-    } else {
-      require(Lib_MerkleTrie.verifyInclusionProof(tb(addr), tb(value), proof, stateHash) == true, "couldn't verify non 0 proof");
-    }
-    state[stateHash][addr] = (1 << 32) | value;
+  function fb(bytes memory dat) internal pure returns (uint32) {
+    require(dat.length == 4, "wrong length value");
+    uint32 ret = uint32(uint8(dat[0])) << 24 |
+                 uint32(uint8(dat[1])) << 16 |
+                 uint32(uint8(dat[2])) << 8 |
+                 uint32(uint8(dat[3]));
+    return ret;
   }
 
-  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) public pure returns (bytes32) {
+  mapping(bytes32 => mapping(uint32 => bytes)) proofs;
+
+  function AddMerkleProof(bytes32 stateHash, uint32 addr, bytes calldata proof) public {
+    // validate proof
+    Lib_MerkleTrie.get(tb(addr), proof, stateHash);
+    proofs[stateHash][addr] = proof;
+  }
+
+  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) public view returns (bytes32) {
     require(addr & 3 == 0, "write memory must be 32-bit aligned");
-    // TODO: do the real stateHash mutation
-    bytes32 newstateHash = keccak256(abi.encodePacked(stateHash));
 
-    // note that zeros are never stored in the trie, so storing a 0 is a delete
-
-    // no proof required, this is obviously right
-    //state[newstateHash][addr] = (1 << 32) | value;
-
-    return newstateHash;
+    // TODO: this can't delete nodes. modify the client to never delete
+    return Lib_MerkleTrie.update(tb(addr), tb(value), proofs[stateHash][addr], stateHash);
   }
 
-  function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public pure returns (bytes32) {
+  function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public view returns (bytes32) {
     for (uint32 i = 0; i < 32; i += 4) {
       uint256 tv = uint256(val>>(224-(i*8)));
       stateHash = WriteMemory(stateHash, addr+i, uint32(tv));
@@ -122,8 +121,15 @@ contract MIPSMemory {
              (uint32(a3) << 0);
     }
 
-    uint64 ret = state[stateHash][addr];
-    require((ret >> 32) == 1, "memory was not initialized");
-    return uint32(ret);
+    bool exists;
+    bytes memory value;
+    (exists, value) = Lib_MerkleTrie.get(tb(addr), proofs[stateHash][addr], stateHash);
+
+    if (!exists) {
+      // this is uninitialized memory
+      return 0;
+    } else {
+      return fb(value);
+    }
   }
 }
