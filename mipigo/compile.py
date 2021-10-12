@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 import struct
 from rangetree import RangeTree
@@ -31,7 +32,8 @@ def load_minigeth(mu, fn="minigeth"):
   print("entrypoint: 0x%x" % entry)
 
   # moved to MIPS
-  start = open("startup.bin", "rb").read() + struct.pack(">I", entry)
+  sf = os.path.join(os.path.dirname(os.path.abspath(__file__)), "startup", "startup.bin")
+  start = open(sf, "rb").read() + struct.pack(">I", entry)
   mu.mem_write(0, start)
   entry = 0
 
