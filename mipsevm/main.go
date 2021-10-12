@@ -55,7 +55,7 @@ func main() {
 		steps = 1000000
 	}
 	if len(os.Args) > 1 {
-		if strings.HasPrefix(os.Args[1], "../mipigeth/") {
+		if strings.HasPrefix(os.Args[1], "../mipigo/") {
 			debug, _ := strconv.Atoi(os.Getenv("DEBUG"))
 			RunMinigeth(os.Args[1], steps, debug)
 		} else if os.Args[1] == "unicorn" {

@@ -20,9 +20,8 @@ func RegSerialize(ram map[uint32](uint32)) []uint32 {
 var done sync.Mutex
 
 func TestCompare(t *testing.T) {
-	//fn := "../mipigeth/test.bin"
-	//fn := "test/bin/sc.bin"
-	fn := "../mipigeth/minigeth.bin"
+	//fn := "../mipigo/test.bin"
+	fn := "../mipigo/minigeth.bin"
 
 	steps := 1000000000
 	//steps := 1165
