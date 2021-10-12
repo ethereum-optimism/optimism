@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   unit:
-    name: Test mipigo
+    name: mipigeth runs in MIPS unicorn
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code

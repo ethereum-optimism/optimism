@@ -1,10 +1,10 @@
-name: Test PC
+name: Test minigeth
 
 on: [push, pull_request]
 
 jobs:
   unit:
-    name: Test PC
+    name: minigeth computes correct block transitions
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code

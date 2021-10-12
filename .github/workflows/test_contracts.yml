@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   unit:
-    name: Test Contracts
+    name: Contracts work
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code

@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   unit:
-    name: Test MIPS EVM
+    name: MIPS EVM matches unicorn
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
