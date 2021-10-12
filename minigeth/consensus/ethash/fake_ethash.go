@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type Ethash struct{}
@@ -27,6 +28,10 @@ func (ethash *Ethash) CalcDifficulty(chain consensus.ChainHeaderReader, time uin
 
 func (ethash *Ethash) Close() error {
 	return nil
+}
+
+func (ethash *Ethash) APIs(chain consensus.ChainHeaderReader) []rpc.API {
+	return make([]rpc.API, 0)
 }
 
 // Ethash proof-of-work protocol constants.
