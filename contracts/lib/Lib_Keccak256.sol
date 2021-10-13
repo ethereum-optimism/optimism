@@ -26,7 +26,7 @@ library Lib_Keccak256 {
     return result;
   }
 
-  function keccak_theta(CTX memory c) internal pure {
+  function keccak_theta_rho_pi(CTX memory c) internal pure {
     uint64 C0 = c.A[0] ^ c.A[5] ^ c.A[10] ^ c.A[15] ^ c.A[20];
     uint64 C1 = c.A[1] ^ c.A[6] ^ c.A[11] ^ c.A[16] ^ c.A[21];
     uint64 C2 = c.A[2] ^ c.A[7] ^ c.A[12] ^ c.A[17] ^ c.A[22];
@@ -37,39 +37,31 @@ library Lib_Keccak256 {
     uint64 D2 = ROTL64(C3, 1) ^ C1;
     uint64 D3 = ROTL64(C4, 1) ^ C2;
     uint64 D4 = ROTL64(C0, 1) ^ C3;
-    uint i;
-    for (i = 0; i < 25; i += 5) { c.A[i] ^= D0; }
-    for (i = 1; i < 25; i += 5) { c.A[i] ^= D1; }
-    for (i = 2; i < 25; i += 5) { c.A[i] ^= D2; }
-    for (i = 3; i < 25; i += 5) { c.A[i] ^= D3; }
-    for (i = 4; i < 25; i += 5) { c.A[i] ^= D4; }
-  }
-
-  function keccak_rho_pi(CTX memory c) internal pure {
-    uint64 A1 = ROTL64(c.A[1], 1);
-    c.A[1] = ROTL64(c.A[6], 44);
-    c.A[6] = ROTL64(c.A[9], 20);
-    c.A[9] = ROTL64(c.A[22], 61);
-    c.A[22] = ROTL64(c.A[14], 39);
-    c.A[14] = ROTL64(c.A[20], 18);
-    c.A[20] = ROTL64(c.A[2], 62);
-    c.A[2] = ROTL64(c.A[12], 43);
-    c.A[12] = ROTL64(c.A[13], 25);
-    c.A[13] = ROTL64(c.A[19], 8);
-    c.A[19] = ROTL64(c.A[23], 56);
-    c.A[23] = ROTL64(c.A[15], 41);
-    c.A[15] = ROTL64(c.A[4], 27);
-    c.A[4] = ROTL64(c.A[24], 14);
-    c.A[24] = ROTL64(c.A[21], 2);
-    c.A[21] = ROTL64(c.A[8], 55);
-    c.A[8] = ROTL64(c.A[16], 45);
-    c.A[16] = ROTL64(c.A[5], 36);
-    c.A[5] = ROTL64(c.A[3], 28);
-    c.A[3] = ROTL64(c.A[18], 21);
-    c.A[18] = ROTL64(c.A[17], 15);
-    c.A[17] = ROTL64(c.A[11], 10);
-    c.A[11] = ROTL64(c.A[7], 6);
-    c.A[7] = ROTL64(c.A[10], 3);
+    c.A[0] ^= D0;
+    uint64 A1 = ROTL64(c.A[1] ^ D1, 1);
+    c.A[1] = ROTL64(c.A[6] ^ D1, 44);
+    c.A[6] = ROTL64(c.A[9] ^ D4, 20);
+    c.A[9] = ROTL64(c.A[22] ^ D2, 61);
+    c.A[22] = ROTL64(c.A[14] ^ D4, 39);
+    c.A[14] = ROTL64(c.A[20] ^ D0, 18);
+    c.A[20] = ROTL64(c.A[2] ^ D2, 62);
+    c.A[2] = ROTL64(c.A[12] ^ D2, 43);
+    c.A[12] = ROTL64(c.A[13] ^ D3, 25);
+    c.A[13] = ROTL64(c.A[19] ^ D4, 8);
+    c.A[19] = ROTL64(c.A[23] ^ D3, 56);
+    c.A[23] = ROTL64(c.A[15] ^ D0, 41);
+    c.A[15] = ROTL64(c.A[4] ^ D4, 27);
+    c.A[4] = ROTL64(c.A[24] ^ D4, 14);
+    c.A[24] = ROTL64(c.A[21] ^ D1, 2);
+    c.A[21] = ROTL64(c.A[8] ^ D3, 55);
+    c.A[8] = ROTL64(c.A[16] ^ D1, 45);
+    c.A[16] = ROTL64(c.A[5] ^ D0, 36);
+    c.A[5] = ROTL64(c.A[3] ^ D3, 28);
+    c.A[3] = ROTL64(c.A[18] ^ D3, 21);
+    c.A[18] = ROTL64(c.A[17] ^ D2, 15);
+    c.A[17] = ROTL64(c.A[11] ^ D1, 10);
+    c.A[11] = ROTL64(c.A[7] ^ D2, 6);
+    c.A[7] = ROTL64(c.A[10] ^ D0, 3);
     c.A[10] = A1;
   }
 
@@ -99,8 +91,7 @@ library Lib_Keccak256 {
   function sha3_permutation(CTX memory c) internal pure {
     uint round;
     for (round = 0; round < 24; round++) {
-      keccak_theta(c);
-      keccak_rho_pi(c);
+      keccak_theta_rho_pi(c);
       keccak_chi(c);
       // keccak_iota
       c.A[0] ^= get_round_constant(round);
