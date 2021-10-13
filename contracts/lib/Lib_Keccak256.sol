@@ -27,20 +27,22 @@ library Lib_Keccak256 {
   }
 
   function keccak_theta(CTX memory c) internal pure {
-    uint64[5] memory C;
-    uint64[5] memory D;
+    uint64 C0 = c.A[0] ^ c.A[5] ^ c.A[10] ^ c.A[15] ^ c.A[20];
+    uint64 C1 = c.A[1] ^ c.A[6] ^ c.A[11] ^ c.A[16] ^ c.A[21];
+    uint64 C2 = c.A[2] ^ c.A[7] ^ c.A[12] ^ c.A[17] ^ c.A[22];
+    uint64 C3 = c.A[3] ^ c.A[8] ^ c.A[13] ^ c.A[18] ^ c.A[23];
+    uint64 C4 = c.A[4] ^ c.A[9] ^ c.A[14] ^ c.A[19] ^ c.A[24];
+    uint64 D0 = ROTL64(C1, 1) ^ C4;
+    uint64 D1 = ROTL64(C2, 1) ^ C0;
+    uint64 D2 = ROTL64(C3, 1) ^ C1;
+    uint64 D3 = ROTL64(C4, 1) ^ C2;
+    uint64 D4 = ROTL64(C0, 1) ^ C3;
     uint i;
-    uint j;
-    for (i = 0; i < 5; i++) {
-      C[i] = c.A[i];
-      for (j = i+5; j < 25; j += 5) { C[i] ^= c.A[j]; }
-    }
-    for (i = 0; i < 5; i++) {
-      D[i] = ROTL64(C[(i + 1) % 5], 1) ^ C[(i + 4) % 5];
-    }
-    for (i = 0; i < 5; i++) {
-      for (j = i; j < 25; j += 5) { c.A[j] ^= D[i]; }
-    }
+    for (i = 0; i < 25; i += 5) { c.A[i] ^= D0; }
+    for (i = 1; i < 25; i += 5) { c.A[i] ^= D1; }
+    for (i = 2; i < 25; i += 5) { c.A[i] ^= D2; }
+    for (i = 3; i < 25; i += 5) { c.A[i] ^= D3; }
+    for (i = 4; i < 25; i += 5) { c.A[i] ^= D4; }
   }
 
   function keccak_rho_pi(CTX memory c) internal pure {
