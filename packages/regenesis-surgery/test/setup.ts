@@ -5,14 +5,7 @@ import chaiAsPromised from 'chai-as-promised'
 import * as dotenv from 'dotenv'
 import { reqenv, getenv } from '@eth-optimism/core-utils'
 import { providers } from 'ethers'
-import { GenesisFile, StateDump, EtherscanDump, SurgeryDataSources } from '../scripts/types'
-
-import {
-  readDumpFile,
-  readEtherscanFile,
-  readGenesisStateDump,
-} from '../scripts/utils'
-
+import { SurgeryDataSources } from '../scripts/types'
 import { loadSurgeryData } from '../scripts/data'
 
 // Chai plugins go here.
@@ -30,7 +23,7 @@ interface TestEnvConfig {
 }
 
 const config = (): TestEnvConfig => {
-  let height = getenv('REGEN__STATE_DUMP_HEIGHT')
+  const height = getenv('REGEN__STATE_DUMP_HEIGHT')
   return {
     preL2ProviderUrl: reqenv('REGEN__PRE_L2_PROVIDER_URL'),
     postL2ProviderUrl: reqenv('REGEN__POST_L2_PROVIDER_URL'),
@@ -58,8 +51,12 @@ class TestEnv {
 
   constructor(opts: TestEnvConfig) {
     this.config = opts
-    this.preL2Provider = new providers.StaticJsonRpcProvider(opts.preL2ProviderUrl)
-    this.postL2Provider = new providers.StaticJsonRpcProvider(opts.postL2ProviderUrl)
+    this.preL2Provider = new providers.StaticJsonRpcProvider(
+      opts.preL2ProviderUrl
+    )
+    this.postL2Provider = new providers.StaticJsonRpcProvider(
+      opts.postL2ProviderUrl
+    )
   }
 
   // Read the big files from disk. Without bumping the size of the nodejs heap,
@@ -75,16 +72,16 @@ class TestEnv {
 // Create a singleton test env that can be imported into each
 // test file. It is important that the async operations are only
 // called once as they take awhile. Each test file should be sure
-// to call `testEnv.init()` in a `before` clause to ensure that
+// to call `env.init()` in a `before` clause to ensure that
 // the files are read from disk at least once
-let testEnv: TestEnv
+let env: TestEnv
 try {
-  if (testEnv === undefined) {
+  if (env === undefined) {
     const cfg = config()
-    testEnv = new TestEnv(cfg)
+    env = new TestEnv(cfg)
   }
 } catch (e) {
   console.error(`unable to initialize test env: ${e.toString()}`)
 }
 
-export { should, expect, Mocha, testEnv }
+export { should, expect, Mocha, env }

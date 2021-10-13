@@ -82,7 +82,9 @@ export const makePoolHashCache = (pools: UniswapPoolData[]): PoolHashCache => {
   return cache
 }
 
-export const loadSurgeryData = async (configs?: SurgeryConfigs): Promise<SurgeryDataSources> => {
+export const loadSurgeryData = async (
+  configs?: SurgeryConfigs
+): Promise<SurgeryDataSources> => {
   // First download every solc version that we'll need during this surgery.
   console.log('Downloading all required solc versions...')
   await downloadAllSolcVersions()

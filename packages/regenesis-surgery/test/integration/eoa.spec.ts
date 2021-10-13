@@ -1,26 +1,37 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
-import { expect, testEnv } from '../setup'
-import { AccountType, StateDump } from '../../scripts/types'
-import { classifiers } from '../../scripts/classifiers'
+import { expect, env } from '../setup'
+import { AccountType, Account } from '../../scripts/types'
+import { findAccountsByType } from '../utils'
 
-const eoaClassifier = classifiers[AccountType.EOA]
+// Test 1/X accounts to speed things up.
+const NUM_ACCOUNTS_DIVISOR = 1024
 
 describe('EOAs', () => {
+  before(async () => {
+    await env.init()
+  })
+
   describe('standard EOA', () => {
-    let eoas: StateDump
+    let eoas: Account[]
     before(async () => {
-      await testEnv.init()
-      eoas = testEnv.surgeryDataSources.dump.filter(a => eoaClassifier(a, testEnv.surgeryDataSources))
+      eoas = findAccountsByType(
+        env.surgeryDataSources.dump,
+        env.surgeryDataSources,
+        AccountType.EOA
+      )
     })
 
     // Iterate through all of the EOAs and check that they have no code
     // in the new node
     it('should not have any code', async () => {
       for (const [i, eoa] of eoas.entries()) {
-        if (i % 10000 === 0) {
-          console.log(`Checking code for account ${i}`)
+        if (i % NUM_ACCOUNTS_DIVISOR !== 0) {
+          continue
         }
-        const code = await testEnv.postL2Provider.getCode(eoa.address)
+
+        console.log(`checking account ${i} @ ${eoa.address}`)
+
+        const code = await env.postL2Provider.getCode(eoa.address)
         expect(code).to.eq('0x')
       }
     })
@@ -30,46 +41,107 @@ describe('EOAs', () => {
 
     it('should have the same balance as it had before', async () => {
       for (const [i, eoa] of eoas.entries()) {
-        if (i % 10000 === 0) {
-          console.log(`Checking balance for account ${i}`)
+        if (i % NUM_ACCOUNTS_DIVISOR !== 0) {
+          continue
         }
-        const preBalance = await testEnv.preL2Provider.getBalance(eoa.address, testEnv.config.stateDumpHeight)
-        const postBalance = await testEnv.postL2Provider.getBalance(eoa.address)
-        try {
-          expect(preBalance).to.deep.eq(postBalance)
-        } catch (e) {
-          console.log(`Balance mismatch ${eoa.address}`)
-          console.log(e)
-        }
+
+        console.log(`checking account ${i} @ ${eoa.address}`)
+
+        // Balance before needs to come from the specific block at which the dump was taken.
+        const preBalance = await env.preL2Provider.getBalance(
+          eoa.address,
+          env.config.stateDumpHeight
+        )
+
+        // Balance after can come from the latest block.
+        const postBalance = await env.postL2Provider.getBalance(eoa.address)
+
+        expect(preBalance).to.deep.eq(
+          postBalance,
+          `balance mismatch for address ${eoa.address}`
+        )
       }
     })
 
     it('should have the same nonce as it had before', async () => {
       for (const [i, eoa] of eoas.entries()) {
-        if (i % 10000 === 0) {
-          console.log(`Checking nonce for account ${i}`)
+        if (i % NUM_ACCOUNTS_DIVISOR !== 0) {
+          continue
         }
-        const preNonce = await testEnv.preL2Provider.getTransactionCount(eoa.address, testEnv.config.stateDumpHeight)
-        const postNonce = await testEnv.postL2Provider.getTransactionCount(eoa.address)
-        try {
-          expect(preNonce).to.deep.eq(postNonce)
-        } catch (e) {
-          console.log(`Nonce mismatch ${eoa.address}`)
-          console.log(e)
-        }
+
+        console.log(`checking account ${i} @ ${eoa.address}`)
+
+        // Nonce before needs to come from the specific block at which the dump was taken.
+        const preNonce = await env.preL2Provider.getTransactionCount(
+          eoa.address,
+          env.config.stateDumpHeight
+        )
+
+        // Nonce after can come from the latest block.
+        const postNonce = await env.postL2Provider.getTransactionCount(
+          eoa.address
+        )
+
+        expect(preNonce).to.deep.eq(
+          postNonce,
+          `nonce mismatch for address ${eoa.address}`
+        )
       }
     })
   })
 
-  describe('1inch deployer', () => {
-    it('should not have any code', async () => {})
+  // Does not exist on Kovan?
+  describe.skip('1inch deployer', () => {
+    let eoa: Account
+    before(async () => {
+      eoa = findAccountsByType(
+        env.surgeryDataSources.dump,
+        env.surgeryDataSources,
+        AccountType.ONEINCH_DEPLOYER
+      )[0]
+    })
+
+    it('should not have any code', async () => {
+      const code = await env.postL2Provider.getCode(eoa.address)
+      expect(code).to.eq('0x')
+    })
 
     it('should have the null code hash', async () => {})
 
     it('should have the null storage root', async () => {})
 
-    it('should have the same balance as it had before', async () => {})
+    it('should have the same balance as it had before', async () => {
+      // Balance before needs to come from the specific block at which the dump was taken.
+      const preBalance = await env.preL2Provider.getBalance(
+        eoa.address,
+        env.config.stateDumpHeight
+      )
 
-    it('should have a nonce equal to zero', async () => {})
+      // Balance after can come from the latest block.
+      const postBalance = await env.postL2Provider.getBalance(eoa.address)
+
+      expect(preBalance).to.deep.eq(
+        postBalance,
+        `balance mismatch for address ${eoa.address}`
+      )
+    })
+
+    it('should have a nonce equal to zero', async () => {
+      // Nonce before needs to come from the specific block at which the dump was taken.
+      const preNonce = await env.preL2Provider.getTransactionCount(
+        eoa.address,
+        env.config.stateDumpHeight
+      )
+
+      // Nonce after can come from the latest block.
+      const postNonce = await env.postL2Provider.getTransactionCount(
+        eoa.address
+      )
+
+      expect(preNonce).to.deep.eq(
+        postNonce,
+        `nonce mismatch for address ${eoa.address}`
+      )
+    })
   })
 })

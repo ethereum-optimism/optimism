@@ -7,6 +7,7 @@ import * as fs from 'fs'
 import byline from 'byline'
 import * as dotenv from 'dotenv'
 import * as assert from 'assert'
+import { reqenv, getenv } from '@eth-optimism/core-utils'
 import {
   Account,
   EtherscanContract,
@@ -16,7 +17,6 @@ import {
   SupportedNetworks,
 } from './types'
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
-import { reqenv } from '@eth-optimism/core-utils'
 
 export const findAccount = (dump: StateDump, address: string): Account => {
   return dump.find((acc) => {
@@ -127,8 +127,8 @@ export const loadConfigs = (): SurgeryConfigs => {
   const l1MainnetProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
   const l1TestnetProviderUrl = reqenv('REGEN__L1_TESTNET_PROVIDER_URL')
   const l1TestnetPrivateKey = reqenv('REGEN__L1_TESTNET_PRIVATE_KEY')
-  const startIndex = parseInt(process.env.START_INDEX || '0', 10)
-  const endIndex = parseInt(process.env.END_INDEX, 10) || Infinity
+  const startIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10)
+  const endIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10) || Infinity
 
   // Input assertions
   assert.ok(

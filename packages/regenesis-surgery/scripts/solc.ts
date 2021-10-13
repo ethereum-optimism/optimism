@@ -5,13 +5,13 @@ import path from 'path'
 import fs from 'fs'
 import solc from 'solc'
 import { ethers } from 'ethers'
+import { clone } from '@eth-optimism/core-utils'
 import {
   COMPILER_VERSIONS_TO_SOLC,
   EMSCRIPTEN_BUILD_LIST,
   EMSCRIPTEN_BUILD_PATH,
   LOCAL_SOLC_DIR,
 } from './constants'
-import { clone } from '@eth-optimism/core-utils'
 import { EtherscanContract } from './types'
 
 const OVM_BUILD_PATH = (version: string) => {

@@ -4,10 +4,9 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM,
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
-import { sleep, add0x, remove0x } from '@eth-optimism/core-utils'
+import { sleep, add0x, remove0x, clone } from '@eth-optimism/core-utils'
 import { OLD_ETH_ADDRESS, WETH_TRANSFER_ADDRESSES } from './constants'
 import {
-  clone,
   findAccount,
   hexStringIncludes,
   transferStorageSlot,

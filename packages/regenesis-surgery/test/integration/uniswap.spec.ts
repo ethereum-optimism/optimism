@@ -1,4 +1,5 @@
-describe('uniswap contracts', () => {
+/* eslint-disable @typescript-eslint/no-empty-function */
+describe.skip('uniswap contracts', () => {
   describe('V3 factory', () => {
     it('should have the same owner', async () => {})
 
