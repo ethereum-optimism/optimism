@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-empty-function */
 import { expect } from '../setup'
 
-describe('deleted contracts', () => {
+describe.skip('deleted contracts', () => {
   it('should not have any code', async () => {})
 
   it('should have the empty code hash', async () => {})

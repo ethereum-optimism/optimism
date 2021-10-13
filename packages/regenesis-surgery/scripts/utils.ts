@@ -13,8 +13,10 @@ import {
   StateDump,
   SurgeryConfigs,
   GenesisFile,
+  SupportedNetworks,
 } from './types'
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
+import { reqenv } from '@eth-optimism/core-utils'
 
 export const findAccount = (dump: StateDump, address: string): Account => {
   return dump.find((acc) => {
@@ -114,28 +116,6 @@ export const getUniswapV3Factory = (signerOrProvider: any): ethers.Contract => {
   )
 }
 
-// Returns a copy of an object
-export const clone = (obj: any): any => {
-  if (typeof obj === 'undefined') {
-    throw new Error(`Trying to clone undefined object`)
-  }
-  return { ...obj }
-}
-
-/**
- * Loads a variable from the environment and throws if the variable is not defined.
- *
- * @param name Name of the variable to load.
- * @returns Value of the variable as a string.
- */
-export const reqenv = (name: string): any => {
-  const value = process.env[name]
-  if (value === undefined) {
-    throw new Error(`missing env var ${name}`)
-  }
-  return value
-}
-
 export const loadConfigs = (): SurgeryConfigs => {
   dotenv.config()
   const stateDumpFilePath = reqenv('REGEN__STATE_DUMP_FILE')
@@ -143,7 +123,7 @@ export const loadConfigs = (): SurgeryConfigs => {
   const genesisFilePath = reqenv('REGEN__GENESIS_FILE')
   const outputFilePath = reqenv('REGEN__OUTPUT_FILE')
   const l2ProviderUrl = reqenv('REGEN__L2_PROVIDER_URL')
-  const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME')
+  const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME') as SupportedNetworks
   const l1MainnetProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
   const l1TestnetProviderUrl = reqenv('REGEN__L1_TESTNET_PROVIDER_URL')
   const l1TestnetPrivateKey = reqenv('REGEN__L1_TESTNET_PRIVATE_KEY')
@@ -212,6 +192,20 @@ export const readGenesisFile = async (
   genesispath: string
 ): Promise<GenesisFile> => {
   return JSON.parse(fs.readFileSync(genesispath, 'utf8'))
+}
+
+export const readGenesisStateDump = async (
+  genesispath: string
+): Promise<StateDump> => {
+  const genesis = await readGenesisFile(genesispath)
+  const genesisDump: StateDump = []
+  for (const [address, account] of Object.entries(genesis.alloc)) {
+    genesisDump.push({
+      address,
+      ...account,
+    })
+  }
+  return genesisDump
 }
 
 export const checkStateDump = (dump: StateDump) => {
