@@ -43,58 +43,31 @@ library Lib_Keccak256 {
     }
   }
 
-  function keccak_rho(CTX memory c) internal pure {
-    c.A[1] = ROTL64(c.A[1], 1);
-    c.A[2] = ROTL64(c.A[2], 62);
-    c.A[3] = ROTL64(c.A[3], 28);
-    c.A[4] = ROTL64(c.A[4], 27);
-    c.A[5] = ROTL64(c.A[5], 36);
-    c.A[6] = ROTL64(c.A[6], 44);
-    c.A[7] = ROTL64(c.A[7], 6);
-    c.A[8] = ROTL64(c.A[8], 55);
-    c.A[9] = ROTL64(c.A[9], 20);
-    c.A[10] = ROTL64(c.A[10], 3);
-    c.A[11] = ROTL64(c.A[11], 10);
-    c.A[12] = ROTL64(c.A[12], 43);
-    c.A[13] = ROTL64(c.A[13], 25);
-    c.A[14] = ROTL64(c.A[14], 39);
-    c.A[15] = ROTL64(c.A[15], 41);
-    c.A[16] = ROTL64(c.A[16], 45);
-    c.A[17] = ROTL64(c.A[17], 15);
-    c.A[18] = ROTL64(c.A[18], 21);
-    c.A[19] = ROTL64(c.A[19], 8);
-    c.A[20] = ROTL64(c.A[20], 18);
-    c.A[21] = ROTL64(c.A[21], 2);
-    c.A[22] = ROTL64(c.A[22], 61);
-    c.A[23] = ROTL64(c.A[23], 56);
-    c.A[24] = ROTL64(c.A[24], 14);
-  }
-
-  function keccak_pi(CTX memory c) internal pure {
-    uint64 A1 = c.A[1];
-    c.A[1] = c.A[6];
-    c.A[6] = c.A[9];
-    c.A[9] = c.A[22];
-    c.A[22] = c.A[14];
-    c.A[14] = c.A[20];
-    c.A[20] = c.A[2];
-    c.A[2] = c.A[12];
-    c.A[12] = c.A[13];
-    c.A[13] = c.A[19];
-    c.A[19] = c.A[23];
-    c.A[23] = c.A[15];
-    c.A[15] = c.A[4];
-    c.A[4] = c.A[24];
-    c.A[24] = c.A[21];
-    c.A[21] = c.A[8];
-    c.A[8] = c.A[16];
-    c.A[16] = c.A[5];
-    c.A[5] = c.A[3];
-    c.A[3] = c.A[18];
-    c.A[18] = c.A[17];
-    c.A[17] = c.A[11];
-    c.A[11] = c.A[7];
-    c.A[7] = c.A[10];
+  function keccak_rho_pi(CTX memory c) internal pure {
+    uint64 A1 = ROTL64(c.A[1], 1);
+    c.A[1] = ROTL64(c.A[6], 44);
+    c.A[6] = ROTL64(c.A[9], 20);
+    c.A[9] = ROTL64(c.A[22], 61);
+    c.A[22] = ROTL64(c.A[14], 39);
+    c.A[14] = ROTL64(c.A[20], 18);
+    c.A[20] = ROTL64(c.A[2], 62);
+    c.A[2] = ROTL64(c.A[12], 43);
+    c.A[12] = ROTL64(c.A[13], 25);
+    c.A[13] = ROTL64(c.A[19], 8);
+    c.A[19] = ROTL64(c.A[23], 56);
+    c.A[23] = ROTL64(c.A[15], 41);
+    c.A[15] = ROTL64(c.A[4], 27);
+    c.A[4] = ROTL64(c.A[24], 14);
+    c.A[24] = ROTL64(c.A[21], 2);
+    c.A[21] = ROTL64(c.A[8], 55);
+    c.A[8] = ROTL64(c.A[16], 45);
+    c.A[16] = ROTL64(c.A[5], 36);
+    c.A[5] = ROTL64(c.A[3], 28);
+    c.A[3] = ROTL64(c.A[18], 21);
+    c.A[18] = ROTL64(c.A[17], 15);
+    c.A[17] = ROTL64(c.A[11], 10);
+    c.A[11] = ROTL64(c.A[7], 6);
+    c.A[7] = ROTL64(c.A[10], 3);
     c.A[10] = A1;
   }
 
@@ -125,8 +98,7 @@ library Lib_Keccak256 {
     uint round;
     for (round = 0; round < 24; round++) {
       keccak_theta(c);
-      keccak_rho(c);
-      keccak_pi(c);
+      keccak_rho_pi(c);
       keccak_chi(c);
       // keccak_iota
       c.A[0] ^= get_round_constant(round);
