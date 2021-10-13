@@ -117,7 +117,10 @@ export const WETH_TRANSFER_ADDRESSES = [
   '0x80D94a6f6b0335Bfed8D04B92423B6Cd14b5d31C',
   // Rubicon Kovan market
   '0x5ddDa7DF721272106af1904abcc64E76AB2019d2',
-  // HOP (TODO)
+  // Hop Kovan AMM Wrapper
+  '0xc9E6628791cdD4ad568550fcc6f378cEF27e98fd',
+  // Hop Kovan Swap
+  '0xD6E31cE884DFf44c4600fD9D36BcC9af447C28d5',
 ]
 
 // TODO: confirm OVM/EVM mapps with ben-chain
