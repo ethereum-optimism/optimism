@@ -371,9 +371,10 @@ function parseSequencerBatchAppendedEvent(
 
 ```solidity
 enum QueueOrigin {
-    SEQUENCER_QUEUE,
-    L1TOL2_QUEUE
+  SEQUENCER_QUEUE,
+  L1TOL2_QUEUE
 }
+
 ```
 
 ### Structs
@@ -382,29 +383,31 @@ enum QueueOrigin {
 
 ```solidity
 struct Transaction {
-    QueueOrigin l1QueueOrigin;
-    uint256     timestamp;
-    uint256     blockNumber;
-    address     l1TxOrigin;
-    address     entrypoint;
-    uint256     gasLimit;
-    bytes       data;
+  QueueOrigin l1QueueOrigin;
+  uint256 timestamp;
+  uint256 blockNumber;
+  address l1TxOrigin;
+  address entrypoint;
+  uint256 gasLimit;
+  bytes data;
 }
+
 ```
 
 #### EnqueuedTransaction
 
 ```solidity
 struct EnqueuedTransaction {
-    QueueOrigin l1QueueOrigin;
-    uint256     timestamp;
-    uint256     blockNumber;
-    address     l1TxOrigin;
-    address     entrypoint;
-    uint256     gasLimit;
-    bytes       data;
-    uint256     queueIndex;
+  QueueOrigin l1QueueOrigin;
+  uint256 timestamp;
+  uint256 blockNumber;
+  address l1TxOrigin;
+  address entrypoint;
+  uint256 gasLimit;
+  bytes data;
+  uint256 queueIndex;
 }
+
 ```
 
 ### Events
