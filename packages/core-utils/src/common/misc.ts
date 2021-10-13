@@ -26,10 +26,14 @@ export const clone = (obj: any): any => {
  * @param name Name of the variable to load.
  * @returns Value of the variable as a string.
  */
-export const reqenv = (name: string): any => {
+export const reqenv = (name: string): string => {
   const value = process.env[name]
   if (value === undefined) {
     throw new Error(`missing env var ${name}`)
   }
   return value
+}
+
+export const getenv = (name: string, fallback?: string): string | undefined => {
+  return process.env[name] || fallback
 }
