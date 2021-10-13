@@ -3,14 +3,17 @@ import chai = require('chai')
 import Mocha from 'mocha'
 import chaiAsPromised from 'chai-as-promised'
 import * as dotenv from 'dotenv'
-import { reqenv } from '@eth-optimism/core-utils'
+import { reqenv, getenv } from '@eth-optimism/core-utils'
 import { providers } from 'ethers'
 import { GenesisFile, StateDump, EtherscanDump, SurgeryDataSources } from '../scripts/types'
+
 import {
   readDumpFile,
   readEtherscanFile,
   readGenesisStateDump,
 } from '../scripts/utils'
+
+import { loadSurgeryData } from '../scripts/data'
 
 // Chai plugins go here.
 chai.use(chaiAsPromised)
@@ -21,20 +24,17 @@ const expect = chai.expect
 dotenv.config()
 
 interface TestEnvConfig {
-  stateDumpFilePath: string
-  etherscanFilePath: string
-  genesisFilePath: string
   preL2ProviderUrl: string
   postL2ProviderUrl: string
+  stateDumpHeight: string | number
 }
 
 const config = (): TestEnvConfig => {
+  let height = getenv('REGEN__STATE_DUMP_HEIGHT')
   return {
-    stateDumpFilePath: reqenv('REGEN__STATE_DUMP_FILE'),
-    etherscanFilePath: reqenv('REGEN__ETHERSCAN_FILE'),
-    genesisFilePath: reqenv('REGEN__GENESIS_FILE'),
     preL2ProviderUrl: reqenv('REGEN__PRE_L2_PROVIDER_URL'),
     postL2ProviderUrl: reqenv('REGEN__POST_L2_PROVIDER_URL'),
+    stateDumpHeight: parseInt(height, 10) || 'latest',
   }
 }
 
@@ -60,42 +60,14 @@ class TestEnv {
     this.config = opts
     this.preL2Provider = new providers.StaticJsonRpcProvider(opts.preL2ProviderUrl)
     this.postL2Provider = new providers.StaticJsonRpcProvider(opts.postL2ProviderUrl)
-    // TODO: initialize this better for more safety
-    this.surgeryDataSources = {} as SurgeryDataSources
   }
 
   // Read the big files from disk. Without bumping the size of the nodejs heap,
   // this can oom the process. Prefix the test command with:
   // $ NODE_OPTIONS=--max_old_space=8912
   async init() {
-    if (this.surgeryDataSources.dump === undefined) {
-      try {
-        console.log('Reading state dump...')
-        this.surgeryDataSources.dump = await readDumpFile(this.config.stateDumpFilePath)
-        console.log(`${this.surgeryDataSources.dump.length} entries`)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    if (this.surgeryDataSources.etherscanDump === undefined) {
-      try {
-        console.log('Reading etherscan dump...')
-        this.surgeryDataSources.etherscanDump = await readEtherscanFile(this.config.etherscanFilePath)
-        console.log(`${this.surgeryDataSources.etherscanDump.length} entries`)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    if (this.surgeryDataSources.genesis === undefined) {
-      try {
-        console.log('Reading genesis file...')
-        this.surgeryDataSources.genesis = await readGenesisStateDump(this.config.genesisFilePath)
-        console.log(`${this.surgeryDataSources.genesis.length} entries`)
-      } catch (e) {
-        console.error(e)
-      }
+    if (this.surgeryDataSources === undefined) {
+      this.surgeryDataSources = await loadSurgeryData()
     }
   }
 }

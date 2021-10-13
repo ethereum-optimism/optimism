@@ -13,6 +13,7 @@ import {
   StateDump,
   SurgeryConfigs,
   GenesisFile,
+  SupportedNetworks,
 } from './types'
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 import { reqenv } from '@eth-optimism/core-utils'
@@ -122,7 +123,7 @@ export const loadConfigs = (): SurgeryConfigs => {
   const genesisFilePath = reqenv('REGEN__GENESIS_FILE')
   const outputFilePath = reqenv('REGEN__OUTPUT_FILE')
   const l2ProviderUrl = reqenv('REGEN__L2_PROVIDER_URL')
-  const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME')
+  const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME') as SupportedNetworks
   const l1MainnetProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
   const l1TestnetProviderUrl = reqenv('REGEN__L1_TESTNET_PROVIDER_URL')
   const l1TestnetPrivateKey = reqenv('REGEN__L1_TESTNET_PRIVATE_KEY')

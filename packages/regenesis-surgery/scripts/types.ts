@@ -84,6 +84,8 @@ export interface EtherscanContract {
 
 export type EtherscanDump = EtherscanContract[]
 
+export type SupportedNetworks = 'mainnet' | 'kovan'
+
 export interface SurgeryDataSources {
   configs: SurgeryConfigs
   dump: StateDump
@@ -95,7 +97,7 @@ export interface SurgeryDataSources {
   l1TestnetWallet: ethers.Wallet
   l1MainnetProvider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
-  l2NetworkName: 'mainnet' | 'kovan'
+  l2NetworkName: SupportedNetworks
   startIndex: number
   endIndex: number
 }

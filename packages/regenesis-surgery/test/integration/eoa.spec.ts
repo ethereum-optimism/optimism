@@ -33,7 +33,7 @@ describe('EOAs', () => {
         if (i % 10000 === 0) {
           console.log(`Checking balance for account ${i}`)
         }
-        const preBalance = await testEnv.preL2Provider.getBalance(eoa.address)
+        const preBalance = await testEnv.preL2Provider.getBalance(eoa.address, testEnv.config.stateDumpHeight)
         const postBalance = await testEnv.postL2Provider.getBalance(eoa.address)
         try {
           expect(preBalance).to.deep.eq(postBalance)
@@ -49,7 +49,7 @@ describe('EOAs', () => {
         if (i % 10000 === 0) {
           console.log(`Checking nonce for account ${i}`)
         }
-        const preNonce = await testEnv.preL2Provider.getTransactionCount(eoa.address)
+        const preNonce = await testEnv.preL2Provider.getTransactionCount(eoa.address, testEnv.config.stateDumpHeight)
         const postNonce = await testEnv.postL2Provider.getTransactionCount(eoa.address)
         try {
           expect(preNonce).to.deep.eq(postNonce)

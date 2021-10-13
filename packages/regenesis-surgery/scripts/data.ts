@@ -82,19 +82,22 @@ export const makePoolHashCache = (pools: UniswapPoolData[]): PoolHashCache => {
   return cache
 }
 
-export const loadSurgeryData = async (): Promise<SurgeryDataSources> => {
+export const loadSurgeryData = async (configs?: SurgeryConfigs): Promise<SurgeryDataSources> => {
   // First download every solc version that we'll need during this surgery.
   console.log('Downloading all required solc versions...')
   await downloadAllSolcVersions()
 
   // Load the configuration values, will throw if anything is missing.
-  console.log('Loading configuration values...')
-  const configs: SurgeryConfigs = loadConfigs()
+  if (configs === undefined) {
+    console.log('Loading configuration values...')
+    configs = loadConfigs()
+  }
 
   // Load and validate the state dump.
   console.log('Loading and validating state dump file...')
   const dump: StateDump = await readDumpFile(configs.stateDumpFilePath)
   checkStateDump(dump)
+  console.log(`${dump.length} entries in state dump`)
 
   // Load the genesis file.
   console.log('Loading genesis file...')
@@ -106,12 +109,14 @@ export const loadSurgeryData = async (): Promise<SurgeryDataSources> => {
       ...account,
     })
   }
+  console.log(`${genesisDump.length} entries in genesis file`)
 
   // Load the etherscan dump.
   console.log('Loading etherscan dump file...')
   const etherscanDump: EtherscanContract[] = await readEtherscanFile(
     configs.etherscanFilePath
   )
+  console.log(`${etherscanDump.length} entries in etherscan dump`)
 
   // Get a reference to the L2 provider so we can load pool data.
   console.log('Connecting to L2 provider...')
@@ -123,6 +128,7 @@ export const loadSurgeryData = async (): Promise<SurgeryDataSources> => {
     l2Provider,
     configs.l2NetworkName
   )
+  console.log(`${pools.length} uniswap pools`)
 
   console.log('Generating pool cache...')
   const poolHashCache = makePoolHashCache(pools)
