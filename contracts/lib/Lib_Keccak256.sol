@@ -10,8 +10,6 @@ library Lib_Keccak256 {
   }
 
   bytes public constant round_constant = hex"011a5e701f2179550e0c35263f4f5d535248166679582174";
-  bytes public constant pi_transform = hex"010609160e14020c0d13170f0418150810050312110b070a";
-  bytes public constant rho_transform = hex"013e1c1b242c063714030a2b1927292d0f150812023d380e";
 
   function ROTL64(uint64 qword, uint64 n) internal pure returns (uint64) {
     return ((qword) << (n) ^ ((qword) >> (64 - (n))));
@@ -20,7 +18,6 @@ library Lib_Keccak256 {
   function get_round_constant(uint round) internal pure returns (uint64) {
     uint64 result = 0;
     uint8 roundInfo = uint8(round_constant[round]);
-    // TODO: write this without control flow
     if (roundInfo & (1 << 6) != 0) { result |= (1 << 63); }
     if (roundInfo & (1 << 5) != 0) { result |= (1 << 31); }
     if (roundInfo & (1 << 4) != 0) { result |= (1 << 15); }
@@ -49,20 +46,57 @@ library Lib_Keccak256 {
   }
 
   function keccak_rho(CTX memory c) internal pure {
-    uint i;
-    for (i = 1; i < 25; i++) {
-      // TODO: unroll this?
-      c.A[i] = ROTL64(c.A[i], uint8(rho_transform[i-1]));
-    }
+    c.A[1] = ROTL64(c.A[1], 1);
+    c.A[2] = ROTL64(c.A[2], 62);
+    c.A[3] = ROTL64(c.A[3], 28);
+    c.A[4] = ROTL64(c.A[4], 27);
+    c.A[5] = ROTL64(c.A[5], 36);
+    c.A[6] = ROTL64(c.A[6], 44);
+    c.A[7] = ROTL64(c.A[7], 6);
+    c.A[8] = ROTL64(c.A[8], 55);
+    c.A[9] = ROTL64(c.A[9], 20);
+    c.A[10] = ROTL64(c.A[10], 3);
+    c.A[11] = ROTL64(c.A[11], 10);
+    c.A[12] = ROTL64(c.A[12], 43);
+    c.A[13] = ROTL64(c.A[13], 25);
+    c.A[14] = ROTL64(c.A[14], 39);
+    c.A[15] = ROTL64(c.A[15], 41);
+    c.A[16] = ROTL64(c.A[16], 45);
+    c.A[17] = ROTL64(c.A[17], 15);
+    c.A[18] = ROTL64(c.A[18], 21);
+    c.A[19] = ROTL64(c.A[19], 8);
+    c.A[20] = ROTL64(c.A[20], 18);
+    c.A[21] = ROTL64(c.A[21], 2);
+    c.A[22] = ROTL64(c.A[22], 61);
+    c.A[23] = ROTL64(c.A[23], 56);
+    c.A[24] = ROTL64(c.A[24], 14);
   }
 
   function keccak_pi(CTX memory c) internal pure {
     uint64 A1 = c.A[1];
-    uint i;
-    for (i = 1; i < 24; i++) {
-      // TODO: unroll this?
-      c.A[uint8(pi_transform[i-1])] = c.A[uint8(pi_transform[i])];
-    }
+    c.A[1] = c.A[6];
+    c.A[6] = c.A[9];
+    c.A[9] = c.A[22];
+    c.A[22] = c.A[14];
+    c.A[14] = c.A[20];
+    c.A[20] = c.A[2];
+    c.A[2] = c.A[12];
+    c.A[12] = c.A[13];
+    c.A[13] = c.A[19];
+    c.A[19] = c.A[23];
+    c.A[23] = c.A[15];
+    c.A[15] = c.A[4];
+    c.A[4] = c.A[24];
+    c.A[24] = c.A[21];
+    c.A[21] = c.A[8];
+    c.A[8] = c.A[16];
+    c.A[16] = c.A[5];
+    c.A[5] = c.A[3];
+    c.A[3] = c.A[18];
+    c.A[18] = c.A[17];
+    c.A[17] = c.A[11];
+    c.A[11] = c.A[7];
+    c.A[7] = c.A[10];
     c.A[10] = A1;
   }
 
