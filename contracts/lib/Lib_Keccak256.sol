@@ -9,22 +9,20 @@ library Lib_Keccak256 {
     uint64[25] A;
   }
 
-  bytes public constant round_constant = hex"011a5e701f2179550e0c35263f4f5d535248166679582174";
-
   function ROTL64(uint64 qword, uint64 n) internal pure returns (uint64) {
     return ((qword) << (n) ^ ((qword) >> (64 - (n))));
   }
 
   function get_round_constant(uint round) internal pure returns (uint64) {
     uint64 result = 0;
-    uint8 roundInfo = uint8(round_constant[round]);
-    if (roundInfo & (1 << 6) != 0) { result |= (1 << 63); }
-    if (roundInfo & (1 << 5) != 0) { result |= (1 << 31); }
-    if (roundInfo & (1 << 4) != 0) { result |= (1 << 15); }
-    if (roundInfo & (1 << 3) != 0) { result |= (1 << 7); }
-    if (roundInfo & (1 << 2) != 0) { result |= (1 << 3); }
-    if (roundInfo & (1 << 1) != 0) { result |= (1 << 1); }
-    if (roundInfo & (1 << 0) != 0) { result |= (1 << 0); }
+    uint8 roundInfo = uint8(0x7421587966164852535d4f3f26350c0e5579211f705e1a01 >> (round*8));
+    result |= (uint64(roundInfo) << (63-6)) & (1 << 63);
+    result |= (uint64(roundInfo) << (31-5)) & (1 << 31);
+    result |= (uint64(roundInfo) << (15-4)) & (1 << 15);
+    result |= (uint64(roundInfo) << (7-3)) & (1 << 7);
+    result |= (uint64(roundInfo) << (3-2)) & (1 << 3);
+    result |= (uint64(roundInfo) << (1-1)) & (1 << 1);
+    result |= (uint64(roundInfo) << (0-0)) & (1 << 0);
     return result;
   }
 
@@ -35,13 +33,13 @@ library Lib_Keccak256 {
     uint j;
     for (i = 0; i < 5; i++) {
       C[i] = c.A[i];
-      for (j = 5; j < 25; j += 5) { C[i] ^= c.A[i + j]; }
+      for (j = i+5; j < 25; j += 5) { C[i] ^= c.A[j]; }
     }
     for (i = 0; i < 5; i++) {
       D[i] = ROTL64(C[(i + 1) % 5], 1) ^ C[(i + 4) % 5];
     }
     for (i = 0; i < 5; i++) {
-      for (j = 0; j < 25; j += 5) { c.A[i + j] ^= D[i]; }
+      for (j = i; j < 25; j += 5) { c.A[j] ^= D[i]; }
     }
   }
 
