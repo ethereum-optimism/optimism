@@ -69,13 +69,19 @@ library Lib_Keccak256 {
     uint i;
     uint64 A0;
     uint64 A1;
+    uint64 A2;
+    uint64 A3;
+    uint64 A4;
     for (i = 0; i < 25; i+=5) {
       A0 = c.A[0 + i];
       A1 = c.A[1 + i];
-      c.A[0 + i] ^= ~A1 & c.A[2 + i];
-      c.A[1 + i] ^= ~c.A[2 + i] & c.A[3 + i];
-      c.A[2 + i] ^= ~c.A[3 + i] & c.A[4 + i];
-      c.A[3 + i] ^= ~c.A[4 + i] & A0;
+      A2 = c.A[2 + i];
+      A3 = c.A[3 + i];
+      A4 = c.A[4 + i];
+      c.A[0 + i] ^= ~A1 & A2;
+      c.A[1 + i] ^= ~A2 & A3;
+      c.A[2 + i] ^= ~A3 & A4;
+      c.A[3 + i] ^= ~A4 & A0;
       c.A[4 + i] ^= ~A0 & A1;
     }
   }
