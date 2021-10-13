@@ -26,7 +26,7 @@
     "supertest": "^6.1.4",
     "ts-mocha": "^8.0.0",
     "ts-node": "^10.0.0",
-    "typescript": "^4.3.2"
+    "typescript": "^4.3.5"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.1.5",
