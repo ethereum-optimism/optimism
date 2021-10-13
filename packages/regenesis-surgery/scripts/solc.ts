@@ -30,8 +30,6 @@ export const downloadSolc = async (version: string, ovm?: boolean) => {
     return
   }
 
-  console.error(`Downloading ${version} ${ovm ? 'ovm' : 'solidity'}`)
-
   // File is the location where we'll put the downloaded compiler.
   let file: string
   // Remote is the URL we'll query if the file doesn't already exist.
@@ -67,8 +65,8 @@ export const downloadSolc = async (version: string, ovm?: boolean) => {
   try {
     // Check to see if we already have the file
     await access(file, fs.constants.F_OK)
-    console.error(`${version} already downloaded`)
   } catch (e) {
+    console.error(`Downloading ${version} ${ovm ? 'ovm' : 'solidity'}`)
     // If we don't have the file, download it
     const res = await fetch(remote)
     const bin = await res.text()

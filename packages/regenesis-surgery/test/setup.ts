@@ -5,8 +5,9 @@ import chaiAsPromised from 'chai-as-promised'
 import * as dotenv from 'dotenv'
 import { reqenv, getenv } from '@eth-optimism/core-utils'
 import { providers } from 'ethers'
-import { SurgeryDataSources } from '../scripts/types'
+import { SurgeryDataSources, Account, AccountType } from '../scripts/types'
 import { loadSurgeryData } from '../scripts/data'
+import { classify } from '../scripts/classifiers'
 
 // Chai plugins go here.
 chai.use(chaiAsPromised)
@@ -31,6 +32,10 @@ const config = (): TestEnvConfig => {
   }
 }
 
+interface TypedAccount extends Account {
+  type: AccountType
+}
+
 // A TestEnv that contains all of the required test data
 class TestEnv {
   // Config
@@ -49,6 +54,9 @@ class TestEnv {
   // The datasources used for doing state surgery
   surgeryDataSources: SurgeryDataSources
 
+  // List of typed accounts in the input dump
+  accounts: TypedAccount[] = []
+
   constructor(opts: TestEnvConfig) {
     this.config = opts
     this.preL2Provider = new providers.StaticJsonRpcProvider(
@@ -65,7 +73,21 @@ class TestEnv {
   async init() {
     if (this.surgeryDataSources === undefined) {
       this.surgeryDataSources = await loadSurgeryData()
+
+      // Classify the accounts once, this takes a while so it's better to cache it.
+      console.log(`Classifying accounts...`)
+      for (const account of this.surgeryDataSources.dump) {
+        const accountType = classify(account, this.surgeryDataSources)
+        this.accounts.push({
+          ...account,
+          type: accountType,
+        })
+      }
     }
+  }
+
+  getAccountsByType(type: AccountType) {
+    return this.accounts.filter((account) => account.type === type)
   }
 }
 

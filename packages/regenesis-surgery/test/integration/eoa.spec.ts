@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
+import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
+import { add0x } from '@eth-optimism/core-utils'
 import { expect, env } from '../setup'
 import { AccountType, Account } from '../../scripts/types'
-import { findAccountsByType } from '../utils'
 
 // Test 1/X accounts to speed things up.
 const NUM_ACCOUNTS_DIVISOR = 1024
@@ -14,11 +14,7 @@ describe('EOAs', () => {
   describe('standard EOA', () => {
     let eoas: Account[]
     before(async () => {
-      eoas = findAccountsByType(
-        env.surgeryDataSources.dump,
-        env.surgeryDataSources,
-        AccountType.EOA
-      )
+      eoas = env.getAccountsByType(AccountType.EOA)
     })
 
     // Iterate through all of the EOAs and check that they have no code
@@ -29,15 +25,38 @@ describe('EOAs', () => {
           continue
         }
 
-        console.log(`checking account ${i} @ ${eoa.address}`)
+        console.log(`checking account ${i}/${eoas.length}`)
 
         const code = await env.postL2Provider.getCode(eoa.address)
         expect(code).to.eq('0x')
       }
     })
 
-    it.skip('should have the null code hash', async () => {})
-    it.skip('should have the null storage root', async () => {})
+    it('should have the null code hash and storage root', async () => {
+      for (const [i, eoa] of eoas.entries()) {
+        if (i % NUM_ACCOUNTS_DIVISOR !== 0) {
+          continue
+        }
+
+        console.log(`checking account ${i}/${eoas.length}`)
+
+        const proof = await env.postL2Provider.send('eth_getProof', [
+          eoa.address,
+          [],
+          'latest',
+        ])
+
+        expect(proof.codeHash).to.equal(
+          add0x(KECCAK256_NULL_S),
+          `incorrect code hash for account ${eoa.address}`
+        )
+
+        expect(proof.storageHash).to.equal(
+          add0x(KECCAK256_RLP_S),
+          `incorrect storage root for account ${eoa.address}`
+        )
+      }
+    })
 
     it('should have the same balance as it had before', async () => {
       for (const [i, eoa] of eoas.entries()) {
@@ -45,7 +64,7 @@ describe('EOAs', () => {
           continue
         }
 
-        console.log(`checking account ${i} @ ${eoa.address}`)
+        console.log(`checking account ${i}/${eoas.length}`)
 
         // Balance before needs to come from the specific block at which the dump was taken.
         const preBalance = await env.preL2Provider.getBalance(
@@ -69,7 +88,7 @@ describe('EOAs', () => {
           continue
         }
 
-        console.log(`checking account ${i} @ ${eoa.address}`)
+        console.log(`checking account ${i}/${eoas.length}`)
 
         // Nonce before needs to come from the specific block at which the dump was taken.
         const preNonce = await env.preL2Provider.getTransactionCount(
@@ -94,11 +113,7 @@ describe('EOAs', () => {
   describe.skip('1inch deployer', () => {
     let eoa: Account
     before(async () => {
-      eoa = findAccountsByType(
-        env.surgeryDataSources.dump,
-        env.surgeryDataSources,
-        AccountType.ONEINCH_DEPLOYER
-      )[0]
+      eoa = env.getAccountsByType(AccountType.ONEINCH_DEPLOYER)[0]
     })
 
     it('should not have any code', async () => {
@@ -106,9 +121,23 @@ describe('EOAs', () => {
       expect(code).to.eq('0x')
     })
 
-    it('should have the null code hash', async () => {})
+    it('should have the null code hash and storage root', async () => {
+      const proof = await env.postL2Provider.send('eth_getProof', [
+        eoa.address,
+        [],
+        'latest',
+      ])
 
-    it('should have the null storage root', async () => {})
+      expect(proof.codeHash).to.equal(
+        add0x(KECCAK256_NULL_S),
+        `incorrect code hash for account ${eoa.address}`
+      )
+
+      expect(proof.storageHash).to.equal(
+        add0x(KECCAK256_RLP_S),
+        `incorrect storage root for account ${eoa.address}`
+      )
+    })
 
     it('should have the same balance as it had before', async () => {
       // Balance before needs to come from the specific block at which the dump was taken.
