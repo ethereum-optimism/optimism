@@ -11,7 +11,6 @@ export const sleep = async (ms: number): Promise<void> => {
   })
 }
 
-
 // Returns a copy of an object
 export const clone = (obj: any): any => {
   if (typeof obj === 'undefined') {
