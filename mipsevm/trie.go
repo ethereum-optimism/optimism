@@ -44,7 +44,7 @@ func (kw PreimageKeyValueWriter) Delete(key []byte) error {
 // full nodes / BRANCH_NODE have 17 values, each a hash
 // LEAF or EXTENSION nodes have 2 values, a path and value
 func parseNode(node common.Hash, depth int) {
-	if depth > 2 {
+	if depth > 3 {
 		return
 	}
 	sprefix := strings.Repeat("  ", depth)
@@ -85,7 +85,7 @@ func RamToTrie(ram map[uint32](uint32)) common.Hash {
 	for _, kv := range sram {
 		k, v := uint32(kv>>32), uint32(kv)
 		//fmt.Printf("insert %x = %x\n", k, v)
-		binary.BigEndian.PutUint32(tk, k)
+		binary.BigEndian.PutUint32(tk, k>>2)
 		binary.BigEndian.PutUint32(tv, v)
 		mt.Update(tk, tv)
 	}

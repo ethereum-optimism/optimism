@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"testing"
 )
@@ -21,5 +22,6 @@ func TestTrie(t *testing.T) {
 
 	root := RamToTrie(ram)
 	dat := SerializeTrie(root)
+	fmt.Println("serialized length is", len(dat))
 	ioutil.WriteFile("/tmp/eth/ramtrie", dat, 0644)
 }
