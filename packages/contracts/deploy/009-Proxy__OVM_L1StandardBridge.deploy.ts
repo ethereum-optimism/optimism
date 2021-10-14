@@ -16,7 +16,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
 deployFn.tags = ['Proxy__L1StandardBridge']
 
 export default deployFn
