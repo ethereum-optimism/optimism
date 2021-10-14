@@ -130,7 +130,7 @@ export const loadConfigs = (): SurgeryConfigs => {
   const ethProviderUrl = reqenv('REGEN__ETH_PROVIDER_URL')
   const stateDumpHeight = parseInt(reqenv('REGEN__STATE_DUMP_HEIGHT'), 10)
   const startIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10)
-  const endIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10) || Infinity
+  const endIndex = parseInt(getenv('REGEN__END_INDEX', '0'), 10) || Infinity
 
   // Input assertions
   assert.ok(
