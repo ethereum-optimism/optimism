@@ -17,6 +17,8 @@ const expect = chai.expect
 
 dotenv.config()
 
+export const NUM_ACCOUNTS_DIVISOR = 4096
+
 interface TestEnvConfig {
   preL2ProviderUrl: string
   postL2ProviderUrl: string

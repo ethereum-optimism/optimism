@@ -1,10 +1,7 @@
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
 import { add0x } from '@eth-optimism/core-utils'
-import { expect, env } from '../setup'
+import { expect, env, NUM_ACCOUNTS_DIVISOR } from '../setup'
 import { AccountType, Account } from '../../scripts/types'
-
-// Test 1/X accounts to speed things up.
-const NUM_ACCOUNTS_DIVISOR = 4096
 
 describe('EOAs', () => {
   describe('standard EOA', () => {
