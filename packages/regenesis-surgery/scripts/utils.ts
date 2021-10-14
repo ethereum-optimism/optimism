@@ -128,7 +128,6 @@ export const loadConfigs = (): SurgeryConfigs => {
   const ropstenProviderUrl = reqenv('REGEN__ROPSTEN_PROVIDER_URL')
   const ropstenPrivateKey = reqenv('REGEN__ROPSTEN_PRIVATE_KEY')
   const ethProviderUrl = reqenv('REGEN__ETH_PROVIDER_URL')
-  const l1MessengerAddress = reqenv('REGEN__L1_MESSENGER_ADDRESS')
   const stateDumpHeight = parseInt(reqenv('REGEN__STATE_DUMP_HEIGHT'), 10)
   const startIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10)
   const endIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10) || Infinity
@@ -150,7 +149,6 @@ export const loadConfigs = (): SurgeryConfigs => {
     ropstenProviderUrl,
     ropstenPrivateKey,
     ethProviderUrl,
-    l1MessengerAddress,
     stateDumpHeight,
     startIndex,
     endIndex,

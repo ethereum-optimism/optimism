@@ -11,7 +11,6 @@ export interface SurgeryConfigs {
   ropstenProviderUrl: string
   ropstenPrivateKey: string
   ethProviderUrl: string
-  l1MessengerAddress: string
   stateDumpHeight: number
   startIndex: number
   endIndex: number
@@ -50,7 +49,6 @@ export enum AccountType {
   EOA,
   PRECOMPILE,
   PREDEPLOY_NEW_NOT_ETH,
-  PREDEPLOY_MESSAGE_PASSER,
   PREDEPLOY_WIPE,
   PREDEPLOY_NO_WIPE,
   PREDEPLOY_ETH,
