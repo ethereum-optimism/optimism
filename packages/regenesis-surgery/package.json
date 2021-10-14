@@ -36,6 +36,7 @@
     "ethereumjs-util": "^7.1.2",
     "ethers": "^5.4.5",
     "solc": "0.8.7-fixed",
-    "ts-node": "^10.0.0"
+    "ts-node": "^10.0.0",
+    "v1-contracts": "npm:@eth-optimism/contracts@0.4.10"
   }
 }

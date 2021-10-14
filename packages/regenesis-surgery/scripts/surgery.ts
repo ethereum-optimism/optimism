@@ -31,7 +31,7 @@ const doGenesisSurgery = async (
   const output: StateDump = []
 
   // Handle each account in the state dump.
-  const input = data.dump.slice(data.startIndex, data.endIndex)
+  const input = data.dump.slice(data.configs.startIndex, data.configs.endIndex)
 
   // Insert any accounts in the genesis that aren't already in the state dump.
   for (const account of data.genesis) {
@@ -180,9 +180,7 @@ const main = async () => {
     l1TestnetWallet,
     l1MainnetProvider,
     l2Provider,
-    l2NetworkName: configs.l2NetworkName,
-    startIndex: configs.startIndex,
-    endIndex: configs.endIndex,
+    configs,
   })
 
   // Convert to the format that Geth expects.
@@ -204,10 +202,10 @@ const main = async () => {
   // TODO: This WILL break because the genesis file will be larger than the allowable string size.
   // We'll need to write it in chunks instead. Not sure of the best way to achieve this.
   console.log('Writing final genesis to disk...')
-  fs.writeFileSync(
-    configs.outputFilePath,
-    JSON.stringify(finalGenesis, null, 2)
-  )
+  // fs.writeFileSync(
+  //   configs.outputFilePath,
+  //   JSON.stringify(finalGenesis, null, 2)
+  // )
 
   console.log('All done!')
 }

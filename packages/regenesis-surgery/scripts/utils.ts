@@ -147,6 +147,8 @@ export const loadConfigs = (): SurgeryConfigs => {
   const l1MainnetProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
   const l1TestnetProviderUrl = reqenv('REGEN__L1_TESTNET_PROVIDER_URL')
   const l1TestnetPrivateKey = reqenv('REGEN__L1_TESTNET_PRIVATE_KEY')
+  const l1MessengerAddress = reqenv('REGEN__L1_MESSENGER_ADDRESS')
+  const stateDumpHeight = parseInt(reqenv('REGEN__STATE_DUMP_HEIGHT'), 10)
   const startIndex = parseInt(process.env.START_INDEX || '0', 10)
   const endIndex = parseInt(process.env.END_INDEX, 10) || Infinity
 
@@ -166,6 +168,8 @@ export const loadConfigs = (): SurgeryConfigs => {
     l1MainnetProviderUrl,
     l1TestnetProviderUrl,
     l1TestnetPrivateKey,
+    l1MessengerAddress,
+    stateDumpHeight,
     startIndex,
     endIndex,
   }
