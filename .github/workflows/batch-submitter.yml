@@ -1,0 +1,43 @@
+name: batch-submitter unit tests
+
+on:
+  push:
+    paths:
+      - 'go/batch-submitter/**'
+    branches:
+      - 'master'
+      - 'develop'
+      - '*rc'
+      - 'regenesis/*'
+  pull_request:
+    paths:
+      - 'go/batch-submitter/*'
+    branches:
+      - 'master'
+      - 'develop'
+      - '*rc'
+      - 'regenesis/*'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: './go/batch-submitter'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.x 
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install
+        run: make
+
+      - name: Test
+        run: make test 
