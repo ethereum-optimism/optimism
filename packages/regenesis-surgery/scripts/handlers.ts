@@ -50,7 +50,7 @@ export const handlers: {
     return account
   },
   [AccountType.PREDEPLOY_WIPE]: (account, data) => {
-    const genesisAccount = findAccount(data.genesis, account.address)
+    const genesisAccount = findAccount(data.genesisDump, account.address)
     return {
       ...account,
       code: genesisAccount.code,
@@ -58,7 +58,7 @@ export const handlers: {
     }
   },
   [AccountType.PREDEPLOY_NO_WIPE]: (account, data) => {
-    const genesisAccount = findAccount(data.genesis, account.address)
+    const genesisAccount = findAccount(data.genesisDump, account.address)
     return {
       ...account,
       code: genesisAccount.code,
