@@ -32,8 +32,8 @@ export const UNISWAP_V3_CONTRACT_ADDRESSES = [
   '0xEe6A57eC80ea46401049E92587E52f5Ec1c24785',
   // NonfungibleTokenPositionManager
   '0xC36442b4a4522E871399CD717aBDD847Ab11FE88',
-  // UniswapInterfaceMulticall
-  '0x90f872b3d8f33f305e0250db6A2761B354f7710A',
+  // UniswapInterfaceMulticall (NEW ADDRESS)
+  '0x1F98415757620B543A52E61c46B32eB19261F984',
 ]
 
 export const PREDEPLOY_WIPE_ADDRESSES = [
@@ -95,6 +95,8 @@ export const DELETE_CONTRACTS = [
   '0x569e8d536ec2dd5988857147c9fcc7d8a08a7dbc',
   // Uniswap NFTDescriptor
   '0x042f51014b152c2d2fc9b57e36b16bc744065d8c',
+  // UniswapInterfaceMulticall (OLD ADDRESS)
+  '0x90f872b3d8f33f305e0250db6A2761B354f7710A',
 ]
 
 export const WETH_TRANSFER_ADDRESSES = [

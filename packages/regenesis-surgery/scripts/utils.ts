@@ -144,9 +144,10 @@ export const loadConfigs = (): SurgeryConfigs => {
   const outputFilePath = reqenv('REGEN__OUTPUT_FILE')
   const l2ProviderUrl = reqenv('REGEN__L2_PROVIDER_URL')
   const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME')
-  const l1MainnetProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
-  const l1TestnetProviderUrl = reqenv('REGEN__L1_TESTNET_PROVIDER_URL')
-  const l1TestnetPrivateKey = reqenv('REGEN__L1_TESTNET_PRIVATE_KEY')
+  const l1ProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
+  const ropstenProviderUrl = reqenv('REGEN__ROPSTEN_PROVIDER_URL')
+  const ropstenPrivateKey = reqenv('REGEN__ROPSTEN_PRIVATE_KEY')
+  const ethProviderUrl = reqenv('REGEN__ETH_PROVIDER_URL')
   const l1MessengerAddress = reqenv('REGEN__L1_MESSENGER_ADDRESS')
   const stateDumpHeight = parseInt(reqenv('REGEN__STATE_DUMP_HEIGHT'), 10)
   const startIndex = parseInt(process.env.START_INDEX || '0', 10)
@@ -163,11 +164,12 @@ export const loadConfigs = (): SurgeryConfigs => {
     etherscanFilePath,
     genesisFilePath,
     outputFilePath,
-    l2ProviderUrl,
     l2NetworkName,
-    l1MainnetProviderUrl,
-    l1TestnetProviderUrl,
-    l1TestnetPrivateKey,
+    l2ProviderUrl,
+    l1ProviderUrl,
+    ropstenProviderUrl,
+    ropstenPrivateKey,
+    ethProviderUrl,
     l1MessengerAddress,
     stateDumpHeight,
     startIndex,
