@@ -26,7 +26,7 @@ func TestBaseFeeUpdate(t *testing.T) {
 		privateKey:            key,
 		l2ChainID:             big.NewInt(1337),
 		gasPriceOracleAddress: addr,
-		gasPrice:              big.NewInt(677228895),
+		gasPrice:              big.NewInt(782049771),
 	}
 
 	update, err := wrapUpdateBaseFee(sim, sim, cfg)
@@ -55,7 +55,7 @@ func TestBaseFeeUpdate(t *testing.T) {
 	}
 	// Call the update function to do the update
 	if err := update(); err != nil {
-		t.Fatal("cannot update base fee")
+		t.Fatalf("cannot update base fee: %s", err)
 	}
 	sim.Commit()
 	// Check the updated base fee

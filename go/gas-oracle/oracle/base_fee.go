@@ -53,6 +53,19 @@ func wrapUpdateBaseFee(l1Backend bind.ContractTransactor, l2Backend DeployContra
 			log.Debug("non significant base fee update", "tip", tip.BaseFee, "current", baseFee)
 			return nil
 		}
+
+		// Use the configured gas price if it is set,
+		// otherwise use gas estimation
+		if cfg.gasPrice != nil {
+			opts.GasPrice = cfg.gasPrice
+		} else {
+			gasPrice, err := l2Backend.SuggestGasPrice(opts.Context)
+			if err != nil {
+				return err
+			}
+			opts.GasPrice = gasPrice
+		}
+
 		tx, err := contract.SetL1BaseFee(opts, tip.BaseFee)
 		if err != nil {
 			return err
