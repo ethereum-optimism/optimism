@@ -10,7 +10,7 @@
     "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint .",
     "pre-commit": "lint-staged",
-    "test": "hardhat --config test/config/hardhat.config.ts test",
+    "test:surgery": "hardhat --config test/config/hardhat.config.ts test",
     "start": "ts-node ./scripts/surgery.ts"
   },
   "devDependencies": {
