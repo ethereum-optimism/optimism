@@ -61,7 +61,7 @@ export const handlers: {
     const l1Messenger = new ethers.Contract(
       data.configs.l1MessengerAddress,
       getContractInterface('OVM_L1CrossDomainMessenger'),
-      data.l1MainnetProvider
+      data.l1Provider
     )
 
     const l2SentMessageEvents = await l2Messenger.queryFilter(
@@ -256,10 +256,10 @@ export const handlers: {
     })
 
     // Get the pool's code.
-    let poolCode = await data.l1TestnetProvider.getCode(pool.newAddress)
+    let poolCode = await data.ropstenProvider.getCode(pool.newAddress)
     if (poolCode === '0x') {
       console.log('Could not find pool code, deploying to testnet...')
-      const UniswapV3Factory = getUniswapV3Factory(data.l1TestnetWallet)
+      const UniswapV3Factory = getUniswapV3Factory(data.ropstenWallet)
       await UniswapV3Factory.createPool(pool.token0, pool.token1, pool.fee)
 
       // Repeatedly try to get the remote pool code from the testnet.
@@ -270,7 +270,7 @@ export const handlers: {
           throw new Error(`unable to create pool with data: ${pool}`)
         }
 
-        poolCode = await data.l1TestnetProvider.getCode(pool.newAddress)
+        poolCode = await data.ropstenProvider.getCode(pool.newAddress)
         await sleep(5000)
       }
     }
@@ -282,7 +282,18 @@ export const handlers: {
     }
   },
   [AccountType.UNISWAP_V3_OTHER]: async (account, data) => {
-    const code = await data.l1MainnetProvider.getCode(account.address)
+    let code = await data.ethProvider.getCode(account.address)
+
+    if (code === '0x') {
+      throw new Error(`account code is empty: ${account.address}`)
+    }
+
+    // Replace references to L1 WETH address with the L2 WETH address.
+    code = code.replace(
+      /c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2/g,
+      '4200000000000000000000000000000000000006'
+    )
+
     return {
       ...account,
       code,

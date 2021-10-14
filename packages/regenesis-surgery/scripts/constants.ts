@@ -32,7 +32,9 @@ export const UNISWAP_V3_CONTRACT_ADDRESSES = [
   '0xEe6A57eC80ea46401049E92587E52f5Ec1c24785',
   // NonfungibleTokenPositionManager
   '0xC36442b4a4522E871399CD717aBDD847Ab11FE88',
-  // UniswapInterfaceMulticall
+  // UniswapInterfaceMulticall (OP KOVAN)
+  '0x1F98415757620B543A52E61c46B32eB19261F984',
+  // UniswapInterfaceMulticall (OP MAINNET)
   '0x90f872b3d8f33f305e0250db6A2761B354f7710A',
 ]
 

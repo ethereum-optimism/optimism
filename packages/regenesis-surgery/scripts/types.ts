@@ -5,11 +5,12 @@ export interface SurgeryConfigs {
   etherscanFilePath: string
   genesisFilePath: string
   outputFilePath: string
-  l2ProviderUrl: string
   l2NetworkName: 'mainnet' | 'kovan'
-  l1MainnetProviderUrl: string
-  l1TestnetProviderUrl: string
-  l1TestnetPrivateKey: string
+  l2ProviderUrl: string
+  l1ProviderUrl: string
+  ropstenProviderUrl: string
+  ropstenPrivateKey: string
+  ethProviderUrl: string
   l1MessengerAddress: string
   stateDumpHeight: number
   startIndex: number
@@ -91,10 +92,11 @@ export interface SurgeryDataSources {
   pools: UniswapPoolData[]
   poolHashCache: PoolHashCache
   etherscanDump: EtherscanContract[]
-  l1TestnetProvider: ethers.providers.JsonRpcProvider
-  l1TestnetWallet: ethers.Wallet
-  l1MainnetProvider: ethers.providers.JsonRpcProvider
+  ropstenProvider: ethers.providers.JsonRpcProvider
+  ropstenWallet: ethers.Wallet
+  l1Provider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
+  ethProvider: ethers.providers.JsonRpcProvider
   configs: SurgeryConfigs
 }
 
