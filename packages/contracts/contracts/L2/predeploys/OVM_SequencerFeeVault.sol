@@ -13,7 +13,6 @@ import { L2StandardBridge } from "../messaging/L2StandardBridge.sol";
  * but "good enough for now".
  */
 contract OVM_SequencerFeeVault {
-
     /*************
      * Constants *
      *************/
@@ -21,14 +20,12 @@ contract OVM_SequencerFeeVault {
     // Minimum ETH balance that can be withdrawn in a single withdrawal.
     uint256 public constant MIN_WITHDRAWAL_AMOUNT = 15 ether;
 
-
     /*************
      * Variables *
      *************/
 
     // Address on L1 that will hold the fees once withdrawn. Dynamically initialized within l2geth.
     address public l1FeeWallet;
-
 
     /***************
      * Constructor *
@@ -39,12 +36,9 @@ contract OVM_SequencerFeeVault {
      * Currently HAS NO EFFECT in production because l2geth will mutate this storage slot during
      * the genesis block. This is ONLY for testing purposes.
      */
-    constructor(
-        address _l1FeeWallet
-    ) {
+    constructor(address _l1FeeWallet) {
         l1FeeWallet = _l1FeeWallet;
     }
-
 
     /************
      * Fallback *
@@ -52,14 +46,11 @@ contract OVM_SequencerFeeVault {
 
     receive() external payable {}
 
-
     /********************
      * Public Functions *
      ********************/
 
-    function withdraw()
-        public
-    {
+    function withdraw() public {
         require(
             address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
             // solhint-disable-next-line max-line-length

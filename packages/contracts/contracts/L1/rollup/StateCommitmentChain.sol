@@ -22,14 +22,12 @@ import { IChainStorageContainer } from "./IChainStorageContainer.sol";
  * Runtime target: EVM
  */
 contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
-
     /*************
      * Constants *
      *************/
 
     uint256 public FRAUD_PROOF_WINDOW;
     uint256 public SEQUENCER_PUBLISH_WINDOW;
-
 
     /***************
      * Constructor *
@@ -42,13 +40,10 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
         address _libAddressManager,
         uint256 _fraudProofWindow,
         uint256 _sequencerPublishWindow
-    )
-        Lib_AddressResolver(_libAddressManager)
-    {
+    ) Lib_AddressResolver(_libAddressManager) {
         FRAUD_PROOF_WINDOW = _fraudProofWindow;
         SEQUENCER_PUBLISH_WINDOW = _sequencerPublishWindow;
     }
-
 
     /********************
      * Public Functions *
@@ -58,28 +53,14 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * Accesses the batch storage container.
      * @return Reference to the batch storage container.
      */
-    function batches()
-        public
-        view
-        returns (
-            IChainStorageContainer
-        )
-    {
-        return IChainStorageContainer(
-            resolve("ChainStorageContainer-SCC-batches")
-        );
+    function batches() public view returns (IChainStorageContainer) {
+        return IChainStorageContainer(resolve("ChainStorageContainer-SCC-batches"));
     }
 
     /**
      * @inheritdoc IStateCommitmentChain
      */
-    function getTotalElements()
-        public
-        view
-        returns (
-            uint256 _totalElements
-        )
-    {
+    function getTotalElements() public view returns (uint256 _totalElements) {
         (uint40 totalElements, ) = _getBatchExtraData();
         return uint256(totalElements);
     }
@@ -87,26 +68,14 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /**
      * @inheritdoc IStateCommitmentChain
      */
-    function getTotalBatches()
-        public
-        view
-        returns (
-            uint256 _totalBatches
-        )
-    {
+    function getTotalBatches() public view returns (uint256 _totalBatches) {
         return batches().length();
     }
 
     /**
      * @inheritdoc IStateCommitmentChain
      */
-    function getLastSequencerTimestamp()
-        public
-        view
-        returns (
-            uint256 _lastSequencerTimestamp
-        )
-    {
+    function getLastSequencerTimestamp() public view returns (uint256 _lastSequencerTimestamp) {
         (, uint40 lastSequencerTimestamp) = _getBatchExtraData();
         return uint256(lastSequencerTimestamp);
     }
@@ -114,12 +83,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /**
      * @inheritdoc IStateCommitmentChain
      */
-    function appendStateBatch(
-        bytes32[] memory _batch,
-        uint256 _shouldStartAtElement
-    )
-        public
-    {
+    function appendStateBatch(bytes32[] memory _batch, uint256 _shouldStartAtElement) public {
         // Fail fast in to make sure our batch roots aren't accidentally made fraudulent by the
         // publication of batches by some other user.
         require(
@@ -133,43 +97,29 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
             "Proposer does not have enough collateral posted"
         );
 
-        require(
-            _batch.length > 0,
-            "Cannot submit an empty state batch."
-        );
+        require(_batch.length > 0, "Cannot submit an empty state batch.");
 
         require(
             getTotalElements() + _batch.length <=
-                ICanonicalTransactionChain(resolve("CanonicalTransactionChain"))
-                .getTotalElements(),
+                ICanonicalTransactionChain(resolve("CanonicalTransactionChain")).getTotalElements(),
             "Number of state roots cannot exceed the number of canonical transactions."
         );
 
         // Pass the block's timestamp and the publisher of the data
         // to be used in the fraud proofs
-        _appendBatch(
-            _batch,
-            abi.encode(block.timestamp, msg.sender)
-        );
+        _appendBatch(_batch, abi.encode(block.timestamp, msg.sender));
     }
 
     /**
      * @inheritdoc IStateCommitmentChain
      */
-    function deleteStateBatch(
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
-    )
-        public
-    {
+    function deleteStateBatch(Lib_OVMCodec.ChainBatchHeader memory _batchHeader) public {
         require(
             msg.sender == resolve("OVM_FraudVerifier"),
             "State batches can only be deleted by the OVM_FraudVerifier."
         );
 
-        require(
-            _isValidBatchHeader(_batchHeader),
-            "Invalid batch header."
-        );
+        require(_isValidBatchHeader(_batchHeader), "Invalid batch header.");
 
         require(
             insideFraudProofWindow(_batchHeader),
@@ -186,17 +136,8 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
         bytes32 _element,
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _proof
-    )
-        public
-        view
-        returns (
-            bool
-        )
-    {
-        require(
-            _isValidBatchHeader(_batchHeader),
-            "Invalid batch header."
-        );
+    ) public view returns (bool) {
+        require(_isValidBatchHeader(_batchHeader), "Invalid batch header.");
 
         require(
             Lib_MerkleTree.verify(
@@ -215,27 +156,16 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /**
      * @inheritdoc IStateCommitmentChain
      */
-    function insideFraudProofWindow(
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
-    )
+    function insideFraudProofWindow(Lib_OVMCodec.ChainBatchHeader memory _batchHeader)
         public
         view
-        returns (
-            bool _inside
-        )
+        returns (bool _inside)
     {
-        (uint256 timestamp,) = abi.decode(
-            _batchHeader.extraData,
-            (uint256, address)
-        );
+        (uint256 timestamp, ) = abi.decode(_batchHeader.extraData, (uint256, address));
 
-        require(
-            timestamp != 0,
-            "Batch header timestamp cannot be zero"
-        );
+        require(timestamp != 0, "Batch header timestamp cannot be zero");
         return (timestamp + FRAUD_PROOF_WINDOW) > block.timestamp;
     }
-
 
     /**********************
      * Internal Functions *
@@ -246,30 +176,26 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * @return Total number of elements submitted.
      * @return Timestamp of the last batch submitted by the sequencer.
      */
-    function _getBatchExtraData()
-        internal
-        view
-        returns (
-            uint40,
-            uint40
-        )
-    {
+    function _getBatchExtraData() internal view returns (uint40, uint40) {
         bytes27 extraData = batches().getGlobalMetadata();
 
         // solhint-disable max-line-length
         uint40 totalElements;
         uint40 lastSequencerTimestamp;
         assembly {
-            extraData              := shr(40, extraData)
-            totalElements          :=         and(extraData, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
-            lastSequencerTimestamp := shr(40, and(extraData, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000))
+            extraData := shr(40, extraData)
+            totalElements := and(
+                extraData,
+                0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF
+            )
+            lastSequencerTimestamp := shr(
+                40,
+                and(extraData, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000)
+            )
         }
         // solhint-enable max-line-length
 
-        return (
-            totalElements,
-            lastSequencerTimestamp
-        );
+        return (totalElements, lastSequencerTimestamp);
     }
 
     /**
@@ -278,15 +204,10 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * @param _lastSequencerTimestamp Timestamp of the last batch submitted by the sequencer.
      * @return Encoded batch context.
      */
-    function _makeBatchExtraData(
-        uint40 _totalElements,
-        uint40 _lastSequencerTimestamp
-    )
+    function _makeBatchExtraData(uint40 _totalElements, uint40 _lastSequencerTimestamp)
         internal
         pure
-        returns (
-            bytes27
-        )
+        returns (bytes27)
     {
         bytes27 extraData;
         assembly {
@@ -303,12 +224,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * @param _batch Elements within the batch.
      * @param _extraData Any extra data to append to the batch.
      */
-    function _appendBatch(
-        bytes32[] memory _batch,
-        bytes memory _extraData
-    )
-        internal
-    {
+    function _appendBatch(bytes32[] memory _batch, bytes memory _extraData) internal {
         address sequencer = resolve("OVM_Proposer");
         (uint40 totalElements, uint40 lastSequencerTimestamp) = _getBatchExtraData();
 
@@ -357,33 +273,17 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * Removes a batch and all subsequent batches from the chain.
      * @param _batchHeader Header of the batch to remove.
      */
-    function _deleteBatch(
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
-    )
-        internal
-    {
-        require(
-            _batchHeader.batchIndex < batches().length(),
-            "Invalid batch index."
-        );
+    function _deleteBatch(Lib_OVMCodec.ChainBatchHeader memory _batchHeader) internal {
+        require(_batchHeader.batchIndex < batches().length(), "Invalid batch index.");
 
-        require(
-            _isValidBatchHeader(_batchHeader),
-            "Invalid batch header."
-        );
+        require(_isValidBatchHeader(_batchHeader), "Invalid batch header.");
 
         batches().deleteElementsAfterInclusive(
             _batchHeader.batchIndex,
-            _makeBatchExtraData(
-                uint40(_batchHeader.prevTotalElements),
-                0
-            )
+            _makeBatchExtraData(uint40(_batchHeader.prevTotalElements), 0)
         );
 
-        emit StateBatchDeleted(
-            _batchHeader.batchIndex,
-            _batchHeader.batchRoot
-        );
+        emit StateBatchDeleted(_batchHeader.batchIndex, _batchHeader.batchRoot);
     }
 
     /**
@@ -391,14 +291,10 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
      * @param _batchHeader Batch header to validate.
      * @return Whether or not the header matches the stored one.
      */
-    function _isValidBatchHeader(
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
-    )
+    function _isValidBatchHeader(Lib_OVMCodec.ChainBatchHeader memory _batchHeader)
         internal
         view
-        returns (
-            bool
-        )
+        returns (bool)
     {
         return Lib_OVMCodec.hashBatchHeader(_batchHeader) == batches().get(_batchHeader.batchIndex);
     }

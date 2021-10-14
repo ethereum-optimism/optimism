@@ -12,14 +12,12 @@ import { ICrossDomainMessenger } from "./ICrossDomainMessenger.sol";
  * Runtime target: defined by inheriting contract
  */
 contract CrossDomainEnabled {
-
     /*************
      * Variables *
      *************/
 
     // Messenger contract used to send and recieve messages from the other domain.
     address public messenger;
-
 
     /***************
      * Constructor *
@@ -28,12 +26,9 @@ contract CrossDomainEnabled {
     /**
      * @param _messenger Address of the CrossDomainMessenger on the current layer.
      */
-    constructor(
-        address _messenger
-    ) {
+    constructor(address _messenger) {
         messenger = _messenger;
     }
-
 
     /**********************
      * Function Modifiers *
@@ -44,9 +39,7 @@ contract CrossDomainEnabled {
      * @param _sourceDomainAccount The only account on the originating domain which is
      *  authenticated to call this function.
      */
-    modifier onlyFromCrossDomainAccount(
-        address _sourceDomainAccount
-    ) {
+    modifier onlyFromCrossDomainAccount(address _sourceDomainAccount) {
         require(
             msg.sender == address(getCrossDomainMessenger()),
             "OVM_XCHAIN: messenger contract unauthenticated"
@@ -60,7 +53,6 @@ contract CrossDomainEnabled {
         _;
     }
 
-
     /**********************
      * Internal Functions *
      **********************/
@@ -70,13 +62,7 @@ contract CrossDomainEnabled {
      * needs to override.
      * @return The address of the cross-domain messenger contract which should be used.
      */
-    function getCrossDomainMessenger()
-        internal
-        virtual
-        returns (
-            ICrossDomainMessenger
-        )
-    {
+    function getCrossDomainMessenger() internal virtual returns (ICrossDomainMessenger) {
         return ICrossDomainMessenger(messenger);
     }
 
@@ -91,9 +77,7 @@ contract CrossDomainEnabled {
         address _crossDomainTarget,
         uint32 _gasLimit,
         bytes memory _message
-    )
-        internal
-    {
+    ) internal {
         getCrossDomainMessenger().sendMessage(_crossDomainTarget, _message, _gasLimit);
     }
 }

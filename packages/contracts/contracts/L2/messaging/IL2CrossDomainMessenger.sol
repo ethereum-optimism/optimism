@@ -8,7 +8,6 @@ import { ICrossDomainMessenger } from "../../libraries/bridge/ICrossDomainMessen
  * @title IL2CrossDomainMessenger
  */
 interface IL2CrossDomainMessenger is ICrossDomainMessenger {
-
     /********************
      * Public Functions *
      ********************/

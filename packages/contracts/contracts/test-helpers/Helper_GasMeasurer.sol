@@ -2,20 +2,14 @@
 pragma solidity ^0.8.9;
 
 contract Helper_GasMeasurer {
-    function measureCallGas(
-        address _target,
-        bytes memory _data
-    )
-        public
-        returns ( uint256 )
-    {
+    function measureCallGas(address _target, bytes memory _data) public returns (uint256) {
         uint256 gasBefore;
         uint256 gasAfter;
 
         uint256 calldataStart;
         uint256 calldataLength;
         assembly {
-            calldataStart := add(_data,0x20)
+            calldataStart := add(_data, 0x20)
             calldataLength := mload(_data)
         }
 

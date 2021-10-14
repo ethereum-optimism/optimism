@@ -17,12 +17,15 @@ import { ICanonicalTransactionChain } from "../rollup/ICanonicalTransactionChain
 import { IStateCommitmentChain } from "../rollup/IStateCommitmentChain.sol";
 
 /* External Imports */
-import { OwnableUpgradeable } from
-    "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { PausableUpgradeable } from
-    "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from
-    "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {
+    PausableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {
+    ReentrancyGuardUpgradeable
+} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 /**
  * @title L1CrossDomainMessenger
@@ -39,30 +42,23 @@ contract L1CrossDomainMessenger is
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
 {
-
     /**********
      * Events *
      **********/
 
-    event MessageBlocked(
-        bytes32 indexed _xDomainCalldataHash
-    );
+    event MessageBlocked(bytes32 indexed _xDomainCalldataHash);
 
-    event MessageAllowed(
-        bytes32 indexed _xDomainCalldataHash
-    );
-
+    event MessageAllowed(bytes32 indexed _xDomainCalldataHash);
 
     /**********************
      * Contract Variables *
      **********************/
 
-    mapping (bytes32 => bool) public blockedMessages;
-    mapping (bytes32 => bool) public relayedMessages;
-    mapping (bytes32 => bool) public successfulMessages;
+    mapping(bytes32 => bool) public blockedMessages;
+    mapping(bytes32 => bool) public relayedMessages;
+    mapping(bytes32 => bool) public successfulMessages;
 
     address internal xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
-
 
     /***************
      * Constructor *
@@ -73,10 +69,7 @@ contract L1CrossDomainMessenger is
      * We pass the zero address to the address resolver just to satisfy the constructor.
      * We still need to set this value in initialize().
      */
-    constructor()
-        Lib_AddressResolver(address(0))
-    {}
-
+    constructor() Lib_AddressResolver(address(0)) {}
 
     /********************
      * Public Functions *
@@ -85,12 +78,7 @@ contract L1CrossDomainMessenger is
     /**
      * @param _libAddressManager Address of the Address Manager.
      */
-    function initialize(
-        address _libAddressManager
-    )
-        public
-        initializer
-    {
+    function initialize(address _libAddressManager) public initializer {
         require(
             address(libAddressManager) == address(0),
             "L1CrossDomainMessenger already intialized."
@@ -108,10 +96,7 @@ contract L1CrossDomainMessenger is
     /**
      * Pause relaying.
      */
-    function pause()
-        external
-        onlyOwner
-    {
+    function pause() external onlyOwner {
         _pause();
     }
 
@@ -119,12 +104,7 @@ contract L1CrossDomainMessenger is
      * Block a message.
      * @param _xDomainCalldataHash Hash of the message to block.
      */
-    function blockMessage(
-        bytes32 _xDomainCalldataHash
-    )
-        external
-        onlyOwner
-    {
+    function blockMessage(bytes32 _xDomainCalldataHash) external onlyOwner {
         blockedMessages[_xDomainCalldataHash] = true;
         emit MessageBlocked(_xDomainCalldataHash);
     }
@@ -133,24 +113,16 @@ contract L1CrossDomainMessenger is
      * Allow a message.
      * @param _xDomainCalldataHash Hash of the message to block.
      */
-    function allowMessage(
-        bytes32 _xDomainCalldataHash
-    )
-        external
-        onlyOwner
-    {
+    function allowMessage(bytes32 _xDomainCalldataHash) external onlyOwner {
         blockedMessages[_xDomainCalldataHash] = false;
         emit MessageAllowed(_xDomainCalldataHash);
     }
 
-    function xDomainMessageSender()
-        public
-        view
-        returns (
-            address
-        )
-    {
-        require(xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
+    function xDomainMessageSender() public view returns (address) {
+        require(
+            xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER,
+            "xDomainMessageSender is not set"
+        );
         return xDomainMsgSender;
     }
 
@@ -164,13 +136,10 @@ contract L1CrossDomainMessenger is
         address _target,
         bytes memory _message,
         uint32 _gasLimit
-    )
-        public
-    {
+    ) public {
         address ovmCanonicalTransactionChain = resolve("CanonicalTransactionChain");
         // Use the CTC queue length as nonce
-        uint40 nonce =
-            ICanonicalTransactionChain(ovmCanonicalTransactionChain).getQueueLength();
+        uint40 nonce = ICanonicalTransactionChain(ovmCanonicalTransactionChain).getQueueLength();
 
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
@@ -179,11 +148,7 @@ contract L1CrossDomainMessenger is
             nonce
         );
 
-        _sendXDomainMessage(
-            ovmCanonicalTransactionChain,
-            xDomainCalldata,
-            _gasLimit
-        );
+        _sendXDomainMessage(ovmCanonicalTransactionChain, xDomainCalldata, _gasLimit);
 
         emit SentMessage(_target, msg.sender, _message, nonce, _gasLimit);
     }
@@ -198,11 +163,7 @@ contract L1CrossDomainMessenger is
         bytes memory _message,
         uint256 _messageNonce,
         L2MessageInclusionProof memory _proof
-    )
-        public
-        nonReentrant
-        whenNotPaused
-    {
+    ) public nonReentrant whenNotPaused {
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
             _target,
             _sender,
@@ -211,10 +172,7 @@ contract L1CrossDomainMessenger is
         );
 
         require(
-            _verifyXDomainMessage(
-                xDomainCalldata,
-                _proof
-            ) == true,
+            _verifyXDomainMessage(xDomainCalldata, _proof) == true,
             "Provided message could not be verified."
         );
 
@@ -250,13 +208,7 @@ contract L1CrossDomainMessenger is
 
         // Store an identifier that can be used to prove that the given message was relayed by some
         // user. Gives us an easy way to pay relayers for their work.
-        bytes32 relayId = keccak256(
-            abi.encodePacked(
-                xDomainCalldata,
-                msg.sender,
-                block.number
-            )
-        );
+        bytes32 relayId = keccak256(abi.encodePacked(xDomainCalldata, msg.sender, block.number));
         relayedMessages[relayId] = true;
     }
 
@@ -271,13 +223,12 @@ contract L1CrossDomainMessenger is
         uint256 _queueIndex,
         uint32 _oldGasLimit,
         uint32 _newGasLimit
-    )
-        public
-    {
+    ) public {
         // Verify that the message is in the queue:
         address canonicalTransactionChain = resolve("CanonicalTransactionChain");
-        Lib_OVMCodec.QueueElement memory element =
-            ICanonicalTransactionChain(canonicalTransactionChain).getQueueElement(_queueIndex);
+        Lib_OVMCodec.QueueElement memory element = ICanonicalTransactionChain(
+            canonicalTransactionChain
+        ).getQueueElement(_queueIndex);
 
         // Compute the calldata that was originally used to send the message.
         bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
@@ -304,13 +255,8 @@ contract L1CrossDomainMessenger is
         );
 
         // Send the same message but with the new gas limit.
-        _sendXDomainMessage(
-            canonicalTransactionChain,
-            xDomainCalldata,
-            _newGasLimit
-        );
+        _sendXDomainMessage(canonicalTransactionChain, xDomainCalldata, _newGasLimit);
     }
-
 
     /**********************
      * Internal Functions *
@@ -325,17 +271,8 @@ contract L1CrossDomainMessenger is
     function _verifyXDomainMessage(
         bytes memory _xDomainCalldata,
         L2MessageInclusionProof memory _proof
-    )
-        internal
-        view
-        returns (
-            bool
-        )
-    {
-        return (
-            _verifyStateRootProof(_proof)
-            && _verifyStorageProof(_xDomainCalldata, _proof)
-        );
+    ) internal view returns (bool) {
+        return (_verifyStateRootProof(_proof) && _verifyStorageProof(_xDomainCalldata, _proof));
     }
 
     /**
@@ -343,27 +280,22 @@ contract L1CrossDomainMessenger is
      * @param _proof Message inclusion proof.
      * @return Whether or not the provided proof is valid.
      */
-    function _verifyStateRootProof(
-        L2MessageInclusionProof memory _proof
-    )
+    function _verifyStateRootProof(L2MessageInclusionProof memory _proof)
         internal
         view
-        returns (
-            bool
-        )
+        returns (bool)
     {
         IStateCommitmentChain ovmStateCommitmentChain = IStateCommitmentChain(
             resolve("StateCommitmentChain")
         );
 
-        return (
-            ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) == false
-            && ovmStateCommitmentChain.verifyStateCommitment(
+        return (ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) ==
+            false &&
+            ovmStateCommitmentChain.verifyStateCommitment(
                 _proof.stateRoot,
                 _proof.stateRootBatchHeader,
                 _proof.stateRootProof
-            )
-        );
+            ));
     }
 
     /**
@@ -375,13 +307,7 @@ contract L1CrossDomainMessenger is
     function _verifyStorageProof(
         bytes memory _xDomainCalldata,
         L2MessageInclusionProof memory _proof
-    )
-        internal
-        view
-        returns (
-            bool
-        )
-    {
+    ) internal view returns (bool) {
         bytes32 storageKey = keccak256(
             abi.encodePacked(
                 keccak256(
@@ -394,10 +320,7 @@ contract L1CrossDomainMessenger is
             )
         );
 
-        (
-            bool exists,
-            bytes memory encodedMessagePassingAccount
-        ) = Lib_SecureMerkleTrie.get(
+        (bool exists, bytes memory encodedMessagePassingAccount) = Lib_SecureMerkleTrie.get(
             abi.encodePacked(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER),
             _proof.stateTrieWitness,
             _proof.stateRoot
@@ -412,12 +335,13 @@ contract L1CrossDomainMessenger is
             encodedMessagePassingAccount
         );
 
-        return Lib_SecureMerkleTrie.verifyInclusionProof(
-            abi.encodePacked(storageKey),
-            abi.encodePacked(uint8(1)),
-            _proof.storageTrieWitness,
-            account.storageRoot
-        );
+        return
+            Lib_SecureMerkleTrie.verifyInclusionProof(
+                abi.encodePacked(storageKey),
+                abi.encodePacked(uint8(1)),
+                _proof.storageTrieWitness,
+                account.storageRoot
+            );
     }
 
     /**
@@ -430,9 +354,7 @@ contract L1CrossDomainMessenger is
         address _canonicalTransactionChain,
         bytes memory _message,
         uint256 _gasLimit
-    )
-        internal
-    {
+    ) internal {
         ICanonicalTransactionChain(_canonicalTransactionChain).enqueue(
             Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
             _gasLimit,

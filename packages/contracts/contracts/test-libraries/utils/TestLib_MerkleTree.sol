@@ -8,19 +8,8 @@ import { Lib_MerkleTree } from "../../libraries/utils/Lib_MerkleTree.sol";
  * @title TestLib_MerkleTree
  */
 contract TestLib_MerkleTree {
-
-    function getMerkleRoot(
-        bytes32[] memory _elements
-    )
-        public
-       pure
-        returns (
-            bytes32
-        )
-    {
-        return Lib_MerkleTree.getMerkleRoot(
-            _elements
-        );
+    function getMerkleRoot(bytes32[] memory _elements) public pure returns (bytes32) {
+        return Lib_MerkleTree.getMerkleRoot(_elements);
     }
 
     function verify(
@@ -29,19 +18,7 @@ contract TestLib_MerkleTree {
         uint256 _index,
         bytes32[] memory _siblings,
         uint256 _totalLeaves
-    )
-        public
-        pure
-        returns (
-            bool
-        )
-    {
-        return Lib_MerkleTree.verify(
-            _root,
-            _leaf,
-            _index,
-            _siblings,
-            _totalLeaves
-        );
+    ) public pure returns (bool) {
+        return Lib_MerkleTree.verify(_root, _leaf, _index, _siblings, _totalLeaves);
     }
 }

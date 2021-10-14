@@ -11,7 +11,6 @@ import { Lib_Bytes32Utils } from "../utils/Lib_Bytes32Utils.sol";
  * @title Lib_OVMCodec
  */
 library Lib_OVMCodec {
-
     /*********
      * Enums *
      *********/
@@ -20,7 +19,6 @@ library Lib_OVMCodec {
         SEQUENCER_QUEUE,
         L1TOL2_QUEUE
     }
-
 
     /***********
      * Structs *
@@ -58,10 +56,10 @@ library Lib_OVMCodec {
 
     struct TransactionChainElement {
         bool isSequenced;
-        uint256 queueIndex;  // QUEUED TX ONLY
-        uint256 timestamp;   // SEQUENCER TX ONLY
+        uint256 queueIndex; // QUEUED TX ONLY
+        uint256 timestamp; // SEQUENCER TX ONLY
         uint256 blockNumber; // SEQUENCER TX ONLY
-        bytes txData;        // SEQUENCER TX ONLY
+        bytes txData; // SEQUENCER TX ONLY
     }
 
     struct QueueElement {
@@ -69,7 +67,6 @@ library Lib_OVMCodec {
         uint40 timestamp;
         uint40 blockNumber;
     }
-
 
     /**********************
      * Internal Functions *
@@ -80,24 +77,21 @@ library Lib_OVMCodec {
      * @param _transaction OVM transaction to encode.
      * @return Encoded transaction bytes.
      */
-    function encodeTransaction(
-        Transaction memory _transaction
-    )
+    function encodeTransaction(Transaction memory _transaction)
         internal
         pure
-        returns (
-            bytes memory
-        )
+        returns (bytes memory)
     {
-        return abi.encodePacked(
-            _transaction.timestamp,
-            _transaction.blockNumber,
-            _transaction.l1QueueOrigin,
-            _transaction.l1TxOrigin,
-            _transaction.entrypoint,
-            _transaction.gasLimit,
-            _transaction.data
-        );
+        return
+            abi.encodePacked(
+                _transaction.timestamp,
+                _transaction.blockNumber,
+                _transaction.l1QueueOrigin,
+                _transaction.l1TxOrigin,
+                _transaction.entrypoint,
+                _transaction.gasLimit,
+                _transaction.data
+            );
     }
 
     /**
@@ -105,15 +99,7 @@ library Lib_OVMCodec {
      * @param _transaction OVM transaction to encode.
      * @return Hashed transaction
      */
-    function hashTransaction(
-        Transaction memory _transaction
-    )
-        internal
-        pure
-        returns (
-            bytes32
-        )
-    {
+    function hashTransaction(Transaction memory _transaction) internal pure returns (bytes32) {
         return keccak256(encodeTransaction(_transaction));
     }
 
@@ -122,23 +108,16 @@ library Lib_OVMCodec {
      * @param _encoded RLP-encoded account state.
      * @return Account state struct.
      */
-    function decodeEVMAccount(
-        bytes memory _encoded
-    )
-        internal
-        pure
-        returns (
-            EVMAccount memory
-        )
-    {
+    function decodeEVMAccount(bytes memory _encoded) internal pure returns (EVMAccount memory) {
         Lib_RLPReader.RLPItem[] memory accountState = Lib_RLPReader.readList(_encoded);
 
-        return EVMAccount({
-            nonce: Lib_RLPReader.readUint256(accountState[0]),
-            balance: Lib_RLPReader.readUint256(accountState[1]),
-            storageRoot: Lib_RLPReader.readBytes32(accountState[2]),
-            codeHash: Lib_RLPReader.readBytes32(accountState[3])
-        });
+        return
+            EVMAccount({
+                nonce: Lib_RLPReader.readUint256(accountState[0]),
+                balance: Lib_RLPReader.readUint256(accountState[1]),
+                storageRoot: Lib_RLPReader.readBytes32(accountState[2]),
+                codeHash: Lib_RLPReader.readBytes32(accountState[3])
+            });
     }
 
     /**
@@ -146,22 +125,19 @@ library Lib_OVMCodec {
      * @param _batchHeader Header to hash.
      * @return Hash of the header.
      */
-    function hashBatchHeader(
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
-    )
+    function hashBatchHeader(Lib_OVMCodec.ChainBatchHeader memory _batchHeader)
         internal
         pure
-        returns (
-            bytes32
-        )
+        returns (bytes32)
     {
-        return keccak256(
-            abi.encode(
-                _batchHeader.batchRoot,
-                _batchHeader.batchSize,
-                _batchHeader.prevTotalElements,
-                _batchHeader.extraData
-            )
-        );
+        return
+            keccak256(
+                abi.encode(
+                    _batchHeader.batchRoot,
+                    _batchHeader.batchSize,
+                    _batchHeader.prevTotalElements,
+                    _batchHeader.extraData
+                )
+            );
     }
 }

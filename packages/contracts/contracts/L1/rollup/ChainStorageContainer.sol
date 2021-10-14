@@ -22,13 +22,11 @@ import { IChainStorageContainer } from "./IChainStorageContainer.sol";
  * Runtime target: EVM
  */
 contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
-
     /*************
      * Libraries *
      *************/
 
     using Lib_Buffer for Lib_Buffer.Buffer;
-
 
     /*************
      * Variables *
@@ -36,7 +34,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
 
     string public owner;
     Lib_Buffer.Buffer internal buffer;
-
 
     /***************
      * Constructor *
@@ -46,15 +43,11 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
      * @param _libAddressManager Address of the Address Manager.
      * @param _owner Name of the contract that owns this container (will be resolved later).
      */
-    constructor(
-        address _libAddressManager,
-        string memory _owner
-    )
+    constructor(address _libAddressManager, string memory _owner)
         Lib_AddressResolver(_libAddressManager)
     {
         owner = _owner;
     }
-
 
     /**********************
      * Function Modifiers *
@@ -68,7 +61,6 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
         _;
     }
 
-
     /********************
      * Public Functions *
      ********************/
@@ -76,108 +68,59 @@ contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function setGlobalMetadata(
-        bytes27 _globalMetadata
-    )
-        public
-        onlyOwner
-    {
+    function setGlobalMetadata(bytes27 _globalMetadata) public onlyOwner {
         return buffer.setExtraData(_globalMetadata);
     }
 
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function getGlobalMetadata()
-        public
-        view
-        returns (
-            bytes27
-        )
-    {
+    function getGlobalMetadata() public view returns (bytes27) {
         return buffer.getExtraData();
     }
 
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function length()
-        public
-        view
-        returns (
-            uint256
-        )
-    {
+    function length() public view returns (uint256) {
         return uint256(buffer.getLength());
     }
 
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function push(
-        bytes32 _object
-    )
-        public
-        onlyOwner
-    {
+    function push(bytes32 _object) public onlyOwner {
         buffer.push(_object);
     }
 
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function push(
-        bytes32 _object,
-        bytes27 _globalMetadata
-    )
-        public
-        onlyOwner
-    {
+    function push(bytes32 _object, bytes27 _globalMetadata) public onlyOwner {
         buffer.push(_object, _globalMetadata);
     }
 
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function get(
-        uint256 _index
-    )
-        public
-        view
-        returns (
-            bytes32
-        )
-    {
+    function get(uint256 _index) public view returns (bytes32) {
         return buffer.get(uint40(_index));
     }
 
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function deleteElementsAfterInclusive(
-        uint256 _index
-    )
-        public
-        onlyOwner
-    {
-        buffer.deleteElementsAfterInclusive(
-            uint40(_index)
-        );
+    function deleteElementsAfterInclusive(uint256 _index) public onlyOwner {
+        buffer.deleteElementsAfterInclusive(uint40(_index));
     }
 
     /**
      * @inheritdoc IChainStorageContainer
      */
-    function deleteElementsAfterInclusive(
-        uint256 _index,
-        bytes27 _globalMetadata
-    )
+    function deleteElementsAfterInclusive(uint256 _index, bytes27 _globalMetadata)
         public
         onlyOwner
     {
-        buffer.deleteElementsAfterInclusive(
-            uint40(_index),
-            _globalMetadata
-        );
+        buffer.deleteElementsAfterInclusive(uint40(_index), _globalMetadata);
     }
 }

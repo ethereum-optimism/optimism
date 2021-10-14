@@ -8,13 +8,11 @@ pragma solidity ^0.8.9;
  * overwritable "extra data" field so we can store more information with a single SSTORE.
  */
 library Lib_Buffer {
-
     /*************
      * Libraries *
      *************/
 
     using Lib_Buffer for Buffer;
-
 
     /***********
      * Structs *
@@ -22,19 +20,17 @@ library Lib_Buffer {
 
     struct Buffer {
         bytes32 context;
-        mapping (uint256 => bytes32) buf;
+        mapping(uint256 => bytes32) buf;
     }
 
     struct BufferContext {
         // Stores the length of the array. Uint40 is way more elements than we'll ever reasonably
         // need in an array and we get an extra 27 bytes of extra data to play with.
         uint40 length;
-
         // Arbitrary extra data that can be modified whenever the length is updated. Useful for
         // squeezing out some gas optimizations.
         bytes27 extraData;
     }
-
 
     /**********************
      * Internal Functions *
@@ -50,9 +46,7 @@ library Lib_Buffer {
         Buffer storage _self,
         bytes32 _value,
         bytes27 _extraData
-    )
-        internal
-    {
+    ) internal {
         BufferContext memory ctx = _self.getContext();
 
         _self.buf[ctx.length] = _value;
@@ -68,18 +62,10 @@ library Lib_Buffer {
      * @param _self Buffer to access.
      * @param _value Value to push to the buffer.
      */
-    function push(
-        Buffer storage _self,
-        bytes32 _value
-    )
-        internal
-    {
+    function push(Buffer storage _self, bytes32 _value) internal {
         BufferContext memory ctx = _self.getContext();
 
-        _self.push(
-            _value,
-            ctx.extraData
-        );
+        _self.push(_value, ctx.extraData);
     }
 
     /**
@@ -88,22 +74,10 @@ library Lib_Buffer {
      * @param _index Element index to retrieve.
      * @return Value of the element at the given index.
      */
-    function get(
-        Buffer storage _self,
-        uint256 _index
-    )
-        internal
-        view
-        returns (
-            bytes32
-        )
-    {
+    function get(Buffer storage _self, uint256 _index) internal view returns (bytes32) {
         BufferContext memory ctx = _self.getContext();
 
-        require(
-            _index < ctx.length,
-            "Index out of bounds."
-        );
+        require(_index < ctx.length, "Index out of bounds.");
 
         return _self.buf[_index];
     }
@@ -118,15 +92,10 @@ library Lib_Buffer {
         Buffer storage _self,
         uint40 _index,
         bytes27 _extraData
-    )
-        internal
-    {
+    ) internal {
         BufferContext memory ctx = _self.getContext();
 
-        require(
-            _index < ctx.length,
-            "Index out of bounds."
-        );
+        require(_index < ctx.length, "Index out of bounds.");
 
         // Set our length and extra data, save the context.
         ctx.length = _index;
@@ -139,17 +108,9 @@ library Lib_Buffer {
      * @param _self Buffer to access.
      * @param _index Index of the element to delete from (inclusive).
      */
-    function deleteElementsAfterInclusive(
-        Buffer storage _self,
-        uint40 _index
-    )
-        internal
-    {
+    function deleteElementsAfterInclusive(Buffer storage _self, uint40 _index) internal {
         BufferContext memory ctx = _self.getContext();
-        _self.deleteElementsAfterInclusive(
-            _index,
-            ctx.extraData
-        );
+        _self.deleteElementsAfterInclusive(_index, ctx.extraData);
     }
 
     /**
@@ -157,15 +118,7 @@ library Lib_Buffer {
      * @param _self Buffer to access.
      * @return Current global index.
      */
-    function getLength(
-        Buffer storage _self
-    )
-        internal
-        view
-        returns (
-            uint40
-        )
-    {
+    function getLength(Buffer storage _self) internal view returns (uint40) {
         BufferContext memory ctx = _self.getContext();
         return ctx.length;
     }
@@ -175,12 +128,7 @@ library Lib_Buffer {
      * @param _self Buffer to access.
      * @param _extraData New global extra data.
      */
-    function setExtraData(
-        Buffer storage _self,
-        bytes27 _extraData
-    )
-        internal
-    {
+    function setExtraData(Buffer storage _self, bytes27 _extraData) internal {
         BufferContext memory ctx = _self.getContext();
         ctx.extraData = _extraData;
         _self.setContext(ctx);
@@ -191,15 +139,7 @@ library Lib_Buffer {
      * @param _self Buffer to access.
      * @return Current global extra data.
      */
-    function getExtraData(
-        Buffer storage _self
-    )
-        internal
-        view
-        returns (
-            bytes27
-        )
-    {
+    function getExtraData(Buffer storage _self) internal view returns (bytes27) {
         BufferContext memory ctx = _self.getContext();
         return ctx.extraData;
     }
@@ -209,12 +149,7 @@ library Lib_Buffer {
      * @param _self Buffer to access.
      * @param _ctx Current buffer context.
      */
-    function setContext(
-        Buffer storage _self,
-        BufferContext memory _ctx
-    )
-        internal
-    {
+    function setContext(Buffer storage _self, BufferContext memory _ctx) internal {
         bytes32 context;
         uint40 length = _ctx.length;
         bytes27 extraData = _ctx.extraData;
@@ -233,28 +168,21 @@ library Lib_Buffer {
      * @param _self Buffer to access.
      * @return Current buffer context.
      */
-    function getContext(
-        Buffer storage _self
-    )
-        internal
-        view
-        returns (
-            BufferContext memory
-        )
-    {
+    function getContext(Buffer storage _self) internal view returns (BufferContext memory) {
         bytes32 context = _self.context;
         uint40 length;
         bytes27 extraData;
         assembly {
-            // solhint-disable-next-line max-line-length
-            length    := and(context, 0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF)
-            // solhint-disable-next-line max-line-length
-            extraData := and(context, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000)
+            length := and(
+                context,
+                0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF
+            )
+            extraData := and(
+                context,
+                0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000
+            )
         }
 
-        return BufferContext({
-            length: length,
-            extraData: extraData
-        });
+        return BufferContext({ length: length, extraData: extraData });
     }
 }

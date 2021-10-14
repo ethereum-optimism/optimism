@@ -19,22 +19,21 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         address _l1Token,
         string memory _name,
         string memory _symbol
-    )
-        ERC20(_name, _symbol) {
+    ) ERC20(_name, _symbol) {
         l1Token = _l1Token;
         l2Bridge = _l2Bridge;
     }
 
-    modifier onlyL2Bridge {
+    modifier onlyL2Bridge() {
         require(msg.sender == l2Bridge, "Only L2 Bridge can mint and burn");
         _;
     }
 
     function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
-        bytes4 secondSupportedInterface = IL2StandardERC20.l1Token.selector
-            ^ IL2StandardERC20.mint.selector
-            ^ IL2StandardERC20.burn.selector;
+        bytes4 secondSupportedInterface = IL2StandardERC20.l1Token.selector ^
+            IL2StandardERC20.mint.selector ^
+            IL2StandardERC20.burn.selector;
         return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 

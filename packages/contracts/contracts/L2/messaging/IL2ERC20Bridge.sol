@@ -5,12 +5,11 @@ pragma solidity ^0.8.9;
  * @title IL2ERC20Bridge
  */
 interface IL2ERC20Bridge {
-
     /**********
      * Events *
      **********/
 
-    event WithdrawalInitiated (
+    event WithdrawalInitiated(
         address indexed _l1Token,
         address indexed _l2Token,
         address indexed _from,
@@ -19,7 +18,7 @@ interface IL2ERC20Bridge {
         bytes _data
     );
 
-    event DepositFinalized (
+    event DepositFinalized(
         address indexed _l1Token,
         address indexed _l2Token,
         address indexed _from,
@@ -28,7 +27,7 @@ interface IL2ERC20Bridge {
         bytes _data
     );
 
-    event DepositFailed (
+    event DepositFailed(
         address indexed _l1Token,
         address indexed _l2Token,
         address indexed _from,
@@ -36,7 +35,6 @@ interface IL2ERC20Bridge {
         uint256 _amount,
         bytes _data
     );
-
 
     /********************
      * Public Functions *
@@ -46,7 +44,7 @@ interface IL2ERC20Bridge {
      * @dev get the address of the corresponding L1 bridge contract.
      * @return Address of the corresponding L1 bridge contract.
      */
-    function l1TokenBridge() external returns(address);
+    function l1TokenBridge() external returns (address);
 
     /**
      * @dev initiate a withdraw of some tokens to the caller's account on L1
@@ -57,13 +55,12 @@ interface IL2ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function withdraw (
+    function withdraw(
         address _l2Token,
-        uint _amount,
+        uint256 _amount,
         uint32 _l1Gas,
         bytes calldata _data
-    )
-        external;
+    ) external;
 
     /**
      * @dev initiate a withdraw of some token to a recipient's account on L1.
@@ -75,14 +72,13 @@ interface IL2ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function withdrawTo (
+    function withdrawTo(
         address _l2Token,
         address _to,
-        uint _amount,
+        uint256 _amount,
         uint32 _l1Gas,
         bytes calldata _data
-    )
-        external;
+    ) external;
 
     /*************************
      * Cross-chain Functions *
@@ -101,14 +97,12 @@ interface IL2ERC20Bridge {
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.
      */
-    function finalizeDeposit (
+    function finalizeDeposit(
         address _l1Token,
         address _l2Token,
         address _from,
         address _to,
-        uint _amount,
+        uint256 _amount,
         bytes calldata _data
-    )
-        external;
-
+    ) external;
 }

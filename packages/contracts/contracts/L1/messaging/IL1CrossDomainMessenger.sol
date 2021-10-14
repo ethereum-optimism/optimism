@@ -11,7 +11,6 @@ import { ICrossDomainMessenger } from "../../libraries/bridge/ICrossDomainMessen
  * @title IL1CrossDomainMessenger
  */
 interface IL1CrossDomainMessenger is ICrossDomainMessenger {
-
     /*******************
      * Data Structures *
      *******************/
@@ -23,7 +22,6 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
         bytes stateTrieWitness;
         bytes storageTrieWitness;
     }
-
 
     /********************
      * Public Functions *
