@@ -1,13 +1,14 @@
 package main
 
 import (
+	"io/ioutil"
 	"testing"
 )
 
 // go test -run TestTrie
 
 func TestTrie(t *testing.T) {
-	fn := "../mipigo/minigeth.bin"
+	fn := "../mipigo/test/test.bin"
 	ram := make(map[uint32](uint32))
 
 	// TODO: copied from compare_test.go
@@ -18,5 +19,7 @@ func TestTrie(t *testing.T) {
 		WriteRam(ram, i, 0)
 	}
 
-	RamToTrie(ram)
+	root := RamToTrie(ram)
+	dat := SerializeTrie(root)
+	ioutil.WriteFile("/tmp/eth/ramtrie", dat, 0644)
 }

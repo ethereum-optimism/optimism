@@ -1,18 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"fmt"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
 type PreimageKeyValueWriter struct{}
 
 var preimages = make(map[common.Hash][]byte)
+
+func SerializeTrie(root common.Hash) []byte {
+	b := new(bytes.Buffer)
+	e := gob.NewEncoder(b)
+	check(e.Encode(root))
+	check(e.Encode(preimages))
+	return b.Bytes()
+}
 
 // TODO: this is copied from the oracle
 func (kw PreimageKeyValueWriter) Put(key []byte, value []byte) error {
@@ -25,10 +36,35 @@ func (kw PreimageKeyValueWriter) Put(key []byte, value []byte) error {
 }
 
 func (kw PreimageKeyValueWriter) Delete(key []byte) error {
+	delete(preimages, common.BytesToHash(key))
 	return nil
 }
 
-func RamToTrie(ram map[uint32](uint32)) {
+// full nodes have 17 values, each a hash
+func parseNode(node common.Hash, depth int) {
+	if depth > 2 {
+		return
+	}
+	buf := preimages[node]
+	elems, _, err := rlp.SplitList(buf)
+	check(err)
+	c, _ := rlp.CountValues(elems)
+	fmt.Println("parsing", node, depth, "elements", c)
+	rest := elems
+	for i := 0; i < c; i++ {
+		kind, val, lrest, err := rlp.Split(rest)
+		rest = lrest
+		check(err)
+		fmt.Println(kind, val, len(val))
+		if len(val) == 32 {
+			hh := common.BytesToHash(val)
+			fmt.Println("node found with len", len(preimages[hh]))
+			parseNode(hh, depth+1)
+		}
+	}
+}
+
+func RamToTrie(ram map[uint32](uint32)) common.Hash {
 	mt := trie.NewStackTrie(PreimageKeyValueWriter{})
 
 	tk := make([]byte, 4)
@@ -50,7 +86,9 @@ func RamToTrie(ram map[uint32](uint32)) {
 		binary.BigEndian.PutUint32(tv, v)
 		mt.Update(tk, tv)
 	}
+	mt.Commit()
 	fmt.Println("ram hash", mt.Hash())
 	fmt.Println("hash count", len(preimages))
-	fmt.Println("root node", preimages[mt.Hash()])
+	parseNode(mt.Hash(), 0)
+	return mt.Hash()
 }

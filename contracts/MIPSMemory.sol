@@ -5,6 +5,13 @@ import "./lib/Lib_Keccak256.sol";
 import "./lib/Lib_MerkleTrie.sol";
 
 contract MIPSMemory {
+  // TODO: the trie library should read and write from this as appropriate
+  mapping(bytes32 => bytes) public trie;
+
+  function AddTrieNode(bytes calldata anything) public {
+    trie[keccak256(anything)] = anything;
+  }
+
   // TODO: replace with mapping(bytes32 => mapping(uint, bytes4))
   // to only save the part we care about
   mapping(bytes32 => bytes) public preimage;

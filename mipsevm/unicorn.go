@@ -13,6 +13,7 @@ import (
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
+// SHOULD BE GO BUILTIN
 func check(err error) {
 	if err != nil {
 		log.Fatal(err)
