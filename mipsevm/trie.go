@@ -6,6 +6,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -40,25 +41,27 @@ func (kw PreimageKeyValueWriter) Delete(key []byte) error {
 	return nil
 }
 
-// full nodes have 17 values, each a hash
+// full nodes / BRANCH_NODE have 17 values, each a hash
+// LEAF or EXTENSION nodes have 2 values, a path and value
 func parseNode(node common.Hash, depth int) {
 	if depth > 2 {
 		return
 	}
+	sprefix := strings.Repeat("  ", depth)
 	buf := preimages[node]
 	elems, _, err := rlp.SplitList(buf)
 	check(err)
 	c, _ := rlp.CountValues(elems)
-	fmt.Println("parsing", node, depth, "elements", c)
+	fmt.Println(sprefix, "parsing", node, depth, "elements", c)
 	rest := elems
 	for i := 0; i < c; i++ {
 		kind, val, lrest, err := rlp.Split(rest)
 		rest = lrest
 		check(err)
-		fmt.Println(kind, val, len(val))
+		fmt.Println(sprefix, i, kind, val, len(val))
 		if len(val) == 32 {
 			hh := common.BytesToHash(val)
-			fmt.Println("node found with len", len(preimages[hh]))
+			fmt.Println(sprefix, "node found with len", len(preimages[hh]))
 			parseNode(hh, depth+1)
 		}
 	}
