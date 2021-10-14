@@ -77,7 +77,7 @@ export const handlers: {
     for (const l2SentMessage of l2SentMessageEvents) {
       const msgHash = ethers.utils.keccak256(l2SentMessage.args.message)
       if (
-        !l1RelayedMessageEvents.some((event) => {
+        l1RelayedMessageEvents.some((event) => {
           return event.args.msgHash === msgHash
         })
       ) {
