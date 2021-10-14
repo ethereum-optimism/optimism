@@ -103,7 +103,7 @@ export const handlers: {
       }
     }
 
-    return account
+    return handlers[AccountType.PREDEPLOY_NO_WIPE](account, data)
   },
   [AccountType.PREDEPLOY_WIPE]: (account, data) => {
     const genesisAccount = findAccount(data.genesis, account.address)
