@@ -18,7 +18,6 @@ import {
   clone,
   findAccount,
 } from './utils'
-import { NEW_UNISWAP_MULTICALL_ADDRESS } from './constants'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
 import { downloadAllSolcVersions } from './solc'
@@ -39,15 +38,6 @@ const doGenesisSurgery = async (
     if (findAccount(input, account.address) === undefined) {
       input.push(account)
     }
-  }
-
-  // Make sure this account exists in the dump so we can handle it below.
-  if (findAccount(input, NEW_UNISWAP_MULTICALL_ADDRESS) === undefined) {
-    input.push({
-      address: NEW_UNISWAP_MULTICALL_ADDRESS,
-      nonce: 0,
-      balance: '0',
-    })
   }
 
   for (const [i, account] of input.entries()) {

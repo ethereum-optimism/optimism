@@ -284,6 +284,10 @@ export const handlers: {
   [AccountType.UNISWAP_V3_OTHER]: async (account, data) => {
     let code = await data.ethProvider.getCode(account.address)
 
+    if (code === '0x') {
+      throw new Error(`account code is empty: ${account.address}`)
+    }
+
     // Replace references to L1 WETH address with the L2 WETH address.
     code = code.replace(
       /c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2/g,
