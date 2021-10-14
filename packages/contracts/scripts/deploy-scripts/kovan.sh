@@ -27,7 +27,9 @@ npx hardhat deploy \
  --scc-sequencer-publish-window 12592000 \
  --ovm-sequencer-address 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244 \
  --ovm-proposer-address 0x9A2F243c605e6908D96b18e21Fb82Bf288B19EF3 \
- --ovm-address-manager-owner 0x9C822C992b56A3bd35d16A089d99AEc870eF8d37 \
+ --ovm-address-manager-owner 0x18394B52d3Cb931dfA76F63251919D051953413d \
+ --gasprice 10000000000 \
+ --tags upgrade \
  --network kovan
 
 CONTRACTS_TARGET_NETWORK=kovan \
