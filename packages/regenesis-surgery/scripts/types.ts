@@ -10,6 +10,8 @@ export interface SurgeryConfigs {
   l1MainnetProviderUrl: string
   l1TestnetProviderUrl: string
   l1TestnetPrivateKey: string
+  l1MessengerAddress: string
+  stateDumpHeight: number
   startIndex: number
   endIndex: number
 }
@@ -47,6 +49,7 @@ export enum AccountType {
   EOA,
   PRECOMPILE,
   PREDEPLOY_NEW_NOT_ETH,
+  PREDEPLOY_MESSAGE_PASSER,
   PREDEPLOY_WIPE,
   PREDEPLOY_NO_WIPE,
   PREDEPLOY_ETH,
@@ -92,9 +95,7 @@ export interface SurgeryDataSources {
   l1TestnetWallet: ethers.Wallet
   l1MainnetProvider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
-  l2NetworkName: 'mainnet' | 'kovan'
-  startIndex: number
-  endIndex: number
+  configs: SurgeryConfigs
 }
 
 export interface GenesisFile {

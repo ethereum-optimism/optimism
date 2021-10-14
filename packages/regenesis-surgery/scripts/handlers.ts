@@ -21,6 +21,8 @@ import {
   SurgeryDataSources,
   ImmutableReference,
 } from './types'
+import { getContractInterface } from 'v1-contracts'
+import { predeploys } from '@eth-optimism/contracts'
 
 export const handlers: {
   [key in AccountType]: (
@@ -49,6 +51,59 @@ export const handlers: {
   },
   [AccountType.PREDEPLOY_NEW_NOT_ETH]: (account) => {
     return account
+  },
+  [AccountType.PREDEPLOY_MESSAGE_PASSER]: async (account, data) => {
+    const l2Messenger = new ethers.Contract(
+      predeploys.L2CrossDomainMessenger,
+      getContractInterface('OVM_L2CrossDomainMessenger'),
+      data.l2Provider
+    )
+    const l1Messenger = new ethers.Contract(
+      data.configs.l1MessengerAddress,
+      getContractInterface('OVM_L1CrossDomainMessenger'),
+      data.l1MainnetProvider
+    )
+
+    const l2SentMessageEvents = await l2Messenger.queryFilter(
+      'SentMessage' as any,
+      0,
+      data.configs.stateDumpHeight
+    )
+
+    const l1RelayedMessageEvents = await l1Messenger.queryFilter(
+      'RelayedMessage' as any
+    )
+
+    for (const l2SentMessage of l2SentMessageEvents) {
+      const msgHash = ethers.utils.keccak256(l2SentMessage.args.message)
+      if (
+        l1RelayedMessageEvents.some((event) => {
+          return event.args.msgHash === msgHash
+        })
+      ) {
+        const storageKey = getMappingKey(
+          [
+            ethers.utils.keccak256(
+              ethers.utils.hexConcat([
+                l2SentMessage.args.message,
+                l2Messenger.address,
+              ])
+            ),
+          ],
+          0
+        )
+
+        if (account.storage[storageKey] === undefined) {
+          throw new Error(
+            `expected storage key to be in messenger storage: ${storageKey}`
+          )
+        }
+
+        delete account.storage[storageKey]
+      }
+    }
+
+    return handlers[AccountType.PREDEPLOY_NO_WIPE](account, data)
   },
   [AccountType.PREDEPLOY_WIPE]: (account, data) => {
     const genesisAccount = findAccount(data.genesis, account.address)
