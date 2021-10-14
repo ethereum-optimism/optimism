@@ -38,7 +38,6 @@ const deployFn: DeployFunction = async (hre) => {
   console.log(`✓ Set owner of Lib_AddressManager to: ${owner}`)
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['finalize']
+deployFn.tags = ['finalize', 'upgrade']
 
 export default deployFn

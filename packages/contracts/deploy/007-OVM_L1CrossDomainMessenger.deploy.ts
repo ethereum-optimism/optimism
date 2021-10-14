@@ -17,7 +17,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndRegister({
     hre,
-    name: 'L1CrossDomainMessenger',
+    name: 'OVM_L1CrossDomainMessenger',
+    contract: 'L1CrossDomainMessenger',
     args: [],
     postDeployAction: async (contract) => {
       // Theoretically it's not necessary to initialize this contract since it sits behind
@@ -38,7 +39,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['L1CrossDomainMessenger']
+deployFn.tags = ['L1CrossDomainMessenger', 'upgrade']
 
 export default deployFn

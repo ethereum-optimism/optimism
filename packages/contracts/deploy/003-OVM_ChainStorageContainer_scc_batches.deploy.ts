@@ -21,7 +21,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['ChainStorageContainer_scc_batches']
+deployFn.tags = ['ChainStorageContainer_scc_batches', 'upgrade']
 
 export default deployFn

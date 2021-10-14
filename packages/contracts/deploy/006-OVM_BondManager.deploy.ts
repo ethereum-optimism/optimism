@@ -20,7 +20,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['BondManager']
+deployFn.tags = ['BondManager', 'upgrade']
 
 export default deployFn

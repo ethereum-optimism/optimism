@@ -58,7 +58,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.dependencies = ['Proxy__L1StandardBridge']
 deployFn.tags = ['fund-accounts']
 
 export default deployFn
