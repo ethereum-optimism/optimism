@@ -17,7 +17,7 @@ const doGenesisSurgery = async (
   const input = data.dump.slice(data.configs.startIndex, data.configs.endIndex)
 
   // Insert any accounts in the genesis that aren't already in the state dump.
-  for (const account of data.genesis) {
+  for (const account of data.genesisDump) {
     if (findAccount(input, account.address) === undefined) {
       input.push(account)
     }

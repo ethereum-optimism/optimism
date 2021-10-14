@@ -91,7 +91,8 @@ export type SupportedNetworks = 'mainnet' | 'kovan'
 export interface SurgeryDataSources {
   configs: SurgeryConfigs
   dump: StateDump
-  genesis: StateDump
+  genesis: GenesisFile
+  genesisDump: StateDump
   pools: UniswapPoolData[]
   poolHashCache: PoolHashCache
   etherscanDump: EtherscanContract[]
