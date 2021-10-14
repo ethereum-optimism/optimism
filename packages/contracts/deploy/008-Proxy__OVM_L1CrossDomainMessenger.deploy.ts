@@ -36,7 +36,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager', 'L1CrossDomainMessenger']
 deployFn.tags = ['Proxy__L1CrossDomainMessenger']
 
 export default deployFn
