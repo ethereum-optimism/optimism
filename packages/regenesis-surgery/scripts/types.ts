@@ -5,7 +5,7 @@ export interface SurgeryConfigs {
   etherscanFilePath: string
   genesisFilePath: string
   outputFilePath: string
-  l2NetworkName: 'mainnet' | 'kovan'
+  l2NetworkName: SupportedNetworks
   l2ProviderUrl: string
   l1ProviderUrl: string
   ropstenProviderUrl: string
@@ -86,7 +86,12 @@ export interface EtherscanContract {
   library: string
 }
 
+export type EtherscanDump = EtherscanContract[]
+
+export type SupportedNetworks = 'mainnet' | 'kovan'
+
 export interface SurgeryDataSources {
+  configs: SurgeryConfigs
   dump: StateDump
   genesis: StateDump
   pools: UniswapPoolData[]
@@ -97,7 +102,6 @@ export interface SurgeryDataSources {
   l1Provider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
   ethProvider: ethers.providers.JsonRpcProvider
-  configs: SurgeryConfigs
 }
 
 export interface GenesisFile {

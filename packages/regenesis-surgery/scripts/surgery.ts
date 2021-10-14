@@ -1,28 +1,11 @@
 import { ethers } from 'ethers'
 import fs from 'fs'
-import {
-  StateDump,
-  UniswapPoolData,
-  SurgeryDataSources,
-  EtherscanContract,
-  SurgeryConfigs,
-  GenesisFile,
-  AccountType,
-} from './types'
-import {
-  loadConfigs,
-  checkStateDump,
-  readDumpFile,
-  readEtherscanFile,
-  readGenesisFile,
-  clone,
-  findAccount,
-} from './utils'
+import { add0x, remove0x, clone } from '@eth-optimism/core-utils'
+import { StateDump, SurgeryDataSources, AccountType } from './types'
+import { findAccount } from './utils'
 import { handlers } from './handlers'
 import { classify } from './classifiers'
-import { downloadAllSolcVersions } from './solc'
-import { getUniswapPoolData, makePoolHashCache } from './data'
-import { add0x, remove0x } from '@eth-optimism/core-utils'
+import { loadSurgeryData } from './data'
 
 const doGenesisSurgery = async (
   data: SurgeryDataSources
@@ -108,84 +91,12 @@ const doGenesisSurgery = async (
 }
 
 const main = async () => {
-  // First download every solc version that we'll need during this surgery.
-  console.log('Downloading all required solc versions...')
-  await downloadAllSolcVersions()
-
-  // Load the configuration values, will throw if anything is missing.
-  console.log('Loading configuration values...')
-  const configs: SurgeryConfigs = loadConfigs()
-
-  // Load and validate the state dump.
-  console.log('Loading and validating state dump file...')
-  const dump: StateDump = await readDumpFile(configs.stateDumpFilePath)
-  checkStateDump(dump)
-
-  // Load the genesis file.
-  console.log('Loading genesis file...')
-  const genesis: GenesisFile = await readGenesisFile(configs.genesisFilePath)
-  const genesisDump: StateDump = []
-  for (const [address, account] of Object.entries(genesis.alloc)) {
-    genesisDump.push({
-      address,
-      ...account,
-    })
-  }
-
-  // Load the etherscan dump.
-  console.log('Loading etherscan dump file...')
-  const etherscanDump: EtherscanContract[] = await readEtherscanFile(
-    configs.etherscanFilePath
-  )
-
-  // Get a reference to the L2 provider so we can load pool data.
-  console.log('Connecting to L2 provider...')
-  const l2Provider = new ethers.providers.JsonRpcProvider(configs.l2ProviderUrl)
-
-  // Load the pool data.
-  console.log('Loading Uniswap pool data...')
-  const pools: UniswapPoolData[] = await getUniswapPoolData(
-    l2Provider,
-    configs.l2NetworkName
-  )
-
-  console.log('Generating pool cache...')
-  const poolHashCache = makePoolHashCache(pools)
-
-  // Get a reference to the ropsten provider and wallet, used for deploying Uniswap pools.
-  console.log('Connecting to ropsten provider...')
-  const ropstenProvider = new ethers.providers.JsonRpcProvider(
-    configs.ropstenProviderUrl
-  )
-  const ropstenWallet = new ethers.Wallet(
-    configs.ropstenPrivateKey,
-    ropstenProvider
-  )
-
-  // Get a reference to the L1 provider.
-  console.log('Connecting to L1 provider...')
-  const l1Provider = new ethers.providers.JsonRpcProvider(configs.l1ProviderUrl)
-
-  console.log('Connecting to ETH provider...')
-  const ethProvider = new ethers.providers.JsonRpcProvider(
-    configs.ethProviderUrl
-  )
+  // Load the surgery data.
+  const data = await loadSurgeryData()
 
   // Do the surgery process and get the new genesis dump.
   console.log('Starting surgery process...')
-  const finalGenesisDump = await doGenesisSurgery({
-    dump,
-    genesis: genesisDump,
-    pools,
-    poolHashCache,
-    etherscanDump,
-    ropstenProvider,
-    ropstenWallet,
-    ethProvider,
-    l1Provider,
-    l2Provider,
-    configs,
-  })
+  const finalGenesisDump = await doGenesisSurgery(data)
 
   // Convert to the format that Geth expects.
   console.log('Converting dump to final format...')
@@ -198,14 +109,14 @@ const main = async () => {
 
   // Attach all of the original genesis configuration values.
   const finalGenesis = {
-    ...genesis,
+    ...data.genesis,
     alloc: finalGenesisAlloc,
   }
 
   // Write the final genesis file to disk.
   console.log('Writing final genesis to disk...')
   fs.writeFileSync(
-    configs.outputFilePath,
+    data.configs.outputFilePath,
     JSON.stringify(finalGenesis, null, 2)
   )
 

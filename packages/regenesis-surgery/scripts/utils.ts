@@ -7,12 +7,14 @@ import * as fs from 'fs'
 import byline from 'byline'
 import * as dotenv from 'dotenv'
 import * as assert from 'assert'
+import { reqenv, getenv } from '@eth-optimism/core-utils'
 import {
   Account,
   EtherscanContract,
   StateDump,
   SurgeryConfigs,
   GenesisFile,
+  SupportedNetworks,
 } from './types'
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 
@@ -114,44 +116,22 @@ export const getUniswapV3Factory = (signerOrProvider: any): ethers.Contract => {
   )
 }
 
-// Returns a copy of an object
-export const clone = (obj: any): any => {
-  if (typeof obj === 'undefined') {
-    throw new Error(`Trying to clone undefined object`)
-  }
-  return { ...obj }
-}
-
-/**
- * Loads a variable from the environment and throws if the variable is not defined.
- *
- * @param name Name of the variable to load.
- * @returns Value of the variable as a string.
- */
-export const reqenv = (name: string): any => {
-  const value = process.env[name]
-  if (value === undefined) {
-    throw new Error(`missing env var ${name}`)
-  }
-  return value
-}
-
 export const loadConfigs = (): SurgeryConfigs => {
   dotenv.config()
   const stateDumpFilePath = reqenv('REGEN__STATE_DUMP_FILE')
   const etherscanFilePath = reqenv('REGEN__ETHERSCAN_FILE')
   const genesisFilePath = reqenv('REGEN__GENESIS_FILE')
   const outputFilePath = reqenv('REGEN__OUTPUT_FILE')
-  const l2ProviderUrl = reqenv('REGEN__L2_PROVIDER_URL')
   const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME')
+  const l2ProviderUrl = reqenv('REGEN__L2_PROVIDER_URL')
   const l1ProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
   const ropstenProviderUrl = reqenv('REGEN__ROPSTEN_PROVIDER_URL')
   const ropstenPrivateKey = reqenv('REGEN__ROPSTEN_PRIVATE_KEY')
   const ethProviderUrl = reqenv('REGEN__ETH_PROVIDER_URL')
   const l1MessengerAddress = reqenv('REGEN__L1_MESSENGER_ADDRESS')
   const stateDumpHeight = parseInt(reqenv('REGEN__STATE_DUMP_HEIGHT'), 10)
-  const startIndex = parseInt(process.env.START_INDEX || '0', 10)
-  const endIndex = parseInt(process.env.END_INDEX, 10) || Infinity
+  const startIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10)
+  const endIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10) || Infinity
 
   // Input assertions
   assert.ok(
@@ -164,7 +144,7 @@ export const loadConfigs = (): SurgeryConfigs => {
     etherscanFilePath,
     genesisFilePath,
     outputFilePath,
-    l2NetworkName,
+    l2NetworkName: l2NetworkName as SupportedNetworks,
     l2ProviderUrl,
     l1ProviderUrl,
     ropstenProviderUrl,
@@ -218,6 +198,20 @@ export const readGenesisFile = async (
   genesispath: string
 ): Promise<GenesisFile> => {
   return JSON.parse(fs.readFileSync(genesispath, 'utf8'))
+}
+
+export const readGenesisStateDump = async (
+  genesispath: string
+): Promise<StateDump> => {
+  const genesis = await readGenesisFile(genesispath)
+  const genesisDump: StateDump = []
+  for (const [address, account] of Object.entries(genesis.alloc)) {
+    genesisDump.push({
+      address,
+      ...account,
+    })
+  }
+  return genesisDump
 }
 
 export const checkStateDump = (dump: StateDump) => {

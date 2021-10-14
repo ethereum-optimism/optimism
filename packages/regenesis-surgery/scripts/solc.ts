@@ -5,13 +5,13 @@ import path from 'path'
 import fs from 'fs'
 import solc from 'solc'
 import { ethers } from 'ethers'
+import { clone } from '@eth-optimism/core-utils'
 import {
   COMPILER_VERSIONS_TO_SOLC,
   EMSCRIPTEN_BUILD_LIST,
   EMSCRIPTEN_BUILD_PATH,
   LOCAL_SOLC_DIR,
 } from './constants'
-import { clone } from './utils'
 import { EtherscanContract } from './types'
 
 const OVM_BUILD_PATH = (version: string) => {
@@ -29,8 +29,6 @@ export const downloadSolc = async (version: string, ovm?: boolean) => {
   if (version === 'v0.5.16-alpha.7') {
     return
   }
-
-  console.error(`Downloading ${version} ${ovm ? 'ovm' : 'solidity'}`)
 
   // File is the location where we'll put the downloaded compiler.
   let file: string
@@ -67,8 +65,8 @@ export const downloadSolc = async (version: string, ovm?: boolean) => {
   try {
     // Check to see if we already have the file
     await access(file, fs.constants.F_OK)
-    console.error(`${version} already downloaded`)
   } catch (e) {
+    console.error(`Downloading ${version} ${ovm ? 'ovm' : 'solidity'}`)
     // If we don't have the file, download it
     const res = await fetch(remote)
     const bin = await res.text()
