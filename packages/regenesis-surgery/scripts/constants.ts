@@ -1,5 +1,6 @@
 import path from 'path'
 
+// Codehashes of OVM_ECDSAContractAccount for 0.3.0 and 0.4.0
 export const EOA_CODE_HASHES = [
   '0xa73df79c90ba2496f3440188807022bed5c7e2e826b596d22bcb4e127378835a',
   '0xef2ab076db773ffc554c9f287134123439a5228e92f5b3194a28fec0a0afafe3',
