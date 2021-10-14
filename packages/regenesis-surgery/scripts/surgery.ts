@@ -199,13 +199,11 @@ const main = async () => {
   }
 
   // Write the final genesis file to disk.
-  // TODO: This WILL break because the genesis file will be larger than the allowable string size.
-  // We'll need to write it in chunks instead. Not sure of the best way to achieve this.
   console.log('Writing final genesis to disk...')
-  // fs.writeFileSync(
-  //   configs.outputFilePath,
-  //   JSON.stringify(finalGenesis, null, 2)
-  // )
+  fs.writeFileSync(
+    configs.outputFilePath,
+    JSON.stringify(finalGenesis, null, 2)
+  )
 
   console.log('All done!')
 }
