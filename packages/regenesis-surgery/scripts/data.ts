@@ -135,20 +135,24 @@ export const loadSurgeryData = async (
   console.log('Generating pool cache...')
   const poolHashCache = makePoolHashCache(pools)
 
-  // Get a reference to the L1 testnet provider and wallet, used for deploying Uniswap pools.
-  console.log('Connecting to L1 testnet provider...')
-  const l1TestnetProvider = new ethers.providers.JsonRpcProvider(
-    configs.l1TestnetProviderUrl
+  // Get a reference to the ropsten provider and wallet, used for deploying Uniswap pools.
+  console.log('Connecting to ropsten provider...')
+  const ropstenProvider = new ethers.providers.JsonRpcProvider(
+    configs.ropstenProviderUrl
   )
-  const l1TestnetWallet = new ethers.Wallet(
-    configs.l1TestnetPrivateKey,
-    l1TestnetProvider
+  const ropstenWallet = new ethers.Wallet(
+    configs.ropstenPrivateKey,
+    ropstenProvider
   )
 
-  // Get a reference to the L1 mainnet provider.
-  console.log('Connecting to L1 mainnet provider...')
-  const l1MainnetProvider = new ethers.providers.JsonRpcProvider(
-    configs.l1MainnetProviderUrl
+  // Get a reference to the L1 provider.
+  console.log('Connecting to L1 provider...')
+  const l1Provider = new ethers.providers.JsonRpcProvider(configs.l1ProviderUrl)
+
+  // Get a reference to an ETH (mainnet) provider.
+  console.log('Connecting to ETH provider...')
+  const ethProvider = new ethers.providers.JsonRpcProvider(
+    configs.ethProviderUrl
   )
 
   return {
@@ -158,12 +162,10 @@ export const loadSurgeryData = async (
     pools,
     poolHashCache,
     etherscanDump,
-    l1TestnetProvider,
-    l1TestnetWallet,
-    l1MainnetProvider,
+    ropstenProvider,
+    ropstenWallet,
+    l1Provider,
     l2Provider,
-    l2NetworkName: configs.l2NetworkName,
-    startIndex: configs.startIndex,
-    endIndex: configs.endIndex,
+    ethProvider,
   }
 }

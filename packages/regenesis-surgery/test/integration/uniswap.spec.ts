@@ -53,7 +53,7 @@ describe('uniswap contracts', () => {
       const l2Code = await env.postL2Provider.getCode(
         postUniswapV3Factory.address
       )
-      const l1Code = await env.surgeryDataSources.l1MainnetProvider.getCode(
+      const l1Code = await env.surgeryDataSources.l1Provider.getCode(
         postUniswapV3Factory.address
       )
       expect(l2Code).to.not.equal('0x')
@@ -64,7 +64,7 @@ describe('uniswap contracts', () => {
   describe('V3 NFPM', () => {
     it('should have the same code as on mainnet', async () => {
       const l2Code = await env.postL2Provider.getCode(UNISWAP_V3_NFPM_ADDRESS)
-      const l1Code = await env.surgeryDataSources.l1MainnetProvider.getCode(
+      const l1Code = await env.surgeryDataSources.l1Provider.getCode(
         UNISWAP_V3_NFPM_ADDRESS
       )
       expect(l2Code).to.not.equal('0x')
@@ -97,10 +97,9 @@ describe('uniswap contracts', () => {
             const l2Code = await env.postL2Provider.getCode(
               postPoolContract.address
             )
-            const l1Code =
-              await env.surgeryDataSources.l1TestnetProvider.getCode(
-                postPoolContract.address
-              )
+            const l1Code = await env.surgeryDataSources.l1Provider.getCode(
+              postPoolContract.address
+            )
             expect(l2Code).to.not.equal('0x')
             expect(l2Code).to.equal(l1Code)
           })
@@ -186,10 +185,9 @@ describe('uniswap contracts', () => {
         describe(`uniswap contract at address ${acc.address}`, () => {
           it('should have the same code as on mainnet', async () => {
             const l2Code = await env.postL2Provider.getCode(acc.address)
-            const l1Code =
-              await env.surgeryDataSources.l1MainnetProvider.getCode(
-                acc.address
-              )
+            const l1Code = await env.surgeryDataSources.l1Provider.getCode(
+              acc.address
+            )
             expect(l2Code).to.not.equal('0x')
             expect(l2Code).to.equal(l1Code)
           })

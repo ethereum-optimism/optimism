@@ -144,7 +144,7 @@ export const loadConfigs = (): SurgeryConfigs => {
     etherscanFilePath,
     genesisFilePath,
     outputFilePath,
-    l2NetworkName,
+    l2NetworkName: l2NetworkName as SupportedNetworks,
     l2ProviderUrl,
     l1ProviderUrl,
     ropstenProviderUrl,
