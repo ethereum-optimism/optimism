@@ -1,3 +1,7 @@
 node_modules/
 build/
-all-events.json
+solc-bin/
+outputs/
+etherscan/
+state-dumps/
+data/
