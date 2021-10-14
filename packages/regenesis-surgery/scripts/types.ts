@@ -5,11 +5,14 @@ export interface SurgeryConfigs {
   etherscanFilePath: string
   genesisFilePath: string
   outputFilePath: string
-  l2ProviderUrl: string
   l2NetworkName: 'mainnet' | 'kovan'
-  l1MainnetProviderUrl: string
-  l1TestnetProviderUrl: string
-  l1TestnetPrivateKey: string
+  l2ProviderUrl: string
+  l1ProviderUrl: string
+  ropstenProviderUrl: string
+  ropstenPrivateKey: string
+  ethProviderUrl: string
+  l1MessengerAddress: string
+  stateDumpHeight: number
   startIndex: number
   endIndex: number
 }
@@ -47,6 +50,7 @@ export enum AccountType {
   EOA,
   PRECOMPILE,
   PREDEPLOY_NEW_NOT_ETH,
+  PREDEPLOY_MESSAGE_PASSER,
   PREDEPLOY_WIPE,
   PREDEPLOY_NO_WIPE,
   PREDEPLOY_ETH,
@@ -92,14 +96,12 @@ export interface SurgeryDataSources {
   genesis: StateDump
   pools: UniswapPoolData[]
   poolHashCache: PoolHashCache
-  etherscanDump: EtherscanDump
-  l1TestnetProvider: ethers.providers.JsonRpcProvider
-  l1TestnetWallet: ethers.Wallet
-  l1MainnetProvider: ethers.providers.JsonRpcProvider
+  etherscanDump: EtherscanContract[]
+  ropstenProvider: ethers.providers.JsonRpcProvider
+  ropstenWallet: ethers.Wallet
+  l1Provider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
-  l2NetworkName: SupportedNetworks
-  startIndex: number
-  endIndex: number
+  ethProvider: ethers.providers.JsonRpcProvider
 }
 
 export interface GenesisFile {

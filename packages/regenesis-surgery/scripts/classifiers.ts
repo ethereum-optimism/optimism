@@ -3,6 +3,7 @@ import {
   UNISWAP_V3_FACTORY_ADDRESS,
   UNISWAP_V3_NFPM_ADDRESS,
   UNISWAP_V3_CONTRACT_ADDRESSES,
+  MESSAGE_PASSER_ADDRESS,
   PREDEPLOY_WIPE_ADDRESSES,
   PREDEPLOY_NO_WIPE_ADDRESSES,
   PREDEPLOY_NEW_NOT_ETH_ADDRESSES,
@@ -44,6 +45,9 @@ export const classifiers: {
     return PREDEPLOY_NEW_NOT_ETH_ADDRESSES.some((addr) => {
       return hexStringEqual(account.address, addr)
     })
+  },
+  [AccountType.PREDEPLOY_MESSAGE_PASSER]: (account) => {
+    return hexStringEqual(account.address, MESSAGE_PASSER_ADDRESS)
   },
   [AccountType.PREDEPLOY_WIPE]: (account) => {
     return PREDEPLOY_WIPE_ADDRESSES.some((addr) => {

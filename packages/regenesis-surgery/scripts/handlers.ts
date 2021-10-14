@@ -20,6 +20,8 @@ import {
   SurgeryDataSources,
   ImmutableReference,
 } from './types'
+import { getContractInterface } from 'v1-contracts'
+import { predeploys } from '@eth-optimism/contracts'
 
 export const handlers: {
   [key in AccountType]: (
@@ -48,6 +50,59 @@ export const handlers: {
   },
   [AccountType.PREDEPLOY_NEW_NOT_ETH]: (account) => {
     return account
+  },
+  [AccountType.PREDEPLOY_MESSAGE_PASSER]: async (account, data) => {
+    const l2Messenger = new ethers.Contract(
+      predeploys.L2CrossDomainMessenger,
+      getContractInterface('OVM_L2CrossDomainMessenger'),
+      data.l2Provider
+    )
+    const l1Messenger = new ethers.Contract(
+      data.configs.l1MessengerAddress,
+      getContractInterface('OVM_L1CrossDomainMessenger'),
+      data.l1Provider
+    )
+
+    const l2SentMessageEvents = await l2Messenger.queryFilter(
+      'SentMessage' as any,
+      0,
+      data.configs.stateDumpHeight
+    )
+
+    const l1RelayedMessageEvents = await l1Messenger.queryFilter(
+      'RelayedMessage' as any
+    )
+
+    for (const l2SentMessage of l2SentMessageEvents) {
+      const msgHash = ethers.utils.keccak256(l2SentMessage.args.message)
+      if (
+        l1RelayedMessageEvents.some((event) => {
+          return event.args.msgHash === msgHash
+        })
+      ) {
+        const storageKey = getMappingKey(
+          [
+            ethers.utils.keccak256(
+              ethers.utils.hexConcat([
+                l2SentMessage.args.message,
+                l2Messenger.address,
+              ])
+            ),
+          ],
+          0
+        )
+
+        if (account.storage[storageKey] === undefined) {
+          throw new Error(
+            `expected storage key to be in messenger storage: ${storageKey}`
+          )
+        }
+
+        delete account.storage[storageKey]
+      }
+    }
+
+    return handlers[AccountType.PREDEPLOY_NO_WIPE](account, data)
   },
   [AccountType.PREDEPLOY_WIPE]: (account, data) => {
     const genesisAccount = findAccount(data.genesis, account.address)
@@ -200,10 +255,10 @@ export const handlers: {
     })
 
     // Get the pool's code.
-    let poolCode = await data.l1TestnetProvider.getCode(pool.newAddress)
+    let poolCode = await data.ropstenProvider.getCode(pool.newAddress)
     if (poolCode === '0x') {
       console.log('Could not find pool code, deploying to testnet...')
-      const UniswapV3Factory = getUniswapV3Factory(data.l1TestnetWallet)
+      const UniswapV3Factory = getUniswapV3Factory(data.ropstenWallet)
       await UniswapV3Factory.createPool(pool.token0, pool.token1, pool.fee)
 
       // Repeatedly try to get the remote pool code from the testnet.
@@ -214,7 +269,7 @@ export const handlers: {
           throw new Error(`unable to create pool with data: ${pool}`)
         }
 
-        poolCode = await data.l1TestnetProvider.getCode(pool.newAddress)
+        poolCode = await data.ropstenProvider.getCode(pool.newAddress)
         await sleep(5000)
       }
     }
@@ -226,7 +281,18 @@ export const handlers: {
     }
   },
   [AccountType.UNISWAP_V3_OTHER]: async (account, data) => {
-    const code = await data.l1MainnetProvider.getCode(account.address)
+    let code = await data.ethProvider.getCode(account.address)
+
+    if (code === '0x') {
+      throw new Error(`account code is empty: ${account.address}`)
+    }
+
+    // Replace references to L1 WETH address with the L2 WETH address.
+    code = code.replace(
+      /c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2/g,
+      '4200000000000000000000000000000000000006'
+    )
+
     return {
       ...account,
       code,

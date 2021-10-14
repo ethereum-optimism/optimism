@@ -528,7 +528,7 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/core-utils@^0.5.1":
+"@eth-optimism/core-utils@^0.5.1", "@eth-optimism/core-utils@^0.5.2":
   version "0.5.5"
   resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.5.5.tgz#0e2bb95b23965fb51adfb8ba6841c3afd26a6411"
   integrity sha512-N/uyZjHltnvnQyBOE498EGlqeYvWRUQTW6BpXhexKljEXZpnria4J4MFO9s1lJOpogLXTaS+lhM1Ic8zUNj8Pg==
@@ -15312,6 +15312,18 @@ uuid@^3.3.2, uuid@^3.3.3:
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.4.0.tgz#b23e4358afa8a202fe7a100af1f5f883f02007ee"
   integrity sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==
+
+"v1-contracts@npm:@eth-optimism/contracts@0.4.10":
+  version "0.4.10"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.4.10.tgz#536055ae8ad5c74ea3490245a217d1029ba51699"
+  integrity sha512-DjLFp7y4HAHfn4OYGKKVx7v+zpncVeg6Iro9tPevIRK9YT+8iplfrQ1JjUqxX/XG22EglqvlQiX04l5qg4ycbg==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.5.2"
+    "@ethersproject/abstract-provider" "^5.4.1"
+    "@ethersproject/abstract-signer" "^5.4.1"
+    "@ethersproject/contracts" "^5.4.1"
+    "@ethersproject/hardware-wallets" "^5.4.0"
+    glob "^7.1.6"
 
 v8-compile-cache@^2.0.3:
   version "2.3.0"
