@@ -158,7 +158,8 @@ export const loadSurgeryData = async (
   return {
     configs,
     dump,
-    genesis: genesisDump,
+    genesis,
+    genesisDump,
     pools,
     poolHashCache,
     etherscanDump,
