@@ -851,11 +851,6 @@ var (
 		Usage:  "Disable transactions with 0 gas price",
 		EnvVar: "ROLLUP_ENFORCE_FEES",
 	}
-	RollupMinL2GasLimitFlag = cli.Uint64Flag{
-		Name:   "rollup.minl2gaslimit",
-		Usage:  "Minimum accepted L2 gas limit",
-		EnvVar: "ROLLUP_MIN_L2_GAS_LIMIT",
-	}
 	RollupFeeThresholdDownFlag = cli.Float64Flag{
 		Name:   "rollup.feethresholddown",
 		Usage:  "Allow txs with fees below the current fee up to this amount, must be < 1",
@@ -1133,10 +1128,6 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	}
 	if ctx.GlobalIsSet(RollupEnforceFeesFlag.Name) {
 		cfg.EnforceFees = true
-	}
-	if ctx.GlobalIsSet(RollupMinL2GasLimitFlag.Name) {
-		val := ctx.GlobalUint64(RollupMinL2GasLimitFlag.Name)
-		cfg.MinL2GasLimit = new(big.Int).SetUint64(val)
 	}
 	if ctx.GlobalIsSet(RollupFeeThresholdDownFlag.Name) {
 		val := ctx.GlobalFloat64(RollupFeeThresholdDownFlag.Name)

@@ -22,12 +22,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rollup/fees"
 	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 func setupLatestEthContextTest() (*SyncService, *EthContext) {
-	service, _, _, _ := newTestSyncService(false)
+	service, _, _, _ := newTestSyncService(false, nil)
 	resp := &EthContext{
 		BlockNumber: uint64(10),
 		BlockHash:   common.Hash{},
@@ -98,7 +97,7 @@ func TestSyncServiceContextUpdated(t *testing.T) {
 // after the transaction enqueued event is emitted. Set `false` as
 // the argument to start as a sequencer
 func TestSyncServiceTransactionEnqueued(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +159,7 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 }
 
 func TestTransactionToTipNoIndex(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +210,7 @@ func TestTransactionToTipNoIndex(t *testing.T) {
 }
 
 func TestTransactionToTipTimestamps(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +274,7 @@ func TestTransactionToTipTimestamps(t *testing.T) {
 }
 
 func TestApplyIndexedTransaction(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(true)
+	service, txCh, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +317,7 @@ func TestApplyIndexedTransaction(t *testing.T) {
 }
 
 func TestApplyBatchedTransaction(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(true)
+	service, txCh, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +354,7 @@ func TestApplyBatchedTransaction(t *testing.T) {
 }
 
 func TestIsAtTip(t *testing.T) {
-	service, _, _, err := newTestSyncService(true)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +427,7 @@ func TestIsAtTip(t *testing.T) {
 }
 
 func TestSyncQueue(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(true)
+	service, txCh, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -485,7 +484,7 @@ func TestSyncQueue(t *testing.T) {
 }
 
 func TestSyncServiceL1GasPrice(t *testing.T) {
-	service, _, _, err := newTestSyncService(true)
+	service, _, _, err := newTestSyncService(true, nil)
 	setupMockClient(service, map[string]interface{}{})
 
 	if err != nil {
@@ -523,7 +522,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 }
 
 func TestSyncServiceL2GasPrice(t *testing.T) {
-	service, _, _, err := newTestSyncService(true)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -557,40 +556,8 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 	}
 }
 
-func TestSyncServiceMinL2GasPrice(t *testing.T) {
-	service, _, _, err := newTestSyncService(true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	service.minL2GasLimit = new(big.Int).SetUint64(10_000_000)
-	signer := types.NewEIP155Signer(big.NewInt(420))
-	// Generate a key
-	key, _ := crypto.GenerateKey()
-	// Create a transaction
-	gasLimit := uint64(100)
-	tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), gasLimit, big.NewInt(15000000), []byte{})
-	// Make sure the gas limit is set correctly
-	if tx.Gas() != gasLimit {
-		t.Fatal("gas limit not set correctly")
-	}
-	// Sign the dummy tx with the owner key
-	signedTx, err := types.SignTx(tx, signer, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Sanity check the L2 gas limit
-	if tx.L2Gas() > service.minL2GasLimit.Uint64() {
-		t.Fatal("L2 gas limit expected to be smaller than min accepted by sequencer")
-	}
-	// Verify the fee of the signed tx, ensure it does not error
-	err = service.verifyFee(signedTx)
-	if !errors.Is(err, fees.ErrL2GasLimitTooLow) {
-		t.Fatal(err)
-	}
-}
-
 func TestSyncServiceGasPriceOracleOwnerAddress(t *testing.T) {
-	service, _, _, err := newTestSyncService(true)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -624,7 +591,7 @@ func TestSyncServiceGasPriceOracleOwnerAddress(t *testing.T) {
 // Only the gas price oracle owner can send 0 gas price txs
 // when fees are enforced
 func TestFeeGasPriceOracleOwnerTransactions(t *testing.T) {
-	service, _, _, err := newTestSyncService(true)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -680,7 +647,7 @@ func TestFeeGasPriceOracleOwnerTransactions(t *testing.T) {
 
 // Pass true to set as a verifier
 func TestSyncServiceSync(t *testing.T) {
-	service, txCh, sub, err := newTestSyncService(true)
+	service, txCh, sub, err := newTestSyncService(true, nil)
 	defer sub.Unsubscribe()
 	if err != nil {
 		t.Fatal(err)
@@ -732,7 +699,7 @@ func TestSyncServiceSync(t *testing.T) {
 }
 
 func TestInitializeL1ContextPostGenesis(t *testing.T) {
-	service, _, _, err := newTestSyncService(true)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -798,7 +765,7 @@ func TestInitializeL1ContextPostGenesis(t *testing.T) {
 
 func TestBadFeeThresholds(t *testing.T) {
 	// Create the deps for the sync service
-	cfg, txPool, chain, db, err := newTestSyncServiceDeps(false)
+	cfg, txPool, chain, db, err := newTestSyncServiceDeps(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -843,14 +810,21 @@ func TestBadFeeThresholds(t *testing.T) {
 	}
 }
 
-func newTestSyncServiceDeps(isVerifier bool) (Config, *core.TxPool, *core.BlockChain, ethdb.Database, error) {
+func newTestSyncServiceDeps(isVerifier bool, alloc *common.Address) (Config, *core.TxPool, *core.BlockChain, ethdb.Database, error) {
 	chainCfg := params.AllEthashProtocolChanges
 	chainID := big.NewInt(420)
 	chainCfg.ChainID = chainID
 
 	engine := ethash.NewFaker()
 	db := rawdb.NewMemoryDatabase()
-	_ = new(core.Genesis).MustCommit(db)
+	genesis := new(core.Genesis)
+	if alloc != nil {
+		genesis.Alloc = make(core.GenesisAlloc)
+		genesis.Alloc[*alloc] = core.GenesisAccount{
+			Balance: new(big.Int).SetUint64(100000000000000),
+		}
+	}
+	_ = genesis.MustCommit(db)
 	chain, err := core.NewBlockChain(db, nil, chainCfg, engine, vm.Config{}, nil)
 	if err != nil {
 		return Config{}, nil, nil, nil, fmt.Errorf("Cannot initialize blockchain: %w", err)
@@ -869,8 +843,8 @@ func newTestSyncServiceDeps(isVerifier bool) (Config, *core.TxPool, *core.BlockC
 	return cfg, txPool, chain, db, nil
 }
 
-func newTestSyncService(isVerifier bool) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
-	cfg, txPool, chain, db, err := newTestSyncServiceDeps(isVerifier)
+func newTestSyncService(isVerifier bool, alloc *common.Address) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
+	cfg, txPool, chain, db, err := newTestSyncServiceDeps(isVerifier, alloc)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
 	}

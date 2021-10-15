@@ -32,10 +32,6 @@ type Config struct {
 	Backend Backend
 	// Only accept transactions with fees
 	EnforceFees bool
-	// Prevent transactions with a L2 gas limit lower than this value
-	// The L2 gas limit is parsed from the `tx.gasPrice`, see the
-	// `rollup/fees` package for more information
-	MinL2GasLimit *big.Int
 	// Allow fees within a buffer upwards or downwards
 	// to take fee volatility into account between being
 	// quoted and the transaction being executed
