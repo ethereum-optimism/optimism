@@ -61,15 +61,26 @@ const deployFn: DeployFunction = async (hre) => {
   // Next we need to set the `messenger` address by executing a setStorage operation. We'll
   // check that this operation was correctly executed by calling `messenger()` and checking
   // that the result matches the value we initialized.
-  const l1CrossDomainMessengerAddress = await Lib_AddressManager.getAddress(
-    'Proxy__L1CrossDomainMessenger'
+  let l1CrossDomainMessengerAddress = await Lib_AddressManager.getAddress(
+    'Proxy__OVM_L1CrossDomainMessenger'
   )
 
+  // Handle legacy naming scheme
+  if (l1CrossDomainMessengerAddress === ethers.constants.AddressZero) {
+    l1CrossDomainMessengerAddress = await Lib_AddressManager.getAddress(
+      'Proxy__L1CrossDomainMessenger'
+    )
+    if (l1CrossDomainMessengerAddress === ethers.constants.AddressZero) {
+      throw new Error('L1 Cross Domain Messenger is set to address(0)')
+    }
+  }
+
   console.log(`Setting messenger address...`)
-  await proxy.setStorage(
+  const setMessengerRes = await proxy.setStorage(
     ethers.utils.hexZeroPad('0x00', 32),
     ethers.utils.hexZeroPad(l1CrossDomainMessengerAddress, 32)
   )
+  await setMessengerRes.wait()
 
   console.log(`Confirming that messenger address was correctly set...`)
   await waitUntilTrue(async () => {
@@ -81,10 +92,11 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Now we set the bridge address in the same manner as the messenger address.
   console.log(`Setting l2 bridge address...`)
-  await proxy.setStorage(
+  const setL2BridgeRes = await proxy.setStorage(
     ethers.utils.hexZeroPad('0x01', 32),
     ethers.utils.hexZeroPad(predeploys.L2StandardBridge, 32)
   )
+  await setL2BridgeRes.wait()
 
   console.log(`Confirming that l2 bridge address was correctly set...`)
   await waitUntilTrue(async () => {
@@ -97,7 +109,8 @@ const deployFn: DeployFunction = async (hre) => {
   // Finally we transfer ownership of the proxy to the ovmAddressManagerOwner address.
   console.log(`Setting owner address...`)
   const owner = (hre as any).deployConfig.ovmAddressManagerOwner
-  await proxy.setOwner(owner)
+  const setOwnerRes = await proxy.setOwner(owner)
+  await setOwnerRes.wait()
 
   console.log(`Confirming that owner address was correctly set...`)
   await waitUntilTrue(async () => {
