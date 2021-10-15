@@ -43,6 +43,9 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
+      - name: Check yarn.lock for changes
+        run: git diff --exit-code
+
       - name: Build
         run: yarn build
 
