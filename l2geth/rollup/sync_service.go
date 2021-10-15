@@ -817,19 +817,8 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	owner := s.GasPriceOracleOwnerAddress()
 	if owner != nil && sender == *owner {
 		if err := s.updateGasPriceOracleCache(nil); err != nil {
-			if tx.QueueOrigin() == types.QueueOriginSequencer {
-				s.txLock.Unlock()
-			}
 			return err
 		}
-	}
-
-	// Unlock the txLock after the transaction is added to the chain.
-	// This is locked up the stack on incoming queue origin sequencer
-	// transactions. For L1 to L2 transactions, there are no race
-	// conditions with the fees
-	if tx.QueueOrigin() == types.QueueOriginSequencer {
-		s.txLock.Unlock()
 	}
 	return nil
 }
@@ -939,27 +928,21 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 	if tx == nil {
 		return errors.New("nil transaction passed to ValidateAndApplySequencerTransaction")
 	}
-	// Grab the txLock. This must be unlocked manually in all error cases
-	// to prevent race conditions with updating the gas prices. In the happy
-	// path case, it is unlocked after the transaction is confirmed in the chain
 	s.txLock.Lock()
+	defer s.txLock.Unlock()
 	if err := s.verifyFee(tx); err != nil {
-		s.txLock.Unlock()
 		return err
 	}
 	log.Trace("Sequencer transaction validation", "hash", tx.Hash().Hex())
 
 	qo := tx.QueueOrigin()
 	if qo != types.QueueOriginSequencer {
-		s.txLock.Unlock()
 		return fmt.Errorf("invalid transaction with queue origin %s", qo.String())
 	}
 	if err := s.txpool.ValidateTx(tx); err != nil {
-		s.txLock.Unlock()
 		return fmt.Errorf("invalid transaction: %w", err)
 	}
 	if err := s.applyTransaction(tx); err != nil {
-		s.txLock.Unlock()
 		return err
 	}
 	return nil
