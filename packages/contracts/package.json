@@ -4,6 +4,7 @@
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
+    "dist/**/*.d.ts",
     "dist/types/*.ts",
     "artifacts/contracts/**/*.json",
     "deployments/**/*.json",
