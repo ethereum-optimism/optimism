@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 import { abi as UNISWAP_POOL_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json'
 import { UNISWAP_V3_NFPM_ADDRESS } from '../../scripts/constants'
-import { getUniswapV3Factory } from '../../scripts/utils'
+import { getUniswapV3Factory, replaceWETH } from '../../scripts/utils'
 import { expect, env } from '../setup'
 import { AccountType } from '../../scripts/types'
 
@@ -63,11 +63,12 @@ describe('uniswap contracts', () => {
 
   describe('V3 NFPM', () => {
     it('should have the same code as on mainnet', async () => {
-      const l2Code = await env.postL2Provider.getCode(UNISWAP_V3_NFPM_ADDRESS)
+      let l2Code = await env.postL2Provider.getCode(UNISWAP_V3_NFPM_ADDRESS)
       const l1Code = await env.surgeryDataSources.l1Provider.getCode(
         UNISWAP_V3_NFPM_ADDRESS
       )
       expect(l2Code).to.not.equal('0x')
+      l2Code = replaceWETH(l2Code)
       expect(l2Code).to.equal(l1Code)
     })
 
