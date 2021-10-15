@@ -10,7 +10,8 @@
     "chugsplash",
     "L1",
     "L2",
-    "libraries"
+    "libraries",
+    "standards"
   ],
   "types": "dist/index",
   "author": "Optimism PBC",
@@ -38,7 +39,7 @@
     "clean": "rm -rf ./dist ./artifacts ./cache ./tsconfig.build.tsbuildinfo",
     "deploy": "ts-node bin/deploy.ts && yarn autogen:markdown",
     "prepublishOnly": "yarn copyfiles -u 1 -e \"**/test-*/**/*\" \"contracts/**/*\" ./",
-    "postpublish": "rimraf chugsplash L1 L2 libraries",
+    "postpublish": "rimraf chugsplash L1 L2 libraries standards",
     "prepack": "yarn prepublishOnly",
     "postpack": "yarn postpublish",
     "pre-commit": "lint-staged"
