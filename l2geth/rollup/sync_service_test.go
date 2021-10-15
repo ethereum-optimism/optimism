@@ -1004,11 +1004,6 @@ func (m *mockClient) SyncStatus(backend Backend) (*SyncStatus, error) {
 	}, nil
 }
 
-func (m *mockClient) GetL1GasPrice() (*big.Int, error) {
-	price := big.NewInt(1)
-	return price, nil
-}
-
 func (m *mockClient) GetLatestEnqueueIndex() (*uint64, error) {
 	enqueue, err := m.GetLatestEnqueue()
 	if err != nil {
