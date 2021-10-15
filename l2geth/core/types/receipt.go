@@ -198,6 +198,11 @@ type ReceiptForStorage Receipt
 // EncodeRLP implements rlp.Encoder, and flattens all content fields of a receipt
 // into an RLP stream.
 func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
+	feeScalar := ""
+	if r.FeeScalar != nil {
+		feeScalar = r.FeeScalar.String()
+	}
+
 	enc := &storedReceiptRLP{
 		PostStateOrStatus: (*Receipt)(r).statusEncoding(),
 		CumulativeGasUsed: r.CumulativeGasUsed,
@@ -205,7 +210,7 @@ func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 		L1GasUsed:         r.L1GasUsed,
 		L1GasPrice:        r.L1GasPrice,
 		L1Fee:             r.L1Fee,
-		FeeScalar:         r.FeeScalar.String(),
+		FeeScalar:         feeScalar,
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -227,6 +232,7 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	if err := decodeStoredReceiptRLP(r, blob); err == nil {
 		return nil
 	}
+
 	if err := decodeV3StoredReceiptRLP(r, blob); err == nil {
 		return nil
 	}
@@ -249,9 +255,13 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 
 	// UsingOVM
-	scalar, ok := new(big.Float).SetString(stored.FeeScalar)
-	if !ok {
-		return errors.New("cannot parse fee scalar")
+	scalar := new(big.Float)
+	if stored.FeeScalar != "" {
+		var ok bool
+		scalar, ok = scalar.SetString(stored.FeeScalar)
+		if !ok {
+			return errors.New("cannot parse fee scalar")
+		}
 	}
 	r.L1GasUsed = stored.L1GasUsed
 	r.L1GasPrice = stored.L1GasPrice
