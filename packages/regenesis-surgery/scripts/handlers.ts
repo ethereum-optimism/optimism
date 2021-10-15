@@ -12,6 +12,7 @@ import {
   transferStorageSlot,
   getMappingKey,
   getUniswapV3Factory,
+  replaceWETH,
 } from './utils'
 import { compile } from './solc'
 import {
@@ -233,10 +234,7 @@ export const handlers: {
     }
 
     // Replace references to L1 WETH address with the L2 WETH address.
-    code = code.replace(
-      /c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2/g,
-      '4200000000000000000000000000000000000006'
-    )
+    code = replaceWETH(code)
 
     return {
       ...account,

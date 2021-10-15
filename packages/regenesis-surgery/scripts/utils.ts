@@ -46,6 +46,13 @@ export const hexStringEqual = (a: string, b: string): boolean => {
   return a.toLowerCase() === b.toLowerCase()
 }
 
+export const replaceWETH = (code: string): string => {
+  return code.replace(
+    /c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2/g,
+    '4200000000000000000000000000000000000006'
+  )
+}
+
 /**
  * Left-pads a hex string with zeroes to 32 bytes.
  *
