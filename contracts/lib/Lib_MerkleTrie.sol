@@ -59,68 +59,6 @@ library Lib_MerkleTrie {
      **********************/
 
     /**
-     * @notice Verifies a proof that a given key/value pair is present in the
-     * Merkle trie.
-     * @param _key Key of the node to search for, as a hex string.
-     * @param _value Value of the node to search for, as a hex string.
-     * @param _proof Merkle trie inclusion proof for the desired node. Unlike
-     * traditional Merkle trees, this proof is executed top-down and consists
-     * of a list of RLP-encoded nodes that make a path down to the target node.
-     * @param _root Known root of the Merkle trie. Used to verify that the
-     * included proof is correctly constructed.
-     * @return _verified `true` if the k/v pair exists in the trie, `false` otherwise.
-     */
-    function verifyInclusionProof(
-        bytes memory _key,
-        bytes memory _value,
-        bytes memory _proof,
-        bytes32 _root
-    )
-        internal
-        pure
-        returns (
-            bool _verified
-        )
-    {
-        (
-            bool exists,
-            bytes memory value
-        ) = get(_key, _proof, _root);
-
-        return (
-            exists && Lib_BytesUtils.equal(_value, value)
-        );
-    }
-
-    /**
-     * @notice Verifies a proof that a given key is *not* present in
-     * the Merkle trie.
-     * @param _key Key of the node to search for, as a hex string.
-     * @param _proof Merkle trie inclusion proof for the node *nearest* the
-     * target node.
-     * @param _root Known root of the Merkle trie. Used to verify that the
-     * included proof is correctly constructed.
-     * @return _verified `true` if the key is absent in the trie, `false` otherwise.
-     */
-    function verifyExclusionProof(
-        bytes memory _key,
-        bytes memory _proof,
-        bytes32 _root
-    )
-        internal
-        pure
-        returns (
-            bool _verified
-        )
-    {
-        (
-            bool exists,
-        ) = get(_key, _proof, _root);
-
-        return exists == false;
-    }
-
-    /**
      * @notice Updates a Merkle trie and returns a new root hash.
      * @param _key Key of the node to update, as a hex string.
      * @param _value Value of the node to update, as a hex string.
@@ -144,7 +82,7 @@ library Lib_MerkleTrie {
         )
     {
         // Special case when inserting the very first node.
-        if (_root == KECCAK256_RLP_NULL_BYTES) {
+        /*if (_root == KECCAK256_RLP_NULL_BYTES) {
             return getSingleNodeRootHash(_key, _value);
         }
 
@@ -152,31 +90,41 @@ library Lib_MerkleTrie {
         (uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(proof, _key, _root);
         TrieNode[] memory newPath = _getNewPath(proof, pathLength, keyRemainder, _value);
 
-        return _getUpdatedTrieRoot(newPath, _key);
+        return _getUpdatedTrieRoot(newPath, _key);*/
+    }
+
+    function getRawNode(bytes memory encoded) private view returns (TrieNode memory) {
+        return TrieNode({
+            encoded: encoded,
+            decoded: Lib_RLPReader.readList(encoded)
+        });
+    }
+
+    function getTrieNode(mapping(bytes32 => bytes) storage trie, bytes32 nodeId) private view returns (TrieNode memory) {
+        return getRawNode(trie[nodeId]);
     }
 
     /**
      * @notice Retrieves the value associated with a given key.
      * @param _key Key to search for, as hex bytes.
-     * @param _proof Merkle trie inclusion proof for the key.
+     * @param trie Merkle trie
      * @param _root Known root of the Merkle trie.
      * @return _exists Whether or not the key exists.
      * @return _value Value of the key if it exists.
      */
     function get(
         bytes memory _key,
-        bytes memory _proof,
+        mapping(bytes32 => bytes) storage trie,
         bytes32 _root
     )
         internal
-        pure
+        view
         returns (
             bool _exists,
             bytes memory _value
         )
     {
-        TrieNode[] memory proof = _parseProof(_proof);
-        (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = _walkNodePath(proof, _key, _root);
+        (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode, TrieNode memory finalNode) = _walkNodePath(trie, _key, _root);
 
         bool exists = keyRemainder.length == 0;
 
@@ -185,7 +133,7 @@ library Lib_MerkleTrie {
             "Provided proof is invalid."
         );
 
-        bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes('');
+        bytes memory value = exists ? _getNodeValue(finalNode) : bytes('');
 
         return (
             exists,
@@ -222,37 +170,44 @@ library Lib_MerkleTrie {
 
     /**
      * @notice Walks through a proof using a provided key.
-     * @param _proof Inclusion proof to walk through.
+     * @param trie Merkle trie
      * @param _key Key to use for the walk.
      * @param _root Known root of the trie.
      * @return _pathLength Length of the final path
      * @return _keyRemainder Portion of the key remaining after the walk.
      * @return _isFinalNode Whether or not we've hit a dead end.
+     * @return _finalNode The final node
      */
     function _walkNodePath(
-        TrieNode[] memory _proof,
+        mapping(bytes32 => bytes) storage trie,
         bytes memory _key,
         bytes32 _root
     )
         private
-        pure
+        view
         returns (
             uint256 _pathLength,
             bytes memory _keyRemainder,
-            bool _isFinalNode
+            bool _isFinalNode,
+            TrieNode memory _finalNode
         )
     {
         uint256 pathLength = 0;
         bytes memory key = Lib_BytesUtils.toNibbles(_key);
 
         bytes32 currentNodeID = _root;
+        uint256 currentNodeLength = 32;
         uint256 currentKeyIndex = 0;
         uint256 currentKeyIncrement = 0;
         TrieNode memory currentNode;
 
         // Proof is top-down, so we start at the first element (root).
-        for (uint256 i = 0; i < _proof.length; i++) {
-            currentNode = _proof[i];
+        while (true) {
+            if (currentNodeLength >= 32) {
+                currentNode = getTrieNode(trie, currentNodeID);
+            } else {
+                currentNode = getRawNode(Lib_BytesUtils.slice(abi.encodePacked(currentNodeID), 0, currentNodeLength));
+            }
             currentKeyIndex += currentKeyIncrement;
 
             // Keep track of the proof elements we actually need.
@@ -288,7 +243,7 @@ library Lib_MerkleTrie {
                     // Figure out what the next node ID should be and continue.
                     uint8 branchKey = uint8(key[currentKeyIndex]);
                     Lib_RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
-                    currentNodeID = _getNodeID(nextNode);
+                    (currentNodeID, currentNodeLength) = _getNodeID(nextNode);
                     currentKeyIncrement = 1;
                     continue;
                 }
@@ -322,7 +277,7 @@ library Lib_MerkleTrie {
                     } else {
                         // Our extension shares some nibbles.
                         // Carry on to the next node.
-                        currentNodeID = _getNodeID(currentNode.decoded[1]);
+                        (currentNodeID, currentNodeLength) = _getNodeID(currentNode.decoded[1]);
                         currentKeyIncrement = sharedNibbleLength;
                         continue;
                     }
@@ -336,7 +291,7 @@ library Lib_MerkleTrie {
 
         // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
-        return (pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode);
+        return (pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode, currentNode);
     }
 
     /**
@@ -579,7 +534,8 @@ library Lib_MerkleTrie {
         private
         pure
         returns (
-            bytes32 _nodeID
+            bytes32 _nodeID,
+            uint length
         )
     {
         bytes memory nodeID;
@@ -592,7 +548,7 @@ library Lib_MerkleTrie {
             nodeID = Lib_RLPReader.readBytes(_node);
         }
 
-        return Lib_BytesUtils.toBytes32(nodeID);
+        return (Lib_BytesUtils.toBytes32(nodeID), _node.length);
     }
 
     /**
