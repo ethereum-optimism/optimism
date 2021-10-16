@@ -16,13 +16,13 @@ import (
 
 type PreimageKeyValueWriter struct{}
 
-var preimages = make(map[common.Hash][]byte)
+var Preimages = make(map[common.Hash][]byte)
 
 func SerializeTrie(root common.Hash) []byte {
 	b := new(bytes.Buffer)
 	e := gob.NewEncoder(b)
 	check(e.Encode(root))
-	check(e.Encode(preimages))
+	check(e.Encode(Preimages))
 	return b.Bytes()
 }
 
@@ -32,23 +32,23 @@ func (kw PreimageKeyValueWriter) Put(key []byte, value []byte) error {
 	if hash != common.BytesToHash(key) {
 		panic("bad preimage value write")
 	}
-	preimages[hash] = common.CopyBytes(value)
+	Preimages[hash] = common.CopyBytes(value)
 	return nil
 }
 
 func (kw PreimageKeyValueWriter) Delete(key []byte) error {
-	delete(preimages, common.BytesToHash(key))
+	delete(Preimages, common.BytesToHash(key))
 	return nil
 }
 
 // full nodes / BRANCH_NODE have 17 values, each a hash
 // LEAF or EXTENSION nodes have 2 values, a path and value
-func parseNode(node common.Hash, depth int) {
+func ParseNode(node common.Hash, depth int) {
 	if depth > 3 {
 		return
 	}
 	sprefix := strings.Repeat("  ", depth)
-	buf := preimages[node]
+	buf := Preimages[node]
 	elems, _, err := rlp.SplitList(buf)
 	check(err)
 	c, _ := rlp.CountValues(elems)
@@ -61,8 +61,8 @@ func parseNode(node common.Hash, depth int) {
 		fmt.Println(sprefix, i, kind, val, len(val))
 		if len(val) == 32 {
 			hh := common.BytesToHash(val)
-			fmt.Println(sprefix, "node found with len", len(preimages[hh]))
-			parseNode(hh, depth+1)
+			fmt.Println(sprefix, "node found with len", len(Preimages[hh]))
+			ParseNode(hh, depth+1)
 		}
 	}
 }
@@ -90,8 +90,8 @@ func RamToTrie(ram map[uint32](uint32)) common.Hash {
 		mt.Update(tk, tv)
 	}
 	mt.Commit()
-	fmt.Println("ram hash", mt.Hash())
-	fmt.Println("hash count", len(preimages))
-	parseNode(mt.Hash(), 0)
+	/*fmt.Println("ram hash", mt.Hash())
+	fmt.Println("hash count", len(Preimages))
+	parseNode(mt.Hash(), 0)*/
 	return mt.Hash()
 }
