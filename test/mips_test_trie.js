@@ -17,7 +17,11 @@ describe("MIPS contract", function () {
     for (let i = 0; i < 10; i++) {
       ret = await m.Step(root)
       const receipt = await ret.wait()
-      root = receipt.logs[0].data
+      for (l of receipt.logs) {
+        if (l.topics[0] == "0x86b89b5c9818dbbf520dd979a5f250d357508fe11b9511d4a43fd9bc6aa1be70") {
+          root = l.data
+        }
+      }
       console.log(i, root)
     }
   });
