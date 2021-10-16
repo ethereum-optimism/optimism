@@ -61,7 +61,7 @@ contract MIPSMemory {
     return ret;
   }
 
-  function fb(bytes memory dat) internal view returns (uint32) {
+  function fb(bytes memory dat) internal pure returns (uint32) {
     require(dat.length == 4, "wrong length value");
     uint32 ret = uint32(uint8(dat[0])) << 24 |
                  uint32(uint8(dat[1])) << 16 |

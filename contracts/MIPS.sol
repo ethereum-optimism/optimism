@@ -128,7 +128,9 @@ contract MIPS {
       return stateHash;
     }
     newStateHash = stepPC(stateHash, pc, pc+4);
-    emit Stepped(newStateHash);
+    if (address(m) != address(0)) {
+      emit Stepped(newStateHash);
+    }
   }
 
   // will revert if any required input state is missing
@@ -180,22 +182,6 @@ contract MIPS {
       storeAddr = rtReg;
     }
 
-
-    // memory fetch (all I-type)
-    // we do the load for stores also
-    uint32 mem;
-    if (opcode >= 0x20) {
-      // M[R[rs]+SignExtImm]
-      uint32 SignExtImm = SE(insn&0xFFFF, 16);
-      rs += SignExtImm;
-      uint32 addr = rs & 0xFFFFFFFC;
-      mem = ReadMemory(stateHash, addr);
-      if (opcode >= 0x28 && opcode != 0x30) {
-        // store
-        storeAddr = addr;
-      }
-    }
-
     if ((opcode >= 4 && opcode < 8) || opcode == 1) {
       bool shouldBranch = false;
 
@@ -219,6 +205,21 @@ contract MIPS {
         return stepPC(stateHash, nextPC, nextPC+4);
       }
 
+    }
+
+    // memory fetch (all I-type)
+    // we do the load for stores also
+    uint32 mem;
+    if (opcode >= 0x20) {
+      // M[R[rs]+SignExtImm]
+      uint32 SignExtImm = SE(insn&0xFFFF, 16);
+      rs += SignExtImm;
+      uint32 addr = rs & 0xFFFFFFFC;
+      mem = ReadMemory(stateHash, addr);
+      if (opcode >= 0x28 && opcode != 0x30) {
+        // store
+        storeAddr = addr;
+      }
     }
 
     // ALU

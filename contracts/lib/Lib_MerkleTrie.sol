@@ -89,7 +89,7 @@ library Lib_MerkleTrie {
         return _getUpdatedTrieRoot(newPath, _key, trie);
     }
 
-    function getRawNode(bytes memory encoded) private view returns (TrieNode memory) {
+    function getRawNode(bytes memory encoded) private pure returns (TrieNode memory) {
         return TrieNode({
             encoded: encoded,
             decoded: Lib_RLPReader.readList(encoded)
@@ -97,7 +97,9 @@ library Lib_MerkleTrie {
     }
 
     function getTrieNode(mapping(bytes32 => bytes) storage trie, bytes32 nodeId) private view returns (TrieNode memory) {
-        return getRawNode(trie[nodeId]);
+        bytes memory encoded = trie[nodeId];
+        require(keccak256(encoded) == nodeId, "bad hash in trie lookup");
+        return getRawNode(encoded);
     }
 
     /**
