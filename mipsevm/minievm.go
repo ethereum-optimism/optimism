@@ -39,9 +39,11 @@ func NewStateDB(debug int, realState bool) *StateDB {
 	return statedb
 }
 
-func (s *StateDB) AddAddressToAccessList(addr common.Address)                {}
-func (s *StateDB) AddBalance(addr common.Address, amount *big.Int)           {}
-func (s *StateDB) AddLog(log *types.Log)                                     {}
+func (s *StateDB) AddAddressToAccessList(addr common.Address)      {}
+func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {}
+func (s *StateDB) AddLog(log *types.Log) {
+	fmt.Println("AddLog", log)
+}
 func (s *StateDB) AddPreimage(hash common.Hash, preimage []byte)             {}
 func (s *StateDB) AddRefund(gas uint64)                                      {}
 func (s *StateDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {}
@@ -68,6 +70,7 @@ func (s *StateDB) GetRefund() uint64                   { return 0 }
 func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Hash {
 	if s.useRealState {
 		// TODO: fakeaddr?
+		fmt.Println("GetState", fakeaddr, hash)
 		return s.RealState[hash]
 	}
 	ram := s.Ram

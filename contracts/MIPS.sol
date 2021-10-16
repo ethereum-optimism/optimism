@@ -33,8 +33,16 @@ contract MIPS {
     m = new MIPSMemory();
   }
 
+  bool constant public debug = true;
+
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal returns (bytes32) {
     if (address(m) != address(0)) {
+      if (debug) {
+        assembly {
+          // TODO: this is actually doing an SLOAD first
+          sstore(addr, value)
+        }
+      }
       return m.WriteMemory(stateHash, addr, value);
     } else {
       assembly {
@@ -45,9 +53,21 @@ contract MIPS {
     }
   }
 
+  function DebugEmit(uint32 val) internal view {
+    if (debug) {
+      uint256 junk;
+      assembly {
+        junk := sload(val)
+      }
+      require(junk != 0x133713371337, "huh");
+    }
+  }
+
   function ReadMemory(bytes32 stateHash, uint32 addr) internal view returns (uint32 ret) {
     if (address(m) != address(0)) {
+      DebugEmit(addr);
       ret = m.ReadMemory(stateHash, addr);
+      DebugEmit(ret);
     } else {
       assembly {
         ret := sload(addr)
