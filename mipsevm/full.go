@@ -57,35 +57,38 @@ func RunFull() {
 	ZeroRegisters(ram)
 	ram[0xC000007C] = 0x5EAD0000
 	root := RamToTrie(ram)
-	fmt.Println("state root", root, "nodes", len(Preimages))
-	ParseNode(root, 0)
+	//ParseNode(root, 0)
 
 	for k, v := range Preimages {
 		fmt.Println("AddTrieNode", k)
 		addTrieNode(v, interpreter, statedb)
 	}
 	fmt.Println("trie is ready, let's run")
+	fmt.Println("state root", root, "nodes", len(Preimages))
 
-	// it's run o clock
-	from := common.Address{}
-	to := common.HexToAddress("0x1337")
-	bytecode := statedb.Bytecodes[to]
-	gas := uint64(100000000)
+	for step := 0; step < 10; step++ {
+		// it's run o clock
+		from := common.Address{}
+		to := common.HexToAddress("0x1337")
+		bytecode := statedb.Bytecodes[to]
+		gas := uint64(100000000)
 
-	steps := 1
-	input := crypto.Keccak256Hash([]byte("Steps(bytes32,uint256)")).Bytes()[:4]
-	input = append(input, root.Bytes()...)
-	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
+		steps := 1
+		input := crypto.Keccak256Hash([]byte("Steps(bytes32,uint256)")).Bytes()[:4]
+		input = append(input, root.Bytes()...)
+		input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
 
-	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
-	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
-	dat, err := interpreter.Run(contract, input, false)
-	if err != nil {
-		if len(dat) >= 0x24 {
-			fmt.Println(string(dat[0x24:]))
+		contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
+		contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
+		dat, err := interpreter.Run(contract, input, false)
+		if err != nil {
+			if len(dat) >= 0x24 {
+				fmt.Println(string(dat[0x24:]))
+			}
+			log.Fatal(err)
+		} else {
+			root = common.BytesToHash(dat)
+			fmt.Println("new state root", step, root)
 		}
-		log.Fatal(err)
-	} else {
-		fmt.Println("exited", common.BytesToHash(dat))
 	}
 }

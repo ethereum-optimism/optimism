@@ -56,7 +56,9 @@ func (b *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.
 }
 func (s *StateDB) GetBalance(addr common.Address) *big.Int { return common.Big0 }
 func (s *StateDB) GetCode(addr common.Address) []byte {
-	fmt.Println("GetCode", addr)
+	if s.Debug >= 1 {
+		fmt.Println("GetCode", addr)
+	}
 	return s.Bytecodes[addr]
 }
 func (s *StateDB) GetCodeHash(addr common.Address) common.Hash { return common.Hash{} }
@@ -70,7 +72,9 @@ func (s *StateDB) GetRefund() uint64                   { return 0 }
 func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Hash {
 	if s.useRealState {
 		// TODO: fakeaddr?
-		fmt.Println("GetState", fakeaddr, hash)
+		if s.Debug >= 1 {
+			fmt.Println("GetState", fakeaddr, hash)
+		}
 		return s.RealState[hash]
 	}
 	ram := s.Ram
@@ -147,7 +151,9 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {}
 func (s *StateDB) SetState(fakeaddr common.Address, key, value common.Hash) {
 	if s.useRealState {
-		fmt.Println("SetState", fakeaddr, key, value)
+		if s.Debug >= 1 {
+			fmt.Println("SetState", fakeaddr, key, value)
+		}
 		s.RealState[key] = value
 		return
 	}
