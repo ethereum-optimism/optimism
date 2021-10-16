@@ -74,7 +74,6 @@ library Lib_MerkleTrie {
         bytes32 _root
     )
         internal
-        view
         returns (
             bytes32 _updatedRoot
         )
@@ -87,7 +86,7 @@ library Lib_MerkleTrie {
         (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(trie, _key, _root);
         TrieNode[] memory newPath = _getNewPath(proof, pathLength, keyRemainder, _value);
 
-        return _getUpdatedTrieRoot(newPath, _key);
+        return _getUpdatedTrieRoot(newPath, _key, trie);
     }
 
     function getRawNode(bytes memory encoded) private view returns (TrieNode memory) {
@@ -437,10 +436,10 @@ library Lib_MerkleTrie {
      */
     function _getUpdatedTrieRoot(
         TrieNode[] memory _nodes,
-        bytes memory _key
+        bytes memory _key,
+        mapping(bytes32 => bytes) storage trie
     )
         private
-        pure
         returns (
             bytes32 _updatedRoot
         )
@@ -487,6 +486,9 @@ library Lib_MerkleTrie {
 
             // Compute the node hash for the next iteration.
             previousNodeHash = _getNodeHash(currentNode.encoded);
+            if (currentNode.encoded.length >= 32) {
+                trie[keccak256(currentNode.encoded)] = currentNode.encoded;
+            }
         }
 
         // Current node should be the root at this point.

@@ -82,12 +82,12 @@ contract MIPSMemory {
     proofs[stateHash][addr] = proof;
   }*/
 
-  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) public view returns (bytes32) {
+  function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) public returns (bytes32) {
     require(addr & 3 == 0, "write memory must be 32-bit aligned");
     return Lib_MerkleTrie.update(tb(addr>>2), tb(value), trie, stateHash);
   }
 
-  function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public view returns (bytes32) {
+  function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public returns (bytes32) {
     for (uint32 i = 0; i < 32; i += 4) {
       uint256 tv = uint256(val>>(224-(i*8)));
       stateHash = WriteMemory(stateHash, addr+i, uint32(tv));
