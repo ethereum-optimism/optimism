@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/big"
 
@@ -59,6 +60,8 @@ func RunFull() {
 	root := RamToTrie(ram)
 	//ParseNode(root, 0)
 
+	ioutil.WriteFile("/tmp/eth/trie.json", TrieToJson(root), 0644)
+
 	for k, v := range Preimages {
 		fmt.Println("AddTrieNode", k)
 		addTrieNode(v, interpreter, statedb)
@@ -88,7 +91,7 @@ func RunFull() {
 			log.Fatal(err)
 		} else {
 			root = common.BytesToHash(dat)
-			fmt.Println("new state root", step, root)
+			fmt.Println("new state root", step, root, "gas used", (gas - contract.Gas))
 		}
 	}
 }

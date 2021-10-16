@@ -121,12 +121,14 @@ contract MIPS {
     return (stateHash, exit);
   }
 
-  function Step(bytes32 stateHash) public returns (bytes32) {
+  event Stepped(bytes32 stateHash);
+  function Step(bytes32 stateHash) public returns (bytes32 newStateHash) {
     uint32 pc = ReadMemory(stateHash, REG_PC);
     if (pc == 0x5ead0000) {
       return stateHash;
     }
-    return stepPC(stateHash, pc, pc+4);
+    newStateHash = stepPC(stateHash, pc, pc+4);
+    emit Stepped(newStateHash);
   }
 
   // will revert if any required input state is missing
