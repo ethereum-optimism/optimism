@@ -54,18 +54,10 @@ func (kw PreimageKeyValueWriter) Delete(key []byte) error {
 	return nil
 }
 
-// full nodes / BRANCH_NODE have 17 values, each a hash
-// LEAF or EXTENSION nodes have 2 values, a path and value
-func ParseNode(node common.Hash, depth int, callback func(common.Hash) []byte) {
-	if depth > 3 {
-		return
-	}
+func ParseNodeInternal(elems []byte, depth int, callback func(common.Hash) []byte) {
 	sprefix := strings.Repeat("  ", depth)
-	buf := callback(node)
-	elems, _, err := rlp.SplitList(buf)
-	check(err)
 	c, _ := rlp.CountValues(elems)
-	fmt.Println(sprefix, "parsing", node, depth, "elements", c)
+	fmt.Println(sprefix, "parsing", depth, "elements", c)
 	rest := elems
 	for i := 0; i < c; i++ {
 		kind, val, lrest, err := rlp.Split(rest)
@@ -74,10 +66,25 @@ func ParseNode(node common.Hash, depth int, callback func(common.Hash) []byte) {
 		fmt.Println(sprefix, i, kind, val, len(val))
 		if len(val) == 32 {
 			hh := common.BytesToHash(val)
-			fmt.Println(sprefix, "node found with len", len(Preimages[hh]))
+			//fmt.Println(sprefix, "node found with len", len(Preimages[hh]))
 			ParseNode(hh, depth+1, callback)
 		}
+		if kind == rlp.List && len(val) > 0 && len(val) < 32 {
+			ParseNodeInternal(val, depth+1, callback)
+		}
 	}
+}
+
+// full nodes / BRANCH_NODE have 17 values, each a hash
+// LEAF or EXTENSION nodes have 2 values, a path and value
+func ParseNode(node common.Hash, depth int, callback func(common.Hash) []byte) {
+	if depth > 4 {
+		return
+	}
+	buf := callback(node)
+	elems, _, err := rlp.SplitList(buf)
+	check(err)
+	ParseNodeInternal(elems, depth, callback)
 }
 
 func RamToTrie(ram map[uint32](uint32)) common.Hash {

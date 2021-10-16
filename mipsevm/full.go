@@ -42,7 +42,7 @@ func getTrieNode(str common.Hash, interpreter *vm.EVMInterpreter, statedb *State
 	ret, err := interpreter.Run(contract, input, false)
 	check(err)
 
-	fmt.Println("getTrieNode", str, ret)
+	//fmt.Println("getTrieNode", str, ret)
 
 	return ret[64:]
 }

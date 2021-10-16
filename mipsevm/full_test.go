@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func TestFull(t *testing.T) {
+func TestFullSlow(t *testing.T) {
 	RunFull()
 }
 
