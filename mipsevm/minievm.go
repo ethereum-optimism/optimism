@@ -42,8 +42,10 @@ func NewStateDB(debug int, realState bool) *StateDB {
 func (s *StateDB) AddAddressToAccessList(addr common.Address)      {}
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {}
 func (s *StateDB) AddLog(log *types.Log) {
-	if log.Topics[0] == common.HexToHash("0x7b1a2ade00e6a076351ef8a0f302b160b7fd0c65c18234dfe8218c4fa4fa10ab") {
-		fmt.Printf("R: %x -> %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
+	if log.Topics[0] == common.HexToHash("0x70c25ce54e55d181671946b6120c8147a91806a3620c981a355f3ae5b11deb13") {
+		fmt.Printf("R: %x\n", bytesTo32(log.Data[0:32]))
+	} else if log.Topics[0] == common.HexToHash("0x7b1a2ade00e6a076351ef8a0f302b160b7fd0c65c18234dfe8218c4fa4fa10ab") {
+		//fmt.Printf("R: %x -> %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
 	} else if log.Topics[0] == common.HexToHash("0x486ca368095cbbef9046ac7858bec943e866422cc388f49da1aa3aa77c10aa35") {
 		fmt.Printf("W: %x <- %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
 	} else {

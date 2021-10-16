@@ -204,6 +204,9 @@ library Lib_MerkleTrie {
 
         // Proof is top-down, so we start at the first element (root).
         while (true) {
+            if (currentNodeID == bytes32(RLP_NULL)) {
+                break;
+            }
             if (currentNodeLength >= 32) {
                 currentNode = getTrieNode(trie, currentNodeID);
             } else {

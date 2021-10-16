@@ -37,6 +37,7 @@ contract MIPS {
 
   event DidStep(bytes32 stateHash);
   event DidWriteMemory(uint32 addr, uint32 value);
+  event TryReadMemory(uint32 addr);
   event DidReadMemory(uint32 addr, uint32 value);
 
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal returns (bytes32) {
@@ -54,8 +55,9 @@ contract MIPS {
 
   function ReadMemory(bytes32 stateHash, uint32 addr) internal returns (uint32 ret) {
     if (address(m) != address(0)) {
+      emit TryReadMemory(addr);
       ret = m.ReadMemory(stateHash, addr);
-      emit DidReadMemory(addr, ret);
+      //emit DidReadMemory(addr, ret);
     } else {
       assembly {
         ret := sload(addr)
