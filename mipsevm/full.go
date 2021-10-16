@@ -27,6 +27,26 @@ func deploy(interpreter *vm.EVMInterpreter, statedb *StateDB) {
 	statedb.Bytecodes[common.HexToAddress("0x1337")] = ret
 }
 
+func getTrieNode(str common.Hash, interpreter *vm.EVMInterpreter, statedb *StateDB) []byte {
+	from := common.Address{}
+	to := common.HexToAddress("0xBd770416a3345F91E4B34576cb804a576fa48EB1")
+	gas := uint64(100000000)
+
+	input := crypto.Keccak256Hash([]byte("trie(bytes32)")).Bytes()[:4]
+	input = append(input, str.Bytes()...)
+
+	bytecode := statedb.Bytecodes[to]
+	//fmt.Println("bytecode", len(bytecode))
+	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
+	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
+	ret, err := interpreter.Run(contract, input, false)
+	check(err)
+
+	fmt.Println("getTrieNode", str, ret)
+
+	return ret[64:]
+}
+
 func addTrieNode(str []byte, interpreter *vm.EVMInterpreter, statedb *StateDB) {
 	from := common.Address{}
 	to := common.HexToAddress("0xBd770416a3345F91E4B34576cb804a576fa48EB1")
@@ -48,16 +68,6 @@ func addTrieNode(str []byte, interpreter *vm.EVMInterpreter, statedb *StateDB) {
 	check(err)
 }
 
-func RunTest() {
-	ram := make(map[uint32](uint32))
-	LoadMappedFile("test/bin/add.bin", ram, 0)
-	ZeroRegisters(ram)
-	ram[0xC000007C] = 0x5EAD0000
-
-	RunWithRam(ram, 1, 0, nil)
-
-}
-
 func RunFull() {
 	interpreter, statedb := GetInterpreter(0, true)
 	deploy(interpreter, statedb)
@@ -69,7 +79,7 @@ func RunFull() {
 	ZeroRegisters(ram)
 	ram[0xC000007C] = 0x5EAD0000
 	root := RamToTrie(ram)
-	ParseNode(root, 0)
+	//ParseNode(root, 0)
 
 	ioutil.WriteFile("/tmp/eth/trie.json", TrieToJson(root), 0644)
 
@@ -80,7 +90,7 @@ func RunFull() {
 	fmt.Println("trie is ready, let's run")
 	fmt.Println("state root", root, "nodes", len(Preimages))
 
-	for step := 0; step < 40; step++ {
+	for step := 0; step < 12; step++ {
 		// it's run o clock
 		from := common.Address{}
 		to := common.HexToAddress("0x1337")
@@ -105,4 +115,8 @@ func RunFull() {
 			fmt.Println("new state root", step, root, "gas used", (gas - contract.Gas))
 		}
 	}
+
+	ParseNode(root, 0, func(t common.Hash) []byte {
+		return getTrieNode(t, interpreter, statedb)
+	})
 }

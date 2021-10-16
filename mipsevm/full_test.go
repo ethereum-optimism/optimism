@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestFull(t *testing.T) {
@@ -15,9 +17,13 @@ func TestFullEvm(t *testing.T) {
 	ZeroRegisters(ram)
 	ram[0xC000007C] = 0x5EAD0000
 
+	root := RamToTrie(ram)
 	for step := 0; step < 12; step++ {
 		RunWithRam(ram, 1, 0, nil)
-		root := RamToTrie(ram)
+		root = RamToTrie(ram)
 		fmt.Println(step, root)
 	}
+	ParseNode(root, 0, func(t common.Hash) []byte {
+		return Preimages[t]
+	})
 }

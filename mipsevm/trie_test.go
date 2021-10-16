@@ -13,7 +13,7 @@ func TestTrie(t *testing.T) {
 	LoadMappedFile("../mipigo/test/test.bin", ram, 0)
 	ZeroRegisters(ram)
 	root := RamToTrie(ram)
-	ParseNode(root, 0)
+	//ParseNode(root, 0)
 
 	dat := SerializeTrie(root)
 	fmt.Println("serialized length is", len(dat))
