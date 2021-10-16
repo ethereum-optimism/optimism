@@ -43,7 +43,9 @@ contract MIPS {
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal returns (bytes32) {
     if (address(m) != address(0)) {
       emit DidWriteMemory(addr, value);
-      return m.WriteMemory(stateHash, addr, value);
+      bytes32 newStateHash = m.WriteMemory(stateHash, addr, value);
+      require(ReadMemory(newStateHash, addr) == value, "memory readback check failed");
+      return newStateHash;
     } else {
       assembly {
         // TODO: this is actually doing an SLOAD first

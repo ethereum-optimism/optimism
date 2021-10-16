@@ -9,7 +9,7 @@ describe("MIPS contract", function () {
     const mm = await ethers.getContractAt("MIPSMemory", await m.m())
 
     for (k in trieAdd['preimages']) {
-      const bin = Uint8Array.from(atob(trieAdd['preimages'][k]), c => c.charCodeAt(0))
+      const bin = Uint8Array.from(Buffer.from(trieAdd['preimages'][k], 'base64').toString('binary'), c => c.charCodeAt(0))
       await mm.AddTrieNode(bin)
     }
 
