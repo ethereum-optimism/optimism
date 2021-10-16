@@ -2,27 +2,27 @@ package main
 
 import (
 	"fmt"
-	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 	"log"
 	"sync"
 	"testing"
 	"time"
+
+	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
-func RegSerialize(ram map[uint32](uint32)) []uint32 {
-	ret := []uint32{ram[0xc0000080], uint32(len(ram))}
-	// 36 registers, 32 basic + pc + hi/lo + heap
-	for i := uint32(0xc0000000); i < 0xc0000000+36*4; i += 4 {
-		ret = append(ret, ram[i])
-	}
-	return ret
-}
-
-var done sync.Mutex
-
-func TestCompare(t *testing.T) {
+func TestCompareUnicornEvm(t *testing.T) {
 	fn := "../mipigo/test/test.bin"
 	//fn := "../mipigo/minigeth.bin"
+
+	var done sync.Mutex
+	RegSerialize := func(ram map[uint32](uint32)) []uint32 {
+		ret := []uint32{ram[0xc0000080], uint32(len(ram))}
+		// 36 registers, 32 basic + pc + hi/lo + heap
+		for i := uint32(0xc0000000); i < 0xc0000000+36*4; i += 4 {
+			ret = append(ret, ram[i])
+		}
+		return ret
+	}
 
 	steps := 1000000000
 	//steps := 1165

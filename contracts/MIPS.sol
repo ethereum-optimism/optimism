@@ -44,7 +44,7 @@ contract MIPS {
     if (address(m) != address(0)) {
       emit DidWriteMemory(addr, value);
       bytes32 newStateHash = m.WriteMemory(stateHash, addr, value);
-      require(ReadMemory(newStateHash, addr) == value, "memory readback check failed");
+      require(m.ReadMemory(newStateHash, addr) == value, "memory readback check failed");
       return newStateHash;
     } else {
       assembly {
