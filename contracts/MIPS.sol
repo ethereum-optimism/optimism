@@ -35,14 +35,13 @@ contract MIPS {
 
   bool constant public debug = true;
 
+  event DidStep(bytes32 stateHash);
+  event DidWriteMemory(uint32 addr, uint32 value);
+  event DidReadMemory(uint32 addr, uint32 value);
+
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) internal returns (bytes32) {
     if (address(m) != address(0)) {
-      if (debug) {
-        assembly {
-          // TODO: this is actually doing an SLOAD first
-          sstore(addr, value)
-        }
-      }
+      emit DidWriteMemory(addr, value);
       return m.WriteMemory(stateHash, addr, value);
     } else {
       assembly {
@@ -53,21 +52,10 @@ contract MIPS {
     }
   }
 
-  function DebugEmit(uint32 val) internal view {
-    if (debug) {
-      uint256 junk;
-      assembly {
-        junk := sload(val)
-      }
-      require(junk != 0x133713371337, "huh");
-    }
-  }
-
-  function ReadMemory(bytes32 stateHash, uint32 addr) internal view returns (uint32 ret) {
+  function ReadMemory(bytes32 stateHash, uint32 addr) internal returns (uint32 ret) {
     if (address(m) != address(0)) {
-      DebugEmit(addr);
       ret = m.ReadMemory(stateHash, addr);
-      DebugEmit(ret);
+      emit DidReadMemory(addr, ret);
     } else {
       assembly {
         ret := sload(addr)
@@ -121,7 +109,6 @@ contract MIPS {
     return (stateHash, exit);
   }
 
-  event Stepped(bytes32 stateHash);
   function Step(bytes32 stateHash) public returns (bytes32 newStateHash) {
     uint32 pc = ReadMemory(stateHash, REG_PC);
     if (pc == 0x5ead0000) {
@@ -129,7 +116,7 @@ contract MIPS {
     }
     newStateHash = stepPC(stateHash, pc, pc+4);
     if (address(m) != address(0)) {
-      emit Stepped(newStateHash);
+      emit DidStep(newStateHash);
     }
   }
 

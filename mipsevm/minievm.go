@@ -42,7 +42,13 @@ func NewStateDB(debug int, realState bool) *StateDB {
 func (s *StateDB) AddAddressToAccessList(addr common.Address)      {}
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {}
 func (s *StateDB) AddLog(log *types.Log) {
-	fmt.Println("AddLog", log)
+	if log.Topics[0] == common.HexToHash("0x7b1a2ade00e6a076351ef8a0f302b160b7fd0c65c18234dfe8218c4fa4fa10ab") {
+		fmt.Printf("R: %x -> %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
+	} else if log.Topics[0] == common.HexToHash("0x486ca368095cbbef9046ac7858bec943e866422cc388f49da1aa3aa77c10aa35") {
+		fmt.Printf("W: %x <- %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
+	} else {
+		fmt.Println("AddLog", log.Topics, log.Data)
+	}
 }
 func (s *StateDB) AddPreimage(hash common.Hash, preimage []byte)             {}
 func (s *StateDB) AddRefund(gas uint64)                                      {}
