@@ -14,7 +14,8 @@ describe("MIPS contract", function () {
     }
 
     let root = trieAdd['root']
-    for (let i = 0; i < 15; i++) {
+    console.log("start", root)
+    for (let i = 0; i < 12; i++) {
       ret = await m.Step(root)
       const receipt = await ret.wait()
       for (l of receipt.logs) {

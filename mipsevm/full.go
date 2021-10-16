@@ -48,6 +48,16 @@ func addTrieNode(str []byte, interpreter *vm.EVMInterpreter, statedb *StateDB) {
 	check(err)
 }
 
+func RunTest() {
+	ram := make(map[uint32](uint32))
+	LoadMappedFile("test/bin/add.bin", ram, 0)
+	ZeroRegisters(ram)
+	ram[0xC000007C] = 0x5EAD0000
+
+	RunWithRam(ram, 1, 0, nil)
+
+}
+
 func RunFull() {
 	interpreter, statedb := GetInterpreter(0, true)
 	deploy(interpreter, statedb)
@@ -55,6 +65,7 @@ func RunFull() {
 	ram := make(map[uint32](uint32))
 	//LoadMappedFile("../mipigo/test/test.bin", ram, 0)
 	LoadMappedFile("test/bin/add.bin", ram, 0)
+
 	ZeroRegisters(ram)
 	ram[0xC000007C] = 0x5EAD0000
 	root := RamToTrie(ram)
@@ -69,7 +80,7 @@ func RunFull() {
 	fmt.Println("trie is ready, let's run")
 	fmt.Println("state root", root, "nodes", len(Preimages))
 
-	for step := 0; step < 10; step++ {
+	for step := 0; step < 40; step++ {
 		// it's run o clock
 		from := common.Address{}
 		to := common.HexToAddress("0x1337")
