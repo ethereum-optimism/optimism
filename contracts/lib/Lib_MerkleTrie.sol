@@ -62,9 +62,7 @@ library Lib_MerkleTrie {
      * @notice Updates a Merkle trie and returns a new root hash.
      * @param _key Key of the node to update, as a hex string.
      * @param _value Value of the node to update, as a hex string.
-     * @param _proof Merkle trie inclusion proof for the node *nearest* the
-     * target node. If the key exists, we can simply update the value.
-     * Otherwise, we need to modify the trie to handle the new k/v pair.
+     * @param trie Merkle trie
      * @param _root Known root of the Merkle trie. Used to verify that the
      * included proof is correctly constructed.
      * @return _updatedRoot Root hash of the newly constructed trie.
@@ -72,25 +70,24 @@ library Lib_MerkleTrie {
     function update(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        mapping(bytes32 => bytes) storage trie,
         bytes32 _root
     )
         internal
-        pure
+        view
         returns (
             bytes32 _updatedRoot
         )
     {
         // Special case when inserting the very first node.
-        /*if (_root == KECCAK256_RLP_NULL_BYTES) {
+        if (_root == KECCAK256_RLP_NULL_BYTES) {
             return getSingleNodeRootHash(_key, _value);
         }
 
-        TrieNode[] memory proof = _parseProof(_proof);
-        (uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(proof, _key, _root);
+        (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(trie, _key, _root);
         TrieNode[] memory newPath = _getNewPath(proof, pathLength, keyRemainder, _value);
 
-        return _getUpdatedTrieRoot(newPath, _key);*/
+        return _getUpdatedTrieRoot(newPath, _key);
     }
 
     function getRawNode(bytes memory encoded) private view returns (TrieNode memory) {
@@ -124,7 +121,7 @@ library Lib_MerkleTrie {
             bytes memory _value
         )
     {
-        (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode, TrieNode memory finalNode) = _walkNodePath(trie, _key, _root);
+        (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = _walkNodePath(trie, _key, _root);
 
         bool exists = keyRemainder.length == 0;
 
@@ -133,7 +130,7 @@ library Lib_MerkleTrie {
             "Provided proof is invalid."
         );
 
-        bytes memory value = exists ? _getNodeValue(finalNode) : bytes('');
+        bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes('');
 
         return (
             exists,
@@ -173,10 +170,10 @@ library Lib_MerkleTrie {
      * @param trie Merkle trie
      * @param _key Key to use for the walk.
      * @param _root Known root of the trie.
+     * @return _proof The proof
      * @return _pathLength Length of the final path
      * @return _keyRemainder Portion of the key remaining after the walk.
      * @return _isFinalNode Whether or not we've hit a dead end.
-     * @return _finalNode The final node
      */
     function _walkNodePath(
         mapping(bytes32 => bytes) storage trie,
@@ -186,12 +183,15 @@ library Lib_MerkleTrie {
         private
         view
         returns (
+            TrieNode[] memory _proof,
             uint256 _pathLength,
             bytes memory _keyRemainder,
-            bool _isFinalNode,
-            TrieNode memory _finalNode
+            bool _isFinalNode
         )
     {
+        // TODO: this is max length
+        _proof = new TrieNode[](16);
+
         uint256 pathLength = 0;
         bytes memory key = Lib_BytesUtils.toNibbles(_key);
 
@@ -212,6 +212,7 @@ library Lib_MerkleTrie {
 
             // Keep track of the proof elements we actually need.
             // It's expensive to resize arrays, so this simply reduces gas costs.
+            _proof[pathLength] = currentNode;
             pathLength += 1;
 
             if (currentKeyIndex == 0) {
@@ -291,7 +292,7 @@ library Lib_MerkleTrie {
 
         // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
-        return (pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode, currentNode);
+        return (_proof, pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode);
     }
 
     /**

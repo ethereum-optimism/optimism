@@ -84,10 +84,7 @@ contract MIPSMemory {
 
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) public view returns (bytes32) {
     require(addr & 3 == 0, "write memory must be 32-bit aligned");
-
-    // TODO: this can't delete nodes. modify the client to never delete
-    //return Lib_MerkleTrie.update(tb(addr), tb(value), proofs[stateHash][addr], stateHash);
-    return stateHash;
+    return Lib_MerkleTrie.update(tb(addr>>2), tb(value), trie, stateHash);
   }
 
   function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public view returns (bytes32) {
