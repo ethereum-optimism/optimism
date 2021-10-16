@@ -83,9 +83,6 @@ func ParseNode(node common.Hash, depth int) {
 func RamToTrie(ram map[uint32](uint32)) common.Hash {
 	mt := trie.NewStackTrie(PreimageKeyValueWriter{})
 
-	tk := make([]byte, 4)
-	tv := make([]byte, 4)
-
 	sram := make([]uint64, len(ram))
 
 	i := 0
@@ -97,8 +94,11 @@ func RamToTrie(ram map[uint32](uint32)) common.Hash {
 
 	for _, kv := range sram {
 		k, v := uint32(kv>>32), uint32(kv)
-		//fmt.Printf("insert %x = %x\n", k, v)
-		binary.BigEndian.PutUint32(tk, k>>2)
+		k >>= 2
+		fmt.Printf("insert %x = %x\n", k, v)
+		tk := make([]byte, 4)
+		tv := make([]byte, 4)
+		binary.BigEndian.PutUint32(tk, k)
 		binary.BigEndian.PutUint32(tv, v)
 		mt.Update(tk, tv)
 	}

@@ -58,7 +58,7 @@ func RunFull() {
 	ZeroRegisters(ram)
 	ram[0xC000007C] = 0x5EAD0000
 	root := RamToTrie(ram)
-	//ParseNode(root, 0)
+	ParseNode(root, 0)
 
 	ioutil.WriteFile("/tmp/eth/trie.json", TrieToJson(root), 0644)
 
