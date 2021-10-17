@@ -84,7 +84,7 @@ library Lib_MerkleTrie {
         }
 
         (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(trie, _key, _root);
-        TrieNode[] memory newPath = _getNewPath(proof, pathLength, keyRemainder, _value);
+        TrieNode[] memory newPath = _getNewPath(proof, pathLength, _key, keyRemainder, _value);
 
         return _getUpdatedTrieRoot(newPath, _key, trie);
     }
@@ -212,11 +212,11 @@ library Lib_MerkleTrie {
             } else {
                 currentNode = getRawNode(Lib_BytesUtils.slice(abi.encodePacked(currentNodeID), 0, currentNodeLength));
             }
+            _proof[pathLength] = currentNode;
             currentKeyIndex += currentKeyIncrement;
 
             // Keep track of the proof elements we actually need.
             // It's expensive to resize arrays, so this simply reduces gas costs.
-            _proof[pathLength] = currentNode;
             pathLength += 1;
 
             if (currentKeyIndex == 0) {
@@ -299,21 +299,22 @@ library Lib_MerkleTrie {
         return (_proof, pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode);
     }
 
+
     /**
-     * @notice Creates new nodes to support a k/v pair insertion into a given
-     * Merkle trie path.
+     * @notice Creates new nodes to support a k/v pair insertion into a given Merkle trie path.
      * @param _path Path to the node nearest the k/v pair.
-     * @param _pathLength Length of the path. Necessary because the provided
-     * path may include additional nodes (e.g., it comes directly from a proof)
-     * and we can't resize in-memory arrays without costly duplication.
-     * @param _keyRemainder Portion of the initial key that must be inserted
-     * into the trie.
+     * @param _pathLength Length of the path. Necessary because the provided path may include
+     *  additional nodes (e.g., it comes directly from a proof) and we can't resize in-memory
+     *  arrays without costly duplication.
+     * @param _key Full original key.
+     * @param _keyRemainder Portion of the initial key that must be inserted into the trie.
      * @param _value Value to insert at the given key.
      * @return _newPath A new path with the inserted k/v pair and extra supporting nodes.
      */
     function _getNewPath(
         TrieNode[] memory _path,
         uint256 _pathLength,
+        bytes memory _key,
         bytes memory _keyRemainder,
         bytes memory _value
     )
@@ -336,6 +337,34 @@ library Lib_MerkleTrie {
         TrieNode[] memory newNodes = new TrieNode[](3);
         uint256 totalNewNodes = 0;
 
+        // solhint-disable-next-line max-line-length
+        // Reference: https://github.com/ethereumjs/merkle-patricia-tree/blob/c0a10395aab37d42c175a47114ebfcbd7efcf059/src/baseTrie.ts#L294-L313
+        // TODO: do we need this?
+        /*bool matchLeaf = false;
+        if (lastNodeType == NodeType.LeafNode) {
+            uint256 l = 0;
+            if (_path.length > 0) {
+                for (uint256 i = 0; i < _path.length - 1; i++) {
+                    if (_getNodeType(_path[i]) == NodeType.BranchNode) {
+                        l++;
+                    } else {
+                        l += _getNodeKey(_path[i]).length;
+                    }
+                }
+            }
+
+            if (
+                _getSharedNibbleLength(
+                    _getNodeKey(lastNode),
+                    Lib_BytesUtils.slice(Lib_BytesUtils.toNibbles(_key), l)
+                ) == _getNodeKey(lastNode).length
+                && keyRemainder.length == 0
+            ) {
+                matchLeaf = true;
+            }
+        }
+
+        if (matchLeaf) {*/
         if (keyRemainder.length == 0 && lastNodeType == NodeType.LeafNode) {
             // We've found a leaf node with the given key.
             // Simply need to update the value of the node to match.
@@ -476,7 +505,8 @@ library Lib_MerkleTrie {
                 // and we can skip this part.
                 if (previousNodeHash.length > 0) {
                     // Re-encode the node based on the previous node.
-                    currentNode = _makeExtensionNode(nodeKey, previousNodeHash);
+                    currentNode = _editExtensionNodeValue(currentNode, previousNodeHash);
+                    //currentNode = _makeExtensionNode(nodeKey, previousNodeHash);
                 }
             } else if (currentNodeType == NodeType.BranchNode) {
                 // If this node is the last element in the path, it'll be correctly encoded
@@ -754,6 +784,33 @@ library Lib_MerkleTrie {
     }
 
     /**
+     * Creates a new extension node with the same key but a different value.
+     * @param _node Extension node to copy and modify.
+     * @param _value New value for the extension node.
+     * @return New node with the same key and different value.
+     */
+    function _editExtensionNodeValue(
+        TrieNode memory _node,
+        bytes memory _value
+    )
+        private
+        pure
+        returns (
+            TrieNode memory
+        )
+    {
+        bytes[] memory raw = new bytes[](2);
+        bytes memory key = _addHexPrefix(_getNodeKey(_node), false);
+        raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
+        if (_value.length < 32) {
+            raw[1] = _value;
+        } else {
+            raw[1] = Lib_RLPWriter.writeBytes(_value);
+        }
+        return _makeNode(raw);
+    }
+
+    /**
      * @notice Creates a new leaf node.
      * @dev This function is essentially identical to `_makeExtensionNode`.
      * Although we could route both to a single method with a flag, it's
@@ -861,7 +918,7 @@ library Lib_MerkleTrie {
         uint8 offset = uint8(_key.length % 2);
         bytes memory prefixed = new bytes(2 - offset);
         prefixed[0] = bytes1(prefix + offset);
-        return Lib_BytesUtils.concat(prefixed, _key);
+        return abi.encodePacked(prefixed, _key);
     }
 
     /**
