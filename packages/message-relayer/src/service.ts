@@ -111,7 +111,7 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
     this.logger.info('Connecting to L1CrossDomainMessenger...')
     this.state.L1CrossDomainMessenger = await loadContractFromManager({
       name: 'L1CrossDomainMessenger',
-      proxy: 'Proxy__L1CrossDomainMessenger',
+      proxy: 'Proxy__OVM_L1CrossDomainMessenger',
       Lib_AddressManager: this.state.Lib_AddressManager,
       provider: this.options.l1RpcProvider,
     })
