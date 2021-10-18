@@ -195,8 +195,12 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return
     }
 
-    const [batchParams, wasBatchTruncated] =
-      await this._generateSequencerBatchParams(startBlock, endBlock)
+    const params = await this._generateSequencerBatchParams(startBlock, endBlock)
+    if (!params) {
+      throw new Error(`Cannot create sequencer batch with params start ${startBlock} and end ${endBlock}`)
+    }
+
+    const [batchParams, wasBatchTruncated] = params
     const batchSizeInBytes = encodeAppendSequencerBatch(batchParams).length / 2
     this.logger.debug('Sequencer batch generated', {
       batchSizeInBytes,
