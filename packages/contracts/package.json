@@ -86,7 +86,7 @@
     "ethers": "^5.4.5",
     "glob": "^7.1.6",
     "hardhat": "^2.3.0",
-    "hardhat-deploy": "^0.7.4",
+    "hardhat-deploy": "^0.9.3",
     "hardhat-gas-reporter": "^1.0.4",
     "lint-staged": "11.0.0",
     "lodash": "^4.17.21",

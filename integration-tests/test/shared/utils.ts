@@ -1,5 +1,3 @@
-import { expect } from 'chai'
-
 /* Imports: External */
 import {
   Contract,
@@ -86,14 +84,14 @@ export const getAddressManager = (provider: any) => {
 export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
   const l1BridgeInterface = getContractInterface('L1StandardBridge')
   const ProxyBridgeAddress = await AddressManager.getAddress(
-    'Proxy__L1StandardBridge'
+    'Proxy__OVM_L1StandardBridge'
   )
 
   if (
     !utils.isAddress(ProxyBridgeAddress) ||
     ProxyBridgeAddress === constants.AddressZero
   ) {
-    throw new Error('Proxy__L1StandardBridge not found')
+    throw new Error('Proxy__OVM_L1StandardBridge not found')
   }
 
   const L1StandardBridge = new Contract(

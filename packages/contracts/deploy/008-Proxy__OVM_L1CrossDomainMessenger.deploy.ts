@@ -17,12 +17,12 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndRegister({
     hre,
-    name: 'Proxy__L1CrossDomainMessenger',
+    name: 'Proxy__OVM_L1CrossDomainMessenger',
     contract: 'Lib_ResolvedDelegateProxy',
     iface: 'L1CrossDomainMessenger',
     args: [Lib_AddressManager.address, 'OVM_L1CrossDomainMessenger'],
     postDeployAction: async (contract) => {
-      console.log(`Initializing Proxy__L1CrossDomainMessenger...`)
+      console.log(`Initializing Proxy__OVM_L1CrossDomainMessenger...`)
       await contract.initialize(Lib_AddressManager.address)
 
       console.log(`Checking that contract was correctly initialized...`)
@@ -36,6 +36,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['Proxy__L1CrossDomainMessenger']
+deployFn.tags = ['Proxy__OVM_L1CrossDomainMessenger']
 
 export default deployFn
