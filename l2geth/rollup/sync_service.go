@@ -66,7 +66,6 @@ type SyncService struct {
 	gasPriceOracleOwnerAddressLock *sync.RWMutex
 	enforceFees                    bool
 	signer                         types.Signer
-	minL2GasLimit                  *big.Int
 	feeThresholdUp                 *big.Float
 	feeThresholdDown               *big.Float
 }
@@ -123,11 +122,6 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 				cfg.FeeThresholdUp)
 		}
 	}
-	if cfg.MinL2GasLimit == nil {
-		value := new(big.Int)
-		log.Info("Sanitizing minimum L2 gas limit", "value", value)
-		cfg.MinL2GasLimit = value
-	}
 
 	service := SyncService{
 		ctx:                            ctx,
@@ -147,7 +141,6 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		gasPriceOracleOwnerAddressLock: new(sync.RWMutex),
 		enforceFees:                    cfg.EnforceFees,
 		signer:                         types.NewEIP155Signer(chainID),
-		minL2GasLimit:                  cfg.MinL2GasLimit,
 		feeThresholdDown:               cfg.FeeThresholdDown,
 		feeThresholdUp:                 cfg.FeeThresholdUp,
 	}

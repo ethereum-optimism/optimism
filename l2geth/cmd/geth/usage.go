@@ -75,7 +75,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RollupMaxCalldataSizeFlag,
 			utils.RollupBackendFlag,
 			utils.RollupEnforceFeesFlag,
-			utils.RollupMinL2GasLimitFlag,
 			utils.RollupFeeThresholdDownFlag,
 			utils.RollupFeeThresholdUpFlag,
 		},
