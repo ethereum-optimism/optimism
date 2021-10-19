@@ -20,7 +20,7 @@ services:
   deployer:
     depends_on:
       - l1_chain
-    image: ethereumoptimism/deployer:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/deployer:prerelease-0.5.0-rc-1-7c05692
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.deployer
@@ -54,7 +54,7 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/data-transport-layer:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/data-transport-layer:prerelease-0.5.0-rc-1-7c05692
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.data-transport-layer
@@ -78,7 +78,7 @@ services:
     depends_on:
       - l1_chain
       - deployer
-    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-7c05692
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.geth
@@ -105,7 +105,7 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/message-relayer:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/message-relayer:prerelease-0.5.0-rc-1-7c05692
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.message-relayer
@@ -124,7 +124,7 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/batch-submitter:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/batch-submitter:prerelease-0.5.0-rc-1-7c05692
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.batch-submitter
@@ -141,7 +141,7 @@ services:
       - l1_chain
       - deployer
       - dtl
-    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-7c05692
     deploy:
       replicas: 0
 #    build:
@@ -164,7 +164,7 @@ services:
   replica:
     depends_on:
       - dtl
-    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-7c05692
     deploy:
       replicas: 0
 #    build:
@@ -199,7 +199,7 @@ services:
 #      ENABLE_GAS_REPORT: 1
 #      NO_NETWORK: 1
   gas_oracle:
-    image: ethereumoptimism/gas-oracle:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/gas-oracle:prerelease-0.5.0-rc-1-7c05692
     deploy:
        replicas: 0
 #    build:
