@@ -1,18 +1,16 @@
-# TODO: Prefix all env vars with service name
-# TODO: Allow specifing the image tag to use
 version: "3"
 
 services:
   # base service builder
   builder:
-    image: ethereumoptimism/builder
+    image: ethereumoptimism/builder:${DOCKER_TAG:-latest}
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.monorepo
 
   # this is a helper service used because there's no official hardhat image
   l1_chain:
-    image: ethereumoptimism/hardhat
+    image: ethereumoptimism/hardhat:${DOCKER_TAG:-latest}
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile
@@ -23,7 +21,7 @@ services:
   deployer:
     depends_on:
       - l1_chain
-    image: ethereumoptimism/deployer
+    image: ethereumoptimism/deployer:${DOCKER_TAG:-latest}
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.deployer
@@ -58,7 +56,7 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/data-transport-layer
+    image: ethereumoptimism/data-transport-layer:${DOCKER_TAG:-latest}
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.data-transport-layer
@@ -83,7 +81,7 @@ services:
     depends_on:
       - l1_chain
       - deployer
-    image: ethereumoptimism/l2geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG:-latest}
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
@@ -111,7 +109,7 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/message-relayer
+    image: ethereumoptimism/message-relayer:${DOCKER_TAG:-latest}
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.message-relayer
@@ -131,7 +129,7 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/batch-submitter
+    image: ethereumoptimism/batch-submitter:${DOCKER_TAG:-latest}
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.batch-submitter
@@ -149,7 +147,7 @@ services:
       - l1_chain
       - deployer
       - dtl
-    image: ethereumoptimism/l2geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG:-latest}
     deploy:
       replicas: 0
     build:
@@ -173,7 +171,7 @@ services:
   replica:
     depends_on:
       - dtl
-    image: ethereumoptimism/l2geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG:-latest}
     deploy:
       replicas: 0
     build:
@@ -195,7 +193,7 @@ services:
       - ${L2GETH_WS_PORT:-8550}:8546
 
   integration_tests:
-    image: ethereumoptimism/integration-tests
+    image: ethereumoptimism/integration-tests:${DOCKER_TAG:-latest}
     deploy:
        replicas: 0
     build:
@@ -210,7 +208,7 @@ services:
       NO_NETWORK: 1
 
   gas_oracle:
-    image: ethereumoptimism/gas-oracle
+    image: ethereumoptimism/gas-oracle:${DOCKER_TAG:-latest}
     deploy:
        replicas: 0
     build:
