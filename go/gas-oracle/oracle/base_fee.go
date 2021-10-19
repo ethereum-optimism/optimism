@@ -42,6 +42,9 @@ func wrapUpdateBaseFee(l1Backend bind.ContractTransactor, l2Backend DeployContra
 		baseFee, err := contract.L1BaseFee(&bind.CallOpts{
 			Context: context.Background(),
 		})
+		if err != nil {
+			return err
+		}
 		tip, err := l1Backend.HeaderByNumber(context.Background(), nil)
 		if err != nil {
 			return err
