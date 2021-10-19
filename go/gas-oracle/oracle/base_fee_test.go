@@ -26,7 +26,7 @@ func TestBaseFeeUpdate(t *testing.T) {
 		privateKey:            key,
 		l2ChainID:             big.NewInt(1337),
 		gasPriceOracleAddress: addr,
-		gasPrice:              big.NewInt(782049771),
+		gasPrice:              big.NewInt(784637584),
 	}
 
 	update, err := wrapUpdateBaseFee(sim, sim, cfg)
