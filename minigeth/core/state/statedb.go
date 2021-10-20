@@ -162,6 +162,8 @@ func (s *StateDB) Error() error {
 }
 
 func (s *StateDB) AddLog(log *types.Log) {
+	s.journal.append(addLogChange{txhash: s.thash})
+
 	log.TxHash = s.thash
 	log.TxIndex = uint(s.txIndex)
 	log.Index = s.logSize
