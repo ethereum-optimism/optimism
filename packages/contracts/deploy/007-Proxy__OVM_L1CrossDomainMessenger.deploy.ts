@@ -9,6 +9,7 @@ import {
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
+// We need to skip this step, because we're keeping the existing proxy.
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getDeployedContract(
     hre,
