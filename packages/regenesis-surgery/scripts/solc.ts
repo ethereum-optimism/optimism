@@ -173,8 +173,13 @@ export const solcInput = (contract: EtherscanContract) => {
 }
 
 const compilerCache: {
-  [hash: string]: any
-} = {}
+  [target: string]: {
+    [hash: string]: any
+  }
+} = {
+  ['OVM']: {},
+  ['EVM']: {},
+}
 
 export const compile = (opts: {
   contract: EtherscanContract
@@ -195,16 +200,17 @@ export const compile = (opts: {
   const solcInstance = getSolc(version, opts.ovm)
   const input = JSON.stringify(solcInput(opts.contract))
   const inputHash = ethers.utils.solidityKeccak256(['string'], [input])
+  const compilerTarget = opts.ovm ? 'OVM' : 'EVM'
 
   // Cache the compiler output to speed up repeated compilations of the same contract. If this
   // cache is too memory intensive, then we could consider only caching if the contract has been
   // seen more than once.
   let output: any
-  if (compilerCache[inputHash]) {
-    output = compilerCache[inputHash]
+  if (compilerCache[compilerTarget][inputHash]) {
+    output = compilerCache[compilerTarget][inputHash]
   } else {
     output = JSON.parse(solcInstance.compile(input))
-    compilerCache[inputHash] = output
+    compilerCache[compilerTarget][inputHash] = output
   }
 
   if (!output.contracts) {
