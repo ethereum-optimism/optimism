@@ -1,0 +1,11 @@
+{
+  "name": "@eth-optimism/hardhat-fork",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "hardhat node --hostname 0.0.0.0 --network hardhat"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "hardhat": "^2.6.1"
+  }
+}

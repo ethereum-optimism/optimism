@@ -1,0 +1,12 @@
+FROM node:14-alpine
+
+WORKDIR /app
+COPY ./ops/docker/hardhat-fork/package.json .
+COPY ./ops/docker/hardhat-fork/yarn.lock .
+
+RUN yarn install
+COPY ./ops/docker/hardhat-fork/hardhat.config.js .
+
+EXPOSE 8545
+
+CMD ["yarn", "start"]
