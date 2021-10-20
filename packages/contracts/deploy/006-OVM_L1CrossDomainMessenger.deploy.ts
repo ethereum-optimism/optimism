@@ -9,6 +9,7 @@ import {
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
+// todo: this implementation needs to also have a chugsplash proxy in front of it.
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getDeployedContract(
     hre,
