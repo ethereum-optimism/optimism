@@ -126,11 +126,6 @@ describe('CanonicalTransactionChain', () => {
     )
 
     await AddressManager.setAddress(
-      'ChainStorageContainer-CTC-queue',
-      queue.address
-    )
-
-    await AddressManager.setAddress(
       'CanonicalTransactionChain',
       CanonicalTransactionChain.address
     )
