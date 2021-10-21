@@ -23,14 +23,17 @@ npx hardhat deploy \
  --ctc-max-transaction-gas-limit 15000000 \
  --ctc-l2-gas-discount-divisor 32 \
  --ctc-enqueue-gas-cost 60000 \
- --scc-fraud-proof-window 604800 \
+ --scc-fraud-proof-window 10 \
  --scc-sequencer-publish-window 12592000 \
  --ovm-sequencer-address 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244 \
  --ovm-proposer-address 0x9A2F243c605e6908D96b18e21Fb82Bf288B19EF3 \
  --ovm-address-manager-owner 0x18394B52d3Cb931dfA76F63251919D051953413d \
- --gasprice 10000000000 \
+ --gasprice 1000000000 \
+ --num-deploy-confirmations 1 \
  --tags upgrade \
  --network kovan
 
 CONTRACTS_TARGET_NETWORK=kovan \
-npx hardhat etherscan-verify --network kovan
+npx hardhat etherscan-verify \
+  --network kovan \
+  --sleep

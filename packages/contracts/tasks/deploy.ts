@@ -9,6 +9,7 @@ const DEFAULT_CTC_L2_GAS_DISCOUNT_DIVISOR = 32
 const DEFAULT_CTC_ENQUEUE_GAS_COST = 60_000
 const DEFAULT_SCC_FRAUD_PROOF_WINDOW = 60 * 60 * 24 * 7 // 7 days
 const DEFAULT_SCC_SEQUENCER_PUBLISH_WINDOW = 60 * 30 // 30 minutes
+const DEFAULT_DEPLOY_CONFIRMATIONS = 12
 
 task('deploy')
   .addOptionalParam(
@@ -64,6 +65,12 @@ task('deploy')
     'Address that will own the Lib_AddressManager. Must be provided or this deployment will fail.',
     undefined,
     types.string
+  )
+  .addOptionalParam(
+    'numDeployConfirmations',
+    'Number of confirmations to wait for each transaction in the deployment. More is safer.',
+    DEFAULT_DEPLOY_CONFIRMATIONS,
+    types.int
   )
   .setAction(async (args, hre: any, runSuper) => {
     // Necessary because hardhat doesn't let us attach non-optional parameters to existing tasks.

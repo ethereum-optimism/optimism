@@ -1,3 +1,8 @@
+// WARNING: DO NOT USE THIS FILE TO DEPLOY CONTRACTS TO PRODUCTION
+// WE ARE REMOVING THIS FILE IN A FUTURE RELEASE, IT IS ONLY TO BE USED AS PART OF THE LOCAL
+// DEPLOYMENT PROCESS. USE A DEPLOYMENT SCRIPT LOCATED IN scripts/deploy-scripts/ WHEN DEPLOYING
+// TO A PRODUCTION ENVIRONMENT.
+
 import { Wallet } from 'ethers'
 import path from 'path'
 import dirtree from 'directory-tree'
@@ -43,6 +48,11 @@ const parseEnv = () => {
 }
 
 const main = async () => {
+  // Just be really verbose about this...
+  console.log(
+    `WARNING: DO NOT USE THIS FILE IN PRODUCTION! FOR LOCAL DEVELOPMENT ONLY!`
+  )
+
   const config = parseEnv()
 
   await hre.run('deploy', {
@@ -55,6 +65,7 @@ const main = async () => {
     ovmSequencerAddress: sequencer.address,
     ovmProposerAddress: sequencer.address,
     ovmAddressManagerOwner: deployer.address,
+    numDeployConfirmations: 0,
     noCompile: process.env.NO_COMPILE ? true : false,
   })
 

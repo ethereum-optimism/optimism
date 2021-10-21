@@ -12,6 +12,8 @@ import {
 import {
   getDeployedContract,
   waitUntilTrue,
+  getAdvancedContract,
+  deployAndRegister,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -22,21 +24,28 @@ const deployFn: DeployFunction = async (hre) => {
   )
 
   // Set up a reference to the proxy as if it were the L1StandardBridge contract.
-  const contract = await getDeployedContract(hre, 'Proxy__L1StandardBridge', {
-    iface: 'L1StandardBridge',
-    signerOrProvider: deployer,
-  })
+  const contract = await getDeployedContract(
+    hre,
+    'Proxy__OVM_L1StandardBridge',
+    {
+      iface: 'L1StandardBridge',
+      signerOrProvider: deployer,
+    }
+  )
 
   // Because of the `iface` parameter supplied to the deployment function above, the `contract`
   // variable that we here will have the interface of the L1StandardBridge contract. However,
   // we also need to interact with the contract as if it were a L1ChugSplashProxy contract so
   // we instantiate a new ethers.Contract object with the same address and signer but with the
   // L1ChugSplashProxy interface.
-  const proxy = new ethers.Contract(
-    contract.address,
-    getContractInterface('L1ChugSplashProxy'),
-    contract.signer
-  )
+  const proxy = getAdvancedContract({
+    hre,
+    contract: new ethers.Contract(
+      contract.address,
+      getContractInterface('L1ChugSplashProxy'),
+      contract.signer
+    ),
+  })
 
   // First we need to set the correct implementation code. We'll set the code and then check
   // that the code was indeed correctly set.
@@ -62,10 +71,17 @@ const deployFn: DeployFunction = async (hre) => {
   // check that this operation was correctly executed by calling `messenger()` and checking
   // that the result matches the value we initialized.
   const l1CrossDomainMessengerAddress = await Lib_AddressManager.getAddress(
-    'Proxy__L1CrossDomainMessenger'
+    'Proxy__OVM_L1CrossDomainMessenger'
   )
 
-  console.log(`Setting messenger address...`)
+  // Critical error, should never happen.
+  if (
+    hexStringEquals(l1CrossDomainMessengerAddress, ethers.constants.AddressZero)
+  ) {
+    throw new Error(`L1CrossDomainMessenger address is set to address(0)`)
+  }
+
+  console.log(`Setting messenger address to ${l1CrossDomainMessengerAddress}...`)
   await proxy.setStorage(
     ethers.utils.hexZeroPad('0x00', 32),
     ethers.utils.hexZeroPad(l1CrossDomainMessengerAddress, 32)
@@ -80,7 +96,7 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   // Now we set the bridge address in the same manner as the messenger address.
-  console.log(`Setting l2 bridge address...`)
+  console.log(`Setting l2 bridge address to ${predeploys.L2StandardBridge}...`)
   await proxy.setStorage(
     ethers.utils.hexZeroPad('0x01', 32),
     ethers.utils.hexZeroPad(predeploys.L2StandardBridge, 32)
@@ -95,8 +111,8 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   // Finally we transfer ownership of the proxy to the ovmAddressManagerOwner address.
-  console.log(`Setting owner address...`)
   const owner = (hre as any).deployConfig.ovmAddressManagerOwner
+  console.log(`Setting owner address to ${owner}...`)
   await proxy.setOwner(owner)
 
   console.log(`Confirming that owner address was correctly set...`)
@@ -107,6 +123,15 @@ const deployFn: DeployFunction = async (hre) => {
       }),
       owner
     )
+  })
+
+  // Deploy a copy of the implementation so it can be successfully verified on Etherscan.
+  console.log(`Deploying a copy of the bridge for Etherscan verification...`)
+  await deployAndRegister({
+    hre,
+    name: 'L1StandardBridge_for_verification_only',
+    contract: 'L1StandardBridge',
+    args: [],
   })
 }
 
