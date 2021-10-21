@@ -169,15 +169,31 @@ export const getDeployedContract = async (
   })
 }
 
-export const getLibAddressManager = async (hre: any): Promise<Contract> => {
-  const factory = await hre.ethers.getContractFactory('Lib_AddressManager')
+export const getReusableContract = async (
+  hre: any,
+  name: string,
+  options: {
+    iface?: string
+    signerOrProvider?: Signer | Provider | string
+  } = {}
+): Promise<Contract> => {
+  const optionNames = {
+    Lib_AddressManager: 'libAddressManager',
+    Proxy__L1CrossDomainMessenger: 'proxyL1CrossDomainMessenger',
+    Proxy__L1StandardBridge: 'proxyL1StandardBridge',
+  }
+  if (!optionNames[name]) {
+    throw new Error(`${name} is not included in the set of reusable contracts.`)
+  }
+
+  const factory = await hre.ethers.getContractFactory(name)
   const iface = factory.interface
   // try to get the address from the config options
-  const addr = (hre as any).deployConfig.libAddressManager
+  const addr = (hre as any).deployConfig[optionNames[name]]
   if (hre.ethers.utils.isAddress(addr)) {
     return new Contract(addr, iface)
   } else {
     // if an address was not provided, a new manager must have been deployed
-    return getDeployedContract(hre, 'Lib_AddressManager')
+    return getDeployedContract(hre, name, options)
   }
 }

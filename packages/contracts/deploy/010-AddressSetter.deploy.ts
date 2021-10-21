@@ -5,11 +5,11 @@ import { DeployFunction, DeploymentsExtension } from 'hardhat-deploy/dist/types'
 import {
   deployAndPostDeploy,
   getDeployedContract,
-  getLibAddressManager,
+  getReusableContract,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getLibAddressManager(hre)
+  const Lib_AddressManager = await getReusableContract(hre, 'Lib_AddressManager')
 
   const names = [
     'ChainStorageContainer-CTC-batches',
