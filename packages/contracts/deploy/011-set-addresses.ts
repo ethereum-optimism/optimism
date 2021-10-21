@@ -2,7 +2,10 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import { registerAddress } from '../src/hardhat-deploy-ethers'
+import {
+  registerAddress,
+  getDeployedContract,
+} from '../src/hardhat-deploy-ethers'
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -30,6 +33,24 @@ const deployFn: DeployFunction = async (hre) => {
     name: 'OVM_Proposer',
     address: (hre as any).deployConfig.ovmProposerAddress,
   })
+
+  const names = [
+    'ChainStorageContainer-CTC-batches',
+    'ChainStorageContainer-SCC-batches',
+    'CanonicalTransactionChain',
+    'StateCommitmentChain',
+    'BondManager',
+    'OVM_L1CrossDomainMessenger',
+    'Proxy__L1CrossDomainMessenger',
+    'Proxy__L1StandardBridge',
+  ]
+
+  await Promise.all(
+    names.map(async (name) => {
+      const address = (await getDeployedContract(hre, name)).address
+      await registerAddress({ hre, name, address })
+    })
+  )
 }
 
 deployFn.tags = ['set-addresses', 'upgrade']

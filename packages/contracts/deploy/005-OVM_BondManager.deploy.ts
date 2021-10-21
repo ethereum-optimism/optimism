@@ -9,7 +9,10 @@ import {
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getReusableContract(hre, 'Lib_AddressManager')
+  const Lib_AddressManager = await getReusableContract(
+    hre,
+    'Lib_AddressManager'
+  )
 
   await deployAndPostDeploy({
     hre,
