@@ -35,6 +35,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   protected l2ChainId: number
   protected syncing: boolean
   private autoFixBatchOptions: AutoFixBatchOptions
+  private validateBatch: boolean
   private transactionSubmitter: TransactionSubmitter
   private gasThresholdInGwei: number
 
@@ -52,6 +53,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     gasThresholdInGwei: number,
     transactionSubmitter: TransactionSubmitter,
     blockOffset: number,
+    validateBatch: boolean,
     logger: Logger,
     metrics: Metrics,
     autoFixBatchOptions: AutoFixBatchOptions = {
@@ -76,6 +78,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       logger,
       metrics
     )
+    this.validateBatch = validateBatch
     this.autoFixBatchOptions = autoFixBatchOptions
     this.gasThresholdInGwei = gasThresholdInGwei
     this.transactionSubmitter = transactionSubmitter
@@ -260,12 +263,16 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       { concurrency: 100 }
     )
 
-    // Fix our batches if we are configured to. TODO: Remove this.
+    // Fix our batches if we are configured to. This will not
+    // modify the batch unless an autoFixBatchOption is set
     batch = await this._fixBatch(batch)
-    if (!(await this._validateBatch(batch))) {
-      this.metrics.malformedBatches.inc()
-      return
+    if (this.validateBatch) {
+      if (!(await this._validateBatch(batch))) {
+        this.metrics.malformedBatches.inc()
+        return
+      }
     }
+
     let sequencerBatchParams = await this._getSequencerBatchParams(
       startBlock,
       batch
