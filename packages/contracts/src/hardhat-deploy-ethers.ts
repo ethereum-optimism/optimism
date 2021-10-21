@@ -169,6 +169,8 @@ export const getDeployedContract = async (
   })
 }
 
+// todo: it would likely be cleaner to move all but the last line of logic here into
+// getDeployedContract
 export const getReusableContract = async (
   hre: any,
   name: string,
