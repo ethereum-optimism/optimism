@@ -1,7 +1,7 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { ethers } from 'ethers'
-import { hexStringEquals } from '@eth-optimism/core-utils'
+import { hexStringEquals, sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { predeploys } from '../src/predeploys'
@@ -10,29 +10,21 @@ import {
   getContractDefinition,
 } from '../src/contract-defs'
 import {
-  getDeployedContract,
-  getReusableContract,
+  getLiveContract,
   waitUntilTrue,
   getAdvancedContract,
-  deployAndRegister,
+  deployAndPostDeploy,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-  const Lib_AddressManager = await getReusableContract(
-    hre,
-    'Lib_AddressManager'
-  )
+  const Lib_AddressManager = await getLiveContract(hre, 'Lib_AddressManager')
 
   // Set up a reference to the proxy as if it were the L1StandardBridge contract.
-  const contract = await getReusableContract(
-    hre,
-    'Proxy__OVM_L1StandardBridge',
-    {
-      iface: 'L1StandardBridge',
-      signerOrProvider: deployer,
-    }
-  )
+  const contract = await getLiveContract(hre, 'Proxy__OVM_L1StandardBridge', {
+    iface: 'L1StandardBridge',
+    signerOrProvider: deployer,
+  })
 
   // Because of the `iface` parameter supplied to the deployment function above, the `contract`
   // variable that we here will have the interface of the L1StandardBridge contract. However,
@@ -130,7 +122,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Deploy a copy of the implementation so it can be successfully verified on Etherscan.
   console.log(`Deploying a copy of the bridge for Etherscan verification...`)
-  await deployAndRegister({
+  await deployAndPostDeploy({
     hre,
     name: 'L1StandardBridge_for_verification_only',
     contract: 'L1StandardBridge',
@@ -138,6 +130,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L1StandardBridge', 'upgrade']
+deployFn.tags = ['fresh', 'upgrade', 'L1StandardBridge']
 
 export default deployFn

@@ -5,13 +5,15 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import {
   deployAndPostDeploy,
-  getLibAddressManager,
+  getReusableContract,
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
-// We need to skip this step, because we're keeping the existing proxy.
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getLibAddressManager(hre)
+  const Lib_AddressManager = await getReusableContract(
+    hre,
+    'Lib_AddressManager'
+  )
 
   await deployAndPostDeploy({
     hre,

@@ -248,15 +248,3 @@ export const getContractFromArtifact = async (
 
 // Large balance to fund accounts with.
 export const BIG_BALANCE = ethers.BigNumber.from(`0xFFFFFFFFFFFFFFFFFFFF`)
-export const getLibAddressManager = async (hre: any): Promise<Contract> => {
-  const factory = await hre.ethers.getContractFactory('Lib_AddressManager')
-  const iface = factory.interface
-  // try to get the address from the config options
-  const addr = (hre as any).deployConfig.libAddressManager
-  if (hre.ethers.utils.isAddress(addr)) {
-    return new Contract(addr, iface)
-  } else {
-    // if an address was not provided, a new manager must have been deployed
-    return getDeployedContract(hre, 'Lib_AddressManager')
-  }
-}
