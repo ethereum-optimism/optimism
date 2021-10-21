@@ -12,6 +12,7 @@ const DEFAULT_SCC_SEQUENCER_PUBLISH_WINDOW = 60 * 30 // 30 minutes
 const DEFAULT_DEPLOY_CONFIRMATIONS = 12
 
 task('deploy')
+  // Rollup config options
   .addOptionalParam(
     'l1BlockTimeSeconds',
     'Number of seconds on average between every L1 block.',
@@ -48,6 +49,7 @@ task('deploy')
     DEFAULT_SCC_SEQUENCER_PUBLISH_WINDOW,
     types.int
   )
+  // Permissioned address options
   .addOptionalParam(
     'ovmSequencerAddress',
     'Address of the sequencer. Must be provided or this deployment will fail.',
@@ -61,14 +63,27 @@ task('deploy')
     types.string
   )
   .addOptionalParam(
-    'libAddressManager',
-    'Address of the Lib_AddressManager, for use in a deployment which is keeping the existing contract.',
+    'ovmAddressManagerOwner',
+    'Address that will own the Lib_AddressManager. Must be provided or this deployment will fail.',
+    undefined,
+    types.string
+  )
+  // Reusable address options
+  .addOptionalParam(
+    'proxyL1CrossDomainMessenger',
+    'Address of the L1CrossDomainMessenger Proxy, for use in a deployment which is keeping the existing contract.',
     undefined,
     types.string
   )
   .addOptionalParam(
-    'ovmAddressManagerOwner',
-    'Address that will own the Lib_AddressManager. Must be provided or this deployment will fail.',
+    'proxyL1StandardBridge',
+    'Address of the L1StandardBridge Proxy, for use in a deployment which is keeping the existing contract.',
+    undefined,
+    types.string
+  )
+  .addOptionalParam(
+    'libAddressManager',
+    'Address of the Lib_AddressManager, for use in a deployment which is keeping the existing contract.',
     undefined,
     types.string
   )
@@ -103,23 +118,37 @@ task('deploy')
     validateAddressArg('ovmProposerAddress')
     validateAddressArg('ovmAddressManagerOwner')
 
-    const hasAddressManagerTag = args.tags
-      .split(',')
-      .includes('Lib_AddressManager')
-    try {
-      validateAddressArg('libAddressManager')
-      if (hasAddressManagerTag) {
+    // validate potentially conflicting arguments
+    const validateArgOrTag = (argName: string, tagName: string) => {
+      // ensure that both an arg and tag were not provided for a given contract
+      const hasTag = args.tags.includes(tagName)
+      if (hasTag && ethers.utils.isAddress(args[argName])) {
         throw new Error(
-          'cannot deploy a new Lib_AddressManager if the address of an existing one is provided'
+          `cannot deploy a new ${tagName} if the address of an existing one is provided`
         )
       }
-    } catch (error) {
-      if (!hasAddressManagerTag) {
-        throw new Error(
-          'must either deploy a new Lib_AddressManager, or provide the address for an existing one'
+      // ensure that either a valid address is provided or we'll deploy a new one.
+      try {
+        validateAddressArg(argName)
+        console.log(
+          `Running deployments with the existing ${tagName} at ${args[argName]}`
         )
+      } catch (error) {
+        if (!hasTag) {
+          throw new Error(
+            `${error.message} \nmust either deploy a new ${tagName}, or provide the address for an existing one`
+          )
+        }
+        console.log(`Running deployments with a new ${tagName}`)
       }
     }
+
+    validateArgOrTag('libAddressManager', 'Lib_AddressManager')
+    validateArgOrTag(
+      'proxyL1CrossDomainMessenger',
+      'Proxy__L1CrossDomainMessenger'
+    )
+    validateArgOrTag('proxyL1StandardBridge', 'Proxy__L1StandardBridge')
 
     hre.deployConfig = args
     return runSuper(args)
