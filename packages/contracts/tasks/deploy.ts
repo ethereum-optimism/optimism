@@ -61,6 +61,12 @@ task('deploy')
     types.string
   )
   .addOptionalParam(
+    'libAddressManager',
+    'Address of the Lib_AddressManager, for use in a deployment which is keeping the existing contract.',
+    undefined,
+    types.string
+  )
+  .addOptionalParam(
     'ovmAddressManagerOwner',
     'Address that will own the Lib_AddressManager. Must be provided or this deployment will fail.',
     undefined,
@@ -96,6 +102,24 @@ task('deploy')
     validateAddressArg('ovmSequencerAddress')
     validateAddressArg('ovmProposerAddress')
     validateAddressArg('ovmAddressManagerOwner')
+
+    const hasAddressManagerTag = args.tags
+      .split(',')
+      .includes('Lib_AddressManager')
+    try {
+      validateAddressArg('libAddressManager')
+      if (hasAddressManagerTag) {
+        throw new Error(
+          'cannot deploy a new Lib_AddressManager if the address of an existing one is provided'
+        )
+      }
+    } catch (error) {
+      if (!hasAddressManagerTag) {
+        throw new Error(
+          'must either deploy a new Lib_AddressManager, or provide the address for an existing one'
+        )
+      }
+    }
 
     hre.deployConfig = args
     return runSuper(args)

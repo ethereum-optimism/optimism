@@ -4,19 +4,16 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import {
-  getDeployedContract,
-  deployAndRegister,
+  deployAndPostDeploy,
+  getLibAddressManager,
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
 // We need to skip this step, because we're keeping the existing proxy.
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getDeployedContract(
-    hre,
-    'Lib_AddressManager'
-  )
+  const Lib_AddressManager = await getLibAddressManager(hre)
 
-  await deployAndRegister({
+  await deployAndPostDeploy({
     hre,
     name: 'Proxy__OVM_L1CrossDomainMessenger',
     contract: 'Lib_ResolvedDelegateProxy',
