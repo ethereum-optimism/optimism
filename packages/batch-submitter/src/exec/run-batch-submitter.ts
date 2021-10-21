@@ -72,6 +72,7 @@ interface RequiredEnvVars {
  * SEQUENCER_HD_PATH
  * PROPOSER_HD_PATH
  * BLOCK_OFFSET
+ * VALIDATE_TX_BATCH
  * USE_HARDHAT
  * DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
  * DEBUG_IMPERSONATE_PROPOSER_ADDRESS
@@ -244,6 +245,11 @@ export const run = async () => {
     env.PROPOSER_HD_PATH || env.HD_PATH
   )
 
+  const VALIDATE_TX_BATCH = config.bool(
+    'validate-tx-batch',
+    env.VALIDATE_TX_BATCH ? !!env.VALIDATE_TX_BATCH : true
+  )
+
   // Auto fix batch options -- TODO: Remove this very hacky config
   const AUTO_FIX_BATCH_OPTIONS_CONF = config.str(
     'auto-fix-batch-conf',
@@ -387,6 +393,7 @@ export const run = async () => {
     GAS_THRESHOLD_IN_GWEI,
     txBatchTxSubmitter,
     BLOCK_OFFSET,
+    VALIDATE_TX_BATCH,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     metrics,
     autoFixBatchOptions
