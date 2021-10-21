@@ -67,6 +67,7 @@ const main = async () => {
     ovmAddressManagerOwner: deployer.address,
     numDeployConfirmations: 0,
     noCompile: process.env.NO_COMPILE ? true : false,
+    tags: 'upgrade,Lib_AddressManager,Proxy__L1CrossDomainMessenger,Proxy__L1StandardBridge,deployer-set-addresses',
   })
 
   // Stuff below this line is currently required for CI to work properly. We probably want to

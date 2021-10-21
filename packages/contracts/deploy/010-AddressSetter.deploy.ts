@@ -1,5 +1,5 @@
 /* Imports: External */
-import { DeployFunction, DeploymentsExtension } from 'hardhat-deploy/dist/types'
+import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import {
@@ -7,10 +7,16 @@ import {
   getDeployedContract,
   getReusableContract,
 } from '../src/hardhat-deploy-ethers'
+import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getReusableContract(hre, 'Lib_AddressManager')
+  const Lib_AddressManager = await getReusableContract(
+    hre,
+    'Lib_AddressManager'
+  )
 
+  // ToDo: Clean up the method of mapping names to addresses esp.
+  // There's probably a more functional way to generate an object or something.
   const names = [
     'ChainStorageContainer-CTC-batches',
     'ChainStorageContainer-SCC-batches',
@@ -20,7 +26,6 @@ const deployFn: DeployFunction = async (hre) => {
     'OVM_L1CrossDomainMessenger',
     'Proxy__L1CrossDomainMessenger',
     'Proxy__L1StandardBridge',
-    'OVM_Proposer',
   ]
 
   const addresses = await Promise.all(
@@ -28,6 +33,14 @@ const deployFn: DeployFunction = async (hre) => {
       return (await getDeployedContract(hre, n)).address
     })
   )
+
+  // Add non-deployed addresses to the arrays
+  names.push('L2CrossDomainMessenger')
+  addresses.push(predeploys.L2CrossDomainMessenger)
+  names.push('OVM_Sequencer')
+  addresses.push((hre as any).deployConfig.ovmSequencerAddress)
+  names.push('OVM_Proposer')
+  addresses.push((hre as any).deployConfig.ovmProposerAddress)
 
   await deployAndPostDeploy({
     hre,
