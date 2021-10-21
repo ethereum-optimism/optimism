@@ -44,7 +44,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndPostDeploy({
     hre,
-    name: 'AddressSetter',
+    name: 'AddressSetter2',
     args: [
       Lib_AddressManager.address,
       (hre as any).deployConfig.ovmAddressManagerOwner,
@@ -54,6 +54,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['AddressSetter', 'upgrade']
+deployFn.tags = ['AddressSetter2', 'upgrade']
 
 export default deployFn
