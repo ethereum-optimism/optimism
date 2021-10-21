@@ -24,41 +24,7 @@ export const waitUntilTrue = async (
   }
 }
 
-export const registerAddress = async ({
-  hre,
-  name,
-  address,
-}): Promise<void> => {
-  // TODO: Cache these 2 across calls?
-  const { deployer } = await hre.getNamedAccounts()
-  const Lib_AddressManager = await getDeployedContract(
-    hre,
-    'Lib_AddressManager',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-
-  const currentAddress = await Lib_AddressManager.getAddress(name)
-  if (address === currentAddress) {
-    console.log(
-      `✓ Not registering address for ${name} because it's already been correctly registered`
-    )
-    return
-  }
-
-  console.log(`Registering address for ${name} to ${address}...`)
-  await Lib_AddressManager.setAddress(name, address)
-
-  console.log(`Waiting for registration to reflect on-chain...`)
-  await waitUntilTrue(async () => {
-    return hexStringEquals(await Lib_AddressManager.getAddress(name), address)
-  })
-
-  console.log(`✓ Registered address for ${name}`)
-}
-
-export const deployAndRegister = async ({
+export const deployAndPostDeploy = async ({
   hre,
   name,
   args,
@@ -101,12 +67,6 @@ export const deployAndRegister = async ({
         })
       )
     }
-
-    await registerAddress({
-      hre,
-      name,
-      address: result.address,
-    })
   }
 }
 
@@ -207,4 +167,17 @@ export const getDeployedContract = async (
     hre,
     contract: new Contract(deployed.address, iface, signerOrProvider),
   })
+}
+
+export const getLibAddressManager = async (hre: any): Promise<Contract> => {
+  const factory = await hre.ethers.getContractFactory('Lib_AddressManager')
+  const iface = factory.interface
+  // try to get the address from the config options
+  const addr = (hre as any).deployConfig.libAddressManager
+  if (hre.ethers.utils.isAddress(addr)) {
+    return new Contract(addr, iface)
+  } else {
+    // if an address was not provided, a new manager must have been deployed
+    return getDeployedContract(hre, 'Lib_AddressManager')
+  }
 }

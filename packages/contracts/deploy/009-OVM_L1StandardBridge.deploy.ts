@@ -11,6 +11,7 @@ import {
 } from '../src/contract-defs'
 import {
   getDeployedContract,
+  getLibAddressManager,
   waitUntilTrue,
   getAdvancedContract,
   deployAndRegister,
@@ -18,10 +19,7 @@ import {
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-  const Lib_AddressManager = await getDeployedContract(
-    hre,
-    'Lib_AddressManager'
-  )
+  const Lib_AddressManager = await getLibAddressManager(hre)
 
   // Set up a reference to the proxy as if it were the L1StandardBridge contract.
   const contract = await getDeployedContract(
