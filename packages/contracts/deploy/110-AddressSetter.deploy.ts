@@ -4,16 +4,12 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 /* Imports: Internal */
 import {
   deployAndPostDeploy,
-  getDeployedContract,
-  getReusableContract,
+  getLiveContract,
 } from '../src/hardhat-deploy-ethers'
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getReusableContract(
-    hre,
-    'Lib_AddressManager'
-  )
+  const Lib_AddressManager = await getLiveContract(hre, 'Lib_AddressManager')
 
   // ToDo: Clean up the method of mapping names to addresses esp.
   // There's probably a more functional way to generate an object or something.
@@ -31,7 +27,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   const addresses = await Promise.all(
     names.map(async (n) => {
-      return (await getDeployedContract(hre, n)).address
+      return (await getLiveContract(hre, n)).address
     })
   )
 
