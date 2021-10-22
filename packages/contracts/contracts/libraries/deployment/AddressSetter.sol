@@ -11,10 +11,10 @@ contract AddressSetter {
      * Variables *
      *************/
 
-    Lib_AddressManager manager;
-    address finalOwner;
-    string[] names;
-    address[] addresses;
+    Lib_AddressManager public manager;
+    address public finalOwner;
+    string[] public names;
+    address[] public addresses;
 
     /***************
      * Constructor *
@@ -63,5 +63,17 @@ contract AddressSetter {
      */
     function returnOwnership() external {
         manager.transferOwnership(finalOwner);
+    }
+
+    /******************
+     * View Functions *
+     ******************/
+
+    function getNames() external view returns (string[] memory) {
+        return names;
+    }
+
+    function getAddresses() external view returns (address[] memory) {
+        return addresses;
     }
 }
