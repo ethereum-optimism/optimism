@@ -41,7 +41,7 @@ if [[ -z "$ETHERSCAN_API_KEY" ]]; then
   exit 1
 fi
 
-CONTRACTS_TARGET_NETWORK=mainnet \
+CONTRACTS_TARGET_NETWORK=mainnet-trial \
 npx hardhat deploy \
  --ctc-max-transaction-gas-limit 15000000 \
  --ctc-enqueue-gas-cost 60000 \
@@ -50,12 +50,8 @@ npx hardhat deploy \
  --ovm-address-manager-owner 0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A \
  --ovm-sequencer-address 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244 \
  --ovm-proposer-address 0x9A2F243c605e6908D96b18e21Fb82Bf288B19EF3 \
- --scc-fraud-proof-window 604800 \
+ --scc-fraud-proof-window 10 \
  --scc-sequencer-publish-window 12592000 \
  --network mainnet-trial \
  --gasprice 100 \
  --tags upgrade
-
-
-CONTRACTS_TARGET_NETWORK=mainnet \
-npx hardhat etherscan-verify --network mainnet
