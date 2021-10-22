@@ -149,9 +149,9 @@ task('deploy')
     validateArgOrTag('libAddressManager', 'Lib_AddressManager')
     validateArgOrTag(
       'proxyL1CrossDomainMessenger',
-      'Proxy__L1CrossDomainMessenger'
+      'Proxy__OVM_L1CrossDomainMessenger'
     )
-    validateArgOrTag('proxyL1StandardBridge', 'Proxy__L1StandardBridge')
+    validateArgOrTag('proxyL1StandardBridge', 'Proxy__OVM_L1StandardBridge')
 
     hre.deployConfig = args
     return runSuper(args)
