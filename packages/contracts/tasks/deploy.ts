@@ -118,16 +118,19 @@ task('deploy')
     validateAddressArg('ovmProposerAddress')
     validateAddressArg('ovmAddressManagerOwner')
 
-    // validate potentially conflicting arguments
+    // Validate potentially conflicting arguments
+    // When are argName is provided, it indicates an address that will be reused in this deployment.
+    // When a tagName is provided, it indicates that a new contract will be deployed.
     const validateArgOrTag = (argName: string, tagName: string) => {
-      // ensure that both an arg and tag were not provided for a given contract
-      const hasTag = args.tags.includes(tagName)
+      // The 'fresh' tag tells us that a new copy of each contract will be deployed.
+      const hasTag = args.tags.includes('fresh') || args.tags.includes(tagName)
+      // Ensure that an arg and tag were NOT BOTH provided for a given contract
       if (hasTag && ethers.utils.isAddress(args[argName])) {
         throw new Error(
           `cannot deploy a new ${tagName} if the address of an existing one is provided`
         )
       }
-      // ensure that either a valid address is provided or we'll deploy a new one.
+      // Ensure that either a valid address is provided OR that we deploy a new one.
       try {
         validateAddressArg(argName)
         console.log(
