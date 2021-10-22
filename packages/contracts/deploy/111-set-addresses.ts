@@ -1,17 +1,21 @@
 /* Imports: External */
 import { hexStringEquals } from '@eth-optimism/core-utils'
+import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import { getLiveContract, waitUntilTrue } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const addressSetter = await getLiveContract(hre, 'AddressSetter')
+  const { deployer } = await hre.getNamedAccounts()
+  const addressSetter = await getLiveContract(hre, 'AddressSetter', {
+    signerOrProvider: deployer,
+  })
   const libAddressManager = await getLiveContract(hre, 'Lib_AddressManager')
   const names = await addressSetter.getNames()
   const addresses = await addressSetter.getAddresses()
   const finalOwner = await addressSetter.finalOwner()
-  let currentOwner
+  let currentOwner = await libAddressManager.owner()
 
   console.log(
     '\n',
@@ -29,10 +33,29 @@ const deployFn: DeployFunction = async (hre) => {
   )
   console.log(`  to the Address Setter contract at ${addressSetter.address}.`)
 
+  const hreSigners = await hre.ethers.getSigners()
+  const hreSignerAddresses = hreSigners.map((signer) => {
+    return signer.address
+  })
+  if (
+    hreSignerAddresses.some((addr) => {
+      return hexStringEquals(addr, currentOwner)
+    })
+  ) {
+    console.log(
+      'Deploy script owns the address manager, this must be CI. Setting addresses...'
+    )
+    const owner = await hre.ethers.getSigner(currentOwner)
+    await libAddressManager
+      .connect(owner)
+      .transferOwnership(addressSetter.address)
+  }
+
   await waitUntilTrue(
     async () => {
-      currentOwner = await libAddressManager.owner()
       console.log('Checking ownership of Lib_AddressManager... ')
+      currentOwner = await libAddressManager.owner()
+      console.log('Lib_AddressManager owner is now set to AddressSetter.')
       return hexStringEquals(currentOwner, addressSetter.address)
     },
     {
@@ -43,14 +66,17 @@ const deployFn: DeployFunction = async (hre) => {
   )
 
   // Set the addresses!
+  console.log('Ownership successfully transferred. Invoking setAddresses...')
   await addressSetter.setAddresses()
 
   currentOwner = await libAddressManager.owner()
   console.log('Verifying final ownership of Lib_AddressManager')
   if (!hexStringEquals(finalOwner, currentOwner)) {
-    console.log(
+    throw new Error(
       `The current address manager owner ${currentOwner}, \nis not equal to the expected owner: ${finalOwner}`
     )
+  } else {
+    console.log(`Address Manager ownership was returned to ${finalOwner}.`)
   }
 }
 
