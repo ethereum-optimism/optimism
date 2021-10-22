@@ -135,7 +135,14 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
-export const getDeployedContract = async (
+// A map from contract names to config names which can be passed as arguments to hardhat deploy
+const configNames = {
+  Lib_AddressManager: 'libAddressManager',
+  Proxy__L1CrossDomainMessenger: 'proxyL1CrossDomainMessenger',
+  Proxy__L1StandardBridge: 'proxyL1StandardBridge',
+}
+
+export const getLiveContract = async (
   hre: any,
   name: string,
   options: {
@@ -143,14 +150,24 @@ export const getDeployedContract = async (
     signerOrProvider?: Signer | Provider | string
   } = {}
 ): Promise<Contract> => {
-  const deployed = await hre.deployments.get(name)
+  let factory = await hre.ethers.getContractFactory(name)
+  let iface = factory.interface
 
+  // First check to see if the contract is being reused in an upgrade, rather than freshly deployed.
+  // If so, then a valid address would have been provided for one of the 3 contracts in configNames.
+  const addr = (hre as any).deployConfig[configNames[name]]
+  if (hre.ethers.utils.isAddress(addr)) {
+    return new Contract(addr, iface)
+  }
+
+  // Otherwise, look for a previously deployed contract
+  const deployed = await hre.deployments.get(name)
   await hre.ethers.provider.waitForTransaction(deployed.receipt.transactionHash)
 
   // Get the correct interface.
-  let iface = new hre.ethers.utils.Interface(deployed.abi)
+  iface = new hre.ethers.utils.Interface(deployed.abi)
   if (options.iface) {
-    const factory = await hre.ethers.getContractFactory(options.iface)
+    factory = await hre.ethers.getContractFactory(options.iface)
     iface = factory.interface
   }
 
@@ -167,35 +184,4 @@ export const getDeployedContract = async (
     hre,
     contract: new Contract(deployed.address, iface, signerOrProvider),
   })
-}
-
-// todo: it would likely be cleaner to move all but the last line of logic here into
-// getDeployedContract
-export const getReusableContract = async (
-  hre: any,
-  name: string,
-  options: {
-    iface?: string
-    signerOrProvider?: Signer | Provider | string
-  } = {}
-): Promise<Contract> => {
-  const optionNames = {
-    Lib_AddressManager: 'libAddressManager',
-    Proxy__L1CrossDomainMessenger: 'proxyL1CrossDomainMessenger',
-    Proxy__L1StandardBridge: 'proxyL1StandardBridge',
-  }
-  if (!optionNames[name]) {
-    throw new Error(`${name} is not included in the set of reusable contracts.`)
-  }
-
-  const factory = await hre.ethers.getContractFactory(name)
-  const iface = factory.interface
-  // try to get the address from the config options
-  const addr = (hre as any).deployConfig[optionNames[name]]
-  if (hre.ethers.utils.isAddress(addr)) {
-    return new Contract(addr, iface)
-  } else {
-    // if an address was not provided, a new manager must have been deployed
-    return getDeployedContract(hre, name, options)
-  }
 }
