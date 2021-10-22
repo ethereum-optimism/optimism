@@ -1,7 +1,7 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { ethers } from 'ethers'
-import { hexStringEquals } from '@eth-optimism/core-utils'
+import { hexStringEquals, sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { predeploys } from '../src/predeploys'

@@ -24,18 +24,20 @@ const deployFn: DeployFunction = async (hre) => {
     contract: 'Lib_ResolvedDelegateProxy',
     iface: 'L1CrossDomainMessenger',
     args: [Lib_AddressManager.address, 'OVM_L1CrossDomainMessenger'],
-    postDeployAction: async (contract) => {
-      console.log(`Initializing Proxy__OVM_L1CrossDomainMessenger...`)
-      await contract.initialize(Lib_AddressManager.address)
+    // This reverts on a fresh deploy, because the implementation is not yet added to the AddressManager.
+    // I think the best option is to do the initialization atomically from within the AddressSetter.
+    // postDeployAction: async (contract) => {
+    //   console.log(`Initializing Proxy__OVM_L1CrossDomainMessenger...`)
+    //   await contract.initialize(Lib_AddressManager.address)
 
-      console.log(`Checking that contract was correctly initialized...`)
-      await waitUntilTrue(async () => {
-        return hexStringEquals(
-          await contract.libAddressManager(),
-          Lib_AddressManager.address
-        )
-      })
-    },
+    //   console.log(`Checking that contract was correctly initialized...`)
+    //   await waitUntilTrue(async () => {
+    //     return hexStringEquals(
+    //       await contract.libAddressManager(),
+    //       Lib_AddressManager.address
+    //     )
+    //   })
+    // },
   })
 }
 
