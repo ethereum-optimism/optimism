@@ -11,10 +11,14 @@ const deployFn: DeployFunction = async (hre) => {
   // There is a risk that on a fresh deployment we could get front-run,
   // and the Proxy would be bricked. But that feels unlikely, and we can recover from it.
   console.log(`Initializing Proxy__L1CrossDomainMessenger...`)
-  const proxy = await getLiveContract(hre, 'Proxy__L1CrossDomainMessenger', {
-    iface: 'L1CrossDomainMessenger',
-    signerOrProvider: deployer,
-  })
+  const proxy = await getLiveContract(
+    hre,
+    'Proxy__OVM_L1CrossDomainMessenger',
+    {
+      iface: 'L1CrossDomainMessenger',
+      signerOrProvider: deployer,
+    }
+  )
   const libAddressManager = await getLiveContract(hre, 'Lib_AddressManager')
   await proxy.initialize(libAddressManager.address)
 
