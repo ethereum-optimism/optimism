@@ -4,13 +4,13 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import {
-  getDeployedContract,
+  getLiveContract,
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getLiveContract(
     hre,
     'Lib_AddressManager',
     {
