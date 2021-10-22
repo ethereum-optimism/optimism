@@ -17,6 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // ToDo: Clean up the method of mapping names to addresses esp.
   // There's probably a more functional way to generate an object or something.
+  // ToDo: in the case of an upgrade, only add names of contracts that are new deployed.
   const names = [
     'ChainStorageContainer-CTC-batches',
     'ChainStorageContainer-SCC-batches',
@@ -24,6 +25,8 @@ const deployFn: DeployFunction = async (hre) => {
     'StateCommitmentChain',
     'BondManager',
     'OVM_L1CrossDomainMessenger',
+    'Proxy__L1CrossDomainMessenger',
+    'Proxy__L1StandardBridge',
   ]
 
   const addresses = await Promise.all(
@@ -51,7 +54,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndPostDeploy({
     hre,
-    name: 'AddressSetter1',
+    name: 'AddressSetter',
     contract: 'AddressSetter',
     args: [
       Lib_AddressManager.address,
@@ -62,6 +65,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['fresh', 'upgrade', 'AddressSetter1']
+deployFn.tags = ['fresh', 'upgrade', 'AddressSetter']
 
 export default deployFn
