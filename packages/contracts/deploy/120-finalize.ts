@@ -38,6 +38,6 @@ const deployFn: DeployFunction = async (hre) => {
   console.log(`✓ Set owner of Lib_AddressManager to: ${owner}`)
 }
 
-deployFn.tags = ['finalize', 'upgrade']
+deployFn.tags = ['fresh', 'upgrade', 'finalize']
 
 export default deployFn

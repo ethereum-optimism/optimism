@@ -16,6 +16,7 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['Proxy__OVM_L1StandardBridge']
+// This is kept during an upgrade. So no upgrade tag.
+deployFn.tags = ['fresh', 'Proxy__OVM_L1StandardBridge']
 
 export default deployFn
