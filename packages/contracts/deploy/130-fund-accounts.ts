@@ -58,6 +58,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['fund-accounts']
+deployFn.tags = ['fresh', 'fund-accounts']
 
 export default deployFn
