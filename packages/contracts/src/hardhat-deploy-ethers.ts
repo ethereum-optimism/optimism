@@ -151,24 +151,24 @@ export const getLiveContract = async (
     signerOrProvider?: Signer | Provider | string
   } = {}
 ): Promise<Contract> => {
-  let factory = await hre.ethers.getContractFactory(name)
-  let iface = factory.interface
-
   // First check to see if the contract is being reused in an upgrade, rather than freshly deployed.
   // If so, then a valid address would have been provided for one of the 3 contracts in configNames.
   const addr = (hre as any).deployConfig[configNames[name]]
   if (hre.ethers.utils.isAddress(addr)) {
-    return new Contract(addr, iface)
+    // Get the interface by name, unless an override was requested via the iface option
+    const factory = await hre.ethers.getContractFactory(options.iface || name)
+    return new Contract(addr, factory.interface)
   }
 
-  // Otherwise, look for a previously deployed contract
+  // Otherwise, look for a previously deployed contract.
   const deployed = await hre.deployments.get(name)
   await hre.ethers.provider.waitForTransaction(deployed.receipt.transactionHash)
 
-  // Get the correct interface.
-  iface = new hre.ethers.utils.Interface(deployed.abi)
+  // Get the deployed contract's interface.
+  let iface = new hre.ethers.utils.Interface(deployed.abi)
+  // Override with optional iface name if requested.
   if (options.iface) {
-    factory = await hre.ethers.getContractFactory(options.iface)
+    const factory = await hre.ethers.getContractFactory(options.iface)
     iface = factory.interface
   }
 
