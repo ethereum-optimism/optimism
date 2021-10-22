@@ -21,8 +21,8 @@ const deployFn: DeployFunction = async (hre) => {
     'StateCommitmentChain',
     'BondManager',
     'OVM_L1CrossDomainMessenger',
-    'Proxy__L1CrossDomainMessenger',
-    'Proxy__L1StandardBridge',
+    'Proxy__OVM_L1CrossDomainMessenger',
+    'Proxy__OVM_L1StandardBridge',
   ]
 
   const addresses = await Promise.all(
