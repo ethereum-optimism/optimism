@@ -81,7 +81,9 @@ const deployFn: DeployFunction = async (hre) => {
     throw new Error(`L1CrossDomainMessenger address is set to address(0)`)
   }
 
-  console.log(`Setting messenger address to ${l1CrossDomainMessengerAddress}...`)
+  console.log(
+    `Setting messenger address to ${l1CrossDomainMessengerAddress}...`
+  )
   await proxy.setStorage(
     ethers.utils.hexZeroPad('0x00', 32),
     ethers.utils.hexZeroPad(l1CrossDomainMessengerAddress, 32)
