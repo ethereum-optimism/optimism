@@ -5,12 +5,12 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import {
   deployAndPostDeploy,
-  getReusableContract,
+  getLiveContract,
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getReusableContract(
+  const Lib_AddressManager = await getLiveContract(
     hre,
     'Lib_AddressManager'
   )

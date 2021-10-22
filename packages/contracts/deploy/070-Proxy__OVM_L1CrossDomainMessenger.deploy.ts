@@ -5,15 +5,12 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import {
   deployAndPostDeploy,
-  getReusableContract,
+  getLiveContract,
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getReusableContract(
-    hre,
-    'Lib_AddressManager'
-  )
+  const Lib_AddressManager = await getLiveContract(hre, 'Lib_AddressManager')
 
   // todo: this fails when trying to do a fresh deploy, because Lib_ResolvedDelegateProxy
   // requires that the implementation has already been set in the Address Manager.
