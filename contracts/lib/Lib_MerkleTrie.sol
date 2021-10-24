@@ -340,11 +340,11 @@ library Lib_MerkleTrie {
         // solhint-disable-next-line max-line-length
         // Reference: https://github.com/ethereumjs/merkle-patricia-tree/blob/c0a10395aab37d42c175a47114ebfcbd7efcf059/src/baseTrie.ts#L294-L313
         // TODO: do we need this?
-        /*bool matchLeaf = false;
+        bool matchLeaf = false;
         if (lastNodeType == NodeType.LeafNode) {
             uint256 l = 0;
-            if (_path.length > 0) {
-                for (uint256 i = 0; i < _path.length - 1; i++) {
+            if (_pathLength > 0) {
+                for (uint256 i = 0; i < _pathLength - 1; i++) {
                     if (_getNodeType(_path[i]) == NodeType.BranchNode) {
                         l++;
                     } else {
@@ -364,8 +364,7 @@ library Lib_MerkleTrie {
             }
         }
 
-        if (matchLeaf) {*/
-        if (keyRemainder.length == 0 && lastNodeType == NodeType.LeafNode) {
+        if (matchLeaf) {
             // We've found a leaf node with the given key.
             // Simply need to update the value of the node to match.
             newNodes[totalNewNodes] = _makeLeafNode(_getNodeKey(lastNode), _value);
