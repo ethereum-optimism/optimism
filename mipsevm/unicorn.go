@@ -153,7 +153,7 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, callback fun
 
 		ministart := time.Now()
 		mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-			if steps%1000000 == 0 {
+			if steps%1000000 == 0 && false {
 				steps_per_sec := float64(steps) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
 				fmt.Printf("%10d pc: %x steps per s %f ram entries %d\n", steps, addr, steps_per_sec, len(ram))
 			}

@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-func deploy(interpreter *vm.EVMInterpreter, statedb *StateDB) {
+func DeployChain(interpreter *vm.EVMInterpreter, statedb *StateDB) {
 	bytecode := GetBytecode(false)
 
 	from := common.Address{}
@@ -47,7 +47,7 @@ func getTrieNode(str common.Hash, interpreter *vm.EVMInterpreter, statedb *State
 	return ret[64:]
 }
 
-func addTrieNode(str []byte, interpreter *vm.EVMInterpreter, statedb *StateDB) {
+func AddTrieNode(str []byte, interpreter *vm.EVMInterpreter, statedb *StateDB) {
 	from := common.Address{}
 	to := common.HexToAddress("0xBd770416a3345F91E4B34576cb804a576fa48EB1")
 	gas := uint64(100000000)
@@ -68,9 +68,19 @@ func addTrieNode(str []byte, interpreter *vm.EVMInterpreter, statedb *StateDB) {
 	check(err)
 }
 
+func RunWithInputAndGas(interpreter *vm.EVMInterpreter, statedb *StateDB, input []byte, gas uint64) ([]byte, uint64, error) {
+	from := common.Address{}
+	to := common.HexToAddress("0x1337")
+	bytecode := statedb.Bytecodes[to]
+	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
+	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
+	dat, err := interpreter.Run(contract, input, false)
+	return dat, (gas - contract.Gas), err
+}
+
 func RunFull() {
 	interpreter, statedb := GetInterpreter(0, true)
-	deploy(interpreter, statedb)
+	DeployChain(interpreter, statedb)
 
 	ram := make(map[uint32](uint32))
 	LoadMappedFile("../mipigo/test/test.bin", ram, 0)
@@ -88,7 +98,7 @@ func RunFull() {
 
 	for k, v := range Preimages {
 		fmt.Println("AddTrieNode", k)
-		addTrieNode(v, interpreter, statedb)
+		AddTrieNode(v, interpreter, statedb)
 	}
 	fmt.Println("trie is ready, let's run")
 	fmt.Println("state root", root, "nodes", len(Preimages))

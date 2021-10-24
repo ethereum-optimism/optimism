@@ -42,14 +42,16 @@ func NewStateDB(debug int, realState bool) *StateDB {
 func (s *StateDB) AddAddressToAccessList(addr common.Address)      {}
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {}
 func (s *StateDB) AddLog(log *types.Log) {
-	if log.Topics[0] == common.HexToHash("0x70c25ce54e55d181671946b6120c8147a91806a3620c981a355f3ae5b11deb13") {
-		fmt.Printf("R: %x\n", bytesTo32(log.Data[0:32]))
-	} else if log.Topics[0] == common.HexToHash("0x7b1a2ade00e6a076351ef8a0f302b160b7fd0c65c18234dfe8218c4fa4fa10ab") {
-		//fmt.Printf("R: %x -> %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
-	} else if log.Topics[0] == common.HexToHash("0x486ca368095cbbef9046ac7858bec943e866422cc388f49da1aa3aa77c10aa35") {
-		fmt.Printf("W: %x <- %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
-	} else {
-		fmt.Println("AddLog", log.Topics, log.Data)
+	if s.Debug >= 1 {
+		if log.Topics[0] == common.HexToHash("0x70c25ce54e55d181671946b6120c8147a91806a3620c981a355f3ae5b11deb13") {
+			fmt.Printf("R: %x\n", bytesTo32(log.Data[0:32]))
+		} else if log.Topics[0] == common.HexToHash("0x7b1a2ade00e6a076351ef8a0f302b160b7fd0c65c18234dfe8218c4fa4fa10ab") {
+			//fmt.Printf("R: %x -> %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
+		} else if log.Topics[0] == common.HexToHash("0x486ca368095cbbef9046ac7858bec943e866422cc388f49da1aa3aa77c10aa35") {
+			fmt.Printf("W: %x <- %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
+		} else {
+			fmt.Println("AddLog", log.Topics, log.Data)
+		}
 	}
 }
 func (s *StateDB) AddPreimage(hash common.Hash, preimage []byte)             {}
@@ -105,7 +107,7 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 				ram[0xc0000008], ram[0xc000000c], ram[0xc0000010], ram[0xc0000014],
 				ram[0xc0000018], ram[0xc000001c], ram[0xc0000020], ram[0xc0000024])
 		}
-		if (s.PcCount % 100000) == 0 {
+		if (s.PcCount%100000) == 0 && false {
 			steps_per_sec := float64(s.PcCount) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
 			os.Stderr.WriteString(fmt.Sprintf("%10d pc: %x steps per s %f ram entries %d\n", s.PcCount, nret&0x7FFFFFFF, steps_per_sec, len(ram)))
 		}
