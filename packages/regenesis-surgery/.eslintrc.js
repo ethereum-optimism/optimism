@@ -1,4 +1,4 @@
 module.exports = {
   extends: '../../.eslintrc.js',
-  ignorePatterns: ['/data', '/solc-bin'],
+  ignorePatterns: ['/data', '/solc-bin', '/solc-cache'],
 }

@@ -146,3 +146,15 @@ export const SOLC_BIN_PATH = 'https://binaries.soliditylang.org'
 export const EMSCRIPTEN_BUILD_PATH = `${SOLC_BIN_PATH}/emscripten-wasm32`
 export const EMSCRIPTEN_BUILD_LIST = `${EMSCRIPTEN_BUILD_PATH}/list.json`
 export const LOCAL_SOLC_DIR = path.join(__dirname, '..', 'solc-bin')
+export const EVM_SOLC_CACHE_DIR = path.join(
+  __dirname,
+  '..',
+  'solc-cache',
+  'evm'
+)
+export const OVM_SOLC_CACHE_DIR = path.join(
+  __dirname,
+  '..',
+  'solc-cache',
+  'ovm'
+)
