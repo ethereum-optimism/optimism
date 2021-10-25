@@ -1,8 +1,9 @@
 /* Imports: External */
-import { Contract } from 'ethers'
+import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { sleep, hexStringEquals } from '@eth-optimism/core-utils'
+import { HttpNetworkConfig } from 'hardhat/types'
 
 export const waitUntilTrue = async (
   check: () => Promise<boolean>,
@@ -208,3 +209,82 @@ export const getDeployedContract = async (
     contract: new Contract(deployed.address, iface, signerOrProvider),
   })
 }
+
+export const fundAccount = async (
+  hre: any,
+  address: string,
+  amount: ethers.BigNumber
+) => {
+  if ((hre as any).deployConfig.forked !== 'true') {
+    throw new Error('this method can only be used against a forked network')
+  }
+
+  console.log(`Funding account ${address}...`)
+  await hre.ethers.provider.send('hardhat_setBalance', [
+    address,
+    amount.toHexString(),
+  ])
+
+  console.log(`Waiting for balance to reflect...`)
+  await waitUntilTrue(async () => {
+    const balance = await hre.ethers.provider.getBalance(address)
+    return balance.gte(amount)
+  })
+
+  console.log(`Account successfully funded.`)
+}
+
+export const sendImpersonatedTx = async (opts: {
+  hre: any
+  contract: ethers.Contract
+  fn: string
+  from: string
+  gas: string
+  args: any[]
+}) => {
+  if ((opts.hre as any).deployConfig.forked !== 'true') {
+    throw new Error('this method can only be used against a forked network')
+  }
+
+  console.log(`Impersonating account ${opts.from}...`)
+  await opts.hre.ethers.provider.send('hardhat_impersonateAccount', [opts.from])
+
+  console.log(`Funding account ${opts.from}...`)
+  await fundAccount(opts.hre, opts.from, BIG_BALANCE)
+
+  console.log(`Sending impersonated transaction...`)
+  const tx = await opts.contract.populateTransaction[opts.fn](...opts.args)
+  const provider = new opts.hre.ethers.providers.JsonRpcProvider(
+    (opts.hre.network.config as HttpNetworkConfig).url
+  )
+  await provider.send('eth_sendTransaction', [
+    {
+      ...tx,
+      from: opts.from,
+      gas: opts.gas,
+    },
+  ])
+
+  console.log(`Stopping impersonation of account ${opts.from}...`)
+  await opts.hre.ethers.provider.send('hardhat_stopImpersonatingAccount', [
+    opts.from,
+  ])
+}
+
+export const getContractFromArtifact = async (
+  hre: any,
+  name: string
+): Promise<ethers.Contract> => {
+  const artifact = await hre.deployments.get(name)
+  return getAdvancedContract({
+    hre,
+    contract: new hre.ethers.Contract(
+      artifact.address,
+      artifact.abi,
+      hre.ethers.provider
+    ),
+  })
+}
+
+// Large balance to fund accounts with.
+export const BIG_BALANCE = ethers.BigNumber.from(`0xFFFFFFFFFFFFFFFFFFFF`)
