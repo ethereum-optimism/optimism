@@ -69,7 +69,7 @@ Network : __kovan (chain id: 42)__
 |OVM_L1CrossDomainMessenger|[0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c](https://kovan.etherscan.io/address/0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c)|
 |Proxy__L1CrossDomainMessenger|[0x4361d0F75A0186C05f971c566dC6bEa5957483fD](https://kovan.etherscan.io/address/0x4361d0F75A0186C05f971c566dC6bEa5957483fD)|
 |Proxy__L1StandardBridge|[0x22F24361D548e5FaAfb36d1437839f080363982B](https://kovan.etherscan.io/address/0x22F24361D548e5FaAfb36d1437839f080363982B)|
-|StateCommitmentChain|[0x3deD8656a19D12814d04037Cc1b9E77E653983B3](https://kovan.etherscan.io/address/0x3deD8656a19D12814d04037Cc1b9E77E653983B3)|
+|StateCommitmentChain|[0x2C1561bA6b4e6EDF8Ca40F12955C36477747Ff11](https://kovan.etherscan.io/address/0x2C1561bA6b4e6EDF8Ca40F12955C36477747Ff11)|
 <!--
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
