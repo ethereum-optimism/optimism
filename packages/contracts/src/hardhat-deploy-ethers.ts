@@ -2,7 +2,7 @@
 import { Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep, hexStringEquals } from '@eth-optimism/core-utils'
+import { sleep } from '@eth-optimism/core-utils'
 
 export const waitUntilTrue = async (
   check: () => Promise<boolean>,

@@ -55,7 +55,7 @@ const deployFn: DeployFunction = async (hre) => {
     async () => {
       console.log('Checking ownership of Lib_AddressManager... ')
       currentOwner = await libAddressManager.owner()
-      console.log('Lib_AddressManager owner is now set to AddressSetter.')
+      console.log('Lib_AddressManager owner is currently set to AddressSetter.')
       return hexStringEquals(currentOwner, addressSetter.address)
     },
     {

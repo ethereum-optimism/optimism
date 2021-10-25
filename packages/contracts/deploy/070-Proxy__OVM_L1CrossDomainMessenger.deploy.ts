@@ -12,9 +12,6 @@ import {
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getLiveContract(hre, 'Lib_AddressManager')
 
-  // todo: this fails when trying to do a fresh deploy, because Lib_ResolvedDelegateProxy
-  // requires that the implementation has already been set in the Address Manager.
-  // The revert message is: 'Target address must be initialized'
   await deployAndPostDeploy({
     hre,
     name: 'Proxy__OVM_L1CrossDomainMessenger',

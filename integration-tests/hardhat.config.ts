@@ -5,6 +5,10 @@ import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-gas-reporter'
 
+// Hardhat plugins
+import 'hardhat-deploy'
+import '@eth-optimism/contracts/tasks/deploy'
+
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 
 const config: HardhatUserConfig = {
@@ -35,6 +39,9 @@ const config: HardhatUserConfig = {
     currency: 'USD',
     gasPrice: 100,
     outputFile: process.env.CI ? 'gas-report.txt' : undefined,
+  },
+  paths: {
+    deploy: '../packages/contracts/deploy',
   },
 }
 
