@@ -11,7 +11,8 @@
       "specs",
       "go/gas-oracle",
       "go/batch-submitter",
-      "ops/docker/builder"
+      "ops/docker/builder",
+      "ops/docker/hardhat"
     ]
   },
   "private": true,
