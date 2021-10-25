@@ -13,7 +13,8 @@
       "go/batch-submitter",
       "go/proxyd",
       "ops/docker/rpc-proxy",
-      "ops/docker/builder"
+      "ops/docker/builder",
+      "ops/docker/hardhat"
     ],
     "nohoist": [
       "examples/*"
