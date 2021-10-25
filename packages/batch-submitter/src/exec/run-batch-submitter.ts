@@ -247,7 +247,7 @@ export const run = async () => {
 
   const VALIDATE_TX_BATCH = config.bool(
     'validate-tx-batch',
-    env.VALIDATE_TX_BATCH ? !!env.VALIDATE_TX_BATCH : true
+    env.VALIDATE_TX_BATCH ? env.VALIDATE_TX_BATCH === 'true' : false
   )
 
   // Auto fix batch options -- TODO: Remove this very hacky config
