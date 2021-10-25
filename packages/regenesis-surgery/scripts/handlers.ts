@@ -5,7 +5,11 @@ import {
   POOL_INIT_CODE_HASH_OPTIMISM_KOVAN,
 } from '@uniswap/v3-sdk'
 import { sleep, add0x, remove0x, clone } from '@eth-optimism/core-utils'
-import { OLD_ETH_ADDRESS, WETH_TRANSFER_ADDRESSES } from './constants'
+import {
+  OLD_ETH_ADDRESS,
+  WETH_TRANSFER_ADDRESSES,
+  UNISWAP_V3_KOVAN_MULTICALL,
+} from './constants'
 import {
   findAccount,
   hexStringIncludes,
@@ -225,6 +229,20 @@ export const handlers: {
       address: pool.newAddress,
       code: poolCode,
     }
+  },
+  [AccountType.UNISWAP_V3_MAINNET_MULTICALL]: async (account, data) => {
+    // When upgrading mainnet, we want to get rid of the old multicall contract and introduce a new
+    // multicall contract at the OP Kovan address (also the ETH mainnet address). By changing the
+    // address here and piping into the UNISWAP_V3_OTHER handler, we:
+    // (1) Get the state of the old multicall but with the new address
+    // (2) Query the code using the new address (required)
+    return handlers[AccountType.UNISWAP_V3_OTHER](
+      {
+        ...account,
+        address: UNISWAP_V3_KOVAN_MULTICALL,
+      },
+      data
+    )
   },
   [AccountType.UNISWAP_V3_OTHER]: async (account, data) => {
     let code = await data.ethProvider.getCode(account.address)
