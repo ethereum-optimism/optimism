@@ -82,6 +82,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     this.autoFixBatchOptions = autoFixBatchOptions
     this.gasThresholdInGwei = gasThresholdInGwei
     this.transactionSubmitter = transactionSubmitter
+
+    this.logger.info('Batch validation options', {
+      autoFixBatchOptions,
+      validateBatch
+    })
   }
 
   /*****************************
@@ -267,6 +272,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // modify the batch unless an autoFixBatchOption is set
     batch = await this._fixBatch(batch)
     if (this.validateBatch) {
+      this.logger.info('Validating batch')
       if (!(await this._validateBatch(batch))) {
         this.metrics.malformedBatches.inc()
         return
@@ -562,12 +568,15 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // NOTE: It is unsafe to combine multiple autoFix options.
     // If you must combine them, manually verify the output before proceeding.
     if (this.autoFixBatchOptions.fixDoublePlayedDeposits) {
+      this.logger.info('Fixing double played deposits')
       batch = await fixDoublePlayedDeposits(batch)
     }
     if (this.autoFixBatchOptions.fixMonotonicity) {
+      this.logger.info('Fixing monotonicity')
       batch = await fixMonotonicity(batch)
     }
     if (this.autoFixBatchOptions.fixSkippedDeposits) {
+      this.logger.info('Fixing skipped deposits')
       batch = await fixSkippedDeposits(batch)
     }
     return batch
