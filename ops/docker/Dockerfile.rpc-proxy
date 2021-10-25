@@ -1,5 +1,5 @@
 FROM openresty/openresty:buster
-LABEL maintainer="Optimistic Systems <systems@optiomism.io>"
+LABEL maintainer="Optimistic Systems <systems@optimism.io>"
 ARG GOTEMPLATE_VERSION=v3.9.0
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
