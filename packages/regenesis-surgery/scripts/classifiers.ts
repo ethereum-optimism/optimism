@@ -3,6 +3,7 @@ import {
   UNISWAP_V3_FACTORY_ADDRESS,
   UNISWAP_V3_NFPM_ADDRESS,
   UNISWAP_V3_CONTRACT_ADDRESSES,
+  UNISWAP_V3_MAINNET_MULTICALL,
   PREDEPLOY_WIPE_ADDRESSES,
   PREDEPLOY_NO_WIPE_ADDRESSES,
   PREDEPLOY_NEW_NOT_ETH_ADDRESSES,
@@ -66,6 +67,9 @@ export const classifiers: {
   },
   [AccountType.UNISWAP_V3_NFPM]: (account) => {
     return hexStringEqual(account.address, UNISWAP_V3_NFPM_ADDRESS)
+  },
+  [AccountType.UNISWAP_V3_MAINNET_MULTICALL]: (account) => {
+    return hexStringEqual(account.address, UNISWAP_V3_MAINNET_MULTICALL)
   },
   [AccountType.UNISWAP_V3_POOL]: (account, data) => {
     return data.pools.some((pool) => {
