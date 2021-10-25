@@ -2,7 +2,7 @@
 import { access, mkdir } from 'fs/promises'
 import fetch from 'node-fetch'
 import path from 'path'
-import fs from 'fs'
+import fs, { mkdirSync } from 'fs'
 import solc from 'solc'
 import { ethers } from 'ethers'
 import { clone } from '@eth-optimism/core-utils'
@@ -11,6 +11,8 @@ import {
   EMSCRIPTEN_BUILD_LIST,
   EMSCRIPTEN_BUILD_PATH,
   LOCAL_SOLC_DIR,
+  EVM_SOLC_CACHE_DIR,
+  OVM_SOLC_CACHE_DIR,
 } from './constants'
 import { EtherscanContract } from './types'
 
@@ -181,10 +183,50 @@ const compilerCache: {
   ['EVM']: {},
 }
 
+const readCompilerCache = (
+  target: 'evm' | 'ovm',
+  hash: string
+): any | undefined => {
+  try {
+    const cacheDir = target === 'evm' ? EVM_SOLC_CACHE_DIR : OVM_SOLC_CACHE_DIR
+    return JSON.parse(
+      fs.readFileSync(path.join(cacheDir, hash), {
+        encoding: 'utf-8',
+      })
+    )
+  } catch (err) {
+    return undefined
+  }
+}
+
+const writeCompilerCache = (
+  target: 'evm' | 'ovm',
+  hash: string,
+  content: any
+) => {
+  const cacheDir = target === 'evm' ? EVM_SOLC_CACHE_DIR : OVM_SOLC_CACHE_DIR
+  fs.writeFileSync(path.join(cacheDir, hash), JSON.stringify(content))
+}
+
 export const compile = (opts: {
   contract: EtherscanContract
   ovm: boolean
 }): any => {
+  try {
+    mkdirSync(EVM_SOLC_CACHE_DIR, {
+      recursive: true,
+    })
+  } catch (e) {
+    // directory already exists
+  }
+  try {
+    mkdirSync(OVM_SOLC_CACHE_DIR, {
+      recursive: true,
+    })
+  } catch (e) {
+    // directory already exists
+  }
+
   let version: string
   if (opts.ovm) {
     version = opts.contract.compilerVersion
@@ -200,17 +242,15 @@ export const compile = (opts: {
   const solcInstance = getSolc(version, opts.ovm)
   const input = JSON.stringify(solcInput(opts.contract))
   const inputHash = ethers.utils.solidityKeccak256(['string'], [input])
-  const compilerTarget = opts.ovm ? 'OVM' : 'EVM'
+  const compilerTarget = opts.ovm ? 'ovm' : 'evm'
 
   // Cache the compiler output to speed up repeated compilations of the same contract. If this
   // cache is too memory intensive, then we could consider only caching if the contract has been
   // seen more than once.
-  let output: any
-  if (compilerCache[compilerTarget][inputHash]) {
-    output = compilerCache[compilerTarget][inputHash]
-  } else {
+  let output = readCompilerCache(compilerTarget, inputHash)
+  if (output === undefined) {
     output = JSON.parse(solcInstance.compile(input))
-    compilerCache[compilerTarget][inputHash] = output
+    writeCompilerCache(compilerTarget, inputHash, output)
   }
 
   if (!output.contracts) {

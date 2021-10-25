@@ -5,3 +5,4 @@ outputs/
 etherscan/
 state-dumps/
 data/
+solc-cache/
