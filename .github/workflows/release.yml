@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     # map the step outputs to job outputs
     outputs:
+      use_builder: ${{ steps.packages.outputs.use_builder }}
       builder: ${{ steps.packages.outputs.builder }}
       l2geth: ${{ steps.packages.outputs.l2geth }}
       batch-submitter: ${{ steps.packages.outputs.batch-submitter }}
@@ -203,12 +204,17 @@ jobs:
 
   # pushes the base builder image to dockerhub
   builder:
-    name: Prepare the base builder image for the services
+    name: Prepare/Publish the base builder image for the services ${{ needs.release.outputs.builder }}
     needs: release
-    if: needs.release.outputs.builder == 'true'
+    # Build the builder if a dep of the builder has an update or if the builder
+    # has had its version bumped. TODO: remove the left hand side once tagged
+    # releases of the builder are released so that pulled builder images are
+    # used
+    if: ${{ needs.release.outputs.use_builder == 'true' || needs.release.outputs.builder != '' }}
     runs-on: ubuntu-latest
     # we re-output the variables so that the child jobs can access them
     outputs:
+      builder: ${{ needs.release.outputs.builder || 'latest' }}
       batch-submitter: ${{ needs.release.outputs.batch-submitter }}
       message-relayer: ${{ needs.release.outputs.message-relayer }}
       data-transport-layer: ${{ needs.release.outputs.data-transport-layer }}
@@ -234,7 +240,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.monorepo
           push: true
-          tags: ethereumoptimism/builder
+          tags: ethereumoptimism/builder:${{ needs.release.outputs.builder }},ethereumoptimism/builder:latest
 
   message-relayer:
     name: Publish Message Relayer Version ${{ needs.builder.outputs.message-relayer }}
@@ -261,6 +267,7 @@ jobs:
           file: ./ops/docker/Dockerfile.message-relayer
           push: true
           tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.message-relayer }},ethereumoptimism/message-relayer:latest
+          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
 
   batch-submitter:
     name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
@@ -287,6 +294,7 @@ jobs:
           file: ./ops/docker/Dockerfile.batch-submitter
           push: true
           tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.batch-submitter }},ethereumoptimism/batch-submitter:latest
+          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
 
   data-transport-layer:
     name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
@@ -313,6 +321,7 @@ jobs:
           file: ./ops/docker/Dockerfile.data-transport-layer
           push: true
           tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.data-transport-layer }},ethereumoptimism/data-transport-layer:latest
+          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
 
   contracts:
     name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
@@ -339,6 +348,7 @@ jobs:
           file: ./ops/docker/Dockerfile.deployer
           push: true
           tags: ethereumoptimism/deployer:${{ needs.builder.outputs.contracts }},ethereumoptimism/deployer:latest
+          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
 
   integration_tests:
     name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
@@ -365,6 +375,7 @@ jobs:
           file: ./ops/docker/Dockerfile.integration-tests
           push: true
           tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.integration-tests }},ethereumoptimism/integration-tests:latest
+          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
 
   replica-healthcheck:
     name: Publish Replica Healthcheck Version ${{ needs.builder.outputs.replica-healthcheck }}
@@ -391,3 +402,4 @@ jobs:
           file: ./ops/docker/Dockerfile.replica-healthcheck
           push: true
           tags: ethereumoptimism/replica-healthcheck:${{ needs.builder.outputs.replica-healthcheck }},ethereumoptimism/replica-healthcheck:latest
+          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
