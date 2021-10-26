@@ -40,9 +40,6 @@ contract AddressDictator {
         string[] memory _names,
         address[] memory _addresses
     ) {
-        // todo: this probably needs to be moved into a public function which the deployer key
-        // is authed to call. Otherwise we need to predict the address of this contract, and have
-        // the multisig transfer ownership here before it is deployed, which would be scary.
         manager = _manager;
         finalOwner = _finalOwner;
         require(
@@ -58,6 +55,10 @@ contract AddressDictator {
      * Public Functions *
      ********************/
 
+    /**
+     * Called to finalize the transfer, this function is callable by anyone, but will only result in
+     * an upgrade if this contract is the owner Address Manager.
+     */
     function setAddresses() external {
         for (uint256 i = 0; i < namedAddresses.length; i++) {
             manager.setAddress(namedAddresses[i].name, namedAddresses[i].addr);
@@ -67,10 +68,13 @@ contract AddressDictator {
     }
 
     /**
+     * Transfers ownership of this contract to the finalOwner.
+     * Only callable by the Final Owner, which is intended to be our multisig.
      * This function shouldn't be necessary, but it gives a sense of reassurance that we can recover
      * if something really surprising goes wrong.
      */
     function returnOwnership() external {
+        require(msg.sender == finalOwner, "AddressDictator: only callable by finalOwner");
         manager.transferOwnership(finalOwner);
     }
 
@@ -78,6 +82,9 @@ contract AddressDictator {
      * View Functions *
      ******************/
 
+    /**
+     * Returns the full namedAddresses array.
+     */
     function getNamedAddresses() external view returns (NamedAddress[] memory) {
         return namedAddresses;
     }
