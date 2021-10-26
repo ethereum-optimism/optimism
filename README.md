@@ -7,6 +7,17 @@ This repository holds the open-source specification for Optimistic Ethereum, an 
 Please note that this specification is currently heavily under construction.
 You will find that several pages are incomplete or [under discussion](https://github.com/ethereum-optimism/optimistic-specs/issues).
 
+## Specification structure
+
+- [Overview](./overview.md)
+- Components:
+  - [Layer 1 Contracts](./components/layer1.md)
+  - [Rollup Client](./components/rollup_client.md)
+  - [Execution Engine](./components/exec_engine.md)
+  - [Batch Submitter](./components/batch_submitter.md)
+  - [Witness Generator](./components/witness_gen.md)
+  - [Challenge Agent](./components/challenge_agent.md)
+
 ## Design Philosophy
 
 We believe that **the best optimistic rollup design needs to be minimal, open, and accessible.**
@@ -34,17 +45,6 @@ An MIT licensed implementation of this protocol can be found [here](https://gith
 Users, developers, and protocol designers need to be confident that a given optimistic rollup is robust and secure.
 We believe that this confidence can only truly come from an accessible specification and codebase that developers can reasonably be expected to understand.
 Without this accessibility we'll always fundamentally have to trust the knowledge and competence of a very small group of core developers, a fact antithetical to the ideal decentralized nature of these systems.
-
-## Specification structure
-
-- [Overview](./overview.md)
-- Components:
-  - [Layer 1 Contracts](./components/layer1.md)
-  - [Rollup Client](./components/rollup_client.md)
-  - [Execution Engine](./components/exec_engine.md)
-  - [Batch Submitter](./components/batch_submitter.md)
-  - [Witness Generator](./components/witness_gen.md)
-  - [Challenge Agent](./components/challenge_agent.md)
 
 ## Contributing
 ### Basic Contributions
