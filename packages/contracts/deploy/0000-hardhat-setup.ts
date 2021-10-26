@@ -1,58 +1,75 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
+import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import {
-  getAdvancedContract,
+  getContractFromArtifact,
+  fundAccount,
+  sendImpersonatedTx,
   waitUntilTrue,
+  BIG_BALANCE,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const { deployer } = await hre.getNamedAccounts()
-
   if ((hre as any).deployConfig.forked !== 'true') {
     return
   }
 
   console.log(`Running custom setup for forked experimental networks`)
+  const { deployer } = await hre.getNamedAccounts()
 
-  // Fund the deployer account
+  // Fund the deployer account so it can be used for the rest of this deployment.
   console.log(`Funding deployer account...`)
-  const amount = `0xFFFFFFFFFFFFFFFFFF`
-  await hre.ethers.provider.send('hardhat_setBalance', [deployer, amount])
-
-  console.log(`Waiting for balance to reflect...`)
-  await waitUntilTrue(async () => {
-    const balance = await hre.ethers.provider.getBalance(deployer)
-    return balance.gte(hre.ethers.BigNumber.from(amount))
-  })
+  await fundAccount(hre, deployer, BIG_BALANCE)
 
   // Get a reference to the AddressManager contract.
-  const artifact = await hre.deployments.get('Lib_AddressManager')
-  const Lib_AddressManager = getAdvancedContract({
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    contract: new hre.ethers.Contract(
-      artifact.address,
-      artifact.abi,
-      hre.ethers.provider
-    ),
-  })
+    'Lib_AddressManager'
+  )
 
-  // Impersonate the owner of the AddressManager
-  console.log(`Impersonating owner account...`)
-  const owner = await Lib_AddressManager.owner()
-  await hre.ethers.provider.send('hardhat_impersonateAccount', [owner])
-
-  console.log(`Started impersonating ${owner}`)
+  // Transfer ownership of the AddressManager to the deployer.
   console.log(`Setting AddressManager owner to ${deployer}`)
-  const signer = await hre.ethers.getSigner(owner)
-  await Lib_AddressManager.connect(signer).transferOwnership(deployer)
+  await sendImpersonatedTx({
+    hre,
+    contract: Lib_AddressManager,
+    fn: 'transferOwnership',
+    from: await Lib_AddressManager.owner(),
+    gas: ethers.BigNumber.from(2_000_000).toHexString(),
+    args: [deployer],
+  })
 
   console.log(`Waiting for owner to be correctly set...`)
   await waitUntilTrue(async () => {
     return (await Lib_AddressManager.owner()) === deployer
   })
 
-  console.log(`Disabling impersonation...`)
-  await hre.ethers.provider.send('hardhat_stopImpersonatingAccount', [owner])
+  // Get a reference to the L1StandardBridge contract.
+  const Proxy__OVM_L1StandardBridge = await getContractFromArtifact(
+    hre,
+    'Proxy__OVM_L1StandardBridge'
+  )
+
+  // Transfer ownership of the L1StandardBridge to the deployer.
+  console.log(`Setting L1StandardBridge owner to ${deployer}`)
+  await sendImpersonatedTx({
+    hre,
+    contract: Proxy__OVM_L1StandardBridge,
+    fn: 'setOwner',
+    from: await Proxy__OVM_L1StandardBridge.callStatic.getOwner({
+      from: hre.ethers.constants.AddressZero,
+    }),
+    gas: ethers.BigNumber.from(2_000_000).toHexString(),
+    args: [deployer],
+  })
+
+  console.log(`Waiting for owner to be correctly set...`)
+  await waitUntilTrue(async () => {
+    return (
+      (await Proxy__OVM_L1StandardBridge.callStatic.getOwner({
+        from: hre.ethers.constants.AddressZero,
+      })) === deployer
+    )
+  })
 }
 
 deployFn.tags = ['hardhat', 'upgrade']
