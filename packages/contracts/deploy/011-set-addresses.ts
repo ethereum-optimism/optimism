@@ -4,14 +4,14 @@ import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import { getLiveContract, waitUntilTrue } from '../src/hardhat-deploy-ethers'
+import { getContractFromArtifact, waitUntilTrue } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-  const addressDictator = await getLiveContract(hre, 'AddressDictator', {
+  const addressDictator = await getContractFromArtifact(hre, 'AddressDictator', {
     signerOrProvider: deployer,
   })
-  const libAddressManager = await getLiveContract(hre, 'Lib_AddressManager')
+  const libAddressManager = await getContractFromArtifact(hre, 'Lib_AddressManager')
   const namedAddresses = await addressDictator.getNamedAddresses()
   const finalOwner = await addressDictator.finalOwner()
   let currentOwner = await libAddressManager.owner()

@@ -4,11 +4,11 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 /* Imports: Internal */
 import {
   deployAndPostDeploy,
-  getLiveContract,
+  getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getLiveContract(hre, 'Lib_AddressManager')
+  const Lib_AddressManager = await getContractFromArtifact(hre, 'Lib_AddressManager')
 
   await deployAndPostDeploy({
     hre,

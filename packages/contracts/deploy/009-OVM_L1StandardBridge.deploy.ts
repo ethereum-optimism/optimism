@@ -10,7 +10,7 @@ import {
   getContractDefinition,
 } from '../src/contract-defs'
 import {
-  getLiveContract,
+  getContractFromArtifact,
   waitUntilTrue,
   getAdvancedContract,
   deployAndPostDeploy,
@@ -20,7 +20,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
   // Set up a reference to the proxy as if it were the L1StandardBridge contract.
-  const contract = await getLiveContract(hre, 'Proxy__OVM_L1StandardBridge', {
+  const contract = await getContractFromArtifact(hre, 'Proxy__OVM_L1StandardBridge', {
     iface: 'L1StandardBridge',
     signerOrProvider: deployer,
   })
@@ -62,7 +62,7 @@ const deployFn: DeployFunction = async (hre) => {
   // Next we need to set the `messenger` address by executing a setStorage operation. We'll
   // check that this operation was correctly executed by calling `messenger()` and checking
   // that the result matches the value we initialized.
-  const l1CrossDomainMessenger = await getLiveContract(
+  const l1CrossDomainMessenger = await getContractFromArtifact(
     hre,
     'Proxy__OVM_L1CrossDomainMessenger'
   )

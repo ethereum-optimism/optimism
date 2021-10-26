@@ -118,41 +118,6 @@ task('deploy')
     validateAddressArg('ovmProposerAddress')
     validateAddressArg('ovmAddressManagerOwner')
 
-    // Validate potentially conflicting arguments
-    // When are argName is provided, it indicates an address that will be reused in this deployment.
-    // When a tagName is provided, it indicates that a new contract will be deployed.
-    const validateArgOrTag = (argName: string, tagName: string) => {
-      // The 'fresh' tag tells us that a new copy of each contract will be deployed.
-      const hasTag = args.tags.includes(tagName)
-      // Ensure that an arg and tag were NOT BOTH provided for a given contract
-      if (hasTag && ethers.utils.isAddress(args[argName])) {
-        throw new Error(
-          `cannot deploy a new ${tagName} if the address of an existing one is provided`
-        )
-      }
-      // Ensure that either a valid address is provided OR that we deploy a new one.
-      try {
-        validateAddressArg(argName)
-        console.log(
-          `Running deployments with the existing ${tagName} at ${args[argName]}`
-        )
-      } catch (error) {
-        if (!hasTag) {
-          throw new Error(
-            `${error.message} \nmust either deploy a new ${tagName}, or provide the address for an existing one`
-          )
-        }
-        console.log(`Running deployments with a new ${tagName}`)
-      }
-    }
-
-    validateArgOrTag('libAddressManager', 'Lib_AddressManager')
-    validateArgOrTag(
-      'proxyL1CrossDomainMessenger',
-      'Proxy__OVM_L1CrossDomainMessenger'
-    )
-    validateArgOrTag('proxyL1StandardBridge', 'Proxy__OVM_L1StandardBridge')
-
     hre.deployConfig = args
     return runSuper(args)
   })

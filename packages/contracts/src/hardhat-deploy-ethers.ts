@@ -136,57 +136,6 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
-// A map from contract names to config names which can be passed as arguments to hardhat deploy
-const configNames = {
-  Lib_AddressManager: 'libAddressManager',
-  Proxy__L1CrossDomainMessenger: 'proxyL1CrossDomainMessenger',
-  Proxy__L1StandardBridge: 'proxyL1StandardBridge',
-}
-
-export const getLiveContract = async (
-  hre: any,
-  name: string,
-  options: {
-    iface?: string
-    signerOrProvider?: Signer | Provider | string
-  } = {}
-): Promise<Contract> => {
-  // First check to see if the contract is being reused in an upgrade, rather than freshly deployed.
-  // If so, then a valid address would have been provided for one of the 3 contracts in configNames.
-  const addr = (hre as any).deployConfig[configNames[name]]
-  if (hre.ethers.utils.isAddress(addr)) {
-    // Get the interface by name, unless an override was requested via the iface option
-    const factory = await hre.ethers.getContractFactory(options.iface || name)
-    return new Contract(addr, factory.interface)
-  }
-
-  // Otherwise, look for a previously deployed contract.
-  const deployed = await hre.deployments.get(name)
-  await hre.ethers.provider.waitForTransaction(deployed.receipt.transactionHash)
-
-  // Get the deployed contract's interface.
-  let iface = new hre.ethers.utils.Interface(deployed.abi)
-  // Override with optional iface name if requested.
-  if (options.iface) {
-    const factory = await hre.ethers.getContractFactory(options.iface)
-    iface = factory.interface
-  }
-
-  let signerOrProvider: Signer | Provider = hre.ethers.provider
-  if (options.signerOrProvider) {
-    if (typeof options.signerOrProvider === 'string') {
-      signerOrProvider = hre.ethers.provider.getSigner(options.signerOrProvider)
-    } else {
-      signerOrProvider = options.signerOrProvider
-    }
-  }
-
-  return getAdvancedContract({
-    hre,
-    contract: new Contract(deployed.address, iface, signerOrProvider),
-  })
-}
-
 export const fundAccount = async (
   hre: any,
   address: string,
@@ -250,15 +199,38 @@ export const sendImpersonatedTx = async (opts: {
 
 export const getContractFromArtifact = async (
   hre: any,
-  name: string
+  name: string,
+  options: {
+    iface?: string
+    signerOrProvider?: Signer | Provider | string
+  } = {}
 ): Promise<ethers.Contract> => {
   const artifact = await hre.deployments.get(name)
+  await hre.ethers.provider.waitForTransaction(artifact.receipt.transactionHash)
+
+  // Get the deployed contract's interface.
+  let iface = new hre.ethers.utils.Interface(artifact.abi)
+  // Override with optional iface name if requested.
+  if (options.iface) {
+    const factory = await hre.ethers.getContractFactory(options.iface)
+    iface = factory.interface
+  }
+
+  let signerOrProvider: Signer | Provider = hre.ethers.provider
+  if (options.signerOrProvider) {
+    if (typeof options.signerOrProvider === 'string') {
+      signerOrProvider = hre.ethers.provider.getSigner(options.signerOrProvider)
+    } else {
+      signerOrProvider = options.signerOrProvider
+    }
+  }
+
   return getAdvancedContract({
     hre,
     contract: new hre.ethers.Contract(
       artifact.address,
-      artifact.abi,
-      hre.ethers.provider
+      iface,
+      signerOrProvider
     ),
   })
 }
