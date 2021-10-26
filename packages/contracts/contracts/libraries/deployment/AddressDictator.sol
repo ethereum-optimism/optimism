@@ -5,6 +5,7 @@ import { Lib_AddressManager } from "../resolver/Lib_AddressManager.sol";
 
 /**
  * @title AddressDictator
+ * @dev (glory to Arstotzka)
  */
 contract AddressDictator {
     /*********

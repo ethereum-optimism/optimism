@@ -64,9 +64,14 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Filter out all addresses that will not change, so that the log statement is maximally
   // verifiable and readable.
-  namesAndAddresses = namesAndAddresses.filter(async ({ name, address }) => {
-    const existingAddress = await Lib_AddressManager.getAddress(name)
-    return !hexStringEquals(existingAddress, address)
+  const existingAddresses = {}
+  for (const pair of namesAndAddresses) {
+    existingAddresses[pair.name] = await Lib_AddressManager.getAddress(
+      pair.name
+    )
+  }
+  namesAndAddresses = namesAndAddresses.filter(({ name, address }) => {
+    return !hexStringEquals(existingAddresses[name], address)
   })
 
   await deployAndPostDeploy({

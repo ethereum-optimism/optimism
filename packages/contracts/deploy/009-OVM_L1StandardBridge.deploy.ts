@@ -135,6 +135,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['upgrade', 'L1StandardBridge']
+deployFn.tags = ['L1StandardBridge', 'upgrade']
 
 export default deployFn
