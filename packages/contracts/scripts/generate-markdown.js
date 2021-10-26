@@ -17,6 +17,8 @@ const networks = {
   42: 'kovan',
 }
 
+const publicDeployments = ['mainnet', 'mainnet-trial', 'kovan', 'kovan-trial']
+
 ;(async () => {
   console.log(`Writing contract addresses`)
 
@@ -26,27 +28,35 @@ const networks = {
     })
     .map((d) => d.name)
     .reverse()
+    .filter((dirname) => {
+      return publicDeployments.includes(dirname)
+    })
 
-  let md = `# Optimism Regenesis Deployments
-## LAYER 2
+  let md = `# Optimistic Ethereum Deployments`
 
-### Chain IDs:
-- Mainnet: 10
-- Kovan: 69
-- Goerli: 420
-*The contracts relevant for the majority of developers are \`OVM_ETH\` and the cross-domain messengers. The L2 addresses don't change.*
+  md += `
+  ## LAYER 2
 
-### Predeploy contracts:
-|Contract|Address|
-|--|--|\n`
+  ### Chain IDs
+  - Mainnet: 10
+  - Kovan: 69
+  - Goerli: 420
+
+  ### Pre-deployed Contracts
+
+  **NOTE**: Pre-deployed contract addresses are the same on every Optimistic Ethereum network.
+
+  | Contract | Address |
+  | -------- | ------- |
+  `
+
   for (const [name, addr] of Object.entries(predeploys)) {
     md += `|${name}|${addr}|\n`
   }
 
-  md += `\n---
----
-
-## LAYER 1\n\n`
+  md += `
+  ## LAYER 1
+  `
 
   for (const deployment of deployments) {
     md += `## ${deployment.toUpperCase()}\n\n`
@@ -58,8 +68,8 @@ const networks = {
 
     md += `Network : __${network} (chain id: ${chainId})__\n\n`
 
-    md += `|Contract|Address|\n`
-    md += `|--|--|\n`
+    md += `| Contract | Address |\n`
+    md += `| -------- | ------- |\n`
 
     const contracts = dirtree(`./deployments/${deployment}`)
       .children.filter((child) => {
@@ -71,10 +81,10 @@ const networks = {
 
     proxiedContracts = []
     for (let i = 0; i < contracts.length; i++) {
-      if (contracts[i] === 'L1CrossDomainMessenger') {
+      if (contracts[i].startsWith('OVM_L1CrossDomainMessenger')) {
         proxiedContracts.push(contracts.splice(i, 1)[0])
       }
-      if (contracts[i] === 'L1StandardBridge') {
+      if (contracts[i].startsWith('L1StandardBridge')) {
         proxiedContracts.push(contracts.splice(i, 1)[0])
       }
     }
@@ -102,7 +112,6 @@ const networks = {
     }
 
     md += `-->\n`
-    md += `---\n`
   }
 
   fs.writeFileSync(`./deployments/README.md`, md)

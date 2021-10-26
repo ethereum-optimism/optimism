@@ -1,16 +1,18 @@
-# Optimism Regenesis Deployments
-## LAYER 2
+# Optimistic Ethereum Deployments
+  ## LAYER 2
 
-### Chain IDs:
-- Mainnet: 10
-- Kovan: 69
-- Goerli: 420
-*The contracts relevant for the majority of developers are `OVM_ETH` and the cross-domain messengers. The L2 addresses don't change.*
+  ### Chain IDs
+  - Mainnet: 10
+  - Kovan: 69
+  - Goerli: 420
 
-### Predeploy contracts:
-|Contract|Address|
-|--|--|
-|OVM_L2ToL1MessagePasser|0x4200000000000000000000000000000000000000|
+  ### Pre-deployed Contracts
+
+  **NOTE**: Pre-deployed contract addresses are the same on every Optimistic Ethereum network.
+
+  | Contract | Address |
+  | -------- | ------- |
+  |OVM_L2ToL1MessagePasser|0x4200000000000000000000000000000000000000|
 |OVM_DeployerWhitelist|0x4200000000000000000000000000000000000002|
 |L2CrossDomainMessenger|0x4200000000000000000000000000000000000007|
 |OVM_GasPriceOracle|0x420000000000000000000000000000000000000F|
@@ -21,17 +23,13 @@
 |OVM_ETH|0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000|
 |WETH9|0x4200000000000000000000000000000000000006|
 
----
----
-
-## LAYER 1
-
-## MAINNET
+  ## LAYER 1
+  ## MAINNET
 
 Network : __mainnet (chain id: 1)__
 
-|Contract|Address|
-|--|--|
+| Contract | Address |
+| -------- | ------- |
 |Lib_AddressManager|[0xdE1FCfB0851916CA5101820A69b13a4E276bd81F](https://etherscan.io/address/0xdE1FCfB0851916CA5101820A69b13a4E276bd81F)|
 |OVM_CanonicalTransactionChain|[0x4BF681894abEc828B212C906082B444Ceb2f6cf6](https://etherscan.io/address/0x4BF681894abEc828B212C906082B444Ceb2f6cf6)|
 |OVM_ChainStorageContainer-CTC-batches|[0x3EA1a3839D8ca9a7ff3c567a9F36f4C4DbECc3eE](https://etherscan.io/address/0x3EA1a3839D8ca9a7ff3c567a9F36f4C4DbECc3eE)|
@@ -39,7 +37,6 @@ Network : __mainnet (chain id: 1)__
 |OVM_ChainStorageContainer-SCC-batches|[0x77eBfdFcC906DDcDa0C42B866f26A8D5A2bb0572](https://etherscan.io/address/0x77eBfdFcC906DDcDa0C42B866f26A8D5A2bb0572)|
 |OVM_ExecutionManager|[0x2745C24822f542BbfFB41c6cB20EdF766b5619f5](https://etherscan.io/address/0x2745C24822f542BbfFB41c6cB20EdF766b5619f5)|
 |OVM_FraudVerifier|[0x042065416C5c665dc196076745326Af3Cd840D15](https://etherscan.io/address/0x042065416C5c665dc196076745326Af3Cd840D15)|
-|OVM_L1CrossDomainMessenger|[0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0](https://etherscan.io/address/0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0)|
 |OVM_L1MultiMessageRelayer|[0xF26391FBB1f77481f80a7d646AC08ba3817eA891](https://etherscan.io/address/0xF26391FBB1f77481f80a7d646AC08ba3817eA891)|
 |OVM_SafetyChecker|[0xfe1F9Cf28ecDb12110aa8086e6FD343EA06035cC](https://etherscan.io/address/0xfe1F9Cf28ecDb12110aa8086e6FD343EA06035cC)|
 |OVM_StateCommitmentChain|[0xE969C2724d2448F1d1A6189d3e2aA1F37d5998c1](https://etherscan.io/address/0xE969C2724d2448F1d1A6189d3e2aA1F37d5998c1)|
@@ -52,21 +49,22 @@ Network : __mainnet (chain id: 1)__
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
 
+OVM_L1CrossDomainMessenger: 
+ - 0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0
+ - https://etherscan.io/address/0xbfba066b5cA610Fe70AdCE45FcB622F945891bb0)
 -->
----
 ## KOVAN
 
 Network : __kovan (chain id: 42)__
 
-|Contract|Address|
-|--|--|
+| Contract | Address |
+| -------- | ------- |
 |BondManager|[0x298f56D28f0aD2aAa181C4Cdf55a523F4ad5DBcF](https://kovan.etherscan.io/address/0x298f56D28f0aD2aAa181C4Cdf55a523F4ad5DBcF)|
 |CanonicalTransactionChain|[0x90193cb12F7CA9629973eF690a46Aae109D4d66F](https://kovan.etherscan.io/address/0x90193cb12F7CA9629973eF690a46Aae109D4d66F)|
 |ChainStorageContainer-CTC-batches|[0x4D2032761aFB3dF79C4E31f8882aa814c8c8f145](https://kovan.etherscan.io/address/0x4D2032761aFB3dF79C4E31f8882aa814c8c8f145)|
 |ChainStorageContainer-CTC-queue|[0x9769887064F17a76eB69a6da1380b693669B9129](https://kovan.etherscan.io/address/0x9769887064F17a76eB69a6da1380b693669B9129)|
 |ChainStorageContainer-SCC-batches|[0x8E4820AfaA1306A1B2c7067aC0e50ba7DAe24F3f](https://kovan.etherscan.io/address/0x8E4820AfaA1306A1B2c7067aC0e50ba7DAe24F3f)|
 |Lib_AddressManager|[0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a](https://kovan.etherscan.io/address/0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a)|
-|OVM_L1CrossDomainMessenger|[0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c](https://kovan.etherscan.io/address/0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c)|
 |Proxy__L1CrossDomainMessenger|[0x4361d0F75A0186C05f971c566dC6bEa5957483fD](https://kovan.etherscan.io/address/0x4361d0F75A0186C05f971c566dC6bEa5957483fD)|
 |Proxy__L1StandardBridge|[0x22F24361D548e5FaAfb36d1437839f080363982B](https://kovan.etherscan.io/address/0x22F24361D548e5FaAfb36d1437839f080363982B)|
 |StateCommitmentChain|[0x2C1561bA6b4e6EDF8Ca40F12955C36477747Ff11](https://kovan.etherscan.io/address/0x2C1561bA6b4e6EDF8Ca40F12955C36477747Ff11)|
@@ -74,29 +72,7 @@ Network : __kovan (chain id: 42)__
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
 
+OVM_L1CrossDomainMessenger: 
+ - 0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c
+ - https://kovan.etherscan.io/address/0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c)
 -->
----
-## GOERLI
-
-Network : __goerli (chain id: 5)__
-
-|Contract|Address|
-|--|--|
-|BondManager|[0xE5AE60bD6F8DEe4D0c2BC9268e23B92F1cacC58F](https://goerli.etherscan.io/address/0xE5AE60bD6F8DEe4D0c2BC9268e23B92F1cacC58F)|
-|CanonicalTransactionChain|[0x2ebA8c4EfDB39A8Cd8f9eD65c50ec079f7CEBD81](https://goerli.etherscan.io/address/0x2ebA8c4EfDB39A8Cd8f9eD65c50ec079f7CEBD81)|
-|ChainStorageContainer-CTC-batches|[0x0821Ff73FD88bb73E90F2Ea459B57430dff731Dd](https://goerli.etherscan.io/address/0x0821Ff73FD88bb73E90F2Ea459B57430dff731Dd)|
-|ChainStorageContainer-CTC-queue|[0xf96dc01589969B85e27017F1bC449CB981eED9C8](https://goerli.etherscan.io/address/0xf96dc01589969B85e27017F1bC449CB981eED9C8)|
-|ChainStorageContainer-SCC-batches|[0x829863Ce01B475B7d030539d2181d49E7A4b8aD9](https://goerli.etherscan.io/address/0x829863Ce01B475B7d030539d2181d49E7A4b8aD9)|
-|Lib_AddressManager|[0x2F7E3cAC91b5148d336BbffB224B4dC79F09f01D](https://goerli.etherscan.io/address/0x2F7E3cAC91b5148d336BbffB224B4dC79F09f01D)|
-|Proxy__L1CrossDomainMessenger|[0xEcC89b9EDD804850C4F343A278Be902be11AaF42](https://goerli.etherscan.io/address/0xEcC89b9EDD804850C4F343A278Be902be11AaF42)|
-|Proxy__L1StandardBridge|[0x73298186A143a54c20ae98EEE5a025bD5979De02](https://goerli.etherscan.io/address/0x73298186A143a54c20ae98EEE5a025bD5979De02)|
-|StateCommitmentChain|[0x1afcA918eff169eE20fF8AB6Be75f3E872eE1C1A](https://goerli.etherscan.io/address/0x1afcA918eff169eE20fF8AB6Be75f3E872eE1C1A)|
-<!--
-Implementation addresses. DO NOT use these addresses directly.
-Use their proxied counterparts seen above.
-
-L1CrossDomainMessenger: 
- - 0xd32718Fdb54e482C5Aa8eb7007cC898d798B3185
- - https://goerli.etherscan.io/address/0xd32718Fdb54e482C5Aa8eb7007cC898d798B3185)
--->
----
