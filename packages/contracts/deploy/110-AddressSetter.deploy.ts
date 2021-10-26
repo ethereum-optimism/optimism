@@ -37,7 +37,7 @@ const deployFn: DeployFunction = async (hre) => {
     })
   )
 
-  // Add non-deployed addresses to the Address Setter arguments.
+  // Add non-deployed addresses to the Address Dictator arguments.
   namesAndAddresses = [
     ...namesAndAddresses,
     // L2CrossDomainMessenger is the address of the predeploy on L2. We can refactor off-chain
@@ -70,8 +70,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndPostDeploy({
     hre,
-    name: 'AddressSetter',
-    contract: 'AddressSetter',
+    name: 'AddressDictator',
+    contract: 'AddressDictator',
     args: [
       Lib_AddressManager.address,
       (hre as any).deployConfig.ovmAddressManagerOwner,
@@ -85,6 +85,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['fresh', 'upgrade', 'AddressSetter']
+deployFn.tags = ['fresh', 'upgrade', 'AddressDictator']
 
 export default deployFn
