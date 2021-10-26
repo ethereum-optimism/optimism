@@ -12,8 +12,7 @@ const deployFn: DeployFunction = async (hre) => {
     signerOrProvider: deployer,
   })
   const libAddressManager = await getLiveContract(hre, 'Lib_AddressManager')
-  const names = await addressDictator.getNames()
-  const addresses = await addressDictator.getAddresses()
+  const namedAddresses = await addressDictator.getNamedAddresses()
   const finalOwner = await addressDictator.finalOwner()
   let currentOwner = await libAddressManager.owner()
 
@@ -21,8 +20,10 @@ const deployFn: DeployFunction = async (hre) => {
     '\n',
     'An Address Dictator contract has been deployed, with the following name/address pairs:'
   )
-  for (let i = 0; i < names.length; i++) {
-    console.log(`${addresses[i]} <=>  ${names[i]}`)
+  for (const namedAddress of namedAddresses) {
+    // Set alignment for readability
+    const padding = ' '.repeat(40 - namedAddress.name.length)
+    console.log(`${namedAddress.name}${padding}  ${namedAddress.addr}`)
   }
   console.log(
     '\n',

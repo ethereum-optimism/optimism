@@ -7,14 +7,22 @@ import { Lib_AddressManager } from "../resolver/Lib_AddressManager.sol";
  * @title AddressDictator
  */
 contract AddressDictator {
+    /*********
+     * Types *
+     *********/
+
+    struct NamedAddress {
+        string name;
+        address addr;
+    }
+
     /*************
      * Variables *
      *************/
 
     Lib_AddressManager public manager;
     address public finalOwner;
-    string[] public names;
-    address[] public addresses;
+    NamedAddress[] namedAddresses;
 
     /***************
      * Constructor *
@@ -41,8 +49,9 @@ contract AddressDictator {
             _names.length == _addresses.length,
             "AddressDictator: Must provide an equal number of names and addresses."
         );
-        names = _names;
-        addresses = _addresses;
+        for (uint256 i = 0; i < _names.length; i++) {
+            namedAddresses.push(NamedAddress({ name: _names[i], addr: _addresses[i] }));
+        }
     }
 
     /********************
@@ -50,8 +59,8 @@ contract AddressDictator {
      ********************/
 
     function setAddresses() external {
-        for (uint256 i = 0; i < names.length; i++) {
-            manager.setAddress(names[i], addresses[i]);
+        for (uint256 i = 0; i < namedAddresses.length; i++) {
+            manager.setAddress(namedAddresses[i].name, namedAddresses[i].addr);
         }
         // note that this will revert if _finalOwner == currentOwner
         manager.transferOwnership(finalOwner);
@@ -69,11 +78,7 @@ contract AddressDictator {
      * View Functions *
      ******************/
 
-    function getNames() external view returns (string[] memory) {
-        return names;
-    }
-
-    function getAddresses() external view returns (address[] memory) {
-        return addresses;
+    function getNamedAddresses() external view returns (NamedAddress[] memory) {
+        return namedAddresses;
     }
 }
