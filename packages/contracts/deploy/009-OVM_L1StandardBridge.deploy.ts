@@ -62,7 +62,10 @@ const deployFn: DeployFunction = async (hre) => {
   // Next we need to set the `messenger` address by executing a setStorage operation. We'll
   // check that this operation was correctly executed by calling `messenger()` and checking
   // that the result matches the value we initialized.
-  const l1CrossDomainMessenger = await getLiveContract(hre, 'Proxy__OVM_L1CrossDomainMessenger')
+  const l1CrossDomainMessenger = await getLiveContract(
+    hre,
+    'Proxy__OVM_L1CrossDomainMessenger'
+  )
   const l1CrossDomainMessengerAddress = l1CrossDomainMessenger.address
 
   // Critical error, should never happen.
