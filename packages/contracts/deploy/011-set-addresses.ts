@@ -83,6 +83,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['fresh', 'upgrade', 'set-addresses']
+deployFn.tags = ['upgrade', 'set-addresses']
 
 export default deployFn

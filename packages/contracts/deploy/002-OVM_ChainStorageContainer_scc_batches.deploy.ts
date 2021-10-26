@@ -18,6 +18,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['fresh', 'upgrade', 'ChainStorageContainer_scc_batches']
+deployFn.tags = ['upgrade', 'ChainStorageContainer_scc_batches']
 
 export default deployFn

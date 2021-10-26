@@ -31,6 +31,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['fresh', 'finalize']
+deployFn.tags = ['finalize']
 
 export default deployFn
