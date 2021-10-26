@@ -54,22 +54,40 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`
       The AddressDictator contract (glory to Arstotzka) has been deployed.
 
-      Name/Address pairs:
-      ${namedAddresses.map((namedAddress) => {
-        const padding = ' '.repeat(40 - namedAddress.name.length)
-        return `
+      FOLLOW THESE INSTRUCTIONS CAREFULLY!
+
+      (1) Review the Contract Name / Contract Address pairs below and confirm that they match
+          the addresses found in the contract artifacts of your current deployment.
+
+      ${namedAddresses
+        .map((namedAddress) => {
+          const padding = ' '.repeat(40 - namedAddress.name.length)
+          return `
           ${namedAddress.name}${padding}  ${namedAddress.addr}
         `
-      })}
+        })
+        .join('\n')}
 
-      Current AddressManager owner: ${currentOwner}
-      Final AddressManager owner: ${finalOwner}
+      (2) Review the CURRENT and FINAL AddressManager owners and verify that these are the expected values:
 
-      Please verify the values above, and the deployment steps up to this point,
-        then transfer ownership of the AddressManager at ${
-          Lib_AddressManager.address
-        }
-        to the AddressDictator contract at ${AddressDictator.address}.
+          Current AddressManager owner: (${currentOwner})
+          Final AddressManager owner:   (${finalOwner})
+
+          [${
+            currentOwner === finalOwner
+              ? 'THESE ARE THE SAME ADDRESSES'
+              : 'THESE ARE >>>NOT<<< THE SAME ADDRESSES'
+          }]
+
+      (3) Transfer ownership of the AddressManager located at (${
+        Lib_AddressManager.address
+      })
+          to the AddressDictator contract located at the following address:
+
+          TRANSFER OWNERSHIP TO THE FOLLOWING ADDRESS ONLY:
+          >>>>> (${AddressDictator.address}) <<<<<
+
+      (4) Wait for the deploy process to continue.
     `)
   }
 
