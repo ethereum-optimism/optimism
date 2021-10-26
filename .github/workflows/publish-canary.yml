@@ -23,7 +23,7 @@ jobs:
       contracts: ${{ steps.packages.outputs.contracts }}
       gas-oracle: ${{ steps.packages.outputs.gas-oracle }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
-      hardhat-node: ${{ needs.canary-publish.outputs.hardhat-node }}
+      hardhat-node: ${{ steps.packages.outputs.hardhat-node }}
       canary-docker-tag: ${{ steps.docker-image-name.outputs.canary-docker-tag }}
 
     steps:
