@@ -24,6 +24,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['upgrade', 'StateCommitmentChain']
+deployFn.tags = ['StateCommitmentChain', 'upgrade']
 
 export default deployFn
