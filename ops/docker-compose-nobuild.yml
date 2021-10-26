@@ -9,6 +9,10 @@ services:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.monorepo
   # this is a helper service used because there's no official hardhat image
+
+
+
+
   l1_chain:
     image: ethereumoptimism/hardhat
 #    build:
@@ -17,10 +21,14 @@ services:
     ports:
         # expose the service to the host for integration testing
       - ${L1CHAIN_HTTP_PORT:-9545}:8545
+
+
+
+
   deployer:
     depends_on:
       - l1_chain
-    image: ethereumoptimism/deployer:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/deployer:prerelease-0.5.0-rc-4-00c6d8a
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.deployer
@@ -49,12 +57,15 @@ services:
     ports:
         # expose the service to the host for getting the contract addrs
       - ${DEPLOYER_PORT:-8080}:8081
+
+
+
   dtl:
     depends_on:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/data-transport-layer:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/data-transport-layer:prerelease-0.5.0-rc-4-00c6d8a
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.data-transport-layer
@@ -74,11 +85,14 @@ services:
         DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 420
     ports:
       - ${DTL_PORT:-7878}:7878
+
+
+
   l2geth:
     depends_on:
       - l1_chain
       - deployer
-    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-4-00c6d8a
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.geth
@@ -100,12 +114,15 @@ services:
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
+
+
+
   relayer:
     depends_on:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/message-relayer:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/message-relayer:prerelease-0.5.0-rc-4-00c6d8a
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.message-relayer
@@ -119,12 +136,15 @@ services:
         RETRIES: 60
         POLLING_INTERVAL: 500
         GET_LOGS_INTERVAL: 500
+
+
+
   batch_submitter:
     depends_on:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/batch-submitter:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/batch-submitter:prerelease-0.5.0-rc-4-00c6d8a
 #    build:
 #      context: ..
 #      dockerfile: ./ops/docker/Dockerfile.batch-submitter
@@ -136,12 +156,16 @@ services:
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+
+
+
+
   verifier:
     depends_on:
       - l1_chain
       - deployer
       - dtl
-    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-4-00c6d8a
     deploy:
       replicas: 0
 #    build:
@@ -158,13 +182,20 @@ services:
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
         ROLLUP_VERIFIER_ENABLE: 'true'
+        # no need to keep this secret, only used internally to sign blocks
+        BLOCK_SIGNER_KEY: "6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27"
+        BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
       - ${VERIFIER_WS_PORT:-8548}:8546
+
+
+
+
   replica:
     depends_on:
       - dtl
-    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/l2geth:prerelease-0.5.0-rc-4-00c6d8a
     deploy:
       replicas: 0
 #    build:
@@ -181,9 +212,14 @@ services:
         ROLLUP_VERIFIER_ENABLE: 'true'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
+        # no need to keep this secret, only used internally to sign blocks
+        BLOCK_SIGNER_KEY: "6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27"
+        BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
     ports:
       - ${L2GETH_HTTP_PORT:-8549}:8545
       - ${L2GETH_WS_PORT:-8550}:8546
+
+
 #  integration_tests:
 #    image: ethereumoptimism/integration-tests
 #    deploy:
@@ -198,8 +234,11 @@ services:
 #      URL: http://deployer:8081/addresses.json
 #      ENABLE_GAS_REPORT: 1
 #      NO_NETWORK: 1
+
+
+
   gas_oracle:
-    image: ethereumoptimism/gas-oracle:prerelease-0.5.0-rc-1-4d0c922
+    image: ethereumoptimism/gas-oracle:prerelease-0.5.0-rc-4-00c6d8a
     deploy:
        replicas: 0
 #    build:
