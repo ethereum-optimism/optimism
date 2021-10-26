@@ -8,18 +8,18 @@ import { getLiveContract, waitUntilTrue } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-  const addressSetter = await getLiveContract(hre, 'AddressSetter', {
+  const addressDictator = await getLiveContract(hre, 'AddressDictator', {
     signerOrProvider: deployer,
   })
   const libAddressManager = await getLiveContract(hre, 'Lib_AddressManager')
-  const names = await addressSetter.getNames()
-  const addresses = await addressSetter.getAddresses()
-  const finalOwner = await addressSetter.finalOwner()
+  const names = await addressDictator.getNames()
+  const addresses = await addressDictator.getAddresses()
+  const finalOwner = await addressDictator.finalOwner()
   let currentOwner = await libAddressManager.owner()
 
   console.log(
     '\n',
-    'An Address Setter contract has been deployed, with the following address <=> name pairs:'
+    'An Address Dictator contract has been deployed, with the following name/address pairs:'
   )
   for (let i = 0; i < names.length; i++) {
     console.log(`${addresses[i]} <=>  ${names[i]}`)
@@ -31,7 +31,9 @@ const deployFn: DeployFunction = async (hre) => {
   console.log(
     `  then transfer ownership of the Address Manager at (${libAddressManager.address})`
   )
-  console.log(`  to the Address Setter contract at ${addressSetter.address}.`)
+  console.log(
+    `  to the Address Dictator contract at ${addressDictator.address}.`
+  )
 
   const hreSigners = await hre.ethers.getSigners()
   const hreSignerAddresses = hreSigners.map((signer) => {
@@ -48,15 +50,15 @@ const deployFn: DeployFunction = async (hre) => {
     const owner = await hre.ethers.getSigner(currentOwner)
     await libAddressManager
       .connect(owner)
-      .transferOwnership(addressSetter.address)
+      .transferOwnership(addressDictator.address)
   }
 
   await waitUntilTrue(
     async () => {
       console.log('Checking ownership of Lib_AddressManager... ')
       currentOwner = await libAddressManager.owner()
-      console.log('Lib_AddressManager owner is now set to AddressSetter.')
-      return hexStringEquals(currentOwner, addressSetter.address)
+      console.log('Lib_AddressManager owner is now set to AddressDictator.')
+      return hexStringEquals(currentOwner, addressDictator.address)
     },
     {
       // Try every 30 seconds for 500 minutes.
@@ -67,7 +69,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Set the addresses!
   console.log('Ownership successfully transferred. Invoking setAddresses...')
-  await addressSetter.setAddresses()
+  await addressDictator.setAddresses()
 
   currentOwner = await libAddressManager.owner()
   console.log('Verifying final ownership of Lib_AddressManager')

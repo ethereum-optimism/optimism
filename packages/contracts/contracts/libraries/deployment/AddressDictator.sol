@@ -4,9 +4,9 @@ pragma solidity ^0.8.9;
 import { Lib_AddressManager } from "../resolver/Lib_AddressManager.sol";
 
 /**
- * @title AddressSetter
+ * @title AddressDictator
  */
-contract AddressSetter {
+contract AddressDictator {
     /*************
      * Variables *
      *************/
@@ -39,7 +39,7 @@ contract AddressSetter {
         finalOwner = _finalOwner;
         require(
             _names.length == _addresses.length,
-            "AddressSetter: Must provide an equal number of names and addresses."
+            "AddressDictator: Must provide an equal number of names and addresses."
         );
         names = _names;
         addresses = _addresses;
