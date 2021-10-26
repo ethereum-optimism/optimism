@@ -67,11 +67,6 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
     )
 
     await AddressManager.setAddress(
-      'ChainStorageContainer-CTC-queue',
-      queue.address
-    )
-
-    await AddressManager.setAddress(
       'CanonicalTransactionChain',
       CanonicalTransactionChain.address
     )

@@ -120,14 +120,6 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     }
 
     /**
-     * Accesses the queue storage container.
-     * @return Reference to the queue storage container.
-     */
-    function queue() public view returns (IChainStorageContainer) {
-        return IChainStorageContainer(resolve("ChainStorageContainer-CTC-queue"));
-    }
-
-    /**
      * Retrieves the total number of elements submitted.
      * @return _totalElements Total submitted elements.
      */
