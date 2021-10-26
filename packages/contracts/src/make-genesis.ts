@@ -1,6 +1,7 @@
 /* External Imports */
 import { promisify } from 'util'
 import { exec } from 'child_process'
+import { ethers } from 'ethers'
 import {
   computeStorageSlots,
   getStorageLayout,
@@ -77,6 +78,7 @@ export const makeL2GenesisFile = async (
     },
     OVM_ETH: {
       l2Bridge: predeploys.L2StandardBridge,
+      l1Token: ethers.constants.AddressZero,
       _name: 'Ether',
       _symbol: 'ETH',
     },
@@ -96,16 +98,6 @@ export const makeL2GenesisFile = async (
   }
 
   const dump = {}
-  // Add the precompiles. Only safe for up to 9
-  for (let i = 1; i <= 9; i++) {
-    const addr = `0x000000000000000000000000000000000000000${i}`
-    if (addr.length !== 42) {
-      throw new Error(`Address length incorrect: ${addr.length}`)
-    }
-    dump[addr] = {
-      balance: '01',
-    }
-  }
   for (const predeployName of Object.keys(predeploys)) {
     const predeployAddress = predeploys[predeployName]
     dump[predeployAddress] = {

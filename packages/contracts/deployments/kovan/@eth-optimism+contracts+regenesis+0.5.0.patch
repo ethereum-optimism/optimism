@@ -1,0 +1,13 @@
+diff --git a/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol b/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol
+index e5d62d87..c317e481 100644
+--- a/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol
++++ b/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol
+@@ -114,7 +114,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
+         // Construct calldata for finalizeDeposit call
+         bytes memory message = abi.encodeWithSelector(
+             IL2ERC20Bridge.finalizeDeposit.selector,
+-            address(0),
++            address(18),
+             Lib_PredeployAddresses.OVM_ETH,
+             _from,
+             _to,

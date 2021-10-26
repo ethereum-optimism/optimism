@@ -242,6 +242,7 @@ describe('BatchSubmitter', () => {
       GAS_THRESHOLD_IN_GWEI,
       txBatchTxSubmitter,
       1,
+      false,
       new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
       testMetrics
     )

@@ -19,7 +19,7 @@ const deployFn: DeployFunction = async (hre) => {
   if (chainId === defaultHardhatNetworkParams.chainId) {
     const L1StandardBridge = await getDeployedContract(
       hre,
-      'Proxy__L1StandardBridge',
+      'Proxy__OVM_L1StandardBridge',
       {
         iface: 'L1StandardBridge',
       }

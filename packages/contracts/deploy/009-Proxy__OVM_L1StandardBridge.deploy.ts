@@ -9,13 +9,13 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndRegister({
     hre,
-    name: 'Proxy__L1StandardBridge',
+    name: 'Proxy__OVM_L1StandardBridge',
     contract: 'L1ChugSplashProxy',
     iface: 'L1StandardBridge',
     args: [deployer],
   })
 }
 
-deployFn.tags = ['Proxy__L1StandardBridge']
+deployFn.tags = ['Proxy__OVM_L1StandardBridge']
 
 export default deployFn

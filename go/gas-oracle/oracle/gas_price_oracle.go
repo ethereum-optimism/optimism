@@ -315,10 +315,10 @@ func ensureConnection(client *ethclient.Client) error {
 	for ; true; <-t.C {
 		_, err := client.ChainID(context.Background())
 		if err == nil {
-			t.Stop()
 			break
+		} else {
+			return err
 		}
-		return err
 	}
 	return nil
 }

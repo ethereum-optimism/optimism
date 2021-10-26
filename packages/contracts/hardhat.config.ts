@@ -36,7 +36,6 @@ const config: HardhatUserConfig = {
       live: false,
       saveDeployments: false,
       tags: ['local'],
-      hardfork: 'istanbul',
     },
     optimism: {
       url: 'http://127.0.0.1:8545',
@@ -50,6 +49,11 @@ const config: HardhatUserConfig = {
     'optimism-mainnet': {
       chainId: 10,
       url: 'https://mainnet.optimism.io',
+      accounts: [privateKey],
+    },
+    'mainnet-trial': {
+      chainId: 42069,
+      url: 'http://127.0.0.1:8545',
       accounts: [privateKey],
     },
   },

@@ -9,6 +9,7 @@ const deployFn: DeployFunction = async (hre) => {
     from: deployer,
     args: [],
     log: true,
+    waitConfirmations: (hre as any).deployConfig.numDeployConfirmations,
   })
 }
 

@@ -81,6 +81,7 @@ export const deployAndRegister = async ({
     from: deployer,
     args,
     log: true,
+    waitConfirmations: hre.deployConfig.numDeployConfirmations,
   })
 
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
@@ -93,8 +94,12 @@ export const deployAndRegister = async ({
         const factory = await hre.ethers.getContractFactory(iface)
         abi = factory.interface
       }
-      const instance = new Contract(result.address, abi, signer)
-      await postDeployAction(instance)
+      await postDeployAction(
+        getAdvancedContract({
+          hre,
+          contract: new Contract(result.address, abi, signer),
+        })
+      )
     }
 
     await registerAddress({
@@ -103,6 +108,71 @@ export const deployAndRegister = async ({
       address: result.address,
     })
   }
+}
+
+// Returns a version of the contract object which modifies all of the input contract's methods to:
+// 1. Waits for a confirmed receipt with more than deployConfig.numDeployConfirmations confirmations.
+// 2. Include simple resubmission logic, ONLY for Kovan, which appears to drop transactions.
+export const getAdvancedContract = (opts: {
+  hre: any
+  contract: Contract
+}): Contract => {
+  // Temporarily override Object.defineProperty to bypass ether's object protection.
+  const def = Object.defineProperty
+  Object.defineProperty = (obj, propName, prop) => {
+    prop.writable = true
+    return def(obj, propName, prop)
+  }
+
+  const contract = new Contract(
+    opts.contract.address,
+    opts.contract.interface,
+    opts.contract.signer || opts.contract.provider
+  )
+
+  // Now reset Object.defineProperty
+  Object.defineProperty = def
+
+  // Override each function call to also `.wait()` so as to simplify the deploy scripts' syntax.
+  for (const fnName of Object.keys(contract.functions)) {
+    const fn = contract[fnName].bind(contract)
+    ;(contract as any)[fnName] = async (...args: any) => {
+      const tx = await fn(...args, {
+        gasPrice: opts.hre.deployConfig.gasprice || undefined,
+      })
+
+      if (typeof tx !== 'object' || typeof tx.wait !== 'function') {
+        return tx
+      }
+
+      // Special logic for:
+      // (1) handling confirmations
+      // (2) handling an issue on Kovan specifically where transactions get dropped for no
+      //     apparent reason.
+      const maxTimeout = 120
+      let timeout = 0
+      while (true) {
+        await sleep(1000)
+        const receipt = await contract.provider.getTransactionReceipt(tx.hash)
+        if (receipt === null) {
+          timeout++
+          if (timeout > maxTimeout && opts.hre.network.name === 'kovan') {
+            // Special resubmission logic ONLY required on Kovan.
+            console.log(
+              `WARNING: Exceeded max timeout on transaction. Attempting to submit transaction again...`
+            )
+            return contract[fnName](...args)
+          }
+        } else if (
+          receipt.confirmations >= opts.hre.deployConfig.numDeployConfirmations
+        ) {
+          return tx
+        }
+      }
+    }
+  }
+
+  return contract
 }
 
 export const getDeployedContract = async (
@@ -133,29 +203,8 @@ export const getDeployedContract = async (
     }
   }
 
-  // Temporarily override Object.defineProperty to bypass ether's object protection.
-  const def = Object.defineProperty
-  Object.defineProperty = (obj, propName, prop) => {
-    prop.writable = true
-    return def(obj, propName, prop)
-  }
-
-  const contract = new Contract(deployed.address, iface, signerOrProvider)
-
-  // Now reset Object.defineProperty
-  Object.defineProperty = def
-
-  // Override each function call to also `.wait()` so as to simplify the deploy scripts' syntax.
-  for (const fnName of Object.keys(contract.functions)) {
-    const fn = contract[fnName].bind(contract)
-    ;(contract as any)[fnName] = async (...args: any) => {
-      const result = await fn(...args)
-      if (typeof result === 'object' && typeof result.wait === 'function') {
-        await result.wait()
-      }
-      return result
-    }
-  }
-
-  return contract
+  return getAdvancedContract({
+    hre,
+    contract: new Contract(deployed.address, iface, signerOrProvider),
+  })
 }

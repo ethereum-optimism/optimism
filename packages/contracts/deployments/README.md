@@ -68,14 +68,12 @@ Network : __kovan (chain id: 42)__
 |Lib_AddressManager|[0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a](https://kovan.etherscan.io/address/0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a)|
 |OVM_L1CrossDomainMessenger|[0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c](https://kovan.etherscan.io/address/0x86EBb8c797cC4768004182D0B2f43B42b9a72e2c)|
 |Proxy__L1CrossDomainMessenger|[0x4361d0F75A0186C05f971c566dC6bEa5957483fD](https://kovan.etherscan.io/address/0x4361d0F75A0186C05f971c566dC6bEa5957483fD)|
+|Proxy__L1StandardBridge|[0x22F24361D548e5FaAfb36d1437839f080363982B](https://kovan.etherscan.io/address/0x22F24361D548e5FaAfb36d1437839f080363982B)|
 |StateCommitmentChain|[0x3deD8656a19D12814d04037Cc1b9E77E653983B3](https://kovan.etherscan.io/address/0x3deD8656a19D12814d04037Cc1b9E77E653983B3)|
 <!--
 Implementation addresses. DO NOT use these addresses directly.
 Use their proxied counterparts seen above.
 
-Proxy__L1StandardBridge: 
- - 0x22F24361D548e5FaAfb36d1437839f080363982B
- - https://kovan.etherscan.io/address/0x22F24361D548e5FaAfb36d1437839f080363982B)
 -->
 ---
 ## GOERLI
@@ -91,6 +89,7 @@ Network : __goerli (chain id: 5)__
 |ChainStorageContainer-SCC-batches|[0x829863Ce01B475B7d030539d2181d49E7A4b8aD9](https://goerli.etherscan.io/address/0x829863Ce01B475B7d030539d2181d49E7A4b8aD9)|
 |Lib_AddressManager|[0x2F7E3cAC91b5148d336BbffB224B4dC79F09f01D](https://goerli.etherscan.io/address/0x2F7E3cAC91b5148d336BbffB224B4dC79F09f01D)|
 |Proxy__L1CrossDomainMessenger|[0xEcC89b9EDD804850C4F343A278Be902be11AaF42](https://goerli.etherscan.io/address/0xEcC89b9EDD804850C4F343A278Be902be11AaF42)|
+|Proxy__L1StandardBridge|[0x73298186A143a54c20ae98EEE5a025bD5979De02](https://goerli.etherscan.io/address/0x73298186A143a54c20ae98EEE5a025bD5979De02)|
 |StateCommitmentChain|[0x1afcA918eff169eE20fF8AB6Be75f3E872eE1C1A](https://goerli.etherscan.io/address/0x1afcA918eff169eE20fF8AB6Be75f3E872eE1C1A)|
 <!--
 Implementation addresses. DO NOT use these addresses directly.
@@ -99,8 +98,5 @@ Use their proxied counterparts seen above.
 L1CrossDomainMessenger: 
  - 0xd32718Fdb54e482C5Aa8eb7007cC898d798B3185
  - https://goerli.etherscan.io/address/0xd32718Fdb54e482C5Aa8eb7007cC898d798B3185)
-Proxy__L1StandardBridge: 
- - 0x73298186A143a54c20ae98EEE5a025bD5979De02
- - https://goerli.etherscan.io/address/0x73298186A143a54c20ae98EEE5a025bD5979De02)
 -->
 ---

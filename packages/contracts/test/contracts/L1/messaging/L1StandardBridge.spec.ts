@@ -98,12 +98,11 @@ describe('L1StandardBridge', () => {
       const initialBalance = await ethers.provider.getBalance(depositer)
 
       // alice calls deposit on the bridge and the L1 bridge calls transferFrom on the token
-      await L1StandardBridge.connect(alice).depositETH(
+      const res = await L1StandardBridge.connect(alice).depositETH(
         FINALIZATION_GAS,
         NON_NULL_BYTES32,
         {
           value: depositAmount,
-          gasPrice: 0,
         }
       )
 
@@ -111,8 +110,14 @@ describe('L1StandardBridge', () => {
         Mock__L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       const depositerBalance = await ethers.provider.getBalance(depositer)
+      const receipt = await res.wait()
+      const depositerFeePaid = receipt.cumulativeGasUsed.mul(
+        receipt.effectiveGasPrice
+      )
 
-      expect(depositerBalance).to.equal(initialBalance.sub(depositAmount))
+      expect(depositerBalance).to.equal(
+        initialBalance.sub(depositAmount).sub(depositerFeePaid)
+      )
 
       // bridge's balance is increased
       const bridgeBalance = await ethers.provider.getBalance(
@@ -143,20 +148,26 @@ describe('L1StandardBridge', () => {
       // depositor calls deposit on the bridge and the L1 bridge calls transferFrom on the token
       const initialBalance = await ethers.provider.getBalance(aliceAddress)
 
-      await L1StandardBridge.connect(alice).depositETHTo(
+      const res = await L1StandardBridge.connect(alice).depositETHTo(
         bobsAddress,
         FINALIZATION_GAS,
         NON_NULL_BYTES32,
         {
           value: depositAmount,
-          gasPrice: 0,
         }
       )
       const depositCallToMessenger =
         Mock__L1CrossDomainMessenger.smocked.sendMessage.calls[0]
 
       const depositerBalance = await ethers.provider.getBalance(aliceAddress)
-      expect(depositerBalance).to.equal(initialBalance.sub(depositAmount))
+      const receipt = await res.wait()
+      const depositerFeePaid = receipt.cumulativeGasUsed.mul(
+        receipt.effectiveGasPrice
+      )
+
+      expect(depositerBalance).to.equal(
+        initialBalance.sub(depositAmount).sub(depositerFeePaid)
+      )
 
       // bridge's balance is increased
       const bridgeBalance = await ethers.provider.getBalance(
@@ -187,7 +198,6 @@ describe('L1StandardBridge', () => {
       expect(
         L1StandardBridge.depositETH(FINALIZATION_GAS, NON_NULL_BYTES32, {
           value: depositAmount,
-          gasPrice: 0,
         })
       ).to.be.revertedWith('Account not EOA')
     })
@@ -250,7 +260,6 @@ describe('L1StandardBridge', () => {
         NON_NULL_BYTES32,
         {
           value: ethers.utils.parseEther('1.0'),
-          gasPrice: 0,
         }
       )
 
