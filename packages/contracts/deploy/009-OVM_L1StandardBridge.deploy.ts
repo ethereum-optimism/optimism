@@ -20,10 +20,14 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
   // Set up a reference to the proxy as if it were the L1StandardBridge contract.
-  const contract = await getContractFromArtifact(hre, 'Proxy__OVM_L1StandardBridge', {
-    iface: 'L1StandardBridge',
-    signerOrProvider: deployer,
-  })
+  const contract = await getContractFromArtifact(
+    hre,
+    'Proxy__OVM_L1StandardBridge',
+    {
+      iface: 'L1StandardBridge',
+      signerOrProvider: deployer,
+    }
+  )
 
   // Because of the `iface` parameter supplied to the deployment function above, the `contract`
   // variable that we here will have the interface of the L1StandardBridge contract. However,

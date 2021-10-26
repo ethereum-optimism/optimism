@@ -10,7 +10,10 @@ import {
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getContractFromArtifact(hre, 'Lib_AddressManager')
+  const Lib_AddressManager = await getContractFromArtifact(
+    hre,
+    'Lib_AddressManager'
+  )
 
   // todo: this fails when trying to do a fresh deploy, because Lib_ResolvedDelegateProxy
   // requires that the implementation has already been set in the Address Manager.

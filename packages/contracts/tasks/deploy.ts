@@ -68,25 +68,6 @@ task('deploy')
     undefined,
     types.string
   )
-  // Reusable address options
-  .addOptionalParam(
-    'proxyL1CrossDomainMessenger',
-    'Address of the L1CrossDomainMessenger Proxy, for use in a deployment which is keeping the existing contract.',
-    undefined,
-    types.string
-  )
-  .addOptionalParam(
-    'proxyL1StandardBridge',
-    'Address of the L1StandardBridge Proxy, for use in a deployment which is keeping the existing contract.',
-    undefined,
-    types.string
-  )
-  .addOptionalParam(
-    'libAddressManager',
-    'Address of the Lib_AddressManager, for use in a deployment which is keeping the existing contract.',
-    undefined,
-    types.string
-  )
   .addOptionalParam(
     'numDeployConfirmations',
     'Number of confirmations to wait for each transaction in the deployment. More is safer.',

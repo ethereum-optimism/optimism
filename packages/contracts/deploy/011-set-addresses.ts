@@ -4,14 +4,24 @@ import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import { getContractFromArtifact, waitUntilTrue } from '../src/hardhat-deploy-ethers'
+import {
+  getContractFromArtifact,
+  waitUntilTrue,
+} from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-  const addressDictator = await getContractFromArtifact(hre, 'AddressDictator', {
-    signerOrProvider: deployer,
-  })
-  const libAddressManager = await getContractFromArtifact(hre, 'Lib_AddressManager')
+  const addressDictator = await getContractFromArtifact(
+    hre,
+    'AddressDictator',
+    {
+      signerOrProvider: deployer,
+    }
+  )
+  const libAddressManager = await getContractFromArtifact(
+    hre,
+    'Lib_AddressManager'
+  )
   const namedAddresses = await addressDictator.getNamedAddresses()
   const finalOwner = await addressDictator.finalOwner()
   let currentOwner = await libAddressManager.owner()
@@ -72,15 +82,18 @@ const deployFn: DeployFunction = async (hre) => {
   console.log('Ownership successfully transferred. Invoking setAddresses...')
   await addressDictator.setAddresses()
 
-  currentOwner = await libAddressManager.owner()
-  console.log('Verifying final ownership of Lib_AddressManager')
-  if (!hexStringEquals(finalOwner, currentOwner)) {
-    throw new Error(
-      `The current address manager owner ${currentOwner}, \nis not equal to the expected owner: ${finalOwner}`
-    )
-  } else {
-    console.log(`Address Manager ownership was returned to ${finalOwner}.`)
-  }
+  await waitUntilTrue(
+    async () => {
+      console.log('Verifying final ownership of Lib_AddressManager')
+      currentOwner = await libAddressManager.owner()
+      return hexStringEquals(currentOwner, finalOwner)
+    },
+    {
+      // Try every 10 seconds
+      delay: 10_000,
+      retries: 1000,
+    }
+  )
 }
 
 deployFn.tags = ['upgrade', 'set-addresses']
