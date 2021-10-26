@@ -123,7 +123,7 @@ task('deploy')
     // When a tagName is provided, it indicates that a new contract will be deployed.
     const validateArgOrTag = (argName: string, tagName: string) => {
       // The 'fresh' tag tells us that a new copy of each contract will be deployed.
-      const hasTag = args.tags.includes('fresh') || args.tags.includes(tagName)
+      const hasTag = args.tags.includes(tagName)
       // Ensure that an arg and tag were NOT BOTH provided for a given contract
       if (hasTag && ethers.utils.isAddress(args[argName])) {
         throw new Error(

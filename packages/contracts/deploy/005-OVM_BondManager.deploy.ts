@@ -17,6 +17,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['fresh', 'upgrade', 'BondManager']
+deployFn.tags = ['upgrade', 'BondManager']
 
 export default deployFn
