@@ -10,10 +10,11 @@ import {
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getContractFromArtifact(hre, 'Lib_AddressManager')
+  const Lib_AddressManager = await getContractFromArtifact(
+    hre,
+    'Lib_AddressManager'
+  )
 
-  // ToDo: Clean up the method of mapping names to addresses esp.
-  // There's probably a more functional way to generate an object or something.
   const allContractNames = [
     'ChainStorageContainer-CTC-batches',
     'ChainStorageContainer-SCC-batches',

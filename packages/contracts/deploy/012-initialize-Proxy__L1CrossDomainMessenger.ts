@@ -3,7 +3,10 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
-import { getContractFromArtifact, waitUntilTrue } from '../src/hardhat-deploy-ethers'
+import {
+  getContractFromArtifact,
+  waitUntilTrue,
+} from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -19,7 +22,10 @@ const deployFn: DeployFunction = async (hre) => {
       signerOrProvider: deployer,
     }
   )
-  const libAddressManager = await getContractFromArtifact(hre, 'Lib_AddressManager')
+  const libAddressManager = await getContractFromArtifact(
+    hre,
+    'Lib_AddressManager'
+  )
   await proxy.initialize(libAddressManager.address)
 
   console.log(`Checking that contract was correctly initialized...`)
