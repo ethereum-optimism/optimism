@@ -15,10 +15,7 @@ jobs:
         sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm
     - name: Install unicorn
       run: |
-        git clone https://github.com/geohot/unicorn.git
-        cd unicorn
-        UNICORN_ARCHS=mips make -j8
-        sudo UNICORN_ARCHS=mips make install
+        ./build_unicorn.sh
     - name: Install yarn
       run: |
         npm install --global yarn

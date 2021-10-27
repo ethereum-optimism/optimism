@@ -3,6 +3,7 @@ module mipsevm
 go 1.17
 
 replace github.com/ethereum/go-ethereum => ../minigeth
+replace github.com/unicorn-engine/unicorn => ../unicorn
 
 require (
 	github.com/btcsuite/btcd v0.22.0-beta // indirect
