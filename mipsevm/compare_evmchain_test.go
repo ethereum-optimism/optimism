@@ -26,7 +26,7 @@ func LoadRam() map[uint32](uint32) {
 
 // go test -run TestCompareUnicornChain
 
-func TestCompareUnicornChain(t *testing.T) {
+func TestCompareEvmChain(t *testing.T) {
 	totalSteps := 20
 
 	cchain := make(chan common.Hash, 1)

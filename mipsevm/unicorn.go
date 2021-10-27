@@ -70,7 +70,7 @@ func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 }
 
 // reimplement simple.py in go
-func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, callback func(int, uc.Unicorn, map[uint32](uint32))) {
+func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
@@ -124,8 +124,6 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, callback fun
 		mu.RegWrite(uc.MIPS_REG_V0, v0)
 		mu.RegWrite(uc.MIPS_REG_A3, 0)
 	}, 0, 0)
-
-	slowMode := true
 
 	if slowMode {
 		mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
