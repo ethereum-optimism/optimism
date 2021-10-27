@@ -75,6 +75,12 @@ contract MIPSMemory {
     return Lib_MerkleTrie.update(tb(addr>>2), tb(value), trie, stateHash);
   }
 
+  event DidStep(bytes32 stateHash);
+  function WriteMemoryWithReceipt(bytes32 stateHash, uint32 addr, uint32 value) public {
+    bytes32 newStateHash = WriteMemory(stateHash, addr, value);
+    emit DidStep(newStateHash);
+  }
+
   function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public returns (bytes32) {
     for (uint32 i = 0; i < 32; i += 4) {
       uint256 tv = uint256(val>>(224-(i*8)));

@@ -50,7 +50,7 @@ func (s *StateDB) AddLog(log *types.Log) {
 		} else if log.Topics[0] == common.HexToHash("0x486ca368095cbbef9046ac7858bec943e866422cc388f49da1aa3aa77c10aa35") {
 			fmt.Printf("W: %x <- %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
 		} else {
-			fmt.Println("AddLog", log.Topics, log.Data)
+			//fmt.Println("AddLog", log.Topics, log.Data)
 		}
 	}
 }
@@ -66,7 +66,7 @@ func (b *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.
 }
 func (s *StateDB) GetBalance(addr common.Address) *big.Int { return common.Big0 }
 func (s *StateDB) GetCode(addr common.Address) []byte {
-	if s.Debug >= 1 {
+	if s.Debug >= 2 {
 		fmt.Println("GetCode", addr)
 	}
 	return s.Bytecodes[addr]
@@ -82,7 +82,7 @@ func (s *StateDB) GetRefund() uint64                   { return 0 }
 func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Hash {
 	if s.useRealState {
 		// TODO: fakeaddr?
-		if s.Debug >= 1 {
+		if s.Debug >= 2 {
 			fmt.Println("GetState", fakeaddr, hash)
 		}
 		return s.RealState[hash]
@@ -161,7 +161,7 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {}
 func (s *StateDB) SetState(fakeaddr common.Address, key, value common.Hash) {
 	if s.useRealState {
-		if s.Debug >= 1 {
+		if s.Debug >= 2 {
 			fmt.Println("SetState", fakeaddr, key, value)
 		}
 		s.RealState[key] = value

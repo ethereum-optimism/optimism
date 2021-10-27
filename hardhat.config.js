@@ -3,7 +3,7 @@
  */
 
 require("@nomiclabs/hardhat-ethers");
-require("hardhat-gas-reporter");
+//require("hardhat-gas-reporter");
 
 module.exports = {
   solidity: {

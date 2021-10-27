@@ -12,8 +12,8 @@ import (
 
 func LoadRam() map[uint32](uint32) {
 	ram := make(map[uint32](uint32))
-	//fn := "../mipigo/test/test.bin"
-	fn := "test/bin/add.bin"
+	fn := "../mipigo/test/test.bin"
+	//fn := "test/bin/add.bin"
 	LoadMappedFile(fn, ram, 0)
 	ZeroRegisters(ram)
 	ram[0xC000007C] = 0x5EAD0000
@@ -24,7 +24,7 @@ func LoadRam() map[uint32](uint32) {
 	RunFull()
 }*/
 
-// go test -run TestCompareUnicornChain
+// go test -run TestCompareEvmChain
 
 func TestCompareEvmChain(t *testing.T) {
 	totalSteps := 20
@@ -39,7 +39,7 @@ func TestCompareEvmChain(t *testing.T) {
 	fmt.Println("state root", root, "nodes", len(Preimages))
 
 	// deploy chain
-	interpreter, statedb := GetInterpreter(0, true)
+	interpreter, statedb := GetInterpreter(1, true)
 	DeployChain(interpreter, statedb)
 
 	// load chain trie node
