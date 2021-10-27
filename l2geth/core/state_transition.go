@@ -185,7 +185,15 @@ func (st *StateTransition) buyGas() error {
 		}
 	}
 	if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
-		return errInsufficientBalanceForGas
+		if rcfg.UsingOVM {
+			// Hack to prevent race conditions with the `gas-oracle`
+			// where policy level balance checks pass and then fail
+			// during consensus. The user gets some free gas
+			// in this case.
+			mgval = st.state.GetBalance(st.msg.From())
+		} else {
+			return errInsufficientBalanceForGas
+		}
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
