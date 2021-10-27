@@ -23,3 +23,5 @@ Instruction set used by minigeth, 55 instructions:
  'negu', 'nop', 'not', 'or', 'ori',
  'sb', 'sll', 'sllv', 'slt', 'slti', 'sltiu', 'sltu', 'sra', 'srl', 'srlv', 'subu', 'sw', 'swr', 'sync', 'syscall',
  'xor', 'xori']
+
+ STEPS=100000000 ./evm.sh unicorn ../mipigo/minigeth.bin

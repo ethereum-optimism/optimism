@@ -12,8 +12,8 @@ import (
 
 func LoadRam() map[uint32](uint32) {
 	ram := make(map[uint32](uint32))
-	fn := "../mipigo/test/test.bin"
-	//LoadMappedFile("test/bin/add.bin", ram, 0)
+	//fn := "../mipigo/test/test.bin"
+	fn := "test/bin/add.bin"
 	LoadMappedFile(fn, ram, 0)
 	ZeroRegisters(ram)
 	ram[0xC000007C] = 0x5EAD0000

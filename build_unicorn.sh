@@ -1,6 +1,6 @@
 #!/bin/bash
-git clone https://github.com/geohot/unicorn.git
-cd unicorn
-UNICORN_ARCHS=mips make -j8
-UNICORN_ARCHS=mips make -j8
+git clone https://github.com/geohot/unicorn.git -b dev unicorn2
+cd unicorn2
+cmake . -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Debug
+make -j8
 
