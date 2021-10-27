@@ -12,6 +12,7 @@ const DEFAULT_SCC_SEQUENCER_PUBLISH_WINDOW = 60 * 30 // 30 minutes
 const DEFAULT_DEPLOY_CONFIRMATIONS = 12
 
 task('deploy')
+  // Rollup config options
   .addOptionalParam(
     'l1BlockTimeSeconds',
     'Number of seconds on average between every L1 block.',
@@ -48,6 +49,7 @@ task('deploy')
     DEFAULT_SCC_SEQUENCER_PUBLISH_WINDOW,
     types.int
   )
+  // Permissioned address options
   .addOptionalParam(
     'ovmSequencerAddress',
     'Address of the sequencer. Must be provided or this deployment will fail.',

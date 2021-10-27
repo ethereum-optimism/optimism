@@ -2,12 +2,12 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import { deployAndRegister } from '../src/hardhat-deploy-ethers'
+import { deployAndPostDeploy } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
-  await deployAndRegister({
+  await deployAndPostDeploy({
     hre,
     name: 'Proxy__OVM_L1StandardBridge',
     contract: 'L1ChugSplashProxy',
@@ -16,6 +16,7 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
+// This is kept during an upgrade. So no upgrade tag.
 deployFn.tags = ['Proxy__OVM_L1StandardBridge']
 
 export default deployFn

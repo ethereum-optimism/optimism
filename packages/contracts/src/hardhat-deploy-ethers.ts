@@ -25,41 +25,7 @@ export const waitUntilTrue = async (
   }
 }
 
-export const registerAddress = async ({
-  hre,
-  name,
-  address,
-}): Promise<void> => {
-  // TODO: Cache these 2 across calls?
-  const { deployer } = await hre.getNamedAccounts()
-  const Lib_AddressManager = await getDeployedContract(
-    hre,
-    'Lib_AddressManager',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-
-  const currentAddress = await Lib_AddressManager.getAddress(name)
-  if (address === currentAddress) {
-    console.log(
-      `✓ Not registering address for ${name} because it's already been correctly registered`
-    )
-    return
-  }
-
-  console.log(`Registering address for ${name} to ${address}...`)
-  await Lib_AddressManager.setAddress(name, address)
-
-  console.log(`Waiting for registration to reflect on-chain...`)
-  await waitUntilTrue(async () => {
-    return hexStringEquals(await Lib_AddressManager.getAddress(name), address)
-  })
-
-  console.log(`✓ Registered address for ${name}`)
-}
-
-export const deployAndRegister = async ({
+export const deployAndPostDeploy = async ({
   hre,
   name,
   args,
@@ -102,12 +68,6 @@ export const deployAndRegister = async ({
         })
       )
     }
-
-    await registerAddress({
-      hre,
-      name,
-      address: result.address,
-    })
   }
 }
 
@@ -176,40 +136,6 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
-export const getDeployedContract = async (
-  hre: any,
-  name: string,
-  options: {
-    iface?: string
-    signerOrProvider?: Signer | Provider | string
-  } = {}
-): Promise<Contract> => {
-  const deployed = await hre.deployments.get(name)
-
-  await hre.ethers.provider.waitForTransaction(deployed.receipt.transactionHash)
-
-  // Get the correct interface.
-  let iface = new hre.ethers.utils.Interface(deployed.abi)
-  if (options.iface) {
-    const factory = await hre.ethers.getContractFactory(options.iface)
-    iface = factory.interface
-  }
-
-  let signerOrProvider: Signer | Provider = hre.ethers.provider
-  if (options.signerOrProvider) {
-    if (typeof options.signerOrProvider === 'string') {
-      signerOrProvider = hre.ethers.provider.getSigner(options.signerOrProvider)
-    } else {
-      signerOrProvider = options.signerOrProvider
-    }
-  }
-
-  return getAdvancedContract({
-    hre,
-    contract: new Contract(deployed.address, iface, signerOrProvider),
-  })
-}
-
 export const fundAccount = async (
   hre: any,
   address: string,
@@ -273,15 +199,38 @@ export const sendImpersonatedTx = async (opts: {
 
 export const getContractFromArtifact = async (
   hre: any,
-  name: string
+  name: string,
+  options: {
+    iface?: string
+    signerOrProvider?: Signer | Provider | string
+  } = {}
 ): Promise<ethers.Contract> => {
   const artifact = await hre.deployments.get(name)
+  await hre.ethers.provider.waitForTransaction(artifact.receipt.transactionHash)
+
+  // Get the deployed contract's interface.
+  let iface = new hre.ethers.utils.Interface(artifact.abi)
+  // Override with optional iface name if requested.
+  if (options.iface) {
+    const factory = await hre.ethers.getContractFactory(options.iface)
+    iface = factory.interface
+  }
+
+  let signerOrProvider: Signer | Provider = hre.ethers.provider
+  if (options.signerOrProvider) {
+    if (typeof options.signerOrProvider === 'string') {
+      signerOrProvider = hre.ethers.provider.getSigner(options.signerOrProvider)
+    } else {
+      signerOrProvider = options.signerOrProvider
+    }
+  }
+
   return getAdvancedContract({
     hre,
     contract: new hre.ethers.Contract(
       artifact.address,
-      artifact.abi,
-      hre.ethers.provider
+      iface,
+      signerOrProvider
     ),
   })
 }

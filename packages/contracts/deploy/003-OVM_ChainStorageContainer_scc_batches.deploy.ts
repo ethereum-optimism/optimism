@@ -3,17 +3,17 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import {
-  deployAndRegister,
-  getDeployedContract,
+  deployAndPostDeploy,
+  getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
     'Lib_AddressManager'
   )
 
-  await deployAndRegister({
+  await deployAndPostDeploy({
     hre,
     name: 'ChainStorageContainer-SCC-batches',
     contract: 'ChainStorageContainer',

@@ -4,13 +4,13 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import {
-  getDeployedContract,
+  getContractFromArtifact,
   waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
     'Lib_AddressManager',
     {
@@ -38,6 +38,6 @@ const deployFn: DeployFunction = async (hre) => {
   console.log(`✓ Set owner of Lib_AddressManager to: ${owner}`)
 }
 
-deployFn.tags = ['finalize', 'upgrade']
+deployFn.tags = ['upgrade', 'finalize']
 
 export default deployFn
