@@ -47,6 +47,7 @@ type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
       ),
       defaultBackend: config.str('default-backend', 'l1'),
       l1GasPriceBackend: config.str('l1-gas-price-backend', 'l1'),
+      l1StartHeight: config.uint('l1-start-height'),
       useSentry: config.bool('use-sentry', false),
       sentryDsn: config.str('sentry-dsn'),
       sentryTraceRate: config.ufloat('sentry-trace-rate', 0.05),

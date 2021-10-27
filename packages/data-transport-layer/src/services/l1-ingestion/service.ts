@@ -152,20 +152,31 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       this.options.addressManager
     )
 
-    const startingL1BlockNumber = await this.state.db.getStartingL1Block()
-    if (startingL1BlockNumber) {
-      this.state.startingL1BlockNumber = startingL1BlockNumber
-    } else {
-      this.logger.info(
-        'Attempting to find an appropriate L1 block height to begin sync...'
-      )
-      this.state.startingL1BlockNumber = await this._findStartingL1BlockNumber()
-      this.logger.info('Starting sync', {
-        startingL1BlockNumber: this.state.startingL1BlockNumber,
-      })
-
-      await this.state.db.setStartingL1Block(this.state.startingL1BlockNumber)
+    // Look up in the database for an indexed starting L1 block
+    let startingL1BlockNumber = await this.state.db.getStartingL1Block()
+    // If there isn't an indexed starting L1 block, that means we should pull it
+    // from config and then fallback to discovering it
+    if (startingL1BlockNumber === null || startingL1BlockNumber === undefined) {
+      if (this.options.l1StartHeight !== null && this.options.l1StartHeight !== undefined) {
+        startingL1BlockNumber = this.options.l1StartHeight
+      } else {
+        this.logger.info(
+          'Attempting to find an appropriate L1 block height to begin sync...'
+        )
+        startingL1BlockNumber = await this._findStartingL1BlockNumber()
+      }
     }
+
+    if (!startingL1BlockNumber) {
+      throw new Error('Cannot find starting L1 block number')
+    }
+
+    this.logger.info('Starting sync', {
+      startingL1BlockNumber,
+    })
+
+    this.state.startingL1BlockNumber = startingL1BlockNumber
+    await this.state.db.setStartingL1Block(this.state.startingL1BlockNumber)
 
     // Store the total number of submitted transactions so the server can tell clients if we're
     // done syncing or not
