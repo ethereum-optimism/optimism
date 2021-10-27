@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Lib_AddressManager } from "../resolver/Lib_AddressManager.sol";
+import { Lib_AddressManager } from "../../libraries/resolver/Lib_AddressManager.sol";
 
 /**
  * @title AddressDictator
- * @dev (glory to Arstotzka)
+ * @dev The AddressDictator (glory to Arstotzka) is a contract that allows us to safely manipulate
+ *      many different addresses in the AddressManager without transferring ownership of the
+ *      AddressManager to a hot wallet or hardware wallet.
  */
 contract AddressDictator {
     /*********
