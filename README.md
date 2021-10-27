@@ -10,6 +10,7 @@ You will find that several pages are incomplete or [under discussion](https://gi
 ## Specification structure
 
 - [Overview](./overview.md)
+- [Roadmap](./roadmap.md)
 - Components:
   - [Layer 1 Contracts](./components/layer1.md)
   - [Rollup Client](./components/rollup_client.md)
