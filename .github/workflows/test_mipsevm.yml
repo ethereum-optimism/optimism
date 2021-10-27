@@ -22,5 +22,15 @@ jobs:
         yarn install
     - name: Test MIPS on EVM
       run: cd mipsevm && ./evm.sh
-    - name: Compare test.bin run on EVM/unicorn
+    - name: Build minigeth and run default block (cache)
+      run: |
+        ./run.sh
+        minigeth/go-ethereum 13284491
+    - name: Install Python deps
+      run: pip3 install -r mipigo/requirements.txt
+    - name: Build minigeth for embedded
+      run: |
+        cd mipigo
+        ./build.sh
+    - name: All MIPS EVM tests
       run: cd mipsevm && go test
