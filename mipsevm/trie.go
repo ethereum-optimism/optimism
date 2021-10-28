@@ -63,7 +63,9 @@ func ParseNodeInternal(elems []byte, depth int, callback func(common.Hash) []byt
 		kind, val, lrest, err := rlp.Split(rest)
 		rest = lrest
 		check(err)
-		fmt.Println(sprefix, i, kind, val, len(val))
+		if len(val) > 0 {
+			fmt.Println(sprefix, i, kind, val, len(val))
+		}
 		if len(val) == 32 {
 			hh := common.BytesToHash(val)
 			//fmt.Println(sprefix, "node found with len", len(Preimages[hh]))
