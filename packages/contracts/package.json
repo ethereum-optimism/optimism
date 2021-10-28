@@ -98,7 +98,7 @@
     "random-bytes-seed": "^1.0.3",
     "rlp": "^2.2.6",
     "solhint": "^3.3.6",
-    "solidity-coverage": "^0.7.16",
+    "solidity-coverage": "^0.7.17",
     "ts-generator": "0.0.8",
     "ts-node": "^10.0.0",
     "typechain": "^5.1.0",
