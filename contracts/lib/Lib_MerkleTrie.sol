@@ -80,7 +80,7 @@ library Lib_MerkleTrie {
     {
         // Special case when inserting the very first node.
         if (_root == KECCAK256_RLP_NULL_BYTES) {
-            return getSingleNodeRootHash(_key, _value);
+            return getSingleNodeRootHash(_key, _value, trie);
         }
 
         (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(trie, _key, _root);
@@ -147,18 +147,20 @@ library Lib_MerkleTrie {
      */
     function getSingleNodeRootHash(
         bytes memory _key,
-        bytes memory _value
+        bytes memory _value,
+        mapping(bytes32 => bytes) storage trie
     )
         internal
-        pure
         returns (
             bytes32 _updatedRoot
         )
     {
-        return keccak256(_makeLeafNode(
+        bytes memory dat = _makeLeafNode(
             Lib_BytesUtils.toNibbles(_key),
-            _value
-        ).encoded);
+            _value).encoded;
+        bytes32 ret = keccak256(dat);
+        trie[ret] = dat;
+        return ret;
     }
 
 
