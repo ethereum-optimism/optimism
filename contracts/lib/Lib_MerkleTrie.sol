@@ -6,6 +6,8 @@ import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "./Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title Lib_MerkleTrie
  */
@@ -192,7 +194,7 @@ library Lib_MerkleTrie {
             bool _isFinalNode
         )
     {
-        // TODO: is 9 okay max length?
+        // TODO: this is max length
         _proof = new TrieNode[](9);
 
         uint256 pathLength = 0;
@@ -206,6 +208,9 @@ library Lib_MerkleTrie {
 
         // Proof is top-down, so we start at the first element (root).
         for (uint256 i = 0; i < _proof.length; i++) {
+            if (currentNodeID == bytes32(RLP_NULL)) {
+                break;
+            }
             if (currentNodeLength >= 32) {
                 currentNode = getTrieNode(trie, currentNodeID);
             } else {
@@ -319,7 +324,6 @@ library Lib_MerkleTrie {
         bytes memory _value
     )
         private
-        pure
         returns (
             TrieNode[] memory _newPath
         )
@@ -329,6 +333,7 @@ library Lib_MerkleTrie {
         // Most of our logic depends on the status of the last node in the path.
         TrieNode memory lastNode = _path[_pathLength - 1];
         NodeType lastNodeType = _getNodeType(lastNode);
+        console.log(uint256(lastNodeType));
 
         // Create an array for newly created nodes.
         // We need up to three new nodes, depending on the contents of the last node.
@@ -441,7 +446,7 @@ library Lib_MerkleTrie {
                     // We're dealing with an unnecessary extension node.
                     // We're going to delete the node entirely.
                     // Simply insert its current value into the branch index.
-                    newBranch = _editBranchIndex(newBranch, branchKey, _getNodeValue(lastNode));
+                    newBranch = _editBranchIndexRLP(newBranch, branchKey, lastNode.decoded[lastNode.decoded.length-1]);
                 }
             }
 
@@ -903,6 +908,21 @@ library Lib_MerkleTrie {
     {
         bytes memory encoded = _value.length < 32 ? _value : Lib_RLPWriter.writeBytes(_value);
         _branch.decoded[_index] = Lib_RLPReader.toRLPItem(encoded);
+        return _makeNode(_branch.decoded);
+    }
+
+    function _editBranchIndexRLP(
+        TrieNode memory _branch,
+        uint8 _index,
+        Lib_RLPReader.RLPItem memory encoded
+    )
+        private
+        pure
+        returns (
+            TrieNode memory _updatedNode
+        )
+    {
+        _branch.decoded[_index] = encoded;
         return _makeNode(_branch.decoded);
     }
 
