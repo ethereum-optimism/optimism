@@ -6,7 +6,6 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 import {
   deployAndPostDeploy,
   getContractFromArtifact,
-  waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {

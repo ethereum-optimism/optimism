@@ -19,10 +19,15 @@ import dotenv from 'dotenv'
 
 /* Imports: Internal */
 import { Direction, waitForXDomainTransaction } from './watcher-utils'
+import { OptimismEnv } from './env'
 
 export const GWEI = BigNumber.from(1e9)
 
-if (process.env.IS_LIVE_NETWORK === 'true') {
+export const isLiveNetwork = () => {
+  return process.env.IS_LIVE_NETWORK === 'true'
+}
+
+if (isLiveNetwork()) {
   dotenv.config()
 }
 
@@ -144,12 +149,14 @@ export const encodeSolidityRevertMessage = (_reason: string): string => {
   return '0x08c379a0' + remove0x(abiCoder.encode(['string'], [_reason]))
 }
 
-export const DEFAULT_TRANSACTION = {
-  to: '0x' + '1234'.repeat(10),
-  gasLimit: 8_000_000,
-  gasPrice: 0,
-  data: '0x',
-  value: 0,
+export const defaultTransactionFactory = () => {
+  return {
+    to: '0x' + '1234'.repeat(10),
+    gasLimit: 8_000_000,
+    gasPrice: BigNumber.from(0),
+    data: '0x',
+    value: 0,
+  }
 }
 
 export const waitForL2Geth = async (
@@ -165,4 +172,45 @@ export const waitForL2Geth = async (
     }
   }
   return injectL2Context(provider)
+}
+
+export const awaitCondition = async (
+  cond: () => Promise<boolean>,
+  rate = 1000,
+  attempts = 10
+) => {
+  for (let i = 0; i < attempts; i++) {
+    const ok = await cond()
+    if (ok) {
+      return
+    }
+
+    await sleep(rate)
+  }
+  throw new Error('Timed out.')
+}
+
+export const gasPriceForL2 = async () => {
+  if (isLiveNetwork()) {
+    return Promise.resolve(BigNumber.from(10000))
+  }
+
+  return Promise.resolve(BigNumber.from(0))
+}
+
+// eslint-disable-next-line @typescript-eslint/no-shadow
+export const gasPriceForL1 = async (env: OptimismEnv) => {
+  const chainId = await env.l1Wallet.getChainId()
+
+  switch (chainId) {
+    case 1:
+      return env.l1Wallet.getGasPrice()
+    case 3:
+    case 42:
+      return utils.parseUnits('10', 'gwei')
+    case 5:
+      return utils.parseUnits('2', 'gwei')
+    default:
+      return BigNumber.from(0)
+  }
 }

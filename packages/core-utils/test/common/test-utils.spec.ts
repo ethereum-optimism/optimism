@@ -1,8 +1,37 @@
 import { expect } from '../setup'
 
 /* Imports: Internal */
-import { expectApprox } from '../../src'
+import { expectApprox, awaitCondition } from '../../src'
 import { assert } from 'chai'
+
+describe('awaitCondition', () => {
+  it('should try the condition fn until it returns true', async () => {
+    let i = 0
+    const condFn = async () => {
+      i++
+      return Promise.resolve(i === 2)
+    }
+
+    await awaitCondition(condFn, 50, 3);
+    expect(i).to.equal(2)
+  })
+
+  it('should only try the configured number of attempts', async () => {
+    let i = 0
+    const condFn = async () => {
+      i++
+      return Promise.resolve(i === 2)
+    }
+
+    try {
+      await awaitCondition(condFn, 50, 1);
+    } catch (e) {
+      return;
+    }
+
+    assert.fail('Condition never failed, but it should have.');
+  })
+})
 
 describe('expectApprox', () => {
   it('should pass when the actual number is higher, but within the expected range of the target', async () => {

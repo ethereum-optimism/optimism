@@ -1,12 +1,11 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { hexStringEquals } from '@eth-optimism/core-utils'
+import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import {
   deployAndPostDeploy,
   getContractFromArtifact,
-  waitUntilTrue,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -29,12 +28,16 @@ const deployFn: DeployFunction = async (hre) => {
       await contract.initialize(Lib_AddressManager.address)
 
       console.log(`Checking that contract was correctly initialized...`)
-      await waitUntilTrue(async () => {
-        return hexStringEquals(
-          await contract.libAddressManager(),
-          Lib_AddressManager.address
-        )
-      })
+      await awaitCondition(
+        async () => {
+          return hexStringEquals(
+            await contract.libAddressManager(),
+            Lib_AddressManager.address
+          )
+        },
+        5000,
+        100
+      )
     },
   })
 }

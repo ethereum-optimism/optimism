@@ -2,13 +2,14 @@ import { expect } from 'chai'
 
 /* Imports: External */
 import { Contract, ContractFactory } from 'ethers'
-import { applyL1ToL2Alias, sleep } from '@eth-optimism/core-utils'
+import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 import l2ReverterJson from '../artifacts/contracts/Reverter.sol/Reverter.json'
 import { Direction } from './shared/watcher-utils'
-import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
+import { OptimismEnv } from './shared/env'
+import { awaitCondition } from '@eth-optimism/core-utils'
 
 describe('Basic L1<>L2 Communication', async () => {
   let Factory__L1SimpleStorage: ContractFactory
@@ -48,9 +49,7 @@ describe('Basic L1<>L2 Communication', async () => {
   })
 
   describe('L2 => L1', () => {
-    it('should be able to perform a withdrawal from L2 -> L1', async function () {
-      await useDynamicTimeoutForWithdrawals(this, env)
-
+    it('should be able to perform a withdrawal from L2 -> L1', async () => {
       const value = `0x${'77'.repeat(32)}`
 
       // Send L2 -> L1 message.
@@ -114,8 +113,14 @@ describe('Basic L1<>L2 Communication', async () => {
           ])
         )
 
-      // TODO: We need to have a function that can wait for enqueued txs.
-      await sleep(10000)
+      await awaitCondition(
+        async () => {
+          const sender = await L2SimpleStorage.msgSender()
+          return sender === env.l1Wallet.address
+        },
+        2000,
+        60
+      )
 
       // No aliasing when an EOA goes directly to L2.
       expect(await L2SimpleStorage.msgSender()).to.equal(env.l1Wallet.address)

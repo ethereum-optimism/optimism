@@ -4,6 +4,7 @@ import { HardhatUserConfig } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-gas-reporter'
+import { isLiveNetwork } from './test/shared/utils'
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 
@@ -14,7 +15,7 @@ const config: HardhatUserConfig = {
     },
   },
   mocha: {
-    timeout: 75_000,
+    timeout: isLiveNetwork() ? 300_000 : 75_000,
   },
   solidity: {
     version: '0.8.9',
