@@ -49,8 +49,10 @@ func (s *StateDB) AddLog(log *types.Log) {
 			//fmt.Printf("R: %x -> %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
 		} else if log.Topics[0] == common.HexToHash("0x486ca368095cbbef9046ac7858bec943e866422cc388f49da1aa3aa77c10aa35") {
 			fmt.Printf("W: %x <- %x\n", bytesTo32(log.Data[0:32]), bytesTo32(log.Data[32:]))
+		} else if log.Topics[0] == common.HexToHash("0x86b89b5c9818dbbf520dd979a5f250d357508fe11b9511d4a43fd9bc6aa1be70") {
+			fmt.Println("state", common.BytesToHash(log.Data))
 		} else {
-			//fmt.Println("AddLog", log.Topics, log.Data)
+			fmt.Println("AddLog", log.Topics, log.Data)
 		}
 	}
 }
