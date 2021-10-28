@@ -6,6 +6,8 @@ import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "./Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title Lib_MerkleTrie
  */
@@ -131,7 +133,7 @@ library Lib_MerkleTrie {
             "Provided proof is invalid."
         );
 
-        bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes("");
+        bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes('');
 
         return (
             exists,
@@ -192,8 +194,8 @@ library Lib_MerkleTrie {
             bool _isFinalNode
         )
     {
-        // TODO: is 9 okay max length?
-        _proof = new TrieNode[](9);
+        // TODO: this is max length
+        _proof = new TrieNode[](16);
 
         uint256 pathLength = 0;
         bytes memory key = Lib_BytesUtils.toNibbles(_key);
@@ -205,7 +207,10 @@ library Lib_MerkleTrie {
         TrieNode memory currentNode;
 
         // Proof is top-down, so we start at the first element (root).
-        for (uint256 i = 0; i < _proof.length; i++) {
+        while (true) {
+            if (currentNodeID == bytes32(RLP_NULL)) {
+                break;
+            }
             if (currentNodeLength >= 32) {
                 currentNode = getTrieNode(trie, currentNodeID);
             } else {
@@ -240,8 +245,7 @@ library Lib_MerkleTrie {
 
             if (currentNode.decoded.length == BRANCH_NODE_LENGTH) {
                 if (currentKeyIndex == key.length) {
-                    // We've hit the end of the key
-                    // meaning the value should be within this branch node.
+                    // We've hit the end of the key, meaning the value should be within this branch node.
                     break;
                 } else {
                     // We're not at the end of the key yet.
@@ -300,6 +304,7 @@ library Lib_MerkleTrie {
         return (_proof, pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode);
     }
 
+
     /**
      * @notice Creates new nodes to support a k/v pair insertion into a given Merkle trie path.
      * @param _path Path to the node nearest the k/v pair.
@@ -319,7 +324,6 @@ library Lib_MerkleTrie {
         bytes memory _value
     )
         private
-        pure
         returns (
             TrieNode[] memory _newPath
         )
@@ -339,6 +343,7 @@ library Lib_MerkleTrie {
 
         // solhint-disable-next-line max-line-length
         // Reference: https://github.com/ethereumjs/merkle-patricia-tree/blob/c0a10395aab37d42c175a47114ebfcbd7efcf059/src/baseTrie.ts#L294-L313
+        // TODO: do we need this?
         bool matchLeaf = false;
         if (lastNodeType == NodeType.LeafNode) {
             uint256 l = 0;
@@ -381,8 +386,7 @@ library Lib_MerkleTrie {
                 totalNewNodes += 1;
                 // Create a new leaf node, slicing our remainder since the first byte points
                 // to our branch node.
-                newNodes[totalNewNodes] =
-                    _makeLeafNode(Lib_BytesUtils.slice(keyRemainder, 1), _value);
+                newNodes[totalNewNodes] = _makeLeafNode(Lib_BytesUtils.slice(keyRemainder, 1), _value);
                 totalNewNodes += 1;
             }
         } else {
@@ -420,27 +424,18 @@ library Lib_MerkleTrie {
                 if (lastNodeType == NodeType.LeafNode) {
                     // We're dealing with a leaf node.
                     // We'll modify the key and insert the old leaf node into the branch index.
-                    TrieNode memory modifiedLastNode =
-                        _makeLeafNode(lastNodeKey, _getNodeValue(lastNode));
-                    newBranch =
-                        _editBranchIndex(
-                                newBranch,
-                                branchKey,
-                                _getNodeHash(modifiedLastNode.encoded));
+                    TrieNode memory modifiedLastNode = _makeLeafNode(lastNodeKey, _getNodeValue(lastNode));
+                    newBranch = _editBranchIndex(newBranch, branchKey, _getNodeHash(modifiedLastNode.encoded));
                 } else if (lastNodeKey.length != 0) {
                     // We're dealing with a shrinking extension node.
                     // We need to modify the node to decrease the size of the key.
-                    TrieNode memory modifiedLastNode =
-                        _makeExtensionNode(lastNodeKey, _getNodeValue(lastNode));
-                    newBranch =
-                        _editBranchIndex(
-                            newBranch,
-                            branchKey,
-                            _getNodeHash(modifiedLastNode.encoded));
+                    TrieNode memory modifiedLastNode = _makeExtensionNode(lastNodeKey, _getNodeValue(lastNode));
+                    newBranch = _editBranchIndex(newBranch, branchKey, _getNodeHash(modifiedLastNode.encoded));
                 } else {
                     // We're dealing with an unnecessary extension node.
                     // We're going to delete the node entirely.
                     // Simply insert its current value into the branch index.
+                    console.log(lastNode.decoded.length);
                     newBranch = _editBranchIndex(newBranch, branchKey, _getNodeValue(lastNode));
                 }
             }
