@@ -677,9 +677,10 @@ library Lib_MerkleTrie {
         if (_encoded.length < 32) {
             return _encoded;
         } else {
-            //console.logBytes32(keccak256(_encoded));
-            GetTrie()[keccak256(_encoded)] = _encoded;
-            return abi.encodePacked(keccak256(_encoded));
+            bytes32 encodedHash = keccak256(_encoded);
+            //console.logBytes32(encodedHash);
+            GetTrie()[encodedHash] = _encoded;
+            return abi.encodePacked(encodedHash);
         }
     }
 
