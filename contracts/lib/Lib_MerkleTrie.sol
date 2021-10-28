@@ -6,7 +6,7 @@ import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "./Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
 
-//import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 /**
  * @title Lib_MerkleTrie
@@ -28,6 +28,10 @@ library Lib_MerkleTrie {
         Lib_RLPReader.RLPItem[] decoded;
     }
 
+    function GetTrie() internal pure returns (mapping(bytes32 => bytes) storage trie) {
+        bytes32 position = keccak256("trie.trie.trie.trie");
+        assembly { trie.slot := position }
+    }
 
     /**********************
      * Contract Constants *
@@ -64,7 +68,6 @@ library Lib_MerkleTrie {
      * @notice Updates a Merkle trie and returns a new root hash.
      * @param _key Key of the node to update, as a hex string.
      * @param _value Value of the node to update, as a hex string.
-     * @param trie Merkle trie
      * @param _root Known root of the Merkle trie. Used to verify that the
      * included proof is correctly constructed.
      * @return _updatedRoot Root hash of the newly constructed trie.
@@ -72,7 +75,6 @@ library Lib_MerkleTrie {
     function update(
         bytes memory _key,
         bytes memory _value,
-        mapping(bytes32 => bytes) storage trie,
         bytes32 _root
     )
         internal
@@ -82,13 +84,17 @@ library Lib_MerkleTrie {
     {
         // Special case when inserting the very first node.
         if (_root == KECCAK256_RLP_NULL_BYTES) {
-            return getSingleNodeRootHash(_key, _value, trie);
+            return getSingleNodeRootHash(_key, _value);
         }
 
-        (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(trie, _key, _root);
+        (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, ) = _walkNodePath(_key, _root);
         TrieNode[] memory newPath = _getNewPath(proof, pathLength, _key, keyRemainder, _value);
 
-        return _getUpdatedTrieRoot(newPath, _key, trie);
+        _updatedRoot = _getUpdatedTrieRoot(newPath, _key);
+
+        for (uint i = 0; i < newPath.length; i++) {
+            console.log(i, newPath[i].decoded.length);
+        }
     }
 
     function getRawNode(bytes memory encoded) private pure returns (TrieNode memory) {
@@ -98,8 +104,8 @@ library Lib_MerkleTrie {
         });
     }
 
-    function getTrieNode(mapping(bytes32 => bytes) storage trie, bytes32 nodeId) private view returns (TrieNode memory) {
-        bytes memory encoded = trie[nodeId];
+    function getTrieNode(bytes32 nodeId) private view returns (TrieNode memory) {
+        bytes memory encoded = GetTrie()[nodeId];
         require(keccak256(encoded) == nodeId, "bad hash in trie lookup");
         return getRawNode(encoded);
     }
@@ -107,14 +113,12 @@ library Lib_MerkleTrie {
     /**
      * @notice Retrieves the value associated with a given key.
      * @param _key Key to search for, as hex bytes.
-     * @param trie Merkle trie
      * @param _root Known root of the Merkle trie.
      * @return _exists Whether or not the key exists.
      * @return _value Value of the key if it exists.
      */
     function get(
         bytes memory _key,
-        mapping(bytes32 => bytes) storage trie,
         bytes32 _root
     )
         internal
@@ -124,7 +128,7 @@ library Lib_MerkleTrie {
             bytes memory _value
         )
     {
-        (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = _walkNodePath(trie, _key, _root);
+        (TrieNode[] memory proof, uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = _walkNodePath(_key, _root);
 
         bool exists = keyRemainder.length == 0;
 
@@ -149,8 +153,7 @@ library Lib_MerkleTrie {
      */
     function getSingleNodeRootHash(
         bytes memory _key,
-        bytes memory _value,
-        mapping(bytes32 => bytes) storage trie
+        bytes memory _value
     )
         internal
         returns (
@@ -161,7 +164,7 @@ library Lib_MerkleTrie {
             Lib_BytesUtils.toNibbles(_key),
             _value).encoded;
         bytes32 ret = keccak256(dat);
-        trie[ret] = dat;
+        GetTrie()[ret] = dat;
         return ret;
     }
 
@@ -172,7 +175,6 @@ library Lib_MerkleTrie {
 
     /**
      * @notice Walks through a proof using a provided key.
-     * @param trie Merkle trie
      * @param _key Key to use for the walk.
      * @param _root Known root of the trie.
      * @return _proof The proof
@@ -181,7 +183,6 @@ library Lib_MerkleTrie {
      * @return _isFinalNode Whether or not we've hit a dead end.
      */
     function _walkNodePath(
-        mapping(bytes32 => bytes) storage trie,
         bytes memory _key,
         bytes32 _root
     )
@@ -212,7 +213,7 @@ library Lib_MerkleTrie {
                 break;
             }
             if (currentNodeLength >= 32) {
-                currentNode = getTrieNode(trie, currentNodeID);
+                currentNode = getTrieNode(currentNodeID);
             } else {
                 currentNode = getRawNode(Lib_BytesUtils.slice(abi.encodePacked(currentNodeID), 0, currentNodeLength));
             }
@@ -483,8 +484,7 @@ library Lib_MerkleTrie {
      */
     function _getUpdatedTrieRoot(
         TrieNode[] memory _nodes,
-        bytes memory _key,
-        mapping(bytes32 => bytes) storage trie
+        bytes memory _key
     )
         private
         returns (
@@ -530,12 +530,8 @@ library Lib_MerkleTrie {
                     currentNode = _editBranchIndex(currentNode, branchKey, previousNodeHash);
                 }
             }
-
             // Compute the node hash for the next iteration.
             previousNodeHash = _getNodeHash(currentNode.encoded);
-            if (currentNode.encoded.length >= 32) {
-                trie[keccak256(currentNode.encoded)] = currentNode.encoded;
-            }
         }
 
         // Current node should be the root at this point.
@@ -660,10 +656,11 @@ library Lib_MerkleTrie {
 
         if (itemType == Lib_RLPReader.RLPItemType.DATA_ITEM) {
             return Lib_RLPReader._copy(_in.ptr, itemOffset, itemLength);
-        } else {
-            require(_in.length < 32, "bad _getNodeValue other");
+        } else if (itemType == Lib_RLPReader.RLPItemType.LIST_ITEM) {
+            require(_in.length < 32, "bad _getNodeValue list");
             return Lib_RLPReader._copy(_in.ptr, 0, _in.length);
         }
+        revert("bad _getNodeValue");
     }
 
     /**
@@ -676,14 +673,16 @@ library Lib_MerkleTrie {
         bytes memory _encoded
     )
         private
-        pure
         returns (
             bytes memory _hash
         )
     {
+        console.logBytes(_encoded);
         if (_encoded.length < 32) {
             return _encoded;
         } else {
+            console.logBytes32(keccak256(_encoded));
+            GetTrie()[keccak256(_encoded)] = _encoded;
             return abi.encodePacked(keccak256(_encoded));
         }
     }

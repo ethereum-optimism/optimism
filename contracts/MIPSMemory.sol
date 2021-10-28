@@ -9,7 +9,7 @@ contract MIPSMemory {
   mapping(bytes32 => bytes) public trie;
 
   function AddTrieNode(bytes calldata anything) public {
-    trie[keccak256(anything)] = anything;
+    Lib_MerkleTrie.GetTrie()[keccak256(anything)] = anything;
   }
 
   // TODO: replace with mapping(bytes32 => mapping(uint, bytes4))
@@ -72,7 +72,7 @@ contract MIPSMemory {
 
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 value) public returns (bytes32) {
     require(addr & 3 == 0, "write memory must be 32-bit aligned");
-    return Lib_MerkleTrie.update(tb(addr>>2), tb(value), trie, stateHash);
+    return Lib_MerkleTrie.update(tb(addr>>2), tb(value), stateHash);
   }
 
   event DidStep(bytes32 stateHash);
@@ -126,7 +126,7 @@ contract MIPSMemory {
 
     bool exists;
     bytes memory value;
-    (exists, value) = Lib_MerkleTrie.get(tb(addr>>2), trie, stateHash);
+    (exists, value) = Lib_MerkleTrie.get(tb(addr>>2), stateHash);
 
     if (!exists) {
       // this is uninitialized memory
