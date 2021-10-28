@@ -27,7 +27,7 @@ func LoadRam() map[uint32](uint32) {
 // go test -run TestCompareEvmChain
 
 func TestCompareEvmChain(t *testing.T) {
-	totalSteps := 20
+	totalSteps := 50
 
 	cchain := make(chan common.Hash, 1)
 	cuni := make(chan common.Hash, 1)
@@ -39,7 +39,7 @@ func TestCompareEvmChain(t *testing.T) {
 	fmt.Println("state root", root, "nodes", len(Preimages))
 
 	// deploy chain
-	interpreter, statedb := GetInterpreter(1, true)
+	interpreter, statedb := GetInterpreter(0, true)
 	DeployChain(interpreter, statedb)
 
 	// load chain trie node
