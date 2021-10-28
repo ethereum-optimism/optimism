@@ -792,6 +792,7 @@ library Lib_MerkleTrie {
         bool isBytes
     )
         private
+        pure
         returns (
             TrieNode memory _node
         )
