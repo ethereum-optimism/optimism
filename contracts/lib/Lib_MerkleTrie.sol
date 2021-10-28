@@ -443,7 +443,7 @@ library Lib_MerkleTrie {
                     // We're dealing with an unnecessary extension node.
                     // We're going to delete the node entirely.
                     // Simply insert its current value into the branch index.
-                    newBranch = _editBranchIndexRLP(newBranch, branchKey, lastNode.decoded[lastNode.decoded.length-1]);
+                    newBranch = _editBranchIndex(newBranch, branchKey, _getNodeValue(lastNode));
                 }
             }
 
@@ -648,7 +648,19 @@ library Lib_MerkleTrie {
             bytes memory _value
         )
     {
-        return Lib_RLPReader.readBytes(_node.decoded[_node.decoded.length - 1]);
+        Lib_RLPReader.RLPItem memory _in = _node.decoded[_node.decoded.length - 1];
+        // this is bytes only if the length is 32
+        (
+            uint256 itemOffset,
+            uint256 itemLength,
+            Lib_RLPReader.RLPItemType itemType
+        ) = Lib_RLPReader._decodeLength(_in);
+
+        if (itemType == Lib_RLPReader.RLPItemType.DATA_ITEM) {
+            return Lib_RLPReader._copy(_in.ptr, itemOffset, itemLength);
+        } else {
+            return Lib_RLPReader._copy(_in.ptr, 0, _in.length);
+        }
     }
 
     /**
@@ -905,21 +917,6 @@ library Lib_MerkleTrie {
     {
         bytes memory encoded = _value.length < 32 ? _value : Lib_RLPWriter.writeBytes(_value);
         _branch.decoded[_index] = Lib_RLPReader.toRLPItem(encoded);
-        return _makeNode(_branch.decoded);
-    }
-
-    function _editBranchIndexRLP(
-        TrieNode memory _branch,
-        uint8 _index,
-        Lib_RLPReader.RLPItem memory encoded
-    )
-        private
-        pure
-        returns (
-            TrieNode memory _updatedNode
-        )
-    {
-        _branch.decoded[_index] = encoded;
         return _makeNode(_branch.decoded);
     }
 

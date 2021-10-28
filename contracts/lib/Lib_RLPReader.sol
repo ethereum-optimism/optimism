@@ -457,7 +457,7 @@ library Lib_RLPReader {
     function _decodeLength(
         RLPItem memory _in
     )
-        private
+        internal
         pure
         returns (
             uint256,
@@ -564,7 +564,7 @@ library Lib_RLPReader {
         uint256 _offset,
         uint256 _length
     )
-        private
+        internal
         pure
         returns (
             bytes memory
