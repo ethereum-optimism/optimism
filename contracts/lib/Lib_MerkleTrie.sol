@@ -6,8 +6,6 @@ import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "./Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title Lib_MerkleTrie
  */
@@ -333,7 +331,6 @@ library Lib_MerkleTrie {
         // Most of our logic depends on the status of the last node in the path.
         TrieNode memory lastNode = _path[_pathLength - 1];
         NodeType lastNodeType = _getNodeType(lastNode);
-        console.log(uint256(lastNodeType));
 
         // Create an array for newly created nodes.
         // We need up to three new nodes, depending on the contents of the last node.
