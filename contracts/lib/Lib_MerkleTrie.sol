@@ -6,7 +6,7 @@ import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "./Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
 
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 
 /**
  * @title Lib_MerkleTrie
@@ -91,10 +91,6 @@ library Lib_MerkleTrie {
         TrieNode[] memory newPath = _getNewPath(proof, pathLength, _key, keyRemainder, _value);
 
         _updatedRoot = _getUpdatedTrieRoot(newPath, _key);
-
-        for (uint i = 0; i < newPath.length; i++) {
-            console.log(i, newPath[i].decoded.length);
-        }
     }
 
     function getRawNode(bytes memory encoded) private pure returns (TrieNode memory) {
@@ -399,7 +395,7 @@ library Lib_MerkleTrie {
                 // We've got some shared nibbles between the last node and our key remainder.
                 // We'll need to insert an extension node that covers these shared nibbles.
                 bytes memory nextNodeKey = Lib_BytesUtils.slice(lastNodeKey, 0, sharedNibbleLength);
-                newNodes[totalNewNodes] = _makeExtensionNode(nextNodeKey, _getNodeHash(_value));
+                newNodes[totalNewNodes] = _makeExtensionNode(nextNodeKey, _getNodeHash(_value), true);
                 totalNewNodes += 1;
 
                 // Cut down the keys since we've just covered these shared nibbles.
@@ -436,7 +432,7 @@ library Lib_MerkleTrie {
                     // We're dealing with a shrinking extension node.
                     // We need to modify the node to decrease the size of the key.
                     TrieNode memory modifiedLastNode =
-                        _makeExtensionNode(lastNodeKey, _getNodeValue(lastNode));
+                        _makeExtensionNode(lastNodeKey, _getNodeValue(lastNode), false);
                     newBranch =
                         _editBranchIndex(
                             newBranch,
@@ -677,11 +673,11 @@ library Lib_MerkleTrie {
             bytes memory _hash
         )
     {
-        console.logBytes(_encoded);
+        //console.logBytes(_encoded);
         if (_encoded.length < 32) {
             return _encoded;
         } else {
-            console.logBytes32(keccak256(_encoded));
+            //console.logBytes32(keccak256(_encoded));
             GetTrie()[keccak256(_encoded)] = _encoded;
             return abi.encodePacked(keccak256(_encoded));
         }
@@ -792,10 +788,10 @@ library Lib_MerkleTrie {
      */
     function _makeExtensionNode(
         bytes memory _key,
-        bytes memory _value
+        bytes memory _value,
+        bool isBytes
     )
         private
-        pure
         returns (
             TrieNode memory _node
         )
@@ -803,7 +799,11 @@ library Lib_MerkleTrie {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_key, false);
         raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
-        raw[1] = Lib_RLPWriter.writeBytes(_value);
+        if (_value.length >= 32 || isBytes) {
+            raw[1] = Lib_RLPWriter.writeBytes(_value);
+        } else {
+            raw[1] = _value;
+        }
         return _makeNode(raw);
     }
 

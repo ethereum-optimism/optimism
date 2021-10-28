@@ -84,6 +84,7 @@ func ParseNode(node common.Hash, depth int, callback func(common.Hash) []byte) {
 		return
 	}
 	buf := callback(node)
+	//fmt.Println("callback", node, len(buf), hex.EncodeToString(buf))
 	elems, _, err := rlp.SplitList(buf)
 	check(err)
 	ParseNodeInternal(elems, depth, callback)
