@@ -80,10 +80,10 @@ func TestCompareEvmChain(t *testing.T) {
 
 	for i := 0; i < totalSteps; i++ {
 		x, y := <-cchain, <-cuni
+		fmt.Println(i, x, y)
 		if x != y {
 			log.Fatal("mismatch at step", i)
 		}
-		fmt.Println(i, x, y)
 	}
 
 	/*ParseNode(root, 0, func(t common.Hash) []byte {
