@@ -1,13 +1,10 @@
 /* Imports: External */
-import { hexStringEquals } from '@eth-optimism/core-utils'
+import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import {
-  getContractFromArtifact,
-  waitUntilTrue,
-} from '../src/hardhat-deploy-ethers'
+import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -92,18 +89,16 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   // Wait for ownership to be transferred to the AddressDictator contract.
-  await waitUntilTrue(
+  await awaitCondition(
     async () => {
       return hexStringEquals(
         await Lib_AddressManager.owner(),
         AddressDictator.address
       )
     },
-    {
-      // Try every 30 seconds for 500 minutes.
-      delay: 30_000,
-      retries: 1000,
-    }
+    // Try every 30 seconds for 500 minutes.
+    30000,
+    1000
   )
 
   // Set the addresses!
@@ -112,9 +107,13 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Make sure ownership has been correctly sent back to the original owner.
   console.log('Verifying final ownership of Lib_AddressManager...')
-  await waitUntilTrue(async () => {
-    return hexStringEquals(await Lib_AddressManager.owner(), finalOwner)
-  })
+  await awaitCondition(
+    async () => {
+      return hexStringEquals(await Lib_AddressManager.owner(), finalOwner)
+    },
+    500,
+    1000
+  )
 }
 
 deployFn.tags = ['set-addresses', 'upgrade']

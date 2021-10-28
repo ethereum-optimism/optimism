@@ -7,6 +7,7 @@ import { injectL2Context, applyL1ToL2Alias } from '@eth-optimism/core-utils'
 /* Imports: External */
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
+import { isLiveNetwork } from './shared/utils'
 
 describe('Queue Ingestion', () => {
   let env: OptimismEnv
@@ -61,5 +62,5 @@ describe('Queue Ingestion', () => {
       )
       expect(l2Tx.l1BlockNumber).to.equal(l1TxReceipt.blockNumber)
     }
-  }).timeout(100_000)
+  }).timeout(isLiveNetwork() ? 300_000 : 100_000)
 })

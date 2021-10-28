@@ -1,13 +1,12 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { ethers } from 'ethers'
-import { hexStringEquals } from '@eth-optimism/core-utils'
+import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { getContractDefinition } from '../src/contract-defs'
 import {
   getContractFromArtifact,
-  waitUntilTrue,
   deployAndPostDeploy,
 } from '../src/hardhat-deploy-ethers'
 
@@ -100,7 +99,7 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   // Wait for ownership to be transferred to the AddressDictator contract.
-  await waitUntilTrue(
+  await awaitCondition(
     async () => {
       return hexStringEquals(
         await Proxy__OVM_L1StandardBridge.connect(
@@ -111,11 +110,8 @@ const deployFn: DeployFunction = async (hre) => {
         ChugSplashDictator.address
       )
     },
-    {
-      // Try every 30 seconds for 500 minutes.
-      delay: 30_000,
-      retries: 1000,
-    }
+    30000,
+    1000
   )
 
   // Set the addresses!
@@ -123,16 +119,20 @@ const deployFn: DeployFunction = async (hre) => {
   await ChugSplashDictator.doActions(bridgeCode)
 
   console.log(`Confirming that owner address was correctly set...`)
-  await waitUntilTrue(async () => {
-    return hexStringEquals(
-      await Proxy__OVM_L1StandardBridge.connect(
-        Proxy__OVM_L1StandardBridge.signer.provider
-      ).callStatic.getOwner({
-        from: ethers.constants.AddressZero,
-      }),
-      finalOwner
-    )
-  })
+  await awaitCondition(
+    async () => {
+      return hexStringEquals(
+        await Proxy__OVM_L1StandardBridge.connect(
+          Proxy__OVM_L1StandardBridge.signer.provider
+        ).callStatic.getOwner({
+          from: ethers.constants.AddressZero,
+        }),
+        finalOwner
+      )
+    },
+    5000,
+    100
+  )
 
   // Deploy a copy of the implementation so it can be successfully verified on Etherscan.
   console.log(`Deploying a copy of the bridge for Etherscan verification...`)

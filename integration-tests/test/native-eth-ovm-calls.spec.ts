@@ -1,15 +1,19 @@
-import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
+import {
+  BigNumber,
+  BigNumberish,
+  Contract,
+  ContractFactory,
+  Wallet,
+} from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { GWEI, fundUser, encodeSolidityRevertMessage } from './shared/utils'
+import {
+  fundUser,
+  encodeSolidityRevertMessage,
+  gasPriceForL2,
+} from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { solidity } from 'ethereum-waffle'
-import { sleep } from '../../packages/core-utils/dist'
-import {
-  getContractFactory,
-  getContractInterface,
-} from '../../packages/contracts/dist'
-import { Interface } from 'ethers/lib/utils'
 
 chai.use(solidity)
 
@@ -32,15 +36,16 @@ describe('Native ETH value integration tests', () => {
       ]
     }
 
-    const checkBalances = async (
-      expectedBalances: BigNumber[]
-    ): Promise<void> => {
-      const realBalances = await getBalances()
-      expect(realBalances[0]).to.deep.eq(expectedBalances[0])
-      expect(realBalances[1]).to.deep.eq(expectedBalances[1])
+    const expectBalancesWithinRange = (
+      bal: BigNumber,
+      lte: BigNumber,
+      gte: BigNumber
+    ) => {
+      expect(bal.lte(lte)).to.be.true
+      expect(bal.gte(gte)).to.be.true
     }
 
-    const value = 10
+    const value = ethers.utils.parseEther('0.01')
     await fundUser(env.watcher, env.l1Bridge, value, wallet.address)
 
     const initialBalances = await getBalances()
@@ -48,23 +53,40 @@ describe('Native ETH value integration tests', () => {
     const there = await wallet.sendTransaction({
       to: other.address,
       value,
-      gasPrice: 0,
+      gasPrice: await gasPriceForL2(),
     })
-    await there.wait()
+    const thereReceipt = await there.wait()
+    const thereGas = thereReceipt.gasUsed.mul(there.gasPrice)
 
-    await checkBalances([
+    const thereBalances = await getBalances()
+    const thereWithGas = initialBalances[0].sub(value).sub(thereGas).sub(100000)
+    expectBalancesWithinRange(
+      thereBalances[0],
       initialBalances[0].sub(value),
-      initialBalances[1].add(value),
-    ])
+      thereWithGas
+    )
+    expect(initialBalances[1].add(value).eq(thereBalances[1]))
 
+    const backVal = ethers.utils.parseEther('0.005')
     const backAgain = await other.sendTransaction({
       to: wallet.address,
-      value,
-      gasPrice: 0,
+      value: backVal,
+      gasPrice: await gasPriceForL2(),
     })
-    await backAgain.wait()
+    const backReceipt = await backAgain.wait()
+    const backGas = backReceipt.gasUsed.mul(backAgain.gasPrice)
 
-    await checkBalances(initialBalances)
+    const backBalances = await getBalances()
+    expectBalancesWithinRange(
+      backBalances[0],
+      initialBalances[0].sub(thereGas).sub(backVal),
+      initialBalances[0].sub(thereGas).sub(backVal).sub(200000)
+    )
+    expectBalancesWithinRange(
+      backBalances[1],
+      initialBalances[1].add(backVal).sub(backGas),
+      initialBalances[1].add(backVal).sub(backGas).sub(200000)
+    )
   })
 
   describe(`calls between OVM contracts with native ETH value and relevant opcodes`, async () => {
@@ -155,7 +177,7 @@ describe('Native ETH value integration tests', () => {
     it('should allow ETH to be sent', async () => {
       const sendAmount = 15
       const tx = await ValueCalls0.simpleSend(ValueCalls1.address, sendAmount, {
-        gasPrice: 0,
+        gasPrice: await gasPriceForL2(),
       })
       await tx.wait()
 
