@@ -15,18 +15,27 @@ async function write(mm, root, addr, data) {
 }
 
 describe("MIPSMemory contract", function () {
-  it("reads and write should work", async function() {
+  beforeEach(async function () {
     const MIPSMemory = await ethers.getContractFactory("MIPSMemory")
-    const mm = await MIPSMemory.deploy()
+    mm = await MIPSMemory.deploy()
+  })
+  it("write from new should work", async function() {
+    await mm.AddTrieNode(new Uint8Array([0x80]))
+    let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
 
+    root = await write(mm, root, 0, 0)
+    root = await write(mm, root, 4, 0)
+  })
+  it("write three should work", async function() {
     for (k in trieAdd['preimages']) {
       const bin = Uint8Array.from(Buffer.from(trieAdd['preimages'][k], 'base64').toString('binary'), c => c.charCodeAt(0))
       await mm.AddTrieNode(bin)
     }
 
     let root = trieAdd['root']
+
     root = await write(mm, root, 0x7fffd010, 1000)
     root = await write(mm, root, 0x7fffd00c, 6)
-    root = await write(mm, root, 0x7fffcffc, 0x85a24)
+    root = await write(mm, root, 0x7fffc000, 0x85a24)
   })
 })

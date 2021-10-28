@@ -26,7 +26,4 @@ describe("MIPS contract", function () {
       console.log(i, root)
     }
   });
-  it("reads and write should work", async function() {
-    const mm = await ethers.getContractFactory("MIPSMemory")
-  })
 });
