@@ -500,14 +500,17 @@ library Lib_MerkleTrie {
             } else if (currentNodeType == NodeType.ExtensionNode) {
                 // Shift the key over to account for the nodes key.
                 bytes memory nodeKey = _getNodeKey(currentNode);
-                key = Lib_BytesUtils.slice(key, 0, key.length - nodeKey.length);
+
+                // this is likely wrong!
+                if (nodeKey.length < key.length) {
+                    key = Lib_BytesUtils.slice(key, 0, key.length - nodeKey.length);
+                }
 
                 // If this node is the last element in the path, it'll be correctly encoded
                 // and we can skip this part.
                 if (previousNodeHash.length > 0) {
                     // Re-encode the node based on the previous node.
                     currentNode = _editExtensionNodeValue(currentNode, previousNodeHash);
-                    //currentNode = _makeExtensionNode(nodeKey, previousNodeHash);
                 }
             } else if (currentNodeType == NodeType.BranchNode) {
                 // If this node is the last element in the path, it'll be correctly encoded

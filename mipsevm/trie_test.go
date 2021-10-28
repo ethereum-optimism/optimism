@@ -26,7 +26,7 @@ func TestBuggedTrie(t *testing.T) {
 	ram := make(map[uint32](uint32))
 
 	ram[0] = 1
-	ram[4] = 1
+	ram[4] = 2
 
 	root := RamToTrie(ram)
 	fmt.Println("root(0,4) =", root)
@@ -34,7 +34,7 @@ func TestBuggedTrie(t *testing.T) {
 		return Preimages[t]
 	})
 
-	ram[0x40] = 1
+	ram[0x40] = 3
 
 	root = RamToTrie(ram)
 	fmt.Println("root(0,4,0x40) =", root)
