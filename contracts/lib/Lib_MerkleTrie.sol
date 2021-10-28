@@ -659,6 +659,7 @@ library Lib_MerkleTrie {
         if (itemType == Lib_RLPReader.RLPItemType.DATA_ITEM) {
             return Lib_RLPReader._copy(_in.ptr, itemOffset, itemLength);
         } else {
+            require(_in.length < 32, "bad _getNodeValue other");
             return Lib_RLPReader._copy(_in.ptr, 0, _in.length);
         }
     }

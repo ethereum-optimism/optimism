@@ -22,23 +22,33 @@ func TestTrie(t *testing.T) {
 	ioutil.WriteFile("/tmp/eth/ramtrie", dat, 0644)
 }
 
+func printRoot(ram map[uint32](uint32)) {
+	root := RamToTrie(ram)
+	fmt.Println("root =", root)
+}
+
+func printTrie(ram map[uint32](uint32)) {
+	root := RamToTrie(ram)
+	fmt.Println("root =", root)
+	ParseNode(root, 0, func(t common.Hash) []byte {
+		return Preimages[t]
+	})
+}
+
 func TestBuggedTrie(t *testing.T) {
 	ram := make(map[uint32](uint32))
 
 	ram[0] = 1
 	ram[4] = 2
-
-	root := RamToTrie(ram)
-	fmt.Println("root(0,4) =", root)
-	ParseNode(root, 0, func(t common.Hash) []byte {
-		return Preimages[t]
-	})
+	printTrie(ram)
 
 	ram[0x40] = 3
+	printTrie(ram)
 
-	root = RamToTrie(ram)
-	fmt.Println("root(0,4,0x40) =", root)
-	ParseNode(root, 0, func(t common.Hash) []byte {
-		return Preimages[t]
-	})
+	ram = make(map[uint32](uint32))
+	ram[0x7fffd00c] = 1
+	ram[0x7fffd010] = 2
+	printTrie(ram)
+	ram[0x7fffcffc] = 3
+	printTrie(ram)
 }

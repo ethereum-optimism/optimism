@@ -39,11 +39,10 @@ describe("MIPSMemory contract", function () {
     expect(await mm.ReadMemory(root, 4)).to.equal(2)
     expect(await mm.ReadMemory(root, 0x40)).to.equal(3)
   })
-  it("write four should work", async function() {
+  it("write other three should work", async function() {
     await mm.AddTrieNode(new Uint8Array([0x80]))
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
 
-    root = await write(mm, root, 0xc0000080, 0xaa)
     root = await write(mm, root, 0x7fffd00c, 1)
     root = await write(mm, root, 0x7fffd010, 2)
     root = await write(mm, root, 0x7fffcffc, 3)
