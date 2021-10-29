@@ -1,5 +1,12 @@
 # @eth-optimism/core-utils
 
+## 0.6.1
+
+### Patch Changes
+
+- 6d3e1d7f: Update dependencies
+- 2e929aa9: Parse the L1 timestamp in `injectContext`
+
 ## 0.6.0
 
 ### Minor Changes
