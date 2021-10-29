@@ -100,9 +100,7 @@ jobs:
 
       - name: Test Coverage
         run: yarn test:coverage
-        # Tests are quite brittle when instrumented by Solidity Coverage.
-        # If tests pass in the Test job above, tests failing during coverage shouldn't break CI.
-        continue-on-error: true
+
       - uses: codecov/codecov-action@v1
         with:
           files: ./packages/contracts/coverage.json
