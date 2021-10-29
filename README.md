@@ -20,22 +20,6 @@ mipigo -- minigeth compiled for MIPS. Outputs a binary that's run and mapped at 
 mipsevm -- A MIPS runtime in the EVM (see also contracts/)
 ```
 
-## Steps
-
-1. Get minigeth to verify a block locally paying attention to oracle (done)
-2. Compile embedded minigeth to MIPS (done)
-3. Get embedded minigeth to verify a block using the oracle (done)
-4. Merkleize the state of the embedded machine
-5. Write Solidity code to verify any MIPS/oracle transitions (done)
-6. Write binary search engine to play on chain game (done)
-
-The system is checking an embedded block in CI now
-
-## TODO
-
-* Get minigeth running in Solidity MIPS emulator with reasonable performance (Go code using EVM with native memory)
-* Add merkleization for MIPS ReadMemory and WriteMemory
-
 ## Usage
 ```
 # verify the transition from 13284469 -> 13284470
