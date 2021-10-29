@@ -1,32 +1,43 @@
-# Optimistic Rollup Overview
+# Optimistic Ethereum Overview
+*// Note: this section assumes you've read the [introduction](./introduction.md)!*
+## Arcitecture Design Goals
 
-TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1 tech on Layer 2. (Experimental, active R&D!)
-
-## Goals
-
-- 1:1 EVM
-  - No special compiler
-  - No unexpected gas cost
-  - All tooling just works (configure different chain ID, that's it)
-- 100% compatibility with Eth1 nodes
-  - The Merge introduces an Engine API
+- Execution-Level EVM Equivalence
+  - The developer experience should be indentical to L1 except where L2 introduces a fundamental difference.
+    - No special compiler
+    - No unexpected gas costs
+    - Out-of-the-box TX traces
+    - All tooling "just works"--configure chain ID, good to go
+  - Fundamental L2 differences are limited to the bare minimum, still use existing L1 standards, and require only block-level modifications. These include:
+    - Fee logic which accounts for L1 calldata costs (still uses existing L1 tx type)
+    - A new transaction type for deposits (still uses L1 tx envelope schema)
+    - EIP1559 algorithm that accounts for L2 blocktimes
+- Maximal compatibility with Eth1 nodes
+  - Uses the ETH2 merge's Engine API for:
     - Fork-choice: change head based on L1 reorgs of data (and leverage undisputed state-roots for finalized checkpoint)
     - Block-production: sequencing blocks with any Eth1 node
     - Block-insertion: Eth1 node has specialized EVM and DB, valuable for L2, instead of reinventing the wheel
-  - Leverage sync: insert latest blocks from rollup node (pull from L1), but do state-sync via L2 p2p network
-  - Leverage tx propagation (happy case, if not forcing tx via L1): L2 user sends transaction to any sequencer, via tx pool. Anyone can bond to be a sequencer
-  - Fee model fit: EIP1559 on L2, on actual L2 block-capacity usage. (note: L2 gas-limit of blocks may adjust based on L1 data cost)
+  - Leverages sync: verify block inputs based on L1, but do state-sync via L2 p2p network
+  - Leverage tx propagation: can use existing mempool infrastructure
+- Simple, stateless services
+  - Whenever possible (e.g. in batch submitter and synchronizer), services contributing to the rollup infrastructure do not persist state
+  - Given an L1 node, and an L2 execution engine, all other services can recover to full operation when started with a fresh DB
 
 ## Components
 
 ![Architecture Diagram](./assets/architecture.svg)
 
-### L1 Contracts
-- **Feeds**: "Data availability layer"--append-only logs (e.g. of deposits, transactions, and batched transactions) which must guarantee that:
-  - all values and their witnesses are indexable by off-chain parties
-  - witnesses are verifiable by on-chain dispute contract
-- **L2 Block Oracle**: Cryptoeconomic light client of the L2.
-  - *Contract separation is not yet final.  Highest priority interface spec: Single-step verification API*
+### L1 Components
+- **Feeds**: ("Data availability layer"): A **feed** is an append-only log of data (e.g. of deposits, or sequencer batches). Feeds can be computed as functions of L1 block data. The definition of these functions can be found in the [block generation spec][block-gen]. Optimistic Ethereum has three primary feeds:
+  - **Deposit Feed**: A feed of L2 transactions which originated as smart contract calls in the L1 state which emitted an event. Deposits are guaranteed to be reflected in the L2 state within the *sequencing window*.
+  - **Sequencer Feed**: A feed of L2 transactions which are submitted by the sequencer to L1 in batches. Includes L2 tx calldata, *as well as time and ordering information.*
+  - **L2 Block Feed**: A feed of canonical L2 block inputs (i.e. L2 blocks, but without the `stateRoot`, `receiptsRoot`, `gasUsed`, ...) which should be executed by L2 nodes and enforced in fraud proofs.
+    - ***The L2 Block Feed is a pure function of the Deposit Feed and Sequencer Feed.*** That is, given the Deposit Feed and Sequencer Feed, the L2 Block Feed can be reconstructed, even without full L1 blockdata. 
+  - In general, all feeds must enforce that:
+    - All entries are deterministically indexable by off-chain parties.
+    - The fraud proof VM can find any feed entry in a bounded number of steps, such that the off-chain indexing is sufficient to generate a witness for verifing any individual step on-chain.
+  - Note: a "feed" may not necessarily correspond to an on-chain contract (e.g. which stores a hash of each entry). Instead, a feed refers to the actual log of data which is derivable from L1, which may or may not use a contract. For more info, check out [this discussion.](https://github.com/ethereum-optimism/optimistic-specs/issues/14)
+- **L2 Block Oracle**: A cryptoeconomic light client of the L2. Will finalize hashes of the L2 state on L1, once the dispute period has passed. Used to validate withdrawals. *(Note: contract separation is not yet final)*
   - **Proposal Manager**: Handles conflicting state proposals to determine malicious party
     - Maintains a set of ongoing optimistic proposals of the L2 state
     - Ensures that state proposers are sufficiently bonded
@@ -44,9 +55,8 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
     - Runs verification step
     - Registers result in bond-manager (slash sequencer, reward challenger, or vice-versa if spam attempt)
 - **Cross-domain Messenger**: Message-passing abstraction contract used by applications developers (e.g. token bridge implementations)
-    - Sends messages into L2, reads messages out from L1
-    - Log authorized calls as forced L2 transactions (deposits)
-    - Verify L2 data statelessly with MPT proof to undisputed state-root (withdrawals)
+    - Sends messages into L2 (deposits) by adding to the deposit feed
+    - Relays messages out of L2 (withdrawals) by MPT proof to undisputed state-root
 
 ### L2 Components
 
@@ -101,14 +111,4 @@ TLDR: Push the optimistic-rollup state of the art by leveraging Ethereum Layer 1
   - Finalizes pre-confirmed sequencer transactions onto L1
   - Writes to sequencer feed
 
-
-## Caveats
-
-- Undecided if the rollup will be committing to state-roots or block-roots, both have pros/cons
-- MPT (Merkle Patricia Trie, storage layout of ethereum) is even more complex in this context,
-  possible to translate into execution steps, but takes dev time
-- Receipt trie and transaction trie in the block use MPT too, but do not need witness data, they are write-only
-- Some precompiles are harder to implement, possible, but ignored for now
-- Generator is essentially an EVM implementation, needs a lot of testing (leverage eth1 testing suite)
-
-
+[block-gen]: TODOPR

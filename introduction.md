@@ -59,15 +59,17 @@ At the heart of the network are users (us!). Users can:
 
 ### Sequencers
 
-The sequencers are the primary block producers. They:
+The sequencer is the primary block producer. There may be one sequencer **or** many using a consensus protocol. For 1.0.0, there is just one sequencer.  In general, specifications may use "the sequencer" to be a stand-in term for the consensus protocol operated by multiple sequencers.
 
-1. Accept user transactions.
-2. Validate the transaction fee.
-3. Produce sequencer blocks.
-4. Propagate sequencer blocks to verifiers. And finally
-5. Submit sequencer blocks to layer 1.
+The sequencer:
+1. Accepts user off-chain transactions (exposes `eth_sendRawTransaction`, validates fees, ...)
+2. Observes on-chain transactions (primarily, deposit events coming from L1)
+3. Consolidates both kinds of transactions into L2 blocks with a specific ordering.
+4. Propagates consolidated L2 blocks to L1, by submitting two things as calldata to L1:
+    -  The pending off-chain transactions accepted in step 1.
+    -  Sufficient information about the ordering of the on-chain transactions to successfully reconstruct the blocks from step 3., purely by watching L1.
 
-There may be one sequencer **or** many using a consensus protocol.
+The sequencer also provides access to block data as early as step 3., so that users may access real-time state in advance of L1 confirmation if they so choose.
 
 ### Verifiers
 
