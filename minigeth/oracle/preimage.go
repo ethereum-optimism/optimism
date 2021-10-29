@@ -6,16 +6,27 @@ package oracle
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var preimages = make(map[common.Hash][]byte)
+var root = "/tmp/eth"
+
+func SetRoot(newRoot string) {
+	root = newRoot
+	err := os.MkdirAll(root, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func Preimage(hash common.Hash) []byte {
 	val, ok := preimages[hash]
-	key := fmt.Sprintf("/tmp/eth/%s", hash)
+	key := fmt.Sprintf("%s/%s", root, hash)
 	ioutil.WriteFile(key, val, 0644)
 	if !ok {
 		fmt.Println("can't find preimage", hash)

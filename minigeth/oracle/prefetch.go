@@ -83,7 +83,7 @@ type Account struct {
 var nodeUrl = "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 
 func toFilename(key string) string {
-	return fmt.Sprintf("/tmp/eth/json_%s", key)
+	return fmt.Sprintf("%s/json_%s", root, key)
 }
 
 func cacheRead(key string) []byte {
@@ -196,6 +196,7 @@ func Input(index int) common.Hash {
 func Output(output common.Hash, receipts common.Hash) {
 	if receipts != inputs[7] {
 		fmt.Println("WARNING, receipts don't match", receipts, "!=", inputs[7])
+		panic("BAD receipts")
 	}
 	if output == inputs[6] {
 		fmt.Println("good transition")
@@ -299,7 +300,7 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	for i := 0; i < len(inputs); i++ {
 		saveinput = append(saveinput, inputs[i].Bytes()[:]...)
 	}
-	key := fmt.Sprintf("/tmp/eth/%d", blockNumber.Uint64()-1)
+	key := fmt.Sprintf("%s/input", root)
 	ioutil.WriteFile(key, saveinput, 0644)
 
 	// save the txs
