@@ -7,7 +7,7 @@ The consensus module of Optimistic Ethereum.
 The Rollup Node is a consensus client that determines the latest state of the rollup. It reads state from L1, and possibly the sequencer, to compute the L2 state. The [block generation spec][block-gen] defines the rules by which L1 state is converted into L2 blocks.
 
 ## Types of Rollup Nodes
-There are three primary classes of rollup nodes, corresponding to different configurations of the software stack.
+There are two primary classes of rollup nodes, corresponding to different configurations of the software stack.
 
 1. **Sequencer**: Accepts user-sent and deposit transactions, orders them into L2 blocks, and submits them to L1 in batches. Provides RPC access to pending L2 blocks in advance of L1 submission.
 2. **Verifier**: Watches L1 feeds, reconstructs L2 block inputs, and inserts them into the EE to determine the canonical L2 state. May also track pending sequencer state, in some configurations.
