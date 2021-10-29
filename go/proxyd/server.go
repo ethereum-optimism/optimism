@@ -8,7 +8,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"io"
+  "github.com/rs/cors"
+  "io"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -94,9 +95,12 @@ func (s *Server) ListenAndServe(host string, port int) error {
 	hdlr := mux.NewRouter()
 	hdlr.HandleFunc("/healthz", s.HandleHealthz).Methods("GET")
 	hdlr.HandleFunc("/", s.HandleRPC).Methods("POST")
+	c := cors.New(cors.Options{
+	  AllowedOrigins: []string{"*"},
+  })
 	addr := fmt.Sprintf("%s:%d", host, port)
 	server := &http.Server{
-		Handler: instrumentedHdlr(hdlr),
+		Handler: instrumentedHdlr(c.Handler(hdlr)),
 		Addr:    addr,
 	}
 	log.Info("starting HTTP server", "addr", addr)

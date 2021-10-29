@@ -358,9 +358,9 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
-          build-args:
-            - GITCOMMIT=$GITHUB_SHA
-            - GITDATE=$GITDATE
+          build-args: |
+            GITCOMMIT=$GITHUB_SHA
+            GITDATE=$GITDATE
 
   rpc-proxy:
     name: Publish rpc-proxy Version ${{ needs.release.outputs.rpc-proxy }}
