@@ -59,7 +59,7 @@ At the heart of the network are users (us!). Users can:
 
 ### Sequencers
 
-The sequencer is the primary block producers. There may be one sequencer **or** many using a consensus protocol. For 1.0.0, there is just one sequencer.  In general, specifications may use "the sequencer" to be a stand-in term for the consensus protocol operated by multiple sequencers.
+The sequencer is the primary block producer. There may be one sequencer **or** many using a consensus protocol. For 1.0.0, there is just one sequencer.  In general, specifications may use "the sequencer" to be a stand-in term for the consensus protocol operated by multiple sequencers.
 
 The sequencer:
 1. Accepts user off-chain transactions (exposes `eth_sendRawTransaction`, validates fees, ...)

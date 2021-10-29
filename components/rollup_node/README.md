@@ -22,7 +22,7 @@ Of the components outlined below, different node types use different combination
 
 ## Components
 
-### [Execution Engine][exec-engine]
+### [L2 Execution Engine][exec-engine]
 
 The execution engine implements the [execution specification][execution-spec].  Most L1 clients will soon be converted into execution engines. The rollup client will communicate to the engine via a JSON-RPC interface ([WIP][execution-engine-rpc]).
 
@@ -32,7 +32,7 @@ One of the main goal of the rollup client is to use the execution engine without
 
 The rollup driver connects to an L1 node, and tracks the feed data comprising of deposits and sequencer batches. Based on the rules of [block generation][block-gen], it is able to compute sets ("epochs") of L2 blocks as a stateless, pure function of ranges of L1 blocks.
 
-Together with the Execution Engine, it uses the Engine API to progress the L2 state as new data comes in from L1. The rollup driver will reorganize the L2 state if it detects a between the EE and what's on L1, and provides a way for other services to subscribe to reorgs.
+While connected to the Execution Engine, it uses the Engine API to progress the L2 state as new data comes in from L1. The rollup driver will reorganize the L2 state if it detects a difference between the EE and what's on L1, and provides a way for other services to subscribe to reorgs.
 
 ### [Sequencer Replicator][sequencer-replicator]
 
