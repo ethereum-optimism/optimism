@@ -11,7 +11,8 @@
       "specs",
       "go/gas-oracle",
       "go/batch-submitter",
-      "go/proxyd"
+      "go/proxyd",
+      "ops/docker/rpc-proxy"
     ],
     "nohoist": [
       "examples/*"

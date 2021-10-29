@@ -1,0 +1,6 @@
+{
+  "name": "@eth-optimism/rpc-proxy",
+  "version": "0.0.1",
+  "private": true,
+  "devDependencies": {}
+}
