@@ -10,7 +10,8 @@
       "integration-tests",
       "specs",
       "go/gas-oracle",
-      "go/batch-submitter"
+      "go/batch-submitter",
+      "go/proxyd"
     ],
     "nohoist": [
       "examples/*"
