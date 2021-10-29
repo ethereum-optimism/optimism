@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
@@ -74,6 +75,8 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode boo
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
+	root := "/tmp/eth/13284469"
+
 	mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
 			log.Fatal("invalid interrupt ", intno, " at step ", steps)
@@ -83,7 +86,7 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode boo
 		if syscall_no == 4020 {
 			oracle_hash, _ := mu.MemRead(0xB0001000, 0x20)
 			hash := common.BytesToHash(oracle_hash)
-			key := fmt.Sprintf("/tmp/eth/%s", hash)
+			key := fmt.Sprintf("%s/%s", root, hash)
 			value, _ := ioutil.ReadFile(key)
 
 			tmp := []byte{0, 0, 0, 0}
@@ -178,12 +181,20 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode boo
 	mu.MemWrite(0, dat)
 
 	// inputs
-	inputFile := fmt.Sprintf("/tmp/eth/%d", 13284469)
+	inputFile := fmt.Sprintf("%s/input", root)
 	inputs, _ := ioutil.ReadFile(inputFile)
-	mu.MemWrite(0xB0000000, inputs)
+	mu.MemWrite(0xB0000000, inputs[0:0xc0])
 
 	LoadMappedFile(fn, ram, 0)
 	LoadMappedFile(inputFile, ram, 0xB0000000)
 
 	mu.Start(0, 0x5ead0004)
+
+	real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, inputs[0xc0:]...)
+	output, _ := mu.MemRead(0xB0000800, 0x44)
+	if bytes.Compare(real, output) != 0 {
+		log.Fatal("mismatch output")
+	} else {
+		fmt.Println("output match")
+	}
 }
