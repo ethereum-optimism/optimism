@@ -28,9 +28,14 @@
 ![Architecture Diagram](./assets/architecture.svg)
 
 ### L1 Components
-- **Feeds**: ("Data availability layer"): A **feed** is an append-only log of data (e.g. of deposits, or sequencer batches) which must guarantee that:
-  - All entries are deterministically indexable by off-chain parties.
-  - The fraud proof VM can find any feed entry in a bounded number of steps, such that the off-chain indexing is sufficient to generate a witness for verifing any individual step on-chain.
+- **Feeds**: ("Data availability layer"): A **feed** is an append-only log of data (e.g. of deposits, or sequencer batches). Feeds can be computed as functions of L1 block data. The definition of these functions can be found in the [block generation spec][block-gen]. Optimistic Ethereum has three primary feeds:
+  - **Deposit Feed**: A feed of L2 transactions which originated as smart contract calls in the L1 state which emitted an event. Deposits are guaranteed to be reflected in the L2 state within the *sequencing window*.
+  - **Sequencer Feed**: A feed of L2 transactions which are submitted by the sequencer to L1 in batches. Includes L2 tx calldata, *as well as time and ordering information.*
+  - **L2 Block Feed**: A feed of canonical L2 block inputs (i.e. L2 blocks, but without the `stateRoot`, `receiptsRoot`, `gasUsed`, ...) which should be executed by L2 nodes and enforced in fraud proofs.
+    - ***The L2 Block Feed is a pure function of the Deposit Feed and Sequencer Feed.*** That is, given the Deposit Feed and Sequencer Feed, the L2 Block Feed can be reconstructed, even without full L1 blockdata. 
+  - In general, all feeds must enforce that:
+    - All entries are deterministically indexable by off-chain parties.
+    - The fraud proof VM can find any feed entry in a bounded number of steps, such that the off-chain indexing is sufficient to generate a witness for verifing any individual step on-chain.
   - Note: a "feed" may not necessarily correspond to an on-chain contract (e.g. which stores a hash of each entry). Instead, a feed refers to the actual log of data which is derivable from L1, which may or may not use a contract. For more info, check out [this discussion.](https://github.com/ethereum-optimism/optimistic-specs/issues/14)
 - **L2 Block Oracle**: A cryptoeconomic light client of the L2. Will finalize hashes of the L2 state on L1, once the dispute period has passed. Used to validate withdrawals. *(Note: contract separation is not yet final)*
   - **Proposal Manager**: Handles conflicting state proposals to determine malicious party
@@ -50,9 +55,8 @@
     - Runs verification step
     - Registers result in bond-manager (slash sequencer, reward challenger, or vice-versa if spam attempt)
 - **Cross-domain Messenger**: Message-passing abstraction contract used by applications developers (e.g. token bridge implementations)
-    - Sends messages into L2, reads messages out from L1
-    - Log authorized calls as forced L2 transactions (deposits)
-    - Verify L2 data statelessly with MPT proof to undisputed state-root (withdrawals)
+    - Sends messages into L2 (deposits) by adding to the deposit feed
+    - Relays messages out of L2 (withdrawals) by MPT proof to undisputed state-root
 
 ### L2 Components
 
@@ -107,3 +111,4 @@
   - Finalizes pre-confirmed sequencer transactions onto L1
   - Writes to sequencer feed
 
+[block-gen]: TODOPR
