@@ -10,7 +10,7 @@ import (
 
 func TestMinigethUnicorn(t *testing.T) {
 	uniram := make(map[uint32](uint32))
-	RunUnicorn("../mipigo/minigeth.bin", uniram, -1, false, nil)
+	RunUnicorn("../mipigo/minigeth.bin", uniram, -1, false, true, nil)
 }
 
 func TestSimpleEVM(t *testing.T) {

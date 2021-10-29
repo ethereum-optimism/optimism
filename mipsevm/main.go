@@ -66,7 +66,7 @@ func main() {
 			RunMinigeth(os.Args[1], steps, debug)
 		} else if os.Args[1] == "unicorn" {
 			uniram := make(map[uint32](uint32))
-			RunUnicorn(os.Args[2], uniram, steps, false, nil)
+			RunUnicorn(os.Args[2], uniram, steps, false, false, nil)
 		} else {
 			runTest(os.Args[1], 20, 2)
 		}

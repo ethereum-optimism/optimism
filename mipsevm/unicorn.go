@@ -71,7 +71,7 @@ func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 }
 
 // reimplement simple.py in go
-func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
+func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode bool, checkIO bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
@@ -185,16 +185,21 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode boo
 	inputs, _ := ioutil.ReadFile(inputFile)
 	mu.MemWrite(0xB0000000, inputs[0:0xc0])
 
-	LoadMappedFile(fn, ram, 0)
-	LoadMappedFile(inputFile, ram, 0xB0000000)
+	// load into ram
+	LoadData(dat, ram, 0)
+	if checkIO {
+		LoadData(inputs[0:0xc0], ram, 0xB0000000)
+	}
 
 	mu.Start(0, 0x5ead0004)
 
-	real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, inputs[0xc0:]...)
-	output, _ := mu.MemRead(0xB0000800, 0x44)
-	if bytes.Compare(real, output) != 0 {
-		log.Fatal("mismatch output")
-	} else {
-		fmt.Println("output match")
+	if checkIO {
+		real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, inputs[0xc0:]...)
+		output, _ := mu.MemRead(0xB0000800, 0x44)
+		if bytes.Compare(real, output) != 0 {
+			log.Fatal("mismatch output")
+		} else {
+			fmt.Println("output match")
+		}
 	}
 }

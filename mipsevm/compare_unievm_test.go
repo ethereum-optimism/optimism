@@ -49,7 +49,7 @@ func TestCompareUnicornEvm(t *testing.T) {
 	})
 
 	uniram := make(map[uint32](uint32))
-	go RunUnicorn(fn, uniram, steps, true, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
+	go RunUnicorn(fn, uniram, steps, true, false, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
 		SyncRegs(mu, ram)
 		cuni <- RegSerialize(ram)
 		done.Lock()
