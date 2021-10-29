@@ -1,0 +1,47 @@
+[server]
+# Host for the proxyd server to listen on.
+host = "0.0.0.0"
+# Port for the above.
+port = 8080
+# Maximum client body size, in bytes, that the server will accept.
+max_body_size_bytes = 10485760
+
+[metrics]
+# Whether or not to enable Prometheus metrics.
+enabled = true
+# Host for the Prometheus metrics endpoint to listen on.
+host = "0.0.0.0"
+# Port for the above.
+port = 9761
+
+[backend]
+# How long proxyd should wait for a backend response before timing out.
+response_timeout_seconds = 5
+# Maximum response size, in bytes, that proxyd will accept from a backend.
+max_response_size_bytes = 5242880
+# Maximum number of times proxyd will try a backend before giving up.
+max_retries = 0
+# Number of seconds to wait before trying an unhealthy backend again.
+unhealthy_backend_retry_interval_seconds = 600
+
+[backends]
+# A map of backends by name.
+[backends.infura]
+# The URL to contact the backend at.
+base_url = "url-here"
+# HTTP basic auth username to use with the backend.
+username = ""
+# HTTP basic auth password to use with the backend.
+password = ""
+
+[backend_groups]
+# A map of backend groups by name.
+[backend_groups.main]
+# A list of backend names to place in the group.
+backends = ["infura", "alchemy"]
+
+[method_mappings]
+# A mapping between RPC methods and the backend groups that should serve them.
+eth_call = "main"
+eth_chainId = "main"
+# other mappings go here

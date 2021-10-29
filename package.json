@@ -9,7 +9,10 @@
       "l2geth",
       "integration-tests",
       "specs",
-      "go/gas-oracle"
+      "go/gas-oracle",
+      "go/batch-submitter",
+      "go/proxyd",
+      "ops/docker/rpc-proxy"
     ],
     "nohoist": [
       "examples/*"

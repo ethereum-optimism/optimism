@@ -34,18 +34,18 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "^0.1.5",
+    "@eth-optimism/common-ts": "0.1.5",
     "@eth-optimism/contracts": "^0.4.13",
     "@eth-optimism/core-utils": "^0.6.0",
-    "@sentry/node": "6.2.5",
+    "@sentry/node": "^6.3.1",
     "bcfg": "^0.1.6",
-    "dotenv": "^8.2.0",
+    "dotenv": "^10.0.0",
     "ethers": "^5.4.5",
     "merkletreejs": "^0.2.18",
     "rlp": "^2.2.6"
   },
   "devDependencies": {
-    "@eth-optimism/smock": "^1.1.9",
+    "@eth-optimism/smock": "^1.1.10",
     "@nomiclabs/ethereumjs-vm": "^4",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -71,7 +71,7 @@
     "lint-staged": "11.0.0",
     "lodash": "^4.17.21",
     "mocha": "^8.4.0",
-    "prettier": "^2.2.1",
-    "typescript": "^4.2.3"
+    "prettier": "^2.3.1",
+    "typescript": "^4.3.5"
   }
 }

@@ -1,4 +1,5 @@
-FROM ethereumoptimism/builder AS builder
+ARG LOCAL_REGISTRY=docker.io
+FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder AS builder
 
 FROM node:14-alpine
 

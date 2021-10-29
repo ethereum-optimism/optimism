@@ -5,6 +5,11 @@ on: workflow_dispatch
 jobs:
   integration:
     runs-on: ubuntu-latest
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
     env:
       DOCKER_BUILDKIT: 1
       COMPOSE_DOCKER_CLI_BUILD: 1
@@ -28,9 +33,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
+      - uses: actions/cache@v2
+        name: Set up layer cache
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-1-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-1-
+
+      - uses: docker/setup-buildx-action@master
+        name: Set up Docker Buildx
+        id: buildx
+        with:
+          version: latest
+          driver-opts: image=moby/buildkit:master,network=host
+
       - name: Build the services
-        working-directory: ./ops
-        run: ./scripts/build-ci.sh
+        run: ./ops/scripts/build-ci.sh
 
       - name: Bring the stack up
         working-directory: ./ops
@@ -63,3 +82,8 @@ jobs:
         with:
           name: logs.tgz
           path: ./logs.tgz
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
