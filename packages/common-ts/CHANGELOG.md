@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.1.6
+
+### Patch Changes
+
+- 6d3e1d7f: Update dependencies
+
 ## 0.1.5
 
 ### Patch Changes

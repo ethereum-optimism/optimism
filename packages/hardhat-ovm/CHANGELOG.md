@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-ovm
 
+## 0.2.4
+
+### Patch Changes
+
+- 6d3e1d7f: Update dependencies
+
 ## 0.2.3
 
 ### Patch Changes
