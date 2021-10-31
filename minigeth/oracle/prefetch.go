@@ -187,24 +187,22 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 	preimages[hash] = ret
 }
 
-var inputs [8]common.Hash
+var inputs [6]common.Hash
+var outputs [2]common.Hash
 
 func Input(index int) common.Hash {
-	if index < 0 || index > 5 {
-		panic("bad input index")
-	}
 	return inputs[index]
 }
 
 func Output(output common.Hash, receipts common.Hash) {
-	if receipts != inputs[7] {
-		fmt.Println("WARNING, receipts don't match", receipts, "!=", inputs[7])
+	if receipts != outputs[1] {
+		fmt.Println("WARNING, receipts don't match", receipts, "!=", outputs[1])
 		panic("BAD receipts")
 	}
-	if output == inputs[6] {
+	if output == outputs[0] {
 		fmt.Println("good transition")
 	} else {
-		fmt.Println(output, "!=", inputs[6])
+		fmt.Println(output, "!=", outputs[0])
 		panic("BAD transition :((")
 	}
 }
@@ -294,17 +292,23 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	inputs[4] = common.BigToHash(big.NewInt(int64(blockHeader.GasLimit)))
 	inputs[5] = common.BigToHash(big.NewInt(int64(blockHeader.Time)))
 
-	// secret input
-	inputs[6] = blockHeader.Root
-	inputs[7] = blockHeader.ReceiptHash
-
 	// save the inputs
 	saveinput := make([]byte, 0)
 	for i := 0; i < len(inputs); i++ {
 		saveinput = append(saveinput, inputs[i].Bytes()[:]...)
 	}
-	key := fmt.Sprintf("%s/input", root)
-	ioutil.WriteFile(key, saveinput, 0644)
+	ioutil.WriteFile(fmt.Sprintf("%s/input", root), saveinput, 0644)
+
+	// secret input aka output
+	outputs[0] = blockHeader.Root
+	outputs[1] = blockHeader.ReceiptHash
+
+	// save the outputs
+	saveoutput := make([]byte, 0)
+	for i := 0; i < len(outputs); i++ {
+		saveoutput = append(saveoutput, outputs[i].Bytes()[:]...)
+	}
+	ioutil.WriteFile(fmt.Sprintf("%s/output", root), saveoutput, 0644)
 
 	// save the txs
 	txs := make([]*types.Transaction, len(jr.Result.Transactions))

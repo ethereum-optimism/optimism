@@ -178,8 +178,7 @@ func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(
 	mu.MemWrite(0, dat)
 
 	// inputs
-	inputFile := fmt.Sprintf("%s/input", root)
-	inputs, _ := ioutil.ReadFile(inputFile)
+	inputs, _ := ioutil.ReadFile(fmt.Sprintf("%s/input", root))
 	mu.MemWrite(0xB0000000, inputs[0:0xc0])
 
 	// load into ram
@@ -191,7 +190,8 @@ func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(
 	mu.Start(0, 0x5ead0004)
 
 	if checkIO {
-		real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, inputs[0xc0:]...)
+		outputs, _ := ioutil.ReadFile(fmt.Sprintf("%s/output", root))
+		real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, outputs...)
 		output, _ := mu.MemRead(0xB0000800, 0x44)
 		if bytes.Compare(real, output) != 0 {
 			log.Fatal("mismatch output")
