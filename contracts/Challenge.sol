@@ -171,6 +171,8 @@ contract Challenge {
     require(owner == msg.sender, "must be owner");
     require(c.L + 1 == c.R, "binary search not finished");
 
+    require(finalRiscState != c.assertedState[c.R], "you can't agree with the challenger");
+
     // it's 0 if you agree with all attacker states except the final one
     // in which case, you get a free pass to submit now
     require(c.defendedState[c.R] == finalRiscState || c.defendedState[c.R] == bytes32(0), "must be consistent with state");
