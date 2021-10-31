@@ -31,7 +31,7 @@ func main() {
 	})
 
 	ZeroRegisters(ram)
-	LoadMappedFileUnicorn(mu, "../mipigo/minigeth.bin", ram, 0)
+	LoadMappedFileUnicorn(mu, "../mipigo/golden/minigeth.bin", ram, 0)
 	LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0xB0000000)
 
 	mu.Start(0, 0x5ead0004)
