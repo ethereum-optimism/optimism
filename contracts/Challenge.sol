@@ -164,4 +164,19 @@ contract Challenge {
     
     emit ChallengerWins(challengeId);
   }
+
+  function DenyStateTransition(uint256 challengeId, bytes32 finalRiscState) external {
+    Chal storage c = challenges[challengeId];
+    require(c.challenger != address(0), "invalid challenge");
+    require(owner == msg.sender, "must be owner");
+    require(c.L + 1 == c.R, "binary search not finished");
+
+    // it's 0 if you agree with all attacker states except the final one
+    // in which case, you get a free pass to submit now
+    require(c.defendedState[c.R] == finalRiscState || c.defendedState[c.R] == bytes32(0), "must be consistent with state");
+    require(mips.Step(c.defendedState[c.L]) == finalRiscState, "wrong asserted state");
+
+    // consider the challenger mocked
+    emit ChallengerLoses(challengeId);
+  }
 }

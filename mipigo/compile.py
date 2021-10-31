@@ -5,6 +5,7 @@ import struct
 from rangetree import RangeTree
 from elftools.elf.elffile import ELFFile
 
+# TODO: refactor this to not use unicorn
 from unicorn import *
 from unicorn.mips_const import *
 
