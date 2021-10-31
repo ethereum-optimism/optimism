@@ -2,6 +2,7 @@
 pragma solidity ^0.7.3;
 
 import "./lib/Lib_RLPReader.sol";
+import "hardhat/console.sol";
 
 interface IMIPS {
   function Step(bytes32 stateHash) external returns (bytes32);
@@ -75,24 +76,28 @@ contract Challenge {
 
   function InitiateChallenge(uint blockNumberN, bytes calldata blockHeaderNp1,
         bytes32 assertionRoot, bytes32 finalSystemState, uint256 stepCount) external returns (uint256) {
-    require(blockhash(blockNumberN+1) == keccak256(blockHeaderNp1), "end block hash wrong");
+    bytes32 computedBlockHash = keccak256(blockHeaderNp1);
+    require(blockhash(blockNumberN+1) == computedBlockHash, "end block hash wrong");
 
     // decode the blocks
-    Lib_RLPReader.RLPItem[] memory blockNp1 = Lib_RLPReader.readList(blockHeaderNp1);
-    bytes32 parentHash = Lib_RLPReader.readBytes32(blockNp1[0]);
-    require(blockhash(blockNumberN) == parentHash, "parent block hash somehow wrong");
+    bytes32 inputHash;
+    {
+      Lib_RLPReader.RLPItem[] memory blockNp1 = Lib_RLPReader.readList(blockHeaderNp1);
+      bytes32 parentHash = Lib_RLPReader.readBytes32(blockNp1[0]);
+      require(blockhash(blockNumberN) == parentHash, "parent block hash somehow wrong");
 
-    bytes32 newroot = Lib_RLPReader.readBytes32(blockNp1[3]);
-    require(assertionRoot != newroot, "asserting that the real state is correct is not a challenge");
+      bytes32 newroot = Lib_RLPReader.readBytes32(blockNp1[3]);
+      require(assertionRoot != newroot, "asserting that the real state is correct is not a challenge");
 
-    // load starting info into the input oracle
-    // we both agree at the beginning
-    bytes32 txhash = Lib_RLPReader.readBytes32(blockNp1[4]);
-    bytes32 coinbase = bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2])));
-    bytes32 unclehash = Lib_RLPReader.readBytes32(blockNp1[1]);
-    bytes32 gaslimit = bytes32(Lib_RLPReader.readUint256(blockNp1[9]));
-    bytes32 time = bytes32(Lib_RLPReader.readUint256(blockNp1[11]));
-    bytes32 inputHash = keccak256(abi.encodePacked(parentHash, txhash, coinbase, unclehash, gaslimit, time));
+      // load starting info into the input oracle
+      // we both agree at the beginning
+      bytes32 txhash = Lib_RLPReader.readBytes32(blockNp1[4]);
+      bytes32 coinbase = bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2])));
+      bytes32 unclehash = Lib_RLPReader.readBytes32(blockNp1[1]);
+      bytes32 gaslimit = bytes32(Lib_RLPReader.readUint256(blockNp1[9]));
+      bytes32 time = bytes32(Lib_RLPReader.readUint256(blockNp1[11]));
+      inputHash = keccak256(abi.encodePacked(parentHash, txhash, coinbase, unclehash, gaslimit, time));
+    }
 
     bytes32 startState = GlobalStartState;
     startState = mem.WriteBytes32(startState, 0xB0000000, inputHash);
