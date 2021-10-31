@@ -25,3 +25,8 @@ Instruction set used by minigeth, 55 instructions:
  'xor', 'xori']
 
  STEPS=100000000 ./evm.sh unicorn ../mipigo/minigeth.bin
+
+ There's three ways to run this, see "run_<type>":
+ * unicorn -- fastest, uses none of the solidity
+ * evm -- uses MIPS.sol, but stubs MIPSMemory.sol and doesn't compute the merkle trie
+ * chain -- uses MIPS.sol + MIPSMemory.sol, will actually run on chain like this

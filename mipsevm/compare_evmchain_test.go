@@ -20,10 +20,6 @@ func LoadRam() map[uint32](uint32) {
 	return ram
 }
 
-/*func TestFullSlow(t *testing.T) {
-	RunFull()
-}*/
-
 // go test -run TestCompareEvmChain
 
 func TestCompareEvmChain(t *testing.T) {
@@ -48,7 +44,7 @@ func TestCompareEvmChain(t *testing.T) {
 		AddTrieNode(v, interpreter, statedb)
 	}
 
-	// run on chain
+	// run on (fake) chain
 	go func(root common.Hash) {
 		for step := 0; step < totalSteps; step++ {
 			steps := 1
@@ -69,7 +65,7 @@ func TestCompareEvmChain(t *testing.T) {
 		}
 	}(root)
 
-	// run in unicorn
+	// run on evm
 	go func() {
 		for step := 0; step < totalSteps; step++ {
 			RunWithRam(ram, 1, 0, nil)

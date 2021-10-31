@@ -17,29 +17,6 @@ import (
 
 var ministart time.Time
 
-// **** stub Tracer ****
-type Tracer struct{}
-
-// CaptureStart implements the Tracer interface to initialize the tracing operation.
-func (jst *Tracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
-}
-
-// CaptureState implements the Tracer interface to trace a single step of VM execution.
-var evmInsCount uint64 = 0
-
-func (jst *Tracer) CaptureState(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
-	//fmt.Println(pc, op, gas)
-	evmInsCount += 1
-}
-
-// CaptureFault implements the Tracer interface to trace an execution fault
-func (jst *Tracer) CaptureFault(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, depth int, err error) {
-}
-
-// CaptureEnd is called after the call finishes to finalize the tracing.
-func (jst *Tracer) CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error) {
-}
-
 type jsoncontract struct {
 	Bytecode         string `json:"bytecode"`
 	DeployedBytecode string `json:"deployedBytecode"`
@@ -67,10 +44,6 @@ func GetInterpreter(ldebug int, realState bool) (*vm.EVMInterpreter, *StateDB) {
 	blockContext := core.NewEVMBlockContext(&header, bc, &author)
 	txContext := vm.TxContext{}
 	config := vm.Config{}
-
-	/*config.Debug = true
-	tracer := Tracer{}
-	config.Tracer = &tracer*/
 
 	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
 
