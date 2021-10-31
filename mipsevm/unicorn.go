@@ -155,6 +155,7 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 		}, 0, 0x80000000)
 	}
 
+	check(mu.MemMap(0, 0x80000000))
 	return mu
 }
 
@@ -172,8 +173,6 @@ func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(
 	// loop forever to match EVM
 	//mu.MemMap(0x5ead0000, 0x1000)
 	//mu.MemWrite(0xdead0000, []byte{0x08, 0x10, 0x00, 0x00})
-
-	check(mu.MemMap(0, 0x80000000))
 
 	// program
 	dat, _ := ioutil.ReadFile(fn)
