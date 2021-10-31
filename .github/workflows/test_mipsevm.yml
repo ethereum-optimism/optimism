@@ -20,6 +20,8 @@ jobs:
       run: |
         npm install --global yarn
         yarn install
+    - name: Hardhat Compile
+      run: npx hardhat compile
     - name: Build minigeth and run default block (cache)
       run: |
         ./run.sh

@@ -24,7 +24,8 @@ type jsoncontract struct {
 
 func GetBytecode(deployed bool) []byte {
 	var jj jsoncontract
-	mipsjson, _ := ioutil.ReadFile("../artifacts/contracts/MIPS.sol/MIPS.json")
+	mipsjson, err := ioutil.ReadFile("../artifacts/contracts/MIPS.sol/MIPS.json")
+	check(err)
 	json.NewDecoder(bytes.NewReader(mipsjson)).Decode(&jj)
 	if deployed {
 		return common.Hex2Bytes(jj.DeployedBytecode[2:])
