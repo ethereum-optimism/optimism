@@ -149,7 +149,6 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 		}, 0, 0x80000000)
 
 		mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-			SyncRegs(mu, ram)
 			callback(steps, mu, ram)
 			steps += 1
 		}, 0, 0x80000000)

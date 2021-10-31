@@ -23,6 +23,7 @@ func main() {
 	lastStep := 0
 	mu := GetHookedUnicorn(root, ram, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
 		if step%1000000 == 0 {
+			SyncRegs(mu, ram)
 			WriteCheckpoint(ram, root, step)
 		}
 		lastStep = step
