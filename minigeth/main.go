@@ -37,14 +37,14 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	newNodeUrl, setNewNodeUrl := os.LookupEnv("NODE")
-	if setNewNodeUrl {
-		fmt.Println("override node url", newNodeUrl)
-		oracle.SetNodeUrl(newNodeUrl)
-	}
-
 	// non mips
 	if len(os.Args) > 1 {
+		newNodeUrl, setNewNodeUrl := os.LookupEnv("NODE")
+		if setNewNodeUrl {
+			fmt.Println("override node url", newNodeUrl)
+			oracle.SetNodeUrl(newNodeUrl)
+		}
+
 		pkw := oracle.PreimageKeyValueWriter{}
 		pkwtrie := trie.NewStackTrie(pkw)
 
