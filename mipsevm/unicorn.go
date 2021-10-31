@@ -70,12 +70,9 @@ func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 	WriteRam(ram, REG_HEAP, uint32(heap_start))
 }
 
-// reimplement simple.py in go
-func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode bool, checkIO bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
+func GetHookedUnicorn(root string, ram map[uint32](uint32), slowMode bool, callback func(int, uc.Unicorn, map[uint32](uint32))) uc.Unicorn {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
-
-	root := "/tmp/eth/13284469"
 
 	mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
@@ -161,14 +158,17 @@ func RunUnicorn(fn string, ram map[uint32](uint32), totalSteps int, slowMode boo
 			if callback != nil {
 				callback(steps, mu, ram)
 			}
-			if totalSteps == steps {
-				//os.Exit(0)
-				// immediate exit
-				mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)
-			}
 			steps += 1
 		}, 0, 0x80000000)
 	}
+
+	return mu
+}
+
+// reimplement simple.py in go
+func RunUnicorn(fn string, ram map[uint32](uint32), slowMode bool, checkIO bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
+	root := "/tmp/eth/13284469"
+	mu := GetHookedUnicorn(root, ram, slowMode, callback)
 
 	// loop forever to match EVM
 	//mu.MemMap(0x5ead0000, 0x1000)
