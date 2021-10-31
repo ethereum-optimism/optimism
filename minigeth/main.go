@@ -60,9 +60,16 @@ func main() {
 	// init secp256k1BytePoints
 	crypto.S256()
 
+	// get inputs
+	inputBytes := oracle.Preimage(oracle.InputHash())
+	var inputs [6]common.Hash
+	for i := 0; i < len(inputs); i++ {
+		inputs[i] = common.BytesToHash(inputBytes[i*0x20 : i*0x20+0x20])
+	}
+
 	// read start block header
 	var parent types.Header
-	check(rlp.DecodeBytes(oracle.Preimage(oracle.Input(0)), &parent))
+	check(rlp.DecodeBytes(oracle.Preimage(inputs[0]), &parent))
 
 	// read header
 	var newheader types.Header
@@ -72,11 +79,11 @@ func main() {
 	newheader.BaseFee = misc.CalcBaseFee(params.MainnetChainConfig, &parent)
 
 	// from input oracle
-	newheader.TxHash = oracle.Input(1)
-	newheader.Coinbase = common.BigToAddress(oracle.Input(2).Big())
-	newheader.UncleHash = oracle.Input(3)
-	newheader.GasLimit = oracle.Input(4).Big().Uint64()
-	newheader.Time = oracle.Input(5).Big().Uint64()
+	newheader.TxHash = inputs[1]
+	newheader.Coinbase = common.BigToAddress(inputs[2].Big())
+	newheader.UncleHash = inputs[3]
+	newheader.GasLimit = inputs[4].Big().Uint64()
+	newheader.Time = inputs[5].Big().Uint64()
 
 	bc := core.NewBlockChain(&parent)
 	database := state.NewDatabase(parent)

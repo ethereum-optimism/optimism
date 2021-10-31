@@ -187,12 +187,14 @@ func PrefetchCode(blockNumber *big.Int, addrHash common.Hash) {
 	preimages[hash] = ret
 }
 
+var inputhash common.Hash
+
+func InputHash() common.Hash {
+	return inputhash
+}
+
 var inputs [6]common.Hash
 var outputs [2]common.Hash
-
-func Input(index int) common.Hash {
-	return inputs[index]
-}
 
 func Output(output common.Hash, receipts common.Hash) {
 	if receipts != outputs[1] {
@@ -282,8 +284,8 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	}
 
 	// second block
-	if blockHeader.ParentHash != Input(0) {
-		fmt.Println(blockHeader.ParentHash, Input(0))
+	if blockHeader.ParentHash != inputs[0] {
+		fmt.Println(blockHeader.ParentHash, inputs[0])
 		panic("block transition isn't correct")
 	}
 	inputs[1] = blockHeader.TxHash
@@ -297,7 +299,10 @@ func PrefetchBlock(blockNumber *big.Int, startBlock bool, hasher types.TrieHashe
 	for i := 0; i < len(inputs); i++ {
 		saveinput = append(saveinput, inputs[i].Bytes()[:]...)
 	}
-	ioutil.WriteFile(fmt.Sprintf("%s/input", root), saveinput, 0644)
+	inputhash = crypto.Keccak256Hash(saveinput)
+	preimages[inputhash] = saveinput
+	ioutil.WriteFile(fmt.Sprintf("%s/input", root), inputhash.Bytes(), 0644)
+	//ioutil.WriteFile(fmt.Sprintf("%s/input", root), saveinput, 0644)
 
 	// secret input aka output
 	outputs[0] = blockHeader.Root

@@ -16,10 +16,6 @@ import (
 
 var preimages = make(map[common.Hash][]byte)
 
-// only 6 here
-var inputs [6]common.Hash
-var inputsLoaded bool = false
-
 func byteAt(addr uint64, length int) []byte {
 	var ret []byte
 	bh := (*reflect.SliceHeader)(unsafe.Pointer(&ret))
@@ -29,25 +25,10 @@ func byteAt(addr uint64, length int) []byte {
 	return ret
 }
 
-func Input(index int) common.Hash {
-	if index < 0 || index > 6 {
-		panic("bad input index")
-	}
-	if !inputsLoaded {
-		// before this isn't run on chain (confirm this isn't cached)
-		// does this interact with the GC?
-		ret := byteAt(0xB0000000, len(inputs)*0x20)
-
-		os.Stderr.WriteString("********* on chain starts here *********\n")
-
-		for i := 0; i < len(inputs); i++ {
-			inputs[i] = common.BytesToHash(ret[i*0x20 : i*0x20+0x20])
-			//fmt.Println(i, inputs[i])
-		}
-
-		inputsLoaded = true
-	}
-	return inputs[index]
+func InputHash() common.Hash {
+	ret := byteAt(0xB0000000, 0x20)
+	os.Stderr.WriteString("********* on chain starts here *********\n")
+	return common.BytesToHash(ret)
 }
 
 func Halt() {
