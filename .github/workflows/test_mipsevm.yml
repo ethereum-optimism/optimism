@@ -20,8 +20,6 @@ jobs:
       run: |
         npm install --global yarn
         yarn install
-    - name: Test MIPS on EVM
-      run: cd mipsevm && ./evm.sh
     - name: Build minigeth and run default block (cache)
       run: |
         ./run.sh

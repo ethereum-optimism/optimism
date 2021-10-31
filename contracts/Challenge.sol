@@ -88,14 +88,15 @@ contract Challenge {
     // load starting info into the input oracle
     // we both agree at the beginning
     // the first instruction executed in MIPS should be an access of startState
-    // parentblockhash, txhash, coinbase, unclehash, gaslimit, time
+    bytes32 txhash = Lib_RLPReader.readBytes32(blockNp1[4]);
+    bytes32 coinbase = bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2])));
+    bytes32 unclehash = Lib_RLPReader.readBytes32(blockNp1[1]);
+    bytes32 gaslimit = bytes32(Lib_RLPReader.readUint256(blockNp1[9]));
+    bytes32 time = bytes32(Lib_RLPReader.readUint256(blockNp1[11]));
+    bytes32 inputHash = keccak256(abi.encodePacked(parentHash, txhash, coinbase, unclehash, gaslimit, time));
+
     bytes32 startState = GlobalStartState;
-    startState = mem.WriteBytes32(startState, 0xB0000000, parentHash);
-    startState = mem.WriteBytes32(startState, 0xB0000020, Lib_RLPReader.readBytes32(blockNp1[4]));
-    startState = mem.WriteBytes32(startState, 0xB0000040, bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2]))));
-    startState = mem.WriteBytes32(startState, 0xB0000060, Lib_RLPReader.readBytes32(blockNp1[1]));
-    startState = mem.WriteBytes32(startState, 0xB0000080, bytes32(Lib_RLPReader.readUint256(blockNp1[9])));
-    startState = mem.WriteBytes32(startState, 0xB00000a0, bytes32(Lib_RLPReader.readUint256(blockNp1[11])));
+    startState = mem.WriteBytes32(startState, 0xB0000000, inputHash);
 
     // confirm the finalSystemHash asserts the state you claim (in $t0-$t7) and the machine is stopped
     // you must load these proofs into MIPS before calling this
