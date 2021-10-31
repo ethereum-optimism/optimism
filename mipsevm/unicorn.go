@@ -149,12 +149,19 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 		}, 0, 0x80000000)
 
 		mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
+			SyncRegs(mu, ram)
 			callback(steps, mu, ram)
 			steps += 1
 		}, 0, 0x80000000)
 	}
 
 	return mu
+}
+
+func LoadMappedFileUnicorn(mu uc.Unicorn, fn string, ram map[uint32](uint32), base uint32) {
+	dat, _ := ioutil.ReadFile(fn)
+	LoadData(dat, ram, base)
+	mu.MemWrite(uint64(base), dat)
 }
 
 // reimplement simple.py in go

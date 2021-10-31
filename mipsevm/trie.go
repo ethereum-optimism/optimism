@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -22,15 +20,6 @@ var Preimages = make(map[common.Hash][]byte)
 type Jtree struct {
 	Root      common.Hash            `json:"root"`
 	Preimages map[common.Hash][]byte `json:"preimages"`
-}
-
-// TODO: replace with JSON
-func SerializeTrie(root common.Hash) []byte {
-	b := new(bytes.Buffer)
-	e := gob.NewEncoder(b)
-	check(e.Encode(root))
-	check(e.Encode(Preimages))
-	return b.Bytes()
 }
 
 func TrieToJson(root common.Hash) []byte {

@@ -17,9 +17,9 @@ func TestTrie(t *testing.T) {
 	root := RamToTrie(ram)
 	//ParseNode(root, 0)
 
-	dat := SerializeTrie(root)
+	dat := TrieToJson(root)
 	fmt.Println("serialized length is", len(dat))
-	ioutil.WriteFile("/tmp/eth/ramtrie", dat, 0644)
+	ioutil.WriteFile("/tmp/eth/ramtrie.json", dat, 0644)
 }
 
 func printRoot(ram map[uint32](uint32)) {
