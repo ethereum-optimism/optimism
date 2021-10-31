@@ -49,11 +49,16 @@ func TestCompareUnicornEvm(t *testing.T) {
 	})
 
 	uniram := make(map[uint32](uint32))
-	go RunUnicorn(fn, uniram, true, false, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
+	ministart := time.Now()
+	go RunUnicorn(fn, uniram, false, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
 		SyncRegs(mu, ram)
 		cuni <- RegSerialize(ram)
 		done.Lock()
 		done.Unlock()
+		if step%1000000 == 0 {
+			steps_per_sec := float64(step) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
+			fmt.Printf("%10d pc: %x steps per s %f ram entries %d\n", step, ram[0xc0000080], steps_per_sec, len(ram))
+		}
 		// halt at steps
 		if step == steps {
 			mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)

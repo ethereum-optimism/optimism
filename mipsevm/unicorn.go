@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/fatih/color"
@@ -70,7 +69,7 @@ func SyncRegs(mu uc.Unicorn, ram map[uint32](uint32)) {
 	WriteRam(ram, REG_HEAP, uint32(heap_start))
 }
 
-func GetHookedUnicorn(root string, ram map[uint32](uint32), slowMode bool, callback func(int, uc.Unicorn, map[uint32](uint32))) uc.Unicorn {
+func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, uc.Unicorn, map[uint32](uint32))) uc.Unicorn {
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
@@ -125,7 +124,7 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), slowMode bool, callb
 		mu.RegWrite(uc.MIPS_REG_A3, 0)
 	}, 0, 0)
 
-	if slowMode {
+	if callback != nil {
 		mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
 			rt := value
 			rs := addr64 & 3
@@ -149,15 +148,8 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), slowMode bool, callb
 
 		}, 0, 0x80000000)
 
-		ministart := time.Now()
 		mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-			if steps%1000000 == 0 && false {
-				steps_per_sec := float64(steps) * 1e9 / float64(time.Now().Sub(ministart).Nanoseconds())
-				fmt.Printf("%10d pc: %x steps per s %f ram entries %d\n", steps, addr, steps_per_sec, len(ram))
-			}
-			if callback != nil {
-				callback(steps, mu, ram)
-			}
+			callback(steps, mu, ram)
 			steps += 1
 		}, 0, 0x80000000)
 	}
@@ -166,9 +158,9 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), slowMode bool, callb
 }
 
 // reimplement simple.py in go
-func RunUnicorn(fn string, ram map[uint32](uint32), slowMode bool, checkIO bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
+func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
 	root := "/tmp/eth/13284469"
-	mu := GetHookedUnicorn(root, ram, slowMode, callback)
+	mu := GetHookedUnicorn(root, ram, callback)
 
 	// loop forever to match EVM
 	//mu.MemMap(0x5ead0000, 0x1000)
