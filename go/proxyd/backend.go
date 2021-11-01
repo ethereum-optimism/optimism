@@ -32,6 +32,7 @@ var (
 		Help:      "Count of backend requests.",
 	}, []string{
 		"backend_name",
+		"method_name",
 	})
 
 	backendErrorsCtr = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -40,6 +41,7 @@ var (
 		Help:      "Count of backend errors.",
 	}, []string{
 		"backend_name",
+    "method_name",
 	})
 
 	backendPermanentErrorsCtr = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -48,6 +50,7 @@ var (
 		Help:      "Count of backend errors that mark a backend as offline.",
 	}, []string{
 		"backend_name",
+    "method_name",
 	})
 
 	backendResponseTimeSummary = promauto.NewSummaryVec(prometheus.SummaryOpts{
@@ -150,7 +153,7 @@ func (b *Backend) Forward(req *RPCReq) (*RPCRes, error) {
 	}
 
 	atomic.StoreInt64(&b.lastPermError, time.Now().Unix())
-	backendPermanentErrorsCtr.WithLabelValues(b.Name).Inc()
+	backendPermanentErrorsCtr.WithLabelValues(b.Name, req.Method).Inc()
 	return nil, wrapErr(lastError, "permanent error forwarding request")
 }
 
@@ -162,7 +165,7 @@ func (b *Backend) doForward(rpcReq *RPCReq) ([]byte, error) {
 
 	httpReq, err := http.NewRequest("POST", b.baseURL, bytes.NewReader(body))
 	if err != nil {
-		backendErrorsCtr.WithLabelValues(b.Name).Inc()
+		backendErrorsCtr.WithLabelValues(b.Name, rpcReq.Method).Inc()
 		return nil, wrapErr(err, "error creating backend request")
 	}
 
@@ -172,22 +175,22 @@ func (b *Backend) doForward(rpcReq *RPCReq) ([]byte, error) {
 
 	timer := prometheus.NewTimer(backendResponseTimeSummary.WithLabelValues(b.Name, rpcReq.Method))
 	defer timer.ObserveDuration()
-	defer backendRequestsCtr.WithLabelValues(b.Name).Inc()
+	defer backendRequestsCtr.WithLabelValues(b.Name, rpcReq.Method).Inc()
 	res, err := b.client.Do(httpReq)
 	if err != nil {
-		backendErrorsCtr.WithLabelValues(b.Name).Inc()
+		backendErrorsCtr.WithLabelValues(b.Name, rpcReq.Method).Inc()
 		return nil, wrapErr(err, "error in backend request")
 	}
 
 	if res.StatusCode != 200 {
-		backendErrorsCtr.WithLabelValues(b.Name).Inc()
+		backendErrorsCtr.WithLabelValues(b.Name, rpcReq.Method).Inc()
 		return nil, fmt.Errorf("response code %d", res.StatusCode)
 	}
 
 	defer res.Body.Close()
 	resB, err := ioutil.ReadAll(io.LimitReader(res.Body, b.maxResponseSize))
 	if err != nil {
-		backendErrorsCtr.WithLabelValues(b.Name).Inc()
+		backendErrorsCtr.WithLabelValues(b.Name, rpcReq.Method).Inc()
 		return nil, wrapErr(err, "error reading response body")
 	}
 
