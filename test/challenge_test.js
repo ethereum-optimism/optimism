@@ -37,6 +37,7 @@ describe("Challenge contract", function () {
     while (1) {
       try {
         await c.InitiateChallenge(blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, 1)
+        break
       } catch(e) {
         const missing = e.toString().split("'")[1]
         if (missing.length == 64) {

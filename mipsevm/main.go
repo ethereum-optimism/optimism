@@ -23,7 +23,7 @@ func main() {
 	lastStep := 0
 	mu := GetHookedUnicorn(root, ram, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
 		// this can be raised to 10,000,000 if the files are too large
-		if step%1000000 == 0 {
+		if step%10000000 == 0 {
 			SyncRegs(mu, ram)
 			WriteCheckpoint(ram, root, step)
 		}
@@ -31,9 +31,10 @@ func main() {
 	})
 
 	ZeroRegisters(ram)
-	LoadMappedFileUnicorn(mu, "../mipigo/golden/minigeth.bin", ram, 0)
+	// not ready for golden yet
+	LoadMappedFileUnicorn(mu, "../mipigo/minigeth.bin", ram, 0)
 	WriteCheckpoint(ram, root, -1)
-	LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0xB0000000)
+	LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0x30000000)
 
 	mu.Start(0, 0x5ead0004)
 	SyncRegs(mu, ram)

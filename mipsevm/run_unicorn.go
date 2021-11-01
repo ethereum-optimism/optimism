@@ -80,20 +80,20 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 		syscall_no, _ := mu.RegRead(uc.MIPS_REG_V0)
 		v0 := uint64(0)
 		if syscall_no == 4020 {
-			oracle_hash, _ := mu.MemRead(0xB0001000, 0x20)
+			oracle_hash, _ := mu.MemRead(0x30001000, 0x20)
 			hash := common.BytesToHash(oracle_hash)
 			key := fmt.Sprintf("%s/%s", root, hash)
 			value, _ := ioutil.ReadFile(key)
 
 			tmp := []byte{0, 0, 0, 0}
 			binary.BigEndian.PutUint32(tmp, uint32(len(value)))
-			mu.MemWrite(0xB1000000, tmp)
-			mu.MemWrite(0xB1000004, value)
+			mu.MemWrite(0x31000000, tmp)
+			mu.MemWrite(0x31000004, value)
 
-			WriteRam(ram, 0xB1000000, uint32(len(value)))
+			WriteRam(ram, 0x31000000, uint32(len(value)))
 			value = append(value, 0, 0, 0)
-			for i := uint32(0); i < ram[0xB1000000]; i += 4 {
-				WriteRam(ram, 0xB1000004+i, binary.BigEndian.Uint32(value[i:i+4]))
+			for i := uint32(0); i < ram[0x31000000]; i += 4 {
+				WriteRam(ram, 0x31000004+i, binary.BigEndian.Uint32(value[i:i+4]))
 			}
 		} else if syscall_no == 4004 {
 			fd, _ := mu.RegRead(uc.MIPS_REG_A0)
@@ -179,12 +179,12 @@ func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(
 
 	// inputs
 	inputs, _ := ioutil.ReadFile(fmt.Sprintf("%s/input", root))
-	mu.MemWrite(0xB0000000, inputs[0:0xc0])
+	mu.MemWrite(0x30000000, inputs[0:0xc0])
 
 	// load into ram
 	LoadData(dat, ram, 0)
 	if checkIO {
-		LoadData(inputs[0:0xc0], ram, 0xB0000000)
+		LoadData(inputs[0:0xc0], ram, 0x30000000)
 	}
 
 	mu.Start(0, 0x5ead0004)
@@ -192,7 +192,7 @@ func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(
 	if checkIO {
 		outputs, _ := ioutil.ReadFile(fmt.Sprintf("%s/output", root))
 		real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, outputs...)
-		output, _ := mu.MemRead(0xB0000800, 0x44)
+		output, _ := mu.MemRead(0x30000800, 0x44)
 		if bytes.Compare(real, output) != 0 {
 			log.Fatal("mismatch output")
 		} else {

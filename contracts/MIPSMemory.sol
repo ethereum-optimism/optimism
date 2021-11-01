@@ -108,12 +108,12 @@ contract MIPSMemory {
     }
 
     // MMIO preimage oracle
-    if (addr >= 0xB1000000 && addr < 0xB2000000) {
-      bytes32 pihash = ReadBytes32(stateHash, 0xB0001000);
-      if (addr == 0xB1000000) {
+    if (addr >= 0x31000000 && addr < 0x32000000) {
+      bytes32 pihash = ReadBytes32(stateHash, 0x30001000);
+      if (addr == 0x31000000) {
         return uint32(preimage[pihash].length);
       }
-      uint offset = addr-0xB1000004;
+      uint offset = addr-0x31000004;
       uint8 a0 = uint8(preimage[pihash][offset]);
       uint8 a1 = uint8(preimage[pihash][offset+1]);
       uint8 a2 = uint8(preimage[pihash][offset+2]);

@@ -100,13 +100,13 @@ contract Challenge {
     }
 
     bytes32 startState = GlobalStartState;
-    startState = mem.WriteBytes32(startState, 0xB0000000, inputHash);
+    startState = mem.WriteBytes32(startState, 0x30000000, inputHash);
 
     // confirm the finalSystemHash asserts the state you claim and the machine is stopped
     // you must load these trie nodes into MIPSMemory before calling this
     require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0x5EAD0000, "machine is not stopped in final state (PC == 0x5EAD0000)");
-    require(mem.ReadMemory(finalSystemState, 0xB0000800) == 0x1337f00d, "state is not outputted");
-    require(mem.ReadBytes32(finalSystemState, 0xB0000804) == assertionRoot, "you are claiming a different state root in machine");
+    require(mem.ReadMemory(finalSystemState, 0x30000800) == 0x1337f00d, "state is not outputted");
+    require(mem.ReadBytes32(finalSystemState, 0x30000804) == assertionRoot, "you are claiming a different state root in machine");
 
     return newChallengeTrusted(startState, finalSystemState, stepCount);
   }

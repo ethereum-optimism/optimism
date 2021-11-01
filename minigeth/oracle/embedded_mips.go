@@ -26,7 +26,7 @@ func byteAt(addr uint64, length int) []byte {
 }
 
 func InputHash() common.Hash {
-	ret := byteAt(0xB0000000, 0x20)
+	ret := byteAt(0x30000000, 0x20)
 	os.Stderr.WriteString("********* on chain starts here *********\n")
 	return common.BytesToHash(ret)
 }
@@ -38,11 +38,11 @@ func Halt() {
 }
 
 func Output(output common.Hash, receipts common.Hash) {
-	ret := byteAt(0xB0000804, 0x20)
+	ret := byteAt(0x30000804, 0x20)
 	copy(ret, output.Bytes())
-	rret := byteAt(0xB0000824, 0x20)
+	rret := byteAt(0x30000824, 0x20)
 	copy(rret, receipts.Bytes())
-	magic := byteAt(0xB0000800, 4)
+	magic := byteAt(0x30000800, 4)
 	copy(magic, []byte{0x13, 0x37, 0xf0, 0x0d})
 	Halt()
 }
@@ -51,7 +51,7 @@ func Preimage(hash common.Hash) []byte {
 	val, ok := preimages[hash]
 	if !ok {
 		// load in hash
-		preImageHash := byteAt(0xB0001000, 0x20)
+		preImageHash := byteAt(0x30001000, 0x20)
 		copy(preImageHash, hash.Bytes())
 
 		// used in unicorn emulator to trigger the load
@@ -59,9 +59,9 @@ func Preimage(hash common.Hash) []byte {
 		os.Getpid()
 
 		// ready
-		rawSize := common.CopyBytes(byteAt(0xB1000000, 4))
+		rawSize := common.CopyBytes(byteAt(0x31000000, 4))
 		size := (int(rawSize[0]) << 24) | (int(rawSize[1]) << 16) | (int(rawSize[2]) << 8) | int(rawSize[3])
-		ret := common.CopyBytes(byteAt(0xB1000004, size))
+		ret := common.CopyBytes(byteAt(0x31000004, size))
 
 		// this is 20% of the exec instructions, this speedup is always an option
 		realhash := crypto.Keccak256Hash(ret)
