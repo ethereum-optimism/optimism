@@ -1,9 +1,8 @@
 const { expect } = require("chai");
 const fs = require("fs");
 
-
 // golden minigeth.bin hash
-const goldenRoot = "0xff382489fd6109b9dc2dcee3f6e202e6ae2a5e7029cd9eb4b1f931dff51ca725"
+const goldenRoot = "0x1f6285b6d372ee187815a8580d1af3ab348cea34abbee18a8e13272454a4c4af"
 
 describe("Challenge contract", function () {
   beforeEach(async function () {
@@ -30,9 +29,9 @@ describe("Challenge contract", function () {
 
     const assertionRoot = "0x9e0261efe4509912b8862f3d45a0cb8404b99b239247df9c55871bd3844cebbd"
 
-    const finalSystemState = "0x17c96b2477177f61e282f651bed174524dbde70a5ba9fc38435a3386acf46998"
+    const finalSystemState = "0xf02b4450a07d492c17b4b554851f0dcb12192e2439a507b12fcea8f801a596a6"
     let startTrie = JSON.parse(fs.readFileSync("/tmp/eth/13284469/checkpoint_-1.json"))
-    let finalTrie = JSON.parse(fs.readFileSync("/tmp/eth/13284469/checkpoint_85042025.json"))
+    let finalTrie = JSON.parse(fs.readFileSync("/tmp/eth/13284469/checkpoint_85059435.json"))
 
     while (1) {
       try {
