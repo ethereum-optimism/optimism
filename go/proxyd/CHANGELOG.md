@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 1.0.2
+
+### Patch Changes
+
+- b9d2fbee: Trigger releases
+
 ## 1.0.1
 
 ### Patch Changes
