@@ -12,6 +12,8 @@ import {
   LOCAL_SOLC_DIR,
   EVM_SOLC_CACHE_DIR,
   OVM_SOLC_CACHE_DIR,
+  SOURCIFY_DIR_INPUTS,
+  SOURCIFY_DIR_OUTPUTS,
 } from './constants'
 import { EtherscanContract } from './types'
 
@@ -225,6 +227,20 @@ export const compile = (opts: {
   } catch (e) {
     // directory already exists
   }
+  try {
+    fs.mkdirSync(SOURCIFY_DIR_INPUTS, {
+      recursive: true,
+    })
+  } catch (e) {
+    // directory already exists
+  }
+  try {
+    fs.mkdirSync(SOURCIFY_DIR_OUTPUTS, {
+      recursive: true,
+    })
+  } catch (e) {
+    // directory already exists
+  }
 
   let version: string
   if (opts.ovm) {
@@ -262,6 +278,9 @@ export const compile = (opts: {
       `Contract filename mismatch: ${opts.contract.contractAddress}`
     )
   }
+
+  fs.writeFileSync(path.join(SOURCIFY_DIR_INPUTS, `${opts.contract.contractAddress}.json`), JSON.stringify(opts.contract))
+  fs.writeFileSync(path.join(SOURCIFY_DIR_OUTPUTS, `${opts.contract.contractAddress}.json`), JSON.stringify(mainOutput))
 
   return mainOutput
 }

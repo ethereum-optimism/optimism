@@ -163,3 +163,15 @@ export const OVM_SOLC_CACHE_DIR = path.join(
   'solc-cache',
   'ovm'
 )
+export const SOURCIFY_DIR_INPUTS = path.join(
+  __dirname,
+  '..',
+  'sourcify',
+  'inputs'
+)
+export const SOURCIFY_DIR_OUTPUTS = path.join(
+  __dirname,
+  '..',
+  'sourcify',
+  'outputs'
+)
