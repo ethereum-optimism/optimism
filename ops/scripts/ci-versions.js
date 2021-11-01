@@ -12,6 +12,8 @@ data = JSON.parse(data)
 const nonBuilders = new Set([
   'l2geth',
   'gas-oracle',
+  'proxyd',
+  'rpc-proxy',
 ])
 
 builder = false
