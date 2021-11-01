@@ -1,5 +1,11 @@
 # @eth-optimism/rpc-proxy
 
+## 0.0.4
+
+### Patch Changes
+
+- b9d2fbee: Trigger releases
+
 ## 0.0.3
 
 ### Patch Changes
