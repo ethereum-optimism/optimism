@@ -7665,7 +7665,7 @@ functional-red-black-tree@^1.0.1, functional-red-black-tree@~1.0.1:
   resolved "https://registry.yarnpkg.com/functional-red-black-tree/-/functional-red-black-tree-1.0.1.tgz#1b0ab3bd553b2a0d6399d29c0e3ea0b252078327"
   integrity sha1-GwqzvVU7Kg1jmdKcDj6gslIHgyc=
 
-ganache-cli@^6.11.0:
+ganache-cli@^6.12.2:
   version "6.12.2"
   resolved "https://registry.yarnpkg.com/ganache-cli/-/ganache-cli-6.12.2.tgz#c0920f7db0d4ac062ffe2375cb004089806f627a"
   integrity sha512-bnmwnJDBDsOWBUP8E/BExWf85TsdDEFelQSzihSJm9VChVO1SHp94YXLP5BlA4j/OTxp0wR4R1Tje9OHOuAJVw==
@@ -9207,6 +9207,26 @@ istanbul-reports@^3.0.2:
   dependencies:
     html-escaper "^2.0.0"
     istanbul-lib-report "^3.0.0"
+
+istanbul@^0.4.5:
+  version "0.4.5"
+  resolved "https://registry.yarnpkg.com/istanbul/-/istanbul-0.4.5.tgz#65c7d73d4c4da84d4f3ac310b918fb0b8033733b"
+  integrity sha1-ZcfXPUxNqE1POsMQuRj7C4Azczs=
+  dependencies:
+    abbrev "1.0.x"
+    async "1.x"
+    escodegen "1.8.x"
+    esprima "2.7.x"
+    glob "^5.0.15"
+    handlebars "^4.0.1"
+    js-yaml "3.x"
+    mkdirp "0.5.x"
+    nopt "3.x"
+    once "1.x"
+    resolve "1.1.x"
+    supports-color "^3.1.0"
+    which "^1.1.1"
+    wordwrap "^1.0.0"
 
 isurl@^1.0.0-alpha5:
   version "1.0.0"
@@ -13729,18 +13749,18 @@ solidity-comments-extractor@^0.0.7:
   resolved "https://registry.yarnpkg.com/solidity-comments-extractor/-/solidity-comments-extractor-0.0.7.tgz#99d8f1361438f84019795d928b931f4e5c39ca19"
   integrity sha512-wciNMLg/Irp8OKGrh3S2tfvZiZ0NEyILfcRCXCD4mp7SgK/i9gzLfhY2hY7VMCQJ3kH9UB9BzNdibIVMchzyYw==
 
-solidity-coverage@^0.7.16:
-  version "0.7.16"
-  resolved "https://registry.yarnpkg.com/solidity-coverage/-/solidity-coverage-0.7.16.tgz#c8c8c46baa361e2817bbf275116ddd2ec90a55fb"
-  integrity sha512-ttBOStywE6ZOTJmmABSg4b8pwwZfYKG8zxu40Nz+sRF5bQX7JULXWj/XbX0KXps3Fsp8CJXg8P29rH3W54ipxw==
+solidity-coverage@^0.7.17:
+  version "0.7.17"
+  resolved "https://registry.yarnpkg.com/solidity-coverage/-/solidity-coverage-0.7.17.tgz#5139de8f6666d4755d88f453d8e35632a7bb3444"
+  integrity sha512-Erw2hd2xdACAvDX8jUdYkmgJlIIazGznwDJA5dhRaw4def2SisXN9jUjneeyOZnl/E7j6D3XJYug4Zg9iwodsg==
   dependencies:
-    "@solidity-parser/parser" "^0.12.0"
+    "@solidity-parser/parser" "^0.13.2"
     "@truffle/provider" "^0.2.24"
     chalk "^2.4.2"
     death "^1.1.0"
     detect-port "^1.3.0"
     fs-extra "^8.1.0"
-    ganache-cli "^6.11.0"
+    ganache-cli "^6.12.2"
     ghost-testrpc "^0.0.2"
     global-modules "^2.0.0"
     globby "^10.0.1"

@@ -21,7 +21,7 @@ const MAX_GAS_LIMIT = 8_000_000
 const INITIAL_TOTAL_L1_SUPPLY = 5000
 const FINALIZATION_GAS = 1_200_000
 
-describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
+describe('[GAS BENCHMARK] Depositing via the standard bridge [ @skip-on-coverage ]', () => {
   let sequencer: Signer
   let alice: Signer
   before(async () => {
@@ -116,7 +116,7 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge', () => {
     })
   })
 
-  describe('[GAS BENCHMARK] L1 to L2 Deposit costs', async () => {
+  describe('[GAS BENCHMARK] L1 to L2 Deposit costs [ @skip-on-coverage ]', async () => {
     const depositAmount = 1_000
     before(async () => {
       // Load a transaction into the queue first to 'dirty' the buffer's length slot
