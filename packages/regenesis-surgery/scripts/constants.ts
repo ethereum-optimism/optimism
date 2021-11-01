@@ -124,13 +124,18 @@ export const WETH_TRANSFER_ADDRESSES = [
   '0x80D94a6f6b0335Bfed8D04B92423B6Cd14b5d31C',
   // Rubicon Kovan market
   '0x5ddDa7DF721272106af1904abcc64E76AB2019d2',
+  // Hop Mainnet AMM Wrapper
+  '0x86cA30bEF97fB651b8d866D45503684b90cb3312',
+  // Hop MainnetSwap
+  '0xaa30d6bba6285d0585722e2440ff89e23ef68864',
   // Hop Kovan AMM Wrapper
   '0xc9E6628791cdD4ad568550fcc6f378cEF27e98fd',
   // Hop Kovan Swap
   '0xD6E31cE884DFf44c4600fD9D36BcC9af447C28d5',
+  // Synthetix Mainnet WETHWrapper
+  '0x6202a3b0be1d222971e93aab084c6e584c29db70',
 ]
 
-// TODO: confirm OVM/EVM mapps with ben-chain
 export const COMPILER_VERSIONS_TO_SOLC = {
   'v0.5.16': 'v0.5.16+commit.9c3226ce',
   'v0.5.16-alpha.7': 'v0.5.16+commit.9c3226ce',
