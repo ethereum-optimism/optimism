@@ -1,18 +1,17 @@
 package proxyd
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+  "encoding/json"
+  "errors"
+  "fmt"
+  "github.com/ethereum/go-ethereum/log"
+  "github.com/gorilla/mux"
+  "github.com/prometheus/client_golang/prometheus"
+  "github.com/prometheus/client_golang/prometheus/promauto"
   "github.com/rs/cors"
   "io"
-	"io/ioutil"
-	"net/http"
-	"time"
+  "io/ioutil"
+  "net/http"
 )
 
 var (
@@ -22,17 +21,11 @@ var (
 		Help:      "Count of total HTTP requests.",
 	})
 
-	httpRequestDurationHisto = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "proxyd",
-		Name:      "http_request_duration_histogram_seconds",
-		Help:      "Histogram of HTTP request durations.",
-		Buckets: []float64{
-			0,
-			0.1,
-			0.25,
-			0.75,
-			1,
-		},
+	httpRequestDurationSummary = promauto.NewSummary(prometheus.SummaryOpts{
+		Namespace:  "proxyd",
+		Name:       "http_request_duration_seconds",
+		Help:       "Summary of HTTP request durations, in seconds.",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.95: 0.005, 0.99: 0.001},
 	})
 
 	rpcRequestsCtr = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -96,8 +89,8 @@ func (s *Server) ListenAndServe(host string, port int) error {
 	hdlr.HandleFunc("/healthz", s.HandleHealthz).Methods("GET")
 	hdlr.HandleFunc("/", s.HandleRPC).Methods("POST")
 	c := cors.New(cors.Options{
-	  AllowedOrigins: []string{"*"},
-  })
+		AllowedOrigins: []string{"*"},
+	})
 	addr := fmt.Sprintf("%s:%d", host, port)
 	server := &http.Server{
 		Handler: instrumentedHdlr(c.Handler(hdlr)),
@@ -142,7 +135,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backendRes, err := group.Forward(body)
+	backendRes, err := group.Forward(req)
 	if err != nil {
 		log.Error("error forwarding RPC request", "group", group.Name, "method", req.Method, "err", err)
 		rpcErrorsCtr.WithLabelValues("-32603").Inc()
@@ -181,9 +174,8 @@ func writeRPCError(w http.ResponseWriter, id *int, code int, msg string) {
 func instrumentedHdlr(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		httpRequestsCtr.Inc()
-		start := time.Now()
+		timer := prometheus.NewTimer(httpRequestDurationSummary)
+		defer timer.ObserveDuration()
 		h.ServeHTTP(w, r)
-		dur := time.Since(start)
-		httpRequestDurationHisto.Observe(float64(dur) / float64(time.Second))
 	}
 }
