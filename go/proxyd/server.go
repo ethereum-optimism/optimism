@@ -1,18 +1,17 @@
 package proxyd
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/rs/cors"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"time"
+  "encoding/json"
+  "errors"
+  "fmt"
+  "github.com/ethereum/go-ethereum/log"
+  "github.com/gorilla/mux"
+  "github.com/prometheus/client_golang/prometheus"
+  "github.com/prometheus/client_golang/prometheus/promauto"
+  "github.com/rs/cors"
+  "io"
+  "io/ioutil"
+  "net/http"
 )
 
 var (
@@ -175,9 +174,8 @@ func writeRPCError(w http.ResponseWriter, id *int, code int, msg string) {
 func instrumentedHdlr(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		httpRequestsCtr.Inc()
-		start := time.Now()
+		timer := prometheus.NewTimer(httpRequestDurationSummary)
+		defer timer.ObserveDuration()
 		h.ServeHTTP(w, r)
-		dur := time.Since(start)
-		httpRequestDurationSummary.Observe(float64(dur) / float64(time.Second))
 	}
 }
