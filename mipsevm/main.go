@@ -36,6 +36,7 @@ func main() {
 	LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0xB0000000)
 
 	mu.Start(0, 0x5ead0004)
+	SyncRegs(mu, ram)
 	WriteCheckpoint(ram, root, lastStep)
 
 	// step 2 (optional), validate each 1 million chunk in EVM
