@@ -102,6 +102,23 @@ library Lib_MerkleTrie {
 
     function getTrieNode(bytes32 nodeId) private view returns (TrieNode memory) {
         bytes memory encoded = GetTrie()[nodeId];
+        if (encoded.length == 0) {
+            bytes memory node = Lib_BytesUtils.toNibbles(abi.encodePacked(nodeId));
+            for (uint i = 0; i < node.length; i++) {
+                if (node[i] < bytes1(uint8(10))) {
+                    node[i] = bytes1(uint8(node[i]) + uint8(0x30));
+                } else {
+                    node[i] = bytes1(uint8(node[i]) + uint8(0x61-10));
+                }
+            }
+            // Error(string)
+            bytes memory revertData = abi.encodeWithSelector(0x08c379a0, string(node));
+            uint256 revertDataLength = revertData.length;
+            assembly {
+                let revertDataStart := add(revertData, 32)
+                revert(revertDataStart, revertDataLength)
+            }
+        }
         require(keccak256(encoded) == nodeId, "bad hash in trie lookup");
         return getRawNode(encoded);
     }
