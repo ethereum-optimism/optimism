@@ -7,10 +7,10 @@ The cannon (cannon cannon cannon) is an on chain interactive fraud prover
 It's half geth, half of what I think truebit was supposed to be. When it's done, we'll be able to prove L1 blocks aren't fraud
 
 * It's Go code
-* ...running an EVM
+* ...that runs an EVM
 * ...emulating a MIPS machine
 * ...with compiled Go code
-* ...running an EVM
+* ...that runs an EVM
 
 ## Directory Layout
 
