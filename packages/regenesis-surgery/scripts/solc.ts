@@ -1,8 +1,7 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
-import { access, mkdir } from 'fs/promises'
 import fetch from 'node-fetch'
 import path from 'path'
-import fs, { mkdirSync } from 'fs'
+import fs from 'fs'
 import solc from 'solc'
 import { ethers } from 'ethers'
 import { clone } from '@eth-optimism/core-utils'
@@ -66,7 +65,7 @@ export const downloadSolc = async (version: string, ovm?: boolean) => {
 
   try {
     // Check to see if we already have the file
-    await access(file, fs.constants.F_OK)
+    fs.accessSync(file, fs.constants.F_OK)
   } catch (e) {
     console.error(`Downloading ${version} ${ovm ? 'ovm' : 'solidity'}`)
     // If we don't have the file, download it
@@ -81,7 +80,7 @@ export const downloadSolc = async (version: string, ovm?: boolean) => {
  */
 export const downloadAllSolcVersions = async () => {
   try {
-    await mkdir(LOCAL_SOLC_DIR)
+    fs.mkdirSync(LOCAL_SOLC_DIR)
   } catch (e) {
     // directory already exists
   }
@@ -213,14 +212,14 @@ export const compile = (opts: {
   ovm: boolean
 }): any => {
   try {
-    mkdirSync(EVM_SOLC_CACHE_DIR, {
+    fs.mkdirSync(EVM_SOLC_CACHE_DIR, {
       recursive: true,
     })
   } catch (e) {
     // directory already exists
   }
   try {
-    mkdirSync(OVM_SOLC_CACHE_DIR, {
+    fs.mkdirSync(OVM_SOLC_CACHE_DIR, {
       recursive: true,
     })
   } catch (e) {
