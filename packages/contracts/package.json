@@ -37,7 +37,7 @@
     "lint:contracts:fix": "yarn prettier --write 'contracts/**/*.sol'",
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
-    "clean": "rm -rf ./dist ./artifacts ./cache ./tsconfig.build.tsbuildinfo",
+    "clean": "rm -rf ./dist ./artifacts ./cache ./coverage ./tsconfig.build.tsbuildinfo",
     "deploy": "ts-node bin/deploy.ts && yarn autogen:markdown",
     "prepublishOnly": "yarn copyfiles -u 1 -e \"**/test-*/**/*\" \"contracts/**/*\" ./",
     "postpublish": "rimraf chugsplash L1 L2 libraries standards",
