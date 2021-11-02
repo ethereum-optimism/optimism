@@ -32,7 +32,7 @@
   - **Deposit Feed**: A feed of L2 transactions which originated as smart contract calls in the L1 state which emitted an event. Deposits are guaranteed to be reflected in the L2 state within the *sequencing window*.
   - **Sequencer Feed**: A feed of L2 transactions which are submitted by the sequencer to L1 in batches. Includes L2 tx calldata, *as well as time and ordering information.*
   - **L2 Block Feed**: A feed of canonical L2 block inputs (i.e. L2 blocks, but without the `stateRoot`, `receiptsRoot`, `gasUsed`, ...) which should be executed by L2 nodes and enforced in fraud proofs.
-    - ***The L2 Block Feed is a pure function of the Deposit Feed and Sequencer Feed.*** That is, given the Deposit Feed and Sequencer Feed, the L2 Block Feed can be reconstructed, even without full L1 blockdata. 
+    - ***The L2 Block Feed is a pure function of the Deposit Feed and Sequencer Feed.*** That is, given the Deposit Feed and Sequencer Feed, the L2 Block Feed can be reconstructed, even without full L1 blockdata.
   - In general, all feeds must enforce that:
     - All entries are deterministically indexable by off-chain parties.
     - The fraud proof VM can find any feed entry in a bounded number of steps, such that the off-chain indexing is sufficient to generate a witness for verifing any individual step on-chain.
@@ -111,4 +111,4 @@
   - Finalizes pre-confirmed sequencer transactions onto L1
   - Writes to sequencer feed
 
-[block-gen]: TODOPR
+[block-gen]: ./components/rollup_node/block_gen.md
