@@ -157,7 +157,10 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     // If there isn't an indexed starting L1 block, that means we should pull it
     // from config and then fallback to discovering it
     if (startingL1BlockNumber === null || startingL1BlockNumber === undefined) {
-      if (this.options.l1StartHeight !== null && this.options.l1StartHeight !== undefined) {
+      if (
+        this.options.l1StartHeight !== null &&
+        this.options.l1StartHeight !== undefined
+      ) {
         startingL1BlockNumber = this.options.l1StartHeight
       } else {
         this.logger.info(
