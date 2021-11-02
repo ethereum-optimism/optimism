@@ -36,6 +36,7 @@
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
     "node-cron": "^3.0.0",
-    "prom-client": "^13.1.0"
+    "prom-client": "^13.1.0",
+    "lint-staged": "11.0.0"
   }
 }
