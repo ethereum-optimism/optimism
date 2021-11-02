@@ -60,6 +60,7 @@ You'll need the following:
 
 * [Git](https://git-scm.com/downloads)
 * [NodeJS](https://nodejs.org/en/download/)
+* [Node Version Manager](https://github.com/nvm-sh/nvm)
 * [Yarn](https://classic.yarnpkg.com/en/docs/install)
 * [Docker](https://docs.docker.com/get-docker/)
 * [Docker Compose](https://docs.docker.com/compose/install/)
@@ -72,6 +73,14 @@ Clone the repository, open it, and install nodejs packages with `yarn`:
 git clone git@github.com:ethereum-optimism/optimism.git
 cd optimism
 yarn install
+```
+
+### Install the Correct Version of NodeJS
+
+Using `nvm`, install the correct version of NodeJS.
+
+```
+nvm use
 ```
 
 ### Building the TypeScript packages
