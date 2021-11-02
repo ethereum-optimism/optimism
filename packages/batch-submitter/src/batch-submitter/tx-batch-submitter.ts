@@ -85,7 +85,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
     this.logger.info('Batch validation options', {
       autoFixBatchOptions,
-      validateBatch
+      validateBatch,
     })
   }
 
@@ -203,9 +203,14 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return
     }
 
-    const params = await this._generateSequencerBatchParams(startBlock, endBlock)
+    const params = await this._generateSequencerBatchParams(
+      startBlock,
+      endBlock
+    )
     if (!params) {
-      throw new Error(`Cannot create sequencer batch with params start ${startBlock} and end ${endBlock}`)
+      throw new Error(
+        `Cannot create sequencer batch with params start ${startBlock} and end ${endBlock}`
+      )
     }
 
     const [batchParams, wasBatchTruncated] = params
