@@ -2,6 +2,7 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { ethers } from 'ethers'
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
+import { defaultHardhatNetworkParams } from 'hardhat/internal/core/config/default-config'
 
 /* Imports: Internal */
 import { getContractDefinition } from '../src/contract-defs'
@@ -82,16 +83,10 @@ const deployFn: DeployFunction = async (hre) => {
     (4) Wait for the deploy process to continue.
   `)
 
-  // Check if the hardhat runtime environment has the owner of the proxy. This will only
-  // happen in CI. If this is the case, we can skip directly to transferring ownership over to the
-  // ChugSplashDictator contract.
-  const hreSigners = await hre.ethers.getSigners()
-  const hreHasOwner = hreSigners.some((signer) => {
-    return hexStringEquals(signer.address, currentOwner)
-  })
-
-  if (hreHasOwner) {
-    // Hardhat has the owner loaded into it, we can skip directly to transferOwnership.
+  // Check if if we're on the hardhat chain ID. This will only happen in CI. If this is the case, we
+  // can skip directly to transferring ownership over to the ChugSplashDictator contract.
+  const { chainId } = await hre.ethers.provider.getNetwork()
+  if (chainId === defaultHardhatNetworkParams.chainId) {
     const owner = await hre.ethers.getSigner(currentOwner)
     await Proxy__OVM_L1StandardBridge.connect(owner).setOwner(
       ChugSplashDictator.address

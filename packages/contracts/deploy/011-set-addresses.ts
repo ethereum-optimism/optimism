@@ -1,6 +1,7 @@
 /* Imports: External */
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import { defaultHardhatNetworkParams } from 'hardhat/internal/core/config/default-config'
 
 /* Imports: Internal */
 import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
@@ -71,15 +72,11 @@ const deployFn: DeployFunction = async (hre) => {
     (4) Wait for the deploy process to continue.
   `)
 
-  // Check if the hardhat runtime environment has the owner of the AddressManager. This will only
-  // happen in CI. If this is the case, we can skip directly to transferring ownership over to the
-  // AddressDictator contract.
-  const hreSigners = await hre.ethers.getSigners()
-  const hreHasOwner = hreSigners.some((signer) => {
-    return hexStringEquals(signer.address, currentOwner)
-  })
-  if (hreHasOwner) {
-    // Hardhat has the owner loaded into it, we can skip directly to transferOwnership.
+  // Only execute this step if we're on the hardhat chain ID. This will only happen in CI. If this
+  // is the case, we can skip directly to transferring ownership over to the AddressDictator
+  // contract.
+  const { chainId } = await hre.ethers.provider.getNetwork()
+  if (chainId === defaultHardhatNetworkParams.chainId) {
     const owner = await hre.ethers.getSigner(currentOwner)
     await Lib_AddressManager.connect(owner).transferOwnership(
       AddressDictator.address
