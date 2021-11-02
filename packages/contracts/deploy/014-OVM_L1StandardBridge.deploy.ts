@@ -45,6 +45,43 @@ const deployFn: DeployFunction = async (hre) => {
   })
   const finalOwner = await ChugSplashDictator.finalOwner()
 
+  const messengerSlotKey = await ChugSplashDictator.messengerSlotKey()
+  const messengerSlotVal = await ChugSplashDictator.messengerSlotVal()
+  const bridgeSlotKey = await ChugSplashDictator.bridgeSlotKey()
+  const bridgeSlotVal = await ChugSplashDictator.bridgeSlotVal()
+
+  console.log(`
+    The ChugSplashDictator contract (glory to Arstotzka) has been deployed.
+
+    FOLLOW THESE INSTRUCTIONS CAREFULLY!
+
+    (1) Review the storage key/value pairs below and make sure they match the expected values:
+
+        ${messengerSlotKey}:   ${messengerSlotVal}
+        ${bridgeSlotKey}:   ${bridgeSlotVal}
+
+    (2) Review the CURRENT and FINAL proxy owners and verify that these are the expected values:
+
+        Current proxy owner: (${currentOwner})
+        Final proxy owner:   (${finalOwner})
+
+        [${
+          currentOwner === finalOwner
+            ? 'THESE ARE THE SAME ADDRESSES'
+            : 'THESE ARE >>>NOT<<< THE SAME ADDRESSES'
+        }]
+
+    (3) Transfer ownership of the L1ChugSplashProxy located at (${
+      Proxy__OVM_L1StandardBridge.address
+    })
+        to the ChugSplashDictator contract located at the following address:
+
+        TRANSFER OWNERSHIP TO THE FOLLOWING ADDRESS ONLY:
+        >>>>> (${ChugSplashDictator.address}) <<<<<
+
+    (4) Wait for the deploy process to continue.
+  `)
+
   // Check if the hardhat runtime environment has the owner of the proxy. This will only
   // happen in CI. If this is the case, we can skip directly to transferring ownership over to the
   // ChugSplashDictator contract.
@@ -59,43 +96,6 @@ const deployFn: DeployFunction = async (hre) => {
     await Proxy__OVM_L1StandardBridge.connect(owner).setOwner(
       ChugSplashDictator.address
     )
-  } else {
-    const messengerSlotKey = await ChugSplashDictator.messengerSlotKey()
-    const messengerSlotVal = await ChugSplashDictator.messengerSlotVal()
-    const bridgeSlotKey = await ChugSplashDictator.bridgeSlotKey()
-    const bridgeSlotVal = await ChugSplashDictator.bridgeSlotVal()
-
-    console.log(`
-      The ChugSplashDictator contract (glory to Arstotzka) has been deployed.
-
-      FOLLOW THESE INSTRUCTIONS CAREFULLY!
-
-      (1) Review the storage key/value pairs below and make sure they match the expected values:
-
-          ${messengerSlotKey}:   ${messengerSlotVal}
-          ${bridgeSlotKey}:   ${bridgeSlotVal}
-
-      (2) Review the CURRENT and FINAL proxy owners and verify that these are the expected values:
-
-          Current proxy owner: (${currentOwner})
-          Final proxy owner:   (${finalOwner})
-
-          [${
-            currentOwner === finalOwner
-              ? 'THESE ARE THE SAME ADDRESSES'
-              : 'THESE ARE >>>NOT<<< THE SAME ADDRESSES'
-          }]
-
-      (3) Transfer ownership of the L1ChugSplashProxy located at (${
-        Proxy__OVM_L1StandardBridge.address
-      })
-          to the ChugSplashDictator contract located at the following address:
-
-          TRANSFER OWNERSHIP TO THE FOLLOWING ADDRESS ONLY:
-          >>>>> (${ChugSplashDictator.address}) <<<<<
-
-      (4) Wait for the deploy process to continue.
-    `)
   }
 
   // Wait for ownership to be transferred to the AddressDictator contract.
