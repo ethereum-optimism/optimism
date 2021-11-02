@@ -1,5 +1,5 @@
-import { expect } from '../setup'
-import * as fees from '../../src/fees'
+import { expect } from './setup'
+import * as fees from '../src/fees'
 import { BigNumber, utils } from 'ethers'
 
 const hundredBillion = 10 ** 11
