@@ -145,10 +145,6 @@ export const loadSurgeryData = async (
     ropstenProvider
   )
 
-  // Get a reference to the L1 provider.
-  console.log('Connecting to L1 provider...')
-  const l1Provider = new ethers.providers.JsonRpcProvider(configs.l1ProviderUrl)
-
   // Get a reference to an ETH (mainnet) provider.
   console.log('Connecting to ETH provider...')
   const ethProvider = new ethers.providers.JsonRpcProvider(
@@ -165,7 +161,6 @@ export const loadSurgeryData = async (
     etherscanDump,
     ropstenProvider,
     ropstenWallet,
-    l1Provider,
     l2Provider,
     ethProvider,
   }
