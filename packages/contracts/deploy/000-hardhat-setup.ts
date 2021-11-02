@@ -5,9 +5,9 @@ import {
   getContractFromArtifact,
   fundAccount,
   sendImpersonatedTx,
-  waitUntilTrue,
   BIG_BALANCE,
 } from '../src/hardhat-deploy-ethers'
+import { awaitCondition } from '@eth-optimism/core-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   if ((hre as any).deployConfig.forked !== 'true') {
@@ -39,9 +39,13 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   console.log(`Waiting for owner to be correctly set...`)
-  await waitUntilTrue(async () => {
-    return (await Lib_AddressManager.owner()) === deployer
-  })
+  await awaitCondition(
+    async () => {
+      return (await Lib_AddressManager.owner()) === deployer
+    },
+    5000,
+    100
+  )
 
   // Get a reference to the L1StandardBridge contract.
   const Proxy__OVM_L1StandardBridge = await getContractFromArtifact(
@@ -63,13 +67,17 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   console.log(`Waiting for owner to be correctly set...`)
-  await waitUntilTrue(async () => {
-    return (
-      (await Proxy__OVM_L1StandardBridge.callStatic.getOwner({
-        from: hre.ethers.constants.AddressZero,
-      })) === deployer
-    )
-  })
+  await awaitCondition(
+    async () => {
+      return (
+        (await Proxy__OVM_L1StandardBridge.callStatic.getOwner({
+          from: hre.ethers.constants.AddressZero,
+        })) === deployer
+      )
+    },
+    5000,
+    100
+  )
 }
 
 deployFn.tags = ['hardhat', 'upgrade']

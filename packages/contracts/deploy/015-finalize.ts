@@ -1,12 +1,9 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { hexStringEquals } from '@eth-optimism/core-utils'
+import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
-import {
-  getContractFromArtifact,
-  waitUntilTrue,
-} from '../src/hardhat-deploy-ethers'
+import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -31,9 +28,13 @@ const deployFn: DeployFunction = async (hre) => {
   await Lib_AddressManager.transferOwnership(owner)
 
   console.log(`Confirming transfer was successful...`)
-  await waitUntilTrue(async () => {
-    return hexStringEquals(await Lib_AddressManager.owner(), owner)
-  })
+  await awaitCondition(
+    async () => {
+      return hexStringEquals(await Lib_AddressManager.owner(), owner)
+    },
+    5000,
+    100
+  )
 
   console.log(`✓ Set owner of Lib_AddressManager to: ${owner}`)
 }

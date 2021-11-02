@@ -13,11 +13,14 @@ import {
 } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
-import { IS_LIVE_NETWORK } from './shared/utils'
+import { isLiveNetwork } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
 const setPrices = async (env: OptimismEnv, value: number | BigNumber) => {
+  if (isLiveNetwork()) {
+    return
+  }
   const gasPrice = await env.gasPriceOracle.setGasPrice(value)
   await gasPrice.wait()
   const baseFee = await env.gasPriceOracle.setL1BaseFee(value)
@@ -32,20 +35,22 @@ describe('Fee Payment Integration Tests', async () => {
     env = await OptimismEnv.new()
   })
 
-  it(`should return eth_gasPrice equal to OVM_GasPriceOracle.gasPrice`, async () => {
-    const assertGasPrice = async () => {
-      const gasPrice = await env.l2Wallet.getGasPrice()
-      const oracleGasPrice = await env.gasPriceOracle.gasPrice()
-      expect(gasPrice).to.deep.equal(oracleGasPrice)
-    }
+  if (!isLiveNetwork()) {
+    it(`should return eth_gasPrice equal to OVM_GasPriceOracle.gasPrice`, async () => {
+      const assertGasPrice = async () => {
+        const gasPrice = await env.l2Wallet.getGasPrice()
+        const oracleGasPrice = await env.gasPriceOracle.gasPrice()
+        expect(gasPrice).to.deep.equal(oracleGasPrice)
+      }
 
-    assertGasPrice()
-    // update the gas price
-    const tx = await env.gasPriceOracle.setGasPrice(1000)
-    await tx.wait()
+      assertGasPrice()
+      // update the gas price
+      const tx = await env.gasPriceOracle.setGasPrice(1000)
+      await tx.wait()
 
-    assertGasPrice()
-  })
+      assertGasPrice()
+    })
+  }
 
   it('Paying a nonzero but acceptable gasPrice fee', async () => {
     await setPrices(env, 1000)
@@ -152,19 +157,16 @@ describe('Fee Payment Integration Tests', async () => {
   })
 
   it('should be able to withdraw fees back to L1 once the minimum is met', async function () {
+    if (isLiveNetwork()) {
+      this.skip()
+      return
+    }
+
     const l1FeeWallet = await env.sequencerFeeVault.l1FeeWallet()
     const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
     const withdrawalAmount = await env.sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
 
     const l2WalletBalance = await env.l2Wallet.getBalance()
-    if (IS_LIVE_NETWORK && l2WalletBalance.lt(withdrawalAmount)) {
-      console.log(
-        `NOTICE: must have at least ${ethers.utils.formatEther(
-          withdrawalAmount
-        )} ETH on L2 to execute this test, skipping`
-      )
-      this.skip()
-    }
 
     // Transfer the minimum required to withdraw.
     const tx = await env.l2Wallet.sendTransaction({

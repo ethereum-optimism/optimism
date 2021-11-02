@@ -183,9 +183,7 @@ describe('Native ETH Integration Tests', async () => {
     ).to.be.reverted
   })
 
-  it('withdraw', async function () {
-    await useDynamicTimeoutForWithdrawals(this, env)
-
+  it('withdraw', async () => {
     const withdrawAmount = BigNumber.from(3)
     const preBalances = await getBalances(env)
     expect(
@@ -227,9 +225,7 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('withdrawTo', async function () {
-    await useDynamicTimeoutForWithdrawals(this, env)
-
+  it('withdrawTo', async () => {
     const withdrawAmount = BigNumber.from(3)
 
     const preBalances = await getBalances(env)
@@ -287,9 +283,7 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit, transfer, withdraw', async function () {
-    await useDynamicTimeoutForWithdrawals(this, env)
-
+  it('deposit, transfer, withdraw', async () => {
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(

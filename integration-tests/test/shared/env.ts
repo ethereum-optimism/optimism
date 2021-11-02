@@ -185,6 +185,16 @@ export class OptimismEnv {
             await sleep(5000)
           } else if (err.message.includes('Nonce too low')) {
             await sleep(5000)
+          } else if (err.message.includes('transaction was replaced')) {
+            // this happens when we run tests in parallel
+            await sleep(5000)
+          } else if (
+            err.message.includes(
+              'another transaction with same nonce in the queue'
+            )
+          ) {
+            // this happens when we run tests in parallel
+            await sleep(5000)
           } else if (
             err.message.includes('message has already been received')
           ) {

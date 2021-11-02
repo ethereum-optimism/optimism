@@ -1,11 +1,29 @@
 import { expect } from 'chai'
 import { BigNumber } from 'ethers'
+import { sleep }  from './misc'
 
 interface deviationRanges {
   percentUpperDeviation?: number
   percentLowerDeviation?: number
   absoluteUpperDeviation?: number
   absoluteLowerDeviation?: number
+}
+
+export const awaitCondition = async (
+  cond: () => Promise<boolean>,
+  rate = 1000,
+  attempts = 10
+) => {
+  for (let i = 0; i < attempts; i++) {
+    const ok = await cond()
+    if (ok) {
+      return
+    }
+
+    await sleep(rate)
+  }
+
+  throw new Error('Timed out.')
 }
 
 /**

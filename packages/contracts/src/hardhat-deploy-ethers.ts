@@ -2,28 +2,12 @@
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep, hexStringEquals } from '@eth-optimism/core-utils'
+import {
+  sleep,
+  hexStringEquals,
+  awaitCondition,
+} from '@eth-optimism/core-utils'
 import { HttpNetworkConfig } from 'hardhat/types'
-
-export const waitUntilTrue = async (
-  check: () => Promise<boolean>,
-  opts: {
-    retries?: number
-    delay?: number
-  } = {}
-) => {
-  opts.retries = opts.retries || 100
-  opts.delay = opts.delay || 5000
-
-  let retries = 0
-  while (!(await check())) {
-    if (retries > opts.retries) {
-      throw new Error(`check failed after ${opts.retries} attempts`)
-    }
-    retries++
-    await sleep(opts.delay)
-  }
-}
 
 export const deployAndPostDeploy = async ({
   hre,
@@ -152,10 +136,14 @@ export const fundAccount = async (
   ])
 
   console.log(`Waiting for balance to reflect...`)
-  await waitUntilTrue(async () => {
-    const balance = await hre.ethers.provider.getBalance(address)
-    return balance.gte(amount)
-  })
+  await awaitCondition(
+    async () => {
+      const balance = await hre.ethers.provider.getBalance(address)
+      return balance.gte(amount)
+    },
+    5000,
+    100
+  )
 
   console.log(`Account successfully funded.`)
 }
