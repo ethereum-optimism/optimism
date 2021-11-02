@@ -5,7 +5,7 @@ export interface SurgeryConfigs {
   etherscanFilePath: string
   genesisFilePath: string
   outputFilePath: string
-  l2NetworkName: SupportedNetworks
+  l2NetworkName?: SupportedNetworks
   l2ProviderUrl: string
   ropstenProviderUrl: string
   ropstenPrivateKey: string
