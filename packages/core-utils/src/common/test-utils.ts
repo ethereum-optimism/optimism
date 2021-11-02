@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { BigNumber } from 'ethers'
-import { sleep }  from './misc'
+import { sleep } from './misc'
 
 interface deviationRanges {
   percentUpperDeviation?: number

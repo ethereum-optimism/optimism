@@ -1,7 +1,7 @@
-import { expect } from '../setup'
+import { expect } from './setup'
 
 /* Imports: Internal */
-import { expectApprox, awaitCondition } from '../../src'
+import { expectApprox, awaitCondition } from '../src'
 import { assert } from 'chai'
 
 describe('awaitCondition', () => {
@@ -12,7 +12,7 @@ describe('awaitCondition', () => {
       return Promise.resolve(i === 2)
     }
 
-    await awaitCondition(condFn, 50, 3);
+    await awaitCondition(condFn, 50, 3)
     expect(i).to.equal(2)
   })
 
@@ -24,12 +24,12 @@ describe('awaitCondition', () => {
     }
 
     try {
-      await awaitCondition(condFn, 50, 1);
+      await awaitCondition(condFn, 50, 1)
     } catch (e) {
-      return;
+      return
     }
 
-    assert.fail('Condition never failed, but it should have.');
+    assert.fail('Condition never failed, but it should have.')
   })
 })
 
