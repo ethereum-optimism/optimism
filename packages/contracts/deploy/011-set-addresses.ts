@@ -32,6 +32,45 @@ const deployFn: DeployFunction = async (hre) => {
   const finalOwner = await AddressDictator.finalOwner()
   const currentOwner = await Lib_AddressManager.owner()
 
+  console.log(`
+    The AddressDictator contract (glory to Arstotzka) has been deployed.
+
+    FOLLOW THESE INSTRUCTIONS CAREFULLY!
+
+    (1) Review the Contract Name / Contract Address pairs below and confirm that they match
+        the addresses found in the contract artifacts of your current deployment.
+
+    ${namedAddresses
+      .map((namedAddress) => {
+        const padding = ' '.repeat(40 - namedAddress.name.length)
+        return `
+        ${namedAddress.name}${padding}  ${namedAddress.addr}
+      `
+      })
+      .join('\n')}
+
+    (2) Review the CURRENT and FINAL AddressManager owners and verify that these are the expected values:
+
+        Current AddressManager owner: (${currentOwner})
+        Final AddressManager owner:   (${finalOwner})
+
+        [${
+          currentOwner === finalOwner
+            ? 'THESE ARE THE SAME ADDRESSES'
+            : 'THESE ARE >>>NOT<<< THE SAME ADDRESSES'
+        }]
+
+    (3) Transfer ownership of the AddressManager located at (${
+      Lib_AddressManager.address
+    })
+        to the AddressDictator contract located at the following address:
+
+        TRANSFER OWNERSHIP TO THE FOLLOWING ADDRESS ONLY:
+        >>>>> (${AddressDictator.address}) <<<<<
+
+    (4) Wait for the deploy process to continue.
+  `)
+
   // Check if the hardhat runtime environment has the owner of the AddressManager. This will only
   // happen in CI. If this is the case, we can skip directly to transferring ownership over to the
   // AddressDictator contract.
@@ -39,52 +78,12 @@ const deployFn: DeployFunction = async (hre) => {
   const hreHasOwner = hreSigners.some((signer) => {
     return hexStringEquals(signer.address, currentOwner)
   })
-
   if (hreHasOwner) {
     // Hardhat has the owner loaded into it, we can skip directly to transferOwnership.
     const owner = await hre.ethers.getSigner(currentOwner)
     await Lib_AddressManager.connect(owner).transferOwnership(
       AddressDictator.address
     )
-  } else {
-    console.log(`
-      The AddressDictator contract (glory to Arstotzka) has been deployed.
-
-      FOLLOW THESE INSTRUCTIONS CAREFULLY!
-
-      (1) Review the Contract Name / Contract Address pairs below and confirm that they match
-          the addresses found in the contract artifacts of your current deployment.
-
-      ${namedAddresses
-        .map((namedAddress) => {
-          const padding = ' '.repeat(40 - namedAddress.name.length)
-          return `
-          ${namedAddress.name}${padding}  ${namedAddress.addr}
-        `
-        })
-        .join('\n')}
-
-      (2) Review the CURRENT and FINAL AddressManager owners and verify that these are the expected values:
-
-          Current AddressManager owner: (${currentOwner})
-          Final AddressManager owner:   (${finalOwner})
-
-          [${
-            currentOwner === finalOwner
-              ? 'THESE ARE THE SAME ADDRESSES'
-              : 'THESE ARE >>>NOT<<< THE SAME ADDRESSES'
-          }]
-
-      (3) Transfer ownership of the AddressManager located at (${
-        Lib_AddressManager.address
-      })
-          to the AddressDictator contract located at the following address:
-
-          TRANSFER OWNERSHIP TO THE FOLLOWING ADDRESS ONLY:
-          >>>>> (${AddressDictator.address}) <<<<<
-
-      (4) Wait for the deploy process to continue.
-    `)
   }
 
   // Wait for ownership to be transferred to the AddressDictator contract.
