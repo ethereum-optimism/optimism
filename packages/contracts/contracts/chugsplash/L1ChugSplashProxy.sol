@@ -16,6 +16,14 @@ import { iL1ChugSplashDeployer } from "./interfaces/iL1ChugSplashDeployer.sol";
  */
 contract L1ChugSplashProxy {
     /*************
+     * Events *
+     *************/
+
+    event OwnerUpdated(address indexed owner);
+
+    event CodeUpdated(address indexed implementation);
+
+    /*************
      * Constants *
      *************/
 
@@ -145,6 +153,7 @@ contract L1ChugSplashProxy {
         );
 
         _setImplementation(newImplementation);
+        emit CodeUpdated(newImplementation);
     }
 
     /**
@@ -165,6 +174,7 @@ contract L1ChugSplashProxy {
      */
     function setOwner(address _owner) public proxyCallIfNotOwner {
         _setOwner(_owner);
+        emit OwnerUpdated(_owner);
     }
 
     /**
