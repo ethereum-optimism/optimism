@@ -2,9 +2,9 @@
 import fetch from 'node-fetch'
 import path from 'path'
 import fs from 'fs'
-import solc from 'solc'
 import { ethers } from 'ethers'
 import { clone } from '@eth-optimism/core-utils'
+import { setupMethods } from 'solc/wrapper'
 import {
   COMPILER_VERSIONS_TO_SOLC,
   EMSCRIPTEN_BUILD_LIST,
@@ -116,7 +116,7 @@ export const getMainContract = (contract: EtherscanContract, output) => {
 }
 
 export const getSolc = (version: string, ovm?: boolean) => {
-  return solc.setupMethods(
+  return setupMethods(
     require(path.join(
       LOCAL_SOLC_DIR,
       ovm ? version : `solc-emscripten-wasm32-${version}.js`
