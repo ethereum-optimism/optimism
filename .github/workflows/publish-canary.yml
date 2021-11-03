@@ -331,7 +331,7 @@ jobs:
 
       - name: Set env
         run: |
-          echo "GITDATE=$(date)" >> $GITHUB_ENV"
+          echo "GITDATE=$(date)" >> $GITHUB_ENV
 
       - name: Build and push
         uses: docker/build-push-action@v2
