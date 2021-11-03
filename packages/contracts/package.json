@@ -100,6 +100,8 @@
     "rlp": "^2.2.6",
     "solhint": "^3.3.6",
     "solidity-coverage": "^0.7.17",
+    "prettier-plugin-solidity": "^1.0.0-beta.18",
+    "solhint-plugin-prettier": "^0.0.5",
     "ts-generator": "0.0.8",
     "ts-node": "^10.0.0",
     "typechain": "^5.1.0",
